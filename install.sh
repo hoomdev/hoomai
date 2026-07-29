@@ -1,9 +1,9 @@
 #!/bin/sh
-# hoomAI installer — https://github.com/oceansbits/hoomai
-# Uso:  curl -fsSL https://raw.githubusercontent.com/oceansbits/hoomai/main/install.sh | sh
+# hoomAI installer — https://github.com/hoomdev/hoomai
+# Uso:  curl -fsSL https://raw.githubusercontent.com/hoomdev/hoomai/main/install.sh | sh
 set -e
 
-REPO="${HOOM_REPO:-oceansbits/hoomai}"
+REPO="${HOOM_REPO:-hoomdev/hoomai}"
 INSTALL_DIR="${HOOM_INSTALL_DIR:-}"
 
 info()  { printf '\033[32mhoomAI:\033[0m %s\n' "$1"; }

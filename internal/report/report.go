@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/oceansbits/hoomai/internal/verdict"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 const (

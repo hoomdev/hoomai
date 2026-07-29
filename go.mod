@@ -1,4 +1,4 @@
-module github.com/oceansbits/hoomai
+module github.com/hoomdev/hoomai
 
 go 1.22
 

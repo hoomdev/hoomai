@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oceansbits/hoomai/internal/gitx"
-	"github.com/oceansbits/hoomai/internal/manifest"
-	"github.com/oceansbits/hoomai/internal/verdict"
+	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 // Options control a verify run.

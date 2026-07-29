@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/oceansbits/hoomai/internal/manifest"
-	"github.com/oceansbits/hoomai/internal/profiles"
+	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/profiles"
 )
 
 // Run initializes dir. If profileName is empty the stack is auto-detected.

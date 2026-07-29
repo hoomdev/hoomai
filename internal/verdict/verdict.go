@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oceansbits/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/gitx"
 )
 
 const SchemaID = "hoom.verdict/v1"

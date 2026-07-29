@@ -15,7 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/oceansbits/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/manifest"
 )
 
 //go:embed assets/profiles/*.yaml

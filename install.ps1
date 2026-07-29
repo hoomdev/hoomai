@@ -1,8 +1,8 @@
 # hoomAI installer para Windows
-# Uso: irm https://raw.githubusercontent.com/oceansbits/hoomai/main/install.ps1 | iex
+# Uso: irm https://raw.githubusercontent.com/hoomdev/hoomai/main/install.ps1 | iex
 $ErrorActionPreference = "Stop"
 
-$Repo = if ($Env:HOOM_REPO) { $Env:HOOM_REPO } else { "oceansbits/hoomai" }
+$Repo = if ($Env:HOOM_REPO) { $Env:HOOM_REPO } else { "hoomdev/hoomai" }
 $Url  = "https://github.com/$Repo/releases/latest/download/hoom-windows-amd64.exe"
 $Dir  = Join-Path $Env:LOCALAPPDATA "hoom"
 $Bin  = Join-Path $Dir "hoom.exe"

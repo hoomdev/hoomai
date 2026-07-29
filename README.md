@@ -11,18 +11,18 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 
 ```sh
 # Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/oceansbits/hoomai/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/hoomdev/hoomai/main/install.sh | sh
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/oceansbits/hoomai/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/hoomdev/hoomai/main/install.ps1 | iex
 ```
 
 Alternativas:
 
 ```sh
-go install github.com/oceansbits/hoomai/cmd/hoom@latest   # si tienes Go 1.22+
+go install github.com/hoomdev/hoomai/cmd/hoom@latest   # si tienes Go 1.22+
 go build -o hoom ./cmd/hoom                               # desde el repo (vendor incluido, sin red)
 ```
 

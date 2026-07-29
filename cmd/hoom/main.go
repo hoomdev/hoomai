@@ -10,14 +10,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/oceansbits/hoomai/internal/agents"
-	"github.com/oceansbits/hoomai/internal/gates"
-	"github.com/oceansbits/hoomai/internal/gitx"
-	"github.com/oceansbits/hoomai/internal/initcmd"
-	"github.com/oceansbits/hoomai/internal/manifest"
-	"github.com/oceansbits/hoomai/internal/profiles"
-	"github.com/oceansbits/hoomai/internal/report"
-	"github.com/oceansbits/hoomai/internal/verdict"
+	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/gates"
+	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/initcmd"
+	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/profiles"
+	"github.com/hoomdev/hoomai/internal/report"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 var version = "0.1.0"
