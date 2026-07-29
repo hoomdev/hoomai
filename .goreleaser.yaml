@@ -37,5 +37,5 @@ release:
   footer: |
     ## Instalacion en un comando
     ```sh
-    curl -fsSL https://raw.githubusercontent.com/oceansbits/hoomai/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/hoomdev/hoomai/main/install.sh | sh
     ```
