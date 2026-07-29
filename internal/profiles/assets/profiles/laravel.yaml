@@ -1,0 +1,30 @@
+name: laravel
+description: PHP / Laravel (Pest o PHPUnit, PHPStan, Infection, tests de arquitectura)
+detect:
+  files: [composer.json, artisan]
+gates:
+  test:
+    required: true
+    cmd: "vendor/bin/pest --colors=never"
+    notes: "Cambiar a vendor/bin/phpunit si el proyecto no usa Pest."
+  static:
+    required: true
+    cmd: "vendor/bin/phpstan analyse --no-progress --error-format=raw"
+    notes: "Nivel definido en phpstan.neon del proyecto. Recomendado: max."
+  lint:
+    required: false
+    cmd: "vendor/bin/pint --test"
+    notes: "Laravel Pint en modo verificacion (no modifica archivos)."
+  arch:
+    required: true
+    cmd: "vendor/bin/pest --group=arch --colors=never"
+    notes: "Tests de arquitectura de Pest (arch()). Capas, dependencias, invariantes."
+  mutation:
+    required: true
+    cmd: "vendor/bin/infection --threads=max --no-progress --min-msi=60"
+    diff_cmd: "vendor/bin/infection --threads=max --no-progress --git-diff-filter=AM --git-diff-base={base} --min-msi=60"
+    notes: "Acotado por diff en cada verify. Corrida completa nocturna: hoom verify --full --gate mutation"
+  build:
+    required: false
+    cmd: ""
+    notes: "Opcional: npm run build para assets, o composer validate."

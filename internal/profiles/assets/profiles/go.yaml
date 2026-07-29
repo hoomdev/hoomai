@@ -1,0 +1,31 @@
+name: go
+description: Go (go test con race detector, go vet, golangci-lint, arch-go, Gremlins)
+detect:
+  files: [go.mod]
+gates:
+  test:
+    required: true
+    cmd: "go test -race ./..."
+    diff_cmd: "go test -race {packages}"
+    notes: "Acotado por diff: solo los paquetes de los archivos .go cambiados."
+  static:
+    required: true
+    cmd: "go vet ./..."
+    notes: "Base minima. Recomendado sumar staticcheck ./... cuando este instalado."
+  lint:
+    required: false
+    cmd: ""
+    notes: "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+  arch:
+    required: false
+    cmd: ""
+    notes: "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+  mutation:
+    required: true
+    cmd: "gremlins unleash"
+    partial: "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo."
+    notes: "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+  build:
+    required: true
+    cmd: "go build ./..."
+    notes: "Compilacion completa como gate."

@@ -1,0 +1,17 @@
+# hoomAI verificandose a si mismo (dogfood)
+schema: hoom/v1
+project: hoomai
+profile: go
+base_branch: main
+policy: strict
+gates:
+  mutation:
+    required: false
+    cmd: ""
+    # Gremlins se corre manualmente por ahora; se activara cuando haya suite de tests.
+  lint:
+    required: false
+    cmd: ""
+  arch:
+    required: false
+    cmd: ""

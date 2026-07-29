@@ -1,0 +1,23 @@
+name: kmp-compose
+description: Compose Multiplatform (hereda kmp; agrega gates especificos de Compose)
+extends: kmp
+detect:
+  files: [settings.gradle.kts]
+  any_content:
+    - path: build.gradle.kts
+      contains: "org.jetbrains.compose"
+    - path: gradle/libs.versions.toml
+      contains: "compose"
+gates:
+  compose_lint:
+    required: true
+    cmd: "./gradlew lint --console=plain -q"
+    notes: "Reglas de lint de Compose (Android lint o compose-rules via detekt)."
+  compose_metrics:
+    required: false
+    cmd: ""
+    notes: "Opcional: assembleRelease -PcomposeCompilerReports=true -> build/compose_metrics (composables inestables)."
+  arch:
+    required: true
+    cmd: "./gradlew konsistTest --console=plain -q"
+    notes: "Konsist ampliado: convenciones de composables (sufijos, modifier, previews)."

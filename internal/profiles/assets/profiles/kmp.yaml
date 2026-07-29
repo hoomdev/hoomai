@@ -1,0 +1,35 @@
+name: kmp
+description: Kotlin Multiplatform (Gradle, detekt, Konsist, Pitest sobre target JVM)
+detect:
+  files: [settings.gradle.kts]
+  any_content:
+    - path: build.gradle.kts
+      contains: "multiplatform"
+    - path: settings.gradle.kts
+      contains: "multiplatform"
+gates:
+  test:
+    required: true
+    cmd: "./gradlew allTests --console=plain -q"
+    notes: "Tests de todos los targets. Para solo JVM: ./gradlew jvmTest."
+  static:
+    required: true
+    cmd: "./gradlew detekt --console=plain -q"
+    notes: "detekt aplicado en el build. Config: config/detekt/detekt.yml."
+  lint:
+    required: false
+    cmd: ""
+    notes: "Opcional: ./gradlew ktlintCheck si el proyecto usa ktlint ademas de detekt."
+  arch:
+    required: true
+    cmd: "./gradlew konsistTest --console=plain -q"
+    notes: "Konsist como test dedicado. Convenciones de modulos shared vs plataforma."
+  mutation:
+    required: true
+    cmd: "./gradlew pitest --console=plain -q"
+    partial: "Solo target JVM: iOS/native quedan fuera del mutation testing."
+    notes: "Cobertura parcial DECLARADA, nunca oculta."
+  build:
+    required: true
+    cmd: "./gradlew assemble --console=plain -q"
+    notes: "Compilacion de todos los targets: detecta breaks en expect/actual."
