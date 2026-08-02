@@ -64,7 +64,8 @@ hoom report      # historial y tendencia por gate
 | `hoom check` | Compara el arbol ACTUAL contra el ultimo veredicto: verde + huella coincidente = OK |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
-| `hoom agents` | Instala los 8 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
+| `hoom agents` | Instala los 9 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
+| `hoom agents --target all` | Genera ademas los subagentes NATIVOS de Claude Code, OpenCode, Codex y Gemini CLI |
 | `hoom profiles` | Lista los perfiles embebidos |
 
 ## Perfiles (v1)
@@ -133,6 +134,27 @@ tarea) - 05 Test-writer adversarial (PROHIBIDO ver la implementacion) - 06 Revie
 actual de codigo legacy antes de refactorizar).
 
 `verify` NO es un agente: es un comando deterministico.
+
+## Subagentes nativos (multi-CLI)
+
+Los contratos de `.hoom/agents/` son la unica fuente de verdad. Con
+`hoom agents --target claude,opencode,codex,gemini` (o `all`) se generan los
+subagentes en el formato nativo de cada herramienta:
+
+| Target | Genera | Enforcement duro |
+|---|---|---|
+| `claude` | `.claude/agents/*.md` | roles de solo lectura sin herramientas de edicion |
+| `opencode` | `.opencode/agents/*.md` | orquestador PRIMARY con `edit: deny`; subagentes con permisos por rol |
+| `codex` | `.codex/agents/*.toml` | roles de solo lectura con `sandbox_mode = "read-only"` |
+| `gemini` | `.gemini/agents/*.md` | tools restringidas a lectura por rol |
+
+Donde la CLI lo soporta, la disciplina del contrato deja de ser texto y se
+vuelve imposibilidad tecnica: el scout no puede editar aunque quiera. En
+Claude Code, Codex y Gemini el orquestador es tu sesion principal (atada via
+AGENTS.md); en OpenCode es un agente primary seleccionable con Tab. Nota:
+Antigravity CLI aun no carga subagentes; el target `gemini` sirve a Gemini CLI
+(licencias Code Assist) y se agregara `antigravity` cuando Google documente su
+formato.
 
 ## Publicar un release (mantenedores)
 

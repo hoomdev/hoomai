@@ -22,7 +22,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
-var version = "0.2.0"
+var version = "0.3.0"
 
 const usage = `hoomAI %s - harness de verificacion agnostico de IA y de stack
 
@@ -34,7 +34,9 @@ Comandos:
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
-  agents      Instala los 8 contratos de agentes en .hoom/agents/ y AGENTS.md
+  agents      Instala los 9 contratos en .hoom/agents/ y AGENTS.md
+              --target claude,opencode,codex,gemini|all genera ademas los
+              subagentes NATIVOS de cada CLI desde los mismos contratos
   profiles    Lista los perfiles de stack embebidos
   version     Muestra la version
 
@@ -240,9 +242,26 @@ func cmdReport(args []string) error {
 }
 
 func cmdAgents(args []string) error {
+	fs := flag.NewFlagSet("agents", flag.ExitOnError)
+	target := fs.String("target", "", "genera subagentes nativos: claude,opencode,codex,gemini o all")
+	_ = fs.Parse(args)
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
 		return err
 	}
-	return agents.Install(m.Dir)
+	if err := agents.Install(m.Dir); err != nil {
+		return err
+	}
+	if *target == "" {
+		return nil
+	}
+	var list []string
+	if *target == "all" {
+		list = agents.ValidTargets
+	} else {
+		for _, t := range strings.Split(*target, ",") {
+			list = append(list, strings.TrimSpace(t))
+		}
+	}
+	return agents.GenerateTargets(m.Dir, list)
 }
