@@ -61,6 +61,9 @@ hoom report      # historial y tendencia por gate
 | `hoom verify --full` | Ignora el scoping por diff (corrida completa, ej. nocturna) |
 | `hoom verify --gate test,static` | Ejecuta solo esos gates |
 | `hoom report -n 10` | Historial de veredictos + tendencia de pass-rate por gate |
+| `hoom check` | Compara el arbol ACTUAL contra el ultimo veredicto: verde + huella coincidente = OK |
+| `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
+| `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
 | `hoom agents` | Instala los 8 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
 | `hoom profiles` | Lista los perfiles embebidos |
 
@@ -97,6 +100,28 @@ gates:
 Variables de template: `{base}` (rama base), `{files}` (archivos cambiados),
 `{packages}` (paquetes Go derivados de los .go cambiados). Si un `diff_cmd` expande a
 vacio, cae al comando completo en lugar de ejecutar una linea rota.
+
+## Congelamiento del candidato (anti-fraude de veredicto)
+
+Cada veredicto congela una **huella SHA-256 del cambio exacto verificado** (commit +
+contenido de cada archivo tocado) y el tamano del cambio (+ins/-del). `hoom check`
+compara esa huella contra el arbol actual: si un agente verifica A y entrega B, la
+huella no coincide y el check es ROJO con la accion exacta a ejecutar. `hoom hook`
+lleva esto al pre-push: sin veredicto verde con huella coincidente, no hay push
+(`HOOM_SKIP=1 git push` existe como escape consciente y visible, nunca silencioso).
+Mas de 400 lineas cambiadas dispara deterministicamente la review con 4 lentes.
+Es la idea central de RDD (Receipt Driven Development) sin la ceremonia
+criptografica: el modelo de amenaza local es la deriva, no la falsificacion.
+
+## Gate de seguridad (Semgrep)
+
+Todos los perfiles incluyen un gate `security` (ausente por defecto; se activa
+instalando semgrep y llenando el cmd). Recomendado: reglas `p/default` +
+`p/trailofbits`, con `--baseline-commit` para scoping por diff. Las reglas
+propias del proyecto viven versionadas en `.hoom/semgrep/`: cuando una review
+encuentra un patron peligroso, se convierte en regla (las skills de Trail of
+Bits para Claude Code hacen exactamente eso en la capa del agente) y el gate lo
+bloquea para siempre. En proyectos con auth/pagos/facturacion: `required: true`.
 
 ## Los 8 agentes (.hoom/agents/)
 

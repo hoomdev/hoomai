@@ -49,6 +49,12 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 	} else {
 		fmt.Fprintf(w, "git: no es un repositorio (sin scoping por diff)\n")
 	}
+	if v.Git.IsRepo && (v.Git.Insertions+v.Git.Deletions) > 0 {
+		fmt.Fprintf(w, "cambio: +%d -%d lineas - huella %s\n", v.Git.Insertions, v.Git.Deletions, v.Git.ChangeFingerprint)
+		if v.Git.Insertions+v.Git.Deletions > 400 {
+			fmt.Fprintf(w, "%s! cambio grande (>400 lineas): la review exige las 4 lentes (readability/reliability/resilience/risk)%s\n", cYellow, cReset)
+		}
+	}
 	fmt.Fprintln(w, strings.Repeat("-", 72))
 	for _, g := range v.Gates {
 		scope := ""

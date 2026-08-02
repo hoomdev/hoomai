@@ -61,7 +61,7 @@ type Manifest struct {
 }
 
 // canonical execution order for well-known gates; unknown gates go last, alphabetical.
-var gateOrder = []string{"build", "lint", "static", "arch", "compose_lint", "compose_metrics", "test", "mutation"}
+var gateOrder = []string{"build", "lint", "static", "security", "arch", "compose_lint", "compose_metrics", "test", "mutation"}
 
 // SortedGateNames returns gate names in canonical execution order.
 func (m *Manifest) SortedGateNames() []string {

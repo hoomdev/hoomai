@@ -3,6 +3,10 @@ description: PHP / Laravel (Pest o PHPUnit, PHPStan, Infection, tests de arquite
 detect:
   files: [composer.json, artisan]
 gates:
+  security:
+    required: false
+    cmd: ""
+    notes: "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
   test:
     required: true
     cmd: "vendor/bin/pest --colors=never"

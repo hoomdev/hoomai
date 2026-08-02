@@ -69,8 +69,10 @@ func Run(dir, projectName, profileName string) error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Join(abs, ".hoom", "verdicts"), 0o755); err != nil {
-		return err
+	for _, d := range []string{"verdicts", "specs", "intake"} {
+		if err := os.MkdirAll(filepath.Join(abs, ".hoom", d), 0o755); err != nil {
+			return err
+		}
 	}
 	gi := filepath.Join(abs, ".hoom", ".gitignore")
 	if _, err := os.Stat(gi); os.IsNotExist(err) {
@@ -78,6 +80,8 @@ func Run(dir, projectName, profileName string) error {
 	}
 	fmt.Printf("hoom: creado %s\n", target)
 	fmt.Printf("hoom: creado .hoom/verdicts/ (los veredictos viajan en Git; .hoom/cache no)\n")
+	fmt.Printf("hoom: creado .hoom/intake/ (documentos del cliente: SRS, planes, minutas)\n")
+	fmt.Printf("hoom: creado .hoom/specs/ (vision del producto y specs por tarea)\n")
 	fmt.Printf("hoom: siguiente paso -> revisa los cmd del manifiesto y ejecuta 'hoom verify'\n")
 	return nil
 }

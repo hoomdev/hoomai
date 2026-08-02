@@ -3,6 +3,10 @@ description: Go (go test con race detector, go vet, golangci-lint, arch-go, Grem
 detect:
   files: [go.mod]
 gates:
+  security:
+    required: false
+    cmd: ""
+    notes: "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
   test:
     required: true
     cmd: "go test -race ./..."

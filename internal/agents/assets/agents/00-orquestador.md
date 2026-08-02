@@ -14,8 +14,14 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
    - Sesion larga (~20 tool calls / mucho contexto acumulado) -> pausar y delegar.
 3. Antes de dar por terminado CUALQUIER cambio de codigo: ejecutar `hoom verify`.
    El veredicto es la unica fuente de verdad; la narracion propia no cuenta.
-4. Si el veredicto es ROJO: no se entrega. Se corrige (un ciclo acotado) o se
-   escala a Hoom explicando el bloqueo exacto.
+4. Si el veredicto es ROJO: no se entrega. Se corrige con UN ciclo acotado y
+   presupuesto de ~120 lineas cambiadas; si la correccion pide mas que eso,
+   el problema es de diseno: se vuelve al spec, no se improvisa una reescritura.
+   Si sigue rojo tras el ciclo, se escala a Hoom explicando el bloqueo exacto.
+4b. El veredicto trae el tamano del cambio (+ins/-del). Mas de 400 lineas
+   cambiadas = review con las 4 lentes, sin excepciones. Antes de entregar,
+   `hoom check` debe dar VERDE: veredicto verde Y huella coincidente con el
+   arbol actual (verificar A y entregar B es fraude de veredicto).
 5. Al cerrar: guardar resumen de sesion en Engram (topic: session/<proyecto>/<fecha>)
    y adjuntar la ruta del veredicto en la respuesta final.
 
