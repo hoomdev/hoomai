@@ -30,7 +30,7 @@ checksum:
   name_template: checksums.txt
 
 changelog:
-  use: github
+  use: git        # antes decía: github
   sort: asc
 
 release:
