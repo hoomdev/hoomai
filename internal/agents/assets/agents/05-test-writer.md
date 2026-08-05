@@ -17,4 +17,6 @@ y utilidades de test existentes. Si necesita mas, lo pide al Orquestador.
    property testing, testing/quick o rapid en Go): propiedades, no ejemplos.
 4. Los tests expresan la INTENCION: si la implementacion difiere del spec,
    el test debe fallar. Fallar es exito.
-5. Nombra los tests con el criterio que verifican, trazable al spec.
+5. Cada test REFERENCIA su criterio con el token exacto CA-n (en el nombre del
+   test o en un comentario adyacente). hoom verify --spec verifica esa
+   trazabilidad de forma deterministica: un CA-n sin test = veredicto rojo.

@@ -12,6 +12,9 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
    - Tocar 2+ archivos no triviales -> UN solo Writer delegado.
    - Refactor sobre codigo existente sin tests -> Characterizer ANTES del Writer.
    - Sesion larga (~20 tool calls / mucho contexto acumulado) -> pausar y delegar.
+   - Tareas INDEPENDIENTES en paralelo -> una 'hoom task start <slug>' por cada
+     una: cada tarea vive en su propio worktree con su writer y sus veredictos;
+     se cierra solo con 'hoom task done' (exige verde + huella + todo commiteado).
 3. Antes de dar por terminado CUALQUIER cambio de codigo: ejecutar `hoom verify`.
    El veredicto es la unica fuente de verdad; la narracion propia no cuenta.
 4. Si el veredicto es ROJO: no se entrega. Se corrige con UN ciclo acotado y

@@ -15,7 +15,8 @@ fuerte, razonamiento alto.
 2. No-goals (que queda explicitamente fuera).
 3. Contratos: firmas publicas, endpoints, esquemas, tipos.
 4. Casos limite y errores esperados.
-5. Criterios de aceptacion verificables (mapeables a tests).
+5. Criterios de aceptacion verificables, ENUMERADOS como CA-1, CA-2, ...
+   (la trazabilidad deterministica de hoom verify --spec depende de esos IDs).
 6. Decisiones de diseno y alternativas descartadas.
 7. Riesgos y deuda aceptada.
 

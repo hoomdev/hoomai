@@ -60,6 +60,7 @@ func Snapshot(dir, base string) Info {
 	}
 
 	set := map[string]bool{}
+	local := map[string]bool{} // worktree divergence vs HEAD: uncommitted + untracked + deleted
 	if out, err := run(dir, "diff", "--name-only", "--diff-filter=ACMR", base+"...HEAD"); err == nil {
 		for _, f := range strings.Split(out, "\n") {
 			if f != "" {
@@ -67,10 +68,11 @@ func Snapshot(dir, base string) Info {
 			}
 		}
 	}
-	if out, err := run(dir, "diff", "--name-only", "--diff-filter=ACMR", "HEAD"); err == nil {
+	if out, err := run(dir, "diff", "--name-only", "HEAD"); err == nil {
 		for _, f := range strings.Split(out, "\n") {
 			if f != "" {
 				set[f] = true
+				local[f] = true
 			}
 		}
 	}
@@ -78,41 +80,90 @@ func Snapshot(dir, base string) Info {
 		for _, f := range strings.Split(out, "\n") {
 			if f != "" {
 				set[f] = true
+				local[f] = true
 			}
 		}
 	}
 	for f := range set {
 		// Generated artifacts are never part of the change candidate: the act
 		// of recording a verdict must not alter the fingerprint it certifies.
-		if strings.HasPrefix(f, ".hoom/verdicts/") || strings.HasPrefix(f, ".hoom/cache/") {
+		if excludedFromCandidate(f) {
 			continue
 		}
 		info.ChangedFiles = append(info.ChangedFiles, f)
 	}
 	sort.Strings(info.ChangedFiles)
-	info.ChangeFingerprint = fingerprint(dir, info.Commit, info.ChangedFiles)
+	info.ChangeFingerprint = fingerprint(dir, local)
 	info.Insertions, info.Deletions = diffStats(dir, base, info.ChangedFiles)
 	return info
 }
 
-// fingerprint hashes the change candidate: HEAD commit plus (path, content
-// hash) of every changed file in the working tree, DELETED markers included.
-// Deterministic, local, zero tokens.
-func fingerprint(dir, commit string, changed []string) string {
-	h := sha256.New()
-	io.WriteString(h, "hoom.fingerprint/v1\n")
-	io.WriteString(h, commit+"\n")
-	for _, f := range changed {
-		io.WriteString(h, f+"\n")
-		raw, err := os.ReadFile(filepath.Join(dir, f))
-		if err != nil {
-			io.WriteString(h, "DELETED\n")
+// fingerprint (v2) identifies the change candidate by CONTENT, not by git
+// position: the blob listing of HEAD's tree overlaid with the working-tree
+// version of every locally-divergent file. Committing identical content —
+// including the verdict files themselves, which are excluded — preserves the
+// fingerprint; changing one byte anywhere breaks it. Deterministic, local,
+// zero tokens.
+func fingerprint(dir string, local map[string]bool) string {
+	entries := map[string]string{}
+	if out, err := run(dir, "ls-tree", "-r", "HEAD"); err == nil {
+		for _, line := range strings.Split(out, "\n") {
+			tab := strings.IndexByte(line, '\t')
+			if tab < 0 {
+				continue
+			}
+			meta := strings.Fields(line[:tab])
+			path := line[tab+1:]
+			if len(meta) >= 3 && !excludedFromCandidate(path) {
+				entries[path] = "g:" + meta[2]
+			}
+		}
+	}
+	// Hash local files with git's own blob hasher so a file has the SAME
+	// identity whether committed or sitting in the working tree: committing
+	// identical content preserves the fingerprint by construction.
+	var localPaths []string
+	for f := range local {
+		if excludedFromCandidate(f) {
 			continue
 		}
-		sum := sha256.Sum256(raw)
-		io.WriteString(h, hex.EncodeToString(sum[:])+"\n")
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			delete(entries, f) // deleted locally
+			continue
+		}
+		localPaths = append(localPaths, f)
+	}
+	sort.Strings(localPaths)
+	if len(localPaths) > 0 {
+		cmd := exec.Command("git", append([]string{"hash-object", "--"}, localPaths...)...)
+		cmd.Dir = dir
+		if out, err := cmd.Output(); err == nil {
+			hashes := strings.Split(strings.TrimSpace(string(out)), "\n")
+			for i, f := range localPaths {
+				if i < len(hashes) && hashes[i] != "" {
+					entries[f] = "g:" + hashes[i]
+				}
+			}
+		}
+	}
+	paths := make([]string, 0, len(entries))
+	for p := range entries {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	h := sha256.New()
+	io.WriteString(h, "hoom.fingerprint/v2\n")
+	for _, p := range paths {
+		io.WriteString(h, p+"\n"+entries[p]+"\n")
 	}
 	return hex.EncodeToString(h.Sum(nil))[:16]
+}
+
+// excludedFromCandidate: generated artifacts are never part of the candidate;
+// recording or committing a verdict must not alter the fingerprint it
+// certifies.
+func excludedFromCandidate(path string) bool {
+	return strings.HasPrefix(path, ".hoom/verdicts/") || strings.HasPrefix(path, ".hoom/cache/") || strings.HasPrefix(path, ".hoom/worktrees/")
 }
 
 // diffStats measures the change candidate size: numstat of base vs working

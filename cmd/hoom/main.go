@@ -19,10 +19,12 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/report"
+	"github.com/hoomdev/hoomai/internal/spec"
+	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
-var version = "0.3.0"
+var version = "0.4.0"
 
 const usage = `hoomAI %s - harness de verificacion agnostico de IA y de stack
 
@@ -33,6 +35,7 @@ Comandos:
   verify      Ejecuta los gates del manifiesto y emite un veredicto
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
+  task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 9 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -47,7 +50,8 @@ Flags de init:
 Flags de verify:
   --full               Ignora el scoping por diff (corrida completa, ej. nocturna)
   --gate a,b           Ejecuta solo esos gates (el resto queda 'skipped')
-  --spec <ruta>        Asocia el veredicto a un spec (.hoom/specs/...)
+  --spec <ruta>        Asocia el veredicto a un spec y ejecuta los gates
+                       spec_lint y spec_trace (trazabilidad CA-n -> tests)
   --json               Emite el veredicto como JSON en stdout (para agentes)
 
 Flags de report:
@@ -73,6 +77,8 @@ func main() {
 		err = cmdReport(args)
 	case "check":
 		err = cmdCheck(args)
+	case "task":
+		err = cmdTask(args)
 	case "hook":
 		err = cmdHook(args)
 	case "agents":
@@ -112,7 +118,7 @@ func cmdVerify(args []string) error {
 	fs := flag.NewFlagSet("verify", flag.ExitOnError)
 	full := fs.Bool("full", false, "ignorar scoping por diff")
 	gateList := fs.String("gate", "", "gates a ejecutar, separados por coma")
-	spec := fs.String("spec", "", "ruta del spec asociado")
+	specPath := fs.String("spec", "", "ruta del spec asociado")
 	asJSON := fs.Bool("json", false, "emitir veredicto como JSON en stdout")
 	_ = fs.Parse(args)
 
@@ -131,7 +137,11 @@ func cmdVerify(args []string) error {
 	}
 
 	fmt.Printf("hoom: verificando %s (perfil %s, %d gates)...\n", m.Project, m.Profile, len(m.Gates))
-	results := gates.Run(m, git, opt)
+	var results []verdict.GateResult
+	if *specPath != "" {
+		results = append(results, spec.Gates(m.Dir, *specPath)...)
+	}
+	results = append(results, gates.Run(m, git, opt)...)
 
 	v := &verdict.Verdict{
 		Project: m.Project,
@@ -139,7 +149,7 @@ func cmdVerify(args []string) error {
 		Policy:  m.Policy,
 		Git:     git,
 		Gates:   results,
-		Spec:    *spec,
+		Spec:    *specPath,
 	}
 	v.Finalize()
 	path, err := verdict.Write(m.Dir, v)
@@ -190,6 +200,39 @@ func cmdCheck(args []string) error {
 	}
 	fmt.Printf("hoom check: VERDE - el arbol actual coincide con el veredicto %s (huella %s)\n", last.ID, git.ChangeFingerprint)
 	return nil
+}
+
+func cmdTask(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("uso: hoom task start <slug> | hoom task list | hoom task done <slug> [--force]")
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	sub, rest := args[0], args[1:]
+	switch sub {
+	case "start":
+		if len(rest) < 1 {
+			return fmt.Errorf("uso: hoom task start <slug>")
+		}
+		return taskcmd.Start(m.Dir, rest[0], m.BaseBranch)
+	case "list":
+		return taskcmd.List(m.Dir, m.BaseBranch)
+	case "done":
+		if len(rest) < 1 {
+			return fmt.Errorf("uso: hoom task done <slug> [--force]")
+		}
+		force := false
+		for _, a := range rest[1:] {
+			if a == "--force" {
+				force = true
+			}
+		}
+		return taskcmd.Done(m.Dir, rest[0], m.BaseBranch, force)
+	default:
+		return fmt.Errorf("subcomando desconocido %q (start|list|done)", sub)
+	}
 }
 
 const prePushHook = `#!/bin/sh

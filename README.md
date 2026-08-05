@@ -64,6 +64,10 @@ hoom report      # historial y tendencia por gate
 | `hoom check` | Compara el arbol ACTUAL contra el ultimo veredicto: verde + huella coincidente = OK |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
+| `hoom verify --spec <ruta>` | Suma los gates `spec_lint` y `spec_trace`: cada criterio CA-n del spec debe tener un test que lo referencie |
+| `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
+| `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
+| `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado |
 | `hoom agents` | Instala los 9 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
 | `hoom agents --target all` | Genera ademas los subagentes NATIVOS de Claude Code, OpenCode, Codex y Gemini CLI |
 | `hoom profiles` | Lista los perfiles embebidos |
@@ -113,6 +117,28 @@ lleva esto al pre-push: sin veredicto verde con huella coincidente, no hay push
 Mas de 400 lineas cambiadas dispara deterministicamente la review con 4 lentes.
 Es la idea central de RDD (Receipt Driven Development) sin la ceremonia
 criptografica: el modelo de amenaza local es la deriva, no la falsificacion.
+
+## Trazabilidad spec -> test (spec_lint / spec_trace)
+
+Adaptacion hoomAI de la mutacion de specs de SwarmForge, en version deterministica:
+el Arquitecto enumera los criterios de aceptacion como CA-1, CA-2, ... y el
+test-writer referencia cada CA-n en sus tests. `hoom verify --spec <ruta>` valida
+la estructura del spec (spec_lint) y que cada criterio tenga al menos un test que
+lo mencione (spec_trace). Un criterio sin test = veredicto rojo con la accion
+exacta a ejecutar. El spec y los tests ya no pueden divergir en silencio.
+
+## Tareas paralelas aisladas (hoom task)
+
+Adaptacion del worktree-por-rol de SwarmForge a nuestra unidad de trabajo: una
+tarea = una rama `hoom/<slug>` = un worktree bajo `.hoom/worktrees/` (ignorado
+por Git) = UN writer = su propio historial de veredictos. Varias tareas corren en
+paralelo con aislamiento duro de filesystem, y `hoom task done` solo cierra con
+veredicto verde, huella coincidente y todo commiteado; la rama queda lista para
+`git merge --no-ff hoom/<slug>`.
+
+La huella (v2) es de CONTENIDO puro: commitear exactamente lo verificado preserva
+la huella; cambiar un byte la rompe. Verificar, commitear e integrar sin re-correr
+gates es legitimo por construccion.
 
 ## Gate de seguridad (Semgrep)
 

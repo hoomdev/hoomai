@@ -76,7 +76,7 @@ func Run(dir, projectName, profileName string) error {
 	}
 	gi := filepath.Join(abs, ".hoom", ".gitignore")
 	if _, err := os.Stat(gi); os.IsNotExist(err) {
-		_ = os.WriteFile(gi, []byte("cache/\n"), 0o644)
+		_ = os.WriteFile(gi, []byte("cache/\nworktrees/\n"), 0o644)
 	}
 	fmt.Printf("hoom: creado %s\n", target)
 	fmt.Printf("hoom: creado .hoom/verdicts/ (los veredictos viajan en Git; .hoom/cache no)\n")
