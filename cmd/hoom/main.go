@@ -13,17 +13,16 @@ import (
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
-	"github.com/hoomdev/hoomai/internal/gates"
-	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/report"
 	"github.com/hoomdev/hoomai/internal/servecmd"
-	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
+	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
 var version = "0.4.0"
@@ -37,8 +36,9 @@ Comandos:
   verify      Ejecuta los gates del manifiesto y emite un veredicto
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
-  serve       HoomAI Studio: dashboard local de SOLO LECTURA embebido en el binario
+  serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
+  spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 9 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -93,6 +93,8 @@ func main() {
 		err = cmdServe(args)
 	case "task":
 		err = cmdTask(args)
+	case "spec":
+		err = cmdSpec(args)
 	case "hook":
 		err = cmdHook(args)
 	case "agents":
@@ -140,35 +142,14 @@ func cmdVerify(args []string) error {
 	if err != nil {
 		return err
 	}
-	git := gitx.Snapshot(m.Dir, m.BaseBranch)
-
-	opt := gates.Options{Full: *full}
+	opt := verifycmd.Options{Full: *full, Spec: *specPath}
 	if *gateList != "" {
-		opt.Only = map[string]bool{}
-		for _, g := range strings.Split(*gateList, ",") {
-			opt.Only[strings.TrimSpace(g)] = true
-		}
+		opt.Gates = strings.Split(*gateList, ",")
 	}
-
 	fmt.Printf("hoom: verificando %s (perfil %s, %d gates)...\n", m.Project, m.Profile, len(m.Gates))
-	var results []verdict.GateResult
-	if *specPath != "" {
-		results = append(results, spec.Gates(m.Dir, *specPath)...)
-	}
-	results = append(results, gates.Run(m, git, opt)...)
-
-	v := &verdict.Verdict{
-		Project: m.Project,
-		Profile: m.Profile,
-		Policy:  m.Policy,
-		Git:     git,
-		Gates:   results,
-		Spec:    *specPath,
-	}
-	v.Finalize()
-	path, err := verdict.Write(m.Dir, v)
+	v, path, err := verifycmd.Run(m, opt)
 	if err != nil {
-		return fmt.Errorf("no se pudo escribir el veredicto: %w", err)
+		return err
 	}
 	if *asJSON {
 		// In-band, machine-readable output for agents: no ANSI, pure JSON.
@@ -223,6 +204,47 @@ func cmdCheck(args []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// cmdSpec records and queries human approvals bound to the spec's content
+// hash: approve A, edit to B, and the approval is invalid by construction.
+func cmdSpec(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("uso: hoom spec approve <ruta> | hoom spec status <ruta>")
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	sub, path := args[0], args[1]
+	switch sub {
+	case "approve":
+		rec, already, err := approval.Approve(m.Dir, path)
+		if err != nil {
+			return err
+		}
+		if already {
+			fmt.Printf("hoom spec: %s ya estaba aprobado con este contenido exacto (sha256 %s, por %s) - sin cambios\n",
+				rec.Spec, rec.SHA256[:8], rec.ApprovedBy)
+			return nil
+		}
+		fmt.Printf("hoom spec: APROBADO %s\n  sha256:   %s\n  aprobado: %s (%s)\n  registro: .hoom/approvals/ (append-only, viaja en Git)\n",
+			rec.Spec, rec.SHA256, rec.ApprovedBy, rec.ApprovedAt.Format("2006-01-02 15:04 UTC"))
+		fmt.Println("  editar el spec ahora INVALIDA esta aprobacion (hash de contenido)")
+		return nil
+	case "status":
+		state, rec, err := approval.Status(m.Dir, path)
+		if err != nil {
+			return err
+		}
+		fmt.Println("hoom spec:", approval.Describe(state, rec))
+		if state != approval.StatusApproved {
+			os.Exit(1)
+		}
+		return nil
+	default:
+		return fmt.Errorf("subcomando desconocido %q (approve|status)", sub)
+	}
 }
 
 func cmdTask(args []string) error {

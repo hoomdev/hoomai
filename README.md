@@ -64,7 +64,9 @@ hoom report      # historial y tendencia por gate
 | `hoom report --json` | El mismo historial como JSON en stdout (para agentes y el Studio) |
 | `hoom check` | Compara el arbol ACTUAL contra el ultimo veredicto: verde + huella coincidente = OK |
 | `hoom check --json` | El mismo check como JSON en stdout, mismo exit code |
-| `hoom serve` | HoomAI Studio: dashboard local de SOLO LECTURA embebido en el binario (default 127.0.0.1:4666) |
+| `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake) con el token que imprime al arrancar |
+| `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
+| `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
 | `hoom verify --spec <ruta>` | Suma los gates `spec_lint` y `spec_trace`: cada criterio CA-n del spec debe tener un test que lo referencie |

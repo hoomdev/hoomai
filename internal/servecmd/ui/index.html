@@ -29,8 +29,8 @@
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   header {
-    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
-    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
   }
   header h1 { font-size: 16px; margin: 0; font-weight: 650; }
   header h1 span { color: var(--text-3); font-weight: 400; }
@@ -41,6 +41,20 @@
   }
   .chip.ok    { color: var(--good);     border-color: var(--good); }
   .chip.bad   { color: var(--critical); border-color: var(--critical); }
+  .spacer { flex: 1; }
+  #token {
+    background: var(--panel); color: var(--text-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; font: 12px var(--mono); width: 190px;
+  }
+  button.act {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 12px; font: 600 12.5px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  button.act:hover { border-color: var(--accent); }
+  button.act.primary { border-color: var(--accent); color: var(--accent); }
+  button.act.approve { border-color: var(--good); color: var(--good); }
+  button.act:disabled { opacity: .5; cursor: wait; }
   main {
     display: grid; gap: 16px; padding: 16px 20px;
     grid-template-columns: minmax(320px, 5fr) minmax(280px, 4fr);
@@ -52,10 +66,12 @@
     border-radius: 8px; overflow: hidden;
   }
   section > h2 {
+    display: flex; align-items: center; gap: 10px;
     margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 650;
     letter-spacing: .06em; text-transform: uppercase; color: var(--text-3);
     border-bottom: 1px solid var(--border);
   }
+  section > h2 .spacer { flex: 1; }
   .empty { padding: 18px 14px; color: var(--text-3); }
   .empty code { font-family: var(--mono); color: var(--text-2); }
   .warnbox {
@@ -94,7 +110,7 @@
   #detail td { padding: 6px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); vertical-align: top; }
   #detail td.g { font-family: var(--mono); color: var(--text); }
   #detail td.ms { color: var(--text-3); text-align: right; white-space: nowrap; }
-  #detail pre {
+  pre.tail {
     margin: 0; padding: 8px 10px; background: var(--surface);
     border: 1px solid var(--border); border-radius: 6px;
     font: 12px/1.45 var(--mono); color: var(--text-2);
@@ -111,6 +127,40 @@
   }
   #tasks td { padding: 7px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); }
   #tasks td.slug { font-family: var(--mono); color: var(--text); }
+  .taskbar { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+  .taskbar input {
+    flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; font: 13px var(--mono);
+  }
+  /* specs */
+  .srow {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 8px 14px; border: 0; border-bottom: 1px solid var(--border);
+    background: none; color: var(--text-2); text-align: left; cursor: pointer; font: inherit;
+  }
+  .srow:hover { background: var(--panel-2); }
+  .srow .name { font-family: var(--mono); flex: 1; color: var(--text); }
+  .b-aprobado    { color: var(--good);     border: 1px solid var(--good); }
+  .b-invalidado  { color: var(--serious);  border: 1px solid var(--serious); }
+  .b-no-aprobado { color: var(--warning);  border: 1px solid var(--warning); }
+  #specview .md {
+    padding: 12px 16px; color: var(--text-2); font-size: 13.5px; overflow-x: auto;
+    border-bottom: 1px solid var(--border); max-height: 420px; overflow-y: auto;
+  }
+  #specview .md h1, #specview .md h2, #specview .md h3 { color: var(--text); margin: 12px 0 6px; }
+  #specview .md h1 { font-size: 16px; } #specview .md h2 { font-size: 14px; } #specview .md h3 { font-size: 13px; }
+  #specview .md code { font-family: var(--mono); background: var(--surface); padding: 1px 4px; border-radius: 4px; }
+  #specview .md li { margin: 2px 0 2px 8px; }
+  #specview .md p { margin: 6px 0; }
+  .ca-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .specbar { display: flex; gap: 8px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
+  .specbar textarea {
+    flex: 1 1 100%; background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif; min-height: 54px; resize: vertical;
+  }
+  /* intake */
+  .intakebar { display: flex; gap: 8px; padding: 12px 14px; align-items: center; }
+  .intakebar input[type=file] { flex: 1; color: var(--text-3); font-size: 12.5px; }
   /* tendencia */
   .trend { padding: 8px 14px 14px; }
   .trow { display: grid; grid-template-columns: 110px 1fr 84px; gap: 10px; align-items: center; padding: 5px 0; }
@@ -119,6 +169,14 @@
   .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
   .trow .pct { font-size: 12px; color: var(--text-2); text-align: right; white-space: nowrap; }
   footer { padding: 8px 20px 18px; color: var(--text-3); font-size: 12px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    max-width: 720px; padding: 10px 16px; border-radius: 8px; font-size: 13px;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    display: none; white-space: pre-wrap; word-break: break-word; z-index: 10;
+  }
+  #toast.err { border-color: var(--critical); color: var(--critical); }
+  #toast.ok { border-color: var(--good); color: var(--good); }
 </style>
 </head>
 <body>
@@ -126,6 +184,9 @@
   <h1>HoomAI Studio <span id="project"></span></h1>
   <span class="meta" id="profile"></span>
   <span class="chip" id="check">cargando…</span>
+  <span class="spacer"></span>
+  <input id="token" type="password" placeholder="token de acciones (hoom serve)" autocomplete="off">
+  <button class="act primary" id="btn-verify">Verificar</button>
 </header>
 <main>
   <div style="display:grid; gap:16px;">
@@ -138,11 +199,27 @@
       <h2>Detalle del veredicto</h2>
       <div id="detail"><div class="empty">elegí un veredicto de la lista</div></div>
     </section>
+    <section>
+      <h2><span id="spectitle">Specs</span><span class="spacer"></span><button class="act" id="btn-spec-back" style="display:none">← lista</button></h2>
+      <div id="specs"><div class="empty">cargando…</div></div>
+      <div id="specview" style="display:none"></div>
+    </section>
   </div>
   <div style="display:grid; gap:16px;">
     <section>
       <h2>Tareas paralelas</h2>
       <div id="tasks"><div class="empty">cargando…</div></div>
+      <div class="taskbar">
+        <input id="newslug" placeholder="slug de la nueva tarea (ej: precios-por-region)">
+        <button class="act" id="btn-task">Nueva tarea</button>
+      </div>
+    </section>
+    <section>
+      <h2>Intake — documentos del cliente</h2>
+      <div class="intakebar">
+        <input type="file" id="intakefile">
+        <button class="act" id="btn-intake">Subir a .hoom/intake/</button>
+      </div>
     </section>
     <section>
       <h2>Tendencia por gate</h2>
@@ -150,11 +227,14 @@
     </section>
   </div>
 </main>
-<footer>solo lectura — cada acción sigue viviendo en el CLI (<code>hoom verify</code>, <code>hoom task</code>, <code>hoom check</code>) · se actualiza cada 5 s</footer>
+<footer>los botones ejecutan los MISMOS verbos del CLI (<code>hoom verify</code>, <code>hoom task</code>, <code>hoom spec approve</code>) · el token se imprime al arrancar <code>hoom serve</code> · se actualiza cada 5 s</footer>
+<div id="toast"></div>
 <script>
 "use strict";
 let selected = null;
+let specOpen = null;
 
+const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const badge = (label, cls) => `<span class="badge b-${cls}">${esc(label)}</span>`;
@@ -162,18 +242,61 @@ const stBadge = s => badge({pass:"PASS", fail:"FAIL", error:"ERROR", absent:"AUS
 const vBadge = v => v === "green" ? badge("VERDE","green") : badge("ROJO","red");
 const when = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(); };
 
+// token de acciones: pegado una vez, recordado por navegador (best-effort).
+try { $("token").value = localStorage.getItem("hoom-token") || ""; } catch (e) {}
+$("token").addEventListener("change", () => {
+  try { localStorage.setItem("hoom-token", $("token").value); } catch (e) {}
+});
+
+let toastTimer = null;
+function toast(msg, cls) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = cls || "";
+  t.style.display = "block";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = "none"; }, cls === "err" ? 9000 : 4000);
+}
+
 async function j(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.json();
 }
 
+// accion = POST con token; el error del CLI viaja verbatim al toast.
+async function act(url, body, isForm) {
+  const headers = { "X-Hoom-Token": $("token").value };
+  let payload = body;
+  if (!isForm) {
+    headers["Content-Type"] = "application/json";
+    payload = JSON.stringify(body || {});
+  }
+  const r = await fetch(url, { method: "POST", headers, body: payload });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) {
+    $("token").focus();
+    throw new Error(data.error || "token invalido: pegalo del arranque de 'hoom serve'");
+  }
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+function busy(btn, fn) {
+  return async () => {
+    btn.disabled = true;
+    try { await fn(); } catch (e) { toast(e.message, "err"); }
+    btn.disabled = false;
+  };
+}
+
+/* ---------- lecturas ---------- */
+
 async function refreshStatus() {
   const s = await j("/api/status");
-  document.getElementById("project").textContent = "· " + s.project;
-  document.getElementById("profile").textContent =
-    `perfil ${s.profile || "-"} · política ${s.policy} · base ${s.base_branch}`;
-  const chip = document.getElementById("check");
+  $("project").textContent = "· " + s.project;
+  $("profile").textContent = `perfil ${s.profile || "-"} · política ${s.policy} · base ${s.base_branch}`;
+  const chip = $("check");
   if (s.check.ok) {
     chip.className = "chip ok";
     chip.textContent = "check VERDE · huella coincidente";
@@ -186,11 +309,11 @@ async function refreshStatus() {
 
 async function refreshVerdicts() {
   const data = await j("/api/verdicts?n=50");
-  document.getElementById("vwarn").innerHTML = data.warnings.length
+  $("vwarn").innerHTML = data.warnings.length
     ? `<div class="warnbox">! ${data.warnings.map(esc).join("<br>! ")}</div>` : "";
-  const box = document.getElementById("verdicts");
+  const box = $("verdicts");
   if (!data.verdicts.length) {
-    box.innerHTML = `<div class="empty">sin veredictos todavía — ejecutá <code>hoom verify</code> en el proyecto</div>`;
+    box.innerHTML = `<div class="empty">sin veredictos todavía — apretá <b>Verificar</b> o ejecutá <code>hoom verify</code></div>`;
     return;
   }
   box.innerHTML = data.verdicts.map(v => `
@@ -215,9 +338,9 @@ async function showDetail(id) {
     </tr>
     ${g.output_tail || g.notes ? `<tr><td></td><td colspan="2">
       ${g.notes ? `<p class="tail-note">${esc(g.notes)}</p>` : ""}
-      ${g.output_tail ? `<pre>${esc(g.output_tail)}</pre>` : ""}
+      ${g.output_tail ? `<pre class="tail">${esc(g.output_tail)}</pre>` : ""}
     </td></tr>` : ""}`).join("");
-  document.getElementById("detail").innerHTML = `
+  $("detail").innerHTML = `
     <div class="dmeta">
       ${vBadge(v.verdict)} <code>${esc(v.id)}</code><br>
       ${esc(when(v.created_at))} · ${esc(v.git?.branch || "")}@${esc(v.git?.commit || "")}
@@ -233,9 +356,9 @@ async function showDetail(id) {
 
 async function refreshTasks() {
   const tasks = await j("/api/tasks");
-  const box = document.getElementById("tasks");
+  const box = $("tasks");
   if (!tasks.length) {
-    box.innerHTML = `<div class="empty">sin tareas activas — creá una con <code>hoom task start &lt;slug&gt;</code></div>`;
+    box.innerHTML = `<div class="empty">sin tareas activas — creá una acá abajo o con <code>hoom task start &lt;slug&gt;</code></div>`;
     return;
   }
   const st = {
@@ -245,19 +368,26 @@ async function refreshTasks() {
     "no-verdict": badge("SIN VEREDICTO", "skipped"),
   };
   box.innerHTML = `<table>
-    <tr><th>tarea</th><th>rama</th><th>estado</th><th>árbol</th></tr>
+    <tr><th>tarea</th><th>rama</th><th>estado</th><th>árbol</th><th></th></tr>
     ${tasks.map(t => `<tr>
       <td class="slug">${esc(t.slug)}</td>
       <td>${esc(t.branch)}</td>
       <td>${st[t.state] || esc(t.state)}</td>
       <td>${t.dirty ? "sin commitear" : "limpio"}</td>
+      <td><button class="act done" data-slug="${esc(t.slug)}">Cerrar</button></td>
     </tr>`).join("")}
   </table>`;
+  for (const b of box.querySelectorAll("button.done"))
+    b.addEventListener("click", busy(b, async () => {
+      await act("/api/tasks/" + encodeURIComponent(b.dataset.slug) + "/done");
+      toast(`tarea ${b.dataset.slug} cerrada: rama hoom/${b.dataset.slug} lista para integrar`, "ok");
+      refreshTasks(); refreshStatus();
+    }));
 }
 
 async function refreshTrend() {
   const rep = await j("/api/report?n=10");
-  const box = document.getElementById("trend");
+  const box = $("trend");
   const names = Object.keys(rep.gates).sort();
   if (!names.length) {
     box.innerHTML = `<div class="empty">todavía no hay gates ejecutados</div>`;
@@ -273,8 +403,139 @@ async function refreshTrend() {
   }).join("")}</div>`;
 }
 
+/* ---------- specs: el punto de control humano ---------- */
+
+const stateBadge = s => badge({
+  "aprobado": "APROBADO", "invalidado": "INVALIDADO", "no-aprobado": "SIN APROBAR",
+}[s] || s, s);
+
+async function refreshSpecs() {
+  if (specOpen) return; // no pisar la vista de detalle
+  const items = await j("/api/specs");
+  const box = $("specs");
+  if (!items.length) {
+    box.innerHTML = `<div class="empty">sin specs en <code>.hoom/specs/</code> — el arquitecto produce el primero</div>`;
+    return;
+  }
+  box.innerHTML = items.map(it => `
+    <button class="srow" data-name="${esc(it.name)}">
+      <span class="name">${esc(it.name)}</span>
+      ${stateBadge(it.state)}
+    </button>`).join("");
+  for (const b of box.querySelectorAll(".srow"))
+    b.addEventListener("click", () => openSpec(b.dataset.name));
+}
+
+// render minimo de markdown (autocontenido): titulos, listas, negrita, code.
+function mdRender(src) {
+  const lines = esc(src).split("\n");
+  let out = [], inList = false;
+  const inline = s => s
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  for (const ln of lines) {
+    const h = ln.match(/^(#{1,3})\s+(.*)/);
+    const li = ln.match(/^\s*[-*]\s+(.*)/);
+    if (h) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);
+    } else if (li) {
+      if (!inList) { out.push("<ul>"); inList = true; }
+      out.push(`<li>${inline(li[1])}</li>`);
+    } else if (ln.trim() === "") {
+      if (inList) { out.push("</ul>"); inList = false; }
+    } else {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push(`<p>${inline(ln)}</p>`);
+    }
+  }
+  if (inList) out.push("</ul>");
+  return out.join("\n");
+}
+
+async function openSpec(name) {
+  const d = await j("/api/specs/" + encodeURIComponent(name));
+  specOpen = name;
+  $("specs").style.display = "none";
+  $("btn-spec-back").style.display = "";
+  $("spectitle").textContent = "Spec · " + name;
+  const view = $("specview");
+  view.style.display = "";
+  view.innerHTML = `
+    <div class="dmeta">
+      ${stateBadge(d.state)}
+      ${d.approval ? ` por <code>${esc(d.approval.approved_by)}</code> · sha <code>${esc(d.approval.sha256.slice(0,8))}</code>` : ""}
+    </div>
+    <div class="ca-chips">${d.criteria.map(c => badge(c, "skipped")).join(" ")}</div>
+    <div class="md">${mdRender(d.markdown)}</div>
+    ${d.review ? `<div class="dmeta">review previa:<pre class="tail">${esc(d.review)}</pre></div>` : ""}
+    <div class="specbar">
+      <button class="act approve" id="btn-approve">Aprobar este contenido</button>
+      <button class="act" id="btn-verify-spec">Verificar con este spec</button>
+      <textarea id="review-text" placeholder="comentarios para el arquitecto (quedan en ${esc(name)}.review.md, versionado)"></textarea>
+      <button class="act" id="btn-review">Enviar review</button>
+    </div>`;
+  $("btn-approve").addEventListener("click", busy($("btn-approve"), async () => {
+    const r = await act(`/api/specs/${encodeURIComponent(name)}/approve`);
+    toast(r.already ? "ya estaba aprobado con este contenido exacto" : "spec aprobado — editarlo invalida la aprobación", "ok");
+    openSpec(name);
+  }));
+  $("btn-verify-spec").addEventListener("click", busy($("btn-verify-spec"), async () => {
+    toast("verificando con spec_lint + spec_trace…");
+    const v = await act("/api/verify", { spec: d.path });
+    toast(`veredicto: ${v.verdict === "green" ? "VERDE" : "ROJO"} (${v.id})`, v.verdict === "green" ? "ok" : "err");
+    refreshVerdicts(); refreshStatus(); refreshTrend(); showDetail(v.id);
+  }));
+  $("btn-review").addEventListener("click", busy($("btn-review"), async () => {
+    const comments = $("review-text").value.trim();
+    if (!comments) { toast("escribí los comentarios primero", "err"); return; }
+    await act(`/api/specs/${encodeURIComponent(name)}/review`, { comments });
+    toast("review guardada junto al spec", "ok");
+    openSpec(name);
+  }));
+}
+
+$("btn-spec-back").addEventListener("click", () => {
+  specOpen = null;
+  $("specview").style.display = "none";
+  $("specs").style.display = "";
+  $("btn-spec-back").style.display = "none";
+  $("spectitle").textContent = "Specs";
+  refreshSpecs();
+});
+
+/* ---------- acciones globales ---------- */
+
+$("btn-verify").addEventListener("click", busy($("btn-verify"), async () => {
+  toast("verificando… (los gates tardan lo que tardan)");
+  const v = await act("/api/verify", {});
+  toast(`veredicto: ${v.verdict === "green" ? "VERDE" : "ROJO"} (${v.id})`, v.verdict === "green" ? "ok" : "err");
+  refreshVerdicts(); refreshStatus(); refreshTrend(); showDetail(v.id);
+}));
+
+$("btn-task").addEventListener("click", busy($("btn-task"), async () => {
+  const slug = $("newslug").value.trim();
+  if (!slug) { toast("poné un slug primero", "err"); return; }
+  await act("/api/tasks", { slug });
+  $("newslug").value = "";
+  toast(`tarea ${slug} creada: worktree en .hoom/worktrees/${slug}`, "ok");
+  refreshTasks();
+}));
+
+$("btn-intake").addEventListener("click", busy($("btn-intake"), async () => {
+  const input = $("intakefile");
+  if (!input.files.length) { toast("elegí un archivo primero", "err"); return; }
+  const fd = new FormData();
+  fd.append("file", input.files[0]);
+  const r = await act("/api/intake", fd, true);
+  input.value = "";
+  toast(`guardado en ${r.path} — pedile al hoom-analista que lo procese`, "ok");
+}));
+
+/* ---------- ciclo ---------- */
+
 async function tick() {
-  const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend()];
+  const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend(), refreshSpecs()];
   for (const p of jobs) await p.catch(e => console.warn("studio:", e.message));
 }
 tick();
