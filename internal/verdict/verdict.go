@@ -131,32 +131,46 @@ func Write(projectDir string, v *Verdict) (string, error) {
 
 // LoadAll reads every verdict in the project, oldest first. This scan IS
 // the regenerable index for v1; a SQLite cache can be layered later
-// without changing the source of truth.
+// without changing the source of truth. Unreadable files are skipped and
+// reported to stderr, never fatal.
 func LoadAll(projectDir string) ([]*Verdict, error) {
+	out, warnings, err := LoadAllWithWarnings(projectDir)
+	for _, w := range warnings {
+		fmt.Fprintln(os.Stderr, "hoom:", w)
+	}
+	return out, err
+}
+
+// LoadAllWithWarnings is LoadAll with the skipped-file diagnostics returned
+// in-band instead of printed, so callers with a UI (hoom serve) can surface
+// them without touching stderr.
+func LoadAllWithWarnings(projectDir string) ([]*Verdict, []string, error) {
 	dir := filepath.Join(projectDir, ".hoom", "verdicts")
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var out []*Verdict
+	var warnings []string
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
 		raw, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Name(), err))
 			continue
 		}
 		var v Verdict
 		if err := json.Unmarshal(raw, &v); err != nil {
-			fmt.Fprintf(os.Stderr, "hoom: veredicto ilegible %s: %v\n", e.Name(), err)
+			warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Name(), err))
 			continue
 		}
 		out = append(out, &v)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
-	return out, nil
+	return out, warnings, nil
 }

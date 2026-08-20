@@ -13,12 +13,14 @@ import (
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/report"
+	"github.com/hoomdev/hoomai/internal/servecmd"
 	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -35,6 +37,7 @@ Comandos:
   verify      Ejecuta los gates del manifiesto y emite un veredicto
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
+  serve       HoomAI Studio: dashboard local de SOLO LECTURA embebido en el binario
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 9 contratos en .hoom/agents/ y AGENTS.md
@@ -56,6 +59,15 @@ Flags de verify:
 
 Flags de report:
   -n <cantidad>        Cantidad de veredictos recientes a mostrar (default 10)
+  --json               Emite el historial como JSON en stdout
+
+Flags de check:
+  --json               Emite el resultado como JSON en stdout (mismo exit code)
+
+Flags de serve:
+  --addr host:puerto   Direccion de escucha (default 127.0.0.1:4666, solo loopback)
+
+'hoom task list --json' emite el estado de las tareas como JSON en stdout.
 
 Filosofia: veredicto ROJO = exit code 1. La narracion del agente no cuenta;
 solo cuenta la evidencia. Gates ausentes se declaran en amarillo, jamas se ocultan.
@@ -77,6 +89,8 @@ func main() {
 		err = cmdReport(args)
 	case "check":
 		err = cmdCheck(args)
+	case "serve":
+		err = cmdServe(args)
 	case "task":
 		err = cmdTask(args)
 	case "hook":
@@ -174,31 +188,40 @@ func cmdVerify(args []string) error {
 // latest verdict verified (fingerprint match) and that said verdict is green.
 // Failure messages are in-band: they state the exact command to run next.
 func cmdCheck(args []string) error {
+	fs := flag.NewFlagSet("check", flag.ExitOnError)
+	asJSON := fs.Bool("json", false, "emitir el resultado del check como JSON en stdout")
+	_ = fs.Parse(args)
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
 		return err
 	}
-	git := gitx.Snapshot(m.Dir, m.BaseBranch)
-	all, err := verdict.LoadAll(m.Dir)
+	res, err := checkcmd.Run(m.Dir, m.BaseBranch)
 	if err != nil {
 		return err
 	}
-	if len(all) == 0 {
+	if *asJSON {
+		raw, _ := json.MarshalIndent(res, "", "  ")
+		fmt.Println(string(raw))
+		if !res.OK {
+			os.Exit(1) // CA-3: mismo exit code que el modo texto
+		}
+		return nil
+	}
+	switch res.Reason {
+	case checkcmd.ReasonNoVerdict:
 		fmt.Fprintln(os.Stderr, "hoom check: ROJO - no existe ningun veredicto. Accion: ejecuta 'hoom verify'.")
-		os.Exit(1)
-	}
-	last := all[len(all)-1]
-	if last.Verdict != "green" {
-		fmt.Fprintf(os.Stderr, "hoom check: ROJO - el ultimo veredicto (%s) es rojo. Accion: corrige y ejecuta 'hoom verify'.\n", last.ID)
-		os.Exit(1)
-	}
-	if last.Git.ChangeFingerprint != git.ChangeFingerprint {
-		fmt.Fprintf(os.Stderr, "hoom check: ROJO - el arbol cambio despues del ultimo veredicto verde (%s).\n", last.ID)
-		fmt.Fprintf(os.Stderr, "  huella del veredicto: %s\n  huella actual:        %s\n", last.Git.ChangeFingerprint, git.ChangeFingerprint)
+	case checkcmd.ReasonRedVerdict:
+		fmt.Fprintf(os.Stderr, "hoom check: ROJO - el ultimo veredicto (%s) es rojo. Accion: corrige y ejecuta 'hoom verify'.\n", res.VerdictID)
+	case checkcmd.ReasonDrift:
+		fmt.Fprintf(os.Stderr, "hoom check: ROJO - el arbol cambio despues del ultimo veredicto verde (%s).\n", res.VerdictID)
+		fmt.Fprintf(os.Stderr, "  huella del veredicto: %s\n  huella actual:        %s\n", res.FingerprintVerdict, res.FingerprintNow)
 		fmt.Fprintln(os.Stderr, "  Accion: ejecuta 'hoom verify' de nuevo sobre el estado actual.")
+	default:
+		fmt.Printf("hoom check: VERDE - el arbol actual coincide con el veredicto %s (huella %s)\n", res.VerdictID, res.FingerprintNow)
+	}
+	if !res.OK {
 		os.Exit(1)
 	}
-	fmt.Printf("hoom check: VERDE - el arbol actual coincide con el veredicto %s (huella %s)\n", last.ID, git.ChangeFingerprint)
 	return nil
 }
 
@@ -218,6 +241,16 @@ func cmdTask(args []string) error {
 		}
 		return taskcmd.Start(m.Dir, rest[0], m.BaseBranch)
 	case "list":
+		for _, a := range rest {
+			if a == "--json" || a == "-json" {
+				raw, err := taskcmd.JSONBytes(m.Dir, m.BaseBranch)
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(raw))
+				return nil
+			}
+		}
 		return taskcmd.List(m.Dir, m.BaseBranch)
 	case "done":
 		if len(rest) < 1 {
@@ -271,6 +304,7 @@ func cmdHook(args []string) error {
 func cmdReport(args []string) error {
 	fs := flag.NewFlagSet("report", flag.ExitOnError)
 	n := fs.Int("n", 10, "cantidad de veredictos recientes")
+	asJSON := fs.Bool("json", false, "emitir el historial como JSON en stdout")
 	_ = fs.Parse(args)
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
@@ -280,8 +314,25 @@ func cmdReport(args []string) error {
 	if err != nil {
 		return err
 	}
+	if *asJSON {
+		raw, err := report.JSONBytes(all, *n)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
 	report.History(os.Stdout, all, *n)
 	return nil
+}
+
+// cmdServe starts the HoomAI Studio: the read-only dashboard embedded in
+// this same binary. Loopback by default; exposing is a conscious --addr.
+func cmdServe(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	addr := fs.String("addr", servecmd.DefaultAddr, "direccion de escucha (host:puerto)")
+	_ = fs.Parse(args)
+	return servecmd.Run(".", *addr)
 }
 
 func cmdAgents(args []string) error {

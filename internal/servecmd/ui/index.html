@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HoomAI Studio</title>
+<style>
+  /* Autocontenido por contrato (CA-10): sin fuentes, scripts ni estilos externos. */
+  :root {
+    --surface: #1a1a19;
+    --panel: #232322;
+    --panel-2: #2b2b29;
+    --border: #3a3a37;
+    --text: #ffffff;
+    --text-2: #c3c2b7;
+    --text-3: #8a897f;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --accent: #3987e5;
+    --mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header h1 span { color: var(--text-3); font-weight: 400; }
+  .meta { color: var(--text-2); font-size: 12.5px; }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--text-2);
+  }
+  .chip.ok    { color: var(--good);     border-color: var(--good); }
+  .chip.bad   { color: var(--critical); border-color: var(--critical); }
+  main {
+    display: grid; gap: 16px; padding: 16px 20px;
+    grid-template-columns: minmax(320px, 5fr) minmax(280px, 4fr);
+    align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  section > h2 {
+    margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 650;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--text-3);
+    border-bottom: 1px solid var(--border);
+  }
+  .empty { padding: 18px 14px; color: var(--text-3); }
+  .empty code { font-family: var(--mono); color: var(--text-2); }
+  .warnbox {
+    margin: 10px 14px 0; padding: 8px 10px; border-radius: 6px; font-size: 12.5px;
+    border: 1px solid var(--warning); color: var(--warning);
+  }
+  /* veredictos */
+  .vrow {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 8px 14px; border: 0; border-bottom: 1px solid var(--border);
+    background: none; color: var(--text-2); text-align: left; cursor: pointer;
+    font: inherit;
+  }
+  .vrow:hover { background: var(--panel-2); }
+  .vrow.sel { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
+  .vrow .when { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+  .vrow .where { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .vrow .counts { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+  .badge {
+    font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 4px;
+    letter-spacing: .04em; white-space: nowrap;
+  }
+  .b-green  { color: var(--good);     border: 1px solid var(--good); }
+  .b-red    { color: var(--critical); border: 1px solid var(--critical); }
+  .b-pass   { color: var(--good);     border: 1px solid var(--good); }
+  .b-fail   { color: var(--critical); border: 1px solid var(--critical); }
+  .b-error  { color: var(--serious);  border: 1px solid var(--serious); }
+  .b-absent { color: var(--warning);  border: 1px solid var(--warning); }
+  .b-skipped{ color: var(--text-3);   border: 1px solid var(--border); }
+  /* detalle */
+  #detail table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #detail th {
+    text-align: left; padding: 6px 14px; color: var(--text-3); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border);
+  }
+  #detail td { padding: 6px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); vertical-align: top; }
+  #detail td.g { font-family: var(--mono); color: var(--text); }
+  #detail td.ms { color: var(--text-3); text-align: right; white-space: nowrap; }
+  #detail pre {
+    margin: 0; padding: 8px 10px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px;
+    font: 12px/1.45 var(--mono); color: var(--text-2);
+    overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  .tail-note { color: var(--text-3); font-size: 12px; margin: 4px 0 0; }
+  .dmeta { padding: 10px 14px; color: var(--text-2); font-size: 12.5px; border-bottom: 1px solid var(--border); }
+  .dmeta code { font-family: var(--mono); color: var(--text); }
+  /* tareas */
+  #tasks table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #tasks th {
+    text-align: left; padding: 6px 14px; color: var(--text-3); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border);
+  }
+  #tasks td { padding: 7px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+  #tasks td.slug { font-family: var(--mono); color: var(--text); }
+  /* tendencia */
+  .trend { padding: 8px 14px 14px; }
+  .trow { display: grid; grid-template-columns: 110px 1fr 84px; gap: 10px; align-items: center; padding: 5px 0; }
+  .trow .name { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+  .trow .pct { font-size: 12px; color: var(--text-2); text-align: right; white-space: nowrap; }
+  footer { padding: 8px 20px 18px; color: var(--text-3); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>HoomAI Studio <span id="project"></span></h1>
+  <span class="meta" id="profile"></span>
+  <span class="chip" id="check">cargando…</span>
+</header>
+<main>
+  <div style="display:grid; gap:16px;">
+    <section>
+      <h2>Veredictos</h2>
+      <div id="vwarn"></div>
+      <div id="verdicts"><div class="empty">cargando…</div></div>
+    </section>
+    <section>
+      <h2>Detalle del veredicto</h2>
+      <div id="detail"><div class="empty">elegí un veredicto de la lista</div></div>
+    </section>
+  </div>
+  <div style="display:grid; gap:16px;">
+    <section>
+      <h2>Tareas paralelas</h2>
+      <div id="tasks"><div class="empty">cargando…</div></div>
+    </section>
+    <section>
+      <h2>Tendencia por gate</h2>
+      <div id="trend"><div class="empty">cargando…</div></div>
+    </section>
+  </div>
+</main>
+<footer>solo lectura — cada acción sigue viviendo en el CLI (<code>hoom verify</code>, <code>hoom task</code>, <code>hoom check</code>) · se actualiza cada 5 s</footer>
+<script>
+"use strict";
+let selected = null;
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const badge = (label, cls) => `<span class="badge b-${cls}">${esc(label)}</span>`;
+const stBadge = s => badge({pass:"PASS", fail:"FAIL", error:"ERROR", absent:"AUSENTE", skipped:"SKIP"}[s] || s, s);
+const vBadge = v => v === "green" ? badge("VERDE","green") : badge("ROJO","red");
+const when = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(); };
+
+async function j(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.json();
+}
+
+async function refreshStatus() {
+  const s = await j("/api/status");
+  document.getElementById("project").textContent = "· " + s.project;
+  document.getElementById("profile").textContent =
+    `perfil ${s.profile || "-"} · política ${s.policy} · base ${s.base_branch}`;
+  const chip = document.getElementById("check");
+  if (s.check.ok) {
+    chip.className = "chip ok";
+    chip.textContent = "check VERDE · huella coincidente";
+  } else {
+    chip.className = "chip bad";
+    const why = {"no-verdict":"sin veredictos","red-verdict":"último veredicto rojo","drift":"drift"}[s.check.reason] || s.check.reason;
+    chip.textContent = `check ROJO · ${why} — ${s.check.action || ""}`;
+  }
+}
+
+async function refreshVerdicts() {
+  const data = await j("/api/verdicts?n=50");
+  document.getElementById("vwarn").innerHTML = data.warnings.length
+    ? `<div class="warnbox">! ${data.warnings.map(esc).join("<br>! ")}</div>` : "";
+  const box = document.getElementById("verdicts");
+  if (!data.verdicts.length) {
+    box.innerHTML = `<div class="empty">sin veredictos todavía — ejecutá <code>hoom verify</code> en el proyecto</div>`;
+    return;
+  }
+  box.innerHTML = data.verdicts.map(v => `
+    <button class="vrow${v.id === selected ? " sel" : ""}" data-id="${esc(v.id)}">
+      ${vBadge(v.verdict)}
+      <span class="when">${esc(when(v.created_at))}</span>
+      <span class="where">${esc(v.git?.branch || "")}@${esc(v.git?.commit || "")}</span>
+      <span class="counts">pass:${v.summary.pass} fail:${v.summary.fail} err:${v.summary.error} aus:${v.summary.absent}</span>
+    </button>`).join("");
+  for (const b of box.querySelectorAll(".vrow"))
+    b.addEventListener("click", () => showDetail(b.dataset.id));
+}
+
+async function showDetail(id) {
+  selected = id;
+  const v = await j("/api/verdicts/" + encodeURIComponent(id));
+  const rows = (v.gates || []).map(g => `
+    <tr>
+      <td>${stBadge(g.status)}</td>
+      <td class="g">${esc(g.name)}${g.required ? " *" : ""}${g.scope === "diff" ? " <small>[diff]</small>" : ""}</td>
+      <td class="ms">${g.duration_ms} ms</td>
+    </tr>
+    ${g.output_tail || g.notes ? `<tr><td></td><td colspan="2">
+      ${g.notes ? `<p class="tail-note">${esc(g.notes)}</p>` : ""}
+      ${g.output_tail ? `<pre>${esc(g.output_tail)}</pre>` : ""}
+    </td></tr>` : ""}`).join("");
+  document.getElementById("detail").innerHTML = `
+    <div class="dmeta">
+      ${vBadge(v.verdict)} <code>${esc(v.id)}</code><br>
+      ${esc(when(v.created_at))} · ${esc(v.git?.branch || "")}@${esc(v.git?.commit || "")}
+      ${v.git?.change_fingerprint ? `· huella <code>${esc(v.git.change_fingerprint)}</code>` : ""}
+      ${v.spec ? `<br>spec: <code>${esc(v.spec)}</code>` : ""}
+    </div>
+    <table>
+      <tr><th>estado</th><th>gate (* requerido)</th><th>duración</th></tr>
+      ${rows}
+    </table>`;
+  refreshVerdicts();
+}
+
+async function refreshTasks() {
+  const tasks = await j("/api/tasks");
+  const box = document.getElementById("tasks");
+  if (!tasks.length) {
+    box.innerHTML = `<div class="empty">sin tareas activas — creá una con <code>hoom task start &lt;slug&gt;</code></div>`;
+    return;
+  }
+  const st = {
+    "green":      badge("VERDE · lista para cerrar", "green"),
+    "drift":      badge("VERDE con drift", "absent"),
+    "red":        badge("ROJO", "red"),
+    "no-verdict": badge("SIN VEREDICTO", "skipped"),
+  };
+  box.innerHTML = `<table>
+    <tr><th>tarea</th><th>rama</th><th>estado</th><th>árbol</th></tr>
+    ${tasks.map(t => `<tr>
+      <td class="slug">${esc(t.slug)}</td>
+      <td>${esc(t.branch)}</td>
+      <td>${st[t.state] || esc(t.state)}</td>
+      <td>${t.dirty ? "sin commitear" : "limpio"}</td>
+    </tr>`).join("")}
+  </table>`;
+}
+
+async function refreshTrend() {
+  const rep = await j("/api/report?n=10");
+  const box = document.getElementById("trend");
+  const names = Object.keys(rep.gates).sort();
+  if (!names.length) {
+    box.innerHTML = `<div class="empty">todavía no hay gates ejecutados</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="trend">${names.map(n => {
+    const g = rep.gates[n];
+    return `<div class="trow">
+      <span class="name">${esc(n)}</span>
+      <span class="bar"><i style="width:${g.pass_rate}%"></i></span>
+      <span class="pct">${g.pass_rate}% (${g.pass}/${g.total})</span>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+async function tick() {
+  const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend()];
+  for (const p of jobs) await p.catch(e => console.warn("studio:", e.message));
+}
+tick();
+setInterval(tick, 5000);
+</script>
+</body>
+</html>
