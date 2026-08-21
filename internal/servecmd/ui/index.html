@@ -161,6 +161,38 @@
   /* intake */
   .intakebar { display: flex; gap: 8px; padding: 12px 14px; align-items: center; }
   .intakebar input[type=file] { flex: 1; color: var(--text-3); font-size: 12.5px; }
+  /* cockpit */
+  .dispatchbar { display: flex; gap: 8px; padding: 10px 14px; align-items: flex-start; flex-wrap: wrap; }
+  .dispatchbar select {
+    background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; font: 13px system-ui, sans-serif;
+  }
+  .dispatchbar textarea {
+    flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif; min-height: 46px; resize: vertical;
+  }
+  .rrow {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 8px 14px; border: 0; border-top: 1px solid var(--border);
+    background: none; color: var(--text-2); text-align: left; cursor: pointer; font: inherit;
+  }
+  .rrow:hover { background: var(--panel-2); }
+  .rrow .rid { font-family: var(--mono); font-size: 12px; flex: 1; }
+  .b-running  { color: var(--accent);  border: 1px solid var(--accent); }
+  .b-done     { color: var(--good);     border: 1px solid var(--good); }
+  .b-canceled { color: var(--text-3);   border: 1px solid var(--border); }
+  .feed {
+    max-height: 340px; overflow-y: auto; padding: 8px 14px;
+    font: 12px/1.5 var(--mono); border-bottom: 1px solid var(--border);
+  }
+  .fev { display: flex; gap: 8px; padding: 1px 0; color: var(--text-2); }
+  .fev .k { flex: 0 0 52px; text-align: right; color: var(--text-3); }
+  .fev.k-tool .k  { color: var(--accent); }
+  .fev.k-agent .k { color: var(--good); }
+  .fev.k-error .k { color: var(--critical); }
+  .fev.k-end .k   { color: var(--good); }
+  .fev .a { color: var(--good); }
+  .feednote { padding: 6px 14px; color: var(--text-3); font-size: 11.5px; font-style: italic; }
   /* tendencia */
   .trend { padding: 8px 14px 14px; }
   .trow { display: grid; grid-template-columns: 110px 1fr 84px; gap: 10px; align-items: center; padding: 5px 0; }
@@ -206,6 +238,30 @@
     </section>
   </div>
   <div style="display:grid; gap:16px;">
+    <section>
+      <h2><span id="runtitle">Cockpit — despachar trabajo</span><span class="spacer"></span><button class="act" id="btn-run-back" style="display:none">← runs</button></h2>
+      <div id="cockpit">
+        <div class="dispatchbar">
+          <select id="provider"></select>
+          <select id="runtask"><option value="">en el proyecto</option></select>
+        </div>
+        <div class="dispatchbar">
+          <textarea id="runprompt" placeholder="pedido para el orquestador (ej: implementá el item X del backlog, spec primero y esperá mi aprobación)"></textarea>
+          <button class="act primary" id="btn-dispatch">Despachar</button>
+        </div>
+        <div id="runs"></div>
+      </div>
+      <div id="runview" style="display:none">
+        <div class="dmeta" id="runmeta"></div>
+        <div class="feed" id="feed"></div>
+        <div class="feednote">narración del provider — la evidencia son los veredictos</div>
+        <div class="dispatchbar">
+          <textarea id="runinput" placeholder="siguiente prompt (ej: spec aprobado, adelante)"></textarea>
+          <button class="act" id="btn-input">Continuar</button>
+          <button class="act" id="btn-cancel">Cancelar</button>
+        </div>
+      </div>
+    </section>
     <section>
       <h2>Tareas paralelas</h2>
       <div id="tasks"><div class="empty">cargando…</div></div>
@@ -504,6 +560,133 @@ $("btn-spec-back").addEventListener("click", () => {
   refreshSpecs();
 });
 
+/* ---------- cockpit: despachar trabajo a la CLI de IA ---------- */
+
+let runOpen = null;   // id del run visible
+let runAfter = 0;     // cursor incremental del feed
+let runPoller = null;
+
+const runBadge = s => badge({running:"CORRIENDO", done:"TERMINÓ", error:"ERROR", canceled:"CANCELADO"}[s] || s, s);
+
+async function refreshProviders() {
+  const provs = await j("/api/providers");
+  const sel = $("provider");
+  const current = sel.value;
+  sel.innerHTML = provs.filter(p => p.installed)
+    .map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
+  if (!sel.options.length) {
+    sel.innerHTML = `<option value="">sin CLIs de IA instaladas</option>`;
+    $("btn-dispatch").disabled = true;
+  } else {
+    $("btn-dispatch").disabled = false;
+    if (current) sel.value = current;
+  }
+}
+
+async function refreshRunTasks() {
+  const tasks = await j("/api/tasks");
+  const sel = $("runtask");
+  const current = sel.value;
+  sel.innerHTML = `<option value="">en el proyecto</option>` +
+    tasks.map(t => `<option value="${esc(t.slug)}">tarea: ${esc(t.slug)}</option>`).join("");
+  sel.value = current;
+}
+
+async function refreshRuns() {
+  if (runOpen) return;
+  const runs = await j("/api/runs");
+  $("runs").innerHTML = runs.map(r => `
+    <button class="rrow" data-id="${esc(r.id)}">
+      ${runBadge(r.status)}
+      <span class="rid">${esc(r.id)}</span>
+      <span class="meta">${esc(r.provider)}${r.task ? " · " + esc(r.task) : ""}</span>
+    </button>`).join("");
+  for (const b of $("runs").querySelectorAll(".rrow"))
+    b.addEventListener("click", () => openRun(b.dataset.id));
+}
+
+function renderRunMeta(r) {
+  $("runmeta").innerHTML = `${runBadge(r.status)} <code>${esc(r.id)}</code> · ${esc(r.provider)}
+    ${r.task ? "· tarea <code>" + esc(r.task) + "</code>" : "· proyecto"}
+    ${r.status !== "running" && r.exit_code >= 0 ? "· exit " + r.exit_code : ""}`;
+  $("btn-cancel").style.display = r.status === "running" ? "" : "none";
+  $("btn-input").disabled = r.status === "running";
+}
+
+function appendFeed(evs) {
+  if (!evs.length) return;
+  const feed = $("feed");
+  const stick = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 20;
+  feed.insertAdjacentHTML("beforeend", evs.map(e => `
+    <div class="fev k-${esc(e.kind)}">
+      <span class="k">${esc(e.kind)}</span>
+      <span>${e.agent ? `<span class="a">[${esc(e.agent)}]</span> ` : ""}${esc(e.detail || "")}</span>
+    </div>`).join(""));
+  if (stick) feed.scrollTop = feed.scrollHeight;
+}
+
+async function pollOpenRun() {
+  if (!runOpen) return;
+  try {
+    const d = await j(`/api/runs/${encodeURIComponent(runOpen)}?after=${runAfter}`);
+    appendFeed(d.events);
+    runAfter = d.next;
+    renderRunMeta(d.run);
+    if (d.run.status === "running") runPoller = setTimeout(pollOpenRun, 1000);
+  } catch (e) {
+    toast(e.message, "err");
+  }
+}
+
+function openRun(id) {
+  runOpen = id; runAfter = 0;
+  clearTimeout(runPoller);
+  $("cockpit").style.display = "none";
+  $("runview").style.display = "";
+  $("btn-run-back").style.display = "";
+  $("runtitle").textContent = "Run · " + id;
+  $("feed").innerHTML = "";
+  pollOpenRun();
+}
+
+$("btn-run-back").addEventListener("click", () => {
+  runOpen = null;
+  clearTimeout(runPoller);
+  $("runview").style.display = "none";
+  $("cockpit").style.display = "";
+  $("btn-run-back").style.display = "none";
+  $("runtitle").textContent = "Cockpit — despachar trabajo";
+  refreshRuns();
+});
+
+$("btn-dispatch").addEventListener("click", busy($("btn-dispatch"), async () => {
+  const prompt = $("runprompt").value.trim();
+  if (!prompt) { toast("escribí el pedido primero", "err"); return; }
+  const r = await act("/api/runs", {
+    provider: $("provider").value,
+    prompt,
+    task: $("runtask").value,
+  });
+  $("runprompt").value = "";
+  toast(`run ${r.id} despachado a ${r.provider}`, "ok");
+  openRun(r.id);
+}));
+
+$("btn-input").addEventListener("click", busy($("btn-input"), async () => {
+  const prompt = $("runinput").value.trim();
+  if (!prompt) { toast("escribí el siguiente prompt", "err"); return; }
+  const r = await act(`/api/runs/${encodeURIComponent(runOpen)}/input`, { prompt });
+  $("runinput").value = "";
+  renderRunMeta(r);
+  clearTimeout(runPoller);
+  pollOpenRun();
+}));
+
+$("btn-cancel").addEventListener("click", busy($("btn-cancel"), async () => {
+  await act(`/api/runs/${encodeURIComponent(runOpen)}/cancel`);
+  toast("cancelación enviada", "ok");
+}));
+
 /* ---------- acciones globales ---------- */
 
 $("btn-verify").addEventListener("click", busy($("btn-verify"), async () => {
@@ -535,7 +718,8 @@ $("btn-intake").addEventListener("click", busy($("btn-intake"), async () => {
 /* ---------- ciclo ---------- */
 
 async function tick() {
-  const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend(), refreshSpecs()];
+  const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend(),
+                refreshSpecs(), refreshProviders(), refreshRunTasks(), refreshRuns()];
   for (const p of jobs) await p.catch(e => console.warn("studio:", e.message));
 }
 tick();

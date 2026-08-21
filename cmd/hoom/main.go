@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
@@ -18,7 +19,9 @@ import (
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
+	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/report"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -39,6 +42,10 @@ Comandos:
   serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
   spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
+  providers   Detecta las CLIs de IA instaladas (claude|opencode|codex|gemini) [--json]
+  run         Lanza tu CLI de IA en headless: --provider <p> [--task <slug>] "<prompt>"
+              hoom NUNCA llama a una API de IA: ejecuta TU CLI como subproceso.
+              Narracion en .hoom/runs/ (local, fuera de la huella y de Git).
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 9 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -95,6 +102,10 @@ func main() {
 		err = cmdTask(args)
 	case "spec":
 		err = cmdSpec(args)
+	case "providers":
+		err = cmdProviders(args)
+	case "run":
+		err = cmdRun(args)
 	case "hook":
 		err = cmdHook(args)
 	case "agents":
@@ -204,6 +215,93 @@ func cmdCheck(args []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+func cmdProviders(args []string) error {
+	asJSON := false
+	for _, a := range args {
+		if a == "--json" || a == "-json" {
+			asJSON = true
+		}
+	}
+	if asJSON {
+		raw, err := providers.JSONBytes()
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
+	fmt.Println("hoom: providers de IA soportados (deteccion por PATH)")
+	for _, p := range providers.Detect() {
+		state := "NO instalado"
+		if p.Installed {
+			state = "instalado (" + p.Bin + ")"
+		}
+		fmt.Printf("  %-10s %s\n", p.Name, state)
+	}
+	return nil
+}
+
+// cmdRun launches the user's own AI CLI headless over the project or a task
+// worktree. hoom never talks to a model API — it executes the CLI the user
+// already has, exactly like typing it in a terminal.
+func cmdRun(args []string) error {
+	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	provider := fs.String("provider", "", "provider de IA (claude|opencode|codex|gemini)")
+	task := fs.String("task", "", "slug de la tarea: corre en su worktree aislado")
+	cont := fs.String("continue", "", "id de run a continuar (misma sesion del provider)")
+	_ = fs.Parse(args)
+	if *provider == "" {
+		return fmt.Errorf("falta --provider (mira 'hoom providers')")
+	}
+	prompt := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	if prompt == "" {
+		return fmt.Errorf("falta el prompt: hoom run --provider %s \"<pedido>\"", *provider)
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	mgr := runcmd.NewManager(m.Dir)
+	var info runcmd.Run
+	if *cont != "" {
+		return fmt.Errorf("--continue aplica a sesiones del Studio; en terminal cada CLI ya continua con su propio mecanismo (ej: claude -p --continue)")
+	}
+	info, err = mgr.Start(*provider, prompt, *task)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("hoom run: %s (%s) - narracion en .hoom/runs/%s.jsonl (local, fuera de la huella)\n", info.ID, *provider, info.ID)
+	// stream the narration to the terminal as it happens
+	seen := 0
+	for {
+		st, evs, err := mgr.Events(info.ID, seen)
+		if err != nil {
+			return err
+		}
+		for _, ev := range evs {
+			agent := ""
+			if ev.Agent != "" {
+				agent = "[" + ev.Agent + "] "
+			}
+			fmt.Printf("  %-5s %s%s\n", ev.Kind, agent, ev.Detail)
+		}
+		seen += len(evs)
+		if st.Status != runcmd.StatusRunning {
+			if st.Status != runcmd.StatusDone {
+				fmt.Printf("hoom run: %s (exit %d)\n", st.Status, st.ExitCode)
+			}
+			if st.ExitCode > 0 {
+				os.Exit(st.ExitCode) // CA-22: el exit del provider se propaga
+			}
+			if st.Status != runcmd.StatusDone {
+				os.Exit(1)
+			}
+			return nil
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
 }
 
 // cmdSpec records and queries human approvals bound to the spec's content

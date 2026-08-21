@@ -13,6 +13,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -29,7 +30,9 @@ import (
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
+	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/report"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -58,6 +61,7 @@ type Server struct {
 	m        *manifest.Manifest
 	token    string
 	verifyMu sync.Mutex // one verify at a time per tree; TryLock => 409
+	runs     *runcmd.Manager
 }
 
 // New loads the project's manifest and mints the per-session action token.
@@ -72,7 +76,7 @@ func New(dir string) (*Server, error) {
 	if _, err := rand.Read(raw); err != nil {
 		return nil, err
 	}
-	return &Server{m: m, token: hex.EncodeToString(raw)}, nil
+	return &Server{m: m, token: hex.EncodeToString(raw), runs: runcmd.NewManager(m.Dir)}, nil
 }
 
 // Token returns the per-session action token. It is printed exactly once at
@@ -205,6 +209,81 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, d)
 	})
 
+	// --- cockpit: providers y runs headless. Los eventos de un run son
+	// NARRACION local (.hoom/runs/, fuera de huella y de Git); la evidencia
+	// sigue siendo el veredicto.
+
+	mux.HandleFunc("GET /api/providers", func(w http.ResponseWriter, r *http.Request) {
+		raw, err := providers.JSONBytes()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeRaw(w, raw)
+	})
+
+	mux.HandleFunc("GET /api/runs", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, s.runs.List())
+	})
+
+	mux.HandleFunc("GET /api/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		after := 0
+		if raw := r.URL.Query().Get("after"); raw != "" {
+			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+				after = n
+			}
+		}
+		info, evs, err := s.runs.Events(r.PathValue("id"), after)
+		if err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeJSON(w, map[string]any{"run": info, "events": evs, "next": after + len(evs)})
+	})
+
+	mux.HandleFunc("POST /api/runs", s.authed(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Provider string `json:"provider"`
+			Prompt   string `json:"prompt"`
+			Task     string `json:"task"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		info, err := s.runs.Start(body.Provider, body.Prompt, body.Task)
+		if err != nil {
+			writeError(w, runErrCode(err), err.Error())
+			return
+		}
+		writeJSON(w, info)
+	}))
+
+	mux.HandleFunc("POST /api/runs/{id}/input", s.authed(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Prompt string `json:"prompt"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		info, err := s.runs.Input(r.PathValue("id"), body.Prompt)
+		if err != nil {
+			writeError(w, runErrCode(err), err.Error())
+			return
+		}
+		writeJSON(w, info)
+	}))
+
+	mux.HandleFunc("POST /api/runs/{id}/cancel", s.authed(func(w http.ResponseWriter, r *http.Request) {
+		info, err := s.runs.Cancel(r.PathValue("id"))
+		if err != nil {
+			writeError(w, runErrCode(err), err.Error())
+			return
+		}
+		writeJSON(w, info)
+	}))
+
 	// --- acciones: cada POST exige el token y ejecuta el MISMO codigo que
 	// su verbo CLI. Sin token valido no hay efectos secundarios.
 
@@ -330,6 +409,20 @@ func (s *Server) authed(h http.HandlerFunc) http.HandlerFunc {
 		}
 		h(w, r)
 	}
+}
+
+// runErrCode maps run-domain errors to HTTP: busy trees are 409, unknown
+// runs/tasks 404, bad input 400.
+func runErrCode(err error) int {
+	var busy runcmd.ErrBusy
+	if errors.As(err, &busy) {
+		return http.StatusConflict
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "no encontrado") || strings.Contains(msg, "no existe") {
+		return http.StatusNotFound
+	}
+	return http.StatusBadRequest
 }
 
 // specPath resolves a spec name to its file, refusing anything that could

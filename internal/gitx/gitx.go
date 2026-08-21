@@ -163,7 +163,8 @@ func fingerprint(dir string, local map[string]bool) string {
 // recording or committing a verdict must not alter the fingerprint it
 // certifies.
 func excludedFromCandidate(path string) bool {
-	return strings.HasPrefix(path, ".hoom/verdicts/") || strings.HasPrefix(path, ".hoom/cache/") || strings.HasPrefix(path, ".hoom/worktrees/")
+	return strings.HasPrefix(path, ".hoom/verdicts/") || strings.HasPrefix(path, ".hoom/cache/") ||
+		strings.HasPrefix(path, ".hoom/worktrees/") || strings.HasPrefix(path, ".hoom/runs/")
 }
 
 // diffStats measures the change candidate size: numstat of base vs working
@@ -190,7 +191,7 @@ func diffStats(dir, base string, changed []string) (ins, del int) {
 	}
 	if out, err := run(dir, "ls-files", "--others", "--exclude-standard"); err == nil {
 		for _, f := range strings.Split(out, "\n") {
-			if f == "" || strings.HasPrefix(f, ".hoom/verdicts/") || strings.HasPrefix(f, ".hoom/cache/") {
+			if f == "" || excludedFromCandidate(f) {
 				continue
 			}
 			if raw, err := os.ReadFile(filepath.Join(dir, f)); err == nil {
