@@ -243,7 +243,7 @@ irm https://raw.githubusercontent.com/hoomdev/hoomai/main/install.ps1 | iex
 Verificá que quedó:
 
 ```sh
-hoom version     # debe responder: hoom 0.4.0 (o superior)
+hoom version     # debe responder: hoom 0.5.0 (o superior)
 hoom profiles    # lista los stacks soportados: laravel, kmp, kmp-compose, go
 ```
 
