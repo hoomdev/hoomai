@@ -32,8 +32,9 @@ go build -o hoom ./cmd/hoom                               # desde el repo (vendo
 cd mi-proyecto
 hoom init        # detecta el stack (laravel|kmp|kmp-compose|go) y crea hoom.yaml
 hoom verify      # ejecuta los gates y emite un veredicto: ROJO = exit 1
-hoom agents      # instala los 8 contratos de agentes y ata AGENTS.md
+hoom agents      # instala los 9 contratos de agentes y ata AGENTS.md
 hoom report      # historial y tendencia por gate
+hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 ```
 
 ## Filosofia
@@ -135,6 +136,19 @@ la estructura del spec (spec_lint) y que cada criterio tenga al menos un test qu
 lo mencione (spec_trace). Un criterio sin test = veredicto rojo con la accion
 exacta a ejecutar. El spec y los tests ya no pueden divergir en silencio.
 
+## Aprobacion humana atada al contenido (hoom spec)
+
+El punto de control humano del flujo es la aprobacion del spec, y desde v0.5
+queda registrada con la misma filosofia de la huella: **lo que se aprueba es
+un CONTENIDO exacto, no un nombre de archivo**. `hoom spec approve <ruta>`
+guarda un registro append-only en `.hoom/approvals/` con el SHA-256 del
+spec, el autor (git config) y la fecha; viaja en Git como los veredictos.
+Editar el spec despues de aprobarlo lo INVALIDA por construccion:
+`hoom spec status <ruta>` responde aprobado / no-aprobado / invalidado, con
+exit 0 solo para una aprobacion vigente — gateable por script o por el
+contrato del orquestador. Re-aprobar el mismo contenido es un no-op
+informado; el historial de aprobaciones nunca se pisa.
+
 ## Tareas paralelas aisladas (hoom task)
 
 Adaptacion del worktree-por-rol de SwarmForge a nuestra unidad de trabajo: una
@@ -148,6 +162,42 @@ La huella (v2) es de CONTENIDO puro: commitear exactamente lo verificado preserv
 la huella; cambiar un byte la rompe. Verificar, commitear e integrar sin re-correr
 gates es legitimo por construccion.
 
+## HoomAI Studio (hoom serve)
+
+`hoom serve` levanta, desde el MISMO binario (UI embebida con go:embed,
+cero assets de red), el Studio: la cara visual del harness en
+`http://127.0.0.1:4666`. Es un control remoto, jamas un segundo cerebro:
+cada boton ejecuta la misma funcion interna que su verbo CLI, y toda
+funcionalidad nueva nace primero como verbo (regla CLI-first). Por eso el
+Studio es 100% OPCIONAL: si no corres `serve`, la terminal funciona identica
+a siempre; si el Studio no te convence, lo cerras y no paso nada.
+
+Que trae:
+
+- **Cockpit (protagonista de la pantalla)**: elegis el provider de IA entre
+  las CLIs que tenes instaladas (`hoom providers` las detecta por PATH),
+  escribis el pedido y el Studio lanza TU CLI en modo headless (`hoom run`)
+  sobre el proyecto o el worktree de una tarea. hoomAI nunca llama a una API
+  de modelo: ejecuta tu CLI como subproceso, con tu login y tus subagentes.
+- **Escenario y Feed en vivo, simultaneos**: el equipo de agentes como
+  tarjetas en escena (quien actua, que encargo recibio, cuantos actos) y la
+  narracion linea por linea al lado. La atribucion es honesta: lo que no se
+  puede atribuir va al orquestador, jamas a un rol inventado. La narracion
+  queda en `.hoom/runs/` — LOCAL, fuera de Git y fuera de la huella: la
+  evidencia viaja, la narracion no, y `verify`/`check` jamas la leen.
+- **Evidencia en panel lateral, estado siempre visible**: veredictos con el
+  tail de cada gate, specs con su aprobacion por hash (leer, aprobar,
+  mandar review al arquitecto), tareas paralelas e intake de documentos del
+  cliente. El chip del check (VERDE/ROJO) vive fijo en el header: el teatro
+  nunca oculta el veredicto.
+- **Token de acciones**: toda accion (POST) exige el token que `serve`
+  imprime UNA vez al arrancar. Solo lectura sin token; loopback por
+  default; exponer con `--addr` es una decision consciente con advertencia.
+
+Requisito para el cockpit con agentes reales: el modo headless no puede
+preguntarte permisos por consola, asi que tu CLI necesita los permisos del
+proyecto preconfigurados (allowlist de herramientas de tu CLI).
+
 ## Gate de seguridad (Semgrep)
 
 Todos los perfiles incluyen un gate `security` (ausente por defecto; se activa
@@ -158,14 +208,15 @@ encuentra un patron peligroso, se convierte en regla (las skills de Trail of
 Bits para Claude Code hacen exactamente eso en la capa del agente) y el gate lo
 bloquea para siempre. En proyectos con auth/pagos/facturacion: `required: true`.
 
-## Los 8 agentes (.hoom/agents/)
+## Los 9 agentes (.hoom/agents/)
 
 00 Orquestador (padre, nunca escribe codigo) - 01 Arquitecto (produce el spec que ata la
 cadena) - 02 Designer (dueño del design system; el design NO entra al verify) - 03 Scout
 (exploracion solo-lectura, Ollama-compatible) - 04 Writer (UNICO que edita, uno por
 tarea) - 05 Test-writer adversarial (PROHIBIDO ver la implementacion) - 06 Reviewer
 (4 lentes deterministicas segun riesgo) - 07 Characterizer (fija el comportamiento
-actual de codigo legacy antes de refactorizar).
+actual de codigo legacy antes de refactorizar) - 08 Analista (convierte el documento
+del cliente en vision + backlog, sin inventar requerimientos).
 
 `verify` NO es un agente: es un comando deterministico.
 
@@ -202,6 +253,13 @@ linux/darwin/windows (amd64+arm64), genera `checksums.txt` y publica el release.
 
 ## Roadmap
 
+- Gate `spec_approved`: que `hoom verify --spec` exija aprobacion vigente
+  (hoy la exige el contrato del orquestador; el binario aun no).
+- Correlacion tool_use/tool_result en el parser de runs, para marcar cuando
+  un subagente sale de escena en el Escenario.
+- Guia de permisos headless por provider (allowlists recomendadas por CLI).
+- Recargar el historial de runs al arrancar `hoom serve` (hoy la lista del
+  cockpit arranca vacia tras un reinicio; los .jsonl quedan en disco).
 - Fase 2: `hoom characterize` (characterization tests asistidos sobre el blast radius).
 - Cache SQLite regenerable en `.hoom/cache/` para historiales grandes.
 - `hoom onboard` (bootstrap de codebase-memory-mcp + Engram en un proyecto).
@@ -243,7 +301,7 @@ irm https://raw.githubusercontent.com/hoomdev/hoomai/main/install.ps1 | iex
 Verificá que quedó:
 
 ```sh
-hoom version     # debe responder: hoom 0.4.0 (o superior)
+hoom version     # debe responder: hoom 0.5.0 (o superior)
 hoom profiles    # lista los stacks soportados: laravel, kmp, kmp-compose, go
 ```
 
@@ -545,6 +603,8 @@ paralelo es para cuando ya le agarraste la mano.
 | Momento | Comando / acción |
 |---|---|
 | Nueva tarea | Prompt 1 → aprobás spec (CA-n) → Prompt 2 → veredicto con spec_trace |
+| Trabajar desde el navegador | `hoom serve` → cockpit: elegís provider, despachás, ves al equipo en vivo, aprobás specs con un click |
+| Aprobar un spec con registro | `hoom spec approve .hoom/specs/<item>.md` (o el botón del Studio) — atado al hash del contenido |
 | Dos tareas independientes | `hoom task start <slug>` por cada una; cierre con `hoom task done` |
 | Antes de integrar | `hoom check` (el hook lo exige solo) |
 | Ver cómo viene el proyecto | `hoom report -n 10` — tendencia por gate |
