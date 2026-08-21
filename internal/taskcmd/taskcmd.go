@@ -8,6 +8,7 @@
 package taskcmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -80,44 +81,106 @@ func Start(root, slug, base string) error {
 	return nil
 }
 
-// List shows every task worktree with its verdict state.
-func List(root, base string) error {
+// Task states, machine-readable. The human rendering derives from these.
+const (
+	StateGreen     = "green"
+	StateDrift     = "drift"
+	StateRed       = "red"
+	StateNoVerdict = "no-verdict"
+)
+
+// TaskInfo is one task's state, shared verbatim by `hoom task list --json`
+// and by the Studio's /api/tasks (one brain, several skins).
+type TaskInfo struct {
+	Slug      string `json:"slug"`
+	Branch    string `json:"branch"`
+	State     string `json:"state"` // green | drift | red | no-verdict
+	VerdictID string `json:"verdict_id,omitempty"`
+	Dirty     bool   `json:"dirty"`
+}
+
+// Snapshot collects every task worktree with its verdict state. No tasks
+// yields an empty (non-nil) slice so JSON renders as [] and never null.
+func Snapshot(root, base string) ([]TaskInfo, error) {
+	out := []TaskInfo{}
 	dir := filepath.Join(root, ".hoom", "worktrees")
 	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) || len(entries) == 0 {
-		fmt.Println("hoom: sin tareas activas (crea una con 'hoom task start <slug>')")
-		return nil
+	if os.IsNotExist(err) {
+		return out, nil
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
-	fmt.Println("hoom: tareas activas")
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
 		wt := filepath.Join(dir, e.Name())
-		state := taskState(wt, base)
-		branch, _ := run(wt, "rev-parse", "--abbrev-ref", "HEAD")
-		fmt.Printf("  %-24s %-12s %s\n", e.Name(), branch, state)
+		ti := TaskInfo{Slug: e.Name()}
+		ti.Branch, _ = run(wt, "rev-parse", "--abbrev-ref", "HEAD")
+		if st, _ := run(wt, "status", "--porcelain"); st != "" {
+			ti.Dirty = true
+		}
+		ti.State, ti.VerdictID = taskState(wt, base)
+		out = append(out, ti)
+	}
+	return out, nil
+}
+
+// JSONBytes renders the snapshot exactly as both the CLI and the Studio
+// emit it, so the two representations cannot diverge.
+func JSONBytes(root, base string) ([]byte, error) {
+	tasks, err := Snapshot(root, base)
+	if err != nil {
+		return nil, err
+	}
+	return json.MarshalIndent(tasks, "", "  ")
+}
+
+// List shows every task worktree with its verdict state.
+func List(root, base string) error {
+	tasks, err := Snapshot(root, base)
+	if err != nil {
+		return err
+	}
+	if len(tasks) == 0 {
+		fmt.Println("hoom: sin tareas activas (crea una con 'hoom task start <slug>')")
+		return nil
+	}
+	fmt.Println("hoom: tareas activas")
+	for _, t := range tasks {
+		fmt.Printf("  %-24s %-12s %s\n", t.Slug, t.Branch, humanState(t))
 	}
 	return nil
 }
 
-func taskState(wt, base string) string {
+func humanState(t TaskInfo) string {
+	switch t.State {
+	case StateRed:
+		return "ROJO (" + t.VerdictID + ")"
+	case StateDrift:
+		return "VERDE con drift (re-ejecuta hoom verify)"
+	case StateGreen:
+		return "VERDE listo para cerrar (" + t.VerdictID + ")"
+	default:
+		return "SIN-VEREDICTO (corre hoom verify dentro del worktree)"
+	}
+}
+
+func taskState(wt, base string) (state, verdictID string) {
 	all, err := verdict.LoadAll(wt)
 	if err != nil || len(all) == 0 {
-		return "SIN-VEREDICTO (corre hoom verify dentro del worktree)"
+		return StateNoVerdict, ""
 	}
 	last := all[len(all)-1]
 	if last.Verdict != "green" {
-		return "ROJO (" + last.ID + ")"
+		return StateRed, last.ID
 	}
 	g := gitx.Snapshot(wt, base)
 	if g.ChangeFingerprint != last.Git.ChangeFingerprint {
-		return "VERDE con drift (re-ejecuta hoom verify)"
+		return StateDrift, last.ID
 	}
-	return "VERDE listo para cerrar (" + last.ID + ")"
+	return StateGreen, last.ID
 }
 
 // Done closes a task: requires a clean tree (code AND verdicts committed) and

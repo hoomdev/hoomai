@@ -61,12 +61,20 @@ hoom report      # historial y tendencia por gate
 | `hoom verify --full` | Ignora el scoping por diff (corrida completa, ej. nocturna) |
 | `hoom verify --gate test,static` | Ejecuta solo esos gates |
 | `hoom report -n 10` | Historial de veredictos + tendencia de pass-rate por gate |
+| `hoom report --json` | El mismo historial como JSON en stdout (para agentes y el Studio) |
 | `hoom check` | Compara el arbol ACTUAL contra el ultimo veredicto: verde + huella coincidente = OK |
+| `hoom check --json` | El mismo check como JSON en stdout, mismo exit code |
+| `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake) con el token que imprime al arrancar |
+| `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
+| `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
+| `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) `--json` |
+| `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git) |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
 | `hoom verify --spec <ruta>` | Suma los gates `spec_lint` y `spec_trace`: cada criterio CA-n del spec debe tener un test que lo referencie |
 | `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
 | `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
+| `hoom task list --json` | El mismo estado como JSON en stdout |
 | `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado |
 | `hoom agents` | Instala los 9 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
 | `hoom agents --target all` | Genera ademas los subagentes NATIVOS de Claude Code, OpenCode, Codex y Gemini CLI |
