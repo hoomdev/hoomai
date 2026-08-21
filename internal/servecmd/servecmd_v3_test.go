@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 )
@@ -224,6 +225,40 @@ func TestCA29_NarracionNoTocaEvidencia(t *testing.T) {
 	}
 	if res, err := checkcmd.Run(dir, "main"); err != nil || !res.OK {
 		t.Fatalf("CA-29: el check no puede leer .hoom/runs/: %+v err=%v", res, err)
+	}
+}
+
+// CA-45: /api/context responde exactamente los mismos bytes que
+// `hoom context --json` — paridad CLI-Studio, un solo cerebro.
+func TestCA45_ParidadContexto(t *testing.T) {
+	dir := newProject(t)
+	if err := os.MkdirAll(filepath.Join(dir, ".hoom", "intake"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".hoom", "intake", "srs.md"), []byte("# SRS\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := newServer(t, dir)
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/context", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("CA-45: esperaba 200, obtuve %d", rec.Code)
+	}
+	cli, err := contextcmd.JSONBytes(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := strings.TrimSpace(rec.Body.String())
+	if api != strings.TrimSpace(string(cli)) {
+		t.Fatalf("CA-45: /api/context difiere del CLI:\napi: %s\ncli: %s", api, cli)
+	}
+	var r contextcmd.Report
+	if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Intake.Count != 1 || r.Status != "amarillo" {
+		t.Fatalf("CA-45: reporte inconsistente (intake sin destilar => amarillo): %+v", r)
 	}
 }
 

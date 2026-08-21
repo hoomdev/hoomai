@@ -16,6 +16,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
@@ -42,6 +43,8 @@ Comandos:
   serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
   spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
+  context     Salud del contexto: intake, vision/backlog, preguntas abiertas,
+              staleness. Amarillos honestos; informa, nunca bloquea [--json]
   providers   Detecta las CLIs de IA instaladas (claude|opencode|codex|gemini) [--json]
   run         Lanza tu CLI de IA en headless: --provider <p> [--task <slug>] "<prompt>"
               hoom NUNCA llama a una API de IA: ejecuta TU CLI como subproceso.
@@ -102,6 +105,8 @@ func main() {
 		err = cmdTask(args)
 	case "spec":
 		err = cmdSpec(args)
+	case "context":
+		err = cmdContext(args)
 	case "providers":
 		err = cmdProviders(args)
 	case "run":
@@ -214,6 +219,31 @@ func cmdCheck(args []string) error {
 	if !res.OK {
 		os.Exit(1)
 	}
+	return nil
+}
+
+// cmdContext reports context health. Always exit 0: context debt is
+// visible, never blocking (there is no red here by design).
+func cmdContext(args []string) error {
+	asJSON := false
+	for _, a := range args {
+		if a == "--json" || a == "-json" {
+			asJSON = true
+		}
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	if asJSON {
+		raw, err := contextcmd.JSONBytes(m.Dir)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
+	contextcmd.Render(os.Stdout, contextcmd.Build(m.Dir))
 	return nil
 }
 
