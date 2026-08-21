@@ -68,6 +68,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake) con el token que imprime al arrancar |
 | `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
 | `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
+| `hoom context` | Salud del contexto: fuentes de intake, vision/backlog, preguntas abiertas y staleness por fechas. Amarillos honestos; informa, nunca bloquea. `--json` |
 | `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) `--json` |
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git) |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |

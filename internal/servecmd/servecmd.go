@@ -28,6 +28,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -184,6 +185,15 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		raw, err := report.JSONBytes(all, queryN(r, defaultReportN))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeRaw(w, raw)
+	})
+
+	mux.HandleFunc("GET /api/context", func(w http.ResponseWriter, r *http.Request) {
+		raw, err := contextcmd.JSONBytes(s.m.Dir)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

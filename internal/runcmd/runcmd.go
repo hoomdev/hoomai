@@ -182,8 +182,13 @@ func (m *Manager) Start(provider, prompt, task string) (Run, error) {
 
 	m.append(r, Event{TS: time.Now().UTC(), Kind: "start",
 		Detail: fmt.Sprintf("run %s: %s en %s", id, provider, displayDir(task))})
+	// snapshot ANTES de lanzar la goroutine: execute escribe r.info en
+	// paralelo y una copia sin lock seria una carrera de datos.
+	m.mu.Lock()
+	info := r.info
+	m.mu.Unlock()
 	go m.execute(r, prompt, false)
-	return r.info, nil
+	return info, nil
 }
 
 // Input continues a finished run's session with the next prompt (the "spec
@@ -219,8 +224,11 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 		m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
 			Detail: fmt.Sprintf("aviso: %s no soporta continuar sesion en headless; se lanza una invocacion nueva", r.spec.Name)})
 	}
+	m.mu.Lock()
+	info := r.info
+	m.mu.Unlock()
 	go m.execute(r, prompt, cont)
-	return r.info, nil
+	return info, nil
 }
 
 // Cancel terminates the active subprocess. The log survives complete.

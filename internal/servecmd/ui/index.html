@@ -237,6 +237,7 @@
   <span class="chip" id="check">cargando…</span>
   <nav>
     <button class="act" data-drawer="veredictos">Veredictos</button>
+    <button class="act" data-drawer="contexto">Contexto <span id="ctx-dot"></span></button>
     <button class="act" data-drawer="specs">Specs</button>
     <button class="act" data-drawer="tareas">Tareas</button>
     <button class="act" data-drawer="intake">Intake</button>
@@ -298,6 +299,10 @@
       <div id="verdicts"><div class="empty">cargando…</div></div>
       <div id="detail"></div>
       <div class="trend-wrap"><h2 style="margin:0;padding:10px 16px 0;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Tendencia por gate</h2><div id="trend"></div></div>
+    </div>
+    <div class="dsec" id="d-contexto">
+      <div id="ctxbody"><div class="empty">cargando…</div></div>
+      <div class="empty" style="font-style:italic">el contexto informa, nunca bloquea: amarillo = deuda visible, no build roto</div>
     </div>
     <div class="dsec" id="d-specs">
       <div id="specs"><div class="empty">cargando…</div></div>
@@ -384,7 +389,7 @@ function busy(btn, fn) {
 
 /* ---------- drawer de evidencia ---------- */
 
-const DRAWER_TITLES = { veredictos: "Veredictos — la evidencia", specs: "Specs — punto de control", tareas: "Tareas paralelas", intake: "Intake — documentos del cliente" };
+const DRAWER_TITLES = { veredictos: "Veredictos — la evidencia", contexto: "Contexto — salud de las fuentes", specs: "Specs — punto de control", tareas: "Tareas paralelas", intake: "Intake — documentos del cliente" };
 let drawerOpen = null;
 
 function openDrawer(name) {
@@ -517,6 +522,25 @@ async function refreshTrend() {
       <span class="pct">${g.pass_rate}% (${g.pass}/${g.total})</span>
     </div>`;
   }).join("")}</div>`;
+}
+
+async function refreshContext() {
+  const c = await j("/api/context");
+  $("ctx-dot").textContent = c.status === "amarillo" ? "●" : "";
+  $("ctx-dot").style.color = "var(--warning)";
+  $("ctxbody").innerHTML = `
+    <div class="dmeta">
+      ${badge(c.status === "amarillo" ? "AMARILLO" : "VERDE", c.status === "amarillo" ? "absent" : "green")}
+      intake: ${c.intake.count} doc(s) · preguntas abiertas: ${c.open_questions}
+    </div>
+    <table class="dtable">
+      <tr><th></th><th>check</th><th>detalle</th></tr>
+      ${c.checks.map(ch => `<tr>
+        <td>${badge(ch.status === "warn" ? "AMAR" : "OK", ch.status === "warn" ? "absent" : "pass")}</td>
+        <td class="g">${esc(ch.name)}</td>
+        <td>${esc(ch.detail)}${ch.action ? `<br><small style="color:var(--text-3)">Acción: ${esc(ch.action)}</small>` : ""}</td>
+      </tr>`).join("")}
+    </table>`;
 }
 
 /* ---------- specs ---------- */
@@ -797,7 +821,8 @@ $("btn-intake").addEventListener("click", busy($("btn-intake"), async () => {
 
 async function tick() {
   const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend(),
-                refreshSpecs(), refreshProviders(), refreshRunTasks(), refreshRuns()];
+                refreshSpecs(), refreshProviders(), refreshRunTasks(), refreshRuns(),
+                refreshContext()];
   for (const p of jobs) await p.catch(e => console.warn("studio:", e.message));
 }
 tick();

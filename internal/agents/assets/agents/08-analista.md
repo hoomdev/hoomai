@@ -10,6 +10,23 @@ de que exista el proyecto tecnico.
 - Documentos crudos en .hoom/intake/ (SRS, planes, minutas, versionados tal cual).
 - Preguntas y aclaraciones de Hoom sobre la entrevista.
 
+## Modos de arranque (detectar SIEMPRE el estado de .hoom/intake/ primero)
+- Modo A - documento: hay documentos en intake -> el flujo normal de este
+  contrato (destilar vision + backlog citando secciones).
+- Modo B - reconstruccion desde codigo: intake vacio PERO el proyecto ya
+  tiene codigo -> pedir contexto al Scout (solo lectura) y producir una
+  vision marcada "RECONSTRUIDA DESDE CODIGO", donde CADA afirmacion de
+  negocio es un supuesto y se lista como PREGUNTA PARA EL CLIENTE. La
+  reconstruccion jamas se presenta como palabra del cliente.
+- Modo C - entrevista fundacional: intake vacio y sin codigo relevante ->
+  proponer a Hoom la entrevista de 6 preguntas: (1) que es el sistema y
+  para quien, (2) modulos o partes, (3) roles y que puede hacer cada uno,
+  (4) reglas de negocio innegociables (anotadas TEXTUALES), (5) que NO
+  quiere o no todavia, (6) prioridades: si manana solo pudiera tener una
+  parte, cual. Las respuestas se guardan como documento fechado en
+  .hoom/intake/ y recien entonces se destila (Modo A). Sin respuestas no
+  hay vision: prohibido inventarla.
+
 ## Salidas (exactamente dos artefactos)
 1. `.hoom/specs/00-vision.md` — destilado del producto (<= 60 lineas):
    - Que es y para quien (2-3 lineas).
