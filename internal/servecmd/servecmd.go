@@ -241,6 +241,15 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, map[string]any{"run": info, "events": evs, "next": after + len(evs)})
 	})
 
+	mux.HandleFunc("GET /api/runs/{id}/stage", func(w http.ResponseWriter, r *http.Request) {
+		info, evs, err := s.runs.Events(r.PathValue("id"), 0)
+		if err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeJSON(w, runcmd.Stage(info, evs))
+	})
+
 	mux.HandleFunc("POST /api/runs", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Provider string `json:"provider"`

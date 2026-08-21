@@ -193,6 +193,33 @@
   .fev.k-end .k   { color: var(--good); }
   .fev .a { color: var(--good); }
   .feednote { padding: 6px 14px; color: var(--text-3); font-size: 11.5px; font-style: italic; }
+  /* escenario */
+  .viewtabs { display: flex; gap: 6px; padding: 8px 14px 0; }
+  button.act.tab { border-radius: 6px 6px 0 0; border-bottom: 0; opacity: .6; }
+  button.act.tab.sel { opacity: 1; border-color: var(--accent); color: var(--accent); }
+  .stage {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border);
+    max-height: 340px; overflow-y: auto;
+  }
+  .card {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+    background: var(--panel-2); display: grid; gap: 4px; align-content: start;
+  }
+  .card.dim { opacity: .38; }
+  .card.on {
+    border-color: var(--good);
+    box-shadow: 0 0 0 1px var(--good), 0 0 14px rgba(12,163,12,.25);
+  }
+  .card .face { font-size: 22px; line-height: 1; }
+  .card .who { font: 600 12.5px system-ui, sans-serif; color: var(--text); }
+  .card .who small { color: var(--text-3); font-weight: 400; }
+  .card .acts { color: var(--text-3); font-size: 11.5px; }
+  .card .bubble {
+    font-size: 11.5px; color: var(--text-2); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  }
   /* tendencia */
   .trend { padding: 8px 14px 14px; }
   .trow { display: grid; grid-template-columns: 110px 1fr 84px; gap: 10px; align-items: center; padding: 5px 0; }
@@ -253,7 +280,12 @@
       </div>
       <div id="runview" style="display:none">
         <div class="dmeta" id="runmeta"></div>
+        <div class="viewtabs">
+          <button class="act tab sel" id="tab-feed">Feed</button>
+          <button class="act tab" id="tab-stage">Escenario</button>
+        </div>
         <div class="feed" id="feed"></div>
+        <div class="stage" id="stage" style="display:none"></div>
         <div class="feednote">narración del provider — la evidencia son los veredictos</div>
         <div class="dispatchbar">
           <textarea id="runinput" placeholder="siguiente prompt (ej: spec aprobado, adelante)"></textarea>
@@ -625,6 +657,43 @@ function appendFeed(evs) {
   if (stick) feed.scrollTop = feed.scrollHeight;
 }
 
+/* el escenario: el equipo en escena, computado por el binario */
+let stageMode = false;
+
+const FACES = {
+  "orquestador": "🎼", "analista": "📋", "arquitecto": "📐", "designer": "🎨",
+  "scout": "🔭", "writer": "✍️", "test-writer": "🧪", "reviewer": "🔎",
+  "characterizer": "📸",
+};
+
+function renderStage(sv) {
+  $("stage").innerHTML = sv.actors.map(a => {
+    const dim = a.acts === 0 && !a.active;
+    return `<div class="card${a.active ? " on" : ""}${dim ? " dim" : ""}">
+      <div class="face">${FACES[a.role] || "🤖"}</div>
+      <div class="who">${esc(a.role)}${a.known ? "" : " <small>(externo)</small>"}</div>
+      <div class="acts">${a.active ? "EN ESCENA · " : ""}${a.acts} acto${a.acts === 1 ? "" : "s"}</div>
+      ${a.last_detail ? `<div class="bubble">${esc(a.last_detail)}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+async function refreshStage() {
+  if (!runOpen || !stageMode) return;
+  renderStage(await j(`/api/runs/${encodeURIComponent(runOpen)}/stage`));
+}
+
+function setStageMode(on) {
+  stageMode = on;
+  $("tab-feed").classList.toggle("sel", !on);
+  $("tab-stage").classList.toggle("sel", on);
+  $("feed").style.display = on ? "none" : "";
+  $("stage").style.display = on ? "" : "none";
+  if (on) refreshStage().catch(e => toast(e.message, "err"));
+}
+$("tab-feed").addEventListener("click", () => setStageMode(false));
+$("tab-stage").addEventListener("click", () => setStageMode(true));
+
 async function pollOpenRun() {
   if (!runOpen) return;
   try {
@@ -632,6 +701,7 @@ async function pollOpenRun() {
     appendFeed(d.events);
     runAfter = d.next;
     renderRunMeta(d.run);
+    await refreshStage();
     if (d.run.status === "running") runPoller = setTimeout(pollOpenRun, 1000);
   } catch (e) {
     toast(e.message, "err");
@@ -646,6 +716,7 @@ function openRun(id) {
   $("btn-run-back").style.display = "";
   $("runtitle").textContent = "Run · " + id;
   $("feed").innerHTML = "";
+  $("stage").innerHTML = "";
   pollOpenRun();
 }
 

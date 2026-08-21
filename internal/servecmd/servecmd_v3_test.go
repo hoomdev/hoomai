@@ -147,6 +147,54 @@ func TestCA27_InputContinuaLaSesion(t *testing.T) {
 	}
 }
 
+// CA-31: /api/runs/{id}/stage computa el escenario desde los MISMOS eventos
+// del run que alimenta el feed; run inexistente responde 404 JSON.
+func TestCA31_StageDesdeElMismoStream(t *testing.T) {
+	fakeProvider(t, `echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Task","input":{"subagent_type":"hoom-scout","prompt":"mapea"}}]}}'`+"\nexit 0\n")
+	dir := newProject(t)
+	s := newServer(t, dir)
+
+	rec := doPOST(t, s, "/api/runs", s.Token(), []byte(`{"provider":"claude","prompt":"hola"}`), "application/json")
+	var info runcmd.Run
+	if err := json.Unmarshal(rec.Body.Bytes(), &info); err != nil {
+		t.Fatal(err)
+	}
+	_, evs := pollRun(t, s, info.ID)
+
+	stageRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(stageRec, httptest.NewRequest(http.MethodGet, "/api/runs/"+info.ID+"/stage", nil))
+	if stageRec.Code != http.StatusOK {
+		t.Fatalf("CA-31: esperaba 200, obtuve %d", stageRec.Code)
+	}
+	var sv runcmd.StageView
+	if err := json.Unmarshal(stageRec.Body.Bytes(), &sv); err != nil {
+		t.Fatal(err)
+	}
+	finalInfo, allEvs, err := s.runs.Events(info.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := runcmd.Stage(finalInfo, allEvs)
+	if len(sv.Actors) != len(expected.Actors) || sv.Status != expected.Status {
+		t.Fatalf("CA-31: el stage del endpoint debe salir de los mismos eventos del run:\napi: %+v\nesperado: %+v", sv, expected)
+	}
+	found := false
+	for _, a := range sv.Actors {
+		if a.Role == "scout" && a.Acts == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("CA-31: la delegacion del feed (%d eventos) debe verse en el escenario: %+v", len(evs), sv.Actors)
+	}
+
+	notFound := httptest.NewRecorder()
+	s.Handler().ServeHTTP(notFound, httptest.NewRequest(http.MethodGet, "/api/runs/no-existe/stage", nil))
+	if notFound.Code != http.StatusNotFound {
+		t.Fatalf("CA-31: run inexistente debe ser 404, fue %d", notFound.Code)
+	}
+}
+
 // CA-29: la narracion jamas toca la evidencia: con basura en .hoom/runs/,
 // verify sigue emitiendo su veredicto y check sigue verde.
 func TestCA29_NarracionNoTocaEvidencia(t *testing.T) {
