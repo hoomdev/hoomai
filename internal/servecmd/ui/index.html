@@ -23,73 +23,58 @@
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0;
-    background: var(--surface);
-    color: var(--text);
+    margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--surface); color: var(--text);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   header {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 18px; border-bottom: 1px solid var(--border); flex: none;
   }
-  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; white-space: nowrap; }
   header h1 span { color: var(--text-3); font-weight: 400; }
-  .meta { color: var(--text-2); font-size: 12.5px; }
   .chip {
     font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px;
-    border: 1px solid var(--border); color: var(--text-2);
+    border: 1px solid var(--border); color: var(--text-2); white-space: nowrap;
   }
   .chip.ok    { color: var(--good);     border-color: var(--good); }
   .chip.bad   { color: var(--critical); border-color: var(--critical); }
   .spacer { flex: 1; }
-  #token {
-    background: var(--panel); color: var(--text-2); border: 1px solid var(--border);
-    border-radius: 6px; padding: 5px 8px; font: 12px var(--mono); width: 190px;
-  }
+  nav { display: flex; gap: 6px; }
   button.act {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 5px 12px; font: 600 12.5px system-ui, sans-serif;
-    cursor: pointer;
+    cursor: pointer; white-space: nowrap;
   }
   button.act:hover { border-color: var(--accent); }
   button.act.primary { border-color: var(--accent); color: var(--accent); }
   button.act.approve { border-color: var(--good); color: var(--good); }
   button.act:disabled { opacity: .5; cursor: wait; }
-  main {
-    display: grid; gap: 16px; padding: 16px 20px;
-    grid-template-columns: minmax(320px, 5fr) minmax(280px, 4fr);
-    align-items: start;
+  #token {
+    background: var(--panel); color: var(--text-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; font: 12px var(--mono); width: 170px;
   }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  section {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 8px; overflow: hidden;
+  /* ---- cockpit protagonista ---- */
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px; gap: 12px; }
+  .dispatchbar { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; flex: none; }
+  .dispatchbar select {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif;
   }
-  section > h2 {
-    display: flex; align-items: center; gap: 10px;
-    margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 650;
-    letter-spacing: .06em; text-transform: uppercase; color: var(--text-3);
-    border-bottom: 1px solid var(--border);
+  .dispatchbar textarea {
+    flex: 1; min-width: 220px; background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 9px; font: 13px system-ui, sans-serif; min-height: 44px; resize: vertical;
   }
-  section > h2 .spacer { flex: 1; }
-  .empty { padding: 18px 14px; color: var(--text-3); }
-  .empty code { font-family: var(--mono); color: var(--text-2); }
-  .warnbox {
-    margin: 10px 14px 0; padding: 8px 10px; border-radius: 6px; font-size: 12.5px;
-    border: 1px solid var(--warning); color: var(--warning);
-  }
-  /* veredictos */
-  .vrow {
+  #cockpit, #runview { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .rrow {
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 8px 14px; border: 0; border-bottom: 1px solid var(--border);
-    background: none; color: var(--text-2); text-align: left; cursor: pointer;
-    font: inherit;
+    padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); color: var(--text-2); text-align: left; cursor: pointer; font: inherit;
   }
-  .vrow:hover { background: var(--panel-2); }
-  .vrow.sel { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
-  .vrow .when { color: var(--text-3); font-size: 12px; white-space: nowrap; }
-  .vrow .where { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .vrow .counts { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+  .rrow:hover { border-color: var(--accent); }
+  .rrow .rid { font-family: var(--mono); font-size: 12px; flex: 1; }
+  #runs { display: grid; gap: 8px; overflow-y: auto; align-content: start; }
+  .hint { color: var(--text-3); font-size: 12.5px; }
   .badge {
     font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 4px;
     letter-spacing: .04em; white-space: nowrap;
@@ -101,15 +86,104 @@
   .b-error  { color: var(--serious);  border: 1px solid var(--serious); }
   .b-absent { color: var(--warning);  border: 1px solid var(--warning); }
   .b-skipped{ color: var(--text-3);   border: 1px solid var(--border); }
-  /* detalle */
-  #detail table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  #detail th {
-    text-align: left; padding: 6px 14px; color: var(--text-3); font-size: 11px;
+  .b-running  { color: var(--accent);   border: 1px solid var(--accent); }
+  .b-done     { color: var(--good);     border: 1px solid var(--good); }
+  .b-canceled { color: var(--text-3);   border: 1px solid var(--border); }
+  .b-aprobado    { color: var(--good);     border: 1px solid var(--good); }
+  .b-invalidado  { color: var(--serious);  border: 1px solid var(--serious); }
+  .b-no-aprobado { color: var(--warning);  border: 1px solid var(--warning); }
+  /* run abierto: escenario + feed SIMULTANEOS */
+  .runmeta { color: var(--text-2); font-size: 12.5px; flex: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .runmeta code { font-family: var(--mono); color: var(--text); }
+  .live { flex: 1; min-height: 0; display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
+  @media (max-width: 980px) { .live { grid-template-columns: 1fr; } }
+  .pane {
+    border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  .pane > h2 {
+    margin: 0; padding: 8px 14px; font-size: 11.5px; font-weight: 650; flex: none;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--text-3);
+    border-bottom: 1px solid var(--border);
+  }
+  .stage {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 10px; padding: 12px 14px; align-content: start;
+  }
+  .card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px;
+    background: var(--panel-2); display: grid; gap: 5px; align-content: start;
+    transition: opacity .3s, box-shadow .3s;
+  }
+  .card.dim { opacity: .35; }
+  .card.on {
+    border-color: var(--good);
+    box-shadow: 0 0 0 1px var(--good), 0 0 16px rgba(12,163,12,.28);
+  }
+  .card .face { font-size: 26px; line-height: 1; }
+  .card .who { font: 650 13px system-ui, sans-serif; color: var(--text); }
+  .card .who small { color: var(--text-3); font-weight: 400; }
+  .card .acts { color: var(--text-3); font-size: 11.5px; }
+  .card .acts b { color: var(--good); font-weight: 650; }
+  .card .bubble {
+    font-size: 11.5px; color: var(--text-2); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  }
+  .feed { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px; font: 12px/1.55 var(--mono); }
+  .fev { display: flex; gap: 8px; padding: 1px 0; color: var(--text-2); }
+  .fev .k { flex: 0 0 48px; text-align: right; color: var(--text-3); }
+  .fev.k-tool .k  { color: var(--accent); }
+  .fev.k-agent .k { color: var(--good); }
+  .fev.k-error .k { color: var(--critical); }
+  .fev.k-end .k   { color: var(--good); }
+  .fev .a { color: var(--good); }
+  .feednote { padding: 5px 14px; color: var(--text-3); font-size: 11px; font-style: italic; border-top: 1px solid var(--border); flex: none; }
+  /* ---- drawer lateral: la evidencia ---- */
+  #backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 20; display: none;
+  }
+  #drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 94vw); z-index: 21;
+    background: var(--panel); border-left: 1px solid var(--border);
+    transform: translateX(100%); transition: transform .22s ease;
+    display: flex; flex-direction: column;
+  }
+  #drawer.open { transform: translateX(0); }
+  .drawer-head {
+    display: flex; align-items: center; gap: 10px; padding: 12px 16px; flex: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .drawer-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); flex: 1; }
+  .drawer-body { flex: 1; min-height: 0; overflow-y: auto; }
+  .dsec { display: none; }
+  .dsec.show { display: block; }
+  .empty { padding: 18px 16px; color: var(--text-3); }
+  .empty code { font-family: var(--mono); color: var(--text-2); }
+  .warnbox {
+    margin: 10px 16px 0; padding: 8px 10px; border-radius: 6px; font-size: 12.5px;
+    border: 1px solid var(--warning); color: var(--warning);
+  }
+  .vrow {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 8px 16px; border: 0; border-bottom: 1px solid var(--border);
+    background: none; color: var(--text-2); text-align: left; cursor: pointer; font: inherit;
+  }
+  .vrow:hover { background: var(--panel-2); }
+  .vrow.sel { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
+  .vrow .when { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+  .vrow .where { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .vrow .counts { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+  .dtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dtable th {
+    text-align: left; padding: 6px 16px; color: var(--text-3); font-size: 11px;
     text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border);
   }
-  #detail td { padding: 6px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); vertical-align: top; }
-  #detail td.g { font-family: var(--mono); color: var(--text); }
-  #detail td.ms { color: var(--text-3); text-align: right; white-space: nowrap; }
+  .dtable td { padding: 6px 16px; border-bottom: 1px solid var(--border); color: var(--text-2); vertical-align: top; }
+  .dtable td.g { font-family: var(--mono); color: var(--text); }
+  .dtable td.ms { color: var(--text-3); text-align: right; white-space: nowrap; }
+  .dtable td.slug { font-family: var(--mono); color: var(--text); }
   pre.tail {
     margin: 0; padding: 8px 10px; background: var(--surface);
     border: 1px solid var(--border); border-radius: 6px;
@@ -117,122 +191,41 @@
     overflow-x: auto; white-space: pre-wrap; word-break: break-word;
   }
   .tail-note { color: var(--text-3); font-size: 12px; margin: 4px 0 0; }
-  .dmeta { padding: 10px 14px; color: var(--text-2); font-size: 12.5px; border-bottom: 1px solid var(--border); }
+  .dmeta { padding: 10px 16px; color: var(--text-2); font-size: 12.5px; border-bottom: 1px solid var(--border); }
   .dmeta code { font-family: var(--mono); color: var(--text); }
-  /* tareas */
-  #tasks table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  #tasks th {
-    text-align: left; padding: 6px 14px; color: var(--text-3); font-size: 11px;
-    text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border);
-  }
-  #tasks td { padding: 7px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); }
-  #tasks td.slug { font-family: var(--mono); color: var(--text); }
-  .taskbar { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
-  .taskbar input {
+  .dbar { display: flex; gap: 8px; padding: 10px 16px; align-items: center; flex-wrap: wrap; }
+  .dbar input[type=text], .dbar textarea {
     flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 5px 8px; font: 13px var(--mono);
+    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif;
   }
-  /* specs */
+  .dbar input.mono { font-family: var(--mono); }
+  .dbar textarea { flex: 1 1 100%; min-height: 54px; resize: vertical; }
+  .dbar input[type=file] { flex: 1; color: var(--text-3); font-size: 12.5px; }
   .srow {
     display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 8px 14px; border: 0; border-bottom: 1px solid var(--border);
+    padding: 8px 16px; border: 0; border-bottom: 1px solid var(--border);
     background: none; color: var(--text-2); text-align: left; cursor: pointer; font: inherit;
   }
   .srow:hover { background: var(--panel-2); }
   .srow .name { font-family: var(--mono); flex: 1; color: var(--text); }
-  .b-aprobado    { color: var(--good);     border: 1px solid var(--good); }
-  .b-invalidado  { color: var(--serious);  border: 1px solid var(--serious); }
-  .b-no-aprobado { color: var(--warning);  border: 1px solid var(--warning); }
-  #specview .md {
-    padding: 12px 16px; color: var(--text-2); font-size: 13.5px; overflow-x: auto;
-    border-bottom: 1px solid var(--border); max-height: 420px; overflow-y: auto;
-  }
-  #specview .md h1, #specview .md h2, #specview .md h3 { color: var(--text); margin: 12px 0 6px; }
-  #specview .md h1 { font-size: 16px; } #specview .md h2 { font-size: 14px; } #specview .md h3 { font-size: 13px; }
-  #specview .md code { font-family: var(--mono); background: var(--surface); padding: 1px 4px; border-radius: 4px; }
-  #specview .md li { margin: 2px 0 2px 8px; }
-  #specview .md p { margin: 6px 0; }
-  .ca-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-  .specbar { display: flex; gap: 8px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
-  .specbar textarea {
-    flex: 1 1 100%; background: var(--surface); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif; min-height: 54px; resize: vertical;
-  }
-  /* intake */
-  .intakebar { display: flex; gap: 8px; padding: 12px 14px; align-items: center; }
-  .intakebar input[type=file] { flex: 1; color: var(--text-3); font-size: 12.5px; }
-  /* cockpit */
-  .dispatchbar { display: flex; gap: 8px; padding: 10px 14px; align-items: flex-start; flex-wrap: wrap; }
-  .dispatchbar select {
-    background: var(--surface); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 5px 8px; font: 13px system-ui, sans-serif;
-  }
-  .dispatchbar textarea {
-    flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif; min-height: 46px; resize: vertical;
-  }
-  .rrow {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 8px 14px; border: 0; border-top: 1px solid var(--border);
-    background: none; color: var(--text-2); text-align: left; cursor: pointer; font: inherit;
-  }
-  .rrow:hover { background: var(--panel-2); }
-  .rrow .rid { font-family: var(--mono); font-size: 12px; flex: 1; }
-  .b-running  { color: var(--accent);  border: 1px solid var(--accent); }
-  .b-done     { color: var(--good);     border: 1px solid var(--good); }
-  .b-canceled { color: var(--text-3);   border: 1px solid var(--border); }
-  .feed {
-    max-height: 340px; overflow-y: auto; padding: 8px 14px;
-    font: 12px/1.5 var(--mono); border-bottom: 1px solid var(--border);
-  }
-  .fev { display: flex; gap: 8px; padding: 1px 0; color: var(--text-2); }
-  .fev .k { flex: 0 0 52px; text-align: right; color: var(--text-3); }
-  .fev.k-tool .k  { color: var(--accent); }
-  .fev.k-agent .k { color: var(--good); }
-  .fev.k-error .k { color: var(--critical); }
-  .fev.k-end .k   { color: var(--good); }
-  .fev .a { color: var(--good); }
-  .feednote { padding: 6px 14px; color: var(--text-3); font-size: 11.5px; font-style: italic; }
-  /* escenario */
-  .viewtabs { display: flex; gap: 6px; padding: 8px 14px 0; }
-  button.act.tab { border-radius: 6px 6px 0 0; border-bottom: 0; opacity: .6; }
-  button.act.tab.sel { opacity: 1; border-color: var(--accent); color: var(--accent); }
-  .stage {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border);
-    max-height: 340px; overflow-y: auto;
-  }
-  .card {
-    border: 1px solid var(--border); border-radius: 8px; padding: 10px;
-    background: var(--panel-2); display: grid; gap: 4px; align-content: start;
-  }
-  .card.dim { opacity: .38; }
-  .card.on {
-    border-color: var(--good);
-    box-shadow: 0 0 0 1px var(--good), 0 0 14px rgba(12,163,12,.25);
-  }
-  .card .face { font-size: 22px; line-height: 1; }
-  .card .who { font: 600 12.5px system-ui, sans-serif; color: var(--text); }
-  .card .who small { color: var(--text-3); font-weight: 400; }
-  .card .acts { color: var(--text-3); font-size: 11.5px; }
-  .card .bubble {
-    font-size: 11.5px; color: var(--text-2); background: var(--surface);
-    border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px;
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-  }
-  /* tendencia */
-  .trend { padding: 8px 14px 14px; }
+  .md { padding: 12px 16px; color: var(--text-2); font-size: 13.5px; border-bottom: 1px solid var(--border); }
+  .md h1, .md h2, .md h3 { color: var(--text); margin: 12px 0 6px; }
+  .md h1 { font-size: 16px; } .md h2 { font-size: 14px; } .md h3 { font-size: 13px; }
+  .md code { font-family: var(--mono); background: var(--surface); padding: 1px 4px; border-radius: 4px; }
+  .md li { margin: 2px 0 2px 8px; }
+  .md p { margin: 6px 0; }
+  .ca-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .trend { padding: 8px 16px 14px; }
   .trow { display: grid; grid-template-columns: 110px 1fr 84px; gap: 10px; align-items: center; padding: 5px 0; }
   .trow .name { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
   .bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
   .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
   .trow .pct { font-size: 12px; color: var(--text-2); text-align: right; white-space: nowrap; }
-  footer { padding: 8px 20px 18px; color: var(--text-3); font-size: 12px; }
   #toast {
     position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
     max-width: 720px; padding: 10px 16px; border-radius: 8px; font-size: 13px;
     background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-    display: none; white-space: pre-wrap; word-break: break-word; z-index: 10;
+    display: none; white-space: pre-wrap; word-break: break-word; z-index: 30;
   }
   #toast.err { border-color: var(--critical); color: var(--critical); }
   #toast.ok { border-color: var(--good); color: var(--good); }
@@ -241,86 +234,99 @@
 <body>
 <header>
   <h1>HoomAI Studio <span id="project"></span></h1>
-  <span class="meta" id="profile"></span>
   <span class="chip" id="check">cargando…</span>
+  <nav>
+    <button class="act" data-drawer="veredictos">Veredictos</button>
+    <button class="act" data-drawer="specs">Specs</button>
+    <button class="act" data-drawer="tareas">Tareas</button>
+    <button class="act" data-drawer="intake">Intake</button>
+  </nav>
   <span class="spacer"></span>
-  <input id="token" type="password" placeholder="token de acciones (hoom serve)" autocomplete="off">
+  <input id="token" type="password" placeholder="token de acciones" autocomplete="off">
   <button class="act primary" id="btn-verify">Verificar</button>
 </header>
+
 <main>
-  <div style="display:grid; gap:16px;">
-    <section>
-      <h2>Veredictos</h2>
+  <!-- cockpit: la pantalla protagonista -->
+  <div id="cockpit">
+    <div class="dispatchbar">
+      <select id="provider"></select>
+      <select id="runtask"><option value="">en el proyecto</option></select>
+      <textarea id="runprompt" placeholder="pedido para el orquestador (ej: implementá el item X del backlog, spec primero y esperá mi aprobación)"></textarea>
+      <button class="act primary" id="btn-dispatch">Despachar</button>
+    </div>
+    <div class="hint" id="cockpit-hint">despachá un pedido y vas a ver al equipo trabajar acá — escenario y feed en vivo, al mismo tiempo</div>
+    <div id="runs"></div>
+  </div>
+
+  <!-- run abierto: escenario + feed simultaneos -->
+  <div id="runview" style="display:none">
+    <div class="runmeta">
+      <button class="act" id="btn-run-back">← runs</button>
+      <span id="runmeta"></span>
+      <span class="spacer"></span>
+      <button class="act" id="btn-cancel">Cancelar</button>
+    </div>
+    <div class="live">
+      <div class="pane">
+        <h2>Escenario — el equipo en escena</h2>
+        <div class="stage" id="stage"></div>
+      </div>
+      <div class="pane">
+        <h2>Feed — línea por línea</h2>
+        <div class="feed" id="feed"></div>
+        <div class="feednote">narración del provider — la evidencia son los veredictos</div>
+      </div>
+    </div>
+    <div class="dispatchbar">
+      <textarea id="runinput" placeholder="siguiente prompt (ej: spec aprobado, adelante)"></textarea>
+      <button class="act" id="btn-input">Continuar</button>
+    </div>
+  </div>
+</main>
+
+<!-- drawer lateral: la evidencia y la gestion -->
+<div id="backdrop"></div>
+<aside id="drawer">
+  <div class="drawer-head">
+    <h2 id="drawer-title"></h2>
+    <button class="act" id="btn-drawer-close">Cerrar ✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="dsec" id="d-veredictos">
       <div id="vwarn"></div>
       <div id="verdicts"><div class="empty">cargando…</div></div>
-    </section>
-    <section>
-      <h2>Detalle del veredicto</h2>
-      <div id="detail"><div class="empty">elegí un veredicto de la lista</div></div>
-    </section>
-    <section>
-      <h2><span id="spectitle">Specs</span><span class="spacer"></span><button class="act" id="btn-spec-back" style="display:none">← lista</button></h2>
+      <div id="detail"></div>
+      <div class="trend-wrap"><h2 style="margin:0;padding:10px 16px 0;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)">Tendencia por gate</h2><div id="trend"></div></div>
+    </div>
+    <div class="dsec" id="d-specs">
       <div id="specs"><div class="empty">cargando…</div></div>
-      <div id="specview" style="display:none"></div>
-    </section>
-  </div>
-  <div style="display:grid; gap:16px;">
-    <section>
-      <h2><span id="runtitle">Cockpit — despachar trabajo</span><span class="spacer"></span><button class="act" id="btn-run-back" style="display:none">← runs</button></h2>
-      <div id="cockpit">
-        <div class="dispatchbar">
-          <select id="provider"></select>
-          <select id="runtask"><option value="">en el proyecto</option></select>
-        </div>
-        <div class="dispatchbar">
-          <textarea id="runprompt" placeholder="pedido para el orquestador (ej: implementá el item X del backlog, spec primero y esperá mi aprobación)"></textarea>
-          <button class="act primary" id="btn-dispatch">Despachar</button>
-        </div>
-        <div id="runs"></div>
+      <div id="specview" style="display:none">
+        <div class="dbar"><button class="act" id="btn-spec-back">← lista de specs</button></div>
+        <div id="specbody"></div>
       </div>
-      <div id="runview" style="display:none">
-        <div class="dmeta" id="runmeta"></div>
-        <div class="viewtabs">
-          <button class="act tab sel" id="tab-feed">Feed</button>
-          <button class="act tab" id="tab-stage">Escenario</button>
-        </div>
-        <div class="feed" id="feed"></div>
-        <div class="stage" id="stage" style="display:none"></div>
-        <div class="feednote">narración del provider — la evidencia son los veredictos</div>
-        <div class="dispatchbar">
-          <textarea id="runinput" placeholder="siguiente prompt (ej: spec aprobado, adelante)"></textarea>
-          <button class="act" id="btn-input">Continuar</button>
-          <button class="act" id="btn-cancel">Cancelar</button>
-        </div>
-      </div>
-    </section>
-    <section>
-      <h2>Tareas paralelas</h2>
+    </div>
+    <div class="dsec" id="d-tareas">
       <div id="tasks"><div class="empty">cargando…</div></div>
-      <div class="taskbar">
-        <input id="newslug" placeholder="slug de la nueva tarea (ej: precios-por-region)">
+      <div class="dbar">
+        <input type="text" class="mono" id="newslug" placeholder="slug de la nueva tarea">
         <button class="act" id="btn-task">Nueva tarea</button>
       </div>
-    </section>
-    <section>
-      <h2>Intake — documentos del cliente</h2>
-      <div class="intakebar">
+    </div>
+    <div class="dsec" id="d-intake">
+      <div class="empty">los documentos del cliente (SRS, minutas, planes) entran acá y quedan en <code>.hoom/intake/</code>, versionados</div>
+      <div class="dbar">
         <input type="file" id="intakefile">
         <button class="act" id="btn-intake">Subir a .hoom/intake/</button>
       </div>
-    </section>
-    <section>
-      <h2>Tendencia por gate</h2>
-      <div id="trend"><div class="empty">cargando…</div></div>
-    </section>
+    </div>
   </div>
-</main>
-<footer>los botones ejecutan los MISMOS verbos del CLI (<code>hoom verify</code>, <code>hoom task</code>, <code>hoom spec approve</code>) · el token se imprime al arrancar <code>hoom serve</code> · se actualiza cada 5 s</footer>
+</aside>
 <div id="toast"></div>
+
 <script>
 "use strict";
 let selected = null;
-let specOpen = null;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g,
@@ -330,7 +336,6 @@ const stBadge = s => badge({pass:"PASS", fail:"FAIL", error:"ERROR", absent:"AUS
 const vBadge = v => v === "green" ? badge("VERDE","green") : badge("ROJO","red");
 const when = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(); };
 
-// token de acciones: pegado una vez, recordado por navegador (best-effort).
 try { $("token").value = localStorage.getItem("hoom-token") || ""; } catch (e) {}
 $("token").addEventListener("change", () => {
   try { localStorage.setItem("hoom-token", $("token").value); } catch (e) {}
@@ -352,7 +357,6 @@ async function j(url) {
   return r.json();
 }
 
-// accion = POST con token; el error del CLI viaja verbatim al toast.
 async function act(url, body, isForm) {
   const headers = { "X-Hoom-Token": $("token").value };
   let payload = body;
@@ -378,20 +382,44 @@ function busy(btn, fn) {
   };
 }
 
+/* ---------- drawer de evidencia ---------- */
+
+const DRAWER_TITLES = { veredictos: "Veredictos — la evidencia", specs: "Specs — punto de control", tareas: "Tareas paralelas", intake: "Intake — documentos del cliente" };
+let drawerOpen = null;
+
+function openDrawer(name) {
+  drawerOpen = name;
+  for (const sec of document.querySelectorAll(".dsec")) sec.classList.remove("show");
+  $("d-" + name).classList.add("show");
+  $("drawer-title").textContent = DRAWER_TITLES[name];
+  $("drawer").classList.add("open");
+  $("backdrop").style.display = "block";
+}
+function closeDrawer() {
+  drawerOpen = null;
+  $("drawer").classList.remove("open");
+  $("backdrop").style.display = "none";
+}
+for (const b of document.querySelectorAll("nav [data-drawer]"))
+  b.addEventListener("click", () => openDrawer(b.dataset.drawer));
+$("btn-drawer-close").addEventListener("click", closeDrawer);
+$("backdrop").addEventListener("click", closeDrawer);
+
 /* ---------- lecturas ---------- */
 
 async function refreshStatus() {
   const s = await j("/api/status");
   $("project").textContent = "· " + s.project;
-  $("profile").textContent = `perfil ${s.profile || "-"} · política ${s.policy} · base ${s.base_branch}`;
   const chip = $("check");
   if (s.check.ok) {
     chip.className = "chip ok";
-    chip.textContent = "check VERDE · huella coincidente";
+    chip.textContent = "check VERDE";
+    chip.title = "el árbol actual coincide con el último veredicto verde";
   } else {
     chip.className = "chip bad";
     const why = {"no-verdict":"sin veredictos","red-verdict":"último veredicto rojo","drift":"drift"}[s.check.reason] || s.check.reason;
-    chip.textContent = `check ROJO · ${why} — ${s.check.action || ""}`;
+    chip.textContent = `check ROJO · ${why}`;
+    chip.title = s.check.action || "";
   }
 }
 
@@ -435,7 +463,7 @@ async function showDetail(id) {
       ${v.git?.change_fingerprint ? `· huella <code>${esc(v.git.change_fingerprint)}</code>` : ""}
       ${v.spec ? `<br>spec: <code>${esc(v.spec)}</code>` : ""}
     </div>
-    <table>
+    <table class="dtable">
       <tr><th>estado</th><th>gate (* requerido)</th><th>duración</th></tr>
       ${rows}
     </table>`;
@@ -455,7 +483,7 @@ async function refreshTasks() {
     "red":        badge("ROJO", "red"),
     "no-verdict": badge("SIN VEREDICTO", "skipped"),
   };
-  box.innerHTML = `<table>
+  box.innerHTML = `<table class="dtable">
     <tr><th>tarea</th><th>rama</th><th>estado</th><th>árbol</th><th></th></tr>
     ${tasks.map(t => `<tr>
       <td class="slug">${esc(t.slug)}</td>
@@ -491,14 +519,15 @@ async function refreshTrend() {
   }).join("")}</div>`;
 }
 
-/* ---------- specs: el punto de control humano ---------- */
+/* ---------- specs ---------- */
 
 const stateBadge = s => badge({
   "aprobado": "APROBADO", "invalidado": "INVALIDADO", "no-aprobado": "SIN APROBAR",
 }[s] || s, s);
+let specOpen = null;
 
 async function refreshSpecs() {
-  if (specOpen) return; // no pisar la vista de detalle
+  if (specOpen) return;
   const items = await j("/api/specs");
   const box = $("specs");
   if (!items.length) {
@@ -514,7 +543,6 @@ async function refreshSpecs() {
     b.addEventListener("click", () => openSpec(b.dataset.name));
 }
 
-// render minimo de markdown (autocontenido): titulos, listas, negrita, code.
 function mdRender(src) {
   const lines = esc(src).split("\n");
   let out = [], inList = false;
@@ -545,19 +573,16 @@ async function openSpec(name) {
   const d = await j("/api/specs/" + encodeURIComponent(name));
   specOpen = name;
   $("specs").style.display = "none";
-  $("btn-spec-back").style.display = "";
-  $("spectitle").textContent = "Spec · " + name;
-  const view = $("specview");
-  view.style.display = "";
-  view.innerHTML = `
+  $("specview").style.display = "";
+  $("specbody").innerHTML = `
     <div class="dmeta">
-      ${stateBadge(d.state)}
-      ${d.approval ? ` por <code>${esc(d.approval.approved_by)}</code> · sha <code>${esc(d.approval.sha256.slice(0,8))}</code>` : ""}
+      ${stateBadge(d.state)} <code>${esc(name)}</code>
+      ${d.approval ? `<br>por <code>${esc(d.approval.approved_by)}</code> · sha <code>${esc(d.approval.sha256.slice(0,8))}</code>` : ""}
     </div>
     <div class="ca-chips">${d.criteria.map(c => badge(c, "skipped")).join(" ")}</div>
     <div class="md">${mdRender(d.markdown)}</div>
     ${d.review ? `<div class="dmeta">review previa:<pre class="tail">${esc(d.review)}</pre></div>` : ""}
-    <div class="specbar">
+    <div class="dbar">
       <button class="act approve" id="btn-approve">Aprobar este contenido</button>
       <button class="act" id="btn-verify-spec">Verificar con este spec</button>
       <textarea id="review-text" placeholder="comentarios para el arquitecto (quedan en ${esc(name)}.review.md, versionado)"></textarea>
@@ -587,18 +612,22 @@ $("btn-spec-back").addEventListener("click", () => {
   specOpen = null;
   $("specview").style.display = "none";
   $("specs").style.display = "";
-  $("btn-spec-back").style.display = "none";
-  $("spectitle").textContent = "Specs";
   refreshSpecs();
 });
 
-/* ---------- cockpit: despachar trabajo a la CLI de IA ---------- */
+/* ---------- cockpit: despachar y ver al equipo en vivo ---------- */
 
-let runOpen = null;   // id del run visible
-let runAfter = 0;     // cursor incremental del feed
+let runOpen = null;
+let runAfter = 0;
 let runPoller = null;
 
 const runBadge = s => badge({running:"CORRIENDO", done:"TERMINÓ", error:"ERROR", canceled:"CANCELADO"}[s] || s, s);
+
+const FACES = {
+  "orquestador": "🎼", "analista": "📋", "arquitecto": "📐", "designer": "🎨",
+  "scout": "🔭", "writer": "✍️", "test-writer": "🧪", "reviewer": "🔎",
+  "characterizer": "📸",
+};
 
 async function refreshProviders() {
   const provs = await j("/api/providers");
@@ -627,11 +656,12 @@ async function refreshRunTasks() {
 async function refreshRuns() {
   if (runOpen) return;
   const runs = await j("/api/runs");
+  $("cockpit-hint").style.display = runs.length ? "none" : "";
   $("runs").innerHTML = runs.map(r => `
     <button class="rrow" data-id="${esc(r.id)}">
       ${runBadge(r.status)}
       <span class="rid">${esc(r.id)}</span>
-      <span class="meta">${esc(r.provider)}${r.task ? " · " + esc(r.task) : ""}</span>
+      <span class="hint">${esc(r.provider)}${r.task ? " · " + esc(r.task) : " · proyecto"}</span>
     </button>`).join("");
   for (const b of $("runs").querySelectorAll(".rrow"))
     b.addEventListener("click", () => openRun(b.dataset.id));
@@ -645,6 +675,23 @@ function renderRunMeta(r) {
   $("btn-input").disabled = r.status === "running";
 }
 
+function renderStage(sv) {
+  $("stage").innerHTML = sv.actors.map(a => {
+    const dim = a.acts === 0 && !a.active;
+    return `<div class="card${a.active ? " on" : ""}${dim ? " dim" : ""}">
+      <div class="face">${FACES[a.role] || "🤖"}</div>
+      <div class="who">${esc(a.role)}${a.known ? "" : " <small>(externo)</small>"}</div>
+      <div class="acts">${a.active ? "<b>EN ESCENA</b> · " : ""}${a.acts} acto${a.acts === 1 ? "" : "s"}</div>
+      ${a.last_detail ? `<div class="bubble">${esc(a.last_detail)}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+async function refreshStage() {
+  if (!runOpen) return;
+  renderStage(await j(`/api/runs/${encodeURIComponent(runOpen)}/stage`));
+}
+
 function appendFeed(evs) {
   if (!evs.length) return;
   const feed = $("feed");
@@ -656,43 +703,6 @@ function appendFeed(evs) {
     </div>`).join(""));
   if (stick) feed.scrollTop = feed.scrollHeight;
 }
-
-/* el escenario: el equipo en escena, computado por el binario */
-let stageMode = false;
-
-const FACES = {
-  "orquestador": "🎼", "analista": "📋", "arquitecto": "📐", "designer": "🎨",
-  "scout": "🔭", "writer": "✍️", "test-writer": "🧪", "reviewer": "🔎",
-  "characterizer": "📸",
-};
-
-function renderStage(sv) {
-  $("stage").innerHTML = sv.actors.map(a => {
-    const dim = a.acts === 0 && !a.active;
-    return `<div class="card${a.active ? " on" : ""}${dim ? " dim" : ""}">
-      <div class="face">${FACES[a.role] || "🤖"}</div>
-      <div class="who">${esc(a.role)}${a.known ? "" : " <small>(externo)</small>"}</div>
-      <div class="acts">${a.active ? "EN ESCENA · " : ""}${a.acts} acto${a.acts === 1 ? "" : "s"}</div>
-      ${a.last_detail ? `<div class="bubble">${esc(a.last_detail)}</div>` : ""}
-    </div>`;
-  }).join("");
-}
-
-async function refreshStage() {
-  if (!runOpen || !stageMode) return;
-  renderStage(await j(`/api/runs/${encodeURIComponent(runOpen)}/stage`));
-}
-
-function setStageMode(on) {
-  stageMode = on;
-  $("tab-feed").classList.toggle("sel", !on);
-  $("tab-stage").classList.toggle("sel", on);
-  $("feed").style.display = on ? "none" : "";
-  $("stage").style.display = on ? "" : "none";
-  if (on) refreshStage().catch(e => toast(e.message, "err"));
-}
-$("tab-feed").addEventListener("click", () => setStageMode(false));
-$("tab-stage").addEventListener("click", () => setStageMode(true));
 
 async function pollOpenRun() {
   if (!runOpen) return;
@@ -713,8 +723,6 @@ function openRun(id) {
   clearTimeout(runPoller);
   $("cockpit").style.display = "none";
   $("runview").style.display = "";
-  $("btn-run-back").style.display = "";
-  $("runtitle").textContent = "Run · " + id;
   $("feed").innerHTML = "";
   $("stage").innerHTML = "";
   pollOpenRun();
@@ -725,8 +733,6 @@ $("btn-run-back").addEventListener("click", () => {
   clearTimeout(runPoller);
   $("runview").style.display = "none";
   $("cockpit").style.display = "";
-  $("btn-run-back").style.display = "none";
-  $("runtitle").textContent = "Cockpit — despachar trabajo";
   refreshRuns();
 });
 
@@ -764,7 +770,8 @@ $("btn-verify").addEventListener("click", busy($("btn-verify"), async () => {
   toast("verificando… (los gates tardan lo que tardan)");
   const v = await act("/api/verify", {});
   toast(`veredicto: ${v.verdict === "green" ? "VERDE" : "ROJO"} (${v.id})`, v.verdict === "green" ? "ok" : "err");
-  refreshVerdicts(); refreshStatus(); refreshTrend(); showDetail(v.id);
+  refreshVerdicts(); refreshStatus(); refreshTrend();
+  openDrawer("veredictos"); showDetail(v.id);
 }));
 
 $("btn-task").addEventListener("click", busy($("btn-task"), async () => {
@@ -773,7 +780,7 @@ $("btn-task").addEventListener("click", busy($("btn-task"), async () => {
   await act("/api/tasks", { slug });
   $("newslug").value = "";
   toast(`tarea ${slug} creada: worktree en .hoom/worktrees/${slug}`, "ok");
-  refreshTasks();
+  refreshTasks(); refreshRunTasks();
 }));
 
 $("btn-intake").addEventListener("click", busy($("btn-intake"), async () => {

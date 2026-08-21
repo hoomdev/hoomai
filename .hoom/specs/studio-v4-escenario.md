@@ -50,9 +50,13 @@ Lógica en el binario (primero; la UI la consume):
   - Run terminado: nadie `active`; estado y conteos se conservan.
 - `GET /api/runs/{id}/stage` — la StageView del run (misma autorización que
   el resto de lecturas; 404 si el run no existe).
-- UI: en la vista del run, toggle **Feed | Escenario** — dos vistas del
-  mismo stream, mismo polling. La tarjeta activa se destaca; el encargo se
-  muestra como burbuja; al terminar queda el resumen de participaciones.
+- UI: en la vista del run, **Escenario y Feed SIMULTÁNEOS** (mapa y lupa
+  lado a lado, mismo stream, mismo polling), como protagonistas de la
+  pantalla; la evidencia (veredictos, specs, tareas, intake) vive en un
+  panel lateral bajo demanda, con el estado del check SIEMPRE visible en el
+  header — el teatro jamás oculta el veredicto. La tarjeta activa se
+  destaca; el encargo se muestra como burbuja; al terminar queda el resumen
+  de participaciones.
 
 ## Casos límite y errores esperados
 
@@ -104,9 +108,11 @@ Lógica en el binario (primero; la UI la consume):
   método hoomAI de un vistazo, que es el punto del teatro.
 - **Avatares tipográficos/emoji** — descartadas imágenes: la UI sigue
   autocontenida y el binario no engorda.
-- **Toggle Feed | Escenario** — descartado reemplazar el feed: el feed es
-  la lupa (línea por línea), el escenario es el mapa (quién hace qué); se
-  complementan sobre el mismo stream.
+- **Escenario y Feed simultáneos, cockpit protagonista** — descartados los
+  tabs (versión inicial de este spec, corregida por pedido del operador):
+  el feed es la lupa, el escenario es el mapa, y verse JUNTOS es el punto.
+  La evidencia pasa a un drawer lateral pero su estado (chip del check)
+  nunca sale del header: el teatro no reemplaza al veredicto.
 
 ## Riesgos y deuda aceptada
 
