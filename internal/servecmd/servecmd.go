@@ -29,6 +29,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
+	"github.com/hoomdev/hoomai/internal/filesearch"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -190,6 +191,15 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeRaw(w, raw)
+	})
+
+	mux.HandleFunc("GET /api/files", func(w http.ResponseWriter, r *http.Request) {
+		// solo RUTAS, jamas contenido: el indice es git ls-files
+		matches := filesearch.Match(filesearch.List(s.m.Dir), r.URL.Query().Get("q"), 20)
+		if matches == nil {
+			matches = []string{}
+		}
+		writeJSON(w, matches)
 	})
 
 	mux.HandleFunc("GET /api/context", func(w http.ResponseWriter, r *http.Request) {

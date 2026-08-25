@@ -221,6 +221,16 @@
   .bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
   .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
   .trow .pct { font-size: 12px; color: var(--text-2); text-align: right; white-space: nowrap; }
+  /* autocompletado @archivo */
+  #ac {
+    position: fixed; z-index: 40; display: none;
+    min-width: 300px; max-width: 560px; max-height: 240px; overflow-y: auto;
+    background: var(--panel-2); border: 1px solid var(--accent); border-radius: 8px;
+    font: 12.5px var(--mono); box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  }
+  #ac div { padding: 5px 12px; color: var(--text-2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ac div.sel { background: var(--surface); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+  #ac div b { color: var(--text); font-weight: 650; }
   #toast {
     position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
     max-width: 720px; padding: 10px 16px; border-radius: 8px; font-size: 13px;
@@ -328,6 +338,7 @@
   </div>
 </aside>
 <div id="toast"></div>
+<div id="ac"></div>
 
 <script>
 "use strict";
@@ -816,6 +827,97 @@ $("btn-intake").addEventListener("click", busy($("btn-intake"), async () => {
   input.value = "";
   toast(`guardado en ${r.path} — pedile al hoom-analista que lo procese`, "ok");
 }));
+
+/* ---------- @archivo: autocompletado de rutas (CA-52) ----------
+   Detecta un token @... bajo el cursor, consulta /api/files (git ls-files
+   del lado del binario) y al elegir inserta @ruta/completa. ↑/↓ navega,
+   Enter/Tab inserta, Esc cierra. */
+
+const ac = {
+  ta: null,        // textarea activo
+  items: [],
+  sel: 0,
+  start: 0, end: 0, // rango del token @... en el value
+  timer: null,
+};
+
+function acClose() {
+  $("ac").style.display = "none";
+  ac.ta = null; ac.items = [];
+}
+
+function acRender() {
+  const box = $("ac");
+  box.innerHTML = ac.items.map((p, i) => {
+    const cut = p.lastIndexOf("/") + 1;
+    return `<div class="${i === ac.sel ? "sel" : ""}" data-i="${i}">${esc(p.slice(0, cut))}<b>${esc(p.slice(cut))}</b></div>`;
+  }).join("");
+  for (const d of box.querySelectorAll("div"))
+    d.addEventListener("mousedown", e => { e.preventDefault(); ac.sel = +d.dataset.i; acInsert(); });
+  const r = ac.ta.getBoundingClientRect();
+  box.style.left = r.left + "px";
+  box.style.top = Math.min(r.bottom + 4, window.innerHeight - 250) + "px";
+  box.style.display = "block";
+  const selEl = box.children[ac.sel];
+  if (selEl) selEl.scrollIntoView({ block: "nearest" });
+}
+
+function acInsert() {
+  if (!ac.ta || !ac.items.length) return;
+  const v = ac.ta.value;
+  const insert = "@" + ac.items[ac.sel] + " ";
+  ac.ta.value = v.slice(0, ac.start) + insert + v.slice(ac.end);
+  const pos = ac.start + insert.length;
+  ac.ta.setSelectionRange(pos, pos);
+  ac.ta.focus();
+  acClose();
+}
+
+function acCheck(ta) {
+  const caret = ta.selectionStart;
+  const before = ta.value.slice(0, caret);
+  const m = before.match(/(^|\s)@([^\s@]*)$/);
+  if (!m) { if (ac.ta === ta) acClose(); return; }
+  const frag = m[2];
+  ac.ta = ta;
+  ac.start = caret - frag.length - 1; // incluye la @
+  ac.end = caret;
+  clearTimeout(ac.timer);
+  ac.timer = setTimeout(async () => {
+    try {
+      const items = await j("/api/files?q=" + encodeURIComponent(frag));
+      if (ac.ta !== ta) return; // el usuario ya cerro o cambio de campo
+      ac.items = items; ac.sel = 0;
+      items.length ? acRender() : acClose();
+    } catch (e) { acClose(); }
+  }, 120);
+}
+
+function attachFileAutocomplete(ids) {
+  for (const id of ids) {
+    const ta = $(id);
+    if (!ta) continue;
+    ta.addEventListener("input", () => acCheck(ta));
+    ta.addEventListener("click", () => acCheck(ta));
+    ta.addEventListener("blur", () => setTimeout(() => { if (ac.ta === ta) acClose(); }, 150));
+    ta.addEventListener("keydown", e => {
+      if (ac.ta !== ta || $("ac").style.display === "none") return;
+      switch (e.key) {
+        case "ArrowDown": e.preventDefault(); ac.sel = (ac.sel + 1) % ac.items.length; acRender(); break;
+        case "ArrowUp":   e.preventDefault(); ac.sel = (ac.sel - 1 + ac.items.length) % ac.items.length; acRender(); break;
+        case "Enter": case "Tab": e.preventDefault(); acInsert(); break;
+        case "Escape": acClose(); break;
+      }
+    });
+  }
+}
+attachFileAutocomplete(["runprompt", "runinput"]);
+// el textarea de review de specs se crea dinamico: atarlo al abrir el spec
+const _openSpec = openSpec;
+openSpec = async function (name) {
+  await _openSpec(name);
+  attachFileAutocomplete(["review-text"]);
+};
 
 /* ---------- ciclo ---------- */
 
