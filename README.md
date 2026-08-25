@@ -180,6 +180,9 @@ Que trae:
   escribis el pedido y el Studio lanza TU CLI en modo headless (`hoom run`)
   sobre el proyecto o el worktree de una tarea. hoomAI nunca llama a una API
   de modelo: ejecuta tu CLI como subproceso, con tu login y tus subagentes.
+  Escribi `@` en el chat y autocompleta rutas del proyecto (indice:
+  `git ls-files`, asi los ignorados jamas se sugieren); con Claude Code la
+  referencia `@ruta` adjunta el archivo como contexto real del agente.
 - **Escenario y Feed en vivo, simultaneos**: el equipo de agentes como
   tarjetas en escena (quien actua, que encargo recibio, cuantos actos) y la
   narracion linea por linea al lado. La atribucion es honesta: lo que no se

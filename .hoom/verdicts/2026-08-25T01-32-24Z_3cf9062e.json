@@ -1,0 +1,121 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-08-25T01-32-24Z_3cf9062e",
+  "created_at": "2026-08-25T01:32:24.764841886Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "27ccc8c908d7",
+    "branch": "claude/ui-cli-remote-control-s0we31",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      ".hoom/specs/arroba-archivos.md",
+      "README.md",
+      "internal/filesearch/filesearch.go",
+      "internal/filesearch/filesearch_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/servecmd/servecmd_files_test.go",
+      "internal/servecmd/ui/index.html"
+    ],
+    "change_fingerprint": "05aff6957d812d75",
+    "insertions": 513,
+    "deletions": 0
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "6 criterios (CA-*)"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "6/6 criterios trazados en 16 archivos de test"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 375
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 249
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/filesearch ./internal/servecmd",
+      "exit_code": 0,
+      "duration_ms": 3127,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/filesearch\t1.211s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t2.729s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 5,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/arroba-archivos.md"
+}
