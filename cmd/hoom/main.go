@@ -29,7 +29,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
-var version = "0.6.0"
+var version = "0.7.0"
 
 const usage = `hoomAI %s - harness de verificacion agnostico de IA y de stack
 
