@@ -30,6 +30,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/filesearch"
+	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -200,6 +201,15 @@ func (s *Server) Handler() http.Handler {
 			matches = []string{}
 		}
 		writeJSON(w, matches)
+	})
+
+	mux.HandleFunc("GET /api/findings", func(w http.ResponseWriter, r *http.Request) {
+		raw, err := finding.JSONBytes(s.m.Dir, s.m.BaseBranch, r.URL.Query().Get("open") == "1")
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeRaw(w, raw)
 	})
 
 	mux.HandleFunc("GET /api/context", func(w http.ResponseWriter, r *http.Request) {

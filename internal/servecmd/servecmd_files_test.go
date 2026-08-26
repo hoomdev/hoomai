@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/hoomdev/hoomai/internal/finding"
 )
 
 // CA-47 + CA-49: /api/files responde un array JSON de RUTAS (jamas
@@ -51,6 +53,40 @@ func TestCA47_CA49_EndpointDeRutas(t *testing.T) {
 	s2.Handler().ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/api/files?q=x", nil))
 	if rec2.Code != http.StatusOK || strings.TrimSpace(rec2.Body.String()) != "[]" {
 		t.Fatalf("CA-49: sin git debe responder [] con 200, obtuve %d %q", rec2.Code, rec2.Body.String())
+	}
+}
+
+// CA-59: /api/findings responde exactamente los mismos bytes que
+// `hoom finding list --json`, y la UI embebida trae la seccion Hallazgos.
+func TestCA59_ParidadYSeccionHallazgos(t *testing.T) {
+	dir := newGitProject(t)
+	if _, err := finding.Add(dir, "main", "high", "risk", "hoom.yaml", "hallazgo de prueba para paridad", "tester"); err != nil {
+		t.Fatal(err)
+	}
+	s := newServer(t, dir)
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/findings", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("CA-59: esperaba 200, obtuve %d", rec.Code)
+	}
+	cli, err := finding.JSONBytes(dir, "main", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(rec.Body.String()) != strings.TrimSpace(string(cli)) {
+		t.Fatalf("CA-59: /api/findings difiere del CLI:\napi: %s\ncli: %s", rec.Body.String(), cli)
+	}
+
+	raw, err := fs.ReadFile(uiFS, "ui/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(raw)
+	for _, marca := range []string{`data-drawer="hallazgos"`, "/api/findings", "refreshFindings", "find-dot"} {
+		if !strings.Contains(html, marca) {
+			t.Fatalf("CA-59: la UI no contiene %q", marca)
+		}
 	}
 }
 

@@ -19,37 +19,41 @@ type role struct {
 	slug     string // native agent name (hoom-*)
 	desc     string // delegation description shown to the orchestrator
 	readOnly bool   // enforce no-edit permissions where the target supports it
+	exec     bool   // read-only rol que ademas EJECUTA comandos (hoom finding, tests)
 	primary  bool   // orchestrator: the main session in most CLIs
 }
 
 var roles = []role{
 	{"00-orquestador.md", "hoom-orquestador",
 		"Agente principal hoomAI: rutea el trabajo, delega a los subagentes y exige hoom verify + hoom check antes de entregar. NUNCA edita codigo.",
-		true, true},
+		true, true, true},
 	{"01-arquitecto.md", "hoom-arquitecto",
 		"Produce el spec de una tarea en .hoom/specs (7 secciones) a partir de la vision y el pedido. Usar ANTES de implementar cualquier cambio sustancial. Solo lectura.",
-		true, false},
+		true, false, false},
 	{"02-designer.md", "hoom-designer",
 		"Traduce el visual elegido a un UI-spec y protege el design system. Usar en tareas con interfaz de usuario. Solo lectura.",
-		true, false},
+		true, false, false},
 	{"03-scout.md", "hoom-scout",
 		"Explora el codigo y devuelve un resumen comprimido con rutas exactas y firmas. Usar cuando entender un flujo requiere leer 4 o mas archivos. Solo lectura.",
-		true, false},
+		true, false, false},
 	{"04-writer.md", "hoom-writer",
 		"UNICO agente que edita codigo. Implementa exactamente el scope del spec y corre hoom verify al terminar. Uno solo por tarea.",
-		false, false},
+		false, false, false},
 	{"05-test-writer.md", "hoom-test-writer",
 		"Escribe tests adversariales SOLO desde el spec, sin ver jamas la implementacion. Usar tras aprobar el spec, antes o en paralelo del writer.",
-		false, false},
+		false, false, false},
 	{"06-reviewer.md", "hoom-reviewer",
-		"Revisa un diff con la lente asignada (readability, reliability, resilience o risk); las 4 lentes si toca seguridad, dinero o supera 400 lineas. Solo lectura.",
-		true, false},
+		"Revisa un diff con la lente asignada (readability, reliability, resilience o risk); las 4 lentes si toca seguridad, dinero o supera 400 lineas. Solo lectura de codigo; registra hallazgos con hoom finding add.",
+		true, true, false},
 	{"07-characterizer.md", "hoom-characterizer",
 		"Genera characterization tests que fijan el comportamiento ACTUAL de codigo legacy antes de refactorizar.",
-		false, false},
+		false, false, false},
 	{"08-analista.md", "hoom-analista",
 		"Convierte los documentos del cliente en .hoom/intake en la vision (.hoom/specs/00-vision.md) y el backlog (.hoom/specs/backlog.md).",
-		false, false},
+		false, false, false},
+	{"09-refutador.md", "hoom-refutador",
+		"Intenta REFUTAR los hallazgos abiertos con evidencia deterministica (correr el test, citar la linea) antes de que se corrijan; maximo 2 ciclos y escala al humano. Solo lectura de codigo; cierra con hoom finding resolve.",
+		true, true, false},
 }
 
 // ValidTargets lists the supported --target values.
@@ -104,7 +108,10 @@ func genClaude(dir string) error {
 		f.WriteString("---\n")
 		fmt.Fprintf(&f, "name: %s\n", r.slug)
 		fmt.Fprintf(&f, "description: %q\n", r.desc)
-		if r.readOnly {
+		if r.readOnly && r.exec {
+			// solo lectura de CODIGO pero ejecuta comandos (hoom finding, tests)
+			f.WriteString("tools: Read, Grep, Glob, Bash\n")
+		} else if r.readOnly {
 			f.WriteString("tools: Read, Grep, Glob\n")
 		}
 		f.WriteString("---\n\n")
@@ -113,7 +120,7 @@ func genClaude(dir string) error {
 			return err
 		}
 	}
-	fmt.Println("hoom: [claude] subagentes en .claude/agents/ (8; el orquestador es tu sesion principal via AGENTS.md)")
+	fmt.Println("hoom: [claude] subagentes en .claude/agents/ (9; el orquestador es tu sesion principal via AGENTS.md)")
 	fmt.Println("hoom: [claude] los roles de solo lectura quedan SIN herramientas de edicion: enforcement duro")
 	return nil
 }
@@ -143,8 +150,8 @@ func genOpenCode(dir string) error {
 		f.WriteString("permission:\n")
 		if r.readOnly {
 			f.WriteString("  edit: deny\n")
-			if r.primary {
-				f.WriteString("  bash: allow\n") // the orchestrator runs hoom verify/check
+			if r.primary || r.exec {
+				f.WriteString("  bash: allow\n") // corre hoom verify/check/finding y tests
 			} else {
 				f.WriteString("  bash: deny\n")
 			}
@@ -158,7 +165,7 @@ func genOpenCode(dir string) error {
 			return err
 		}
 	}
-	fmt.Println("hoom: [opencode] agentes en .opencode/agents/ (9; hoom-orquestador es PRIMARY con edit:deny)")
+	fmt.Println("hoom: [opencode] agentes en .opencode/agents/ (10; hoom-orquestador es PRIMARY con edit:deny)")
 	fmt.Println("hoom: [opencode] seleccionalo con Tab o invoca subagentes con @hoom-<rol>")
 	return nil
 }
@@ -182,8 +189,12 @@ func genCodex(dir string) error {
 		var f strings.Builder
 		fmt.Fprintf(&f, "name = %q\n", r.slug)
 		fmt.Fprintf(&f, "description = %q\n", r.desc)
-		if r.readOnly {
+		if r.readOnly && !r.exec {
 			f.WriteString("sandbox_mode = \"read-only\"\n")
+		} else if r.readOnly && r.exec {
+			// necesita ejecutar hoom finding (escribe .hoom/findings/); la
+			// disciplina de no editar codigo queda en el contrato
+			f.WriteString("sandbox_mode = \"workspace-write\"\n")
 		}
 		f.WriteString("developer_instructions = \"\"\"\n")
 		f.WriteString(strings.ReplaceAll(b, `"""`, `'''`))
@@ -192,7 +203,7 @@ func genCodex(dir string) error {
 			return err
 		}
 	}
-	fmt.Println("hoom: [codex] subagentes en .codex/agents/ (8; el orquestador es tu sesion raiz via AGENTS.md)")
+	fmt.Println("hoom: [codex] subagentes en .codex/agents/ (9; el orquestador es tu sesion raiz via AGENTS.md)")
 	fmt.Println("hoom: [codex] recuerda habilitar multi-agente: [features] multi_agent = true en ~/.codex/config.toml")
 	return nil
 }
@@ -225,6 +236,9 @@ func genGemini(dir string) error {
 			for _, t := range []string{"read_file", "read_many_files", "glob", "search_file_content"} {
 				fmt.Fprintf(&f, "  - %s\n", t)
 			}
+			if r.exec {
+				f.WriteString("  - run_shell_command\n")
+			}
 		} else {
 			f.WriteString("  - \"*\"\n")
 		}
@@ -234,7 +248,7 @@ func genGemini(dir string) error {
 			return err
 		}
 	}
-	fmt.Println("hoom: [gemini] subagentes en .gemini/agents/ (8; el orquestador es tu sesion principal)")
+	fmt.Println("hoom: [gemini] subagentes en .gemini/agents/ (9; el orquestador es tu sesion principal)")
 	fmt.Println("hoom: [gemini] NOTA: Antigravity CLI aun no carga subagentes; este target sirve a Gemini CLI (Code Assist)")
 	return nil
 }

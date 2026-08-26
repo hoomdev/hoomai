@@ -32,7 +32,7 @@ go build -o hoom ./cmd/hoom                               # desde el repo (vendo
 cd mi-proyecto
 hoom init        # detecta el stack (laravel|kmp|kmp-compose|go) y crea hoom.yaml
 hoom verify      # ejecuta los gates y emite un veredicto: ROJO = exit 1
-hoom agents      # instala los 9 contratos de agentes y ata AGENTS.md
+hoom agents      # instala los 10 contratos de agentes y ata AGENTS.md
 hoom report      # historial y tendencia por gate
 hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 ```
@@ -69,6 +69,9 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
 | `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
 | `hoom context` | Salud del contexto: fuentes de intake, vision/backlog, preguntas abiertas y staleness por fechas. Amarillos honestos; informa, nunca bloquea. `--json` |
+| `hoom finding add --sev <s> "<desc>"` | Registra un hallazgo de review como artefacto INMUTABLE en `.hoom/findings/`, atado a la huella del arbol |
+| `hoom finding resolve <id> --as corregido\|refutado --evidence "..."` | Cierra un hallazgo (transicion terminal unica); SIN evidencia el binario se niega |
+| `hoom finding list [--open] [--json]` | Estado derivado de cada hallazgo; marca los que quedaron atras del codigo |
 | `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) `--json` |
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git) |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
@@ -78,7 +81,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
 | `hoom task list --json` | El mismo estado como JSON en stdout |
 | `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado |
-| `hoom agents` | Instala los 9 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
+| `hoom agents` | Instala los 10 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
 | `hoom agents --target all` | Genera ademas los subagentes NATIVOS de Claude Code, OpenCode, Codex y Gemini CLI |
 | `hoom profiles` | Lista los perfiles embebidos |
 
@@ -212,7 +215,7 @@ encuentra un patron peligroso, se convierte en regla (las skills de Trail of
 Bits para Claude Code hacen exactamente eso en la capa del agente) y el gate lo
 bloquea para siempre. En proyectos con auth/pagos/facturacion: `required: true`.
 
-## Los 9 agentes (.hoom/agents/)
+## Los 10 agentes (.hoom/agents/)
 
 00 Orquestador (padre, nunca escribe codigo) - 01 Arquitecto (produce el spec que ata la
 cadena) - 02 Designer (dueño del design system; el design NO entra al verify) - 03 Scout
@@ -220,7 +223,9 @@ cadena) - 02 Designer (dueño del design system; el design NO entra al verify) -
 tarea) - 05 Test-writer adversarial (PROHIBIDO ver la implementacion) - 06 Reviewer
 (4 lentes deterministicas segun riesgo) - 07 Characterizer (fija el comportamiento
 actual de codigo legacy antes de refactorizar) - 08 Analista (convierte el documento
-del cliente en vision + backlog, sin inventar requerimientos).
+del cliente en vision + backlog, sin inventar requerimientos) - 09 Refutador (intenta
+TUMBAR los hallazgos abiertos con evidencia deterministica antes de que se corrijan;
+maximo 2 ciclos y escala al humano — el antidoto contra hallazgos persuasivos falsos).
 
 `verify` NO es un agente: es un comando deterministico.
 
@@ -259,6 +264,11 @@ linux/darwin/windows (amd64+arm64), genera `checksums.txt` y publica el release.
 
 - Gate `spec_approved`: que `hoom verify --spec` exija aprobacion vigente
   (hoy la exige el contrato del orquestador; el binario aun no).
+- Gate opcional `findings_open`: rojo con hallazgos high abiertos — primero
+  ver como se usa el ciclo antes de darle poder de bloqueo.
+- Doble juez multi-provider (dos CLIs revisando el mismo diff): se activa
+  el dia que al Refutador se le escapen falsos positivos con frecuencia;
+  la infraestructura (hoom run) ya existe.
 - Correlacion tool_use/tool_result en el parser de runs, para marcar cuando
   un subagente sale de escena en el Escenario.
 - Guia de permisos headless por provider (allowlists recomendadas por CLI).
@@ -395,7 +405,7 @@ hoom agents --target all         # los cuatro a la vez (equipos mixtos)
 ```
 
 Esto hace tres cosas:
-1. Instala los **9 contratos** en `.hoom/agents/` (la fuente de verdad).
+1. Instala los **10 contratos** en `.hoom/agents/` (la fuente de verdad).
 2. Ata el contrato de verificación a `AGENTS.md`.
 3. Genera los subagentes en el formato nativo de tu CLI — y donde la
    herramienta lo permite, las reglas se vuelven **imposibilidad técnica**:
@@ -403,7 +413,7 @@ Esto hace tres cosas:
    edición en Claude/Gemini, `sandbox read-only` en Codex, `edit: deny` en
    OpenCode).
 
-Los 9 roles, en una línea cada uno:
+Los 10 roles, en una línea cada uno:
 
 | # | Agente | Qué hace |
 |---|--------|----------|
@@ -416,6 +426,7 @@ Los 9 roles, en una línea cada uno:
 | 06 | Reviewer | Revisa con 4 lentes según el riesgo |
 | 07 | Characterizer | Fija el comportamiento de código legacy antes de tocarlo |
 | 08 | Analista | Convierte tu documento de entrevista en visión + backlog |
+| 09 | Refutador | Intenta tumbar los hallazgos de review con evidencia antes de corregirlos |
 
 **¿Quién es el orquestador en tu CLI?** En Claude Code, Codex y Gemini es tu
 sesión principal (ya atada por AGENTS.md). En OpenCode es el agente

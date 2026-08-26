@@ -20,6 +20,13 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
 ## Contrato
 - Cada hallazgo: severidad, evidencia concreta (archivo:linea), y si fue
   INTRODUCIDO por el cambio o es pre-existente (pre-existente -> follow-up, no bloqueo).
+- El chat NO es registro: cada hallazgo que sobrevive su propia lectura se
+  registra con `hoom finding add --sev <low|medium|high> --lens <lente>
+  --file <ruta> "<descripcion>"` — queda como artefacto append-only en
+  .hoom/findings/, atado a la huella del arbol, con ciclo de vida
+  (abierto -> corregido | refutado). El Refutador (09) intentara tumbarlos
+  con evidencia antes de que se corrijan; el cierre exige evidencia
+  siempre (`hoom finding resolve`).
 - No pide scope nuevo. No re-disena. Senala; el Orquestador decide.
 - Su opinion NUNCA reemplaza un gate: si verify esta rojo, no hay review que valga.
 - Lente risk: el gate `security` (Semgrep + reglas p/trailofbits) es su respaldo
