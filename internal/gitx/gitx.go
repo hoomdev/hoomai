@@ -164,7 +164,8 @@ func fingerprint(dir string, local map[string]bool) string {
 // certifies.
 func excludedFromCandidate(path string) bool {
 	return strings.HasPrefix(path, ".hoom/verdicts/") || strings.HasPrefix(path, ".hoom/cache/") ||
-		strings.HasPrefix(path, ".hoom/worktrees/") || strings.HasPrefix(path, ".hoom/runs/")
+		strings.HasPrefix(path, ".hoom/worktrees/") || strings.HasPrefix(path, ".hoom/runs/") ||
+		strings.HasPrefix(path, ".hoom/findings/")
 }
 
 // diffStats measures the change candidate size: numstat of base vs working

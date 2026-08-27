@@ -17,6 +17,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
+	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
@@ -45,12 +46,16 @@ Comandos:
   spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
   context     Salud del contexto: intake, vision/backlog, preguntas abiertas,
               staleness. Amarillos honestos; informa, nunca bloquea [--json]
+  finding     Hallazgos de review como artefactos append-only (.hoom/findings/):
+              add --sev low|medium|high [--lens l] [--file f] "<descripcion>"
+              resolve <id> --as corregido|refutado --evidence "<por que>"
+              list [--open] [--json]   (cerrar SIN evidencia esta prohibido)
   providers   Detecta las CLIs de IA instaladas (claude|opencode|codex|gemini) [--json]
   run         Lanza tu CLI de IA en headless: --provider <p> [--task <slug>] "<prompt>"
               hoom NUNCA llama a una API de IA: ejecuta TU CLI como subproceso.
               Narracion en .hoom/runs/ (local, fuera de la huella y de Git).
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
-  agents      Instala los 9 contratos en .hoom/agents/ y AGENTS.md
+  agents      Instala los 10 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
               subagentes NATIVOS de cada CLI desde los mismos contratos
   profiles    Lista los perfiles de stack embebidos
@@ -107,6 +112,8 @@ func main() {
 		err = cmdSpec(args)
 	case "context":
 		err = cmdContext(args)
+	case "finding":
+		err = cmdFinding(args)
 	case "providers":
 		err = cmdProviders(args)
 	case "run":
@@ -331,6 +338,97 @@ func cmdRun(args []string) error {
 			return nil
 		}
 		time.Sleep(150 * time.Millisecond)
+	}
+}
+
+// cmdFinding manages review findings as append-only artifacts: immutable
+// record + single terminal resolution with mandatory evidence.
+func cmdFinding(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("uso: hoom finding add|resolve|list (mira 'hoom help')")
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	sub, rest := args[0], args[1:]
+	switch sub {
+	case "add":
+		fs := flag.NewFlagSet("finding add", flag.ExitOnError)
+		sev := fs.String("sev", "", "severidad: low|medium|high")
+		lens := fs.String("lens", "", "lente: readability|reliability|resilience|risk|otra")
+		file := fs.String("file", "", "archivo senalado")
+		author := fs.String("author", "", "rol o autor (default: git config)")
+		_ = fs.Parse(rest)
+		desc := strings.TrimSpace(strings.Join(fs.Args(), " "))
+		f, err := finding.Add(m.Dir, m.BaseBranch, *sev, *lens, *file, desc, *author)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("hoom finding: registrado %s (%s/%s)\n  descripcion: %s\n  huella: %s\n  el registro es INMUTABLE; se cierra con 'hoom finding resolve %s --as corregido|refutado --evidence \"...\"'\n",
+			f.ID, f.Severity, f.Lens, f.Description, f.Fingerprint, f.ID)
+		return nil
+	case "resolve":
+		// el id va primero y flag.Parse corta en el primer posicional:
+		// separarlo a mano antes de parsear los flags
+		if len(rest) < 1 || strings.HasPrefix(rest[0], "-") {
+			return fmt.Errorf("uso: hoom finding resolve <id> --as corregido|refutado --evidence \"...\"")
+		}
+		id := rest[0]
+		fs := flag.NewFlagSet("finding resolve", flag.ExitOnError)
+		as := fs.String("as", "", "corregido|refutado")
+		evidence := fs.String("evidence", "", "evidencia del cierre (obligatoria)")
+		author := fs.String("author", "", "rol o autor (default: git config)")
+		_ = fs.Parse(rest[1:])
+		r, err := finding.Resolve(m.Dir, id, *as, *evidence, *author)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("hoom finding: %s -> %s\n  evidencia: %s\n", r.FindingID, strings.ToUpper(r.As), r.Evidence)
+		return nil
+	case "list":
+		openOnly, asJSON := false, false
+		for _, a := range rest {
+			switch a {
+			case "--open", "-open":
+				openOnly = true
+			case "--json", "-json":
+				asJSON = true
+			}
+		}
+		if asJSON {
+			raw, err := finding.JSONBytes(m.Dir, m.BaseBranch, openOnly)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(raw))
+			return nil
+		}
+		items, warnings, err := finding.List(m.Dir, m.BaseBranch, openOnly)
+		if err != nil {
+			return err
+		}
+		for _, w := range warnings {
+			fmt.Fprintln(os.Stderr, "hoom:", w)
+		}
+		if len(items) == 0 {
+			fmt.Println("hoom: sin hallazgos registrados (el reviewer los crea con 'hoom finding add')")
+			return nil
+		}
+		fmt.Println("hoom: hallazgos")
+		for _, it := range items {
+			changed := ""
+			if it.CodeChanged {
+				changed = "  [el codigo cambio desde el hallazgo]"
+			}
+			fmt.Printf("  %-22s %-9s %-7s %s%s\n", it.ID, strings.ToUpper(it.Status), it.Severity, it.Description, changed)
+			if it.Resolution != nil {
+				fmt.Printf("      evidencia: %s\n", it.Resolution.Evidence)
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("subcomando desconocido %q (add|resolve|list)", sub)
 	}
 }
 

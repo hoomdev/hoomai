@@ -248,6 +248,7 @@
   <nav>
     <button class="act" data-drawer="veredictos">Veredictos</button>
     <button class="act" data-drawer="contexto">Contexto <span id="ctx-dot"></span></button>
+    <button class="act" data-drawer="hallazgos">Hallazgos <span id="find-dot"></span></button>
     <button class="act" data-drawer="specs">Specs</button>
     <button class="act" data-drawer="tareas">Tareas</button>
     <button class="act" data-drawer="intake">Intake</button>
@@ -313,6 +314,10 @@
     <div class="dsec" id="d-contexto">
       <div id="ctxbody"><div class="empty">cargando…</div></div>
       <div class="empty" style="font-style:italic">el contexto informa, nunca bloquea: amarillo = deuda visible, no build roto</div>
+    </div>
+    <div class="dsec" id="d-hallazgos">
+      <div id="findbody"><div class="empty">cargando…</div></div>
+      <div class="empty" style="font-style:italic">los hallazgos son narración calificada, no evidencia: cerrarlos exige evidencia (hoom finding resolve) y jamás tocan un veredicto</div>
     </div>
     <div class="dsec" id="d-specs">
       <div id="specs"><div class="empty">cargando…</div></div>
@@ -400,7 +405,7 @@ function busy(btn, fn) {
 
 /* ---------- drawer de evidencia ---------- */
 
-const DRAWER_TITLES = { veredictos: "Veredictos — la evidencia", contexto: "Contexto — salud de las fuentes", specs: "Specs — punto de control", tareas: "Tareas paralelas", intake: "Intake — documentos del cliente" };
+const DRAWER_TITLES = { veredictos: "Veredictos — la evidencia", contexto: "Contexto — salud de las fuentes", hallazgos: "Hallazgos — el registro de la review", specs: "Specs — punto de control", tareas: "Tareas paralelas", intake: "Intake — documentos del cliente" };
 let drawerOpen = null;
 
 function openDrawer(name) {
@@ -552,6 +557,34 @@ async function refreshContext() {
         <td>${esc(ch.detail)}${ch.action ? `<br><small style="color:var(--text-3)">Acción: ${esc(ch.action)}</small>` : ""}</td>
       </tr>`).join("")}
     </table>`;
+}
+
+async function refreshFindings() {
+  const data = await j("/api/findings");
+  const items = data.findings;
+  const openHigh = items.filter(f => f.status === "abierto" && f.severity === "high").length;
+  $("find-dot").textContent = openHigh > 0 ? "●" : "";
+  $("find-dot").style.color = "var(--critical)";
+  const box = $("findbody");
+  if (!items.length) {
+    box.innerHTML = `<div class="empty">sin hallazgos registrados — el reviewer los crea con <code>hoom finding add</code></div>`;
+    return;
+  }
+  const sevBadge = s => badge(s.toUpperCase(), {high:"fail", medium:"error", low:"absent"}[s] || "skipped");
+  const stBadge2 = s => badge(s.toUpperCase(), {abierto:"absent", corregido:"pass", refutado:"skipped"}[s] || s);
+  box.innerHTML = `${data.warnings.length ? `<div class="warnbox">! ${data.warnings.map(esc).join("<br>! ")}</div>` : ""}
+    <table class="dtable">
+    <tr><th>sev</th><th>estado</th><th>hallazgo</th></tr>
+    ${items.map(f => `<tr>
+      <td>${sevBadge(f.severity)}</td>
+      <td>${stBadge2(f.status)}</td>
+      <td>
+        ${esc(f.description)}
+        <br><small style="color:var(--text-3)">${esc(f.lens || "")}${f.file ? " · " + esc(f.file) : ""} · ${esc(f.id)}${f.code_changed ? ` · <span style="color:var(--warning)">el código cambió desde el hallazgo</span>` : ""}</small>
+        ${f.resolution ? `<br><small style="color:var(--text-3)">evidencia: ${esc(f.resolution.evidence)}</small>` : ""}
+      </td>
+    </tr>`).join("")}
+  </table>`;
 }
 
 /* ---------- specs ---------- */
@@ -924,7 +957,7 @@ openSpec = async function (name) {
 async function tick() {
   const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend(),
                 refreshSpecs(), refreshProviders(), refreshRunTasks(), refreshRuns(),
-                refreshContext()];
+                refreshContext(), refreshFindings()];
   for (const p of jobs) await p.catch(e => console.warn("studio:", e.message));
 }
 tick();
