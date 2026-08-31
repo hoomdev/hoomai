@@ -34,6 +34,7 @@ hoom init        # detecta el stack (laravel|kmp|kmp-compose|go) y crea hoom.yam
 hoom verify      # ejecuta los gates y emite un veredicto: ROJO = exit 1
 hoom agents      # instala los 10 contratos de agentes y ata AGENTS.md
 hoom status      # la ventana del arbitro: check, gates vivos, roles, tareas
+hoom cockpit     # tu CLI de IA + status --watch en un solo comando (tmux/zellij)
 hoom report      # historial y tendencia por gate
 hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 ```
@@ -68,6 +69,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom check --json` | El mismo check como JSON en stdout, mismo exit code |
 | `hoom status` | La ventana del arbitro: check, ultimo veredicto, verify en curso (gates vivos), runs activos con su rol, tareas y hallazgos. Solo lectura, nunca bloquea. `--json` |
 | `hoom status --watch` | El mismo snapshot refrescando en vivo, pensado para una segunda terminal junto a tu CLI de IA. Sin TTY imprime una vez, sin ANSI |
+| `hoom cockpit` | Arma el puesto completo sobre tmux/zellij: tu CLI de IA en un pane real + `status --watch` al lado. `--provider <p>`, `--task <slug>` (monta el cockpit en el worktree de la tarea), `--mux tmux\|zellij` |
 | `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake) con el token que imprime al arrancar |
 | `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
 | `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
@@ -171,6 +173,27 @@ altera veredictos ni exit codes, y el status es de solo lectura. El panel
 muestra lo que puede probar y rotula lo que no sabe: una corrida muda sin
 cierre es un "posible huerfano", y un run sin datos de delegacion dice
 "sin delegacion visible" — nunca un rol inventado.
+
+## El cockpit (hoom cockpit)
+
+`hoom cockpit` arma el puesto de trabajo en un comando: tu CLI de IA en un
+pane real de terminal y `hoom status --watch` al costado. hoom NO emula
+terminales: detecta tmux o zellij en el PATH y compone la sesion — la
+emulacion la hace el multiplexor, por eso cualquier CLI corre intacta.
+Sin tmux ni zellij instalados, el comando lo dice con la accion exacta
+(instalar uno, o abrir el watch en una segunda terminal a mano).
+
+Sin `--provider`, se usa la unica CLI instalada; con varias, el comando
+pide elegir — jamas adivina. La sesion es estable por proyecto
+(`hoom-<proyecto>`): repetir el comando RE-ADJUNTA en vez de duplicar, y
+dentro de tmux cambia de cliente en vez de anidar. Con `--task <slug>` el
+cockpit se monta dentro del worktree aislado de esa tarea — la forma
+correcta de paralelismo: una sesion de IA por worktree, jamas dos writers
+sobre el mismo arbol.
+
+El cockpit lanza y muestra; no dirige. La orquestacion del trabajo sigue
+viviendo en tu CLI de IA bajo los contratos de roles, y el veredicto sigue
+siendo la unica fuente de verdad.
 
 ## Veredictos parciales (verify --gate)
 
@@ -304,9 +327,6 @@ linux/darwin/windows (amd64+arm64), genera `checksums.txt` y publica el release.
 
 ## Roadmap
 
-- Visibilidad fase 2 — `hoom cockpit`: launcher que compone el layout
-  tmux/zellij (tu CLI de IA en un pane real + `hoom status --watch` al
-  lado). Sin tmux/zellij degrada al watch manual; jamas un emulador propio.
 - Visibilidad fase 3 — adaptadores por provider hasta donde cada ecosistema
   de: statusline y hooks de Claude Code (estado del harness dentro de la
   sesion + registro de roles delegados), plugin OpenCode, etc. Donde no hay
@@ -676,6 +696,7 @@ paralelo es para cuando ya le agarraste la mano.
 |---|---|
 | Nueva tarea | Prompt 1 → aprobás spec (CA-n) → Prompt 2 → veredicto con spec_trace |
 | Ver al harness trabajar | `hoom status --watch` en una segunda terminal junto a tu CLI de IA: gates corriendo en vivo, roles activos, hallazgos |
+| Armar el puesto completo | `hoom cockpit` (con tmux/zellij): IA + watch en un solo comando; `--task <slug>` para trabajar dentro del worktree de una tarea |
 | Trabajar desde el navegador | `hoom serve` → cockpit: elegís provider, despachás, ves al equipo en vivo, aprobás specs con un click |
 | Aprobar un spec con registro | `hoom spec approve .hoom/specs/<item>.md` (o el botón del Studio) — atado al hash del contenido |
 | Dos tareas independientes | `hoom task start <slug>` por cada una; cierre con `hoom task done` |

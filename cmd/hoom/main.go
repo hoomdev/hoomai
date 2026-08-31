@@ -16,6 +16,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/initcmd"
@@ -31,7 +32,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
-var version = "0.8.0"
+var version = "0.9.0"
 
 const usage = `hoomAI %s - harness de verificacion agnostico de IA y de stack
 
@@ -44,6 +45,8 @@ Comandos:
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
   status      La ventana del arbitro: check, veredicto, verify en curso, runs
               con su rol, tareas y hallazgos [--json | --watch]
+  cockpit     Arma el puesto completo sobre tmux/zellij: tu CLI de IA en un
+              pane real + status --watch al lado [--provider p] [--task slug]
   serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
   spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
@@ -88,6 +91,12 @@ Flags de status:
   --json               Emite el snapshot como JSON en stdout
   --watch              Refresca en vivo (requiere TTY; sin TTY imprime una vez)
 
+Flags de cockpit:
+  --provider <p>       CLI de IA a lanzar (claude|opencode|codex|gemini);
+                       omitido: se usa la unica instalada, jamas se adivina
+  --task <slug>        Monta el cockpit dentro del worktree de esa tarea
+  --mux tmux|zellij    Fuerza el multiplexor (default: tmux, luego zellij)
+
 Flags de serve:
   --addr host:puerto   Direccion de escucha (default 127.0.0.1:4666, solo loopback)
 
@@ -115,6 +124,8 @@ func main() {
 		err = cmdCheck(args)
 	case "status":
 		err = cmdStatus(args)
+	case "cockpit":
+		err = cmdCockpit(args)
 	case "serve":
 		err = cmdServe(args)
 	case "task":
@@ -260,6 +271,22 @@ func cmdStatus(args []string) error {
 	return statuscmd.Run(m.Dir, m.BaseBranch, os.Stdout, statuscmd.Options{
 		JSON: *asJSON, Watch: *watch, TTY: tty,
 	})
+}
+
+// cmdCockpit assembles the tmux/zellij layout: AI CLI + status --watch.
+func cmdCockpit(args []string) error {
+	fs := flag.NewFlagSet("cockpit", flag.ExitOnError)
+	provider := fs.String("provider", "", "CLI de IA a lanzar (claude|opencode|codex|gemini)")
+	task := fs.String("task", "", "slug de tarea: monta el cockpit en su worktree")
+	mux := fs.String("mux", "", "multiplexor a usar (tmux|zellij)")
+	_ = fs.Parse(args)
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	return cockpitcmd.Run(m.Dir, m.Project, cockpitcmd.Options{
+		Provider: *provider, Task: *task, Mux: *mux,
+	}, cockpitcmd.DefaultDeps())
 }
 
 // cmdContext reports context health. Always exit 0: context debt is
