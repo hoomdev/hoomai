@@ -111,6 +111,123 @@ func TestCA3_Drift(t *testing.T) {
 	}
 }
 
+// writePartialVerdict emite un veredicto de corrida --gate: un gate corrido,
+// el resto skipped y la marca partial (spec gates-ausentes-parciales-verifica).
+func writePartialVerdict(t *testing.T, root string, at time.Time, status string) *verdict.Verdict {
+	t.Helper()
+	v := &verdict.Verdict{
+		Project:   "demo",
+		CreatedAt: at,
+		Partial:   true,
+		Git:       gitx.Snapshot(root, "main"),
+		Gates: []verdict.GateResult{
+			{Name: "test", Required: true, Status: status},
+			{Name: "build", Required: true, Status: verdict.StatusSkipped},
+		},
+	}
+	v.Finalize()
+	if _, err := verdict.Write(root, v); err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+// CA-64: un parcial ROJO posterior no pisa al completo verde: check sigue OK.
+func TestCA64_ParcialRojoNoPisaVerdeCompleto(t *testing.T) {
+	root := initRepo(t)
+	green := writeVerdict(t, root, time.Now(), verdict.StatusPass)
+	writePartialVerdict(t, root, time.Now().Add(time.Minute), verdict.StatusFail)
+	res, err := Run(root, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.OK || res.VerdictID != green.ID {
+		t.Fatalf("CA-64: la referencia debe ser el completo verde %q: %+v", green.ID, res)
+	}
+}
+
+// CA-64: un parcial VERDE posterior tampoco pisa al completo rojo: check ROJO.
+func TestCA64_ParcialVerdeNoPisaRojoCompleto(t *testing.T) {
+	root := initRepo(t)
+	red := writeVerdict(t, root, time.Now(), verdict.StatusFail)
+	writePartialVerdict(t, root, time.Now().Add(time.Minute), verdict.StatusPass)
+	res, err := Run(root, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK || res.Reason != ReasonRedVerdict || res.VerdictID != red.ID {
+		t.Fatalf("CA-64: la referencia debe ser el completo rojo %q: %+v", red.ID, res)
+	}
+}
+
+// CA-65: con solo veredictos parciales, check es ROJO con razon
+// solo-parciales y la accion exacta (verify completo).
+func TestCA65_SoloParciales(t *testing.T) {
+	root := initRepo(t)
+	writePartialVerdict(t, root, time.Now(), verdict.StatusPass)
+	res, err := Run(root, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.OK || res.ExitCode() != 1 || res.Reason != ReasonOnlyPartial {
+		t.Fatalf("CA-65: esperaba rojo con razon solo-parciales: %+v", res)
+	}
+	if !strings.Contains(res.Action, "hoom verify") {
+		t.Fatalf("CA-65: la accion debe nombrar el comando exacto: %+v", res)
+	}
+}
+
+// CA-67: un veredicto viejo SIN campo partial pero con un gate skipped ajeno
+// a spec_lint/spec_trace se trata como parcial (heuristica retrocompatible).
+func TestCA67_HeuristicaLegacy(t *testing.T) {
+	root := initRepo(t)
+	legacy := &verdict.Verdict{
+		Project:   "demo",
+		CreatedAt: time.Now(),
+		Git:       gitx.Snapshot(root, "main"),
+		Gates: []verdict.GateResult{
+			{Name: "test", Required: true, Status: verdict.StatusPass},
+			{Name: "mutation", Required: true, Status: verdict.StatusSkipped},
+		},
+	}
+	legacy.Finalize()
+	if legacy.Partial {
+		t.Fatalf("CA-67: el veredicto simulado debe carecer del campo partial")
+	}
+	if _, err := verdict.Write(root, legacy); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Run(root, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != ReasonOnlyPartial {
+		t.Fatalf("CA-67: el legacy con skipped debe tratarse como parcial: %+v", res)
+	}
+	// Un skip de spec_trace NO dispara la heuristica (corridas completas
+	// con spec sin criterios lo emiten legitimamente).
+	spec := &verdict.Verdict{
+		Project:   "demo",
+		CreatedAt: time.Now().Add(time.Minute),
+		Git:       gitx.Snapshot(root, "main"),
+		Gates: []verdict.GateResult{
+			{Name: "spec_trace", Required: true, Status: verdict.StatusSkipped},
+			{Name: "test", Required: true, Status: verdict.StatusPass},
+		},
+	}
+	spec.Finalize()
+	if _, err := verdict.Write(root, spec); err != nil {
+		t.Fatal(err)
+	}
+	res, err = Run(root, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.OK || res.VerdictID != spec.ID {
+		t.Fatalf("CA-67: spec_trace skipped no debe marcar parcial: %+v", res)
+	}
+}
+
 // CA-3: ultimo veredicto rojo => exit 1 con razon red-verdict.
 func TestCA3_UltimoRojo(t *testing.T) {
 	root := initRepo(t)

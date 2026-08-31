@@ -57,8 +57,11 @@ type Verdict struct {
 	Gates     []GateResult `json:"gates"`
 	Summary   Summary      `json:"summary"`
 	Verdict   string       `json:"verdict"` // green | red
-	Spec      string       `json:"spec,omitempty"`
-	Notes     []string     `json:"notes,omitempty"`
+	// Partial marks a --gate scoped run: a diagnostic artifact that must
+	// NEVER serve as reference for check/task done (rule 4b by construction).
+	Partial bool     `json:"partial,omitempty"`
+	Spec    string   `json:"spec,omitempty"`
+	Notes   []string `json:"notes,omitempty"`
 }
 
 type Summary struct {
@@ -100,6 +103,36 @@ func (v *Verdict) Finalize() {
 	if red {
 		v.Verdict = "red"
 	}
+}
+
+// IsPartial reports whether this verdict came from a --gate scoped run.
+// Verdicts written before the field existed are detected by heuristic:
+// the gate runner only ever emits skipped for --gate exclusion, so any
+// skipped gate other than spec_lint/spec_trace (which complete runs can
+// legitimately skip) implies a partial run.
+func (v *Verdict) IsPartial() bool {
+	if v.Partial {
+		return true
+	}
+	for _, g := range v.Gates {
+		if g.Status == StatusSkipped && g.Name != "spec_lint" && g.Name != "spec_trace" {
+			return true
+		}
+	}
+	return false
+}
+
+// LatestComplete returns the newest non-partial verdict, or nil when none
+// exists. This is THE reference selector for check, task done and the
+// Studio: partial (--gate) runs are diagnostics and never count as
+// reference, in either direction (no false green, no false red).
+func LatestComplete(all []*Verdict) *Verdict {
+	for i := len(all) - 1; i >= 0; i-- {
+		if !all[i].IsPartial() {
+			return all[i]
+		}
+	}
+	return nil
 }
 
 // Write persists the verdict as .hoom/verdicts/<timestamp>_<hash>.json.

@@ -42,7 +42,8 @@ func Run(dir, projectName, profileName string) error {
 	fmt.Fprintf(&b, "# hoomAI - manifiesto de verificacion\n")
 	fmt.Fprintf(&b, "# Perfil %s: %s\n", profileName, desc)
 	fmt.Fprintf(&b, "# Los gates vienen del perfil; edita cmd/diff_cmd segun tu proyecto.\n")
-	fmt.Fprintf(&b, "# Un cmd vacio declara el gate AUSENTE: se reporta en amarillo, nunca se oculta.\n")
+	fmt.Fprintf(&b, "# Un cmd vacio declara el gate AUSENTE (aunque el perfil traiga diff_cmd):\n")
+	fmt.Fprintf(&b, "# se reporta en amarillo, nunca se oculta. Omitir un gate hereda el del perfil.\n")
 	fmt.Fprintf(&b, "schema: %s\n", manifest.Schema)
 	fmt.Fprintf(&b, "project: %s\n", projectName)
 	fmt.Fprintf(&b, "profile: %s\n", profileName)
@@ -55,8 +56,8 @@ func Run(dir, projectName, profileName string) error {
 		fmt.Fprintf(&b, "  %s:\n", name)
 		fmt.Fprintf(&b, "    required: %v\n", g.IsRequired())
 		fmt.Fprintf(&b, "    cmd: %q\n", g.CmdStr())
-		if g.DiffCmd != "" {
-			fmt.Fprintf(&b, "    diff_cmd: %q\n", g.DiffCmd)
+		if g.DiffCmdStr() != "" {
+			fmt.Fprintf(&b, "    diff_cmd: %q\n", g.DiffCmdStr())
 		}
 		if g.Partial != "" {
 			fmt.Fprintf(&b, "    partial: %q\n", g.Partial)

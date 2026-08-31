@@ -49,6 +49,9 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 	} else {
 		fmt.Fprintf(w, "git: no es un repositorio (sin scoping por diff)\n")
 	}
+	if v.IsPartial() {
+		fmt.Fprintf(w, "%s! veredicto PARCIAL (--gate): diagnostico; no cuenta como referencia de 'hoom check'%s\n", cYellow, cReset)
+	}
 	if v.Git.IsRepo && (v.Git.Insertions+v.Git.Deletions) > 0 {
 		fmt.Fprintf(w, "cambio: +%d -%d lineas - huella %s\n", v.Git.Insertions, v.Git.Deletions, v.Git.ChangeFingerprint)
 		if v.Git.Insertions+v.Git.Deletions > 400 {
@@ -117,11 +120,15 @@ func History(w io.Writer, all []*verdict.Verdict, n int) {
 		if v.Verdict == "red" {
 			color, mark = cRed, "RED"
 		}
-		fmt.Fprintf(w, " %s%s%s %s %s@%s  pass:%d fail:%d err:%d aus:%d\n",
+		partial := ""
+		if v.IsPartial() {
+			partial = cGray + " [parcial]" + cReset
+		}
+		fmt.Fprintf(w, " %s%s%s %s %s@%s  pass:%d fail:%d err:%d aus:%d%s\n",
 			color, mark, cReset,
 			v.CreatedAt.Format("2006-01-02 15:04"),
 			v.Git.Branch, v.Git.Commit,
-			v.Summary.Pass, v.Summary.Fail, v.Summary.Error, v.Summary.Absent)
+			v.Summary.Pass, v.Summary.Fail, v.Summary.Error, v.Summary.Absent, partial)
 	}
 	fmt.Fprintln(w, strings.Repeat("-", 72))
 

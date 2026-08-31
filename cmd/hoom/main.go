@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/report"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
+	"github.com/hoomdev/hoomai/internal/statuscmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
@@ -41,6 +42,8 @@ Comandos:
   verify      Ejecuta los gates del manifiesto y emite un veredicto
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
+  status      La ventana del arbitro: check, veredicto, verify en curso, runs
+              con su rol, tareas y hallazgos [--json | --watch]
   serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
   spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
@@ -67,7 +70,9 @@ Flags de init:
 
 Flags de verify:
   --full               Ignora el scoping por diff (corrida completa, ej. nocturna)
-  --gate a,b           Ejecuta solo esos gates (el resto queda 'skipped')
+  --gate a,b           Ejecuta solo esos gates (el resto queda 'skipped'); el
+                       veredicto queda PARCIAL: diagnostico, nunca referencia
+                       de 'hoom check' ni de 'hoom task done'
   --spec <ruta>        Asocia el veredicto a un spec y ejecuta los gates
                        spec_lint y spec_trace (trazabilidad CA-n -> tests)
   --json               Emite el veredicto como JSON en stdout (para agentes)
@@ -78,6 +83,10 @@ Flags de report:
 
 Flags de check:
   --json               Emite el resultado como JSON en stdout (mismo exit code)
+
+Flags de status:
+  --json               Emite el snapshot como JSON en stdout
+  --watch              Refresca en vivo (requiere TTY; sin TTY imprime una vez)
 
 Flags de serve:
   --addr host:puerto   Direccion de escucha (default 127.0.0.1:4666, solo loopback)
@@ -104,6 +113,8 @@ func main() {
 		err = cmdReport(args)
 	case "check":
 		err = cmdCheck(args)
+	case "status":
+		err = cmdStatus(args)
 	case "serve":
 		err = cmdServe(args)
 	case "task":
@@ -214,6 +225,8 @@ func cmdCheck(args []string) error {
 	switch res.Reason {
 	case checkcmd.ReasonNoVerdict:
 		fmt.Fprintln(os.Stderr, "hoom check: ROJO - no existe ningun veredicto. Accion: ejecuta 'hoom verify'.")
+	case checkcmd.ReasonOnlyPartial:
+		fmt.Fprintln(os.Stderr, "hoom check: ROJO - solo hay veredictos PARCIALES (--gate), que no son referencia. Accion: ejecuta 'hoom verify' completo.")
 	case checkcmd.ReasonRedVerdict:
 		fmt.Fprintf(os.Stderr, "hoom check: ROJO - el ultimo veredicto (%s) es rojo. Accion: corrige y ejecuta 'hoom verify'.\n", res.VerdictID)
 	case checkcmd.ReasonDrift:
@@ -227,6 +240,26 @@ func cmdCheck(args []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// cmdStatus renders the arbiter's window: read-only, never blocks, exit 0.
+// The live discipline stays with check/verify; status only shows.
+func cmdStatus(args []string) error {
+	fs := flag.NewFlagSet("status", flag.ExitOnError)
+	asJSON := fs.Bool("json", false, "emitir el snapshot como JSON en stdout")
+	watch := fs.Bool("watch", false, "refrescar en vivo (requiere TTY)")
+	_ = fs.Parse(args)
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	tty := false
+	if fi, err := os.Stdout.Stat(); err == nil {
+		tty = fi.Mode()&os.ModeCharDevice != 0
+	}
+	return statuscmd.Run(m.Dir, m.BaseBranch, os.Stdout, statuscmd.Options{
+		JSON: *asJSON, Watch: *watch, TTY: tty,
+	})
 }
 
 // cmdContext reports context health. Always exit 0: context debt is

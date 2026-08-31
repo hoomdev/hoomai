@@ -11,9 +11,10 @@ import (
 
 // Reason values for a failing check.
 const (
-	ReasonNoVerdict  = "no-verdict"
-	ReasonRedVerdict = "red-verdict"
-	ReasonDrift      = "drift"
+	ReasonNoVerdict   = "no-verdict"
+	ReasonOnlyPartial = "solo-parciales" // only --gate diagnostics exist: not a reference
+	ReasonRedVerdict  = "red-verdict"
+	ReasonDrift       = "drift"
 )
 
 // Result is the outcome of one check, JSON-ready for `hoom check --json`
@@ -50,7 +51,14 @@ func Run(root, base string) (Result, error) {
 		res.Action = "ejecuta 'hoom verify'"
 		return res, nil
 	}
-	last := all[len(all)-1]
+	// The reference is the newest COMPLETE verdict: a --gate diagnostic can
+	// never become the reference, neither for a false green nor a false red.
+	last := verdict.LatestComplete(all)
+	if last == nil {
+		res.Reason = ReasonOnlyPartial
+		res.Action = "ejecuta 'hoom verify' completo (sin --gate): los veredictos parciales no son referencia"
+		return res, nil
+	}
 	res.VerdictID = last.ID
 	res.LastVerdict = last.Verdict
 	res.FingerprintVerdict = last.Git.ChangeFingerprint

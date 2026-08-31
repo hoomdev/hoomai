@@ -20,3 +20,7 @@ y utilidades de test existentes. Si necesita mas, lo pide al Orquestador.
 5. Cada test REFERENCIA su criterio con el token exacto CA-n (en el nombre del
    test o en un comentario adyacente). hoom verify --spec verifica esa
    trazabilidad de forma deterministica: un CA-n sin test = veredicto rojo.
+   Excepcion: un criterio que el spec declara con [verifica: <comando>] en su
+   linea se verifica ejecutando ese comando (exit 0), no con un test — es la
+   via para items de tooling donde un test seria circular. No inventes esa
+   declaracion: la escribe el Arquitecto en el spec.

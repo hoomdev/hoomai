@@ -21,14 +21,15 @@ const (
 )
 
 // Gate is one verifiable capability (test, static, lint, arch, mutation,
-// build, ...). Required and Cmd are pointers so a project override can
-// distinguish "not specified" (inherit from profile) from an explicit
-// value — in particular `cmd: ""` explicitly declares the gate ABSENT,
-// overriding the profile default.
+// build, ...). Required, Cmd and DiffCmd are pointers so a project override
+// can distinguish "not specified" (inherit from profile) from an explicit
+// value — in particular `cmd: ""` explicitly declares the gate ABSENT
+// (even when the profile ships a diff_cmd), and `diff_cmd: ""` explicitly
+// clears the profile's diff command.
 type Gate struct {
 	Required *bool   `yaml:"required"`
 	Cmd      *string `yaml:"cmd"`
-	DiffCmd  string  `yaml:"diff_cmd,omitempty"`
+	DiffCmd  *string `yaml:"diff_cmd,omitempty"`
 	Notes    string  `yaml:"notes,omitempty"`
 	// Partial declares known partial coverage (e.g. Pitest only mutates the
 	// JVM target in KMP). Declared degradation is a feature: reported loudly,
@@ -45,6 +46,14 @@ func (g Gate) CmdStr() string {
 		return ""
 	}
 	return *g.Cmd
+}
+
+// DiffCmdStr resolves the pointer (nil => "" => no diff scoping).
+func (g Gate) DiffCmdStr() string {
+	if g.DiffCmd == nil {
+		return ""
+	}
+	return *g.DiffCmd
 }
 
 // Manifest is the parsed hoom.yaml after profile inheritance is resolved.
@@ -158,7 +167,8 @@ func Load(dir string, resolveProfile func(name string) (map[string]Gate, string,
 // overlay applies project-level overrides on top of a profile default gate.
 // nil pointer fields inherit; non-nil fields replace — so `cmd: ""` in the
 // project explicitly disables (declares absent) a gate the profile ships,
-// and `required:` only changes when the project actually writes it.
+// `diff_cmd: ""` clears the profile's diff command, and `required:` only
+// changes when the project actually writes it.
 func overlay(base, over Gate) Gate {
 	out := base
 	if over.Required != nil {
@@ -167,7 +177,7 @@ func overlay(base, over Gate) Gate {
 	if over.Cmd != nil {
 		out.Cmd = over.Cmd
 	}
-	if over.DiffCmd != "" {
+	if over.DiffCmd != nil {
 		out.DiffCmd = over.DiffCmd
 	}
 	if over.Notes != "" {

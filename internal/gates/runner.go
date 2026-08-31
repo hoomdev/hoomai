@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -22,6 +23,15 @@ type Options struct {
 	Only     map[string]bool // if non-empty, run only these gates (others => skipped)
 	Timeout  time.Duration   // per-gate timeout (0 = default)
 	TailSize int             // bytes of output tail kept in the verdict
+	// Emit narrates the run as live events (nil = silent). Best-effort by
+	// contract: emitting never alters gate execution, verdict or exit code.
+	Emit func(live.Event)
+}
+
+func (o Options) emit(ev live.Event) {
+	if o.Emit != nil {
+		o.Emit(ev)
+	}
 }
 
 const (
@@ -53,16 +63,21 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	}
 	if len(opt.Only) > 0 && !opt.Only[name] {
 		res.Status = verdict.StatusSkipped
+		opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: res.Scope})
+		opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status})
 		return res
 	}
 	cmdStr, scope := selectCommand(g, git, opt)
 	if strings.TrimSpace(cmdStr) == "" {
 		res.Status = verdict.StatusAbsent // declared degradation
 		res.Notes = g.Notes
+		opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: res.Scope})
+		opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status})
 		return res
 	}
 	res.Command = cmdStr
 	res.Scope = scope
+	opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: scope})
 
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
@@ -90,6 +105,8 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 			res.Notes = err.Error()
 		}
 	}
+	opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status,
+		DurationMS: res.DurationMS, ExitCode: res.ExitCode})
 	return res
 }
 
@@ -100,12 +117,16 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 //	{files}    space-separated changed files
 //	{packages} ./dir style package list derived from changed .go files
 func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string) {
-	cmdStr, scope := g.CmdStr(), "full"
-	if !opt.Full && g.DiffCmd != "" && git.IsRepo && len(git.ChangedFiles) > 0 {
-		cmdStr, scope = g.DiffCmd, "diff"
-	}
-	if cmdStr == "" {
+	// A gate whose cmd resolves empty is ABSENT by declaration: diff_cmd is
+	// only an optimization of cmd, never a gate on its own, so a diff_cmd
+	// inherited from the profile must not resurrect a gate the project
+	// disabled with `cmd: ""`.
+	if strings.TrimSpace(g.CmdStr()) == "" {
 		return "", "none"
+	}
+	cmdStr, scope := g.CmdStr(), "full"
+	if !opt.Full && g.DiffCmdStr() != "" && git.IsRepo && len(git.ChangedFiles) > 0 {
+		cmdStr, scope = g.DiffCmdStr(), "diff"
 	}
 	pkgs := gitx.GoPackages(git.ChangedFiles)
 	if scope == "diff" {

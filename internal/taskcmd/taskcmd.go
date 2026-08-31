@@ -172,7 +172,11 @@ func taskState(wt, base string) (state, verdictID string) {
 	if err != nil || len(all) == 0 {
 		return StateNoVerdict, ""
 	}
-	last := all[len(all)-1]
+	// Same reference rule as hoom check: --gate diagnostics never count.
+	last := verdict.LatestComplete(all)
+	if last == nil {
+		return StateNoVerdict, ""
+	}
 	if last.Verdict != "green" {
 		return StateRed, last.ID
 	}
@@ -200,7 +204,10 @@ func Done(root, slug, base string, force bool) error {
 		if err != nil || len(all) == 0 {
 			return fmt.Errorf("la tarea %q no tiene veredictos. Accion: ejecuta 'hoom verify' dentro del worktree", slug)
 		}
-		last := all[len(all)-1]
+		last := verdict.LatestComplete(all)
+		if last == nil {
+			return fmt.Errorf("la tarea %q solo tiene veredictos PARCIALES (--gate), que no son referencia. Accion: ejecuta 'hoom verify' completo dentro del worktree", slug)
+		}
 		if last.Verdict != "green" {
 			return fmt.Errorf("el ultimo veredicto de %q es ROJO (%s). Accion: corrige y re-ejecuta 'hoom verify' en el worktree", slug, last.ID)
 		}

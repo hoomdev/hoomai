@@ -517,7 +517,7 @@ func (s *Server) specDetail(name string) (*specDetail, int, error) {
 	}
 	// La lista de criterios sale de la MISMA regex que spec_lint: una sola
 	// definicion de "criterio" en todo el sistema.
-	ids, _, err := spec.Lint(path)
+	ids, _, _, err := spec.Lint(path)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}

@@ -438,7 +438,7 @@ async function refreshStatus() {
     chip.title = "el árbol actual coincide con el último veredicto verde";
   } else {
     chip.className = "chip bad";
-    const why = {"no-verdict":"sin veredictos","red-verdict":"último veredicto rojo","drift":"drift"}[s.check.reason] || s.check.reason;
+    const why = {"no-verdict":"sin veredictos","solo-parciales":"solo veredictos parciales (--gate)","red-verdict":"último veredicto rojo","drift":"drift"}[s.check.reason] || s.check.reason;
     chip.textContent = `check ROJO · ${why}`;
     chip.title = s.check.action || "";
   }
@@ -455,7 +455,7 @@ async function refreshVerdicts() {
   }
   box.innerHTML = data.verdicts.map(v => `
     <button class="vrow${v.id === selected ? " sel" : ""}" data-id="${esc(v.id)}">
-      ${vBadge(v.verdict)}
+      ${vBadge(v.verdict)}${v.partial ? " " + badge("PARCIAL", "absent") : ""}
       <span class="when">${esc(when(v.created_at))}</span>
       <span class="where">${esc(v.git?.branch || "")}@${esc(v.git?.commit || "")}</span>
       <span class="counts">pass:${v.summary.pass} fail:${v.summary.fail} err:${v.summary.error} aus:${v.summary.absent}</span>
@@ -479,7 +479,7 @@ async function showDetail(id) {
     </td></tr>` : ""}`).join("");
   $("detail").innerHTML = `
     <div class="dmeta">
-      ${vBadge(v.verdict)} <code>${esc(v.id)}</code><br>
+      ${vBadge(v.verdict)}${v.partial ? " " + badge("PARCIAL · no es referencia de check", "absent") : ""} <code>${esc(v.id)}</code><br>
       ${esc(when(v.created_at))} · ${esc(v.git?.branch || "")}@${esc(v.git?.commit || "")}
       ${v.git?.change_fingerprint ? `· huella <code>${esc(v.git.change_fingerprint)}</code>` : ""}
       ${v.spec ? `<br>spec: <code>${esc(v.spec)}</code>` : ""}

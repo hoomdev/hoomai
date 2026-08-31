@@ -33,6 +33,7 @@ cd mi-proyecto
 hoom init        # detecta el stack (laravel|kmp|kmp-compose|go) y crea hoom.yaml
 hoom verify      # ejecuta los gates y emite un veredicto: ROJO = exit 1
 hoom agents      # instala los 10 contratos de agentes y ata AGENTS.md
+hoom status      # la ventana del arbitro: check, gates vivos, roles, tareas
 hoom report      # historial y tendencia por gate
 hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 ```
@@ -65,6 +66,8 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom report --json` | El mismo historial como JSON en stdout (para agentes y el Studio) |
 | `hoom check` | Compara el arbol ACTUAL contra el ultimo veredicto: verde + huella coincidente = OK |
 | `hoom check --json` | El mismo check como JSON en stdout, mismo exit code |
+| `hoom status` | La ventana del arbitro: check, ultimo veredicto, verify en curso (gates vivos), runs activos con su rol, tareas y hallazgos. Solo lectura, nunca bloquea. `--json` |
+| `hoom status --watch` | El mismo snapshot refrescando en vivo, pensado para una segunda terminal junto a tu CLI de IA. Sin TTY imprime una vez, sin ANSI |
 | `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake) con el token que imprime al arrancar |
 | `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
 | `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
@@ -76,7 +79,8 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git) |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
-| `hoom verify --spec <ruta>` | Suma los gates `spec_lint` y `spec_trace`: cada criterio CA-n del spec debe tener un test que lo referencie |
+| `hoom verify --spec <ruta>` | Suma los gates `spec_lint` y `spec_trace`: cada criterio CA-n del spec debe tener un test que lo referencie, o declarar `[verifica: <comando>]` en su linea (exit 0 = criterio trazado) |
+| `hoom verify --gate a,b` | Corre solo esos gates; el veredicto queda PARCIAL: diagnostico util, pero `check` y `task done` NUNCA lo usan como referencia |
 | `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
 | `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
 | `hoom task list --json` | El mismo estado como JSON en stdout |
@@ -139,6 +143,44 @@ test-writer referencia cada CA-n en sus tests. `hoom verify --spec <ruta>` valid
 la estructura del spec (spec_lint) y que cada criterio tenga al menos un test que
 lo mencione (spec_trace). Un criterio sin test = veredicto rojo con la accion
 exacta a ejecutar. El spec y los tests ya no pueden divergir en silencio.
+
+Para items de TOOLING (criterios que se verifican con `composer`, `phpstan`,
+`git`, etc. y no con un test — un test no puede aserir que su propia suite
+pasa), el criterio declara su comando en la MISMA linea del CA-n:
+
+```markdown
+- CA-7: composer.json valida estricto. [verifica: composer validate --strict]
+```
+
+spec_trace ejecuta el comando en la raiz del proyecto: exit 0 = criterio
+trazado; cualquier otra cosa = FAIL nombrando CA, comando y exit code. Misma
+regla de siempre: exit codes, no narracion. Un marcador en una linea sin
+CA-n es issue de spec_lint (huerfano).
+
+## La ventana del arbitro (hoom status)
+
+`hoom verify` narra su corrida en vivo a `.hoom/cache/verify-live.jsonl`
+(gitignoreado, fuera de la huella): quien la escribe es el binario de hoom,
+la invoque Claude, OpenCode, Codex, Gemini o vos — la visibilidad es
+agnostica de IA por construccion. `hoom status --watch` en una segunda
+terminal pinta todo en vivo: el check, los gates corriendo con su tiempo,
+los runs activos con su rol, las tareas y los hallazgos abiertos.
+
+La narracion es best-effort y jamas toca la evidencia: un cache roto no
+altera veredictos ni exit codes, y el status es de solo lectura. El panel
+muestra lo que puede probar y rotula lo que no sabe: una corrida muda sin
+cierre es un "posible huerfano", y un run sin datos de delegacion dice
+"sin delegacion visible" — nunca un rol inventado.
+
+## Veredictos parciales (verify --gate)
+
+`hoom verify --gate a,b` corre solo esos gates y el veredicto queda marcado
+**PARCIAL**: se escribe igual (append-only, sirve como diagnostico) pero
+`hoom check`, `hoom task done` y el Studio lo ignoran al elegir referencia —
+la referencia es siempre el ultimo veredicto COMPLETO. Una corrida
+diagnostica de un solo gate jamas se convierte en un check verde apoyado en
+gates que no corrieron, ni tapa un verde legitimo con un rojo parcial. Si
+solo existen parciales, `hoom check` es ROJO con la accion exacta.
 
 ## Aprobacion humana atada al contenido (hoom spec)
 
@@ -262,6 +304,20 @@ linux/darwin/windows (amd64+arm64), genera `checksums.txt` y publica el release.
 
 ## Roadmap
 
+- Visibilidad fase 2 — `hoom cockpit`: launcher que compone el layout
+  tmux/zellij (tu CLI de IA en un pane real + `hoom status --watch` al
+  lado). Sin tmux/zellij degrada al watch manual; jamas un emulador propio.
+- Visibilidad fase 3 — adaptadores por provider hasta donde cada ecosistema
+  de: statusline y hooks de Claude Code (estado del harness dentro de la
+  sesion + registro de roles delegados), plugin OpenCode, etc. Donde no hay
+  datos, el nucleo agnostico (status) sigue siendo la experiencia completa.
+- Roles que dejan rastro: endurecer la regla "sin proceso no hay verde" —
+  el rol trabajo si existe su artefacto (spec, tests con CA-n, hallazgos),
+  no si un subagente con ese nombre fue invocado. Descripciones de
+  delegacion mas imperativas en los targets nativos.
+- Gate trinquete (ratchet): linea base de metricas en `.hoom/ratchet.json`
+  (MSI, cobertura, hallazgos high, nivel de static) que solo puede subir;
+  empeorar = rojo con la cifra exacta; mejorar aprieta la base sola.
 - Gate `spec_approved`: que `hoom verify --spec` exija aprobacion vigente
   (hoy la exige el contrato del orquestador; el binario aun no).
 - Gate opcional `findings_open`: rojo con hallazgos high abiertos — primero
@@ -565,9 +621,10 @@ y hoom check. Entregame la ruta del veredicto.
 
 El `--spec` agrega dos gates nuevos al veredicto: **spec_lint** (el spec tiene
 sus 7 secciones y criterios con ID) y **spec_trace** (cada CA-n tiene al menos
-un test que lo referencia). Un criterio sin test = veredicto ROJO con la
-acción exacta. **Es la garantía de que la IA no "olvidó" ningún criterio del
-cliente: lo verifica el binario, no la palabra del agente.**
+un test que lo referencia, o declara `[verifica: <comando>]` y el comando sale
+0). Un criterio sin test ni comando = veredicto ROJO con la acción exacta.
+**Es la garantía de que la IA no "olvidó" ningún criterio del cliente: lo
+verifica el binario, no la palabra del agente.**
 
 **Tu cierre:** el agente te entrega la ruta del veredicto. Verificá vos mismo:
 
@@ -618,6 +675,7 @@ paralelo es para cuando ya le agarraste la mano.
 | Momento | Comando / acción |
 |---|---|
 | Nueva tarea | Prompt 1 → aprobás spec (CA-n) → Prompt 2 → veredicto con spec_trace |
+| Ver al harness trabajar | `hoom status --watch` en una segunda terminal junto a tu CLI de IA: gates corriendo en vivo, roles activos, hallazgos |
 | Trabajar desde el navegador | `hoom serve` → cockpit: elegís provider, despachás, ves al equipo en vivo, aprobás specs con un click |
 | Aprobar un spec con registro | `hoom spec approve .hoom/specs/<item>.md` (o el botón del Studio) — atado al hash del contenido |
 | Dos tareas independientes | `hoom task start <slug>` por cada una; cierre con `hoom task done` |
@@ -645,7 +703,9 @@ funcionando: la huella ya no coincide. Corré `hoom verify` de nuevo y listo.
 **"spec_trace salió ROJO"** → Hay criterios CA-n del spec sin ningún test que
 los mencione. El veredicto te lista cuáles. Pedile al test-writer que cubra
 esos criterios — para eso existe el gate: ningún requerimiento del cliente se
-queda sin test en silencio.
+queda sin test en silencio. Si el criterio se verifica por comando y no por
+test (ítems de tooling), el spec le declara `[verifica: <comando>]` en la
+misma línea del CA-n.
 
 **"`hoom task done` se niega a cerrar mi tarea"** → Lee el mensaje: o tenés
 cambios sin commitear dentro del worktree (incluidos los veredictos), o el

@@ -17,6 +17,10 @@ fuerte, razonamiento alto.
 4. Casos limite y errores esperados.
 5. Criterios de aceptacion verificables, ENUMERADOS como CA-1, CA-2, ...
    (la trazabilidad deterministica de hoom verify --spec depende de esos IDs).
+   Un criterio que se verifica por comando y no por test (items de tooling:
+   composer, phpstan, git, ...) declara [verifica: <comando>] en la MISMA
+   linea del CA-n; spec_trace ejecuta el comando y exige exit 0. Un test que
+   deba aserir que su propia suite pasa es circular: usa el marcador.
 6. Decisiones de diseno y alternativas descartadas.
 7. Riesgos y deuda aceptada.
 

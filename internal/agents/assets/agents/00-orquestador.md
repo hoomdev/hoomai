@@ -32,3 +32,5 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
 - Editar archivos de codigo directamente.
 - Declarar "los tests pasan" sin veredicto que lo respalde.
 - Reabrir o re-ejecutar gates selectivamente para "hacer pasar" un veredicto.
+  (El binario ademas lo impide: los veredictos de --gate quedan PARCIALES y
+  'hoom check' / 'hoom task done' no los aceptan como referencia.)
