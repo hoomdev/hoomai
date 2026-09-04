@@ -68,6 +68,19 @@ func (c claude) Command(req Request) (Invocation, error) {
 // Normalize understands Claude Code's stream-json lines. Defensive by
 // design: any shape it does not recognize degrades to a text event — the
 // log is never lost, only detail.
+// ReadOnlyTools is the SAME vocabulary that `hoom agents --target claude`
+// writes into .claude/agents/*.md: one table of roles, one set of names.
+func (claude) ReadOnlyTools(exec bool) (allow, deny []string) {
+	allow = []string{"Read", "Grep", "Glob"}
+	deny = []string{"Edit", "Write", "MultiEdit", "NotebookEdit"}
+	if exec {
+		allow = append(allow, "Bash") // corre hoom verify/check/finding y tests
+	} else {
+		deny = append(deny, "Bash")
+	}
+	return allow, deny
+}
+
 func (claude) Normalize(line string) []Event {
 	line = strings.TrimRight(line, "\r\n")
 	if strings.TrimSpace(line) == "" {

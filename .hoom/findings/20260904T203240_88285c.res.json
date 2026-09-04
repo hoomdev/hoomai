@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260904T203240_88285c",
+  "as": "corregido",
+  "evidence": "gitx.Touched ya no llama a git hash-object: hashea el contenido con sha256 en proceso (contentHash), sin subproceso que pueda fallar ni limite de ARG_MAX. Un archivo que no se puede abrir vale '-' (borrado), nunca 'desconocido'. go test ./internal/gitx ./internal/agentcmd verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-04T20:32:51.275145Z"
+}

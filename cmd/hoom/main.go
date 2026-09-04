@@ -8,12 +8,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
@@ -67,6 +69,10 @@ Comandos:
               hoom NUNCA llama a una API de IA: ejecuta TU CLI como subproceso.
               Narracion en .hoom/runs/ (local, fuera de la huella y de Git).
               Opciones de sesion, modelo, system prompt, tools y topes abajo.
+  agent       El sobre determinista de un rol: contrato como system prompt,
+              herramientas y scope de escritura. Corre el CLI UNA vez y cierra
+              con evidencia: scope (que toco el rol) -> verify -> check
+              --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 10 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -159,6 +165,8 @@ func main() {
 		err = cmdFinding(args)
 	case "providers":
 		err = cmdProviders(args)
+	case "agent":
+		err = cmdAgent(args)
 	case "run":
 		err = cmdRun(args)
 	case "hook":
@@ -490,6 +498,55 @@ func splitList(raw string) []string {
 		}
 	}
 	return out
+}
+
+// cmdAgent runs the envelope: one role, one headless session, and a close
+// that is evidence and not narration. `hoom run` stays the primitive WITHOUT
+// policy; `hoom agent` is the primitive WITH it, so loosening the policy
+// means dropping down to `hoom run`, in plain sight.
+func cmdAgent(args []string) error {
+	fs := flag.NewFlagSet("agent", flag.ExitOnError)
+	role := fs.String("role", "", "rol a encarnar (writer|test-writer|scout|...; mira 'hoom agents')")
+	provider := fs.String("provider", "", "provider de IA; vacio = el primero instalado que soporte system prompt")
+	task := fs.String("task", "", "slug de la tarea: corre en su worktree aislado")
+	specPath := fs.String("spec", "", "ruta del spec: exige aprobacion vigente y traza los CA en verify")
+	model := fs.String("model", "", "modelo, en el vocabulario del provider (ej: sonnet)")
+	resume := fs.String("resume", "", "id de sesion del provider a reanudar")
+	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
+	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
+	asJSON := fs.Bool("json", false, "emitir el resultado del sobre como JSON en stdout")
+	_ = fs.Parse(args)
+	if *role == "" {
+		return fmt.Errorf("falta --role (mira 'hoom agents' o el listado de roles en .hoom/agents/)")
+	}
+	prompt := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	if prompt == "" {
+		return fmt.Errorf("falta el pedido: hoom agent --role %s \"<pedido>\"", *role)
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	out := io.Writer(os.Stdout)
+	if *asJSON {
+		out = io.Discard // JSON puro: la narracion no se mezcla con el dato
+	}
+	res, err := agentcmd.Run(m.Dir, m.BaseBranch, agentcmd.Options{
+		Role: *role, Provider: *provider, Task: *task, Spec: *specPath,
+		Prompt: prompt, Model: *model, ResumeID: *resume,
+		MaxTurns: *maxTurns, BudgetUSD: *budget,
+	}, out)
+	if err != nil {
+		return err
+	}
+	if *asJSON {
+		raw, _ := json.MarshalIndent(res, "", "  ")
+		fmt.Println(string(raw))
+	}
+	if res.ExitCode != 0 {
+		os.Exit(res.ExitCode)
+	}
+	return nil
 }
 
 // cmdFinding manages review findings as append-only artifacts: immutable

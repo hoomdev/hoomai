@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260904T203240_431e64",
+  "as": "corregido",
+  "evidence": "Take filtra ahora hoomOwn(): .hoom/runs/, .hoom/cache/ y .hoom/worktrees/ quedan fuera del delta en AMBAS fotos. CA-134 suma la asercion: tras escribir .hoom/runs/*.jsonl y .hoom/cache/live.jsonl, ninguna de las dos aparece en Touched (internal/agentcmd/scope_test.go, TestCA134_DeltaDelRun). Verificado tambien en el humo: el camino verde paso de '2 archivos tocados' a '1 archivo tocado'.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-04T20:32:51.140364Z"
+}

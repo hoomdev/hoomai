@@ -1,0 +1,142 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-04T20-33-16Z_40078cd1",
+  "created_at": "2026-09-04T20:33:16.176405Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "44a462050c52",
+    "branch": "hoomdev/Spec_B_hoom-agent",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/hoom-agent-sobre-determinista_65d72040.json",
+      ".hoom/specs/hoom-agent-sobre-determinista.md",
+      "README.md",
+      "cmd/hoom/main.go",
+      "internal/agentcmd/agentcmd.go",
+      "internal/agentcmd/agentcmd_test.go",
+      "internal/agentcmd/e2e_test.go",
+      "internal/agentcmd/scope.go",
+      "internal/agentcmd/scope_test.go",
+      "internal/agents/roles_test.go",
+      "internal/agents/targets.go",
+      "internal/gitx/gitx.go",
+      "internal/gitx/touched_test.go",
+      "internal/manifest/manifest.go",
+      "internal/providers/claude.go",
+      "internal/providers/providers.go",
+      "internal/ratchet/loosened_test.go",
+      "internal/ratchet/ratchet.go",
+      "internal/runcmd/runcmd.go"
+    ],
+    "change_fingerprint": "5f9cb20d261d4198",
+    "insertions": 2606,
+    "deletions": 57
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "21 criterios (CA-*), 2 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 9784,
+      "notes": "21/21 criterios: 19 trazados por test (38 archivos), 2 verificados por comando"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-04, sha 65d72040)"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 403
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 184
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./cmd/hoom ./internal/agentcmd ./internal/agents ./internal/gitx ./internal/manifest ./internal/providers ./internal/ratchet ./internal/runcmd",
+      "exit_code": 0,
+      "duration_ms": 10295,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t9.552s\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t1.476s\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/ratchet\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t6.127s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/hoom-agent-sobre-determinista.md"
+}

@@ -121,6 +121,15 @@ const (
 // ErrUnsupported is what Command returns under Strict when the provider
 // cannot honor one or more request fields. Value type: errors.As works
 // with a value target.
+// ToolNamer is implemented by the providers that NAME their tools. It is an
+// optional interface, resolved with a type assertion: the Provider contract
+// stays exactly as the providers-v2 spec fixed it, and the vocabulary stays
+// in the adapter that actually knows it. `exec` marks a read-only role that
+// still runs commands (hoom finding, tests).
+type ToolNamer interface {
+	ReadOnlyTools(exec bool) (allow, deny []string)
+}
+
 type ErrUnsupported struct {
 	Provider string
 	Fields   []string

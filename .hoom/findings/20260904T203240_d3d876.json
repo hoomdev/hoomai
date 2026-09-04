@@ -1,0 +1,10 @@
+{
+  "id": "20260904T203240_d3d876",
+  "created_at": "2026-09-04T20:32:40.935598Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "matchGlob con ** consecutivos ('**/**/**') multiplica el backtracking de forma exponencial, y los patrones pueden venir del hoom.yaml del proyecto.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "5f9cb20d261d4198"
+}
