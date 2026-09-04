@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260904T183012_05910a",
+  "as": "corregido",
+  "evidence": "Spec re-aprobada por Henry el 2026-09-04 18:50 UTC (.hoom/approvals/providers-v2-interfaz-y-claude_a9972e72.json, sha256 a9972e72 del contenido enmendado); hoom verify --spec VERDE: .hoom/verdicts/2026-09-04T18-51-35Z_1e254c85.json con spec_approved PASS",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-04T18:52:00.786572Z"
+}

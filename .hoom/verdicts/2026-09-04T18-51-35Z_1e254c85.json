@@ -1,0 +1,145 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-04T18-51-35Z_1e254c85",
+  "created_at": "2026-09-04T18:51:35.653233Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "e5d332177c8b",
+    "branch": "hoom/providers-v2",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/providers-v2-interfaz-y-claude_38d8427a.json",
+      ".hoom/approvals/providers-v2-interfaz-y-claude_a9972e72.json",
+      ".hoom/specs/providers-v2-interfaz-y-claude.md",
+      "README.md",
+      "cmd/hoom/main.go",
+      "internal/cockpitcmd/cockpitcmd.go",
+      "internal/providers/claude.go",
+      "internal/providers/claude_v2_test.go",
+      "internal/providers/codex.go",
+      "internal/providers/contract_test.go",
+      "internal/providers/e2e_test.go",
+      "internal/providers/gemini.go",
+      "internal/providers/opencode.go",
+      "internal/providers/providers.go",
+      "internal/providers/providers_test.go",
+      "internal/providers/registry_test.go",
+      "internal/providers/render_test.go",
+      "internal/providers/system_events_test.go",
+      "internal/runcmd/options_test.go",
+      "internal/runcmd/runcmd.go",
+      "internal/runcmd/runcmd_test.go",
+      "internal/servecmd/servecmd.go"
+    ],
+    "change_fingerprint": "245b0d01fe658cf3",
+    "insertions": 2181,
+    "deletions": 229
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "19 criterios (CA-*), 2 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 5940,
+      "notes": "19/19 criterios: 17 trazados por test (32 archivos), 2 verificados por comando"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-04, sha a9972e72)"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 471
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 188
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./cmd/hoom ./internal/cockpitcmd ./internal/providers ./internal/runcmd ./internal/servecmd",
+      "exit_code": 0,
+      "duration_ms": 6205,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t1.528s\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t1.141s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t5.720s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t3.851s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/providers-v2-interfaz-y-claude.md"
+}
