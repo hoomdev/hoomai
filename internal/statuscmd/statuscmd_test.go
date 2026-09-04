@@ -1,6 +1,7 @@
-// Tests adversariales del spec .hoom/specs/eventos-vivos-y-status-watch.md
-// (CA-74..CA-80): la ventana del arbitro muestra lo que puede probar, rotula
-// lo que no sabe y jamas escribe nada.
+// Tests adversariales de los specs eventos-vivos-y-status-watch.md
+// (CA-74..CA-80) y spec-approved-y-trinquete-visible.md (CA-104..CA-107):
+// la ventana del arbitro muestra lo que puede probar, rotula lo que no
+// sabe y jamas escribe nada — el trinquete incluido.
 package statuscmd
 
 import (
@@ -21,6 +22,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
@@ -247,6 +249,137 @@ func TestCA79_RolesSoloConDatos(t *testing.T) {
 	Render(&buf, s, false)
 	if !strings.Contains(buf.String(), "rol: hoom-test-writer") || !strings.Contains(buf.String(), "sin delegacion visible") {
 		t.Fatalf("CA-79: el render debe distinguir rol real de ausencia de datos:\n%s", buf.String())
+	}
+}
+
+func writeBaseline(t *testing.T, dir string) {
+	t.Helper()
+	base := 78.0
+	from := 70.0
+	f := &ratchet.File{
+		Schema: ratchet.Schema,
+		Metrics: map[string]*ratchet.Metric{
+			"cobertura": {Cmd: "touch pwned", Direction: "up", Tolerance: 0.5, Value: &base},
+			"deuda":     {Cmd: "touch pwned", Direction: "down"},
+		},
+		History: []ratchet.Change{{TS: time.Now().UTC(), Metric: "cobertura", From: &from, To: 78, Kind: "tightened"}},
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".hoom"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// CA-104: la seccion trinquete muestra base, direccion y ultimo movimiento;
+// sin linea base declara la accion.
+func TestCA104_TrinqueteVisible(t *testing.T) {
+	dir := initProject(t)
+	verify(t, dir)
+
+	s, err := Build(dir, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	Render(&buf, s, false)
+	if s.Ratchet.Declared || !strings.Contains(buf.String(), "hoom ratchet init") {
+		t.Fatalf("CA-104: sin linea base debe declarar la accion:\n%s", buf.String())
+	}
+
+	writeBaseline(t, dir)
+	s, err = Build(dir, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Ratchet.Declared || len(s.Ratchet.Metrics) != 2 {
+		t.Fatalf("CA-104: esperaba dos metricas declaradas: %+v", s.Ratchet)
+	}
+	buf.Reset()
+	Render(&buf, s, false)
+	for _, want := range []string{"trinquete: 2 metrica(s)", "cobertura", "base 78", "tightened 70 -> 78", "sin congelar"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Fatalf("CA-104: falta %q en el render:\n%s", want, buf.String())
+		}
+	}
+}
+
+// CA-105: status jamas ejecuta comandos de metricas ni modifica la base.
+func TestCA105_TrinqueteSoloLectura(t *testing.T) {
+	dir := initProject(t)
+	verify(t, dir)
+	writeBaseline(t, dir)
+	before := hashTree(t, filepath.Join(dir, ".hoom"))
+	s, err := Build(dir, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	Render(&buf, s, true)
+	if _, err := os.Stat(filepath.Join(dir, "pwned")); err == nil {
+		t.Fatalf("CA-105: status EJECUTO un comando de metrica (existe pwned)")
+	}
+	if after := hashTree(t, filepath.Join(dir, ".hoom")); after != before {
+		t.Fatalf("CA-105: status modifico .hoom")
+	}
+}
+
+// CA-106: --json expone el mismo dato del trinquete.
+func TestCA106_TrinqueteEnJSON(t *testing.T) {
+	dir := initProject(t)
+	verify(t, dir)
+	writeBaseline(t, dir)
+	s, err := Build(dir, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := JSONBytes(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m struct {
+		Ratchet struct {
+			Declared bool `json:"declared"`
+			Metrics  []struct {
+				Name     string   `json:"name"`
+				Value    *float64 `json:"value"`
+				LastKind string   `json:"last_kind"`
+			} `json:"metrics"`
+		} `json:"ratchet"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Ratchet.Declared || len(m.Ratchet.Metrics) != 2 {
+		t.Fatalf("CA-106: JSON sin trinquete completo: %s", raw)
+	}
+	if m.Ratchet.Metrics[0].Name != "cobertura" || *m.Ratchet.Metrics[0].Value != 78 || m.Ratchet.Metrics[0].LastKind != "tightened" {
+		t.Fatalf("CA-106: datos del trinquete incorrectos en JSON: %s", raw)
+	}
+}
+
+// CA-107: linea base ilegible se rotula sin romper el snapshot.
+func TestCA107_BaseIlegible(t *testing.T) {
+	dir := initProject(t)
+	verify(t, dir)
+	if err := os.MkdirAll(filepath.Join(dir, ".hoom"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".hoom", ratchet.FileName), []byte("{roto"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Build(dir, "main")
+	if err != nil {
+		t.Fatalf("CA-107: una base ilegible no rompe el snapshot: %v", err)
+	}
+	if s.Ratchet.Error == "" {
+		t.Fatalf("CA-107: el error debe rotularse: %+v", s.Ratchet)
+	}
+	var buf bytes.Buffer
+	Render(&buf, s, false)
+	if !strings.Contains(buf.String(), "ilegible") || !strings.Contains(buf.String(), "check:") {
+		t.Fatalf("CA-107: debe rotular ilegible y seguir mostrando el resto:\n%s", buf.String())
 	}
 }
 

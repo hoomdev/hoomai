@@ -70,6 +70,8 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom status` | La ventana del arbitro: check, ultimo veredicto, verify en curso (gates vivos), runs activos con su rol, tareas y hallazgos. Solo lectura, nunca bloquea. `--json` |
 | `hoom status --watch` | El mismo snapshot refrescando en vivo, pensado para una segunda terminal junto a tu CLI de IA. Sin TTY imprime una vez, sin ANSI |
 | `hoom cockpit` | Arma el puesto completo sobre tmux/zellij: tu CLI de IA en un pane real + `status --watch` al lado. `--provider <p>`, `--task <slug>` (monta el cockpit en el worktree de la tarea), `--mux tmux\|zellij` |
+| `hoom ratchet init` | Crea la linea base del trinquete (`.hoom/ratchet.json`, viaja en Git): metricas declaradas como comandos cuya ultima linea es un numero |
+| `hoom ratchet lower <m> --to <v> --reason "..."` | Afloja UNA base con razon obligatoria y registro auditable; sin razon se niega. Apretar no tiene comando: solo lo hace una medicion de `verify --full` |
 | `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake) con el token que imprime al arrancar |
 | `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
 | `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
@@ -81,7 +83,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git) |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
-| `hoom verify --spec <ruta>` | Suma los gates `spec_lint` y `spec_trace`: cada criterio CA-n del spec debe tener un test que lo referencie, o declarar `[verifica: <comando>]` en su linea (exit 0 = criterio trazado) |
+| `hoom verify --spec <ruta>` | Suma los gates `spec_lint`, `spec_trace` y `spec_approved`: cada criterio CA-n debe tener un test que lo referencie o declarar `[verifica: <comando>]` (exit 0 = trazado), y el spec debe tener aprobacion humana VIGENTE (hash de contenido) |
 | `hoom verify --gate a,b` | Corre solo esos gates; el veredicto queda PARCIAL: diagnostico util, pero `check` y `task done` NUNCA lo usan como referencia |
 | `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
 | `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
@@ -195,6 +197,29 @@ El cockpit lanza y muestra; no dirige. La orquestacion del trabajo sigue
 viviendo en tu CLI de IA bajo los contratos de roles, y el veredicto sigue
 siendo la unica fuente de verdad.
 
+## El trinquete: calidad que solo puede subir (gate ratchet)
+
+Los gates comparan contra umbrales fijos y no ven la erosion lenta (el MSI
+que baja de 82 a 61 en meses, todo verde porque la vara esta en 60) ni
+atrincheran las mejoras. El trinquete cierra ese agujero: una linea base de
+metricas en `.hoom/ratchet.json` (commiteada, el diff de Git ES su
+auditoria) que solo puede moverse hacia MEJOR.
+
+Cada metrica es un COMANDO declarado por el proyecto — mismo contrato
+agnostico del manifiesto — cuya ultima linea de salida es un numero, con
+`direction` (up/down) y `tolerance` anti-ruido. En cada `hoom verify
+--full` (su habitat: la corrida nocturna; los parciales jamas tocan la
+base): una metrica sin base se CONGELA en la realidad de hoy; empeorar mas
+alla de la tolerancia = gate FAIL con metrica, valor, base y delta exactos
+= veredicto ROJO; mejorar = la base se aprieta sola y el equipo hereda el
+piso nuevo. Comando roto = ERROR fail-closed, base intacta.
+
+Aflojar existe pero es un comando explicito con `--reason` obligatoria que
+deja registro (`history`) — escape consciente y visible, como `HOOM_SKIP`.
+La base queda fuera de la huella (estado del harness, no codigo bajo
+verificacion): apretar durante un verify jamas rompe el check que ese
+mismo verify acaba de ganar.
+
 ## Veredictos parciales (verify --gate)
 
 `hoom verify --gate a,b` corre solo esos gates y el veredicto queda marcado
@@ -217,6 +242,11 @@ Editar el spec despues de aprobarlo lo INVALIDA por construccion:
 exit 0 solo para una aprobacion vigente — gateable por script o por el
 contrato del orquestador. Re-aprobar el mismo contenido es un no-op
 informado; el historial de aprobaciones nunca se pisa.
+
+Y desde v0.10 el BINARIO lo hace cumplir: `hoom verify --spec` incluye el
+gate **spec_approved** (requerido) — spec sin aprobacion vigente = veredicto
+ROJO con la accion exacta. La aprobacion humana dejo de ser una regla de
+contrato para ser un gate mas.
 
 ## Tareas paralelas aisladas (hoom task)
 
@@ -335,11 +365,8 @@ linux/darwin/windows (amd64+arm64), genera `checksums.txt` y publica el release.
   el rol trabajo si existe su artefacto (spec, tests con CA-n, hallazgos),
   no si un subagente con ese nombre fue invocado. Descripciones de
   delegacion mas imperativas en los targets nativos.
-- Gate trinquete (ratchet): linea base de metricas en `.hoom/ratchet.json`
-  (MSI, cobertura, hallazgos high, nivel de static) que solo puede subir;
-  empeorar = rojo con la cifra exacta; mejorar aprieta la base sola.
-- Gate `spec_approved`: que `hoom verify --spec` exija aprobacion vigente
-  (hoy la exige el contrato del orquestador; el binario aun no).
+- Trinquete en el Studio: la curva de cada metrica en el dashboard (la
+  seccion CLI en `hoom status` ya existe).
 - Gate opcional `findings_open`: rojo con hallazgos high abiertos — primero
   ver como se usa el ciclo antes de darle poder de bloqueo.
 - Doble juez multi-provider (dos CLIs revisando el mismo diff): se activa
@@ -639,10 +666,12 @@ hoom verify --spec .hoom/specs/<nombre-del-item>.md
 y hoom check. Entregame la ruta del veredicto.
 ```
 
-El `--spec` agrega dos gates nuevos al veredicto: **spec_lint** (el spec tiene
-sus 7 secciones y criterios con ID) y **spec_trace** (cada CA-n tiene al menos
+El `--spec` agrega tres gates al veredicto: **spec_lint** (el spec tiene
+sus 7 secciones y criterios con ID), **spec_trace** (cada CA-n tiene al menos
 un test que lo referencia, o declara `[verifica: <comando>]` y el comando sale
-0). Un criterio sin test ni comando = veredicto ROJO con la acción exacta.
+0) y **spec_approved** (el spec tiene aprobación humana VIGENTE: aprobar y
+después editar la invalida por hash). Un criterio sin test ni comando, o un
+spec sin aprobar = veredicto ROJO con la acción exacta.
 **Es la garantía de que la IA no "olvidó" ningún criterio del cliente: lo
 verifica el binario, no la palabra del agente.**
 

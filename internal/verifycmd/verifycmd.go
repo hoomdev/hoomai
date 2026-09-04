@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -44,18 +47,31 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		}
 	}
 
+	// The ratchet only lives in COMPLETE --full runs: partial runs never
+	// touch the baseline, and scoped measurements are not comparable to it.
+	var rf *ratchet.File
+	var rerr error
+	includeRatchet := false
+	if opt.Full && len(gopt.Only) == 0 {
+		rf, rerr = ratchet.Load(m.Dir)
+		includeRatchet = rerr != nil || (rf != nil && len(rf.Metrics) > 0)
+	}
+
 	total := len(m.Gates)
 	if opt.Spec != "" {
-		total += 2 // spec_lint + spec_trace
+		total += 3 // spec_lint + spec_trace + spec_approved
+	}
+	if includeRatchet {
+		total++
 	}
 	lw.Emit(live.Event{Kind: live.KindVerifyStart, Gates: total, Spec: opt.Spec})
 
 	var results []verdict.GateResult
 	if opt.Spec != "" {
-		for _, name := range []string{"spec_lint", "spec_trace"} {
+		for _, name := range []string{"spec_lint", "spec_trace", "spec_approved"} {
 			lw.Emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: "spec"})
 		}
-		specResults := spec.Gates(m.Dir, opt.Spec)
+		specResults := append(spec.Gates(m.Dir, opt.Spec), approvedGate(m.Dir, opt.Spec))
 		for _, r := range specResults {
 			lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: r.Name, Status: r.Status,
 				DurationMS: r.DurationMS, ExitCode: r.ExitCode})
@@ -63,6 +79,21 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		results = append(results, specResults...)
 	}
 	results = append(results, gates.Run(m, git, gopt)...)
+
+	if includeRatchet {
+		lw.Emit(live.Event{Kind: live.KindGateStart, Gate: "ratchet", Scope: "full"})
+		var rres verdict.GateResult
+		if rerr != nil {
+			// configured but broken (corrupt baseline) = fail-closed
+			rres = verdict.GateResult{Name: "ratchet", Required: true, Scope: "full",
+				Status: verdict.StatusError, Notes: rerr.Error()}
+		} else {
+			rres = ratchet.Gate(m.Dir, rf)
+		}
+		lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: "ratchet", Status: rres.Status,
+			DurationMS: rres.DurationMS, ExitCode: rres.ExitCode})
+		results = append(results, rres)
+	}
 
 	v := &verdict.Verdict{
 		Project: m.Project,
@@ -92,4 +123,30 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	}
 	lw.Emit(live.Event{Kind: live.KindVerifyEnd, Verdict: v.Verdict, VerdictID: v.ID, Partial: v.Partial})
 	return v, path, nil
+}
+
+// approvedGate enforces the human control point: a spec bound to a verify
+// run must carry a CURRENT approval (content hash). The contract always
+// demanded it; now the binary does too.
+func approvedGate(root, specPath string) verdict.GateResult {
+	start := time.Now()
+	res := verdict.GateResult{Name: "spec_approved", Required: true, Scope: "spec"}
+	state, rec, err := approval.Status(root, specPath)
+	res.DurationMS = time.Since(start).Milliseconds()
+	switch {
+	case err != nil:
+		res.Status = verdict.StatusError // fail-closed
+		res.Notes = err.Error()
+	case state == approval.StatusApproved:
+		res.Status = verdict.StatusPass
+		res.Notes = fmt.Sprintf("aprobado por %s (%s, sha %s)",
+			rec.ApprovedBy, rec.ApprovedAt.Format("2006-01-02"), rec.SHA256[:8])
+	case state == approval.StatusInvalidated:
+		res.Status = verdict.StatusFail
+		res.OutputTail = fmt.Sprintf("el spec fue EDITADO despues de aprobarse: la aprobacion quedo invalidada por el hash de contenido.\nAccion: revisa el cambio y re-aprueba con 'hoom spec approve %s'", specPath)
+	default:
+		res.Status = verdict.StatusFail
+		res.OutputTail = fmt.Sprintf("el spec no tiene aprobacion humana registrada.\nAccion: 'hoom spec approve %s' antes de verificar contra el", specPath)
+	}
+	return res
 }

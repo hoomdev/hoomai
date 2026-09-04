@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/report"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
@@ -47,6 +49,9 @@ Comandos:
               con su rol, tareas y hallazgos [--json | --watch]
   cockpit     Arma el puesto completo sobre tmux/zellij: tu CLI de IA en un
               pane real + status --watch al lado [--provider p] [--task slug]
+  ratchet     El trinquete: calidad que solo puede subir. init crea la linea
+              base (.hoom/ratchet.json); 'verify --full' la compara y aprieta;
+              lower <metrica> --to <v> --reason "..." la afloja CON registro
   serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
   spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
@@ -126,6 +131,8 @@ func main() {
 		err = cmdStatus(args)
 	case "cockpit":
 		err = cmdCockpit(args)
+	case "ratchet":
+		err = cmdRatchet(args)
 	case "serve":
 		err = cmdServe(args)
 	case "task":
@@ -271,6 +278,55 @@ func cmdStatus(args []string) error {
 	return statuscmd.Run(m.Dir, m.BaseBranch, os.Stdout, statuscmd.Options{
 		JSON: *asJSON, Watch: *watch, TTY: tty,
 	})
+}
+
+// cmdRatchet manages the quality baseline: scaffold it, or loosen one
+// metric with a mandatory, recorded reason. Tightening has no verb on
+// purpose: only a measurement during verify --full moves a baseline up.
+func cmdRatchet(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("uso: hoom ratchet init | lower <metrica> --to <valor> --reason \"<por que>\"")
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	sub, rest := args[0], args[1:]
+	switch sub {
+	case "init":
+		p, err := ratchet.Init(m.Dir)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("hoom ratchet: creado %s (viaja en Git)\n", p)
+		fmt.Println("  declara metricas como comandos cuya ULTIMA linea de salida sea un numero:")
+		fmt.Println(`    "metrics": {`)
+		fmt.Println(`      "cobertura": {"cmd": "go test -cover ./... | ...", "direction": "up", "tolerance": 0.5}`)
+		fmt.Println(`    }`)
+		fmt.Println("  'hoom verify --full' congela la base en la primera corrida y desde ahi: solo sube.")
+		return nil
+	case "lower":
+		if len(rest) < 1 || strings.HasPrefix(rest[0], "-") {
+			return fmt.Errorf("uso: hoom ratchet lower <metrica> --to <valor> --reason \"<por que>\"")
+		}
+		name := rest[0]
+		fs := flag.NewFlagSet("ratchet lower", flag.ExitOnError)
+		to := fs.Float64("to", math.NaN(), "nueva base (peor que la actual)")
+		reason := fs.String("reason", "", "razon del aflojamiento (obligatoria)")
+		_ = fs.Parse(rest[1:])
+		if math.IsNaN(*to) {
+			return fmt.Errorf("falta --to <valor>")
+		}
+		ch, err := ratchet.Lower(m.Dir, name, *to, *reason)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("hoom ratchet: %s aflojada %v -> %v\n  razon: %s\n  registro: history de .hoom/ratchet.json (queda en el diff de Git)\n",
+			ch.Metric, *ch.From, ch.To, ch.Reason)
+		return nil
+	default:
+		return fmt.Errorf("subcomando desconocido %q (init|lower)", sub)
+	}
 }
 
 // cmdCockpit assembles the tmux/zellij layout: AI CLI + status --watch.

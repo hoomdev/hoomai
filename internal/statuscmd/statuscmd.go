@@ -22,6 +22,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -61,6 +62,26 @@ type FindingsSummary struct {
 	OpenHigh int `json:"open_high"`
 }
 
+// RatchetMetric is one baseline entry exactly as the file proves it: the
+// frozen value plus its last recorded movement. status never measures.
+type RatchetMetric struct {
+	Name      string    `json:"name"`
+	Value     *float64  `json:"value,omitempty"` // nil = declared but not frozen yet
+	Direction string    `json:"direction"`
+	Tolerance float64   `json:"tolerance,omitempty"`
+	LastKind  string    `json:"last_kind,omitempty"` // frozen | tightened | loosened
+	LastFrom  *float64  `json:"last_from,omitempty"`
+	LastTo    float64   `json:"last_to,omitempty"`
+	LastTS    time.Time `json:"last_ts,omitempty"`
+}
+
+// RatchetView is the quality baseline as shown by status.
+type RatchetView struct {
+	Declared bool            `json:"declared"`
+	Error    string          `json:"error,omitempty"` // unreadable baseline, labeled honestly
+	Metrics  []RatchetMetric `json:"metrics"`
+}
+
 // Snapshot is the full status: one read, three renders.
 type Snapshot struct {
 	Root       string             `json:"root"`
@@ -72,6 +93,7 @@ type Snapshot struct {
 	Runs       []RunView          `json:"runs"` // active runs only
 	Tasks      []taskcmd.TaskInfo `json:"tasks"`
 	Findings   FindingsSummary    `json:"findings"`
+	Ratchet    RatchetView        `json:"ratchet"`
 }
 
 // Build composes the snapshot. Strictly read-only: nothing under .hoom is
@@ -118,7 +140,45 @@ func Build(root, base string) (*Snapshot, error) {
 			}
 		}
 	}
+
+	s.Ratchet = ratchetView(root)
 	return s, nil
+}
+
+// ratchetView reads the baseline file — and ONLY reads it: measuring is
+// verify --full's job. An unreadable file is labeled, never fatal.
+func ratchetView(root string) RatchetView {
+	view := RatchetView{Metrics: []RatchetMetric{}}
+	f, err := ratchet.Load(root)
+	if err != nil {
+		view.Declared = true
+		view.Error = err.Error()
+		return view
+	}
+	if f == nil || len(f.Metrics) == 0 {
+		return view
+	}
+	view.Declared = true
+	names := make([]string, 0, len(f.Metrics))
+	for n := range f.Metrics {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		m := f.Metrics[n]
+		rm := RatchetMetric{Name: n, Value: m.Value, Direction: m.Direction, Tolerance: m.Tolerance}
+		for i := len(f.History) - 1; i >= 0; i-- {
+			if f.History[i].Metric == n {
+				rm.LastKind = f.History[i].Kind
+				rm.LastFrom = f.History[i].From
+				rm.LastTo = f.History[i].To
+				rm.LastTS = f.History[i].TS
+				break
+			}
+		}
+		view.Metrics = append(view.Metrics, rm)
+	}
+	return view
 }
 
 var runStartRe = regexp.MustCompile(`^run \S+: (\S+) en `)
@@ -298,6 +358,33 @@ func Render(w io.Writer, s *Snapshot, color bool) {
 			line += fmt.Sprintf(", %d high", s.Findings.OpenHigh)
 		}
 		fmt.Fprintf(w, " hallazgos: %s\n", paint(color, cYellow, line))
+	}
+
+	// trinquete: solo lo que el archivo prueba; medir es de verify --full
+	switch {
+	case s.Ratchet.Error != "":
+		fmt.Fprintf(w, " trinquete: %s\n", paint(color, cYellow, "linea base ilegible: "+s.Ratchet.Error))
+	case !s.Ratchet.Declared:
+		fmt.Fprintf(w, " trinquete: %s\n", paint(color, cGray, "sin linea base ('hoom ratchet init' para empezar a subir)"))
+	default:
+		fmt.Fprintf(w, " trinquete: %d metrica(s)\n", len(s.Ratchet.Metrics))
+		for _, m := range s.Ratchet.Metrics {
+			if m.Value == nil {
+				fmt.Fprintf(w, "   %-14s %s (%s)\n", m.Name,
+					paint(color, cYellow, "sin congelar (corre 'hoom verify --full')"), m.Direction)
+				continue
+			}
+			last := ""
+			if m.LastKind != "" {
+				movement := fmt.Sprintf("%v", m.LastTo)
+				if m.LastFrom != nil {
+					movement = fmt.Sprintf("%v -> %v", *m.LastFrom, m.LastTo)
+				}
+				last = paint(color, cGray, fmt.Sprintf("  ultimo: %s %s (%s)",
+					m.LastKind, movement, m.LastTS.Format("2006-01-02")))
+			}
+			fmt.Fprintf(w, "   %-14s base %v (%s)%s\n", m.Name, *m.Value, m.Direction, last)
+		}
 	}
 	fmt.Fprintln(w, strings.Repeat("-", 72))
 }
