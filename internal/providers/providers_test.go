@@ -72,7 +72,7 @@ func TestCA24_ProviderSinStreamDegradaAText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Structured {
+	if spec.Capabilities().Structured {
 		t.Fatal("CA-24: gemini no tiene stream estructurado declarado")
 	}
 	evs := spec.Normalize(`{"type":"assistant"}`)

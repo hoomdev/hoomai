@@ -266,6 +266,11 @@ tres campos que ya recibe; `statuscmd` no cambia. README: filas de
 - Result con `is_error: true` y subtype `success` (defensivo): `error`.
 - Líneas de más de 4 MB: el scanner del run ya las corta (límite vigente);
   fuera de alcance, no empeora.
+- Presupuesto del E2E: 0.05 USD NO alcanza para un turno real (medido el
+  2026-09-04 con Claude Code 2.1.259: el contexto inicial con hooks y MCP
+  supera ese gasto y el result es `error_max_budget_usd`, exit 1); con
+  1 USD el mismo prompt cierra con `end` y exit 0. El tope es una red
+  contra descontrol, no una medida del costo mínimo.
 - Registro duplicado desde el `init` del paquete: `Register` devuelve error
   y el `init` entra en pánico, porque es un bug del binario y no un estado
   del proyecto.
@@ -342,9 +347,9 @@ tres campos que ya recibe; `statuscmd` no cambia. README: filas de
   y status siguen verdes sin tocar sus aserciones (solo la firma de
   `Start`).
 - CA-126: E2E opcional: con `HOOM_E2E=1` y `claude` real en PATH, un test
-  corre Claude con `--max-turns 1` y presupuesto 0.05 USD y exige
-  `SessionID` no vacío en el `start` y en el cierre; sin la variable el
-  test se omite (skip) y jamás es requisito de `go test`.
+  corre Claude con `--max-turns 1` y presupuesto 1 USD y exige
+  `SessionID` no vacío en el `start` y en el cierre, y exit 0; sin la
+  variable el test se omite (skip) y jamás es requisito de `go test`.
 
 ## Decisiones
 

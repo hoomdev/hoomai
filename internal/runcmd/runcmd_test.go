@@ -67,7 +67,7 @@ func TestCA22_SubprocesoCwdYExitCode(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(root)
 
-	info, err := m.Start("claude", "hola agente", "")
+	info, err := m.Start(StartOptions{Provider: "claude", Prompt: "hola agente"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestCA22_SubprocesoCwdYExitCode(t *testing.T) {
 func TestCA22_TareaInexistente(t *testing.T) {
 	installFake(t, "exit 0\n")
 	m := NewManager(t.TempDir())
-	if _, err := m.Start("claude", "hola", "no-existe"); err == nil || !strings.Contains(err.Error(), "no existe") {
+	if _, err := m.Start(StartOptions{Provider: "claude", Prompt: "hola", Task: "no-existe"}); err == nil || !strings.Contains(err.Error(), "no existe") {
 		t.Fatalf("CA-22: tarea inexistente debe fallar con mensaje claro: %v", err)
 	}
 }
@@ -122,7 +122,7 @@ func TestCA23_NarracionFueraDeLaHuella(t *testing.T) {
 	}
 
 	m := NewManager(root)
-	info, err := m.Start("claude", "hola", "")
+	info, err := m.Start(StartOptions{Provider: "claude", Prompt: "hola"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestCA28_CancelarConservaElLog(t *testing.T) {
 	root := t.TempDir()
 	m := NewManager(root)
 
-	info, err := m.Start("claude", "trabajo largo", "")
+	info, err := m.Start(StartOptions{Provider: "claude", Prompt: "trabajo largo"})
 	if err != nil {
 		t.Fatal(err)
 	}

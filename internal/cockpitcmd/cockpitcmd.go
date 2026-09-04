@@ -137,14 +137,14 @@ func resolveProvider(name string, deps Deps) (string, error) {
 			return "", fmt.Errorf("varias CLIs instaladas (%s): elegi una con --provider", strings.Join(installed, ", "))
 		}
 	}
-	spec, err := providers.Lookup(name)
+	p, err := providers.Lookup(name)
 	if err != nil {
 		return "", err
 	}
-	if _, err := deps.LookPath(spec.Bin); err != nil {
-		return "", fmt.Errorf("el provider %q no esta instalado (no se encontro %q en PATH); instala su CLI primero", name, spec.Bin)
+	if _, err := deps.LookPath(p.Bin()); err != nil {
+		return "", fmt.Errorf("el provider %q no esta instalado (no se encontro %q en PATH); instala su CLI primero", name, p.Bin())
 	}
-	return spec.Bin, nil
+	return p.Bin(), nil
 }
 
 // runTmux composes (or re-attaches) the tmux session: AI pane ~70%, watch
