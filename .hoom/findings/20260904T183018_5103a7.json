@@ -1,0 +1,10 @@
+{
+  "id": "20260904T183018_5103a7",
+  "created_at": "2026-09-04T18:30:18.169795Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/providers/claude.go",
+  "description": "claude.go:104-106: parseClaudeLine convierte CUALQUIER linea type:\"system\" en evento 'start' (Detail = subtype). El spec fija 'start' SOLO para subtype 'init' y CA-112 exige que una linea no reconocida sea un unico 'text' con la linea integra. Claude Code 2.1.259/2.1.260 emite por stream-json otros mensajes system con session_id: compact_boundary (compactacion de contexto), hook_started/hook_progress/hook_response (hooks; este proyecto los usa), task_started/task_progress/task_notification (subagentes via Task) y status. Resultado concreto: 'hoom run' imprime 'start  hook_started' o 'start  compact_boundary' a mitad del run, el log .hoom/runs/\u003cid\u003e.jsonl acumula varios eventos start por run y el contenido de la linea (hook, stdout, metadata de compactacion) se pierde: solo sobrevive el subtype. Reproducido: Normalize({\"type\":\"system\",\"subtype\":\"compact_boundary\",\"session_id\":\"s1\"}) -\u003e kind=start detail=\"compact_boundary\" (idem hook_started, task_started, status). Arreglo: case system solo con subtype == \"init\"; cualquier otro subtype cae al text por defecto (o a un kind propio si se decide).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "7055e5f8a298b55e"
+}

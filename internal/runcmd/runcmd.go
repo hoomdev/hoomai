@@ -272,7 +272,13 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	}
 	// Command is a pure translation: safe under the lock, and a refusal
 	// leaves the run exactly as it was.
-	inv, err := r.provider.Command(r.opts.request(prompt, r.info.ProviderSessionID, true))
+	// the session to resume: the one the provider reported, else the one
+	// this run was asked to resume from the start
+	resumeID := r.info.ProviderSessionID
+	if resumeID == "" {
+		resumeID = r.opts.ResumeID
+	}
+	inv, err := r.provider.Command(r.opts.request(prompt, resumeID, true))
 	if err != nil {
 		m.mu.Unlock()
 		return Run{}, err
@@ -407,8 +413,14 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()
-	if err1 != nil || err2 != nil || cmd.Start() != nil {
-		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name())
+	if err1 != nil || err2 != nil {
+		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipes")
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		// the cause matters: a missing binary and an argv too large (E2BIG
+		// with a huge --system-prompt) look the same otherwise
+		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), err))
 		return
 	}
 	// Si un hijo huerfano del provider retiene los pipes tras el kill,

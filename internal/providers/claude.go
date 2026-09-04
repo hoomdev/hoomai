@@ -102,7 +102,14 @@ func parseClaudeLine(line string, ts time.Time) []Event {
 	}
 	switch msg.Type {
 	case "system":
-		// init carries the session id: the handle for --resume
+		// Only init opens the session: it carries the session id, the
+		// handle for --resume. Other system subtypes (hooks, compaction,
+		// subagent tasks, status) are not narration hoom understands:
+		// they fall back to text with the full line — never lost, never
+		// mistaken for a second start.
+		if msg.Subtype != "init" {
+			return nil
+		}
 		return []Event{{TS: ts, Kind: "start", Detail: msg.Subtype, SessionID: msg.SessionID}}
 	case "result":
 		text := clip(msg.Result)

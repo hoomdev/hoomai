@@ -156,8 +156,9 @@ func resolve(name string, caps Capabilities, req Request) (plan, error) {
 	if strings.HasPrefix(req.Prompt, "-") {
 		return p, fmt.Errorf("el prompt no puede empezar con '-' (la CLI lo leeria como flag)")
 	}
-	if strings.HasPrefix(req.ResumeID, "-") {
-		return p, fmt.Errorf("id de sesion invalido %q: no puede empezar con '-'", req.ResumeID)
+	resumeID := strings.TrimSpace(req.ResumeID)
+	if strings.HasPrefix(resumeID, "-") {
+		return p, fmt.Errorf("id de sesion invalido %q: no puede empezar con '-'", resumeID)
 	}
 	if req.MaxTurns < 0 {
 		return p, fmt.Errorf("max_turns negativo (%d)", req.MaxTurns)
@@ -171,9 +172,9 @@ func resolve(name string, caps Capabilities, req Request) (plan, error) {
 	// was also requested is superseded (not ignored); an unsupported one
 	// is ignored.
 	switch {
-	case req.ResumeID != "" && caps.Resume:
-		p.resumeID = req.ResumeID
-	case req.ResumeID != "":
+	case resumeID != "" && caps.Resume:
+		p.resumeID = resumeID
+	case resumeID != "":
 		p.ignored = append(p.ignored, FieldResume)
 		if req.Continue {
 			if caps.Continue {
@@ -323,8 +324,9 @@ func (r *Registry) All() []Provider {
 // and its declared capabilities, in registration order. It never claims
 // more than PATH proves (no authentication guesses).
 func (r *Registry) Detect() []Info {
-	out := make([]Info, 0, len(r.order))
-	for _, p := range r.All() {
+	all := r.All()
+	out := make([]Info, 0, len(all))
+	for _, p := range all {
 		info := Info{Name: p.Name(), Capabilities: p.Capabilities()}
 		if path, err := exec.LookPath(p.Bin()); err == nil {
 			info.Installed = true
