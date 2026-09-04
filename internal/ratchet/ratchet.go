@@ -277,3 +277,34 @@ func lastNonEmptyLine(s string) string {
 	}
 	return ""
 }
+
+// Loosened names the metrics that got WORSE or disappeared between two states
+// of the baseline. Tightening, freezing for the first time and adding a new
+// metric all return nothing: the ratchet may only go up. Comparing meaning
+// instead of bytes matters — `verify --full` legitimately rewrites the file
+// every time the project improves.
+func Loosened(before, after *File) []string {
+	if before == nil {
+		return nil
+	}
+	var out []string
+	for name, m := range before.Metrics {
+		if m == nil || m.Value == nil {
+			continue // not frozen yet: there is no baseline to loosen
+		}
+		var am *Metric
+		if after != nil {
+			am = after.Metrics[name]
+		}
+		switch {
+		case am == nil, am.Value == nil:
+			out = append(out, name) // removed or unfrozen: the demand is gone
+		case am.Direction != m.Direction:
+			out = append(out, name) // flipping the direction inverts the demand
+		case regressed(m, *am.Value):
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}

@@ -1,0 +1,10 @@
+{
+  "id": "20260904T203240_431e64",
+  "created_at": "2026-09-04T20:32:40.189744Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "El sobre le imputaba al rol lo que escribe HOOM durante el run: .hoom/runs/*.jsonl y .hoom/cache/ entraban en el delta. Hoy no rompe porque las tres formas de scope permiten .hoom/**, pero un allow acotado desde hoom.yaml haria que hoom se acuse a si mismo de escribir fuera de scope.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "5f9cb20d261d4198"
+}

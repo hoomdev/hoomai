@@ -171,11 +171,16 @@ func (m *Manager) markOrphans() {
 
 // dirFor resolves where a run executes: the project root, or the task's
 // isolated worktree.
-func (m *Manager) dirFor(task string) (string, error) {
+func (m *Manager) dirFor(task string) (string, error) { return TaskDir(m.root, task) }
+
+// TaskDir resolves where work for a task happens: its isolated worktree, or
+// the project root when no task is given. The envelope needs the same answer
+// the run uses, so both ask here.
+func TaskDir(root, task string) (string, error) {
 	if task == "" {
-		return m.root, nil
+		return root, nil
 	}
-	wt := filepath.Join(m.root, ".hoom", "worktrees", task)
+	wt := filepath.Join(root, ".hoom", "worktrees", task)
 	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
 		return "", fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", task)
 	}

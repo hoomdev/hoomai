@@ -1,0 +1,10 @@
+{
+  "id": "20260904T203240_88285c",
+  "created_at": "2026-09-04T20:32:40.626809Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitx/gitx.go",
+  "description": "gitx.Touched degradaba a un hash '?' cuando git hash-object fallaba. Dos snapshots con '?' coinciden y el cambio desaparece del delta: un fallo del subproceso silenciaba justo al primitivo que detecta manipulacion de la evidencia.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "5f9cb20d261d4198"
+}

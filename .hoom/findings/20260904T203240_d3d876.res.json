@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260904T203240_d3d876",
+  "as": "corregido",
+  "evidence": "matchGlob colapsa los ** consecutivos antes de comparar, asi '**/**/**' cuesta lo mismo que '**'. CA-135 sigue verde con los 15 casos de la tabla (TestCA135_MatchGlob).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-04T20:32:51.406569Z"
+}

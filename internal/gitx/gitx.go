@@ -233,3 +233,62 @@ func GoPackages(changed []string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// Touched lists EVERYTHING that differs from base — commits of the branch,
+// working tree and untracked files — WITHOUT the candidate exclusions: the
+// envelope's scope gate needs to see exactly what the fingerprint hides
+// (.hoom/verdicts/, .hoom/findings/, .hoom/ratchet.json). The value is the
+// content hash (git's own blob hasher, so committed and working-tree copies
+// of the same bytes share an identity); "-" means the path is gone.
+func Touched(dir, base string) map[string]string {
+	out := map[string]string{}
+	if _, err := run(dir, "rev-parse", "--is-inside-work-tree"); err != nil {
+		return out
+	}
+	set := map[string]bool{}
+	// No --diff-filter here: a path DELETED in the branch is a change too.
+	for _, args := range [][]string{
+		{"diff", "--name-only", base + "...HEAD"},
+		{"diff", "--name-only", "HEAD"},
+		{"ls-files", "--others", "--exclude-standard"},
+	} {
+		o, err := run(dir, args...)
+		if err != nil {
+			continue
+		}
+		for _, f := range strings.Split(o, "\n") {
+			if f != "" {
+				set[f] = true
+			}
+		}
+	}
+	for f := range set {
+		h, err := contentHash(filepath.Join(dir, f))
+		if err != nil {
+			out[f] = "-" // ya no existe (borrado, o un directorio que quedo en el listado)
+			continue
+		}
+		out[f] = h
+	}
+	return out
+}
+
+// contentHash hashes a file's bytes. Deliberately NOT git hash-object: this
+// is the primitive that detects tampering, so it must never depend on a
+// subprocess that can fail and leave two snapshots agreeing on "unknown".
+func contentHash(path string) (string, error) {
+	fh, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer fh.Close()
+	st, err := fh.Stat()
+	if err != nil || st.IsDir() {
+		return "", fmt.Errorf("%s no es un archivo regular", path)
+	}
+	h := sha256.New()
+	if _, err := io.Copy(h, fh); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}

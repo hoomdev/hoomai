@@ -56,6 +56,19 @@ func (g Gate) DiffCmdStr() string {
 	return *g.DiffCmd
 }
 
+// AgentPolicy is one role's project-level policy.
+type AgentPolicy struct {
+	Write WriteScope `yaml:"write,omitempty"`
+}
+
+// WriteScope re-aims where a role may write. A declared Allow REPLACES the
+// role's default globs (a project knows where its tests live better than a
+// default does); Deny is ADDED to them.
+type WriteScope struct {
+	Allow []string `yaml:"allow,omitempty"`
+	Deny  []string `yaml:"deny,omitempty"`
+}
+
 // Manifest is the parsed hoom.yaml after profile inheritance is resolved.
 type Manifest struct {
 	Schema     string          `yaml:"schema"`
@@ -64,6 +77,11 @@ type Manifest struct {
 	BaseBranch string          `yaml:"base_branch,omitempty"`
 	Policy     string          `yaml:"policy,omitempty"`
 	Gates      map[string]Gate `yaml:"gates"`
+	// Agents overrides the write scope of a role for THIS project, keyed by
+	// role slug ("test-writer"). It can only re-aim a role's territory: the
+	// universal append-only floor that `hoom agent` enforces is not
+	// reachable from here, because a floor you can lower is not a floor.
+	Agents map[string]AgentPolicy `yaml:"agents,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`
