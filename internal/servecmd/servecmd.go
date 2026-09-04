@@ -290,7 +290,7 @@ func (s *Server) Handler() http.Handler {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		info, err := s.runs.Start(body.Provider, body.Prompt, body.Task)
+		info, err := s.runs.Start(runcmd.StartOptions{Provider: body.Provider, Prompt: body.Prompt, Task: body.Task})
 		if err != nil {
 			writeError(w, runErrCode(err), err.Error())
 			return

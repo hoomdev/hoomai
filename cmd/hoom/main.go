@@ -61,10 +61,12 @@ Comandos:
               add --sev low|medium|high [--lens l] [--file f] "<descripcion>"
               resolve <id> --as corregido|refutado --evidence "<por que>"
               list [--open] [--json]   (cerrar SIN evidencia esta prohibido)
-  providers   Detecta las CLIs de IA instaladas (claude|opencode|codex|gemini) [--json]
+  providers   Detecta las CLIs de IA instaladas y las capacidades que declara
+              cada una (claude|opencode|codex|gemini) [--json]
   run         Lanza tu CLI de IA en headless: --provider <p> [--task <slug>] "<prompt>"
               hoom NUNCA llama a una API de IA: ejecuta TU CLI como subproceso.
               Narracion en .hoom/runs/ (local, fuera de la huella y de Git).
+              Opciones de sesion, modelo, system prompt, tools y topes abajo.
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 10 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -101,6 +103,18 @@ Flags de cockpit:
                        omitido: se usa la unica instalada, jamas se adivina
   --task <slug>        Monta el cockpit dentro del worktree de esa tarea
   --mux tmux|zellij    Fuerza el multiplexor (default: tmux, luego zellij)
+
+Flags de run (lo que el provider no soporta se ignora CON aviso en el log;
+              --strict lo vuelve error antes de crear el run):
+  --resume <id>        Reanuda esa sesion del provider (la imprime un run anterior)
+  --model <m>          Modelo, en el vocabulario del provider (ej: sonnet)
+  --system-prompt <t>  Texto que se AGREGA al system prompt del provider;
+                       @ruta lee un archivo (ej: @.hoom/agents/04-writer.md)
+  --allow-tools a,b    Herramientas permitidas (vocabulario del provider)
+  --deny-tools a,b     Herramientas prohibidas
+  --max-turns n        Tope de turnos del agente (0 = sin tope)
+  --budget-usd x       Tope de gasto en USD (0 = sin tope)
+  --strict             Campo no soportado = error, no aviso
 
 Flags de serve:
   --addr host:puerto   Direccion de escucha (default 127.0.0.1:4666, solo loopback)
@@ -385,14 +399,7 @@ func cmdProviders(args []string) error {
 		fmt.Println(string(raw))
 		return nil
 	}
-	fmt.Println("hoom: providers de IA soportados (deteccion por PATH)")
-	for _, p := range providers.Detect() {
-		state := "NO instalado"
-		if p.Installed {
-			state = "instalado (" + p.Bin + ")"
-		}
-		fmt.Printf("  %-10s %s\n", p.Name, state)
-	}
+	providers.RenderText(os.Stdout, providers.Detect())
 	return nil
 }
 
@@ -403,7 +410,14 @@ func cmdRun(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	provider := fs.String("provider", "", "provider de IA (claude|opencode|codex|gemini)")
 	task := fs.String("task", "", "slug de la tarea: corre en su worktree aislado")
-	cont := fs.String("continue", "", "id de run a continuar (misma sesion del provider)")
+	resume := fs.String("resume", "", "id de sesion del provider a reanudar (lo imprime un run anterior)")
+	model := fs.String("model", "", "modelo, en el vocabulario del provider (ej: sonnet)")
+	sysPrompt := fs.String("system-prompt", "", "texto que se AGREGA al system prompt del provider; @ruta lee un archivo")
+	allow := fs.String("allow-tools", "", "herramientas permitidas, separadas por coma (vocabulario del provider)")
+	deny := fs.String("deny-tools", "", "herramientas prohibidas, separadas por coma")
+	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
+	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
+	strict := fs.Bool("strict", false, "un campo que el provider no soporta es error, no aviso")
 	_ = fs.Parse(args)
 	if *provider == "" {
 		return fmt.Errorf("falta --provider (mira 'hoom providers')")
@@ -416,12 +430,17 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
-	mgr := runcmd.NewManager(m.Dir)
-	var info runcmd.Run
-	if *cont != "" {
-		return fmt.Errorf("--continue aplica a sesiones del Studio; en terminal cada CLI ya continua con su propio mecanismo (ej: claude -p --continue)")
+	sp, err := runcmd.ResolveSystemPrompt(*sysPrompt)
+	if err != nil {
+		return err
 	}
-	info, err = mgr.Start(*provider, prompt, *task)
+	mgr := runcmd.NewManager(m.Dir)
+	info, err := mgr.Start(runcmd.StartOptions{
+		Provider: *provider, Prompt: prompt, Task: *task, ResumeID: *resume,
+		Model: *model, SystemPrompt: sp,
+		AllowTools: splitList(*allow), DenyTools: splitList(*deny),
+		MaxTurns: *maxTurns, BudgetUSD: *budget, Strict: *strict,
+	})
 	if err != nil {
 		return err
 	}
@@ -442,6 +461,11 @@ func cmdRun(args []string) error {
 		}
 		seen += len(evs)
 		if st.Status != runcmd.StatusRunning {
+			if st.ProviderSessionID != "" {
+				// la sesion del provider es el handle para retomar EXACTAMENTE este hilo
+				fmt.Printf("hoom run: sesion del provider %s\n  reanudar: hoom run --provider %s --resume %s \"<prompt>\"\n",
+					st.ProviderSessionID, *provider, st.ProviderSessionID)
+			}
 			if st.Status != runcmd.StatusDone {
 				fmt.Printf("hoom run: %s (exit %d)\n", st.Status, st.ExitCode)
 			}
@@ -455,6 +479,17 @@ func cmdRun(args []string) error {
 		}
 		time.Sleep(150 * time.Millisecond)
 	}
+}
+
+// splitList parses a comma-separated flag value; empty entries are dropped.
+func splitList(raw string) []string {
+	var out []string
+	for _, s := range strings.Split(raw, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // cmdFinding manages review findings as append-only artifacts: immutable

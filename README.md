@@ -79,8 +79,8 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom finding add --sev <s> "<desc>"` | Registra un hallazgo de review como artefacto INMUTABLE en `.hoom/findings/`, atado a la huella del arbol |
 | `hoom finding resolve <id> --as corregido\|refutado --evidence "..."` | Cierra un hallazgo (transicion terminal unica); SIN evidencia el binario se niega |
 | `hoom finding list [--open] [--json]` | Estado derivado de cada hallazgo; marca los que quedaron atras del codigo |
-| `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) `--json` |
-| `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git) |
+| `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) y las capacidades que declara cada una (stream, continue, resume, session_id, model, system_prompt, tools, max_turns, budget). `--json` |
+| `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git). Opciones: `--resume <id>` (reanuda la sesion del provider que imprimio un run anterior), `--model <m>`, `--system-prompt <texto\|@ruta>` (se AGREGA al del provider; `@ruta` lee un contrato de rol), `--allow-tools a,b`, `--deny-tools a,b`, `--max-turns n`, `--budget-usd x`. Lo que el provider no soporta se ignora CON aviso en el log; `--strict` lo vuelve error |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
 | `hoom verify --spec <ruta>` | Suma los gates `spec_lint`, `spec_trace` y `spec_approved`: cada criterio CA-n debe tener un test que lo referencie o declarar `[verifica: <comando>]` (exit 0 = trazado), y el spec debe tener aprobacion humana VIGENTE (hash de contenido) |

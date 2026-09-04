@@ -4,7 +4,9 @@
 // own CLI. Narration events land in .hoom/runs/<id>.jsonl — LOCAL telemetry,
 // excluded from Git and from the change-candidate fingerprint: what travels
 // is evidence (verdicts), never narration. One active run per directory,
-// mirroring the harness rule of one writer per task.
+// mirroring the harness rule of one writer per task. runcmd is the ONLY
+// executor: providers translate requests into commands and parse output;
+// this package owns processes, timeouts, cancellation and logs.
 package runcmd
 
 import (
@@ -49,6 +51,52 @@ type Run struct {
 	ExitCode  int       `json:"exit_code"`
 	CreatedAt time.Time `json:"created_at"`
 	NumEvents int       `json:"num_events"`
+	// ProviderSessionID is the last session id the provider reported in
+	// its stream: the handle Input uses to resume EXACTLY this session.
+	ProviderSessionID string `json:"provider_session_id,omitempty"`
+}
+
+// StartOptions is everything a run needs to start: provider and prompt,
+// where to run, and the request fields the provider may or may not honor
+// (see providers.Capabilities). The run remembers them so a later Input
+// re-applies them.
+type StartOptions struct {
+	Provider     string
+	Prompt       string
+	Task         string // task slug: run inside its worktree; "" = project root
+	ResumeID     string // provider session id to resume in this new run
+	Model        string
+	SystemPrompt string
+	AllowTools   []string
+	DenyTools    []string
+	MaxTurns     int
+	BudgetUSD    float64
+	Strict       bool // unsupported field = refuse to start instead of a warning
+}
+
+// request builds the provider request for these options.
+func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Request {
+	return providers.Request{
+		Prompt: prompt, ResumeID: resumeID, Continue: cont,
+		Model: o.Model, SystemPrompt: o.SystemPrompt,
+		AllowTools: o.AllowTools, DenyTools: o.DenyTools,
+		MaxTurns: o.MaxTurns, BudgetUSD: o.BudgetUSD, Strict: o.Strict,
+	}
+}
+
+// ResolveSystemPrompt turns the CLI flag value into prompt text: "@<ruta>"
+// reads the file (typically a role contract); anything else is literal,
+// a lone "@" included.
+func ResolveSystemPrompt(arg string) (string, error) {
+	if !strings.HasPrefix(arg, "@") || len(arg) == 1 {
+		return arg, nil
+	}
+	path := arg[1:]
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("no se pudo leer el system prompt %q: %w", path, err)
+	}
+	return string(raw), nil
 }
 
 // ErrBusy signals that the target directory already has an active run.
@@ -61,7 +109,8 @@ func (e ErrBusy) Error() string {
 type run struct {
 	info     Run
 	dir      string
-	spec     providers.Spec
+	provider providers.Provider
+	opts     StartOptions
 	events   []Event
 	cancel   context.CancelFunc
 	canceled bool // pedido de cancelacion; el estado terminal lo fija settle
@@ -140,19 +189,24 @@ func newID() string {
 }
 
 // Start launches a new run. One active run per directory: a busy directory
-// returns ErrBusy with the running id.
-func (m *Manager) Start(provider, prompt, task string) (Run, error) {
-	if strings.TrimSpace(prompt) == "" {
+// returns ErrBusy with the running id. The provider translates the request
+// BEFORE anything is created, so a Strict refusal leaves no run and no log.
+func (m *Manager) Start(opts StartOptions) (Run, error) {
+	if strings.TrimSpace(opts.Prompt) == "" {
 		return Run{}, fmt.Errorf("prompt vacio")
 	}
-	spec, err := providers.Lookup(provider)
+	p, err := providers.Lookup(opts.Provider)
 	if err != nil {
 		return Run{}, err
 	}
-	if _, err := exec.LookPath(spec.Bin); err != nil {
-		return Run{}, fmt.Errorf("el provider %q no esta instalado (no se encontro %q en PATH); instala su CLI primero", provider, spec.Bin)
+	if _, err := exec.LookPath(p.Bin()); err != nil {
+		return Run{}, fmt.Errorf("el provider %q no esta instalado (no se encontro %q en PATH); instala su CLI primero", opts.Provider, p.Bin())
 	}
-	dir, err := m.dirFor(task)
+	dir, err := m.dirFor(opts.Task)
+	if err != nil {
+		return Run{}, err
+	}
+	inv, err := p.Command(opts.request(opts.Prompt, opts.ResumeID, false))
 	if err != nil {
 		return Run{}, err
 	}
@@ -173,27 +227,31 @@ func (m *Manager) Start(provider, prompt, task string) (Run, error) {
 		return Run{}, err
 	}
 	r := &run{
-		info: Run{ID: id, Provider: provider, Task: task, Status: StatusRunning, ExitCode: -1, CreatedAt: time.Now().UTC()},
-		dir:  dir, spec: spec, log: logFile,
+		info: Run{ID: id, Provider: p.Name(), Task: opts.Task, Status: StatusRunning, ExitCode: -1, CreatedAt: time.Now().UTC()},
+		dir:  dir, provider: p, opts: opts, log: logFile,
 	}
 	m.runs[id] = r
 	m.byDir[dir] = id
 	m.mu.Unlock()
 
 	m.append(r, Event{TS: time.Now().UTC(), Kind: "start",
-		Detail: fmt.Sprintf("run %s: %s en %s", id, provider, displayDir(task))})
+		Detail: fmt.Sprintf("run %s: %s en %s", id, p.Name(), displayDir(opts.Task))})
+	m.warnIgnored(r, inv.Ignored)
 	// snapshot ANTES de lanzar la goroutine: execute escribe r.info en
 	// paralelo y una copia sin lock seria una carrera de datos.
 	m.mu.Lock()
 	info := r.info
 	m.mu.Unlock()
-	go m.execute(r, prompt, false)
+	go m.execute(r, inv)
 	return info, nil
 }
 
 // Input continues a finished run's session with the next prompt (the "spec
-// aprobado, adelante" of the tutorial). Providers without native headless
-// resume start fresh and the run says so — declared degradation.
+// aprobado, adelante" of the tutorial). The run's original options travel
+// again (a system prompt applies per launch) and the provider picks the
+// strongest session mechanism it supports: resume by id when the session
+// was captured, else continue-in-directory, else a fresh invocation — and
+// the log says which. Declared degradation, never silent.
 func (m *Manager) Input(id, prompt string) (Run, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return Run{}, fmt.Errorf("prompt vacio")
@@ -212,23 +270,53 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 		m.mu.Unlock()
 		return Run{}, ErrBusy{RunID: active}
 	}
+	// Command is a pure translation: safe under the lock, and a refusal
+	// leaves the run exactly as it was.
+	// the session to resume: the one the provider reported, else the one
+	// this run was asked to resume from the start
+	resumeID := r.info.ProviderSessionID
+	if resumeID == "" {
+		resumeID = r.opts.ResumeID
+	}
+	inv, err := r.provider.Command(r.opts.request(prompt, resumeID, true))
+	if err != nil {
+		m.mu.Unlock()
+		return Run{}, err
+	}
 	r.info.Status = StatusRunning
 	r.info.ExitCode = -1
 	r.canceled = false
 	m.byDir[r.dir] = id
 	m.mu.Unlock()
 
-	cont := true
-	if !r.spec.CanContinue {
-		cont = false
+	m.warnIgnored(r, inv.Ignored)
+	if contains(inv.Ignored, providers.FieldContinue) {
 		m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
-			Detail: fmt.Sprintf("aviso: %s no soporta continuar sesion en headless; se lanza una invocacion nueva", r.spec.Name)})
+			Detail: fmt.Sprintf("aviso: %s no soporta continuar sesion en headless; se lanza una invocacion nueva", r.provider.Name())})
 	}
 	m.mu.Lock()
 	info := r.info
 	m.mu.Unlock()
-	go m.execute(r, prompt, cont)
+	go m.execute(r, inv)
 	return info, nil
+}
+
+// warnIgnored records declared degradation: one visible line per request
+// field the provider could not honor.
+func (m *Manager) warnIgnored(r *run, ignored []string) {
+	for _, f := range ignored {
+		m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
+			Detail: fmt.Sprintf("aviso: %s no soporta %s; se ignora", r.provider.Name(), f)})
+	}
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }
 
 // Cancel terminates the active subprocess. The log survives complete.
@@ -313,21 +401,26 @@ func (m *Manager) Wait(id string) Run {
 }
 
 // execute runs ONE subprocess invocation of the provider and settles state.
-func (m *Manager) execute(r *run, prompt string, cont bool) {
+func (m *Manager) execute(r *run, inv providers.Invocation) {
 	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
 	m.mu.Lock()
 	r.cancel = cancel
 	m.mu.Unlock()
 	defer cancel()
 
-	bin, args := r.spec.Command(prompt, cont)
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := exec.CommandContext(ctx, inv.Bin, inv.Args...)
 	cmd.Dir = r.dir
 
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()
-	if err1 != nil || err2 != nil || cmd.Start() != nil {
-		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.spec.Name)
+	if err1 != nil || err2 != nil {
+		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipes")
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		// the cause matters: a missing binary and an argv too large (E2BIG
+		// with a huge --system-prompt) look the same otherwise
+		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), err))
 		return
 	}
 	// Si un hijo huerfano del provider retiene los pipes tras el kill,
@@ -353,7 +446,7 @@ func (m *Manager) execute(r *run, prompt string, cont bool) {
 				}
 				continue
 			}
-			for _, ev := range r.spec.Normalize(line) {
+			for _, ev := range r.provider.Normalize(line) {
 				m.append(r, ev)
 			}
 		}
@@ -409,10 +502,14 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 }
 
 // append records one event in memory and in the append-only jsonl log.
+// A session id reported by the provider becomes the run's handle.
 func (m *Manager) append(r *run, ev Event) {
 	m.mu.Lock()
 	r.events = append(r.events, ev)
 	r.info.NumEvents = len(r.events)
+	if ev.SessionID != "" {
+		r.info.ProviderSessionID = ev.SessionID
+	}
 	log := r.log
 	m.mu.Unlock()
 	if log != nil {

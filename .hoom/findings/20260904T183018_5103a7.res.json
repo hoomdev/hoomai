@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260904T183018_5103a7",
+  "as": "corregido",
+  "evidence": "internal/providers/claude.go: solo system/init produce el evento start; hook_*, compact_boundary, task_* y status degradan a text con la linea integra (CA-112). Regresion: TestCA117_SoloInitAbreLaSesion en internal/providers/system_events_test.go; go test -race ./internal/providers verde",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-04T18:33:07.32296Z"
+}

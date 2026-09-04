@@ -1,0 +1,10 @@
+{
+  "id": "20260904T183012_05910a",
+  "created_at": "2026-09-04T18:30:12.711507Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": ".hoom/specs/providers-v2-interfaz-y-claude.md",
+  "description": "El spec fue editado despues de aprobarse y no se re-aprobo: la aprobacion .hoom/approvals/providers-v2-interfaz-y-claude_38d8427a.json es el sha256 del spec en el commit 8474006 (pre-edicion); el contenido actual (sha256 a9972e72...) no tiene aprobacion vigente. La edicion (commit bb19500) cambia el criterio CA-126 (presupuesto del E2E 0.05 -\u003e 1 USD, 20x, y agrega la exigencia 'exit 0') y suma un bullet en casos limite; internal/providers/e2e_test.go esta escrito contra el criterio modificado. El veredicto commiteado .hoom/verdicts/2026-09-04T18-19-06Z_52a02a84.json es 'red' con spec_approved=fail ('el spec fue EDITADO despues de aprobarse'). Hoy 'hoom verify --spec' del item da rojo. Decision humana: re-aprobar el spec editado (hoom spec approve) o revertir CA-126 y el test al criterio aprobado.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "7055e5f8a298b55e"
+}
