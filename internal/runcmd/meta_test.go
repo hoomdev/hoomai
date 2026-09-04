@@ -66,7 +66,21 @@ func TestCA158_MetaDelRun(t *testing.T) {
 	if enCurso.Status != StatusRunning || enCurso.ExitCode != -1 {
 		t.Fatalf("CA-158: mientras corre, el meta dice running: %+v", enCurso)
 	}
-	m2.Cancel(corriendo.ID)
+	// cancelar solo PIDE el cierre: el cierre lo escribe la goroutine del run.
+	// Hay que esperarlo, o el meta final se escribe sobre el TempDir que el
+	// test ya esta borrando. Y el pedido se reintenta: en un run recien
+	// lanzado el cancel puede no estar armado todavia.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if fin, err := m2.Get(corriendo.ID); err != nil || fin.Status != StatusRunning {
+			break
+		}
+		m2.Cancel(corriendo.ID)
+		time.Sleep(20 * time.Millisecond)
+	}
+	if fin, err := m2.Get(corriendo.ID); err != nil || fin.Status == StatusRunning {
+		t.Fatalf("CA-158: el run cancelado tiene que cerrar: %+v (%v)", fin, err)
+	}
 
 	// telemetria local: vive junto a la narracion, que ya esta fuera de Git
 	if _, err := os.Stat(filepath.Join(root, ".hoom", "runs", run.ID+".jsonl")); err != nil {

@@ -574,12 +574,14 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	r.cancel = nil
 	r.meta.Status, r.meta.ExitCode = status, exit
 	r.meta.ProviderSessionID, r.meta.EndedAt = r.info.ProviderSessionID, time.Now().UTC()
-	meta := r.meta
 	if m.byDir[r.dir] == r.info.ID {
 		delete(m.byDir, r.dir)
 	}
+	// el meta se escribe ANTES de soltar el lock, como en Start: quien ve el
+	// run cerrado (Get, Wait, Events) ya puede leer su meta cerrado, y ningun
+	// archivo aparece despues de que el run dejo de estar en curso.
+	writeMeta(m.root, r.meta)
 	m.mu.Unlock()
-	writeMeta(m.root, meta)
 }
 
 // append records one event in memory and in the append-only jsonl log.
