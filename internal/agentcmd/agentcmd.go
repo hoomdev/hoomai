@@ -10,7 +10,6 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
-	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -96,7 +95,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res.Stage = "run"
 	so, warn := startOptions(prov, role, contract, opt)
 	if warn {
-		fmt.Fprintf(w, "  aviso: %s no declara vocabulario de herramientas; el limite del rol se verifica solo despues del run\n", prov.Name())
+		fmt.Fprintf(w, "  aviso: %s no puede imponer un rol de solo lectura; el limite se verifica solo despues del run\n", prov.Name())
 	}
 	before := Take(dir, base)
 	mgr := runcmd.NewManager(root)
@@ -123,8 +122,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [3/5] scope: the question no prompt can answer.
 	res.Stage = "scope"
-	res.Scope = CheckScope(before, Take(dir, base), PolicyFor(m, role))
-	recordFindings(dir, base, role, &res.Scope)
+	res.Scope = Gate(dir, base, role, before, Take(dir, base), PolicyFor(m, role))
 	printScope(w, res.Scope, role)
 	if res.Scope.Tampering {
 		return finish(w, res, "scope", 1,
@@ -215,29 +213,28 @@ func pickProvider(name string) (providers.Provider, error) {
 // to verify, and a silent degradation would be a lie told with evidence.
 func startOptions(prov providers.Provider, role agents.Role, contract string, opt Options) (runcmd.StartOptions, bool) {
 	so := runcmd.StartOptions{
-		Provider: prov.Name(), Prompt: opt.Prompt, Task: opt.Task,
+		Provider: prov.Name(), Prompt: opt.Prompt, Task: opt.Task, Role: role.Slug,
 		ResumeID: opt.ResumeID, Model: opt.Model, SystemPrompt: contract,
 		MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
 	}
 	var warn bool
-	so.AllowTools, so.DenyTools, warn = toolsFor(prov, role)
+	so.ReadOnly, so.Exec, warn = ReadOnlyFor(prov, role)
 	return so, warn
 }
 
-// toolsFor resolves the role's tool restrictions in the provider's OWN
-// vocabulary. A writing role restricts nothing; a read-only role on a
-// provider that does not name its tools returns warn: the run still happens
-// and the scope gate — which depends on no CLI — remains the net.
-func toolsFor(p providers.Provider, role agents.Role) (allow, deny []string, warn bool) {
+// ReadOnlyFor resolves the role's limit against what the provider DECLARES,
+// not against who it is: a provider that can impose it receives the
+// intention, and one that cannot returns warn — the run still happens and the
+// scope gate, which depends on no CLI, remains the net. A writing role limits
+// nothing.
+func ReadOnlyFor(p providers.Provider, role agents.Role) (readOnly, exec, warn bool) {
 	if !role.ReadOnly {
-		return nil, nil, false
+		return false, false, false
 	}
-	tn, ok := p.(providers.ToolNamer)
-	if !ok {
-		return nil, nil, true
+	if !p.Capabilities().ReadOnly {
+		return false, false, true
 	}
-	allow, deny = tn.ReadOnlyTools(role.Exec)
-	return allow, deny, false
+	return true, role.Exec, false
 }
 
 // stream mirrors the run narration while it happens, exactly like `hoom run`.
@@ -260,19 +257,6 @@ func stream(mgr *runcmd.Manager, id string, w io.Writer) runcmd.Run {
 			return st
 		}
 		time.Sleep(150 * time.Millisecond)
-	}
-}
-
-// recordFindings turns every violation into an append-only artifact: a
-// terminal message is lost, a finding demands a resolution with evidence.
-// A failure to write one never hides the violation.
-func recordFindings(dir, base string, role agents.Role, sc *ScopeResult) {
-	for i, v := range sc.Violations {
-		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
-		f, err := finding.Add(dir, base, "high", "risk", v.Path, desc, "hoom agent")
-		if err == nil {
-			sc.Violations[i].FindingID = f.ID
-		}
 	}
 }
 

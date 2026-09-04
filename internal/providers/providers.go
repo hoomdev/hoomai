@@ -41,7 +41,8 @@ type Capabilities struct {
 	SessionID    bool `json:"session_id"`    // reports its session id in the stream
 	Model        bool `json:"model"`         // model selection
 	SystemPrompt bool `json:"system_prompt"` // appends text to its own system prompt
-	Tools        bool `json:"tools"`         // allow/deny tools by name
+	Tools        bool `json:"tools"`         // allow/deny tools by NAME
+	ReadOnly     bool `json:"read_only"`     // can impose a role that does NOT write
 	MaxTurns     bool `json:"max_turns"`     // hard cap on agentic turns
 	Budget       bool `json:"budget"`        // hard cap on spend (USD)
 }
@@ -56,7 +57,8 @@ func (c Capabilities) Names() []string {
 	}{
 		{"structured", c.Structured}, {"continue", c.Continue}, {"resume", c.Resume},
 		{"session_id", c.SessionID}, {"model", c.Model}, {"system_prompt", c.SystemPrompt},
-		{"tools", c.Tools}, {"max_turns", c.MaxTurns}, {"budget", c.Budget},
+		{"tools", c.Tools}, {"read_only", c.ReadOnly},
+		{"max_turns", c.MaxTurns}, {"budget", c.Budget},
 	} {
 		if f.on {
 			out = append(out, f.name)
@@ -85,9 +87,14 @@ type Request struct {
 	SystemPrompt string   // APPENDED to the provider's own system prompt, never replaces it
 	AllowTools   []string // provider tool names/patterns, verbatim
 	DenyTools    []string
-	MaxTurns     int     // 0 = unbounded
-	BudgetUSD    float64 // 0 = unbounded
-	Strict       bool    // unsupported field = error instead of Ignored
+	// ReadOnly is the role's limit as an INTENTION, not as one CLI's
+	// vocabulary: the role does not write, and each adapter imposes it with
+	// whatever it has (Claude denies tools by name, Codex sets a sandbox).
+	ReadOnly  bool
+	Exec      bool    // ...but it DOES run commands (hoom finding, tests). Alone it means nothing.
+	MaxTurns  int     // 0 = unbounded
+	BudgetUSD float64 // 0 = unbounded
+	Strict    bool    // unsupported field = error instead of Ignored
 }
 
 // Invocation is the materialized headless command. Ignored lists the
@@ -113,7 +120,8 @@ const (
 	FieldContinue     = "continue"
 	FieldModel        = "model"
 	FieldSystemPrompt = "system_prompt"
-	FieldTools        = "tools" // covers AllowTools and DenyTools
+	FieldTools        = "tools"     // covers AllowTools and DenyTools
+	FieldReadOnly     = "read_only" // covers ReadOnly and Exec
 	FieldMaxTurns     = "max_turns"
 	FieldBudget       = "budget"
 )
@@ -121,15 +129,6 @@ const (
 // ErrUnsupported is what Command returns under Strict when the provider
 // cannot honor one or more request fields. Value type: errors.As works
 // with a value target.
-// ToolNamer is implemented by the providers that NAME their tools. It is an
-// optional interface, resolved with a type assertion: the Provider contract
-// stays exactly as the providers-v2 spec fixed it, and the vocabulary stays
-// in the adapter that actually knows it. `exec` marks a read-only role that
-// still runs commands (hoom finding, tests).
-type ToolNamer interface {
-	ReadOnlyTools(exec bool) (allow, deny []string)
-}
-
 type ErrUnsupported struct {
 	Provider string
 	Fields   []string
@@ -150,6 +149,8 @@ type plan struct {
 	model        string
 	systemPrompt string
 	allow, deny  []string
+	readOnly     bool
+	exec         bool
 	maxTurns     int
 	budgetUSD    float64
 	ignored      []string
@@ -221,6 +222,13 @@ func resolve(name string, caps Capabilities, req Request) (plan, error) {
 			p.ignored = append(p.ignored, FieldTools)
 		}
 	}
+	if req.ReadOnly {
+		if caps.ReadOnly {
+			p.readOnly, p.exec = true, req.Exec
+		} else {
+			p.ignored = append(p.ignored, FieldReadOnly)
+		}
+	}
 	if req.MaxTurns > 0 {
 		if caps.MaxTurns {
 			p.maxTurns = req.MaxTurns
@@ -249,6 +257,21 @@ func cleanTools(in []string) []string {
 		if t = strings.TrimSpace(t); t != "" {
 			out = append(out, t)
 		}
+	}
+	return out
+}
+
+// dedup keeps the first appearance of every entry: merging the role's tool
+// vocabulary with the caller's must not repeat names nor reorder them.
+func dedup(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range in {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
 	}
 	return out
 }

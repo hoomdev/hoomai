@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -64,11 +65,14 @@ type StartOptions struct {
 	Provider     string
 	Prompt       string
 	Task         string // task slug: run inside its worktree; "" = project root
+	Role         string // role slug this run embodies; "" = `hoom run`, no role
 	ResumeID     string // provider session id to resume in this new run
 	Model        string
 	SystemPrompt string
 	AllowTools   []string
 	DenyTools    []string
+	ReadOnly     bool // the role does not write: every provider imposes it its own way
+	Exec         bool // ...but it does run commands
 	MaxTurns     int
 	BudgetUSD    float64
 	Strict       bool // unsupported field = refuse to start instead of a warning
@@ -80,6 +84,7 @@ func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Requ
 		Prompt: prompt, ResumeID: resumeID, Continue: cont,
 		Model: o.Model, SystemPrompt: o.SystemPrompt,
 		AllowTools: o.AllowTools, DenyTools: o.DenyTools,
+		ReadOnly: o.ReadOnly, Exec: o.Exec,
 		MaxTurns: o.MaxTurns, BudgetUSD: o.BudgetUSD, Strict: o.Strict,
 	}
 }
@@ -108,6 +113,7 @@ func (e ErrBusy) Error() string {
 
 type run struct {
 	info     Run
+	meta     Meta
 	dir      string
 	provider providers.Provider
 	opts     StartOptions
@@ -128,6 +134,64 @@ type Manager struct {
 }
 
 func runsDir(root string) string { return filepath.Join(root, ".hoom", "runs") }
+
+// Meta is the DURABLE identity of a run: the jsonl NARRATES, the meta
+// IDENTIFIES. Without it a finished run is anonymous the moment the process
+// exits — and "which provider wrote this tree?" is exactly the question the
+// cross review has to answer without guessing prose. Local telemetry like the
+// narration: outside Git, outside the fingerprint, outside the envelope's
+// delta.
+type Meta struct {
+	ID                string    `json:"id"`
+	Provider          string    `json:"provider"`
+	Role              string    `json:"role,omitempty"`
+	Task              string    `json:"task,omitempty"`
+	Dir               string    `json:"dir"`
+	CreatedAt         time.Time `json:"created_at"`
+	Status            string    `json:"status"` // running | done | error | canceled
+	ExitCode          int       `json:"exit_code"`
+	ProviderSessionID string    `json:"provider_session_id,omitempty"`
+	EndedAt           time.Time `json:"ended_at,omitempty"`
+}
+
+func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+".meta.json") }
+
+// writeMeta records a run's identity. Best-effort by contract: telemetry that
+// cannot be written never breaks the run it describes.
+func writeMeta(root string, meta Meta) {
+	raw, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return
+	}
+	os.WriteFile(metaPath(root, meta.ID), append(raw, '\n'), 0o644)
+}
+
+// Metas lists the project's run metas, newest first. A file that is
+// unreadable, of another shape or without an id is skipped: broken telemetry
+// never breaks a command.
+func Metas(root string) []Meta {
+	entries, err := os.ReadDir(runsDir(root))
+	if err != nil {
+		return nil
+	}
+	var out []Meta
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".meta.json") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(runsDir(root), e.Name()))
+		if err != nil {
+			continue
+		}
+		var meta Meta
+		if json.Unmarshal(raw, &meta) != nil || strings.TrimSpace(meta.ID) == "" {
+			continue
+		}
+		out = append(out, meta)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out
+}
 
 // NewManager creates the manager and settles orphan logs: a previous serve
 // that died mid-run leaves a log without a terminal event; those get an
@@ -235,6 +299,11 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		info: Run{ID: id, Provider: p.Name(), Task: opts.Task, Status: StatusRunning, ExitCode: -1, CreatedAt: time.Now().UTC()},
 		dir:  dir, provider: p, opts: opts, log: logFile,
 	}
+	r.meta = Meta{
+		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
+		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1,
+	}
+	writeMeta(m.root, r.meta)
 	m.runs[id] = r
 	m.byDir[dir] = id
 	m.mu.Unlock()
@@ -291,8 +360,11 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	r.info.Status = StatusRunning
 	r.info.ExitCode = -1
 	r.canceled = false
+	r.meta.Status, r.meta.ExitCode = StatusRunning, -1
+	meta := r.meta
 	m.byDir[r.dir] = id
 	m.mu.Unlock()
+	writeMeta(m.root, meta)
 
 	m.warnIgnored(r, inv.Ignored)
 	if contains(inv.Ignored, providers.FieldContinue) {
@@ -500,9 +572,15 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	r.info.Status = status
 	r.info.ExitCode = exit
 	r.cancel = nil
+	r.meta.Status, r.meta.ExitCode = status, exit
+	r.meta.ProviderSessionID, r.meta.EndedAt = r.info.ProviderSessionID, time.Now().UTC()
 	if m.byDir[r.dir] == r.info.ID {
 		delete(m.byDir, r.dir)
 	}
+	// el meta se escribe ANTES de soltar el lock, como en Start: quien ve el
+	// run cerrado (Get, Wait, Events) ya puede leer su meta cerrado, y ningun
+	// archivo aparece despues de que el run dejo de estar en curso.
+	writeMeta(m.root, r.meta)
 	m.mu.Unlock()
 }
 
