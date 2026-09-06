@@ -65,6 +65,7 @@ type StartOptions struct {
 	Provider     string
 	Prompt       string
 	Task         string // task slug: run inside its worktree; "" = project root
+	Dir          string // working directory, explicit; "" = se resuelve desde Task
 	Role         string // role slug this run embodies; "" = `hoom run`, no role
 	ResumeID     string // provider session id to resume in this new run
 	Model        string
@@ -152,6 +153,11 @@ type Meta struct {
 	ExitCode          int       `json:"exit_code"`
 	ProviderSessionID string    `json:"provider_session_id,omitempty"`
 	EndedAt           time.Time `json:"ended_at,omitempty"`
+	// Isolated turns the guarantee into a durable fact: these tests were
+	// written BLIND, from this commit. A terminal line scrolls away; the
+	// sidecar is what someone can check months later.
+	Isolated     bool   `json:"isolated,omitempty"`
+	IsolatedFrom string `json:"isolated_from,omitempty"`
 }
 
 func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+".meta.json") }
@@ -230,12 +236,58 @@ func (m *Manager) markOrphans() {
 			f.Write(append(enc, '\n'))
 			f.Close()
 		}
+		m.settleMeta(strings.TrimSuffix(e.Name(), ".jsonl"))
 	}
 }
 
-// dirFor resolves where a run executes: the project root, or the task's
-// isolated worktree.
-func (m *Manager) dirFor(task string) (string, error) { return TaskDir(m.root, task) }
+// settleMeta closes a sidecar left saying "running" by a process that died.
+// Without this a dead run would keep a directory busy forever, and the
+// envelope refuses to build a blind tree over a busy tree.
+func (m *Manager) settleMeta(id string) {
+	raw, err := os.ReadFile(metaPath(m.root, id))
+	if err != nil {
+		return
+	}
+	var meta Meta
+	if json.Unmarshal(raw, &meta) != nil || meta.Status != StatusRunning {
+		return
+	}
+	meta.Status, meta.ExitCode, meta.EndedAt = StatusError, -1, time.Now().UTC()
+	writeMeta(m.root, meta)
+}
+
+// dirFor resolves where a run executes: an explicit directory (the envelope
+// passes the blind tree there), the task's worktree, or the project root.
+func (m *Manager) dirFor(opts StartOptions) (string, error) {
+	if d := strings.TrimSpace(opts.Dir); d != "" {
+		if st, err := os.Stat(d); err != nil || !st.IsDir() {
+			return "", fmt.Errorf("el directorio de trabajo %q no existe", d)
+		}
+		return d, nil
+	}
+	return TaskDir(m.root, opts.Task)
+}
+
+// blindDirName is where the envelope keeps its quarantines. A run whose
+// directory hangs from there IS a blind run: that is all runcmd needs to know
+// about the isolation, and the sidecar records it.
+const blindDirName = "isolated"
+
+// blindFrom reports whether dir is a blind tree and, if so, the commit it was
+// built from.
+func blindFrom(dir string) (string, bool) {
+	parent := filepath.Dir(filepath.Clean(dir))
+	if filepath.Base(parent) != blindDirName || filepath.Base(filepath.Dir(parent)) != ".hoom" {
+		return "", false
+	}
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", true // es ciego aunque git no conteste; el commit es lo que falta
+	}
+	return strings.TrimSpace(string(out)), true
+}
 
 // TaskDir resolves where work for a task happens: its isolated worktree, or
 // the project root when no task is given. The envelope needs the same answer
@@ -249,6 +301,25 @@ func TaskDir(root, task string) (string, error) {
 		return "", fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", task)
 	}
 	return wt, nil
+}
+
+// Busy reports the run currently active in dir, if any. In-process state is
+// authoritative; the sidecars cover a run another process started and has not
+// settled yet. The envelope asks BEFORE building a blind tree: transplanting
+// into a tree somebody else is editing would blame the role for the collision.
+func (m *Manager) Busy(dir string) (string, bool) {
+	m.mu.Lock()
+	id, ok := m.byDir[dir]
+	m.mu.Unlock()
+	if ok {
+		return id, true
+	}
+	for _, meta := range Metas(m.root) {
+		if meta.Status == StatusRunning && meta.Dir == dir {
+			return meta.ID, true
+		}
+	}
+	return "", false
 }
 
 func newID() string {
@@ -271,7 +342,7 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	if _, err := exec.LookPath(p.Bin()); err != nil {
 		return Run{}, fmt.Errorf("el provider %q no esta instalado (no se encontro %q en PATH); instala su CLI primero", opts.Provider, p.Bin())
 	}
-	dir, err := m.dirFor(opts.Task)
+	dir, err := m.dirFor(opts)
 	if err != nil {
 		return Run{}, err
 	}
@@ -303,13 +374,14 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
 		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1,
 	}
+	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
 	writeMeta(m.root, r.meta)
 	m.runs[id] = r
 	m.byDir[dir] = id
 	m.mu.Unlock()
 
 	m.append(r, Event{TS: time.Now().UTC(), Kind: "start",
-		Detail: fmt.Sprintf("run %s: %s en %s", id, p.Name(), displayDir(opts.Task))})
+		Detail: fmt.Sprintf("run %s: %s en %s", id, p.Name(), displayDir(opts, r.meta.Isolated))})
 	m.warnIgnored(r, inv.Ignored)
 	// snapshot ANTES de lanzar la goroutine: execute escribe r.info en
 	// paralelo y una copia sin lock seria una carrera de datos.
@@ -602,9 +674,12 @@ func (m *Manager) append(r *run, ev Event) {
 	}
 }
 
-func displayDir(task string) string {
-	if task == "" {
+func displayDir(opts StartOptions, blind bool) string {
+	if blind {
+		return "un arbol ciego (sin implementacion en disco)"
+	}
+	if opts.Task == "" {
 		return "el proyecto"
 	}
-	return "el worktree de la tarea " + task
+	return "el worktree de la tarea " + opts.Task
 }

@@ -258,7 +258,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// Los hallazgos del reviewer se cuentan ANTES de que hoom escriba los
 		// suyos por violaciones: el arbitro no se cuenta como jugador.
 		pass.Findings = nuevos(antes, idsDeHallazgos(dir, base))
-		pass.Scope = agentcmd.Gate(dir, base, role, before, agentcmd.Take(dir, base), pol)
+		pass.Scope = agentcmd.Gate(dir, base, role, before, agentcmd.Take(dir, base), pol, nil)
 		printScope(w, pass.Scope, role)
 		printFindings(w, pass.Findings)
 		res.Passes = append(res.Passes, pass)

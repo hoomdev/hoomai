@@ -34,40 +34,44 @@ type Role struct {
 	Exec     bool   `json:"exec"`      // solo lectura de CODIGO pero EJECUTA comandos (hoom finding, tests)
 	Primary  bool   `json:"primary"`   // orchestrator: the main session in most CLIs
 	Scope    string `json:"scope"`     // evidencia | tests | codigo
+	// Isolated: the role runs in a BLIND tree, with the implementation off
+	// disk. It is not deduced from Scope on purpose — the characterizer
+	// shares the `tests` shape and its whole job is reading legacy code.
+	Isolated bool `json:"isolated"`
 }
 
-// roles is the table. Order: slug, native, file, desc, readOnly, exec, primary, scope.
+// roles is the table. Order: slug, native, file, desc, readOnly, exec, primary, scope, isolated.
 var roles = []Role{
 	{"orquestador", "hoom-orquestador", "00-orquestador.md",
 		"Agente principal hoomAI: rutea el trabajo, delega a los subagentes y exige hoom verify + hoom check antes de entregar. NUNCA edita codigo.",
-		true, true, true, ScopeEvidencia},
+		true, true, true, ScopeEvidencia, false},
 	{"arquitecto", "hoom-arquitecto", "01-arquitecto.md",
 		"Produce el spec de una tarea en .hoom/specs (7 secciones) a partir de la vision y el pedido. Usar ANTES de implementar cualquier cambio sustancial. Solo lectura.",
-		true, false, false, ScopeEvidencia},
+		true, false, false, ScopeEvidencia, false},
 	{"designer", "hoom-designer", "02-designer.md",
 		"Traduce el visual elegido a un UI-spec y protege el design system. Usar en tareas con interfaz de usuario. Solo lectura.",
-		true, false, false, ScopeEvidencia},
+		true, false, false, ScopeEvidencia, false},
 	{"scout", "hoom-scout", "03-scout.md",
 		"Explora el codigo y devuelve un resumen comprimido con rutas exactas y firmas. Usar cuando entender un flujo requiere leer 4 o mas archivos. Solo lectura.",
-		true, false, false, ScopeEvidencia},
+		true, false, false, ScopeEvidencia, false},
 	{"writer", "hoom-writer", "04-writer.md",
 		"UNICO agente que edita codigo. Implementa exactamente el scope del spec y corre hoom verify al terminar. Uno solo por tarea.",
-		false, false, false, ScopeCodigo},
+		false, false, false, ScopeCodigo, false},
 	{"test-writer", "hoom-test-writer", "05-test-writer.md",
 		"Escribe tests adversariales SOLO desde el spec, sin ver jamas la implementacion. Usar tras aprobar el spec, antes o en paralelo del writer.",
-		false, false, false, ScopeTests},
+		false, false, false, ScopeTests, true},
 	{"reviewer", "hoom-reviewer", "06-reviewer.md",
 		"Revisa un diff con la lente asignada (readability, reliability, resilience o risk); las 4 lentes si toca seguridad, dinero o supera 400 lineas. Solo lectura de codigo; registra hallazgos con hoom finding add.",
-		true, true, false, ScopeEvidencia},
+		true, true, false, ScopeEvidencia, false},
 	{"characterizer", "hoom-characterizer", "07-characterizer.md",
 		"Genera characterization tests que fijan el comportamiento ACTUAL de codigo legacy antes de refactorizar.",
-		false, false, false, ScopeTests},
+		false, false, false, ScopeTests, false},
 	{"analista", "hoom-analista", "08-analista.md",
 		"Convierte los documentos del cliente en .hoom/intake en la vision (.hoom/specs/00-vision.md) y el backlog (.hoom/specs/backlog.md).",
-		false, false, false, ScopeEvidencia},
+		false, false, false, ScopeEvidencia, false},
 	{"refutador", "hoom-refutador", "09-refutador.md",
 		"Intenta REFUTAR los hallazgos abiertos con evidencia deterministica (correr el test, citar la linea) antes de que se corrijan; maximo 2 ciclos y escala al humano. Solo lectura de codigo; cierra con hoom finding resolve.",
-		true, true, false, ScopeEvidencia},
+		true, true, false, ScopeEvidencia, false},
 }
 
 // Roles returns the table: the single source of truth for who a role is and

@@ -34,6 +34,22 @@ import (
 const (
 	RuleTampering  = "manipulacion"
 	RuleOutOfScope = "fuera-de-scope"
+	// RuleIsolation: el arbol ciego dejo de serlo. Corta como la
+	// manipulacion, y por la misma razon: certificar un arbol donde el rol
+	// pudo mirar lo que no debia seria certificar la trampa.
+	RuleIsolation = "aislamiento"
+)
+
+// Blind is the evidence of an isolated run: what the blind tree gave back and
+// what the role wrote outside its quarantine.
+type Blind struct {
+	Restored []string // testigos que volvieron al disco del arbol ciego
+	Leaked   []string // rutas que cambiaron en el arbol REAL mientras el rol corria confinado
+}
+
+const (
+	detalleRestaurado = "el rol devolvio al arbol un archivo que el aislamiento habia quitado"
+	detalleFuga       = "el rol escribio fuera de la cuarentena: el arbol real cambio durante el run ciego"
 )
 
 // Evidence directories the universal rules protect.
@@ -55,6 +71,23 @@ type ScopeResult struct {
 	Violations []Violation `json:"violations"`
 	Tampering  bool        `json:"tampering"`
 	OK         bool        `json:"ok"`
+}
+
+// Cuts reports whether the tree does not deserve a verdict at all. Writing
+// outside the role's territory is information; moving the demand itself, or
+// undoing the blindfold, is not.
+func (s ScopeResult) Cuts() bool { return s.Tampering || s.Broken() }
+
+// Broken reports whether the isolation itself failed.
+func (s ScopeResult) Broken() bool { return s.has(RuleIsolation) }
+
+func (s ScopeResult) has(rule string) bool {
+	for _, v := range s.Violations {
+		if v.Rule == rule {
+			return true
+		}
+	}
+	return false
 }
 
 // Snapshot is the photograph of the tree the envelope takes before and after
@@ -107,7 +140,8 @@ func Take(root, base string) Snapshot {
 func hoomOwn(p string) bool {
 	return strings.HasPrefix(p, ".hoom/runs/") ||
 		strings.HasPrefix(p, ".hoom/cache/") ||
-		strings.HasPrefix(p, ".hoom/worktrees/")
+		strings.HasPrefix(p, ".hoom/worktrees/") ||
+		strings.HasPrefix(p, ".hoom/isolated/")
 }
 
 // Policy is where a role may write, already resolved: the shape's defaults
@@ -224,8 +258,11 @@ func allowedBy(p string, pol Policy) (bool, string) {
 // wrote where it belonged". Every violation becomes an append-only artifact —
 // a terminal message is lost, a finding demands a resolution with evidence —
 // and a finding that cannot be written never hides the violation.
-func Gate(dir, base string, role agents.Role, before, after Snapshot, pol Policy) ScopeResult {
+func Gate(dir, base string, role agents.Role, before, after Snapshot, pol Policy, blind *Blind) ScopeResult {
 	sc := CheckScope(before, after, pol)
+	if blind != nil {
+		sc = withIsolation(sc, *blind)
+	}
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
 		if f, err := finding.Add(dir, base, "high", "risk", v.Path, desc, "hoom gate de scope"); err == nil {
@@ -233,6 +270,65 @@ func Gate(dir, base string, role agents.Role, before, after Snapshot, pol Policy
 		}
 	}
 	return sc
+}
+
+// withIsolation folds the isolation rules into a scope result. They win over
+// whatever the scope said about the same path: a witness back on disk is not
+// "the role wrote outside its territory", it is "the role took off the
+// blindfold", and only the second one cuts.
+func withIsolation(sc ScopeResult, b Blind) ScopeResult {
+	broken := map[string]string{}
+	for _, p := range b.Restored {
+		broken[p] = detalleRestaurado
+	}
+	for _, p := range b.Leaked {
+		if _, ok := broken[p]; !ok {
+			broken[p] = detalleFuga
+		}
+	}
+	if len(broken) == 0 {
+		return sc
+	}
+	kept := sc.Violations[:0]
+	for _, v := range sc.Violations {
+		if _, ok := broken[v.Path]; !ok {
+			kept = append(kept, v)
+		}
+	}
+	sc.Violations = kept
+	paths := make([]string, 0, len(broken))
+	for p := range broken {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, p := range paths {
+		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleIsolation, Detail: broken[p]})
+	}
+	sortViolations(sc.Violations)
+	sc.OK = false
+	return sc
+}
+
+// ruleRank orders the violations by how badly they end the run: the
+// blindfold first, then the demand, then the territory.
+func ruleRank(rule string) int {
+	switch rule {
+	case RuleIsolation:
+		return 0
+	case RuleTampering:
+		return 1
+	default:
+		return 2
+	}
+}
+
+func sortViolations(vs []Violation) {
+	sort.SliceStable(vs, func(i, j int) bool {
+		if ri, rj := ruleRank(vs[i].Rule), ruleRank(vs[j].Rule); ri != rj {
+			return ri < rj
+		}
+		return vs[i].Path < vs[j].Path
+	})
 }
 
 // CheckScope compares the two photographs and judges every path the run
@@ -268,13 +364,7 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 		res.Touched = append(res.Touched, ratchetPath)
 		sort.Strings(res.Touched)
 	}
-	sort.SliceStable(res.Violations, func(i, j int) bool {
-		a, b := res.Violations[i], res.Violations[j]
-		if (a.Rule == RuleTampering) != (b.Rule == RuleTampering) {
-			return a.Rule == RuleTampering
-		}
-		return a.Path < b.Path
-	})
+	sortViolations(res.Violations)
 	for _, v := range res.Violations {
 		if v.Rule == RuleTampering {
 			res.Tampering = true

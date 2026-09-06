@@ -70,3 +70,40 @@ func TestCA147_E2ESobreEsteRepo(t *testing.T) {
 		t.Fatalf("CA-147: un scout no escribe: %+v", res.Scope.Violations)
 	}
 }
+
+// CA-191: con HOOM_E2E=1 y `claude` real en PATH, el test-writer corre en un
+// arbol ciego sobre una copia de este repo: el run cierra en 0, el
+// aislamiento sigue intacto y todo lo que el rol escribio aparece
+// trasplantado en el arbol real.
+func TestCA191_E2ETestWriterCiego(t *testing.T) {
+	if os.Getenv("HOOM_E2E") != "1" {
+		t.Skip("CA-191: E2E opcional; exporta HOOM_E2E=1 y tene 'claude' en PATH para correrlo")
+	}
+	if _, err := exec.LookPath("claude"); err != nil {
+		t.Skipf("CA-191: 'claude' no esta en PATH: %v", err)
+	}
+	root := copiaDeEsteRepo(t)
+	res, err := Run(root, "main", Options{
+		Role: "test-writer", Provider: "claude", MaxTurns: 2, BudgetUSD: 1,
+		Prompt: "Escribi un unico test nuevo en el archivo ciego_e2e_test.go, package agentcmd, " +
+			"que solo declare 'func TestCiegoE2E(t *testing.T) {}' con un comentario CA-191 arriba. Nada mas.",
+	}, io.Discard)
+	if err != nil {
+		t.Fatalf("CA-191: el sobre no debio fallar en su armado: %v", err)
+	}
+	if res.RunStatus != "done" {
+		t.Fatalf("CA-191: el run debe cerrar bien: status=%q stage=%q exit=%d",
+			res.RunStatus, res.Stage, res.ExitCode)
+	}
+	if res.Isolation == nil || res.Isolation.Hidden == 0 {
+		t.Fatalf("CA-191: el rol tiene que haber corrido ciego: %+v", res.Isolation)
+	}
+	if res.Scope.Broken() {
+		t.Fatalf("CA-191: el aislamiento debe seguir intacto: %+v", res.Scope.Violations)
+	}
+	for _, p := range res.Isolation.Applied {
+		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
+			t.Fatalf("CA-191: %s se declaro trasplantado y no esta en el arbol real: %v", p, err)
+		}
+	}
+}
