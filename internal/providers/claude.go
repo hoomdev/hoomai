@@ -19,7 +19,8 @@ func (claude) Bin() string  { return "claude" }
 func (claude) Capabilities() Capabilities {
 	return Capabilities{
 		Structured: true, Continue: true, Resume: true, SessionID: true,
-		Model: true, SystemPrompt: true, Tools: true, MaxTurns: true, Budget: true,
+		Model: true, SystemPrompt: true, Tools: true, ReadOnly: true,
+		MaxTurns: true, Budget: true,
 	}
 }
 
@@ -33,11 +34,18 @@ func (c claude) Command(req Request) (Invocation, error) {
 		return Invocation{}, err
 	}
 	var args []string
-	if len(p.allow) > 0 {
-		args = append(args, "--allowedTools", strings.Join(p.allow, ","))
+	allow, deny := p.allow, p.deny
+	if p.readOnly {
+		// the role's limit, in the vocabulary of THIS CLI; what the caller
+		// asked for on its own is kept, not replaced
+		ra, rd := claudeReadOnlyTools(p.exec)
+		allow, deny = dedup(append(allow, ra...)), dedup(append(deny, rd...))
 	}
-	if len(p.deny) > 0 {
-		args = append(args, "--disallowedTools", strings.Join(p.deny, ","))
+	if len(allow) > 0 {
+		args = append(args, "--allowedTools", strings.Join(allow, ","))
+	}
+	if len(deny) > 0 {
+		args = append(args, "--disallowedTools", strings.Join(deny, ","))
 	}
 	args = append(args, "-p", "--output-format", "stream-json", "--verbose")
 	switch {
@@ -65,12 +73,11 @@ func (c claude) Command(req Request) (Invocation, error) {
 	return Invocation{Bin: c.Bin(), Args: args, Ignored: p.ignored}, nil
 }
 
-// Normalize understands Claude Code's stream-json lines. Defensive by
-// design: any shape it does not recognize degrades to a text event — the
-// log is never lost, only detail.
-// ReadOnlyTools is the SAME vocabulary that `hoom agents --target claude`
-// writes into .claude/agents/*.md: one table of roles, one set of names.
-func (claude) ReadOnlyTools(exec bool) (allow, deny []string) {
+// claudeReadOnlyTools translates the read-only intention into Claude's OWN
+// tool names — the SAME vocabulary `hoom agents --target claude` writes into
+// .claude/agents/*.md. It lives in the adapter because the adapter is what
+// knows the dialect: the caller only says that the role does not write.
+func claudeReadOnlyTools(exec bool) (allow, deny []string) {
 	allow = []string{"Read", "Grep", "Glob"}
 	deny = []string{"Edit", "Write", "MultiEdit", "NotebookEdit"}
 	if exec {
@@ -81,6 +88,9 @@ func (claude) ReadOnlyTools(exec bool) (allow, deny []string) {
 	return allow, deny
 }
 
+// Normalize understands Claude Code's stream-json lines. Defensive by
+// design: any shape it does not recognize degrades to a text event — the
+// log is never lost, only detail.
 func (claude) Normalize(line string) []Event {
 	line = strings.TrimRight(line, "\r\n")
 	if strings.TrimSpace(line) == "" {

@@ -28,6 +28,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/report"
+	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
 	"github.com/hoomdev/hoomai/internal/statuscmd"
@@ -73,6 +74,10 @@ Comandos:
               herramientas y scope de escritura. Corre el CLI UNA vez y cierra
               con evidencia: scope (que toco el rol) -> verify -> check
               --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"
+  review      Review CRUZADA: corre el reviewer en un provider DISTINTO del que
+              escribio, con la lente que sale de la evidencia (contrato 06) y
+              los hallazgos que hoom VE aparecer en .hoom/findings/
+              [--provider p] [--lens l] [--task <slug>] [--spec <ruta>]
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 10 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -127,6 +132,15 @@ Flags de serve:
 
 'hoom task list --json' emite el estado de las tareas como JSON en stdout.
 
+Flags de review (no emite veredicto ni juzga el codigo: eso es de verify):
+  --provider <p>       Provider de la review; vacio = el primero instalado que
+                       sostenga el contrato y NO sea el del writer
+  --lens <l>           readability|reliability|resilience|risk; vacio = la
+                       regla del contrato 06 sobre la evidencia
+  --same-provider      Revisar con el MISMO provider que escribio (queda
+                       marcado 'no-cruzada' en el resultado)
+  --json               Emite el resultado de la review como JSON en stdout
+
 Filosofia: veredicto ROJO = exit code 1. La narracion del agente no cuenta;
 solo cuenta la evidencia. Gates ausentes se declaran en amarillo, jamas se ocultan.
 `
@@ -167,6 +181,8 @@ func main() {
 		err = cmdProviders(args)
 	case "agent":
 		err = cmdAgent(args)
+	case "review":
+		err = cmdReview(args)
 	case "run":
 		err = cmdRun(args)
 	case "hook":
@@ -535,6 +551,48 @@ func cmdAgent(args []string) error {
 		Role: *role, Provider: *provider, Task: *task, Spec: *specPath,
 		Prompt: prompt, Model: *model, ResumeID: *resume,
 		MaxTurns: *maxTurns, BudgetUSD: *budget,
+	}, out)
+	if err != nil {
+		return err
+	}
+	if *asJSON {
+		raw, _ := json.MarshalIndent(res, "", "  ")
+		fmt.Println(string(raw))
+	}
+	if res.ExitCode != 0 {
+		os.Exit(res.ExitCode)
+	}
+	return nil
+}
+
+// cmdReview runs the cross review: the reviewer role on a provider that is
+// NOT the one that wrote. It judges the review, never the code — no verdict,
+// no gate, and findings that do not move the exit code, because a finding is
+// qualified narration with a lifecycle and the Refutador may still knock it
+// down.
+func cmdReview(args []string) error {
+	fs := flag.NewFlagSet("review", flag.ExitOnError)
+	provider := fs.String("provider", "", "provider de la review; vacio = el primero instalado que no sea el del writer")
+	lens := fs.String("lens", "", "readability|reliability|resilience|risk; vacio = la regla del contrato 06")
+	task := fs.String("task", "", "slug de la tarea: revisa su worktree aislado")
+	specPath := fs.String("spec", "", "ruta del spec que enmarca el cambio (viaja en el pedido)")
+	model := fs.String("model", "", "modelo, en el vocabulario del provider")
+	same := fs.Bool("same-provider", false, "permite revisar con el MISMO provider que escribio")
+	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
+	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
+	asJSON := fs.Bool("json", false, "emitir el resultado de la review como JSON en stdout")
+	_ = fs.Parse(args)
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	out := io.Writer(os.Stdout)
+	if *asJSON {
+		out = io.Discard // JSON puro: la narracion no se mezcla con el dato
+	}
+	res, err := reviewcmd.Run(m.Dir, m.BaseBranch, reviewcmd.Options{
+		Provider: *provider, Lens: *lens, Task: *task, Spec: *specPath,
+		Model: *model, SameProvider: *same, MaxTurns: *maxTurns, BudgetUSD: *budget,
 	}, out)
 	if err != nil {
 		return err

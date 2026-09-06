@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/ratchet"
@@ -216,6 +217,22 @@ func allowedBy(p string, pol Policy) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+// Gate is the envelope's third step, and it belongs to whoever runs a role:
+// `hoom agent` and `hoom review` judge with ONE implementation of "the role
+// wrote where it belonged". Every violation becomes an append-only artifact —
+// a terminal message is lost, a finding demands a resolution with evidence —
+// and a finding that cannot be written never hides the violation.
+func Gate(dir, base string, role agents.Role, before, after Snapshot, pol Policy) ScopeResult {
+	sc := CheckScope(before, after, pol)
+	for i, v := range sc.Violations {
+		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
+		if f, err := finding.Add(dir, base, "high", "risk", v.Path, desc, "hoom gate de scope"); err == nil {
+			sc.Violations[i].FindingID = f.ID
+		}
+	}
+	return sc
 }
 
 // CheckScope compares the two photographs and judges every path the run

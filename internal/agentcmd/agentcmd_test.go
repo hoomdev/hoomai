@@ -118,7 +118,8 @@ func filesIn(t *testing.T, dir string) []string {
 	return out
 }
 
-// providerMudo implementa Provider pero NO nombra sus herramientas.
+// providerMudo implementa Provider pero NO puede imponer un rol de solo
+// lectura: no declara la capacidad read_only.
 type providerMudo struct{}
 
 func (providerMudo) Name() string { return "mudo" }
@@ -178,16 +179,21 @@ func TestCA130_StartOptionsDelSobre(t *testing.T) {
 	if so.SystemPrompt != "CONTRATO DEL SCOUT" {
 		t.Fatalf("CA-130: el contrato es el system prompt: %q", so.SystemPrompt)
 	}
-	if len(so.AllowTools) == 0 || len(so.DenyTools) == 0 || warn {
-		t.Fatalf("CA-130: un rol de solo lectura debe llevar herramientas acotadas: %+v", so)
+	// El limite del rol viaja como INTENCION desde la Spec C: el vocabulario
+	// concreto (herramientas en Claude, sandbox en Codex) es del adapter.
+	if !so.ReadOnly || so.Exec || warn {
+		t.Fatalf("CA-130: un rol de solo lectura debe llevar su limite acotado: %+v", so)
+	}
+	if so.Role != "scout" {
+		t.Fatalf("CA-130: el run recuerda que rol encarna: %q", so.Role)
 	}
 	if so.Model != "sonnet" || so.MaxTurns != 3 || so.BudgetUSD != 1 || so.ResumeID != "s1" || so.Task != "t1" {
 		t.Fatalf("CA-130: las opciones del sobre pasan tal cual: %+v", so)
 	}
 	writer, _ := agents.Lookup("writer")
 	sow, _ := startOptions(claude, writer, "C", Options{Prompt: "implementa"})
-	if len(sow.AllowTools) != 0 || len(sow.DenyTools) != 0 || !sow.Strict {
-		t.Fatalf("CA-130: un rol de escritura no restringe herramientas: %+v", sow)
+	if sow.ReadOnly || sow.Exec || !sow.Strict {
+		t.Fatalf("CA-130: un rol de escritura no se limita: %+v", sow)
 	}
 
 	root := repo(t)
@@ -201,35 +207,48 @@ func TestCA130_StartOptionsDelSobre(t *testing.T) {
 	}
 }
 
-// CA-131: las herramientas salen del vocabulario del propio provider; el que
-// no lo declara produce aviso y el run igual arranca.
-func TestCA131_HerramientasPorRol(t *testing.T) {
+// CA-131: el limite del rol lo impone el provider con lo que DECLARA. La
+// Spec C reemplazo el type assertion sobre ToolNamer por la capacidad
+// read_only: el sobre pide la intencion y cada adapter la traduce (Claude a
+// nombres de herramientas, Codex a un sandbox). El que no puede imponerla
+// produce aviso y el run igual arranca: el gate de scope es la red.
+func TestCA131_LimiteDelRol(t *testing.T) {
 	claude, _ := providers.Lookup("claude")
+	codex, _ := providers.Lookup("codex")
 	scout, _ := agents.Lookup("scout")       // solo lectura, no ejecuta
 	reviewer, _ := agents.Lookup("reviewer") // solo lectura, ejecuta
 	writer, _ := agents.Lookup("writer")
 
-	allow, deny, warn := toolsFor(claude, scout)
-	if warn {
-		t.Fatal("CA-131: claude declara su vocabulario")
+	if ro, exec, warn := ReadOnlyFor(claude, scout); !ro || exec || warn {
+		t.Fatalf("CA-131: el scout es solo lectura sin exec: ro=%v exec=%v warn=%v", ro, exec, warn)
 	}
-	if strings.Join(allow, ",") != "Read,Grep,Glob" {
-		t.Fatalf("CA-131: allow del scout = %v", allow)
+	if ro, exec, warn := ReadOnlyFor(codex, reviewer); !ro || !exec || warn {
+		t.Fatalf("CA-131: el reviewer es solo lectura CON exec, y codex lo declara: ro=%v exec=%v warn=%v", ro, exec, warn)
+	}
+	if ro, exec, warn := ReadOnlyFor(claude, writer); ro || exec || warn {
+		t.Fatalf("CA-131: un rol de escritura no se limita: ro=%v exec=%v warn=%v", ro, exec, warn)
+	}
+	if ro, exec, warn := ReadOnlyFor(providerMudo{}, scout); ro || exec || !warn {
+		t.Fatalf("CA-131: un provider que no puede imponerlo avisa y no finge: ro=%v exec=%v warn=%v", ro, exec, warn)
+	}
+
+	// y el vocabulario concreto sigue siendo el de siempre, adentro del adapter
+	inv, err := claude.Command(providers.Request{Prompt: "hola", ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	argv := strings.Join(inv.Args, " ")
+	if !strings.Contains(argv, "--allowedTools Read,Grep,Glob ") {
+		t.Fatalf("CA-131: claude sigue acotando por nombre: %v", inv.Args)
 	}
 	for _, want := range []string{"Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"} {
-		if !contains(deny, want) {
-			t.Fatalf("CA-131: el scout no ejecuta: %s deberia estar prohibido (%v)", want, deny)
+		if !strings.Contains(argv, want) {
+			t.Fatalf("CA-131: el scout no ejecuta: %s deberia estar prohibido (%v)", want, inv.Args)
 		}
 	}
-	allow, deny, _ = toolsFor(claude, reviewer)
-	if !contains(allow, "Bash") || contains(deny, "Bash") {
-		t.Fatalf("CA-131: un rol que ejecuta necesita Bash: allow=%v deny=%v", allow, deny)
-	}
-	if allow, deny, warn = toolsFor(claude, writer); len(allow) != 0 || len(deny) != 0 || warn {
-		t.Fatalf("CA-131: un rol de escritura no restringe: %v %v", allow, deny)
-	}
-	if allow, deny, warn = toolsFor(providerMudo{}, scout); !warn || len(allow) != 0 || len(deny) != 0 {
-		t.Fatalf("CA-131: un provider sin vocabulario avisa y no inventa nombres: %v %v %v", allow, deny, warn)
+	inv, _ = codex.Command(providers.Request{Prompt: "hola", ReadOnly: true, Exec: true})
+	if !strings.Contains(strings.Join(inv.Args, " "), `sandbox_mode="workspace-write"`) {
+		t.Fatalf("CA-131: codex impone el limite con su sandbox: %v", inv.Args)
 	}
 }
 
