@@ -248,7 +248,10 @@ func TestCA156_NormalizeDeCodex(t *testing.T) {
 	if ev := uno(`{"type":"thread.started","thread_id":"01a0-abc"}`); ev.Kind != "start" || ev.SessionID != "01a0-abc" {
 		t.Fatalf("CA-156: thread.started abre la sesion con su id: %+v", ev)
 	}
-	if ev := uno(`{"type":"turn.completed","usage":{"input_tokens":34739,"output_tokens":216}}`); ev.Kind != "end" || !strings.Contains(ev.Detail, "34739") {
+	// El gasto dejo de vivir en la prosa del detalle y vive en Usage
+	// (CA-198): el criterio sigue siendo que turn.completed cierra Y dice el
+	// gasto; cambio donde se lee.
+	if ev := uno(`{"type":"turn.completed","usage":{"input_tokens":34739,"output_tokens":216}}`); ev.Kind != "end" || ev.Usage == nil || ev.Usage.InputTokens != 34739 {
 		t.Fatalf("CA-156: turn.completed cierra y dice el gasto: %+v", ev)
 	}
 	if ev := uno(`{"type":"turn.failed","error":{"message":"400 invalid_request"}}`); ev.Kind != "error" || !strings.Contains(ev.Detail, "400") {

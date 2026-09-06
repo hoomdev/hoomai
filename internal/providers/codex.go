@@ -146,6 +146,7 @@ func parseCodexLine(line string, ts time.Time) ([]Event, bool) {
 		} `json:"error"`
 		Usage *struct {
 			InputTokens  int `json:"input_tokens"`
+			CachedTokens int `json:"cached_input_tokens"`
 			OutputTokens int `json:"output_tokens"`
 		} `json:"usage"`
 	}
@@ -160,12 +161,21 @@ func parseCodexLine(line string, ts time.Time) ([]Event, bool) {
 	case "turn.started", "item.updated":
 		return nil, true
 	case "turn.completed":
-		detail := "turn completado"
+		// what the turn spent stops being prose inside the detail and becomes
+		// data. Codex reports NO cost anywhere, so CostUSD stays nil: "sin
+		// dato" is the truth, and a zero would be a lie with a number.
+		// One `codex exec` is one turn, and input_tokens is the figure Codex
+		// itself prints, cached ones included — hoom does not subtract what it
+		// cannot verify.
+		ev := Event{TS: ts, Kind: "end", Detail: "turn completado"}
 		if msg.Usage != nil {
-			detail = fmt.Sprintf("turn completado (%d tokens de entrada, %d de salida)",
-				msg.Usage.InputTokens, msg.Usage.OutputTokens)
+			u := &Usage{Turns: 1, InputTokens: msg.Usage.InputTokens,
+				CachedTokens: msg.Usage.CachedTokens, OutputTokens: msg.Usage.OutputTokens}
+			if !u.Empty() {
+				ev.Usage = u
+			}
 		}
-		return []Event{{TS: ts, Kind: "end", Detail: detail}}, true
+		return []Event{ev}, true
 	case "turn.failed":
 		detail := "turn fallido"
 		if msg.Error != nil && strings.TrimSpace(msg.Error.Message) != "" {

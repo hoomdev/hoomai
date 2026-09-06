@@ -49,7 +49,9 @@ Comandos:
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
   status      La ventana del arbitro: check, veredicto, verify en curso, runs
-              con su rol, tareas y hallazgos [--json | --watch]
+              con su rol y lo que costaron, SOBRES en curso (que rol, que
+              provider, en que paso) y el ultimo cerrado, tareas y hallazgos
+              [--json | --watch]
   cockpit     Arma el puesto completo sobre tmux/zellij: tu CLI de IA en un
               pane real + status --watch al lado [--provider p] [--task slug]
   ratchet     El trinquete: calidad que solo puede subir. init crea la linea
@@ -69,10 +71,14 @@ Comandos:
   run         Lanza tu CLI de IA en headless: --provider <p> [--task <slug>] "<prompt>"
               hoom NUNCA llama a una API de IA: ejecuta TU CLI como subproceso.
               Narracion en .hoom/runs/ (local, fuera de la huella y de Git).
+              Cierra diciendo lo que costo: lo que el provider no reporta se
+              dice ("sin dato de costo"), nunca se rellena con ceros.
               Opciones de sesion, modelo, system prompt, tools y topes abajo.
   agent       El sobre determinista de un rol: contrato como system prompt,
               herramientas y scope de escritura. Corre el CLI UNA vez y cierra
-              con evidencia: scope (que toco el rol) -> verify -> check
+              con evidencia: scope (que toco el rol) -> verify -> check.
+              Deja registro en .hoom/envelopes/ (local): por eso 'hoom status'
+              y el Studio pueden ver el sobre MIENTRAS corre
               --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"
               El test-writer corre en un ARBOL CIEGO (worktree disperso, sin
               implementacion en disco): la anti-circularidad deja de ser una
@@ -128,7 +134,10 @@ Flags de run (lo que el provider no soporta se ignora CON aviso en el log;
   --deny-tools a,b     Herramientas prohibidas
   --max-turns n        Tope de turnos del agente (0 = sin tope)
   --budget-usd x       Tope de gasto en USD (0 = sin tope)
-  --strict             Campo no soportado = error, no aviso
+  --strict             Campo no soportado = error, no aviso. Con strict,
+                       continuar una sesion en un provider que no puede
+                       (ni --resume ni --continue) tambien es error: una
+                       invocacion nueva empezaria de cero y eso no es continuar
 
 Flags de serve:
   --addr host:puerto   Direccion de escucha (default 127.0.0.1:4666, solo loopback)
@@ -305,7 +314,7 @@ func cmdCheck(args []string) error {
 // The live discipline stays with check/verify; status only shows.
 func cmdStatus(args []string) error {
 	fs := flag.NewFlagSet("status", flag.ExitOnError)
-	asJSON := fs.Bool("json", false, "emitir el snapshot como JSON en stdout")
+	asJSON := fs.Bool("json", false, "emitir el snapshot como JSON en stdout (check, veredicto, runs, sobres, tareas, hallazgos, trinquete)")
 	watch := fs.Bool("watch", false, "refrescar en vivo (requiere TTY)")
 	_ = fs.Parse(args)
 	m, err := manifest.Load(".", profiles.Resolve)
@@ -484,10 +493,13 @@ func cmdRun(args []string) error {
 			if ev.Agent != "" {
 				agent = "[" + ev.Agent + "] "
 			}
-			fmt.Printf("  %-5s %s%s\n", ev.Kind, agent, ev.Detail)
+			fmt.Printf("  %-6s %s%s\n", ev.Kind, agent, ev.Detail)
 		}
 		seen += len(evs)
 		if st.Status != runcmd.StatusRunning {
+			// lo que costo el run, medido y no estimado: lo que el provider
+			// no reporta se dice, no se rellena con ceros
+			fmt.Printf("hoom run: gasto - %s\n", st.Usage.Summary())
 			if st.ProviderSessionID != "" {
 				// la sesion del provider es el handle para retomar EXACTAMENTE este hilo
 				fmt.Printf("hoom run: sesion del provider %s\n  reanudar: hoom run --provider %s --resume %s \"<prompt>\"\n",

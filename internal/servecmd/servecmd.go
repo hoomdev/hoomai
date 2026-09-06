@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
+	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/filesearch"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -253,7 +255,17 @@ func (s *Server) Handler() http.Handler {
 	})
 
 	mux.HandleFunc("GET /api/runs", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, s.runs.List())
+		writeJSON(w, s.runRows())
+	})
+
+	// los sobres: lo que `hoom agent` esta haciendo AHORA, aunque lo corra
+	// otro proceso. El Studio los mira; no los maneja.
+	mux.HandleFunc("GET /api/envelopes", func(w http.ResponseWriter, r *http.Request) {
+		recs := envelope.List(s.m.Dir)
+		if recs == nil {
+			recs = []envelope.Record{}
+		}
+		writeJSON(w, recs)
 	})
 
 	mux.HandleFunc("GET /api/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -263,21 +275,24 @@ func (s *Server) Handler() http.Handler {
 				after = n
 			}
 		}
-		info, evs, err := s.runs.Events(r.PathValue("id"), after)
+		row, evs, err := s.runEvents(r.PathValue("id"))
 		if err != nil {
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		writeJSON(w, map[string]any{"run": info, "events": evs, "next": after + len(evs)})
+		if after > len(evs) {
+			after = len(evs)
+		}
+		writeJSON(w, map[string]any{"run": row, "events": evs[after:], "next": len(evs)})
 	})
 
 	mux.HandleFunc("GET /api/runs/{id}/stage", func(w http.ResponseWriter, r *http.Request) {
-		info, evs, err := s.runs.Events(r.PathValue("id"), 0)
+		row, evs, err := s.runEvents(r.PathValue("id"))
 		if err != nil {
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		writeJSON(w, runcmd.Stage(info, evs))
+		writeJSON(w, runcmd.Stage(row.Run, evs))
 	})
 
 	mux.HandleFunc("POST /api/runs", s.authed(func(w http.ResponseWriter, r *http.Request) {
@@ -306,6 +321,10 @@ func (s *Server) Handler() http.Handler {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		if code, err := s.readOnlyRun(r.PathValue("id")); err != nil {
+			writeError(w, code, err.Error())
+			return
+		}
 		info, err := s.runs.Input(r.PathValue("id"), body.Prompt)
 		if err != nil {
 			writeError(w, runErrCode(err), err.Error())
@@ -315,6 +334,10 @@ func (s *Server) Handler() http.Handler {
 	}))
 
 	mux.HandleFunc("POST /api/runs/{id}/cancel", s.authed(func(w http.ResponseWriter, r *http.Request) {
+		if code, err := s.readOnlyRun(r.PathValue("id")); err != nil {
+			writeError(w, code, err.Error())
+			return
+		}
 		info, err := s.runs.Cancel(r.PathValue("id"))
 		if err != nil {
 			writeError(w, runErrCode(err), err.Error())
@@ -450,12 +473,103 @@ func (s *Server) authed(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// RunRow is a run as the Studio lists it: the run itself plus what only the
+// sidecar knows (the role it embodies, whether it ran blind) and whether it
+// belongs to ANOTHER process — a run started by `hoom agent` or `hoom run` in
+// a terminal is visible here, and read-only.
+type RunRow struct {
+	runcmd.Run
+	Role     string `json:"role,omitempty"`
+	Isolated bool   `json:"isolated,omitempty"`
+	Foreign  bool   `json:"foreign,omitempty"`
+}
+
+// runRows merges the runs this process owns with the sidecars on disk. In
+// memory wins: it is the live truth for its own runs; the sidecar fills in
+// everything else, which is how a run of another terminal becomes visible.
+func (s *Server) runRows() []RunRow {
+	metas := map[string]runcmd.Meta{}
+	for _, m := range runcmd.Metas(s.m.Dir) {
+		metas[m.ID] = m
+	}
+	rows := []RunRow{}
+	seen := map[string]bool{}
+	for _, run := range s.runs.List() {
+		row := RunRow{Run: run}
+		if meta, ok := metas[run.ID]; ok {
+			row.Role, row.Isolated = meta.Role, meta.Isolated
+		}
+		rows = append(rows, row)
+		seen[run.ID] = true
+	}
+	for _, meta := range runcmd.Metas(s.m.Dir) {
+		if seen[meta.ID] {
+			continue
+		}
+		rows = append(rows, RunRow{Run: runcmd.Run{
+			ID: meta.ID, Provider: meta.Provider, Task: meta.Task, Status: meta.Status,
+			ExitCode: meta.ExitCode, CreatedAt: meta.CreatedAt,
+			ProviderSessionID: meta.ProviderSessionID, Usage: meta.Usage,
+		}, Role: meta.Role, Isolated: meta.Isolated, Foreign: true})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].CreatedAt.After(rows[j].CreatedAt) })
+	return rows
+}
+
+// runEvents returns a run with its full narration, from memory when this
+// process owns it and from the jsonl when another one does.
+func (s *Server) runEvents(id string) (RunRow, []runcmd.Event, error) {
+	if info, evs, err := s.runs.Events(id, 0); err == nil {
+		row := RunRow{Run: info}
+		for _, meta := range runcmd.Metas(s.m.Dir) {
+			if meta.ID == id {
+				row.Role, row.Isolated = meta.Role, meta.Isolated
+				break
+			}
+		}
+		return row, evs, nil
+	}
+	for _, row := range s.runRows() {
+		if row.ID != id {
+			continue
+		}
+		evs, err := runcmd.ReadEvents(s.m.Dir, id)
+		if err != nil {
+			return RunRow{}, nil, err
+		}
+		row.NumEvents = len(evs)
+		return row, evs, nil
+	}
+	return RunRow{}, nil, fmt.Errorf("run no encontrado: %s", id)
+}
+
+// readOnlyRun refuses to DRIVE a run that belongs to another process. Seeing
+// it is telemetry; continuing or cancelling it is control, and controlling a
+// session this process never opened is another feature entirely.
+func (s *Server) readOnlyRun(id string) (int, error) {
+	if _, err := s.runs.Get(id); err == nil {
+		return 0, nil
+	}
+	for _, row := range s.runRows() {
+		if row.ID == id {
+			return http.StatusConflict, fmt.Errorf("el run %s lo corre otro proceso (hoom agent / hoom run); desde el Studio es de solo lectura", id)
+		}
+	}
+	return 0, nil // no existe: que conteste el manager, con su 404
+}
+
 // runErrCode maps run-domain errors to HTTP: busy trees are 409, unknown
-// runs/tasks 404, bad input 400.
+// runs/tasks 404, a provider that cannot continue 400, bad input 400.
 func runErrCode(err error) int {
 	var busy runcmd.ErrBusy
 	if errors.As(err, &busy) {
 		return http.StatusConflict
+	}
+	// la negativa de Input bajo strict es un pedido invalido, no un run
+	// perdido: el run existe y esta perfecto, lo que no se puede es continuarlo
+	var sinSesion runcmd.ErrNoContinuation
+	if errors.As(err, &sinSesion) {
+		return http.StatusBadRequest
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "no encontrado") || strings.Contains(msg, "no existe") {

@@ -73,7 +73,10 @@ func Stage(info Run, events []Event) StageView {
 			actors[i].LastDetail = ev.Detail
 			lastDelegated = i
 		case "tool", "text":
-			// atribucion honesta: sin agente explicito, actua el orquestador
+			// atribucion honesta: sin agente explicito, actua el orquestador.
+			// Un evento `system` NO entra aca: es la CLI hablando de si misma
+			// —ocho lineas de hooks por invocacion— y contarlo le atribuiria
+			// al orquestador un trabajo que nadie hizo.
 			actors[0].Acts++
 			actors[0].LastDetail = ev.Detail
 		}

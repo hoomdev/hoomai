@@ -15,6 +15,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/isolate"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
@@ -38,22 +39,26 @@ type Options struct {
 
 // Result is the envelope's answer, identical in text and in JSON.
 type Result struct {
-	Role      string           `json:"role"`
-	Provider  string           `json:"provider"`
-	Dir       string           `json:"dir"`
-	Spec      string           `json:"spec,omitempty"`
-	Approval  string           `json:"approval,omitempty"`
-	RunID     string           `json:"run_id,omitempty"`
-	RunStatus string           `json:"run_status,omitempty"`
-	SessionID string           `json:"provider_session_id,omitempty"`
-	Scope     ScopeResult      `json:"scope"`
-	VerdictID string           `json:"verdict_id,omitempty"`
-	Verdict   string           `json:"verdict,omitempty"`
-	Check     *checkcmd.Result `json:"check,omitempty"`
-	Isolation *Isolation       `json:"isolation,omitempty"`
-	Stage     string           `json:"stage"`  // spec | aislar | run | scope | verify | check | ok
-	Status    string           `json:"status"` // entregable | no-entregable
-	ExitCode  int              `json:"exit_code"`
+	Role      string      `json:"role"`
+	Provider  string      `json:"provider"`
+	Dir       string      `json:"dir"`
+	Spec      string      `json:"spec,omitempty"`
+	Approval  string      `json:"approval,omitempty"`
+	RunID     string      `json:"run_id,omitempty"`
+	RunStatus string      `json:"run_status,omitempty"`
+	SessionID string      `json:"provider_session_id,omitempty"`
+	Scope     ScopeResult `json:"scope"`
+	VerdictID string      `json:"verdict_id,omitempty"`
+	Verdict   string      `json:"verdict,omitempty"`
+	// EnvelopeID names the durable record of THIS envelope in
+	// .hoom/envelopes/, which is what `hoom status` and the Studio read.
+	EnvelopeID string           `json:"envelope_id,omitempty"`
+	Usage      *providers.Usage `json:"usage,omitempty"`
+	Check      *checkcmd.Result `json:"check,omitempty"`
+	Isolation  *Isolation       `json:"isolation,omitempty"`
+	Stage      string           `json:"stage"`  // spec | aislar | run | scope | verify | check | ok
+	Status     string           `json:"status"` // entregable | no-entregable
+	ExitCode   int              `json:"exit_code"`
 }
 
 // Isolation is what the envelope did with the blind tree, and what came back
@@ -105,16 +110,32 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		steps = 6 // el arbol ciego se arma y se prueba: eso es un paso, no una nota al pie
 	}
 	res := Result{Role: role.Slug, Provider: prov.Name(), Dir: dir, Stage: "spec"}
+	// El registro del sobre: lo que status y el Studio pueden mirar MIENTRAS
+	// esto corre. Se escribe en cada transicion de paso; escribirlo jamas
+	// puede romper el sobre que describe (Write es best-effort).
+	rec := envelope.Record{
+		ID: envelope.NewID(), Role: role.Slug, Provider: prov.Name(), Task: opt.Task,
+		Dir: dir, Stage: "spec", Step: 1, Steps: steps,
+		Status: envelope.StatusRunning, ExitCode: -1, StartedAt: time.Now().UTC(),
+	}
+	res.EnvelopeID = rec.ID
+	save := func(stage string, step int) {
+		rec.Stage, rec.Step = stage, step
+		envelope.Write(root, rec)
+	}
+	save("spec", 1)
 	fmt.Fprintf(w, "hoom agent: rol %s (%s) en %s\n", role.Slug, prov.Name(), displayDir(opt.Task))
 
 	// [1/N] spec: no burn tokens on work the human has not authorized.
 	specPath, err := specGate(w, dir, role, opt.Spec, &res, steps)
 	if err != nil {
-		return res, err
+		return res, roto(root, &rec, err)
 	}
+	rec.Spec, rec.Approval = res.Spec, res.Approval
 	if res.ExitCode != 0 {
-		return finish(w, res, "spec", 1, "el spec no tiene aprobacion vigente y el rol escribe"), nil
+		return cerrar(w, root, &rec, res, "spec", 1, "el spec no tiene aprobacion vigente y el rol escribe"), nil
 	}
+	save("spec", 1)
 
 	// [2/N] aislar: el rol ciego no obedece la regla de oro, la habita.
 	mgr := runcmd.NewManager(root)
@@ -123,17 +144,20 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	var beforeReal Snapshot
 	if role.Isolated {
 		res.Stage = "aislar"
+		save("aislar", 2)
 		if why := blindPrechecks(mgr, dir, specPath); why != "" {
-			return finish(w, res, "aislar", 1, why), nil
+			return cerrar(w, root, &rec, res, "aislar", 1, why), nil
 		}
 		markers, _ := profiles.Markers(m.Profile)
 		pol := PolicyFor(m, role)
 		pats := isolate.Patterns(pol.Allow, pol.Deny, markers)
 		tree, err = isolate.Open(dir, role.Slug+"_"+newID(), pats)
 		if err != nil {
-			return finish(w, res, "aislar", 1, err.Error()), nil
+			return cerrar(w, root, &rec, res, "aislar", 1, err.Error()), nil
 		}
 		res.Isolation = &Isolation{Dir: tree.Dir, Commit: tree.Commit, Patterns: tree.Patterns, Hidden: len(tree.Hidden)}
+		rec.Isolated, rec.IsolatedFrom = true, tree.Commit
+		save("aislar", 2)
 		runDir = tree.Dir
 		beforeReal = Take(dir, base)
 		contract += blindNote(tree)
@@ -144,6 +168,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [N-3/N] run
 	res.Stage = "run"
+	save("run", steps-3)
 	so, warn := startOptions(prov, role, contract, opt)
 	so.Dir = runDir
 	if warn {
@@ -153,12 +178,29 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	info, err := mgr.Start(so)
 	if err != nil {
 		keepQuarantine(w, tree, res.Isolation, "el run no arranco")
-		return res, err
+		return res, roto(root, &rec, err)
 	}
 	res.RunID = info.ID
+	rec.RunID = info.ID
+	save("run", steps-3)
 	fmt.Fprintf(w, "  %s run     %s - narracion en .hoom/runs/%s.jsonl\n", step(steps-3, steps), info.ID, info.ID)
-	st := stream(mgr, info.ID, w)
+	// latido: mientras el run narra no hay transiciones, y un sobre sin
+	// movimiento es indistinguible de uno muerto. Como mucho un archivo cada
+	// 5 segundos, nunca uno por evento.
+	ultimo := time.Now()
+	st := stream(mgr, info.ID, w, func() {
+		if time.Since(ultimo) < 5*time.Second {
+			return
+		}
+		ultimo = time.Now()
+		envelope.Write(root, rec)
+	})
 	res.RunStatus, res.SessionID = st.Status, st.ProviderSessionID
+	res.Usage, rec.Usage = st.Usage, st.Usage
+	if !st.Usage.Empty() {
+		fmt.Fprintf(w, "    gasto: %s\n", st.Usage.Summary())
+	}
+	save("run", steps-3)
 	if st.ProviderSessionID != "" {
 		fmt.Fprintf(w, "    sesion %s - reanudar: hoom agent --role %s --provider %s --resume %s \"<pedido>\"\n",
 			st.ProviderSessionID, role.Slug, prov.Name(), st.ProviderSessionID)
@@ -170,12 +212,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		}
 		fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
 		keepQuarantine(w, tree, res.Isolation, "el run fallo")
-		return finish(w, res, "run", code, "el run fallo: no hay arbol confiable que medir"), nil
+		return cerrar(w, root, &rec, res, "run", code, "el run fallo: no hay arbol confiable que medir"), nil
 	}
 
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
 	// blind tree lets us ask — is the blindfold still on?
 	res.Stage = "scope"
+	save("scope", steps-2)
 	var blind *Blind
 	if tree != nil {
 		blind = &Blind{Restored: tree.Breaches(), Leaked: delta(beforeReal.Touched, Take(dir, base).Touched)}
@@ -188,31 +231,34 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			note = "el aislamiento se rompio: no se emite veredicto sobre este arbol"
 		}
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
-		return finish(w, res, "scope", 1, note), nil
+		return cerrar(w, root, &rec, res, "scope", 1, note), nil
 	}
 	// Solo viaja lo que el gate aprobo: la cuarentena es la unica vez que el
 	// gate llega ANTES de que el arbol certificable reciba la escritura.
 	if tree != nil {
 		if err := transplant(w, tree, dir, res.Scope, res.Isolation); err != nil {
 			keepQuarantine(w, tree, res.Isolation, "el trasplante fallo a mitad de camino")
-			return res, err
+			return res, roto(root, &rec, err)
 		}
 	}
 
 	// [N-1/N] verify
 	res.Stage = "verify"
+	save("verify", steps-1)
 	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath})
 	if err != nil {
-		return res, err
+		return res, roto(root, &rec, err)
 	}
 	res.VerdictID, res.Verdict = v.ID, v.Verdict
+	rec.VerdictID, rec.Verdict = v.ID, v.Verdict
 	fmt.Fprintf(w, "  %s verify  %s (veredicto %s)\n", step(steps-1, steps), color(v.Verdict == "green"), v.ID)
 
 	// [N/N] check
 	res.Stage = "check"
+	save("check", steps)
 	cr, err := checkcmd.Run(dir, base)
 	if err != nil {
-		return res, err
+		return res, roto(root, &rec, err)
 	}
 	res.Check = &cr
 	if cr.OK {
@@ -223,13 +269,35 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	switch {
 	case !res.Scope.OK:
-		return finish(w, res, "scope", 1, "el rol escribio fuera de su territorio"), nil
+		return cerrar(w, root, &rec, res, "scope", 1, "el rol escribio fuera de su territorio"), nil
 	case v.Verdict != "green":
-		return finish(w, res, "verify", 1, "veredicto rojo"), nil
+		return cerrar(w, root, &rec, res, "verify", 1, "veredicto rojo"), nil
 	case !cr.OK:
-		return finish(w, res, "check", 1, cr.Reason), nil
+		return cerrar(w, root, &rec, res, "check", 1, cr.Reason), nil
 	}
-	return finish(w, res, "ok", 0, ""), nil
+	return cerrar(w, root, &rec, res, "ok", 0, ""), nil
+}
+
+// cerrar cierra el sobre y su registro con la misma verdad: el paso donde
+// paro, el exit y por que. El registro se escribe DESPUES de imprimir, porque
+// lo que se guarda es el resultado, no la intencion.
+func cerrar(w io.Writer, root string, rec *envelope.Record, res Result, stage string, code int, note string) Result {
+	res = finish(w, res, stage, code, note)
+	rec.Stage, rec.Status, rec.ExitCode, rec.Note = stage, res.Status, code, note
+	rec.EndedAt = time.Now().UTC()
+	envelope.Write(root, *rec)
+	return res
+}
+
+// roto cierra el registro cuando lo que falla no es el trabajo del rol sino
+// el setup (verify que no arranca, un trasplante a medias). El sobre termino
+// igual, y un registro que se queda "en curso" para siempre seria una mentira
+// que despues alguien tiene que interpretar.
+func roto(root string, rec *envelope.Record, err error) error {
+	rec.Status, rec.ExitCode, rec.Note = envelope.StatusNotDeliverable, 1, err.Error()
+	rec.EndedAt = time.Now().UTC()
+	envelope.Write(root, *rec)
+	return err
 }
 
 // specGate resolves the spec path against the WORK directory and enforces a
@@ -308,7 +376,9 @@ func ReadOnlyFor(p providers.Provider, role agents.Role) (readOnly, exec, warn b
 }
 
 // stream mirrors the run narration while it happens, exactly like `hoom run`.
-func stream(mgr *runcmd.Manager, id string, w io.Writer) runcmd.Run {
+// beat is the envelope's heartbeat: it fires while the run talks, and the
+// caller decides how often that is worth writing down.
+func stream(mgr *runcmd.Manager, id string, w io.Writer, beat func()) runcmd.Run {
 	seen := 0
 	for {
 		st, evs, err := mgr.Events(id, seen)
@@ -320,9 +390,12 @@ func stream(mgr *runcmd.Manager, id string, w io.Writer) runcmd.Run {
 			if ev.Agent != "" {
 				agent = "[" + ev.Agent + "] "
 			}
-			fmt.Fprintf(w, "    %-5s %s%s\n", ev.Kind, agent, ev.Detail)
+			fmt.Fprintf(w, "    %-6s %s%s\n", ev.Kind, agent, ev.Detail)
 		}
 		seen += len(evs)
+		if beat != nil {
+			beat()
+		}
 		if st.Status != runcmd.StatusRunning {
 			return st
 		}
