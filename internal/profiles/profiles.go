@@ -104,20 +104,9 @@ func Resolve(name string) (map[string]manifest.Gate, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	var chain []*Profile
-	seen := map[string]bool{}
-	cur := name
-	for cur != "" {
-		p, ok := all[cur]
-		if !ok {
-			return nil, "", fmt.Errorf("perfil desconocido %q (disponibles: %s)", cur, strings.Join(Names(), ", "))
-		}
-		if seen[cur] {
-			return nil, "", fmt.Errorf("herencia circular en perfil %q", name)
-		}
-		seen[cur] = true
-		chain = append([]*Profile{p}, chain...) // parents first
-		cur = p.Extends
+	chain, err := chainOf(name)
+	if err != nil {
+		return nil, "", err
 	}
 	merged := map[string]manifest.Gate{}
 	for _, p := range chain {
@@ -126,6 +115,53 @@ func Resolve(name string) (map[string]manifest.Gate, string, error) {
 		}
 	}
 	return merged, all[name].Description, nil
+}
+
+// Markers lists the files a profile — and everything it extends — uses to
+// RECOGNIZE the stack: go.mod, composer.json, settings.gradle.kts. They are
+// exactly the files a BLIND role needs in its tree: not implementation, but
+// the answer to "what am I writing tests for". Parents first, no repeats.
+func Markers(name string) ([]string, error) {
+	chain, err := chainOf(name)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range chain {
+		for _, f := range p.Detect.Files {
+			if f = strings.TrimSpace(f); f != "" && !seen[f] {
+				seen[f] = true
+				out = append(out, f)
+			}
+		}
+	}
+	return out, nil
+}
+
+// chainOf walks the extends chain, parents first. Resolve and Markers merge
+// different fields of the same inheritance, so they ask the same walker.
+func chainOf(name string) ([]*Profile, error) {
+	all, err := loadAll()
+	if err != nil {
+		return nil, err
+	}
+	var chain []*Profile
+	seen := map[string]bool{}
+	cur := name
+	for cur != "" {
+		p, ok := all[cur]
+		if !ok {
+			return nil, fmt.Errorf("perfil desconocido %q (disponibles: %s)", cur, strings.Join(Names(), ", "))
+		}
+		if seen[cur] {
+			return nil, fmt.Errorf("herencia circular en perfil %q", name)
+		}
+		seen[cur] = true
+		chain = append([]*Profile{p}, chain...) // parents first
+		cur = p.Extends
+	}
+	return chain, nil
 }
 
 // DetectStack inspects dir and returns the best-matching profile name.

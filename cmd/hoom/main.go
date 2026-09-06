@@ -74,6 +74,9 @@ Comandos:
               herramientas y scope de escritura. Corre el CLI UNA vez y cierra
               con evidencia: scope (que toco el rol) -> verify -> check
               --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"
+              El test-writer corre en un ARBOL CIEGO (worktree disperso, sin
+              implementacion en disco): la anti-circularidad deja de ser una
+              regla de prompt y pasa a ser un hecho del sistema de archivos
   review      Review CRUZADA: corre el reviewer en un provider DISTINTO del que
               escribio, con la lente que sale de la evidencia (contrato 06) y
               los hallazgos que hoom VE aparecer en .hoom/findings/
@@ -522,7 +525,7 @@ func splitList(raw string) []string {
 // means dropping down to `hoom run`, in plain sight.
 func cmdAgent(args []string) error {
 	fs := flag.NewFlagSet("agent", flag.ExitOnError)
-	role := fs.String("role", "", "rol a encarnar (writer|test-writer|scout|...; mira 'hoom agents')")
+	role := fs.String("role", "", "rol a encarnar (writer|test-writer|scout|...; el test-writer corre en un arbol ciego)")
 	provider := fs.String("provider", "", "provider de IA; vacio = el primero instalado que soporte system prompt")
 	task := fs.String("task", "", "slug de la tarea: corre en su worktree aislado")
 	specPath := fs.String("spec", "", "ruta del spec: exige aprobacion vigente y traza los CA en verify")
