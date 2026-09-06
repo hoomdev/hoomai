@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +22,12 @@ import (
 
 // Event is the normalized unit of a run's narration. One schema for every
 // provider so the UI (and the theater) is written once.
-// Kind: start | text | tool | agent | end | error.
+// Kind: start | text | tool | agent | system | end | error.
+//
+// `system` means ONE thing: the CLI talking about ITSELF — hooks, compaction,
+// rate limits — and not the agent working. It exists so that plumbing is
+// filed as plumbing instead of landing in the log as raw JSON inside a text
+// event, indistinguishable from what the agent said.
 type Event struct {
 	TS     time.Time `json:"ts"`
 	Kind   string    `json:"kind"`
@@ -30,6 +36,82 @@ type Event struct {
 	// SessionID travels only on start/end/error events, when the provider
 	// reports its own session id; the run keeps the last non-empty one.
 	SessionID string `json:"session_id,omitempty"`
+	// Usage travels on the closing events, when the provider measures what
+	// the invocation spent. The run ACCUMULATES it (see runcmd): every CLI
+	// verified reports per invocation, never per session.
+	Usage *Usage `json:"usage,omitempty"`
+}
+
+// Usage is what one invocation cost, in the only units every CLI can be read
+// in. CostUSD is a POINTER on purpose: "spent 0" and "does not report cost"
+// are different facts, and Codex — which reports tokens and no price at all —
+// makes the second one the normal case, not the edge.
+type Usage struct {
+	CostUSD      *float64 `json:"cost_usd,omitempty"`
+	Turns        int      `json:"turns,omitempty"`
+	InputTokens  int      `json:"input_tokens,omitempty"`
+	CachedTokens int      `json:"cached_input_tokens,omitempty"`
+	OutputTokens int      `json:"output_tokens,omitempty"`
+	DurationMS   int      `json:"duration_ms,omitempty"`
+}
+
+// Empty reports a usage that measured nothing: an adapter attaches it only
+// when the provider actually said something.
+func (u *Usage) Empty() bool {
+	return u == nil || (u.CostUSD == nil && u.Turns == 0 &&
+		u.InputTokens == 0 && u.CachedTokens == 0 && u.OutputTokens == 0 && u.DurationMS == 0)
+}
+
+// Summary renders usage for humans, in Spanish and in one line. What the
+// provider did not report is said out loud ("sin dato de costo"), never
+// printed as a zero.
+func (u *Usage) Summary() string {
+	if u.Empty() {
+		return "sin datos de uso"
+	}
+	var parts []string
+	if u.CostUSD != nil {
+		parts = append(parts, fmt.Sprintf("costo %s USD", trimFloat(*u.CostUSD)))
+	} else {
+		parts = append(parts, "sin dato de costo")
+	}
+	if u.Turns > 0 {
+		parts = append(parts, plural(u.Turns, "turno", "turnos"))
+	}
+	if tok := u.InputTokens + u.OutputTokens; tok > 0 {
+		entry := fmt.Sprintf("%s tokens", compactInt(tok))
+		if u.CachedTokens > 0 {
+			entry += fmt.Sprintf(" (%s de cache)", compactInt(u.CachedTokens))
+		}
+		parts = append(parts, entry)
+	}
+	if u.DurationMS > 0 {
+		parts = append(parts, (time.Duration(u.DurationMS) * time.Millisecond).Round(time.Millisecond).String())
+	}
+	return strings.Join(parts, " · ")
+}
+
+// trimFloat prints a cost without scientific notation and without a tail of
+// meaningless decimals: 0.111583 -> "0.1116", 2 -> "2".
+func trimFloat(v float64) string {
+	s := strconv.FormatFloat(v, 'f', 4, 64)
+	s = strings.TrimRight(s, "0")
+	return strings.TrimSuffix(s, ".")
+}
+
+// compactInt shortens token counts the way a human reads them: 17408 -> 17.4k.
+func compactInt(n int) string {
+	if n < 1000 {
+		return strconv.Itoa(n)
+	}
+	return strings.TrimSuffix(strconv.FormatFloat(float64(n)/1000, 'f', 1, 64), ".0") + "k"
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, one)
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
 
 // Capabilities declares what a provider can honor natively. A false flag

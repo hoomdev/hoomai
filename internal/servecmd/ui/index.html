@@ -74,6 +74,14 @@
   .rrow:hover { border-color: var(--accent); }
   .rrow .rid { font-family: var(--mono); font-size: 12px; flex: 1; }
   #runs { display: grid; gap: 8px; overflow-y: auto; align-content: start; }
+  #sobres { display: grid; gap: 6px; align-content: start; }
+  .sobre {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 12px; border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; background: var(--panel-2); color: var(--text-2); font-size: 12.5px;
+  }
+  .sobre.cerrado { border-left-color: var(--border); }
+  .sobre .paso { font-family: var(--mono); font-size: 12px; color: var(--text); }
   .hint { color: var(--text-3); font-size: 12.5px; }
   .badge {
     font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 4px;
@@ -138,6 +146,12 @@
   .fev.k-agent .k { color: var(--good); }
   .fev.k-error .k { color: var(--critical); }
   .fev.k-end .k   { color: var(--good); }
+  /* ruido: la CLI hablando de si misma. Se ve, atenuado, y se puede ocultar */
+  .fev.k-system { opacity: .5; }
+  .fev.k-system .k { color: var(--text-3); }
+  .feed.sin-ruido .fev.k-system { display: none; }
+  .feedhead { display: flex; align-items: center; gap: 8px; }
+  .feedhead label { font-size: 10.5px; text-transform: none; letter-spacing: 0; color: var(--text-3); cursor: pointer; }
   .fev .a { color: var(--good); }
   .feednote { padding: 5px 14px; color: var(--text-3); font-size: 11px; font-style: italic; border-top: 1px solid var(--border); flex: none; }
   /* ---- drawer lateral: la evidencia ---- */
@@ -268,6 +282,7 @@
       <button class="act primary" id="btn-dispatch">Despachar</button>
     </div>
     <div class="hint" id="cockpit-hint">despachá un pedido y vas a ver al equipo trabajar acá — escenario y feed en vivo, al mismo tiempo</div>
+    <div id="sobres"></div>
     <div id="runs"></div>
   </div>
 
@@ -285,7 +300,10 @@
         <div class="stage" id="stage"></div>
       </div>
       <div class="pane">
-        <h2>Feed — línea por línea</h2>
+        <h2 class="feedhead">Feed — línea por línea
+          <span class="spacer"></span>
+          <label><input type="checkbox" id="chk-ruido"> ocultar ruido de la CLI</label>
+        </h2>
         <div class="feed" id="feed"></div>
         <div class="feednote">narración del provider — la evidencia son los veredictos</div>
       </div>
@@ -721,6 +739,17 @@ async function refreshRunTasks() {
   sel.value = current;
 }
 
+// gasto: lo que el provider midio. Lo que no reporto se dice, no se rellena.
+function gasto(u) {
+  if (!u) return "";
+  const partes = [];
+  partes.push(u.cost_usd === undefined ? "sin dato de costo" : `${(+u.cost_usd).toFixed(4).replace(/0+$/, "").replace(/\.$/, "")} USD`);
+  if (u.turns) partes.push(`${u.turns} turno${u.turns === 1 ? "" : "s"}`);
+  const tok = (u.input_tokens || 0) + (u.output_tokens || 0);
+  if (tok) partes.push(`${tok >= 1000 ? (tok / 1000).toFixed(1) + "k" : tok} tokens`);
+  return partes.join(" · ");
+}
+
 async function refreshRuns() {
   if (runOpen) return;
   const runs = await j("/api/runs");
@@ -729,18 +758,48 @@ async function refreshRuns() {
     <button class="rrow" data-id="${esc(r.id)}">
       ${runBadge(r.status)}
       <span class="rid">${esc(r.id)}</span>
-      <span class="hint">${esc(r.provider)}${r.task ? " · " + esc(r.task) : " · proyecto"}</span>
+      <span class="hint">${esc(r.provider)}${r.role ? " · rol " + esc(r.role) : ""}${r.isolated ? " (ciego)" : ""}${r.task ? " · " + esc(r.task) : " · proyecto"}${r.foreign ? " · otro proceso" : ""}${r.usage ? " · " + esc(gasto(r.usage)) : ""}</span>
     </button>`).join("");
   for (const b of $("runs").querySelectorAll(".rrow"))
     b.addEventListener("click", () => openRun(b.dataset.id));
 }
 
+// los sobres: lo que hoom agent esta haciendo, lo corra quien lo corra
+async function refreshEnvelopes() {
+  if (runOpen) return;
+  const sobres = await j("/api/envelopes");
+  const abiertos = sobres.filter(e => e.status === "en curso");
+  const ultimo = sobres.find(e => e.status !== "en curso");
+  const fila = e => {
+    const corriendo = e.status === "en curso";
+    const estado = corriendo
+      ? `<span class="paso">paso ${e.step}/${e.steps} ${esc(e.stage)}</span>`
+      : badge(e.status === "entregable" ? "ENTREGABLE" : "NO ENTREGABLE (" + e.stage + ")",
+              e.status === "entregable" ? "green" : "red");
+    return `<div class="sobre${corriendo ? "" : " cerrado"}">
+      <b>${esc(e.role)}</b>
+      <span class="hint">${esc(e.provider)}${e.isolated ? " · árbol ciego" : ""}${e.task ? " · " + esc(e.task) : ""}</span>
+      ${estado}
+      ${e.usage ? `<span class="hint">${esc(gasto(e.usage))}</span>` : ""}
+      ${e.note ? `<span class="hint">${esc(e.note)}</span>` : ""}
+      <span class="spacer"></span>
+      <span class="hint">${esc(when(corriendo ? e.updated_at : e.ended_at))}</span>
+    </div>`;
+  };
+  $("sobres").innerHTML = [...abiertos, ...(ultimo ? [ultimo] : [])].map(fila).join("");
+}
+
 function renderRunMeta(r) {
   $("runmeta").innerHTML = `${runBadge(r.status)} <code>${esc(r.id)}</code> · ${esc(r.provider)}
+    ${r.role ? "· rol <b>" + esc(r.role) + "</b>" + (r.isolated ? " (árbol ciego)" : "") : ""}
     ${r.task ? "· tarea <code>" + esc(r.task) + "</code>" : "· proyecto"}
-    ${r.status !== "running" && r.exit_code >= 0 ? "· exit " + r.exit_code : ""}`;
-  $("btn-cancel").style.display = r.status === "running" ? "" : "none";
-  $("btn-input").disabled = r.status === "running";
+    ${r.status !== "running" && r.exit_code >= 0 ? "· exit " + r.exit_code : ""}
+    ${r.usage ? "· " + esc(gasto(r.usage)) : ""}
+    ${r.foreign ? "· <span class=\"hint\">lo corre otro proceso: solo lectura</span>" : ""}`;
+  // un run ajeno se mira, no se maneja: continuarlo pediria adoptar una
+  // sesion que este proceso nunca abrio
+  $("btn-cancel").style.display = !r.foreign && r.status === "running" ? "" : "none";
+  $("btn-input").disabled = r.foreign || r.status === "running";
 }
 
 function renderStage(sv) {
@@ -796,12 +855,17 @@ function openRun(id) {
   pollOpenRun();
 }
 
+$("chk-ruido").addEventListener("change", e => {
+  $("feed").classList.toggle("sin-ruido", e.target.checked);
+});
+
 $("btn-run-back").addEventListener("click", () => {
   runOpen = null;
   clearTimeout(runPoller);
   $("runview").style.display = "none";
   $("cockpit").style.display = "";
   refreshRuns();
+  refreshEnvelopes();
 });
 
 $("btn-dispatch").addEventListener("click", busy($("btn-dispatch"), async () => {
@@ -956,7 +1020,7 @@ openSpec = async function (name) {
 
 async function tick() {
   const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend(),
-                refreshSpecs(), refreshProviders(), refreshRunTasks(), refreshRuns(),
+                refreshSpecs(), refreshProviders(), refreshRunTasks(), refreshRuns(), refreshEnvelopes(),
                 refreshContext(), refreshFindings()];
   for (const p of jobs) await p.catch(e => console.warn("studio:", e.message));
 }

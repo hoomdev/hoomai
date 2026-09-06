@@ -15,6 +15,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -55,6 +56,38 @@ type Run struct {
 	// ProviderSessionID is the last session id the provider reported in
 	// its stream: the handle Input uses to resume EXACTLY this session.
 	ProviderSessionID string `json:"provider_session_id,omitempty"`
+	// Usage is what the run spent so far, ACCUMULATED across invocations:
+	// every CLI verified reports per invocation (measured on a --resume,
+	// which reported its own turn and its own cost, not the session total).
+	Usage *providers.Usage `json:"usage,omitempty"`
+}
+
+// accumulate sums one invocation's usage into the run's total. A cost that
+// nobody reported stays ABSENT: "spent 0" and "does not report cost" are
+// different facts and only one of them is Codex.
+func accumulate(total, ev *providers.Usage) *providers.Usage {
+	if ev == nil {
+		return total
+	}
+	sum := providers.Usage{}
+	if total != nil {
+		sum = *total
+	}
+	// el costo solo se suma entre los que SI lo reportaron: nil + 0.11 da
+	// 0.11, y nil + nil sigue siendo nil — Codex no reporta y hoom no inventa
+	if ev.CostUSD != nil {
+		v := *ev.CostUSD
+		if sum.CostUSD != nil {
+			v += *sum.CostUSD
+		}
+		sum.CostUSD = &v
+	}
+	sum.Turns += ev.Turns
+	sum.InputTokens += ev.InputTokens
+	sum.CachedTokens += ev.CachedTokens
+	sum.OutputTokens += ev.OutputTokens
+	sum.DurationMS += ev.DurationMS
+	return &sum
 }
 
 // StartOptions is everything a run needs to start: provider and prompt,
@@ -112,6 +145,19 @@ func (e ErrBusy) Error() string {
 	return fmt.Sprintf("ya hay un run en curso sobre este arbol (%s); espera o cancelalo (un writer por tarea)", e.RunID)
 }
 
+// ErrNoContinuation is what Input returns under Strict when the provider can
+// neither resume a session by id nor continue the directory's last one. It is
+// a DECISION, not an accident: continuing is the whole point of Input, and a
+// fresh invocation would silently start from zero.
+type ErrNoContinuation struct {
+	Provider string
+	RunID    string
+}
+
+func (e ErrNoContinuation) Error() string {
+	return fmt.Sprintf("el provider %q no puede continuar una sesion (ni --resume ni --continue) y con strict una invocacion nueva no es continuar: el modelo empezaria de cero. Accion: reintenta sin strict, o usa un provider con sesion (mira 'hoom providers')", e.Provider)
+}
+
 type run struct {
 	info     Run
 	meta     Meta
@@ -158,6 +204,10 @@ type Meta struct {
 	// sidecar is what someone can check months later.
 	Isolated     bool   `json:"isolated,omitempty"`
 	IsolatedFrom string `json:"isolated_from,omitempty"`
+	// Usage is the accumulated cost of the run. In the sidecar because it is
+	// the only place that survives the process: a finished run has to be able
+	// to say what it cost long after its manager is gone.
+	Usage *providers.Usage `json:"usage,omitempty"`
 }
 
 func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+".meta.json") }
@@ -197,6 +247,29 @@ func Metas(root string) []Meta {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out
+}
+
+// ReadEvents reads a run's narration from disk. The Studio needs it for runs
+// that ANOTHER process started: their events are on disk, so they can be
+// watched even though this manager never owned them. A malformed line is
+// skipped, never fatal.
+func ReadEvents(root, id string) ([]Event, error) {
+	raw, err := os.ReadFile(filepath.Join(runsDir(root), id+".jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	var out []Event
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var ev Event
+		if json.Unmarshal([]byte(line), &ev) != nil {
+			continue
+		}
+		out = append(out, ev)
+	}
+	return out, nil
 }
 
 // NewManager creates the manager and settles orphan logs: a previous serve
@@ -427,6 +500,14 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	inv, err := r.provider.Command(r.opts.request(prompt, resumeID, true))
 	if err != nil {
 		m.mu.Unlock()
+		// Strict forbids silent degradation, and losing the session is the
+		// loudest one: a fresh invocation does not continue anything, the
+		// model starts from zero. The refusal leaves the run exactly as it
+		// was — terminal, its directory free, its log untouched.
+		var unsup providers.ErrUnsupported
+		if errors.As(err, &unsup) && contains(unsup.Fields, providers.FieldContinue) {
+			return Run{}, ErrNoContinuation{Provider: r.provider.Name(), RunID: id}
+		}
 		return Run{}, err
 	}
 	r.info.Status = StatusRunning
@@ -438,10 +519,12 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	m.mu.Unlock()
 	writeMeta(m.root, meta)
 
-	m.warnIgnored(r, inv.Ignored)
+	// una sola linea sobre la sesion perdida, y que dice lo que importa: no
+	// que se ignoro un campo, sino que el contexto anterior no viaja
+	m.warnIgnored(r, without(inv.Ignored, providers.FieldContinue))
 	if contains(inv.Ignored, providers.FieldContinue) {
 		m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
-			Detail: fmt.Sprintf("aviso: %s no soporta continuar sesion en headless; se lanza una invocacion nueva", r.provider.Name())})
+			Detail: fmt.Sprintf("aviso: %s no continua sesiones en headless; esta invocacion empieza de cero (el contexto anterior no viaja)", r.provider.Name())})
 	}
 	m.mu.Lock()
 	info := r.info
@@ -457,6 +540,18 @@ func (m *Manager) warnIgnored(r *run, ignored []string) {
 		m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
 			Detail: fmt.Sprintf("aviso: %s no soporta %s; se ignora", r.provider.Name(), f)})
 	}
+}
+
+// without drops one field from an Ignored list: the caller that reports it
+// with its own words does not want the generic line too.
+func without(list []string, drop string) []string {
+	var out []string
+	for _, s := range list {
+		if s != drop {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func contains(list []string, s string) bool {
@@ -664,6 +759,10 @@ func (m *Manager) append(r *run, ev Event) {
 	r.info.NumEvents = len(r.events)
 	if ev.SessionID != "" {
 		r.info.ProviderSessionID = ev.SessionID
+	}
+	if ev.Usage != nil {
+		r.info.Usage = accumulate(r.info.Usage, ev.Usage)
+		r.meta.Usage = r.info.Usage
 	}
 	log := r.log
 	m.mu.Unlock()

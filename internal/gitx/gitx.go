@@ -166,6 +166,7 @@ func excludedFromCandidate(path string) bool {
 	return strings.HasPrefix(path, ".hoom/verdicts/") || strings.HasPrefix(path, ".hoom/cache/") ||
 		strings.HasPrefix(path, ".hoom/worktrees/") || strings.HasPrefix(path, ".hoom/runs/") ||
 		strings.HasPrefix(path, ".hoom/isolated/") ||
+		strings.HasPrefix(path, ".hoom/envelopes/") ||
 		strings.HasPrefix(path, ".hoom/findings/") ||
 		// harness state, not code under verification: a baseline tightened
 		// DURING verify must not break the very check it just earned

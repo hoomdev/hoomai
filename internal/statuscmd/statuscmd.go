@@ -1,10 +1,12 @@
 // Package statuscmd composes the arbiter's window: one read-only snapshot of
-// everything the harness can PROVE right now — check state, last verdict,
-// the verify in progress (from live events), active runs with their role,
-// tasks and open findings. One brain, three skins: text, --json and --watch.
-// It shows what it knows, labels what it cannot know, and never invents:
-// an unfinished silent run is a "posible huerfano", a run without provider
-// delegation data reads "sin delegacion visible", jamas un rol adivinado.
+// everything the harness can PROVE right now — check state, last verdict, the
+// verify in progress (from live events), active runs with their role and what
+// they cost, the ENVELOPES `hoom agent` is running (and the last one that
+// closed), tasks and open findings. One brain, three skins: text, --json and
+// --watch. It shows what it knows, labels what it cannot know, and never
+// invents: a silent unfinished run or envelope is a "posible huerfano", and a
+// run whose sidecar is missing says so instead of guessing its provider out
+// of a sentence hoom itself wrote.
 package statuscmd
 
 import (
@@ -13,16 +15,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/ratchet"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -36,15 +39,31 @@ const (
 	cBold   = "\033[1m"
 )
 
-// RunView is what the disk can prove about one hoom run.
+// RunView is what the disk can prove about one hoom run: the sidecar
+// IDENTIFIES it (provider, role, task, isolation, cost) and the jsonl proves
+// what happened (how many events, when the last one was, whom it delegated
+// to). Two different questions, two different sources — and no regex over a
+// Spanish sentence hoom wrote itself.
 type RunView struct {
-	ID        string    `json:"id"`
-	Provider  string    `json:"provider,omitempty"` // parsed from the start event; empty = unknown
-	Role      string    `json:"role,omitempty"`     // last delegated agent; empty = no delegation visible
-	Active    bool      `json:"active"`
-	StartedAt time.Time `json:"started_at"`
-	LastEvent time.Time `json:"last_event"`
-	Events    int       `json:"events"`
+	ID        string           `json:"id"`
+	Provider  string           `json:"provider,omitempty"`  // del sidecar; vacio = no hay sidecar
+	Role      string           `json:"role,omitempty"`      // el rol que el sobre le dio al run
+	Delegated string           `json:"delegated,omitempty"` // ultimo subagente al que delego
+	Task      string           `json:"task,omitempty"`
+	Isolated  bool             `json:"isolated,omitempty"`
+	Usage     *providers.Usage `json:"usage,omitempty"`
+	Active    bool             `json:"active"`
+	StartedAt time.Time        `json:"started_at"`
+	LastEvent time.Time        `json:"last_event"`
+	Events    int              `json:"events"`
+}
+
+// EnvelopeView is one `hoom agent` record plus the only thing status can add
+// to it: whether it went silent. hoom labels, it never closes what it did not
+// see close.
+type EnvelopeView struct {
+	envelope.Record
+	PossibleOrphan bool `json:"possible_orphan,omitempty"`
 }
 
 // LastVerdict summarizes the newest verdict on disk.
@@ -90,7 +109,8 @@ type Snapshot struct {
 	Last       *LastVerdict       `json:"last_verdict,omitempty"`
 	Live       *live.State        `json:"live,omitempty"` // in-progress (or orphaned) verify
 	LiveOrphan bool               `json:"live_orphan,omitempty"`
-	Runs       []RunView          `json:"runs"` // active runs only
+	Runs       []RunView          `json:"runs"`      // active runs only
+	Envelopes  []EnvelopeView     `json:"envelopes"` // los que corren + el ultimo cerrado
 	Tasks      []taskcmd.TaskInfo `json:"tasks"`
 	Findings   FindingsSummary    `json:"findings"`
 	Ratchet    RatchetView        `json:"ratchet"`
@@ -100,7 +120,8 @@ type Snapshot struct {
 // created or modified by looking at it.
 func Build(root, base string) (*Snapshot, error) {
 	now := time.Now().UTC()
-	s := &Snapshot{Root: root, Now: now, Runs: []RunView{}, Tasks: []taskcmd.TaskInfo{}}
+	s := &Snapshot{Root: root, Now: now, Runs: []RunView{}, Tasks: []taskcmd.TaskInfo{},
+		Envelopes: []EnvelopeView{}}
 
 	check, err := checkcmd.Run(root, base)
 	if err != nil {
@@ -125,6 +146,7 @@ func Build(root, base string) (*Snapshot, error) {
 	}
 
 	s.Runs = activeRuns(root)
+	s.Envelopes = envelopes(root, now)
 
 	tasks, err := taskcmd.Snapshot(root, base)
 	if err == nil {
@@ -181,16 +203,20 @@ func ratchetView(root string) RatchetView {
 	return view
 }
 
-var runStartRe = regexp.MustCompile(`^run \S+: (\S+) en `)
-
 // activeRuns scans .hoom/runs/*.jsonl and keeps what the events prove: a run
-// whose last event is not terminal is active; its role is the last delegated
-// agent the provider reported — absent data stays absent.
+// whose last event is not terminal is active. Its IDENTITY comes from the
+// sidecar the run itself wrote — provider, role, task, isolation, cost — and
+// a run without a sidecar (an older log) is listed all the same, with the
+// provider unknown. Losing a datum beats inventing one.
 func activeRuns(root string) []RunView {
 	dir := filepath.Join(root, ".hoom", "runs")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return []RunView{}
+	}
+	metas := map[string]runcmd.Meta{}
+	for _, m := range runcmd.Metas(root) {
+		metas[m.ID] = m
 	}
 	out := []RunView{}
 	for _, e := range entries {
@@ -202,6 +228,10 @@ func activeRuns(root string) []RunView {
 			continue
 		}
 		rv := RunView{ID: strings.TrimSuffix(e.Name(), ".jsonl")}
+		if meta, ok := metas[rv.ID]; ok {
+			rv.Provider, rv.Role, rv.Task = meta.Provider, meta.Role, meta.Task
+			rv.Isolated, rv.Usage = meta.Isolated, meta.Usage
+		}
 		var last providers.Event
 		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
 			var ev providers.Event
@@ -211,12 +241,9 @@ func activeRuns(root string) []RunView {
 			rv.Events++
 			if rv.Events == 1 {
 				rv.StartedAt = ev.TS
-				if m := runStartRe.FindStringSubmatch(ev.Detail); m != nil {
-					rv.Provider = m[1]
-				}
 			}
 			if ev.Agent != "" {
-				rv.Role = ev.Agent
+				rv.Delegated = ev.Agent
 			}
 			last = ev
 		}
@@ -230,6 +257,28 @@ func activeRuns(root string) []RunView {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
+	return out
+}
+
+// envelopes reads the durable records of `hoom agent`: every one still open,
+// plus the last one that closed — the same shape the verdict line has (what
+// is happening, and what happened last). An open record without activity past
+// the SAME threshold verify uses is labeled a possible orphan; it is never
+// declared dead, because nobody watched it die.
+func envelopes(root string, now time.Time) []EnvelopeView {
+	out := []EnvelopeView{}
+	cerrado := false
+	for _, rec := range envelope.List(root) { // mas nuevo primero
+		if !rec.Done() {
+			out = append(out, EnvelopeView{Record: rec,
+				PossibleOrphan: now.Sub(rec.UpdatedAt) > live.OrphanAfter})
+			continue
+		}
+		if !cerrado {
+			out = append(out, EnvelopeView{Record: rec})
+			cerrado = true
+		}
+	}
 	return out
 }
 
@@ -321,7 +370,7 @@ func Render(w io.Writer, s *Snapshot, color bool) {
 		}
 	}
 
-	// runs activos con rol
+	// runs activos: identidad del sidecar, actividad de los eventos
 	if len(s.Runs) == 0 {
 		fmt.Fprintf(w, " runs:      %s\n", paint(color, cGray, "sin runs activos"))
 	} else {
@@ -329,15 +378,31 @@ func Render(w io.Writer, s *Snapshot, color bool) {
 		for _, r := range s.Runs {
 			provider := r.Provider
 			if provider == "" {
-				provider = "?"
+				provider = paint(color, cGray, "provider ? (sin sidecar)")
 			}
-			role := paint(color, cGray, "sin delegacion visible")
+			parts := []string{r.ID, provider}
 			if r.Role != "" {
-				role = paint(color, cBold, "rol: "+r.Role)
+				rol := "rol: " + r.Role
+				if r.Isolated {
+					rol += " (ciego)"
+				}
+				parts = append(parts, paint(color, cBold, rol))
+			} else {
+				parts = append(parts, paint(color, cGray, "sin rol"))
 			}
-			fmt.Fprintf(w, "   %s %s %s · ultimo evento hace %s\n", r.ID, provider, role, ago(s.Now, r.LastEvent))
+			if r.Delegated != "" {
+				parts = append(parts, "delego en "+r.Delegated)
+			}
+			if !r.Usage.Empty() {
+				parts = append(parts, paint(color, cGray, r.Usage.Summary()))
+			}
+			parts = append(parts, "ultimo evento hace "+ago(s.Now, r.LastEvent))
+			fmt.Fprintf(w, "   %s\n", strings.Join(parts, " · "))
 		}
 	}
+
+	// sobres: lo que hoom agent esta haciendo, y como cerro el ultimo
+	renderEnvelopes(w, s, color)
 
 	// tareas
 	if len(s.Tasks) == 0 {
@@ -387,6 +452,53 @@ func Render(w io.Writer, s *Snapshot, color bool) {
 		}
 	}
 	fmt.Fprintln(w, strings.Repeat("-", 72))
+}
+
+// renderEnvelopes prints the envelope section: what `hoom agent` is doing
+// right now and how the last one closed. Same data as --json, human skin.
+func renderEnvelopes(w io.Writer, s *Snapshot, color bool) {
+	if len(s.Envelopes) == 0 {
+		fmt.Fprintf(w, " sobres:    %s\n", paint(color, cGray, "ninguno todavia (ejecuta 'hoom agent --role <rol>')"))
+		return
+	}
+	corriendo := 0
+	for _, e := range s.Envelopes {
+		if !e.Done() {
+			corriendo++
+		}
+	}
+	if corriendo == 0 {
+		fmt.Fprintf(w, " sobres:    %s\n", paint(color, cGray, "ninguno en curso"))
+	} else {
+		fmt.Fprintf(w, " sobres:    %d en curso\n", corriendo)
+	}
+	for _, e := range s.Envelopes {
+		rol := paint(color, cBold, "rol "+e.Role)
+		if e.Isolated {
+			rol += " (ciego)"
+		}
+		if !e.Done() {
+			fmt.Fprintf(w, "   %s %s (%s) paso %d/%d %s · hace %s\n", e.ID, rol, e.Provider,
+				e.Step, e.Steps, e.Stage, ago(s.Now, e.UpdatedAt))
+			if e.PossibleOrphan {
+				fmt.Fprintf(w, "            %s\n", paint(color, cYellow,
+					fmt.Sprintf("posible huerfano: sin actividad hace %s (arranco y no termino)", ago(s.Now, e.UpdatedAt))))
+			}
+			continue
+		}
+		badge := paint(color, cGreen, "ENTREGABLE")
+		if e.Status != envelope.StatusDeliverable {
+			badge = paint(color, cRed, "NO ENTREGABLE") + " (" + e.Stage + ")"
+		}
+		line := fmt.Sprintf("   ultimo: %s %s (%s) %s · hace %s", e.ID, rol, e.Provider, badge, ago(s.Now, e.EndedAt))
+		if e.Note != "" {
+			line += " - " + e.Note
+		}
+		fmt.Fprintln(w, line)
+		if !e.Usage.Empty() {
+			fmt.Fprintf(w, "            %s\n", paint(color, cGray, e.Usage.Summary()))
+		}
+	}
 }
 
 // Options mirror the status verb's flags plus the terminal reality.

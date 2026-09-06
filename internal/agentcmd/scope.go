@@ -141,7 +141,8 @@ func hoomOwn(p string) bool {
 	return strings.HasPrefix(p, ".hoom/runs/") ||
 		strings.HasPrefix(p, ".hoom/cache/") ||
 		strings.HasPrefix(p, ".hoom/worktrees/") ||
-		strings.HasPrefix(p, ".hoom/isolated/")
+		strings.HasPrefix(p, ".hoom/isolated/") ||
+		strings.HasPrefix(p, ".hoom/envelopes/")
 }
 
 // Policy is where a role may write, already resolved: the shape's defaults

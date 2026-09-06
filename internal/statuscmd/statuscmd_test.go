@@ -23,6 +23,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/ratchet"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
@@ -213,8 +214,24 @@ func writeRun(t *testing.T, dir, id string, evs []providers.Event) {
 	}
 }
 
-// CA-79: rol real cuando el provider lo reporto; "sin delegacion visible"
-// cuando no hay datos — jamas un rol inventado.
+// writeRunMeta deja el sidecar que el run escribe al arrancar: la IDENTIDAD
+// del run, que desde CA-207 es de donde status la lee.
+func writeRunMeta(t *testing.T, dir string, meta runcmd.Meta) {
+	t.Helper()
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, ".hoom", "runs", meta.ID+".meta.json")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// CA-79 (re-expresado por CA-207): datos reales o nada, jamas un rol
+// inventado. Lo que cambio es de DONDE sale cada dato: la identidad del run
+// (provider, rol) del sidecar, y el subagente delegado de los eventos. Son dos
+// cosas distintas y ahora se ven distintas.
 func TestCA79_RolesSoloConDatos(t *testing.T) {
 	dir := initProject(t)
 	verify(t, dir)
@@ -224,6 +241,10 @@ func TestCA79_RolesSoloConDatos(t *testing.T) {
 		{TS: now.Add(-30 * time.Second), Kind: "agent", Agent: "hoom-test-writer", Detail: "delegacion"},
 		{TS: now.Add(-5 * time.Second), Kind: "tool", Detail: "Bash: go test"},
 	})
+	writeRunMeta(t, dir, runcmd.Meta{ID: "20260830T010101_aaa", Provider: "claude", Role: "writer",
+		Dir: dir, CreatedAt: now.Add(-time.Minute), Status: runcmd.StatusRunning, ExitCode: -1})
+	// este NO tiene sidecar: un log viejo se sigue listando, con el provider
+	// desconocido en vez de adivinado
 	writeRun(t, dir, "20260830T010102_bbb", []providers.Event{
 		{TS: now.Add(-time.Minute), Kind: "start", Detail: "run 20260830T010102_bbb: opencode en el proyecto"},
 		{TS: now.Add(-10 * time.Second), Kind: "text", Detail: "trabajando"},
@@ -239,16 +260,19 @@ func TestCA79_RolesSoloConDatos(t *testing.T) {
 	for _, r := range s.Runs {
 		byID[r.ID] = r
 	}
-	if r := byID["20260830T010101_aaa"]; r.Role != "hoom-test-writer" || r.Provider != "claude" {
-		t.Fatalf("CA-79: rol y provider reales esperados: %+v", r)
+	if r := byID["20260830T010101_aaa"]; r.Provider != "claude" || r.Role != "writer" || r.Delegated != "hoom-test-writer" {
+		t.Fatalf("CA-79/CA-207: provider y rol del sidecar, delegado de los eventos: %+v", r)
 	}
-	if r := byID["20260830T010102_bbb"]; r.Role != "" {
-		t.Fatalf("CA-79: sin datos de delegacion el rol queda vacio: %+v", r)
+	if r := byID["20260830T010102_bbb"]; r.Provider != "" || r.Role != "" || r.Delegated != "" {
+		t.Fatalf("CA-207: sin sidecar no se adivina nada: %+v", r)
 	}
 	var buf bytes.Buffer
 	Render(&buf, s, false)
-	if !strings.Contains(buf.String(), "rol: hoom-test-writer") || !strings.Contains(buf.String(), "sin delegacion visible") {
-		t.Fatalf("CA-79: el render debe distinguir rol real de ausencia de datos:\n%s", buf.String())
+	out := buf.String()
+	for _, quiero := range []string{"rol: writer", "delego en hoom-test-writer", "sin rol", "provider ?"} {
+		if !strings.Contains(out, quiero) {
+			t.Fatalf("CA-79: el render debe distinguir dato real de ausencia (%q):\n%s", quiero, out)
+		}
 	}
 }
 

@@ -408,7 +408,7 @@ func stream(mgr *runcmd.Manager, id string, w io.Writer) runcmd.Run {
 			if ev.Agent != "" {
 				agent = "[" + ev.Agent + "] "
 			}
-			fmt.Fprintf(w, "    %-5s %s%s\n", ev.Kind, agent, ev.Detail)
+			fmt.Fprintf(w, "    %-6s %s%s\n", ev.Kind, agent, ev.Detail)
 		}
 		seen += len(evs)
 		if st.Status != runcmd.StatusRunning {

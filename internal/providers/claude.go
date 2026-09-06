@@ -2,15 +2,20 @@ package providers
 
 import (
 	"encoding/json"
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
 // claude drives Claude Code headless (`claude -p`). Verified against Claude
-// Code 2.1.259: stream-json output, resume by session id, model selection,
-// appended system prompt, tool allow/deny, --max-turns (registered but
-// absent from --help) and --max-budget-usd.
+// Code 2.1.259 and re-verified on 2.1.263: stream-json output, resume by
+// session id, model selection, appended system prompt, tool allow/deny,
+// --max-turns (registered but absent from --help) and --max-budget-usd. The
+// `result` line reports what the invocation spent — per invocation, never per
+// session: a --resume of the same session reported its own turn and its own
+// cost, not the accumulated total.
 type claude struct{}
 
 func (claude) Name() string { return "claude" }
@@ -89,8 +94,10 @@ func claudeReadOnlyTools(exec bool) (allow, deny []string) {
 }
 
 // Normalize understands Claude Code's stream-json lines. Defensive by
-// design: any shape it does not recognize degrades to a text event — the
-// log is never lost, only detail.
+// design: a top-level type it does not recognize degrades to a text event —
+// the log is never lost, only detail. What it DOES recognize as the CLI
+// talking about itself (system, rate_limit_event) becomes a `system` event
+// instead of raw JSON pretending to be narration.
 func (claude) Normalize(line string) []Event {
 	line = strings.TrimRight(line, "\r\n")
 	if strings.TrimSpace(line) == "" {
@@ -103,47 +110,82 @@ func (claude) Normalize(line string) []Event {
 	return []Event{{TS: now, Kind: "text", Detail: line}}
 }
 
+// claudeMsg is the part of a stream-json line hoom knows how to read.
+// Verified against Claude Code 2.1.263: `exit_code` arrives as a STRING
+// ("0"), so it is read as raw JSON and rendered as text — decoding it as an
+// integer would break the whole line for a field that is only narration.
+type claudeMsg struct {
+	Type      string          `json:"type"`
+	Subtype   string          `json:"subtype"`
+	Result    string          `json:"result"`
+	IsError   bool            `json:"is_error"`
+	SessionID string          `json:"session_id"`
+	Errors    json.RawMessage `json:"errors"`
+	// system/hook_*: which hook ran and how it went
+	HookName string          `json:"hook_name"`
+	Outcome  string          `json:"outcome"`
+	ExitCode json.RawMessage `json:"exit_code"`
+	// result: what the invocation spent. Per invocation, never per session
+	// (measured on a --resume: the same session reported 1 turn twice).
+	NumTurns     int      `json:"num_turns"`
+	DurationMS   int      `json:"duration_ms"`
+	TotalCostUSD *float64 `json:"total_cost_usd"`
+	Usage        struct {
+		InputTokens         int `json:"input_tokens"`
+		OutputTokens        int `json:"output_tokens"`
+		CacheReadTokens     int `json:"cache_read_input_tokens"`
+		CacheCreationTokens int `json:"cache_creation_input_tokens"`
+	} `json:"usage"`
+	RateLimit *struct {
+		Status         string `json:"status"`
+		RateLimitType  string `json:"rateLimitType"`
+		UnifiedWindows map[string]struct {
+			Utilization float64 `json:"utilization"`
+		} `json:"unifiedWindows"`
+	} `json:"rate_limit_info"`
+	Message struct {
+		Content []struct {
+			Type  string          `json:"type"`
+			Text  string          `json:"text"`
+			Name  string          `json:"name"`
+			Input json.RawMessage `json:"input"`
+		} `json:"content"`
+	} `json:"message"`
+}
+
 func parseClaudeLine(line string, ts time.Time) []Event {
-	var msg struct {
-		Type      string          `json:"type"`
-		Subtype   string          `json:"subtype"`
-		Result    string          `json:"result"`
-		IsError   bool            `json:"is_error"`
-		SessionID string          `json:"session_id"`
-		Errors    json.RawMessage `json:"errors"`
-		Message   struct {
-			Content []struct {
-				Type  string          `json:"type"`
-				Text  string          `json:"text"`
-				Name  string          `json:"name"`
-				Input json.RawMessage `json:"input"`
-			} `json:"content"`
-		} `json:"message"`
-	}
+	var msg claudeMsg
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {
 		return nil
 	}
 	switch msg.Type {
 	case "system":
 		// Only init opens the session: it carries the session id, the
-		// handle for --resume. Other system subtypes (hooks, compaction,
-		// subagent tasks, status) are not narration hoom understands:
-		// they fall back to text with the full line — never lost, never
-		// mistaken for a second start.
+		// handle for --resume. Every other subtype (hooks, compaction,
+		// subagent tasks, status) is the CLI talking about ITSELF, and that
+		// has its own kind: never a second start, never raw JSON pretending
+		// to be narration.
 		if msg.Subtype != "init" {
-			return nil
+			return []Event{{TS: ts, Kind: "system", Detail: claudeSystemDetail(msg, line)}}
 		}
 		return []Event{{TS: ts, Kind: "start", Detail: msg.Subtype, SessionID: msg.SessionID}}
+	case "rate_limit_event":
+		// plumbing too, and it carries a session_id that must NOT open a
+		// session: only init does that.
+		return []Event{{TS: ts, Kind: "system", Detail: claudeRateLimitDetail(msg, line)}}
 	case "result":
 		text := clip(msg.Result)
 		if text == "" {
 			text = errorsText(msg.Errors)
 		}
+		// the cost was spent whether the invocation succeeded or failed: a
+		// run that failed expensively has to be able to say how much.
+		usage := claudeUsage(msg)
 		if msg.Subtype == "success" && !msg.IsError {
 			if text == "" {
 				text = msg.Subtype
 			}
-			return []Event{{TS: ts, Kind: "end", Detail: text, SessionID: msg.SessionID}}
+			return []Event{{TS: ts, Kind: "end", Detail: text, SessionID: msg.SessionID, Usage: usage}}
 		}
 		sub := msg.Subtype
 		if sub == "" {
@@ -153,7 +195,7 @@ func parseClaudeLine(line string, ts time.Time) []Event {
 		if text != "" {
 			detail = sub + ": " + text
 		}
-		return []Event{{TS: ts, Kind: "error", Detail: detail, SessionID: msg.SessionID}}
+		return []Event{{TS: ts, Kind: "error", Detail: detail, SessionID: msg.SessionID, Usage: usage}}
 	case "assistant", "user":
 		var evs []Event
 		for _, c := range msg.Message.Content {
@@ -186,6 +228,89 @@ func parseClaudeLine(line string, ts time.Time) []Event {
 		return evs
 	}
 	return nil
+}
+
+// claudeSystemDetail summarizes the plumbing lines hoom knows how to read.
+// A subtype it does not know keeps the WHOLE line as detail: the kind already
+// says it is the CLI talking about itself, and the content must not get worse
+// for not having been understood.
+func claudeSystemDetail(msg claudeMsg, line string) string {
+	hook := strings.TrimSpace(msg.HookName)
+	switch {
+	case msg.Subtype == "hook_started" && hook != "":
+		return "hook " + hook + " arranco"
+	case msg.Subtype == "hook_response" && hook != "":
+		detail := "hook " + hook
+		if out := strings.TrimSpace(msg.Outcome); out != "" {
+			detail += ": " + out
+		}
+		if code := rawText(msg.ExitCode); code != "" {
+			detail += " (exit " + code + ")"
+		}
+		return detail
+	case msg.Subtype != "":
+		return msg.Subtype + ": " + clip(line)
+	}
+	return clip(line)
+}
+
+// claudeRateLimitDetail names the windows the line actually carries, in
+// stable order. A window that is not there is not invented.
+func claudeRateLimitDetail(msg claudeMsg, line string) string {
+	if msg.RateLimit == nil {
+		return clip(line)
+	}
+	detail := "rate limit"
+	if st := strings.TrimSpace(msg.RateLimit.Status); st != "" {
+		detail += " " + st
+	}
+	names := make([]string, 0, len(msg.RateLimit.UnifiedWindows))
+	for name := range msg.RateLimit.UnifiedWindows {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var windows []string
+	for _, name := range names {
+		windows = append(windows, fmt.Sprintf("%s %.1f%%", name, msg.RateLimit.UnifiedWindows[name].Utilization*100))
+	}
+	if len(windows) == 0 {
+		if t := strings.TrimSpace(msg.RateLimit.RateLimitType); t != "" {
+			return detail + " (" + t + ")"
+		}
+		return detail
+	}
+	return detail + ": " + strings.Join(windows, ", ")
+}
+
+// claudeUsage reads what the invocation spent. Claude's own accounting:
+// input_tokens and cache_creation are both NEW input (the second one also got
+// written to cache); cache_read is what came back from the cache.
+func claudeUsage(msg claudeMsg) *Usage {
+	u := &Usage{
+		CostUSD:      msg.TotalCostUSD,
+		Turns:        msg.NumTurns,
+		InputTokens:  msg.Usage.InputTokens + msg.Usage.CacheCreationTokens,
+		CachedTokens: msg.Usage.CacheReadTokens,
+		OutputTokens: msg.Usage.OutputTokens,
+		DurationMS:   msg.DurationMS,
+	}
+	if u.Empty() {
+		return nil
+	}
+	return u
+}
+
+// rawText renders a JSON scalar as the text a human reads, whether the CLI
+// sent it as a string or as a number.
+func rawText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return strings.TrimSpace(s)
+	}
+	return strings.TrimSpace(string(raw))
 }
 
 // errorsText joins a result's `errors` field when it is a list of strings;
