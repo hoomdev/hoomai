@@ -10,6 +10,7 @@ package taskcmd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,19 +37,8 @@ func worktreeDir(root, slug string) string {
 // ensureIgnored guarantees .hoom/.gitignore hides worktrees/ so parallel
 // checkouts never pollute the change candidate or the fingerprint.
 func ensureIgnored(root string) error {
-	gi := filepath.Join(root, ".hoom", ".gitignore")
-	raw, _ := os.ReadFile(gi)
-	if strings.Contains(string(raw), "worktrees/") {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(gi), 0o755); err != nil {
-		return err
-	}
-	content := string(raw)
-	if content != "" && !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	return os.WriteFile(gi, []byte(content+"worktrees/\n"), 0o644)
+	_, err := hoomfs.EnsureIgnored(root, "worktrees")
+	return err
 }
 
 // Start creates the branch hoom/<slug> and its isolated worktree.

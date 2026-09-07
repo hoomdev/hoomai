@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T000658_31bc43",
+  "as": "corregido",
+  "evidence": "servecmd cachea la narracion de runs ajenos y lee solo desde el offset ya visto (runcmd.ReadEventsFrom, que deja una linea a medias para la proxima lectura); runEvents lee un sidecar con ReadMeta en vez de listar todos. Refutador: confirmado con numeros (14 ms y 3,8 MB por poll a 20k eventos), severidad low. Test TestReadEventsFromIncremental.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.579216Z"
+}

@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"io/fs"
 	"os"
 	"path"
@@ -137,13 +138,7 @@ func Take(root, base string) Snapshot {
 // narration of the run, the live cache, the worktrees of other tasks. They
 // are local and outside Git by design, and charging them to the role would be
 // blaming the referee for the game.
-func hoomOwn(p string) bool {
-	return strings.HasPrefix(p, ".hoom/runs/") ||
-		strings.HasPrefix(p, ".hoom/cache/") ||
-		strings.HasPrefix(p, ".hoom/worktrees/") ||
-		strings.HasPrefix(p, ".hoom/isolated/") ||
-		strings.HasPrefix(p, ".hoom/envelopes/")
-}
+func hoomOwn(p string) bool { return hoomfs.IsLocal(p) }
 
 // Policy is where a role may write, already resolved: the shape's defaults
 // re-aimed by the project's manifest.
@@ -381,6 +376,9 @@ func universal(p string, before Snapshot, loosened []string) (Violation, bool) {
 	case p == manifest.FileName:
 		return Violation{Path: p, Rule: RuleTampering,
 			Detail: "hoom.yaml define la exigencia: un rol no la cambia"}, true
+	case p == ".hoom/.gitignore":
+		return Violation{Path: p, Rule: RuleTampering,
+			Detail: "que queda fuera de Git lo decide hoom, no un rol (.hoom/.gitignore)"}, true
 	case strings.HasPrefix(p, ".hoom/approvals/"):
 		return Violation{Path: p, Rule: RuleTampering,
 			Detail: "la aprobacion humana no la escribe un agente (usa 'hoom spec approve')"}, true

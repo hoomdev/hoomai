@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260906T235816_63a17d",
+  "as": "corregido",
+  "evidence": "isolate.Apply compara cada destino con el commit base del arbol ciego (baseContent) y se niega por nombre ante cambio local, archivo sin trackear o borrado local; ademas blindPrechecks rechaza antes del run los cambios sin commitear donde el rol escribe (localChanges). Refutador: confirmado en dos niveles. Test TestHallazgo_63a17d_ApplyNoPisaCambiosLocalesPrevios (3 subtests, rojos en 1ca372c, verdes con el fix).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.252229Z"
+}

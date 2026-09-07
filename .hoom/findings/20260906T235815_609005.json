@@ -1,0 +1,10 @@
+{
+  "id": "20260906T235815_609005",
+  "created_at": "2026-09-06T23:58:15.913562Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:280: NewManager llama markOrphans sin verificar antigüedad, PID ni lock; para cualquier jsonl ajeno cuyo último evento aún no sea end/error, markOrphans agrega un error y settleMeta cambia su sidecar running a error (líneas 303-312, 319-329). En agentcmd.Run el manager se crea antes de Busy (internal/agentcmd/agentcmd.go:141,148,514), de modo que un run real de otro proceso es cerrado antes del chequeo y CA-181 deja pasar el trasplante sobre un árbol que sigue siendo editado.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

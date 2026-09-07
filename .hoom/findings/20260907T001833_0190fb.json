@@ -1,0 +1,10 @@
+{
+  "id": "20260907T001833_0190fb",
+  "created_at": "2026-09-07T00:18:33.202906Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/servecmd/ui/index.html",
+  "description": "INTRODUCIDO — internal/servecmd/ui/index.html:373: badge interpola cls sin esc() y runBadge le pasa r.status (linea 710) dentro de innerHTML (lineas 757-762 y 792-798). El cambio alimenta ese campo desde Meta.Status de sidecars ajenos sin validar (internal/servecmd/servecmd.go:505-513); un meta plantado en .hoom/runs con status `x\"\u003e\u003cimg src=x onerror=...\u003e` ejecuta JavaScript en el Studio, desde donde puede leer el token guardado en localStorage/DOM (lineas 378-400) y autorizar POSTs.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

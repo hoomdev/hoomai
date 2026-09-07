@@ -1,0 +1,10 @@
+{
+  "id": "20260907T001831_18b191",
+  "created_at": "2026-09-07T00:18:31.87511Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/isolate/isolate.go",
+  "description": "INTRODUCIDO — internal/isolate/isolate.go:236: Apply solo rechaza enlaces simbolicos en el origen; safeJoin (lineas 277-288) valida lexicalmente y no resuelve el destino, y os.MkdirAll/os.WriteFile (lineas 257-264) siguen un symlink ya presente en el archivo destino o en un directorio ancestro. Como ese symlink puede existir antes de beforeReal, el gate no lo marca como fuga y un test aprobado puede truncar o crear un archivo fuera del arbol destino, contradiciendo CA-176.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260906T234757_fc89a5",
+  "as": "corregido",
+  "evidence": "La tabla roles usa literales con campos nombrados (Slug, Native, File, Desc, ReadOnly, Exec, Primary, Scope, Isolated) en las 10 entradas.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.691639Z"
+}

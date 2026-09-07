@@ -1,0 +1,10 @@
+{
+  "id": "20260906T234757_e9ed9b",
+  "created_at": "2026-09-06T23:47:57.047449Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:140: la misma clasificación de directorios internos y locales aparece como listas independientes en internal/gitx/gitx.go:165, internal/initcmd/initcmd.go:80, internal/envelope/envelope.go:135, internal/isolate/isolate.go:149 y internal/runcmd/runcmd.go:347. No hay una fuente única legible para saber qué ruta debe ignorarse, excluirse de la huella y omitirse del scope, por lo que agregar una carpeta obliga a descubrir y mantener todas las copias.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

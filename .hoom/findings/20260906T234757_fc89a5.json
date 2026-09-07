@@ -1,0 +1,10 @@
+{
+  "id": "20260906T234757_fc89a5",
+  "created_at": "2026-09-06T23:47:57.264189Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agents/targets.go",
+  "description": "INTRODUCIDO — internal/agents/targets.go:44: la nueva bandera Isolated amplía la tabla roles a literales posicionales de nueve campos, incluidos cuatro bool; valores como true, true, false, ScopeEvidencia, false solo se entienden saltando a la definición y al comentario de orden. Literales con campos nombrados o un constructor harían visible qué política pertenece a cada rol.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

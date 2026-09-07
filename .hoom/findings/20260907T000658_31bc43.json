@@ -1,0 +1,10 @@
+{
+  "id": "20260907T000658_31bc43",
+  "created_at": "2026-09-07T00:06:58.572954Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/servecmd/servecmd.go",
+  "description": "INTRODUCIDO — internal/servecmd/servecmd.go:278: el endpoint recibe after pero runEvents carga o copia siempre el historial completo (líneas 521-541) y recién después lo recorta (líneas 283-286); el endpoint stage repite la carga (líneas 289-295). La UI dispara ambos cada segundo (internal/servecmd/ui/index.html:834-842). Para runs propios esto copia todos los eventos; para ajenos ReadEvents usa os.ReadFile y Split del jsonl entero (internal/runcmd/runcmd.go:256-271), convirtiendo logs crecientes en I/O y asignaciones acumulativamente cuadráticas y degradando el Studio.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

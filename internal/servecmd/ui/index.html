@@ -370,7 +370,7 @@ let selected = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const badge = (label, cls) => `<span class="badge b-${cls}">${esc(label)}</span>`;
+const badge = (label, cls) => `<span class="badge b-${esc(cls)}">${esc(label)}</span>`; // cls tambien es dato: nunca sale de un atributo sin escapar
 const stBadge = s => badge({pass:"PASS", fail:"FAIL", error:"ERROR", absent:"AUSENTE", skipped:"SKIP"}[s] || s, s);
 const vBadge = v => v === "green" ? badge("VERDE","green") : badge("ROJO","red");
 const when = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString(); };

@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -97,8 +98,12 @@ func Write(root string, rec Record) {
 	if os.MkdirAll(dir(root), 0o755) != nil {
 		return
 	}
-	ensureIgnored(root)
-	os.WriteFile(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
+	// La regla queda escrita (CA-202) sin reescribir un archivo completo:
+	// registrar telemetria no mueve el candidato (CA-203).
+	hoomfs.EnsureIgnored(root, DirName)
+	// Atomico: status y el Studio leen este archivo MIENTRAS se escribe, y un
+	// sobre a medias leido como vacio desapareceria de la lista.
+	hoomfs.AtomicWrite(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
 }
 
 // List returns the project's envelope records, newest first. A file that is
@@ -127,22 +132,4 @@ func List(root string) []Record {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
 	return out
-}
-
-// ensureIgnored guarantees .hoom/.gitignore hides envelopes/, the same way
-// isolate does for isolated/ and taskcmd for worktrees/: local telemetry must
-// never enter the change candidate nor the fingerprint.
-func ensureIgnored(root string) {
-	gi := filepath.Join(root, ".hoom", ".gitignore")
-	raw, _ := os.ReadFile(gi)
-	for _, line := range strings.Split(string(raw), "\n") {
-		if strings.TrimSpace(line) == DirName+"/" {
-			return
-		}
-	}
-	content := string(raw)
-	if content != "" && !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	os.WriteFile(gi, []byte(content+DirName+"/\n"), 0o644)
 }

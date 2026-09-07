@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260906T235816_0293b4",
+  "as": "corregido",
+  "evidence": "hoomfs.AtomicWrite (temporal en el mismo directorio + rename) en envelope.Write y runcmd.writeMeta: un lector concurrente ve el archivo anterior completo o el nuevo completo, nunca vacio ni parcial. Tests TestHallazgo_0293b4_WriteEsAtomicoParaUnLectorConcurrente (4000 escrituras, 2 lectores: rojo en 1ca372c con ~90 lecturas vacias, 0 con el fix) y TestAtomicWriteSinRestos.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.470064Z"
+}

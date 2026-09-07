@@ -1,0 +1,116 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-07T00-49-25Z_e1268a6c",
+  "created_at": "2026-09-07T00:49:25.639069Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "1ca372cd322b",
+    "branch": "hoom/review-de-fixes",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "internal/agentcmd/agentcmd.go",
+      "internal/agentcmd/scope.go",
+      "internal/agents/targets.go",
+      "internal/envelope/envelope.go",
+      "internal/envelope/hallazgos_review_test.go",
+      "internal/gitx/gitx.go",
+      "internal/hoomfs/hoomfs.go",
+      "internal/hoomfs/hoomfs_test.go",
+      "internal/initcmd/hallazgos_review_test.go",
+      "internal/initcmd/initcmd.go",
+      "internal/isolate/hallazgos_review_test.go",
+      "internal/isolate/isolate.go",
+      "internal/runcmd/alive_unix.go",
+      "internal/runcmd/alive_windows.go",
+      "internal/runcmd/hallazgos_review_test.go",
+      "internal/runcmd/lectura_incremental_test.go",
+      "internal/runcmd/runcmd.go",
+      "internal/servecmd/hallazgos_review_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/servecmd/ui/index.html",
+      "internal/taskcmd/taskcmd.go"
+    ],
+    "change_fingerprint": "a2f72c3fd99844ab",
+    "insertions": 1401,
+    "deletions": 178
+  },
+  "gates": [
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 435
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 214
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "fail",
+      "scope": "diff",
+      "command": "go test -race ./internal/agentcmd ./internal/agents ./internal/envelope ./internal/gitx ./internal/hoomfs ./internal/initcmd ./internal/isolate ./internal/runcmd ./internal/servecmd ./internal/taskcmd",
+      "exit_code": 1,
+      "duration_ms": 31135,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t29.439s\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t1.514s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t4.946s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t7.007s\nhoom: tarea \"demo\" creada\n  rama:     hoom/demo (desde main)\n  worktree: /var/folders/4d/dym_9jq504vf284f5wf25vjr0000gn/T/TestCA14_DoneRechazadoVerbatim1748378001/001/.hoom/worktrees/demo\n  siguiente paso:\n    cd /var/folders/4d/dym_9jq504vf284f5wf25vjr0000gn/T/TestCA14_DoneRechazadoVerbatim1748378001/001/.hoom/worktrees/demo\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done demo' desde el proyecto principal\nhoom: tarea \"paralela\" creada\n  rama:     hoom/paralela (desde main)\n  worktree: /var/folders/4d/dym_9jq504vf284f5wf25vjr0000gn/T/TestCA26_UnRunPorArbol629881126/002/.hoom/worktrees/paralela\n  siguiente paso:\n    cd /var/folders/4d/dym_9jq504vf284f5wf25vjr0000gn/T/TestCA26_UnRunPorArbol629881126/002/.hoom/worktrees/paralela\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done paralela' desde el proyecto principal\n--- FAIL: TestCA26_UnRunPorArbol (0.16s)\n    testing.go:1617: TempDir RemoveAll cleanup: unlinkat /var/folders/4d/dym_9jq504vf284f5wf25vjr0000gn/T/TestCA26_UnRunPorArbol629881126/002/.hoom/runs: directory not empty\nFAIL\nFAIL\tgithub.com/hoomdev/hoomai/internal/servecmd\t3.419s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t2.049s\nFAIL"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 2,
+    "fail": 1,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "red"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "20260907T001832_b4538a",
+  "created_at": "2026-09-07T00:18:32.530136Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:280: NewManager ejecuta markOrphans sobre logs de todos los procesos sin PID, lock ni prueba de antiguedad; para un run ajeno realmente activo, settleMeta cambia su sidecar de running a error (lineas 312 y 319-329). agentcmd crea el manager antes de blindPrechecks (internal/agentcmd/agentcmd.go:141-148), asi que Busy deja de ver al primer writer y permite un segundo actor y un trasplante concurrente sobre el mismo arbol, con riesgo de corrupcion o perdida de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

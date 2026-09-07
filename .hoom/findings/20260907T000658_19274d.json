@@ -1,0 +1,10 @@
+{
+  "id": "20260907T000658_19274d",
+  "created_at": "2026-09-07T00:06:58.346909Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:101: cada transición y latido reemplaza el único sidecar con os.WriteFile, que trunca antes de escribir, sin temporal, fsync ni rename. Una lectura concurrente de status o Studio puede observar JSON vacío o parcial y List lo omite (líneas 118-125); una caída durante el write destruye el último estado durable, haciendo desaparecer el sobre en vez de permitir etiquetarlo como posible huérfano.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

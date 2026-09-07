@@ -16,7 +16,9 @@
 package isolate
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -147,21 +149,8 @@ func Open(parent, name string, patterns []string) (*Tree, error) {
 // taskcmd does for worktrees/: a quarantine must never enter the change
 // candidate nor the fingerprint that certifies the real tree.
 func ensureIgnored(root string) error {
-	gi := filepath.Join(root, ".hoom", ".gitignore")
-	raw, _ := os.ReadFile(gi)
-	for _, line := range strings.Split(string(raw), "\n") {
-		if strings.TrimSpace(line) == "isolated/" {
-			return nil
-		}
-	}
-	if err := os.MkdirAll(filepath.Dir(gi), 0o755); err != nil {
-		return err
-	}
-	content := string(raw)
-	if content != "" && !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	return os.WriteFile(gi, []byte(content+"isolated/\n"), 0o644)
+	_, err := hoomfs.EnsureIgnored(root, "isolated")
+	return err
 }
 
 // arm writes the sparse patterns and materializes the tree. The patterns
@@ -219,10 +208,27 @@ func (t *Tree) Breaches() []string {
 }
 
 // Apply transplants paths from the blind tree into dest: it creates,
-// overwrites and deletes exactly the given list and nothing else. Every path
-// is validated BEFORE the first write, so a refusal leaves dest untouched.
+// overwrites and deletes exactly the given list and nothing else. Two phases,
+// so a refusal or a failure never leaves dest half-changed: every path is
+// validated and every destination inspected BEFORE the first write, and a
+// write that fails midway undoes the ones already made.
+//
+// A destination is only ever a file the blind tree started from: one that
+// still matches the commit the tree was built from, or one that does not
+// exist there nor on disk. Anything else — a local edit, an untracked file, a
+// local deletion, a symlink anywhere in the path — is a conflict the
+// transplant refuses by name, because overwriting it would destroy work hoom
+// never certified.
 func (t *Tree) Apply(dest string, paths []string) (applied, removed []string, err error) {
-	type move struct{ rel, src, dst string }
+	type move struct {
+		rel, src, dst string
+		raw           []byte
+		mode          os.FileMode
+		delete        bool   // absent in the blind tree: the role deleted it
+		existed       bool   // dst present before the move
+		prev          []byte // dst content before the move, to undo
+		prevMode      os.FileMode
+	}
 	var moves []move
 	for _, p := range paths {
 		src, serr := safeJoin(t.Dir, p)
@@ -236,39 +242,121 @@ func (t *Tree) Apply(dest string, paths []string) (applied, removed []string, er
 		if st, lerr := os.Lstat(src); lerr == nil && st.Mode()&os.ModeSymlink != 0 {
 			return nil, nil, fmt.Errorf("el trasplante no mueve enlaces simbolicos (%s): un enlace puede apuntar fuera del arbol de trabajo", p)
 		}
-		moves = append(moves, move{rel: p, src: src, dst: dst})
+		if err := noSymlinkUnder(dest, p); err != nil {
+			return nil, nil, err
+		}
+		m := move{rel: p, src: src, dst: dst, mode: 0o644}
+		raw, rerr := os.ReadFile(src)
+		switch {
+		case rerr == nil:
+			m.raw = raw
+			if st, serr := os.Stat(src); serr == nil {
+				m.mode = st.Mode().Perm()
+			}
+		case os.IsNotExist(rerr):
+			m.delete = true
+		default:
+			return nil, nil, rerr
+		}
+		base, inBase := t.baseContent(dest, p)
+		if st, lerr := os.Lstat(dst); lerr == nil {
+			if st.IsDir() {
+				return nil, nil, fmt.Errorf("el trasplante no pisa un directorio (%s)", p)
+			}
+			prev, perr := os.ReadFile(dst)
+			if perr != nil {
+				return nil, nil, perr
+			}
+			m.existed, m.prev, m.prevMode = true, prev, st.Mode().Perm()
+			if !inBase || !bytes.Equal(prev, base) {
+				return nil, nil, conflict(p, t.Commit, "tiene una version distinta de la del commit")
+			}
+		} else if inBase {
+			return nil, nil, conflict(p, t.Commit, "fue borrado localmente respecto del commit")
+		}
+		if m.delete && !m.existed {
+			continue // nada que borrar: ni en el arbol ciego ni en el real
+		}
+		moves = append(moves, m)
+	}
+
+	var done []move
+	undo := func() {
+		for i := len(done) - 1; i >= 0; i-- {
+			m := done[i]
+			if m.existed {
+				os.WriteFile(m.dst, m.prev, m.prevMode)
+			} else {
+				os.Remove(m.dst)
+			}
+		}
+	}
+	fail := func(m move, err error) error {
+		n := len(done)
+		undo()
+		return fmt.Errorf("el trasplante fallo en %s: %v (se deshicieron los %d cambios anteriores; el arbol real quedo como antes)", m.rel, err, n)
 	}
 	for _, m := range moves {
-		raw, rerr := os.ReadFile(m.src)
-		if rerr != nil {
-			// No esta en el arbol ciego: el rol lo borro y el trasplante
-			// reproduce el delta tal cual.
-			if os.IsNotExist(rerr) {
-				if _, serr := os.Lstat(m.dst); serr == nil {
-					if derr := os.Remove(m.dst); derr != nil {
-						return applied, removed, derr
-					}
-					removed = append(removed, m.rel)
-				}
-				continue
+		if m.delete {
+			if err := os.Remove(m.dst); err != nil {
+				return nil, nil, fail(m, err)
 			}
-			return applied, removed, rerr
+			done = append(done, m)
+			removed = append(removed, m.rel)
+			continue
 		}
-		if merr := os.MkdirAll(filepath.Dir(m.dst), 0o755); merr != nil {
-			return applied, removed, merr
+		if err := os.MkdirAll(filepath.Dir(m.dst), 0o755); err != nil {
+			return nil, nil, fail(m, err)
 		}
-		mode := os.FileMode(0o644)
-		if st, serr := os.Stat(m.src); serr == nil {
-			mode = st.Mode().Perm()
+		if err := os.WriteFile(m.dst, m.raw, m.mode); err != nil {
+			return nil, nil, fail(m, err)
 		}
-		if werr := os.WriteFile(m.dst, raw, mode); werr != nil {
-			return applied, removed, werr
-		}
+		done = append(done, m)
 		applied = append(applied, m.rel)
 	}
 	sort.Strings(applied)
 	sort.Strings(removed)
 	return applied, removed, nil
+}
+
+// baseContent returns rel as it was in the commit the blind tree was built
+// from, and whether it existed there. Exact bytes: this is a comparison, not
+// a display.
+func (t *Tree) baseContent(dest, rel string) ([]byte, bool) {
+	cmd := exec.Command("git", "show", t.Commit+":"+filepath.ToSlash(rel))
+	cmd.Dir = dest
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, false
+	}
+	return out, true
+}
+
+func conflict(rel, commit, why string) error {
+	c := commit
+	if len(c) > 12 {
+		c = c[:12]
+	}
+	return fmt.Errorf("conflicto en %s: el arbol real %s %s desde el que se armo el arbol ciego (cambio local sin commitear o archivo sin trackear); el trasplante no lo pisa.\n  Accion: commitea o descarta ese cambio y repeti el run", rel, why, c)
+}
+
+// noSymlinkUnder refuses a destination that sits at or under a symlink:
+// safeJoin is lexical, and a link already present in the real tree would
+// carry the write anywhere it points.
+func noSymlinkUnder(base, rel string) error {
+	cur := base
+	for _, c := range strings.Split(filepath.ToSlash(filepath.Clean(rel)), "/") {
+		cur = filepath.Join(cur, c)
+		st, err := os.Lstat(cur)
+		if err != nil {
+			return nil // lo que sigue no existe todavia: no hay enlace que seguir
+		}
+		if st.Mode()&os.ModeSymlink != 0 {
+			r, _ := filepath.Rel(base, cur)
+			return fmt.Errorf("el trasplante no escribe a traves de un enlace simbolico (%s -> fuera del control del arbol ciego)", r)
+		}
+	}
+	return nil
 }
 
 // safeJoin resolves rel under base and refuses anything that would land

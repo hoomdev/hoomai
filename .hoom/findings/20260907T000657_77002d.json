@@ -1,0 +1,10 @@
+{
+  "id": "20260907T000657_77002d",
+  "created_at": "2026-09-07T00:06:57.898862Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:280: NewManager ejecuta markOrphans sobre todos los jsonl y, sin comprobar PID, lock, antigüedad ni ownership, agrega error a cualquier log cuyo último evento no sea terminal (líneas 284-312) y ahora además cambia su sidecar running a error (líneas 319-329). Al abrir hoom serve o iniciar otro sobre mientras un proceso real sigue corriendo, el run ajeno queda falsamente cerrado; Busy ya no lo detecta y puede arrancar un segundo actor sobre el mismo árbol (internal/agentcmd/agentcmd.go:141,148,514), anulando la recuperación y el aislamiento entre procesos.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

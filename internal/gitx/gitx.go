@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"io"
 	"os"
 	"os/exec"
@@ -163,14 +164,14 @@ func fingerprint(dir string, local map[string]bool) string {
 // recording or committing a verdict must not alter the fingerprint it
 // certifies.
 func excludedFromCandidate(path string) bool {
-	return strings.HasPrefix(path, ".hoom/verdicts/") || strings.HasPrefix(path, ".hoom/cache/") ||
-		strings.HasPrefix(path, ".hoom/worktrees/") || strings.HasPrefix(path, ".hoom/runs/") ||
-		strings.HasPrefix(path, ".hoom/isolated/") ||
-		strings.HasPrefix(path, ".hoom/envelopes/") ||
+	return hoomfs.IsLocal(path) ||
+		strings.HasPrefix(path, ".hoom/verdicts/") ||
 		strings.HasPrefix(path, ".hoom/findings/") ||
 		// harness state, not code under verification: a baseline tightened
-		// DURING verify must not break the very check it just earned
-		path == ".hoom/ratchet.json"
+		// DURING verify must not break the very check it just earned, and the
+		// ignore file hoom completes on its own must not either (a role that
+		// edits it is caught by the scope gate, which does not use this list)
+		path == ".hoom/ratchet.json" || path == ".hoom/.gitignore"
 }
 
 // diffStats measures the change candidate size: numstat of base vs working

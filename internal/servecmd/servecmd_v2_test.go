@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/approval"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -51,6 +52,27 @@ func newServer(t *testing.T, dir string) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Un run sobrevive al test que lo lanzo: su goroutine escribe el cierre
+	// (log, meta) dentro del TempDir que testing ya esta borrando, y el
+	// RemoveAll falla con "directory not empty". Cancelar solo PIDE el
+	// cierre; hay que esperarlo. Se registra despues del TempDir, asi que
+	// corre antes (LIFO).
+	t.Cleanup(func() {
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) {
+			activos := 0
+			for _, r := range s.runs.List() {
+				if r.Status == runcmd.StatusRunning {
+					activos++
+					s.runs.Cancel(r.ID)
+				}
+			}
+			if activos == 0 {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	})
 	return s
 }
 

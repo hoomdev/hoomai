@@ -1,0 +1,10 @@
+{
+  "id": "20260907T001832_20d561",
+  "created_at": "2026-09-07T00:18:32.197105Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/isolate/isolate.go",
+  "description": "INTRODUCIDO — internal/isolate/isolate.go:241: Apply borra y sobrescribe directamente el arbol real (lineas 248 y 264) sin comprobar que el destino siga en HEAD ni preservar cambios locales previos. El arbol ciego nace de HEAD (lineas 114-128) y blindPrechecks solo comprueba runs activos (internal/agentcmd/agentcmd.go:510-521), por lo que si el usuario ya tenia un test modificado o no rastreado y el rol toca esa ruta, el trasplante destruye silenciosamente ese trabajo no commiteado.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

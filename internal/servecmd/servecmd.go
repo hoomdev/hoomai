@@ -67,6 +67,18 @@ type Server struct {
 	token    string
 	verifyMu sync.Mutex // one verify at a time per tree; TryLock => 409
 	runs     *runcmd.Manager
+
+	// logs is what this process remembers of the runs it does NOT own: the
+	// narration already parsed and the byte it ends at. The UI polls every
+	// second; without this each poll re-read and re-parsed the whole file,
+	// a cost that grew with every line the run spoke.
+	logMu sync.Mutex
+	logs  map[string]*foreignLog
+}
+
+type foreignLog struct {
+	offset int64
+	events []runcmd.Event
 }
 
 // New loads the project's manifest and mints the per-session action token.
@@ -81,7 +93,7 @@ func New(dir string) (*Server, error) {
 	if _, err := rand.Read(raw); err != nil {
 		return nil, err
 	}
-	return &Server{m: m, token: hex.EncodeToString(raw), runs: runcmd.NewManager(m.Dir)}, nil
+	return &Server{m: m, token: hex.EncodeToString(raw), runs: runcmd.NewManager(m.Dir), logs: map[string]*foreignLog{}}, nil
 }
 
 // Token returns the per-session action token. It is printed exactly once at
@@ -506,14 +518,41 @@ func (s *Server) runRows() []RunRow {
 		if seen[meta.ID] {
 			continue
 		}
-		rows = append(rows, RunRow{Run: runcmd.Run{
-			ID: meta.ID, Provider: meta.Provider, Task: meta.Task, Status: meta.Status,
-			ExitCode: meta.ExitCode, CreatedAt: meta.CreatedAt,
-			ProviderSessionID: meta.ProviderSessionID, Usage: meta.Usage,
-		}, Role: meta.Role, Isolated: meta.Isolated, Foreign: true})
+		rows = append(rows, rowFromMeta(meta))
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].CreatedAt.After(rows[j].CreatedAt) })
 	return rows
+}
+
+// rowFromMeta is how a run of another process is shown: what its sidecar
+// proves, and nothing this process could know.
+func rowFromMeta(meta runcmd.Meta) RunRow {
+	return RunRow{Run: runcmd.Run{
+		ID: meta.ID, Provider: meta.Provider, Task: meta.Task, Status: meta.Status,
+		ExitCode: meta.ExitCode, CreatedAt: meta.CreatedAt,
+		ProviderSessionID: meta.ProviderSessionID, Usage: meta.Usage,
+	}, Role: meta.Role, Isolated: meta.Isolated, Foreign: true}
+}
+
+// foreignEvents returns the narration of a run another process owns, reading
+// only what the log gained since the last call.
+func (s *Server) foreignEvents(id string) ([]runcmd.Event, error) {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+	c := s.logs[id]
+	if c == nil {
+		c = &foreignLog{}
+		s.logs[id] = c
+	}
+	evs, next, err := runcmd.ReadEventsFrom(s.m.Dir, id, c.offset)
+	if err != nil {
+		return nil, err
+	}
+	c.events = append(c.events, evs...)
+	c.offset = next
+	out := make([]runcmd.Event, len(c.events))
+	copy(out, c.events)
+	return out, nil
 }
 
 // runEvents returns a run with its full narration, from memory when this
@@ -529,18 +568,17 @@ func (s *Server) runEvents(id string) (RunRow, []runcmd.Event, error) {
 		}
 		return row, evs, nil
 	}
-	for _, row := range s.runRows() {
-		if row.ID != id {
-			continue
-		}
-		evs, err := runcmd.ReadEvents(s.m.Dir, id)
-		if err != nil {
-			return RunRow{}, nil, err
-		}
-		row.NumEvents = len(evs)
-		return row, evs, nil
+	meta, ok := runcmd.ReadMeta(s.m.Dir, id)
+	if !ok {
+		return RunRow{}, nil, fmt.Errorf("run no encontrado: %s", id)
 	}
-	return RunRow{}, nil, fmt.Errorf("run no encontrado: %s", id)
+	evs, err := s.foreignEvents(id)
+	if err != nil {
+		return RunRow{}, nil, err
+	}
+	row := rowFromMeta(meta)
+	row.NumEvents = len(evs)
+	return row, evs, nil
 }
 
 // readOnlyRun refuses to DRIVE a run that belongs to another process. Seeing
