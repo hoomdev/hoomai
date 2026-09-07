@@ -1,0 +1,10 @@
+{
+  "id": "20260906T235816_0293b4",
+  "created_at": "2026-09-06T23:58:16.428828Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:101: cada transición o latido reescribe el único sidecar con os.WriteFile, que trunca antes de escribir. Un status o Studio concurrente puede leer JSON parcial y List lo omite (líneas 118-125), y una caída durante el write deja el sobre durable corrupto; el run desaparece en vez de quedar visible como posible huérfano.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

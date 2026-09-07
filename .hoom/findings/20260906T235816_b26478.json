@@ -1,0 +1,10 @@
+{
+  "id": "20260906T235816_b26478",
+  "created_at": "2026-09-06T23:58:16.680312Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": ".hoom/.gitignore",
+  "description": "INTRODUCIDO — .hoom/.gitignore:4: la rama agrega isolated/ pero omite envelopes/. El primer envelope.Write intenta repararlo mutando este archivo rastreado (internal/envelope/envelope.go:135-147); si el sobre corta antes de verify, por ejemplo por spec sin aprobar, deja el candidato con drift y rompe el hoom check previo, contradiciendo CA-203 de que registrar telemetría no cambia el check.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

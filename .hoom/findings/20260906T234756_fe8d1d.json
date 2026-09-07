@@ -1,0 +1,10 @@
+{
+  "id": "20260906T234756_fe8d1d",
+  "created_at": "2026-09-06T23:47:56.803904Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:112: Run mantiene Result y envelope.Record como dos estados paralelos; las transiciones actualizan res.Stage por un lado y save/rec por otro (líneas 122-125, 146-160, 170-203 y 246-258), y cerrar vuelve a sincronizar solo parte del estado en 284-288. Leer o extender el flujo exige rastrear asignaciones gemelas a lo largo de casi 200 líneas; una transición única que actualice ambos reduciría la deriva cognitiva.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

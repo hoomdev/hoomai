@@ -1,0 +1,10 @@
+{
+  "id": "20260906T235816_63a17d",
+  "created_at": "2026-09-06T23:58:16.167692Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/isolate/isolate.go",
+  "description": "INTRODUCIDO — internal/isolate/isolate.go:264: Tree.Apply sobrescribe (y en 248 borra) el destino sin comprobar su contenido previo. Como el árbol ciego nace de HEAD (líneas 114-125) y agentcmd solo usa beforeReal para detectar cambios ocurridos durante el run (internal/agentcmd/agentcmd.go:162,224), un test ya modificado o no rastreado antes de arrancar no se considera fuga: si el rol toca la misma ruta, el trasplante destruye silenciosamente esos cambios no commiteados antes de verify.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}

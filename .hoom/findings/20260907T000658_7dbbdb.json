@@ -1,0 +1,10 @@
+{
+  "id": "20260907T000658_7dbbdb",
+  "created_at": "2026-09-07T00:06:58.123854Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/isolate/isolate.go",
+  "description": "INTRODUCIDO — internal/isolate/isolate.go:241: Apply valida rutas antes de mutar, pero lee y escribe o borra cada archivo dentro del mismo bucle; un error de lectura, permisos, espacio o E/S en una ruta posterior retorna después de haber aplicado las anteriores (líneas 248-265), sin rollback. transplant descarta las listas parciales al recibir err (internal/agentcmd/agentcmd.go:579-583), por lo que el sobre termina roto sin registrar qué quedó cambiado en el árbol real ni ofrecer recuperación determinista.",
+  "author": "reviewer@codex",
+  "fingerprint": "2620756ccf707bb4"
+}
