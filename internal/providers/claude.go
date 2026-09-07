@@ -24,7 +24,7 @@ func (claude) Bin() string  { return "claude" }
 func (claude) Capabilities() Capabilities {
 	return Capabilities{
 		Structured: true, Continue: true, Resume: true, SessionID: true,
-		Model: true, SystemPrompt: true, Tools: true, ReadOnly: true,
+		Model: true, SystemPrompt: true, Tools: true, ReadOnly: true, Unattended: true,
 		MaxTurns: true, Budget: true,
 	}
 }
@@ -45,6 +45,13 @@ func (c claude) Command(req Request) (Invocation, error) {
 		// asked for on its own is kept, not replaced
 		ra, rd := claudeReadOnlyTools(p.exec)
 		allow, deny = dedup(append(allow, ra...)), dedup(append(deny, rd...))
+	}
+	if p.unattended && !p.readOnly {
+		// nobody answers a permission prompt in -p mode: a tool that is not
+		// pre-approved is denied in silence. A writing role gets its tools
+		// up front, by NAME and not by a bypass mode, so the argv in the run
+		// log says exactly what the role could do.
+		allow = dedup(append(allow, claudeWriteTools()...))
 	}
 	if len(allow) > 0 {
 		args = append(args, "--allowedTools", strings.Join(allow, ","))
@@ -76,6 +83,13 @@ func (c claude) Command(req Request) (Invocation, error) {
 	}
 	args = append(args, p.prompt)
 	return Invocation{Bin: c.Bin(), Args: args, Ignored: p.ignored}, nil
+}
+
+// claudeWriteTools is what a role that writes needs when nobody attends the
+// run: read, edit, create and run. The scope gate after the run, not this
+// list, is what bounds WHERE it may write.
+func claudeWriteTools() []string {
+	return []string{"Read", "Grep", "Glob", "Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"}
 }
 
 // claudeReadOnlyTools translates the read-only intention into Claude's OWN

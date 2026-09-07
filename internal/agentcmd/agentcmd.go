@@ -361,6 +361,10 @@ func startOptions(prov providers.Provider, role agents.Role, contract string, op
 		Provider: prov.Name(), Prompt: opt.Prompt, Task: opt.Task, Role: role.Slug,
 		ResumeID: opt.ResumeID, Model: opt.Model, SystemPrompt: contract,
 		MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
+		// The envelope is unattended by definition: no human answers the
+		// CLI's prompts, so the role gets its tools up front and the scope
+		// gate, not a denied Write, is what bounds it.
+		Unattended: true,
 	}
 	var warn bool
 	so.ReadOnly, so.Exec, warn = ReadOnlyFor(prov, role)
