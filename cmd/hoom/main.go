@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
@@ -39,7 +41,12 @@ import (
 
 var version = "0.9.0"
 
-const usage = `hoomAI %s - harness de verificacion agnostico de IA y de stack
+// usage is assembled, not copied: the 'Flags de verify:' block IS
+// verifycmd.UsageText, so 'hoom help' and 'hoom verify --help' cannot
+// diverge. Two texts that swear to be equal drift apart; one constant cannot.
+const usage = usageAntesDeVerify + verifycmd.UsageText + "\n" + usageDespuesDeVerify
+
+const usageAntesDeVerify = `hoomAI %s - harness de verificacion agnostico de IA y de stack
 
 Uso: hoom <comando> [flags]
 
@@ -99,14 +106,9 @@ Flags de init:
   --name <proyecto>    Nombre del proyecto (default: nombre del directorio)
 
 Flags de verify:
-  --full               Ignora el scoping por diff (corrida completa, ej. nocturna)
-  --gate a,b           Ejecuta solo esos gates (el resto queda 'skipped'); el
-                       veredicto queda PARCIAL: diagnostico, nunca referencia
-                       de 'hoom check' ni de 'hoom task done'
-  --spec <ruta>        Asocia el veredicto a un spec y ejecuta los gates
-                       spec_lint y spec_trace (trazabilidad CA-n -> tests)
-  --json               Emite el veredicto como JSON en stdout (para agentes)
+`
 
+const usageDespuesDeVerify = `
 Flags de report:
   -n <cantidad>        Cantidad de veredictos recientes a mostrar (default 10)
   --json               Emite el historial como JSON en stdout
@@ -215,6 +217,14 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
+		// Exit 2 = "no entendi el pedido"; exit 1 = "entendi y salio rojo".
+		// Sin esa separacion un CI no distingue el codigo roto del script mal
+		// escrito. El mensaje ya viene completo (razon + uso): no se prefija.
+		var ue *cliargs.UsageError
+		if errors.As(err, &ue) {
+			fmt.Fprintln(os.Stderr, ue.Error())
+			os.Exit(ue.ExitCode())
+		}
 		fmt.Fprintln(os.Stderr, "hoom:", err)
 		os.Exit(1)
 	}
@@ -232,28 +242,35 @@ func cmdInit(args []string) error {
 	return initcmd.Run(dir, *name, *profileName)
 }
 
+// cmdVerify answers a badly written request BEFORE reading the project:
+// ParseArgs runs before manifest.Load, so 'hoom verify show x' gets the
+// argument error even where there is no hoom.yaml to load.
 func cmdVerify(args []string) error {
-	fs := flag.NewFlagSet("verify", flag.ExitOnError)
-	full := fs.Bool("full", false, "ignorar scoping por diff")
-	gateList := fs.String("gate", "", "gates a ejecutar, separados por coma")
-	specPath := fs.String("spec", "", "ruta del spec asociado")
-	asJSON := fs.Bool("json", false, "emitir veredicto como JSON en stdout")
-	_ = fs.Parse(args)
+	opt, err := verifycmd.ParseArgs(args)
+	if errors.Is(err, cliargs.ErrHelp) {
+		fmt.Println(verifycmd.UsageText) // pedir ayuda no es un error: stdout y 0
+		return nil
+	}
+	if err != nil {
+		return err
+	}
 
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
 		return err
 	}
-	opt := verifycmd.Options{Full: *full, Spec: *specPath}
-	if *gateList != "" {
-		opt.Gates = strings.Split(*gateList, ",")
+	// Con --json stdout es del agente: la narracion de progreso se va por
+	// stderr para que el veredicto quede parseable byte por byte.
+	progreso := os.Stdout
+	if opt.JSON {
+		progreso = os.Stderr
 	}
-	fmt.Printf("hoom: verificando %s (perfil %s, %d gates)...\n", m.Project, m.Profile, len(m.Gates))
+	fmt.Fprintf(progreso, "hoom: verificando %s (perfil %s, %d gates)...\n", m.Project, m.Profile, len(m.Gates))
 	v, path, err := verifycmd.Run(m, opt)
 	if err != nil {
 		return err
 	}
-	if *asJSON {
+	if opt.JSON {
 		// In-band, machine-readable output for agents: no ANSI, pure JSON.
 		raw, _ := json.MarshalIndent(v, "", "  ")
 		fmt.Println(string(raw))

@@ -84,7 +84,8 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom agent --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"` | El SOBRE determinista de un rol: le da su contrato como system prompt, le impone su limite de escritura con el mecanismo que el provider declare (deny de herramientas en Claude, sandbox en Codex), corre el CLI UNA vez y cierra con evidencia en orden fijo — **scope** (que toco el rol, comparando el arbol antes y despues), **verify** y **check**. El gate de scope responde lo que ningun prompt puede responder: si el rol escribio solo donde le correspondia y dejo la evidencia intacta. Piso no aflojable: veredictos y hallazgos existentes son inmutables, las aprobaciones no las firma un agente, `hoom.yaml` no se toca y el trinquete solo sube; violarlo corta ANTES de emitir veredicto. Cada violacion se registra como hallazgo `high`. El **test-writer** corre ademas en un **arbol ciego**: un worktree disperso (`git sparse-checkout`) de UN commit que contiene lo que el rol puede leer —el spec, los tests, los archivos con los que el perfil reconoce el stack— y ni un archivo de implementacion, asi que la anti-circularidad deja de ser una regla de prompt. Ese arbol es tambien una cuarentena: solo se trasplantan al arbol real las rutas que el gate aprobo, y si el aislamiento se rompe (un archivo escondido que vuelve al disco, o una escritura en el arbol real) no se emite veredicto. Opciones: `--provider <p>` (default: el primero instalado que soporte system prompt), `--model`, `--resume <id>`, `--max-turns n`, `--budget-usd x`, `--json`. Exit 0 solo con todos los pasos verdes (cinco; seis con un rol ciego) |
 | `hoom review [--provider p] [--lens l]` | La review CRUZADA: corre el rol reviewer en un provider **distinto del que escribio** (lo dice el meta del ultimo run, no la memoria de nadie) y se niega si serian el mismo, salvo `--same-provider`. La lente sale de la EVIDENCIA con la regla del contrato 06: solo documentacion no invoca review, una ruta de riesgo o mas de 400 lineas (`insertions+deletions` del veredicto) piden las 4 lentes, el resto una. El resultado son los hallazgos que hoom VE aparecer en `.hoom/findings/` durante el run, no los que el CLI dice haber registrado. No emite veredicto ni juzga el codigo: eso sigue siendo de `verify`. Opciones: `--task`, `--spec`, `--model`, `--max-turns`, `--budget-usd`, `--json` |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
-| `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band) |
+| `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band); la linea de progreso se va por stderr para que stdout quede parseable byte por byte |
+| `hoom verify --help` | El uso EXACTO del verbo por stdout, exit 0 y cero artefactos. Es la misma constante que imprime `hoom help`: no hay un segundo texto que pueda desincronizarse |
 | `hoom verify --spec <ruta>` | Suma los gates `spec_lint`, `spec_trace` y `spec_approved`: cada criterio CA-n debe tener un test que lo referencie o declarar `[verifica: <comando>]` (exit 0 = trazado), y el spec debe tener aprobacion humana VIGENTE (hash de contenido) |
 | `hoom verify --gate a,b` | Corre solo esos gates; el veredicto queda PARCIAL: diagnostico util, pero `check` y `task done` NUNCA lo usan como referencia |
 | `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
@@ -231,6 +232,50 @@ la referencia es siempre el ultimo veredicto COMPLETO. Una corrida
 diagnostica de un solo gate jamas se convierte en un check verde apoyado en
 gates que no corrieron, ni tapa un verde legitimo con un rojo parcial. Si
 solo existen parciales, `hoom check` es ROJO con la accion exacta.
+
+## Argumentos estrictos de verify (exit 2)
+
+`hoom verify` no ejecuta nada que no le pidieron. Un argumento que hoom no
+entiende dejo de ser un argumento ignorado y pasa a ser un RECHAZO: exit 2,
+el uso exacto por stderr y **cero efectos en disco** — ningun veredicto,
+ningun evento vivo en `.hoom/cache/verify-live.jsonl`, ningun trinquete
+tocado. Producir un veredicto a partir de un pedido que hoom no entendio es
+la misma clase de fraude que el binario ya combate cuando marca PARCIAL una
+corrida `--gate`.
+
+| Pedido | Antes | Ahora |
+|---|---|---|
+| `hoom verify show <id>` | corria una verificacion COMPLETA y escribia un veredicto | exit 2 sin artefactos: `verify` no tiene subcomandos ni posicionales |
+| `hoom verify --bogus` | exit 2 con el uso del paquete `flag` de Go (`Usage of verify:`) | exit 2 con el uso de hoom |
+| `hoom verify --gate noexiste` | dejaba TODOS los gates en `skipped` y escribia un veredicto VERDE parcial | exit 2 nombrando el gate desconocido y listando los que declara el proyecto |
+| `hoom verify --gate ","` | corria TODO, y como veredicto completo de referencia | exit 2: cero gates es ambiguo (¿ninguno o todos?) |
+
+Lo escrito distinto sigue siendo lo mismo: `-full` y `--full`, `--gate=a,b` y
+`--gate a,b`, `--gate test,test` y `--gate "test,"` (seleccion inequivoca).
+`hoom verify --help` imprime el uso exacto por stdout y sale 0: pedir ayuda no
+es un error. Los gates sinteticos (`spec_lint`, `spec_trace`, `spec_approved`,
+`ratchet`) no son seleccionables por `--gate`: los gobiernan `--spec` y
+`--full`.
+
+**Disciplina de exit codes**: `2` = "no entendi el pedido", y entonces no hay
+evidencia; `1` = "entendi y salio ROJO", y el veredicto esta escrito; `0` =
+verde. Sin esa separacion un CI no puede distinguir el codigo roto del script
+mal escrito.
+
+**Cambio de conducta observable**: un pipeline que hoy pasa basura y sigue en
+verde (`hoom verify .`, `hoom verify $DIR` copiado de `hoom init`, un
+argumento sobrante de un script viejo) pasa de exit 0 a exit 2. Es exactamente
+el objetivo, y va anunciado aca. La validacion de los nombres de gate vive en
+`verifycmd.Run`, asi que el `POST /api/verify` del Studio responde **400** al
+mismo pedido: una sola validacion para las dos puertas, nunca un segundo
+cerebro en el Studio.
+
+La disciplina vive en el paquete `internal/cliargs`, que no conoce ningun
+verbo. Los demas verbos siguen ignorando posicionales (`hoom check show <id>`
+todavia corre un check): es deuda declarada, y se salda copiando una linea por
+verbo. `cliargs.Strict` NO se le puede aplicar tal cual a los verbos que usan
+posicionales por contrato (`init <dir>`, `run`/`agent`/`review "<prompt>"`,
+`finding add "<desc>"`, `task <slug>`, `spec approve <ruta>`).
 
 ## Aprobacion humana atada al contenido (hoom spec)
 

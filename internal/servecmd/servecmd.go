@@ -29,6 +29,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/filesearch"
@@ -378,6 +379,13 @@ func (s *Server) Handler() http.Handler {
 		defer s.verifyMu.Unlock()
 		v, _, err := verifycmd.Run(s.m, verifycmd.Options{Full: body.Full, Gates: body.Gates, Spec: body.Spec})
 		if err != nil {
+			// El pedido que hoom no entendio es 400, no 500: la misma
+			// validacion que el CLI, y sin veredicto ni eventos vivos.
+			var ue *cliargs.UsageError
+			if errors.As(err, &ue) {
+				writeError(w, http.StatusBadRequest, ue.Reason)
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
