@@ -5,11 +5,10 @@
 // `verifycmd` en vez de en `cliargs`, estos tests no compilarian: esa es la
 // intencion (el spec la declara reutilizable), no un detalle.
 //
-// Nota de ubicacion: el arbol de este agente no permite crear directorios, asi
-// que los tests del paquete `cliargs` viven aca como CONSUMIDOR externo (solo
-// tocan API exportada: Strict, UsageError, ErrHelp). Mudarlos a
-// internal/cliargs/cliargs_test.go es copiar el archivo y cambiar el package.
-package verifycmd
+// Viven en el paquete del mecanismo y como CONSUMIDOR externo (`cliargs_test`,
+// solo API exportada: Strict, UsageError, ErrHelp), asi que `go test
+// ./internal/cliargs` corre lo que le corresponde a `cliargs`.
+package cliargs_test
 
 import (
 	"bytes"

@@ -23,8 +23,22 @@ import (
 type UsageError struct {
 	Verb   string // "verify"
 	Reason string // una linea: que no se entendio
-	Action string // una linea: que hacer
+	// Action is the last line of the message and it stays EMPTY for hoom's
+	// verbs: their action already is the last line of Usage (the verb's usage
+	// block is the single source of that text — see verifycmd.UsageText).
+	// Writing it here too would print the action twice, so NewUsageError does
+	// not take it; the field exists for a caller whose usage block does not
+	// carry its own action.
+	Action string
 	Usage  string // bloque de uso exacto del verbo
+}
+
+// NewUsageError is the ONLY constructor: no verb assembles the struct by hand,
+// so there is a single place that decides where each piece of the message
+// lives — and the action is not one of its arguments, because it is not a
+// second home for that text.
+func NewUsageError(verb, reason, usage string) *UsageError {
+	return &UsageError{Verb: verb, Reason: reason, Usage: usage}
 }
 
 func (e *UsageError) Error() string {
@@ -45,7 +59,7 @@ var ErrHelp = errors.New("uso solicitado")
 // without its value, or ANY positional argument.
 func Strict(fs *flag.FlagSet, args []string, verb, usage string) error {
 	fail := func(reason string) error {
-		return &UsageError{Verb: verb, Reason: reason, Usage: usage}
+		return NewUsageError(verb, reason, usage)
 	}
 	// hoom is the owner of its own message: with ExitOnError the process dies
 	// INSIDE the flag package, printing a usage that hoom never wrote and a
@@ -53,7 +67,7 @@ func Strict(fs *flag.FlagSet, args []string, verb, usage string) error {
 	fs.Init(fs.Name(), flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	if err := escanear(fs, args, fail); err != nil {
+	if err := escanear(fs, args, fail, nil); err != nil {
 		return err
 	}
 	if err := fs.Parse(args); err != nil {
@@ -68,11 +82,37 @@ func Strict(fs *flag.FlagSet, args []string, verb, usage string) error {
 	return nil
 }
 
+// FirstEmptyValue reports the name — without dashes — of the FIRST flag
+// WRITTEN with an empty value ('--gate ""', '--spec='), or "" if there is
+// none. It reads argv and not the FlagSet on purpose: the FlagSet only keeps
+// the LAST value of a repeated flag, so '--gate "" --gate test' would hide the
+// empty occurrence behind the repetition. Boolean flags carry no value and are
+// never reported.
+//
+// It judges nothing: it reports what was written, over args that already went
+// through Strict.
+func FirstEmptyValue(fs *flag.FlagSet, args []string) string {
+	var vacio string
+	_ = escanear(fs, args, func(string) error { return nil },
+		func(nombre, valor string) bool {
+			if valor == "" {
+				vacio = nombre
+			}
+			return vacio == "" // la primera vacia corta el recorrido
+		})
+	return vacio
+}
+
 // escanear replays the flag package's parsing rules to judge the request
 // BEFORE the flag package judges it. That is the whole trick: the verdict on
 // the arguments is hoom's, in hoom's words, and it is testable because no one
 // calls os.Exit inside a library.
-func escanear(fs *flag.FlagSet, args []string, fail func(string) error) error {
+//
+// visita, when it is not nil, receives every NON-boolean flag with its value
+// AS WRITTEN — one call per occurrence, so a repetition cannot mask an earlier
+// one — and stops the walk by returning false.
+func escanear(fs *flag.FlagSet, args []string, fail func(string) error, visita func(nombre, valor string) bool) error {
+	ayuda := false
 	for i := 0; i < len(args); i++ {
 		s := args[i]
 		if len(s) < 2 || s[0] != '-' {
@@ -86,23 +126,27 @@ func escanear(fs *flag.FlagSet, args []string, fail func(string) error) error {
 				if i+1 < len(args) {
 					return fail(posicional(args[i+1]))
 				}
-				return nil
+				break // '--' al final: ya no queda nada que juzgar
 			}
 		}
-		nombre := s[guiones:]
+		nombre, valor := s[guiones:], ""
 		if nombre[0] == '-' || nombre[0] == '=' {
 			return fail("sintaxis de flag invalida: " + strconv.Quote(s))
 		}
 		conValor := false
 		if j := strings.IndexByte(nombre, '='); j >= 0 {
-			nombre, conValor = nombre[:j], true
+			nombre, valor, conValor = nombre[:j], nombre[j+1:], true
 		}
 		f := fs.Lookup(nombre)
 		if f == nil {
 			if nombre == "h" || nombre == "help" {
-				return ErrHelp
+				// La ayuda se resuelve al final, no aca: '--help show' y
+				// '--help --bogus' siguen siendo pedidos rotos, y un pedido
+				// roto no puede salir 0 por haber pedido ayuda primero.
+				ayuda = true
+				continue
 			}
-			return fail("flag desconocido: --" + nombre)
+			return fail("flag desconocido: " + citar("--"+nombre))
 		}
 		if esBool(f) {
 			continue // un flag booleano jamas consume el argumento siguiente
@@ -112,13 +156,32 @@ func escanear(fs *flag.FlagSet, args []string, fail func(string) error) error {
 				return fail("--" + nombre + " necesita un valor")
 			}
 			i++ // el valor de un flag no es un posicional
+			valor = args[i]
 		}
+		if visita != nil && !visita(nombre, valor) {
+			return nil
+		}
+	}
+	if ayuda {
+		return ErrHelp
 	}
 	return nil
 }
 
 func posicional(tok string) string {
 	return "argumento posicional no reconocido: " + strconv.Quote(tok)
+}
+
+// citar quotes a token that comes from argv ONLY when quoting changes it: a
+// newline in a flag name forges a second line on stderr, and an escape
+// sequence repaints a log. A clean name travels as written because the message
+// has to read like what was typed ('flag desconocido: --bogus').
+func citar(tok string) string {
+	q := strconv.Quote(tok)
+	if q == `"`+tok+`"` {
+		return tok
+	}
+	return q
 }
 
 func esBool(f *flag.Flag) bool {

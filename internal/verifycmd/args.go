@@ -45,14 +45,11 @@ func ParseArgs(args []string) (Options, error) {
 	}
 
 	// Escribir un flag y no darle valor es un typo, no el default: quien
-	// escribe --spec "" pedia un spec, no una corrida sin spec.
-	var vacio string
-	fs.Visit(func(f *flag.Flag) {
-		if vacio == "" && f.Value.String() == "" {
-			vacio = f.Name
-		}
-	})
-	if vacio != "" {
+	// escribe --spec "" pedia un spec, no una corrida sin spec. Se mira CADA
+	// ocurrencia escrita y no el valor final del FlagSet, que solo conserva la
+	// ultima: en '--gate "" --gate test' la repeticion enmascararia la vacia y
+	// el pedido llegaria a correr gates y a escribir veredicto.
+	if vacio := cliargs.FirstEmptyValue(fs, args); vacio != "" {
 		return Options{}, usoInvalido("--" + vacio + " vacio: escribir un flag y no darle valor es un typo")
 	}
 
@@ -79,19 +76,39 @@ func ParseArgs(args []string) (Options, error) {
 // validating only in the CLI would leave the bug to the Studio, which is
 // literally the second brain this package forbids itself.
 //
-// The synthetic gates (spec_lint, spec_trace, spec_approved, ratchet) are not
-// in m.Gates: --spec and --full govern them, so they are rejected here too.
+// The synthetic gates are rejected here too: --spec and --full govern them.
 func validarGates(m *manifest.Manifest, seleccion []string) error {
 	for _, g := range seleccion {
-		if _, ok := m.Gates[g]; ok {
-			continue
+		_, declarado := m.Gates[g]
+		if gateSintetico[g] || !declarado { // el nombre reservado se juzga PRIMERO
+			return usoInvalido(fmt.Sprintf("gate desconocido %s; este proyecto declara: %s",
+				strconv.Quote(g), strings.Join(seleccionables(m), ", ")))
 		}
-		return usoInvalido(fmt.Sprintf("gate desconocido %s; este proyecto declara: %s",
-			strconv.Quote(g), strings.Join(m.SortedGateNames(), ", ")))
 	}
 	return nil
 }
 
+// gateSintetico are RESERVED names, and the check comes BEFORE the manifest:
+// manifest.Load accepts any gate name, so a hoom.yaml that declares
+// 'spec_lint' or 'ratchet' would make --gate select it again. Whether a
+// synthetic gate is selectable cannot depend on the manifest of the day.
+var gateSintetico = map[string]bool{
+	"spec_lint": true, "spec_trace": true, "spec_approved": true, "ratchet": true,
+}
+
+// seleccionables are the gates --gate CAN pick: the project's, in canonical
+// order, minus any reserved name a hoom.yaml may have claimed. The message
+// must not offer a name that the line above rejects.
+func seleccionables(m *manifest.Manifest) []string {
+	var out []string
+	for _, n := range m.SortedGateNames() {
+		if !gateSintetico[n] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 func usoInvalido(razon string) *cliargs.UsageError {
-	return &cliargs.UsageError{Verb: "verify", Reason: razon, Usage: UsageText}
+	return cliargs.NewUsageError("verify", razon, UsageText)
 }
