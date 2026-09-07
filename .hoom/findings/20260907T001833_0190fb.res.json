@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T001833_0190fb",
+  "as": "corregido",
+  "evidence": "Servidor: readMeta descarta sidecars con status fuera del vocabulario (running|done|error|canceled|vacio) y blanquea rol/tarea que no son slugs, asi que no llegan al JSON ni a la UI. UI: badge escapa tambien cls (index.html). Refutador confirmo ambas mitades. Test TestHallazgo_0190fb_ElStatusDeUnSidecarAjenoNoViajaSinValidar (rojo en 1ca372c, verde con el fix).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.432252Z"
+}

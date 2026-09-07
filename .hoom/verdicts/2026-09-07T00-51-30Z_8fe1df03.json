@@ -1,0 +1,117 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-07T00-51-30Z_8fe1df03",
+  "created_at": "2026-09-07T00:51:30.998748Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "1ca372cd322b",
+    "branch": "hoom/review-de-fixes",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "internal/agentcmd/agentcmd.go",
+      "internal/agentcmd/scope.go",
+      "internal/agents/targets.go",
+      "internal/envelope/envelope.go",
+      "internal/envelope/hallazgos_review_test.go",
+      "internal/gitx/gitx.go",
+      "internal/hoomfs/hoomfs.go",
+      "internal/hoomfs/hoomfs_test.go",
+      "internal/initcmd/hallazgos_review_test.go",
+      "internal/initcmd/initcmd.go",
+      "internal/isolate/hallazgos_review_test.go",
+      "internal/isolate/isolate.go",
+      "internal/runcmd/alive_unix.go",
+      "internal/runcmd/alive_windows.go",
+      "internal/runcmd/hallazgos_review_test.go",
+      "internal/runcmd/lectura_incremental_test.go",
+      "internal/runcmd/runcmd.go",
+      "internal/servecmd/hallazgos_review_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/servecmd/servecmd_v2_test.go",
+      "internal/servecmd/ui/index.html",
+      "internal/taskcmd/taskcmd.go"
+    ],
+    "change_fingerprint": "6f443eaed8ca3c11",
+    "insertions": 1423,
+    "deletions": 178
+  },
+  "gates": [
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 408
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 207
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/agentcmd ./internal/agents ./internal/envelope ./internal/gitx ./internal/hoomfs ./internal/initcmd ./internal/isolate ./internal/runcmd ./internal/servecmd ./internal/taskcmd",
+      "exit_code": 0,
+      "duration_ms": 5308,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t4.357s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t(cached)"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 3,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

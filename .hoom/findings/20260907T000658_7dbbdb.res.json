@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T000658_7dbbdb",
+  "as": "corregido",
+  "evidence": "isolate.Apply en dos fases: valida y lee todo antes de la primera escritura, y un fallo a mitad deshace en orden inverso lo ya aplicado (undo), devolviendo applied/removed vacios y el motivo. Test TestHallazgo_7dbbdb_ApplyEsTodoONada (rojo en 1ca372c, verde con el fix).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.321456Z"
+}

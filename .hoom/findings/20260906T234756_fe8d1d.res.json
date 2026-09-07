@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260906T234756_fe8d1d",
+  "as": "corregido",
+  "evidence": "agentcmd.Run: una sola transicion advance(stage, step) mueve Result.Stage y envelope.Record y escribe el registro; desaparecen las asignaciones gemelas (10 transiciones, 0 res.Stage sueltos).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.615907Z"
+}

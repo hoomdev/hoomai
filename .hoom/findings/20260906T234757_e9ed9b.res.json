@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260906T234757_e9ed9b",
+  "as": "corregido",
+  "evidence": "Paquete nuevo internal/hoomfs como unica fuente de lo local bajo .hoom (Local, IsLocal, GitignoreBody, EnsureIgnored): gitx.excludedFromCandidate, agentcmd.hoomOwn, taskcmd, isolate, envelope e initcmd delegan en el. Test TestIsLocal.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.653753Z"
+}

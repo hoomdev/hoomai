@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -119,12 +121,22 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Status: envelope.StatusRunning, ExitCode: -1, StartedAt: time.Now().UTC(),
 	}
 	res.EnvelopeID = rec.ID
-	save := func(stage string, step int) {
+	// Una sola transicion mueve los dos estados que el sobre mantiene: el
+	// resultado que devuelve y el registro que status y el Studio leen. Dos
+	// asignaciones gemelas repartidas por el flujo ya se desviaron una vez.
+	advance := func(stage string, step int) {
+		res.Stage = stage
 		rec.Stage, rec.Step = stage, step
 		envelope.Write(root, rec)
 	}
-	save("spec", 1)
+	advance("spec", 1)
 	fmt.Fprintf(w, "hoom agent: rol %s (%s) en %s\n", role.Slug, prov.Name(), displayDir(opt.Task))
+	// Lo local queda fuera de Git ANTES de la primera foto: una regla que
+	// hoom agrega durante el run se le imputaria al rol, y una que falta deja
+	// telemetria sin trackear bloqueando el cierre de la tarea.
+	if added, _ := hoomfs.EnsureIgnored(dir); len(added) > 0 {
+		fmt.Fprintf(w, "  hoom completo .hoom/.gitignore (%s): commitealo junto con el cambio\n", strings.Join(added, ", "))
+	}
 
 	// [1/N] spec: no burn tokens on work the human has not authorized.
 	specPath, err := specGate(w, dir, role, opt.Spec, &res, steps)
@@ -135,7 +147,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if res.ExitCode != 0 {
 		return cerrar(w, root, &rec, res, "spec", 1, "el spec no tiene aprobacion vigente y el rol escribe"), nil
 	}
-	save("spec", 1)
+	advance("spec", 1)
 
 	// [2/N] aislar: el rol ciego no obedece la regla de oro, la habita.
 	mgr := runcmd.NewManager(root)
@@ -143,9 +155,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	var tree *isolate.Tree
 	var beforeReal Snapshot
 	if role.Isolated {
-		res.Stage = "aislar"
-		save("aislar", 2)
-		if why := blindPrechecks(mgr, dir, specPath); why != "" {
+		advance("aislar", 2)
+		if why := blindPrechecks(mgr, dir, specPath, PolicyFor(m, role)); why != "" {
 			return cerrar(w, root, &rec, res, "aislar", 1, why), nil
 		}
 		markers, _ := profiles.Markers(m.Profile)
@@ -157,7 +168,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		}
 		res.Isolation = &Isolation{Dir: tree.Dir, Commit: tree.Commit, Patterns: tree.Patterns, Hidden: len(tree.Hidden)}
 		rec.Isolated, rec.IsolatedFrom = true, tree.Commit
-		save("aislar", 2)
+		advance("aislar", 2)
 		runDir = tree.Dir
 		beforeReal = Take(dir, base)
 		contract += blindNote(tree)
@@ -167,8 +178,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 
 	// [N-3/N] run
-	res.Stage = "run"
-	save("run", steps-3)
+	advance("run", steps-3)
 	so, warn := startOptions(prov, role, contract, opt)
 	so.Dir = runDir
 	if warn {
@@ -182,7 +192,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 	res.RunID = info.ID
 	rec.RunID = info.ID
-	save("run", steps-3)
+	advance("run", steps-3)
 	fmt.Fprintf(w, "  %s run     %s - narracion en .hoom/runs/%s.jsonl\n", step(steps-3, steps), info.ID, info.ID)
 	// latido: mientras el run narra no hay transiciones, y un sobre sin
 	// movimiento es indistinguible de uno muerto. Como mucho un archivo cada
@@ -200,7 +210,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if !st.Usage.Empty() {
 		fmt.Fprintf(w, "    gasto: %s\n", st.Usage.Summary())
 	}
-	save("run", steps-3)
+	advance("run", steps-3)
 	if st.ProviderSessionID != "" {
 		fmt.Fprintf(w, "    sesion %s - reanudar: hoom agent --role %s --provider %s --resume %s \"<pedido>\"\n",
 			st.ProviderSessionID, role.Slug, prov.Name(), st.ProviderSessionID)
@@ -217,8 +227,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
 	// blind tree lets us ask — is the blindfold still on?
-	res.Stage = "scope"
-	save("scope", steps-2)
+	advance("scope", steps-2)
 	var blind *Blind
 	if tree != nil {
 		blind = &Blind{Restored: tree.Breaches(), Leaked: delta(beforeReal.Touched, Take(dir, base).Touched)}
@@ -243,8 +252,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 
 	// [N-1/N] verify
-	res.Stage = "verify"
-	save("verify", steps-1)
+	advance("verify", steps-1)
 	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath})
 	if err != nil {
 		return res, roto(root, &rec, err)
@@ -254,8 +262,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	fmt.Fprintf(w, "  %s verify  %s (veredicto %s)\n", step(steps-1, steps), color(v.Verdict == "green"), v.ID)
 
 	// [N/N] check
-	res.Stage = "check"
-	save("check", steps)
+	advance("check", steps)
 	cr, err := checkcmd.Run(dir, base)
 	if err != nil {
 		return res, roto(root, &rec, err)
@@ -507,12 +514,15 @@ func newID() string {
 // which a blind tree would be a lie: no git to build it from, another run
 // already moving the tree it will transplant into, and a spec the role would
 // work from without it being in the commit the tree is built from.
-func blindPrechecks(mgr *runcmd.Manager, dir, specPath string) string {
+func blindPrechecks(mgr *runcmd.Manager, dir, specPath string, pol Policy) string {
 	if err := isolate.Ready(dir); err != nil {
 		return err.Error() + ".\n  Un test-writer sin venda no es un test-writer; si querés correr sin la garantía, eso es 'hoom run'"
 	}
 	if id, busy := mgr.Busy(dir); busy {
 		return fmt.Sprintf("ya hay un run activo (%s) en el arbol de trabajo, y el trasplante pisaria ediciones en curso. Accion: espera a que termine", id)
+	}
+	if dirty := localChanges(dir, pol); len(dirty) > 0 {
+		return fmt.Sprintf("el arbol real tiene cambios sin commitear donde el rol escribe (%s) y el trasplante no los pisa. Accion: commitealos o descartalos y repeti el run", strings.Join(dirty, ", "))
 	}
 	if specPath != "" {
 		if err := specInHead(dir, specPath); err != nil {
@@ -520,6 +530,39 @@ func blindPrechecks(mgr *runcmd.Manager, dir, specPath string) string {
 		}
 	}
 	return ""
+}
+
+// localChanges lists the uncommitted paths (modified or untracked) that fall
+// where the role may write: a transplant would have to overwrite them, and it
+// refuses to. hoom's own local dirs and its ignore file never count.
+func localChanges(dir string, pol Policy) []string {
+	cmd := exec.Command("git", "status", "--porcelain", "-z", "--untracked-files=all")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	var dirty []string
+	fields := strings.Split(string(out), "\x00")
+	for i := 0; i < len(fields); i++ {
+		e := fields[i]
+		if len(e) < 4 {
+			continue
+		}
+		st, p := e[:2], e[3:]
+		if st[0] == 'R' || st[0] == 'C' {
+			i++ // el origen del rename viaja en el campo siguiente
+		}
+		p = filepath.ToSlash(p)
+		if hoomfs.IsLocal(p) || strings.HasPrefix(p, ".hoom/") {
+			continue
+		}
+		if ok, _ := allowedBy(p, pol); ok {
+			dirty = append(dirty, p)
+		}
+	}
+	sort.Strings(dirty)
+	return dirty
 }
 
 // specInHead demands the spec be part of the commit the blind tree is built

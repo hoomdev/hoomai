@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T001831_18b191",
+  "as": "corregido",
+  "evidence": "noSymlinkUnder recorre los componentes del destino con Lstat y rechaza el trasplante si el archivo o un ancestro es un enlace simbolico, antes de escribir. Test TestHallazgo_18b191_ApplyNoSigueSymlinksDelDestino (archivo y ancestro, rojos en 1ca372c, verdes con el fix).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.358137Z"
+}

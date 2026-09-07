@@ -5,6 +5,7 @@ package initcmd
 
 import (
 	"fmt"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +78,7 @@ func Run(dir, projectName, profileName string) error {
 	}
 	gi := filepath.Join(abs, ".hoom", ".gitignore")
 	if _, err := os.Stat(gi); os.IsNotExist(err) {
-		_ = os.WriteFile(gi, []byte("cache/\nworktrees/\nruns/\nisolated/\nenvelopes/\n"), 0o644)
+		_ = os.WriteFile(gi, []byte(hoomfs.GitignoreBody()), 0o644)
 	}
 	fmt.Printf("hoom: creado %s\n", target)
 	fmt.Printf("hoom: creado .hoom/verdicts/ (los veredictos viajan en Git; .hoom/cache no)\n")

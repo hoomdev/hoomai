@@ -11,20 +11,24 @@ package runcmd
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -208,6 +212,34 @@ type Meta struct {
 	// the only place that survives the process: a finished run has to be able
 	// to say what it cost long after its manager is gone.
 	Usage *providers.Usage `json:"usage,omitempty"`
+	// PID is the process that owns the run while it runs: the only way another
+	// process can tell a live run from one whose owner died.
+	PID int `json:"pid,omitempty"`
+}
+
+// idRe is what an id may look like: one file name, no separators, no dots
+// that could climb. A sidecar is addressed by its id, so an id is never
+// allowed to carry a path.
+var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+// slugRe is the shape of roles and task slugs.
+var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+func validID(id string) bool {
+	return idRe.MatchString(id) && id != "." && id != ".." && !strings.Contains(id, "..")
+}
+
+func slugOK(s string) bool { return s == "" || slugRe.MatchString(s) }
+
+// validStatus accepts the vocabulary and the empty string (a sidecar that
+// never said): anything else is not telemetry hoom wrote and never reaches a
+// renderer.
+func validStatus(s string) bool {
+	switch s {
+	case "", StatusRunning, StatusDone, StatusError, StatusCanceled:
+		return true
+	}
+	return false
 }
 
 func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+".meta.json") }
@@ -215,12 +247,45 @@ func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+"
 // writeMeta records a run's identity. Best-effort by contract: telemetry that
 // cannot be written never breaks the run it describes.
 func writeMeta(root string, meta Meta) {
+	if !validID(meta.ID) {
+		return // the id is the address: content never chooses the path
+	}
 	raw, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return
 	}
-	os.WriteFile(metaPath(root, meta.ID), append(raw, '\n'), 0o644)
+	hoomfs.AtomicWrite(metaPath(root, meta.ID), append(raw, '\n'), 0o644)
 }
+
+// readMeta loads one sidecar by id and refuses one that lies about its
+// identity or its shape: the filename is the address, the content only
+// describes it. A sidecar planted under another id, or with a status outside
+// the vocabulary, is broken telemetry: ignored, never trusted, never
+// rendered. Role and task that are not slugs are blanked, not trusted either.
+func readMeta(root, id string) (Meta, bool) {
+	if !validID(id) {
+		return Meta{}, false
+	}
+	raw, err := os.ReadFile(metaPath(root, id))
+	if err != nil {
+		return Meta{}, false
+	}
+	var meta Meta
+	if json.Unmarshal(raw, &meta) != nil || meta.ID != id || !validStatus(meta.Status) {
+		return Meta{}, false
+	}
+	if !slugOK(meta.Role) {
+		meta.Role = ""
+	}
+	if !slugOK(meta.Task) {
+		meta.Task = ""
+	}
+	return meta, true
+}
+
+// ReadMeta loads one run's sidecar by id, with the same refusals as Metas:
+// what the Studio needs to show a run it does not own, without listing all.
+func ReadMeta(root, id string) (Meta, bool) { return readMeta(root, id) }
 
 // Metas lists the project's run metas, newest first. A file that is
 // unreadable, of another shape or without an id is skipped: broken telemetry
@@ -235,12 +300,8 @@ func Metas(root string) []Meta {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".meta.json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(runsDir(root), e.Name()))
-		if err != nil {
-			continue
-		}
-		var meta Meta
-		if json.Unmarshal(raw, &meta) != nil || strings.TrimSpace(meta.ID) == "" {
+		meta, ok := readMeta(root, strings.TrimSuffix(e.Name(), ".meta.json"))
+		if !ok {
 			continue
 		}
 		out = append(out, meta)
@@ -254,22 +315,54 @@ func Metas(root string) []Meta {
 // watched even though this manager never owned them. A malformed line is
 // skipped, never fatal.
 func ReadEvents(root, id string) ([]Event, error) {
-	raw, err := os.ReadFile(filepath.Join(runsDir(root), id+".jsonl"))
+	evs, _, err := ReadEventsFrom(root, id, 0)
+	return evs, err
+}
+
+// ReadEventsFrom reads the narration from a byte offset and returns the
+// events plus the offset of the next unread byte. The Studio polls the logs
+// of runs it does not own every second; re-parsing the whole file each time
+// would cost more the longer the run talks. A trailing line that does not
+// parse is left for the next read: a writer may be mid-line.
+func ReadEventsFrom(root, id string, offset int64) ([]Event, int64, error) {
+	f, err := os.Open(filepath.Join(runsDir(root), id+".jsonl"))
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, offset, fmt.Errorf("run no encontrado: %s", id)
+	}
+	defer f.Close()
+	if offset > 0 {
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return nil, offset, err
+		}
+	}
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return nil, offset, err
 	}
 	var out []Event
-	for _, line := range strings.Split(string(raw), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
+	consumed := 0
+	for consumed < len(raw) {
+		nl := bytes.IndexByte(raw[consumed:], '\n')
+		line := raw[consumed:]
+		if nl >= 0 {
+			line = raw[consumed : consumed+nl]
 		}
 		var ev Event
-		if json.Unmarshal([]byte(line), &ev) != nil {
-			continue
+		blank := len(bytes.TrimSpace(line)) == 0
+		parsed := !blank && json.Unmarshal(line, &ev) == nil
+		if nl < 0 && !parsed && !blank {
+			break // a line still being written: read it next time, whole
 		}
-		out = append(out, ev)
+		if parsed {
+			out = append(out, ev)
+		}
+		if nl < 0 {
+			consumed = len(raw)
+		} else {
+			consumed += nl + 1
+		}
 	}
-	return out, nil
+	return out, offset + int64(consumed), nil
 }
 
 // NewManager creates the manager and settles orphan logs: a previous serve
@@ -303,6 +396,9 @@ func (m *Manager) markOrphans() {
 		if last.Kind == "end" || last.Kind == "error" {
 			continue
 		}
+		if m.liveElsewhere(strings.TrimSuffix(e.Name(), ".jsonl"), last.TS) {
+			continue // its owner is alive and talking: a neighbor, not an orphan
+		}
 		orphan := Event{TS: time.Now().UTC(), Kind: "error", Detail: "run huerfano: hoom serve termino mientras corria"}
 		if f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
 			enc, _ := json.Marshal(orphan)
@@ -317,16 +413,28 @@ func (m *Manager) markOrphans() {
 // Without this a dead run would keep a directory busy forever, and the
 // envelope refuses to build a blind tree over a busy tree.
 func (m *Manager) settleMeta(id string) {
-	raw, err := os.ReadFile(metaPath(m.root, id))
-	if err != nil {
-		return
-	}
-	var meta Meta
-	if json.Unmarshal(raw, &meta) != nil || meta.Status != StatusRunning {
+	meta, ok := readMeta(m.root, id)
+	if !ok || meta.Status != StatusRunning {
 		return
 	}
 	meta.Status, meta.ExitCode, meta.EndedAt = StatusError, -1, time.Now().UTC()
 	writeMeta(m.root, meta)
+}
+
+// liveElsewhere reports whether a run still in "running" belongs to a process
+// that is alive and whose narration is recent enough to be a live invocation:
+// every invocation is bounded by Timeout, so a longer silence is a dead run
+// whose pid was reused. Without a pid (older sidecars) the log alone cannot
+// prove life, and the run counts as an orphan as it always did.
+func (m *Manager) liveElsewhere(id string, lastTS time.Time) bool {
+	meta, ok := readMeta(m.root, id)
+	if !ok || meta.PID == 0 || meta.Status != StatusRunning {
+		return false
+	}
+	if !lastTS.IsZero() && time.Since(lastTS) > m.Timeout+5*time.Minute {
+		return false
+	}
+	return alive(meta.PID)
 }
 
 // dirFor resolves where a run executes: an explicit directory (the envelope
@@ -388,7 +496,7 @@ func (m *Manager) Busy(dir string) (string, bool) {
 		return id, true
 	}
 	for _, meta := range Metas(m.root) {
-		if meta.Status == StatusRunning && meta.Dir == dir {
+		if meta.Status == StatusRunning && meta.Dir == dir && (meta.PID == 0 || alive(meta.PID)) {
 			return meta.ID, true
 		}
 	}
@@ -445,7 +553,7 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	}
 	r.meta = Meta{
 		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
-		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1,
+		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1, PID: os.Getpid(),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
 	writeMeta(m.root, r.meta)

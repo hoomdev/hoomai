@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T001832_31542d",
+  "as": "corregido",
+  "evidence": "readMeta exige meta.ID == nombre del archivo y validID sin separadores ni '..'; writeMeta rechaza ids invalidos; settleMeta y Metas pasan por readMeta. Tests TestHallazgo_31542d_SettleMetaNoEscribeFueraDeRuns (rojo en 1ca372c: creaba \u003croot\u003e/evil.meta.json) y TestValidIDRechazaRutas.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.394672Z"
+}

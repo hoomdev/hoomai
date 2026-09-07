@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260906T235815_609005",
+  "as": "corregido",
+  "evidence": "Meta.PID + alive() por plataforma (alive_unix.go, alive_windows.go): markOrphans solo cierra runs cuyo proceso murio o callo mas de Timeout+5m (liveElsewhere) y Busy exige dueno vivo. Test TestHallazgo_609005_NewManagerNoCierraElRunDeUnProcesoVivo (rojo en 1ca372c con un sleep real como dueno, verde con el fix).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T00:48:39.145932Z"
+}
