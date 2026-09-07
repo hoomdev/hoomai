@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T064538_12fe7a",
+  "as": "corregido",
+  "evidence": "verificado con el binario de b339367: el nombre de flag va por strconv.Quote a stderr; un nombre con newline ya no abre una segunda linea.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T07:00:11.140957Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T060941_eda7b4",
+  "as": "corregido",
+  "evidence": "los tests se mudaron a internal/cliargs con los MISMOS nombres de test (diff vacio) y 22-\u003e26 asserts (se agregaron, ninguno se quito); los helpers compartidos quedaron en internal/verifycmd/helpers_test.go. 'go test ./internal/cliargs' ya reporta tests: ok github.com/hoomdev/hoomai/internal/cliargs.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T07:00:11.595176Z"
+}

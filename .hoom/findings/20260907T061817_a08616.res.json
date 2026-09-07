@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T061817_a08616",
+  "as": "corregido",
+  "evidence": "spec_lint, spec_trace, spec_approved y ratchet son nombres reservados y se rechazan en --gate antes de mirar m.Gates, aunque un hoom.yaml los declare. go test ./... verde en b339367.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T07:00:11.296029Z"
+}

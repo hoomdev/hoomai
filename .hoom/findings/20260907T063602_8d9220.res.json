@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T063602_8d9220",
+  "as": "corregido",
+  "evidence": "verificado en un proyecto de prueba con el binario de b339367: 'hoom verify --gate \"\" --gate test' sale exit 2 y no escribe veredicto ni verify-live.jsonl. args.go valida cada ocurrencia en argv, no el valor final del FlagSet.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T07:00:10.548977Z"
+}
