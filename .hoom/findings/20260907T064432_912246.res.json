@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T064432_912246",
+  "as": "refutado",
+  "evidence": "Clasificacion INTRODUCIDO refutada contra base main: al ejecutar el binario de main con un nombre de flag que contiene salto de linea, el paquete flag imprime flag provided but not defined seguido de una linea FORGED. El riesgo ya existia; corresponde registrarlo como PRE-EXISTENTE/follow-up, no como bloqueo de esta rama.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T06:45:30.962945Z"
+}

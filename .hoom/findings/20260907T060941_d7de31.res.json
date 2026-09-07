@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T060941_d7de31",
+  "as": "corregido",
+  "evidence": "UsageError.Action dejo de ser un campo muerto: hay una sola fuente para la accion del mensaje. go test ./... verde en b339367.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T07:00:11.442495Z"
+}

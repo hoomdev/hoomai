@@ -1,0 +1,93 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-07T04-26-37Z_74d68b52",
+  "created_at": "2026-09-07T04:26:37.545785Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "efaf1ecdcdb5",
+    "branch": "hoomdev/Arquitectobajoelsobre",
+    "dirty": false,
+    "base": "main",
+    "change_fingerprint": "6f443eaed8ca3c11",
+    "insertions": 0,
+    "deletions": 0
+  },
+  "gates": [
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 985
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 416
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go test -race ./...",
+      "exit_code": 0,
+      "duration_ms": 32015,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t30.017s\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t1.240s\nok  \tgithub.com/hoomdev/hoomai/internal/approval\t1.667s\nok  \tgithub.com/hoomdev/hoomai/internal/checkcmd\t6.779s\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t1.951s\nok  \tgithub.com/hoomdev/hoomai/internal/contextcmd\t1.710s\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t9.952s\nok  \tgithub.com/hoomdev/hoomai/internal/filesearch\t1.794s\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t5.892s\nok  \tgithub.com/hoomdev/hoomai/internal/gates\t1.239s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t1.849s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t1.150s\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t1.154s\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t6.182s\n?   \tgithub.com/hoomdev/hoomai/internal/live\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t1.145s\nok  \tgithub.com/hoomdev/hoomai/internal/profiles\t1.155s\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t1.149s\nok  \tgithub.com/hoomdev/hoomai/internal/ratchet\t1.198s\nok  \tgithub.com/hoomdev/hoomai/internal/report\t1.134s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t8.501s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t8.092s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t5.193s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t1.187s\nok  \tgithub.com/hoomdev/hoomai/internal/statuscmd\t8.744s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t2.406s\n?   \tgithub.com/hoomdev/hoomai/internal/verdict\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t4.049s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 3,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

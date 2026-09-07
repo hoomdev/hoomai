@@ -1,0 +1,10 @@
+{
+  "id": "20260907T061825_8424bc",
+  "created_at": "2026-09-07T06:18:25.763116Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/cliargs/cliargs.go",
+  "description": "INTRODUCIDO — internal/cliargs/cliargs.go:101-104 devuelve ErrHelp apenas encuentra -h/--help y deja sin escanear los tokens posteriores. Reproducido: 'hoom verify --help show' y 'hoom verify --help --bogus' salen 0, aunque el contrato de Strict exige UsageError para CUALQUIER posicional o flag desconocido (el orden inverso, 'show --help', si sale 2). Debe resolver ayuda solo despues de comprobar que no quedan argumentos invalidos.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb2f19380e80ea12"
+}

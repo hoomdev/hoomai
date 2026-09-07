@@ -1,0 +1,126 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-07T05-19-17Z_8e8b40b8",
+  "created_at": "2026-09-07T05:19:17.703417Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "12ac81f81787",
+    "branch": "hoomdev/Arquitectobajoelsobre",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/verify-args-estrictos_5d826394.json",
+      ".hoom/specs/verify-args-estrictos.md"
+    ],
+    "change_fingerprint": "9b8fc6a906705e8a",
+    "insertions": 367,
+    "deletions": 0
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "11 criterios (CA-*), 1 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "fail",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 233,
+      "output_tail": "criterios SIN test que los referencie: CA-217, CA-218, CA-219, CA-220, CA-221, CA-222, CA-223, CA-224, CA-225, CA-227\nAccion: el test-writer debe crear tests que mencionen cada CA-n (en el nombre o un comentario), o el spec declarar [verifica: \u003ccomando\u003e] si el criterio se verifica por comando.\ncriterios con comando [verifica:] FALLIDO:\nCA-226 (exit 1): sh -c \"go run ./cmd/hoom verify --help | grep -q 'no tiene subcomandos' \u0026\u0026 go run ./cmd/hoom help | grep -q 'no tiene subcomandos'\"\n    | ruta del spec asociado\nAccion: corrige el comando o el entorno; exit 0 = criterio trazado.",
+      "notes": "66 archivos de test escaneados"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 1,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-07, sha 5d826394)"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 781
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 220
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go test -race ./...",
+      "exit_code": 0,
+      "duration_ms": 32604,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t30.676s\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/approval\t1.603s\nok  \tgithub.com/hoomdev/hoomai/internal/checkcmd\t6.224s\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t1.882s\nok  \tgithub.com/hoomdev/hoomai/internal/contextcmd\t1.646s\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/filesearch\t1.702s\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t5.513s\nok  \tgithub.com/hoomdev/hoomai/internal/gates\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t1.791s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t5.897s\n?   \tgithub.com/hoomdev/hoomai/internal/live\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/profiles\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t1.282s\nok  \tgithub.com/hoomdev/hoomai/internal/ratchet\t1.341s\nok  \tgithub.com/hoomdev/hoomai/internal/report\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t8.451s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t7.530s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t4.984s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t1.175s\nok  \tgithub.com/hoomdev/hoomai/internal/statuscmd\t8.504s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t2.352s\n?   \tgithub.com/hoomdev/hoomai/internal/verdict\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t3.899s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 5,
+    "fail": 1,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "red",
+  "spec": "/Users/hoommac/orca/workspaces/hoomai/Arquitectobajoelsobre/.hoom/specs/verify-args-estrictos.md"
+}

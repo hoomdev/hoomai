@@ -25,11 +25,19 @@ type Options struct {
 	Full  bool
 	Gates []string // empty = all
 	Spec  string   // spec path; adds spec_lint + spec_trace
+	JSON  bool     // emit the verdict as JSON (rendering is the caller's job)
 }
 
 // Run executes the verification and writes the verdict. It returns the
 // finalized verdict and the path of its artifact.
+//
+// It validates the gate selection against the manifest BEFORE anything else:
+// a request hoom does not understand produces no verdict, no live events and
+// no ratchet measurement — it produces a *cliargs.UsageError.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
+	if err := validarGates(m, opt.Gates); err != nil {
+		return nil, "", err
+	}
 	git := gitx.Snapshot(m.Dir, m.BaseBranch)
 
 	// Live narration: best-effort by contract — a broken cache never touches
@@ -41,9 +49,7 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if len(opt.Gates) > 0 {
 		gopt.Only = map[string]bool{}
 		for _, g := range opt.Gates {
-			if g = strings.TrimSpace(g); g != "" {
-				gopt.Only[g] = true
-			}
+			gopt.Only[g] = true // ya validado: el nombre existe tal cual en el manifiesto
 		}
 	}
 

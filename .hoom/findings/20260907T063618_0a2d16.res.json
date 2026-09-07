@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260907T063618_0a2d16",
+  "as": "corregido",
+  "evidence": "verificado con el binario de b339367: 'hoom verify --help show' y 'hoom verify --help --bogus' salen exit 2; 'hoom verify --help' solo sigue saliendo 0. La ayuda se resuelve despues de validar el resto.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-07T07:00:10.993853Z"
+}
