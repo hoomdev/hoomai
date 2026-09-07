@@ -1,0 +1,10 @@
+{
+  "id": "20260907T063618_0a2d16",
+  "created_at": "2026-09-07T06:36:18.289363Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/cliargs/cliargs.go",
+  "description": "INTRODUCIDO — internal/cliargs/cliargs.go:101-104 devuelve ErrHelp en cuanto encuentra -h/--help y no valida los tokens posteriores. Reproducido: \"hoom verify --help show\" y \"hoom verify --help --bogus\" salen 0 sin ejecutar ningun gate; una automatizacion puede tratar como exitosa una invocacion malformada que omitio por completo la verificacion, aunque Strict promete UsageError ante CUALQUIER posicional o flag desconocido. La ayuda debe resolverse solo despues de comprobar que no quedan argumentos invalidos.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb2f19380e80ea12"
+}

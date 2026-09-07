@@ -1,0 +1,10 @@
+{
+  "id": "20260907T064538_12fe7a",
+  "created_at": "2026-09-07T06:45:38.287737Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/cliargs/cliargs.go",
+  "description": "PRE-EXISTENTE — internal/cliargs/cliargs.go:105 conserva el riesgo de main al emitir el nombre de flag controlado por argv sin citarlo ni escapar caracteres de control. Reproducido tanto en main como en esta rama con un nombre que contiene salto de linea: stderr crea una segunda linea FORGED; secuencias ANSI o anotaciones de CI pueden alterar logs de auditoria. Follow-up no bloqueante: usar strconv.Quote como en internal/cliargs/cliargs.go:94 y :121. Es patronizable con una regla Semgrep custom en .hoom/semgrep/ que prohíba construir errores de argumentos con tokens crudos.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb2f19380e80ea12"
+}

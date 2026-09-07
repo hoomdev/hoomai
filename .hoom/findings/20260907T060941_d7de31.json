@@ -1,0 +1,10 @@
+{
+  "id": "20260907T060941_d7de31",
+  "created_at": "2026-09-07T06:09:41.454766Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/cliargs/cliargs.go",
+  "description": "INTRODUCIDO — internal/cliargs/cliargs.go:23 declara Action como parte de UsageError y Error lo concatena en internal/cliargs/cliargs.go:31, pero los dos constructores reales (internal/cliargs/cliargs.go:48 e internal/verifycmd/args.go:96) nunca lo rellenan porque la acción ya está incrustada en UsageText. El modelo ofrece dos ubicaciones para la misma pieza del mensaje y vuelve ambiguo cómo debe reutilizarse el paquete; conservar una sola fuente para la acción.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb2f19380e80ea12"
+}

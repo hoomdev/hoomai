@@ -1,0 +1,10 @@
+{
+  "id": "20260907T064424_d2ffba",
+  "created_at": "2026-09-07T06:44:24.370313Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/verifycmd/args.go",
+  "description": "INTRODUCIDO — internal/verifycmd/args.go:49-56 valida si --gate/--spec fue escrito vacio mirando solo el valor FINAL que flag.Parse conserva. Una ocurrencia vacia queda enmascarada por otra posterior: hoom verify --gate \"\" --gate test es aceptado y llega a Run, que ejecuta el gate y toca .hoom/cache/verify-live.jsonl y .hoom/verdicts/, en vez de exit 2 con cero efectos como exige CA-221. Esto deja un bypass en la barrera que protege la integridad de la evidencia; hay que validar cada ocurrencia antes de que los flags repetidos se colapsen.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb2f19380e80ea12"
+}

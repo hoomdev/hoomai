@@ -1,0 +1,10 @@
+{
+  "id": "20260907T064432_912246",
+  "created_at": "2026-09-07T06:44:32.074131Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/cliargs/cliargs.go",
+  "description": "INTRODUCIDO — internal/cliargs/cliargs.go:105 concatena el nombre de flag controlado por argv sin citarlo ni escapar caracteres de control. Reproducido con un nombre que contiene salto de linea: stderr crea una segunda linea FORGED; secuencias ANSI o anotaciones de CI pueden alterar la presentacion del registro de auditoria. Usar strconv.Quote como ya hacen internal/cliargs/cliargs.go:94 y :121. Es patronizable: una regla Semgrep custom en .hoom/semgrep/ puede prohibir construir errores de argumentos con tokens crudos.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb2f19380e80ea12"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "20260907T060941_eda7b4",
+  "created_at": "2026-09-07T06:09:41.621467Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/verifycmd/cliargs_strict_test.go",
+  "description": "INTRODUCIDO — internal/verifycmd/cliargs_strict_test.go:8 justifica por una limitación del agente alojar bajo package verifycmd las 337 líneas que prueban internal/cliargs; además internal/verifycmd/args_test.go:261, :300 y :314 consumen helpers definidos en ese archivo. Por eso go test ./internal/cliargs informa que no hay tests y el traslado que recomienda el propio comentario rompería la suite hasta desacoplar esos helpers, dejando opaca la propiedad de las pruebas.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb2f19380e80ea12"
+}
