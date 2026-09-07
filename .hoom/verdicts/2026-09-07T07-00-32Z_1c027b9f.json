@@ -1,0 +1,136 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-07T07-00-32Z_1c027b9f",
+  "created_at": "2026-09-07T07:00:32.990329Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "a26c6fd699b8",
+    "branch": "hoomdev/Arquitectobajoelsobre",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/verify-args-estrictos_5d826394.json",
+      ".hoom/specs/verify-args-estrictos.md",
+      "README.md",
+      "cmd/hoom/main.go",
+      "internal/cliargs/cliargs.go",
+      "internal/cliargs/cliargs_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/servecmd/verify_args_test.go",
+      "internal/verifycmd/args.go",
+      "internal/verifycmd/args_test.go",
+      "internal/verifycmd/cli_args_e2e_test.go",
+      "internal/verifycmd/helpers_test.go",
+      "internal/verifycmd/verifycmd.go"
+    ],
+    "change_fingerprint": "def0db254c7f8494",
+    "insertions": 3098,
+    "deletions": 23
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "11 criterios (CA-*), 1 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 218,
+      "notes": "11/11 criterios: 10 trazados por test (71 archivos), 1 verificados por comando"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-07, sha 5d826394)"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 505
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 217
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./cmd/hoom ./internal/cliargs ./internal/servecmd ./internal/verifycmd",
+      "exit_code": 0,
+      "duration_ms": 11184,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/cliargs\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t4.561s\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t10.666s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/verify-args-estrictos.md"
+}
