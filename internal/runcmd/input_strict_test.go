@@ -83,10 +83,14 @@ func TestCA211_InputStrictSinContinuacionSeNiega(t *testing.T) {
 	if n := len(invocaciones(t, log)); n != 1 {
 		t.Fatalf("CA-211: la negativa no lanza ningun proceso, hubo %d invocaciones", n)
 	}
-	// y el directorio quedo libre: otro run puede arrancar ahi
-	if _, err := m.Start(StartOptions{Provider: "gemini", Prompt: "otro", Strict: true}); err != nil {
+	// y el directorio quedo libre: otro run puede arrancar ahi. Se espera a que
+	// cierre, o su meta final se escribe sobre el TempDir que el test ya esta
+	// borrando —la goroutine del run sobrevive al cuerpo del test.
+	otro, err := m.Start(StartOptions{Provider: "gemini", Prompt: "otro", Strict: true})
+	if err != nil {
 		t.Fatalf("CA-211: la negativa no deja el arbol ocupado: %v", err)
 	}
+	waitRun(t, m, otro.ID)
 }
 
 // CA-212: sin Strict el comportamiento se mantiene —invocacion nueva— con UNA
