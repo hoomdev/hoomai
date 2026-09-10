@@ -23,6 +23,9 @@ func (codex) Capabilities() Capabilities {
 	return Capabilities{
 		Structured: true, Continue: true, Resume: true, SessionID: true,
 		Model: true, SystemPrompt: true, ReadOnly: true,
+		// Unattended: `codex exec` never prompts by construction; what varies
+		// is the sandbox, and that is what the intention sets.
+		Unattended: true,
 		// Tools: Codex names no tools. MaxTurns/Budget: it has no caps.
 	}
 }
@@ -55,7 +58,8 @@ func (c codex) Command(req Request) (Invocation, error) {
 		// its quotes.
 		args = append(args, "-c", "developer_instructions="+tomlString(p.systemPrompt))
 	}
-	if p.readOnly {
+	switch {
+	case p.readOnly:
 		// `codex exec resume` has NO -s/--sandbox flag, so the mode travels
 		// as config in BOTH forms: one path, verified in both.
 		mode := "read-only"
@@ -63,6 +67,10 @@ func (c codex) Command(req Request) (Invocation, error) {
 			mode = "workspace-write" // corre hoom finding y los tests
 		}
 		args = append(args, "-c", "sandbox_mode="+tomlString(mode))
+	case p.unattended:
+		// a writing role nobody attends: the default sandbox of the user's
+		// config may not let it touch the worktree, so it is said explicitly.
+		args = append(args, "-c", "sandbox_mode="+tomlString("workspace-write"))
 	}
 	args = append(args, p.prompt)
 	return Invocation{Bin: c.Bin(), Args: args, Ignored: p.ignored}, nil

@@ -137,6 +137,9 @@ Flags de run (lo que el provider no soporta se ignora CON aviso en el log;
   --max-turns n        Tope de turnos del agente (0 = sin tope)
   --budget-usd x       Tope de gasto en USD (0 = sin tope)
   --strict             Campo no soportado = error, no aviso. Con strict,
+  --unattended         Nadie responde prompts: el CLI recibe de entrada las
+                       herramientas de lectura, escritura y shell (en Claude,
+                       --allowedTools explicito; en Codex, sandbox workspace-write)
                        continuar una sesion en un provider que no puede
                        (ni --resume ni --continue) tambien es error: una
                        invocacion nueva empezaria de cero y eso no es continuar
@@ -471,6 +474,7 @@ func cmdRun(args []string) error {
 	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	strict := fs.Bool("strict", false, "un campo que el provider no soporta es error, no aviso")
+	unattended := fs.Bool("unattended", false, "nadie responde prompts: el provider recibe de entrada las herramientas para leer, escribir y ejecutar")
 	_ = fs.Parse(args)
 	if *provider == "" {
 		return fmt.Errorf("falta --provider (mira 'hoom providers')")
@@ -492,7 +496,7 @@ func cmdRun(args []string) error {
 		Provider: *provider, Prompt: prompt, Task: *task, ResumeID: *resume,
 		Model: *model, SystemPrompt: sp,
 		AllowTools: splitList(*allow), DenyTools: splitList(*deny),
-		MaxTurns: *maxTurns, BudgetUSD: *budget, Strict: *strict,
+		MaxTurns: *maxTurns, BudgetUSD: *budget, Strict: *strict, Unattended: *unattended,
 	})
 	if err != nil {
 		return err

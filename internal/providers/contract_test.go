@@ -22,6 +22,7 @@ func ctCaps(v bool) Capabilities {
 		Model:        v,
 		SystemPrompt: v,
 		Tools:        v,
+		Unattended:   v,
 		MaxTurns:     v,
 		Budget:       v,
 	}
@@ -110,6 +111,13 @@ func (f capFake) Command(req Request) (Invocation, error) {
 			}
 		} else {
 			missing = append(missing, "tools") // allow y deny comparten un solo canonico
+		}
+	}
+	if req.Unattended {
+		if f.caps.Unattended {
+			args = append(args, "--unattended")
+		} else {
+			missing = append(missing, "unattended")
 		}
 	}
 	if req.MaxTurns > 0 {
@@ -256,6 +264,7 @@ func TestCA110_CampoOpcionalSegunCapacidad(t *testing.T) {
 	}
 	cases := []fieldCase{
 		{"resume", func(c Capabilities) bool { return c.Resume }, func(r *Request) { r.ResumeID = "sess-xyz" }},
+		{"unattended", func(c Capabilities) bool { return c.Unattended }, func(r *Request) { r.Unattended = true }},
 		{"continue", func(c Capabilities) bool { return c.Continue }, func(r *Request) { r.Continue = true }},
 		{"model", func(c Capabilities) bool { return c.Model }, func(r *Request) { r.Model = "modelo-x" }},
 		{"system_prompt", func(c Capabilities) bool { return c.SystemPrompt }, func(r *Request) { r.SystemPrompt = "texto de rol" }},

@@ -111,6 +111,7 @@ type StartOptions struct {
 	DenyTools    []string
 	ReadOnly     bool // the role does not write: every provider imposes it its own way
 	Exec         bool // ...but it does run commands
+	Unattended   bool // nobody answers prompts: the provider gets the role's tools up front
 	MaxTurns     int
 	BudgetUSD    float64
 	Strict       bool // unsupported field = refuse to start instead of a warning
@@ -122,7 +123,7 @@ func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Requ
 		Prompt: prompt, ResumeID: resumeID, Continue: cont,
 		Model: o.Model, SystemPrompt: o.SystemPrompt,
 		AllowTools: o.AllowTools, DenyTools: o.DenyTools,
-		ReadOnly: o.ReadOnly, Exec: o.Exec,
+		ReadOnly: o.ReadOnly, Exec: o.Exec, Unattended: o.Unattended,
 		MaxTurns: o.MaxTurns, BudgetUSD: o.BudgetUSD, Strict: o.Strict,
 	}
 }
