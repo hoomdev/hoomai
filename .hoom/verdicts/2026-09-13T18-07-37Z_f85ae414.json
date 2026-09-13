@@ -1,0 +1,96 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-13T18-07-37Z_f85ae414",
+  "created_at": "2026-09-13T18:07:37.219603Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "0b719ef93255",
+    "branch": "docs/roadmap-tres-grupos",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "README.md"
+    ],
+    "change_fingerprint": "4aa6e10712b68f8e",
+    "insertions": 33,
+    "deletions": 18
+  },
+  "gates": [
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 444
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 242
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go test -race ./...",
+      "exit_code": 0,
+      "duration_ms": 32426,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t30.339s\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/approval\t1.569s\nok  \tgithub.com/hoomdev/hoomai/internal/checkcmd\t6.861s\nok  \tgithub.com/hoomdev/hoomai/internal/cliargs\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t1.806s\nok  \tgithub.com/hoomdev/hoomai/internal/contextcmd\t1.619s\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/filesearch\t1.684s\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t6.019s\nok  \tgithub.com/hoomdev/hoomai/internal/gates\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t1.718s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t6.610s\n?   \tgithub.com/hoomdev/hoomai/internal/live\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/profiles\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t1.193s\nok  \tgithub.com/hoomdev/hoomai/internal/ratchet\t1.225s\nok  \tgithub.com/hoomdev/hoomai/internal/report\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t9.296s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t8.788s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t5.873s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t1.189s\nok  \tgithub.com/hoomdev/hoomai/internal/statuscmd\t9.279s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t2.820s\n?   \tgithub.com/hoomdev/hoomai/internal/verdict\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t11.523s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 3,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

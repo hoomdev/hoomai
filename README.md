@@ -404,30 +404,45 @@ linux/darwin/windows (amd64+arm64), genera `checksums.txt` y publica el release.
 
 ## Roadmap
 
-- Visibilidad fase 3 — adaptadores por provider hasta donde cada ecosistema
-  de: statusline y hooks de Claude Code (estado del harness dentro de la
-  sesion + registro de roles delegados), plugin OpenCode, etc. Donde no hay
-  datos, el nucleo agnostico (status) sigue siendo la experiencia completa.
-- Roles que dejan rastro: endurecer la regla "sin proceso no hay verde" —
-  el rol trabajo si existe su artefacto (spec, tests con CA-n, hallazgos),
-  no si un subagente con ese nombre fue invocado. Descripciones de
-  delegacion mas imperativas en los targets nativos.
-- Trinquete en el Studio: la curva de cada metrica en el dashboard (la
-  seccion CLI en `hoom status` ya existe).
+`hoom cockpit` sigue siendo el lanzador de tmux: arma el puesto con tu CLI de
+IA y el estado en vivo al lado. La cabina visual no lo reemplaza — vive dentro
+de `hoom serve`, y las dos formas de mirar el harness conviven.
+
+### Cabina visual (Studio v5)
+
+- Items y columna derivada: el estado de un item no se declara, se deriva de
+  sus artefactos (spec aprobado, tests con CA-n, hallazgos, veredicto). Es la
+  regla "sin proceso no hay verde" vuelta columna: el rol trabajo si dejo
+  rastro, no si un subagente con ese nombre fue invocado.
+- Tablero de solo lectura: los items, sus columnas y la curva de cada metrica
+  del trinquete (la seccion CLI de `hoom status` ya la tiene) en una vista que
+  no puede romper nada porque no escribe nada.
+- Acciones desde la tarjeta: disparar verify, review o el run de un rol sin
+  salir del tablero, con el mismo sobre determinista que usa la CLI.
+- Timeline, replay y doctor: reconstruir un run paso a paso desde los .jsonl,
+  con la correlacion tool_use/tool_result que marca cuando un subagente entra
+  y sale de escena, y un doctor que explique por que un veredicto es rojo.
+
+### Harness
+
 - Gate opcional `findings_open`: rojo con hallazgos high abiertos — primero
   ver como se usa el ciclo antes de darle poder de bloqueo.
-- Doble juez multi-provider (dos CLIs revisando el mismo diff): se activa
-  el dia que al Refutador se le escapen falsos positivos con frecuencia;
-  la infraestructura (hoom run) ya existe.
-- Correlacion tool_use/tool_result en el parser de runs, para marcar cuando
-  un subagente sale de escena en el Escenario.
+- Doble juez multi-provider (dos CLIs revisando el mismo diff): se activa el
+  dia que al Refutador se le escapen falsos positivos con frecuencia; la
+  infraestructura (`hoom run`) ya existe.
 - Guia de permisos headless por provider (allowlists recomendadas por CLI).
-- Recargar el historial de runs al arrancar `hoom serve` (hoy la lista del
-  cockpit arranca vacia tras un reinicio; los .jsonl quedan en disco).
 - Fase 2: `hoom characterize` (characterization tests asistidos sobre el blast radius).
 - Cache SQLite regenerable en `.hoom/cache/` para historiales grandes.
 - `hoom onboard` (bootstrap de codebase-memory-mcp + Engram en un proyecto).
-- Perfil `filament extends laravel`. Homebrew tap / Scoop / AUR.
+
+### Providers y distribucion
+
+- Visibilidad fase 3 — adaptadores por provider hasta donde cada ecosistema
+  de: statusline y hooks de Claude Code (estado del harness dentro de la
+  sesion + registro de roles delegados), plugin OpenCode, etc. Donde no hay
+  datos, el nucleo agnostico (`status`) sigue siendo la experiencia completa.
+- Perfil `filament extends laravel`.
+- Homebrew tap / Scoop / AUR.
 
  
  # Tutorial hoomAI Explicativo
