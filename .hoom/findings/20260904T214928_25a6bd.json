@@ -1,0 +1,10 @@
+{
+  "id": "20260904T214928_25a6bd",
+  "created_at": "2026-09-04T21:49:28.995676Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:33 mezcla la API inglesa del paquete (Lenses, Options, Pass, Result, Run) con símbolos españoles exportados (Lentes, LenteDominante, UmbralLineas) y, más abajo, helpers ingleses y españoles. El vocabulario inconsistente vuelve menos predecibles la búsqueda y la navegación del paquete; conviene unificar el idioma de sus identificadores.",
+  "author": "reviewer@codex",
+  "fingerprint": "6dec4213bab45d9a"
+}
