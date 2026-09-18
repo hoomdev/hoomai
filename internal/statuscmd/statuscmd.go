@@ -486,8 +486,14 @@ func renderEnvelopes(w io.Writer, s *Snapshot, color bool) {
 			}
 			continue
 		}
-		badge := paint(color, cGreen, "ENTREGABLE")
-		if e.Status != envelope.StatusDeliverable {
+		var badge string
+		switch e.Status {
+		case envelope.StatusDeliverable:
+			badge = paint(color, cGreen, "ENTREGABLE")
+		case envelope.StatusNoDelivery:
+			// nothing to certify is not a red verdict: the note says why
+			badge = paint(color, cYellow, "SIN ENTREGA")
+		default:
 			badge = paint(color, cRed, "NO ENTREGABLE") + " (" + e.Stage + ")"
 		}
 		line := fmt.Sprintf("   ultimo: %s %s (%s) %s · hace %s", e.ID, rol, e.Provider, badge, ago(s.Now, e.EndedAt))

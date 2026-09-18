@@ -774,8 +774,9 @@ async function refreshEnvelopes() {
     const corriendo = e.status === "en curso";
     const estado = corriendo
       ? `<span class="paso">paso ${e.step}/${e.steps} ${esc(e.stage)}</span>`
-      : badge(e.status === "entregable" ? "ENTREGABLE" : "NO ENTREGABLE (" + e.stage + ")",
-              e.status === "entregable" ? "green" : "red");
+      : e.status === "entregable" ? badge("ENTREGABLE", "green")
+      : e.status === "sin-entrega" ? badge("SIN ENTREGA", "absent") // nada que certificar: no es un rojo
+      : badge("NO ENTREGABLE (" + e.stage + ")", "red");
     return `<div class="sobre${corriendo ? "" : " cerrado"}">
       <b>${esc(e.role)}</b>
       <span class="hint">${esc(e.provider)}${e.isolated ? " · árbol ciego" : ""}${e.task ? " · " + esc(e.task) : ""}</span>

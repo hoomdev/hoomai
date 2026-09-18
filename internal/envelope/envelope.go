@@ -33,6 +33,11 @@ const (
 	StatusRunning        = "en curso"
 	StatusDeliverable    = "entregable"
 	StatusNotDeliverable = "no-entregable"
+	// StatusNoDelivery: a role that writes finished its run without changing
+	// anything but the evidence hoom itself generates. There is no new tree
+	// to certify, so there is no verdict — and that is not the same as a red
+	// one.
+	StatusNoDelivery = "sin-entrega"
 )
 
 // DirName is where the records live, under .hoom/.

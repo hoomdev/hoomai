@@ -60,10 +60,12 @@ func TestCA204_ElSobreDejaRastro(t *testing.T) {
 		t.Fatalf("CA-204: cuando arranco, cuando se movio y cuando termino: %+v", rec)
 	}
 
-	// (b) camino completo: el registro pasa por los pasos y cierra entregable
+	// (b) camino completo: el registro pasa por los pasos y cierra entregable.
+	// El writer entrega un archivo: uno que no entrega nada cierra sin-entrega
+	// antes de verify (.hoom/specs/arquitecto-bajo-el-sobre.md)
 	root2 := repo(t)
-	fakeProvider(t, "claude", "exit 0\n")
-	res2, err := Run(root2, "main", Options{Role: "writer", Prompt: "no toques nada"}, io.Discard)
+	fakeProvider(t, "claude", "printf 'package app // implementado\\n' > app.go\nexit 0\n")
+	res2, err := Run(root2, "main", Options{Role: "writer", Prompt: "implementa"}, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}

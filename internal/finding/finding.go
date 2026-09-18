@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -47,7 +48,23 @@ type Finding struct {
 	Description string    `json:"description"`
 	Author      string    `json:"author"`
 	Fingerprint string    `json:"fingerprint,omitempty"` // huella del arbol al encontrarlo
+	// Task: the task the finding belongs to. A label, not evidence: verify
+	// and check never read it; the cockpit uses it to put a finding on its card.
+	Task string `json:"task,omitempty"`
 }
+
+// Draft is what a new finding says before hoom stamps it (id, time,
+// fingerprint).
+type Draft struct {
+	Severity, Lens, File, Description, Author string
+	Task                                      string // slug de la tarea; "" = sin tarea
+}
+
+// taskRe is the slug shape `hoom task start` accepts. A finding validates the
+// SHAPE only: from inside a task's worktree the task registry lives in
+// another directory, and a finding outlives the worktree `hoom task done`
+// removes.
+var taskRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 // Resolution is the single terminal transition of a finding.
 type Resolution struct {
@@ -99,8 +116,22 @@ func newID() string {
 	return time.Now().UTC().Format("20060102T150405") + "_" + hex.EncodeToString(raw)
 }
 
-// Add records a new immutable finding bound to the current tree fingerprint.
+// Add records a new immutable finding bound to the current tree fingerprint,
+// with no task.
 func Add(root, base, severity, lens, file, description, author string) (Finding, error) {
+	return Register(root, base, Draft{Severity: severity, Lens: lens, File: file,
+		Description: description, Author: author})
+}
+
+// Register records a new immutable finding bound to the current tree
+// fingerprint and, when the draft names one, to its task. An invalid task is
+// an error and writes nothing.
+func Register(root, base string, d Draft) (Finding, error) {
+	severity, lens, file, description, author := d.Severity, d.Lens, d.File, d.Description, d.Author
+	task := strings.TrimSpace(d.Task)
+	if task != "" && !taskRe.MatchString(task) {
+		return Finding{}, fmt.Errorf("tarea invalida %q: usa el slug de la tarea (minusculas, numeros y guiones)", d.Task)
+	}
 	severity = strings.ToLower(strings.TrimSpace(severity))
 	if !validSeverities[severity] {
 		return Finding{}, fmt.Errorf("severidad invalida %q (low|medium|high)", severity)
@@ -120,6 +151,7 @@ func Add(root, base, severity, lens, file, description, author string) (Finding,
 		Description: strings.TrimSpace(description),
 		Author:      author,
 		Fingerprint: gitx.Snapshot(root, base).ChangeFingerprint,
+		Task:        task,
 	}
 	if err := os.MkdirAll(dir(root), 0o755); err != nil {
 		return Finding{}, err

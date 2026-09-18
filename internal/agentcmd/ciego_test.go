@@ -173,7 +173,9 @@ func jsonStr(s string) string {
 // contrato del rol viaja con el parrafo que explica el arbol.
 func TestCA182_SeisPasosYElParrafoDelArbolCiego(t *testing.T) {
 	dump := filepath.Join(t.TempDir(), "args.txt")
-	fakeProvider(t, "claude", "printf '%s\\n' \"$@\" > "+dump+"\nexit 0\n")
+	// el rol entrega un test: sin entrega no habria pasos 5 y 6 que mostrar
+	// (.hoom/specs/arquitecto-bajo-el-sobre.md)
+	fakeProvider(t, "claude", "printf '%s\\n' \"$@\" > "+dump+"\nprintf 'package app\\n// CA-1\\n' > nuevo_test.go\nexit 0\n")
 	root := repoCiego(t)
 
 	var buf bytes.Buffer

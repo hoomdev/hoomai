@@ -20,6 +20,7 @@ const (
 	ScopeEvidencia = "evidencia" // solo .hoom/**: specs, hallazgos, veredictos
 	ScopeTests     = "tests"     // tests + .hoom/**; nunca la implementacion
 	ScopeCodigo    = "codigo"    // todo salvo .hoom/specs/** (el spec es del arquitecto)
+	ScopeSpecs     = "specs"     // solo .hoom/specs/**: el territorio de quien escribe specs
 )
 
 // Role carries the per-agent metadata each target format needs AND the write
@@ -31,9 +32,12 @@ type Role struct {
 	File     string `json:"file"`      // 04-writer.md: contrato embebido
 	Desc     string `json:"desc"`      // delegation description shown to the orchestrator
 	ReadOnly bool   `json:"read_only"` // enforce no-edit permissions where the target supports it
-	Exec     bool   `json:"exec"`      // solo lectura de CODIGO pero EJECUTA comandos (hoom finding, tests)
-	Primary  bool   `json:"primary"`   // orchestrator: the main session in most CLIs
-	Scope    string `json:"scope"`     // evidencia | tests | codigo
+	// Exec: the role RUNS commands (tests, hoom finding, hoom verify). On a
+	// read-only role it opens the shell on top of the read set; on a role
+	// that writes, without Exec the provider grants writing without a shell.
+	Exec    bool   `json:"exec"`
+	Primary bool   `json:"primary"` // orchestrator: the main session in most CLIs
+	Scope   string `json:"scope"`   // evidencia | tests | codigo | specs
 	// Isolated: the role runs in a BLIND tree, with the implementation off
 	// disk. It is not deduced from Scope on purpose — the characterizer
 	// shares the `tests` shape and its whole job is reading legacy code.
@@ -47,29 +51,29 @@ var roles = []Role{
 		Desc:     "Agente principal hoomAI: rutea el trabajo, delega a los subagentes y exige hoom verify + hoom check antes de entregar. NUNCA edita codigo.",
 		ReadOnly: true, Exec: true, Primary: true, Scope: ScopeEvidencia, Isolated: false},
 	{Slug: "arquitecto", Native: "hoom-arquitecto", File: "01-arquitecto.md",
-		Desc:     "Produce el spec de una tarea en .hoom/specs (7 secciones) a partir de la vision y el pedido. Usar ANTES de implementar cualquier cambio sustancial. Solo lectura.",
-		ReadOnly: true, Exec: false, Primary: false, Scope: ScopeEvidencia, Isolated: false},
+		Desc:     "Produce el spec de una tarea en .hoom/specs (7 secciones) a partir de la vision y el pedido. Usar ANTES de implementar cualquier cambio sustancial. Escribe solo en .hoom/specs y no ejecuta comandos.",
+		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeSpecs, Isolated: false},
 	{Slug: "designer", Native: "hoom-designer", File: "02-designer.md",
-		Desc:     "Traduce el visual elegido a un UI-spec y protege el design system. Usar en tareas con interfaz de usuario. Solo lectura.",
-		ReadOnly: true, Exec: false, Primary: false, Scope: ScopeEvidencia, Isolated: false},
+		Desc:     "Traduce el visual elegido a un UI-spec y protege el design system. Usar en tareas con interfaz de usuario. Escribe solo en .hoom/specs y no ejecuta comandos.",
+		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeSpecs, Isolated: false},
 	{Slug: "scout", Native: "hoom-scout", File: "03-scout.md",
 		Desc:     "Explora el codigo y devuelve un resumen comprimido con rutas exactas y firmas. Usar cuando entender un flujo requiere leer 4 o mas archivos. Solo lectura.",
 		ReadOnly: true, Exec: false, Primary: false, Scope: ScopeEvidencia, Isolated: false},
 	{Slug: "writer", Native: "hoom-writer", File: "04-writer.md",
 		Desc:     "UNICO agente que edita codigo. Implementa exactamente el scope del spec y corre hoom verify al terminar. Uno solo por tarea.",
-		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeCodigo, Isolated: false},
+		ReadOnly: false, Exec: true, Primary: false, Scope: ScopeCodigo, Isolated: false},
 	{Slug: "test-writer", Native: "hoom-test-writer", File: "05-test-writer.md",
 		Desc:     "Escribe tests adversariales SOLO desde el spec, sin ver jamas la implementacion. Usar tras aprobar el spec, antes o en paralelo del writer.",
-		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeTests, Isolated: true},
+		ReadOnly: false, Exec: true, Primary: false, Scope: ScopeTests, Isolated: true},
 	{Slug: "reviewer", Native: "hoom-reviewer", File: "06-reviewer.md",
 		Desc:     "Revisa un diff con la lente asignada (readability, reliability, resilience o risk); las 4 lentes si toca seguridad, dinero o supera 400 lineas. Solo lectura de codigo; registra hallazgos con hoom finding add.",
 		ReadOnly: true, Exec: true, Primary: false, Scope: ScopeEvidencia, Isolated: false},
 	{Slug: "characterizer", Native: "hoom-characterizer", File: "07-characterizer.md",
 		Desc:     "Genera characterization tests que fijan el comportamiento ACTUAL de codigo legacy antes de refactorizar.",
-		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeTests, Isolated: false},
+		ReadOnly: false, Exec: true, Primary: false, Scope: ScopeTests, Isolated: false},
 	{Slug: "analista", Native: "hoom-analista", File: "08-analista.md",
-		Desc:     "Convierte los documentos del cliente en .hoom/intake en la vision (.hoom/specs/00-vision.md) y el backlog (.hoom/specs/backlog.md).",
-		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeEvidencia, Isolated: false},
+		Desc:     "Convierte los documentos del cliente en .hoom/intake en la vision (.hoom/specs/00-vision.md) y el backlog (.hoom/specs/backlog.md). Escribe solo en .hoom/specs y no ejecuta comandos.",
+		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeSpecs, Isolated: false},
 	{Slug: "refutador", Native: "hoom-refutador", File: "09-refutador.md",
 		Desc:     "Intenta REFUTAR los hallazgos abiertos con evidencia deterministica (correr el test, citar la linea) antes de que se corrijan; maximo 2 ciclos y escala al humano. Solo lectura de codigo; cierra con hoom finding resolve.",
 		ReadOnly: true, Exec: true, Primary: false, Scope: ScopeEvidencia, Isolated: false},
@@ -165,11 +169,15 @@ func genClaude(dir string) error {
 		f.WriteString("---\n")
 		fmt.Fprintf(&f, "name: %s\n", r.Native)
 		fmt.Fprintf(&f, "description: %q\n", r.Desc)
-		if r.ReadOnly && r.Exec {
+		switch {
+		case r.ReadOnly && r.Exec:
 			// solo lectura de CODIGO pero ejecuta comandos (hoom finding, tests)
 			f.WriteString("tools: Read, Grep, Glob, Bash\n")
-		} else if r.ReadOnly {
+		case r.ReadOnly:
 			f.WriteString("tools: Read, Grep, Glob\n")
+		case !r.Exec:
+			// escribe (sus specs) pero no ejecuta: sin Bash
+			f.WriteString("tools: Read, Grep, Glob, Edit, Write, MultiEdit\n")
 		}
 		f.WriteString("---\n\n")
 		f.WriteString(b)
@@ -178,7 +186,7 @@ func genClaude(dir string) error {
 		}
 	}
 	fmt.Println("hoom: [claude] subagentes en .claude/agents/ (9; el orquestador es tu sesion principal via AGENTS.md)")
-	fmt.Println("hoom: [claude] los roles de solo lectura quedan SIN herramientas de edicion: enforcement duro")
+	fmt.Println("hoom: [claude] los roles de solo lectura quedan SIN herramientas de edicion y los autores de specs SIN shell: enforcement duro")
 	return nil
 }
 
@@ -214,7 +222,11 @@ func genOpenCode(dir string) error {
 			}
 		} else {
 			f.WriteString("  edit: allow\n")
-			f.WriteString("  bash: allow\n")
+			if r.Exec {
+				f.WriteString("  bash: allow\n")
+			} else {
+				f.WriteString("  bash: deny\n") // escribe sus specs, no ejecuta
+			}
 		}
 		f.WriteString("---\n\n")
 		f.WriteString(b)
@@ -253,6 +265,9 @@ func genCodex(dir string) error {
 			// disciplina de no editar codigo queda en el contrato
 			f.WriteString("sandbox_mode = \"workspace-write\"\n")
 		}
+		// A role that writes without Exec (the spec authors) gets nothing
+		// here: Codex's sandbox cannot take the shell away from a role that
+		// writes. Its contract says it; the scope gate checks what it wrote.
 		f.WriteString("developer_instructions = \"\"\"\n")
 		f.WriteString(strings.ReplaceAll(b, `"""`, `'''`))
 		f.WriteString("\"\"\"\n")
@@ -289,14 +304,20 @@ func genGemini(dir string) error {
 		fmt.Fprintf(&f, "description: %q\n", r.Desc)
 		f.WriteString("model: inherit\n")
 		f.WriteString("tools:\n")
-		if r.ReadOnly {
+		switch {
+		case r.ReadOnly:
 			for _, t := range []string{"read_file", "read_many_files", "glob", "search_file_content"} {
 				fmt.Fprintf(&f, "  - %s\n", t)
 			}
 			if r.Exec {
 				f.WriteString("  - run_shell_command\n")
 			}
-		} else {
+		case !r.Exec:
+			// escribe (sus specs) pero no ejecuta: lectura + edicion, sin shell
+			for _, t := range []string{"read_file", "read_many_files", "glob", "search_file_content", "write_file", "replace"} {
+				fmt.Fprintf(&f, "  - %s\n", t)
+			}
+		default:
 			f.WriteString("  - \"*\"\n")
 		}
 		f.WriteString("---\n\n")

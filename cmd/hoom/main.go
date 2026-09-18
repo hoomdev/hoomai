@@ -70,7 +70,8 @@ Comandos:
   context     Salud del contexto: intake, vision/backlog, preguntas abiertas,
               staleness. Amarillos honestos; informa, nunca bloquea [--json]
   finding     Hallazgos de review como artefactos append-only (.hoom/findings/):
-              add --sev low|medium|high [--lens l] [--file f] "<descripcion>"
+              add --sev low|medium|high [--lens l] [--file f] [--task slug] "<descripcion>"
+                (sin --task toma HOOM_TASK, que hoom pone en cada run con tarea)
               resolve <id> --as corregido|refutado --evidence "<por que>"
               list [--open] [--json]   (cerrar SIN evidencia esta prohibido)
   providers   Detecta las CLIs de IA instaladas y las capacidades que declara
@@ -661,14 +662,19 @@ func cmdFinding(args []string) error {
 		lens := fs.String("lens", "", "lente: readability|reliability|resilience|risk|otra")
 		file := fs.String("file", "", "archivo senalado")
 		author := fs.String("author", "", "rol o autor (default: git config)")
+		task := fs.String("task", "", "slug de la tarea a la que pertenece (default: $"+runcmd.EnvTask+", que pone el run)")
 		_ = fs.Parse(rest)
 		desc := strings.TrimSpace(strings.Join(fs.Args(), " "))
-		f, err := finding.Add(m.Dir, m.BaseBranch, *sev, *lens, *file, desc, *author)
+		f, err := finding.Register(m.Dir, m.BaseBranch, finding.Draft{Severity: *sev, Lens: *lens, File: *file,
+			Description: desc, Author: *author, Task: runcmd.CurrentTask(*task)})
 		if err != nil {
 			return err
 		}
 		fmt.Printf("hoom finding: registrado %s (%s/%s)\n  descripcion: %s\n  huella: %s\n  el registro es INMUTABLE; se cierra con 'hoom finding resolve %s --as corregido|refutado --evidence \"...\"'\n",
 			f.ID, f.Severity, f.Lens, f.Description, f.Fingerprint, f.ID)
+		if f.Task != "" {
+			fmt.Printf("  tarea: %s\n", f.Task)
+		}
 		return nil
 	case "resolve":
 		// el id va primero y flag.Parse corta en el primer posicional:
