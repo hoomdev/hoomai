@@ -111,6 +111,7 @@ type StartOptions struct {
 	DenyTools    []string
 	ReadOnly     bool // the role does not write: every provider imposes it its own way
 	Exec         bool // ...but it does run commands
+	NoExec       bool // the role writes but runs no commands: the provider withholds the shell
 	Unattended   bool // nobody answers prompts: the provider gets the role's tools up front
 	MaxTurns     int
 	BudgetUSD    float64
@@ -123,7 +124,7 @@ func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Requ
 		Prompt: prompt, ResumeID: resumeID, Continue: cont,
 		Model: o.Model, SystemPrompt: o.SystemPrompt,
 		AllowTools: o.AllowTools, DenyTools: o.DenyTools,
-		ReadOnly: o.ReadOnly, Exec: o.Exec, Unattended: o.Unattended,
+		ReadOnly: o.ReadOnly, Exec: o.Exec, NoExec: o.NoExec, Unattended: o.Unattended,
 		MaxTurns: o.MaxTurns, BudgetUSD: o.BudgetUSD, Strict: o.Strict,
 	}
 }
@@ -471,6 +472,22 @@ func blindFrom(dir string) (string, bool) {
 	return strings.TrimSpace(string(out)), true
 }
 
+// EnvTask is the variable a run puts in its provider's environment with the
+// task it belongs to. Whatever the role runs inside — `hoom finding add`
+// above all — inherits it, so a finding lands tied to its task without the
+// role's contract having to know.
+const EnvTask = "HOOM_TASK"
+
+// CurrentTask answers which task this process works for: an explicit flag
+// wins; without one, the task the run that launched us put in EnvTask;
+// without either, none.
+func CurrentTask(flag string) string {
+	if t := strings.TrimSpace(flag); t != "" {
+		return t
+	}
+	return strings.TrimSpace(os.Getenv(EnvTask))
+}
+
 // TaskDir resolves where work for a task happens: its isolated worktree, or
 // the project root when no task is given. The envelope needs the same answer
 // the run uses, so both ask here.
@@ -763,6 +780,10 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 
 	cmd := exec.CommandContext(ctx, inv.Bin, inv.Args...)
 	cmd.Dir = r.dir
+	// The run tells whatever it launches which task it belongs to — always,
+	// empty without one, so a value inherited from the parent never leaks in.
+	// exec keeps the LAST value of a repeated key.
+	cmd.Env = append(os.Environ(), EnvTask+"="+r.opts.Task)
 
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()

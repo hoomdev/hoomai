@@ -18,11 +18,13 @@ func TestCA127_TablaDeRolesYLookup(t *testing.T) {
 		t.Fatalf("CA-127: se esperaban 10 roles, hay %d", len(all))
 	}
 	quiere := map[string]string{
-		"orquestador": ScopeEvidencia, "arquitecto": ScopeEvidencia,
-		"designer": ScopeEvidencia, "scout": ScopeEvidencia,
+		// arquitecto, designer y analista escriben specs: forma `specs` desde
+		// .hoom/specs/arquitecto-bajo-el-sobre.md (antes, `evidencia`)
+		"orquestador": ScopeEvidencia, "arquitecto": ScopeSpecs,
+		"designer": ScopeSpecs, "scout": ScopeEvidencia,
 		"writer": ScopeCodigo, "test-writer": ScopeTests,
 		"reviewer": ScopeEvidencia, "characterizer": ScopeTests,
-		"analista": ScopeEvidencia, "refutador": ScopeEvidencia,
+		"analista": ScopeSpecs, "refutador": ScopeEvidencia,
 	}
 	for _, r := range all {
 		want, ok := quiere[r.Slug]
