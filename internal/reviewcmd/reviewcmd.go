@@ -258,7 +258,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// Los hallazgos del reviewer se cuentan ANTES de que hoom escriba los
 		// suyos por violaciones: el arbitro no se cuenta como jugador.
 		pass.Findings = nuevos(antes, idsDeHallazgos(dir, base))
-		pass.Scope = agentcmd.Gate(dir, base, role, before, agentcmd.Take(dir, base), pol, nil)
+		pass.Scope = agentcmd.Gate(dir, base, opt.Task, role, before, agentcmd.Take(dir, base), pol, nil)
 		printScope(w, pass.Scope, role)
 		printFindings(w, pass.Findings)
 		res.Passes = append(res.Passes, pass)
@@ -272,14 +272,15 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 // writerOf answers "who wrote this tree?" with the run metas: the most recent
 // run of THIS directory whose role is not read-only. A previous review is not
-// a writer; a run without a role (`hoom run`) counts as one, because nothing
-// says it did not write.
+// a writer, and neither is a spec author: it wrote the spec, not the code
+// under review. A run without a role (`hoom run`) counts as one, because
+// nothing says it did not write.
 func writerOf(root, dir string) (runcmd.Meta, bool) {
 	for _, meta := range runcmd.Metas(root) {
 		if meta.Dir != dir {
 			continue
 		}
-		if r, err := agents.Lookup(meta.Role); err == nil && r.ReadOnly {
+		if r, err := agents.Lookup(meta.Role); err == nil && (r.ReadOnly || r.Scope == agents.ScopeSpecs) {
 			continue
 		}
 		return meta, true

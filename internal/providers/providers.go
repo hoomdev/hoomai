@@ -125,6 +125,7 @@ type Capabilities struct {
 	SystemPrompt bool `json:"system_prompt"` // appends text to its own system prompt
 	Tools        bool `json:"tools"`         // allow/deny tools by NAME
 	ReadOnly     bool `json:"read_only"`     // can impose a role that does NOT write
+	NoExec       bool `json:"no_exec"`       // can take the shell away from a role that WRITES
 	Unattended   bool `json:"unattended"`    // can run with nobody answering prompts
 	MaxTurns     bool `json:"max_turns"`     // hard cap on agentic turns
 	Budget       bool `json:"budget"`        // hard cap on spend (USD)
@@ -140,7 +141,7 @@ func (c Capabilities) Names() []string {
 	}{
 		{"structured", c.Structured}, {"continue", c.Continue}, {"resume", c.Resume},
 		{"session_id", c.SessionID}, {"model", c.Model}, {"system_prompt", c.SystemPrompt},
-		{"tools", c.Tools}, {"read_only", c.ReadOnly}, {"unattended", c.Unattended},
+		{"tools", c.Tools}, {"read_only", c.ReadOnly}, {"no_exec", c.NoExec}, {"unattended", c.Unattended},
 		{"max_turns", c.MaxTurns}, {"budget", c.Budget},
 	} {
 		if f.on {
@@ -175,6 +176,10 @@ type Request struct {
 	// whatever it has (Claude denies tools by name, Codex sets a sandbox).
 	ReadOnly bool
 	Exec     bool // ...but it DOES run commands (hoom finding, tests). Alone it means nothing.
+	// NoExec: the role writes but runs NO commands (the spec authors). The
+	// sibling of Exec for a role that writes; under ReadOnly it says nothing,
+	// because there the absence of Exec already says it.
+	NoExec bool
 	// Unattended: nobody will answer a permission prompt. The adapter grants
 	// up front the tools the role needs (the read set under ReadOnly, read +
 	// write + shell otherwise) instead of letting the CLI deny them one by
@@ -210,6 +215,7 @@ const (
 	FieldSystemPrompt = "system_prompt"
 	FieldTools        = "tools"     // covers AllowTools and DenyTools
 	FieldReadOnly     = "read_only" // covers ReadOnly and Exec
+	FieldNoExec       = "no_exec"
 	FieldUnattended   = "unattended"
 	FieldMaxTurns     = "max_turns"
 	FieldBudget       = "budget"
@@ -240,6 +246,7 @@ type plan struct {
 	allow, deny  []string
 	readOnly     bool
 	exec         bool
+	noExec       bool
 	unattended   bool
 	maxTurns     int
 	budgetUSD    float64
@@ -317,6 +324,13 @@ func resolve(name string, caps Capabilities, req Request) (plan, error) {
 			p.readOnly, p.exec = true, req.Exec
 		} else {
 			p.ignored = append(p.ignored, FieldReadOnly)
+		}
+	}
+	if req.NoExec && !req.ReadOnly {
+		if caps.NoExec {
+			p.noExec = true
+		} else {
+			p.ignored = append(p.ignored, FieldNoExec)
 		}
 	}
 	if req.Unattended {

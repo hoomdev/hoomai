@@ -449,9 +449,10 @@ func TestCA143_ExitCodes(t *testing.T) {
 		t.Fatalf("CA-143: un run fallido no deja arbol que medir: %+v", res)
 	}
 
-	// veredicto rojo: exit 1
+	// veredicto rojo: exit 1. El writer entrega un archivo: uno que no entrega
+	// nada cierra sin-entrega antes de verify (arquitecto-bajo-el-sobre.md)
 	rojo := repoGate(t, "false")
-	fakeProvider(t, "claude", "exit 0\n")
+	fakeProvider(t, "claude", "printf 'package app // implementado\\n' > app.go\nexit 0\n")
 	res, err = Run(rojo, "main", Options{Role: "writer", Prompt: "implementa"}, io.Discard)
 	if err != nil {
 		t.Fatal(err)

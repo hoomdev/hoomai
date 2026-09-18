@@ -24,7 +24,7 @@ func (claude) Bin() string  { return "claude" }
 func (claude) Capabilities() Capabilities {
 	return Capabilities{
 		Structured: true, Continue: true, Resume: true, SessionID: true,
-		Model: true, SystemPrompt: true, Tools: true, ReadOnly: true, Unattended: true,
+		Model: true, SystemPrompt: true, Tools: true, ReadOnly: true, NoExec: true, Unattended: true,
 		MaxTurns: true, Budget: true,
 	}
 }
@@ -51,7 +51,16 @@ func (c claude) Command(req Request) (Invocation, error) {
 		// pre-approved is denied in silence. A writing role gets its tools
 		// up front, by NAME and not by a bypass mode, so the argv in the run
 		// log says exactly what the role could do.
-		allow = dedup(append(allow, claudeWriteTools()...))
+		grant := claudeWriteTools()
+		if p.noExec {
+			grant = withoutShell(grant)
+		}
+		allow = dedup(append(allow, grant...))
+	}
+	if p.noExec {
+		// denied by name, not just left out: a user setting that pre-allows
+		// Bash would otherwise hand the shell back to a role that writes specs
+		deny = dedup(append(deny, "Bash"))
 	}
 	if len(allow) > 0 {
 		args = append(args, "--allowedTools", strings.Join(allow, ","))
@@ -90,6 +99,18 @@ func (c claude) Command(req Request) (Invocation, error) {
 // list, is what bounds WHERE it may write.
 func claudeWriteTools() []string {
 	return []string{"Read", "Grep", "Glob", "Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"}
+}
+
+// withoutShell drops Bash from a tool list: what a role that writes but runs
+// no commands keeps of the write set.
+func withoutShell(tools []string) []string {
+	var out []string
+	for _, t := range tools {
+		if t != "Bash" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // claudeReadOnlyTools translates the read-only intention into Claude's OWN

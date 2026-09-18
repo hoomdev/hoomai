@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
@@ -59,7 +60,7 @@ type Result struct {
 	Check      *checkcmd.Result `json:"check,omitempty"`
 	Isolation  *Isolation       `json:"isolation,omitempty"`
 	Stage      string           `json:"stage"`  // spec | aislar | run | scope | verify | check | ok
-	Status     string           `json:"status"` // entregable | no-entregable
+	Status     string           `json:"status"` // entregable | no-entregable | sin-entrega
 	ExitCode   int              `json:"exit_code"`
 }
 
@@ -87,6 +88,14 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 	if strings.TrimSpace(opt.Prompt) == "" {
 		return Result{}, fmt.Errorf("falta el pedido: hoom agent --role %s \"<pedido>\"", role.Slug)
+	}
+	// Input validation, like an empty pedido: no record, no run, no token.
+	if IsPlaceholder(opt.Prompt) {
+		return Result{}, fmt.Errorf("el pedido %q no dice nada: escribi lo que el rol tiene que hacer", opt.Prompt)
+	}
+	if role.Scope == agents.ScopeSpecs && strings.TrimSpace(opt.Spec) != "" {
+		return Result{}, fmt.Errorf("el rol %s escribe specs: --spec es el spec desde el que un rol trabaja y contra el que se verifica, "+
+			"y un autor no se verifica contra el suyo. Nombra el spec en el pedido", role.Slug)
 	}
 	dir, err := runcmd.TaskDir(root, opt.Task)
 	if err != nil {
@@ -184,6 +193,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if warn {
 		fmt.Fprintf(w, "  aviso: %s no puede imponer un rol de solo lectura; el limite se verifica solo despues del run\n", prov.Name())
 	}
+	if _, sinShell := NoExecFor(prov, role); sinShell {
+		fmt.Fprintf(w, "  aviso: %s no puede quitarle el shell a un rol que escribe; su escritura se verifica solo despues del run\n", prov.Name())
+	}
 	before := Take(runDir, base)
 	info, err := mgr.Start(so)
 	if err != nil {
@@ -232,7 +244,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if tree != nil {
 		blind = &Blind{Restored: tree.Breaches(), Leaked: delta(beforeReal.Touched, Take(dir, base).Touched)}
 	}
-	res.Scope = Gate(dir, base, role, before, Take(runDir, base), PolicyFor(m, role), blind)
+	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), PolicyFor(m, role), blind)
 	printScope(w, res.Scope, role, step(steps-2, steps))
 	if res.Scope.Cuts() {
 		note := "manipulacion de la evidencia: no se emite veredicto sobre este arbol"
@@ -249,6 +261,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			keepQuarantine(w, tree, res.Isolation, "el trasplante fallo a mitad de camino")
 			return res, roto(root, &rec, err)
 		}
+	}
+	// A role that writes and delivered nothing leaves no new tree to certify.
+	// Checked AFTER the cut (tampering always wins) and after the transplant
+	// (a finding the blind role created does not die with the quarantine).
+	if !role.ReadOnly && len(res.Scope.Delivered()) == 0 {
+		return sinEntrega(w, root, &rec, res, role), nil
 	}
 
 	// [N-1/N] verify
@@ -289,8 +307,24 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 // paro, el exit y por que. El registro se escribe DESPUES de imprimir, porque
 // lo que se guarda es el resultado, no la intencion.
 func cerrar(w io.Writer, root string, rec *envelope.Record, res Result, stage string, code int, note string) Result {
-	res = finish(w, res, stage, code, note)
-	rec.Stage, rec.Status, rec.ExitCode, rec.Note = stage, res.Status, code, note
+	return registrar(root, rec, finish(w, res, stage, code, note), note)
+}
+
+// sinEntrega closes an envelope whose writing role changed nothing but the
+// evidence hoom itself generates. It is not a red verdict — there is no
+// verdict at all, because there is no new tree to certify — so it has its
+// own status, and the step where it stopped is scope: that is where the delta
+// was measured.
+func sinEntrega(w io.Writer, root string, rec *envelope.Record, res Result, role agents.Role) Result {
+	note := fmt.Sprintf("el rol %s escribe y el run no dejo ningun archivo: no hay arbol nuevo que certificar", role.Slug)
+	res.Stage, res.ExitCode, res.Status = "scope", 1, envelope.StatusNoDelivery
+	fmt.Fprintf(w, "hoom agent: SIN ENTREGA - %s\n", note)
+	return registrar(root, rec, res, note)
+}
+
+// registrar writes the closing record from the Result it closes with.
+func registrar(root string, rec *envelope.Record, res Result, note string) Result {
+	rec.Stage, rec.Status, rec.ExitCode, rec.Note = res.Stage, res.Status, res.ExitCode, note
 	rec.EndedAt = time.Now().UTC()
 	envelope.Write(root, *rec)
 	return res
@@ -368,6 +402,7 @@ func startOptions(prov providers.Provider, role agents.Role, contract string, op
 	}
 	var warn bool
 	so.ReadOnly, so.Exec, warn = ReadOnlyFor(prov, role)
+	so.NoExec, _ = NoExecFor(prov, role) // su aviso lo imprime Run
 	return so, warn
 }
 
@@ -384,6 +419,44 @@ func ReadOnlyFor(p providers.Provider, role agents.Role) (readOnly, exec, warn b
 		return false, false, true
 	}
 	return true, role.Exec, false
+}
+
+// NoExecFor resolves the "no shell" of a role that writes without Exec
+// against what the provider DECLARES, exactly like ReadOnlyFor does with the
+// read-only limit: one that cannot impose it returns warn, the run happens
+// anyway and the scope gate is the net. Read-only roles and roles that do run
+// commands ask for nothing here.
+func NoExecFor(p providers.Provider, role agents.Role) (noExec, warn bool) {
+	if role.ReadOnly || role.Exec {
+		return false, false
+	}
+	if !p.Capabilities().NoExec {
+		return false, true
+	}
+	return true, false
+}
+
+// IsPlaceholder reports a pedido that says nothing: empty once every blank is
+// gone, made only of '.' and '…', or exactly "<pedido>" — the placeholder the
+// envelope itself prints in its resume hint. Burning a run on it is paying a
+// model to guess.
+func IsPlaceholder(pedido string) bool {
+	var b strings.Builder
+	for _, r := range pedido {
+		if !unicode.IsSpace(r) {
+			b.WriteRune(r)
+		}
+	}
+	s := b.String()
+	if strings.EqualFold(s, "<pedido>") {
+		return true
+	}
+	for _, r := range s {
+		if r != '.' && r != '…' {
+			return false
+		}
+	}
+	return true
 }
 
 // stream mirrors the run narration while it happens, exactly like `hoom run`.

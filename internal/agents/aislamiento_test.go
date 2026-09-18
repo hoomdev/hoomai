@@ -40,8 +40,11 @@ func TestCA170_SoloElTestWriterCorreCiego(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !tw.Isolated || tw.Scope != ScopeTests || tw.ReadOnly || tw.Exec || tw.Primary {
-		t.Fatalf("CA-170: el test-writer escribe tests, corre ciego y nada mas: %+v", tw)
+	// Exec significa "ejecuta comandos" en toda la tabla desde
+	// .hoom/specs/arquitecto-bajo-el-sobre.md: el test-writer conserva el
+	// shell que siempre tuvo, ahora nombrado.
+	if !tw.Isolated || tw.Scope != ScopeTests || tw.ReadOnly || !tw.Exec || tw.Primary {
+		t.Fatalf("CA-170: el test-writer escribe tests, ejecuta, corre ciego y nada mas: %+v", tw)
 	}
 	if all[0].Slug != "orquestador" || all[len(all)-1].Slug != "refutador" {
 		t.Fatalf("CA-170: el orden de la tabla cambio: %s..%s", all[0].Slug, all[len(all)-1].Slug)

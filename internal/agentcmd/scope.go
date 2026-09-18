@@ -79,6 +79,26 @@ type ScopeResult struct {
 // undoing the blindfold, is not.
 func (s ScopeResult) Cuts() bool { return s.Tampering || s.Broken() }
 
+// Delivered is what the run changed that counts as the role's work: Touched
+// minus what hoom's own commands generate (a verdict from `hoom verify`, a
+// finding from `hoom finding add`, a ratchet tightened by `verify --full`).
+// Running hoom is not delivering; it is exactly how a green verdict of
+// nothing used to be made. A method, not a field: the JSON of ScopeResult
+// that Spec B fixed does not change.
+func (s ScopeResult) Delivered() []string {
+	var out []string
+	for _, p := range s.Touched {
+		if !hoomGenerated(p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func hoomGenerated(p string) bool {
+	return strings.HasPrefix(p, ".hoom/verdicts/") || strings.HasPrefix(p, ".hoom/findings/") || p == ratchetPath
+}
+
 // Broken reports whether the isolation itself failed.
 func (s ScopeResult) Broken() bool { return s.has(RuleIsolation) }
 
@@ -155,6 +175,10 @@ func defaultAllow(scope string) []string {
 			"**/*Spec.kt", "**/*.test.ts", "**/*.test.js"}
 	case agents.ScopeCodigo:
 		return []string{"**"}
+	case agents.ScopeSpecs:
+		// the spec authors' territory is the spec, not the rest of .hoom/:
+		// role contracts, intake documents and findings stay out
+		return []string{".hoom/specs/**"}
 	default: // evidencia
 		return []string{".hoom/**"}
 	}
@@ -253,15 +277,17 @@ func allowedBy(p string, pol Policy) (bool, string) {
 // `hoom agent` and `hoom review` judge with ONE implementation of "the role
 // wrote where it belonged". Every violation becomes an append-only artifact —
 // a terminal message is lost, a finding demands a resolution with evidence —
-// and a finding that cannot be written never hides the violation.
-func Gate(dir, base string, role agents.Role, before, after Snapshot, pol Policy, blind *Blind) ScopeResult {
+// and a finding that cannot be written never hides the violation. task ties
+// those findings to the task the run belongs to ("" = none).
+func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol Policy, blind *Blind) ScopeResult {
 	sc := CheckScope(before, after, pol)
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
 	}
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
-		if f, err := finding.Add(dir, base, "high", "risk", v.Path, desc, "hoom gate de scope"); err == nil {
+		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
+			Description: desc, Author: "hoom gate de scope", Task: task}); err == nil {
 			sc.Violations[i].FindingID = f.ID
 		}
 	}
