@@ -335,7 +335,7 @@
     </div>
     <div class="dsec" id="d-hallazgos">
       <div id="findbody"><div class="empty">cargando…</div></div>
-      <div class="empty" style="font-style:italic">los hallazgos son narración calificada, no evidencia: cerrarlos exige evidencia (hoom finding resolve) y jamás tocan un veredicto</div>
+      <div class="empty" style="font-style:italic" id="findnote">los hallazgos son narración calificada: cerrarlos exige evidencia (hoom finding resolve)</div>
     </div>
     <div class="dsec" id="d-specs">
       <div id="specs"><div class="empty">cargando…</div></div>
@@ -449,6 +449,10 @@ $("backdrop").addEventListener("click", closeDrawer);
 async function refreshStatus() {
   const s = await j("/api/status");
   $("project").textContent = "· " + s.project;
+  // quién bloquea lo dice el gate findings_open del veredicto; acá solo la regla
+  $("findnote").textContent = s.findings_block_on
+    ? `los hallazgos son narración calificada: cerrarlos exige evidencia (hoom finding resolve). Con findings.block_on: ${s.findings_block_on}, los abiertos de esa severidad o mayor ponen ROJO a verify (gate findings_open)`
+    : "los hallazgos son narración calificada: cerrarlos exige evidencia (hoom finding resolve). Este proyecto no los hace bloquear (sin findings.block_on en hoom.yaml)";
   const chip = $("check");
   if (s.check.ok) {
     chip.className = "chip ok";

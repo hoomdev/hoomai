@@ -4,9 +4,11 @@
 // refutado). Two files per lifecycle, both immutable: the finding itself
 // and, if closed, one terminal resolution carrying mandatory evidence —
 // nobody closes a finding without saying why, and nobody edits history.
-// Findings travel in Git like approvals, but they are narration (qualified
-// and auditable) — never gate evidence: verify and check do not read them,
-// and recording one never changes the candidate fingerprint.
+// Findings travel in Git like approvals and they are narration (qualified
+// and auditable): recording one never changes the candidate fingerprint, and
+// check never reads them. A project may opt in (hoom.yaml findings.block_on)
+// to let verify COUNT them through the synthetic gate findings_open — it
+// counts states, it never judges the evidence of a resolution.
 package finding
 
 import (
@@ -48,8 +50,9 @@ type Finding struct {
 	Description string    `json:"description"`
 	Author      string    `json:"author"`
 	Fingerprint string    `json:"fingerprint,omitempty"` // huella del arbol al encontrarlo
-	// Task: the task the finding belongs to. A label, not evidence: verify
-	// and check never read it; the cockpit uses it to put a finding on its card.
+	// Task: the task the finding belongs to. The cockpit uses it to put a
+	// finding on its card, and `verify --spec` uses it to scope the
+	// findings_open gate to the spec's task; check never reads it.
 	Task string `json:"task,omitempty"`
 }
 
@@ -181,8 +184,13 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 		return Resolution{}, fmt.Errorf("hallazgo no encontrado: %s", id)
 	}
 	if raw, err := os.ReadFile(resPath(root, id)); err == nil {
-		var prev Resolution
-		_ = json.Unmarshal(raw, &prev)
+		prev, motivo := parseResolution(raw)
+		if motivo != "" {
+			// The binary never rewrites append-only evidence: repairing or
+			// deleting a broken record is a human act, visible in Git.
+			return Resolution{}, fmt.Errorf("la resolucion existente de %s es invalida (%s): el hallazgo sigue ABIERTO.\nAccion: repara o borra a mano %s (el cambio queda en el diff de Git) y vuelve a resolver",
+				id, motivo, resPath(root, id))
+		}
 		return Resolution{}, fmt.Errorf("el hallazgo %s ya esta resuelto como %q; reabrir = un hallazgo NUEVO que cite a este", id, prev.As)
 	}
 	if strings.TrimSpace(author) == "" {
@@ -205,39 +213,67 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 	return r, nil
 }
 
-// List derives the current state of every finding, oldest first. Corrupt
-// files are skipped and reported as warnings — never fatal, like verdicts.
-func List(root, base string, openOnly bool) ([]Item, []string, error) {
+// parseResolution reads a resolution record and says why it does not close
+// its finding ("" = it does). This is the single definition of "closed": a
+// terminal state hoom knows and evidence that is not blank. A record written
+// by hand without evidence, or with a state nobody defined, closes nothing.
+func parseResolution(raw []byte) (Resolution, string) {
+	var r Resolution
+	if json.Unmarshal(raw, &r) != nil || r.FindingID == "" {
+		return r, "ilegible"
+	}
+	r.As = strings.ToLower(strings.TrimSpace(r.As))
+	if !validStates[r.As] {
+		return r, fmt.Sprintf("estado %q (corregido|refutado)", r.As)
+	}
+	if strings.TrimSpace(r.Evidence) == "" {
+		return r, "sin evidencia"
+	}
+	return r, ""
+}
+
+// scanned is one read of .hoom/findings/: the findings that parsed, the
+// finding files that did not (a gate cannot know what they say, so it fails
+// closed on them) and the warnings about resolutions that close nothing.
+type scanned struct {
+	items    []Item
+	broken   []string // "<archivo>: <motivo>" de hallazgos ilegibles
+	warnings []string // resoluciones ilegibles o invalidas
+}
+
+func scan(root string) (scanned, error) {
+	var out scanned
 	entries, err := os.ReadDir(dir(root))
 	if os.IsNotExist(err) {
-		return []Item{}, nil, nil
+		return out, nil
 	}
 	if err != nil {
-		return nil, nil, err
+		return out, err
 	}
-	current := gitx.Snapshot(root, base).ChangeFingerprint
 
 	resolutions := map[string]*Resolution{}
-	var warnings []string
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".res.json") {
 			continue
 		}
 		raw, rerr := os.ReadFile(filepath.Join(dir(root), e.Name()))
 		if rerr != nil {
-			warnings = append(warnings, fmt.Sprintf("resolucion ilegible %s: %v", e.Name(), rerr))
+			out.warnings = append(out.warnings, fmt.Sprintf("resolucion ilegible %s: %v", e.Name(), rerr))
 			continue
 		}
-		var r Resolution
-		if json.Unmarshal(raw, &r) != nil || r.FindingID == "" {
-			warnings = append(warnings, "resolucion ilegible "+e.Name())
-			continue
+		r, motivo := parseResolution(raw)
+		switch {
+		case motivo == "ilegible":
+			out.warnings = append(out.warnings, "resolucion ilegible "+e.Name())
+		case motivo != "":
+			out.warnings = append(out.warnings, fmt.Sprintf("resolucion invalida %s: %s; el hallazgo %s sigue abierto",
+				e.Name(), motivo, r.FindingID))
+		default:
+			res := r
+			resolutions[r.FindingID] = &res
 		}
-		res := r
-		resolutions[r.FindingID] = &res
 	}
 
-	items := []Item{}
 	for _, e := range entries {
 		name := e.Name()
 		if e.IsDir() || !strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".res.json") {
@@ -245,12 +281,12 @@ func List(root, base string, openOnly bool) ([]Item, []string, error) {
 		}
 		raw, rerr := os.ReadFile(filepath.Join(dir(root), name))
 		if rerr != nil {
-			warnings = append(warnings, fmt.Sprintf("hallazgo ilegible %s: %v", name, rerr))
+			out.broken = append(out.broken, fmt.Sprintf("%s: %v", name, rerr))
 			continue
 		}
 		var f Finding
 		if json.Unmarshal(raw, &f) != nil || f.ID == "" {
-			warnings = append(warnings, "hallazgo ilegible "+name)
+			out.broken = append(out.broken, name+": JSON ilegible o sin id")
 			continue
 		}
 		it := Item{Finding: f, Status: StatusOpen}
@@ -258,7 +294,34 @@ func List(root, base string, openOnly bool) ([]Item, []string, error) {
 			it.Status = r.As
 			it.Resolution = r
 		}
-		if f.Fingerprint != "" && current != "" && f.Fingerprint != current {
+		out.items = append(out.items, it)
+	}
+	sort.Slice(out.items, func(i, j int) bool { return out.items[i].CreatedAt.Before(out.items[j].CreatedAt) })
+	return out, nil
+}
+
+// List derives the current state of every finding, oldest first. Corrupt
+// files are skipped and reported as warnings — never fatal, like verdicts.
+// A resolution that closes nothing (unreadable, no evidence, unknown state)
+// leaves its finding OPEN and says so in a warning.
+func List(root, base string, openOnly bool) ([]Item, []string, error) {
+	sc, err := scan(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	var warnings []string
+	for _, b := range sc.broken {
+		warnings = append(warnings, "hallazgo ilegible "+b)
+	}
+	warnings = append(warnings, sc.warnings...)
+	if len(sc.items) == 0 {
+		return []Item{}, warnings, nil
+	}
+
+	current := gitx.Snapshot(root, base).ChangeFingerprint
+	items := []Item{}
+	for _, it := range sc.items {
+		if it.Fingerprint != "" && current != "" && it.Fingerprint != current {
 			it.CodeChanged = true // a re-verificar, no a asumir
 		}
 		if openOnly && it.Status != StatusOpen {
@@ -266,7 +329,6 @@ func List(root, base string, openOnly bool) ([]Item, []string, error) {
 		}
 		items = append(items, it)
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.Before(items[j].CreatedAt) })
 	return items, warnings, nil
 }
 
