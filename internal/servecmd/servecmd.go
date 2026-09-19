@@ -146,11 +146,12 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, statusResp{
-			Project:    s.m.Project,
-			Profile:    s.m.Profile,
-			Policy:     s.m.Policy,
-			BaseBranch: s.m.BaseBranch,
-			Check:      check,
+			Project:         s.m.Project,
+			Profile:         s.m.Profile,
+			Policy:          s.m.Policy,
+			BaseBranch:      s.m.BaseBranch,
+			Check:           check,
+			FindingsBlockOn: s.m.FindingsBlockOn(),
 		})
 	})
 

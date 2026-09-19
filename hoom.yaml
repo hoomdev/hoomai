@@ -15,3 +15,6 @@ gates:
   arch:
     required: false
     cmd: ""
+# Los hallazgos high abiertos ponen ROJO a verify (gate findings_open).
+findings:
+  block_on: high

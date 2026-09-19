@@ -78,7 +78,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom context` | Salud del contexto: fuentes de intake, vision/backlog, preguntas abiertas y staleness por fechas. Amarillos honestos; informa, nunca bloquea. `--json` |
 | `hoom finding add --sev <s> "<desc>"` | Registra un hallazgo de review como artefacto INMUTABLE en `.hoom/findings/`, atado a la huella del arbol. `--task <slug>` lo ata a una tarea; sin el flag toma `HOOM_TASK`, que hoom pone en cada run con tarea, asi que lo que un rol registra dentro de `hoom agent --task` queda en su tarjeta |
 | `hoom finding resolve <id> --as corregido\|refutado --evidence "..."` | Cierra un hallazgo (transicion terminal unica); SIN evidencia el binario se niega |
-| `hoom finding list [--open] [--json]` | Estado derivado de cada hallazgo; marca los que quedaron atras del codigo |
+| `hoom finding list [--open] [--json]` | Estado derivado de cada hallazgo; marca los que quedaron atras del codigo. Una resolucion sin evidencia, con un estado inventado o ilegible NO cierra nada: el hallazgo sigue abierto (y lo dice un aviso) |
 | `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) y las capacidades que declara cada una (stream, continue, resume, session_id, model, system_prompt, tools, read_only, max_turns, budget). `--json` |
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git). Opciones: `--resume <id>` (reanuda la sesion del provider que imprimio un run anterior), `--model <m>`, `--system-prompt <texto\|@ruta>` (se AGREGA al del provider; `@ruta` lee un contrato de rol), `--allow-tools a,b`, `--deny-tools a,b`, `--max-turns n`, `--budget-usd x`. Lo que el provider no soporta se ignora CON aviso en el log; `--strict` lo vuelve error. `--unattended`: nadie responde prompts, el CLI recibe de entrada las herramientas para leer, escribir y ejecutar |
 | `hoom agent --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"` | El SOBRE determinista de un rol: le da su contrato como system prompt, le impone su limite de escritura con el mecanismo que el provider declare (deny de herramientas en Claude, sandbox en Codex), corre el CLI UNA vez y cierra con evidencia en orden fijo — **scope** (que toco el rol, comparando el arbol antes y despues), **verify** y **check**. El gate de scope responde lo que ningun prompt puede responder: si el rol escribio solo donde le correspondia y dejo la evidencia intacta. Piso no aflojable: veredictos y hallazgos existentes son inmutables, las aprobaciones no las firma un agente, `hoom.yaml` no se toca y el trinquete solo sube; violarlo corta ANTES de emitir veredicto. Cada violacion se registra como hallazgo `high`. El **test-writer** corre ademas en un **arbol ciego**: un worktree disperso (`git sparse-checkout`) de UN commit que contiene lo que el rol puede leer —el spec, los tests, los archivos con los que el perfil reconoce el stack— y ni un archivo de implementacion, asi que la anti-circularidad deja de ser una regla de prompt. Ese arbol es tambien una cuarentena: solo se trasplantan al arbol real las rutas que el gate aprobo, y si el aislamiento se rompe (un archivo escondido que vuelve al disco, o una escritura en el arbol real) no se emite veredicto. Los autores de specs (**arquitecto**, **designer**, **analista**) escriben solo en `.hoom/specs/**` y sin shell, y no reciben `--spec`: escriben el spec, no se verifican contra el. Un rol que escribe y termina sin entregar nada (salvo la evidencia que genera hoom) cierra **SIN ENTREGA**, exit 1, sin verify ni check: no hay arbol nuevo que certificar. Un pedido de relleno (`...`, espacios, `<pedido>`) se rechaza antes de gastar un token. Opciones: `--provider <p>` (default: el primero instalado que soporte system prompt), `--model`, `--resume <id>`, `--max-turns n`, `--budget-usd x`, `--json`. Exit 0 solo con todos los pasos verdes (cinco; seis con un rol ciego) |
@@ -88,6 +88,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom verify --help` | El uso EXACTO del verbo por stdout, exit 0 y cero artefactos. Es la misma constante que imprime `hoom help`: no hay un segundo texto que pueda desincronizarse |
 | `hoom verify --spec <ruta>` | Suma los gates `spec_lint`, `spec_trace` y `spec_approved`: cada criterio CA-n debe tener un test que lo referencie o declarar `[verifica: <comando>]` (exit 0 = trazado), y el spec debe tener aprobacion humana VIGENTE (hash de contenido) |
 | `hoom verify --gate a,b` | Corre solo esos gates; el veredicto queda PARCIAL: diagnostico util, pero `check` y `task done` NUNCA lo usan como referencia |
+| `findings: { block_on: high }` en `hoom.yaml` | Suma a `verify` el gate `findings_open` (requerido): ROJO con hallazgos abiertos de esa severidad o mayor, ids y lente en las notas; los menores se informan y no bloquean. Con `--spec` cuenta los de la tarea del spec (el nombre del archivo) y los sin tarea. Ver [Hallazgos que bloquean](#hallazgos-que-bloquean-gate-findings_open) |
 | `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
 | `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
 | `hoom task list --json` | El mismo estado como JSON en stdout |
@@ -124,6 +125,13 @@ gates:
     required: true
     cmd: "vendor/bin/infection --threads=max --no-progress --min-msi=60"
     diff_cmd: "vendor/bin/infection --threads=max --no-progress --git-diff-filter=AM --git-diff-base={base} --min-msi=60"
+```
+
+Opcional, a nivel proyecto (los perfiles no lo traen):
+
+```yaml
+findings:
+  block_on: high   # low | medium | high: esa severidad o mayor pone ROJO a verify
 ```
 
 Variables de template: `{base}` (rama base), `{files}` (archivos cambiados),
@@ -222,6 +230,30 @@ deja registro (`history`) — escape consciente y visible, como `HOOM_SKIP`.
 La base queda fuera de la huella (estado del harness, no codigo bajo
 verificacion): apretar durante un verify jamas rompe el check que ese
 mismo verify acaba de ganar.
+
+## Hallazgos que bloquean (gate findings_open)
+
+Los hallazgos de review (`hoom finding add`) son narracion calificada: nacen
+atados a la huella del arbol, se cierran UNA vez y con evidencia, y quedan
+fuera de la huella del candidato. Por defecto no bloquean nada. Un proyecto
+puede decidir que si: con `findings: { block_on: <severidad> }` en
+`hoom.yaml`, `verify` suma el gate sintetico `findings_open`, requerido.
+
+- **Abierto** = sin resolucion VALIDA. Valida es `corregido` o `refutado`
+  con evidencia no vacia. Una resolucion escrita a mano sin evidencia, con un
+  estado inventado o ilegible no cierra nada, y lo mismo cuentan `hoom
+  finding list`, `hoom status` y el Studio.
+- **Umbral**: `high` bloquea high; `medium`, medium y high; `low`, todo. Los
+  abiertos por debajo del umbral salen en la nota y no bloquean.
+- **Alcance**: sin `--spec` cuentan todos. Con `--spec .hoom/specs/<slug>.md`
+  cuentan los de la tarea `<slug>` y los que no tienen tarea (pueden ser de
+  cualquiera); solo quedan afuera los que prueban ser de OTRA tarea.
+- **Falla cerrado**: un hallazgo ilegible o con una severidad desconocida es
+  ERROR. No corre en una corrida `--gate` (es un diagnostico) y su nombre esta
+  reservado.
+
+`hoom check` sigue comparando la huella: un hallazgo registrado DESPUES de un
+verde se ve en el proximo `verify`, no antes.
 
 ## Veredictos parciales (verify --gate)
 
@@ -425,8 +457,9 @@ de `hoom serve`, y las dos formas de mirar el harness conviven.
 
 ### Harness
 
-- Gate opcional `findings_open`: rojo con hallazgos high abiertos — primero
-  ver como se usa el ciclo antes de darle poder de bloqueo.
+- `hoom check` sensible a hallazgos registrados despues del veredicto de
+  referencia cuando el gate `findings_open` esta activo (hoy se ven en el
+  proximo `verify`).
 - Doble juez multi-provider (dos CLIs revisando el mismo diff): se activa el
   dia que al Refutador se le escapen falsos positivos con frecuencia; la
   infraestructura (`hoom run`) ya existe.

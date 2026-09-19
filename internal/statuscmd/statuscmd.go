@@ -161,12 +161,18 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 		s.Tasks = tasks
 	}
 
+	// Same definition of "open" the findings_open gate applies (finding.List
+	// is its single source). Status has no spec, so its scope is "all".
+	s.Findings.BlockOn = blockOn
 	items, _, err := finding.List(root, base, true)
 	if err == nil {
 		s.Findings.Open = len(items)
 		for _, it := range items {
 			if it.Severity == "high" {
 				s.Findings.OpenHigh++
+			}
+			if finding.Blocks(it.Severity, blockOn) {
+				s.Findings.Blocking++
 			}
 		}
 	}
@@ -423,14 +429,23 @@ func Render(w io.Writer, s *Snapshot, color bool) {
 	}
 
 	// hallazgos
+	gate := ""
+	if s.Findings.BlockOn != "" {
+		txt := fmt.Sprintf("gate %s: %d bloquean (block_on: %s)", finding.GateName, s.Findings.Blocking, s.Findings.BlockOn)
+		if s.Findings.Blocking > 0 {
+			gate = " · " + paint(color, cRed, txt)
+		} else {
+			gate = " · " + paint(color, cGray, txt)
+		}
+	}
 	if s.Findings.Open == 0 {
-		fmt.Fprintf(w, " hallazgos: %s\n", paint(color, cGray, "sin abiertos"))
+		fmt.Fprintf(w, " hallazgos: %s%s\n", paint(color, cGray, "sin abiertos"), gate)
 	} else {
 		line := fmt.Sprintf("%d abierto(s)", s.Findings.Open)
 		if s.Findings.OpenHigh > 0 {
 			line += fmt.Sprintf(", %d high", s.Findings.OpenHigh)
 		}
-		fmt.Fprintf(w, " hallazgos: %s\n", paint(color, cYellow, line))
+		fmt.Fprintf(w, " hallazgos: %s%s\n", paint(color, cYellow, line), gate)
 	}
 
 	// trinquete: solo lo que el archivo prueba; medir es de verify --full
@@ -530,7 +545,7 @@ func Run(root, base string, out io.Writer, opt Options) error {
 	if opt.Interval == 0 {
 		opt.Interval = time.Second
 	}
-	s, err := Build(root, base)
+	s, err := BuildFor(root, base, opt.BlockOn)
 	if err != nil {
 		return err
 	}
@@ -556,7 +571,7 @@ func Run(root, base string, out io.Writer, opt Options) error {
 		Render(out, s, true)
 		fmt.Fprintf(out, " %s\n", cGray+"refresco cada "+opt.Interval.String()+" · ctrl+c para salir"+cReset)
 		time.Sleep(opt.Interval)
-		if s, err = Build(root, base); err != nil {
+		if s, err = BuildFor(root, base, opt.BlockOn); err != nil {
 			return err
 		}
 	}

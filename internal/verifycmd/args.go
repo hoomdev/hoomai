@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/manifest"
 )
 
@@ -94,6 +95,7 @@ func validarGates(m *manifest.Manifest, seleccion []string) error {
 // synthetic gate is selectable cannot depend on the manifest of the day.
 var gateSintetico = map[string]bool{
 	"spec_lint": true, "spec_trace": true, "spec_approved": true, "ratchet": true,
+	finding.GateName: true,
 }
 
 // seleccionables are the gates --gate CAN pick: the project's, in canonical
