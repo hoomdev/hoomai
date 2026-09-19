@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -69,6 +70,13 @@ type WriteScope struct {
 	Deny  []string `yaml:"deny,omitempty"`
 }
 
+// FindingsPolicy is the project's opt-in to let open review findings block
+// verify (synthetic gate findings_open). Absent = the gate does not run.
+type FindingsPolicy struct {
+	// BlockOn is a severity threshold: that severity or worse blocks.
+	BlockOn *string `yaml:"block_on"`
+}
+
 // Manifest is the parsed hoom.yaml after profile inheritance is resolved.
 type Manifest struct {
 	Schema     string          `yaml:"schema"`
@@ -82,9 +90,60 @@ type Manifest struct {
 	// universal append-only floor that `hoom agent` enforces is not
 	// reachable from here, because a floor you can lower is not a floor.
 	Agents map[string]AgentPolicy `yaml:"agents,omitempty"`
+	// Findings lets open findings of a severity or worse turn verify red.
+	// Project-level only: blocking on findings is a team decision, not a
+	// stack default, so profiles never carry it.
+	Findings *FindingsPolicy `yaml:"findings,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`
+}
+
+// FindingsBlockOn is the validated threshold of the findings_open gate:
+// low | medium | high, or "" when the project did not opt in.
+func (m *Manifest) FindingsBlockOn() string {
+	if m == nil || m.Findings == nil || m.Findings.BlockOn == nil {
+		return ""
+	}
+	return *m.Findings.BlockOn
+}
+
+// Severities are the values block_on accepts, mildest first. They are the
+// same three a finding can carry.
+var Severities = []string{"low", "medium", "high"}
+
+// UnmarshalYAML rejects unknown keys inside `findings`: a typo like
+// `blockon` would otherwise switch a BLOCKING gate off in silence, which is
+// exactly the failure an opt-in gate must not have.
+func (p *FindingsPolicy) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("findings debe ser un mapa (ej. findings: { block_on: high })")
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if key := n.Content[i].Value; key != "block_on" {
+			return fmt.Errorf("findings: clave desconocida %q (la unica valida es block_on)", key)
+		}
+	}
+	type plain FindingsPolicy // sin el metodo: evita la recursion
+	return n.Decode((*plain)(p))
+}
+
+// validateFindings normalizes block_on the way `hoom finding add` normalizes
+// a severity. Absent or null = the gate does not run; any other value that is
+// not a severity — "" included — is an invalid manifest.
+func (m *Manifest) validateFindings() error {
+	if m.Findings == nil || m.Findings.BlockOn == nil {
+		return nil
+	}
+	v := strings.ToLower(strings.TrimSpace(*m.Findings.BlockOn))
+	for _, s := range Severities {
+		if v == s {
+			m.Findings.BlockOn = &v
+			return nil
+		}
+	}
+	return fmt.Errorf("findings.block_on invalido %q (valores: %s)",
+		*m.Findings.BlockOn, strings.Join(Severities, "|"))
 }
 
 // canonical execution order for well-known gates; unknown gates go last, alphabetical.
@@ -152,6 +211,9 @@ func Load(dir string, resolveProfile func(name string) (map[string]Gate, string,
 	}
 	if m.Schema != Schema {
 		return nil, fmt.Errorf("schema no soportado %q (esperado %q)", m.Schema, Schema)
+	}
+	if err := m.validateFindings(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	if m.BaseBranch == "" {
 		m.BaseBranch = DefaultBase

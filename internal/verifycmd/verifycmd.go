@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/approval"
+	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
@@ -63,9 +64,18 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		includeRatchet = rerr != nil || (rf != nil && len(rf.Metrics) > 0)
 	}
 
+	// findings_open runs when the project opted in, and — like the ratchet,
+	// the other gate that configuration (not a flag) turns on — never in a
+	// --gate diagnostic.
+	blockOn := m.FindingsBlockOn()
+	includeFindings := blockOn != "" && len(gopt.Only) == 0
+
 	total := len(m.Gates)
 	if opt.Spec != "" {
 		total += 3 // spec_lint + spec_trace + spec_approved
+	}
+	if includeFindings {
+		total++
 	}
 	if includeRatchet {
 		total++
@@ -83,6 +93,18 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 				DurationMS: r.DurationMS, ExitCode: r.ExitCode})
 		}
 		results = append(results, specResults...)
+	}
+	// Human and review state first (instant), then the tree, then the ratchet.
+	if includeFindings {
+		scope := "full"
+		if opt.Spec != "" {
+			scope = "spec"
+		}
+		lw.Emit(live.Event{Kind: live.KindGateStart, Gate: finding.GateName, Scope: scope})
+		fres := finding.Gate(m.Dir, m.BaseBranch, blockOn, opt.Spec)
+		lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: fres.Name, Status: fres.Status,
+			DurationMS: fres.DurationMS, ExitCode: fres.ExitCode})
+		results = append(results, fres)
 	}
 	results = append(results, gates.Run(m, git, gopt)...)
 

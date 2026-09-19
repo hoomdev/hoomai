@@ -107,6 +107,8 @@ type statusResp struct {
 	Policy     string          `json:"policy"`
 	BaseBranch string          `json:"base_branch"`
 	Check      checkcmd.Result `json:"check"`
+	// FindingsBlockOn is the findings_open threshold ("" = findings never block).
+	FindingsBlockOn string `json:"findings_block_on"`
 }
 
 type verdictsResp struct {
@@ -144,11 +146,12 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, statusResp{
-			Project:    s.m.Project,
-			Profile:    s.m.Profile,
-			Policy:     s.m.Policy,
-			BaseBranch: s.m.BaseBranch,
-			Check:      check,
+			Project:         s.m.Project,
+			Profile:         s.m.Profile,
+			Policy:          s.m.Policy,
+			BaseBranch:      s.m.BaseBranch,
+			Check:           check,
+			FindingsBlockOn: s.m.FindingsBlockOn(),
 		})
 	})
 

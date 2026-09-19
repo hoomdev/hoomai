@@ -1,0 +1,151 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-19T05-46-56Z_42ac2992",
+  "created_at": "2026-09-19T05:46:56.370724Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "14c01a8b5284",
+    "branch": "hoom/gate-findings-open",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/gate-findings-open_50a20f09.json",
+      ".hoom/specs/gate-findings-open.md",
+      "README.md",
+      "cmd/hoom/main.go",
+      "hoom.yaml",
+      "internal/finding/finding.go",
+      "internal/finding/findings_open_test.go",
+      "internal/finding/gate.go",
+      "internal/manifest/findings_open_test.go",
+      "internal/manifest/manifest.go",
+      "internal/servecmd/findings_open_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/servecmd/ui/index.html",
+      "internal/statuscmd/findings_open_test.go",
+      "internal/statuscmd/statuscmd.go",
+      "internal/verifycmd/args.go",
+      "internal/verifycmd/findings_open_e2e_test.go",
+      "internal/verifycmd/findings_open_test.go",
+      "internal/verifycmd/verifycmd.go"
+    ],
+    "change_fingerprint": "5760fb652aa9ae51",
+    "insertions": 3004,
+    "deletions": 44
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "15 criterios (CA-*), 1 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 385,
+      "notes": "15/15 criterios: 14 trazados por test (88 archivos), 1 verificados por comando"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-19, sha 50a20f09)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 1,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea gate-findings-open + sin tarea · no bloquean: 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 504
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 230
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./cmd/hoom ./internal/finding ./internal/manifest ./internal/servecmd ./internal/statuscmd ./internal/verifycmd",
+      "exit_code": 0,
+      "duration_ms": 29931,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t21.353s\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t1.193s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t6.114s\nok  \tgithub.com/hoomdev/hoomai/internal/statuscmd\t16.244s\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t28.452s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 7,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/gate-findings-open.md"
+}

@@ -74,6 +74,10 @@ Comandos:
                 (sin --task toma HOOM_TASK, que hoom pone en cada run con tarea)
               resolve <id> --as corregido|refutado --evidence "<por que>"
               list [--open] [--json]   (cerrar SIN evidencia esta prohibido)
+              Con 'findings: { block_on: low|medium|high }' en hoom.yaml,
+              verify suma el gate findings_open: ROJO con hallazgos abiertos
+              de esa severidad o mayor (con --spec: los de la tarea del spec
+              y los sin tarea). Sin evidencia, una resolucion no cierra nada
   providers   Detecta las CLIs de IA instaladas y las capacidades que declara
               cada una (claude|opencode|codex|gemini) [--json]
   run         Lanza tu CLI de IA en headless: --provider <p> [--task <slug>] "<prompt>"
@@ -347,7 +351,7 @@ func cmdStatus(args []string) error {
 		tty = fi.Mode()&os.ModeCharDevice != 0
 	}
 	return statuscmd.Run(m.Dir, m.BaseBranch, os.Stdout, statuscmd.Options{
-		JSON: *asJSON, Watch: *watch, TTY: tty,
+		JSON: *asJSON, Watch: *watch, TTY: tty, BlockOn: m.FindingsBlockOn(),
 	})
 }
 
