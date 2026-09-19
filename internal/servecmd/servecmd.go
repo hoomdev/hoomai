@@ -107,6 +107,8 @@ type statusResp struct {
 	Policy     string          `json:"policy"`
 	BaseBranch string          `json:"base_branch"`
 	Check      checkcmd.Result `json:"check"`
+	// FindingsBlockOn is the findings_open threshold ("" = findings never block).
+	FindingsBlockOn string `json:"findings_block_on"`
 }
 
 type verdictsResp struct {

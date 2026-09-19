@@ -69,6 +69,13 @@ type WriteScope struct {
 	Deny  []string `yaml:"deny,omitempty"`
 }
 
+// FindingsPolicy is the project's opt-in to let open review findings block
+// verify (synthetic gate findings_open). Absent = the gate does not run.
+type FindingsPolicy struct {
+	// BlockOn is a severity threshold: that severity or worse blocks.
+	BlockOn *string `yaml:"block_on"`
+}
+
 // Manifest is the parsed hoom.yaml after profile inheritance is resolved.
 type Manifest struct {
 	Schema     string          `yaml:"schema"`
@@ -82,9 +89,19 @@ type Manifest struct {
 	// universal append-only floor that `hoom agent` enforces is not
 	// reachable from here, because a floor you can lower is not a floor.
 	Agents map[string]AgentPolicy `yaml:"agents,omitempty"`
+	// Findings lets open findings of a severity or worse turn verify red.
+	// Project-level only: blocking on findings is a team decision, not a
+	// stack default, so profiles never carry it.
+	Findings *FindingsPolicy `yaml:"findings,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`
+}
+
+// FindingsBlockOn is the validated threshold of the findings_open gate:
+// low | medium | high, or "" when the project did not opt in.
+func (m *Manifest) FindingsBlockOn() string {
+	return "" // TODO(findings_open)
 }
 
 // canonical execution order for well-known gates; unknown gates go last, alphabetical.

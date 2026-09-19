@@ -77,8 +77,10 @@ type LastVerdict struct {
 
 // FindingsSummary counts open findings.
 type FindingsSummary struct {
-	Open     int `json:"open"`
-	OpenHigh int `json:"open_high"`
+	Open     int    `json:"open"`
+	OpenHigh int    `json:"open_high"`
+	BlockOn  string `json:"block_on"` // umbral del gate findings_open; "" = apagado
+	Blocking int    `json:"blocking"` // abiertos que llegan al umbral (alcance: todos)
 }
 
 // RatchetMetric is one baseline entry exactly as the file proves it: the
@@ -116,9 +118,15 @@ type Snapshot struct {
 	Ratchet    RatchetView        `json:"ratchet"`
 }
 
-// Build composes the snapshot. Strictly read-only: nothing under .hoom is
-// created or modified by looking at it.
+// Build composes the snapshot with the findings_open gate off.
 func Build(root, base string) (*Snapshot, error) {
+	return BuildFor(root, base, "")
+}
+
+// BuildFor composes the snapshot. blockOn is the project's findings_open
+// threshold ("" = gate off). Strictly read-only: nothing under .hoom is
+// created or modified by looking at it.
+func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	now := time.Now().UTC()
 	s := &Snapshot{Root: root, Now: now, Runs: []RunView{}, Tasks: []taskcmd.TaskInfo{},
 		Envelopes: []EnvelopeView{}}
@@ -513,6 +521,7 @@ type Options struct {
 	Watch    bool
 	TTY      bool
 	Interval time.Duration // watch refresh (0 = 1s)
+	BlockOn  string        // umbral del gate findings_open del manifiesto ("" = apagado)
 }
 
 // Run executes the verb: one-shot text, --json, or --watch (TTY refresh).

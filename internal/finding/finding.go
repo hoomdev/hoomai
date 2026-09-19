@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 // Severities and terminal states.
@@ -285,4 +286,25 @@ func JSONBytes(root, base string, openOnly bool) ([]byte, error) {
 		warnings = []string{}
 	}
 	return json.MarshalIndent(ListView{Warnings: warnings, Findings: items}, "", "  ")
+}
+
+// GateName is the synthetic gate that lets open findings block verify.
+const GateName = "findings_open"
+
+// Blocks reports whether an open finding of this severity blocks under the
+// blockOn threshold (low | medium | high: that severity or worse).
+func Blocks(severity, blockOn string) bool {
+	return false // TODO(findings_open)
+}
+
+// TaskOfSpec is the task a spec binds a verify to: its file name without .md.
+func TaskOfSpec(specPath string) string {
+	return "" // TODO(findings_open)
+}
+
+// Gate evaluates the open findings of the tree at root against blockOn.
+// specPath "" counts every finding (scope full); otherwise it counts the
+// findings of TaskOfSpec(specPath) plus the ones without a task (scope spec).
+func Gate(root, base, blockOn, specPath string) verdict.GateResult {
+	return verdict.GateResult{Name: GateName, Required: true} // TODO(findings_open)
 }
