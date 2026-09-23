@@ -74,10 +74,16 @@ Comandos:
   item        La tarjeta como archivo (.hoom/items/<slug>.yaml, viaja en git):
               add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x]
               [--pedido "..."] [--slug s] | list | show <slug>
+              [--auto hasta-humano] (piloto automatico en el Studio; exige
+              --presupuesto-usd)
               | save <slug> (commitea lo que la tarjeta tiene sin guardar)   [--json]
   board       El tablero: la columna de cada item sale de su evidencia
               (spec, aprobacion, tests, veredicto, review, cierre); nadie la
               escribe y nada se guarda [--json]
+              | board doctor [--json]: donde la evidencia no es coherente
+              (spec editado tras aprobarlo, cambios sin veredicto, verde
+              vencido, sobres huerfanos, items sin spec, evidencia sin item),
+              cada problema con su accion exacta; solo lee, sale con 0
   roles       Matriz de enforcement: que puede leer, escribir y ejecutar cada
               rol con cada provider, con que mecanismo y en que categoria
               (ENFORCED|POST-VERIFIED|BEST-EFFORT|UNSUPPORTED)
@@ -788,6 +794,9 @@ func cmdItem(args []string) error {
 // cmdBoard renders the board: read-only, exit 0 whenever the request was
 // understood. The board informs; verify and check are the ones that block.
 func cmdBoard(args []string) error {
+	if len(args) > 0 && args[0] == "doctor" {
+		return cmdBoardDoctor(args[1:])
+	}
 	opt, err := boardcmd.ParseArgs(args)
 	if errors.Is(err, cliargs.ErrHelp) {
 		fmt.Println(boardcmd.UsageText)
@@ -813,6 +822,38 @@ func cmdBoard(args []string) error {
 		return nil
 	}
 	boardcmd.Render(os.Stdout, b)
+	return nil
+}
+
+// cmdBoardDoctor lists where the evidence of the cards does not add up,
+// with the exact action. It informs: exit 0 whenever the request was
+// understood, like the board.
+func cmdBoardDoctor(args []string) error {
+	opt, err := boardcmd.ParseDoctorArgs(args)
+	if errors.Is(err, cliargs.ErrHelp) {
+		fmt.Println(boardcmd.DoctorUsageText)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	r, err := boardcmd.Doctor(m.Dir, m.BaseBranch, m.FindingsBlockOn(), time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if opt.JSON {
+		raw, err := boardcmd.DoctorJSONBytes(r)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
+	boardcmd.RenderDoctor(os.Stdout, r)
 	return nil
 }
 

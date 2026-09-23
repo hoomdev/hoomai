@@ -25,6 +25,7 @@ const ACC_NORMAL = {
   empezo: rol => `El ${rol} empezó a trabajar: su fantasma aparece en la columna siguiente.`,
   sesionAbierta: "La sesión quedó abierta en el espacio de trabajo de la tarjeta.",
   sesionYaEstaba: "La sesión ya estaba abierta.",
+  piloto: "Piloto automático: si este trabajo termina bien, la tarjeta sigue sola hasta la próxima columna tuya o hasta que se agote su presupuesto.",
 };
 /* fin vocabulario normal */
 
@@ -204,6 +205,8 @@ function dialogoRol(c, a) {
   const avisos = [];
   if (reanuda) avisos.push(ex ? `Retoma la sesión <code>${esc(a.resume_id)}</code>.` : esc(ACC_NORMAL.retoma));
   if ((reanuda || a.id === "relanzar") && c.unsynced.length) avisos.push(esc(ACC_NORMAL.desdeComoQuedo));
+  // la cinta: que el encadenamiento sea consciente en el momento del si
+  if (c.item.auto === "hasta-humano") avisos.push(esc(ACC_NORMAL.piloto));
   const html = `
     ${avisos.map(t => `<div class="aviso">${t}</div>`).join("")}
     <div class="fld"><label>Rol</label><div>${esc(a.role)}</div></div>

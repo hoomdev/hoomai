@@ -96,6 +96,7 @@ type tree struct {
 	reviews     []reviewcmd.Record
 	status      []string // uncommitted paths, relative to dir
 	fingerprint string
+	changed     []string // the candidate's files (gitx.Snapshot)
 	tokens      spec.TokenIndex
 	tokensErr   error
 	signer      string
@@ -166,8 +167,34 @@ func (g *gatherer) installed() []providers.Info {
 }
 
 func (t *tree) currentFingerprint(base string) string {
-	t.once("fingerprint", func() { t.fingerprint = gitx.Snapshot(t.dir, base).ChangeFingerprint })
+	t.snapshot(base)
 	return t.fingerprint
+}
+
+// candidate is the tree's change candidate: the files the fingerprint covers.
+func (t *tree) candidate(base string) []string {
+	t.snapshot(base)
+	return t.changed
+}
+
+func (t *tree) snapshot(base string) {
+	t.once("fingerprint", func() {
+		info := gitx.Snapshot(t.dir, base)
+		t.fingerprint, t.changed = info.ChangeFingerprint, info.ChangedFiles
+	})
+}
+
+// certifies reports whether some complete verdict of the tree has fp.
+func (t *tree) certifies(fp string) bool {
+	if fp == "" {
+		return false
+	}
+	for _, v := range t.allVerdicts() {
+		if !v.IsPartial() && v.Git.ChangeFingerprint == fp {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *gatherer) gather(it item.Item) Evidence {
@@ -244,8 +271,17 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 			ev.GreenVerdicts = append(ev.GreenVerdicts, v.ID)
 		}
 	}
+	if ev.Verdict != nil || ev.Worktree {
+		// el doctor necesita la huella del espacio de trabajo aunque no haya
+		// veredicto; Fingerprint (C1) sigue vacio sin veredicto
+		ev.TreeFingerprint = t.currentFingerprint(g.base)
+		ev.Certified = t.certifies(ev.TreeFingerprint)
+	}
 	if ev.Verdict != nil {
-		ev.Fingerprint = t.currentFingerprint(g.base)
+		ev.Fingerprint = ev.TreeFingerprint
+	}
+	if ev.Worktree {
+		ev.TreeChanges = nonNil(t.candidate(g.base))
 	}
 
 	for _, r := range t.allReviews() {

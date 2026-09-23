@@ -44,6 +44,8 @@ type Options struct {
 	// Started is called once, when the envelope's first record is on disk.
 	// An error before that record arrives without Started being called.
 	Started func()
+	// Pilot marks an envelope the cabin's belt launched: its record says so.
+	Pilot bool
 }
 
 // Result is the envelope's answer, identical in text and in JSON.
@@ -138,7 +140,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		ID: id, Role: role.Slug, Provider: prov.Name(), Task: opt.Task,
 		Dir: dir, Stage: "spec", Step: 1, Steps: steps,
 		Status: envelope.StatusRunning, ExitCode: -1, StartedAt: time.Now().UTC(),
-		PID: os.Getpid(),
+		PID: os.Getpid(), Pilot: opt.Pilot,
 	}
 	res.EnvelopeID = rec.ID
 	// Una sola transicion mueve los dos estados que el sobre mantiene: el

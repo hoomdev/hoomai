@@ -94,10 +94,11 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom task list --json` | El mismo estado como JSON en stdout |
 | `hoom task discard <slug> [--yes] [--json]` | Descarta lo que el espacio de trabajo de la tarea tiene sin guardar FUERA de `.hoom/`: lo que `HEAD` tiene vuelve a como estaba, lo nuevo se borra. La evidencia (veredictos, hallazgos, aprobaciones, registros) nunca se descarta. Sin `--yes` solo lista y sale con 1; se niega con un run activo en el arbol |
 | `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado. Si el arbol donde corre tiene el item de la tarea, le escribe `hecho_en` y `commit_final` (la punta de `hoom/<slug>`); con `--force` nunca lo marca hecho |
-| `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--json`. El slug es tambien el del spec y el de la tarea |
+| `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--auto hasta-humano` (el piloto automatico del Studio; exige `--presupuesto-usd`), `--json`. El slug es tambien el del spec y el de la tarea |
 | `hoom item list [--json]` / `hoom item show <slug> [--json]` | Los items del arbol actual; `show` suma su tarjeta (columna, que falta, siguiente paso, subestados y, en `--json`, las acciones validas, adonde se puede soltar y el fantasma) |
 | `hoom item save <slug> [--json]` | Guarda en git lo que la tarjeta tiene sin guardar: un commit por arbol (su espacio de trabajo, y el item en el proyecto) con el mensaje fijo `hoom: guardar la tarjeta <slug>`. Solo esas rutas: lo que haya en el indice queda como estaba. Se niega mientras un rol trabaja en la tarjeta |
 | `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
+| `hoom board doctor [--json]` | Donde la evidencia no es coherente, cada problema con su accion exacta: spec editado despues de aprobarlo, espacio de trabajo con cambios sin veredicto para su huella, verde cuya huella ya no es la del arbol, hallazgo high en Tu aceptacion (un bug de hoom, y lo dice), sobres huerfanos, items sin spec hace mas de 14 dias y veredictos o hallazgos de una tarea sin item. Solo lee y sale con 0: los que bloquean son `verify` y `check` |
 | `hoom roles [--role r] [--provider p] [--json]` | Matriz de enforcement: que puede leer, escribir y ejecutar cada rol con cada provider, con que mecanismo (deny de tools, sandbox, arbol ciego, gate post-run) y en que categoria: ENFORCED, POST-VERIFIED, BEST-EFFORT o UNSUPPORTED |
 | `hoom agents` | Instala los 10 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
 | `hoom agents --target all` | Genera ademas los subagentes NATIVOS de Claude Code, OpenCode, Codex y Gemini CLI |
@@ -416,7 +417,12 @@ Que trae:
 - **Escenario y Feed en vivo, simultaneos**: el equipo de agentes como
   tarjetas en escena (quien actua, que encargo recibio, cuantos actos) y la
   narracion linea por linea al lado. La atribucion es honesta: lo que no se
-  puede atribuir va al orquestador, jamas a un rol inventado. La narracion
+  puede atribuir va al orquestador, jamas a un rol inventado. Con Claude,
+  cada delegacion se empareja con su resultado (tool_use con tool_result, o
+  la notificacion de un subagente en segundo plano): el subagente esta en
+  escena mientras su delegacion sigue abierta y el Feed marca cuando sale
+  (`agent_end`). Claude Code 2.1.281 llama `Agent` a la delegacion y las
+  versiones anteriores `Task`: hoom reconoce las dos. La narracion
   queda en `.hoom/runs/` — LOCAL, fuera de Git y fuera de la huella: la
   evidencia viaja, la narracion no, y `verify`/`check` jamas la leen.
 - **Evidencia en panel lateral, estado siempre visible**: veredictos con el
@@ -467,6 +473,32 @@ Que trae:
   `POST /api/specs/{name}/approve` con `{"card": "<slug>"}` y
   `POST /api/tasks/{slug}/done`. Ninguna ruta recibe una columna: la columna
   sigue siendo una funcion de la evidencia, y un test lo afirma.
+- **Historia y replay**: la pestaña Historia del detalle cuenta como llego la
+  tarjeta a donde esta, entrada por entrada, con dos fuentes rotuladas: el
+  historial de git de sus archivos (item, spec, aprobaciones, veredictos,
+  hallazgos y resoluciones, registros de review) y los commits de su tarea,
+  y la telemetria de esta computadora (sobres, runs y cada subagente
+  delegado, con cuando entro y cuando salio de escena). Cada entrada dice
+  cuando, quien (identidad git, o rol y provider), que artefacto y cuanto
+  costo. **Reproducir** la recorre como secuencia con el medidor de evidencia
+  llenandose a medida que llega cada evidencia, y termina en "Asi esta hoy":
+  la tarjeta actual. Lee `GET /api/board/{slug}/timeline`; no se guarda
+  nada, se calcula cada vez que se pide.
+- **Doctor**: cada tarjeta con evidencia que no cierra lleva una insignia
+  (⚕) con sus problemas; en modo experto, con la accion exacta. Es lo mismo
+  que lista `hoom board doctor`, que ademas dice lo que no es de ninguna
+  tarjeta.
+- **Trinquete**: la pestaña Cockpit dibuja la curva de cada metrica de la
+  linea base (sus movimientos: congelada, apretada, aflojada en otro color)
+  desde `GET /api/ratchet`, la misma vista que la seccion de `hoom status`.
+- **Piloto automatico** (`auto: hasta-humano` en el item): es
+  una cinta transportadora, no un orquestador. Despues de un trabajo que lanzo el
+  Studio y cerro entregable, pide el trabajo del rol siguiente segun el orden
+  fijo de las columnas (test-writer, writer, reviewer), con el presupuesto y
+  el pedido que propone la tarjeta y un provider con tope. No juzga ni
+  reintenta: se detiene ante cualquier rojo, cuando la tarjeta no avanzo, en
+  las columnas moradas y cuando el presupuesto del item se agota, y deja por
+  que en el log del sobre. Un sobre que lanzo la cinta dice `"piloto": true`.
 - **Token de acciones**: toda accion (POST) exige el token que `serve`
   imprime UNA vez al arrancar. Solo lectura sin token; loopback por
   default; exponer con `--addr` es una decision consciente con advertencia.
@@ -538,14 +570,11 @@ de `hoom serve`, y las dos formas de mirar el harness conviven.
 
 ### Cabina visual (Studio v5)
 
-- Curva del trinquete en el tablero: la curva de cada metrica (la seccion CLI
-  de `hoom status` ya la tiene), junto a las tarjetas que ya pinta la pestaña
-  Tablero.
 - Escribir en la terminal de la tarjeta desde el navegador (hoy el espejo es
   de solo lectura) y verificar de nuevo desde la tarjeta.
-- Timeline, replay y doctor: reconstruir un run paso a paso desde los .jsonl,
-  con la correlacion tool_use/tool_result que marca cuando un subagente entra
-  y sale de escena, y un doctor que explique por que un veredicto es rojo.
+- Activar y apagar el piloto automatico desde la tarjeta (hoy se activa en
+  el item), y que la cinta siga tambien despues de un `hoom agent` de la
+  terminal.
 
 ### Harness
 

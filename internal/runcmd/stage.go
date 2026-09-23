@@ -21,6 +21,9 @@ type Actor struct {
 	Acts       int    `json:"acts"`
 	LastDetail string `json:"last_detail,omitempty"`
 	Active     bool   `json:"active"`
+	// Open counts the delegations to this actor (agent events with a tool
+	// id) that have not received their agent_end yet.
+	Open int `json:"open"`
 }
 
 // StageView is the computed scene for one run.
@@ -53,6 +56,8 @@ func Stage(info Run, events []Event) StageView {
 	}
 
 	lastDelegated := -1
+	paired := false           // some delegation of the run carries a tool id
+	owner := map[string]int{} // open tool id -> actor index
 	for _, ev := range events {
 		switch ev.Kind {
 		case "agent":
@@ -72,6 +77,20 @@ func Stage(info Run, events []Event) StageView {
 			actors[i].Acts++
 			actors[i].LastDetail = ev.Detail
 			lastDelegated = i
+			if ev.ToolID != "" {
+				paired = true
+				if _, dup := owner[ev.ToolID]; !dup {
+					owner[ev.ToolID] = i
+					actors[i].Open++
+				}
+			}
+		case "agent_end":
+			// el subagente sale de escena: su delegacion recibio su
+			// resultado. No es un acto, y uno sin su agent no cierra nada.
+			if i, ok := owner[ev.ToolID]; ok && ev.ToolID != "" {
+				delete(owner, ev.ToolID)
+				actors[i].Open--
+			}
 		case "tool", "text":
 			// atribucion honesta: sin agente explicito, actua el orquestador.
 			// Un evento `system` NO entra aca: es la CLI hablando de si misma
@@ -84,7 +103,16 @@ func Stage(info Run, events []Event) StageView {
 
 	if info.Status == StatusRunning {
 		actors[0].Active = true
-		if lastDelegated >= 0 {
+		switch {
+		case paired:
+			// con ids, en escena esta quien tiene una delegacion abierta
+			for i := range actors {
+				if actors[i].Open > 0 {
+					actors[i].Active = true
+				}
+			}
+		case lastDelegated >= 0:
+			// logs sin ids (u otro provider): la regla de siempre
 			actors[lastDelegated].Active = true
 		}
 	}
