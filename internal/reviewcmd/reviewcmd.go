@@ -70,6 +70,7 @@ type Options struct {
 	// EnvelopeID and Started: the same contract as agentcmd.Options.
 	EnvelopeID string
 	Started    func()
+	Pilot      bool // same contract as agentcmd.Options.Pilot
 }
 
 // Pass is one lens: one session, its scope gate and the findings hoom saw
@@ -272,7 +273,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	rec := envelope.Record{
 		ID: id, Role: role.Slug, Provider: prov.Name(), Task: taskOf(opt), Dir: dir, Spec: opt.Spec,
 		Stage: "run", Step: 1, Steps: len(lentes), Status: envelope.StatusRunning, ExitCode: -1,
-		StartedAt: time.Now().UTC(), PID: os.Getpid(),
+		StartedAt: time.Now().UTC(), PID: os.Getpid(), Pilot: opt.Pilot,
 	}
 	envelope.Write(root, rec)
 	if opt.Started != nil {

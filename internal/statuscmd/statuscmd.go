@@ -94,6 +94,8 @@ type RatchetMetric struct {
 	LastFrom  *float64  `json:"last_from,omitempty"`
 	LastTo    float64   `json:"last_to,omitempty"`
 	LastTS    time.Time `json:"last_ts,omitempty"`
+	// History: every movement of this metric in the file, oldest first.
+	History []ratchet.Change `json:"history"`
 }
 
 // RatchetView is the quality baseline as shown by status.
@@ -181,6 +183,10 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	return s, nil
 }
 
+// Ratchet is the quality baseline as status shows it: the single source of
+// `hoom status` and the Studio's GET /api/ratchet.
+func Ratchet(root string) RatchetView { return ratchetView(root) }
+
 // ratchetView reads the baseline file — and ONLY reads it: measuring is
 // verify --full's job. An unreadable file is labeled, never fatal.
 func ratchetView(root string) RatchetView {
@@ -202,7 +208,16 @@ func ratchetView(root string) RatchetView {
 	sort.Strings(names)
 	for _, n := range names {
 		m := f.Metrics[n]
-		rm := RatchetMetric{Name: n, Value: m.Value, Direction: m.Direction, Tolerance: m.Tolerance}
+		rm := RatchetMetric{Name: n, Value: m.Value, Direction: m.Direction, Tolerance: m.Tolerance,
+			History: []ratchet.Change{}}
+		for _, ch := range f.History {
+			if ch.Metric == n {
+				rm.History = append(rm.History, ch)
+			}
+		}
+		// del mas viejo al mas nuevo: el archivo agrega al final, pero un
+		// historial editado a mano no tiene por que venir ordenado
+		sort.SliceStable(rm.History, func(i, j int) bool { return rm.History[i].TS.Before(rm.History[j].TS) })
 		for i := len(f.History) - 1; i >= 0; i-- {
 			if f.History[i].Metric == n {
 				rm.LastKind = f.History[i].Kind

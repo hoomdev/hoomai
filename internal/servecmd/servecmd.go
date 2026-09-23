@@ -43,6 +43,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/report"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/spec"
+	"github.com/hoomdev/hoomai/internal/statuscmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
@@ -315,6 +316,28 @@ func (s *Server) handler() (*http.ServeMux, []string) {
 			return
 		}
 		writeJSON(w, d)
+	})
+
+	// la historia de la tarjeta (C4): git + telemetria local, calculada cada
+	// vez que alguien la pide. Solo lectura, como el detalle.
+	handle("GET /api/board/{slug}/timeline", func(w http.ResponseWriter, r *http.Request) {
+		slug := r.PathValue("slug")
+		if !item.ValidSlug(slug) {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", slug))
+			return
+		}
+		tl, err := boardcmd.TimelineFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug, time.Now().UTC())
+		if err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeJSON(w, tl)
+	})
+
+	// el trinquete (C4): la misma vista que la seccion de `hoom status`; lee
+	// el archivo y nunca mide.
+	handle("GET /api/ratchet", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, statuscmd.Ratchet(s.m.Dir))
 	})
 
 	// --- cabina (C3): las acciones de la tarjeta. Ninguna recibe una

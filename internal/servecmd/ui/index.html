@@ -321,6 +321,37 @@
     padding: 0 4px; border-radius: 5px; font: 700 12px var(--mono); border: 1px solid var(--border);
   }
   .warnmark { color: var(--warning); font-weight: 650; }
+  /* ---- C4: insignias del doctor, piloto automatico, historia y trinquete ---- */
+  .tdoc { color: var(--serious); border: 1px solid var(--serious); border-radius: 9px; padding: 0 6px; font-weight: 650; }
+  .tpilot { color: var(--accent); border: 1px solid var(--accent); border-radius: 9px; padding: 0 6px; }
+  .docl { margin: 6px 0 0; padding-left: 34px; font-size: 12.5px; }
+  .docl li { margin-bottom: 4px; }
+  .docl .acc { font: 12px var(--mono); color: var(--text-3); }
+  #tb-historia { padding: 4px 16px 16px; }
+  .docl { padding-right: 16px; }
+  .hbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .hbar .spacer { flex: 1; }
+  .hbar button.on { border-color: var(--accent); color: var(--accent); }
+  .hnotes { font-size: 12px; color: var(--text-3); margin: 4px 0 8px; }
+  .hmeter { margin: 6px 0 10px; }
+  .hmeter .meter i { height: 10px; }
+  .hoy { border: 1px solid var(--good); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+  .hlist { display: grid; gap: 2px; }
+  .hrow { display: grid; grid-template-columns: 92px 1fr auto; gap: 8px; padding: 5px 6px; border-radius: 6px; font-size: 12.5px; }
+  .hrow .w { color: var(--text-3); font-size: 11.5px; }
+  .hrow .src { font-size: 10.5px; border-radius: 8px; padding: 0 6px; border: 1px solid var(--border); color: var(--text-3); white-space: nowrap; }
+  .hrow .src.tel { border-style: dashed; }
+  .hrow .c { color: var(--text-3); font-size: 11.5px; white-space: nowrap; }
+  .hrow.cur { background: var(--panel-2); outline: 1px solid var(--accent); }
+  .hrow.futuro { opacity: .35; }
+  .trq { margin-top: 14px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+  .trq h2 { margin: 0 0 6px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); }
+  .rqrow { display: grid; grid-template-columns: 140px 130px 120px 1fr; gap: 10px; align-items: center; font-size: 12.5px; padding: 4px 0; }
+  .rqrow .dir { color: var(--text-3); }
+  .rqsvg { width: 100%; max-width: 320px; height: 44px; }
+  .rqsvg path { fill: none; stroke: var(--good); stroke-width: 1.5; }
+  .rqsvg circle { fill: var(--good); }
+  .rqsvg circle.loosened { fill: var(--critical); }
   /* acciones de la tarjeta (acciones.js) y su fantasma */
   .tcard-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
   .tcard-wrap[draggable="true"] { cursor: grab; }
@@ -426,6 +457,12 @@
     <div class="hint" id="cockpit-hint">despachá un pedido y vas a ver al equipo trabajar acá — escenario y feed en vivo, al mismo tiempo</div>
     <div id="sobres"></div>
     <div id="runs"></div>
+    <!-- el trinquete: la linea base y sus movimientos, desde /api/ratchet
+         (la misma vista que la seccion de hoom status; nunca mide) -->
+    <section class="trq">
+      <h2>Trinquete — la calidad que solo sube</h2>
+      <div id="trinquete"><div class="empty">cargando…</div></div>
+    </section>
   </div>
 
   <!-- run abierto: escenario + feed simultaneos -->
@@ -485,6 +522,7 @@
     <button class="tab on" data-pane="que">Qué</button>
     <button class="tab" data-pane="quien">Quién</button>
     <button class="tab" data-pane="pruebas">Pruebas</button>
+    <button class="tab" data-pane="historia">Historia</button>
   </div>
   <div class="dbody" id="tb-dbody">
     <div class="dpane show" id="tb-p-que">
@@ -511,6 +549,7 @@
       </details>
     </div>
     <div class="dpane" id="tb-p-pruebas"><div id="tb-pruebas"></div></div>
+    <div class="dpane" id="tb-p-historia"><div id="tb-historia"></div></div>
   </div>
 </aside>
 
@@ -758,6 +797,46 @@ async function refreshTasks() {
       toast(`tarea ${b.dataset.slug} cerrada: rama hoom/${b.dataset.slug} lista para integrar`, "ok");
       refreshTasks(); refreshStatus();
     }));
+}
+
+// el trinquete: por metrica, su base vigente y la curva en escalon de sus
+// movimientos (los "loosened" en otro color). Lee /api/ratchet, que es la
+// misma vista que la seccion de hoom status: nunca mide.
+async function refreshRatchet() {
+  const r = await j("/api/ratchet");
+  const box = $("trinquete");
+  if (r.error) {
+    box.innerHTML = `<div class="warnbox">línea base ilegible: ${esc(r.error)}</div>`;
+    return;
+  }
+  if (!r.declared || !r.metrics.length) {
+    box.innerHTML = `<div class="empty">Sin línea base: 'hoom ratchet init' la crea y 'hoom verify --full' la congela.</div>`;
+    return;
+  }
+  box.innerHTML = r.metrics.map(m => `<div class="rqrow">
+      <span class="g">${esc(m.name)}</span>
+      <span class="dir">${m.direction === "down" ? "↓ menos es mejor" : "↑ más es mejor"}</span>
+      <span>${m.value == null ? `<span class="warnmark">sin congelar</span>` : `base ${esc(String(m.value))}`}</span>
+      ${curvaTrinquete(m.history || [])}
+    </div>`).join("");
+}
+
+// curvaTrinquete dibuja los movimientos de una metrica como escalones: el
+// eje x es el tiempo y el y el valor al que se movio la base.
+function curvaTrinquete(h) {
+  if (!h.length) return `<span class="empty">sin movimientos</span>`;
+  const W = 300, H = 40, P = 4;
+  const ts = h.map(c => new Date(c.ts).getTime());
+  const vs = h.map(c => +c.to);
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const v0 = Math.min(...vs), v1 = Math.max(...vs);
+  const x = t => t1 === t0 ? W / 2 : P + (t - t0) / (t1 - t0) * (W - 2 * P);
+  const y = v => v1 === v0 ? H / 2 : H - P - (v - v0) / (v1 - v0) * (H - 2 * P);
+  let d = `M ${x(ts[0]).toFixed(1)} ${y(vs[0]).toFixed(1)}`;
+  for (let i = 1; i < h.length; i++) d += ` H ${x(ts[i]).toFixed(1)} V ${y(vs[i]).toFixed(1)}`;
+  if (h.length === 1) d += ` H ${W - P}`;
+  const puntos = h.map((c, i) => `<circle class="${c.kind === "loosened" ? "loosened" : ""}" cx="${x(ts[i]).toFixed(1)}" cy="${y(vs[i]).toFixed(1)}" r="3"><title>${esc(`${c.kind} ${c.from != null ? c.from + " → " : ""}${c.to} (${when(c.ts)})${c.reason ? ": " + c.reason : ""}`)}</title></circle>`).join("");
+  return `<svg class="rqsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="curva de la línea base"><path d="${d}"></path>${puntos}</svg>`;
 }
 
 async function refreshTrend() {
@@ -1253,7 +1332,7 @@ openSpec = async function (name) {
 async function tick() {
   const jobs = [refreshStatus(), refreshVerdicts(), refreshTasks(), refreshTrend(),
                 refreshSpecs(), refreshProviders(), refreshRunTasks(), refreshRuns(), refreshEnvelopes(),
-                refreshContext(), refreshFindings()];
+                refreshContext(), refreshFindings(), refreshRatchet()];
   for (const p of jobs) await p.catch(e => console.warn("studio:", e.message));
 }
 tick();

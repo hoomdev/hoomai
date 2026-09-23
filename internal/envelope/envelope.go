@@ -73,7 +73,10 @@ type Record struct {
 	// PID is the process that owns the envelope (brecha 4 of the cabin RFC):
 	// with it, "interrupted" is a fact the moment that process dies instead
 	// of an inference from a silent heartbeat. 0 in records of older hoom.
-	PID     int       `json:"pid,omitempty"`
+	PID int `json:"pid,omitempty"`
+	// Pilot says the cabin's belt (auto: hasta-humano) launched this
+	// envelope, not a person.
+	Pilot   bool      `json:"piloto,omitempty"`
 	EndedAt time.Time `json:"ended_at,omitempty"`
 }
 

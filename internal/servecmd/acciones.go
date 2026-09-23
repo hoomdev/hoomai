@@ -129,14 +129,41 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 				boardcmd.ActPedirReviewer, boardcmd.ActReanudar, boardcmd.ActRelanzar}, ", ")))
 		return
 	}
+	resp, code, err := s.start(slug, launchReq{Action: body.Action, Provider: body.Provider, Model: body.Model,
+		BudgetUSD: body.BudgetUSD, Pedido: body.Pedido})
+	if err != nil {
+		writeError(w, code, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(resp)
+}
+
+// launchReq is one launch, from a person (the endpoint) or from the belt.
+type launchReq struct {
+	Action    string
+	Provider  string
+	Model     string
+	BudgetUSD *float64
+	Pedido    string
+	Pilot     bool // the belt launched it: its record says so
+}
+
+// start is the ONE way the Studio launches a role: the endpoint and the belt
+// go through the same checks, in the contract's order. It answers when the
+// envelope's first record is on disk (or with the HTTP code of why not).
+func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
+	fail := func(code int, format string, args ...any) (launchResp, int, error) {
+		return launchResp{}, code, fmt.Errorf(format, args...)
+	}
 	// Un lanzamiento por tarjeta a la vez. El candado se toma ANTES de derivar
 	// la tarjeta y se suelta cuando el sobre ya escribio su registro: el
 	// segundo pedido o encuentra el candado, o encuentra la tarjeta en curso.
 	s.launchMu.Lock()
 	if s.launching[slug] {
 		s.launchMu.Unlock()
-		writeError(w, http.StatusConflict, "ya se esta lanzando un trabajo en esta tarjeta")
-		return
+		return fail(http.StatusConflict, "ya se esta lanzando un trabajo en esta tarjeta")
 	}
 	s.launching[slug] = true
 	s.launchMu.Unlock()
@@ -145,61 +172,56 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		delete(s.launching, slug)
 		s.launchMu.Unlock()
 	}()
-	c, ok := s.cardOf(w, slug)
-	if !ok {
-		return
+	c, err := boardcmd.CardFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug, time.Now().UTC())
+	if err != nil {
+		return fail(http.StatusNotFound, "%s", err.Error())
 	}
-	a, ok := actionOf(w, c, body.Action)
+	a, ok := c.Action(req.Action)
 	if !ok {
-		return
+		return fail(http.StatusConflict, "la tarjeta ya no esta donde la viste: ahora esta en %s (%s)", c.ColumnName, c.Plain)
+	}
+	if !a.Enabled {
+		return fail(http.StatusConflict, "%s", a.Why)
 	}
 	var opt *boardcmd.ProviderOption
 	for i := range a.Providers {
-		if a.Providers[i].Name == strings.TrimSpace(body.Provider) {
+		if a.Providers[i].Name == strings.TrimSpace(req.Provider) {
 			opt = &a.Providers[i]
 		}
 	}
 	if opt == nil {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("el proveedor %q no es una opcion de esta accion", body.Provider))
-		return
+		return fail(http.StatusBadRequest, "el proveedor %q no es una opcion de esta accion", req.Provider)
 	}
 	if !opt.OK {
-		writeError(w, http.StatusConflict, opt.Why)
-		return
+		return fail(http.StatusConflict, "%s", opt.Why)
 	}
 	review := a.Role == "reviewer"
-	pedido := strings.TrimSpace(body.Pedido)
+	pedido := strings.TrimSpace(req.Pedido)
 	switch {
 	case review && pedido != "":
-		writeError(w, http.StatusBadRequest, "la revision arma su propio pedido: deja el pedido vacio")
-		return
+		return fail(http.StatusBadRequest, "la revision arma su propio pedido: deja el pedido vacio")
 	case !review && pedido == "":
-		writeError(w, http.StatusBadRequest, "falta el pedido: lo que el rol tiene que hacer")
-		return
+		return fail(http.StatusBadRequest, "falta el pedido: lo que el rol tiene que hacer")
 	case !review && agentcmd.IsPlaceholder(pedido):
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("el pedido %q no dice nada: escribi lo que el rol tiene que hacer", body.Pedido))
-		return
+		return fail(http.StatusBadRequest, "el pedido %q no dice nada: escribi lo que el rol tiene que hacer", req.Pedido)
 	}
-	budget, code, err := budgetFor(c, a, *opt, body.BudgetUSD)
+	budget, code, err := budgetFor(c, a, *opt, req.BudgetUSD)
 	if err != nil {
-		writeError(w, code, err.Error())
-		return
+		return launchResp{}, code, err
 	}
 
 	// y ningun run activo en su arbol, de ningun proceso: dos roles en el
 	// mismo arbol se pisan
 	if dir, err := runcmd.TaskDir(s.m.Dir, slug); err == nil {
 		if id, busy := s.runs.Busy(dir); busy {
-			writeError(w, http.StatusConflict, fmt.Sprintf("ya hay un run activo (%s) en el espacio de trabajo de la tarjeta: espera a que termine", id))
-			return
+			return fail(http.StatusConflict, "ya hay un run activo (%s) en el espacio de trabajo de la tarjeta: espera a que termine", id)
 		}
 	}
 
 	started := false
 	if c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog {
 		if err := taskcmd.Start(s.m.Dir, slug, s.m.BaseBranch); err != nil {
-			writeError(w, http.StatusConflict, err.Error())
-			return
+			return fail(http.StatusConflict, "%s", err.Error())
 		}
 		started = true
 	}
@@ -208,8 +230,7 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 	logPath := filepath.Join(s.m.Dir, ".hoom", envelope.DirName, id+".log")
 	logFile, err := openLog(s.m.Dir, logPath)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return fail(http.StatusInternalServerError, "%s", err.Error())
 	}
 	early := &tail{}
 	out := io.MultiWriter(logFile, early)
@@ -229,13 +250,13 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		var f fin
 		if review {
 			_, f.err = reviewcmd.Run(s.m.Dir, s.m.BaseBranch, reviewcmd.Options{
-				Provider: opt.Name, Task: slug, Spec: spec, Model: body.Model, BudgetUSD: budget,
-				EnvelopeID: id, Started: onStart,
+				Provider: opt.Name, Task: slug, Spec: spec, Model: req.Model, BudgetUSD: budget,
+				EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
 			}, out)
 		} else {
 			o := agentcmd.Options{
-				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: body.Model,
-				BudgetUSD: budget, EnvelopeID: id, Started: onStart,
+				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: req.Model,
+				BudgetUSD: budget, EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec
@@ -247,13 +268,14 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		}
 		f.line = lastLine(early.String())
 		done <- f
+		// la cinta: despues de un trabajo que lanzo el Studio, y solo si
+		// ese trabajo llego a dejar su registro
+		s.belt(slug, c, id, logFile)
 	}()
 
 	select {
 	case <-ready:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: started})
+		return launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: started}, 0, nil
 	case f := <-done:
 		// termino antes de su primer registro: no corrio nada, y no queda nada
 		os.Remove(logPath)
@@ -264,8 +286,48 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		if msg == "" {
 			msg = "el trabajo no arranco"
 		}
-		writeError(w, http.StatusConflict, msg)
+		return fail(http.StatusConflict, "%s", msg)
 	}
+}
+
+// belt is the autopilot of a card with `auto: hasta-humano`: a conveyor
+// belt, not an orchestrator. When a job the Studio launched returns, it asks
+// boardcmd.Pilot (pure) what comes next and, if anything, launches it with
+// the SAME function as the endpoint. What it decided goes to the log of the
+// job that closed.
+func (s *Server) belt(slug string, before boardcmd.Card, envelopeID string, log io.Writer) {
+	var closed *envelope.Record
+	for _, dir := range []string{s.m.Dir, s.evidenceDir(before)} {
+		for _, rec := range envelope.List(dir) {
+			if rec.ID == envelopeID {
+				r := rec
+				closed = &r
+			}
+		}
+		if closed != nil {
+			break
+		}
+	}
+	if closed == nil {
+		return // no llego a su primer registro: no corrio nada
+	}
+	after, err := boardcmd.CardFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug, time.Now().UTC())
+	if err != nil || after.Item.Auto != item.AutoHastaHumano {
+		return
+	}
+	d := boardcmd.Pilot(before, after, *closed)
+	if !d.Launch {
+		fmt.Fprintf(log, "piloto automatico: se detiene: %s\n", d.Why)
+		return
+	}
+	budget := d.BudgetUSD
+	resp, _, err := s.start(slug, launchReq{Action: d.Action, Provider: d.Provider, BudgetUSD: &budget,
+		Pedido: d.Pedido, Pilot: true})
+	if err != nil {
+		fmt.Fprintf(log, "piloto automatico: no pudo lanzar al %s: %s\n", d.Role, err)
+		return
+	}
+	fmt.Fprintf(log, "piloto automatico: pide al %s con %s (%s USD): sobre %s\n", d.Role, d.Provider, usd(budget), resp.EnvelopeID)
 }
 
 // budgetFor resolves the budget of a launch against the provider and what

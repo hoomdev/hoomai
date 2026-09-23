@@ -49,6 +49,7 @@ func Derive(ev Evidence) Card {
 	c.Actions = actionsOf(ev, c)
 	c.Drops = dropsOf(c)
 	c.Ghost = ghostOf(c)
+	c.Doctor = DoctorOf(ev, c)
 	return c
 }
 

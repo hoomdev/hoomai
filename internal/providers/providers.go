@@ -22,7 +22,9 @@ import (
 
 // Event is the normalized unit of a run's narration. One schema for every
 // provider so the UI (and the theater) is written once.
-// Kind: start | text | tool | agent | system | end | error.
+// Kind: start | text | tool | agent | agent_end | system | end | error.
+// agent_end: a delegated subagent left the scene (its delegation got its
+// result); only adapters that implement Correlating emit it.
 //
 // `system` means ONE thing: the CLI talking about ITSELF — hooks, compaction,
 // rate limits — and not the agent working. It exists so that plumbing is
@@ -40,6 +42,16 @@ type Event struct {
 	// the invocation spent. The run ACCUMULATES it (see runcmd): every CLI
 	// verified reports per invocation, never per session.
 	Usage *Usage `json:"usage,omitempty"`
+	// ToolID pairs a delegation (`agent`) with its end (`agent_end`): the id
+	// the provider gave the tool call.
+	ToolID string `json:"tool_id,omitempty"`
+}
+
+// Correlating is implemented by an adapter whose events need memory of the
+// run: pairing a delegation with its result. runcmd asks for one normalizer
+// per run; Normalize stays the stateless fallback.
+type Correlating interface {
+	NewNormalizer() func(line string) []Event
 }
 
 // Usage is what one invocation cost, in the only units every CLI can be read
