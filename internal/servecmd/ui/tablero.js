@@ -1,8 +1,10 @@
 "use strict";
-/* Tablero: la cabina de solo lectura (spec tablero-de-solo-lectura, C2).
-   La columna de cada tarjeta, su medidor, su motivo y quién la trabajó los
-   calcula el binario (boardcmd). Esta pestaña solo lee con j() y pinta:
-   nada se arrastra, nada se envía y nada usa el token. Las acciones son de C3.
+/* Tablero: la cabina (specs tablero-de-solo-lectura, C2, y
+   acciones-desde-la-tarjeta, C3). La columna de cada tarjeta, su medidor, su
+   motivo, quién la trabajó, su fantasma y sus acciones los calcula el binario
+   (boardcmd). Este archivo solo lee con j() y pinta: nada se envía y nada usa
+   el token. Las acciones viven en acciones.js, que decora lo que se pinta acá
+   cuando recibe el aviso "tablero:pintado".
    Reusa de index.html: $, esc, badge, stBadge, vBadge, when, j, mdRender,
    renderStage y appendFeed. */
 
@@ -54,6 +56,7 @@ const tb = {
   genD: 0,
   diffOpen: false,
   vivo: { run: null, after: 0, gen: 0 },
+  term: { gen: 0 },   // el espejo de la terminal: sondeo mientras su sección está abierta
 };
 
 function experto() { return tb.modo === "experto"; }
@@ -130,25 +133,40 @@ function pintarTablero(forzar) {
   box.innerHTML = b.columns.map(col => {
     const cards = tb.filtro ? col.cards.filter(c => c.needs_decision) : col.cards;
     const n = tb.filtro ? `${cards.length} de ${col.cards.length}` : `${col.cards.length}`;
+    // el fantasma: la tarjeta como va a quedar mientras un rol de su estación
+    // trabaja; lo calcula el binario (ghost)
+    const fantasmas = b.columns.flatMap(x => tb.filtro ? x.cards.filter(c => c.needs_decision) : x.cards)
+      .filter(c => c.ghost && c.ghost.column === col.id);
     return `<section class="col${col.human ? " human" : ""}" data-col="${esc(col.id)}">
       <h3>${col.human ? "✋ " : ""}${esc(COLS[col.id] || col.name)}<span class="n">${n}</span></h3>
-      <div class="cards">${cards.map(tarjeta).join("")}</div>
+      <div class="cards">${cards.map(tarjeta).join("")}${fantasmas.map(fantasma).join("")}</div>
     </section>`;
   }).join("");
   for (const el of box.querySelectorAll(".col")) el.querySelector(".cards").scrollTop = scroll[el.dataset.col] || 0;
   if (!total) $("tb-warn").insertAdjacentHTML("beforeend", `<div class="empty">${esc(NORMAL.sinTarjetas)}</div>`);
+  document.dispatchEvent(new Event("tablero:pintado"));
+}
+
+function fantasma(c) {
+  const g = c.ghost;
+  const paso = g.steps ? `paso ${g.step} de ${g.steps}: ${g.stage}` : g.stage;
+  return `<div class="tghost" aria-hidden="true">
+    <span class="t">${esc(c.item.titulo)}</span>
+    <span>${marca(g.provider)} ${esc(g.role)} trabajando · ${esc(paso)}</span>
+  </div>`;
 }
 
 function tarjeta(c) {
   const it = c.item;
-  return `<button class="tcard${c.needs_decision ? " need" : ""}" data-slug="${esc(c.slug)}">
+  // .tacc queda vacío: lo llena acciones.js con lo que trae actions
+  return `<div class="tcard-wrap" data-slug="${esc(c.slug)}"><button class="tcard${c.needs_decision ? " need" : ""}" data-slug="${esc(c.slug)}">
     <span class="t">${esc(it.titulo)}</span>
     <span class="meta">${esc(it.tipo)} · prioridad ${esc(it.prioridad)}${experto() ? ` · <code>${esc(c.slug)}</code>` : ""}</span>
     ${medidor(c)}
     ${subestados(c)}
     <span class="why">${motivo(c)}</span>
     <span class="foot">${gastoTarjeta(c.spend)}<span class="spacer"></span>${logos(c.providers)}</span>
-  </button>`;
+  </button><div class="tacc"></div></div>`;
 }
 
 function motivo(c) {
@@ -210,11 +228,15 @@ function marca(p) {
 }
 
 function logos(p) {
-  if (!p || (!p.writer && !p.reviewer)) return "";
+  const decl = (p && p.declared) || [];
+  if (!p || (!p.writer && !p.reviewer && !decl.length)) return "";
   const out = [];
   if (p.writer) out.push(`<span title="escribió: ${esc(p.writer)}">✍ ${marca(p.writer)}</span>`);
+  for (const d of decl.filter(d => d !== p.writer))
+    out.push(`<span title="sesión interactiva abierta con ${esc(d)}: writer declarado, nadie lo vio escribir">✍? ${marca(d)}</span>`);
   if (p.reviewer) out.push(`<span title="revisó: ${esc(p.reviewer)}">🔎 ${marca(p.reviewer)}</span>`);
   if (p.cross === "no-cruzada") out.push(`<span class="warnmark" title="la misma CLI escribió y revisó (--same-provider)">misma CLI</span>`);
+  if (p.cross === "cruzada-declarada") out.push(`<span class="warnmark" title="el writer solo está declarado por una sesión interactiva">cruzada (declarada)</span>`);
   return out.join(" ");
 }
 
@@ -270,6 +292,8 @@ function cerrarDetalle() {
   tb.open = null;
   tb.genD++;
   vivoPara(null);
+  tb.term.gen++;
+  $("tb-terminal").open = false;
   $("tdetail").classList.remove("open");
   $("tshade").style.display = "none";
 }
@@ -339,7 +363,9 @@ function pintarDetalle(forzar) {
   if (ex && tb.diffOpen) $("tb-diffbody").innerHTML = paneDiff(d.diff);
   $("tb-work").innerHTML = paneQuien(d, ex);
   $("tb-pruebas").innerHTML = panePruebas(d, ex);
+  $("tb-terminal").style.display = ex && c.actions.some(a => a.id === "terminal") ? "" : "none";
   vivoPara(c);
+  document.dispatchEvent(new Event("tablero:pintado"));
 }
 
 // el enunciado de un criterio: texto escapado, con el codigo entre comillas
@@ -507,4 +533,68 @@ async function seguirVivo(gen) {
     $("tb-livenote").textContent = e.message;
     setTimeout(() => seguirVivo(gen), 1000);
   }
+}
+
+/* ---------- Ver terminal: el espejo de solo lectura del pane de tmux ---------- */
+
+// abrirTerminal abre el detalle de la tarjeta en Quién con la sección
+// Terminal abierta. Solo mira: la sección no tiene dónde escribir.
+function abrirTerminal(slug) {
+  if (tb.open !== slug) abrirDetalle(slug);
+  $("tb-dtabs").querySelector('[data-pane="quien"]').click();
+  $("tb-terminal").style.display = "";
+  $("tb-terminal").open = true;
+}
+
+$("tb-terminal").addEventListener("toggle", () => {
+  if ($("tb-terminal").open && tb.open) pedirTerminal(++tb.term.gen);
+  else tb.term.gen++;
+});
+
+async function pedirTerminal(gen) {
+  if (gen !== tb.term.gen || !tb.open || !$("tb-terminal").open || !visible()) return;
+  const slug = tb.open;
+  try {
+    const t = await j(`/api/board/${encodeURIComponent(slug)}/terminal`);
+    if (gen !== tb.term.gen) return;
+    $("tb-termnote").textContent = t.available ? `sesión ${t.session} · solo lectura, se refresca cada segundo` : t.note;
+    $("tb-term").innerHTML = t.available ? ansiHTML(t.text) : "";
+  } catch (e) {
+    if (gen !== tb.term.gen) return;
+    $("tb-termnote").textContent = e.message;
+    if (e.status === 404 || e.status === 400) return; // la tarjeta ya no existe: deja de pedir
+  }
+  setTimeout(() => pedirTerminal(gen), 1000);
+}
+
+// ansiHTML pinta lo que tmux ya pintó: los colores básicos, los brillantes y
+// la negrita de las secuencias SGR pasan a <span>; las demás secuencias se
+// descartan. El texto se escapa siempre.
+const ANSI = ["#1d1f21", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#c678dd", "#56b6c2", "#dcdfe4"];
+const ANSI_BRILLO = ["#5c6370", "#ff7b86", "#b5e890", "#ffd580", "#7cc4ff", "#e19ef5", "#7fdbe6", "#ffffff"];
+function ansiHTML(text) {
+  const limpio = text.replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "").replace(/\x1b\[[0-9;?]*[A-Za-ln-z]/g, "");
+  let fg = null, bold = false, out = "";
+  const abrir = () => (fg || bold) ? `<span style="${fg ? `color:${fg};` : ""}${bold ? "font-weight:700;" : ""}">` : "";
+  let abierto = false;
+  for (const parte of limpio.split(/(\x1b\[[0-9;]*m)/)) {
+    const m = /^\x1b\[([0-9;]*)m$/.exec(parte);
+    if (!m) {
+      if (!parte) continue;
+      if (!abierto && (fg || bold)) { out += abrir(); abierto = true; }
+      out += esc(parte);
+      continue;
+    }
+    if (abierto) { out += "</span>"; abierto = false; }
+    for (const cod of (m[1] || "0").split(";").map(Number)) {
+      if (cod === 0) { fg = null; bold = false; }
+      else if (cod === 1) bold = true;
+      else if (cod === 22) bold = false;
+      else if (cod === 39) fg = null;
+      else if (cod >= 30 && cod <= 37) fg = ANSI[cod - 30];
+      else if (cod >= 90 && cod <= 97) fg = ANSI_BRILLO[cod - 90];
+    }
+  }
+  if (abierto) out += "</span>";
+  return out;
 }

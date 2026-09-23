@@ -45,6 +45,10 @@ func Derive(ev Evidence) Card {
 	c.NeedsDecision = c.WaitingHuman || c.Interrupted != nil
 	c.Meter = meterOf(ev, c.Column, c.Evidence)
 	c.Providers = crewOf(ev, c.Evidence.ReviewID)
+	c.Providers.Declared = declaredOf(ev)
+	c.Actions = actionsOf(ev, c)
+	c.Drops = dropsOf(c)
+	c.Ghost = ghostOf(c)
 	return c
 }
 
@@ -298,6 +302,9 @@ func liveness(ev Evidence) (*Running, *Interrupted) {
 			}
 			continue
 		}
+		if relieved(ev, rec) {
+			continue // otro sobre de la tarjeta empezo despues: la persona ya decidio
+		}
 		if intr == nil || rec.UpdatedAt.After(intr.UpdatedAt) {
 			intr = &Interrupted{EnvelopeID: rec.ID, RunID: rec.RunID, Role: rec.Role, Provider: rec.Provider,
 				Stage: rec.Stage, Step: rec.Step, Steps: rec.Steps, UpdatedAt: rec.UpdatedAt}
@@ -320,6 +327,18 @@ func liveness(ev Evidence) (*Running, *Interrupted) {
 		}
 	}
 	return run, intr
+}
+
+// relieved reports whether another envelope of the card started after the
+// last record of rec: reanudar, volver a lanzar or a new request took over. The
+// record itself stays as it is — hoom never closes what it did not see close.
+func relieved(ev Evidence, rec envelope.Record) bool {
+	for _, e := range ev.Envelopes {
+		if e.Record.ID != rec.ID && e.Record.StartedAt.After(rec.UpdatedAt) {
+			return true
+		}
+	}
+	return false
 }
 
 // red compares the card's verdict with its last CLOSED envelope and reports
@@ -395,6 +414,10 @@ func spend(ev Evidence) Spend {
 	}
 	if reported {
 		s.CostUSD = &total
+	}
+	if b := ev.Item.PresupuestoUSD; b != nil {
+		left := *b - total
+		s.RemainingUSD = &left
 	}
 	return s
 }

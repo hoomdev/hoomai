@@ -59,6 +59,18 @@ type Item struct {
 	PresupuestoUSD *float64   `yaml:"presupuesto_usd,omitempty" json:"presupuesto_usd,omitempty"`
 	HechoEn        *time.Time `yaml:"hecho_en,omitempty" json:"hecho_en,omitempty"`
 	CommitFinal    string     `yaml:"commit_final,omitempty" json:"commit_final,omitempty"`
+	// Sesiones are the interactive sessions opened on the card's workspace
+	// (`hoom cockpit --task`, "Abrir sesion" in the Studio): the DECLARED
+	// writers `hoom review` reads. Written by a person's tool, never by an
+	// agent (the envelope's floor forbids .hoom/items/).
+	Sesiones []Sesion `yaml:"sesiones,omitempty" json:"sesiones,omitempty"`
+}
+
+// Sesion is one interactive session opened on the card's workspace.
+type Sesion struct {
+	Provider   string    `yaml:"provider" json:"provider"`
+	AbiertaPor string    `yaml:"abierta_por,omitempty" json:"abierta_por"`
+	AbiertaEn  time.Time `yaml:"abierta_en" json:"abierta_en"`
 }
 
 // Draft is what `hoom item add` asks for before hoom stamps it (identity,
@@ -210,7 +222,7 @@ func Add(root string, d Draft) (Item, error) {
 
 // claves are the only keys an item may carry, in the order hoom writes them.
 var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "creado_en",
-	"presupuesto_usd", "hecho_en", "commit_final"}
+	"presupuesto_usd", "hecho_en", "commit_final", "sesiones"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
 // field or a value outside its vocabulary is an error.
@@ -250,6 +262,15 @@ func Parse(slug string, raw []byte) (Item, error) {
 		return Item{}, fmt.Errorf("falta creado_en")
 	case it.PresupuestoUSD != nil && !(*it.PresupuestoUSD > 0):
 		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0")
+	}
+	for i, s := range it.Sesiones {
+		switch {
+		case strings.TrimSpace(s.Provider) == "":
+			return Item{}, fmt.Errorf("sesiones[%d]: falta provider", i)
+		case s.AbiertaEn.IsZero():
+			return Item{}, fmt.Errorf("sesiones[%d]: falta abierta_en", i)
+		}
+		it.Sesiones[i].AbiertaEn = s.AbiertaEn.UTC()
 	}
 	it.CreadoEn = it.CreadoEn.UTC()
 	if it.HechoEn != nil {
@@ -364,4 +385,36 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// AddSession appends one session to the item's sesiones, stamped with the git
+// identity of root, keeping every other field. It reports whether it wrote:
+// no item is (false, nil); an unreadable or invalid item is an error.
+func AddSession(root, slug, provider string, at time.Time) (bool, error) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return false, fmt.Errorf("una sesion necesita su provider")
+	}
+	raw, err := os.ReadFile(Path(root, slug))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	it, err := Parse(slug, raw)
+	if err != nil {
+		return false, err
+	}
+	it.Sesiones = append(it.Sesiones, Sesion{
+		Provider: provider, AbiertaPor: gitx.Identity(root), AbiertaEn: at.UTC().Truncate(time.Second),
+	})
+	out, err := encode(it)
+	if err != nil {
+		return false, err
+	}
+	if err := hoomfs.AtomicWrite(Path(root, slug), out, 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }

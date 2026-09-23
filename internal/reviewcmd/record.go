@@ -30,8 +30,10 @@ type Record struct {
 	Lenses      []string  `json:"lenses"`
 	Provider    string    `json:"provider"` // the reviewer's
 	Writer      string    `json:"writer"`   // provider of the last run that wrote
-	Cross       string    `json:"cross"`    // cruzada | no-cruzada | desconocida
-	Findings    []string  `json:"findings"` // ids hoom saw appear
+	Cross       string    `json:"cross"`    // cruzada | no-cruzada | cruzada-declarada | desconocida
+	// WritersDeclared: the providers of the item's sessions (see Result).
+	WritersDeclared []string `json:"writers_declared"`
+	Findings        []string `json:"findings"` // ids hoom saw appear
 }
 
 func recordsDir(dir string) string { return filepath.Join(dir, ".hoom", RecordsDir) }

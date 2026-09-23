@@ -21,6 +21,12 @@ type claude struct{}
 func (claude) Name() string { return "claude" }
 func (claude) Bin() string  { return "claude" }
 
+// MinBudgetUSD: Claude checks --max-budget-usd after the turn that crosses
+// it, and one turn of a role with its contract costs in the order of 0.1 USD
+// (dogfood). Under 0.5 USD the run stops before delivering anything and the
+// money is lost.
+func (claude) MinBudgetUSD() float64 { return 0.5 }
+
 func (claude) Capabilities() Capabilities {
 	return Capabilities{
 		Structured: true, Continue: true, Resume: true, SessionID: true,

@@ -38,6 +38,12 @@ type Options struct {
 	ResumeID  string
 	MaxTurns  int
 	BudgetUSD float64
+	// EnvelopeID presets the id of the envelope's record ("" = a new one), so
+	// a caller that runs the envelope in the background can name it at once.
+	EnvelopeID string
+	// Started is called once, when the envelope's first record is on disk.
+	// An error before that record arrives without Started being called.
+	Started func()
 }
 
 // Result is the envelope's answer, identical in text and in JSON.
@@ -124,10 +130,15 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// El registro del sobre: lo que status y el Studio pueden mirar MIENTRAS
 	// esto corre. Se escribe en cada transicion de paso; escribirlo jamas
 	// puede romper el sobre que describe (Write es best-effort).
+	id := strings.TrimSpace(opt.EnvelopeID)
+	if id == "" {
+		id = envelope.NewID()
+	}
 	rec := envelope.Record{
-		ID: envelope.NewID(), Role: role.Slug, Provider: prov.Name(), Task: opt.Task,
+		ID: id, Role: role.Slug, Provider: prov.Name(), Task: opt.Task,
 		Dir: dir, Stage: "spec", Step: 1, Steps: steps,
 		Status: envelope.StatusRunning, ExitCode: -1, StartedAt: time.Now().UTC(),
+		PID: os.Getpid(),
 	}
 	res.EnvelopeID = rec.ID
 	// Una sola transicion mueve los dos estados que el sobre mantiene: el
@@ -139,6 +150,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		envelope.Write(root, rec)
 	}
 	advance("spec", 1)
+	if opt.Started != nil {
+		opt.Started() // el primer registro ya esta en disco: quien espera puede nombrarlo
+	}
 	fmt.Fprintf(w, "hoom agent: rol %s (%s) en %s\n", role.Slug, prov.Name(), displayDir(opt.Task))
 	// Lo local queda fuera de Git ANTES de la primera foto: una regla que
 	// hoom agrega durante el run se le imputaria al rol, y una que falta deja

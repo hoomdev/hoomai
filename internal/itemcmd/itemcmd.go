@@ -1,5 +1,5 @@
-// Package itemcmd implements `hoom item add | list | show`: the verbs of the
-// card as a file. Parsing is pure and strict from day one (cliargs), so a
+// Package itemcmd implements `hoom item add | list | show | save`: the verbs
+// of the card as a file. Parsing is pure and strict from day one (cliargs), so a
 // request hoom does not understand is answered before the project is read,
 // and it never leaves a half-written item behind.
 package itemcmd
@@ -10,6 +10,10 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
@@ -22,6 +26,7 @@ const (
 	SubAdd  = "add"
 	SubList = "list"
 	SubShow = "show"
+	SubSave = "save"
 )
 
 // UsageText is the exact usage block of `hoom item` and the single source of
@@ -29,6 +34,7 @@ const (
 const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x] [--pedido "<texto>"] [--slug s] [--json]
      hoom item list [--json]
      hoom item show <slug> [--json]
+     hoom item save <slug> [--json]
 
   --tipo t             feature|bug|refactor|seguridad|docs|test (default feature)
   --prioridad p        alta|media|baja (default media)
@@ -38,15 +44,19 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--p
                        nombre del spec (.hoom/specs/<slug>.md) y de la tarea
   --json               Emite el resultado como JSON en stdout
 
+'hoom item save' commitea lo que la tarjeta tiene sin guardar (en su espacio
+de trabajo, todo; en el proyecto, su evidencia y su item), un commit por
+arbol, con el mensaje fijo "hoom: guardar la tarjeta <slug>".
+
 El item es un archivo en .hoom/items/<slug>.yaml que viaja en git. Nunca
 guarda una columna: la columna sale de la evidencia ('hoom board').
 Un titulo que empieza con '-' va despues de '--': hoom item add -- "-titulo"`
 
 // Request is one parsed `hoom item` invocation.
 type Request struct {
-	Sub   string     // SubAdd | SubList | SubShow
+	Sub   string     // SubAdd | SubList | SubShow | SubSave
 	Draft item.Draft // add
-	Slug  string     // show
+	Slug  string     // show, save
 	JSON  bool
 }
 
@@ -55,7 +65,7 @@ type Request struct {
 // understand and cliargs.ErrHelp for -h/--help.
 func Parse(args []string) (Request, error) {
 	if len(args) == 0 {
-		return Request{}, uso("item", "falta el subcomando (add|list|show)")
+		return Request{}, uso("item", "falta el subcomando (add|list|show|save)")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -81,8 +91,19 @@ func Parse(args []string) (Request, error) {
 			return Request{}, uso("item show", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
 		}
 		return Request{Sub: SubShow, Slug: ops[0], JSON: *asJSON}, nil
+	case SubSave:
+		fs := flag.NewFlagSet("item save", flag.ContinueOnError)
+		asJSON := fs.Bool("json", false, "emitir lo que se guardo como JSON")
+		ops, err := cliargs.Operands(fs, rest, "item save", UsageText, 1)
+		if err != nil {
+			return Request{}, err
+		}
+		if !item.ValidSlug(ops[0]) {
+			return Request{}, uso("item save", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
+		}
+		return Request{Sub: SubSave, Slug: ops[0], JSON: *asJSON}, nil
 	}
-	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show)", sub))
+	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save)", sub))
 }
 
 func parseAdd(args []string) (Request, error) {
@@ -180,8 +201,29 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 		}
 		boardcmd.RenderCard(stdout, c)
 		return nil
+	case SubSave:
+		res, err := Save(root, base, blockOn, req.Slug, nil)
+		if err != nil {
+			return err
+		}
+		if req.JSON {
+			return emit(stdout, res)
+		}
+		if len(res.Commits) == 0 {
+			fmt.Fprintf(stdout, "hoom item save: la tarjeta %s no tiene nada sin guardar\n", req.Slug)
+			return nil
+		}
+		fmt.Fprintf(stdout, "hoom item save: tarjeta %s guardada\n", req.Slug)
+		for _, cm := range res.Commits {
+			n := fmt.Sprintf("%d archivos", len(cm.Paths))
+			if len(cm.Paths) == 1 {
+				n = "1 archivo"
+			}
+			fmt.Fprintf(stdout, "  %s: %s (%s)\n", cm.Dir, short(cm.SHA), n)
+		}
+		return nil
 	}
-	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show)", req.Sub))
+	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save)", req.Sub))
 }
 
 func emit(w io.Writer, v any) error {
@@ -191,4 +233,130 @@ func emit(w io.Writer, v any) error {
 	}
 	fmt.Fprintln(w, string(raw))
 	return nil
+}
+
+// SaveCommit is one commit `hoom item save` made.
+type SaveCommit struct {
+	Dir   string   `json:"dir"` // relative to root ("." = the project)
+	SHA   string   `json:"sha"`
+	Paths []string `json:"paths"` // relative to root
+}
+
+// SaveResult is what `hoom item save` did, identical in text and JSON.
+type SaveResult struct {
+	Slug    string       `json:"slug"`
+	Message string       `json:"message"`
+	Commits []SaveCommit `json:"commits"`
+}
+
+// SaveMessage is the fixed commit message of `hoom item save`.
+func SaveMessage(slug string) string { return "hoom: guardar la tarjeta " + slug }
+
+// ErrChanged is what Save and the Studio answer when the paths a person saw
+// are not the ones there are now.
+const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: revisalos de nuevo"
+
+// Save commits exactly the card's unsynced paths, one commit per tree. A
+// non-nil expect must equal them as a set.
+func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error) {
+	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+	if err != nil {
+		return SaveResult{}, err
+	}
+	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
+	if r := c.Running; r != nil {
+		quien := "el agente"
+		if r.Role != "" {
+			quien = "el " + r.Role
+		}
+		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
+	}
+	paths := append([]string{}, c.Unsynced...)
+	if expect != nil && !sameSet(expect, paths) {
+		return SaveResult{}, fmt.Errorf("%s", ErrChanged)
+	}
+	if len(paths) == 0 {
+		return res, nil
+	}
+	// One commit per tree: the card's workspace first, then the project
+	// (where its item lives).
+	var inTask, inRoot []string
+	wt := ""
+	if c.Evidence.Source == boardcmd.SourceWorktree {
+		wt = c.Evidence.Dir
+	}
+	for _, p := range paths {
+		if wt != "" && strings.HasPrefix(p, wt+"/") {
+			inTask = append(inTask, p)
+		} else {
+			inRoot = append(inRoot, p)
+		}
+	}
+	for _, tr := range []struct {
+		rel   string
+		paths []string
+	}{{wt, inTask}, {".", inRoot}} {
+		if len(tr.paths) == 0 {
+			continue
+		}
+		dir, local := root, tr.paths
+		if tr.rel != "." {
+			dir = filepath.Join(root, filepath.FromSlash(tr.rel))
+			local = make([]string, len(tr.paths))
+			for i, p := range tr.paths {
+				local[i] = strings.TrimPrefix(p, tr.rel+"/")
+			}
+		}
+		sha, err := commitPaths(dir, res.Message, local)
+		if err != nil {
+			return res, err
+		}
+		res.Commits = append(res.Commits, SaveCommit{Dir: tr.rel, SHA: sha, Paths: tr.paths})
+	}
+	return res, nil
+}
+
+// commitPaths stages exactly paths and commits only them: whatever else sits
+// in the index stays there, uncommitted. The repository's hooks run.
+func commitPaths(dir, msg string, paths []string) (string, error) {
+	if out, err := git(dir, append([]string{"add", "-A", "--"}, paths...)...); err != nil {
+		return "", fmt.Errorf("git add fallo: %s", out)
+	}
+	if out, err := git(dir, append([]string{"commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
+		return "", fmt.Errorf("git commit fallo: %s", out)
+	}
+	sha, err := git(dir, "rev-parse", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse fallo: %s", sha)
+	}
+	return sha, nil
+}
+
+func git(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+func sameSet(a, b []string) bool {
+	x, y := append([]string{}, a...), append([]string{}, b...)
+	sort.Strings(x)
+	sort.Strings(y)
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func short(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }
