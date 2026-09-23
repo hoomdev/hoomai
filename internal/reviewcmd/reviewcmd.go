@@ -48,6 +48,10 @@ const (
 	CrossYes     = "cruzada"
 	CrossNo      = "no-cruzada"
 	CrossUnknown = "desconocida"
+	// CrossDeclared: nobody saw the writer write (no run sidecar), but the
+	// card declares interactive sessions and the reviewer is none of them. It
+	// is never promoted to CrossYes.
+	CrossDeclared = "cruzada-declarada"
 )
 
 // Options is one review invocation.
@@ -60,6 +64,9 @@ type Options struct {
 	SameProvider bool // allows reviewing with the same provider that wrote
 	MaxTurns     int
 	BudgetUSD    float64
+	// EnvelopeID and Started: the same contract as agentcmd.Options.
+	EnvelopeID string
+	Started    func()
 }
 
 // Pass is one lens: one session, its scope gate and the findings hoom saw
@@ -75,15 +82,18 @@ type Pass struct {
 
 // Result is the review's answer, identical in text and in JSON.
 type Result struct {
-	Provider string   `json:"provider,omitempty"`
-	Writer   string   `json:"writer,omitempty"` // provider of the last run that WROTE
-	Cross    string   `json:"cross"`            // cruzada | no-cruzada | desconocida
-	Reason   string   `json:"reason"`           // why those lenses
-	Lenses   []string `json:"lenses"`
-	Passes   []Pass   `json:"passes"`
-	Findings []string `json:"findings"` // union of the passes
-	Status   string   `json:"status"`   // revisado | sin-revisar | no-entregable
-	ExitCode int      `json:"exit_code"`
+	Provider string `json:"provider,omitempty"`
+	Writer   string `json:"writer,omitempty"` // provider of the last run that WROTE
+	Cross    string `json:"cross"`            // cruzada | no-cruzada | cruzada-declarada | desconocida
+	// WritersDeclared are the providers of the item's interactive sessions:
+	// declared, never observed.
+	WritersDeclared []string `json:"writers_declared"`
+	Reason          string   `json:"reason"` // why those lenses
+	Lenses          []string `json:"lenses"`
+	Passes          []Pass   `json:"passes"`
+	Findings        []string `json:"findings"` // union of the passes
+	Status          string   `json:"status"`   // revisado | sin-revisar | no-entregable
+	ExitCode        int      `json:"exit_code"`
 	// RecordID names the review record written in .hoom/reviews/ when the
 	// review ended revisado; empty otherwise.
 	RecordID string `json:"record_id,omitempty"`

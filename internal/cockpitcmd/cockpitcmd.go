@@ -34,7 +34,10 @@ type Deps struct {
 	// QuietCmd runs a probe discarding output (e.g. tmux has-session).
 	QuietCmd func(dir, name string, args ...string) error
 	Getenv   func(key string) string
-	HoomBin  string // absolute path of the RUNNING hoom binary (CA-88)
+	// Output runs a probe and returns its stdout (tmux list-panes,
+	// capture-pane): the terminal mirror reads through it.
+	Output  func(dir, name string, args ...string) ([]byte, error)
+	HoomBin string // absolute path of the RUNNING hoom binary (CA-88)
 }
 
 // DefaultDeps wires the real process boundary.
@@ -199,4 +202,43 @@ func kdlLayout(aiBin, hoomBin, dir string) string {
     }
 }
 `, aiBin, dir, hoomBin, dir)
+}
+
+// TerminalMaxBytes caps the text of the terminal mirror.
+const TerminalMaxBytes = 256 << 10
+
+// Session is the cockpit session Open composed or found.
+type Session struct {
+	Name     string `json:"session"`
+	Created  bool   `json:"created"`
+	Provider string `json:"provider"`
+	Dir      string `json:"dir"`    // relative to root ("." = the project)
+	Attach   string `json:"attach"` // the command a person runs to attach
+}
+
+// Terminal is the read-only mirror of the AI pane of a card's session.
+type Terminal struct {
+	Available bool   `json:"available"`
+	Session   string `json:"session"`
+	Pane      string `json:"pane"`
+	Text      string `json:"text"`
+	Note      string `json:"note"`
+}
+
+// SessionName is the cockpit session of a project, or of one of its tasks.
+func SessionName(project, task string) string {
+	return "" // esqueleto
+}
+
+// Open composes the tmux cockpit (the plan of Run) WITHOUT attaching, and
+// says whether it created the session or found it. Creating the session of
+// a task that has an item in root appends the session to the item.
+func Open(root, project string, opt Options, deps Deps) (Session, error) {
+	return Session{}, fmt.Errorf("sin implementar") // esqueleto
+}
+
+// Capture reads the AI pane of the card's session: what tmux already
+// painted, colors included. It never writes and never sends keys.
+func Capture(root, project, slug string, deps Deps) (Terminal, error) {
+	return Terminal{}, fmt.Errorf("sin implementar") // esqueleto
 }

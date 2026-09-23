@@ -291,3 +291,24 @@ func Ready(root, slug, base string) error {
 	}
 	return nil
 }
+
+// DiscardResult is what `hoom task discard` did, with paths relative to
+// root.
+type DiscardResult struct {
+	Slug     string   `json:"slug"`
+	Restored []string `json:"restored"`
+	Removed  []string `json:"removed"`
+}
+
+// Discardable lists the uncommitted paths of the task's workspace outside
+// .hoom/ (relative to root): what Discard would take back.
+func Discardable(root, slug string) ([]string, error) {
+	return nil, fmt.Errorf("sin implementar") // esqueleto
+}
+
+// Discard takes the task's workspace back to HEAD outside .hoom/: paths HEAD
+// has are restored, the others removed. A non-nil expect must equal
+// Discardable as a set. Evidence is never discarded.
+func Discard(root, slug string, expect []string) (DiscardResult, error) {
+	return DiscardResult{}, fmt.Errorf("sin implementar") // esqueleto
+}

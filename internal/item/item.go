@@ -59,6 +59,18 @@ type Item struct {
 	PresupuestoUSD *float64   `yaml:"presupuesto_usd,omitempty" json:"presupuesto_usd,omitempty"`
 	HechoEn        *time.Time `yaml:"hecho_en,omitempty" json:"hecho_en,omitempty"`
 	CommitFinal    string     `yaml:"commit_final,omitempty" json:"commit_final,omitempty"`
+	// Sesiones are the interactive sessions opened on the card's workspace
+	// (`hoom cockpit --task`, "Abrir sesion" in the Studio): the DECLARED
+	// writers `hoom review` reads. Written by a person's tool, never by an
+	// agent (the envelope's floor forbids .hoom/items/).
+	Sesiones []Sesion `yaml:"sesiones,omitempty" json:"sesiones,omitempty"`
+}
+
+// Sesion is one interactive session opened on the card's workspace.
+type Sesion struct {
+	Provider   string    `yaml:"provider" json:"provider"`
+	AbiertaPor string    `yaml:"abierta_por,omitempty" json:"abierta_por"`
+	AbiertaEn  time.Time `yaml:"abierta_en" json:"abierta_en"`
 }
 
 // Draft is what `hoom item add` asks for before hoom stamps it (identity,
@@ -364,4 +376,11 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// AddSession appends one session to the item's sesiones, stamped with the git
+// identity of root, keeping every other field. It reports whether it wrote:
+// no item is (false, nil); an unreadable or invalid item is an error.
+func AddSession(root, slug, provider string, at time.Time) (bool, error) {
+	return false, fmt.Errorf("sin implementar") // esqueleto
 }

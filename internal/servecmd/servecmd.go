@@ -31,6 +31,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/filesearch"
@@ -77,6 +78,14 @@ type Server struct {
 	// a cost that grew with every line the run spoke.
 	logMu sync.Mutex
 	logs  map[string]*foreignLog
+
+	// cabina (C3): the process boundary of the cockpit session and the
+	// terminal mirror (tests swap it), and the roles this Studio launched
+	// and is still running.
+	cockpit   cockpitcmd.Deps
+	launches  sync.WaitGroup
+	launchMu  sync.Mutex
+	launching map[string]bool // slug -> a launch of that card is being set up
 }
 
 type foreignLog struct {
@@ -96,7 +105,8 @@ func New(dir string) (*Server, error) {
 	if _, err := rand.Read(raw); err != nil {
 		return nil, err
 	}
-	return &Server{m: m, token: hex.EncodeToString(raw), runs: runcmd.NewManager(m.Dir), logs: map[string]*foreignLog{}}, nil
+	return &Server{m: m, token: hex.EncodeToString(raw), runs: runcmd.NewManager(m.Dir), logs: map[string]*foreignLog{},
+		cockpit: cockpitcmd.DefaultDeps(), launching: map[string]bool{}}, nil
 }
 
 // Token returns the per-session action token. It is printed exactly once at
@@ -858,3 +868,12 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
+
+// Routes lists every pattern Handler registers, in registration order: the
+// golden rule is asserted over it (no route receives a column).
+func Routes() []string {
+	return nil // esqueleto
+}
+
+// waitLaunches blocks until every role this Studio launched has finished.
+func (s *Server) waitLaunches() { s.launches.Wait() }

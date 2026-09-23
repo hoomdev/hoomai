@@ -38,6 +38,12 @@ type Options struct {
 	ResumeID  string
 	MaxTurns  int
 	BudgetUSD float64
+	// EnvelopeID presets the id of the envelope's record ("" = a new one), so
+	// a caller that runs the envelope in the background can name it at once.
+	EnvelopeID string
+	// Started is called once, when the envelope's first record is on disk.
+	// An error before that record arrives without Started being called.
+	Started func()
 }
 
 // Result is the envelope's answer, identical in text and in JSON.

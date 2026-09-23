@@ -403,6 +403,21 @@ type Info struct {
 	Installed    bool         `json:"installed"`
 	Bin          string       `json:"bin,omitempty"`
 	Capabilities Capabilities `json:"capabilities"`
+	// MinBudgetUSD is the least budget a run of this provider can do useful
+	// work with (0 = no minimum: the provider takes no cap).
+	MinBudgetUSD float64 `json:"min_budget_usd"`
+}
+
+// BudgetFloor is implemented by a provider that takes a USD cap and declares
+// the least one worth launching with: under it the CLI stops before
+// delivering anything and the money is lost.
+type BudgetFloor interface {
+	MinBudgetUSD() float64
+}
+
+// MinBudgetUSD is p's declared minimum budget, or 0 when it declares none.
+func MinBudgetUSD(p Provider) float64 {
+	return 0 // esqueleto
 }
 
 // Registry holds providers in insertion order — the order every listing

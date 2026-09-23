@@ -18,6 +18,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -114,6 +115,10 @@ type Evidence struct {
 
 	Envelopes []EnvelopeState // envelope records with task == slug, newest first
 	Runs      []RunState      // run sidecars with task == slug, newest first
+
+	// C3: what the card's actions need that Derive cannot find out alone.
+	Providers []providers.Info // the providers of this machine (providers.Detect, once per Build)
+	Signer    string           // git identity of the evidence tree: who an approval would name
 }
 
 // Card is one item on the board.
@@ -137,6 +142,79 @@ type Card struct {
 	NeedsDecision bool      `json:"needs_decision"` // waiting_human or interrupted
 	Meter         []Segment `json:"meter"`          // the evidence meter, segment by segment
 	Providers     Providers `json:"providers"`      // who wrote and who reviewed
+
+	// C3: what can be done with the card. The page shows it; every action
+	// endpoint derives the card again before acting.
+	Actions []Action `json:"actions"` // valid for its column, in order: the primary first
+	Drops   []Drop   `json:"drops"`   // one per other column: what dropping there does, or why not
+	Ghost   *Ghost   `json:"ghost"`   // the card as it will be, in the next column, while a role works
+}
+
+// Action ids.
+const (
+	ActPedirArquitecto = "pedir-arquitecto"
+	ActPedirTestWriter = "pedir-test-writer"
+	ActPedirWriter     = "pedir-writer"
+	ActPedirReviewer   = "pedir-reviewer"
+	ActAprobar         = "aprobar"
+	ActIntegrar        = "integrar"
+	ActReanudar        = "reanudar"
+	ActRelanzar        = "relanzar"
+	ActDescartar       = "descartar"
+	ActGuardar         = "guardar"
+	ActSesion          = "sesion"
+	ActTerminal        = "terminal"
+)
+
+// Action is one thing a person can do with the card now.
+type Action struct {
+	ID        string           `json:"id"`
+	Role      string           `json:"role"` // the role it launches ("" when it launches none)
+	Label     string           `json:"label"`
+	Expert    bool             `json:"expert"` // shown only in expert mode
+	Enabled   bool             `json:"enabled"`
+	Why       string           `json:"why"`        // why not, in the normal mode's words ("" when enabled)
+	Pedido    string           `json:"pedido"`     // proposed request, editable
+	BudgetUSD *float64         `json:"budget_usd"` // proposed budget; nil = no cap
+	Providers []ProviderOption `json:"providers"`
+	Paths     []string         `json:"paths"`     // guardar: unsynced; descartar: what goes back
+	ResumeID  string           `json:"resume_id"` // reanudar: the provider session to resume
+	Signer    string           `json:"signer"`    // aprobar: the identity that signs
+}
+
+// ProviderOption is one installed provider as a role action sees it.
+type ProviderOption struct {
+	Name         string  `json:"name"`
+	OK           bool    `json:"ok"`
+	Why          string  `json:"why"`
+	Budget       bool    `json:"budget"` // takes a USD cap
+	MinBudgetUSD float64 `json:"min_budget_usd"`
+	Default      bool    `json:"default"`
+}
+
+// Drop is what dropping the card on one column does: the action it opens,
+// or why it opens nothing.
+type Drop struct {
+	Column string `json:"column"`
+	Action string `json:"action"`
+	Why    string `json:"why"`
+}
+
+// Ghost is the card in the column its running role would win.
+type Ghost struct {
+	Column     string `json:"column"`
+	Role       string `json:"role"`
+	Provider   string `json:"provider"`
+	EnvelopeID string `json:"envelope_id"`
+	RunID      string `json:"run_id"`
+	Stage      string `json:"stage"`
+	Step       int    `json:"step"`
+	Steps      int    `json:"steps"`
+}
+
+// Action returns the card's action with that id, if it has it.
+func (c Card) Action(id string) (Action, bool) {
+	return Action{}, false // esqueleto
 }
 
 // Segment states: a segment fills only with a fact that exists and holds.
@@ -160,6 +238,9 @@ type Providers struct {
 	Writer   string `json:"writer"`
 	Reviewer string `json:"reviewer"`
 	Cross    string `json:"cross"`
+	// Declared: the providers of the item's interactive sessions, distinct,
+	// in order of appearance.
+	Declared []string `json:"declared"`
 }
 
 // CardEvidence is the evidence meter: every segment is something that can be
@@ -224,6 +305,9 @@ type Spend struct {
 	InputTokens     int      `json:"input_tokens"`
 	OutputTokens    int      `json:"output_tokens"`
 	BudgetUSD       *float64 `json:"budget_usd"`
+	// RemainingUSD is the budget minus the reported cost (may be negative);
+	// nil without a budget.
+	RemainingUSD *float64 `json:"remaining_usd"`
 }
 
 // BoardColumn is a column with its cards.

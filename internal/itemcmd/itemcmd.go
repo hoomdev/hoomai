@@ -42,6 +42,9 @@ El item es un archivo en .hoom/items/<slug>.yaml que viaja en git. Nunca
 guarda una columna: la columna sale de la evidencia ('hoom board').
 Un titulo que empieza con '-' va despues de '--': hoom item add -- "-titulo"`
 
+// SubSave is `hoom item save <slug>`.
+const SubSave = "save"
+
 // Request is one parsed `hoom item` invocation.
 type Request struct {
 	Sub   string     // SubAdd | SubList | SubShow
@@ -191,4 +194,29 @@ func emit(w io.Writer, v any) error {
 	}
 	fmt.Fprintln(w, string(raw))
 	return nil
+}
+
+// SaveCommit is one commit `hoom item save` made.
+type SaveCommit struct {
+	Dir   string   `json:"dir"` // relative to root ("." = the project)
+	SHA   string   `json:"sha"`
+	Paths []string `json:"paths"` // relative to root
+}
+
+// SaveResult is what `hoom item save` did, identical in text and JSON.
+type SaveResult struct {
+	Slug    string       `json:"slug"`
+	Message string       `json:"message"`
+	Commits []SaveCommit `json:"commits"`
+}
+
+// SaveMessage is the fixed commit message of `hoom item save`.
+func SaveMessage(slug string) string {
+	return "" // esqueleto
+}
+
+// Save commits exactly the card's unsynced paths, one commit per tree. A
+// non-nil expect must equal them as a set.
+func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error) {
+	return SaveResult{}, fmt.Errorf("sin implementar") // esqueleto
 }
