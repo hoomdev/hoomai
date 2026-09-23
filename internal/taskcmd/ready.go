@@ -1,5 +1,7 @@
 package taskcmd
 
+import "fmt"
+
 // Kinds of ReadyError: which of the close conditions failed.
 const (
 	ReadySinTarea      = "sin-tarea"      // the task worktree does not exist
@@ -18,3 +20,7 @@ type ReadyError struct {
 }
 
 func (e *ReadyError) Error() string { return e.Msg }
+
+func notReady(kind, format string, args ...any) *ReadyError {
+	return &ReadyError{Kind: kind, Msg: fmt.Sprintf(format, args...)}
+}

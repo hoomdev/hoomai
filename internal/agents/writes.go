@@ -6,5 +6,9 @@ package agents
 // not write. It is the one rule behind the cross review and the card's
 // writer logo.
 func WritesCode(role string) bool {
-	return false
+	r, err := Lookup(role)
+	if err != nil {
+		return true
+	}
+	return !r.ReadOnly && r.Scope != ScopeSpecs
 }

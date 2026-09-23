@@ -269,25 +269,25 @@ func short(sha string) string {
 func Ready(root, slug, base string) error {
 	wt := worktreeDir(root, slug)
 	if _, err := os.Stat(wt); err != nil {
-		return fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
+		return notReady(ReadySinTarea, "la tarea %q no existe (mira 'hoom task list')", slug)
 	}
 	if st, _ := run(wt, "status", "--porcelain"); st != "" {
-		return fmt.Errorf("la tarea %q tiene cambios sin commitear (incluidos posibles veredictos).\n  Accion: commitea todo dentro de %s y repite 'hoom task done %s'", slug, wt, slug)
+		return notReady(ReadySinGuardar, "la tarea %q tiene cambios sin commitear (incluidos posibles veredictos).\n  Accion: commitea todo dentro de %s y repite 'hoom task done %s'", slug, wt, slug)
 	}
 	all, err := verdict.LoadAll(wt)
 	if err != nil || len(all) == 0 {
-		return fmt.Errorf("la tarea %q no tiene veredictos. Accion: ejecuta 'hoom verify' dentro del worktree", slug)
+		return notReady(ReadySinVeredicto, "la tarea %q no tiene veredictos. Accion: ejecuta 'hoom verify' dentro del worktree", slug)
 	}
 	last := verdict.LatestComplete(all)
 	if last == nil {
-		return fmt.Errorf("la tarea %q solo tiene veredictos PARCIALES (--gate), que no son referencia. Accion: ejecuta 'hoom verify' completo dentro del worktree", slug)
+		return notReady(ReadySoloParciales, "la tarea %q solo tiene veredictos PARCIALES (--gate), que no son referencia. Accion: ejecuta 'hoom verify' completo dentro del worktree", slug)
 	}
 	if last.Verdict != "green" {
-		return fmt.Errorf("el ultimo veredicto de %q es ROJO (%s). Accion: corrige y re-ejecuta 'hoom verify' en el worktree", slug, last.ID)
+		return notReady(ReadyRojo, "el ultimo veredicto de %q es ROJO (%s). Accion: corrige y re-ejecuta 'hoom verify' en el worktree", slug, last.ID)
 	}
 	g := gitx.Snapshot(wt, base)
 	if g.ChangeFingerprint != last.Git.ChangeFingerprint {
-		return fmt.Errorf("el arbol de %q cambio despues del ultimo veredicto verde (huella %s vs %s).\n  Accion: re-ejecuta 'hoom verify' dentro del worktree y commitea", slug, g.ChangeFingerprint, last.Git.ChangeFingerprint)
+		return notReady(ReadyHuella, "el arbol de %q cambio despues del ultimo veredicto verde (huella %s vs %s).\n  Accion: re-ejecuta 'hoom verify' dentro del worktree y commitea", slug, g.ChangeFingerprint, last.Git.ChangeFingerprint)
 	}
 	return nil
 }

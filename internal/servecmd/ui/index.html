@@ -19,6 +19,7 @@
     --serious: #ec835a;
     --critical: #d03b3b;
     --accent: #3987e5;
+    --human: #a07cf0; /* las dos columnas humanas de la cabina */
     --mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
@@ -253,6 +254,104 @@
   }
   #toast.err { border-color: var(--critical); color: var(--critical); }
   #toast.ok { border-color: var(--good); color: var(--good); }
+  /* ---- pestañas de la pantalla principal ---- */
+  .tabs { display: flex; gap: 4px; flex: none; border-bottom: 1px solid var(--border); }
+  .tabs .tab {
+    background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-3);
+    padding: 6px 14px; font: 600 13px system-ui, sans-serif; cursor: pointer; margin-bottom: -1px;
+  }
+  .tabs .tab:hover { color: var(--text); }
+  .tabs .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+  /* ---- tablero: la cabina de solo lectura ---- */
+  #tablero { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  .tbbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: none; }
+  .seg-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg-toggle button {
+    background: var(--panel); color: var(--text-3); border: 0; padding: 5px 11px;
+    font: 600 12.5px system-ui, sans-serif; cursor: pointer;
+  }
+  .seg-toggle button.on { background: var(--panel-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+  button.pill {
+    background: var(--panel); color: var(--text-2); border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px 12px; font: 600 12.5px system-ui, sans-serif; cursor: pointer;
+  }
+  button.pill.on { color: var(--human); border-color: var(--human); }
+  .tberr { color: var(--critical); font-size: 12.5px; }
+  .board {
+    flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(232px, 1fr);
+    gap: 10px; overflow-x: auto; padding-bottom: 4px;
+  }
+  .col {
+    display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--panel);
+  }
+  .col.human { border-color: var(--human); background: rgba(160,124,240,.07); }
+  .col > h3 {
+    margin: 0; padding: 8px 12px; font-size: 12px; font-weight: 650; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px; flex: none;
+  }
+  .col.human > h3 { color: var(--human); border-bottom-color: var(--human); }
+  .col > h3 .n { margin-left: auto; color: var(--text-3); font-weight: 600; letter-spacing: 0; text-transform: none; }
+  .col .cards { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: grid; gap: 8px; align-content: start; }
+  .tcard {
+    display: grid; gap: 6px; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--text-2);
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); padding: 9px 10px;
+  }
+  .tcard:hover { border-color: var(--accent); }
+  .tcard.need { box-shadow: inset 3px 0 0 var(--human); }
+  .tcard .t { color: var(--text); font-weight: 650; font-size: 13px; line-height: 1.3; }
+  .tcard .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-3); }
+  .tcard .why { font-size: 12px; color: var(--text-2); }
+  .tcard .why code, .tcard .next { font: 11.5px var(--mono); color: var(--text-3); word-break: break-word; }
+  .meter { display: flex; gap: 2px; }
+  .meter i { flex: 1; min-width: 3px; height: 7px; border-radius: 2px; border: 1px solid var(--border); background: var(--surface); }
+  .meter i.s-hecho { background: var(--good); border-color: var(--good); }
+  .meter i.s-no-aplica { opacity: .35; background: repeating-linear-gradient(45deg, var(--border) 0 2px, transparent 2px 4px); }
+  .subs { display: grid; gap: 2px; font-size: 12px; }
+  .subs .s-run  { color: var(--accent); }
+  .subs .s-int  { color: var(--warning); }
+  .subs .s-hum  { color: var(--human); }
+  .subs .s-red  { color: var(--critical); }
+  .subs .s-sync { color: var(--text-3); }
+  .foot { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); flex-wrap: wrap; }
+  .foot .over { color: var(--serious); font-weight: 650; }
+  .pmark {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px;
+    padding: 0 4px; border-radius: 5px; font: 700 12px var(--mono); border: 1px solid var(--border);
+  }
+  .warnmark { color: var(--warning); font-weight: 650; }
+  /* detalle de la tarjeta */
+  #tshade { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 22; display: none; }
+  #tdetail {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(980px, 96vw); z-index: 23;
+    background: var(--panel); border-left: 1px solid var(--border);
+    transform: translateX(100%); transition: transform .22s ease; display: flex; flex-direction: column;
+  }
+  #tdetail.open { transform: translateX(0); }
+  .dhead { padding: 12px 16px; border-bottom: 1px solid var(--border); display: grid; gap: 6px; flex: none; }
+  .dhead .row { display: flex; align-items: center; gap: 10px; }
+  .dhead h2 { margin: 0; font-size: 15px; flex: 1; color: var(--text); }
+  .dhead .why { font-size: 12.5px; color: var(--text-2); }
+  .dhead ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-2); }
+  .dtabs { display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--border); flex: none; }
+  .dtabs .tab {
+    background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-3);
+    padding: 8px 14px; font: 600 13px system-ui, sans-serif; cursor: pointer; margin-bottom: -1px;
+  }
+  .dtabs .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+  .dbody { flex: 1; min-height: 0; overflow-y: auto; }
+  .dpane { display: none; }
+  .dpane.show { display: block; }
+  .dsub { margin: 0; padding: 12px 16px 4px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .crit { margin: 0; padding: 4px 16px 10px 38px; font-size: 13px; color: var(--text-2); }
+  .crit li { margin: 4px 0; }
+  .crit .ok { color: var(--good); } .crit .cmd { color: var(--accent); } .crit .no { color: var(--warning); }
+  .crit small { color: var(--text-3); font-family: var(--mono); }
+  #tb-live .live { height: 380px; padding: 0 16px 16px; }
+  #tb-diff { margin: 8px 16px 16px; border: 1px solid var(--border); border-radius: 8px; }
+  #tb-diff summary { padding: 8px 12px; cursor: pointer; color: var(--text-2); font-size: 12.5px; }
+  #tb-diff pre.tail { max-height: 520px; overflow: auto; margin: 0 12px 12px; white-space: pre; }
 </style>
 </head>
 <body>
@@ -273,6 +372,10 @@
 </header>
 
 <main>
+  <div class="tabs">
+    <button class="tab on" data-tab="cockpit">Cockpit</button>
+    <button class="tab" data-tab="tablero">Tablero</button>
+  </div>
   <!-- cockpit: la pantalla protagonista -->
   <div id="cockpit">
     <div class="dispatchbar">
@@ -313,7 +416,59 @@
       <button class="act" id="btn-input">Continuar</button>
     </div>
   </div>
+
+  <!-- tablero: la cabina de solo lectura (tablero.js). La columna la calcula
+       el binario; aca solo se pinta, y nada de esta pestaña escribe. -->
+  <div id="tablero" style="display:none">
+    <div class="tbbar">
+      <span class="seg-toggle" id="tb-modo">
+        <button data-modo="normal">Normal</button>
+        <button data-modo="experto">Experto</button>
+      </span>
+      <button class="pill" id="tb-filtro" aria-pressed="false"></button>
+      <span class="hint" id="tb-total"></span>
+      <span class="spacer"></span>
+      <span class="tberr" id="tb-err"></span>
+    </div>
+    <div id="tb-warn"></div>
+    <div class="board" id="tb-board"><div class="empty">cargando…</div></div>
+  </div>
 </main>
+
+<!-- detalle de una tarjeta del tablero -->
+<div id="tshade"></div>
+<aside id="tdetail">
+  <div class="dhead">
+    <div class="row"><h2 id="tb-dtitle"></h2><button class="act" id="tb-dclose">Cerrar ✕</button></div>
+    <div id="tb-dmeta"></div>
+  </div>
+  <div class="dtabs" id="tb-dtabs">
+    <button class="tab on" data-pane="que">Qué</button>
+    <button class="tab" data-pane="quien">Quién</button>
+    <button class="tab" data-pane="pruebas">Pruebas</button>
+  </div>
+  <div class="dbody" id="tb-dbody">
+    <div class="dpane show" id="tb-p-que">
+      <div id="tb-que"></div>
+      <details id="tb-diff" style="display:none">
+        <summary>Diff base...HEAD del worktree</summary>
+        <div id="tb-diffbody"><div class="empty">cargando…</div></div>
+      </details>
+    </div>
+    <div class="dpane" id="tb-p-quien">
+      <div id="tb-work"></div>
+      <h3 class="dsub">En vivo</h3>
+      <div id="tb-live">
+        <div class="empty" id="tb-livenote"></div>
+        <div class="live" id="tb-livebox" style="display:none">
+          <div class="pane"><h2>Escenario</h2><div class="stage" id="tb-stage"></div></div>
+          <div class="pane"><h2>Feed</h2><div class="feed" id="tb-feed"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="dpane" id="tb-p-pruebas"><div id="tb-pruebas"></div></div>
+  </div>
+</aside>
 
 <!-- drawer lateral: la evidencia y la gestion -->
 <div id="backdrop"></div>
@@ -392,7 +547,11 @@ function toast(msg, cls) {
 
 async function j(url) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  if (!r.ok) {
+    const e = new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    e.status = r.status; // quien lee distingue "no existe" de "no hubo respuesta"
+    throw e;
+  }
   return r.json();
 }
 
@@ -639,20 +798,29 @@ function mdRender(src) {
   const inline = s => s
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  // una linea que sigue a otra sin cortar (continuacion de un item o de un
+  // parrafo) se suma a lo anterior: un criterio en tres lineas es uno solo
+  let open = null; // "li" | "p": lo que la linea siguiente puede continuar
+  const cont = ln => { out[out.length - 1] = out[out.length - 1].replace(/<\/(li|p)>$/, ` ${inline(ln.trim())}</$1>`); };
   for (const ln of lines) {
     const h = ln.match(/^(#{1,3})\s+(.*)/);
     const li = ln.match(/^\s*[-*]\s+(.*)/);
     if (h) {
       if (inList) { out.push("</ul>"); inList = false; }
       out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);
+      open = null;
     } else if (li) {
       if (!inList) { out.push("<ul>"); inList = true; }
       out.push(`<li>${inline(li[1])}</li>`);
+      open = "li";
     } else if (ln.trim() === "") {
       if (inList) { out.push("</ul>"); inList = false; }
+      open = null;
+    } else if (open) {
+      cont(ln);
     } else {
-      if (inList) { out.push("</ul>"); inList = false; }
       out.push(`<p>${inline(ln)}</p>`);
+      open = "p";
     }
   }
   if (inList) out.push("</ul>");
@@ -807,8 +975,10 @@ function renderRunMeta(r) {
   $("btn-input").disabled = r.foreign || r.status === "running";
 }
 
-function renderStage(sv) {
-  $("stage").innerHTML = sv.actors.map(a => {
+// el Escenario y el Feed pintan en el contenedor que les pasan: el cockpit
+// usa los suyos y el detalle de una tarjeta del tablero, los propios
+function renderStage(sv, el) {
+  el.innerHTML = sv.actors.map(a => {
     const dim = a.acts === 0 && !a.active;
     return `<div class="card${a.active ? " on" : ""}${dim ? " dim" : ""}">
       <div class="face">${FACES[a.role] || "🤖"}</div>
@@ -821,12 +991,12 @@ function renderStage(sv) {
 
 async function refreshStage() {
   if (!runOpen) return;
-  renderStage(await j(`/api/runs/${encodeURIComponent(runOpen)}/stage`));
+  renderStage(await j(`/api/runs/${encodeURIComponent(runOpen)}/stage`), $("stage"));
 }
 
-function appendFeed(evs) {
+function appendFeed(evs, el) {
   if (!evs.length) return;
-  const feed = $("feed");
+  const feed = el;
   const stick = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 20;
   feed.insertAdjacentHTML("beforeend", evs.map(e => `
     <div class="fev k-${esc(e.kind)}">
@@ -840,7 +1010,7 @@ async function pollOpenRun() {
   if (!runOpen) return;
   try {
     const d = await j(`/api/runs/${encodeURIComponent(runOpen)}?after=${runAfter}`);
-    appendFeed(d.events);
+    appendFeed(d.events, $("feed"));
     runAfter = d.next;
     renderRunMeta(d.run);
     await refreshStage();
@@ -1032,5 +1202,6 @@ async function tick() {
 tick();
 setInterval(tick, 5000);
 </script>
+<script src="tablero.js"></script>
 </body>
 </html>

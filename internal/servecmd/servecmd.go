@@ -28,12 +28,14 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/approval"
+	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/filesearch"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -252,6 +254,40 @@ func (s *Server) Handler() http.Handler {
 		d, code, err := s.specDetail(r.PathValue("name"))
 		if err != nil {
 			writeError(w, code, err.Error())
+			return
+		}
+		writeJSON(w, d)
+	})
+
+	// --- cabina: el tablero. Solo lectura: la columna y todo lo que la
+	// tarjeta muestra lo calcula boardcmd; la pagina pinta. Ningun metodo
+	// que no sea GET llega aca (el mux responde 405).
+
+	mux.HandleFunc("GET /api/board", func(w http.ResponseWriter, r *http.Request) {
+		b, err := boardcmd.Build(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), time.Now().UTC())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		// los mismos bytes que `hoom board --json`: una representacion, dos pieles
+		raw, err := boardcmd.JSONBytes(b)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeRaw(w, raw)
+	})
+
+	mux.HandleFunc("GET /api/board/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		slug := r.PathValue("slug")
+		if !item.ValidSlug(slug) {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", slug))
+			return
+		}
+		d, err := boardcmd.DetailFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug,
+			time.Now().UTC(), r.URL.Query().Get("diff") == "1")
+		if err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
 		writeJSON(w, d)

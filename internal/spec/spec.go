@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -287,47 +286,12 @@ func Gates(projectDir, specPath string) []verdict.GateResult {
 // mentioning their exact token, and how many test files were scanned. It
 // never runs a verifica command — the board uses it to trace without effects.
 func Tokens(root string, ids []string) (missing []string, scanned int, err error) {
-	found := map[string]bool{}
-	if len(ids) > 0 {
-		err = filepath.WalkDir(root, func(path string, d os.DirEntry, werr error) error {
-			if werr != nil {
-				return nil
-			}
-			if d.IsDir() {
-				if skipDirs[d.Name()] {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			rel, _ := filepath.Rel(root, path)
-			if !isTestFile(rel) {
-				return nil
-			}
-			info, ierr := d.Info()
-			if ierr != nil || info.Size() > 2<<20 {
-				return nil
-			}
-			raw, rerr := os.ReadFile(path)
-			if rerr != nil {
-				return nil
-			}
-			scanned++
-			s := string(raw)
-			for _, id := range ids {
-				if !found[id] && containsToken(s, id) {
-					found[id] = true
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, scanned, err
-		}
+	if len(ids) == 0 {
+		return nil, 0, nil
 	}
-	for _, id := range ids {
-		if !found[id] {
-			missing = append(missing, id)
-		}
+	idx, err := IndexTokens(root)
+	if err != nil {
+		return nil, idx.Scanned, err
 	}
-	return missing, scanned, nil
+	return idx.Missing(ids), idx.Scanned, nil
 }
