@@ -187,6 +187,7 @@ type claudeMsg struct {
 	Message struct {
 		Content []struct {
 			Type  string          `json:"type"`
+			ID    string          `json:"id"`
 			Text  string          `json:"text"`
 			Name  string          `json:"name"`
 			Input json.RawMessage `json:"input"`
@@ -195,9 +196,136 @@ type claudeMsg struct {
 }
 
 // NewNormalizer returns a normalizer with memory of ONE run: it pairs each
-// delegation with its result (Correlating).
+// delegation with its result (Correlating) and emits one agent_end per
+// delegation when its subagent leaves the scene. A tool_result alone cannot
+// say whether its id was a delegation: that is why this needs memory.
 func (c claude) NewNormalizer() func(line string) []Event {
-	return c.Normalize
+	run := &claudeRun{delegations: map[string]*claudeDelegation{}}
+	return func(line string) []Event {
+		evs := c.Normalize(line)
+		return append(evs, run.correlate(line)...)
+	}
+}
+
+// claudeDelegation is one call to the delegation tool, as the run saw it.
+type claudeDelegation struct {
+	agent      string
+	background bool // run_in_background: its tool_result only says it started
+	done       bool
+}
+
+// claudeRun is the memory of one run's normalizer.
+type claudeRun struct {
+	delegations map[string]*claudeDelegation
+}
+
+// claudeLink is the part of a line the correlation reads: the delegations it
+// opens (tool_use), the results it brings (tool_result) and the
+// task_notification that closes a subagent.
+type claudeLink struct {
+	Type      string `json:"type"`
+	Subtype   string `json:"subtype"`
+	ToolUseID string `json:"tool_use_id"`
+	Status    string `json:"status"`
+	Message   struct {
+		Content []struct {
+			Type      string          `json:"type"`
+			ID        string          `json:"id"`
+			Name      string          `json:"name"`
+			Input     json.RawMessage `json:"input"`
+			ToolUseID string          `json:"tool_use_id"`
+			IsError   bool            `json:"is_error"`
+			Content   json.RawMessage `json:"content"`
+		} `json:"content"`
+	} `json:"message"`
+}
+
+func (r *claudeRun) correlate(line string) []Event {
+	var msg claudeLink
+	if json.Unmarshal([]byte(strings.TrimSpace(line)), &msg) != nil {
+		return nil
+	}
+	now := time.Now().UTC()
+	var out []Event
+	end := func(id, detail string) {
+		d := r.delegations[id]
+		d.done = true
+		out = append(out, Event{TS: now, Kind: "agent_end", Agent: d.agent, ToolID: id, Detail: detail})
+	}
+	switch msg.Type {
+	case "assistant":
+		for _, c := range msg.Message.Content {
+			if c.Type != "tool_use" || c.ID == "" || !isDelegation(c.Name) {
+				continue
+			}
+			var in struct {
+				SubagentType string `json:"subagent_type"`
+				Background   bool   `json:"run_in_background"`
+			}
+			if json.Unmarshal(c.Input, &in) != nil || in.SubagentType == "" {
+				continue
+			}
+			if _, seen := r.delegations[c.ID]; !seen {
+				r.delegations[c.ID] = &claudeDelegation{agent: in.SubagentType, background: in.Background}
+			}
+		}
+	case "user":
+		for _, c := range msg.Message.Content {
+			d, ok := r.delegations[c.ToolUseID]
+			if c.Type != "tool_result" || !ok || d.done || d.background {
+				continue
+			}
+			detail := d.agent + " termino"
+			if c.IsError {
+				detail = d.agent + " fallo"
+				if text := resultText(c.Content); text != "" {
+					detail += ": " + text
+				}
+			}
+			end(c.ToolUseID, detail)
+		}
+	case "system":
+		d, ok := r.delegations[msg.ToolUseID]
+		if msg.Subtype != "task_notification" || !ok || d.done {
+			return nil
+		}
+		detail := d.agent + " termino"
+		if st := strings.TrimSpace(msg.Status); st != "" && st != "completed" {
+			detail = d.agent + " fallo (" + st + ")"
+		}
+		end(msg.ToolUseID, detail)
+	}
+	return out
+}
+
+// isDelegation names Claude Code's delegation tool: "Task" up to 2.1.263,
+// "Agent" in 2.1.281.
+func isDelegation(tool string) bool { return tool == "Task" || tool == "Agent" }
+
+// resultText is the text of a tool_result's content, whether the CLI sent
+// it as a string or as a list of text blocks.
+func resultText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return clip(s)
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &blocks) != nil {
+		return ""
+	}
+	var parts []string
+	for _, b := range blocks {
+		if b.Type == "text" && strings.TrimSpace(b.Text) != "" {
+			parts = append(parts, b.Text)
+		}
+	}
+	return clip(strings.Join(parts, " "))
 }
 
 func parseClaudeLine(line string, ts time.Time) []Event {
@@ -255,11 +383,13 @@ func parseClaudeLine(line string, ts time.Time) []Event {
 				ev := Event{TS: ts, Kind: "tool", Detail: c.Name}
 				var input map[string]any
 				if json.Unmarshal(c.Input, &input) == nil {
-					if c.Name == "Task" {
-						// delegacion a subagente: el rol es el actor visible
+					if isDelegation(c.Name) {
+						// delegacion a subagente: el rol es el actor visible,
+						// y el id de la llamada la empareja con su fin
 						if sub, ok := input["subagent_type"].(string); ok {
 							ev.Kind = "agent"
 							ev.Agent = sub
+							ev.ToolID = c.ID
 						}
 					}
 					if d := toolDetail(c.Name, input); d != "" {

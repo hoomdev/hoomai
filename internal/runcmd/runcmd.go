@@ -807,6 +807,12 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		stderr.Close()
 	}()
 
+	// Un normalizador por run: el que empareja una delegacion con su fin
+	// necesita recordar las lineas anteriores de ESTE run.
+	normalize := r.provider.Normalize
+	if c, ok := r.provider.(providers.Correlating); ok {
+		normalize = c.NewNormalizer()
+	}
 	var wg sync.WaitGroup
 	scan := func(src interface{ Read([]byte) (int, error) }, isErr bool) {
 		defer wg.Done()
@@ -820,7 +826,7 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 				}
 				continue
 			}
-			for _, ev := range r.provider.Normalize(line) {
+			for _, ev := range normalize(line) {
 				m.append(r, ev)
 			}
 		}

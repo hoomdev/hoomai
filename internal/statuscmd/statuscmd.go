@@ -208,7 +208,16 @@ func ratchetView(root string) RatchetView {
 	sort.Strings(names)
 	for _, n := range names {
 		m := f.Metrics[n]
-		rm := RatchetMetric{Name: n, Value: m.Value, Direction: m.Direction, Tolerance: m.Tolerance}
+		rm := RatchetMetric{Name: n, Value: m.Value, Direction: m.Direction, Tolerance: m.Tolerance,
+			History: []ratchet.Change{}}
+		for _, ch := range f.History {
+			if ch.Metric == n {
+				rm.History = append(rm.History, ch)
+			}
+		}
+		// del mas viejo al mas nuevo: el archivo agrega al final, pero un
+		// historial editado a mano no tiene por que venir ordenado
+		sort.SliceStable(rm.History, func(i, j int) bool { return rm.History[i].TS.Before(rm.History[j].TS) })
 		for i := len(f.History) - 1; i >= 0; i-- {
 			if f.History[i].Metric == n {
 				rm.LastKind = f.History[i].Kind

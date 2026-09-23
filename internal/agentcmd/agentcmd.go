@@ -140,7 +140,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		ID: id, Role: role.Slug, Provider: prov.Name(), Task: opt.Task,
 		Dir: dir, Stage: "spec", Step: 1, Steps: steps,
 		Status: envelope.StatusRunning, ExitCode: -1, StartedAt: time.Now().UTC(),
-		PID: os.Getpid(),
+		PID: os.Getpid(), Pilot: opt.Pilot,
 	}
 	res.EnvelopeID = rec.ID
 	// Una sola transicion mueve los dos estados que el sobre mantiene: el

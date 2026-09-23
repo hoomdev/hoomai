@@ -337,7 +337,8 @@ const UsageText = `Uso: hoom board [--json]
 
 La columna de cada item sale de su evidencia (spec, aprobacion, tests,
 veredicto, review, hallazgos, cierre); nada se guarda y nadie la escribe.
-'hoom board' no tiene argumentos posicionales.`
+'hoom board doctor [--json]' lista donde la evidencia no es coherente.
+'hoom board' no tiene otros argumentos posicionales.`
 
 // Options mirror the board verb's flags.
 type Options struct {

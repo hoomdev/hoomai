@@ -154,3 +154,21 @@ func (x TokenIndex) Missing(ids []string) []string {
 	}
 	return out
 }
+
+// IsTestPath is the file filter of spec_trace (IndexTokens): a path that
+// looks like a test and does not live in a skipped directory (.hoom, vendor,
+// node_modules, ...). rel is slash-separated and relative to the tree.
+func IsTestPath(rel string) bool {
+	parts := strings.Split(rel, "/")
+	for _, dir := range parts[:len(parts)-1] {
+		if skipDirs[dir] {
+			return false
+		}
+	}
+	return isTestFile(rel)
+}
+
+// TokensIn returns the whole CA-n tokens of s, in order of appearance.
+func TokensIn(s string) []string {
+	return caRe.FindAllString(s, -1)
+}

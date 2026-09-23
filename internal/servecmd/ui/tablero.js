@@ -20,8 +20,18 @@ const NORMAL = {
   sinTarjetas: "todavía no hay tarjetas: se crean con hoom item add \"<título>\"",
   ilegibles: n => `${n} tarjeta${n === 1 ? "" : "s"} no se pudo leer (el modo experto dice cuál${n === 1 ? "" : "es"})`,
   sinVeredicto: "todavía no hay una verificación de esta tarjeta",
+  guardado: "guardado",
+  estaComputadora: "esta computadora",
+  sinHistoria: "Todavía no hay historia para esta tarjeta.",
+  hoy: "Así está hoy",
+  piloto: "piloto automático",
+  problemas: "Lo que no cierra",
 };
 /* fin vocabulario normal */
+
+// las fuentes de la historia, por el valor de source
+const FUENTE_NORMAL = { git: NORMAL.guardado, telemetria: NORMAL.estaComputadora };
+const FUENTE_EXPERTO = { git: "git", telemetria: "telemetría local" };
 
 // dónde se leyó la evidencia, por el valor de evidence.source
 const FUENTE = { worktree: NORMAL.enEspacio, arbol: NORMAL.enProyecto };
@@ -161,12 +171,37 @@ function tarjeta(c) {
   // .tacc queda vacío: lo llena acciones.js con lo que trae actions
   return `<div class="tcard-wrap" data-slug="${esc(c.slug)}"><button class="tcard${c.needs_decision ? " need" : ""}" data-slug="${esc(c.slug)}">
     <span class="t">${esc(it.titulo)}</span>
-    <span class="meta">${esc(it.tipo)} · prioridad ${esc(it.prioridad)}${experto() ? ` · <code>${esc(c.slug)}</code>` : ""}</span>
+    <span class="meta">${esc(it.tipo)} · prioridad ${esc(it.prioridad)}${experto() ? ` · <code>${esc(c.slug)}</code>` : ""}${piloto(it)}${insignia(c)}</span>
     ${medidor(c)}
     ${subestados(c)}
     <span class="why">${motivo(c)}</span>
     <span class="foot">${gastoTarjeta(c.spend)}<span class="spacer"></span>${logos(c.providers)}</span>
   </button><div class="tacc"></div></div>`;
+}
+
+// el chip de la cinta: la tarjeta sigue sola entre dos firmas tuyas
+function piloto(it) {
+  return it.auto === "hasta-humano"
+    ? ` <span class="tpilot" title="después de un trabajo que termina bien, la tarjeta sigue sola hasta la próxima columna tuya, un rojo o el fin de su presupuesto">${esc(NORMAL.piloto)}</span>` : "";
+}
+
+// la insignia del doctor: lo que no cierra en la evidencia de la tarjeta, con
+// su acción exacta en modo experto (lo calcula el binario: doctor)
+function insignia(c) {
+  const ps = c.doctor || [];
+  if (!ps.length) return "";
+  const titulo = experto()
+    ? ps.map(p => `${p.what}\nAccion: ${p.action}`).join("\n\n")
+    : ps.map(p => p.plain).join("\n");
+  return ` <span class="tdoc" title="${esc(titulo)}">⚕ ${ps.length}</span>`;
+}
+
+function listaProblemas(c, ex) {
+  const ps = c.doctor || [];
+  if (!ps.length) return "";
+  return `<h3 class="dsub">${esc(NORMAL.problemas)}</h3><ul class="docl">${ps.map(p => ex
+    ? `<li>${esc(p.what)}<br><span class="acc">Accion: ${esc(p.action)}</span> <small>(${esc(p.id)})</small></li>`
+    : `<li>${esc(p.plain)}</li>`).join("")}</ul>`;
 }
 
 function motivo(c) {
@@ -283,6 +318,8 @@ function abrirDetalle(slug) {
   $("tb-dmeta").innerHTML = "";
   for (const id of ["tb-que", "tb-work", "tb-pruebas"]) $(id).innerHTML = `<div class="empty">cargando…</div>`;
   vivoPara(null);
+  olvidarHistoria();
+  if (tb.pane === "historia") pedirHistoria();
   $("tdetail").classList.add("open");
   $("tshade").style.display = "block";
   pedirDetalle(++tb.genD);
@@ -293,6 +330,7 @@ function cerrarDetalle() {
   tb.genD++;
   vivoPara(null);
   tb.term.gen++;
+  olvidarHistoria();
   $("tb-terminal").open = false;
   $("tdetail").classList.remove("open");
   $("tshade").style.display = "none";
@@ -305,7 +343,8 @@ for (const b of $("tb-dtabs").querySelectorAll(".tab"))
   b.addEventListener("click", () => {
     tb.pane = b.dataset.pane;
     for (const x of $("tb-dtabs").querySelectorAll(".tab")) x.classList.toggle("on", x === b);
-    for (const p of ["que", "quien", "pruebas"]) $("tb-p-" + p).classList.toggle("show", p === tb.pane);
+    for (const p of ["que", "quien", "pruebas", "historia"]) $("tb-p-" + p).classList.toggle("show", p === tb.pane);
+    if (tb.pane === "historia" && hist.slug !== tb.open) pedirHistoria();
   });
 
 $("tb-diff").addEventListener("toggle", () => {
@@ -389,6 +428,7 @@ function paneQue(d, ex) {
   const it = d.card.item;
   const a = d.spec.approval;
   return `
+    ${listaProblemas(d.card, ex)}
     ${it.pedido ? `<h3 class="dsub">Pedido</h3><div class="md"><p>${esc(it.pedido)}</p></div>` : ""}
     <h3 class="dsub">Criterios</h3>
     ${listaCriterios(d, ex, false)}
@@ -598,3 +638,157 @@ function ansiHTML(text) {
   if (abierto) out += "</span>";
   return out;
 }
+
+/* ---------- Historia: la tarjeta contada en el tiempo, y su replay ---------- */
+
+// La historia sale de git y de la telemetría de esta computadora
+// (/api/board/<slug>/timeline). Se pide al abrir la pestaña y con Actualizar:
+// no sondea. El replay recorre las entradas y aplica al medidor los efectos
+// que cada una trae (meter); el último cuadro es la tarjeta de hoy (card).
+const hist = { slug: null, data: null, err: "", gen: 0, paso: -1, jugando: false, vel: 1, estado: {}, timer: 0 };
+
+function olvidarHistoria() {
+  pararReplay();
+  hist.gen++;
+  hist.slug = null;
+  hist.data = null;
+  hist.err = "";
+  $("tb-historia").innerHTML = "";
+}
+
+async function pedirHistoria() {
+  const slug = tb.open;
+  if (!slug) return;
+  const gen = ++hist.gen;
+  pararReplay();
+  hist.slug = slug;
+  hist.paso = -1;
+  $("tb-historia").innerHTML = `<div class="empty">cargando…</div>`;
+  try {
+    const d = await j(`/api/board/${encodeURIComponent(slug)}/timeline`);
+    if (gen !== hist.gen) return;
+    hist.data = d;
+    hist.err = "";
+  } catch (e) {
+    if (gen !== hist.gen) return;
+    hist.data = null;
+    hist.err = e.message;
+  }
+  pintarHistoria();
+}
+
+function pararReplay() {
+  hist.jugando = false;
+  clearTimeout(hist.timer);
+}
+
+function estadoInicial(d) {
+  const st = {};
+  for (const m of d.meter) st[m.id] = "falta";
+  return st;
+}
+
+function medidorReplay(d) {
+  const n = d.meter.filter(m => /^CA-\d+$/.test(m.id)).length;
+  let i = 0;
+  return `<span class="meter">${d.meter.map(m => {
+    const esCA = /^CA-\d+$/.test(m.id);
+    if (esCA) i++;
+    const nombre = esCA ? (experto() ? m.label : NORMAL.criterio(i, n)) : (experto() ? m.label : NORMAL.seg[m.id] || m.label);
+    const st = hist.estado[m.id] || "falta";
+    return `<i class="s-${esc(st)}" title="${esc(nombre)}"></i>`;
+  }).join("")}</span>`;
+}
+
+function filaHistoria(e, i) {
+  const ex = experto();
+  const quien = ex ? e.who : (e.who || "").replace(/\s*<[^>]*>\s*$/, "");
+  const fuente = ex ? FUENTE_EXPERTO[e.source] : FUENTE_NORMAL[e.source];
+  let costo = "";
+  if (e.cost_usd != null) costo = `${usd(e.cost_usd)} USD`;
+  else if (e.kind === "sobre" || e.kind === "run") costo = "sin dato";
+  if (e.tokens) costo += `${costo ? " · " : ""}${tokens(e.tokens)} tokens`;
+  const clase = hist.paso < 0 ? "" : i === hist.paso ? " cur" : i > hist.paso ? " futuro" : "";
+  return `<div class="hrow${clase}" data-i="${i}">
+    <span class="w">${esc(when(e.at))}</span>
+    <span>${esc(ex ? e.summary : e.plain)}
+      <br><span class="w">${esc(quien)}${e.piloto ? ` · <span class="tpilot">${esc(NORMAL.piloto)}</span>` : ""}${ex && e.artifact ? ` · <code>${esc(e.artifact)}</code>` : ""}</span></span>
+    <span><span class="src${e.source === "telemetria" ? " tel" : ""}">${esc(fuente || e.source)}</span><br><span class="c">${esc(costo)}</span></span>
+  </div>`;
+}
+
+function pintarHistoria() {
+  const box = $("tb-historia");
+  const d = hist.data;
+  if (!d) {
+    box.innerHTML = hist.err ? `<div class="tberr">${esc(hist.err)}</div>` : "";
+    return;
+  }
+  const hay = d.entries.length > 0;
+  const fin = hay && hist.paso >= d.entries.length;
+  const barra = `<div class="hbar">
+    ${hay ? `<button class="act" data-h="play">${hist.jugando ? "Pausa" : "Reproducir"}</button>
+    <button class="act" data-h="reset">Reiniciar</button>
+    ${[1, 2, 4].map(v => `<button class="act${hist.vel === v ? " on" : ""}" data-h="vel" data-v="${v}">${v}x</button>`).join("")}` : ""}
+    <span class="spacer"></span>
+    <button class="act" data-h="update">Actualizar</button>
+  </div>`;
+  const notas = d.notes.length ? `<div class="hnotes">${d.notes.map(esc).join("<br>")}</div>` : "";
+  const medidor = hist.paso >= 0 && !fin ? `<div class="hmeter">${medidorReplay(d)}</div>` : "";
+  const hoy = fin || !hay ? `<div class="hoy"><h3 class="dsub" style="margin-top:0">${esc(NORMAL.hoy)}</h3>${medidor ? "" : ""}${medidorTarjeta(d.card)}<div class="why">${esc(d.card.plain)}</div></div>` : "";
+  box.innerHTML = `${barra}${notas}${medidor}${hoy}
+    ${hay ? `<div class="hlist">${d.entries.map(filaHistoria).join("")}</div>` : `<div class="empty">${esc(NORMAL.sinHistoria)}</div>`}`;
+  const cur = box.querySelector(".hrow.cur");
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+}
+
+// el último cuadro: el medidor de la tarjeta de hoy, como en el tablero
+function medidorTarjeta(c) { return medidor(c); }
+
+function pasoReplay(gen) {
+  if (gen !== hist.gen || !hist.jugando || !hist.data) return;
+  const d = hist.data;
+  hist.paso++;
+  if (hist.paso < d.entries.length) {
+    for (const fx of d.entries[hist.paso].meter || []) hist.estado[fx.id] = fx.state;
+  } else {
+    hist.jugando = false;
+  }
+  pintarHistoria();
+  if (hist.jugando) hist.timer = setTimeout(() => pasoReplay(gen), 800 / hist.vel);
+}
+
+$("tb-historia").addEventListener("click", e => {
+  const b = e.target.closest("button[data-h]");
+  if (!b || !hist.data) {
+    if (b && b.dataset.h === "update") pedirHistoria();
+    return;
+  }
+  const d = hist.data;
+  switch (b.dataset.h) {
+    case "update":
+      pedirHistoria();
+      return;
+    case "play":
+      if (hist.jugando) {
+        pararReplay();
+      } else {
+        if (hist.paso < 0 || hist.paso >= d.entries.length) {
+          hist.paso = -1;
+          hist.estado = estadoInicial(d);
+        }
+        hist.jugando = true;
+        hist.timer = setTimeout(() => pasoReplay(hist.gen), 0);
+      }
+      break;
+    case "reset":
+      pararReplay();
+      hist.paso = -1;
+      hist.estado = estadoInicial(d);
+      break;
+    case "vel":
+      hist.vel = +b.dataset.v || 1;
+      break;
+  }
+  pintarHistoria();
+});

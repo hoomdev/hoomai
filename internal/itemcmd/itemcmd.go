@@ -31,7 +31,7 @@ const (
 
 // UsageText is the exact usage block of `hoom item` and the single source of
 // that text.
-const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x] [--pedido "<texto>"] [--slug s] [--json]
+const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x] [--pedido "<texto>"] [--slug s] [--auto hasta-humano] [--json]
      hoom item list [--json]
      hoom item show <slug> [--json]
      hoom item save <slug> [--json]
@@ -42,6 +42,10 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--p
   --pedido "<texto>"   Lo que va a recibir el arquitecto (opcional)
   --slug s             Slug del item (default: derivado del titulo); es el
                        nombre del spec (.hoom/specs/<slug>.md) y de la tarea
+  --auto hasta-humano  Activa el piloto automatico de la tarjeta en el Studio
+                       (exige --presupuesto-usd): despues de un trabajo que
+                       cierra bien, pide el del rol siguiente hasta la proxima
+                       columna tuya, un rojo o el fin del presupuesto
   --json               Emite el resultado como JSON en stdout
 
 'hoom item save' commitea lo que la tarjeta tiene sin guardar (en su espacio
@@ -113,12 +117,13 @@ func parseAdd(args []string) (Request, error) {
 	presupuesto := fs.Float64("presupuesto-usd", 0, "tope de gasto en USD")
 	pedido := fs.String("pedido", "", "pedido para el arquitecto")
 	slug := fs.String("slug", "", "slug del item")
+	auto := fs.String("auto", "", "piloto automatico: hasta-humano")
 	asJSON := fs.Bool("json", false, "emitir el item como JSON")
 	ops, err := cliargs.Operands(fs, args, "item add", UsageText, 1)
 	if err != nil {
 		return Request{}, err
 	}
-	d := item.Draft{Titulo: ops[0], Tipo: *tipo, Prioridad: *prioridad, Pedido: *pedido, Slug: *slug}
+	d := item.Draft{Titulo: ops[0], Tipo: *tipo, Prioridad: *prioridad, Pedido: *pedido, Slug: *slug, Auto: *auto}
 	// Only a WRITTEN budget is one: its absence means "no cap", never 0.
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "presupuesto-usd" {
@@ -128,6 +133,9 @@ func parseAdd(args []string) (Request, error) {
 	})
 	if d.PresupuestoUSD != nil && (math.IsNaN(*d.PresupuestoUSD) || math.IsInf(*d.PresupuestoUSD, 0)) {
 		return Request{}, uso("item add", "--presupuesto-usd tiene que ser un numero mayor que 0")
+	}
+	if strings.TrimSpace(d.Auto) != "" && d.PresupuestoUSD == nil {
+		return Request{}, uso("item add", "--auto necesita --presupuesto-usd: el piloto automatico no corre sin tope")
 	}
 	d, err = item.Validate(d)
 	if err != nil {

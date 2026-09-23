@@ -180,6 +180,10 @@ func Validate(d Draft) (Draft, error) {
 	if d.PresupuestoUSD != nil && !(*d.PresupuestoUSD > 0) {
 		return d, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0 (para no declarar tope, no lo pases)")
 	}
+	d.Auto = strings.TrimSpace(d.Auto)
+	if d.Auto != "" && !contains(Autos, d.Auto) {
+		return d, fmt.Errorf("auto %q fuera del vocabulario (%s)", d.Auto, strings.Join(Autos, ", "))
+	}
 	d.Slug = strings.TrimSpace(d.Slug)
 	if d.Slug == "" {
 		d.Slug = Slugify(d.Titulo)
@@ -204,6 +208,7 @@ func Add(root string, d Draft) (Item, error) {
 		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad,
 		Pedido: strings.TrimSpace(d.Pedido), CreadoPor: gitx.Identity(root),
 		CreadoEn: time.Now().UTC().Truncate(time.Second), PresupuestoUSD: d.PresupuestoUSD,
+		Auto: d.Auto,
 	}
 	raw, err := encode(it)
 	if err != nil {
@@ -234,7 +239,7 @@ func Add(root string, d Draft) (Item, error) {
 
 // claves are the only keys an item may carry, in the order hoom writes them.
 var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "creado_en",
-	"presupuesto_usd", "hecho_en", "commit_final", "sesiones"}
+	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
 // field or a value outside its vocabulary is an error.
@@ -274,6 +279,8 @@ func Parse(slug string, raw []byte) (Item, error) {
 		return Item{}, fmt.Errorf("falta creado_en")
 	case it.PresupuestoUSD != nil && !(*it.PresupuestoUSD > 0):
 		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0")
+	case it.Auto != "" && !contains(Autos, it.Auto):
+		return Item{}, fmt.Errorf("auto %q fuera del vocabulario (%s)", it.Auto, strings.Join(Autos, ", "))
 	}
 	for i, s := range it.Sesiones {
 		switch {
