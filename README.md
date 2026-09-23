@@ -81,7 +81,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom finding list [--open] [--json]` | Estado derivado de cada hallazgo; marca los que quedaron atras del codigo. Una resolucion sin evidencia, con un estado inventado o ilegible NO cierra nada: el hallazgo sigue abierto (y lo dice un aviso) |
 | `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) y las capacidades que declara cada una (stream, continue, resume, session_id, model, system_prompt, tools, read_only, max_turns, budget). `--json` |
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git). Opciones: `--resume <id>` (reanuda la sesion del provider que imprimio un run anterior), `--model <m>`, `--system-prompt <texto\|@ruta>` (se AGREGA al del provider; `@ruta` lee un contrato de rol), `--allow-tools a,b`, `--deny-tools a,b`, `--max-turns n`, `--budget-usd x`. Lo que el provider no soporta se ignora CON aviso en el log; `--strict` lo vuelve error. `--unattended`: nadie responde prompts, el CLI recibe de entrada las herramientas para leer, escribir y ejecutar |
-| `hoom agent --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"` | El SOBRE determinista de un rol: le da su contrato como system prompt, le impone su limite de escritura con el mecanismo que el provider declare (deny de herramientas en Claude, sandbox en Codex), corre el CLI UNA vez y cierra con evidencia en orden fijo — **scope** (que toco el rol, comparando el arbol antes y despues), **verify** y **check**. El gate de scope responde lo que ningun prompt puede responder: si el rol escribio solo donde le correspondia y dejo la evidencia intacta. Piso no aflojable: veredictos y hallazgos existentes son inmutables, las aprobaciones no las firma un agente, `hoom.yaml` no se toca y el trinquete solo sube; violarlo corta ANTES de emitir veredicto. Cada violacion se registra como hallazgo `high`. El **test-writer** corre ademas en un **arbol ciego**: un worktree disperso (`git sparse-checkout`) de UN commit que contiene lo que el rol puede leer —el spec, los tests, los archivos con los que el perfil reconoce el stack— y ni un archivo de implementacion, asi que la anti-circularidad deja de ser una regla de prompt. Ese arbol es tambien una cuarentena: solo se trasplantan al arbol real las rutas que el gate aprobo, y si el aislamiento se rompe (un archivo escondido que vuelve al disco, o una escritura en el arbol real) no se emite veredicto. Los autores de specs (**arquitecto**, **designer**, **analista**) escriben solo en `.hoom/specs/**` y sin shell, y no reciben `--spec`: escriben el spec, no se verifican contra el. Un rol que escribe y termina sin entregar nada (salvo la evidencia que genera hoom) cierra **SIN ENTREGA**, exit 1, sin verify ni check: no hay arbol nuevo que certificar. Un pedido de relleno (`...`, espacios, `<pedido>`) se rechaza antes de gastar un token. Opciones: `--provider <p>` (default: el primero instalado que soporte system prompt), `--model`, `--resume <id>`, `--max-turns n`, `--budget-usd x`, `--json`. Exit 0 solo con todos los pasos verdes (cinco; seis con un rol ciego) |
+| `hoom agent --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"` | El SOBRE determinista de un rol: le da su contrato como system prompt, le impone su limite de escritura con el mecanismo que el provider declare (deny de herramientas en Claude, sandbox en Codex), corre el CLI UNA vez y cierra con evidencia en orden fijo — **scope** (que toco el rol, comparando el arbol antes y despues), **verify** y **check**. El gate de scope responde lo que ningun prompt puede responder: si el rol escribio solo donde le correspondia y dejo la evidencia intacta. Piso no aflojable: veredictos y hallazgos existentes son inmutables, las aprobaciones no las firma un agente, `hoom.yaml` no se toca, el trinquete solo sube, y los items y los registros de review (`.hoom/items/`, `.hoom/reviews/`) no los toca un rol; violarlo corta ANTES de emitir veredicto. Cada violacion se registra como hallazgo `high`. El **test-writer** corre ademas en un **arbol ciego**: un worktree disperso (`git sparse-checkout`) de UN commit que contiene lo que el rol puede leer —el spec, los tests, los archivos con los que el perfil reconoce el stack— y ni un archivo de implementacion, asi que la anti-circularidad deja de ser una regla de prompt. Ese arbol es tambien una cuarentena: solo se trasplantan al arbol real las rutas que el gate aprobo, y si el aislamiento se rompe (un archivo escondido que vuelve al disco, o una escritura en el arbol real) no se emite veredicto. Los autores de specs (**arquitecto**, **designer**, **analista**) escriben solo en `.hoom/specs/**` y sin shell, y no reciben `--spec`: escriben el spec, no se verifican contra el. Un rol que escribe y termina sin entregar nada (salvo la evidencia que genera hoom) cierra **SIN ENTREGA**, exit 1, sin verify ni check: no hay arbol nuevo que certificar. Un pedido de relleno (`...`, espacios, `<pedido>`) se rechaza antes de gastar un token. Opciones: `--provider <p>` (default: el primero instalado que soporte system prompt), `--model`, `--resume <id>`, `--max-turns n`, `--budget-usd x`, `--json`. Exit 0 solo con todos los pasos verdes (cinco; seis con un rol ciego) |
 | `hoom review [--provider p] [--lens l]` | La review CRUZADA: corre el rol reviewer en un provider **distinto del que escribio** (lo dice el meta del ultimo run, no la memoria de nadie) y se niega si serian el mismo, salvo `--same-provider`. La lente sale de la EVIDENCIA con la regla del contrato 06: solo documentacion no invoca review, una ruta de riesgo o mas de 400 lineas (`insertions+deletions` del veredicto) piden las 4 lentes, el resto una. El resultado son los hallazgos que hoom VE aparecer en `.hoom/findings/` durante el run, no los que el CLI dice haber registrado. No emite veredicto ni juzga el codigo: eso sigue siendo de `verify`. Opciones: `--task`, `--spec`, `--model`, `--max-turns`, `--budget-usd`, `--json` |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band); la linea de progreso se va por stderr para que stdout quede parseable byte por byte |
@@ -92,7 +92,11 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
 | `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
 | `hoom task list --json` | El mismo estado como JSON en stdout |
-| `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado |
+| `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado. Si el arbol donde corre tiene el item de la tarea, le escribe `hecho_en` y `commit_final` (la punta de `hoom/<slug>`); con `--force` nunca lo marca hecho |
+| `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--json`. El slug es tambien el del spec y el de la tarea |
+| `hoom item list [--json]` / `hoom item show <slug> [--json]` | Los items del arbol actual; `show` suma su tarjeta (columna, que falta, siguiente paso, subestados) |
+| `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
+| `hoom roles [--role r] [--provider p] [--json]` | Matriz de enforcement: que puede leer, escribir y ejecutar cada rol con cada provider, con que mecanismo (deny de tools, sandbox, arbol ciego, gate post-run) y en que categoria: ENFORCED, POST-VERIFIED, BEST-EFFORT o UNSUPPORTED |
 | `hoom agents` | Instala los 10 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
 | `hoom agents --target all` | Genera ademas los subagentes NATIVOS de Claude Code, OpenCode, Codex y Gemini CLI |
 | `hoom profiles` | Lista los perfiles embebidos |
@@ -340,6 +344,53 @@ La huella (v2) es de CONTENIDO puro: commitear exactamente lo verificado preserv
 la huella; cambiar un byte la rompe. Verificar, commitear e integrar sin re-correr
 gates es legitimo por construccion.
 
+## Items y tablero (hoom item, hoom board)
+
+La tarjeta de la cabina es un archivo que escribe una persona,
+`.hoom/items/<slug>.yaml`, con el mismo patron que `.hoom/findings/`: uno por
+item, asi que dos personas nunca chocan en git.
+
+```yaml
+titulo: Precios por region
+tipo: feature                  # feature|bug|refactor|seguridad|docs|test
+prioridad: media               # alta|media|baja
+pedido: |                      # lo que va a recibir el arquitecto (opcional)
+  ...
+creado_por: Henry Orellana <henry@example.com>
+creado_en: 2026-09-22T15:04:05Z
+presupuesto_usd: 5             # opcional
+hecho_en: ...                  # lo escribe `hoom task done`, nunca un agente
+commit_final: ...
+```
+
+El item nunca guarda una columna: una clave desconocida (`columna:`) lo hace
+invalido. La columna la calcula `hoom board` desde la evidencia, en el worktree
+de la tarea si existe y si no en el arbol actual. La tarjeta queda en la
+columna del PRIMER requisito que falta:
+
+| Columna | La tarjeta esta aca cuando |
+|---|---|
+| Backlog | no existe `.hoom/specs/<slug>.md` |
+| Arquitecto | el spec existe y no pasa `spec_lint` |
+| Tu aprobacion | no hay aprobacion vigente para el contenido actual del spec |
+| Test-writer | algun CA-n no tiene test ni `verifica` |
+| Writer | no hay veredicto verde de `verify --spec` con la huella actual |
+| Review | falta alguna condicion de aceptacion: review de 4 lentes si el cambio supera 400 lineas (registro en `.hoom/reviews/`), hallazgos que bloquean de la tarea, `spec_approved` y `findings_open` en pass, y lo que exige `hoom task done` |
+| Tu aceptacion | se cumple todo: falta `hoom task done <slug>` |
+| Hecho | el item tiene `hecho_en` |
+
+Ademas, cada tarjeta dice si esta en curso (un sobre o run con dueno vivo, con
+su paso), interrumpida (sobre huerfano), esperando a una persona (las dos
+columnas moradas), roja y por que, sin sincronizar (evidencia sin commitear) y
+cuanto gasto en esta computadora. El tablero nunca ejecuta los comandos
+`verifica`: solo lee.
+
+`hoom review` que termina REVISADO deja un registro commiteable en
+`.hoom/reviews/<id>.json` (lentes, providers, huella, veredicto, hallazgos):
+es lo que distingue una review limpia de una que no ocurrio. Items y reviews
+quedan fuera de la huella, y estan en el piso del sobre: un rol que los toca
+es manipulacion.
+
 ## HoomAI Studio (hoom serve)
 
 `hoom serve` levanta, desde el MISMO binario (UI embebida con go:embed,
@@ -442,10 +493,6 @@ de `hoom serve`, y las dos formas de mirar el harness conviven.
 
 ### Cabina visual (Studio v5)
 
-- Items y columna derivada: el estado de un item no se declara, se deriva de
-  sus artefactos (spec aprobado, tests con CA-n, hallazgos, veredicto). Es la
-  regla "sin proceso no hay verde" vuelta columna: el rol trabajo si dejo
-  rastro, no si un subagente con ese nombre fue invocado.
 - Tablero de solo lectura: los items, sus columnas y la curva de cada metrica
   del trinquete (la seccion CLI de `hoom status` ya la tiene) en una vista que
   no puede romper nada porque no escribe nada.

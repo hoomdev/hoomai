@@ -11,9 +11,10 @@
 package boardcmd
 
 import (
-	"io"
+	"flag"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/item"
@@ -207,37 +208,6 @@ type Board struct {
 	Warnings []string      `json:"warnings"`
 }
 
-// Derive computes the card from its evidence. Pure.
-func Derive(ev Evidence) Card {
-	return Card{}
-}
-
-// Gather reads the evidence of one item. Read-only.
-func Gather(root, base, blockOn string, it item.Item, now time.Time) Evidence {
-	return Evidence{}
-}
-
-// Build derives the card of every valid item of root.
-func Build(root, base, blockOn string, now time.Time) (Board, error) {
-	return Board{}, nil
-}
-
-// CardFor derives the card of one item.
-func CardFor(root, base, blockOn, slug string, now time.Time) (Card, error) {
-	return Card{}, nil
-}
-
-// JSONBytes renders the board exactly as `hoom board --json` emits it.
-func JSONBytes(b Board) ([]byte, error) {
-	return nil, nil
-}
-
-// Render prints the board for humans.
-func Render(w io.Writer, b Board) {}
-
-// RenderCard prints one card for humans (`hoom item show`).
-func RenderCard(w io.Writer, c Card) {}
-
 // UsageText is the exact usage block of `hoom board`.
 const UsageText = `Uso: hoom board [--json]
 
@@ -255,5 +225,10 @@ type Options struct {
 // ParseArgs is pure: a request hoom does not understand is a
 // *cliargs.UsageError; -h/--help is cliargs.ErrHelp.
 func ParseArgs(args []string) (Options, error) {
-	return Options{}, nil
+	fs := flag.NewFlagSet("board", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "emitir el tablero como JSON en stdout")
+	if err := cliargs.Strict(fs, args, "board", UsageText); err != nil {
+		return Options{}, err
+	}
+	return Options{JSON: *asJSON}, nil
 }

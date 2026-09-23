@@ -408,6 +408,12 @@ func universal(p string, before Snapshot, loosened []string) (Violation, bool) {
 	case strings.HasPrefix(p, ".hoom/approvals/"):
 		return Violation{Path: p, Rule: RuleTampering,
 			Detail: "la aprobacion humana no la escribe un agente (usa 'hoom spec approve')"}, true
+	case strings.HasPrefix(p, ".hoom/items/"):
+		return Violation{Path: p, Rule: RuleTampering,
+			Detail: "el item lo escribe una persona (hoom item add) y su cierre hoom task done; un rol no mueve su tarjeta ni afloja su presupuesto"}, true
+	case strings.HasPrefix(p, ".hoom/reviews/"):
+		return Violation{Path: p, Rule: RuleTampering,
+			Detail: "el registro de review lo escribe hoom review, no un rol"}, true
 	case strings.HasPrefix(p, ".hoom/verdicts/"), strings.HasPrefix(p, ".hoom/findings/"):
 		if before.Evidence[p] {
 			return Violation{Path: p, Rule: RuleTampering,
