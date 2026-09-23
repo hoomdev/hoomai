@@ -95,6 +95,7 @@ type Evidence struct {
 	LintIssues []string // spec.Lint issues (read error included); empty = passes
 	Criteria   []string // CA-n ids of the spec
 	Untraced   []string // criteria without test token nor verifica command
+	ByCommand  []string // criteria covered by a verifica marker
 
 	Approval string // approval.StatusApproved | StatusNotApproved | StatusInvalidated
 
@@ -107,6 +108,7 @@ type Evidence struct {
 	BlockOn  string             // effective threshold: the project's block_on, or "high"
 
 	ReadyErr    string   // taskcmd.Ready error message; "" = task done would close it
+	ReadyKind   string   // taskcmd.ReadyError kind of ReadyErr ("" when unknown)
 	Worktree    bool     // the task worktree exists
 	Uncommitted []string // uncommitted evidence paths (see the spec)
 
@@ -129,6 +131,35 @@ type Card struct {
 	Red          *Red         `json:"red"`
 	Unsynced     []string     `json:"unsynced"`
 	Spend        Spend        `json:"spend"`
+
+	// C2: what the Studio paints, derived here so the page only paints.
+	Plain         string    `json:"plain"`          // the main reason, in the normal mode's words
+	NeedsDecision bool      `json:"needs_decision"` // waiting_human or interrupted
+	Meter         []Segment `json:"meter"`          // the evidence meter, segment by segment
+	Providers     Providers `json:"providers"`      // who wrote and who reviewed
+}
+
+// Segment states: a segment fills only with a fact that exists and holds.
+const (
+	SegHecho    = "hecho"
+	SegFalta    = "falta"
+	SegNoAplica = "no-aplica"
+)
+
+// Segment is one cell of the evidence meter.
+type Segment struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	State  string `json:"state"`
+	Detail string `json:"detail"`
+}
+
+// Providers names the CLI that wrote the card's code and the one that
+// reviewed it ("" when nothing says so).
+type Providers struct {
+	Writer   string `json:"writer"`
+	Reviewer string `json:"reviewer"`
+	Cross    string `json:"cross"`
 }
 
 // CardEvidence is the evidence meter: every segment is something that can be
@@ -181,6 +212,7 @@ type Red struct {
 	Source string `json:"source"` // RedVerdict | RedEnvelope
 	ID     string `json:"id"`
 	Reason string `json:"reason"`
+	Plain  string `json:"plain"` // the same failure in the normal mode's words, without the note
 }
 
 // Spend is what the card's runs cost on THIS machine (local telemetry).
