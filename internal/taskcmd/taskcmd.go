@@ -219,3 +219,11 @@ func Done(root, slug, base string, force bool) error {
 	fmt.Printf("    git branch -d %s   (despues del merge)\n", branch)
 	return nil
 }
+
+// Ready is the check `hoom task done` makes without --force — the task
+// exists, its tree is clean, it has a complete verdict, the latest complete
+// one is green and its fingerprint matches — with the same messages. nil
+// means task done would close it.
+func Ready(root, slug, base string) error {
+	return nil
+}

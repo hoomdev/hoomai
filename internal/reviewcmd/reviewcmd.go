@@ -84,6 +84,9 @@ type Result struct {
 	Findings []string `json:"findings"` // union of the passes
 	Status   string   `json:"status"`   // revisado | sin-revisar | no-entregable
 	ExitCode int      `json:"exit_code"`
+	// RecordID names the review record written in .hoom/reviews/ when the
+	// review ended revisado; empty otherwise.
+	RecordID string `json:"record_id,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The

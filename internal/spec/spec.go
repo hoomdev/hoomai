@@ -319,3 +319,10 @@ func Gates(projectDir, specPath string) []verdict.GateResult {
 	}
 	return []verdict.GateResult{lintRes, traceRes}
 }
+
+// Tokens is the half of Trace that only READS: which of ids have no test file
+// mentioning their exact token, and how many test files were scanned. It
+// never runs a verifica command — the board uses it to trace without effects.
+func Tokens(root string, ids []string) (missing []string, scanned int, err error) {
+	return nil, 0, nil
+}

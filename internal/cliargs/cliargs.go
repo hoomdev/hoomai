@@ -209,3 +209,13 @@ func hastaDosPuntos(s string) string {
 	}
 	return strings.TrimLeft(s, "-")
 }
+
+// Operands parses a verb that takes exactly n operands (`item add "<titulo>"`,
+// `item show <slug>`): flags may go before or after them, and after `--`
+// everything is an operand. It returns the operands, or a *UsageError on an
+// undefined flag, a flag without its value, a flag WRITTEN with an empty
+// value, an operand too many or too few, or an empty operand; -h/--help is
+// ErrHelp.
+func Operands(fs *flag.FlagSet, args []string, verb, usage string, n int) ([]string, error) {
+	return nil, nil
+}

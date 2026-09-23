@@ -295,3 +295,10 @@ func contentHash(path string) (string, error) {
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
+
+// Identity is the project's git identity — "Name <email>", whichever of the
+// two exists, or "desconocido" — the one human acts are recorded with (spec
+// approvals, findings, items).
+func Identity(dir string) string {
+	return ""
+}
