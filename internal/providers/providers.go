@@ -40,6 +40,16 @@ type Event struct {
 	// the invocation spent. The run ACCUMULATES it (see runcmd): every CLI
 	// verified reports per invocation, never per session.
 	Usage *Usage `json:"usage,omitempty"`
+	// ToolID pairs a delegation (`agent`) with its end (`agent_end`): the id
+	// the provider gave the tool call.
+	ToolID string `json:"tool_id,omitempty"`
+}
+
+// Correlating is implemented by an adapter whose events need memory of the
+// run: pairing a delegation with its result. runcmd asks for one normalizer
+// per run; Normalize stays the stateless fallback.
+type Correlating interface {
+	NewNormalizer() func(line string) []Event
 }
 
 // Usage is what one invocation cost, in the only units every CLI can be read

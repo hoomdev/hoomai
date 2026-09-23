@@ -194,6 +194,12 @@ type claudeMsg struct {
 	} `json:"message"`
 }
 
+// NewNormalizer returns a normalizer with memory of ONE run: it pairs each
+// delegation with its result (Correlating).
+func (c claude) NewNormalizer() func(line string) []Event {
+	return c.Normalize
+}
+
 func parseClaudeLine(line string, ts time.Time) []Event {
 	var msg claudeMsg
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {

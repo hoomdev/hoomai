@@ -44,6 +44,8 @@ type Options struct {
 	// Started is called once, when the envelope's first record is on disk.
 	// An error before that record arrives without Started being called.
 	Started func()
+	// Pilot marks an envelope the cabin's belt launched: its record says so.
+	Pilot bool
 }
 
 // Result is the envelope's answer, identical in text and in JSON.

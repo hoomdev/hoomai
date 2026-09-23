@@ -39,6 +39,13 @@ var (
 	Prioridades = []string{"alta", "media", "baja"}
 )
 
+// AutoHastaHumano is the only value of `auto`: the belt runs until a person
+// has to act (a purple column), a red, or the end of the budget.
+const AutoHastaHumano = "hasta-humano"
+
+// Autos is the vocabulary of `auto`.
+var Autos = []string{AutoHastaHumano}
+
 // Defaults of `hoom item add`.
 const (
 	DefaultTipo      = "feature"
@@ -64,6 +71,10 @@ type Item struct {
 	// writers `hoom review` reads. Written by a person's tool, never by an
 	// agent (the envelope's floor forbids .hoom/items/).
 	Sesiones []Sesion `yaml:"sesiones,omitempty" json:"sesiones,omitempty"`
+	// Auto turns on the cabin's belt for this card (only value:
+	// AutoHastaHumano). It never moves the card: it lets the Studio ask the
+	// next role of the fixed table after a successful envelope.
+	Auto string `yaml:"auto,omitempty" json:"auto,omitempty"`
 }
 
 // Sesion is one interactive session opened on the card's workspace.
@@ -82,6 +93,7 @@ type Draft struct {
 	Pedido         string
 	Slug           string
 	PresupuestoUSD *float64
+	Auto           string // "" or AutoHastaHumano
 }
 
 // ErrExists is wrapped by Add when the item's file is already there.

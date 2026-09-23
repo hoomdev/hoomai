@@ -94,6 +94,8 @@ type RatchetMetric struct {
 	LastFrom  *float64  `json:"last_from,omitempty"`
 	LastTo    float64   `json:"last_to,omitempty"`
 	LastTS    time.Time `json:"last_ts,omitempty"`
+	// History: every movement of this metric in the file, oldest first.
+	History []ratchet.Change `json:"history"`
 }
 
 // RatchetView is the quality baseline as shown by status.
@@ -180,6 +182,10 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	s.Ratchet = ratchetView(root)
 	return s, nil
 }
+
+// Ratchet is the quality baseline as status shows it: the single source of
+// `hoom status` and the Studio's GET /api/ratchet.
+func Ratchet(root string) RatchetView { return ratchetView(root) }
 
 // ratchetView reads the baseline file — and ONLY reads it: measuring is
 // verify --full's job. An unreadable file is labeled, never fatal.

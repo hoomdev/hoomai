@@ -119,6 +119,13 @@ type Evidence struct {
 	// C3: what the card's actions need that Derive cannot find out alone.
 	Providers []providers.Info // the providers of this machine (providers.Detect, once per Build)
 	Signer    string           // git identity of the evidence tree: who an approval would name
+
+	// C4: what the doctor needs. Fingerprint (C1) stays empty without a
+	// verdict; TreeFingerprint is the current fingerprint of E whenever the
+	// card has a task worktree or a verdict.
+	TreeFingerprint string
+	TreeChanges     []string // changed files of E's candidate (only with a task worktree)
+	Certified       bool     // some complete verdict of E has TreeFingerprint
 }
 
 // Card is one item on the board.
@@ -148,6 +155,10 @@ type Card struct {
 	Actions []Action `json:"actions"` // valid for its column, in order: the primary first
 	Drops   []Drop   `json:"drops"`   // one per other column: what dropping there does, or why not
 	Ghost   *Ghost   `json:"ghost"`   // the card as it will be, in the next column, while a role works
+
+	// C4: where the evidence of the card does not add up, with the exact
+	// action (the board's badges).
+	Doctor []Problem `json:"doctor"`
 }
 
 // Action ids.

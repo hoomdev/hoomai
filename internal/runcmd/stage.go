@@ -21,6 +21,9 @@ type Actor struct {
 	Acts       int    `json:"acts"`
 	LastDetail string `json:"last_detail,omitempty"`
 	Active     bool   `json:"active"`
+	// Open counts the delegations to this actor (agent events with a tool
+	// id) that have not received their agent_end yet.
+	Open int `json:"open"`
 }
 
 // StageView is the computed scene for one run.
