@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -91,28 +90,6 @@ func dir(root string) string { return filepath.Join(root, ".hoom", "findings") }
 func findingPath(root, id string) string { return filepath.Join(dir(root), id+".json") }
 func resPath(root, id string) string     { return filepath.Join(dir(root), id+".res.json") }
 
-func gitUser(root string) string {
-	get := func(key string) string {
-		cmd := exec.Command("git", "config", key)
-		cmd.Dir = root
-		out, err := cmd.Output()
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(string(out))
-	}
-	name, email := get("user.name"), get("user.email")
-	switch {
-	case name != "" && email != "":
-		return name + " <" + email + ">"
-	case name != "":
-		return name
-	case email != "":
-		return email
-	}
-	return "desconocido"
-}
-
 func newID() string {
 	raw := make([]byte, 3)
 	rand.Read(raw)
@@ -143,7 +120,7 @@ func Register(root, base string, d Draft) (Finding, error) {
 		return Finding{}, fmt.Errorf("la descripcion del hallazgo no puede ser vacia")
 	}
 	if strings.TrimSpace(author) == "" {
-		author = gitUser(root)
+		author = gitx.Identity(root)
 	}
 	f := Finding{
 		ID:          newID(),
@@ -194,7 +171,7 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 		return Resolution{}, fmt.Errorf("el hallazgo %s ya esta resuelto como %q; reabrir = un hallazgo NUEVO que cite a este", id, prev.As)
 	}
 	if strings.TrimSpace(author) == "" {
-		author = gitUser(root)
+		author = gitx.Identity(root)
 	}
 	r := Resolution{
 		FindingID:  id,
