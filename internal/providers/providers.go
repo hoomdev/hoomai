@@ -417,7 +417,10 @@ type BudgetFloor interface {
 
 // MinBudgetUSD is p's declared minimum budget, or 0 when it declares none.
 func MinBudgetUSD(p Provider) float64 {
-	return 0 // esqueleto
+	if f, ok := p.(BudgetFloor); ok {
+		return f.MinBudgetUSD()
+	}
+	return 0
 }
 
 // Registry holds providers in insertion order — the order every listing
@@ -485,7 +488,7 @@ func (r *Registry) Detect() []Info {
 	all := r.All()
 	out := make([]Info, 0, len(all))
 	for _, p := range all {
-		info := Info{Name: p.Name(), Capabilities: p.Capabilities()}
+		info := Info{Name: p.Name(), Capabilities: p.Capabilities(), MinBudgetUSD: MinBudgetUSD(p)}
 		if path, err := exec.LookPath(p.Bin()); err == nil {
 			info.Installed = true
 			info.Bin = path

@@ -146,12 +146,26 @@ type specDetail struct {
 // Handler returns the Studio's HTTP handler: embedded UI at /, reads under
 // /api/ open, actions token-gated.
 func (s *Server) Handler() http.Handler {
+	mux, _ := s.handler()
+	return mux
+}
+
+// handler builds the mux and the list of what it registered. Nothing is kept
+// on the Server: Handler may be called from several goroutines at once.
+func (s *Server) handler() (*http.ServeMux, []string) {
 	mux := http.NewServeMux()
+	var routes []string
+	// handle is the ONLY way a route is registered: Routes() reads the same
+	// list, and the golden rule (no route receives a column) is asserted on it.
+	handle := func(pattern string, h http.HandlerFunc) {
+		mux.HandleFunc(pattern, h)
+		routes = append(routes, pattern)
+	}
 
 	ui, _ := fs.Sub(uiFS, "ui")
-	mux.Handle("GET /", http.FileServerFS(ui))
+	handle("GET /", http.FileServerFS(ui).ServeHTTP)
 
-	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
 		check, err := checkcmd.Run(s.m.Dir, s.m.BaseBranch)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -167,7 +181,7 @@ func (s *Server) Handler() http.Handler {
 		})
 	})
 
-	mux.HandleFunc("GET /api/verdicts", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/verdicts", func(w http.ResponseWriter, r *http.Request) {
 		all, warnings, err := verdict.LoadAllWithWarnings(s.m.Dir)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -185,7 +199,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, resp)
 	})
 
-	mux.HandleFunc("GET /api/verdicts/{id}", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/verdicts/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		all, _, err := verdict.LoadAllWithWarnings(s.m.Dir)
 		if err != nil {
@@ -201,7 +215,7 @@ func (s *Server) Handler() http.Handler {
 		writeError(w, http.StatusNotFound, "veredicto no encontrado: "+id)
 	})
 
-	mux.HandleFunc("GET /api/tasks", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/tasks", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := taskcmd.JSONBytes(s.m.Dir, s.m.BaseBranch)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -210,7 +224,7 @@ func (s *Server) Handler() http.Handler {
 		writeRaw(w, raw)
 	})
 
-	mux.HandleFunc("GET /api/report", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/report", func(w http.ResponseWriter, r *http.Request) {
 		all, _, err := verdict.LoadAllWithWarnings(s.m.Dir)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -224,7 +238,7 @@ func (s *Server) Handler() http.Handler {
 		writeRaw(w, raw)
 	})
 
-	mux.HandleFunc("GET /api/files", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/files", func(w http.ResponseWriter, r *http.Request) {
 		// solo RUTAS, jamas contenido: el indice es git ls-files
 		matches := filesearch.Match(filesearch.List(s.m.Dir), r.URL.Query().Get("q"), 20)
 		if matches == nil {
@@ -233,7 +247,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, matches)
 	})
 
-	mux.HandleFunc("GET /api/findings", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/findings", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := finding.JSONBytes(s.m.Dir, s.m.BaseBranch, r.URL.Query().Get("open") == "1")
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -242,7 +256,7 @@ func (s *Server) Handler() http.Handler {
 		writeRaw(w, raw)
 	})
 
-	mux.HandleFunc("GET /api/context", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/context", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := contextcmd.JSONBytes(s.m.Dir)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -251,7 +265,7 @@ func (s *Server) Handler() http.Handler {
 		writeRaw(w, raw)
 	})
 
-	mux.HandleFunc("GET /api/specs", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/specs", func(w http.ResponseWriter, r *http.Request) {
 		items, err := s.listSpecs()
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -260,7 +274,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, items)
 	})
 
-	mux.HandleFunc("GET /api/specs/{name}", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/specs/{name}", func(w http.ResponseWriter, r *http.Request) {
 		d, code, err := s.specDetail(r.PathValue("name"))
 		if err != nil {
 			writeError(w, code, err.Error())
@@ -273,7 +287,7 @@ func (s *Server) Handler() http.Handler {
 	// tarjeta muestra lo calcula boardcmd; la pagina pinta. Ningun metodo
 	// que no sea GET llega aca (el mux responde 405).
 
-	mux.HandleFunc("GET /api/board", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/board", func(w http.ResponseWriter, r *http.Request) {
 		b, err := boardcmd.Build(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), time.Now().UTC())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -288,7 +302,7 @@ func (s *Server) Handler() http.Handler {
 		writeRaw(w, raw)
 	})
 
-	mux.HandleFunc("GET /api/board/{slug}", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/board/{slug}", func(w http.ResponseWriter, r *http.Request) {
 		slug := r.PathValue("slug")
 		if !item.ValidSlug(slug) {
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", slug))
@@ -303,11 +317,19 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, d)
 	})
 
+	// --- cabina (C3): las acciones de la tarjeta. Ninguna recibe una
+	// columna: producen evidencia y la columna la recalcula boardcmd.
+	handle("POST /api/board/{slug}/launch", s.authed(s.launch))
+	handle("POST /api/board/{slug}/save", s.authed(s.save))
+	handle("POST /api/board/{slug}/discard", s.authed(s.discard))
+	handle("POST /api/board/{slug}/session", s.authed(s.session))
+	handle("GET /api/board/{slug}/terminal", s.terminal)
+
 	// --- cockpit: providers y runs headless. Los eventos de un run son
 	// NARRACION local (.hoom/runs/, fuera de huella y de Git); la evidencia
 	// sigue siendo el veredicto.
 
-	mux.HandleFunc("GET /api/providers", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/providers", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := providers.JSONBytes()
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -316,13 +338,13 @@ func (s *Server) Handler() http.Handler {
 		writeRaw(w, raw)
 	})
 
-	mux.HandleFunc("GET /api/runs", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/runs", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, s.runRows())
 	})
 
 	// los sobres: lo que `hoom agent` esta haciendo AHORA, aunque lo corra
 	// otro proceso. El Studio los mira; no los maneja.
-	mux.HandleFunc("GET /api/envelopes", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/envelopes", func(w http.ResponseWriter, r *http.Request) {
 		recs := envelope.List(s.m.Dir)
 		if recs == nil {
 			recs = []envelope.Record{}
@@ -330,7 +352,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, recs)
 	})
 
-	mux.HandleFunc("GET /api/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		after := 0
 		if raw := r.URL.Query().Get("after"); raw != "" {
 			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
@@ -348,7 +370,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, map[string]any{"run": row, "events": evs[after:], "next": len(evs)})
 	})
 
-	mux.HandleFunc("GET /api/runs/{id}/stage", func(w http.ResponseWriter, r *http.Request) {
+	handle("GET /api/runs/{id}/stage", func(w http.ResponseWriter, r *http.Request) {
 		row, evs, err := s.runEvents(r.PathValue("id"))
 		if err != nil {
 			writeError(w, http.StatusNotFound, err.Error())
@@ -357,7 +379,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, runcmd.Stage(row.Run, evs))
 	})
 
-	mux.HandleFunc("POST /api/runs", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/runs", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Provider string `json:"provider"`
 			Prompt   string `json:"prompt"`
@@ -375,7 +397,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, info)
 	}))
 
-	mux.HandleFunc("POST /api/runs/{id}/input", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/runs/{id}/input", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Prompt string `json:"prompt"`
 		}
@@ -395,7 +417,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, info)
 	}))
 
-	mux.HandleFunc("POST /api/runs/{id}/cancel", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/runs/{id}/cancel", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		if code, err := s.readOnlyRun(r.PathValue("id")); err != nil {
 			writeError(w, code, err.Error())
 			return
@@ -411,7 +433,7 @@ func (s *Server) Handler() http.Handler {
 	// --- acciones: cada POST exige el token y ejecuta el MISMO codigo que
 	// su verbo CLI. Sin token valido no hay efectos secundarios.
 
-	mux.HandleFunc("POST /api/verify", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/verify", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Full  bool     `json:"full"`
 			Gates []string `json:"gates"`
@@ -441,7 +463,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, v)
 	}))
 
-	mux.HandleFunc("POST /api/tasks", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/tasks", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Slug string `json:"slug"`
 		}
@@ -461,7 +483,7 @@ func (s *Server) Handler() http.Handler {
 		writeRaw(w, raw)
 	}))
 
-	mux.HandleFunc("POST /api/tasks/{slug}/done", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/tasks/{slug}/done", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		// El CLI decide; su rechazo viaja VERBATIM y la tarea queda abierta.
 		if err := taskcmd.Done(s.m.Dir, r.PathValue("slug"), s.m.BaseBranch, false); err != nil {
 			writeError(w, http.StatusConflict, err.Error())
@@ -470,7 +492,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, map[string]bool{"ok": true})
 	}))
 
-	mux.HandleFunc("POST /api/intake", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/intake", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 		file, header, err := r.FormFile("file")
 		if err != nil {
@@ -486,7 +508,25 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, map[string]string{"path": rel})
 	}))
 
-	mux.HandleFunc("POST /api/specs/{name}/approve", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/specs/{name}/approve", s.authed(func(w http.ResponseWriter, r *http.Request) {
+		// Con {"card": "<slug>"} es "Aprobar spec" desde la tarjeta: el mismo
+		// verbo, corrido en el arbol de evidencia de la tarjeta. Sin cuerpo (o
+		// con {}, que es lo que manda act), lo de siempre.
+		var body struct {
+			Card *string `json:"card"`
+		}
+		if _, err := decodeStrict(r, &body); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if body.Card != nil {
+			if strings.TrimSpace(*body.Card) == "" {
+				writeError(w, http.StatusBadRequest, "falta la tarjeta (card)")
+				return
+			}
+			s.approveCard(w, r.PathValue("name"), *body.Card)
+			return
+		}
 		path, code, err := s.specPath(r.PathValue("name"))
 		if err != nil {
 			writeError(w, code, err.Error())
@@ -500,7 +540,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, map[string]any{"approval": rec, "already": already})
 	}))
 
-	mux.HandleFunc("POST /api/specs/{name}/review", s.authed(func(w http.ResponseWriter, r *http.Request) {
+	handle("POST /api/specs/{name}/review", s.authed(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Comments string `json:"comments"`
 		}
@@ -525,7 +565,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, map[string]string{"path": rel})
 	}))
 
-	return mux
+	return mux, routes
 }
 
 // authed gates an action behind the session token: wrong or missing token
@@ -872,7 +912,8 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 // Routes lists every pattern Handler registers, in registration order: the
 // golden rule is asserted over it (no route receives a column).
 func Routes() []string {
-	return nil // esqueleto
+	_, routes := (&Server{launching: map[string]bool{}}).handler()
+	return routes
 }
 
 // waitLaunches blocks until every role this Studio launched has finished.

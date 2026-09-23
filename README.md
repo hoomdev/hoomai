@@ -72,7 +72,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom cockpit` | Arma el puesto completo sobre tmux/zellij: tu CLI de IA en un pane real + `status --watch` al lado. `--provider <p>`, `--task <slug>` (monta el cockpit en el worktree de la tarea), `--mux tmux\|zellij` |
 | `hoom ratchet init` | Crea la linea base del trinquete (`.hoom/ratchet.json`, viaja en Git): metricas declaradas como comandos cuya ultima linea es un numero |
 | `hoom ratchet lower <m> --to <v> --reason "..."` | Afloja UNA base con razon obligatoria y registro auditable; sin razon se niega. Apretar no tiene comando: solo lo hace una medicion de `verify --full` |
-| `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake) con el token que imprime al arrancar |
+| `hoom serve` | HoomAI Studio: dashboard local embebido en el binario (default 127.0.0.1:4666). Lectura libre en loopback; acciones (verify, tareas, aprobar specs, intake, y las de cada tarjeta del tablero) con el token que imprime al arrancar |
 | `hoom spec approve <ruta>` | Registra la aprobacion humana del spec atada al SHA-256 de su CONTENIDO (append-only en `.hoom/approvals/`); editarlo despues la invalida |
 | `hoom spec status <ruta>` | aprobado / no-aprobado / invalidado; exit 0 solo con aprobacion vigente (gateable por script) |
 | `hoom context` | Salud del contexto: fuentes de intake, vision/backlog, preguntas abiertas y staleness por fechas. Amarillos honestos; informa, nunca bloquea. `--json` |
@@ -82,7 +82,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) y las capacidades que declara cada una (stream, continue, resume, session_id, model, system_prompt, tools, read_only, max_turns, budget). `--json` |
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git). Opciones: `--resume <id>` (reanuda la sesion del provider que imprimio un run anterior), `--model <m>`, `--system-prompt <texto\|@ruta>` (se AGREGA al del provider; `@ruta` lee un contrato de rol), `--allow-tools a,b`, `--deny-tools a,b`, `--max-turns n`, `--budget-usd x`. Lo que el provider no soporta se ignora CON aviso en el log; `--strict` lo vuelve error. `--unattended`: nadie responde prompts, el CLI recibe de entrada las herramientas para leer, escribir y ejecutar |
 | `hoom agent --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"` | El SOBRE determinista de un rol: le da su contrato como system prompt, le impone su limite de escritura con el mecanismo que el provider declare (deny de herramientas en Claude, sandbox en Codex), corre el CLI UNA vez y cierra con evidencia en orden fijo — **scope** (que toco el rol, comparando el arbol antes y despues), **verify** y **check**. El gate de scope responde lo que ningun prompt puede responder: si el rol escribio solo donde le correspondia y dejo la evidencia intacta. Piso no aflojable: veredictos y hallazgos existentes son inmutables, las aprobaciones no las firma un agente, `hoom.yaml` no se toca, el trinquete solo sube, y los items y los registros de review (`.hoom/items/`, `.hoom/reviews/`) no los toca un rol; violarlo corta ANTES de emitir veredicto. Cada violacion se registra como hallazgo `high`. El **test-writer** corre ademas en un **arbol ciego**: un worktree disperso (`git sparse-checkout`) de UN commit que contiene lo que el rol puede leer —el spec, los tests, los archivos con los que el perfil reconoce el stack— y ni un archivo de implementacion, asi que la anti-circularidad deja de ser una regla de prompt. Ese arbol es tambien una cuarentena: solo se trasplantan al arbol real las rutas que el gate aprobo, y si el aislamiento se rompe (un archivo escondido que vuelve al disco, o una escritura en el arbol real) no se emite veredicto. Los autores de specs (**arquitecto**, **designer**, **analista**) escriben solo en `.hoom/specs/**` y sin shell, y no reciben `--spec`: escriben el spec, no se verifican contra el. Un rol que escribe y termina sin entregar nada (salvo la evidencia que genera hoom) cierra **SIN ENTREGA**, exit 1, sin verify ni check: no hay arbol nuevo que certificar. Un pedido de relleno (`...`, espacios, `<pedido>`) se rechaza antes de gastar un token. Opciones: `--provider <p>` (default: el primero instalado que soporte system prompt), `--model`, `--resume <id>`, `--max-turns n`, `--budget-usd x`, `--json`. Exit 0 solo con todos los pasos verdes (cinco; seis con un rol ciego) |
-| `hoom review [--provider p] [--lens l]` | La review CRUZADA: corre el rol reviewer en un provider **distinto del que escribio** (lo dice el meta del ultimo run, no la memoria de nadie) y se niega si serian el mismo, salvo `--same-provider`. La lente sale de la EVIDENCIA con la regla del contrato 06: solo documentacion no invoca review, una ruta de riesgo o mas de 400 lineas (`insertions+deletions` del veredicto) piden las 4 lentes, el resto una. El resultado son los hallazgos que hoom VE aparecer en `.hoom/findings/` durante el run, no los que el CLI dice haber registrado. No emite veredicto ni juzga el codigo: eso sigue siendo de `verify`. Opciones: `--task`, `--spec`, `--model`, `--max-turns`, `--budget-usd`, `--json` |
+| `hoom review [--provider p] [--lens l]` | La review CRUZADA: corre el rol reviewer en un provider **distinto del que escribio** (lo dice el meta del ultimo run, no la memoria de nadie) y se niega si serian el mismo, salvo `--same-provider`. Las sesiones interactivas que declara el item (`sesiones`, las anota `hoom cockpit --task` con tmux) suman writers DECLARADOS: un reviewer igual a uno de ellos tampoco es cruzado, y sin writer observado la review es `cruzada-declarada`, nunca `cruzada`. Deja un registro de sobre en `.hoom/envelopes/` como `hoom agent`. La lente sale de la EVIDENCIA con la regla del contrato 06: solo documentacion no invoca review, una ruta de riesgo o mas de 400 lineas (`insertions+deletions` del veredicto) piden las 4 lentes, el resto una. El resultado son los hallazgos que hoom VE aparecer en `.hoom/findings/` durante el run, no los que el CLI dice haber registrado. No emite veredicto ni juzga el codigo: eso sigue siendo de `verify`. Opciones: `--task`, `--spec`, `--model`, `--max-turns`, `--budget-usd`, `--json` |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band); la linea de progreso se va por stderr para que stdout quede parseable byte por byte |
 | `hoom verify --help` | El uso EXACTO del verbo por stdout, exit 0 y cero artefactos. Es la misma constante que imprime `hoom help`: no hay un segundo texto que pueda desincronizarse |
@@ -92,9 +92,11 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom task start <slug>` | Tarea paralela aislada: rama `hoom/<slug>` + worktree propio + sus propios veredictos |
 | `hoom task list` | Estado de las tareas activas (verde listo / drift / rojo / sin veredicto) |
 | `hoom task list --json` | El mismo estado como JSON en stdout |
+| `hoom task discard <slug> [--yes] [--json]` | Descarta lo que el espacio de trabajo de la tarea tiene sin guardar FUERA de `.hoom/`: lo que `HEAD` tiene vuelve a como estaba, lo nuevo se borra. La evidencia (veredictos, hallazgos, aprobaciones, registros) nunca se descarta. Sin `--yes` solo lista y sale con 1; se niega con un run activo en el arbol |
 | `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado. Si el arbol donde corre tiene el item de la tarea, le escribe `hecho_en` y `commit_final` (la punta de `hoom/<slug>`); con `--force` nunca lo marca hecho |
 | `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--json`. El slug es tambien el del spec y el de la tarea |
-| `hoom item list [--json]` / `hoom item show <slug> [--json]` | Los items del arbol actual; `show` suma su tarjeta (columna, que falta, siguiente paso, subestados) |
+| `hoom item list [--json]` / `hoom item show <slug> [--json]` | Los items del arbol actual; `show` suma su tarjeta (columna, que falta, siguiente paso, subestados y, en `--json`, las acciones validas, adonde se puede soltar y el fantasma) |
+| `hoom item save <slug> [--json]` | Guarda en git lo que la tarjeta tiene sin guardar: un commit por arbol (su espacio de trabajo, y el item en el proyecto) con el mensaje fijo `hoom: guardar la tarjeta <slug>`. Solo esas rutas: lo que haya en el indice queda como estaba. Se niega mientras un rol trabaja en la tarjeta |
 | `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
 | `hoom roles [--role r] [--provider p] [--json]` | Matriz de enforcement: que puede leer, escribir y ejecutar cada rol con cada provider, con que mecanismo (deny de tools, sandbox, arbol ciego, gate post-run) y en que categoria: ENFORCED, POST-VERIFIED, BEST-EFFORT o UNSUPPORTED |
 | `hoom agents` | Instala los 10 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
@@ -436,8 +438,35 @@ Que trae:
   rutas, huellas e ids, y se recuerda en el navegador. El filtro "Necesitan
   tu decision" deja las columnas moradas y las interrumpidas. Lee
   `GET /api/board` (los mismos bytes que `hoom board --json`) y
-  `GET /api/board/{slug}` (el detalle, `?diff=1` para el diff), y no escribe
-  nada: no hay arrastre ni botones que cambien algo.
+  `GET /api/board/{slug}` (el detalle, `?diff=1` para el diff).
+- **Acciones desde la tarjeta**: cada tarjeta muestra solo las acciones que
+  valen para su columna, y lo decide el binario (`actions`, `drops` y
+  `ghost` en `hoom board --json`), no la pagina. **Pedir al rol**
+  (arquitecto, test-writer, writer; el reviewer corre `hoom review`) abre un
+  dialogo con rol, provider (los instalados que reciben el contrato), modelo,
+  presupuesto en USD (propone lo que queda del presupuesto de la tarjeta; con
+  Codex avisa que no hay tope) y el pedido, y lanza el mismo sobre que
+  `hoom agent`. Mientras corre, un **fantasma** de la tarjeta aparece en la
+  columna siguiente con el paso del sobre; si el sobre cierra sin la
+  evidencia, el fantasma desaparece y la tarjeta dice por que. Arrastrar a la
+  columna siguiente abre el mismo dialogo, y soltar en otra dice por que no.
+  **Aprobar spec** (Tu aprobacion) firma con tu identidad git en el espacio de
+  trabajo de la tarjeta; **Integrar** (Tu aceptacion) es `hoom task done`.
+  **Reanudar** una tarjeta interrumpida abre un sobre NUEVO con `--resume` de
+  la sesion que guardo el sidecar (nunca revive el muerto), y **Volver a
+  lanzar** empieza de cero. **Guardar** es `hoom item save`. En modo experto:
+  **Descartar cambios** de un trabajo interrumpido (`hoom task discard`),
+  **Abrir sesion** (tu CLI interactiva en el espacio de trabajo con el tmux
+  de `hoom cockpit`, que anota en el item quien la abrio: el writer
+  DECLARADO que `hoom review` usa sin ascenderlo nunca a "cruzada") y **Ver
+  terminal**, el espejo de solo lectura de ese pane (`tmux capture-pane`).
+  El servidor se niega a lanzar si lo que queda del presupuesto no alcanza
+  el minimo del provider (Claude: 0.5 USD) o si ya hay un run activo en el
+  arbol de la tarjeta. Endpoints: `POST /api/board/{slug}/launch`,
+  `/save`, `/discard`, `/session` y `GET /api/board/{slug}/terminal`, mas
+  `POST /api/specs/{name}/approve` con `{"card": "<slug>"}` y
+  `POST /api/tasks/{slug}/done`. Ninguna ruta recibe una columna: la columna
+  sigue siendo una funcion de la evidencia, y un test lo afirma.
 - **Token de acciones**: toda accion (POST) exige el token que `serve`
   imprime UNA vez al arrancar. Solo lectura sin token; loopback por
   default; exponer con `--addr` es una decision consciente con advertencia.
@@ -512,8 +541,8 @@ de `hoom serve`, y las dos formas de mirar el harness conviven.
 - Curva del trinquete en el tablero: la curva de cada metrica (la seccion CLI
   de `hoom status` ya la tiene), junto a las tarjetas que ya pinta la pestaña
   Tablero.
-- Acciones desde la tarjeta: disparar verify, review o el run de un rol sin
-  salir del tablero, con el mismo sobre determinista que usa la CLI.
+- Escribir en la terminal de la tarjeta desde el navegador (hoy el espejo es
+  de solo lectura) y verificar de nuevo desde la tarjeta.
 - Timeline, replay y doctor: reconstruir un run paso a paso desde los .jsonl,
   con la correlacion tool_use/tool_result que marca cuando un subagente entra
   y sale de escena, y un doctor que explique por que un veredicto es rojo.

@@ -15,12 +15,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -304,19 +306,177 @@ type DiscardResult struct {
 // Discardable lists the uncommitted paths of the task's workspace outside
 // .hoom/ (relative to root): what Discard would take back.
 func Discardable(root, slug string) ([]string, error) {
-	return nil, fmt.Errorf("sin implementar") // esqueleto
+	local, _, err := discardable(root, slug)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(local))
+	for i, p := range local {
+		out[i] = taskRel(slug, p)
+	}
+	return out, nil
 }
+
+// ErrChanged: the paths a person saw are not the ones there are now.
+const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: revisalos de nuevo"
+
+// discardable lists, relative to the worktree, its uncommitted paths outside
+// .hoom/ — the same list the board shows — plus, apart, the origins of the
+// renames among them: they go back too, without being a path of their own.
+func discardable(root, slug string) ([]string, []string, error) {
+	wt := worktreeDir(root, slug)
+	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
+		return nil, nil, fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
+	}
+	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "-z")
+	cmd.Dir = wt
+	raw, err := cmd.Output()
+	if err != nil {
+		return nil, nil, fmt.Errorf("git status fallo en %s: %v", wt, err)
+	}
+	seen := map[string]bool{}
+	var out, origins []string
+	keep := func(p string) bool {
+		return p != "" && p != ".hoom" && !strings.HasPrefix(p, ".hoom/") && !seen[p]
+	}
+	fields := strings.Split(string(raw), "\x00")
+	for i := 0; i < len(fields); i++ {
+		f := fields[i]
+		if len(f) < 4 {
+			continue
+		}
+		if p := filepath.ToSlash(f[3:]); keep(p) {
+			seen[p] = true
+			out = append(out, p)
+		}
+		if f[0] == 'R' || f[0] == 'C' {
+			i++ // el origen del rename viaja en el campo siguiente, y vuelve tambien
+			if i < len(fields) && keep(filepath.ToSlash(fields[i])) && f[0] == 'R' {
+				origins = append(origins, filepath.ToSlash(fields[i]))
+			}
+		}
+	}
+	sort.Strings(out)
+	return out, origins, nil
+}
+
+func taskRel(slug, p string) string { return ".hoom/worktrees/" + slug + "/" + p }
 
 // Discard takes the task's workspace back to HEAD outside .hoom/: paths HEAD
 // has are restored, the others removed. A non-nil expect must equal
 // Discardable as a set. Evidence is never discarded.
 func Discard(root, slug string, expect []string) (DiscardResult, error) {
-	return DiscardResult{}, fmt.Errorf("sin implementar") // esqueleto
+	res := DiscardResult{Slug: slug, Restored: []string{}, Removed: []string{}}
+	local, origins, err := discardable(root, slug)
+	if err != nil {
+		return res, err
+	}
+	wt := worktreeDir(root, slug)
+	for _, meta := range runcmd.Metas(root) {
+		if meta.Status == runcmd.StatusRunning && meta.Dir == wt && (meta.PID == 0 || runcmd.Alive(meta.PID)) {
+			return res, fmt.Errorf("hay un run activo (%s) en el espacio de trabajo de la tarea %q: descartar ahora pisaria su trabajo. Accion: espera a que termine", meta.ID, slug)
+		}
+	}
+	if expect != nil {
+		now := make([]string, len(local))
+		for i, p := range local {
+			now[i] = taskRel(slug, p)
+		}
+		if !sameSet(expect, now) {
+			return res, fmt.Errorf("%s", ErrChanged)
+		}
+	}
+	var restore, remove []string
+	for _, p := range local {
+		if _, err := run(wt, "cat-file", "-e", "HEAD:"+p); err == nil {
+			restore = append(restore, p)
+		} else {
+			remove = append(remove, p)
+		}
+	}
+	if back := append(append([]string{}, restore...), origins...); len(back) > 0 {
+		if out, err := run(wt, append([]string{"restore", "--source=HEAD", "--staged", "--worktree", "--"}, back...)...); err != nil {
+			return res, fmt.Errorf("git restore fallo: %s", out)
+		}
+		for _, p := range restore {
+			res.Restored = append(res.Restored, taskRel(slug, p))
+		}
+	}
+	for _, p := range remove {
+		// lo que HEAD no tiene: fuera del indice (si estaba) y fuera del disco
+		run(wt, "rm", "-q", "--cached", "--ignore-unmatch", "--", p)
+		if err := os.Remove(filepath.Join(wt, filepath.FromSlash(p))); err != nil && !os.IsNotExist(err) {
+			return res, fmt.Errorf("no pude borrar %s: %v", p, err)
+		}
+		res.Removed = append(res.Removed, taskRel(slug, p))
+	}
+	return res, nil
+}
+
+func sameSet(a, b []string) bool {
+	x, y := append([]string{}, a...), append([]string{}, b...)
+	sort.Strings(x)
+	sort.Strings(y)
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // RunDiscard is `hoom task discard <slug> [--yes] [--json]`. Without yes it
 // lists what would be discarded and fails (exit 1) without touching
 // anything; with yes it discards and reports.
 func RunDiscard(root, slug string, yes, asJSON bool, w io.Writer) error {
-	return fmt.Errorf("sin implementar") // esqueleto
+	if !yes {
+		paths, err := Discardable(root, slug)
+		if err != nil {
+			return err
+		}
+		if len(paths) == 0 {
+			fmt.Fprintf(w, "hoom task discard: la tarea %s no tiene cambios que descartar\n", slug)
+			return nil
+		}
+		fmt.Fprintf(w, "hoom task discard: la tarea %s tiene %s sin guardar fuera de .hoom/:\n", slug, cambios(len(paths)))
+		for _, p := range paths {
+			fmt.Fprintf(w, "  %s\n", p)
+		}
+		fmt.Fprintln(w, "  Accion: repeti con --yes para descartarlos (no se puede deshacer)")
+		return fmt.Errorf("no se descarto nada: descartar no se puede deshacer, repeti con --yes")
+	}
+	res, err := Discard(root, slug, nil)
+	if err != nil {
+		return err
+	}
+	if asJSON {
+		raw, err := json.MarshalIndent(res, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(w, string(raw))
+		return nil
+	}
+	if len(res.Restored)+len(res.Removed) == 0 {
+		fmt.Fprintf(w, "hoom task discard: la tarea %s no tiene cambios que descartar\n", slug)
+		return nil
+	}
+	fmt.Fprintf(w, "hoom task discard: tarea %s: %d restaurada(s) como en HEAD, %d borrada(s)\n", slug, len(res.Restored), len(res.Removed))
+	for _, p := range res.Restored {
+		fmt.Fprintf(w, "  restaurada %s\n", p)
+	}
+	for _, p := range res.Removed {
+		fmt.Fprintf(w, "  borrada    %s\n", p)
+	}
+	return nil
+}
+
+func cambios(n int) string {
+	if n == 1 {
+		return "1 cambio"
+	}
+	return fmt.Sprintf("%d cambios", n)
 }

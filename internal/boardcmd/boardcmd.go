@@ -212,11 +212,6 @@ type Ghost struct {
 	Steps      int    `json:"steps"`
 }
 
-// Action returns the card's action with that id, if it has it.
-func (c Card) Action(id string) (Action, bool) {
-	return Action{}, false // esqueleto
-}
-
 // Segment states: a segment fills only with a fact that exists and holds.
 const (
 	SegHecho    = "hecho"

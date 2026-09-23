@@ -14,6 +14,7 @@ package reviewcmd
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,8 +22,10 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -189,7 +192,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{}}
+	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{},
+		WritersDeclared: declaredWriters(root, taskOf(opt))}
 
 	fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas contra %s\n",
 		plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
@@ -205,28 +209,43 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return res, err
 	}
 
-	// cruzada: quien escribio sale del meta del run, no de la memoria de nadie
+	// cruzada: quien escribio sale del meta del run, no de la memoria de nadie.
+	// Las sesiones interactivas que declara el item suman writers DECLARADOS:
+	// pueden volver una review no cruzada, nunca cruzada.
 	writer, hayWriter := writerOf(root, dir)
 	if hayWriter {
 		res.Writer = writer.Provider
 	}
-	prov, err := pickProvider(opt.Provider, res.Writer)
+	evitar := append([]string{}, res.WritersDeclared...)
+	if res.Writer != "" {
+		evitar = append(evitar, res.Writer)
+	}
+	prov, err := pickProvider(opt.Provider, evitar)
 	if err != nil {
 		return res, err
 	}
 	res.Provider = prov.Name()
+	declarado := contains(res.WritersDeclared, prov.Name())
 	switch {
-	case !hayWriter:
-		res.Cross = CrossUnknown
-		fmt.Fprintf(w, "  reviewer    %s - cruzada DESCONOCIDA (no hay run previo registrado en este arbol)\n", prov.Name())
-	case writer.Provider == prov.Name():
+	case hayWriter && writer.Provider == prov.Name():
 		res.Cross = CrossNo
 		fmt.Fprintf(w, "  reviewer    %s - NO seria cruzada: el writer corrio en %s (run %s)\n",
 			prov.Name(), writer.Provider, writer.ID)
-	default:
+	case declarado:
+		res.Cross = CrossNo
+		fmt.Fprintf(w, "  reviewer    %s - NO seria cruzada: la tarea declara una sesion interactiva de %s (writer declarado)\n",
+			prov.Name(), prov.Name())
+	case hayWriter:
 		res.Cross = CrossYes
 		fmt.Fprintf(w, "  reviewer    %s - cruzada SI (el writer corrio en %s, run %s)\n",
 			prov.Name(), writer.Provider, writer.ID)
+	case len(res.WritersDeclared) > 0:
+		res.Cross = CrossDeclared
+		fmt.Fprintf(w, "  reviewer    %s - cruzada DECLARADA: ningun run registro al writer; la tarea declara sesiones de %s\n",
+			prov.Name(), strings.Join(res.WritersDeclared, ", "))
+	default:
+		res.Cross = CrossUnknown
+		fmt.Fprintf(w, "  reviewer    %s - cruzada DESCONOCIDA (no hay run previo registrado en este arbol)\n", prov.Name())
 	}
 	if res.Cross == CrossNo && !opt.SameProvider {
 		fmt.Fprintf(w, "  el mismo modelo que escribio no puede ser el que revisa: elegi otro provider\n"+
@@ -242,11 +261,41 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	pol := agentcmd.PolicyFor(m, role)
 	mgr := runcmd.NewManager(root)
 
+	// El registro del sobre de la review: lo mismo que deja `hoom agent`, asi
+	// el tablero ve la review en curso, cortada o fallida como a cualquier
+	// rol. Nace ANTES de la primera pasada: lo que se decidio antes (sin
+	// lentes, no cruzada) no corrio nada y no deja registro.
+	id := strings.TrimSpace(opt.EnvelopeID)
+	if id == "" {
+		id = envelope.NewID()
+	}
+	rec := envelope.Record{
+		ID: id, Role: role.Slug, Provider: prov.Name(), Task: taskOf(opt), Dir: dir, Spec: opt.Spec,
+		Stage: "run", Step: 1, Steps: len(lentes), Status: envelope.StatusRunning, ExitCode: -1,
+		StartedAt: time.Now().UTC(), PID: os.Getpid(),
+	}
+	envelope.Write(root, rec)
+	if opt.Started != nil {
+		opt.Started()
+	}
+	cerrar := func(res Result, stage string, code int, note string) Result {
+		rec.Stage, rec.ExitCode, rec.Note = stage, code, note
+		rec.Status = envelope.StatusDeliverable
+		if code != 0 {
+			rec.Status = envelope.StatusNotDeliverable
+		}
+		rec.EndedAt = time.Now().UTC()
+		envelope.Write(root, rec)
+		return res
+	}
+
 	for i, lens := range lentes {
 		fmt.Fprintf(w, "  [%d/%d] %s\n", i+1, len(lentes), lens)
 		pass := Pass{Lens: lens, Findings: []string{}}
 		before := agentcmd.Take(dir, base)
 		antes := idsDeHallazgos(dir, base)
+		rec.Stage, rec.Step, rec.RunID = "run", i+1, ""
+		envelope.Write(root, rec)
 
 		info, err := mgr.Start(runcmd.StartOptions{
 			Provider: prov.Name(), Prompt: pedido(base, lens, git, opt.Spec, v, role, prov.Name()),
@@ -255,9 +304,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
 		})
 		if err != nil {
+			cerrar(res, "run", 1, err.Error())
 			return res, err
 		}
 		pass.RunID = info.ID
+		rec.RunID = info.ID
+		envelope.Write(root, rec)
 		fmt.Fprintf(w, "    run       %s - narracion en .hoom/runs/%s.jsonl\n", info.ID, info.ID)
 		st := stream(mgr, info.ID, w)
 		pass.RunStatus, pass.SessionID = st.Status, st.ProviderSessionID
@@ -265,7 +317,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 			fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
 			res.Passes = append(res.Passes, pass)
-			return finish(w, res, "no-entregable", 1, "el run del reviewer fallo"), nil
+			return cerrar(finish(w, res, "no-entregable", 1, "el run del reviewer fallo"), "run", 1, "el run del reviewer fallo"), nil
 		}
 
 		// Los hallazgos del reviewer se cuentan ANTES de que hoom escriba los
@@ -277,25 +329,50 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		res.Passes = append(res.Passes, pass)
 		res.Findings = append(res.Findings, pass.Findings...)
 		if !pass.Scope.OK {
-			return finish(w, res, "no-entregable", 1, "el reviewer escribio fuera de su territorio"), nil
+			return cerrar(finish(w, res, "no-entregable", 1, "el reviewer escribio fuera de su territorio"),
+				"scope", 1, "el reviewer escribio fuera de su territorio"), nil
 		}
 	}
 	// The trace of the review, clean or not: without it a review that found
 	// nothing would leave nothing on disk, and the board could not tell it
 	// from a review that never happened.
-	rec, err := WriteRecord(dir, Record{
+	registro, err := WriteRecord(dir, Record{
 		Task: taskOf(opt), Spec: opt.Spec, Fingerprint: git.ChangeFingerprint,
 		VerdictID: verdictID(v), Verdict: verdictColor(v),
 		Lenses: append([]string(nil), lentes...), Provider: res.Provider, Writer: res.Writer,
 		Cross: res.Cross, Findings: append([]string{}, res.Findings...),
+		WritersDeclared: append([]string{}, res.WritersDeclared...),
 	})
 	if err != nil {
 		fmt.Fprintf(w, "  aviso: no pude escribir el registro de review: %v\n", err)
 	} else {
-		res.RecordID = rec.ID
-		fmt.Fprintf(w, "  registro    .hoom/%s/%s.json (commitealo: es el rastro de esta review)\n", RecordsDir, rec.ID)
+		res.RecordID = registro.ID
+		fmt.Fprintf(w, "  registro    .hoom/%s/%s.json (commitealo: es el rastro de esta review)\n", RecordsDir, registro.ID)
 	}
-	return finish(w, res, "revisado", 0, ""), nil
+	return cerrar(finish(w, res, "revisado", 0, ""), "ok", 0, ""), nil
+}
+
+// declaredWriters are the providers of the interactive sessions the task's
+// item declares in root: distinct and sorted. A missing or unreadable item
+// declares none.
+func declaredWriters(root, task string) []string {
+	out := []string{}
+	if strings.TrimSpace(task) == "" || !item.ValidSlug(task) {
+		return out
+	}
+	it, err := item.Load(root, task)
+	if err != nil {
+		return out
+	}
+	seen := map[string]bool{}
+	for _, s := range it.Sesiones {
+		if !seen[s.Provider] {
+			seen[s.Provider] = true
+			out = append(out, s.Provider)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // taskOf is the task a review belongs to: --task, or the task of its spec.
@@ -346,7 +423,7 @@ func writerOf(root, dir string) (runcmd.Meta, bool) {
 // the review is cross by construction. When the only candidate is the
 // writer's own, it comes back anyway: refusing is the caller's decision, and
 // it says so out loud.
-func pickProvider(name, writer string) (providers.Provider, error) {
+func pickProvider(name string, writers []string) (providers.Provider, error) {
 	if n := strings.TrimSpace(name); n != "" {
 		p, err := providers.Lookup(n)
 		if err != nil {
@@ -366,7 +443,7 @@ func pickProvider(name, writer string) (providers.Provider, error) {
 		if err != nil {
 			continue
 		}
-		if info.Name != writer {
+		if !contains(writers, info.Name) {
 			return p, nil
 		}
 		if mismo == nil {
