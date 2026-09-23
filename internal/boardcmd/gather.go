@@ -2,6 +2,7 @@ package boardcmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -54,14 +55,24 @@ func Build(root, base, blockOn string, now time.Time) (Board, error) {
 
 // CardFor derives the card of one item.
 func CardFor(root, base, blockOn, slug string, now time.Time) (Card, error) {
-	it, err := item.Load(root, slug)
-	if os.IsNotExist(err) {
-		return Card{}, fmt.Errorf("no existe el item %q (%s). Accion: crealo con 'hoom item add \"<titulo>\" --slug %s'", slug, item.RelPath(slug), slug)
-	}
+	it, err := loadItem(root, slug)
 	if err != nil {
-		return Card{}, fmt.Errorf("el item %s es invalido: %v", item.RelPath(slug), err)
+		return Card{}, err
 	}
 	return Derive(Gather(root, base, blockOn, it, now)), nil
+}
+
+// loadItem is how the board says an item cannot be shown: one message for
+// the terminal and the Studio.
+func loadItem(root, slug string) (item.Item, error) {
+	it, err := item.Load(root, slug)
+	if os.IsNotExist(err) {
+		return item.Item{}, fmt.Errorf("no existe el item %q (%s). Accion: crealo con 'hoom item add \"<titulo>\" --slug %s'", slug, item.RelPath(slug), slug)
+	}
+	if err != nil {
+		return item.Item{}, fmt.Errorf("el item %s es invalido: %v", item.RelPath(slug), err)
+	}
+	return it, nil
 }
 
 // gatherer reads each evidence tree ONCE: every card of the current tree
@@ -82,6 +93,8 @@ type tree struct {
 	reviews     []reviewcmd.Record
 	status      []string // uncommitted paths, relative to dir
 	fingerprint string
+	tokens      spec.TokenIndex
+	tokensErr   error
 	read        map[string]bool
 }
 
@@ -126,12 +139,26 @@ func (t *tree) uncommitted() []string {
 	return t.status
 }
 
+// tokenIndex is ONE pass over the tree's test files, shared by every card of
+// the tree: the board is recomputed every second while the Studio shows it.
+func (t *tree) tokenIndex() (spec.TokenIndex, error) {
+	t.once("tokens", func() { t.tokens, t.tokensErr = spec.IndexTokens(t.dir) })
+	return t.tokens, t.tokensErr
+}
+
 func (t *tree) currentFingerprint(base string) string {
 	t.once("fingerprint", func() { t.fingerprint = gitx.Snapshot(t.dir, base).ChangeFingerprint })
 	return t.fingerprint
 }
 
 func (g *gatherer) gather(it item.Item) Evidence {
+	ev, _, _ := g.gatherIn(it)
+	return ev
+}
+
+// gatherIn is gather plus where it read: the evidence directory and its tree,
+// which the detail needs to read the rest of the card.
+func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	s := it.Slug
 	ev := Evidence{Item: it, Now: g.now, Source: SourceArbol, Dir: ".",
 		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn}
@@ -163,11 +190,15 @@ func (g *gatherer) gather(it item.Item) Evidence {
 			for _, id := range ids {
 				if len(cmds[id]) == 0 {
 					needTest = append(needTest, id)
+				} else {
+					ev.ByCommand = append(ev.ByCommand, id)
 				}
 			}
-			missing, _, terr := spec.Tokens(dir, needTest)
-			if terr != nil {
-				missing = needTest // sin poder leer los tests, nada esta trazado
+			missing := needTest // sin poder leer los tests, nada esta trazado
+			if len(needTest) > 0 {
+				if idx, terr := t.tokenIndex(); terr == nil {
+					missing = idx.Missing(needTest)
+				}
 			}
 			ev.Untraced = missing
 		}
@@ -217,11 +248,15 @@ func (g *gatherer) gather(it item.Item) Evidence {
 	if ev.Worktree {
 		if err := taskcmd.Ready(g.root, s, g.base); err != nil {
 			ev.ReadyErr = err.Error()
+			var re *taskcmd.ReadyError
+			if errors.As(err, &re) {
+				ev.ReadyKind = re.Kind
+			}
 		}
 	}
 	ev.Uncommitted = g.uncommitted(ev, t, dir, cardVerdicts, cardFindings)
 	ev.Envelopes, ev.Runs = g.telemetry(s, dir)
-	return ev
+	return ev, dir, t
 }
 
 // uncommitted lists the card's evidence that is not in Git yet, relative to

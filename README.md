@@ -422,6 +422,22 @@ Que trae:
   mandar review al arquitecto), tareas paralelas e intake de documentos del
   cliente. El chip del check (VERDE/ROJO) vive fijo en el header: el teatro
   nunca oculta el veredicto.
+- **Tablero (cabina de solo lectura)**: la pestaña Tablero pinta las ocho
+  columnas de `hoom board` (las dos humanas en morado) con sus tarjetas: el
+  medidor de evidencia (spec aprobado, un segmento por criterio con test,
+  build, static, test y review, que solo se llenan con hechos vigentes), el
+  trabajo en curso con su paso, interrumpido, esperando humano, rojo con su
+  motivo en una frase, sin sincronizar, el gasto contra el presupuesto y la
+  CLI que escribio y la que reviso. Clic en una tarjeta abre su detalle: Que
+  (el spec y sus criterios), Quien (sobres y runs, y En vivo con el Escenario
+  y el Feed del run activo) y Pruebas (veredicto, traza por criterio y
+  hallazgos). El modo normal habla sin git ("espacio de trabajo",
+  "integrar", "guardar"); el experto suma diff `base...HEAD` del worktree,
+  rutas, huellas e ids, y se recuerda en el navegador. El filtro "Necesitan
+  tu decision" deja las columnas moradas y las interrumpidas. Lee
+  `GET /api/board` (los mismos bytes que `hoom board --json`) y
+  `GET /api/board/{slug}` (el detalle, `?diff=1` para el diff), y no escribe
+  nada: no hay arrastre ni botones que cambien algo.
 - **Token de acciones**: toda accion (POST) exige el token que `serve`
   imprime UNA vez al arrancar. Solo lectura sin token; loopback por
   default; exponer con `--addr` es una decision consciente con advertencia.
@@ -493,9 +509,9 @@ de `hoom serve`, y las dos formas de mirar el harness conviven.
 
 ### Cabina visual (Studio v5)
 
-- Tablero de solo lectura: los items, sus columnas y la curva de cada metrica
-  del trinquete (la seccion CLI de `hoom status` ya la tiene) en una vista que
-  no puede romper nada porque no escribe nada.
+- Curva del trinquete en el tablero: la curva de cada metrica (la seccion CLI
+  de `hoom status` ya la tiene), junto a las tarjetas que ya pinta la pestaña
+  Tablero.
 - Acciones desde la tarjeta: disparar verify, review o el run de un rol sin
   salir del tablero, con el mismo sobre determinista que usa la CLI.
 - Timeline, replay y doctor: reconstruir un run paso a paso desde los .jsonl,
