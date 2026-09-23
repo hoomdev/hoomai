@@ -17,6 +17,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/live"
+	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/spec"
@@ -83,6 +84,8 @@ type gatherer struct {
 	trees               map[string]*tree
 	envelopes           map[string][]envelope.Record
 	metas               map[string][]runcmd.Meta
+	providers           []providers.Info // detected once per Build
+	detected            bool
 }
 
 // tree is what one evidence directory holds, read lazily.
@@ -95,6 +98,7 @@ type tree struct {
 	fingerprint string
 	tokens      spec.TokenIndex
 	tokensErr   error
+	signer      string
 	read        map[string]bool
 }
 
@@ -144,6 +148,21 @@ func (t *tree) uncommitted() []string {
 func (t *tree) tokenIndex() (spec.TokenIndex, error) {
 	t.once("tokens", func() { t.tokens, t.tokensErr = spec.IndexTokens(t.dir) })
 	return t.tokens, t.tokensErr
+}
+
+// identity is who an approval signed in this tree would name.
+func (t *tree) identity() string {
+	t.once("signer", func() { t.signer = gitx.Identity(t.dir) })
+	return t.signer
+}
+
+// installed is what the providers of this machine can do, detected once.
+func (g *gatherer) installed() []providers.Info {
+	if !g.detected {
+		g.detected = true
+		g.providers = providers.Detect()
+	}
+	return g.providers
 }
 
 func (t *tree) currentFingerprint(base string) string {
@@ -256,6 +275,8 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 	ev.Uncommitted = g.uncommitted(ev, t, dir, cardVerdicts, cardFindings)
 	ev.Envelopes, ev.Runs = g.telemetry(s, dir)
+	ev.Providers = g.installed()
+	ev.Signer = t.identity()
 	return ev, dir, t
 }
 
@@ -344,6 +365,11 @@ func (g *gatherer) telemetry(slug, dir string) ([]EnvelopeState, []RunState) {
 func (g *gatherer) envelopeAlive(rec envelope.Record, metas map[string]runcmd.Meta) bool {
 	if rec.Done() {
 		return false
+	}
+	// brecha 4: con el PID del dueno, vivir es un hecho y no una inferencia
+	// por silencio
+	if rec.PID > 0 {
+		return runcmd.Alive(rec.PID)
 	}
 	if m, ok := metas[rec.RunID]; ok && rec.RunID != "" && m.Status == runcmd.StatusRunning && m.PID > 0 {
 		return runcmd.Alive(m.PID)

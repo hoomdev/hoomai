@@ -70,9 +70,11 @@ Comandos:
   serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
               (done registra hecho_en y commit_final en el item de la tarea)
+              | discard <slug> [--yes]: vuelve a HEAD lo sin guardar fuera de .hoom/
   item        La tarjeta como archivo (.hoom/items/<slug>.yaml, viaja en git):
               add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x]
-              [--pedido "..."] [--slug s] | list | show <slug>   [--json]
+              [--pedido "..."] [--slug s] | list | show <slug>
+              | save <slug> (commitea lo que la tarjeta tiene sin guardar)   [--json]
   board       El tablero: la columna de cada item sale de su evidencia
               (spec, aprobacion, tests, veredicto, review, cierre); nadie la
               escribe y nada se guarda [--json]
@@ -142,7 +144,8 @@ Flags de status:
 Flags de cockpit:
   --provider <p>       CLI de IA a lanzar (claude|opencode|codex|gemini);
                        omitido: se usa la unica instalada, jamas se adivina
-  --task <slug>        Monta el cockpit dentro del worktree de esa tarea
+  --task <slug>        Monta el cockpit dentro del worktree de esa tarea (con tmux,
+                       crear la sesion la registra en el item: writer declarado)
   --mux tmux|zellij    Fuerza el multiplexor (default: tmux, luego zellij)
 
 Flags de run (lo que el provider no soporta se ignora CON aviso en el log;
@@ -888,7 +891,7 @@ func cmdSpec(args []string) error {
 
 func cmdTask(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("uso: hoom task start <slug> | hoom task list | hoom task done <slug> [--force]")
+		return fmt.Errorf("uso: hoom task start <slug> | hoom task list | hoom task done <slug> [--force] | hoom task discard <slug> [--yes] [--json]")
 	}
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
@@ -924,8 +927,24 @@ func cmdTask(args []string) error {
 			}
 		}
 		return taskcmd.Done(m.Dir, rest[0], m.BaseBranch, force)
+	case "discard":
+		if len(rest) < 1 || strings.HasPrefix(rest[0], "-") {
+			return fmt.Errorf("uso: hoom task discard <slug> [--yes] [--json]")
+		}
+		yes, asJSON := false, false
+		for _, a := range rest[1:] {
+			switch a {
+			case "--yes", "-yes":
+				yes = true
+			case "--json", "-json":
+				asJSON = true
+			default:
+				return fmt.Errorf("flag desconocido %q (uso: hoom task discard <slug> [--yes] [--json])", a)
+			}
+		}
+		return taskcmd.RunDiscard(m.Dir, rest[0], yes, asJSON, os.Stdout)
 	default:
-		return fmt.Errorf("subcomando desconocido %q (start|list|done)", sub)
+		return fmt.Errorf("subcomando desconocido %q (start|list|done|discard)", sub)
 	}
 }
 

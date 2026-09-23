@@ -14,7 +14,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -34,7 +36,10 @@ type Deps struct {
 	// QuietCmd runs a probe discarding output (e.g. tmux has-session).
 	QuietCmd func(dir, name string, args ...string) error
 	Getenv   func(key string) string
-	HoomBin  string // absolute path of the RUNNING hoom binary (CA-88)
+	// Output runs a probe and returns its stdout (tmux list-panes,
+	// capture-pane): the terminal mirror reads through it.
+	Output  func(dir, name string, args ...string) ([]byte, error)
+	HoomBin string // absolute path of the RUNNING hoom binary (CA-88)
 }
 
 // DefaultDeps wires the real process boundary.
@@ -56,6 +61,11 @@ func DefaultDeps() Deps {
 			cmd.Dir = dir
 			return cmd.Run()
 		},
+		Output: func(dir, name string, args ...string) ([]byte, error) {
+			cmd := exec.Command(name, args...)
+			cmd.Dir = dir
+			return cmd.Output()
+		},
 		Getenv:  os.Getenv,
 		HoomBin: bin,
 	}
@@ -69,30 +79,50 @@ func slugify(s string) string {
 }
 
 // Run assembles and attaches the cockpit for the project rooted at root.
+// With tmux it is Open plus the attach; zellij composes and attaches in one
+// command, so it does not go through Open.
 func Run(root, project string, opt Options, deps Deps) error {
 	mux, err := resolveMux(opt.Mux, deps)
 	if err != nil {
 		return err
 	}
-	bin, err := resolveProvider(opt.Provider, deps)
+	if mux == "zellij" {
+		_, bin, err := resolveProvider(opt.Provider, deps)
+		if err != nil {
+			return err
+		}
+		dir, session, _, err := placeOf(root, project, opt.Task)
+		if err != nil {
+			return err
+		}
+		return runZellij(root, dir, session, bin, deps)
+	}
+	s, err := Open(root, project, Options{Provider: opt.Provider, Task: opt.Task, Mux: "tmux"}, deps)
 	if err != nil {
 		return err
 	}
+	dir, _, _, err := placeOf(root, project, opt.Task)
+	if err != nil {
+		return err
+	}
+	if deps.Getenv("TMUX") != "" {
+		return deps.RunCmd(dir, "tmux", "switch-client", "-t", s.Name)
+	}
+	return deps.RunCmd(dir, "tmux", "attach-session", "-t", s.Name)
+}
 
-	dir, session := root, "hoom-"+slugify(project)
-	if opt.Task != "" {
-		wt := filepath.Join(root, ".hoom", "worktrees", opt.Task)
+// placeOf is where the cockpit of a project (or of one of its tasks) lives:
+// its directory, its session name and the directory relative to root.
+func placeOf(root, project, task string) (dir, session, rel string, err error) {
+	dir, rel = root, "."
+	if task != "" {
+		wt := filepath.Join(root, ".hoom", "worktrees", task)
 		if st, err := os.Stat(wt); err != nil || !st.IsDir() {
-			return fmt.Errorf("la tarea %q no existe. Accion: crea su worktree con 'hoom task start %s'", opt.Task, opt.Task)
+			return "", "", "", fmt.Errorf("la tarea %q no existe. Accion: crea su worktree con 'hoom task start %s'", task, task)
 		}
-		dir = wt
-		session += "-" + slugify(opt.Task)
+		dir, rel = wt, ".hoom/worktrees/"+task
 	}
-
-	if mux == "zellij" {
-		return runZellij(root, dir, session, bin, deps)
-	}
-	return runTmux(dir, session, bin, deps)
+	return dir, SessionName(project, task), rel, nil
 }
 
 // resolveMux picks the multiplexer: an explicit --mux that cannot be honored
@@ -117,9 +147,9 @@ func resolveMux(mux string, deps Deps) (string, error) {
 	}
 }
 
-// resolveProvider returns the AI CLI binary to launch. Without --provider,
-// exactly one installed CLI decides; zero or several NEVER guess.
-func resolveProvider(name string, deps Deps) (string, error) {
+// resolveProvider returns the AI CLI to launch, by name and binary. Without
+// --provider, exactly one installed CLI decides; zero or several NEVER guess.
+func resolveProvider(name string, deps Deps) (string, string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		var installed []string
@@ -130,41 +160,39 @@ func resolveProvider(name string, deps Deps) (string, error) {
 		}
 		switch len(installed) {
 		case 0:
-			return "", fmt.Errorf("ninguna CLI de IA instalada (mira 'hoom providers').\n  Accion: instala una, o abre tu herramienta a mano junto a 'hoom status --watch'")
+			return "", "", fmt.Errorf("ninguna CLI de IA instalada (mira 'hoom providers').\n  Accion: instala una, o abre tu herramienta a mano junto a 'hoom status --watch'")
 		case 1:
 			name = installed[0]
 		default:
-			return "", fmt.Errorf("varias CLIs instaladas (%s): elegi una con --provider", strings.Join(installed, ", "))
+			return "", "", fmt.Errorf("varias CLIs instaladas (%s): elegi una con --provider", strings.Join(installed, ", "))
 		}
 	}
 	p, err := providers.Lookup(name)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if _, err := deps.LookPath(p.Bin()); err != nil {
-		return "", fmt.Errorf("el provider %q no esta instalado (no se encontro %q en PATH); instala su CLI primero", name, p.Bin())
+		return "", "", fmt.Errorf("el provider %q no esta instalado (no se encontro %q en PATH); instala su CLI primero", name, p.Bin())
 	}
-	return p.Bin(), nil
+	return p.Name(), p.Bin(), nil
 }
 
-// runTmux composes (or re-attaches) the tmux session: AI pane ~70%, watch
-// pane beside it, both rooted at dir. Idempotent by session name.
-func runTmux(dir, session, aiBin string, deps Deps) error {
-	exists := deps.QuietCmd(dir, "tmux", "has-session", "-t", session) == nil
-	if !exists {
-		if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
-			return err
-		}
-		if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {
-			return err
-		}
-		// foco inicial en el pane de la IA; cosmetico, jamas fatal
-		_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", session, "-L")
+// composeTmux composes the tmux session if it does not exist yet: AI pane
+// ~70%, watch pane beside it, both rooted at dir. Idempotent by session name;
+// it reports whether it created the session. It never attaches.
+func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
+	if deps.QuietCmd(dir, "tmux", "has-session", "-t", session) == nil {
+		return false, nil
 	}
-	if deps.Getenv("TMUX") != "" {
-		return deps.RunCmd(dir, "tmux", "switch-client", "-t", session)
+	if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
+		return false, err
 	}
-	return deps.RunCmd(dir, "tmux", "attach-session", "-t", session)
+	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {
+		return true, err
+	}
+	// foco inicial en el pane de la IA; cosmetico, jamas fatal
+	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", session, "-L")
+	return true, nil
 }
 
 // runZellij writes the KDL layout under .hoom/cache/ (the only place the
@@ -199,4 +227,101 @@ func kdlLayout(aiBin, hoomBin, dir string) string {
     }
 }
 `, aiBin, dir, hoomBin, dir)
+}
+
+// TerminalMaxBytes caps the text of the terminal mirror.
+const TerminalMaxBytes = 256 << 10
+
+// Session is the cockpit session Open composed or found.
+type Session struct {
+	Name     string `json:"session"`
+	Created  bool   `json:"created"`
+	Provider string `json:"provider"`
+	Dir      string `json:"dir"`    // relative to root ("." = the project)
+	Attach   string `json:"attach"` // the command a person runs to attach
+}
+
+// Terminal is the read-only mirror of the AI pane of a card's session.
+type Terminal struct {
+	Available bool   `json:"available"`
+	Session   string `json:"session"`
+	Pane      string `json:"pane"`
+	Text      string `json:"text"`
+	Note      string `json:"note"`
+}
+
+// SessionName is the cockpit session of a project, or of one of its tasks.
+func SessionName(project, task string) string {
+	name := "hoom-" + slugify(project)
+	if task != "" {
+		name += "-" + slugify(task)
+	}
+	return name
+}
+
+// Open composes the tmux cockpit (the plan of Run) WITHOUT attaching, and
+// says whether it created the session or found it. Creating the session of
+// a task that has an item in root appends the session to the item.
+func Open(root, project string, opt Options, deps Deps) (Session, error) {
+	if opt.Mux != "" && opt.Mux != "tmux" {
+		return Session{}, fmt.Errorf("--mux %s: abrir la sesion sin adjuntarse usa tmux; con %s usa 'hoom cockpit --mux %s' desde una terminal", opt.Mux, opt.Mux, opt.Mux)
+	}
+	if _, err := deps.LookPath("tmux"); err != nil {
+		return Session{}, fmt.Errorf("no se encontro tmux en PATH.\n  Accion: instala tmux (ej. brew install tmux) o abre una segunda terminal con 'hoom status --watch'")
+	}
+	name, bin, err := resolveProvider(opt.Provider, deps)
+	if err != nil {
+		return Session{}, err
+	}
+	dir, session, rel, err := placeOf(root, project, opt.Task)
+	if err != nil {
+		return Session{}, err
+	}
+	created, err := composeTmux(dir, session, bin, deps)
+	s := Session{Name: session, Created: created, Provider: name, Dir: rel, Attach: "tmux attach -t " + session}
+	if err != nil {
+		return s, err
+	}
+	// El writer DECLARADO: quien abre una sesion interactiva en la tarea lo
+	// deja dicho en su item. Solo al crearla: reabrir no es otra sesion.
+	if created && opt.Task != "" {
+		if _, err := item.AddSession(root, opt.Task, name, time.Now()); err != nil {
+			return s, fmt.Errorf("la sesion %s quedo abierta pero no pude registrarla en %s: %v", session, item.RelPath(opt.Task), err)
+		}
+	}
+	return s, nil
+}
+
+// Capture reads the AI pane of the card's session: what tmux already
+// painted, colors included. It never writes and never sends keys.
+func Capture(root, project, slug string, deps Deps) (Terminal, error) {
+	t := Terminal{Session: SessionName(project, slug)}
+	if _, err := deps.LookPath("tmux"); err != nil {
+		t.Note = "tmux no esta instalado"
+		return t, nil
+	}
+	if deps.QuietCmd(root, "tmux", "has-session", "-t", "="+t.Session) != nil {
+		t.Note = "no hay una sesion abierta para esta tarjeta"
+		return t, nil
+	}
+	out, err := deps.Output(root, "tmux", "list-panes", "-t", "="+t.Session, "-F", "#{pane_id}")
+	if err != nil {
+		t.Note = "no hay una sesion abierta para esta tarjeta"
+		return t, nil
+	}
+	panes := strings.Fields(string(out))
+	if len(panes) == 0 {
+		t.Note = "no hay una sesion abierta para esta tarjeta"
+		return t, nil
+	}
+	t.Pane = panes[0] // el del CLI de la IA: el cockpit lo crea primero
+	text, err := deps.Output(root, "tmux", "capture-pane", "-p", "-e", "-t", t.Pane)
+	if err != nil {
+		return t, fmt.Errorf("tmux capture-pane fallo: %v", err)
+	}
+	if len(text) > TerminalMaxBytes {
+		text = text[:TerminalMaxBytes]
+	}
+	t.Text, t.Available = string(text), true
+	return t, nil
 }

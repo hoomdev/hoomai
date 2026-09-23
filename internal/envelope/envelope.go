@@ -70,7 +70,11 @@ type Record struct {
 	Note      string    `json:"note,omitempty"`
 	StartedAt time.Time `json:"started_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	EndedAt   time.Time `json:"ended_at,omitempty"`
+	// PID is the process that owns the envelope (brecha 4 of the cabin RFC):
+	// with it, "interrupted" is a fact the moment that process dies instead
+	// of an inference from a silent heartbeat. 0 in records of older hoom.
+	PID     int       `json:"pid,omitempty"`
+	EndedAt time.Time `json:"ended_at,omitempty"`
 }
 
 // Done reports a record that reached an end. Anything else is still "en

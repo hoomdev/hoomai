@@ -29,21 +29,39 @@ func tbUI(t *testing.T) (html, js string) {
 	return string(raw), string(rawJS)
 }
 
-// CA-319: index.html tiene las pestañas Cockpit y Tablero, define --human y
-// carga tablero.js despues de su script; GET /tablero.js lo sirve embebido.
+// CA-319 (re-expresado por acciones-desde-la-tarjeta, C3): index.html tiene
+// las pestañas Cockpit y Tablero, define --human, carga tablero.js despues
+// de su script y acciones.js despues de tablero.js; GET /tablero.js y GET
+// /acciones.js los sirven embebidos.
 func TestCA319_PestanasYTableroJSEmbebido(t *testing.T) {
 	html, js := tbUI(t)
 	tbRevisarPestanas(t, html)
 
-	rec := serveGET(t, newProject(t), "/tablero.js")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("CA-319: GET /tablero.js responde 200, respondio %d", rec.Code)
+	rawAcc, err := fs.ReadFile(uiFS, "ui/acciones.js")
+	if err != nil {
+		t.Fatalf("CA-319: las acciones de la tarjeta viven en ui/acciones.js, embebido en el binario: %v", err)
 	}
-	if !strings.Contains(rec.Header().Get("Content-Type"), "javascript") {
-		t.Fatalf("CA-319: /tablero.js se sirve como javascript: %q", rec.Header().Get("Content-Type"))
+	const cargaTablero, cargaAcciones = `<script src="tablero.js"></script>`, `<script src="acciones.js"></script>`
+	i, k := strings.Index(html, cargaTablero), strings.Index(html, cargaAcciones)
+	if k < 0 {
+		t.Fatalf("CA-319: index.html carga %s", cargaAcciones)
 	}
-	if rec.Body.String() != js {
-		t.Fatal("CA-319: /tablero.js es el archivo embebido")
+	if strings.Count(html, cargaAcciones) != 1 || k < i {
+		t.Fatal("CA-319: index.html carga acciones.js una vez y DESPUES de tablero.js")
+	}
+
+	dir := newProject(t)
+	for _, f := range []struct{ path, cuerpo string }{{"/tablero.js", js}, {"/acciones.js", string(rawAcc)}} {
+		rec := serveGET(t, dir, f.path)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("CA-319: GET %s responde 200, respondio %d", f.path, rec.Code)
+		}
+		if !strings.Contains(rec.Header().Get("Content-Type"), "javascript") {
+			t.Fatalf("CA-319: %s se sirve como javascript: %q", f.path, rec.Header().Get("Content-Type"))
+		}
+		if rec.Body.String() != f.cuerpo {
+			t.Fatalf("CA-319: %s es el archivo embebido", f.path)
+		}
 	}
 }
 
@@ -68,11 +86,17 @@ func tbRevisarPestanas(t *testing.T, html string) {
 	}
 }
 
-// CA-319: el test de UI sin assets de red (CA-10) pasa sobre los dos
-// archivos: ninguna referencia externa en index.html ni en tablero.js.
+// CA-319 (re-expresado por acciones-desde-la-tarjeta, C3): el test de UI sin
+// assets de red (CA-10) pasa sobre los tres archivos: ninguna referencia
+// externa en index.html, tablero.js ni acciones.js; y la UI embebida son
+// exactamente esos tres.
 func TestCA319_SinAssetsDeRed(t *testing.T) {
 	html, js := tbUI(t)
-	for nombre, src := range map[string]string{"index.html": html, "tablero.js": js} {
+	rawAcc, err := fs.ReadFile(uiFS, "ui/acciones.js")
+	if err != nil {
+		t.Fatalf("CA-319: las acciones de la tarjeta viven en ui/acciones.js, embebido en el binario: %v", err)
+	}
+	for nombre, src := range map[string]string{"index.html": html, "tablero.js": js, "acciones.js": string(rawAcc)} {
 		for _, marca := range []string{"http:", "https:", "//cdn", "@import"} {
 			if strings.Contains(src, marca) {
 				t.Fatalf("CA-319: %s contiene una referencia externa (%q)", nombre, marca)
@@ -87,8 +111,8 @@ func TestCA319_SinAssetsDeRed(t *testing.T) {
 		return nil
 	})
 	sort.Strings(archivos)
-	if strings.Join(archivos, ",") != "ui/index.html,ui/tablero.js" {
-		t.Fatalf("CA-319: la UI embebida son index.html y tablero.js, sin dependencias: %v", archivos)
+	if strings.Join(archivos, ",") != "ui/acciones.js,ui/index.html,ui/tablero.js" {
+		t.Fatalf("CA-319: la UI embebida son acciones.js, index.html y tablero.js, sin dependencias: %v", archivos)
 	}
 }
 
