@@ -10,6 +10,7 @@ package taskcmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -311,4 +312,11 @@ func Discardable(root, slug string) ([]string, error) {
 // Discardable as a set. Evidence is never discarded.
 func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	return DiscardResult{}, fmt.Errorf("sin implementar") // esqueleto
+}
+
+// RunDiscard is `hoom task discard <slug> [--yes] [--json]`. Without yes it
+// lists what would be discarded and fails (exit 1) without touching
+// anything; with yes it discards and reports.
+func RunDiscard(root, slug string, yes, asJSON bool, w io.Writer) error {
+	return fmt.Errorf("sin implementar") // esqueleto
 }
