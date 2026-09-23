@@ -142,50 +142,13 @@ func Trace(root string, ids []string, cmds map[string][]string) (TraceResult, er
 		}
 	}
 
-	found := map[string]bool{}
-	if len(needTest) > 0 {
-		err := filepath.WalkDir(root, func(path string, d os.DirEntry, werr error) error {
-			if werr != nil {
-				return nil
-			}
-			if d.IsDir() {
-				if skipDirs[d.Name()] {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			rel, _ := filepath.Rel(root, path)
-			if !isTestFile(rel) {
-				return nil
-			}
-			info, ierr := d.Info()
-			if ierr != nil || info.Size() > 2<<20 {
-				return nil
-			}
-			raw, rerr := os.ReadFile(path)
-			if rerr != nil {
-				return nil
-			}
-			res.Scanned++
-			s := string(raw)
-			for _, id := range needTest {
-				if !found[id] && containsToken(s, id) {
-					found[id] = true
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return res, err
-		}
+	missing, scanned, err := Tokens(root, needTest)
+	if err != nil {
+		return res, err
 	}
-	for _, id := range needTest {
-		if found[id] {
-			res.ByTest++
-		} else {
-			res.MissingTests = append(res.MissingTests, id)
-		}
-	}
+	res.Scanned = scanned
+	res.MissingTests = missing
+	res.ByTest = len(needTest) - len(missing)
 
 	for _, id := range ids {
 		cs := cmds[id]
@@ -318,4 +281,53 @@ func Gates(projectDir, specPath string) []verdict.GateResult {
 		}
 	}
 	return []verdict.GateResult{lintRes, traceRes}
+}
+
+// Tokens is the half of Trace that only READS: which of ids have no test file
+// mentioning their exact token, and how many test files were scanned. It
+// never runs a verifica command — the board uses it to trace without effects.
+func Tokens(root string, ids []string) (missing []string, scanned int, err error) {
+	found := map[string]bool{}
+	if len(ids) > 0 {
+		err = filepath.WalkDir(root, func(path string, d os.DirEntry, werr error) error {
+			if werr != nil {
+				return nil
+			}
+			if d.IsDir() {
+				if skipDirs[d.Name()] {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			rel, _ := filepath.Rel(root, path)
+			if !isTestFile(rel) {
+				return nil
+			}
+			info, ierr := d.Info()
+			if ierr != nil || info.Size() > 2<<20 {
+				return nil
+			}
+			raw, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return nil
+			}
+			scanned++
+			s := string(raw)
+			for _, id := range ids {
+				if !found[id] && containsToken(s, id) {
+					found[id] = true
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, scanned, err
+		}
+	}
+	for _, id := range ids {
+		if !found[id] {
+			missing = append(missing, id)
+		}
+	}
+	return missing, scanned, nil
 }

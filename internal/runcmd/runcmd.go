@@ -912,3 +912,7 @@ func displayDir(opts StartOptions, blind bool) string {
 	}
 	return "el worktree de la tarea " + opts.Task
 }
+
+// Alive reports whether a process with this pid exists: how another process
+// tells a live run from one whose owner died.
+func Alive(pid int) bool { return alive(pid) }

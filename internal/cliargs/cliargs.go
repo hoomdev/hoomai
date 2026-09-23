@@ -13,6 +13,7 @@ package cliargs
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -67,7 +68,7 @@ func Strict(fs *flag.FlagSet, args []string, verb, usage string) error {
 	fs.Init(fs.Name(), flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
-	if err := escanear(fs, args, fail, nil); err != nil {
+	if err := escanear(fs, args, fail, nil, nil); err != nil {
 		return err
 	}
 	if err := fs.Parse(args); err != nil {
@@ -99,7 +100,7 @@ func FirstEmptyValue(fs *flag.FlagSet, args []string) string {
 				vacio = nombre
 			}
 			return vacio == "" // la primera vacia corta el recorrido
-		})
+		}, nil)
 	return vacio
 }
 
@@ -111,17 +112,33 @@ func FirstEmptyValue(fs *flag.FlagSet, args []string) string {
 // visita, when it is not nil, receives every NON-boolean flag with its value
 // AS WRITTEN — one call per occurrence, so a repetition cannot mask an earlier
 // one — and stops the walk by returning false.
-func escanear(fs *flag.FlagSet, args []string, fail func(string) error, visita func(nombre, valor string) bool) error {
+//
+// ops, when it is not nil, turns the positionals into operands instead of
+// errors: it receives the index of every operand, and of the '--' that ends
+// the flags (after it, everything is an operand). nil keeps the verb without
+// operands in any syntax.
+func escanear(fs *flag.FlagSet, args []string, fail func(string) error, visita func(nombre, valor string) bool, ops *operandos) error {
 	ayuda := false
 	for i := 0; i < len(args); i++ {
 		s := args[i]
 		if len(s) < 2 || s[0] != '-' {
+			if ops != nil {
+				ops.idx = append(ops.idx, i)
+				continue
+			}
 			return fail(posicional(s))
 		}
 		guiones := 1
 		if s[1] == '-' {
 			guiones = 2
 			if len(s) == 2 {
+				if ops != nil {
+					ops.fin = i
+					for j := i + 1; j < len(args); j++ {
+						ops.idx = append(ops.idx, j)
+					}
+					break
+				}
 				// '--' no habilita operandos: el verbo no tiene operandos.
 				if i+1 < len(args) {
 					return fail(posicional(args[i+1]))
@@ -208,4 +225,74 @@ func hastaDosPuntos(s string) string {
 		s = s[:i]
 	}
 	return strings.TrimLeft(s, "-")
+}
+
+// Operands parses a verb that takes exactly n operands (`item add "<titulo>"`,
+// `item show <slug>`): flags may go before or after them, and after `--`
+// everything is an operand. It returns the operands, or a *UsageError on an
+// undefined flag, a flag without its value, a flag WRITTEN with an empty
+// value, an operand too many or too few, or an empty operand; -h/--help is
+// ErrHelp.
+func Operands(fs *flag.FlagSet, args []string, verb, usage string, n int) ([]string, error) {
+	fail := func(reason string) error {
+		return NewUsageError(verb, reason, usage)
+	}
+	fs.Init(fs.Name(), flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	ops := &operandos{fin: -1}
+	if err := escanear(fs, args, fail, nil, ops); err != nil {
+		return nil, err
+	}
+	// Los flags sin los operandos: el paquete flag corta en el primer
+	// posicional, y aca un flag DESPUES del operando es sintaxis valida.
+	esOperando := map[int]bool{}
+	for _, i := range ops.idx {
+		esOperando[i] = true
+	}
+	var flags, operandos []string
+	for i, a := range args {
+		switch {
+		case esOperando[i]:
+			operandos = append(operandos, a)
+		case i == ops.fin:
+		default:
+			flags = append(flags, a)
+		}
+	}
+	if err := fs.Parse(flags); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil, ErrHelp
+		}
+		return nil, fail(razonResidual(err))
+	}
+	if vacio := FirstEmptyValue(fs, flags); vacio != "" {
+		return nil, fail("--" + vacio + " vacio: escribir un flag y no darle valor es un typo")
+	}
+	switch {
+	case len(operandos) > n:
+		return nil, fail(posicional(operandos[n]))
+	case len(operandos) < n:
+		return nil, fail(fmt.Sprintf("faltan argumentos: %s %d y %s %d",
+			plural(n, "se esperaba", "se esperaban"), n, plural(len(operandos), "llego", "llegaron"), len(operandos)))
+	}
+	for _, o := range operandos {
+		if o == "" {
+			return nil, fail(`argumento vacio: ""`)
+		}
+	}
+	return operandos, nil
+}
+
+// operandos is what escanear collects for a verb that takes them.
+type operandos struct {
+	idx []int // indices de los operandos en args
+	fin int   // indice del '--' que termina los flags; -1 = no hubo
+}
+
+func plural(n int, uno, varios string) string {
+	if n == 1 {
+		return uno
+	}
+	return varios
 }

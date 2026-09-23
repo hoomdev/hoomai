@@ -10,14 +10,16 @@ package taskcmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -178,8 +180,10 @@ func taskState(wt, base string) (state, verdictID string) {
 }
 
 // Done closes a task: requires a clean tree (code AND verdicts committed) and
-// a green verdict whose fingerprint matches, then removes the worktree and
-// leaves the branch ready to merge. --force skips the checks and force-removes.
+// a green verdict whose fingerprint matches, then records the close on the
+// task's item (when this tree has one) and removes the worktree, leaving the
+// branch ready to merge. --force skips the checks and force-removes, and
+// never marks the item done: a card does not earn Hecho without evidence.
 func Done(root, slug, base string, force bool) error {
 	wt := worktreeDir(root, slug)
 	if _, err := os.Stat(wt); err != nil {
@@ -187,35 +191,103 @@ func Done(root, slug, base string, force bool) error {
 	}
 	branch := "hoom/" + slug
 	if !force {
-		if st, _ := run(wt, "status", "--porcelain"); st != "" {
-			return fmt.Errorf("la tarea %q tiene cambios sin commitear (incluidos posibles veredictos).\n  Accion: commitea todo dentro de %s y repite 'hoom task done %s'", slug, wt, slug)
-		}
-		all, err := verdict.LoadAll(wt)
-		if err != nil || len(all) == 0 {
-			return fmt.Errorf("la tarea %q no tiene veredictos. Accion: ejecuta 'hoom verify' dentro del worktree", slug)
-		}
-		last := verdict.LatestComplete(all)
-		if last == nil {
-			return fmt.Errorf("la tarea %q solo tiene veredictos PARCIALES (--gate), que no son referencia. Accion: ejecuta 'hoom verify' completo dentro del worktree", slug)
-		}
-		if last.Verdict != "green" {
-			return fmt.Errorf("el ultimo veredicto de %q es ROJO (%s). Accion: corrige y re-ejecuta 'hoom verify' en el worktree", slug, last.ID)
-		}
-		g := gitx.Snapshot(wt, base)
-		if g.ChangeFingerprint != last.Git.ChangeFingerprint {
-			return fmt.Errorf("el arbol de %q cambio despues del ultimo veredicto verde (huella %s vs %s).\n  Accion: re-ejecuta 'hoom verify' dentro del worktree y commitea", slug, g.ChangeFingerprint, last.Git.ChangeFingerprint)
+		if err := Ready(root, slug, base); err != nil {
+			return err
 		}
 	}
+
+	// The item is read BEFORE touching the worktree: an invalid item stops
+	// the close with everything still in place.
+	var (
+		itemPath  = item.Path(root, slug)
+		original  []byte
+		itemNote  string
+		wroteItem bool
+	)
+	switch raw, err := os.ReadFile(itemPath); {
+	case os.IsNotExist(err):
+		itemNote = fmt.Sprintf("hoom: sin item %s en este arbol: no hay tarjeta que cerrar", item.RelPath(slug))
+	case err != nil:
+		return fmt.Errorf("no pude leer el item %s: %v", item.RelPath(slug), err)
+	default:
+		it, perr := item.Parse(slug, raw)
+		switch {
+		case perr != nil && !force:
+			return fmt.Errorf("el item %s es invalido: %v.\n  Accion: reparalo y repite 'hoom task done %s' (o cerra con --force, que no lo marca hecho)", item.RelPath(slug), perr, slug)
+		case force:
+			itemNote = fmt.Sprintf("hoom: con --force el item %s no se marca hecho", slug)
+		case it.HechoEn != nil:
+			itemNote = fmt.Sprintf("hoom: el item %s ya estaba hecho (%s): no se reescribe", slug, it.HechoEn.Format("2006-01-02 15:04 UTC"))
+		default:
+			commit, cerr := run(root, "rev-parse", branch)
+			if cerr != nil {
+				return fmt.Errorf("no pude leer la punta de %s: %s", branch, commit)
+			}
+			original = raw
+			if _, err := item.MarkDone(root, slug, commit, time.Now()); err != nil {
+				return fmt.Errorf("no pude registrar el cierre en %s: %v", item.RelPath(slug), err)
+			}
+			wroteItem = true
+			itemNote = fmt.Sprintf("hoom: item %s hecho (commit_final %s) - commitea %s", slug, short(commit), item.RelPath(slug))
+		}
+	}
+
 	args := []string{"worktree", "remove", wt}
 	if force {
 		args = []string{"worktree", "remove", "--force", wt}
 	}
 	if out, err := run(root, args...); err != nil {
+		if wroteItem {
+			// the task did not close, so the card did not either
+			hoomfs.AtomicWrite(itemPath, original, 0o644)
+		}
 		return fmt.Errorf("git worktree remove fallo: %s", out)
 	}
-	fmt.Printf("hoom: tarea %q cerrada con veredicto verde y huella coincidente\n", slug)
+	if force {
+		fmt.Printf("hoom: tarea %q cerrada con --force (sin verificar)\n", slug)
+	} else {
+		fmt.Printf("hoom: tarea %q cerrada con veredicto verde y huella coincidente\n", slug)
+	}
+	fmt.Println(itemNote)
 	fmt.Printf("  la rama %s queda lista para integrar:\n", branch)
 	fmt.Printf("    git merge --no-ff %s\n", branch)
 	fmt.Printf("    git branch -d %s   (despues del merge)\n", branch)
+	return nil
+}
+
+func short(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
+}
+
+// Ready is the check `hoom task done` makes without --force — the task
+// exists, its tree is clean, it has a complete verdict, the latest complete
+// one is green and its fingerprint matches — with the same messages. nil
+// means task done would close it.
+func Ready(root, slug, base string) error {
+	wt := worktreeDir(root, slug)
+	if _, err := os.Stat(wt); err != nil {
+		return fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
+	}
+	if st, _ := run(wt, "status", "--porcelain"); st != "" {
+		return fmt.Errorf("la tarea %q tiene cambios sin commitear (incluidos posibles veredictos).\n  Accion: commitea todo dentro de %s y repite 'hoom task done %s'", slug, wt, slug)
+	}
+	all, err := verdict.LoadAll(wt)
+	if err != nil || len(all) == 0 {
+		return fmt.Errorf("la tarea %q no tiene veredictos. Accion: ejecuta 'hoom verify' dentro del worktree", slug)
+	}
+	last := verdict.LatestComplete(all)
+	if last == nil {
+		return fmt.Errorf("la tarea %q solo tiene veredictos PARCIALES (--gate), que no son referencia. Accion: ejecuta 'hoom verify' completo dentro del worktree", slug)
+	}
+	if last.Verdict != "green" {
+		return fmt.Errorf("el ultimo veredicto de %q es ROJO (%s). Accion: corrige y re-ejecuta 'hoom verify' en el worktree", slug, last.ID)
+	}
+	g := gitx.Snapshot(wt, base)
+	if g.ChangeFingerprint != last.Git.ChangeFingerprint {
+		return fmt.Errorf("el arbol de %q cambio despues del ultimo veredicto verde (huella %s vs %s).\n  Accion: re-ejecuta 'hoom verify' dentro del worktree y commitea", slug, g.ChangeFingerprint, last.Git.ChangeFingerprint)
+	}
 	return nil
 }

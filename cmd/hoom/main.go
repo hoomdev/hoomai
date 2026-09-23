@@ -19,18 +19,21 @@ import (
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
+	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/initcmd"
+	"github.com/hoomdev/hoomai/internal/itemcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/report"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
+	"github.com/hoomdev/hoomai/internal/rolescmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
 	"github.com/hoomdev/hoomai/internal/statuscmd"
@@ -66,6 +69,17 @@ Comandos:
               lower <metrica> --to <v> --reason "..." la afloja CON registro
   serve       HoomAI Studio: dashboard local embebido en el binario (lectura + acciones con token)
   task        Tareas paralelas aisladas en worktrees: start <slug> | list | done <slug>
+              (done registra hecho_en y commit_final en el item de la tarea)
+  item        La tarjeta como archivo (.hoom/items/<slug>.yaml, viaja en git):
+              add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x]
+              [--pedido "..."] [--slug s] | list | show <slug>   [--json]
+  board       El tablero: la columna de cada item sale de su evidencia
+              (spec, aprobacion, tests, veredicto, review, cierre); nadie la
+              escribe y nada se guarda [--json]
+  roles       Matriz de enforcement: que puede leer, escribir y ejecutar cada
+              rol con cada provider, con que mecanismo y en que categoria
+              (ENFORCED|POST-VERIFIED|BEST-EFFORT|UNSUPPORTED)
+              [--role r] [--provider p] [--json]
   spec        Aprobacion humana atada al contenido: approve <ruta> | status <ruta>
   context     Salud del contexto: intake, vision/backlog, preguntas abiertas,
               staleness. Amarillos honestos; informa, nunca bloquea [--json]
@@ -195,6 +209,12 @@ func main() {
 		err = cmdTask(args)
 	case "spec":
 		err = cmdSpec(args)
+	case "item":
+		err = cmdItem(args)
+	case "board":
+		err = cmdBoard(args)
+	case "roles":
+		err = cmdRoles(args)
 	case "context":
 		err = cmdContext(args)
 	case "finding":
@@ -742,6 +762,87 @@ func cmdFinding(args []string) error {
 	default:
 		return fmt.Errorf("subcomando desconocido %q (add|resolve|list)", sub)
 	}
+}
+
+// cmdItem answers a badly written request BEFORE reading the project, like
+// verify: the argument error wins over a missing hoom.yaml.
+func cmdItem(args []string) error {
+	req, err := itemcmd.Parse(args)
+	if errors.Is(err, cliargs.ErrHelp) {
+		fmt.Println(itemcmd.UsageText)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	return itemcmd.Execute(m.Dir, m.BaseBranch, m.FindingsBlockOn(), req, os.Stdout, os.Stderr)
+}
+
+// cmdBoard renders the board: read-only, exit 0 whenever the request was
+// understood. The board informs; verify and check are the ones that block.
+func cmdBoard(args []string) error {
+	opt, err := boardcmd.ParseArgs(args)
+	if errors.Is(err, cliargs.ErrHelp) {
+		fmt.Println(boardcmd.UsageText)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	b, err := boardcmd.Build(m.Dir, m.BaseBranch, m.FindingsBlockOn(), time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	if opt.JSON {
+		raw, err := boardcmd.JSONBytes(b)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
+	boardcmd.Render(os.Stdout, b)
+	return nil
+}
+
+// cmdRoles prints the enforcement matrix of this project: the write policy
+// comes from its hoom.yaml.
+func cmdRoles(args []string) error {
+	opt, err := rolescmd.ParseArgs(args)
+	if errors.Is(err, cliargs.ErrHelp) {
+		fmt.Println(rolescmd.UsageText)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	roles, provs, err := rolescmd.Select(opt)
+	if err != nil {
+		return err
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	rows := rolescmd.Matrix(m, roles, provs)
+	if opt.JSON {
+		raw, err := json.MarshalIndent(rows, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
+	rolescmd.Render(os.Stdout, rows)
+	return nil
 }
 
 // cmdSpec records and queries human approvals bound to the spec's content

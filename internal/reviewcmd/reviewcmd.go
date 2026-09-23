@@ -84,6 +84,9 @@ type Result struct {
 	Findings []string `json:"findings"` // union of the passes
 	Status   string   `json:"status"`   // revisado | sin-revisar | no-entregable
 	ExitCode int      `json:"exit_code"`
+	// RecordID names the review record written in .hoom/reviews/ when the
+	// review ended revisado; empty otherwise.
+	RecordID string `json:"record_id,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
@@ -267,7 +270,47 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			return finish(w, res, "no-entregable", 1, "el reviewer escribio fuera de su territorio"), nil
 		}
 	}
+	// The trace of the review, clean or not: without it a review that found
+	// nothing would leave nothing on disk, and the board could not tell it
+	// from a review that never happened.
+	rec, err := WriteRecord(dir, Record{
+		Task: taskOf(opt), Spec: opt.Spec, Fingerprint: git.ChangeFingerprint,
+		VerdictID: verdictID(v), Verdict: verdictColor(v),
+		Lenses: append([]string(nil), lentes...), Provider: res.Provider, Writer: res.Writer,
+		Cross: res.Cross, Findings: append([]string{}, res.Findings...),
+	})
+	if err != nil {
+		fmt.Fprintf(w, "  aviso: no pude escribir el registro de review: %v\n", err)
+	} else {
+		res.RecordID = rec.ID
+		fmt.Fprintf(w, "  registro    .hoom/%s/%s.json (commitealo: es el rastro de esta review)\n", RecordsDir, rec.ID)
+	}
 	return finish(w, res, "revisado", 0, ""), nil
+}
+
+// taskOf is the task a review belongs to: --task, or the task of its spec.
+func taskOf(opt Options) string {
+	if t := strings.TrimSpace(opt.Task); t != "" {
+		return t
+	}
+	if s := strings.TrimSpace(opt.Spec); s != "" {
+		return finding.TaskOfSpec(s)
+	}
+	return ""
+}
+
+func verdictID(v *verdict.Verdict) string {
+	if v == nil {
+		return ""
+	}
+	return v.ID
+}
+
+func verdictColor(v *verdict.Verdict) string {
+	if v == nil {
+		return ""
+	}
+	return v.Verdict
 }
 
 // writerOf answers "who wrote this tree?" with the run metas: the most recent

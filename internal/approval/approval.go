@@ -13,11 +13,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/gitx"
 )
 
 // Status values for a spec's approval state.
@@ -64,30 +65,6 @@ func relSpec(root, specPath string) string {
 	return filepath.ToSlash(specPath)
 }
 
-// gitUser identifies the approver from the project's git config; approvals
-// are human acts, so the identity recorded is the repo's configured author.
-func gitUser(root string) string {
-	get := func(key string) string {
-		cmd := exec.Command("git", "config", key)
-		cmd.Dir = root
-		out, err := cmd.Output()
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(string(out))
-	}
-	name, email := get("user.name"), get("user.email")
-	switch {
-	case name != "" && email != "":
-		return name + " <" + email + ">"
-	case name != "":
-		return name
-	case email != "":
-		return email
-	}
-	return "desconocido"
-}
-
 // Approve records the approval of the spec's CURRENT content. Re-approving
 // identical content is an informed no-op: already=true, no duplicate record.
 func Approve(root, specPath string) (rec Record, already bool, err error) {
@@ -104,7 +81,7 @@ func Approve(root, specPath string) (rec Record, already bool, err error) {
 	rec = Record{
 		Spec:       relSpec(root, specPath),
 		SHA256:     sum,
-		ApprovedBy: gitUser(root),
+		ApprovedBy: gitx.Identity(root),
 		ApprovedAt: time.Now().UTC(),
 	}
 	raw, err := json.MarshalIndent(rec, "", "  ")

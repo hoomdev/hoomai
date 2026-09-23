@@ -167,6 +167,10 @@ func excludedFromCandidate(path string) bool {
 	return hoomfs.IsLocal(path) ||
 		strings.HasPrefix(path, ".hoom/verdicts/") ||
 		strings.HasPrefix(path, ".hoom/findings/") ||
+		// records ABOUT the work, not the work: a card created or closed, or
+		// a review recorded, never moves the fingerprint it talks about
+		strings.HasPrefix(path, ".hoom/items/") ||
+		strings.HasPrefix(path, ".hoom/reviews/") ||
 		// harness state, not code under verification: a baseline tightened
 		// DURING verify must not break the very check it just earned, and the
 		// ignore file hoom completes on its own must not either (a role that
@@ -294,4 +298,28 @@ func contentHash(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// Identity is the project's git identity — "Name <email>", whichever of the
+// two exists, or "desconocido" — the one human acts are recorded with (spec
+// approvals, findings, items). One definition: three copies of this rule is
+// how an approval and an item end up signed by two different people.
+func Identity(dir string) string {
+	get := func(key string) string {
+		out, err := run(dir, "config", key)
+		if err != nil {
+			return ""
+		}
+		return out
+	}
+	name, email := get("user.name"), get("user.email")
+	switch {
+	case name != "" && email != "":
+		return name + " <" + email + ">"
+	case name != "":
+		return name
+	case email != "":
+		return email
+	}
+	return "desconocido"
 }
