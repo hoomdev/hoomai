@@ -1,0 +1,159 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-23T16-57-36Z_e5451878",
+  "created_at": "2026-09-23T16:57:36.966128Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "cae63e08f797",
+    "branch": "hoom/tablero-de-solo-lectura",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      "README.md",
+      "internal/agents/writes.go",
+      "internal/agents/writes_test.go",
+      "internal/boardcmd/boardcmd.go",
+      "internal/boardcmd/derive.go",
+      "internal/boardcmd/detail.go",
+      "internal/boardcmd/detail_test.go",
+      "internal/boardcmd/gather.go",
+      "internal/boardcmd/meter_test.go",
+      "internal/boardcmd/plain.go",
+      "internal/boardcmd/plain_test.go",
+      "internal/boardcmd/providers_test.go",
+      "internal/gitx/diff.go",
+      "internal/gitx/diff_test.go",
+      "internal/reviewcmd/reviewcmd.go",
+      "internal/reviewcmd/writes_code_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/servecmd/tablero_test.go",
+      "internal/servecmd/tablero_ui_test.go",
+      "internal/servecmd/ui/index.html",
+      "internal/servecmd/ui/tablero.js",
+      "internal/spec/criteria.go",
+      "internal/spec/criteria_test.go",
+      "internal/spec/spec.go",
+      "internal/taskcmd/ready.go",
+      "internal/taskcmd/ready_error_test.go",
+      "internal/taskcmd/taskcmd.go"
+    ],
+    "change_fingerprint": "5f6b7f3e760dbfee",
+    "insertions": 5021,
+    "deletions": 92
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "23 criterios (CA-*), 2 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 442,
+      "notes": "23/23 criterios: 21 trazados por test (118 archivos), 2 verificados por comando"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-23, sha 67627da7)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 2,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea tablero-de-solo-lectura + sin tarea · no bloquean: 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 486
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 173
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/agents ./internal/boardcmd ./internal/gitx ./internal/reviewcmd ./internal/servecmd ./internal/spec ./internal/taskcmd",
+      "exit_code": 0,
+      "duration_ms": 24329,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/agents\t1.182s\nok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t22.307s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t4.465s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t17.703s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t14.106s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t1.312s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t10.199s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 7,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/tablero-de-solo-lectura.md"
+}
