@@ -32,7 +32,7 @@ func Derive(ev Evidence) Card {
 		Red:      red(ev),
 	}
 	c.Running, c.Interrupted = liveness(ev)
-	c.Column, c.Missing, c.Next = column(ev)
+	c.Column, c.Missing, c.Next, c.Plain = column(ev)
 	if c.Missing == nil {
 		c.Missing = []string{}
 	}
@@ -42,12 +42,16 @@ func Derive(ev Evidence) Card {
 			c.WaitingHuman = col.Human
 		}
 	}
+	c.NeedsDecision = c.WaitingHuman || c.Interrupted != nil
+	c.Meter = meterOf(ev, c.Column, c.Evidence)
+	c.Providers = crewOf(ev, c.Evidence.ReviewID)
 	return c
 }
 
 // column walks the requirements in order and stops at the FIRST one the
-// evidence does not meet: that is the station where the work is pending.
-func column(ev Evidence) (string, []string, string) {
+// evidence does not meet: that is the station where the work is pending. The
+// last value is the same main reason in the normal mode's words.
+func column(ev Evidence) (string, []string, string, string) {
 	s := ev.Item.Slug
 	spec := specOf(ev)
 	withTask := hasTask(ev)
@@ -57,7 +61,7 @@ func column(ev Evidence) (string, []string, string) {
 	}
 
 	if ev.Item.HechoEn != nil {
-		return ColHecho, []string{}, ""
+		return ColHecho, []string{}, "", "terminada: su cierre quedo registrado"
 	}
 	arquitecto := "hoom agent --role arquitecto" + task + " " + pedidoHint
 	if !ev.SpecExists {
@@ -65,72 +69,93 @@ func column(ev Evidence) (string, []string, string) {
 		if withTask {
 			next = arquitecto
 		}
-		return ColBacklog, []string{"no hay spec: " + spec}, next
+		return ColBacklog, []string{"no hay spec: " + spec}, next, "falta el spec de la tarjeta"
 	}
 	if len(ev.LintIssues) > 0 {
-		return ColArquitecto, append([]string{}, ev.LintIssues...), arquitecto
+		return ColArquitecto, append([]string{}, ev.LintIssues...), arquitecto,
+			"el spec no esta completo (" + count(len(ev.LintIssues), "problema", "problemas") + " de formato)"
 	}
 	if ev.Approval != approval.StatusApproved {
-		motivo := "el spec no tiene aprobacion humana"
+		motivo, plain := "el spec no tiene aprobacion humana", "el spec espera tu aprobacion"
 		if ev.Approval == approval.StatusInvalidated {
 			motivo = "el spec cambio despues de tu aprobacion"
+			plain = "el spec cambio despues de tu aprobacion: hay que aprobarlo de nuevo"
 		}
-		return ColTuAprobacion, []string{motivo}, "hoom spec approve " + spec
+		return ColTuAprobacion, []string{motivo}, "hoom spec approve " + spec, plain
 	}
 	if len(ev.Untraced) > 0 {
 		return ColTestWriter, []string{"criterios sin test: " + strings.Join(ev.Untraced, ", ")},
-			"hoom agent --role test-writer" + task + " --spec " + spec + " " + pedidoHint
+			"hoom agent --role test-writer" + task + " --spec " + spec + " " + pedidoHint,
+			fmt.Sprintf("faltan pruebas para %d de %d criterios", len(ev.Untraced), len(ev.Criteria))
 	}
 	writer := "hoom agent --role writer" + task + " --spec " + spec + " " + pedidoHint
 	v := ev.Verdict
 	switch {
 	case v == nil:
-		return ColWriter, []string{"no hay veredicto de la tarjeta: hoom verify --spec " + spec}, writer
+		return ColWriter, []string{"no hay veredicto de la tarjeta: hoom verify --spec " + spec}, writer,
+			"falta verificar el trabajo contra el spec"
 	case v.Verdict != "green":
-		return ColWriter, []string{redReason(v)}, writer
+		return ColWriter, []string{redReason(v)}, writer, plainVerdict(v)
 	case ev.Fingerprint == "" || v.Git.ChangeFingerprint != ev.Fingerprint:
-		return ColWriter, []string{"el codigo cambio despues del ultimo verde"}, writer
+		return ColWriter, []string{"el codigo cambio despues del ultimo verde"}, writer,
+			"el codigo cambio despues del ultimo verde"
 	}
 
 	// Green with the current fingerprint: the acceptance conditions, all of
 	// them, in the order the spec fixes. Every one that fails is listed.
-	var missing []string
+	var missing, plains []string
 	next := ""
-	fail := func(motivo, cmd string) {
+	fail := func(motivo, plain, cmd string) {
 		missing = append(missing, motivo)
+		plains = append(plains, plain)
 		if next == "" {
 			next = cmd
 		}
 	}
 	if lines, required := reviewRequired(v); required && reviewOf(ev) == "" {
 		fail(fmt.Sprintf("la review exige las 4 lentes (%d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
+			fmt.Sprintf("falta la revision de 4 lentes (%d lineas)", lines),
 			"hoom review"+task+" --spec "+spec)
 	}
 	if ids := blocking(ev); len(ids) > 0 {
-		fail("hallazgos abiertos que bloquean: "+strings.Join(ids, ", "),
+		plain := fmt.Sprintf("hay %d hallazgos que bloquean", len(ids))
+		if len(ids) == 1 {
+			plain = "hay 1 hallazgo que bloquea"
+		}
+		fail("hallazgos abiertos que bloquean: "+strings.Join(ids, ", "), plain,
 			"hoom finding resolve "+ids[0]+` --as corregido|refutado --evidence "..."`)
 	}
 	if gateStatus(v, "spec_approved") != verdict.StatusPass {
-		fail("el veredicto no trae spec_approved en pass", "hoom verify --spec "+spec)
+		fail("el veredicto no trae spec_approved en pass",
+			"hay que verificar de nuevo: el ultimo verde no incluye la aprobacion del spec",
+			"hoom verify --spec "+spec)
 	}
 	switch gateStatus(v, finding.GateName) {
 	case verdict.StatusPass:
 	case "":
 		fail(`falta el gate findings_open: agrega "findings: { block_on: high }" a hoom.yaml y vuelve a verificar`,
+			"el proyecto no declara que hallazgos bloquean",
 			`agrega "findings: { block_on: high }" a hoom.yaml y corre hoom verify --spec `+spec)
 	default:
-		fail("el veredicto no trae findings_open en pass", "hoom verify --spec "+spec)
+		fail("el veredicto no trae findings_open en pass",
+			"hay que verificar de nuevo: el control de hallazgos no paso",
+			"hoom verify --spec "+spec)
 	}
 	switch {
 	case !withTask:
-		fail("cerrar exige la tarea: hoom task start "+s, "hoom task start "+s)
+		fail("cerrar exige la tarea: hoom task start "+s, "falta el espacio de trabajo de la tarjeta", "hoom task start "+s)
 	case ev.ReadyErr != "":
-		fail(ev.ReadyErr, readyAction(ev.ReadyErr, s))
+		fail(ev.ReadyErr, plainReady(ev.ReadyKind), readyAction(ev.ReadyErr, s))
 	}
 	if len(missing) > 0 {
-		return ColReview, missing, next
+		plain := plains[0]
+		if rest := len(plains) - 1; rest > 0 {
+			plain += " (y " + count(rest, "pendiente", "pendientes") + " mas)"
+		}
+		return ColReview, missing, next, plain
 	}
-	return ColTuAceptacion, []string{"falta tu aceptacion: hoom task done " + s}, "hoom task done " + s
+	return ColTuAceptacion, []string{"falta tu aceptacion: hoom task done " + s}, "hoom task done " + s,
+		"espera tu aceptacion para integrar"
 }
 
 func specOf(ev Evidence) string {
@@ -202,14 +227,20 @@ func gateStatus(v *verdict.Verdict, name string) string {
 	return ""
 }
 
-// redReason names the required gates that failed, in the verdict's order.
-func redReason(v *verdict.Verdict) string {
+// failedGates are the required gates of v that failed, in its order.
+func failedGates(v *verdict.Verdict) []string {
 	var failed []string
 	for _, g := range v.Gates {
 		if g.Required && (g.Status == verdict.StatusFail || g.Status == verdict.StatusError) {
 			failed = append(failed, g.Name)
 		}
 	}
+	return failed
+}
+
+// redReason names the required gates that failed, in the verdict's order.
+func redReason(v *verdict.Verdict) string {
+	failed := failedGates(v)
 	switch len(failed) {
 	case 0:
 		return "veredicto rojo"
@@ -308,7 +339,7 @@ func red(ev Evidence) *Red {
 	v := ev.Verdict
 	if v != nil && (last == nil || v.CreatedAt.After(endOf(*last))) {
 		if v.Verdict != "green" {
-			return &Red{Source: RedVerdict, ID: v.ID, Reason: redReason(v)}
+			return &Red{Source: RedVerdict, ID: v.ID, Reason: redReason(v), Plain: plainVerdict(v)}
 		}
 		return nil
 	}
@@ -322,7 +353,7 @@ func red(ev Evidence) *Red {
 	if n := strings.TrimSpace(last.Note); n != "" {
 		reason += ": " + n
 	}
-	return &Red{Source: RedEnvelope, ID: last.ID, Reason: reason}
+	return &Red{Source: RedEnvelope, ID: last.ID, Reason: reason, Plain: plainEnvelope(*last)}
 }
 
 func endOf(r envelope.Record) time.Time {

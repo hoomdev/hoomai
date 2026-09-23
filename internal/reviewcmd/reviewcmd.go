@@ -323,7 +323,7 @@ func writerOf(root, dir string) (runcmd.Meta, bool) {
 		if meta.Dir != dir {
 			continue
 		}
-		if r, err := agents.Lookup(meta.Role); err == nil && (r.ReadOnly || r.Scope == agents.ScopeSpecs) {
+		if !agents.WritesCode(meta.Role) {
 			continue
 		}
 		return meta, true
