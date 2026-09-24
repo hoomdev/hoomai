@@ -146,12 +146,16 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// Una sola transicion mueve los dos estados que el sobre mantiene: el
 	// resultado que devuelve y el registro que status y el Studio leen. Dos
 	// asignaciones gemelas repartidas por el flujo ya se desviaron una vez.
-	advance := func(stage string, step int) {
+	advance := func(stage string, step int) error {
 		res.Stage = stage
 		rec.Stage, rec.Step = stage, step
-		envelope.Write(root, rec)
+		return envelope.Write(root, rec)
 	}
-	advance("spec", 1)
+	if err := advance("spec", 1); err != nil && opt.Started != nil {
+		// quien espera el registro para nombrarlo (el Studio) no recibe un
+		// sobre que no existe (CA-335); sin nadie esperando, sigue best-effort
+		return res, fmt.Errorf("no pude escribir el registro del sobre: %v", err)
+	}
 	if opt.Started != nil {
 		opt.Started() // el primer registro ya esta en disco: quien espera puede nombrarlo
 	}

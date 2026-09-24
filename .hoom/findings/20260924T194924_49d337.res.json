@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T194924_49d337",
+  "as": "corregido",
+  "evidence": "Corregido: cada linea de stream-json de Claude se decodifica una sola vez (decodeClaude) en claudeMsg, con un tipo claudeBlock compartido para message.content; Normalize y la correlacion leen el mismo valor y claudeLink desaparece. status se lee crudo para que una linea con status no textual no deje de leerse. Sin cambio de comportamiento: suites de internal/providers y internal/runcmd verdes (incluido el fixture real de Claude Code 2.1.281).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.397516Z"
+}

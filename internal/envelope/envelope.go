@@ -95,9 +95,10 @@ func NewID() string {
 
 func dir(root string) string { return filepath.Join(root, ".hoom", DirName) }
 
-// Write records the envelope's state. Best-effort by contract: a record that
-// cannot be written never breaks the envelope it describes, so nothing here
-// returns an error.
+// Write records the envelope's state. Best-effort by contract (CA-202): a
+// record that cannot be written never breaks the envelope it describes, so
+// callers may ignore the error. The one that cannot is the Started handshake
+// (CA-335): it promises the first record is on disk.
 func Write(root string, rec Record) error {
 	if strings.TrimSpace(rec.ID) == "" {
 		return nil
@@ -105,18 +106,17 @@ func Write(root string, rec Record) error {
 	rec.UpdatedAt = time.Now().UTC()
 	raw, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
-		return nil
+		return err
 	}
-	if os.MkdirAll(dir(root), 0o755) != nil {
-		return nil
+	if err := os.MkdirAll(dir(root), 0o755); err != nil {
+		return err
 	}
 	// La regla queda escrita (CA-202) sin reescribir un archivo completo:
 	// registrar telemetria no mueve el candidato (CA-203).
 	hoomfs.EnsureIgnored(root, DirName)
 	// Atomico: status y el Studio leen este archivo MIENTRAS se escribe, y un
 	// sobre a medias leido como vacio desapareceria de la lista.
-	hoomfs.AtomicWrite(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
-	return nil
+	return hoomfs.AtomicWrite(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
 }
 
 // List returns the project's envelope records, newest first. A file that is

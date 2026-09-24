@@ -288,11 +288,18 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Stage: "run", Step: 1, Steps: len(lentes), Status: envelope.StatusRunning, ExitCode: -1,
 		StartedAt: time.Now().UTC(), PID: os.Getpid(), Pilot: opt.Pilot,
 	}
-	envelope.Write(root, rec)
+	if err := envelope.Write(root, rec); err != nil && opt.Started != nil {
+		// el Studio espera el registro para responder: sin el, no hay sobre
+		// que nombrar (CA-335); desde la terminal sigue best-effort
+		return res, fmt.Errorf("no pude escribir el registro del sobre: %v", err)
+	}
 	if opt.Started != nil {
 		opt.Started()
 	}
-	cerrar := func(res Result, stage string, code int, note string) Result {
+	// cerrarSobre settles the envelope record; terminar is the one terminal
+	// transition of a review that ends in a Result: the Result (finish) and
+	// the record move together, so they never tell two stories.
+	cerrarSobre := func(stage string, code int, note string) {
 		rec.Stage, rec.ExitCode, rec.Note = stage, code, note
 		rec.Status = envelope.StatusDeliverable
 		if code != 0 {
@@ -300,6 +307,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		}
 		rec.EndedAt = time.Now().UTC()
 		envelope.Write(root, rec)
+	}
+	terminar := func(status string, code int, stage, note string) Result {
+		res = finish(w, res, status, code, note)
+		cerrarSobre(stage, code, note)
 		return res
 	}
 
@@ -318,7 +329,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
 		})
 		if err != nil {
-			cerrar(res, "run", 1, err.Error())
+			cerrarSobre("run", 1, err.Error())
 			return res, err
 		}
 		pass.RunID = info.ID
@@ -331,7 +342,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 			fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
 			res.Passes = append(res.Passes, pass)
-			return cerrar(finish(w, res, "no-entregable", 1, "el run del reviewer fallo"), "run", 1, "el run del reviewer fallo"), nil
+			return terminar("no-entregable", 1, "run", "el run del reviewer fallo"), nil
 		}
 
 		// Los hallazgos del reviewer se cuentan ANTES de que hoom escriba los
@@ -351,8 +362,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		res.Passes = append(res.Passes, pass)
 		res.Findings = append(res.Findings, pass.Findings...)
 		if !pass.Scope.OK {
-			return cerrar(finish(w, res, "no-entregable", 1, "el reviewer escribio fuera de su territorio"),
-				"scope", 1, "el reviewer escribio fuera de su territorio"), nil
+			return terminar("no-entregable", 1, "scope", "el reviewer escribio fuera de su territorio"), nil
 		}
 	}
 	// The trace of the review, clean or not: without it a review that found
@@ -367,12 +377,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	})
 	res.Notes = notas
 	if err != nil {
-		fmt.Fprintf(w, "  aviso: no pude escribir el registro de review: %v\n", err)
-	} else {
-		res.RecordID = registro.ID
-		fmt.Fprintf(w, "  registro    .hoom/%s/%s.json (commitealo: es el rastro de esta review)\n", RecordsDir, registro.ID)
+		// without its record the review did not happen for the board
+		// (CA-293): it cannot end revisado
+		return terminar("no-entregable", 1, "registro", "no pude escribir el registro de review: "+err.Error()), nil
 	}
-	return cerrar(finish(w, res, "revisado", 0, ""), "ok", 0, ""), nil
+	res.RecordID = registro.ID
+	fmt.Fprintf(w, "  registro    .hoom/%s/%s.json (commitealo: es el rastro de esta review)\n", RecordsDir, registro.ID)
+	return terminar("revisado", 0, "ok", ""), nil
 }
 
 // declaredWriters are the providers of the interactive sessions the task's

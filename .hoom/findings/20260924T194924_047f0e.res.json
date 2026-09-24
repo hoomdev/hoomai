@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T194924_047f0e",
+  "as": "corregido",
+  "evidence": "Corregido (el refutador lo dio parcial: la capa de etiquetas es deliberada por los acentos y tiene fallback): acciones.js decide si una accion abre el dialogo de pedir al rol con a.role, que manda el backend, y ya no con la lista local ACC_ROL. Test internal/servecmd/hallazgos_c1_test.go TestCA354_H2_DialogoDeRolDecidePorElRoleDeLaAccion: rojo contra 130f679, verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.365477Z"
+}

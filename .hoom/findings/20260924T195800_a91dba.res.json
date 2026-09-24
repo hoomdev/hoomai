@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T195800_a91dba",
+  "as": "corregido",
+  "evidence": "Corregido: item add escribe el contenido en un temporal oculto y lo publica con os.Link, que nunca reemplaza (el perdedor recibe ErrExists sin tocar el archivo del ganador), y item.List ignora los archivos ocultos (temporales y candados de hoom) sin aviso. Tests internal/item/hallazgos_c1_test.go TestCA263_H1Hallazgoa91dba_AddNuncaDejaUnParcialVisible (en la base un lector vio el archivo vacio en 17-35 de 60 altas) y TestCA266_H1Hallazgoa91dba_*: rojos contra 130f679, verdes con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.166656Z"
+}

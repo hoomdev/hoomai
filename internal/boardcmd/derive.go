@@ -2,6 +2,7 @@ package boardcmd
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -129,6 +130,10 @@ func column(ev Evidence) (string, []string, string, string) {
 		}
 		fail("hallazgos abiertos que bloquean: "+strings.Join(ids, ", "), plain,
 			"hoom finding resolve "+ids[0]+` --as corregido|refutado --evidence "..."`)
+	}
+	if len(ev.UnreadableFindings) > 0 {
+		fail("hallazgos que no se pueden leer (su tarea y severidad son desconocidas): "+strings.Join(ev.UnreadableFindings, "; "),
+			"hay hallazgos que no se pueden leer", "hoom finding list")
 	}
 	if gateStatus(v, "spec_approved") != verdict.StatusPass {
 		fail("el veredicto no trae spec_approved en pass",
@@ -391,7 +396,9 @@ func spend(ev Evidence) Spend {
 	reported := false
 	add := func(u *providers.Usage) {
 		s.Runs++
-		if u == nil || u.CostUSD == nil {
+		// a cost no provider reports (negative, NaN, infinite) is a sidecar
+		// someone edited: it never gives budget back, so it counts as none
+		if u == nil || u.CostUSD == nil || *u.CostUSD < 0 || math.IsNaN(*u.CostUSD) || math.IsInf(*u.CostUSD, 0) {
 			s.RunsWithoutCost++
 		} else {
 			total += *u.CostUSD

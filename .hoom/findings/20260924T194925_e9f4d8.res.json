@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T194925_e9f4d8",
+  "as": "corregido",
+  "evidence": "Corregido: el historial guarda cada entrada junto a sus datos privados en un solo slice de timelineItem; ordered ordena una copia de ese slice y ya no hay un map por indice que emparejar. Sin cambio de comportamiento: suites de internal/boardcmd (historia CA-359..CA-373) e internal/servecmd verdes.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.460896Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T195800_b7cb4a",
+  "as": "corregido",
+  "evidence": "Corregido: item.Parse e item.Validate exigen un presupuesto_usd finito y mayor que 0 (finitePositive), asi .inf es un item invalido que List omite con aviso y item list --json y board --json ya no fallan enteros. Tests internal/item/hallazgos_c1_test.go TestCA266_H1Hallazgo195800b7_* y TestCA264_H1Hallazgo195800b7_ValidateRechazaPresupuestoNoFinito, e internal/itemcmd/hallazgos_c1_test.go (e2e): rojos contra 130f679, verdes con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.201058Z"
+}

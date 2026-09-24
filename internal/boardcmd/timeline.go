@@ -127,7 +127,7 @@ func TimelineFor(root, base, blockOn, slug string, now time.Time) (Timeline, err
 		tl.Meter = append(tl.Meter, MeterSlot{ID: s.ID, Label: s.Label})
 	}
 
-	h := &history{root: root, base: base, dir: dir, ev: ev, t: t, extra: map[int]*entryData{}}
+	h := &history{root: root, base: base, dir: dir, ev: ev, t: t}
 	if err := h.gitEntries(); err != nil {
 		tl.Notes = append(tl.Notes, NoteSinGitPrefijo+err.Error())
 	}
@@ -155,20 +155,23 @@ type history struct {
 	root, base, dir string
 	ev              Evidence
 	t               *tree
-	entries         []TimelineEntry
-	extra           map[int]*entryData // by index in entries
+	items           []timelineItem
 	notes           []string
 	approvalsAt     map[string][]string // sha -> hashes approved in that commit
+}
+
+// timelineItem is an entry with the private data its meter effect needs:
+// one value, so sorting the entries can never separate them.
+type timelineItem struct {
+	entry TimelineEntry
+	data  *entryData // nil = no meter effect
 }
 
 func (h *history) add(e TimelineEntry, d *entryData) {
 	if e.Meter == nil {
 		e.Meter = []MeterEffect{}
 	}
-	h.entries = append(h.entries, e)
-	if d != nil {
-		h.extra[len(h.entries)-1] = d
-	}
+	h.items = append(h.items, timelineItem{entry: e, data: d})
 }
 
 // rel is a path of the evidence tree, relative to root.
@@ -511,7 +514,7 @@ func (h *history) delegations() {
 					Plain:   "el " + orRol(who) + " le paso trabajo a " + ev.Agent}, nil)
 				if ev.ToolID != "" {
 					if _, dup := open[ev.ToolID]; !dup {
-						open[ev.ToolID] = len(h.entries) - 1
+						open[ev.ToolID] = len(h.items) - 1
 					}
 				}
 			case "agent_end":
@@ -521,7 +524,7 @@ func (h *history) delegations() {
 				}
 				delete(open, ev.ToolID)
 				ts := ev.TS
-				h.entries[i].EndedAt = &ts
+				h.items[i].entry.EndedAt = &ts
 				plain := ev.Agent + " termino su parte"
 				if strings.Contains(ev.Detail, " fallo") {
 					plain = ev.Agent + " fallo"
@@ -562,10 +565,7 @@ func (h *history) where(rel string) string {
 
 // ordered sorts the entries and computes their meter effects in that order.
 func (h *history) ordered() []TimelineEntry {
-	idx := make([]int, len(h.entries))
-	for i := range idx {
-		idx[i] = i
-	}
+	items := append([]timelineItem(nil), h.items...)
 	rank := func(kind string) int {
 		for i, k := range kindOrder {
 			if k == kind {
@@ -580,8 +580,8 @@ func (h *history) ordered() []TimelineEntry {
 		}
 		return 1
 	}
-	sort.SliceStable(idx, func(a, b int) bool {
-		x, y := h.entries[idx[a]], h.entries[idx[b]]
+	sort.SliceStable(items, func(a, b int) bool {
+		x, y := items[a].entry, items[b].entry
 		switch {
 		case !x.At.Equal(y.At):
 			return x.At.Before(y.At)
@@ -600,12 +600,11 @@ func (h *history) ordered() []TimelineEntry {
 	approved := map[string]bool{}
 	specHash := ""
 	cited := map[string]bool{} // tokens a task commit already brought to a test
-	out := make([]TimelineEntry, 0, len(idx))
-	for _, i := range idx {
-		e := h.entries[i]
-		d := h.extra[i]
-		if d != nil {
-			e.Meter = h.effects(e, d, criteria, isCriterion, approved, &specHash, cited)
+	out := make([]TimelineEntry, 0, len(items))
+	for _, it := range items {
+		e := it.entry
+		if it.data != nil {
+			e.Meter = h.effects(e, it.data, criteria, isCriterion, approved, &specHash, cited)
 		}
 		out = append(out, e)
 	}

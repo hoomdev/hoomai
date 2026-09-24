@@ -106,7 +106,11 @@ type Evidence struct {
 
 	Reviews  []reviewcmd.Record // review records of E with task == slug
 	Findings []finding.Item     // OPEN findings of E with task == slug
-	BlockOn  string             // effective threshold: the project's block_on, or "high"
+	// UnreadableFindings: finding files of E that could not be read. Their
+	// task and severity are unknown, so they block every card of E, as they
+	// fail the findings_open gate.
+	UnreadableFindings []string
+	BlockOn            string // effective threshold: the project's block_on, or "high"
 
 	ReadyErr    string   // taskcmd.Ready error message; "" = task done would close it
 	ReadyKind   string   // taskcmd.ReadyError kind of ReadyErr ("" when unknown)
