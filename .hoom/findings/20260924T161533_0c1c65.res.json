@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T161533_0c1c65",
+  "as": "corregido",
+  "evidence": "Corregido: la nota que se commitea ya no lleva la ruta del binario (solo tarea e ids); la ruta queda para la terminal cuando no se puede resolver. Test TestCA293_LaNotaNoTraeLaRutaDelBinario (HoomBin explicito y executable resuelto): rojo contra f910d52, verde con el fix. Nota: main ya versiona rutas absolutas en veredictos (exposicion pre-existente).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T16:29:57.825908Z"
+}

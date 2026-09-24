@@ -1,0 +1,11 @@
+{
+  "id": "20260924T161533_0c1c65",
+  "created_at": "2026-09-24T16:15:33.339853Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:337-340 incorpora bin, que es la ruta absoluta de os.Executable/HoomBin, en Notes; lineas 353-364 serializan esa nota en .hoom/reviews y piden commitearla. Ante una discrepancia se filtran a Git nombres de usuario, rutas de workspace o directorios temporales locales. La evidencia versionada debe conservar el diagnostico sin persistir la ruta absoluta sensible.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

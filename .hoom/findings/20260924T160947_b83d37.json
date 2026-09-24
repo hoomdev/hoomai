@@ -1,0 +1,11 @@
+{
+  "id": "20260924T160947_b83d37",
+  "created_at": "2026-09-24T16:09:47.858398Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:566-573 promete citar este mismo binario, pero si os.Executable falla retorna hoom y vuelve a resolver por PATH sin informar el error. En ese estado degradado puede invocarse justamente una version vieja o incompatible, que es el fallo que este cambio intenta evitar, y los hallazgos pueden quedar sin tarea o no registrarse.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

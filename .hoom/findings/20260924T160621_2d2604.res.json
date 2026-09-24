@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T160621_2d2604",
+  "as": "corregido",
+  "evidence": "Corregido: registerCmd (internal/reviewcmd/reviewcmd.go) cita la ruta absoluta solo fuera de Windows; en Windows, donde el shell del reviewer puede ser PowerShell, cmd o bash y ninguna forma de citar corre en los tres, el pedido vuelve a hoom a secas como en main. Tests internal/reviewcmd/review_de_la_review_test.go TestCA162_RegisterCmdCitaSoloFueraDeWindows y TestCA162_RegisterCmdLaCitaSobreviveAlShell (propiedad: sh lee exactamente la ruta; windows da hoom): rojos contra el esqueleto f910d52, verdes con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T16:29:57.631259Z"
+}

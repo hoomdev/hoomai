@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T160621_c64133",
+  "as": "corregido",
+  "evidence": "Corregido: Result gana Notes (json notes, omitido si vacio) con las mismas notas que el registro, asi --json las trae. Test TestCA293_ResultTraeLasNotasDelRegistro (una pasada y cuatro lentes, DeepEqual con Record.Notes y JSON): rojo contra f910d52, verde con el fix; guarda TestCA293_SinDiscrepanciaResultSinNotas.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T16:29:57.786438Z"
+}

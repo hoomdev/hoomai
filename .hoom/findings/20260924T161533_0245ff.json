@@ -1,0 +1,11 @@
+{
+  "id": "20260924T161533_0245ff",
+  "created_at": "2026-09-24T16:15:33.075455Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:335-366 detecta que un hallazgo nuevo lleva otra tarea pero solo avisa y aun finaliza la review como revisado. Un reviewer no confiable puede invocar el mismo hoom con --task otra-tarea; internal/finding/gate.go:73-75 excluye entonces incluso un hallazgo high de findings_open al verificar el --spec esperado, y internal/boardcmd/derive.go:195-198 acepta el registro sin considerar Notes. El test internal/reviewcmd/binario_de_la_review_test.go:292-317 fija explicitamente este fail-open, permitiendo que evidencia bloqueante evada la tarea revisada.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

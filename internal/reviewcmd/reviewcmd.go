@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -71,6 +72,11 @@ type Options struct {
 	EnvelopeID string
 	Started    func()
 	Pilot      bool // same contract as agentcmd.Options.Pilot
+	// HoomBin is the hoom the reviewer must call to register its findings:
+	// "" = this very binary (os.Executable). Only when that cannot be
+	// resolved, or on Windows, does the pedido fall back to plain `hoom`,
+	// which the reviewer's shell resolves by PATH.
+	HoomBin string
 }
 
 // Pass is one lens: one session, its scope gate and the findings hoom saw
@@ -101,6 +107,8 @@ type Result struct {
 	// RecordID names the review record written in .hoom/reviews/ when the
 	// review ended revisado; empty otherwise.
 	RecordID string `json:"record_id,omitempty"`
+	// Notes: the same notes the record keeps, for --json.
+	Notes []string `json:"notes,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
@@ -261,6 +269,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	v := ultimoVeredicto(dir)
 	pol := agentcmd.PolicyFor(m, role)
 	mgr := runcmd.NewManager(root)
+	bin, err := hoomBin(opt)
+	if err != nil {
+		fmt.Fprintf(w, "  aviso: no pude resolver este binario (%v): el reviewer usara el hoom de su PATH\n", err)
+	}
+	var notas []string
 
 	// El registro del sobre de la review: lo mismo que deja `hoom agent`, asi
 	// el tablero ve la review en curso, cortada o fallida como a cualquier
@@ -299,8 +312,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		envelope.Write(root, rec)
 
 		info, err := mgr.Start(runcmd.StartOptions{
-			Provider: prov.Name(), Prompt: pedido(base, lens, git, opt.Spec, v, role, prov.Name()),
-			Task: opt.Task, Role: role.Slug, SystemPrompt: contract,
+			Provider: prov.Name(), Prompt: pedido(base, lens, git, opt.Spec, v, role, prov.Name(), bin),
+			Task: opt.Task, FindingTask: findingTask(opt), Role: role.Slug, SystemPrompt: contract,
 			Model: opt.Model, ReadOnly: readOnly, Exec: exec,
 			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
 		})
@@ -327,6 +340,14 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		pass.Scope = agentcmd.Gate(dir, base, opt.Task, role, before, agentcmd.Take(dir, base), pol, nil)
 		printScope(w, pass.Scope, role)
 		printFindings(w, pass.Findings)
+		if t := findingTask(opt); t != "" {
+			if fuera := fueraDeLaTarea(dir, base, pass.Findings, t); len(fuera) > 0 {
+				nota := fmt.Sprintf("hallazgos fuera de la tarea %s de la review (sin tarea o con otra): %s",
+					t, strings.Join(fuera, ", "))
+				fmt.Fprintf(w, "    aviso: %s\n", nota)
+				notas = append(notas, nota)
+			}
+		}
 		res.Passes = append(res.Passes, pass)
 		res.Findings = append(res.Findings, pass.Findings...)
 		if !pass.Scope.OK {
@@ -342,8 +363,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		VerdictID: verdictID(v), Verdict: verdictColor(v),
 		Lenses: append([]string(nil), lentes...), Provider: res.Provider, Writer: res.Writer,
 		Cross: res.Cross, Findings: append([]string{}, res.Findings...),
-		WritersDeclared: append([]string{}, res.WritersDeclared...),
+		WritersDeclared: append([]string{}, res.WritersDeclared...), Notes: notas,
 	})
+	res.Notes = notas
 	if err != nil {
 		fmt.Fprintf(w, "  aviso: no pude escribir el registro de review: %v\n", err)
 	} else {
@@ -383,6 +405,17 @@ func taskOf(opt Options) string {
 	}
 	if s := strings.TrimSpace(opt.Spec); s != "" {
 		return finding.TaskOfSpec(s)
+	}
+	return ""
+}
+
+// findingTask is the task the reviewer's own findings carry (HOOM_TASK):
+// the review's task, the same one its record gets (CA-293), so a review of
+// a spec without --task still ties them to the card. A spec whose name is
+// not an item slug gives none: no card can carry it.
+func findingTask(opt Options) string {
+	if t := taskOf(opt); item.ValidSlug(t) {
+		return t
 	}
 	return ""
 }
@@ -459,7 +492,7 @@ func pickProvider(name string, writers []string) (providers.Provider, error) {
 
 // pedido is the reviewer's dossier: deterministic, short, and built from
 // evidence. The diff it takes itself — it has a shell.
-func pedido(base, lens string, git gitx.Info, spec string, v *verdict.Verdict, role agents.Role, provider string) string {
+func pedido(base, lens string, git gitx.Info, spec string, v *verdict.Verdict, role agents.Role, provider, bin string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Revisa el cambio de esta rama con la lente %s. Solo esa lente.\n", lens)
 	fmt.Fprintf(&b, "Base: %s. El diff lo sacas vos: git diff %s...\n", base, base)
@@ -483,9 +516,13 @@ func pedido(base, lens string, git gitx.Info, spec string, v *verdict.Verdict, r
 	if strings.TrimSpace(spec) != "" {
 		fmt.Fprintf(&b, "Spec: %s\n", spec)
 	}
-	fmt.Fprintf(&b, "Registra cada hallazgo que sobreviva su propia lectura con:\n"+
-		"  hoom finding add --sev low|medium|high --lens %s --file <ruta> --author %s@%s \"<descripcion con archivo:linea>\"\n",
-		lens, role.Slug, provider)
+	cmd := registerCmd(runtime.GOOS, bin)
+	b.WriteString("Registra cada hallazgo que sobreviva su propia lectura con hoom finding add")
+	if cmd != "hoom" {
+		b.WriteString(", usando ESTE hoom (el del PATH puede ser otra version)")
+	}
+	fmt.Fprintf(&b, ":\n  %s finding add --sev low|medium|high --lens %s --file <ruta> --author %s@%s \"<descripcion con archivo:linea>\"\n",
+		cmd, lens, role.Slug, provider)
 	b.WriteString("El chat no es registro: lo que no quede como hallazgo, no paso.\n")
 	b.WriteString("No edites codigo: este arbol es de solo lectura para vos.\n")
 	return b.String()
@@ -515,6 +552,54 @@ func idsDeHallazgos(dir, base string) map[string]bool {
 	}
 	return out
 }
+
+// fueraDeLaTarea are the ids among ids whose finding does not carry task:
+// none (a hoom that does not know tasks, first in the PATH of the reviewer's
+// login shell) or another one (--task in the reviewer's command).
+func fueraDeLaTarea(dir, base string, ids []string, task string) []string {
+	items, _, err := finding.List(dir, base, false)
+	if err != nil {
+		return nil
+	}
+	tareas := map[string]string{}
+	for _, it := range items {
+		tareas[it.Finding.ID] = it.Finding.Task
+	}
+	var out []string
+	for _, id := range ids {
+		if tareas[id] != task {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// hoomBin is the hoom the reviewer must call: this very binary unless the
+// caller says otherwise, like the cockpit's status pane (CA-88). "" and
+// the error when this binary cannot be resolved.
+func hoomBin(opt Options) (string, error) {
+	if opt.HoomBin != "" {
+		return opt.HoomBin, nil
+	}
+	return executable()
+}
+
+// executable is os.Executable, a variable so a test can make it fail.
+var executable = os.Executable
+
+// registerCmd is how the pedido names the hoom the reviewer must call: its
+// absolute path quoted for a POSIX shell. On Windows the reviewer's shell
+// may be PowerShell, cmd or bash and no quoting runs in all three, so there
+// (and without a path) it is plain `hoom`, resolved by PATH as before.
+func registerCmd(goos, bin string) string {
+	if goos == "windows" || bin == "" {
+		return "hoom"
+	}
+	return shellQuote(bin)
+}
+
+// shellQuote quotes s for a POSIX shell.
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 func nuevos(antes, despues map[string]bool) []string {
 	var out []string

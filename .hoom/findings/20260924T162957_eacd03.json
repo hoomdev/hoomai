@@ -1,0 +1,10 @@
+{
+  "id": "20260924T162957_eacd03",
+  "created_at": "2026-09-24T16:29:57.872316Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "PRE-EXISTENTE (follow-up de 20260924T161533_0245ff, verificado contra main 8cd2e00) — un reviewer puede registrar un hallazgo con --task de otra tarea y queda fuera de findings_open --spec de la tarea revisada (internal/finding/gate.go:73-75); el tablero acepta el registro sin mirar Notes (internal/boardcmd/derive.go:195-198). Hoy hoom review lo avisa y lo anota en Record.Notes. Opcion: que la review termine no-entregable ante una tarea ajena, o que hoom registre un hallazgo espejo en la tarea de la review. No es mas fuerte que un reviewer que omite el hallazgo.",
+  "author": "orquestador@claude",
+  "fingerprint": "112a493ae9ffcef1"
+}

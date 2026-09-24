@@ -102,6 +102,7 @@ type StartOptions struct {
 	Provider     string
 	Prompt       string
 	Task         string // task slug: run inside its worktree; "" = project root
+	FindingTask  string // task the run's findings belong to (EnvTask); "" = Task
 	Dir          string // working directory, explicit; "" = se resuelve desde Task
 	Role         string // role slug this run embodies; "" = `hoom run`, no role
 	ResumeID     string // provider session id to resume in this new run
@@ -783,7 +784,11 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	// The run tells whatever it launches which task it belongs to — always,
 	// empty without one, so a value inherited from the parent never leaks in.
 	// exec keeps the LAST value of a repeated key.
-	cmd.Env = append(os.Environ(), EnvTask+"="+r.opts.Task)
+	task := r.opts.FindingTask
+	if task == "" {
+		task = r.opts.Task
+	}
+	cmd.Env = append(os.Environ(), EnvTask+"="+task)
 
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()
