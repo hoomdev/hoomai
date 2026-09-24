@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -104,6 +105,8 @@ type Result struct {
 	// RecordID names the review record written in .hoom/reviews/ when the
 	// review ended revisado; empty otherwise.
 	RecordID string `json:"record_id,omitempty"`
+	// Notes: the same notes the record keeps, for --json.
+	Notes []string `json:"notes,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
@@ -509,7 +512,7 @@ func pedido(base, lens string, git gitx.Info, spec string, v *verdict.Verdict, r
 	}
 	fmt.Fprintf(&b, "Registra cada hallazgo que sobreviva su propia lectura con hoom finding add, usando ESTE hoom (el del PATH puede ser otra version):\n"+
 		"  %s finding add --sev low|medium|high --lens %s --file <ruta> --author %s@%s \"<descripcion con archivo:linea>\"\n",
-		shellQuote(bin), lens, role.Slug, provider)
+		registerCmd(runtime.GOOS, bin), lens, role.Slug, provider)
 	b.WriteString("El chat no es registro: lo que no quede como hallazgo, no paso.\n")
 	b.WriteString("No edites codigo: este arbol es de solo lectura para vos.\n")
 	return b.String()
@@ -567,11 +570,17 @@ func hoomBin(opt Options) string {
 	if opt.HoomBin != "" {
 		return opt.HoomBin
 	}
-	if exe, err := os.Executable(); err == nil {
+	if exe, err := executable(); err == nil {
 		return exe
 	}
 	return "hoom"
 }
+
+// executable is os.Executable, a variable so a test can make it fail.
+var executable = os.Executable
+
+// registerCmd is how the pedido names the hoom the reviewer must call.
+func registerCmd(goos, bin string) string { return shellQuote(bin) }
 
 // shellQuote quotes s for a POSIX shell.
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
