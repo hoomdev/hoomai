@@ -98,17 +98,17 @@ func dir(root string) string { return filepath.Join(root, ".hoom", DirName) }
 // Write records the envelope's state. Best-effort by contract: a record that
 // cannot be written never breaks the envelope it describes, so nothing here
 // returns an error.
-func Write(root string, rec Record) {
+func Write(root string, rec Record) error {
 	if strings.TrimSpace(rec.ID) == "" {
-		return
+		return nil
 	}
 	rec.UpdatedAt = time.Now().UTC()
 	raw, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
-		return
+		return nil
 	}
 	if os.MkdirAll(dir(root), 0o755) != nil {
-		return
+		return nil
 	}
 	// La regla queda escrita (CA-202) sin reescribir un archivo completo:
 	// registrar telemetria no mueve el candidato (CA-203).
@@ -116,6 +116,7 @@ func Write(root string, rec Record) {
 	// Atomico: status y el Studio leen este archivo MIENTRAS se escribe, y un
 	// sobre a medias leido como vacio desapareceria de la lista.
 	hoomfs.AtomicWrite(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
+	return nil
 }
 
 // List returns the project's envelope records, newest first. A file that is
