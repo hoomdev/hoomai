@@ -1,0 +1,10 @@
+{
+  "id": "20260924T053338_538306",
+  "created_at": "2026-09-24T05:33:38.949183Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/providers/claude.go",
+  "description": "El normalizador correlate() cierra prematuramente las delegaciones ante cualquier task_notification, ignorando que el estado debe ser terminal. Una notificacion con status 'running' o 'started' cierra el subagente y lo marca como fallo.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "784f65107e04a15a"
+}

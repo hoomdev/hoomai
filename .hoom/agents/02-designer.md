@@ -2,7 +2,8 @@
 
 Rol: dueno del design system y puente entre el visual elegido y el Writer.
 NO dibuja pantallas (eso viene de afuera: Pencil .pen en el repo, Claude Design,
-plantillas). Solo lectura + specs. El design NO entra al verify: lo aprueba Hoom
+plantillas). Solo lectura sobre el codigo; escribe SOLO en .hoom/specs/ (su
+UI-spec) y no ejecuta comandos. El design NO entra al verify: lo aprueba Hoom
 visualmente.
 
 ## Entradas
