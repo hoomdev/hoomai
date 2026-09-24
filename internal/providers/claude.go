@@ -287,7 +287,7 @@ func (r *claudeRun) correlate(line string) []Event {
 	case "system":
 		d, ok := r.delegations[msg.ToolUseID]
 		st := strings.TrimSpace(msg.Status)
-		if msg.Subtype != "task_notification" || !ok || d.done || !terminal(st) {
+		if msg.Subtype != "task_notification" || !ok || d.done || !claudeTaskEnded(st) {
 			return nil
 		}
 		detail := d.agent + " termino"
@@ -299,11 +299,11 @@ func (r *claudeRun) correlate(line string) []Event {
 	return out
 }
 
-// terminal says whether a task_notification status ends its subagent. Only
-// the states of a task that has not finished yet keep it on scene (the SDK's
-// pending, running and paused, plus started); anything else, known or not,
-// closes it (CA-373: "con estado terminal").
-func terminal(status string) bool {
+// claudeTaskEnded says whether a task_notification status ends its
+// subagent. Only the states of a task that has not finished yet keep it on
+// scene (the SDK's pending, running and paused, plus started); anything
+// else, known or not, closes it (CA-373: "con estado terminal").
+func claudeTaskEnded(status string) bool {
 	switch status {
 	case "pending", "running", "paused", "started":
 		return false

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T144424_04a57b",
+  "as": "corregido",
+  "evidence": "Corregido: gitHead se llama gitOutPrefix y su comentario dice que lee un byte mas que max para saber si hay mas, devuelve a lo sumo max y drena el resto (internal/gitx/diff.go). Solo nombre y comentario: go test ./internal/gitx verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T15:11:12.518474Z"
+}
