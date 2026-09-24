@@ -102,6 +102,7 @@ type StartOptions struct {
 	Provider     string
 	Prompt       string
 	Task         string // task slug: run inside its worktree; "" = project root
+	FindingTask  string // task the run's findings belong to (EnvTask); "" = Task
 	Dir          string // working directory, explicit; "" = se resuelve desde Task
 	Role         string // role slug this run embodies; "" = `hoom run`, no role
 	ResumeID     string // provider session id to resume in this new run
