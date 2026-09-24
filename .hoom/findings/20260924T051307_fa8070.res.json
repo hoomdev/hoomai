@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T051307_fa8070",
+  "as": "corregido",
+  "evidence": "Corregido en su parte real: DetailFor y TimelineFor solo fallan en loadItem; un item que existe y no se puede leer (error de E/S) conserva ahora su fs.PathError (internal/boardcmd/gather.go loadItem) y GET /api/board/{slug} y /timeline responden 500 JSON (internal/servecmd/servecmd.go itemStatus). Inexistente o invalido por contenido siguen en 404 con el mensaje de CardFor, como manda tablero-de-solo-lectura.md:301-302 y fijan TestCA317_ApiBoardSlugErrores y TestCA365 sin cambios. Tests internal/servecmd/hallazgos_cabina_test.go TestHallazgo_fa8070_DetalleDeItemIlegibleEs500 y TestHallazgo_fa8070_TimelineDeItemIlegibleEs500 (CA-317, CA-365, item chmod 000): rojos contra main 96f9992 (404 el item ... es invalido: permission denied), verdes con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T14:40:20.739471Z"
+}

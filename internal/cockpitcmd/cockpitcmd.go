@@ -8,6 +8,7 @@
 package cockpitcmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -319,9 +321,48 @@ func Capture(root, project, slug string, deps Deps) (Terminal, error) {
 	if err != nil {
 		return t, fmt.Errorf("tmux capture-pane fallo: %v", err)
 	}
-	if len(text) > TerminalMaxBytes {
-		text = text[:TerminalMaxBytes]
-	}
-	t.Text, t.Available = string(text), true
+	t.Text, t.Available = string(clipTerminal(text, TerminalMaxBytes)), true
 	return t, nil
+}
+
+// clipTerminal cuts what tmux painted to at most max bytes without leaving
+// half a character or half an escape sequence at the end: the mirror only
+// keeps what it can draw whole.
+func clipTerminal(b []byte, max int) []byte {
+	if len(b) <= max {
+		return b
+	}
+	b = b[:max]
+	i := len(b) - 1
+	for i > 0 && len(b)-i < utf8.UTFMax && !utf8.RuneStart(b[i]) {
+		i--
+	}
+	if !utf8.FullRune(b[i:]) {
+		b = b[:i]
+	}
+	// the last sequence still open goes whole, and again if cutting it
+	// opened the one before (the ESC of an ESC \ that ends an OSC)
+	for {
+		i := bytes.LastIndexByte(b, 0x1b)
+		if i < 0 || escapeEnds(b[i:]) {
+			return b
+		}
+		b = b[:i]
+	}
+}
+
+// escapeEnds says whether the escape sequence seq starts with is whole: a
+// CSI (ESC [) ends on a byte 0x40-0x7E, a string (OSC, DCS, APC, PM, SOS) on
+// BEL (its ESC \ is an escape of its own), any other on a byte 0x30-0x7E.
+func escapeEnds(seq []byte) bool {
+	if len(seq) < 2 {
+		return false
+	}
+	switch seq[1] {
+	case '[':
+		return bytes.IndexFunc(seq[2:], func(r rune) bool { return r >= 0x40 && r <= 0x7e }) >= 0
+	case ']', 'P', '_', '^', 'X':
+		return bytes.IndexByte(seq[2:], 0x07) >= 0
+	}
+	return bytes.IndexFunc(seq[1:], func(r rune) bool { return r >= 0x30 && r <= 0x7e }) >= 0
 }
