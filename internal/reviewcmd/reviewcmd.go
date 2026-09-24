@@ -300,7 +300,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 		info, err := mgr.Start(runcmd.StartOptions{
 			Provider: prov.Name(), Prompt: pedido(base, lens, git, opt.Spec, v, role, prov.Name()),
-			Task: opt.Task, Role: role.Slug, SystemPrompt: contract,
+			Task: opt.Task, FindingTask: findingTask(opt), Role: role.Slug, SystemPrompt: contract,
 			Model: opt.Model, ReadOnly: readOnly, Exec: exec,
 			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
 		})
@@ -383,6 +383,17 @@ func taskOf(opt Options) string {
 	}
 	if s := strings.TrimSpace(opt.Spec); s != "" {
 		return finding.TaskOfSpec(s)
+	}
+	return ""
+}
+
+// findingTask is the task the reviewer's own findings carry (HOOM_TASK):
+// the review's task, the same one its record gets (CA-293), so a review of
+// a spec without --task still ties them to the card. A spec whose name is
+// not a slug gives none: `hoom finding add` would refuse it.
+func findingTask(opt Options) string {
+	if t := taskOf(opt); item.ValidSlug(t) {
+		return t
 	}
 	return ""
 }

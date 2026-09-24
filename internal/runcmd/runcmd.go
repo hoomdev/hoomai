@@ -784,7 +784,11 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	// The run tells whatever it launches which task it belongs to — always,
 	// empty without one, so a value inherited from the parent never leaks in.
 	// exec keeps the LAST value of a repeated key.
-	cmd.Env = append(os.Environ(), EnvTask+"="+r.opts.Task)
+	task := r.opts.FindingTask
+	if task == "" {
+		task = r.opts.Task
+	}
+	cmd.Env = append(os.Environ(), EnvTask+"="+task)
 
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()
