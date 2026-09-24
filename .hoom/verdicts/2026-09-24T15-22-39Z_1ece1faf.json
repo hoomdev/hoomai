@@ -1,0 +1,112 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-24T15-22-39Z_1ece1faf",
+  "created_at": "2026-09-24T15:22:39.256723Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "3959b679f178",
+    "branch": "hoom/review-hallazgos-con-tarea",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "README.md",
+      "internal/reviewcmd/binario_de_la_review_test.go",
+      "internal/reviewcmd/hallazgos_con_tarea_test.go",
+      "internal/reviewcmd/record.go",
+      "internal/reviewcmd/reviewcmd.go",
+      "internal/runcmd/hallazgos_con_tarea_test.go",
+      "internal/runcmd/runcmd.go"
+    ],
+    "change_fingerprint": "15035f7dc31f31b4",
+    "insertions": 1089,
+    "deletions": 9
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "fail",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 9,
+      "output_tail": "20260924T053338_538306 high [reliability] internal/providers/claude.go: El normalizador correlate() cierra prematuramente las delegaciones ante cualquier task_notification, ignorando que el estado debe ser terminal. Una notificacion...\nAccion: corrige y cierra cada uno con evidencia, o refutalo con la evidencia que lo tumba:\n  hoom finding resolve 20260924T053338_538306 --as corregido|refutado --evidence \"...\"\ndespues vuelve a correr 'hoom verify'",
+      "notes": "1 abiertos que bloquean (block_on: high): 20260924T053338_538306 [reliability] · alcance: todos los hallazgos · no bloquean: 3 medium, 4 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 424
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 196
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/reviewcmd ./internal/runcmd",
+      "exit_code": 0,
+      "duration_ms": 57203,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t55.391s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t9.065s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 3,
+    "fail": 1,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "red"
+}
