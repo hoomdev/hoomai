@@ -1,0 +1,11 @@
+{
+  "id": "20260924T200412_151300",
+  "created_at": "2026-09-24T20:04:12.958868Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:149-156 llama Started incondicionalmente despues de envelope.Write, aunque Write es best-effort y no informa fallos (internal/envelope/envelope.go:98-118). reviewcmd repite el patron en internal/reviewcmd/reviewcmd.go:291-293 y servecmd responde 202 al recibir ese callback en internal/servecmd/acciones.go:276-278. Con disco lleno o fallo de rename el cliente recibe un envelope_id cuyo registro nunca existio, la tarjeta no muestra el trabajo en curso y se pierde la evidencia para recuperarlo tras una caida. Started requiere una escritura comprobable o la respuesta debe declarar la degradacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

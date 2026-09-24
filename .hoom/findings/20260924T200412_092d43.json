@@ -1,0 +1,11 @@
+{
+  "id": "20260924T200412_092d43",
+  "created_at": "2026-09-24T20:04:12.12231Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO — internal/boardcmd/gather.go:134-146 descarta tanto los errores como los warnings de verdict.LoadAllWithWarnings, finding.List y reviewcmd.Records; luego :299-307 deriva Findings solo de los archivos que sobrevivieron. Si un hallazgo bloqueante queda ilegible después de un verde, o el directorio no se puede leer, Derive ve cero bloqueos y puede llevar la tarjeta a Tu aceptacion porque .hoom/findings esta fuera de la huella. El gate findings_open falla cerrado ante esa misma degradacion (internal/finding/gate.go:44-46), pero el tablero falla abierto y ni siquiera avisa. Hay que propagar el estado desconocido como warning bloqueante/error de evidencia, no convertirlo en ausencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

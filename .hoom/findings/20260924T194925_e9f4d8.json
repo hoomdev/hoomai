@@ -1,0 +1,11 @@
+{
+  "id": "20260924T194925_e9f4d8",
+  "created_at": "2026-09-24T19:49:25.156231Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:154-170 guarda cada TimelineEntry en un slice y sus datos privados en un map separado cuya clave es el índice de ese slice. ordered tiene que ordenar índices y volver a emparejar ambas estructuras en 564-610. La relación solo se conserva si toda inserción pasa por add y nadie reordena entries; un tipo privado que agrupe entry y entryData eliminaría ese acoplamiento posicional oculto.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260924T200412_ff6cf4",
+  "created_at": "2026-09-24T20:04:12.678948Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO — internal/item/item.go:359-380 y :412-435 implementan MarkDone y AddSession como dos read-modify-write atomicos por separado, sin CAS ni candado compartido. Los endpoints de integrar y abrir sesion pueden correr a la vez: si ambos leen el item original y AddSession escribe ultimo, borra hecho_en/commit_final despues de que taskcmd.Done ya removio el worktree; la tarjeta queda sin tarea y sin marca Hecho, sin recovery por task done. En el orden inverso se pierde la sesion declarada. La actualizacion del item necesita serializacion o deteccion de version.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

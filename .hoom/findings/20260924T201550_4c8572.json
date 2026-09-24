@@ -1,0 +1,11 @@
+{
+  "id": "20260924T201550_4c8572",
+  "created_at": "2026-09-24T20:15:50.877978Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "INTRODUCIDO — internal/taskcmd/taskcmd.go:326-408 deriva la ruta destructiva directamente del slug sin validarlo, y cmd/hoom/main.go:971-986 acepta ../../victim. Reproducido con task discard ../../victim --yes: restauró README.md y borró un archivo no rastreado dentro de otro repositorio bajo la raíz que nunca fue una tarea de hoom. Un error de operador o entrada maliciosa puede destruir trabajo fuera del alcance solicitado; valida el slug y exige un worktree registrado contenido bajo .hoom/worktrees antes de restaurar o borrar.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

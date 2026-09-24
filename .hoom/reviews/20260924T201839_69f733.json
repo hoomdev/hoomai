@@ -1,0 +1,36 @@
+{
+  "id": "20260924T201839_69f733",
+  "created_at": "2026-09-24T20:18:39.648354Z",
+  "task": "items-y-columna-derivada",
+  "spec": ".hoom/specs/items-y-columna-derivada.md",
+  "fingerprint": "112a493ae9ffcef1",
+  "verdict_id": "2026-09-24T16-31-13Z_f8c9850c",
+  "verdict": "green",
+  "lenses": [
+    "readability",
+    "reliability",
+    "resilience",
+    "risk"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20260924T194923_c055ac",
+    "20260924T194924_047f0e",
+    "20260924T194924_49d337",
+    "20260924T194924_540408",
+    "20260924T194925_e9f4d8",
+    "20260924T195800_5d9276",
+    "20260924T195800_5e42b8",
+    "20260924T195800_a91dba",
+    "20260924T195800_b7cb4a",
+    "20260924T200412_092d43",
+    "20260924T200412_151300",
+    "20260924T200412_c1a9da",
+    "20260924T200412_ff6cf4",
+    "20260924T201550_4c8572",
+    "20260924T201558_d8bf06"
+  ]
+}

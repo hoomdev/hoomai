@@ -1,0 +1,11 @@
+{
+  "id": "20260924T195800_5e42b8",
+  "created_at": "2026-09-24T19:58:00.989818Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "INTRODUCIDO — internal/taskcmd/taskcmd.go:230 ignora el bool de item.MarkDone y marca wroteItem=true en 233 aun cuando otro cierre ya escribio el item. Con dos task done concurrentes, ambos pueden leer el original; el primero marca y quita el worktree, el segundo recibe (false,nil), falla al quitar el worktree ya ausente y en 243-245 restaura su copia original, deshaciendo el hecho_en/commit_final del cierre exitoso. Ademas el error de esa restauracion se ignora, por lo que el comando tampoco puede garantizar el rollback que promete.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260924T194924_540408",
+  "created_at": "2026-09-24T19:49:24.858771Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO — internal/item/item.go:138-144 crea un segundo validador de slug y afirma que es la forma aceptada por hoom task start, pero taskcmd conserva otro slugRe y Start solo verifica la regexp (internal/taskcmd/taskcmd.go:29,51), mientras Item añade el límite de 64. Las dos fuentes ya describen dominios distintos; centralizar la gramática haría que item, task y sus comentarios no puedan divergir.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

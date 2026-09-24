@@ -1,0 +1,11 @@
+{
+  "id": "20260924T194924_047f0e",
+  "created_at": "2026-09-24T19:49:24.556247Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/ui/acciones.js",
+  "description": "INTRODUCIDO — internal/servecmd/ui/acciones.js:32-53 vuelve a declarar las etiquetas y la clasificación de acciones que ya entrega el backend en Action.label y Action.role (internal/boardcmd/boardcmd.go:181-190); tablero.js:39-43 hace lo mismo con columnas aunque el JSON trae name/column_name. La UI se presenta como una piel que solo pinta, pero agregar o renombrar una acción/columna exige cambios paralelos y una acción de rol omitida de ACC_ROL ni siquiera abre su diálogo en acciones.js:142.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

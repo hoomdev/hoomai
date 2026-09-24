@@ -1,0 +1,11 @@
+{
+  "id": "20260924T195800_b7cb4a",
+  "created_at": "2026-09-24T19:58:00.452543Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO — internal/item/item.go:280 valida presupuesto_usd solo con \u003e 0, por lo que YAML admite presupuesto_usd: .inf (yaml.v3 lo decodifica como +Inf). item add si rechaza infinitos en internal/itemcmd/itemcmd.go:134, pero un item escrito por una persona pasa Parse/List y luego json.MarshalIndent falla con unsupported value: +Inf; un solo item asi hace fallar item list --json y board --json en vez de omitirse con el aviso exigido para items invalidos.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260924T194924_49d337",
+  "created_at": "2026-09-24T19:49:24.256032Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO — internal/providers/claude.go:202-206 procesa cada linea de stream dos veces: Normalize la deserializa como claudeMsg y correlate vuelve a deserializarla como claudeLink en 243-246. Además, ambos tipos duplican el esquema anónimo message.content (lineas 187-195 y 230-240). Un cambio del protocolo de Claude obliga a mantener dos modelos y dos recorridos paralelos; decodificar una vez en tipos compartidos reduciría esa carga y haría visible una sola interpretación del wire format.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

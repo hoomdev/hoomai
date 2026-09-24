@@ -1,0 +1,11 @@
+{
+  "id": "20260924T194923_c055ac",
+  "created_at": "2026-09-24T19:49:23.939207Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:295 mantiene dos mecanismos de cierre paralelos: finish actualiza/imprime Result, mientras cerrar actualiza y persiste envelope.Record. Las salidas de las lineas 334, 354-355 y 375 tienen que anidar ambos en el orden correcto, y la de 320-322 solo cierra el sobre. Extender este flujo de casi 200 lineas exige recordar qué estado toca cada helper y facilita que el resultado y el sobre diverjan; una única transición terminal que actualice ambos haría explícito el ciclo de vida.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

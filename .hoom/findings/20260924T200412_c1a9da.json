@@ -1,0 +1,11 @@
+{
+  "id": "20260924T200412_c1a9da",
+  "created_at": "2026-09-24T20:04:12.419579Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:182-197 deja creada la sesion tmux si new-session funciona y split-window falla; Open retorna el error en :282-285 antes de AddSession. Lo mismo ocurre si AddSession falla en :289-292. En ambos casos el reintento encuentra has-session, devuelve created=false y omite para siempre AddSession, por lo que acepta como sana una cabina incompleta y pierde el writer declarado que la review cruzada necesita. El recovery debe completar/reparar la sesion y su registro cuando ya existe.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

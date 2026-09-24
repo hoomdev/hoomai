@@ -1,0 +1,11 @@
+{
+  "id": "20260924T195800_a91dba",
+  "created_at": "2026-09-24T19:58:00.156448Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO — internal/item/item.go:222 publica el archivo final con O_EXCL antes de escribir su contenido en 229; un lector concurrente puede observar un YAML vacio o parcial, y un fallo de Close en 234 devuelve error pero deja ese archivo como si el slug ya existiera. Esto contradice el contrato de escrituras atomicas: board/list pueden omitir con aviso un item que item add aun esta creando, y el siguiente intento ya no puede repararlo porque recibe ErrExists.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}

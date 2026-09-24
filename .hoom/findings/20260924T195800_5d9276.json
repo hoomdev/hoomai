@@ -1,0 +1,11 @@
+{
+  "id": "20260924T195800_5d9276",
+  "created_at": "2026-09-24T19:58:00.715565Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:361-375 trata como no fatal el error de WriteRecord: imprime un aviso en 369-370 y aun devuelve estado revisado con exit 0 en 375. Si .hoom/reviews no se puede crear o escribir, el comando afirma que termino revisado pero no deja record_id ni el artefacto que CA-293 exige; la tarjeta permanece en Review aunque la operacion reporto exito.",
+  "author": "reviewer@codex",
+  "fingerprint": "112a493ae9ffcef1",
+  "task": "items-y-columna-derivada"
+}
