@@ -1,0 +1,10 @@
+{
+  "id": "20260924T051358_e972fe",
+  "created_at": "2026-09-24T05:13:58.729311Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/boardcmd/detail.go",
+  "description": "La funcion join (linea 121) usa path.Join en lugar de filepath.Join con ev.Dir, lo que genera rutas hibridas (mezcla de \\ y /) en Windows para Paths.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "5f6b7f3e760dbfee"
+}
