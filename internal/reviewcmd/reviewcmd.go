@@ -73,7 +73,9 @@ type Options struct {
 	Started    func()
 	Pilot      bool // same contract as agentcmd.Options.Pilot
 	// HoomBin is the hoom the reviewer must call to register its findings:
-	// "" = this very binary (os.Executable), never whatever PATH finds.
+	// "" = this very binary (os.Executable). Only when that cannot be
+	// resolved, or on Windows, does the pedido fall back to plain `hoom`,
+	// which the reviewer's shell resolves by PATH.
 	HoomBin string
 }
 
@@ -267,7 +269,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	v := ultimoVeredicto(dir)
 	pol := agentcmd.PolicyFor(m, role)
 	mgr := runcmd.NewManager(root)
-	bin := hoomBin(opt)
+	bin, err := hoomBin(opt)
+	if err != nil {
+		fmt.Fprintf(w, "  aviso: no pude resolver este binario (%v): el reviewer usara el hoom de su PATH\n", err)
+	}
 	var notas []string
 
 	// El registro del sobre de la review: lo mismo que deja `hoom agent`, asi
@@ -336,9 +341,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		printScope(w, pass.Scope, role)
 		printFindings(w, pass.Findings)
 		if t := findingTask(opt); t != "" {
-			if sin := sinLaTarea(dir, base, pass.Findings, t); len(sin) > 0 {
-				nota := fmt.Sprintf("hallazgos sin la tarea %s de la review: %s (los registro un hoom que no la conoce; el de esta review es %s)",
-					t, strings.Join(sin, ", "), bin)
+			if fuera := fueraDeLaTarea(dir, base, pass.Findings, t); len(fuera) > 0 {
+				nota := fmt.Sprintf("hallazgos fuera de la tarea %s de la review (sin tarea o con otra): %s",
+					t, strings.Join(fuera, ", "))
 				fmt.Fprintf(w, "    aviso: %s\n", nota)
 				notas = append(notas, nota)
 			}
@@ -360,6 +365,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Cross: res.Cross, Findings: append([]string{}, res.Findings...),
 		WritersDeclared: append([]string{}, res.WritersDeclared...), Notes: notas,
 	})
+	res.Notes = notas
 	if err != nil {
 		fmt.Fprintf(w, "  aviso: no pude escribir el registro de review: %v\n", err)
 	} else {
@@ -406,7 +412,7 @@ func taskOf(opt Options) string {
 // findingTask is the task the reviewer's own findings carry (HOOM_TASK):
 // the review's task, the same one its record gets (CA-293), so a review of
 // a spec without --task still ties them to the card. A spec whose name is
-// not a slug gives none: `hoom finding add` would refuse it.
+// not an item slug gives none: no card can carry it.
 func findingTask(opt Options) string {
 	if t := taskOf(opt); item.ValidSlug(t) {
 		return t
@@ -510,9 +516,13 @@ func pedido(base, lens string, git gitx.Info, spec string, v *verdict.Verdict, r
 	if strings.TrimSpace(spec) != "" {
 		fmt.Fprintf(&b, "Spec: %s\n", spec)
 	}
-	fmt.Fprintf(&b, "Registra cada hallazgo que sobreviva su propia lectura con hoom finding add, usando ESTE hoom (el del PATH puede ser otra version):\n"+
-		"  %s finding add --sev low|medium|high --lens %s --file <ruta> --author %s@%s \"<descripcion con archivo:linea>\"\n",
-		registerCmd(runtime.GOOS, bin), lens, role.Slug, provider)
+	cmd := registerCmd(runtime.GOOS, bin)
+	b.WriteString("Registra cada hallazgo que sobreviva su propia lectura con hoom finding add")
+	if cmd != "hoom" {
+		b.WriteString(", usando ESTE hoom (el del PATH puede ser otra version)")
+	}
+	fmt.Fprintf(&b, ":\n  %s finding add --sev low|medium|high --lens %s --file <ruta> --author %s@%s \"<descripcion con archivo:linea>\"\n",
+		cmd, lens, role.Slug, provider)
 	b.WriteString("El chat no es registro: lo que no quede como hallazgo, no paso.\n")
 	b.WriteString("No edites codigo: este arbol es de solo lectura para vos.\n")
 	return b.String()
@@ -543,10 +553,10 @@ func idsDeHallazgos(dir, base string) map[string]bool {
 	return out
 }
 
-// sinLaTarea are the ids among ids whose finding does not carry task: what
-// a hoom that does not know the task (an older one first in the PATH of the
-// reviewer's login shell) leaves behind.
-func sinLaTarea(dir, base string, ids []string, task string) []string {
+// fueraDeLaTarea are the ids among ids whose finding does not carry task:
+// none (a hoom that does not know tasks, first in the PATH of the reviewer's
+// login shell) or another one (--task in the reviewer's command).
+func fueraDeLaTarea(dir, base string, ids []string, task string) []string {
 	items, _, err := finding.List(dir, base, false)
 	if err != nil {
 		return nil
@@ -565,22 +575,28 @@ func sinLaTarea(dir, base string, ids []string, task string) []string {
 }
 
 // hoomBin is the hoom the reviewer must call: this very binary unless the
-// caller says otherwise, like the cockpit's status pane (CA-88).
-func hoomBin(opt Options) string {
+// caller says otherwise, like the cockpit's status pane (CA-88). "" and
+// the error when this binary cannot be resolved.
+func hoomBin(opt Options) (string, error) {
 	if opt.HoomBin != "" {
-		return opt.HoomBin
+		return opt.HoomBin, nil
 	}
-	if exe, err := executable(); err == nil {
-		return exe
-	}
-	return "hoom"
+	return executable()
 }
 
 // executable is os.Executable, a variable so a test can make it fail.
 var executable = os.Executable
 
-// registerCmd is how the pedido names the hoom the reviewer must call.
-func registerCmd(goos, bin string) string { return shellQuote(bin) }
+// registerCmd is how the pedido names the hoom the reviewer must call: its
+// absolute path quoted for a POSIX shell. On Windows the reviewer's shell
+// may be PowerShell, cmd or bash and no quoting runs in all three, so there
+// (and without a path) it is plain `hoom`, resolved by PATH as before.
+func registerCmd(goos, bin string) string {
+	if goos == "windows" || bin == "" {
+		return "hoom"
+	}
+	return shellQuote(bin)
+}
 
 // shellQuote quotes s for a POSIX shell.
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

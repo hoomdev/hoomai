@@ -1,0 +1,11 @@
+{
+  "id": "20260924T160621_2d2604",
+  "created_at": "2026-09-24T16:06:21.497814Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:510-512 y :577 generan siempre el comando del reviewer con comillas simples POSIX. En Windows, plataforma que el proyecto soporta, PowerShell necesita el operador de invocacion para ejecutar una ruta entre comillas y cmd.exe no interpreta comillas simples; por tanto el comando exacto entregado al reviewer no ejecuta el binario y los hallazgos pueden no registrarse. Los tests nuevos solo ejercitan scripts POSIX.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

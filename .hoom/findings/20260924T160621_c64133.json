@@ -1,0 +1,11 @@
+{
+  "id": "20260924T160621_c64133",
+  "created_at": "2026-09-24T16:06:21.657902Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:335-340 emite la discrepancia de tarea solo por io.Writer y la conserva solo en Record.Notes; Result no expone esas notas (lineas 90-106). Como cmd/hoom/main.go:659-671 reemplaza ese writer por io.Discard con --json, una review automatizada devuelve revisado y los ids de hallazgos sin ninguna advertencia machine-readable de que quedaron fuera de la tarea; el diagnostico solo puede descubrirse leyendo luego el archivo indicado por record_id.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

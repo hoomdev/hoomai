@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T155947_8cde63",
+  "as": "corregido",
+  "evidence": "Corregido: sinLaTarea se llama fueraDeLaTarea, su comentario nombra los dos casos (sin tarea u otra) y la nota dice hallazgos fuera de la tarea T de la review (sin tarea o con otra) sin atribuir una causa. Test TestCA293_LaNotaNoTraeLaRutaDelBinario exige ese texto y que no diga no la conoce: rojo contra f910d52, verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T16:29:57.86387Z"
+}

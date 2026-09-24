@@ -1,0 +1,11 @@
+{
+  "id": "20260924T155947_8cde63",
+  "created_at": "2026-09-24T15:59:47.756129Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:543-558: sinLaTarea y su comentario dicen que buscan hallazgos 'sin tarea', pero la implementacion tambien incluye deliberadamente cualquier tarea distinta (caso cubierto por TestCA293_HallazgoConOtraTareaSeAvisaSoloElAjeno). El nombre y el comentario ocultan esa rama relevante; deberian expresar 'fuera de la tarea esperada' o equivalente.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

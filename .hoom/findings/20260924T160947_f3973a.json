@@ -1,0 +1,11 @@
+{
+  "id": "20260924T160947_f3973a",
+  "created_at": "2026-09-24T16:09:47.703253Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:510-512 y 576-577 generan el comando exacto con quoting exclusivo de POSIX. En Windows, plataforma soportada por install.ps1 y README.md, PowerShell requiere el operador \u0026 para ejecutar una ruta citada y cmd.exe no interpreta comillas simples; el reviewer no puede ejecutar el comando entregado y la review puede terminar revisada sin registrar sus hallazgos.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

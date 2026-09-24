@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T161533_0245ff",
+  "as": "refutado",
+  "evidence": "Refutado como INTRODUCIDO contra main 8cd2e00: un reviewer que corre hoom finding add --task otra-tarea --sev high ya terminaba revisado sin ningun aviso y findings_open --spec daba pass (1 de otras tareas no cuentan); main ya tenia --task (cmd/hoom/main.go:698) y una pasada que no registra nada tambien termina revisado. El candidato no toca internal/finding/gate.go ni internal/boardcmd/derive.go y agrega el aviso y Record.Notes: la evasion es pre-existente y ahora es visible. Follow-up registrado aparte como PRE-EXISTENTE.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T16:29:57.550178Z"
+}

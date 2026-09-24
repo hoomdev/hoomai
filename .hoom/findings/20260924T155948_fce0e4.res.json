@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T155948_fce0e4",
+  "as": "corregido",
+  "evidence": "Corregido: hoomBin devuelve el error de os.Executable y hoom review avisa que no pudo resolver este binario y que el reviewer usara el hoom de su PATH; el pedido usa entonces hoom a secas, y el comentario de Options.HoomBin dice cuando se cae a PATH. Test TestCA162_SiExecutableFallaElPedidoUsaHoomASecas (executable que falla): rojo contra f910d52, verde con el fix; guarda TestCA162_ConHoomBinExecutableQueFallaNoImporta.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T16:29:57.747196Z"
+}

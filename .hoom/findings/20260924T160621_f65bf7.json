@@ -1,0 +1,11 @@
+{
+  "id": "20260924T160621_f65bf7",
+  "created_at": "2026-09-24T16:06:21.339417Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:407-411 usa item.ValidSlug para decidir si propaga la tarea del spec, pero ese validador impone el limite de 64 caracteres mientras taskcmd.Start (internal/taskcmd/taskcmd.go:49-53) y finding.Register (internal/finding/finding.go:109-114) aceptan cualquier longitud que cumpla la expresion del slug. Por eso una review solo con --spec cuyo slug valido tenga 65 o mas caracteres deja HOOM_TASK vacia, no avisa sobre la discrepancia y registra hallazgos sin la tarea aunque el registro de review si la declara.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4fdd767dd6ad678",
+  "task": "review-hallazgos-con-tarea"
+}

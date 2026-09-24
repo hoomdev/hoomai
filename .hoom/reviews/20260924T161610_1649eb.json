@@ -1,0 +1,30 @@
+{
+  "id": "20260924T161610_1649eb",
+  "created_at": "2026-09-24T16:16:10.941625Z",
+  "task": "review-hallazgos-con-tarea",
+  "spec": "",
+  "fingerprint": "c4fdd767dd6ad678",
+  "verdict_id": "2026-09-24T15-56-44Z_269c4bcd",
+  "verdict": "green",
+  "lenses": [
+    "readability",
+    "reliability",
+    "resilience",
+    "risk"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20260924T155947_8cde63",
+    "20260924T155948_fce0e4",
+    "20260924T160621_2d2604",
+    "20260924T160621_c64133",
+    "20260924T160621_f65bf7",
+    "20260924T160947_b83d37",
+    "20260924T160947_f3973a",
+    "20260924T161533_0245ff",
+    "20260924T161533_0c1c65"
+  ]
+}

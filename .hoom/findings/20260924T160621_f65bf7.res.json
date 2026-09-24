@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T160621_f65bf7",
+  "as": "refutado",
+  "evidence": "Refutado contra main 8cd2e00: no es introducido ni tiene consecuencia. main dejaba HOOM_TASK vacia en toda review con solo --spec (runcmd.go:786) y Record.Task ya era taskOf. Con un spec de 65 caracteres el hallazgo sin tarea cuenta en findings_open --spec (fail, bloquea: alcance tarea + sin tarea) y ninguna tarjeta puede tener ese slug (item.Validate rechaza mas de 64, internal/item/item.go:194). El comentario de findingTask que decia que finding add lo rechazaria se corrigio: ahora dice que ninguna tarjeta puede llevarlo.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T16:29:57.592188Z"
+}
