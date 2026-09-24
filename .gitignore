@@ -1,1 +1,4 @@
 dist/
+/hoom
+diff.txt
+scratch*.go
