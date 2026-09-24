@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T145643_57c18a",
+  "as": "corregido",
+  "evidence": "Corregido: gitOutPrefix (antes gitHead, internal/gitx/diff.go) ya no mata a git al pasar el tope: guarda max+1 bytes, drena el resto con io.Copy a io.Discard y espera a git, asi un fallo despues del corte vuelve a dar Available false con la Note de git; Kill queda solo para un error de lectura. Refutador: confirmado con textconv que falla y con xfuncname invalida (numstat sale 0, el parche sale 128 despues de unos 610 KiB; la base 96f9992 daba Available false y f38c6a0 true). Tests internal/gitx/fallo_tardio_test.go TestHallazgo_57c18a_* (CA-315): rojos contra f38c6a0, verdes con el fix; TestHallazgo_395420 (techo de 4 MiB de TotalAlloc) sigue verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T15:11:12.480015Z"
+}

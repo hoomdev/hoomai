@@ -1,0 +1,113 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-24T14-41-52Z_852e3936",
+  "created_at": "2026-09-24T14:41:52.595165Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "96f99928320b",
+    "branch": "hoom/fixes-review-cabina",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "internal/boardcmd/gather.go",
+      "internal/cockpitcmd/cockpitcmd.go",
+      "internal/cockpitcmd/hallazgos_cabina_test.go",
+      "internal/gitx/diff.go",
+      "internal/gitx/hallazgos_cabina_test.go",
+      "internal/providers/claude.go",
+      "internal/providers/hallazgos_cabina_test.go",
+      "internal/servecmd/hallazgos_cabina_test.go",
+      "internal/servecmd/servecmd.go"
+    ],
+    "change_fingerprint": "5960239c598169f0",
+    "insertions": 834,
+    "deletions": 15
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 9,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 446
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 194
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/boardcmd ./internal/cockpitcmd ./internal/gitx ./internal/providers ./internal/servecmd",
+      "exit_code": 0,
+      "duration_ms": 84305,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t59.345s\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t5.228s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t6.049s\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t1.234s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t83.191s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 4,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T144425_99eb82",
+  "as": "corregido",
+  "evidence": "Corregido: la funcion terminal se llama claudeTaskEnded (internal/providers/claude.go), que nombra el dominio en la llamada. Sin cambio de comportamiento: TestHallazgo_538306_* y TestCA373_* verdes.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T15:11:12.553307Z"
+}

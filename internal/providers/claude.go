@@ -286,16 +286,29 @@ func (r *claudeRun) correlate(line string) []Event {
 		}
 	case "system":
 		d, ok := r.delegations[msg.ToolUseID]
-		if msg.Subtype != "task_notification" || !ok || d.done {
+		st := strings.TrimSpace(msg.Status)
+		if msg.Subtype != "task_notification" || !ok || d.done || !claudeTaskEnded(st) {
 			return nil
 		}
 		detail := d.agent + " termino"
-		if st := strings.TrimSpace(msg.Status); st != "" && st != "completed" {
+		if st != "" && st != "completed" {
 			detail = d.agent + " fallo (" + st + ")"
 		}
 		end(msg.ToolUseID, detail)
 	}
 	return out
+}
+
+// claudeTaskEnded says whether a task_notification status ends its
+// subagent. Only the states of a task that has not finished yet keep it on
+// scene (the SDK's pending, running and paused, plus started); anything
+// else, known or not, closes it (CA-373: "con estado terminal").
+func claudeTaskEnded(status string) bool {
+	switch status {
+	case "pending", "running", "paused", "started":
+		return false
+	}
+	return true
 }
 
 // isDelegation names Claude Code's delegation tool: "Task" up to 2.1.263,

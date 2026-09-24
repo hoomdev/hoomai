@@ -1,6 +1,8 @@
 package gitx
 
 import (
+	"bytes"
+	"io"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -51,16 +53,12 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 		d.Insertions += f.Insertions
 		d.Deletions += f.Deletions
 	}
-	patch, err := gitOut(dir, "diff", "--no-color", "--no-ext-diff", rng, "--")
+	patch, truncated, err := gitOutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil
 	}
-	if maxBytes > 0 && len(patch) > maxBytes {
-		cut := strings.LastIndexByte(patch[:maxBytes], '\n')
-		patch, d.Truncated = patch[:cut+1], true
-	}
-	d.Patch = patch
+	d.Patch, d.Truncated = patch, truncated
 	d.Head, _ = run(dir, "rev-parse", "--short=12", "HEAD")
 	d.Available = true
 	return d, nil
@@ -81,6 +79,56 @@ func gitOut(dir string, args ...string) (string, error) {
 		return "", err
 	}
 	return string(out), nil
+}
+
+// gitOutPrefix is gitOut for an output that may not fit: it returns at most
+// max bytes of git's stdout, cut on a line end, and truncated when there was
+// more. It reads one byte past max to know that, drains the rest without
+// keeping it and waits for git, so a failure after the cut is still git's
+// error. max <= 0 reads everything.
+func gitOutPrefix(dir string, max int, args ...string) (out string, truncated bool, err error) {
+	if max <= 0 {
+		out, err = gitOut(dir, args...)
+		return out, false, err
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", false, err
+	}
+	if err := cmd.Start(); err != nil {
+		return "", false, err
+	}
+	var buf bytes.Buffer
+	_, rerr := io.CopyN(&buf, pipe, int64(max)+1)
+	switch rerr {
+	case nil:
+		truncated = true
+		_, rerr = io.Copy(io.Discard, pipe)
+	case io.EOF:
+		rerr = nil
+	}
+	if rerr != nil {
+		// a broken pipe: git is not read to the end, so it is stopped
+		// before Wait
+		cmd.Process.Kill()
+		cmd.Wait()
+		return "", false, rerr
+	}
+	if err := cmd.Wait(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return "", false, errorString(msg)
+		}
+		return "", false, err
+	}
+	if truncated {
+		head := buf.Bytes()[:max]
+		return string(head[:bytes.LastIndexByte(head, '\n')+1]), true, nil
+	}
+	return buf.String(), false, nil
 }
 
 type errorString string

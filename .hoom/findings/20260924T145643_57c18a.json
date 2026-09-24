@@ -1,0 +1,10 @@
+{
+  "id": "20260924T145643_57c18a",
+  "created_at": "2026-09-24T14:56:43.18321Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:105-115: gitHead trata como truncado exitoso cualquier proceso que entregue max+1 bytes: mata git, ignora tanto Kill como Wait y retorna nil. Esto oculta fallos tardios del diff y hace que BranchDiff marque Available=true sin Note. Reproduccion: un rango con a_big.txt primero y un blob faltante en z_missing.txt hizo que git diff emitiera 588129 bytes y luego saliera 128 (fatal: unable to read ...); con maxBytes=256 KiB esta rama retorna antes de observar ese 128. El lector debe conservar el prefijo acotado pero drenar/esperar el proceso, o distinguir explicitamente el aborto propio de un fallo real.",
+  "author": "reviewer@codex",
+  "fingerprint": "681002b06fdf7f75"
+}

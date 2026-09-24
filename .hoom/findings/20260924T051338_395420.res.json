@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T051338_395420",
+  "as": "corregido",
+  "evidence": "Corregido: BranchDiff lee el parche con gitHead (internal/gitx/diff.go): stdout por pipe con io.CopyN hasta maxBytes+1, corte en el ultimo fin de linea como antes y git detenido al pasar el tope; maxBytes \u003c= 0 sigue sin tope y el fallo de git sigue en Note. Test internal/gitx/hallazgos_cabina_test.go TestHallazgo_395420_BranchDiffNoLeeElParcheEnteroAMemoria (CA-315, parche de 16 MiB, tope 256 KiB, techo 4 MiB de TotalAlloc): rojo contra main 96f9992 (80.4 MiB), verde con el fix. El refutador midio 189.8 MiB con un commit de 64 MB en la base.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T14:40:20.775241Z"
+}
