@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T052244_32db75",
+  "as": "corregido",
+  "evidence": "Corregido: Capture corta con clipTerminal (internal/cockpitcmd/cockpitcmd.go): a lo sumo TerminalMaxBytes, sin partir una runa UTF-8 y sin terminar dentro de una secuencia de escape (CSI, OSC con BEL o con ESC y barra invertida, y las cortas); lo que entra sale identico. Tests internal/cockpitcmd/hallazgos_cabina_test.go TestHallazgo_32db75_CaptureNoParteRunasNiSecuencias y TestHallazgo_32db75_PropiedadCorteSeguro (CA-350): rojos contra main 96f9992 (cola con byte 0xc3 suelto y ESC suelto), verdes con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T14:40:20.809237Z"
+}

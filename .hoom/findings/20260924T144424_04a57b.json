@@ -1,0 +1,10 @@
+{
+  "id": "20260924T144424_04a57b",
+  "created_at": "2026-09-24T14:44:24.963229Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:84-88: gitHead no opera sobre la revision HEAD; es un lector acotado de stdout para cualquier comando Git, y el nombre hace que la llamada de la linea 56 parezca una operacion sobre esa revision. Ademas, el comentario afirma que lee y retiene como maximo max bytes, pero la linea 105 lee deliberadamente max+1 para detectar truncamiento. Un nombre que describa el efecto (gitOutPrefix o equivalente) y un contrato que explicite el byte de lookahead reducirian la carga mental.",
+  "author": "reviewer@codex",
+  "fingerprint": "681002b06fdf7f75"
+}

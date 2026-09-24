@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,11 +65,17 @@ func CardFor(root, base, blockOn, slug string, now time.Time) (Card, error) {
 }
 
 // loadItem is how the board says an item cannot be shown: one message for
-// the terminal and the Studio.
+// the terminal and the Studio. A missing or invalid item is the item's
+// answer; a file that exists and could not be read keeps its *fs.PathError
+// (errors.As) because that one is the reader failing.
 func loadItem(root, slug string) (item.Item, error) {
 	it, err := item.Load(root, slug)
 	if os.IsNotExist(err) {
 		return item.Item{}, fmt.Errorf("no existe el item %q (%s). Accion: crealo con 'hoom item add \"<titulo>\" --slug %s'", slug, item.RelPath(slug), slug)
+	}
+	var read *fs.PathError
+	if errors.As(err, &read) {
+		return item.Item{}, fmt.Errorf("no se pudo leer el item %s: %w", item.RelPath(slug), err)
 	}
 	if err != nil {
 		return item.Item{}, fmt.Errorf("el item %s es invalido: %v", item.RelPath(slug), err)

@@ -312,7 +312,7 @@ func (s *Server) handler() (*http.ServeMux, []string) {
 		d, err := boardcmd.DetailFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug,
 			time.Now().UTC(), r.URL.Query().Get("diff") == "1")
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, itemStatus(err), err.Error())
 			return
 		}
 		writeJSON(w, d)
@@ -328,7 +328,7 @@ func (s *Server) handler() (*http.ServeMux, []string) {
 		}
 		tl, err := boardcmd.TimelineFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug, time.Now().UTC())
 		if err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
+			writeError(w, itemStatus(err), err.Error())
 			return
 		}
 		writeJSON(w, tl)
@@ -734,6 +734,17 @@ func runErrCode(err error) int {
 		return http.StatusNotFound
 	}
 	return http.StatusBadRequest
+}
+
+// itemStatus maps the board's read of one card to HTTP: a missing or
+// invalid item is 404 (CA-317, CA-365), an item file the server could not
+// read is 500.
+func itemStatus(err error) int {
+	var read *fs.PathError
+	if errors.As(err, &read) {
+		return http.StatusInternalServerError
+	}
+	return http.StatusNotFound
 }
 
 // specPath resolves a spec name to its file, refusing anything that could

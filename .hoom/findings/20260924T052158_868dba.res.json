@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T052158_868dba",
+  "as": "refutado",
+  "evidence": "Refutado contra base main 96f9992: el writer out y su tail early (internal/servecmd/acciones.go:235-236) solo reciben escrituras de la goroutine de acciones.go:247. agentcmd.Run y reviewcmd.Run escriben con Fprintf secuenciales y no lanzan goroutines (grep de go func en internal/agentcmd e internal/reviewcmd sin tests: 0). Ningun exec.Cmd recibe out como Stdout o Stderr: runcmd.go:788-789 usa pipes que van al jsonl del run. early se lee en acciones.go:269 despues de Run y la cinta escribe en logFile. go test -race -count=1 ./internal/servecmd/ -run TestCA33[6-9]|TestCA34[01]|TestCA381 en la base: 23 PASS, 0 DATA RACE (corrido por el refutador y repetido por el orquestador).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T14:40:20.843935Z"
+}

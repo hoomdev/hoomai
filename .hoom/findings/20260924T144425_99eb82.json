@@ -1,0 +1,10 @@
+{
+  "id": "20260924T144425_99eb82",
+  "created_at": "2026-09-24T14:44:25.22378Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO — internal/providers/claude.go:290,306: terminal es un nombre de paquete demasiado generico; en este paquete multiproveedor decide especificamente si el status de una task_notification de Claude termina una delegacion. El lector debe saltar al comentario para distinguirlo de eventos terminales o del terminal de consola. Un nombre contextual como isTerminalClaudeTaskStatus haria explicito el dominio en la llamada.",
+  "author": "reviewer@codex",
+  "fingerprint": "681002b06fdf7f75"
+}

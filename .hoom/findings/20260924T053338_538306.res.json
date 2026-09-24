@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T053338_538306",
+  "as": "corregido",
+  "evidence": "Corregido: correlate (internal/providers/claude.go) solo cierra una delegacion con una task_notification de estado terminal; pending, running, paused y started emiten solo su system y la dejan abierta (funcion terminal); completed y vacio cierran con termino, cualquier otro con fallo (\u003cstatus\u003e), un solo agent_end. Tests internal/providers/hallazgos_cabina_test.go TestHallazgo_538306_* (CA-373, lineas reales de Claude Code 2.1.281 variando solo status: running, completed, failed, pending, started, paused, stopped): rojos contra main 96f9992 (running daba agent_end general-purpose fallo (running)), verdes con el fix; go test -race ./internal/providers ok. Nota del refutador: Claude Code 2.1.281 y el SDK solo emiten task_notification con completed, failed o stopped (running y paused viajan en task_updated), asi que hoy no se dispara con lineas reales; se corrige porque la seccion 4 del spec exige estado terminal.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T14:40:20.702667Z"
+}

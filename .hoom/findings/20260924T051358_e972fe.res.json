@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T051358_e972fe",
+  "as": "refutado",
+  "evidence": "Refutado contra base main 96f9992: path.Join no produce barras invertidas en ningun sistema (go doc path: solo rutas con barra; GOROOT/src/path no tiene archivos por OS). Sus insumos son literales con barra: ev.Dir y ev.SpecPath (internal/boardcmd/gather.go:209-217), reviewcmd.RecordsDir e ids; un programa con esos insumos dio 10 de 10 rutas sin barra invertida. filepath.Join crearia la mezcla: en Windows spec, verdict y findings pasarian a barra invertida mientras item (item.RelPath, internal/item/item.go:157) y dir siguen con barra, contra el bloque JSON de paths de tablero-de-solo-lectura.md.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T14:40:20.878765Z"
+}
