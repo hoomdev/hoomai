@@ -34,6 +34,9 @@ type Record struct {
 	// WritersDeclared: the providers of the item's sessions (see Result).
 	WritersDeclared []string `json:"writers_declared"`
 	Findings        []string `json:"findings"` // ids hoom saw appear
+	// Notes: what hoom saw go wrong with the evidence, e.g. findings that
+	// do not carry the review's task.
+	Notes []string `json:"notes,omitempty"`
 }
 
 func recordsDir(dir string) string { return filepath.Join(dir, ".hoom", RecordsDir) }

@@ -71,6 +71,9 @@ type Options struct {
 	EnvelopeID string
 	Started    func()
 	Pilot      bool // same contract as agentcmd.Options.Pilot
+	// HoomBin is the hoom the reviewer must call to register its findings:
+	// "" = this very binary (os.Executable), never whatever PATH finds.
+	HoomBin string
 }
 
 // Pass is one lens: one session, its scope gate and the findings hoom saw
