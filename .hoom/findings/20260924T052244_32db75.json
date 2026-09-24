@@ -1,0 +1,10 @@
+{
+  "id": "20260924T052244_32db75",
+  "created_at": "2026-09-24T05:22:44.870458Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "Capture recorta text[:TerminalMaxBytes] operando sobre bytes, lo que puede cortar una secuencia de escape ANSI o un caracter UTF-8 por la mitad y romper el renderizado en la UI",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "1c3593a41a87843b"
+}

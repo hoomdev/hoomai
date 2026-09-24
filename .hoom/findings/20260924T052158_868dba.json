@@ -1,0 +1,10 @@
+{
+  "id": "20260924T052158_868dba",
+  "created_at": "2026-09-24T05:21:58.675904Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/servecmd/acciones.go",
+  "description": "tail.Write no es thread-safe y stdout/stderr de exec.Cmd pueden escribir concurrentemente, causando un data race en t.b = append(t.b, p...)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "1c3593a41a87843b"
+}
