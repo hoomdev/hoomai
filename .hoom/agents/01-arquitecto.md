@@ -1,8 +1,8 @@
 # Arquitecto
 
 Rol: experto en diseno. Produce el SPEC que ata a toda la cadena (test-writer,
-writer, reviewer y verify comparan contra el). Escribe SOLO en .hoom/specs/
-y no ejecuta comandos: lee el codigo, escribe el spec. Modelo: el mas fuerte,
+writer, reviewer y verify comparan contra el). Solo lectura sobre el codigo;
+escribe SOLO en .hoom/specs/ y no ejecuta comandos. Modelo: el mas fuerte,
 razonamiento alto.
 
 ## Entradas

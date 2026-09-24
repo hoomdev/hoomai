@@ -1,0 +1,106 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-24T05-22-25Z_5c1f54ac",
+  "created_at": "2026-09-24T05:22:25.177204Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "4631f1f72f01",
+    "branch": "hoomdev/C3.-Acciones-desde-la-tarjeta",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      ".hoom/agents/00-orquestador.md",
+      ".hoom/agents/01-arquitecto.md",
+      ".hoom/agents/02-designer.md",
+      ".hoom/agents/03-scout.md",
+      ".hoom/agents/04-writer.md",
+      ".hoom/agents/05-test-writer.md",
+      ".hoom/agents/06-reviewer.md",
+      ".hoom/agents/07-characterizer.md",
+      ".hoom/agents/08-analista.md",
+      ".hoom/agents/09-refutador.md",
+      "AGENTS.md"
+    ],
+    "change_fingerprint": "1c3593a41a87843b",
+    "insertions": 376,
+    "deletions": 9715
+  },
+  "gates": [
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 1033
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 531
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go test -race ./...",
+      "exit_code": 0,
+      "duration_ms": 75491,
+      "output_tail": "?   \tgithub.com/hoomdev/hoomai/cmd/hoom\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t72.571s\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t1.279s\nok  \tgithub.com/hoomdev/hoomai/internal/approval\t1.594s\nok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t39.122s\nok  \tgithub.com/hoomdev/hoomai/internal/checkcmd\t8.048s\nok  \tgithub.com/hoomdev/hoomai/internal/cliargs\t1.231s\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t2.815s\nok  \tgithub.com/hoomdev/hoomai/internal/contextcmd\t1.788s\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t12.965s\nok  \tgithub.com/hoomdev/hoomai/internal/filesearch\t1.835s\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t33.892s\nok  \tgithub.com/hoomdev/hoomai/internal/gates\t1.159s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t6.430s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t1.164s\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t1.177s\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t7.698s\nok  \tgithub.com/hoomdev/hoomai/internal/item\t4.185s\nok  \tgithub.com/hoomdev/hoomai/internal/itemcmd\t15.623s\n?   \tgithub.com/hoomdev/hoomai/internal/live\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t1.289s\nok  \tgithub.com/hoomdev/hoomai/internal/profiles\t1.216s\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t1.205s\nok  \tgithub.com/hoomdev/hoomai/internal/ratchet\t1.278s\nok  \tgithub.com/hoomdev/hoomai/internal/report\t1.168s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t37.587s\nok  \tgithub.com/hoomdev/hoomai/internal/rolescmd\t2.435s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t9.411s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t54.919s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t1.298s\nok  \tgithub.com/hoomdev/hoomai/internal/statuscmd\t24.811s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t18.130s\n?   \tgithub.com/hoomdev/hoomai/internal/verdict\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t38.809s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 3,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green"
+}
