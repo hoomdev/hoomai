@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T201550_4c8572",
+  "as": "corregido",
+  "evidence": "Corregido: taskcmd valida el slug con la regla de la tarjeta (checkSlug = item.ValidSlug) en Start, Done y discardable (Discardable, Discard, RunDiscard), antes de convertirlo en ruta; el verbo task discard hereda el rechazo. El refutador lo reprodujo contra 67f842f incluso con un repo hermano fuera de la raiz (../../../victim2). Tests internal/taskcmd/hallazgos_c1_test.go TestCA346_H1Hallazgo201550_* y TestCA289_H1Hallazgo201550_* (incluido el e2e hoom task discard ../../victim --yes): rojos contra el esqueleto 130f679, verdes con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:05.995308Z"
+}

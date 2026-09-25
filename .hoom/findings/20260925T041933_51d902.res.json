@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T041933_51d902",
+  "as": "corregido",
+  "evidence": "Corregido de raiz: hoomfs.Lock usa el candado del kernel (flock en Unix, LockFileEx en Windows via kernel32, sin dependencias nuevas) sobre un archivo en .hoom/cache/locks/ (LockPath): un dueno que muere lo suelta con su proceso, no hay vencidos que adivinar ni tomas, y soltar solo cierra el descriptor propio. Confirmado antes del fix con tests del writer contra el diseno O_EXCL de 5b292f6: el unlock tardio borraba el candado del sucesor (3 de 3) y dos o mas procesos entraban a la vez con un candado vencido (3 de 3). Tests internal/hoomfs/lock_test.go TestLock_SoltarNoSueltaElCandadoDeOtro, TestLock_UnoSoloAdentro y TestLock_ElDuenoQueMuereLoSuelta (subproceso que muere con el candado): verdes con -race en 3 corridas; go vet con GOOS=windows y linux. Sin refutador ni test-writer aparte en esta micro-ronda, por economia de tokens.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-25T04:25:31.997991Z"
+}

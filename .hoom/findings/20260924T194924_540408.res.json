@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T194924_540408",
+  "as": "corregido",
+  "evidence": "Corregido: taskcmd ya no tiene su propio slugRe; valida con item.ValidSlug (checkSlug), la misma gramatica y el mismo tope de 64 que la tarjeta. Tests internal/taskcmd/hallazgos_c1_test.go TestCA263_H1Hallazgo194924_StartRechazaSlugInvalido (65 caracteres creaba rama y worktree) y TestCA346_H1Hallazgo194924_DiscardRechazaFormasInvalidas: rojos contra 130f679, verdes con el fix; guarda de 64 caracteres.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.429258Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T195800_5d9276",
+  "as": "corregido",
+  "evidence": "Corregido: si WriteRecord falla, hoom review termina no-entregable con exit 1, sin record_id y con el sobre cerrado no entregable (CA-293: sin registro la review no ocurrio para el tablero). Test internal/reviewcmd/hallazgos_c1_test.go TestHallazgo_5d9276_ReviewSinRegistroDeReviewEsNoEntregable (.hoom/reviews en 0555): rojo contra 130f679, verde con el fix; guarda TestHallazgo_5d9276_ConReviewsEscribibleSigueRevisado.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.095703Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T195800_5e42b8",
+  "as": "corregido",
+  "evidence": "Corregido: task done se serializa por slug con un candado de archivo (hoomfs.Lock sobre .hoom/worktrees/.\u003cslug\u003e.done.lock), respeta el bool de item.MarkDone y, si no puede quitar el worktree, deshace solo su propia marca con item.UnmarkDone (bajo el candado del item y solo si commit_final sigue siendo el suyo), informando si el rollback falla. Test internal/taskcmd/hallazgos_c1_test.go TestCA343_H1Hallazgo5e42b8_DoneConcurrenteNoDeshaceLaMarca (12 rondas con desfase 0-20 ms; en la base fallaban 11-12 de 12): verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.131873Z"
+}

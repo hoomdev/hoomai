@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T200412_151300",
+  "as": "corregido",
+  "evidence": "Corregido: envelope.Write devuelve el error de escritura (sigue best-effort para quien lo ignora, CA-202) y agentcmd.Run y reviewcmd.Run con Started no nil cortan antes de correr si el primer registro no quedo en disco: Started no se llama (CA-335) y el Studio responde 409, no 202. Tests hallazgos_c1_test.go en envelope, agentcmd, reviewcmd y servecmd (TestHallazgo_151300_*): rojos contra 130f679, verdes con el fix; guardas sin Started siguen best-effort.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.267552Z"
+}

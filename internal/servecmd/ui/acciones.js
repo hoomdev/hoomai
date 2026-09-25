@@ -44,9 +44,6 @@ const ACC_LABEL = {
   "sesion": "Abrir sesión",
   "terminal": "Ver terminal",
 };
-// las acciones que lanzan un rol: su diálogo pide provider, modelo,
-// presupuesto y pedido
-const ACC_ROL = new Set(["pedir-arquitecto", "pedir-test-writer", "pedir-writer", "pedir-reviewer", "reanudar", "relanzar"]);
 
 function etiquetaAccion(a) {
   if (a.id === "guardar") return experto() ? "Guardar en git" : ACC_NORMAL.guardar;
@@ -139,7 +136,7 @@ function abrirAccion(c, a) {
     return;
   }
   if (a.id === "terminal") return abrirTerminal(c.slug);
-  if (ACC_ROL.has(a.id)) return dialogoRol(c, a);
+  if (a.role) return dialogoRol(c, a); // el binario dice que rol lanza; la pagina no lo adivina
   switch (a.id) {
     case "aprobar": return dialogoAprobar(c, a);
     case "integrar": return dialogoIntegrar(c, a);

@@ -7,9 +7,12 @@
 package hoomfs
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Local names the directories under .hoom/ that stay on this machine: the
@@ -104,4 +107,44 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	return nil
+}
+
+// ErrLocked: another process holds the lock and did not let go in time.
+var ErrLocked = errors.New("otro proceso tiene tomado")
+
+// Lock takes an exclusive lock on the file at path, across processes (the
+// CLI and the Studio) and goroutines, waiting up to wait. It is the kernel's
+// lock (flock, LockFileEx): a holder that dies releases it with its process,
+// so there is no stale lock to guess, and releasing (the returned func) only
+// closes this holder's descriptor. The file stays; it lives under
+// .hoom/cache/locks/ (LockPath), local and ignored.
+func Lock(path string, wait time.Duration) (func(), error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(wait)
+	for {
+		ok, err := tryLock(f)
+		if err != nil {
+			f.Close()
+			return nil, err
+		}
+		if ok {
+			return func() { f.Close() }, nil
+		}
+		if time.Now().After(deadline) {
+			f.Close()
+			return nil, fmt.Errorf("%w %s", ErrLocked, path)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// LockPath is where the lock called name of the project at root lives.
+func LockPath(root, name string) string {
+	return filepath.Join(root, ".hoom", "cache", "locks", name+".lock")
 }

@@ -9,12 +9,12 @@ package taskcmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -26,7 +26,15 @@ import (
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
-var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+// checkSlug is the one gate every verb that turns a slug into a path goes
+// through: the card's own rule (item.ValidSlug), so `../x` never reaches a
+// worktree path, and a task can never be one no card could name.
+func checkSlug(slug string) error {
+	if !item.ValidSlug(slug) {
+		return fmt.Errorf("slug invalido %q: usa minusculas, numeros y guiones (ej: precios-por-region)", slug)
+	}
+	return nil
+}
 
 func run(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
@@ -48,8 +56,8 @@ func ensureIgnored(root string) error {
 
 // Start creates the branch hoom/<slug> and its isolated worktree.
 func Start(root, slug, base string) error {
-	if !slugRe.MatchString(slug) {
-		return fmt.Errorf("slug invalido %q: usa minusculas, numeros y guiones (ej: precios-por-region)", slug)
+	if err := checkSlug(slug); err != nil {
+		return err
 	}
 	if err := ensureIgnored(root); err != nil {
 		return err
@@ -188,6 +196,19 @@ func taskState(wt, base string) (state, verdictID string) {
 // branch ready to merge. --force skips the checks and force-removes, and
 // never marks the item done: a card does not earn Hecho without evidence.
 func Done(root, slug, base string, force bool) error {
+	if err := checkSlug(slug); err != nil {
+		return err
+	}
+	// One close per task at a time (a double click in the Studio, the CLI
+	// and the Studio together): the second never undoes the first's mark.
+	unlock, err := hoomfs.Lock(hoomfs.LockPath(root, "done-"+slug), 0)
+	if errors.Is(err, hoomfs.ErrLocked) {
+		return fmt.Errorf("la tarea %q ya se esta cerrando en otro proceso: espera a que termine y mira 'hoom task list'", slug)
+	}
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	wt := worktreeDir(root, slug)
 	if _, err := os.Stat(wt); err != nil {
 		return fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
@@ -203,8 +224,8 @@ func Done(root, slug, base string, force bool) error {
 	// the close with everything still in place.
 	var (
 		itemPath  = item.Path(root, slug)
-		original  []byte
 		itemNote  string
+		commit    string
 		wroteItem bool
 	)
 	switch raw, err := os.ReadFile(itemPath); {
@@ -222,15 +243,16 @@ func Done(root, slug, base string, force bool) error {
 		case it.HechoEn != nil:
 			itemNote = fmt.Sprintf("hoom: el item %s ya estaba hecho (%s): no se reescribe", slug, it.HechoEn.Format("2006-01-02 15:04 UTC"))
 		default:
-			commit, cerr := run(root, "rev-parse", branch)
+			tip, cerr := run(root, "rev-parse", branch)
 			if cerr != nil {
-				return fmt.Errorf("no pude leer la punta de %s: %s", branch, commit)
+				return fmt.Errorf("no pude leer la punta de %s: %s", branch, tip)
 			}
-			original = raw
-			if _, err := item.MarkDone(root, slug, commit, time.Now()); err != nil {
+			commit = tip
+			wrote, err := item.MarkDone(root, slug, commit, time.Now())
+			if err != nil {
 				return fmt.Errorf("no pude registrar el cierre en %s: %v", item.RelPath(slug), err)
 			}
-			wroteItem = true
+			wroteItem = wrote
 			itemNote = fmt.Sprintf("hoom: item %s hecho (commit_final %s) - commitea %s", slug, short(commit), item.RelPath(slug))
 		}
 	}
@@ -241,8 +263,11 @@ func Done(root, slug, base string, force bool) error {
 	}
 	if out, err := run(root, args...); err != nil {
 		if wroteItem {
-			// the task did not close, so the card did not either
-			hoomfs.AtomicWrite(itemPath, original, 0o644)
+			// the task did not close, so the card did not either: only this
+			// close's own mark goes back, whatever was written since stays
+			if _, uerr := item.UnmarkDone(root, slug, commit); uerr != nil {
+				return fmt.Errorf("git worktree remove fallo: %s\n  y no pude deshacer el cierre en %s: %v", out, item.RelPath(slug), uerr)
+			}
 		}
 		return fmt.Errorf("git worktree remove fallo: %s", out)
 	}
@@ -324,6 +349,9 @@ const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: rev
 // .hoom/ — the same list the board shows — plus, apart, the origins of the
 // renames among them: they go back too, without being a path of their own.
 func discardable(root, slug string) ([]string, []string, error) {
+	if err := checkSlug(slug); err != nil {
+		return nil, nil, err
+	}
 	wt := worktreeDir(root, slug)
 	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
 		return nil, nil, fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)

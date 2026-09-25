@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T194923_c055ac",
+  "as": "corregido",
+  "evidence": "Corregido: reviewcmd.Run tiene una sola transicion terminal, terminar(status, code, stage, note), que mueve el Result (finish) y el registro del sobre juntos; cerrarSobre queda solo para el camino que devuelve error. Sin cambio de comportamiento: la suite de internal/reviewcmd sigue verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.061806Z"
+}

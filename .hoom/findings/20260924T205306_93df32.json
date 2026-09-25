@@ -1,0 +1,11 @@
+{
+  "id": "20260924T205306_93df32",
+  "created_at": "2026-09-24T20:53:06.473016Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/derive.go",
+  "description": "DISENO (follow-up de 20260924T201558_d8bf06, verificado por el refutador contra 67f842f) — el gasto de la tarjeta (spend, remaining_usd, CA-327) sale de .hoom/runs/*.meta.json y de .hoom/envelopes, que son locales y un rol con shell puede borrar sin que el gate de scope lo vea (agentcmd/scope.go ~125-161): borrar sidecars devuelve el presupuesto entero en cada ciclo del piloto (servecmd/acciones.go ~314-364). Rechazar costos negativos (corregido) no alcanza; el gasto tiene que salir de evidencia que el rol no pueda tocar. Pide spec.",
+  "author": "orquestador@claude",
+  "fingerprint": "c71d47dca5da0376",
+  "task": "items-y-columna-derivada"
+}

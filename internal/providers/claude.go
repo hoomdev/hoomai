@@ -145,10 +145,8 @@ func (claude) Normalize(line string) []Event {
 		return nil
 	}
 	now := time.Now().UTC()
-	if evs := parseClaudeLine(line, now); evs != nil {
-		return evs
-	}
-	return []Event{{TS: now, Kind: "text", Detail: line}}
+	msg, ok := decodeClaude(line)
+	return claudeEvents(msg, ok, line, now)
 }
 
 // claudeMsg is the part of a stream-json line hoom knows how to read.
@@ -185,14 +183,43 @@ type claudeMsg struct {
 		} `json:"unifiedWindows"`
 	} `json:"rate_limit_info"`
 	Message struct {
-		Content []struct {
-			Type  string          `json:"type"`
-			ID    string          `json:"id"`
-			Text  string          `json:"text"`
-			Name  string          `json:"name"`
-			Input json.RawMessage `json:"input"`
-		} `json:"content"`
+		Content []claudeBlock `json:"content"`
 	} `json:"message"`
+	// system/task_notification: the delegation it closes and how it ended.
+	// Status stays raw: a line whose status is not a string must still be
+	// read (see claudeTaskStatus).
+	ToolUseID string          `json:"tool_use_id"`
+	Status    json.RawMessage `json:"status"`
+}
+
+// claudeBlock is one block of message.content: text, a tool_use (id, name,
+// input) or a tool_result (tool_use_id, is_error, content).
+type claudeBlock struct {
+	Type      string          `json:"type"`
+	ID        string          `json:"id"`
+	Text      string          `json:"text"`
+	Name      string          `json:"name"`
+	Input     json.RawMessage `json:"input"`
+	ToolUseID string          `json:"tool_use_id"`
+	IsError   bool            `json:"is_error"`
+	Content   json.RawMessage `json:"content"`
+}
+
+// decodeClaude reads a stream-json line ONCE, for the events and for the
+// correlation alike.
+func decodeClaude(line string) (claudeMsg, bool) {
+	var msg claudeMsg
+	return msg, json.Unmarshal([]byte(strings.TrimSpace(line)), &msg) == nil
+}
+
+// claudeTaskStatus is a task_notification's status, or "" when it is not a
+// string.
+func claudeTaskStatus(raw json.RawMessage) string {
+	var st string
+	if json.Unmarshal(raw, &st) != nil {
+		return ""
+	}
+	return strings.TrimSpace(st)
 }
 
 // NewNormalizer returns a normalizer with memory of ONE run: it pairs each
@@ -202,8 +229,17 @@ type claudeMsg struct {
 func (c claude) NewNormalizer() func(line string) []Event {
 	run := &claudeRun{delegations: map[string]*claudeDelegation{}}
 	return func(line string) []Event {
-		evs := c.Normalize(line)
-		return append(evs, run.correlate(line)...)
+		line = strings.TrimRight(line, "\r\n")
+		if strings.TrimSpace(line) == "" {
+			return nil
+		}
+		now := time.Now().UTC()
+		msg, ok := decodeClaude(line)
+		evs := claudeEvents(msg, ok, line, now)
+		if !ok {
+			return evs
+		}
+		return append(evs, run.correlate(msg, now)...)
 	}
 }
 
@@ -219,33 +255,10 @@ type claudeRun struct {
 	delegations map[string]*claudeDelegation
 }
 
-// claudeLink is the part of a line the correlation reads: the delegations it
+// correlate reads the part of a line that pairs delegations: the ones it
 // opens (tool_use), the results it brings (tool_result) and the
 // task_notification that closes a subagent.
-type claudeLink struct {
-	Type      string `json:"type"`
-	Subtype   string `json:"subtype"`
-	ToolUseID string `json:"tool_use_id"`
-	Status    string `json:"status"`
-	Message   struct {
-		Content []struct {
-			Type      string          `json:"type"`
-			ID        string          `json:"id"`
-			Name      string          `json:"name"`
-			Input     json.RawMessage `json:"input"`
-			ToolUseID string          `json:"tool_use_id"`
-			IsError   bool            `json:"is_error"`
-			Content   json.RawMessage `json:"content"`
-		} `json:"content"`
-	} `json:"message"`
-}
-
-func (r *claudeRun) correlate(line string) []Event {
-	var msg claudeLink
-	if json.Unmarshal([]byte(strings.TrimSpace(line)), &msg) != nil {
-		return nil
-	}
-	now := time.Now().UTC()
+func (r *claudeRun) correlate(msg claudeMsg, now time.Time) []Event {
 	var out []Event
 	end := func(id, detail string) {
 		d := r.delegations[id]
@@ -286,7 +299,7 @@ func (r *claudeRun) correlate(line string) []Event {
 		}
 	case "system":
 		d, ok := r.delegations[msg.ToolUseID]
-		st := strings.TrimSpace(msg.Status)
+		st := claudeTaskStatus(msg.Status)
 		if msg.Subtype != "task_notification" || !ok || d.done || !claudeTaskEnded(st) {
 			return nil
 		}
@@ -341,11 +354,18 @@ func resultText(raw json.RawMessage) string {
 	return clip(strings.Join(parts, " "))
 }
 
-func parseClaudeLine(line string, ts time.Time) []Event {
-	var msg claudeMsg
-	if err := json.Unmarshal([]byte(line), &msg); err != nil {
-		return nil
+// claudeEvents are the events of one decoded line. A line hoom cannot read
+// (ok false) or does not know stays narration: a text event with the line.
+func claudeEvents(msg claudeMsg, ok bool, line string, ts time.Time) []Event {
+	if ok {
+		if evs := claudeKnown(msg, line, ts); evs != nil {
+			return evs
+		}
 	}
+	return []Event{{TS: ts, Kind: "text", Detail: line}}
+}
+
+func claudeKnown(msg claudeMsg, line string, ts time.Time) []Event {
 	switch msg.Type {
 	case "system":
 		// Only init opens the session: it carries the session id, the

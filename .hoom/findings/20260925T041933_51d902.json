@@ -1,0 +1,11 @@
+{
+  "id": "20260925T041933_51d902",
+  "created_at": "2026-09-25T04:19:33.382281Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:125-135 no asocia el lock con su propietario. Si dos procesos encuentran el mismo lock vencido, ambos pueden hacer Stat sobre el archivo viejo; el primero lo borra y crea su lock, y el segundo ejecuta despues os.Remove(path) en :134, borra ese lock nuevo y crea el suyo, por lo que ambos entran a la seccion critica. Ademas, el unlock de :128 borra siempre el path y puede quitar el lock de un sucesor que lo tomo tras el timeout. Esto rompe la exclusion que item.update y taskcmd.Done necesitan: MarkDone/AddSession pueden volver a perder una escritura y cierres simultaneos pueden solaparse. El O_EXCL de :125 no evita este interleaving de recuperacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "c71d47dca5da0376",
+  "task": "fixes-cabina-c1"
+}

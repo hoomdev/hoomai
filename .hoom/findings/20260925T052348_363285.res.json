@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T052348_363285",
+  "as": "corregido",
+  "evidence": "Corregido: killSession devuelve la causa diciendo que paso con la sesion: cerrada para que el proximo intento la arme entera, o todavia abierta con el comando para cerrarla (tmux kill-session -t =\u003csesion\u003e) cuando kill-session falla; Open ya no promete un cierre que no ocurrio. El refutador lo confirmo con un fake de Deps. Tests internal/cockpitcmd/hallazgos_c1c_test.go TestCA347_HC3Hallazgo363285_KillSessionRotoTrasSplitWindow y TestCA348_HC3Hallazgo363285_KillSessionRotoTrasNoPoderRegistrar: rojos contra 1453349, verdes con el fix; guarda con kill-session sano.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-25T05:40:29.228213Z"
+}
