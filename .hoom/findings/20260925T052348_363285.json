@@ -1,0 +1,11 @@
+{
+  "id": "20260925T052348_363285",
+  "created_at": "2026-09-25T05:23:48.853439Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:195,204-205,301-302: la nueva recuperacion de una sesion parcial llama killSession, pero el helper descarta el error de tmux kill-session. Si split-window o item.AddSession falla y tmux no puede matar la sesion, Open devuelve el fallo (en el segundo camino incluso afirma que la cerro) pero deja viva la misma sesion; el proximo Open entra por has-session en :186-187, devuelve created=false y nunca reintenta split ni AddSession. La degradacion que este cambio pretende recuperar vuelve a quedar permanente. Hay que comprobar/propagar el fallo del cleanup o verificar que la sesion desaparecio antes de prometer el reintento.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2543ff70b4a56f",
+  "task": "fixes-cabina-c1"
+}

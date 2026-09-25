@@ -153,6 +153,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		rec.Stage, rec.Step = stage, step
 		return envelope.Write(root, rec)
 	}
+	// seguir es advance para el resto de las transiciones: su registro es
+	// best-effort a proposito (CA-202), el error se descarta aca y no en
+	// cada llamada.
+	seguir := func(stage string, step int) { _ = advance(stage, step) }
 	if err := advance("spec", 1); err != nil && opt.Started != nil {
 		// quien espera el registro para nombrarlo (el Studio) no recibe un
 		// sobre que no existe (CA-335); sin nadie esperando, sigue best-effort
@@ -178,7 +182,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if res.ExitCode != 0 {
 		return cerrar(w, root, &rec, res, "spec", 1, "el spec no tiene aprobacion vigente y el rol escribe"), nil
 	}
-	advance("spec", 1)
+	seguir("spec", 1)
 
 	// [2/N] aislar: el rol ciego no obedece la regla de oro, la habita.
 	mgr := runcmd.NewManager(root)
@@ -186,7 +190,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	var tree *isolate.Tree
 	var beforeReal Snapshot
 	if role.Isolated {
-		advance("aislar", 2)
+		seguir("aislar", 2)
 		if why := blindPrechecks(mgr, dir, specPath, PolicyFor(m, role)); why != "" {
 			return cerrar(w, root, &rec, res, "aislar", 1, why), nil
 		}
@@ -199,7 +203,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		}
 		res.Isolation = &Isolation{Dir: tree.Dir, Commit: tree.Commit, Patterns: tree.Patterns, Hidden: len(tree.Hidden)}
 		rec.Isolated, rec.IsolatedFrom = true, tree.Commit
-		advance("aislar", 2)
+		seguir("aislar", 2)
 		runDir = tree.Dir
 		beforeReal = Take(dir, base)
 		contract += blindNote(tree)
@@ -209,7 +213,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 
 	// [N-3/N] run
-	advance("run", steps-3)
+	seguir("run", steps-3)
 	so, warn := startOptions(prov, role, contract, opt)
 	so.Dir = runDir
 	if warn {
@@ -226,7 +230,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 	res.RunID = info.ID
 	rec.RunID = info.ID
-	advance("run", steps-3)
+	seguir("run", steps-3)
 	fmt.Fprintf(w, "  %s run     %s - narracion en .hoom/runs/%s.jsonl\n", step(steps-3, steps), info.ID, info.ID)
 	// latido: mientras el run narra no hay transiciones, y un sobre sin
 	// movimiento es indistinguible de uno muerto. Como mucho un archivo cada
@@ -237,14 +241,14 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			return
 		}
 		ultimo = time.Now()
-		envelope.Write(root, rec)
+		_ = envelope.Write(root, rec) // best-effort (CA-202)
 	})
 	res.RunStatus, res.SessionID = st.Status, st.ProviderSessionID
 	res.Usage, rec.Usage = st.Usage, st.Usage
 	if !st.Usage.Empty() {
 		fmt.Fprintf(w, "    gasto: %s\n", st.Usage.Summary())
 	}
-	advance("run", steps-3)
+	seguir("run", steps-3)
 	if st.ProviderSessionID != "" {
 		fmt.Fprintf(w, "    sesion %s - reanudar: hoom agent --role %s --provider %s --resume %s \"<pedido>\"\n",
 			st.ProviderSessionID, role.Slug, prov.Name(), st.ProviderSessionID)
@@ -261,7 +265,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
 	// blind tree lets us ask — is the blindfold still on?
-	advance("scope", steps-2)
+	seguir("scope", steps-2)
 	var blind *Blind
 	if tree != nil {
 		blind = &Blind{Restored: tree.Breaches(), Leaked: delta(beforeReal.Touched, Take(dir, base).Touched)}
@@ -292,7 +296,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 
 	// [N-1/N] verify
-	advance("verify", steps-1)
+	seguir("verify", steps-1)
 	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath})
 	if err != nil {
 		return res, roto(root, &rec, err)
@@ -302,7 +306,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	fmt.Fprintf(w, "  %s verify  %s (veredicto %s)\n", step(steps-1, steps), color(v.Verdict == "green"), v.ID)
 
 	// [N/N] check
-	advance("check", steps)
+	seguir("check", steps)
 	cr, err := checkcmd.Run(dir, base)
 	if err != nil {
 		return res, roto(root, &rec, err)
@@ -348,7 +352,7 @@ func sinEntrega(w io.Writer, root string, rec *envelope.Record, res Result, role
 func registrar(root string, rec *envelope.Record, res Result, note string) Result {
 	rec.Stage, rec.Status, rec.ExitCode, rec.Note = res.Stage, res.Status, res.ExitCode, note
 	rec.EndedAt = time.Now().UTC()
-	envelope.Write(root, *rec)
+	_ = envelope.Write(root, *rec) // best-effort (CA-202)
 	return res
 }
 
@@ -359,7 +363,7 @@ func registrar(root string, rec *envelope.Record, res Result, note string) Resul
 func roto(root string, rec *envelope.Record, err error) error {
 	rec.Status, rec.ExitCode, rec.Note = envelope.StatusNotDeliverable, 1, err.Error()
 	rec.EndedAt = time.Now().UTC()
-	envelope.Write(root, *rec)
+	_ = envelope.Write(root, *rec) // best-effort (CA-202)
 	return err
 }
 

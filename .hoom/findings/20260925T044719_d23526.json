@@ -1,0 +1,11 @@
+{
+  "id": "20260925T044719_d23526",
+  "created_at": "2026-09-25T04:47:19.485961Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO — internal/item/item.go:339-340 omite sin aviso cualquier archivo cuyo nombre empiece con punto, no solo los temporales propios. Por ejemplo .hoom/items/.oculto.yaml es un nombre que no es slug y ahora item list/board lo descartan con warnings vacios; .hoom/specs/items-y-columna-derivada.md:595-599 (CA-266) exige que todo nombre de archivo que no sea slug se omita con un aviso que nombre el archivo. El test nuevo internal/item/hallazgos_c1_test.go:244-276 incluso fija la conducta contraria al criterio. Limita el silencio al patron temporal que crea Add (y artefactos locales explicitamente definidos) o conserva el aviso para los demas ocultos.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2543ff70b4a56f",
+  "task": "fixes-cabina-c1"
+}

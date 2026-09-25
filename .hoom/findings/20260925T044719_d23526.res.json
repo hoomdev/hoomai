@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T044719_d23526",
+  "as": "corregido",
+  "evidence": "Corregido: item.List calla solo los temporales que hoom escribe en .hoom/items/ (nombre que empieza con punto y contiene .yaml.tmp-, de item.Add y hoomfs.AtomicWrite); cualquier otro archivo que no es \u003cslug\u003e.yaml, oculto o no, se omite con el aviso que lo nombra, como exige CA-266. El refutador lo confirmo contra la base 67f842f (que si avisaba por .oculto.yaml y .DS_Store). El test del test-writer que fijaba el contrato equivocado (mio) se corrigio citando CA-266: TestCA266_H1Hallazgoa91dba_ListIgnoraOcultosSinAviso y TestCA266_H1Hallazgoa91dba_E2EOcultosSinAviso, mas TestCA266_HallazgoD23526_* (casi-temporales y una propiedad): rojos contra 1453349, verdes con el fix; guarda: List en paralelo con Add, AddSession, MarkDone y UnmarkDone no avisa.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-25T05:40:29.196422Z"
+}

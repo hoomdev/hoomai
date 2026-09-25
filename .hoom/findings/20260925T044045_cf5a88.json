@@ -1,0 +1,11 @@
+{
+  "id": "20260925T044045_cf5a88",
+  "created_at": "2026-09-25T04:40:45.668245Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:151-154 cambio advance para devolver el error de envelope.Write, pero despues del unico handshake comprobado las llamadas de las lineas 181, 189, 202, 212 y 229 descartan ese retorno como una sentencia desnuda; reviewcmd repite el mismo contraste en 309, 323 y 337. La API nueva representa dos politicas distintas —escritura obligatoria al iniciar con Started y best-effort en el resto— solo por si el llamador recuerda mirar el error, de modo que al leer o agregar una transicion no se distingue un descarte intencional de uno accidental. Conviene hacer explicito el modo best-effort con un helper nombrado o al menos con una asignacion deliberada.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2543ff70b4a56f",
+  "task": "fixes-cabina-c1"
+}
