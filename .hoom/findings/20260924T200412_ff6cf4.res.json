@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T200412_ff6cf4",
+  "as": "corregido",
+  "evidence": "Corregido: MarkDone, AddSession y el nuevo UnmarkDone pasan por item.update, el unico read-modify-write del item, bajo un candado de archivo entre procesos (hoomfs.Lock sobre .hoom/items/.\u003cslug\u003e.lock; List ignora ocultos). Tests internal/item/hallazgos_c1_test.go TestCA349_H1Hallazgo200412_MarkDoneYAddSessionConcurrentes y TestCA348_H1Hallazgo200412_DosAddSessionConcurrentes (en la base se perdia una escritura en 100 de 100): verdes con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.332568Z"
+}

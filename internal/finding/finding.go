@@ -277,6 +277,11 @@ func scan(root string) (scanned, error) {
 	return out, nil
 }
 
+// UnreadablePrefix starts the List warning of a finding file that could not
+// be read: its state is unknown, and the board blocks on it
+// (boardcmd.Evidence.UnreadableFindings) the way the gate fails closed.
+const UnreadablePrefix = "hallazgo ilegible "
+
 // List derives the current state of every finding, oldest first. Corrupt
 // files are skipped and reported as warnings — never fatal, like verdicts.
 // A resolution that closes nothing (unreadable, no evidence, unknown state)
@@ -288,7 +293,7 @@ func List(root, base string, openOnly bool) ([]Item, []string, error) {
 	}
 	var warnings []string
 	for _, b := range sc.broken {
-		warnings = append(warnings, "hallazgo ilegible "+b)
+		warnings = append(warnings, UnreadablePrefix+b)
 	}
 	warnings = append(warnings, sc.warnings...)
 	if len(sc.items) == 0 {

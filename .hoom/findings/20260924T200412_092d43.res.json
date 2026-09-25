@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T200412_092d43",
+  "as": "corregido",
+  "evidence": "Corregido: gather conserva lo que finding.List no pudo leer; un hallazgo ilegible (truncado, JSON invalido o sin id) o un directorio de hallazgos ilegible es Evidence.UnreadableFindings y bloquea la tarjeta en Review como falla cerrada el gate findings_open, y Build lleva esos avisos a Board.Warnings. Test internal/boardcmd/hallazgos_c1_test.go TestCA275_H2_HallazgoIlegibleNoPasaDeReview (escenario de CA-277, 4 formas de romperlo, high y low): rojo contra 130f679 (quedaba en tu-aceptacion sin aviso), verde con el fix; guarda TestCA275_H2_GuardaHallazgoLegibleHighYaEsReview.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.234508Z"
+}

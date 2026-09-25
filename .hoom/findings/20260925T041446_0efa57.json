@@ -1,0 +1,11 @@
+{
+  "id": "20260925T041446_0efa57",
+  "created_at": "2026-09-25T04:14:46.060267Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:132-157 conserva el comentario de que escribir el registro \"jamas puede romper el sobre\", pero el nuevo camino de :154-157 devuelve error y corta Run cuando la primera escritura falla y Started no es nil. La excepcion esta explicada mas abajo y en envelope.Write, pero la afirmacion inmediata e incondicional ahora contradice el flujo que presenta; hay que actualizarla para distinguir el handshake obligatorio del resto de transiciones best-effort.",
+  "author": "reviewer@codex",
+  "fingerprint": "c71d47dca5da0376",
+  "task": "fixes-cabina-c1"
+}

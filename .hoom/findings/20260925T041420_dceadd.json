@@ -1,0 +1,11 @@
+{
+  "id": "20260925T041420_dceadd",
+  "created_at": "2026-09-25T04:14:20.766191Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO — internal/boardcmd/gather.go:167-170 convierte warnings de finding.List en estado de control buscando el prefijo textual \"hallazgo ilegible \". Ese texto se construye como presentacion en internal/finding/finding.go:289-293 y no existe un tipo, campo ni constante compartida que haga visible el contrato: renombrar el mensaje puede dejar de llenar UnreadableFindings y cambiar el bloqueo de la tarjeta sin error de compilacion. Conviene que finding exponga los archivos rotos como dato estructurado y que boardcmd formatee el mensaje solo al presentar.",
+  "author": "reviewer@codex",
+  "fingerprint": "c71d47dca5da0376",
+  "task": "fixes-cabina-c1"
+}

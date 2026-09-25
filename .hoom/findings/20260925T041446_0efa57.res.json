@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T041446_0efa57",
+  "as": "corregido",
+  "evidence": "Corregido: el comentario de agentcmd.Run dice que el registro del sobre es best-effort salvo el primero cuando alguien espera Started (el Studio, CA-335), que es el camino que corta. Solo comentario; suite de internal/agentcmd verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-25T04:25:32.070967Z"
+}

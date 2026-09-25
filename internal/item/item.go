@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -177,7 +178,7 @@ func Validate(d Draft) (Draft, error) {
 	if !contains(Prioridades, d.Prioridad) {
 		return d, fmt.Errorf("prioridad desconocida %q (validas: %s)", d.Prioridad, strings.Join(Prioridades, ", "))
 	}
-	if d.PresupuestoUSD != nil && !(*d.PresupuestoUSD > 0) {
+	if d.PresupuestoUSD != nil && !finitePositive(*d.PresupuestoUSD) {
 		return d, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0 (para no declarar tope, no lo pases)")
 	}
 	d.Auto = strings.TrimSpace(d.Auto)
@@ -217,25 +218,35 @@ func Add(root string, d Draft) (Item, error) {
 	if err := os.MkdirAll(Dir(root), 0o755); err != nil {
 		return Item{}, err
 	}
-	// O_EXCL: two `item add` of the same slug at once cannot both win, and
-	// the loser never touches the winner's file.
-	f, err := os.OpenFile(Path(root, it.Slug), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if errors.Is(err, os.ErrExist) {
-		return Item{}, fmt.Errorf("%w: %s; elegi otro titulo o fija el slug con --slug", ErrExists, RelPath(it.Slug))
-	}
+	// Whole or not at all: the content goes to a hidden temp file first
+	// (List skips it), and Link, unlike Rename, never replaces: two `item
+	// add` of the same slug at once cannot both win, and the loser never
+	// touches the winner's file.
+	tmp, err := os.CreateTemp(Dir(root), "."+it.Slug+".yaml.tmp-*")
 	if err != nil {
 		return Item{}, err
 	}
-	if _, err := f.Write(raw); err != nil {
-		f.Close()
-		os.Remove(Path(root, it.Slug))
-		return Item{}, err
+	defer os.Remove(tmp.Name())
+	_, werr := tmp.Write(raw)
+	if cerr := tmp.Close(); werr == nil {
+		werr = cerr
 	}
-	if err := f.Close(); err != nil {
+	if werr == nil {
+		werr = os.Chmod(tmp.Name(), 0o644)
+	}
+	if werr != nil {
+		return Item{}, werr
+	}
+	if err := os.Link(tmp.Name(), Path(root, it.Slug)); errors.Is(err, os.ErrExist) {
+		return Item{}, fmt.Errorf("%w: %s; elegi otro titulo o fija el slug con --slug", ErrExists, RelPath(it.Slug))
+	} else if err != nil {
 		return Item{}, err
 	}
 	return it, nil
 }
+
+// finitePositive is a budget: a number above 0 that YAML's .inf is not.
+func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 
 // claves are the only keys an item may carry, in the order hoom writes them.
 var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "creado_en",
@@ -277,8 +288,8 @@ func Parse(slug string, raw []byte) (Item, error) {
 		return Item{}, fmt.Errorf("falta creado_por")
 	case it.CreadoEn.IsZero():
 		return Item{}, fmt.Errorf("falta creado_en")
-	case it.PresupuestoUSD != nil && !(*it.PresupuestoUSD > 0):
-		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0")
+	case it.PresupuestoUSD != nil && !finitePositive(*it.PresupuestoUSD):
+		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser un numero mayor que 0")
 	case it.Auto != "" && !contains(Autos, it.Auto):
 		return Item{}, fmt.Errorf("auto %q fuera del vocabulario (%s)", it.Auto, strings.Join(Autos, ", "))
 	}
@@ -325,6 +336,9 @@ func List(root string) ([]Item, []string, error) {
 			continue
 		}
 		name := e.Name()
+		if strings.HasPrefix(name, ".") {
+			continue // hoom's own temp and lock files, never an item
+		}
 		rel := ".hoom/" + DirName + "/" + name
 		slug, ok := strings.CutSuffix(name, ".yaml")
 		if !ok {
@@ -357,6 +371,45 @@ func List(root string) ([]Item, []string, error) {
 // no item, or an item already done, is (false, nil); an unreadable or invalid
 // item is an error.
 func MarkDone(root, slug, commit string, at time.Time) (bool, error) {
+	return update(root, slug, func(it *Item) bool {
+		if it.HechoEn != nil {
+			return false
+		}
+		t := at.UTC().Truncate(time.Second)
+		it.HechoEn, it.CommitFinal = &t, strings.TrimSpace(commit)
+		return true
+	})
+}
+
+// UnmarkDone takes back a MarkDone whose close did not happen: it clears
+// hecho_en and commit_final only while commit_final is still commit, and
+// keeps everything written since (a session opened meanwhile survives).
+func UnmarkDone(root, slug, commit string) (bool, error) {
+	return update(root, slug, func(it *Item) bool {
+		if it.HechoEn == nil || it.CommitFinal != strings.TrimSpace(commit) {
+			return false
+		}
+		it.HechoEn, it.CommitFinal = nil, ""
+		return true
+	})
+}
+
+// update is the one read-modify-write of an item, under the item's lock
+// (hoomfs.Lock: CLI and Studio alike), so a close and a session written at
+// once never lose each other. change says whether there is anything to
+// write; no item is (false, nil); an unreadable or invalid one is an error.
+func update(root, slug string, change func(it *Item) bool) (bool, error) {
+	if !ValidSlug(slug) {
+		return false, fmt.Errorf("slug invalido %q", slug)
+	}
+	if _, err := os.Stat(Path(root, slug)); os.IsNotExist(err) {
+		return false, nil
+	}
+	unlock, err := hoomfs.Lock(hoomfs.LockPath(root, "item-"+slug), 10*time.Second)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	raw, err := os.ReadFile(Path(root, slug))
 	if os.IsNotExist(err) {
 		return false, nil
@@ -368,11 +421,9 @@ func MarkDone(root, slug, commit string, at time.Time) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if it.HechoEn != nil {
+	if !change(&it) {
 		return false, nil
 	}
-	t := at.UTC().Truncate(time.Second)
-	it.HechoEn, it.CommitFinal = &t, strings.TrimSpace(commit)
 	out, err := encode(it)
 	if err != nil {
 		return false, err
@@ -414,26 +465,9 @@ func AddSession(root, slug, provider string, at time.Time) (bool, error) {
 	if provider == "" {
 		return false, fmt.Errorf("una sesion necesita su provider")
 	}
-	raw, err := os.ReadFile(Path(root, slug))
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	it, err := Parse(slug, raw)
-	if err != nil {
-		return false, err
-	}
-	it.Sesiones = append(it.Sesiones, Sesion{
-		Provider: provider, AbiertaPor: gitx.Identity(root), AbiertaEn: at.UTC().Truncate(time.Second),
+	s := Sesion{Provider: provider, AbiertaPor: gitx.Identity(root), AbiertaEn: at.UTC().Truncate(time.Second)}
+	return update(root, slug, func(it *Item) bool {
+		it.Sesiones = append(it.Sesiones, s)
+		return true
 	})
-	out, err := encode(it)
-	if err != nil {
-		return false, err
-	}
-	if err := hoomfs.AtomicWrite(Path(root, slug), out, 0o644); err != nil {
-		return false, err
-	}
-	return true, nil
 }

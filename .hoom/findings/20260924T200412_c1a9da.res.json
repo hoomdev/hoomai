@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T200412_c1a9da",
+  "as": "corregido",
+  "evidence": "Corregido: si un paso del plan de tmux falla despues de new-session, o si la sesion no se puede registrar en el item, Open cierra exactamente esa sesion (kill-session -t =\u003csesion\u003e) y devuelve el error, asi el reintento la crea y la registra (CA-348). Con la sesion existente no escribe nada, como fija CA-348 (por eso no se registra al reencontrarla). Tests internal/cockpitcmd/hallazgos_c1_test.go TestHallazgo_c1a9da_*: rojos contra 130f679, verdes con el fix; guarda con la sesion existente.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.300124Z"
+}

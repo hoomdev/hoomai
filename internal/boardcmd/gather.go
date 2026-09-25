@@ -52,6 +52,22 @@ func Build(root, base, blockOn string, now time.Time) (Board, error) {
 			}
 		}
 	}
+	// what the board could not read goes where a person sees it, like the
+	// items it could not read
+	dirs := make([]string, 0, len(g.trees))
+	for d := range g.trees {
+		dirs = append(dirs, d)
+	}
+	sort.Strings(dirs)
+	for _, d := range dirs {
+		prefix := ""
+		if rel, err := filepath.Rel(root, d); err == nil && rel != "." {
+			prefix = filepath.ToSlash(rel) + ": "
+		}
+		for _, w := range g.trees[d].findingWarnings {
+			b.Warnings = append(b.Warnings, prefix+w)
+		}
+	}
 	return b, nil
 }
 
@@ -97,17 +113,21 @@ type gatherer struct {
 
 // tree is what one evidence directory holds, read lazily.
 type tree struct {
-	dir         string
-	verdicts    []*verdict.Verdict
-	findings    []finding.Item
-	reviews     []reviewcmd.Record
-	status      []string // uncommitted paths, relative to dir
-	fingerprint string
-	changed     []string // the candidate's files (gitx.Snapshot)
-	tokens      spec.TokenIndex
-	tokensErr   error
-	signer      string
-	read        map[string]bool
+	dir      string
+	verdicts []*verdict.Verdict
+	findings []finding.Item
+	// findingWarnings: what finding.List could not read; unreadable are the
+	// findings among them whose state nobody knows (see UnreadableFindings)
+	findingWarnings []string
+	unreadable      []string
+	reviews         []reviewcmd.Record
+	status          []string // uncommitted paths, relative to dir
+	fingerprint     string
+	changed         []string // the candidate's files (gitx.Snapshot)
+	tokens          spec.TokenIndex
+	tokensErr       error
+	signer          string
+	read            map[string]bool
 }
 
 func newGatherer(root, base, blockOn string, now time.Time) *gatherer {
@@ -137,7 +157,19 @@ func (t *tree) allVerdicts() []*verdict.Verdict {
 }
 
 func (t *tree) allFindings(base string) []finding.Item {
-	t.once("findings", func() { t.findings, _, _ = finding.List(t.dir, base, false) })
+	t.once("findings", func() {
+		items, warnings, err := finding.List(t.dir, base, false)
+		t.findings, t.findingWarnings = items, warnings
+		if err != nil {
+			t.findingWarnings = append(t.findingWarnings, "no se pudieron leer los hallazgos: "+err.Error())
+			t.unreadable = append(t.unreadable, err.Error())
+		}
+		for _, w := range warnings {
+			if rest, ok := strings.CutPrefix(w, finding.UnreadablePrefix); ok {
+				t.unreadable = append(t.unreadable, rest)
+			}
+		}
+	})
 	return t.findings
 }
 
@@ -306,6 +338,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 			ev.Findings = append(ev.Findings, f)
 		}
 	}
+	ev.UnreadableFindings = t.unreadable
 
 	if ev.Worktree {
 		if err := taskcmd.Ready(g.root, s, g.base); err != nil {

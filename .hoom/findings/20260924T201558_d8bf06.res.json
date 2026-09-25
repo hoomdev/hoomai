@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260924T201558_d8bf06",
+  "as": "corregido",
+  "evidence": "Corregido en el vector reportado: spend (internal/boardcmd/derive.go) cuenta un cost_usd negativo, NaN o infinito de un sidecar o de un sobre como run sin costo reportado, asi que nunca devuelve presupuesto (sidecar plantado con -100: remaining_usd 0.1, no 100.1); CA-327 sigue permitiendo remaining negativo por gasto real. Tests internal/boardcmd/hallazgos_c1_test.go TestCA327_H2_* y TestCA287_H2_* (incluida una propiedad y el sidecar en disco): rojos contra 130f679, verdes con el fix. La parte de diseno (borrar sidecars de .hoom/runs, que el rol puede tocar, tambien baja el gasto) queda como follow-up registrado aparte.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-24T20:53:06.028522Z"
+}
