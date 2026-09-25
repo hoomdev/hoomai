@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T044045_cf5a88",
+  "as": "corregido",
+  "evidence": "Corregido (el refutador lo dio parcial: la politica estaba escrita en envelope.Write y agentcmd): los descartes del error del registro son explicitos. agentcmd usa seguir, un helper que descarta a proposito el error de advance en todas las transiciones salvo el handshake de Started (CA-335), y las escrituras directas en agentcmd y reviewcmd son _ = envelope.Write(...) // best-effort (CA-202). Sin cambio de comportamiento: suites de internal/agentcmd e internal/reviewcmd verdes.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-25T05:40:29.260411Z"
+}

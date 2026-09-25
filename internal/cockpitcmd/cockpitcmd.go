@@ -192,17 +192,23 @@ func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {
 		// a half-built cockpit would be "found" by the next try and never
 		// completed: it goes, and the next try builds it whole
-		killSession(dir, session, deps)
-		return false, err
+		return false, killSession(dir, session, deps, err)
 	}
 	// foco inicial en el pane de la IA; cosmetico, jamas fatal
 	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", session, "-L")
 	return true, nil
 }
 
-// killSession closes exactly session (= : no prefix match on another one).
-func killSession(dir, session string, deps Deps) {
-	_ = deps.QuietCmd(dir, "tmux", "kill-session", "-t", "="+session)
+// killSession closes exactly session (= : no prefix match on another one)
+// after cause went wrong, and returns cause saying what happened to the
+// session: closed, so the next try starts over, or still open, with the
+// command that closes it (a promise it cannot keep would hide a cockpit the
+// next try never completes).
+func killSession(dir, session string, deps Deps, cause error) error {
+	if err := deps.QuietCmd(dir, "tmux", "kill-session", "-t", "="+session); err != nil {
+		return fmt.Errorf("%w; la sesion %s quedo abierta y no pude cerrarla (%v): cerrala con 'tmux kill-session -t =%s' y reintenta", cause, session, err, session)
+	}
+	return fmt.Errorf("%w; cerre la sesion %s para que el proximo intento la arme entera", cause, session)
 }
 
 // runZellij writes the KDL layout under .hoom/cache/ (the only place the
@@ -298,8 +304,8 @@ func Open(root, project string, opt Options, deps Deps) (Session, error) {
 		if _, err := item.AddSession(root, opt.Task, name, time.Now()); err != nil {
 			// a session nobody declared would be "found" by the next try,
 			// which never registers it: it goes, and the next try does both
-			killSession(dir, session, deps)
-			return Session{Name: session, Provider: name, Dir: rel}, fmt.Errorf("no pude registrar la sesion %s en %s: %v; la cerre para que el proximo intento la abra y la registre", session, item.RelPath(opt.Task), err)
+			return Session{Name: session, Provider: name, Dir: rel}, killSession(dir, session, deps,
+				fmt.Errorf("no pude registrar la sesion %s en %s: %v", session, item.RelPath(opt.Task), err))
 		}
 	}
 	return s, nil

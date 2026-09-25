@@ -306,7 +306,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			rec.Status = envelope.StatusNotDeliverable
 		}
 		rec.EndedAt = time.Now().UTC()
-		envelope.Write(root, rec)
+		_ = envelope.Write(root, rec) // best-effort (CA-202)
 	}
 	terminar := func(status string, code int, stage, note string) Result {
 		res = finish(w, res, status, code, note)
@@ -320,7 +320,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		before := agentcmd.Take(dir, base)
 		antes := idsDeHallazgos(dir, base)
 		rec.Stage, rec.Step, rec.RunID = "run", i+1, ""
-		envelope.Write(root, rec)
+		_ = envelope.Write(root, rec) // best-effort (CA-202)
 
 		info, err := mgr.Start(runcmd.StartOptions{
 			Provider: prov.Name(), Prompt: pedido(base, lens, git, opt.Spec, v, role, prov.Name(), bin),
@@ -334,7 +334,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		}
 		pass.RunID = info.ID
 		rec.RunID = info.ID
-		envelope.Write(root, rec)
+		_ = envelope.Write(root, rec) // best-effort (CA-202)
 		fmt.Fprintf(w, "    run       %s - narracion en .hoom/runs/%s.jsonl\n", info.ID, info.ID)
 		st := stream(mgr, info.ID, w)
 		pass.RunStatus, pass.SessionID = st.Status, st.ProviderSessionID

@@ -336,8 +336,8 @@ func List(root string) ([]Item, []string, error) {
 			continue
 		}
 		name := e.Name()
-		if strings.HasPrefix(name, ".") {
-			continue // hoom's own temp and lock files, never an item
+		if strings.HasPrefix(name, ".") && strings.Contains(name, ".yaml.tmp-") {
+			continue // hoom's own write in progress (Add, AtomicWrite); anything else warns (CA-266)
 		}
 		rel := ".hoom/" + DirName + "/" + name
 		slug, ok := strings.CutSuffix(name, ".yaml")

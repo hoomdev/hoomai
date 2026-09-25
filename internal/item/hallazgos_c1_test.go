@@ -8,9 +8,11 @@
 //   - 20260924T200412_ff6cf4 (medium): MarkDone y AddSession a la vez sobre
 //     el mismo item nunca pierden la escritura del otro.
 //   - 20260924T195800_a91dba (medium, real low): crear un item nunca deja un
-//     archivo parcial visible con el nombre final; List ignora los ocultos
-//     (.algo) de .hoom/items/ sin aviso; un slug existente da ErrExists y
-//     el archivo queda igual.
+//     archivo parcial visible con el nombre final; List calla SOLO los
+//     temporales que hoom escribe en .hoom/items/ (.<slug>.yaml.tmp-NNN) y
+//     avisa por cualquier otro oculto (corregido por el hallazgo
+//     20260925T044719_d23526, CA-266); un slug existente da ErrExists y el
+//     archivo queda igual.
 package item
 
 import (
@@ -236,24 +238,42 @@ func TestCA348_H1Hallazgo200412_DosAddSessionConcurrentes(t *testing.T) {
 	}
 }
 
-// Hallazgo 20260924T195800_a91dba. CA-266 (List avisa por cada archivo que
-// no es un item) y CA-263 (las escrituras son atomicas: sus temporales son
-// ocultos): los archivos ocultos de .hoom/items/ se ignoran SIN aviso, sea
-// cual sea su nombre o contenido. Guarda: los no ocultos que no son items
-// siguen avisando.
+// Hallazgo 20260924T195800_a91dba, CORREGIDO por el hallazgo
+// 20260925T044719_d23526 (reliability). CA-266: "un nombre de archivo que no
+// es slug se omite con un aviso que nombra el archivo". La version anterior
+// de este test exigia que List callara TODO archivo oculto de .hoom/items/:
+// eso contradice CA-266 y escondia, p. ej., un item renombrado a
+// .oculto.yaml o un lock ajeno. Contrato corregido: List calla SOLO los
+// temporales que hoom mismo escribe (CA-263: escrituras atomicas), cuyo
+// nombre empieza con "." y contiene ".yaml.tmp-" (.precios.yaml.tmp-1234567);
+// cualquier otro archivo que no sea <slug>.yaml, oculto o no, se omite CON un
+// aviso que lo nombra. El nombre del test se conserva por trazabilidad con
+// a91dba. Guarda: los no ocultos que no son items siguen avisando.
 func TestCA266_H1Hallazgoa91dba_ListIgnoraOcultosSinAviso(t *testing.T) {
 	root := itRepo(t)
 	itEscribir(t, root, ".hoom/items/precios.yaml", itItemValido("Precios", "2026-09-22T15:04:05Z", ""))
-	ocultos := map[string]string{
-		".algo.yaml.tmp":             "titulo: [a medio escribir",
+	// temporales de hoom: sin aviso y nunca un item, sea cual sea su contenido
+	temporales := map[string]string{
+		".precios.yaml.tmp-1234567":    itItemValido("Precios", "2026-09-22T15:04:05Z", "")[:20],
+		".facturas.yaml.tmp-987654321": "titulo: [a medio escribir",
+		".otro.yaml.tmp-42":            itItemValido("Otro", "2026-09-22T15:04:05Z", ""),
+		".vacio.yaml.tmp-7":            "",
+	}
+	// ocultos que NO son temporales de hoom: se omiten con un aviso que los nombra
+	conAviso := map[string]string{
+		".algo.yaml.tmp":             "titulo: [a medio escribir", // sin guion
 		".precios.yaml.tmp123456":    itItemValido("Precios", "2026-09-22T15:04:05Z", "")[:20],
 		".slug.lock":                 "",
 		".precios.lock":              "12345\n",
+		".facturas.lock":             "",
 		".oculto.yaml":               itItemValido("Oculto", "2026-09-22T15:04:05Z", ""),
 		".DS_Store":                  "\x00\x01basura",
 		".tmp-precios.yaml-98765432": "",
 	}
-	for nombre, cuerpo := range ocultos {
+	for nombre, cuerpo := range temporales {
+		itEscribir(t, root, ".hoom/items/"+nombre, cuerpo)
+	}
+	for nombre, cuerpo := range conAviso {
 		itEscribir(t, root, ".hoom/items/"+nombre, cuerpo)
 	}
 	items, warns, err := List(root)
@@ -263,8 +283,20 @@ func TestCA266_H1Hallazgoa91dba_ListIgnoraOcultosSinAviso(t *testing.T) {
 	if len(items) != 1 || items[0].Slug != "precios" {
 		t.Errorf("CA-266: un oculto nunca es un item: %+v", items)
 	}
-	if len(warns) != 0 {
-		t.Errorf("CA-266: los archivos ocultos de .hoom/items/ se ignoran sin aviso, hubo %d: %q", len(warns), warns)
+	var nombres []string
+	for n := range conAviso {
+		nombres = append(nombres, n)
+	}
+	sort.Strings(nombres)
+	for _, n := range nombres {
+		if !h1Avisa(warns, n) {
+			t.Errorf("CA-266: hallazgo d23526: %s no es <slug>.yaml ni un temporal de hoom: se omite con un aviso que lo nombra: %q", n, warns)
+		}
+	}
+	for n := range temporales {
+		if h1Avisa(warns, n) {
+			t.Errorf("CA-266: hallazgo d23526: %s es un temporal de hoom (.<slug>.yaml.tmp-NNN) y se calla: %q", n, warns)
+		}
 	}
 
 	// guarda: lo que no es oculto y no es un item sigue avisando
