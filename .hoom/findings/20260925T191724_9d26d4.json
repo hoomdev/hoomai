@@ -1,0 +1,11 @@
+{
+  "id": "20260925T191724_9d26d4",
+  "created_at": "2026-09-25T19:17:24.441315Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:361-377 aplica max_evidence_kib solo despues de construir toda la evidencia; Evidence carga el spec completo con os.ReadFile (linea 132) y CandidatePatch captura el diff completo en memoria (internal/gitx/diff.go:102-106,115-123). Un archivo de texto rastreado o spec muy grande puede agotar memoria/matar hoom antes del NO ENTREGABLE que el tope promete. La construccion debe contar/hashear con almacenamiento acotado o cortar el armado al superar el tope sin lanzar lentes.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

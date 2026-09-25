@@ -1,0 +1,11 @@
+{
+  "id": "20260925T191238_18f771",
+  "created_at": "2026-09-25T19:12:38.780947Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:164-165 vuelve a activar SameProvider desde hoom.yaml siempre que Options.SameProvider sea false; cmd/hoom/main.go:655 acepta explicitamente --same-provider=false, pero al no conservar si el flag fue indicado, ese valor explicito no vence a review.same_provider: true. Con un unico provider la review no-cruzada corre aunque el usuario la haya desautorizado para esa invocacion, violando la precedencia opcion explicita \u003e hoom.yaml.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

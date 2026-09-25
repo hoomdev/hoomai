@@ -1,0 +1,11 @@
+{
+  "id": "20260925T192005_8d292d",
+  "created_at": "2026-09-25T19:20:05.664326Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:275 amplía Run hasta unas 250 líneas y mezcla resolución de política/provider, preparación y límite de evidencia, salida de usuario, ciclo de pasadas, contabilidad de uso y persistencia. Cada cambio en cualquiera de esas fases obliga a razonar sobre el flujo terminal completo y sus cierres; extraer fases nombradas (preparar review, ejecutar una pasada y cerrar/registrar) haría visibles sus invariantes y reduciría el acoplamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

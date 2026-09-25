@@ -1,0 +1,11 @@
+{
+  "id": "20260925T190815_320cd5",
+  "created_at": "2026-09-25T19:08:15.563412Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:361 materializa Evidence completa antes de comparar el tope en 377, mientras CandidatePatch usa cmd.Output/gitOut y buffers sin limite (internal/gitx/diff.go:98-123). Un archivo de texto enorme controlado por el repositorio puede agotar memoria o colgar hoom antes de llegar a la negativa max_evidence_kib, por lo que el tope no cumple su funcion de contencion. La construccion debe cortar/abortar al superar tope+1 sin lanzar lentes ni conservar el parche parcial.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

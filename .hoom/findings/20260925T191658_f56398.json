@@ -1,0 +1,11 @@
+{
+  "id": "20260925T191658_f56398",
+  "created_at": "2026-09-25T19:16:58.998201Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:75-78 silencia cualquier fallo de git merge-base y continua contra la punta de base. En un clone shallow, una referencia incompleta o un fallo transitorio de Git, la review certifica y hashea un parche distinto del candidato en vez de fallar cerrado; contradice la promesa de evidencia contra el merge-base. CandidatePatch debe propagar ese error (y no degradar silenciosamente).",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260925T190815_137bab",
+  "created_at": "2026-09-25T19:08:15.338863Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:113-120 arma la supuesta evidencia completa exclusivamente desde git.ChangedFiles, pero gitx.Snapshot excluye los borrados commiteados con --diff-filter=ACMR (internal/gitx/gitx.go:65). Antes el reviewer ejecutaba un git diff completo; ahora un cambio que solo elimina, por ejemplo, una comprobacion de autorizacion queda con cero archivos/lentes, y una eliminacion junto a otros cambios no aparece en el parche congelado. Evidence debe enumerar tambien D (y conservar correctamente ambos lados de renames) antes de decidir lentes o construir el parche.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}
