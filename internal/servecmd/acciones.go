@@ -118,6 +118,7 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		Model     string   `json:"model"`
 		BudgetUSD *float64 `json:"budget_usd"`
 		Pedido    string   `json:"pedido"`
+		Effort    string   `json:"effort"`
 	}
 	if _, err := decodeStrict(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -147,7 +148,8 @@ type launchReq struct {
 	Model     string
 	BudgetUSD *float64
 	Pedido    string
-	Pilot     bool // the belt launched it: its record says so
+	Pilot     bool   // the belt launched it: its record says so
+	Effort    string // reasoning effort; only pedir-reviewer takes it
 }
 
 // start is the ONE way the Studio launches a role: the endpoint and the belt

@@ -94,9 +94,38 @@ type Manifest struct {
 	// Project-level only: blocking on findings is a team decision, not a
 	// stack default, so profiles never carry it.
 	Findings *FindingsPolicy `yaml:"findings,omitempty"`
+	// Review is the reviewer the project chooses for `hoom review`.
+	Review *ReviewPolicy `yaml:"review,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`
+}
+
+// DefaultMaxEvidenceKiB is the evidence cap of `hoom review` when hoom.yaml
+// does not set review.max_evidence_kib.
+const DefaultMaxEvidenceKiB = 320
+
+// ReviewPolicy is the `review:` section of hoom.yaml. Every key is optional;
+// model and effort are the provider's vocabulary and are never validated.
+type ReviewPolicy struct {
+	Provider       string `yaml:"provider"`
+	Model          string `yaml:"model"`
+	Effort         string `yaml:"effort"`
+	SameProvider   *bool  `yaml:"same_provider"`
+	Isolated       *bool  `yaml:"isolated"`
+	MaxEvidenceKiB *int   `yaml:"max_evidence_kib"`
+}
+
+// ReviewIsolated reports whether the reviewer runs without the user's
+// personal provider config: true unless review.isolated is false.
+func (m *Manifest) ReviewIsolated() bool {
+	return false // esqueleto
+}
+
+// ReviewMaxEvidenceKiB is the evidence cap: review.max_evidence_kib, or
+// DefaultMaxEvidenceKiB when absent.
+func (m *Manifest) ReviewMaxEvidenceKiB() int {
+	return 0 // esqueleto
 }
 
 // FindingsBlockOn is the validated threshold of the findings_open gate:

@@ -65,7 +65,8 @@ type Options struct {
 	Task         string
 	Spec         string
 	Model        string
-	SameProvider bool // allows reviewing with the same provider that wrote
+	Effort       string // reasoning effort, provider vocabulary; "" = review.effort of hoom.yaml
+	SameProvider bool   // allows reviewing with the same provider that wrote
 	MaxTurns     int
 	BudgetUSD    float64
 	// EnvelopeID and Started: the same contract as agentcmd.Options.
@@ -88,6 +89,23 @@ type Pass struct {
 	SessionID string               `json:"provider_session_id,omitempty"`
 	Scope     agentcmd.ScopeResult `json:"scope"`
 	Findings  []string             `json:"findings"`
+	// Usage is what the provider reported for this pass, with its own
+	// semantics (CA-197, CA-198); nil when it reported nothing.
+	Usage *providers.Usage `json:"usage,omitempty"`
+}
+
+// Evidencia is the frozen evidence every lens receives: the candidate's diff
+// and the spec text, built once per review.
+type Evidencia struct {
+	Diff   []byte // unified patch of the candidate
+	Spec   []byte // spec text; empty without --spec
+	Bytes  int    // len(Diff) + len(Spec)
+	SHA256 string // hex sha256 of Diff followed by Spec
+}
+
+// Evidence builds the review evidence of the change candidate in dir.
+func Evidence(dir, base string, git gitx.Info, spec string) (Evidencia, error) {
+	return Evidencia{}, nil // esqueleto
 }
 
 // Result is the review's answer, identical in text and in JSON.
@@ -109,6 +127,13 @@ type Result struct {
 	RecordID string `json:"record_id,omitempty"`
 	// Notes: the same notes the record keeps, for --json.
 	Notes []string `json:"notes,omitempty"`
+	// Model and Effort as requested ("" = the provider's default); Isolated
+	// and the evidence the lenses received.
+	Model          string `json:"model"`
+	Effort         string `json:"effort"`
+	Isolated       bool   `json:"isolated"`
+	EvidenceBytes  int    `json:"evidence_bytes"`
+	EvidenceSHA256 string `json:"evidence_sha256"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The

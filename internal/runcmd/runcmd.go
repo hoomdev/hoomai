@@ -116,7 +116,9 @@ type StartOptions struct {
 	Unattended   bool // nobody answers prompts: the provider gets the role's tools up front
 	MaxTurns     int
 	BudgetUSD    float64
-	Strict       bool // unsupported field = refuse to start instead of a warning
+	Strict       bool   // unsupported field = refuse to start instead of a warning
+	Effort       string // reasoning effort, provider vocabulary; "" = provider default
+	Isolated     bool   // run without the user's personal provider config
 }
 
 // request builds the provider request for these options.

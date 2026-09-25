@@ -141,6 +141,8 @@ type Capabilities struct {
 	Unattended   bool `json:"unattended"`    // can run with nobody answering prompts
 	MaxTurns     bool `json:"max_turns"`     // hard cap on agentic turns
 	Budget       bool `json:"budget"`        // hard cap on spend (USD)
+	Effort       bool `json:"effort"`        // reasoning effort selection
+	Isolation    bool `json:"isolation"`     // can run without the user's personal config
 }
 
 // Names lists the supported capabilities by their JSON name, in stable
@@ -200,14 +202,27 @@ type Request struct {
 	MaxTurns   int     // 0 = unbounded
 	BudgetUSD  float64 // 0 = unbounded
 	Strict     bool    // unsupported field = error instead of Ignored
+	// Effort is the reasoning effort, in the provider's vocabulary; "" = the
+	// provider's default.
+	Effort string
+	// Isolated: the session loads none of the user's personal provider
+	// config (MCP servers, hooks, plugins, profile).
+	Isolated bool
 }
 
+// StdinPromptBytes is the largest prompt that travels as an argument; a
+// longer one goes through the process stdin.
+const StdinPromptBytes = 16 << 10
+
 // Invocation is the materialized headless command. Ignored lists the
-// request fields the provider could not honor, by canonical name.
+// request fields the provider could not honor, by canonical name. Stdin,
+// when not empty, is written to the process stdin: it carries the prompt
+// when the prompt is too large for argv.
 type Invocation struct {
 	Bin     string
 	Args    []string
 	Ignored []string
+	Stdin   string
 }
 
 // Provider is one AI CLI as hoom sees it: a translator and a parser.
@@ -231,6 +246,8 @@ const (
 	FieldUnattended   = "unattended"
 	FieldMaxTurns     = "max_turns"
 	FieldBudget       = "budget"
+	FieldEffort       = "effort"
+	FieldIsolation    = "isolation"
 )
 
 // ErrUnsupported is what Command returns under Strict when the provider
