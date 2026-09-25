@@ -129,6 +129,7 @@ func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Requ
 		AllowTools: o.AllowTools, DenyTools: o.DenyTools,
 		ReadOnly: o.ReadOnly, Exec: o.Exec, NoExec: o.NoExec, Unattended: o.Unattended,
 		MaxTurns: o.MaxTurns, BudgetUSD: o.BudgetUSD, Strict: o.Strict,
+		Effort: o.Effort, Isolated: o.Isolated,
 	}
 }
 
@@ -791,6 +792,11 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		task = r.opts.Task
 	}
 	cmd.Env = append(os.Environ(), EnvTask+"="+task)
+	if inv.Stdin != "" {
+		// a prompt too large for argv (E2BIG on Linux, the 32 KiB command
+		// line on Windows) travels by stdin; the adapter left it out of Args
+		cmd.Stdin = strings.NewReader(inv.Stdin)
+	}
 
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()

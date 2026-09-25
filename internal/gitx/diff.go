@@ -64,6 +64,61 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	return d, nil
 }
 
+// CandidatePatch is the unified patch of files against the merge-base of
+// base and HEAD, working tree included (committed or not): the tracked files
+// in one `git diff`, then each untracked file as a new-file patch. A binary
+// file carries git's own binary line and no content. Never cut.
+func CandidatePatch(dir, base string, files []string) ([]byte, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+	from := base
+	if mb, err := run(dir, "merge-base", base, "HEAD"); err == nil && mb != "" {
+		from = mb
+	}
+	untracked := map[string]bool{}
+	if out, err := run(dir, "ls-files", "--others", "--exclude-standard"); err == nil {
+		for _, f := range strings.Split(out, "\n") {
+			if f != "" {
+				untracked[f] = true
+			}
+		}
+	}
+	var tracked, nuevos []string
+	for _, f := range files {
+		if untracked[f] {
+			nuevos = append(nuevos, f)
+		} else {
+			tracked = append(tracked, f)
+		}
+	}
+	var out bytes.Buffer
+	if len(tracked) > 0 {
+		args := append([]string{"diff", "--no-color", "--no-ext-diff", from, "--"}, tracked...)
+		patch, err := gitOut(dir, args...)
+		if err != nil {
+			return nil, err
+		}
+		out.WriteString(patch)
+	}
+	for _, f := range nuevos {
+		// --no-index exits 1 when the files differ: that is the patch, not a failure
+		cmd := exec.Command("git", "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", f)
+		cmd.Dir = dir
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		patch, err := cmd.Output()
+		if exit, ok := err.(*exec.ExitError); err != nil && !(ok && exit.ExitCode() == 1) {
+			if msg := strings.TrimSpace(stderr.String()); msg != "" {
+				return nil, errorString(msg)
+			}
+			return nil, err
+		}
+		out.Write(patch)
+	}
+	return out.Bytes(), nil
+}
+
 // gitOut runs git and returns its stdout untrimmed; on failure the error
 // carries git's stderr, which is what a person needs to read.
 func gitOut(dir string, args ...string) (string, error) {

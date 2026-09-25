@@ -18,3 +18,8 @@ gates:
 # Los hallazgos high abiertos ponen ROJO a verify (gate findings_open).
 findings:
   block_on: high
+# El reviewer de hoom review, explicito: el mismo modelo y esfuerzo que usaba
+# la config personal de Codex, para medir el efecto de la review aislada.
+review:
+  model: gpt-5.6-sol
+  effort: xhigh

@@ -269,9 +269,14 @@ function logos(p) {
   if (p.writer) out.push(`<span title="escribió: ${esc(p.writer)}">✍ ${marca(p.writer)}</span>`);
   for (const d of decl.filter(d => d !== p.writer))
     out.push(`<span title="sesión interactiva abierta con ${esc(d)}: writer declarado, nadie lo vio escribir">✍? ${marca(d)}</span>`);
-  if (p.reviewer) out.push(`<span title="revisó: ${esc(p.reviewer)}">🔎 ${marca(p.reviewer)}</span>`);
+  if (p.reviewer) {
+    // modelo y esfuerzo del registro de la revisión; vacío = no quedó registrado
+    const modelo = p.reviewer_model || "sin registrar", esfuerzo = p.reviewer_effort || "sin registrar";
+    out.push(`<span title="revisó: ${esc(p.reviewer)} · modelo ${esc(modelo)} · esfuerzo ${esc(esfuerzo)}">🔎 ${marca(p.reviewer)} <small>${esc(modelo)} · ${esc(esfuerzo)}</small></span>`);
+  }
   if (p.cross === "no-cruzada") out.push(`<span class="warnmark" title="la misma CLI escribió y revisó (--same-provider)">misma CLI</span>`);
   if (p.cross === "cruzada-declarada") out.push(`<span class="warnmark" title="el writer solo está declarado por una sesión interactiva">cruzada (declarada)</span>`);
+  if (p.reviewer && p.cross === "desconocida") out.push(`<span class="warnmark" title="ningún registro dice quién escribió: no se sabe si la revisión fue cruzada">cruzada sin confirmar</span>`);
   return out.join(" ");
 }
 

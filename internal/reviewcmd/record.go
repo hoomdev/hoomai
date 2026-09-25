@@ -79,6 +79,9 @@ func WriteRecord(dir string, r Record) (Record, error) {
 	if r.Findings == nil {
 		r.Findings = []string{}
 	}
+	if r.Usage == nil {
+		r.Usage = []LensUsage{}
+	}
 	raw, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return Record{}, err

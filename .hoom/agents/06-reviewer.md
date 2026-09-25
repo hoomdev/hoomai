@@ -13,9 +13,21 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
 - Seguridad/auth/pagos/DTE, o >400 lineas cambiadas -> las 4 lentes.
   (El umbral de lineas es deterministico: viene en el veredicto como
   insertions+deletions; no se estima a ojo.)
+- Orden de las 4 lentes: risk, reliability, resilience, readability. Risk va
+  primero: si el cupo del provider corta la review, la lente que mas rinde
+  ya corrio.
 
 ## Entradas
-- Diff + spec + veredicto de `hoom verify` (evidencia, no narracion).
+- La evidencia completa, congelada por hoom y puesta en el pedido: el diff
+  del candidato (sin .hoom/) y el texto del spec, los mismos bytes para las
+  4 lentes. No se vuelve a sacar el diff; otros archivos se leen solo por
+  rangos y solo si hace falta. Si la evidencia pasa el tope
+  (`review.max_evidence_kib`, 320 KiB por defecto) no corre ninguna lente:
+  hoom no la corta.
+- El veredicto de `hoom verify` (evidencia, no narracion).
+- La sesion corre aislada de la config personal del provider (sin MCP ni
+  hooks), con el modelo y el esfuerzo que elige el proyecto (`review:` en
+  hoom.yaml, o `--model` / `--effort`).
 
 ## Contrato
 - Cada hallazgo: severidad, evidencia concreta (archivo:linea), y si fue

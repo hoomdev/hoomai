@@ -131,7 +131,7 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp, code, err := s.start(slug, launchReq{Action: body.Action, Provider: body.Provider, Model: body.Model,
-		BudgetUSD: body.BudgetUSD, Pedido: body.Pedido})
+		BudgetUSD: body.BudgetUSD, Pedido: body.Pedido, Effort: body.Effort})
 	if err != nil {
 		writeError(w, code, err.Error())
 		return
@@ -200,6 +200,8 @@ func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
 	review := a.Role == "reviewer"
 	pedido := strings.TrimSpace(req.Pedido)
 	switch {
+	case !review && strings.TrimSpace(req.Effort) != "":
+		return fail(http.StatusBadRequest, "effort solo aplica a pedir-reviewer")
 	case review && pedido != "":
 		return fail(http.StatusBadRequest, "la revision arma su propio pedido: deja el pedido vacio")
 	case !review && pedido == "":
@@ -252,7 +254,7 @@ func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
 		var f fin
 		if review {
 			_, f.err = reviewcmd.Run(s.m.Dir, s.m.BaseBranch, reviewcmd.Options{
-				Provider: opt.Name, Task: slug, Spec: spec, Model: req.Model, BudgetUSD: budget,
+				Provider: opt.Name, Task: slug, Spec: spec, Model: req.Model, Effort: req.Effort, BudgetUSD: budget,
 				EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
 			}, out)
 		} else {

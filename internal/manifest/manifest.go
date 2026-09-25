@@ -116,16 +116,53 @@ type ReviewPolicy struct {
 	MaxEvidenceKiB *int   `yaml:"max_evidence_kib"`
 }
 
+// reviewKeys are the keys `review:` accepts, in the order the error names them.
+var reviewKeys = []string{"provider", "model", "effort", "same_provider", "isolated", "max_evidence_kib"}
+
+// UnmarshalYAML rejects unknown keys inside `review`: a typo like `isolate`
+// would otherwise hand the reviewer the user's personal config in silence.
+func (p *ReviewPolicy) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("review debe ser un mapa (ej. review: { model: gpt-5.6-sol, effort: high })")
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i].Value
+		known := false
+		for _, k := range reviewKeys {
+			known = known || key == k
+		}
+		if !known {
+			return fmt.Errorf("review: clave desconocida %q (validas: %s)", key, strings.Join(reviewKeys, ", "))
+		}
+	}
+	type plain ReviewPolicy // sin el metodo: evita la recursion
+	return n.Decode((*plain)(p))
+}
+
+// validateReview rejects a cap that could never admit any evidence.
+func (m *Manifest) validateReview() error {
+	if m.Review == nil || m.Review.MaxEvidenceKiB == nil || *m.Review.MaxEvidenceKiB > 0 {
+		return nil
+	}
+	return fmt.Errorf("review: max_evidence_kib debe ser mayor que 0")
+}
+
 // ReviewIsolated reports whether the reviewer runs without the user's
 // personal provider config: true unless review.isolated is false.
 func (m *Manifest) ReviewIsolated() bool {
-	return false // esqueleto
+	if m == nil || m.Review == nil || m.Review.Isolated == nil {
+		return true
+	}
+	return *m.Review.Isolated
 }
 
 // ReviewMaxEvidenceKiB is the evidence cap: review.max_evidence_kib, or
 // DefaultMaxEvidenceKiB when absent.
 func (m *Manifest) ReviewMaxEvidenceKiB() int {
-	return 0 // esqueleto
+	if m == nil || m.Review == nil || m.Review.MaxEvidenceKiB == nil {
+		return DefaultMaxEvidenceKiB
+	}
+	return *m.Review.MaxEvidenceKiB
 }
 
 // FindingsBlockOn is the validated threshold of the findings_open gate:
@@ -242,6 +279,9 @@ func Load(dir string, resolveProfile func(name string) (map[string]Gate, string,
 		return nil, fmt.Errorf("schema no soportado %q (esperado %q)", m.Schema, Schema)
 	}
 	if err := m.validateFindings(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	if err := m.validateReview(); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	if m.BaseBranch == "" {

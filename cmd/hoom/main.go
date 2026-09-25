@@ -180,10 +180,14 @@ Flags de serve:
 Flags de review (no emite veredicto ni juzga el codigo: eso es de verify):
   --provider <p>       Provider de la review; vacio = el primero instalado que
                        sostenga el contrato y NO sea el del writer
-  --lens <l>           readability|reliability|resilience|risk; vacio = la
+  --lens <l>           risk|reliability|resilience|readability; vacio = la
                        regla del contrato 06 sobre la evidencia
+  --model <m>          Modelo del reviewer, en el vocabulario del provider;
+                       vacio = review.model de hoom.yaml o el del provider
+  --effort <e>         Esfuerzo del reviewer, en el vocabulario del provider;
+                       vacio = review.effort de hoom.yaml o el del provider
   --same-provider      Revisar con el MISMO provider que escribio (queda
-                       marcado 'no-cruzada' en el resultado)
+                       marcado 'no-cruzada'); igual review.same_provider: true
   --json               Emite el resultado de la review como JSON en stdout
 
 Filosofia: veredicto ROJO = exit code 1. La narracion del agente no cuenta;
@@ -643,10 +647,11 @@ func cmdAgent(args []string) error {
 func cmdReview(args []string) error {
 	fs := flag.NewFlagSet("review", flag.ExitOnError)
 	provider := fs.String("provider", "", "provider de la review; vacio = el primero instalado que no sea el del writer")
-	lens := fs.String("lens", "", "readability|reliability|resilience|risk; vacio = la regla del contrato 06")
+	lens := fs.String("lens", "", "risk|reliability|resilience|readability; vacio = la regla del contrato 06")
 	task := fs.String("task", "", "slug de la tarea: revisa su worktree aislado")
 	specPath := fs.String("spec", "", "ruta del spec que enmarca el cambio (viaja en el pedido)")
-	model := fs.String("model", "", "modelo, en el vocabulario del provider")
+	model := fs.String("model", "", "modelo, en el vocabulario del provider; vacio = review.model de hoom.yaml")
+	effort := fs.String("effort", "", "esfuerzo, en el vocabulario del provider; vacio = review.effort de hoom.yaml")
 	same := fs.Bool("same-provider", false, "permite revisar con el MISMO provider que escribio")
 	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
@@ -662,7 +667,7 @@ func cmdReview(args []string) error {
 	}
 	res, err := reviewcmd.Run(m.Dir, m.BaseBranch, reviewcmd.Options{
 		Provider: *provider, Lens: *lens, Task: *task, Spec: *specPath,
-		Model: *model, SameProvider: *same, MaxTurns: *maxTurns, BudgetUSD: *budget,
+		Model: *model, Effort: *effort, SameProvider: *same, MaxTurns: *maxTurns, BudgetUSD: *budget,
 	}, out)
 	if err != nil {
 		return err
