@@ -115,7 +115,7 @@ type Evidencia struct {
 func Evidence(dir, base string, git gitx.Info, spec string) (Evidencia, error) {
 	var files []string
 	for _, f := range git.ChangedFiles {
-		if !strings.HasPrefix(filepath.ToSlash(f), ".hoom/") {
+		if !strings.HasPrefix(filepath.ToSlash(gitx.UnquotePath(f)), ".hoom/") {
 			files = append(files, f)
 		}
 	}
@@ -510,8 +510,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos,
 	})
 	res.Notes = notas
-	fmt.Fprintf(w, "  gasto       %s: entrada %d - cache %d - salida %d\n",
-		plural(len(res.Passes), "lente", "lentes"), total.InputTokens, total.CachedTokens, total.OutputTokens)
+	if len(usos) == 0 {
+		fmt.Fprintf(w, "  gasto       %s: el provider no informo consumo\n", plural(len(res.Passes), "lente", "lentes"))
+	} else {
+		fmt.Fprintf(w, "  gasto       %s: entrada %d - cache %d - salida %d\n",
+			plural(len(res.Passes), "lente", "lentes"), total.InputTokens, total.CachedTokens, total.OutputTokens)
+	}
 	if err != nil {
 		// without its record the review did not happen for the board
 		// (CA-293): it cannot end revisado

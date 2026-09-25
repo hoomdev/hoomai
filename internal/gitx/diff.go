@@ -76,9 +76,11 @@ func CandidatePatch(dir, base string, files []string) ([]byte, error) {
 	if mb, err := run(dir, "merge-base", base, "HEAD"); err == nil && mb != "" {
 		from = mb
 	}
+	// -z: names as they are on disk, never C-quoted (a path with non-ASCII
+	// bytes comes quoted otherwise, and a quoted name matches no file)
 	untracked := map[string]bool{}
-	if out, err := run(dir, "ls-files", "--others", "--exclude-standard"); err == nil {
-		for _, f := range strings.Split(out, "\n") {
+	if out, err := gitOut(dir, "ls-files", "-z", "--others", "--exclude-standard"); err == nil {
+		for _, f := range strings.Split(out, "\x00") {
 			if f != "" {
 				untracked[f] = true
 			}
@@ -86,6 +88,7 @@ func CandidatePatch(dir, base string, files []string) ([]byte, error) {
 	}
 	var tracked, nuevos []string
 	for _, f := range files {
+		f = UnquotePath(f)
 		if untracked[f] {
 			nuevos = append(nuevos, f)
 		} else {
@@ -94,7 +97,8 @@ func CandidatePatch(dir, base string, files []string) ([]byte, error) {
 	}
 	var out bytes.Buffer
 	if len(tracked) > 0 {
-		args := append([]string{"diff", "--no-color", "--no-ext-diff", from, "--"}, tracked...)
+		// literal pathspecs: a name with * or ? is a name, not a glob
+		args := append([]string{"--literal-pathspecs", "diff", "--no-color", "--no-ext-diff", from, "--"}, tracked...)
 		patch, err := gitOut(dir, args...)
 		if err != nil {
 			return nil, err
@@ -102,14 +106,16 @@ func CandidatePatch(dir, base string, files []string) ([]byte, error) {
 		out.WriteString(patch)
 	}
 	for _, f := range nuevos {
-		// --no-index exits 1 when the files differ: that is the patch, not a failure
+		// --no-index exits 1 when the files differ: that is the patch, not a
+		// failure. A 1 with git talking on stderr is a failure all the same.
 		cmd := exec.Command("git", "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", f)
 		cmd.Dir = dir
 		var stderr strings.Builder
 		cmd.Stderr = &stderr
 		patch, err := cmd.Output()
-		if exit, ok := err.(*exec.ExitError); err != nil && !(ok && exit.ExitCode() == 1) {
-			if msg := strings.TrimSpace(stderr.String()); msg != "" {
+		msg := strings.TrimSpace(stderr.String())
+		if exit, ok := err.(*exec.ExitError); err != nil && (!ok || exit.ExitCode() != 1 || msg != "") {
+			if msg != "" {
 				return nil, errorString(msg)
 			}
 			return nil, err
@@ -117,6 +123,18 @@ func CandidatePatch(dir, base string, files []string) ([]byte, error) {
 		out.Write(patch)
 	}
 	return out.Bytes(), nil
+}
+
+// UnquotePath undoes git's C-style quoting of a path ("dir/\303\261.go"),
+// which git applies to names with non-ASCII bytes, quotes or backslashes
+// when it lists them without -z. A name that is not quoted comes back as is.
+func UnquotePath(p string) string {
+	if len(p) >= 2 && p[0] == '"' && p[len(p)-1] == '"' {
+		if s, err := strconv.Unquote(p); err == nil {
+			return s
+		}
+	}
+	return p
 }
 
 // gitOut runs git and returns its stdout untrimmed; on failure the error
