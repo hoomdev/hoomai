@@ -201,7 +201,7 @@ func Done(root, slug, base string, force bool) error {
 	}
 	// One close per task at a time (a double click in the Studio, the CLI
 	// and the Studio together): the second never undoes the first's mark.
-	unlock, err := hoomfs.Lock(filepath.Join(root, ".hoom", "worktrees", "."+slug+".done.lock"), 0)
+	unlock, err := hoomfs.Lock(hoomfs.LockPath(root, "done-"+slug), 0)
 	if errors.Is(err, hoomfs.ErrLocked) {
 		return fmt.Errorf("la tarea %q ya se esta cerrando en otro proceso: espera a que termine y mira 'hoom task list'", slug)
 	}

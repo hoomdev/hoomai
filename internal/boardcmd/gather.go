@@ -165,8 +165,8 @@ func (t *tree) allFindings(base string) []finding.Item {
 			t.unreadable = append(t.unreadable, err.Error())
 		}
 		for _, w := range warnings {
-			if strings.HasPrefix(w, "hallazgo ilegible ") {
-				t.unreadable = append(t.unreadable, strings.TrimPrefix(w, "hallazgo ilegible "))
+			if rest, ok := strings.CutPrefix(w, finding.UnreadablePrefix); ok {
+				t.unreadable = append(t.unreadable, rest)
 			}
 		}
 	})

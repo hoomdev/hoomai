@@ -405,7 +405,7 @@ func update(root, slug string, change func(it *Item) bool) (bool, error) {
 	if _, err := os.Stat(Path(root, slug)); os.IsNotExist(err) {
 		return false, nil
 	}
-	unlock, err := hoomfs.Lock(filepath.Join(Dir(root), "."+slug+".lock"), 10*time.Second)
+	unlock, err := hoomfs.Lock(hoomfs.LockPath(root, "item-"+slug), 10*time.Second)
 	if err != nil {
 		return false, err
 	}

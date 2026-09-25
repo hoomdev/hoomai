@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T041420_dceadd",
+  "as": "corregido",
+  "evidence": "Corregido: finding exporta UnreadablePrefix, la unica fuente del prefijo del aviso de hallazgo ilegible; List lo usa al escribirlo y boardcmd (gather.go) al leerlo con strings.CutPrefix, asi renombrar el mensaje cambia los dos lados o no compila. Suites de internal/finding e internal/boardcmd verdes (incluido TestCA275_H2_HallazgoIlegibleNoPasaDeReview).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-25T04:25:32.03404Z"
+}

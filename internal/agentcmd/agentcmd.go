@@ -130,8 +130,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 	res := Result{Role: role.Slug, Provider: prov.Name(), Dir: dir, Stage: "spec"}
 	// El registro del sobre: lo que status y el Studio pueden mirar MIENTRAS
-	// esto corre. Se escribe en cada transicion de paso; escribirlo jamas
-	// puede romper el sobre que describe (Write es best-effort).
+	// esto corre. Se escribe en cada transicion de paso, best-effort: no
+	// escribirlo no rompe el sobre que describe. La unica excepcion es el
+	// primer registro cuando alguien espera Started (el Studio): sin el no
+	// hay sobre que nombrar (CA-335).
 	id := strings.TrimSpace(opt.EnvelopeID)
 	if id == "" {
 		id = envelope.NewID()
