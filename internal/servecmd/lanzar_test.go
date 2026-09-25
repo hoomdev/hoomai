@@ -699,6 +699,9 @@ func TestCA337_TestWriterYWriterTrabajanContraElSpec(t *testing.T) {
 
 // CA-337: pedir-reviewer corre hoom review (las 4 lentes, cada una con el
 // pedido que arma la review) con task y spec, y rechaza un pedido escrito.
+// CA-403 re-expresa el prefijo del pedido: empieza con "Revisa el cambio de
+// esta rama." (la evidencia va antes de la lente) y nombra su lente con
+// "con la lente <lente>"; entre las 4 pasadas estan las 4 lentes.
 func TestCA337_PedirAlReviewerCorreHoomReview(t *testing.T) {
 	f := lnPATH(t)
 	f.cli(t, "claude", false)
@@ -723,9 +726,21 @@ func TestCA337_PedirAlReviewerCorreHoomReview(t *testing.T) {
 	if len(ll) != len(reviewcmd.Lentes) {
 		t.Fatalf("CA-337: pedir-reviewer es hoom review: una pasada por lente (%d), hubo %d", len(reviewcmd.Lentes), len(ll))
 	}
+	vistas := map[string]bool{}
 	for _, args := range ll {
-		if !strings.HasPrefix(lnUltimo(args), "Revisa el cambio de esta rama con la lente") {
-			t.Fatalf("CA-337: la review arma su propio pedido: %q", lnUltimo(args))
+		pedido := lnUltimo(args)
+		if !strings.HasPrefix(pedido, "Revisa el cambio de esta rama.") {
+			t.Fatalf("CA-337/CA-403: la review arma su propio pedido: %q", pedido)
+		}
+		for _, lens := range reviewcmd.Lentes {
+			if strings.Contains(pedido, "con la lente "+lens) {
+				vistas[lens] = true
+			}
+		}
+	}
+	for _, lens := range reviewcmd.Lentes {
+		if !vistas[lens] {
+			t.Fatalf("CA-337/CA-403: una pasada por lente: ningun pedido dice 'con la lente %s'", lens)
 		}
 	}
 	recs, avisos := reviewcmd.Records(wt) // el segundo valor son avisos, no un error
