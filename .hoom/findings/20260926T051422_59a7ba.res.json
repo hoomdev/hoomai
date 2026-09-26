@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T051422_59a7ba",
+  "as": "corregido",
+  "evidence": "ecb7ab1: --no-textconv en los dos git diff; TestCA401_BinarioConDriverDeDiffLlevaLaLineaDeGit/textconv (el driver no corre y el binario lleva la linea de git; rojo en 035db8c)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:31.115173Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T051925_34430d",
+  "as": "corregido",
+  "evidence": "ecb7ab1: git corre antes que el spec; TestCA414_ErrorDeMergeBaseAntesQueUnSpecSobreElTope (rojo en 035db8c: Over tapaba el error de git)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:43.889037Z"
+}

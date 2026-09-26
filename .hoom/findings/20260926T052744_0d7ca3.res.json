@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T052744_0d7ca3",
+  "as": "corregido",
+  "evidence": "ecb7ab1: el comentario de writeBlock dice que agrega un salto solo cuando falta",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:31.553023Z"
+}

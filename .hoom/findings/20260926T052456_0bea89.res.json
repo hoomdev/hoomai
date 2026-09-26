@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T052456_0bea89",
+  "as": "corregido",
+  "evidence": "ecb7ab1: mismo defecto que c207c5 (TestCA413_DiffRastreadoNoSeGuardaDosVeces)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:30.99467Z"
+}
