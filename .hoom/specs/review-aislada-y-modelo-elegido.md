@@ -1,6 +1,13 @@
 # Spec: la review aislada, con la evidencia completa y el modelo elegido
 
-Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 1
+Estado: ENMIENDA 3 — pendiente de re-aprobación humana. La enmienda 2
+(sha256 310b6e9d) está implementada; su review de 4 lentes mostró tres
+huecos de diseño: un cambio puede sacar un secreto del `.gitignore` y hoom
+lo manda al provider como archivo no rastreado; el cambio revisado elige su
+propio reviewer con su `hoom.yaml`; y un `max_evidence_kib` enorme desborda
+y tumba `hoom serve`. La enmienda 3 suma CA-416 y CA-417 y cambia CA-394.
+
+Historia: ENMIENDA 2 (2026-09-26). La enmienda 1
 (sha256 130eba08) está implementada; su review de 4 lentes mostró que 12
 hex del hash en los marcadores son 48 bits, falsificables con cómputo
 alquilado: los marcadores pasan a llevar el sha256 completo. La enmienda 2
@@ -87,9 +94,15 @@ review:
 - `manifest.Manifest` gana `Review *ReviewPolicy` (`yaml:"review,omitempty"`).
   Estricta como `findings`: `review: clave desconocida "<k>" (validas:
   provider, model, effort, same_provider, isolated, max_evidence_kib)`;
-  `max_evidence_kib` ≤ 0: `review: max_evidence_kib debe ser mayor que 0`.
+  `max_evidence_kib` ≤ 0: `review: max_evidence_kib debe ser mayor que 0`;
+  mayor que 16384 (16 MiB): `review: max_evidence_kib no puede pasar de
+  16384`.
+- **La sección `review:` sale del `hoom.yaml` de la base** (el del
+  merge-base de la base y HEAD), no del candidato: un cambio no elige a su
+  propio reviewer ni afloja su propia review. Sin `hoom.yaml` o sin
+  `review:` en la base, valen los valores por defecto.
 - Precedencia, resuelta dentro de `reviewcmd.Run` (la CLI y el Studio la
-  comparten): opción explícita > `hoom.yaml` > vacío. Modelo o esfuerzo
+  comparten): opción explícita > `hoom.yaml` de la base > vacío. Modelo o esfuerzo
   vacío = el que el provider use por defecto; hoom no lo conoce y registra
   `""`. `isolated` ausente = `true`. `max_evidence_kib` ausente = 320.
   `same_provider: true` equivale a `--same-provider`: permite, no fuerza.
@@ -147,6 +160,12 @@ func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error)
 - **Falla cerrado**: si falla `git merge-base` (un clon shallow, una base
   que no existe), el listado de no rastreados o `git diff`, `Evidence`
   devuelve el error de git y la review no lanza ninguna pasada.
+- **Un `.gitignore` tocado con archivos sin rastrear**: si el cambio toca
+  algún `.gitignore` (rastreado, commiteado o no, o nuevo sin rastrear) y
+  hay archivos no rastreados fuera de `.hoom/`, `Evidence` devuelve `el
+  cambio toca un .gitignore y hay archivos sin rastrear: commitealos o
+  sacalos antes de revisar` sin armar la evidencia. Así un cambio no puede
+  destapar un secreto local (`.env`) para que viaje al provider.
 - **El spec**: si existe, tiene que ser un archivo regular dentro de `dir`
   después de resolver symlinks; si no (symlink hacia afuera, dispositivo,
   directorio), `Evidence` devuelve `el spec <ruta> no es un archivo del
@@ -245,7 +264,7 @@ sacas vos: git diff ..." y la lista `Archivos:`.
 
 ## Criterios de aceptación
 
-- CA-394: `hoom.yaml` con `review:` parsea `provider`, `model`, `effort`, `same_provider`, `isolated` y `max_evidence_kib`; una clave desconocida y `max_evidence_kib: 0` fallan con los textos del contrato; sin la sección, `isolated` es `true` y el tope 320 KiB.
+- CA-394: `hoom.yaml` con `review:` parsea `provider`, `model`, `effort`, `same_provider`, `isolated` y `max_evidence_kib`; una clave desconocida, `max_evidence_kib: 0` y `max_evidence_kib: 16385` (también 9223372036854775807) fallan con los textos del contrato sin desbordar ni entrar en pánico; sin la sección, `isolated` es `true` y el tope 320 KiB.
 - CA-395: `reviewcmd.Run` resuelve provider, modelo, esfuerzo y `same_provider` con opción explícita > `hoom.yaml` > vacío, y el Studio (sin opciones) toma los de `hoom.yaml`; `same_provider: true` deja revisar con el mismo provider y el registro dice `no-cruzada`.
 - CA-396: `Capabilities.Names()` termina en `effort,isolation` para codex y claude; gemini no tiene capacidades y opencode no gana ninguna; pedir `Effort` o `Isolated` con `Strict` a un provider sin la capacidad da `ErrUnsupported` con esos campos.
 - CA-397: el argv de codex con `Isolated` y `Effort` "high" empieza con `exec --json`, contiene `--ignore-user-config` y `-c model_reasoning_effort="high"`; sin esos campos es idéntico al de hoy.
@@ -267,6 +286,8 @@ sacas vos: git diff ..." y la lista `Archivos:`.
 - CA-413: con un tope de 1 KiB y un archivo no rastreado de 64 MiB, `Evidence` vuelve con `Over`, `Diff` y `Spec` vacíos, `SHA256` vacío y `Bytes` entre el tope y el tope + 64 KiB.
 - CA-414: si falla `git merge-base` (base inexistente o clon shallow), el listado de no rastreados o `git diff`, `Evidence` devuelve el error y `hoom review` no lanza ninguna pasada ni escribe registro.
 - CA-415: `--same-provider=false` explícito vence a `same_provider: true` de `hoom.yaml` (`Options.SameProviderSet`): con el mismo provider la review se niega por no cruzada; sin el flag, `hoom.yaml` sigue permitiéndola.
+- CA-416: con un `.gitignore` tocado por el cambio (rastreado y modificado, commiteado en la rama o nuevo sin rastrear) y un archivo no rastreado fuera de `.hoom/`, `Evidence` devuelve el error del contrato y `hoom review` no lanza ninguna pasada ni escribe registro; sin archivos no rastreados, o sin `.gitignore` tocado, la evidencia se arma como siempre.
+- CA-417: la sección `review:` sale del `hoom.yaml` del merge-base: una rama que commitea `review: {same_provider: true, isolated: false}` sobre una base sin esa sección revisa aislada y se niega por no cruzada con el provider que escribió; con la sección en la base, vale; las opciones explícitas siguen mandando.
 
 ## Decisiones
 
@@ -313,6 +334,19 @@ sacas vos: git diff ..." y la lista `Archivos:`.
   en una GPU alquilada (2f79fa). Con 64 hex no hay búsqueda posible.
 - **Enmienda 1: el spec es un archivo regular del árbol** (c783cd). Si no
   existe, se sigue: el Studio pasa siempre la ruta (CA-334).
+- **Enmienda 3: la configuración de la review es de la base.** Si el
+  candidato elige su propia review, puede afirmar `same_provider` o
+  `isolated: false` y revisarse con el modelo que lo escribió (6a36cf). La
+  config de la base es la que el equipo aprobó. Los valores de esta misma
+  rama (CA-411) rigen después del merge. Las opciones explícitas siguen
+  siendo del operador.
+- **Enmienda 3: `.gitignore` tocado + no rastreados = no se revisa.** Leer
+  los ignores de la base exige materializar los `.gitignore` de otra
+  revisión; negarse cuando el cambio los toca y hay no rastreados es la
+  regla cerrada más chica (131e1a). Revisar solo lo commiteado cerraría más,
+  pero rompe la cinta, que lanza la review sobre lo que dejó el writer.
+- **Enmienda 3: `max_evidence_kib` hasta 16384.** Ningún modelo aguanta más
+  de unos MiB de texto; el tope evita el desborde (94907f, b8750a).
 - **Stdin por encima de 16 KiB y no siempre**: el argv tiene límite (128 KiB
   por argumento en Linux, 32 KiB la línea entera en Windows); los prompts
   chicos siguen por argv y nada más cambia.
@@ -332,6 +366,12 @@ sacas vos: git diff ..." y la lista `Archivos:`.
 - La verificación del spec después de abrirlo no distingue un hard link a
   un archivo de afuera: crearlo exige escribir en el árbol durante la
   review, y quien puede hacer eso ya puede leer el archivo.
+- El resto del `hoom.yaml` del candidato (gates, `findings.block_on`,
+  `base_branch`) sigue valiendo para el propio cambio: es previo a esta spec
+  y va en otra.
+- El reviewer no ve `.hoom/`, así que no conoce los hallazgos ya refutados
+  y puede volver a reportarlos (en la tercera review, 4 de 13): pasarle esa
+  lista es otra spec.
 - Un cambio que solo borra archivos sigue con 0 lentes: la regla de lentes
   usa `git.ChangedFiles`, que no ve los borrados commiteados. Es previo y va
   en otra spec junto con el resto de `gitx.Snapshot`.
