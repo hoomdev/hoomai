@@ -1,11 +1,11 @@
 package gitx
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"os/exec"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -66,68 +66,95 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	return d, nil
 }
 
-// CandidatePatch is the unified patch of the WHOLE change against the
-// merge-base of base and HEAD, working tree included: one `git diff` of
-// everything tracked outside .hoom/ (deletions and both sides of a rename, as
-// git writes them), then each untracked file outside .hoom/ as a new-file
-// patch. A binary carries git's own binary line and no content. It reads at
-// most max bytes: past that it stops git and returns over with nothing kept
-// (read says how much it read). A failing git — no merge-base, the untracked
-// listing, a diff — is an error, never a shorter patch.
-func CandidatePatch(dir, base string, max int) (patch []byte, read int, over bool, err error) {
+// CandidatePatch appends to dst the unified patch of the WHOLE change
+// against the merge-base of base and HEAD, working tree included: one `git
+// diff` of everything tracked outside .hoom/ (deletions and both sides of a
+// rename, as git writes them), then each untracked file outside .hoom/ as a
+// new-file patch. A binary carries git's own binary line and no content, and
+// no textconv filter runs. dst never grows past max: at max+1 it stops git
+// and returns over (the caller keeps nothing). The untracked names are
+// streamed, never held as a list. A failing git — no merge-base, the
+// untracked listing, a diff — is an error, never a shorter patch.
+func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, err error) {
 	mb, err := gitOut(dir, "merge-base", base, "HEAD")
 	if err != nil {
-		return nil, 0, false, fmt.Errorf("git merge-base %s HEAD: %v", base, err)
+		return false, fmt.Errorf("git merge-base %s HEAD: %v", base, err)
 	}
 	if mb = strings.TrimSpace(mb); mb == "" {
-		return nil, 0, false, fmt.Errorf("git merge-base %s HEAD: sin ancestro comun", base)
+		return false, fmt.Errorf("git merge-base %s HEAD: sin ancestro comun", base)
 	}
-	// -z: names as they are on disk, never C-quoted
-	lista, err := gitOut(dir, "ls-files", "-z", "--others", "--exclude-standard", "--", ".", ":(exclude).hoom")
-	if err != nil {
-		return nil, 0, false, fmt.Errorf("git ls-files: %v", err)
-	}
-	var out bytes.Buffer
 	// quotePath=false: the patch names a file as it is on disk (ñ, not \303\261)
-	chunk, over, err := gitOutBounded(dir, max, false, "-c", "core.quotePath=false",
-		"diff", "--no-color", "--no-ext-diff", "--find-renames", mb, "--", ".", ":(exclude).hoom")
-	if err != nil {
-		return nil, 0, false, fmt.Errorf("git diff: %v", err)
-	}
-	if over {
-		return nil, max + 1, true, nil
-	}
-	out.Write(chunk)
-	var nuevos []string
-	for _, f := range strings.Split(lista, "\x00") {
-		if f != "" {
-			nuevos = append(nuevos, f)
-		}
-	}
-	sort.Strings(nuevos)
-	for _, f := range nuevos {
-		// --no-index exits 1 when the files differ: that is the patch
-		chunk, over, err := gitOutBounded(dir, max-out.Len(), true, "-c", "core.quotePath=false",
-			"diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", f)
+	diff := []string{"-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv"}
+	over, err = gitOutBounded(dir, dst, max, false, append(diff, "--find-renames", mb, "--", ".", ":(exclude).hoom")...)
+	if err != nil || over {
 		if err != nil {
-			return nil, out.Len(), false, fmt.Errorf("git diff --no-index %s: %v", f, err)
+			err = fmt.Errorf("git diff: %v", err)
 		}
-		if over {
-			return nil, max + 1, true, nil
-		}
-		out.Write(chunk)
+		return over, err
 	}
-	return out.Bytes(), out.Len(), false, nil
+
+	// -z: names as they are on disk, never C-quoted. Every name read counts
+	// against max too: each untracked patch carries its name, so a listing
+	// past max is an evidence past max.
+	ls := exec.Command("git", "ls-files", "-z", "--others", "--exclude-standard", "--", ".", ":(exclude).hoom")
+	ls.Dir = dir
+	var lsErr strings.Builder
+	ls.Stderr = &lsErr
+	pipe, err := ls.StdoutPipe()
+	if err != nil {
+		return false, err
+	}
+	if err := ls.Start(); err != nil {
+		return false, err
+	}
+	stop := func() { ls.Process.Kill(); ls.Wait() }
+	names := bufio.NewReader(io.LimitReader(pipe, int64(max)+1))
+	listed := 0
+	for {
+		name, rerr := names.ReadString(0)
+		listed += len(name)
+		if listed > max {
+			stop()
+			return true, nil
+		}
+		if name = strings.TrimSuffix(name, "\x00"); name != "" && rerr == nil {
+			// --no-index exits 1 when the files differ: that is the patch
+			over, err := gitOutBounded(dir, dst, max, true, append(diff, "--no-index", "--", "/dev/null", name)...)
+			if err != nil {
+				stop()
+				return false, fmt.Errorf("git diff --no-index %s: %v", name, err)
+			}
+			if over {
+				stop()
+				return true, nil
+			}
+		}
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			stop()
+			return false, fmt.Errorf("git ls-files: %v", rerr)
+		}
+	}
+	if err := ls.Wait(); err != nil {
+		if msg := strings.TrimSpace(lsErr.String()); msg != "" {
+			return false, fmt.Errorf("git ls-files: %s", msg)
+		}
+		return false, fmt.Errorf("git ls-files: %v", err)
+	}
+	return false, nil
 }
 
-// gitOutBounded runs git and keeps at most max bytes of its stdout. Past max
-// it stops git — the rest is never read — and reports over with nothing
-// kept. exit1OK accepts exit code 1 with a silent stderr (git diff
+// gitOutBounded runs git and appends its stdout to dst without letting dst
+// pass max bytes: at max+1 it stops git — the rest is never read — and
+// reports over. exit1OK accepts exit code 1 with a silent stderr (git diff
 // --no-index says "the files differ" that way); anything else that fails is
 // an error carrying git's stderr.
-func gitOutBounded(dir string, max int, exit1OK bool, args ...string) (out []byte, over bool, err error) {
-	if max < 0 {
-		return nil, true, nil
+func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ...string) (over bool, err error) {
+	room := max - dst.Len()
+	if room < 0 {
+		return true, nil
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
@@ -135,34 +162,33 @@ func gitOutBounded(dir string, max int, exit1OK bool, args ...string) (out []byt
 	cmd.Stderr = &stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, false, err
+		return false, err
 	}
-	var buf bytes.Buffer
-	_, rerr := io.CopyN(&buf, pipe, int64(max)+1)
+	_, rerr := io.CopyN(dst, pipe, int64(room)+1)
 	if rerr != io.EOF {
-		// max+1 bytes read (over), or a broken pipe: git is not read to the
+		// room+1 bytes read (over), or a broken pipe: git is not read to the
 		// end, so it is stopped before Wait
 		cmd.Process.Kill()
 		cmd.Wait()
 		if rerr == nil {
-			return nil, true, nil
+			return true, nil
 		}
-		return nil, false, rerr
+		return false, rerr
 	}
 	if werr := cmd.Wait(); werr != nil {
 		msg := strings.TrimSpace(stderr.String())
 		exit, ok := werr.(*exec.ExitError)
 		if !(exit1OK && ok && exit.ExitCode() == 1 && msg == "") {
 			if msg != "" {
-				return nil, false, errorString(msg)
+				return false, errorString(msg)
 			}
-			return nil, false, werr
+			return false, werr
 		}
 	}
-	return buf.Bytes(), false, nil
+	return false, nil
 }
 
 // gitOut runs git and returns its stdout untrimmed; on failure the error

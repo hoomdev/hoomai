@@ -12,6 +12,7 @@
 package reviewcmd
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -115,39 +116,58 @@ type Evidencia struct {
 // WHOLE change against the merge-base of base (deletions and renames
 // included, working tree included), plus the spec text. spec is the path as
 // the user gave it, relative to dir; "" = none. It reads at most maxBytes
-// between the two: past that it returns Over and keeps nothing. A spec that
-// does not exist leaves Spec nil (the dossier says so: CA-334); one that
-// exists but is not a regular file of the tree is an error, never read.
+// between the two, into ONE buffer sized once: past that it returns Over and
+// keeps nothing. git runs first, so a broken base is an error even next to a
+// huge spec. A spec that does not exist leaves Spec nil (the dossier says so:
+// CA-334); one that exists but is not a regular file of the tree is an error,
+// never read.
 func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
-	var texto []byte
-	if s := strings.TrimSpace(spec); s != "" {
-		t, err := leerSpec(dir, s, maxBytes)
-		if err != nil {
-			return Evidencia{}, err
-		}
-		if len(t) > maxBytes {
-			return Evidencia{Bytes: len(t), Over: true}, nil
-		}
-		texto = t
-	}
-	diff, read, over, err := gitx.CandidatePatch(dir, base, maxBytes-len(texto))
+	var buf bytes.Buffer
+	buf.Grow(min(maxBytes+1, 8<<20)) // one allocation for a cap of up to 8 MiB
+	over, err := gitx.CandidatePatch(dir, base, &buf, maxBytes)
 	if err != nil {
 		return Evidencia{}, fmt.Errorf("no pude armar el diff de la evidencia: %v", err)
 	}
 	if over {
-		return Evidencia{Bytes: len(texto) + read, Over: true}, nil
+		return Evidencia{Bytes: maxBytes + 1, Over: true}, nil // corto en el tope + 1
 	}
-	h := sha256.New()
-	h.Write(diff)
-	h.Write(texto)
-	return Evidencia{Diff: diff, Spec: texto, Bytes: len(diff) + len(texto), SHA256: hex.EncodeToString(h.Sum(nil))}, nil
+	d := buf.Len()
+	hayspec := false
+	if s := strings.TrimSpace(spec); s != "" {
+		f, err := abrirSpec(dir, s)
+		if err != nil {
+			return Evidencia{}, err
+		}
+		if f != nil {
+			hayspec = true
+			_, rerr := io.CopyN(&buf, f, int64(maxBytes-d)+1)
+			f.Close()
+			if rerr != nil && rerr != io.EOF {
+				return Evidencia{}, fmt.Errorf("no pude leer el spec %s: %v", s, rerr)
+			}
+			if buf.Len() > maxBytes {
+				return Evidencia{Bytes: maxBytes + 1, Over: true}, nil
+			}
+		}
+	}
+	all := buf.Bytes()
+	ev := Evidencia{Diff: all[:d:d], Bytes: len(all)}
+	if hayspec {
+		ev.Spec = all[d:] // existe, aunque este vacio: no es "no existe"
+	}
+	sum := sha256.Sum256(all)
+	ev.SHA256 = hex.EncodeToString(sum[:])
+	return ev, nil
 }
 
-// leerSpec reads at most max+1 bytes of the spec. nil = it does not exist.
-// It must be a regular file inside dir once symlinks are resolved: a link out
-// of the tree, a device like /dev/zero or a directory is refused unread, so a
-// repository cannot make the review send a local file to the provider.
-func leerSpec(dir, spec string, max int) ([]byte, error) {
+// abrirSpec opens the spec for reading. nil, nil = it does not exist. It
+// must be a regular file inside dir once symlinks are resolved: a link out
+// of the tree, a device like /dev/zero or a directory is refused unread, so
+// a repository cannot make the review send a local file to the provider. The
+// check is repeated on the OPEN file (os.SameFile against a fresh
+// resolution), so swapping a link between the check and the open does not
+// slip a file from outside the tree in.
+func abrirSpec(dir, spec string) (*os.File, error) {
 	path := spec
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(dir, path)
@@ -159,36 +179,40 @@ func leerSpec(dir, spec string, max int) ([]byte, error) {
 		return nil, fmt.Errorf("no pude leer el spec %s: %v", spec, err)
 	}
 	noEs := fmt.Errorf("el spec %s no es un archivo del arbol", spec)
-	real, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return nil, noEs
-	}
 	raiz, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return nil, fmt.Errorf("no pude resolver %s: %v", dir, err)
 	}
-	if rel, err := filepath.Rel(raiz, real); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return nil, noEs
+	// resuelto: la ruta real, dentro del arbol y archivo regular
+	resuelto := func() (string, os.FileInfo, bool) {
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return "", nil, false
+		}
+		if rel, err := filepath.Rel(raiz, real); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", nil, false
+		}
+		info, err := os.Stat(real)
+		if err != nil || !info.Mode().IsRegular() {
+			return "", nil, false
+		}
+		return real, info, true
 	}
-	if info, err := os.Stat(real); err != nil || !info.Mode().IsRegular() {
+	real, _, ok := resuelto()
+	if !ok {
 		return nil, noEs
 	}
 	f, err := os.Open(real)
 	if err != nil {
 		return nil, fmt.Errorf("no pude leer el spec %s: %v", spec, err)
 	}
-	defer f.Close()
-	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+	abierto, err := f.Stat()
+	_, ahora, ok := resuelto()
+	if err != nil || !ok || !abierto.Mode().IsRegular() || !os.SameFile(abierto, ahora) {
+		f.Close()
 		return nil, noEs // cambio entre la ruta y el archivo abierto
 	}
-	t, err := io.ReadAll(io.LimitReader(f, int64(max)+1))
-	if err != nil {
-		return nil, fmt.Errorf("no pude leer el spec %s: %v", spec, err)
-	}
-	if t == nil {
-		t = []byte{} // existe, vacio: no es "no existe"
-	}
-	return t, nil
+	return f, nil
 }
 
 // kib rounds bytes up to KiB, the unit the review prints.
@@ -729,8 +753,9 @@ func pedidoComun(base string, git gitx.Info, spec string, v *verdict.Verdict, ev
 	return b.String()
 }
 
-// writeBlock writes a block of the evidence ending in exactly one newline
-// of its own, so the next marker always starts its own line.
+// writeBlock writes a block of the evidence byte for byte and adds a newline
+// only when the block does not end in one, so the next marker always starts
+// its own line.
 func writeBlock(b *strings.Builder, raw []byte) {
 	b.Write(raw)
 	if len(raw) > 0 && raw[len(raw)-1] != '\n' {
