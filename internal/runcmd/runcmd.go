@@ -792,10 +792,18 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		task = r.opts.Task
 	}
 	cmd.Env = append(os.Environ(), EnvTask+"="+task)
+	// a prompt too large for argv (E2BIG on Linux, the 32 KiB command line on
+	// Windows) travels by stdin; the adapter left it out of Args. It is a
+	// pipe WE write and close, not an exec copier: an orphan that inherits
+	// stdin and never reads cannot keep Wait from returning.
+	var stdin io.WriteCloser
 	if inv.Stdin != "" {
-		// a prompt too large for argv (E2BIG on Linux, the 32 KiB command
-		// line on Windows) travels by stdin; the adapter left it out of Args
-		cmd.Stdin = strings.NewReader(inv.Stdin)
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipe de entrada")
+			return
+		}
+		stdin = w
 	}
 
 	stdout, err1 := cmd.StdoutPipe()
@@ -818,7 +826,16 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		time.Sleep(3 * time.Second)
 		stdout.Close()
 		stderr.Close()
+		if stdin != nil {
+			stdin.Close() // destraba la escritura del prompt si nadie lo lee
+		}
 	}()
+	if stdin != nil {
+		go func() {
+			io.WriteString(stdin, inv.Stdin) // un error aca es un hijo que no lee: lo cuenta su salida
+			stdin.Close()
+		}()
+	}
 
 	// Un normalizador por run: el que empareja una delegacion con su fin
 	// necesita recordar las lineas anteriores de ESTE run.

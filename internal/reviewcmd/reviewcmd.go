@@ -243,14 +243,17 @@ func resolveOptions(opt Options, m *manifest.Manifest) Options {
 }
 
 // prepararEvidencia freezes the evidence ONCE — the 4 lenses get the same
-// bytes, whole — and prints what the lenses will run with. Past the cap it
-// stops reading and says so; the caller refuses without launching a lens.
-func prepararEvidencia(w io.Writer, dir, base string, opt Options, m *manifest.Manifest) (ev Evidencia, isolated bool, tope int, err error) {
+// bytes, whole. Past the cap it stops reading; the caller refuses without
+// launching a lens.
+func prepararEvidencia(dir, base string, opt Options, m *manifest.Manifest) (ev Evidencia, isolated bool, tope int, err error) {
 	isolated, tope = m.ReviewIsolated(), m.ReviewMaxEvidenceKiB()
 	ev, err = Evidence(dir, base, opt.Spec, tope*1024)
-	if err != nil {
-		return ev, isolated, tope, err
-	}
+	return ev, isolated, tope, err
+}
+
+// imprimirEncabezado says what the lenses will run with: model, effort,
+// isolation and the evidence (or that it passed the cap).
+func imprimirEncabezado(w io.Writer, opt Options, isolated bool, tope int, ev Evidencia) {
 	fmt.Fprintf(w, "  modelo      %s\n", elegido(opt.Model))
 	fmt.Fprintf(w, "  esfuerzo    %s\n", elegido(opt.Effort))
 	if isolated {
@@ -264,7 +267,6 @@ func prepararEvidencia(w io.Writer, dir, base string, opt Options, m *manifest.M
 		fmt.Fprintf(w, "  evidencia   %d KiB (diff %d + spec %d), tope %d KiB - sha256 %s\n",
 			kib(ev.Bytes), kib(len(ev.Diff)), kib(len(ev.Spec)), tope, ev.SHA256[:12])
 	}
-	return ev, isolated, tope, nil
 }
 
 // elegido renders a model or effort that may not have been chosen.
@@ -456,10 +458,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return finish(w, res, "no-entregable", 1, "la review no seria cruzada"), nil
 	}
 
-	ev, isolated, tope, err := prepararEvidencia(w, dir, base, opt, m)
+	ev, isolated, tope, err := prepararEvidencia(dir, base, opt, m)
 	if err != nil {
 		return res, err
 	}
+	imprimirEncabezado(w, opt, isolated, tope, ev)
 	res.Model, res.Effort, res.Isolated = opt.Model, opt.Effort, isolated
 	res.EvidenceBytes, res.EvidenceSHA256 = ev.Bytes, ev.SHA256
 	if ev.Over {
