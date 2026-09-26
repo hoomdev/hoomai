@@ -1,0 +1,11 @@
+{
+  "id": "20260926T145513_2665fa",
+  "created_at": "2026-09-26T14:55:13.325073Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:122 ejecuta git diff --no-index sobre cada ruta no rastreada sin comprobar que sea regular ni imponer timeout/contexto. Un FIFO no rastreado hace que git intente abrirlo y quede bloqueado indefinidamente (reproducido: seguia vivo tras 2 s), por lo que hoom review/serve nunca devuelve ni alcanza el tope. Rechazar archivos especiales como se hace con el spec, o ejecutar Git con cancelacion/plazo.",
+  "author": "reviewer@codex",
+  "fingerprint": "9de334843e68f2c4",
+  "task": "review-aislada-y-modelo-elegido"
+}
