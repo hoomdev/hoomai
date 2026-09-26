@@ -1,0 +1,11 @@
+{
+  "id": "20260926T051422_2f79fa",
+  "created_at": "2026-09-26T05:14:22.633855Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:706: los delimitadores autentican solo 12 hex (48 bits) del hash mientras el comentario afirma que no se pueden falsificar. Un contribuidor que controla bytes del diff/spec puede fijar un marcador objetivo y variar un nonce hasta igualar ese prefijo (~2^48 intentos), haciendo viable cerrar el bloque e inyectar instrucciones. Usar el SHA256 completo (ademas de sanear metadatos).",
+  "author": "reviewer@codex",
+  "fingerprint": "283e17c9a9fba3fa",
+  "task": "review-aislada-y-modelo-elegido"
+}

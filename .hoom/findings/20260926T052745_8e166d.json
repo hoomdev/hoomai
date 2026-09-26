@@ -1,0 +1,11 @@
+{
+  "id": "20260926T052745_8e166d",
+  "created_at": "2026-09-26T05:27:45.224185Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/review_aislada_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/review_aislada_test.go:1 agrega un archivo monolitico de 2289 lineas y 46 tests que mezcla resolucion de opciones, aislamiento, evidencia/git, prompts, uso, registros y errores de spec (CA-395..415). Dividirlo por responsabilidad/CA, dejando fixtures compartidos en un helper _test.go, haria localizable cada contrato y reduciria conflictos al mantener esta suite.",
+  "author": "reviewer@codex",
+  "fingerprint": "283e17c9a9fba3fa",
+  "task": "review-aislada-y-modelo-elegido"
+}
