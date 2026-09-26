@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T145057_3204ee",
+  "as": "refutado",
+  "evidence": "La otra mitad de 20260926T052027_8554db, ya refutado (.hoom/findings/20260926T052027_8554db.res.json), sin argumento nuevo. Re-verificado ahora: el provider es campo obligatorio del dialogo de pedir-reviewer (CA-354, re-expresado por CA-409: provider, modelo, esfuerzo, presupuesto y pedido); servecmd/acciones.go:188-199 exige una opcion OK y :256-257 la pasa como Provider explicito, que vence a hoom.yaml por la precedencia de la spec (opcion explicita \u003e hoom.yaml \u003e vacio). La eleccion por defecto de la lista (boardcmd/acciones.go:280-289) es de C3: git diff --stat main...HEAD -- internal/boardcmd/acciones.go vacio y blame 320dea53, ancestro de main. Lo que el Studio toma de hoom.yaml sin opcion son modelo y esfuerzo: TestCA395_StudioTomaModeloYEsfuerzoDeHoomYaml pasa (go test -count=1 -run \"TestCA395_Studio|TestCA409\" ./internal/servecmd/ -\u003e ok). Que review.provider preseleccione el dialogo seria una mejora de UI a decidir en spec, no un incumplimiento de esta.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:13:22.514266Z"
+}
