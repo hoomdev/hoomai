@@ -2,8 +2,10 @@ package gitx
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -64,77 +66,103 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	return d, nil
 }
 
-// CandidatePatch is the unified patch of files against the merge-base of
-// base and HEAD, working tree included (committed or not): the tracked files
-// in one `git diff`, then each untracked file as a new-file patch. A binary
-// file carries git's own binary line and no content. Never cut.
-func CandidatePatch(dir, base string, files []string) ([]byte, error) {
-	if len(files) == 0 {
-		return nil, nil
+// CandidatePatch is the unified patch of the WHOLE change against the
+// merge-base of base and HEAD, working tree included: one `git diff` of
+// everything tracked outside .hoom/ (deletions and both sides of a rename, as
+// git writes them), then each untracked file outside .hoom/ as a new-file
+// patch. A binary carries git's own binary line and no content. It reads at
+// most max bytes: past that it stops git and returns over with nothing kept
+// (read says how much it read). A failing git — no merge-base, the untracked
+// listing, a diff — is an error, never a shorter patch.
+func CandidatePatch(dir, base string, max int) (patch []byte, read int, over bool, err error) {
+	mb, err := gitOut(dir, "merge-base", base, "HEAD")
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("git merge-base %s HEAD: %v", base, err)
 	}
-	from := base
-	if mb, err := run(dir, "merge-base", base, "HEAD"); err == nil && mb != "" {
-		from = mb
+	if mb = strings.TrimSpace(mb); mb == "" {
+		return nil, 0, false, fmt.Errorf("git merge-base %s HEAD: sin ancestro comun", base)
 	}
-	// -z: names as they are on disk, never C-quoted (a path with non-ASCII
-	// bytes comes quoted otherwise, and a quoted name matches no file)
-	untracked := map[string]bool{}
-	if out, err := gitOut(dir, "ls-files", "-z", "--others", "--exclude-standard"); err == nil {
-		for _, f := range strings.Split(out, "\x00") {
-			if f != "" {
-				untracked[f] = true
-			}
-		}
-	}
-	var tracked, nuevos []string
-	for _, f := range files {
-		f = UnquotePath(f)
-		if untracked[f] {
-			nuevos = append(nuevos, f)
-		} else {
-			tracked = append(tracked, f)
-		}
+	// -z: names as they are on disk, never C-quoted
+	lista, err := gitOut(dir, "ls-files", "-z", "--others", "--exclude-standard", "--", ".", ":(exclude).hoom")
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("git ls-files: %v", err)
 	}
 	var out bytes.Buffer
-	if len(tracked) > 0 {
-		// literal pathspecs: a name with * or ? is a name, not a glob
-		args := append([]string{"--literal-pathspecs", "diff", "--no-color", "--no-ext-diff", from, "--"}, tracked...)
-		patch, err := gitOut(dir, args...)
-		if err != nil {
-			return nil, err
-		}
-		out.WriteString(patch)
+	// quotePath=false: the patch names a file as it is on disk (ñ, not \303\261)
+	chunk, over, err := gitOutBounded(dir, max, false, "-c", "core.quotePath=false",
+		"diff", "--no-color", "--no-ext-diff", "--find-renames", mb, "--", ".", ":(exclude).hoom")
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("git diff: %v", err)
 	}
+	if over {
+		return nil, max + 1, true, nil
+	}
+	out.Write(chunk)
+	var nuevos []string
+	for _, f := range strings.Split(lista, "\x00") {
+		if f != "" {
+			nuevos = append(nuevos, f)
+		}
+	}
+	sort.Strings(nuevos)
 	for _, f := range nuevos {
-		// --no-index exits 1 when the files differ: that is the patch, not a
-		// failure. A 1 with git talking on stderr is a failure all the same.
-		cmd := exec.Command("git", "diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", f)
-		cmd.Dir = dir
-		var stderr strings.Builder
-		cmd.Stderr = &stderr
-		patch, err := cmd.Output()
-		msg := strings.TrimSpace(stderr.String())
-		if exit, ok := err.(*exec.ExitError); err != nil && (!ok || exit.ExitCode() != 1 || msg != "") {
-			if msg != "" {
-				return nil, errorString(msg)
-			}
-			return nil, err
+		// --no-index exits 1 when the files differ: that is the patch
+		chunk, over, err := gitOutBounded(dir, max-out.Len(), true, "-c", "core.quotePath=false",
+			"diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", f)
+		if err != nil {
+			return nil, out.Len(), false, fmt.Errorf("git diff --no-index %s: %v", f, err)
 		}
-		out.Write(patch)
+		if over {
+			return nil, max + 1, true, nil
+		}
+		out.Write(chunk)
 	}
-	return out.Bytes(), nil
+	return out.Bytes(), out.Len(), false, nil
 }
 
-// UnquotePath undoes git's C-style quoting of a path ("dir/\303\261.go"),
-// which git applies to names with non-ASCII bytes, quotes or backslashes
-// when it lists them without -z. A name that is not quoted comes back as is.
-func UnquotePath(p string) string {
-	if len(p) >= 2 && p[0] == '"' && p[len(p)-1] == '"' {
-		if s, err := strconv.Unquote(p); err == nil {
-			return s
+// gitOutBounded runs git and keeps at most max bytes of its stdout. Past max
+// it stops git — the rest is never read — and reports over with nothing
+// kept. exit1OK accepts exit code 1 with a silent stderr (git diff
+// --no-index says "the files differ" that way); anything else that fails is
+// an error carrying git's stderr.
+func gitOutBounded(dir string, max int, exit1OK bool, args ...string) (out []byte, over bool, err error) {
+	if max < 0 {
+		return nil, true, nil
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, false, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, false, err
+	}
+	var buf bytes.Buffer
+	_, rerr := io.CopyN(&buf, pipe, int64(max)+1)
+	if rerr != io.EOF {
+		// max+1 bytes read (over), or a broken pipe: git is not read to the
+		// end, so it is stopped before Wait
+		cmd.Process.Kill()
+		cmd.Wait()
+		if rerr == nil {
+			return nil, true, nil
+		}
+		return nil, false, rerr
+	}
+	if werr := cmd.Wait(); werr != nil {
+		msg := strings.TrimSpace(stderr.String())
+		exit, ok := werr.(*exec.ExitError)
+		if !(exit1OK && ok && exit.ExitCode() == 1 && msg == "") {
+			if msg != "" {
+				return nil, false, errorString(msg)
+			}
+			return nil, false, werr
 		}
 	}
-	return p
+	return buf.Bytes(), false, nil
 }
 
 // gitOut runs git and returns its stdout untrimmed; on failure the error

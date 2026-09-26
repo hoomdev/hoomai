@@ -665,9 +665,14 @@ func cmdReview(args []string) error {
 	if *asJSON {
 		out = io.Discard // JSON puro: la narracion no se mezcla con el dato
 	}
+	// --same-provider=false dicho a mano tambien es una decision: vence a
+	// review.same_provider de hoom.yaml
+	sameSet := false
+	fs.Visit(func(f *flag.Flag) { sameSet = sameSet || f.Name == "same-provider" })
 	res, err := reviewcmd.Run(m.Dir, m.BaseBranch, reviewcmd.Options{
 		Provider: *provider, Lens: *lens, Task: *task, Spec: *specPath,
-		Model: *model, Effort: *effort, SameProvider: *same, MaxTurns: *maxTurns, BudgetUSD: *budget,
+		Model: *model, Effort: *effort, SameProvider: *same, SameProviderSet: sameSet,
+		MaxTurns: *maxTurns, BudgetUSD: *budget,
 	}, out)
 	if err != nil {
 		return err
