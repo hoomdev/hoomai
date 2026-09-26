@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -73,8 +75,9 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 // diff` of everything tracked outside .hoom/ (deletions and both sides of a
 // rename, as git writes them), then each untracked file outside .hoom/ as a
 // new-file patch. A binary carries git's own binary line and no content, and
-// no textconv filter runs. dst never grows past max: at max+1 it stops git
-// and returns over (the caller keeps nothing). The untracked names are
+// no textconv filter runs. dst holds at most max bytes of evidence: the
+// moment it would hold max+1 it stops git and returns over, and the caller
+// discards dst. The untracked names are
 // streamed, never held as a list. A failing git — no merge-base, the
 // untracked listing, a diff — is an error, never a shorter patch.
 func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, err error) {
@@ -85,13 +88,19 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 	// a change that touches a .gitignore decides which untracked files the
 	// listing below sees: with any untracked file present, that could put a
 	// local secret (.env) in the evidence, so the review does not run
-	tocado, err := gitOut(dir, "diff", "--name-only", mb, "--", ":(glob)**/.gitignore")
+	// (one byte of the listing is enough: it is never held whole)
+	gitignore, err := gitOutBounded(dir, new(bytes.Buffer), 0, false, "diff", "--name-only", mb, "--", ":(glob)**/.gitignore")
 	if err != nil {
 		return false, fmt.Errorf("git diff --name-only: %v", err)
 	}
-	gitignore := strings.TrimSpace(tocado) != ""
-	// quotePath=false: the patch names a file as it is on disk (ñ, not \303\261)
-	diff := []string{"-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv"}
+	if !gitignore {
+		if gitignore, err = gitignoreIgnoradoSinRastrear(dir); err != nil {
+			return false, err
+		}
+	}
+	// quotePath=false: the patch names a file as it is on disk (ñ, not
+	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure
+	diff := []string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv"}
 	over, err = gitOutBounded(dir, dst, max, false, append(diff, "--find-renames", mb, "--", ".", ":(exclude).hoom")...)
 	if err != nil || over {
 		if err != nil {
@@ -129,6 +138,12 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 				stop()
 				return false, ErrGitignoreTocado
 			}
+			// git lists a symlink to a FIFO as a file and --no-index follows it:
+			// it would block forever. A special file fails closed, named.
+			if info, err := os.Stat(filepath.Join(dir, name)); err == nil && info.Mode()&especial != 0 {
+				stop()
+				return false, fmt.Errorf("el archivo sin rastrear %s no es un archivo regular (%s): sacalo antes de revisar", name, info.Mode().Type())
+			}
 			// --no-index exits 1 when the files differ: that is the patch
 			over, err := gitOutBounded(dir, dst, max, true, append(diff, "--no-index", "--", "/dev/null", name)...)
 			if err != nil {
@@ -157,6 +172,50 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 	return false, nil
 }
 
+// especial are the file types --no-index would open and block on or read
+// without end: never part of the evidence.
+const especial = os.ModeNamedPipe | os.ModeSocket | os.ModeDevice | os.ModeCharDevice | os.ModeIrregular
+
+// gitignoreIgnoradoSinRastrear reports an untracked .gitignore that git
+// itself ignores — one that lists itself — outside ignored directories: git
+// still applies its rules (it can un-ignore a secret), so it counts as a
+// touched .gitignore. Ignored directories come collapsed (dir/) and are
+// skipped: a node_modules/x/.gitignore is not the change's.
+func gitignoreIgnoradoSinRastrear(dir string) (bool, error) {
+	cmd := exec.Command("git", "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory",
+		"--", ":(glob)**/.gitignore", ":(exclude).hoom")
+	cmd.Dir = dir
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return false, err
+	}
+	if err := cmd.Start(); err != nil {
+		return false, err
+	}
+	names := bufio.NewReader(pipe)
+	for {
+		name, rerr := names.ReadString(0)
+		name = strings.TrimSuffix(name, "\x00")
+		if name != "" && !strings.HasSuffix(name, "/") && path.Base(name) == ".gitignore" {
+			cmd.Process.Kill()
+			cmd.Wait()
+			return true, nil
+		}
+		if rerr != nil {
+			break
+		}
+	}
+	if err := cmd.Wait(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return false, fmt.Errorf("git ls-files --ignored: %s", msg)
+		}
+		return false, fmt.Errorf("git ls-files --ignored: %v", err)
+	}
+	return false, nil
+}
+
 // ErrGitignoreTocado: the change touches a .gitignore and there are untracked
 // files, so the evidence is not built (a change could uncover a local secret).
 var ErrGitignoreTocado = errors.New("el cambio toca un .gitignore y hay archivos sin rastrear: commitealos o sacalos antes de revisar")
@@ -177,7 +236,13 @@ func MergeBase(dir, base string) (string, error) {
 // ShowFile is the content of path at revision rev. exists is false when the
 // file is not in that revision; any other git failure is an error.
 func ShowFile(dir, rev, path string) (content []byte, exists bool, err error) {
-	if _, err := gitOut(dir, "cat-file", "-e", rev+":"+path); err != nil {
+	// ls-tree says "absent" with an empty listing and fails for anything
+	// else (a missing object, a broken repo): the two never mix
+	entry, err := gitOut(dir, "ls-tree", "-z", rev, "--", path)
+	if err != nil {
+		return nil, false, fmt.Errorf("git ls-tree %s %s: %v", rev, path, err)
+	}
+	if strings.Trim(entry, "\x00\n ") == "" {
 		return nil, false, nil
 	}
 	out, err := gitOut(dir, "show", rev+":"+path)
@@ -187,9 +252,9 @@ func ShowFile(dir, rev, path string) (content []byte, exists bool, err error) {
 	return []byte(out), true, nil
 }
 
-// gitOutBounded runs git and appends its stdout to dst without letting dst
-// pass max bytes: at max+1 it stops git — the rest is never read — and
-// reports over. exit1OK accepts exit code 1 with a silent stderr (git diff
+// gitOutBounded runs git and appends its stdout to dst while dst holds at
+// most max bytes: when it would hold max+1 it stops git — the rest is never
+// read — and reports over (dst then has max+1 bytes the caller discards). exit1OK accepts exit code 1 with a silent stderr (git diff
 // --no-index says "the files differ" that way); anything else that fails is
 // an error carrying git's stderr.
 func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ...string) (over bool, err error) {

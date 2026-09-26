@@ -830,10 +830,15 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 			stdin.Close() // destraba la escritura del prompt si nadie lo lee
 		}
 	}()
+	// escrito dice si el pedido entero entro por stdin: un CLI que lee un
+	// prefijo y sale con 0 no puede cerrar el run como hecho
+	var escrito chan error
 	if stdin != nil {
+		escrito = make(chan error, 1)
 		go func() {
-			io.WriteString(stdin, inv.Stdin) // un error aca es un hijo que no lee: lo cuenta su salida
-			stdin.Close()
+			_, err := io.WriteString(stdin, inv.Stdin)
+			stdin.Close() // su error no importa: Wait tambien lo cierra
+			escrito <- err
 		}()
 	}
 
@@ -885,6 +890,13 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		}
 		status = StatusError
 		detail = fmt.Sprintf("el provider termino con exit %d", exit)
+	}
+	if escrito != nil {
+		// Wait ya cerro el pipe: la escritura termino, bien o mal
+		if werr := <-escrito; werr != nil && status == StatusDone {
+			status = StatusError
+			detail = fmt.Sprintf("el provider no leyo el pedido entero por stdin (%d bytes): %v", len(inv.Stdin), werr)
+		}
 	}
 	m.settle(r, status, exit, detail)
 }
