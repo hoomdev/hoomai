@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T150106_c91ac4",
+  "as": "corregido",
+  "evidence": "f01eedc: prepararEvidencia solo prepara; imprimirEncabezado imprime",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:57:34.879877Z"
+}

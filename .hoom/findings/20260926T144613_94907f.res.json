@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T144613_94907f",
+  "as": "corregido",
+  "evidence": "56e038f + enmienda 3 (CA-394): max_evidence_kib entre 1 y 16384; TestCA394_TopeMayorA16384Falla, TechoPropiedad y ReviewConTopeFueraDeRangoEnLaBaseEsError (panico en Grow con max int64 en 188fe75)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:57:34.537451Z"
+}
