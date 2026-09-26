@@ -71,8 +71,11 @@ type Options struct {
 	Model        string
 	Effort       string // reasoning effort, provider vocabulary; "" = review.effort of hoom.yaml
 	SameProvider bool   // allows reviewing with the same provider that wrote
-	MaxTurns     int
-	BudgetUSD    float64
+	// SameProviderSet: SameProvider was said explicitly (true OR false), so
+	// it wins over review.same_provider of hoom.yaml.
+	SameProviderSet bool
+	MaxTurns        int
+	BudgetUSD       float64
 	// EnvelopeID and Started: the same contract as agentcmd.Options.
 	EnvelopeID string
 	Started    func()
@@ -101,10 +104,11 @@ type Pass struct {
 // Evidencia is the frozen evidence every lens receives: the candidate's diff
 // and the spec text, built once per review.
 type Evidencia struct {
-	Diff   []byte // unified patch of the candidate
-	Spec   []byte // spec text; empty without --spec
-	Bytes  int    // len(Diff) + len(Spec)
-	SHA256 string // hex sha256 of Diff followed by Spec
+	Diff   []byte // unified patch of the whole change; empty when Over
+	Spec   []byte // spec text; nil without --spec or when it does not exist; empty when Over
+	Bytes  int    // len(Diff) + len(Spec); when Over, what was read before stopping
+	SHA256 string // hex sha256 of Diff followed by Spec; "" when Over
+	Over   bool   // the evidence passed maxBytes: hoom stopped reading
 }
 
 // Evidence builds the review evidence of the change candidate in dir: the
@@ -112,7 +116,8 @@ type Evidencia struct {
 // (working tree included), plus the spec text. spec is the path as the user
 // gave it, relative to dir; "" = none. A spec that does not exist in the
 // tree leaves Spec empty (the dossier says so); any other read error is one.
-func Evidence(dir, base string, git gitx.Info, spec string) (Evidencia, error) {
+func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
+	git := gitx.Snapshot(dir, base) // esqueleto de la enmienda: aun sale de ChangedFiles
 	var files []string
 	for _, f := range git.ChangedFiles {
 		if !strings.HasPrefix(filepath.ToSlash(gitx.UnquotePath(f)), ".hoom/") {
@@ -358,7 +363,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// La evidencia se congela UNA vez: las 4 lentes reciben los mismos bytes,
 	// enteros. Si no entra en el tope, no se corta: no corre ninguna lente.
-	ev, err := Evidence(dir, base, git, opt.Spec)
+	ev, err := Evidence(dir, base, opt.Spec, m.ReviewMaxEvidenceKiB()*1024)
 	if err != nil {
 		return res, err
 	}
