@@ -15,7 +15,7 @@
 //     quedarse bloqueado; y un spec que cambia a symlink de afuera entre los
 //     git que corre Evidence nunca se lee de afuera.
 //
-// Reusa los fixtures de review_aislada_test.go (raRepo, raEvidenceConReloj,
+// Reusa los fixtures de review_aislada_helpers_test.go (raRepo, raEvidenceConReloj,
 // raOver, raGitReal, raClonShallow, ...). En este paquete ningun test corre en
 // paralelo: el TotalAlloc que miden los tests de memoria es el de Evidence.
 package reviewcmd
