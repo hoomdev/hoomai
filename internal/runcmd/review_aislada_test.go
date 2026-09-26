@@ -1,7 +1,8 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
 // (CA-399, CA-400) en runcmd: StartOptions gana Effort e Isolated y los pasa
 // al Request (tambien en Input), y cuando la invocacion trae Stdin, runcmd lo
-// escribe en el stdin del proceso. Los CLIs son falsos: guardan su argv
+// escribe en el stdin del proceso, entero: un CLI que no lo lee entero no
+// termina bien. Los CLIs son falsos: guardan su argv
 // (separado por NUL) y lo que les llega por stdin, fuera de cualquier arbol.
 package runcmd
 
@@ -154,6 +155,57 @@ func TestCA399_InputConPromptGrandeTambienPorStdin(t *testing.T) {
 		if a == grande {
 			t.Fatalf("CA-399: el argv de la continuacion no lleva el prompt grande")
 		}
+	}
+}
+
+// CA-399 (el prompt entero): "Invocation.Stdin es el prompt entero y el
+// proceso lo recibe por stdin". Un CLI que lee solo los primeros 100 bytes de
+// un prompt de 1 MiB, dice que termino bien y sale con 0 NO recibio el
+// pedido: una review asi daria un resultado limpio sobre una vista cortada
+// (el spec: negarse en vez de truncar). El run no termina done: termina en
+// error, y su narracion lo dice con un evento de error que nombra el prompt
+// o el stdin. En claude y en codex.
+func TestCA399_ProviderQueNoLeeElPromptEnteroEsError(t *testing.T) {
+	grande := raGrande(1 << 20)
+	if len(grande) <= providers.StdinPromptBytes {
+		t.Fatalf("CA-399: fixture: el prompt (%d bytes) va por stdin: pasa %d", len(grande), providers.StdinPromptBytes)
+	}
+	exito := map[string]string{
+		"claude": `{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"sess-corto"}`,
+		"codex":  `{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1}}`,
+	}
+	for _, name := range []string{"claude", "codex"} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			installFakeNamed(t, name, "d='"+dir+"'\nhead -c 100 > \"$d/leido\"\necho '"+exito[name]+"'\nexit 0\n")
+			m := NewManager(t.TempDir())
+			run, err := m.Start(StartOptions{Provider: name, Prompt: grande, Dir: t.TempDir()})
+			if err != nil {
+				t.Fatalf("CA-399: %s: Start con prompt grande: %v", name, err)
+			}
+			fin := waitRun(t, m, run.ID)
+			if leido, err := os.ReadFile(filepath.Join(dir, "leido")); err != nil || string(leido) != grande[:100] {
+				t.Fatalf("CA-399: %s: fixture: el CLI falso corrio y leyo solo los primeros 100 bytes del prompt: %v %q", name, err, leido)
+			}
+			if fin.Status != StatusError {
+				t.Fatalf("CA-399: %s: un CLI que leyo 100 de %d bytes del prompt no termino bien: el run termina en %q, termino en %q: %+v",
+					name, len(grande), StatusError, fin.Status, fin)
+			}
+			_, evs, err := m.Events(run.ID, 0)
+			if err != nil {
+				t.Fatalf("CA-399: %s: Events: %v", name, err)
+			}
+			dice := false
+			for _, e := range evs {
+				d := strings.ToLower(e.Detail)
+				if e.Kind == "error" && (strings.Contains(d, "prompt") || strings.Contains(d, "stdin")) {
+					dice = true
+				}
+			}
+			if !dice {
+				t.Fatalf("CA-399: %s: la narracion dice que el provider no leyo el prompt entero (un evento error que nombra el prompt o el stdin): %+v", name, evs)
+			}
+		})
 	}
 }
 

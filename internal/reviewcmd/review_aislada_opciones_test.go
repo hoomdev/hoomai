@@ -3,8 +3,9 @@
 // modelo, esfuerzo y same_provider se resuelven opcion > hoom.yaml de la
 // base (el del merge-base, nunca el del candidato) > vacio (un
 // --same-provider=false explicito tambien), cada pasada corre aislada con el
-// esfuerzo resuelto, y un tope fuera de rango en la base es un error. Los
-// fixtures estan en review_aislada_helpers_test.go.
+// esfuerzo resuelto, y un tope fuera de rango en la base es un error, igual
+// que un hoom.yaml de la base que existe y no se puede leer (falla cerrado).
+// Los fixtures estan en review_aislada_helpers_test.go.
 package reviewcmd
 
 import (
@@ -817,5 +818,129 @@ func TestCA417_ElTopeEsElDeLaBase(t *testing.T) {
 	}
 	if !strings.Contains(out, ", tope 320 KiB - sha256 ") {
 		t.Fatalf("CA-417: la linea evidencia dice el tope de la base (320 KiB):\n%s", out)
+	}
+}
+
+// raGitSinHoomYaml pone en bin un git que falla (exit 128, con un mensaje de
+// git que no dice que el archivo no exista) cada vez que le piden algo del
+// hoom.yaml de una revision por cat-file, ls-tree o show: nombrandolo por su
+// ruta o por el oid de su blob. En todo lo demas es el git de verdad.
+func raGitSinHoomYaml(t *testing.T, bin, real, oid string) {
+	t.Helper()
+	s := "#!/bin/sh\nlee=0; nombra=0\nfor a in \"$@\"; do\n  case \"$a\" in\n" +
+		"    cat-file|ls-tree|show) lee=1;;\n" +
+		"    *hoom.yaml*|*" + oid + "*) nombra=1;;\n" +
+		"  esac\ndone\n" +
+		"if [ $lee = 1 ] && [ $nombra = 1 ]; then\n" +
+		"  echo 'fatal: unable to read tree (git roto por el test, CA-417)' >&2\n  exit 128\nfi\n" +
+		"exec '" + real + "' \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(s), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// raOid es el oid del objeto rev en root (git de verdad, por su ruta).
+func raOid(t *testing.T, real, root, rev string) string {
+	t.Helper()
+	cmd := exec.Command(real, "rev-parse", rev)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("fixture: git rev-parse %s: %v", rev, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// CA-417 (falla cerrado): la seccion review: sale del hoom.yaml de la base, y
+// solo "sin hoom.yaml o sin review: en la base, valen los valores por
+// defecto". Un hoom.yaml que la base TIENE pero que no se puede leer no es un
+// hoom.yaml ausente: `hoom review` devuelve un error y no lanza ninguna
+// pasada ni escribe registro, en vez de revisar en silencio con los valores
+// por defecto (y no con los que la base eligio). Dos formas: un git que
+// falla (exit 128) cuando le piden el hoom.yaml de una revision por
+// cat-file, ls-tree o show, y en todo lo demas es el git de verdad; y un
+// repo al que le falta en .git/objects el blob del hoom.yaml de la base
+// (ls-tree lo lista; leerlo falla). Controles: el mismo repo sano revisa con
+// lo que eligio la base, y una base sin hoom.yaml revisa con los valores por
+// defecto.
+func TestCA417_HoomYamlDeLaBaseIlegibleFallaCerrado(t *testing.T) {
+	real := raGitReal(t)
+	const base = "review:\n  effort: low\n"
+	rama := func(t *testing.T) string {
+		t.Helper()
+		root := raRepo(t, base)
+		git(t, root, "checkout", "-q", "-b", "feature")
+		raCambio(t, root)
+		return root
+	}
+	casos := []struct {
+		nombre string
+		armar  func(t *testing.T, bin string) string
+	}{
+		{"git-que-falla-al-leer-el-hoom-yaml-de-la-base", func(t *testing.T, bin string) string {
+			root := rama(t)
+			raGitSinHoomYaml(t, bin, real, raOid(t, real, root, "main:hoom.yaml"))
+			return root
+		}},
+		{"falta-el-blob-del-hoom-yaml-de-la-base", func(t *testing.T, bin string) string {
+			root := rama(t)
+			oid := raOid(t, real, root, "main:hoom.yaml")
+			if err := os.Remove(filepath.Join(root, ".git", "objects", oid[:2], oid[2:])); err != nil {
+				t.Fatalf("CA-417: fixture: el blob del hoom.yaml de la base es un objeto suelto: %v", err)
+			}
+			for _, c := range [][]string{{"ls-tree", "--name-only", "main", "--", "hoom.yaml"}, {"cat-file", "-e", oid}, {"diff", "--stat", "main"}} {
+				cmd := exec.Command(real, c...)
+				cmd.Dir = root
+				out, err := cmd.Output()
+				switch c[0] {
+				case "ls-tree":
+					if err != nil || strings.TrimSpace(string(out)) != "hoom.yaml" {
+						t.Fatalf("CA-417: fixture: la base tiene hoom.yaml: %v %q", err, out)
+					}
+				case "cat-file":
+					if err == nil {
+						t.Fatalf("CA-417: fixture: su blob no se puede leer")
+					}
+				default:
+					if err != nil || !strings.Contains(string(out), "app.go") {
+						t.Fatalf("CA-417: fixture: el resto del repo anda (git diff): %v %q", err, out)
+					}
+				}
+			}
+			return root
+		}},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root := c.armar(t, bin)
+			cx := raInstalar(t, bin, "codex", "")
+
+			var out bytes.Buffer
+			res, err := Run(root, "main", Options{Provider: "codex", Lens: "risk"}, &out)
+			if cx.veces() != 0 || len(res.Passes) != 0 || res.Status == "revisado" {
+				t.Fatalf("CA-417: sin poder leer el hoom.yaml de la base no se lanza ninguna pasada (codex %d, esfuerzo %q): %+v %v\n%s",
+					cx.veces(), res.Effort, res, err, out.String())
+			}
+			if err == nil {
+				t.Fatalf("CA-417: sin poder leer el hoom.yaml de la base la review es un error, no los valores por defecto: %+v\n%s", res, out.String())
+			}
+			if recs, _ := Records(root); len(recs) != 0 {
+				t.Fatalf("CA-417: sin registro de review: %+v", recs)
+			}
+		})
+	}
+
+	// controles: el mismo repo sano revisa con lo que eligio la base; una
+	// base sin hoom.yaml, con los valores por defecto
+	bin := raPATH(t)
+	cx := raInstalar(t, bin, "codex", "")
+	res, out := raRevisar(t, "CA-417", rama(t), Options{Provider: "codex", Lens: "risk"})
+	if res.Status != "revisado" || cx.veces() != 1 || res.Effort != "low" || !raSolo(raEsfuerzosCodex(cx.argv(t, 1)), `model_reasoning_effort="low"`) {
+		t.Fatalf("CA-417: control: con el hoom.yaml de la base legible, rige su review: (esfuerzo low): %+v\n%s", res, out)
+	}
+	res, out = raRevisar(t, "CA-417", raRamaSinHoomYamlEnLaBase(t, ""), Options{Provider: "codex", Lens: "risk"})
+	if res.Status != "revisado" || cx.veces() != 2 || res.Effort != "" || !res.Isolated {
+		t.Fatalf("CA-417: control: una base sin hoom.yaml revisa con los valores por defecto: %+v\n%s", res, out)
 	}
 }

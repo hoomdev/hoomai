@@ -1,8 +1,11 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (enmienda 1: CA-401, CA-402, CA-412..CA-414): hoom congela la evidencia (el
-// cambio entero contra el merge-base, con borrados y renombres, + el spec)
-// una vez, leyendo con tope; se niega a correr si pasa el tope; el spec tiene
-// que ser un archivo regular del arbol; un error de git falla cerrado. Los
+// (enmiendas 1 y 3: CA-401, CA-402, CA-412..CA-414, CA-416): hoom congela la
+// evidencia (el cambio entero contra el merge-base, con borrados y renombres,
+// + el spec) una vez, leyendo con tope; se niega a correr si pasa el tope; el
+// spec tiene que ser un archivo regular del arbol; un error de git falla
+// cerrado; un aviso de git no es un error; un no rastreado que no se puede
+// leer sin colgarse es un error; un .gitignore tocado (tambien uno nuevo que
+// se ignora a si mismo) con archivos sin rastrear frena la evidencia. Los
 // fixtures estan en review_aislada_helpers_test.go.
 package reviewcmd
 
@@ -17,6 +20,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1138,6 +1142,355 @@ func TestCA416_NoRastreadosSinGitignoreTocadoArmaLaEvidencia(t *testing.T) {
 			}
 			if strings.Contains(diff, raSecreto) || strings.Contains(diff, "diff --git a/.gitignore b/.gitignore") {
 				t.Fatalf("CA-416: sin el .gitignore tocado, el .env sigue ignorado y el .gitignore no es parte del cambio:\n%s", diff)
+			}
+		})
+	}
+}
+
+// raNoRastreados es la lista de no rastreados de root tal como la da git, sin
+// lo ignorado: solo para comprobar que un fixture es el que dice ser.
+func raNoRastreados(t *testing.T, root string) []string {
+	t.Helper()
+	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard", "-z")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("fixture: git ls-files --others: %v", err)
+	}
+	var lista []string
+	for _, s := range strings.Split(string(out), "\x00") {
+		if s != "" {
+			lista = append(lista, s)
+		}
+	}
+	return lista
+}
+
+// CA-416 (un .gitignore nuevo sin rastrear que se ignora a si mismo): el
+// .gitignore que el cambio agrega trae la linea '.gitignore', asi que git no
+// lo lista entre los no rastreados; pero git lo LEE igual, y su '!.env'
+// destapa un .env que la base ignora. Sigue siendo un .gitignore nuevo sin
+// rastrear que el cambio toca: con el .env destapado sin rastrear, Evidence
+// devuelve el error del contrato sin armar la evidencia, y `hoom review` no
+// lanza ninguna pasada ni escribe registro; el secreto no aparece en ningun
+// lado. En un subdirectorio (la base ignora *.env en su .gitignore) y en la
+// raiz (la base lo ignora en .git/info/exclude, que un .gitignore pisa).
+func TestCA416_GitignoreNuevoQueSeIgnoraASiMismo(t *testing.T) {
+	casos := []struct {
+		nombre, gitignore, env string
+		armar                  func(t *testing.T) string
+	}{
+		{"en-un-subdirectorio", "sub/.gitignore", "sub/.env", func(t *testing.T) string {
+			root := raRepo(t, "")
+			write(t, root, ".gitignore", "*.env\n")
+			git(t, root, "add", "-A")
+			git(t, root, "commit", "-q", "-m", "la base ignora *.env")
+			git(t, root, "checkout", "-q", "-b", "feature")
+			write(t, root, "sub/.gitignore", ".gitignore\n!.env\n")
+			write(t, root, "sub/.env", raSecreto+"\n")
+			return root
+		}},
+		{"en-la-raiz-sobre-info-exclude", ".gitignore", ".env", func(t *testing.T) string {
+			root := raRepo(t, "")
+			write(t, root, ".git/info/exclude", "*.env\n")
+			git(t, root, "checkout", "-q", "-b", "feature")
+			write(t, root, ".gitignore", ".gitignore\n!.env\n")
+			write(t, root, ".env", raSecreto+"\n")
+			return root
+		}},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root := c.armar(t)
+			raCambio(t, root)
+			lista := raNoRastreados(t, root)
+			if raTiene(lista, c.gitignore) || !raTiene(lista, c.env) {
+				t.Fatalf("CA-416: fixture: git no lista %s (se ignora a si mismo) y si el %s que destapa: %v", c.gitignore, c.env, lista)
+			}
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", "", raTopeGrande)
+			if err == nil || !strings.Contains(err.Error(), raErrGitignore) {
+				t.Fatalf("CA-416: un %s nuevo que se ignora a si mismo es un .gitignore tocado: Evidence devuelve %q: %v (evidencia de %d bytes, con el secreto adentro: %v)",
+					c.gitignore, raErrGitignore, err, ev.Bytes, bytes.Contains(ev.Diff, []byte(raSecreto)))
+			}
+			if len(ev.Diff) != 0 || len(ev.Spec) != 0 || ev.SHA256 != "" || strings.Contains(err.Error(), raSecreto) {
+				t.Fatalf("CA-416: sin armar la evidencia ni nombrar el secreto: diff %d bytes, sha256 %q, error %v", len(ev.Diff), ev.SHA256, err)
+			}
+
+			cx := raInstalar(t, bin, "codex", "")
+			var out bytes.Buffer
+			res, rerr := Run(root, "main", Options{Provider: "codex", Lens: "risk"}, &out)
+			msg := out.String()
+			if rerr != nil {
+				msg += "\n" + rerr.Error()
+			}
+			if cx.veces() != 0 || len(res.Passes) != 0 || res.Status == "revisado" {
+				t.Fatalf("CA-416: no se lanza ninguna pasada (codex %d): %+v\n%s", cx.veces(), res, msg)
+			}
+			if recs, _ := Records(root); len(recs) != 0 {
+				t.Fatalf("CA-416: sin pasadas no hay registro: %+v", recs)
+			}
+			if !strings.Contains(msg, raErrGitignore) || strings.Contains(msg, raSecreto) {
+				t.Fatalf("CA-416: la review dice %q y no dice el secreto:\n%s", raErrGitignore, msg)
+			}
+			raSinSecretoEnHoom(t, "CA-416", root)
+		})
+	}
+}
+
+// CA-416 (control): un .gitignore dentro de un directorio que la base ignora
+// (node_modules/x/.gitignore, o el .venv/.gitignore que deja virtualenv) no
+// es un .gitignore que el cambio toque: git no entra en un directorio
+// ignorado, asi que no lo lee ni destapa nada con el. Sin ningun otro no
+// rastreado, la evidencia se arma como siempre; con un nuevo.go sin
+// rastrear, tambien, con nuevo.go adentro y nada de los directorios
+// ignorados.
+func TestCA416_GitignoreEnUnDirectorioIgnoradoNoCuenta(t *testing.T) {
+	for _, conNuevo := range []bool{false, true} {
+		nombre := "sin-otro-no-rastreado"
+		if conNuevo {
+			nombre = "con-un-nuevo-go-sin-rastrear"
+		}
+		t.Run(nombre, func(t *testing.T) {
+			root := raRepo(t, "")
+			write(t, root, ".gitignore", "node_modules/\n.venv/\n")
+			git(t, root, "add", "-A")
+			git(t, root, "commit", "-q", "-m", "la base ignora node_modules/ y .venv/")
+			git(t, root, "checkout", "-q", "-b", "feature")
+			raCambio(t, root)
+			write(t, root, "node_modules/x/.gitignore", "!*\n")
+			write(t, root, "node_modules/x/index.js", "// DENTRO-DE-NODE-MODULES\n")
+			write(t, root, ".venv/.gitignore", "*\n")
+			write(t, root, ".venv/bin/activate", "# DENTRO-DE-VENV\n")
+			quiero := ""
+			if conNuevo {
+				write(t, root, "nuevo.go", "package app\n\n// NO-RASTREADO-QUE-VA\n")
+				quiero = "nuevo.go"
+			}
+			if lista := strings.Join(raNoRastreados(t, root), ","); lista != quiero {
+				t.Fatalf("CA-416: fixture: lo de los directorios ignorados no esta sin rastrear: no rastreados %q, quiero %q", lista, quiero)
+			}
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", "", raTopeGrande)
+			if err != nil || ev.Over {
+				t.Fatalf("CA-416: un .gitignore dentro de un directorio ignorado no es un .gitignore tocado: la evidencia se arma: %v (Over %v)", err, ev.Over)
+			}
+			diff := string(ev.Diff)
+			if !strings.Contains(diff, "+func Nuevo() {}") || (conNuevo && !strings.Contains(diff, "+// NO-RASTREADO-QUE-VA")) {
+				t.Fatalf("CA-416: la evidencia trae el cambio de codigo y el no rastreado:\n%s", diff)
+			}
+			for _, nunca := range []string{"node_modules", ".venv", "DENTRO-DE-"} {
+				if strings.Contains(diff, nunca) {
+					t.Fatalf("CA-416: nada de los directorios ignorados va en la evidencia: %q\n%s", nunca, diff)
+				}
+			}
+			if ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
+				t.Fatalf("CA-401: Bytes y SHA256 cierran: %d vs %d, %q", ev.Bytes, len(ev.Diff), ev.SHA256)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------- CA-401 (no rastreados raros)
+
+// raDestrabarFIFO abre el FIFO para escribir y lo cierra: quien este colgado
+// leyendolo (Evidence o un git suyo) recibe EOF y sigue. Si el test fallo,
+// insiste un rato, por si el lector lo vuelve a abrir.
+func raDestrabarFIFO(t *testing.T, fifo string) {
+	veces := 1
+	if t.Failed() {
+		veces = 40
+	}
+	for i := 0; i < veces; i++ {
+		if f, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+			f.Close()
+		}
+		if veces > 1 {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+}
+
+// raSymlinkComoGit exige que el no rastreado enlace vaya en la evidencia como
+// lo escribe git para un symlink nuevo: modo 120000 y, como contenido, su
+// destino; nunca lo que hay del otro lado.
+func raSymlinkComoGit(t *testing.T, ca string, ev Evidencia, enlace, destino string) {
+	t.Helper()
+	sec := raSeccion(string(ev.Diff), "diff --git a/"+enlace+" b/"+enlace)
+	if !strings.Contains(sec, "\nnew file mode 120000\n") || !strings.Contains(sec, "\n+"+destino+"\n") {
+		t.Fatalf("%s: sin error, el symlink %s va como git escribe un symlink nuevo (new file mode 120000, con su destino %q):\n%s",
+			ca, enlace, destino, ev.Diff)
+	}
+}
+
+// CA-401 (caso limite, como el spec FIFO de CA-412): un no rastreado que es
+// un SYMLINK a un FIFO, con el FIFO fuera del arbol o dentro (git no lista
+// un FIFO; el symlink si). Leer el no rastreado siguiendo el symlink bloquea
+// hasta que aparezca quien escriba en el FIFO: Evidence tiene que volver
+// enseguida (reloj de 10 s), sin quedarse colgada. Vuelve con un error que
+// nombra la ruta del symlink (sin armar una evidencia) o, como con un
+// symlink a un archivo (TestCA401_NoRastreadoSymlinkAUnArchivoDeAfueraNoSeLee),
+// con el symlink como lo escribe git: modo 120000 y su destino. Al terminar,
+// el test abre el FIFO para escribir: un Evidence colgado se destraba y no
+// queda leyendo.
+func TestCA401_NoRastreadoSymlinkAUnFIFONoCuelga(t *testing.T) {
+	mkfifo, err := exec.LookPath("mkfifo")
+	if err != nil {
+		t.Skip("sin mkfifo")
+	}
+	const enlace = "enlace-a-fifo"
+	for _, dentro := range []bool{false, true} {
+		nombre := "fifo-fuera-del-arbol"
+		if dentro {
+			nombre = "fifo-dentro-del-arbol"
+		}
+		t.Run(nombre, func(t *testing.T) {
+			root := raRepo(t, "")
+			raCambio(t, root)
+			fifo, destino := filepath.Join(root, "tuberia"), "tuberia"
+			if !dentro {
+				dir, err := filepath.EvalSymlinks(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				fifo = filepath.Join(dir, "tuberia")
+				destino = fifo
+			}
+			if out, err := exec.Command(mkfifo, fifo).CombinedOutput(); err != nil {
+				t.Fatalf("CA-401: fixture: mkfifo: %v %s", err, out)
+			}
+			raSymlink(t, root, enlace, destino)
+			t.Cleanup(func() { raDestrabarFIFO(t, fifo) })
+			if lista := raNoRastreados(t, root); !raTiene(lista, enlace) || raTiene(lista, "tuberia") {
+				t.Fatalf("CA-401: fixture: git lista el symlink como no rastreado y no el FIFO: %v", lista)
+			}
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-401", 10*time.Second, root, "main", "", raTopeGrande)
+			if err != nil {
+				if !strings.Contains(err.Error(), enlace) {
+					t.Fatalf("CA-401: el error por un no rastreado symlink a un FIFO nombra su ruta %q: %v", enlace, err)
+				}
+				if len(ev.Diff) != 0 || ev.SHA256 != "" {
+					t.Fatalf("CA-401: con el error no hay evidencia: diff %d bytes, sha256 %q", len(ev.Diff), ev.SHA256)
+				}
+				return
+			}
+			raSymlinkComoGit(t, "CA-401", ev, enlace, destino)
+		})
+	}
+}
+
+// CA-401 (control de lo anterior): un no rastreado symlink a un archivo
+// regular FUERA del arbol va como git escribe un symlink nuevo (modo 120000
+// y su destino) o es un error que nombra su ruta; nunca trae el contenido de
+// afuera. Un arreglo del FIFO que abra los no rastreados siguiendo symlinks
+// mandaria al provider cualquier archivo de la maquina.
+func TestCA401_NoRastreadoSymlinkAUnArchivoDeAfueraNoSeLee(t *testing.T) {
+	const enlace = "enlace-afuera"
+	root := raRepo(t, "")
+	raCambio(t, root)
+	fuera := raFuera(t, "fuera.txt", "SECRETO-FUERA-DEL-ARBOL-POR-SYMLINK\n")
+	raSymlink(t, root, enlace, fuera)
+	if lista := raNoRastreados(t, root); !raTiene(lista, enlace) {
+		t.Fatalf("CA-401: fixture: git lista el symlink como no rastreado: %v", lista)
+	}
+
+	ev, err, _ := raEvidenceConReloj(t, "CA-401", 10*time.Second, root, "main", "", raTopeGrande)
+	if bytes.Contains(ev.Diff, []byte("SECRETO-FUERA-DEL-ARBOL-POR-SYMLINK")) {
+		t.Fatalf("CA-401: la evidencia no trae el contenido del archivo de afuera al que apunta un symlink no rastreado:\n%s", ev.Diff)
+	}
+	if err != nil {
+		if !strings.Contains(err.Error(), enlace) {
+			t.Fatalf("CA-401: el error por un no rastreado symlink nombra su ruta %q: %v", enlace, err)
+		}
+		return
+	}
+	raSymlinkComoGit(t, "CA-401", ev, enlace, fuera)
+}
+
+// CA-401 (control): un FIFO suelto sin rastrear no es un archivo para git (no
+// lo lista): la evidencia se arma como siempre, sin el FIFO y sin colgarse.
+func TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia(t *testing.T) {
+	mkfifo, err := exec.LookPath("mkfifo")
+	if err != nil {
+		t.Skip("sin mkfifo")
+	}
+	root := raRepo(t, "")
+	raCambio(t, root)
+	fifo := filepath.Join(root, "tuberia")
+	if out, err := exec.Command(mkfifo, fifo).CombinedOutput(); err != nil {
+		t.Fatalf("CA-401: fixture: mkfifo: %v %s", err, out)
+	}
+	t.Cleanup(func() { raDestrabarFIFO(t, fifo) })
+	if lista := raNoRastreados(t, root); len(lista) != 0 {
+		t.Fatalf("CA-401: fixture: git no lista un FIFO: %v", lista)
+	}
+
+	ev, err, _ := raEvidenceConReloj(t, "CA-401", 10*time.Second, root, "main", "", raTopeGrande)
+	if err != nil || ev.Over {
+		t.Fatalf("CA-401: un FIFO que git no lista no frena la evidencia: %v (Over %v)", err, ev.Over)
+	}
+	if diff := string(ev.Diff); !strings.Contains(diff, "+func Nuevo() {}") || strings.Contains(diff, "tuberia") {
+		t.Fatalf("CA-401: la evidencia trae el cambio de codigo y no el FIFO:\n%s", diff)
+	}
+}
+
+// CA-401 (caso limite): con core.autocrlf true, o con un .gitattributes de la
+// base que pone '*.txt eol=crlf', git avisa por stderr ("LF will be replaced
+// by CRLF") cada vez que lee un archivo de texto con fines de linea LF. Es un
+// aviso, no un error de git: Evidence no falla, el no rastreado notas.txt va
+// como parche de archivo nuevo con sus lineas (y el cambio rastreado de
+// app.go con las suyas), y el aviso no entra en la evidencia.
+func TestCA401_AvisoDeCRLFNoRompeLaEvidencia(t *testing.T) {
+	casos := []struct {
+		nombre string
+		armar  func(t *testing.T, root string)
+	}{
+		{"core-autocrlf-true", func(t *testing.T, root string) {
+			git(t, root, "config", "core.autocrlf", "true")
+		}},
+		{"gitattributes-eol-crlf-en-la-base", func(t *testing.T, root string) {
+			write(t, root, ".gitattributes", "*.txt eol=crlf\n")
+			git(t, root, "add", "-A")
+			git(t, root, "commit", "-q", "-m", "la base pide CRLF en *.txt")
+		}},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			root := raRepo(t, "")
+			c.armar(t, root)
+			raCambio(t, root)
+			write(t, root, "notas.txt", "primera linea de las notas\nSEGUNDA-LINEA-CON-LF\n")
+			// fixture: git avisa al leer notas.txt (diff --no-index sale con 1
+			// porque hay diferencias: no es el aviso)
+			cmd := exec.Command("git", "diff", "--no-index", "--no-textconv", "/dev/null", "notas.txt")
+			cmd.Dir = root
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			_ = cmd.Run()
+			if !strings.Contains(stderr.String(), "LF will be replaced by CRLF") {
+				t.Fatalf("CA-401: fixture: git avisa por stderr al leer notas.txt: %q", stderr.String())
+			}
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-401", 60*time.Second, root, "main", "", raTopeGrande)
+			if err != nil || ev.Over {
+				t.Fatalf("CA-401: un aviso de CRLF de git no es un error: Evidence: %v (Over %v)", err, ev.Over)
+			}
+			diff := string(ev.Diff)
+			nuevo := raSeccion(diff, "diff --git a/notas.txt b/notas.txt")
+			if !strings.Contains(nuevo, "new file mode") || !strings.Contains(nuevo, "+primera linea de las notas") ||
+				!strings.Contains(nuevo, "+SEGUNDA-LINEA-CON-LF") {
+				t.Fatalf("CA-401: el no rastreado notas.txt va como parche de archivo nuevo con sus lineas:\n%s", diff)
+			}
+			if !strings.Contains(diff, "+func Nuevo() {}") {
+				t.Fatalf("CA-401: la evidencia trae el cambio rastreado de app.go:\n%s", diff)
+			}
+			if strings.Contains(diff, "LF will be replaced") || strings.Contains(diff, "warning:") {
+				t.Fatalf("CA-401: el aviso de git no entra en la evidencia:\n%s", diff)
+			}
+			if ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
+				t.Fatalf("CA-401: Bytes y SHA256 cierran: %d vs %d, %q", ev.Bytes, len(ev.Diff), ev.SHA256)
 			}
 		})
 	}

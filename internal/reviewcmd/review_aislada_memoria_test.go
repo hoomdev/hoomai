@@ -5,7 +5,8 @@
 //   - CA-413: el tope se aplica al LEER toda salida de git: la lista de
 //     nombres de los no rastreados no se lee entera antes de cortar, y el diff
 //     rastreado no se guarda dos veces ("Nunca retiene mas de maxBytes +
-//     64 KiB").
+//     64 KiB"); y (enmienda 3) buscar si el cambio toca un .gitignore
+//     (CA-416) tampoco guarda la lista de nombres del cambio.
 //   - CA-401: un binario lleva la linea que git escribe para un binario, sin
 //     contenido, aunque la config local del repo le ponga un driver de diff
 //     (textconv o diff externo) por .gitattributes; el driver nunca corre.
@@ -159,6 +160,67 @@ func TestCA413_DiffRastreadoNoSeGuardaDosVeces(t *testing.T) {
 	ref := raEvidencia(t, "CA-413", root, "")
 	if !bytes.Equal(ref.Diff, ev.Diff) || ref.SHA256 != ev.SHA256 {
 		t.Fatalf("CA-413: bajo el tope, el tope no cambia la evidencia: %d vs %d bytes", len(ev.Diff), len(ref.Diff))
+	}
+}
+
+// CA-413 (enmienda 3, el chequeo del .gitignore de CA-416): "por encima, un
+// multiplo chico del tope, nunca en proporcion al arbol". Para saber si el
+// cambio toca algun .gitignore, hoom no puede guardar la lista entera de lo
+// que el cambio toca. Con 7.600 .gitignore nuevos agregados al indice sin
+// commitear, cada uno en su directorio bajo dos directorios de nombre largo
+// (cada ruta pesa ~600 bytes: la lista de nombres del cambio pasa 4 MiB con
+// pocos archivos, asi el fixture es rapido), nada sin rastrear (asi CA-416
+// no aplica y la evidencia es solo Over) y un tope de 1 KiB, Evidence
+// vuelve con Over y asigna menos de 2 MiB.
+//
+// Umbral: 2 MiB de TotalAlloc, como en la lista de no rastreados. Guardar la
+// lista de nombres del cambio cuesta al menos su tamano (mas de 4 MiB, y mas
+// con el crecimiento del buffer); para saber que se toco un .gitignore
+// alcanza con leer hasta el primero, y armar la evidencia hasta cortar cuesta
+// el tope + 64 KiB y un punado de procesos git.
+func TestCA413_ElChequeoDelGitignoreNoGuardaLaListaDelCambio(t *testing.T) {
+	if testing.Short() {
+		t.Skip("CA-413: agrega 7.600 .gitignore de nombre largo al indice; corre sin -short")
+	}
+	root := raRepo(t, "")
+	const n = 7600
+	padre := filepath.Join(root, "a-"+strings.Repeat("a", 198), "b-"+strings.Repeat("b", 198))
+	if err := os.MkdirAll(padre, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < n; i++ {
+		dir := filepath.Join(padre, fmt.Sprintf("g%05d-%s", i, strings.Repeat("c", 194)))
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*.tmp\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git(t, root, "add", "-A")
+	if lista := ramListaNoRastreados(t, root); lista != 0 {
+		t.Fatalf("CA-413: fixture: nada sin rastrear (CA-416 no aplica): la lista pesa %d bytes", lista)
+	}
+	cmd := exec.Command("git", "diff", "--cached", "--name-only", "-z", "main")
+	cmd.Dir = root
+	nombres, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("CA-413: fixture: git diff --cached --name-only: %v", err)
+	}
+	tam := len(nombres)
+	if tam < 4<<20 {
+		t.Fatalf("CA-413: fixture: la lista de nombres del cambio pesa mas de 4 MiB: %d bytes", tam)
+	}
+
+	const tope = 1024
+	ev, err, asignado := raEvidenceConReloj(t, "CA-413", 120*time.Second, root, "main", "", tope)
+	if err != nil {
+		t.Fatalf("CA-413: sin nada sin rastrear, 7.600 .gitignore tocados no frenan la evidencia (CA-416): Evidence: %v", err)
+	}
+	raOver(t, "CA-413", ev, tope)
+	if asignado >= 2<<20 {
+		t.Fatalf("CA-413: con un tope de 1 KiB Evidence asigno %.1f MiB con 7.600 .gitignore tocados (nombres: %.1f MiB): "+
+			"guarda la lista de lo que toca el cambio para buscar un .gitignore (umbral 2 MiB)", float64(asignado)/(1<<20), float64(tam)/(1<<20))
 	}
 }
 
