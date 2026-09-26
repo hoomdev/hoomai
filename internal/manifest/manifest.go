@@ -105,6 +105,11 @@ type Manifest struct {
 // does not set review.max_evidence_kib.
 const DefaultMaxEvidenceKiB = 320
 
+// MaxEvidenceKiB is the highest review.max_evidence_kib accepted: no model
+// holds more than a few MiB of text, and the cap times 1024 must never
+// overflow.
+const MaxEvidenceKiB = 16384
+
 // ReviewPolicy is the `review:` section of hoom.yaml. Every key is optional;
 // model and effort are the provider's vocabulary and are never validated.
 type ReviewPolicy struct {
@@ -141,28 +146,72 @@ func (p *ReviewPolicy) UnmarshalYAML(n *yaml.Node) error {
 
 // validateReview rejects a cap that could never admit any evidence.
 func (m *Manifest) validateReview() error {
-	if m.Review == nil || m.Review.MaxEvidenceKiB == nil || *m.Review.MaxEvidenceKiB > 0 {
+	return m.Review.validate()
+}
+
+// validate rejects a cap that could never admit any evidence, or one so
+// large that the cap in bytes would overflow.
+func (p *ReviewPolicy) validate() error {
+	switch {
+	case p == nil || p.MaxEvidenceKiB == nil:
 		return nil
+	case *p.MaxEvidenceKiB <= 0:
+		return fmt.Errorf("review: max_evidence_kib debe ser mayor que 0")
+	case *p.MaxEvidenceKiB > MaxEvidenceKiB:
+		return fmt.Errorf("review: max_evidence_kib no puede pasar de %d", MaxEvidenceKiB)
 	}
-	return fmt.Errorf("review: max_evidence_kib debe ser mayor que 0")
+	return nil
+}
+
+// ParseReview reads only the `review:` section of a hoom.yaml, with the same
+// strictness Load applies to it. `hoom review` uses it on the hoom.yaml of
+// the BASE: a change does not pick its own reviewer. nil = no section.
+func ParseReview(raw []byte) (*ReviewPolicy, error) {
+	var doc struct {
+		Review *ReviewPolicy `yaml:"review"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	if err := doc.Review.validate(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	return doc.Review, nil
 }
 
 // ReviewIsolated reports whether the reviewer runs without the user's
 // personal provider config: true unless review.isolated is false.
 func (m *Manifest) ReviewIsolated() bool {
-	if m == nil || m.Review == nil || m.Review.Isolated == nil {
+	if m == nil {
 		return true
 	}
-	return *m.Review.Isolated
+	return m.Review.IsolatedOrDefault()
 }
 
 // ReviewMaxEvidenceKiB is the evidence cap: review.max_evidence_kib, or
 // DefaultMaxEvidenceKiB when absent.
 func (m *Manifest) ReviewMaxEvidenceKiB() int {
-	if m == nil || m.Review == nil || m.Review.MaxEvidenceKiB == nil {
+	if m == nil {
 		return DefaultMaxEvidenceKiB
 	}
-	return *m.Review.MaxEvidenceKiB
+	return m.Review.MaxEvidenceKiBOrDefault()
+}
+
+// IsolatedOrDefault is review.isolated, true when absent (nil policy too).
+func (p *ReviewPolicy) IsolatedOrDefault() bool {
+	if p == nil || p.Isolated == nil {
+		return true
+	}
+	return *p.Isolated
+}
+
+// MaxEvidenceKiBOrDefault is review.max_evidence_kib, DefaultMaxEvidenceKiB
+// when absent (nil policy too).
+func (p *ReviewPolicy) MaxEvidenceKiBOrDefault() int {
+	if p == nil || p.MaxEvidenceKiB == nil {
+		return DefaultMaxEvidenceKiB
+	}
+	return *p.MaxEvidenceKiB
 }
 
 // FindingsBlockOn is the validated threshold of the findings_open gate:

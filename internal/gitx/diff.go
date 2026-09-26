@@ -3,9 +3,11 @@ package gitx
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -76,13 +78,18 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 // streamed, never held as a list. A failing git — no merge-base, the
 // untracked listing, a diff — is an error, never a shorter patch.
 func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, err error) {
-	mb, err := gitOut(dir, "merge-base", base, "HEAD")
+	mb, err := MergeBase(dir, base)
 	if err != nil {
-		return false, fmt.Errorf("git merge-base %s HEAD: %v", base, err)
+		return false, err
 	}
-	if mb = strings.TrimSpace(mb); mb == "" {
-		return false, fmt.Errorf("git merge-base %s HEAD: sin ancestro comun", base)
+	// a change that touches a .gitignore decides which untracked files the
+	// listing below sees: with any untracked file present, that could put a
+	// local secret (.env) in the evidence, so the review does not run
+	tocado, err := gitOut(dir, "diff", "--name-only", mb, "--", ":(glob)**/.gitignore")
+	if err != nil {
+		return false, fmt.Errorf("git diff --name-only: %v", err)
 	}
+	gitignore := strings.TrimSpace(tocado) != ""
 	// quotePath=false: the patch names a file as it is on disk (ñ, not \303\261)
 	diff := []string{"-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv"}
 	over, err = gitOutBounded(dir, dst, max, false, append(diff, "--find-renames", mb, "--", ".", ":(exclude).hoom")...)
@@ -118,6 +125,10 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 			return true, nil
 		}
 		if name = strings.TrimSuffix(name, "\x00"); name != "" && rerr == nil {
+			if gitignore || path.Base(name) == ".gitignore" {
+				stop()
+				return false, ErrGitignoreTocado
+			}
 			// --no-index exits 1 when the files differ: that is the patch
 			over, err := gitOutBounded(dir, dst, max, true, append(diff, "--no-index", "--", "/dev/null", name)...)
 			if err != nil {
@@ -144,6 +155,36 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 		return false, fmt.Errorf("git ls-files: %v", err)
 	}
 	return false, nil
+}
+
+// ErrGitignoreTocado: the change touches a .gitignore and there are untracked
+// files, so the evidence is not built (a change could uncover a local secret).
+var ErrGitignoreTocado = errors.New("el cambio toca un .gitignore y hay archivos sin rastrear: commitealos o sacalos antes de revisar")
+
+// MergeBase is the merge-base of base and HEAD in dir. No common ancestor (a
+// shallow clone, a base that does not exist) is an error, never a fallback.
+func MergeBase(dir, base string) (string, error) {
+	mb, err := gitOut(dir, "merge-base", base, "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git merge-base %s HEAD: %v", base, err)
+	}
+	if mb = strings.TrimSpace(mb); mb == "" {
+		return "", fmt.Errorf("git merge-base %s HEAD: sin ancestro comun", base)
+	}
+	return mb, nil
+}
+
+// ShowFile is the content of path at revision rev. exists is false when the
+// file is not in that revision; any other git failure is an error.
+func ShowFile(dir, rev, path string) (content []byte, exists bool, err error) {
+	if _, err := gitOut(dir, "cat-file", "-e", rev+":"+path); err != nil {
+		return nil, false, nil
+	}
+	out, err := gitOut(dir, "show", rev+":"+path)
+	if err != nil {
+		return nil, false, fmt.Errorf("git show %s:%s: %v", rev, path, err)
+	}
+	return []byte(out), true, nil
 }
 
 // gitOutBounded runs git and appends its stdout to dst without letting dst

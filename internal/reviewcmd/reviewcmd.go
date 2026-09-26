@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -125,6 +126,9 @@ func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
 	var buf bytes.Buffer
 	buf.Grow(min(maxBytes+1, 8<<20)) // one allocation for a cap of up to 8 MiB
 	over, err := gitx.CandidatePatch(dir, base, &buf, maxBytes)
+	if errors.Is(err, gitx.ErrGitignoreTocado) {
+		return Evidencia{}, err
+	}
 	if err != nil {
 		return Evidencia{}, fmt.Errorf("no pude armar el diff de la evidencia: %v", err)
 	}
@@ -218,15 +222,35 @@ func abrirSpec(dir, spec string) (*os.File, error) {
 // kib rounds bytes up to KiB, the unit the review prints.
 func kib(n int) int { return (n + 1023) / 1024 }
 
+// politicaDeLaBase reads the `review:` section of the hoom.yaml of the
+// merge-base of base and HEAD, never the candidate's: a change does not pick
+// its own reviewer nor loosen its own review (CA-417). nil = no hoom.yaml or
+// no section in the base.
+func politicaDeLaBase(dir, base string) (*manifest.ReviewPolicy, error) {
+	mb, err := gitx.MergeBase(dir, base)
+	if err != nil {
+		return nil, err
+	}
+	raw, ok, err := gitx.ShowFile(dir, mb, "./"+manifest.FileName)
+	if err != nil || !ok {
+		return nil, err
+	}
+	pol, err := manifest.ParseReview(raw)
+	if err != nil {
+		return nil, fmt.Errorf("el %s de la base (%s): %v", manifest.FileName, mb[:12], err)
+	}
+	return pol, nil
+}
+
 // resolveOptions fills what the caller left empty from the `review:` section
-// of hoom.yaml: explicit option > hoom.yaml > empty. same_provider only ever
-// permits: it never turns a cross review into a non-cross one.
-func resolveOptions(opt Options, m *manifest.Manifest) Options {
+// of the base's hoom.yaml: explicit option > hoom.yaml of the base > empty.
+// same_provider only ever permits: it never turns a cross review into a
+// non-cross one.
+func resolveOptions(opt Options, r *manifest.ReviewPolicy) Options {
 	opt.Provider, opt.Model, opt.Effort = strings.TrimSpace(opt.Provider), strings.TrimSpace(opt.Model), strings.TrimSpace(opt.Effort)
-	if m == nil || m.Review == nil {
+	if r == nil {
 		return opt
 	}
-	r := m.Review
 	if opt.Provider == "" {
 		opt.Provider = strings.TrimSpace(r.Provider)
 	}
@@ -245,8 +269,8 @@ func resolveOptions(opt Options, m *manifest.Manifest) Options {
 // prepararEvidencia freezes the evidence ONCE — the 4 lenses get the same
 // bytes, whole. Past the cap it stops reading; the caller refuses without
 // launching a lens.
-func prepararEvidencia(dir, base string, opt Options, m *manifest.Manifest) (ev Evidencia, isolated bool, tope int, err error) {
-	isolated, tope = m.ReviewIsolated(), m.ReviewMaxEvidenceKiB()
+func prepararEvidencia(dir, base string, opt Options, pol *manifest.ReviewPolicy) (ev Evidencia, isolated bool, tope int, err error) {
+	isolated, tope = pol.IsolatedOrDefault(), pol.MaxEvidenceKiBOrDefault()
 	ev, err = Evidence(dir, base, opt.Spec, tope*1024)
 	return ev, isolated, tope, err
 }
@@ -390,7 +414,6 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if m.BaseBranch != "" {
 		base = m.BaseBranch
 	}
-	opt = resolveOptions(opt, m)
 	git := gitx.Snapshot(dir, base)
 	lentes, motivo, err := Lenses(git, opt.Lens)
 	if err != nil {
@@ -407,6 +430,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return finish(w, res, "sin-revisar", 0, motivo), nil
 	}
 	fmt.Fprintf(w, "  lentes      %s (%s)\n", strings.Join(lentes, ", "), motivo)
+
+	politica, err := politicaDeLaBase(dir, base)
+	if err != nil {
+		return res, err
+	}
+	opt = resolveOptions(opt, politica)
 
 	contract, err := agents.Contract(dir, role)
 	if err != nil {
@@ -458,7 +487,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return finish(w, res, "no-entregable", 1, "la review no seria cruzada"), nil
 	}
 
-	ev, isolated, tope, err := prepararEvidencia(dir, base, opt, m)
+	ev, isolated, tope, err := prepararEvidencia(dir, base, opt, politica)
 	if err != nil {
 		return res, err
 	}
