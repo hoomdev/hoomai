@@ -1,0 +1,11 @@
+{
+  "id": "20260926T173726_e19bca",
+  "created_at": "2026-09-26T17:37:26.803048Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:88: la comprobación de .gitignore usa gitOut, que hace cmd.Output y retiene completa la salida de 'git diff --name-only' antes de aplicar cualquier tope. Un cambio con muchísimos .gitignore hace que Evidence asigne memoria proporcional al árbol aun con max_evidence_kib pequeño, reabriendo el desborde/caída de hoom serve que CA-403/413 pretenden cerrar. Esa detección necesita ser acotada/streaming (basta descubrir la primera ruta) y sus bytes deben respetar el presupuesto de lectura.",
+  "author": "reviewer@codex",
+  "fingerprint": "d7321d3e442bb114",
+  "task": "review-aislada-y-modelo-elegido"
+}

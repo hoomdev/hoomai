@@ -1,0 +1,11 @@
+{
+  "id": "20260926T174020_9b3d2a",
+  "created_at": "2026-09-26T17:40:20.532427Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "internal/gitx/diff.go:225 introduce una falla cerrada espuria para archivos no rastreados: git diff --no-index devuelve 1 cuando hay diferencias aunque tambien puede escribir warnings validos en stderr (p. ej. core.autocrlf=true emite LF will be replaced by CRLF). La condicion solo acepta exit 1 si stderr esta vacio, por lo que Evidence aborta y hoom review queda NO ENTREGABLE en configuraciones comunes aun cuando el parche se genero correctamente.",
+  "author": "reviewer@codex",
+  "fingerprint": "d7321d3e442bb114",
+  "task": "review-aislada-y-modelo-elegido"
+}
