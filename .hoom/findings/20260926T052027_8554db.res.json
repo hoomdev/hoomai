@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T052027_8554db",
+  "as": "refutado",
+  "evidence": "No introducido y conforme a una decision vigente. git diff main...HEAD -- internal/boardcmd/acciones.go esta vacio; git blame de boardcmd/acciones.go:267-268 y servecmd/acciones.go:188-199 da 320dea5/d4772f4 (C3, en main); la rama solo agrego Effort en servecmd/acciones.go:257. C3 decidio que desde la cabina no hay same-provider: .hoom/specs/acciones-desde-la-tarjeta.md:70-71 ('Desde la cabina la review es cruzada o no se lanza') y :752-753 ('el provider del writer aparece como opcion no ok'), y CA-337 ('sin --same-provider'). La spec enmendada (lineas 11-15) solo re-expresa CA-109, CA-160, el prefijo de CA-337 y CA-354, y solo contradice un no-goal de codex-v2: no levanta el de C3. El provider es campo obligatorio del dialogo (CA-354, re-expresado por CA-409), asi que en el Studio siempre es opcion explicita, que vence a hoom.yaml segun la precedencia de la spec. El test ciego TestCA395_StudioTomaModeloYEsfuerzoDeHoomYaml (modelo y esfuerzo desde hoom.yaml) pasa: go test -run 'TestCA395_Studio|TestCA409' ./internal/servecmd/ -\u003e ok. Revisar con un solo provider desde el Studio seria una decision nueva de spec, no un defecto de esta rama.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:40:54.522459Z"
+}

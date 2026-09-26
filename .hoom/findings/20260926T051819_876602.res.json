@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T051819_876602",
+  "as": "refutado",
+  "evidence": "El chequeo no valida vocabulario: es la regla de argv que ya rige al prompt (internal/providers/providers.go:303-305) y al id de sesion (:307-309). Prueba ejecutada (go test -overlay, test descartable en internal/providers): Effort \"nivel-inventado-9000\" pasa tal cual a codex (-c model_reasoning_effort=\\\"nivel-inventado-9000\\\") y a claude (--effort nivel-inventado-9000); solo \"-x\" y \"--dangerously-skip-permissions\" se rechazan. CA-398 fija la forma de dos argumentos (--effort high), donde un valor con guion inicial lo puede leer el parser de la CLI como flag. El no-goal de la spec prohibe validar niveles (vocabulario), no proteger el argv.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:40:54.486987Z"
+}
