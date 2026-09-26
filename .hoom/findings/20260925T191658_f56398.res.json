@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T191658_f56398",
+  "as": "corregido",
+  "evidence": "56b61ec (spec enmendada 130eba08, tests ciegos eeebf40 rojos en bf9bbcf, verdes ahora): CandidatePatch devuelve el error de git merge-base (clon shallow, base inexistente) y la review no lanza pasadas (TestCA414_GitQueFallaEsErrorYNoHayPasadas)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:07:31.56252Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T192005_8d292d",
+  "as": "corregido",
+  "evidence": "56b61ec: parcial; la preparacion de la evidencia y el encabezado viven en prepararEvidencia y el gasto en anotarGasto: Run paso de 253 a 233 lineas (205 en main); el resto del flujo es previo",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:07:31.791712Z"
+}

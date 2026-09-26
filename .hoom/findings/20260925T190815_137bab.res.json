@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T190815_137bab",
+  "as": "corregido",
+  "evidence": "56b61ec (spec enmendada 130eba08, tests ciegos eeebf40 rojos en bf9bbcf, verdes ahora): Evidence arma git diff --find-renames de todo el arbol contra el merge-base (gitx.CandidatePatch), no ChangedFiles; TestCA401_BorradoYRenombreCommiteados trae el deleted file de auth.go",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:07:30.485015Z"
+}
