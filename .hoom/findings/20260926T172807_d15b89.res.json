@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T172807_d15b89",
+  "as": "corregido",
+  "evidence": "27ccffe (CA-416): gitignoreIgnoradoSinRastrear con ls-files --others --ignored --directory; TestCA416_GitignoreNuevoQueSeIgnoraASiMismo (rojo en 133927e, verde ahora) y control TestCA416_GitignoreEnUnDirectorioIgnoradoNoCuenta",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T18:29:39.407512Z"
+}

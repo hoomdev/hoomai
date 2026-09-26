@@ -1,0 +1,170 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-26T18-32-30Z_f470f78b",
+  "created_at": "2026-09-26T18:32:30.960346Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "d1afedfdf076",
+    "branch": "hoom/review-aislada-y-modelo-elegido",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      ".hoom/agents/06-reviewer.md",
+      ".hoom/approvals/review-aislada-y-modelo-elegido_10ed8df8.json",
+      ".hoom/approvals/review-aislada-y-modelo-elegido_130eba08.json",
+      ".hoom/approvals/review-aislada-y-modelo-elegido_310b6e9d.json",
+      ".hoom/approvals/review-aislada-y-modelo-elegido_95b854c9.json",
+      ".hoom/specs/review-aislada-y-modelo-elegido.md",
+      "README.md",
+      "cmd/hoom/main.go",
+      "cmd/hoom/review_aislada_test.go",
+      "hoom.yaml",
+      "internal/agentcmd/review_aislada_test.go",
+      "internal/agents/assets/agents/06-reviewer.md",
+      "internal/boardcmd/boardcmd.go",
+      "internal/boardcmd/plain.go",
+      "internal/boardcmd/review_aislada_test.go",
+      "internal/gitx/diff.go",
+      "internal/manifest/manifest.go",
+      "internal/manifest/review_aislada_test.go",
+      "internal/providers/claude.go",
+      "internal/providers/codex.go",
+      "internal/providers/providers.go",
+      "internal/providers/review_aislada_test.go",
+      "internal/reviewcmd/record.go",
+      "internal/reviewcmd/review_aislada_evidencia_test.go",
+      "internal/reviewcmd/review_aislada_helpers_test.go",
+      "internal/reviewcmd/review_aislada_memoria_test.go",
+      "internal/reviewcmd/review_aislada_opciones_test.go",
+      "internal/reviewcmd/review_aislada_pedido_test.go",
+      "internal/reviewcmd/review_aislada_registro_test.go",
+      "internal/reviewcmd/reviewcmd.go",
+      "internal/runcmd/review_aislada_test.go",
+      "internal/runcmd/runcmd.go",
+      "internal/runcmd/stdin_huerfano_test.go",
+      "internal/servecmd/acciones.go",
+      "internal/servecmd/lanzar_test.go",
+      "internal/servecmd/review_aislada_test.go",
+      "internal/servecmd/ui/acciones.js",
+      "internal/servecmd/ui/tablero.js"
+    ],
+    "change_fingerprint": "abd2f1bcd7cbe0a8",
+    "insertions": 8973,
+    "deletions": 53
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "35 criterios (CA-*), 2 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 31,
+      "notes": "35/35 criterios: 33 trazados por test (186 archivos), 2 verificados por comando"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 2,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-26, sha 10ed8df8)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 6,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea review-aislada-y-modelo-elegido + sin tarea (1 de otras tareas no cuentan) · no bloquean: 1 medium, 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 456
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 199
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./cmd/hoom ./internal/agentcmd ./internal/boardcmd ./internal/gitx ./internal/manifest ./internal/providers ./internal/reviewcmd ./internal/runcmd ./internal/servecmd",
+      "exit_code": 0,
+      "duration_ms": 169028,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/cmd/hoom\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t65.801s\nok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t70.740s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t8.748s\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t164.691s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t13.527s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t95.335s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 7,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/review-aislada-y-modelo-elegido.md"
+}

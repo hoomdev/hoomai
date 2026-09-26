@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T173704_04b380",
+  "as": "corregido",
+  "evidence": "27ccffe (CA-417): ShowFile usa git ls-tree (vacio = ausente, fallo = error); TestCA417_HoomYamlDeLaBaseIlegibleFallaCerrado (git falso y blob borrado; rojo en 133927e)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T18:29:40.132124Z"
+}

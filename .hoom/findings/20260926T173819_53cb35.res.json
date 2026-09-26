@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T173819_53cb35",
+  "as": "corregido",
+  "evidence": "27ccffe: un no rastreado especial (symlink a FIFO, socket, dispositivo) falla cerrado con su ruta; TestCA401_NoRastreadoSymlinkAUnFIFONoCuelga (colgaba en 133927e) y guarda TestCA401_NoRastreadoSymlinkAUnArchivoDeAfueraNoSeLee",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T18:29:40.373007Z"
+}

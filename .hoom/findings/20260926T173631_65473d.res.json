@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T173631_65473d",
+  "as": "corregido",
+  "evidence": "27ccffe (CA-399): si el pedido no entro entero por stdin el run es StatusError aunque el provider salga con 0; TestCA399_ProviderQueNoLeeElPromptEnteroEsError (claude y codex, rojo en 133927e)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T18:29:39.883952Z"
+}

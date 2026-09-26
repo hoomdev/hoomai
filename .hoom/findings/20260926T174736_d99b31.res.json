@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T174736_d99b31",
+  "as": "corregido",
+  "evidence": "27ccffe: los comentarios de CandidatePatch y gitOutBounded dicen que dst llega a max+1 antes del over",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T18:29:40.725591Z"
+}
