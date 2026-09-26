@@ -1,13 +1,15 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (enmiendas 1 y 2: CA-395, CA-400..CA-407, CA-412..CA-415) sobre `hoom review`:
-// provider, modelo, esfuerzo y same_provider se resuelven opcion > hoom.yaml
+// (enmiendas 1 a 3: CA-394, CA-395, CA-400..CA-407, CA-412..CA-417) sobre
+// `hoom review`: provider, modelo, esfuerzo y same_provider se resuelven
+// opcion > hoom.yaml DE LA BASE (el del merge-base, nunca el del candidato)
 // > vacio (un --same-provider=false explicito tambien); cada pasada corre
 // aislada con el esfuerzo resuelto; hoom congela la evidencia (el cambio
 // entero contra el merge-base, con borrados y renombres, + el spec) una vez,
 // leyendo con tope, y se la da entera a cada lente entre marcadores con el
 // sha256 completo de la evidencia, antes de la linea de la lente; se niega a correr si
 // pasa el tope; el spec tiene que ser un archivo regular del arbol; un error
-// de git falla cerrado; risk va primero; la salida y el registro dicen
+// de git falla cerrado; un .gitignore tocado con archivos sin rastrear
+// frena la evidencia; risk va primero; la salida y el registro dicen
 // modelo, esfuerzo, aislamiento, evidencia y gasto por lente.
 //
 // Los CLIs de IA son falsos y viven en un PATH MINIMO (sistema + los falsos):
@@ -125,8 +127,15 @@ const raUsoCodex = "printf '{\"type\":\"turn.completed\",\"usage\":{\"input_toke
 // raUsoPares: solo las invocaciones pares informan consumo.
 const raUsoPares = "if [ $((n % 2)) -eq 0 ]; then " + "printf '{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":%d,\"cached_input_tokens\":%d,\"output_tokens\":%d}}\\n' $((n*1000)) $((n*100)) $((n*10))" + "; fi\n"
 
+// raYAML es el hoom.yaml de los fixtures, con reviewYAML al final.
+func raYAML(reviewYAML string) string {
+	return "schema: hoom/v1\nproject: demo\nbase_branch: main\ngates:\n" +
+		"  test:\n    required: true\n    cmd: \"true\"\n" + reviewYAML
+}
+
 // raRepo arma un proyecto: repo en main con hoom.yaml (mas reviewYAML), la
-// telemetria escondida en .hoom/.gitignore y app.go commiteado.
+// telemetria escondida en .hoom/.gitignore y app.go commiteado. Main es la
+// base: su hoom.yaml es el del merge-base, del que sale review: (CA-417).
 func raRepo(t *testing.T, reviewYAML string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -136,8 +145,7 @@ func raRepo(t *testing.T, reviewYAML string) string {
 	git(t, root, "init", "-q", "-b", "main")
 	git(t, root, "config", "user.email", "test@hoom.dev")
 	git(t, root, "config", "user.name", "hoom test")
-	write(t, root, "hoom.yaml", "schema: hoom/v1\nproject: demo\nbase_branch: main\ngates:\n"+
-		"  test:\n    required: true\n    cmd: \"true\"\n"+reviewYAML)
+	write(t, root, "hoom.yaml", raYAML(reviewYAML))
 	write(t, root, ".hoom/.gitignore", hoomfs.GitignoreBody())
 	write(t, root, "app.go", "package app\n")
 	git(t, root, "add", "-A")

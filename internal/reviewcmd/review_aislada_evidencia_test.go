@@ -873,3 +873,272 @@ func TestCA414_GitQueFallaEsErrorYNoHayPasadas(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------- CA-416
+//
+// Enmienda 3: si el cambio toca algun .gitignore (rastreado y modificado,
+// commiteado en la rama o no, borrado, o nuevo sin rastrear) y hay archivos
+// sin rastrear fuera de .hoom/, Evidence se niega sin armar la evidencia:
+// asi un cambio no destapa un secreto local (.env) para que viaje al
+// provider.
+
+// raErrGitignore es el texto del contrato (CA-416).
+const raErrGitignore = "el cambio toca un .gitignore y hay archivos sin rastrear: commitealos o sacalos antes de revisar"
+
+// raSecreto es lo que guarda el .env local: no puede aparecer en ningun lado.
+const raSecreto = "API_KEY=SECRETO-DEL-ENV-QUE-NO-VIAJA-CA416"
+
+// raBaseConGitignore es raRepo con un .gitignore en la raiz que ignora .env y
+// *.log, y otro rastreado en sub/ que ignora *.tmp, commiteados en main.
+func raBaseConGitignore(t *testing.T) string {
+	t.Helper()
+	root := raRepo(t, "")
+	write(t, root, ".gitignore", ".env\n*.log\n")
+	write(t, root, "sub/.gitignore", "*.tmp\n")
+	write(t, root, "sub/uno.go", "package sub\n")
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "la base ignora .env, *.log y sub/*.tmp")
+	return root
+}
+
+// raRamaGitignore abre la rama feature sobre la base con .gitignore.
+func raRamaGitignore(t *testing.T) string {
+	t.Helper()
+	root := raBaseConGitignore(t)
+	git(t, root, "checkout", "-q", "-b", "feature")
+	return root
+}
+
+// raSinSecretoEnHoom exige que ningun archivo bajo .hoom/ (registros, runs,
+// hallazgos) traiga el secreto.
+func raSinSecretoEnHoom(t *testing.T, ca, root string) {
+	t.Helper()
+	_ = filepath.Walk(filepath.Join(root, ".hoom"), func(p string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() || !fi.Mode().IsRegular() {
+			return nil
+		}
+		if raw, _ := os.ReadFile(p); bytes.Contains(raw, []byte(raSecreto)) {
+			t.Fatalf("%s: el secreto del .env quedo en %s", ca, p)
+		}
+		return nil
+	})
+}
+
+// raGitignoreTocadoConNoRastreados: cada caso toca un .gitignore y deja al
+// menos un archivo sin rastrear fuera de .hoom/ (casi siempre el secreto que
+// el cambio destapa), mas un cambio de codigo rastreado (una lente).
+var raGitignoreTocadoConNoRastreados = []struct {
+	nombre string
+	armar  func(t *testing.T, root string)
+}{
+	// el caso que motivo la enmienda: la base ignora .env, la rama commitea un
+	// .gitignore sin esa linea y hay un .env local con un secreto
+	{"gitignore-commiteado-en-la-rama-destapa-el-env", func(t *testing.T, root string) {
+		write(t, root, ".gitignore", "*.log\n")
+		git(t, root, "commit", "-q", "-am", "la rama saca .env del .gitignore")
+		write(t, root, ".env", raSecreto+"\n")
+	}},
+	{"gitignore-rastreado-modificado-sin-commitear", func(t *testing.T, root string) {
+		write(t, root, ".gitignore", "*.log\n")
+		write(t, root, ".env", raSecreto+"\n")
+	}},
+	{"gitignore-borrado-en-un-commit-de-la-rama", func(t *testing.T, root string) {
+		git(t, root, "rm", "-q", ".gitignore")
+		git(t, root, "commit", "-q", "-m", "la rama borra el .gitignore")
+		write(t, root, ".env", raSecreto+"\n")
+	}},
+	{"gitignore-borrado-sin-commitear", func(t *testing.T, root string) {
+		if err := os.Remove(filepath.Join(root, ".gitignore")); err != nil {
+			t.Fatal(err)
+		}
+		write(t, root, ".env", raSecreto+"\n")
+	}},
+	{"gitignore-de-un-subdirectorio-rastreado-y-modificado", func(t *testing.T, root string) {
+		write(t, root, "sub/.gitignore", "*.tmp\n!clave.log\n")
+		write(t, root, "sub/clave.log", raSecreto+"\n")
+	}},
+	{"gitignore-nuevo-sin-rastrear-en-un-subdirectorio", func(t *testing.T, root string) {
+		write(t, root, "otro/.gitignore", "!clave.log\n")
+		write(t, root, "otro/clave.log", raSecreto+"\n")
+	}},
+	{"gitignore-nuevo-commiteado-en-un-subdirectorio", func(t *testing.T, root string) {
+		write(t, root, "otro/.gitignore", "!clave.log\n")
+		git(t, root, "add", "otro/.gitignore")
+		git(t, root, "commit", "-q", "-m", "la rama destapa otro/clave.log")
+		write(t, root, "otro/clave.log", raSecreto+"\n")
+	}},
+	// la regla es cerrada: tocar el .gitignore (aunque sea para ignorar MAS)
+	// con cualquier no rastreado fuera de .hoom/ alcanza; el .env sigue
+	// ignorado y tampoco viaja
+	{"gitignore-que-ignora-mas-con-un-no-rastreado-cualquiera", func(t *testing.T, root string) {
+		write(t, root, ".gitignore", ".env\n*.log\n*.bak\n")
+		git(t, root, "commit", "-q", "-am", "la rama ignora *.bak")
+		write(t, root, ".env", raSecreto+"\n")
+		write(t, root, "nuevo.go", "package app\n\n// no rastreado cualquiera\n")
+	}},
+}
+
+// CA-416: con un .gitignore tocado por el cambio y un archivo sin rastrear
+// fuera de .hoom/, Evidence devuelve el error del contrato sin armar la
+// evidencia: ni diff, ni spec, ni sha256, ni el secreto.
+func TestCA416_GitignoreTocadoConNoRastreadosEsError(t *testing.T) {
+	for _, c := range raGitignoreTocadoConNoRastreados {
+		t.Run(c.nombre, func(t *testing.T) {
+			root := raRamaGitignore(t)
+			c.armar(t, root)
+			raCambio(t, root)
+			write(t, root, ".hoom/specs/x.md", "# Spec x\n")
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", ".hoom/specs/x.md", raTopeGrande)
+			if err == nil || !strings.Contains(err.Error(), raErrGitignore) {
+				t.Fatalf("CA-416: Evidence devuelve %q: %v (evidencia de %d bytes)\n%s", raErrGitignore, err, ev.Bytes, ev.Diff)
+			}
+			if len(ev.Diff) != 0 || len(ev.Spec) != 0 || ev.SHA256 != "" {
+				t.Fatalf("CA-416: sin armar la evidencia: diff %d bytes, spec %d bytes, sha256 %q", len(ev.Diff), len(ev.Spec), ev.SHA256)
+			}
+			if strings.Contains(err.Error(), raSecreto) {
+				t.Fatalf("CA-416: el error no trae el secreto: %v", err)
+			}
+		})
+	}
+}
+
+// CA-416: en esos casos `hoom review` no lanza ninguna pasada ni escribe
+// registro, dice por que, y el secreto no aparece en la salida, en el error
+// ni en nada de .hoom/: nunca llega al provider.
+func TestCA416_ReviewConGitignoreTocadoYNoRastreadosNoLanzaPasadas(t *testing.T) {
+	for _, c := range raGitignoreTocadoConNoRastreados {
+		t.Run(c.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root := raRamaGitignore(t)
+			c.armar(t, root)
+			raCambio(t, root)
+			cx := raInstalar(t, bin, "codex", "")
+
+			var out bytes.Buffer
+			res, err := Run(root, "main", Options{Provider: "codex", Lens: "risk"}, &out)
+			if cx.veces() != 0 || len(res.Passes) != 0 || res.Status == "revisado" {
+				t.Fatalf("CA-416: no se lanza ninguna pasada (codex %d): %+v %v\n%s", cx.veces(), res, err, out.String())
+			}
+			if recs, _ := Records(root); len(recs) != 0 {
+				t.Fatalf("CA-416: sin pasadas no hay registro: %+v", recs)
+			}
+			msg := out.String()
+			if err != nil {
+				msg += "\n" + err.Error()
+			}
+			if !strings.Contains(msg, raErrGitignore) {
+				t.Fatalf("CA-416: la review dice %q: %v\n%s", raErrGitignore, err, out.String())
+			}
+			if strings.Contains(msg, raSecreto) {
+				t.Fatalf("CA-416: el secreto no aparece en la salida ni en el error:\n%s", msg)
+			}
+			raSinSecretoEnHoom(t, "CA-416", root)
+		})
+	}
+}
+
+// CA-416 (control): el cambio toca el .gitignore pero no hay nada sin
+// rastrear fuera de .hoom/ (lo que el .gitignore ignora no esta sin rastrear,
+// y un no rastreado bajo .hoom/ no cuenta): la evidencia se arma como
+// siempre y trae el cambio del .gitignore. Commiteado en la rama o sin
+// commitear.
+func TestCA416_GitignoreTocadoSinNoRastreadosArmaLaEvidencia(t *testing.T) {
+	for _, commitear := range []bool{true, false} {
+		nombre := "sin-commitear"
+		if commitear {
+			nombre = "commiteado-en-la-rama"
+		}
+		t.Run(nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root := raRamaGitignore(t)
+			write(t, root, ".gitignore", ".env\n*.log\n*.bak\n# LINEA-NUEVA-DEL-GITIGNORE\n")
+			if commitear {
+				git(t, root, "commit", "-q", "-am", "la rama ignora *.bak")
+			}
+			raCambio(t, root)
+			write(t, root, ".env", raSecreto+"\n")                // ignorado por la base y por la rama
+			write(t, root, "copia.bak", "IGNORADO-POR-LA-RAMA\n") // ignorado por la linea nueva
+			write(t, root, "sub/cache.tmp", "IGNORADO-EN-SUB\n")  // ignorado por sub/.gitignore
+			write(t, root, ".hoom/specs/x.md", "# Spec x\n")      // sin rastrear, pero bajo .hoom/
+
+			ev, err := Evidence(root, "main", ".hoom/specs/x.md", raTopeGrande)
+			if err != nil || ev.Over {
+				t.Fatalf("CA-416: sin no rastreados fuera de .hoom/ la evidencia se arma como siempre: %v (Over %v)", err, ev.Over)
+			}
+			diff := string(ev.Diff)
+			if !strings.Contains(diff, "diff --git a/.gitignore b/.gitignore") || !strings.Contains(diff, "+# LINEA-NUEVA-DEL-GITIGNORE") ||
+				!strings.Contains(diff, "+func Nuevo() {}") {
+				t.Fatalf("CA-416: la evidencia trae el cambio del .gitignore y el del codigo:\n%s", diff)
+			}
+			for _, nunca := range []string{raSecreto, "IGNORADO-POR-LA-RAMA", "IGNORADO-EN-SUB"} {
+				if strings.Contains(diff, nunca) {
+					t.Fatalf("CA-416: lo ignorado no va en la evidencia: %q\n%s", nunca, diff)
+				}
+			}
+			if string(ev.Spec) != "# Spec x\n" || ev.Bytes != len(ev.Diff)+len(ev.Spec) || ev.SHA256 != raSHA(ev.Diff, ev.Spec) {
+				t.Fatalf("CA-416: la evidencia es la de siempre, con su spec, Bytes y SHA256: %q %d %q", ev.Spec, ev.Bytes, ev.SHA256)
+			}
+
+			cx := raInstalar(t, bin, "codex", "")
+			res, out := raRevisar(t, "CA-416", root, Options{Provider: "codex", Lens: "risk", Spec: ".hoom/specs/x.md"})
+			if res.Status != "revisado" || cx.veces() != 1 || res.EvidenceSHA256 != ev.SHA256 {
+				t.Fatalf("CA-416: la review corre como siempre: codex %d, %+v\n%s", cx.veces(), res, out)
+			}
+			if strings.Contains(cx.pedido(t, 1), raSecreto) {
+				t.Fatal("CA-416: el .env ignorado no viaja al provider")
+			}
+		})
+	}
+}
+
+// CA-416 (control): hay archivos sin rastrear pero el cambio no toca ningun
+// .gitignore: la evidencia se arma como siempre, con los no rastreados como
+// archivos nuevos y sin lo ignorado. Tampoco cuenta un .gitignore que solo
+// cambio la BASE despues de abrir la rama (el cambio es contra el
+// merge-base), ni un archivo que se llama parecido sin ser un .gitignore.
+func TestCA416_NoRastreadosSinGitignoreTocadoArmaLaEvidencia(t *testing.T) {
+	casos := []struct {
+		nombre string
+		armar  func(t *testing.T, root string)
+	}{
+		{"la-rama-no-toca-el-gitignore", func(t *testing.T, root string) {
+			write(t, root, "rama.go", "package app\n\nvar EnLaRama = true\n")
+			git(t, root, "add", "-A")
+			git(t, root, "commit", "-q", "-m", "rama")
+		}},
+		{"solo-la-base-toco-el-gitignore-despues-de-la-rama", func(t *testing.T, root string) {
+			git(t, root, "checkout", "-q", "main")
+			write(t, root, ".gitignore", ".env\n*.log\n*.bak\n")
+			git(t, root, "commit", "-q", "-am", "main ignora *.bak")
+			git(t, root, "checkout", "-q", "feature")
+		}},
+		{"archivos-que-no-son-un-gitignore", func(t *testing.T, root string) {
+			write(t, root, ".gitignore.bak", "*.log\n")
+			write(t, root, "docs/plantilla.gitignore", "*.log\n")
+			git(t, root, "add", "-A")
+			git(t, root, "commit", "-q", "-m", "archivos con gitignore en el nombre")
+		}},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			root := raRamaGitignore(t)
+			c.armar(t, root)
+			raCambio(t, root)
+			write(t, root, ".env", raSecreto+"\n")
+			write(t, root, "nuevo.go", "package app\n\n// NO-RASTREADO-QUE-VA\n")
+
+			ev, err := Evidence(root, "main", "", raTopeGrande)
+			if err != nil || ev.Over {
+				t.Fatalf("CA-416: sin un .gitignore tocado por el cambio, los no rastreados no frenan la evidencia: %v (Over %v)", err, ev.Over)
+			}
+			diff := string(ev.Diff)
+			if !strings.Contains(diff, "+// NO-RASTREADO-QUE-VA") || !strings.Contains(diff, "+func Nuevo() {}") {
+				t.Fatalf("CA-416: la evidencia trae el no rastreado y el cambio de codigo:\n%s", diff)
+			}
+			if strings.Contains(diff, raSecreto) || strings.Contains(diff, "diff --git a/.gitignore b/.gitignore") {
+				t.Fatalf("CA-416: sin el .gitignore tocado, el .env sigue ignorado y el .gitignore no es parte del cambio:\n%s", diff)
+			}
+		})
+	}
+}

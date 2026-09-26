@@ -160,3 +160,119 @@ func TestCA394_TopePropiedad(t *testing.T) {
 		t.Fatalf("CA-394: un tope <= 0 se rechaza: %v", err)
 	}
 }
+
+// ---------------------------------------------------------------- enmienda 3
+
+// raTecho es el texto del contrato para un tope por encima de 16384 KiB
+// (enmienda 3 de CA-394).
+const raTecho = "review: max_evidence_kib no puede pasar de 16384"
+
+// raCargarSinPanico carga el hoom.yaml y convierte un panico en un error
+// visible del test: un tope enorme no puede tumbar al proceso (hoom serve).
+func raCargarSinPanico(t *testing.T, reviewYAML string) (m *Manifest, err error, panico any) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			panico = r
+		}
+	}()
+	m, err = raCargar(t, reviewYAML)
+	return m, err, nil
+}
+
+// CA-394 (enmienda 3): max_evidence_kib tiene techo de 16384 KiB (16 MiB).
+// 16385, y hasta el maximo de int64 (que multiplicado por 1024 desborda),
+// fallan con el texto del contrato sin desbordar ni entrar en panico; 16384
+// se acepta tal cual; 0 sigue fallando con su texto de siempre.
+func TestCA394_TopeMayorA16384Falla(t *testing.T) {
+	for _, v := range []string{
+		"16385", "16386", "32768", "1048576",
+		"2097152",             // 2^21 KiB = 2^31 bytes: desborda un int32
+		"9007199254740993",    // 2^53 + 1: no entra exacto en un float64
+		"9223372036854775807", // maximo de int64: por 1024 desborda un int64
+	} {
+		_, err, panico := raCargarSinPanico(t, "review:\n  max_evidence_kib: "+v+"\n")
+		if panico != nil {
+			t.Fatalf("CA-394: max_evidence_kib: %s no entra en panico: %v", v, panico)
+		}
+		if err == nil || !strings.Contains(err.Error(), raTecho) {
+			t.Fatalf("CA-394: max_evidence_kib: %s falla con %q: %v", v, raTecho, err)
+		}
+		if strings.Contains(err.Error(), "debe ser mayor que 0") {
+			t.Fatalf("CA-394: max_evidence_kib: %s no es un tope <= 0 (no desbordo a negativo): %v", v, err)
+		}
+	}
+
+	// en la forma de flujo y junto a otras claves, igual
+	_, err, panico := raCargarSinPanico(t, "review: {model: gpt-5.6-sol, effort: xhigh, max_evidence_kib: 9223372036854775807}\n")
+	if panico != nil || err == nil || !strings.Contains(err.Error(), raTecho) {
+		t.Fatalf("CA-394: el maximo de int64 junto a otras claves falla con %q sin panico: %v %v", raTecho, err, panico)
+	}
+
+	// 16384 es el techo exacto: se acepta y se respeta
+	m, err, panico := raCargarSinPanico(t, "review:\n  max_evidence_kib: 16384\n")
+	if panico != nil || err != nil {
+		t.Fatalf("CA-394: max_evidence_kib: 16384 es valido: %v %v", err, panico)
+	}
+	if got := m.ReviewMaxEvidenceKiB(); got != 16384 {
+		t.Fatalf("CA-394: el tope 16384 se respeta tal cual, fue %d", got)
+	}
+
+	// 0 sigue con el texto de siempre, no con el del techo
+	_, err, panico = raCargarSinPanico(t, "review:\n  max_evidence_kib: 0\n")
+	if panico != nil || err == nil || !strings.Contains(err.Error(), "review: max_evidence_kib debe ser mayor que 0") || strings.Contains(err.Error(), raTecho) {
+		t.Fatalf("CA-394: max_evidence_kib: 0 falla con \"review: max_evidence_kib debe ser mayor que 0\": %v %v", err, panico)
+	}
+	// el minimo de int64 es <= 0: su texto, sin panico
+	_, err, panico = raCargarSinPanico(t, "review:\n  max_evidence_kib: -9223372036854775808\n")
+	if panico != nil || err == nil || !strings.Contains(err.Error(), "review: max_evidence_kib debe ser mayor que 0") {
+		t.Fatalf("CA-394: el minimo de int64 falla con \"debe ser mayor que 0\" sin panico: %v %v", err, panico)
+	}
+}
+
+// CA-394 (enmienda 3, caso limite): un numero que ni entra en un int64 no es
+// un hoom.yaml valido; lo unico que se exige es un error, sin panico (el
+// spec no decide el texto para lo que no es un entero de 64 bits).
+func TestCA394_TopeFueraDeInt64FallaSinPanico(t *testing.T) {
+	for _, v := range []string{"9223372036854775808", "18446744073709551616", "1e30", "99999999999999999999999999999999"} {
+		_, err, panico := raCargarSinPanico(t, "review:\n  max_evidence_kib: "+v+"\n")
+		if panico != nil {
+			t.Fatalf("CA-394: max_evidence_kib: %s no entra en panico: %v", v, panico)
+		}
+		if err == nil {
+			t.Fatalf("CA-394: max_evidence_kib: %s no es un tope valido y hoom.yaml debe fallar", v)
+		}
+	}
+}
+
+// CA-394 (enmienda 3, propiedad): todo tope en 1..16384 se respeta tal cual
+// y todo tope en 16385..maximo de int64 se rechaza con el texto del techo,
+// sin panico.
+func TestCA394_TechoPropiedad(t *testing.T) {
+	cfg := &quick.Config{MaxCount: 60, Rand: rand.New(rand.NewSource(16384))}
+	dentro := func(n uint16) bool {
+		v := int(n)%16384 + 1
+		m, err, panico := raCargarSinPanico(t, "review:\n  max_evidence_kib: "+strconv.Itoa(v)+"\n")
+		return panico == nil && err == nil && m.ReviewMaxEvidenceKiB() == v
+	}
+	if err := quick.Check(dentro, cfg); err != nil {
+		t.Fatalf("CA-394: un tope de 1 a 16384 se respeta: %v", err)
+	}
+	fuera := func(n uint64, corto bool) bool {
+		d := n & (1<<63 - 1) // 0..maximo de int64
+		if corto {
+			d %= 1 << 20 // tambien muy cerca del techo
+		}
+		v := uint64(16385)
+		if d > uint64(1<<63-1)-v {
+			v = 1<<63 - 1
+		} else {
+			v += d
+		}
+		_, err, panico := raCargarSinPanico(t, "review:\n  max_evidence_kib: "+strconv.FormatUint(v, 10)+"\n")
+		return panico == nil && err != nil && strings.Contains(err.Error(), raTecho)
+	}
+	if err := quick.Check(fuera, cfg); err != nil {
+		t.Fatalf("CA-394: un tope de 16385 al maximo de int64 se rechaza con %q: %v", raTecho, err)
+	}
+}
