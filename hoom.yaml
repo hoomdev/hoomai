@@ -18,8 +18,11 @@ gates:
 # Los hallazgos high abiertos ponen ROJO a verify (gate findings_open).
 findings:
   block_on: high
-# El reviewer de hoom review, explicito: el mismo modelo y esfuerzo que usaba
-# la config personal de Codex, para medir el efecto de la review aislada.
+# El reviewer de hoom review. `hoom review` lee esta seccion del hoom.yaml de
+# la BASE (el merge-base con main), nunca del cambio que revisa: un cambio no
+# elige a su propio reviewer. Modelo y esfuerzo explicitos; el tope de la
+# evidencia sube a 384 KiB (~130k tokens, la mitad de la ventana de Codex).
 review:
   model: gpt-5.6-sol
   effort: xhigh
+  max_evidence_kib: 384
