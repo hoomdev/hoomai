@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T043823_05b779",
+  "as": "corregido",
+  "evidence": "enmienda 4 (6b9171ba) + 2351bdd/3ca7d0a (CA-401, CA-416): la evidencia es solo merge-base..HEAD y con el arbol sucio la review se niega antes de medir; un binario local sin rastrear nunca entra (TestCA416_ArbolSucioEsErrorYLaReviewNoLanzaPasadas, 26 casos)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T06:31:50.12184Z"
+}

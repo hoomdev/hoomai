@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T043934_73b1c1",
+  "as": "corregido",
+  "evidence": "enmienda 4 + 2351bdd (CA-419, CA-401): el contrato del reviewer sale del merge-base (o del embebido) y .hoom/agents/ va en la evidencia; TestCA419_LaRamaQueReescribeElContratoNoLoCambia, ElContratoEsElDelMergeBase, BaseSinElContratoUsaLaCopiaEmbebida, TestCA401_CambioCommiteadoEnHoomAgentsVaEnLaEvidencia",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T06:31:50.359759Z"
+}

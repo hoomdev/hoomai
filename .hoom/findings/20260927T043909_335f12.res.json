@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T043909_335f12",
+  "as": "corregido",
+  "evidence": "enmienda 4 + 2351bdd (CA-418): Request/StartOptions.PromptStdin; cada pasada manda su pedido por stdin a cualquier tamano; TestCA418_CadaPasadaMandaSuPedidoPorStdin (codex y claude, ningun pedazo del pedido en el argv)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T06:31:50.242908Z"
+}
