@@ -1,0 +1,11 @@
+{
+  "id": "20260927T044541_2f23f8",
+  "created_at": "2026-09-27T04:45:41.91148Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:410 carga y valida el hoom.yaml del candidato (incluido ReviewPolicy; internal/manifest/manifest.go:333) antes de leer review: desde el merge-base en la linea 434. Una rama sobre una base valida puede agregar review: {max_evidence_kib: 16385} o una clave/tipo invalido y hoom review termina antes de cualquier lente, aunque CA-417 establece que esa seccion debe salir exclusivamente de la base. El candidato conserva asi capacidad de bloquear su propia review mediante la configuracion que supuestamente no controla.",
+  "author": "reviewer@codex",
+  "fingerprint": "d155017e214ff09a",
+  "task": "review-aislada-y-modelo-elegido"
+}

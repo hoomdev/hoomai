@@ -1,0 +1,11 @@
+{
+  "id": "20260927T045302_8eb043",
+  "created_at": "2026-09-27T04:53:02.65497Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:78: el contrato de gitOutBounded/CandidatePatch es opaco y contradictorio: CandidatePatch afirma que dst retiene como maximo max bytes, mientras gitOutBounded documenta y deja max+1; ademas, en la linea 92 el bool over se reutiliza con max=0 para significar 'hubo salida/.gitignore tocado'. Separar la consulta de presencia (p. ej. gitHasOutput) del resultado de truncamiento y alinear el comentario haria explicitos los invariantes de memoria y evitaria que un cambio futuro de limites rompa esta deteccion.",
+  "author": "reviewer@codex",
+  "fingerprint": "d155017e214ff09a",
+  "task": "review-aislada-y-modelo-elegido"
+}
