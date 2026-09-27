@@ -208,6 +208,9 @@ type Request struct {
 	// Isolated: the session loads none of the user's personal provider
 	// config (MCP servers, hooks, plugins, profile).
 	Isolated bool
+	// PromptStdin: the prompt travels by stdin at any size, never in argv
+	// (an argv is readable by any user of the machine with ps).
+	PromptStdin bool
 }
 
 // StdinPromptBytes is the largest prompt that travels as an argument; a

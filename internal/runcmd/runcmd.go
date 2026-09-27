@@ -119,6 +119,7 @@ type StartOptions struct {
 	Strict       bool   // unsupported field = refuse to start instead of a warning
 	Effort       string // reasoning effort, provider vocabulary; "" = provider default
 	Isolated     bool   // run without the user's personal provider config
+	PromptStdin  bool   // the prompt travels by stdin at any size
 }
 
 // request builds the provider request for these options.
