@@ -1,8 +1,8 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (CA-399, CA-400) en runcmd: StartOptions gana Effort e Isolated y los pasa
-// al Request (tambien en Input), y cuando la invocacion trae Stdin, runcmd lo
-// escribe en el stdin del proceso, entero: un CLI que no lo lee entero no
-// termina bien. Los CLIs son falsos: guardan su argv
+// (CA-399, CA-400, CA-418) en runcmd: StartOptions gana Effort, Isolated y
+// (enmienda 4) PromptStdin y los pasa al Request (Effort e Isolated tambien
+// en Input), y cuando la invocacion trae Stdin, runcmd lo escribe en el stdin
+// del proceso, entero: un CLI que no lo lee entero no termina bien. Los CLIs son falsos: guardan su argv
 // (separado por NUL) y lo que les llega por stdin, fuera de cualquier arbol.
 package runcmd
 
@@ -124,6 +124,49 @@ func TestCA399_ElProcesoRecibeElPromptPorStdin(t *testing.T) {
 		args := raArgv(t, dir, 2)
 		if args[len(args)-1] != chico || raStdin(t, dir, 2) != "" {
 			t.Fatalf("CA-399: %s: un prompt chico sigue ultimo en argv y el stdin llega vacio: %v", name, args)
+		}
+	}
+}
+
+// CA-399 / CA-418 (enmienda 4): StartOptions.PromptStdin llega al Request:
+// con un prompt CHICO el proceso lo recibe entero por stdin y el argv no lo
+// lleva (codex termina en "-"), en claude y en codex. Sin PromptStdin, el
+// mismo prompt sigue ultimo en argv con el stdin vacio (CA-109).
+func TestCA418_StartOptionsPromptStdinMandaElPromptChicoPorStdin(t *testing.T) {
+	const chico = "Revisa el cambio de esta rama: pedido chico con \"comillas\" y ñandú"
+	for _, name := range []string{"claude", "codex"} {
+		dir := raEspia(t, name, "")
+		m := NewManager(t.TempDir())
+		run, err := m.Start(StartOptions{Provider: name, Prompt: chico, PromptStdin: true, Dir: t.TempDir(),
+			SystemPrompt: "# Reviewer", ReadOnly: true, Exec: true, Isolated: true, Strict: true})
+		if err != nil {
+			t.Fatalf("CA-418: %s: Start con PromptStdin: %v", name, err)
+		}
+		if fin := waitRun(t, m, run.ID); fin.Status != StatusDone {
+			t.Fatalf("CA-418: %s: el run termina bien: %+v", name, fin)
+		}
+		if got := raStdin(t, dir, 1); got != chico {
+			t.Fatalf("CA-418: %s: con PromptStdin el proceso recibe el prompt chico entero por stdin, recibio %q", name, got)
+		}
+		args := raArgv(t, dir, 1)
+		for _, a := range args {
+			if strings.Contains(a, "pedido chico") {
+				t.Fatalf("CA-418: %s: con PromptStdin el argv no lleva el prompt: %q", name, args)
+			}
+		}
+		if name == "codex" && args[len(args)-1] != "-" {
+			t.Fatalf("CA-418: codex termina su argv en '-': %q", args)
+		}
+
+		// sin PromptStdin: CA-109 tal cual
+		run, err = m.Start(StartOptions{Provider: name, Prompt: chico, Dir: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitRun(t, m, run.ID)
+		args = raArgv(t, dir, 2)
+		if args[len(args)-1] != chico || raStdin(t, dir, 2) != "" {
+			t.Fatalf("CA-399: %s: sin PromptStdin un prompt chico sigue ultimo en argv y el stdin llega vacio: %q", name, args)
 		}
 	}
 }

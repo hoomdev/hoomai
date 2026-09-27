@@ -405,6 +405,14 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if m.BaseBranch != "" {
 		base = m.BaseBranch
 	}
+	// Solo lo commiteado se revisa (CA-416): el arbol sucio se nombra ANTES
+	// de medir nada, porque medir el arbol de trabajo lee sus archivos y un
+	// no rastreado especial (un symlink a un FIFO) lo colgaria.
+	if ruta, err := gitx.CambioSinCommitear(dir); err != nil {
+		return Result{}, err
+	} else if ruta != "" {
+		return Result{}, gitx.ArbolSucio{Ruta: ruta}
+	}
 	git := gitx.Snapshot(dir, base)
 	lentes, motivo, err := Lenses(git, opt.Lens)
 	if err != nil {

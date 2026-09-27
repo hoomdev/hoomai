@@ -82,7 +82,7 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 	if err != nil {
 		return false, err
 	}
-	ruta, err := primerCambioSinCommitear(dir)
+	ruta, err := CambioSinCommitear(dir)
 	if err != nil {
 		return false, err
 	}
@@ -105,11 +105,12 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 	return false, nil
 }
 
-// primerCambioSinCommitear is the first path outside .hoom/ with anything
-// not committed (modified, staged, deleted, or untracked and not ignored);
-// "" when the tree is clean. Only that first entry is read: the listing is
-// never held.
-func primerCambioSinCommitear(dir string) (string, error) {
+// CambioSinCommitear is the first path outside .hoom/ with anything not
+// committed (modified, staged, deleted, or untracked and not ignored); ""
+// when the tree is clean. Only that first entry is read: the listing is
+// never held, and git status opens no file (a symlink to a FIFO is listed,
+// never read).
+func CambioSinCommitear(dir string) (string, error) {
 	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
 		"--untracked-files=normal", "--", ".", ":(exclude).hoom")
 	cmd.Dir = dir

@@ -1,12 +1,21 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (enmiendas 1 y 3: CA-401, CA-402, CA-412..CA-414, CA-416): hoom congela la
-// evidencia (el cambio entero contra el merge-base, con borrados y renombres,
-// + el spec) una vez, leyendo con tope; se niega a correr si pasa el tope; el
-// spec tiene que ser un archivo regular del arbol; un error de git falla
-// cerrado; un aviso de git no es un error; un no rastreado que no se puede
-// leer sin colgarse es un error; un .gitignore tocado (tambien uno nuevo que
-// se ignora a si mismo) con archivos sin rastrear frena la evidencia. Los
+// (enmiendas 1, 3 y 4: CA-401, CA-402, CA-412..CA-414, CA-416): hoom congela
+// la evidencia (el cambio COMMITEADO entero contra el merge-base, con
+// borrados y renombres, de todo lo que esta fuera de .hoom/ mas
+// .hoom/agents/, + el spec de HEAD) una vez, leyendo con tope; se niega a
+// correr si pasa el tope; la entrada del spec en HEAD tiene que ser un
+// archivo regular; un error de git falla cerrado; un aviso de git no es un
+// error; y con el arbol sucio fuera de .hoom/ se niega sin armar nada. Los
 // fixtures estan en review_aislada_helpers_test.go.
+//
+// ENMIENDA 4 (re-expresion): la review revisa solo lo commiteado. Los
+// fixtures que dejaban el cambio sin commitear lo commitean en la rama
+// feature, con las mismas afirmaciones sobre el contenido de la evidencia.
+// Los tests que fijaban comportamiento que la enmienda borra (la regla del
+// .gitignore de la enmienda 3 con archivos sin rastrear, las guardas de los
+// no rastreados FIFO y symlink, el spec symlink que se resolvia dentro del
+// arbol) se re-expresan contra el contrato nuevo: arbol sucio = negativa que
+// nombra la ruta (CA-416); spec = su entrada en HEAD (CA-412).
 package reviewcmd
 
 import (
@@ -29,10 +38,11 @@ import (
 
 // ---------------------------------------------------------------- CA-401
 
-// CA-401: Evidence arma el cambio entero contra el merge-base y el arbol de
-// trabajo: rastreado commiteado o no, no rastreado como archivo nuevo
-// (tambien con nombre no ASCII), binario sin contenido, nada de .hoom/; mas
-// el spec; Bytes y SHA256 cierran.
+// CA-401 (re-expresado por la enmienda 4): Evidence arma el cambio
+// COMMITEADO entero contra el merge-base: lo de cada commit de la rama,
+// archivos nuevos (tambien con nombre no ASCII), binarios sin contenido, y
+// nada de .hoom/ fuera de .hoom/agents/, ni commiteado ni sin commitear; mas
+// el spec tal como esta en HEAD; Bytes y SHA256 cierran.
 func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 	root := raRepo(t, "")
 	write(t, root, "committed.go", "package app\n\nvar Base = 1\n")
@@ -43,17 +53,20 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 	git(t, root, "checkout", "-q", "-b", "feature")
 	write(t, root, "committed.go", "package app\n\nvar Base = 2 // commiteado en la rama\n")
 	git(t, root, "commit", "-q", "-am", "rama")
-	// sin commitear, rastreado
-	write(t, root, "app.go", "package app\n\nfunc SinCommitear() {}\n")
-	// no rastreados
-	write(t, root, "nuevo.go", "package app\n\n// archivo nuevo sin rastrear ñandú\nfunc Nuevo() {}\n")
+	// el segundo commit de la rama: un rastreado, archivos nuevos (no ASCII,
+	// binario), un binario rastreado que cambia, y .hoom/ que no va
+	write(t, root, "app.go", "package app\n\nfunc EnElSegundoCommit() {}\n")
+	write(t, root, "nuevo.go", "package app\n\n// archivo nuevo commiteado ñandú\nfunc Nuevo() {}\n")
 	write(t, root, "dir con espacio/ñu.go", "package dir\n\n// contenido-unico-ñu\n")
 	write(t, root, "nuevo.bin", "\x00MARCA-BINARIA-NUEVO-ARCHIVO\x00\xff")
-	// binario rastreado y modificado
 	write(t, root, "imagen.bin", "\x00\x02MARCA-BINARIA-NUEVA\x00\xff")
-	// lo de .hoom/ no va nunca, ni el spec cambiado ni un archivo suelto
-	write(t, root, ".hoom/specs/x.md", "# Spec x\n\nversion rama: SPEC-NO-VA-EN-EL-DIFF\n")
+	const specRama = "# Spec x\n\nversion rama: SPEC-NO-VA-EN-EL-DIFF\n"
+	write(t, root, ".hoom/specs/x.md", specRama)
 	write(t, root, ".hoom/notas.txt", "NOTA-HOOM-FUERA-DEL-DIFF\n")
+	raCommit(t, root, "segundo commit de la rama")
+	// sin commitear y solo bajo .hoom/: no ensucia el arbol ni va
+	write(t, root, ".hoom/notas-locales.txt", "NOTA-HOOM-SIN-COMMITEAR\n")
+	raLimpio(t, "CA-401", root)
 
 	g := gitx.Snapshot(root, "main")
 	for _, f := range []string{"committed.go", "app.go", "nuevo.go", "imagen.bin", ".hoom/specs/x.md"} {
@@ -70,12 +83,12 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 	}
 	diff := string(ev.Diff)
 	if !raTieneNombre(diff, "dir con espacio/ñu.go") {
-		t.Fatalf("CA-401: el no rastreado con nombre no ASCII va con su nombre (crudo o citado por git):\n%s", diff)
+		t.Fatalf("CA-401: el archivo nuevo con nombre no ASCII va con su nombre (crudo o citado por git):\n%s", diff)
 	}
 	for _, quiero := range []string{
 		"diff --git a/committed.go b/committed.go", "-var Base = 1", "+var Base = 2 // commiteado en la rama",
-		"diff --git a/app.go b/app.go", "+func SinCommitear() {}",
-		"+++ b/nuevo.go", "+// archivo nuevo sin rastrear ñandú",
+		"diff --git a/app.go b/app.go", "+func EnElSegundoCommit() {}",
+		"+++ b/nuevo.go", "+// archivo nuevo commiteado ñandú",
 		"+// contenido-unico-ñu",
 		"imagen.bin", "nuevo.bin", "Binary files",
 	} {
@@ -83,17 +96,17 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 			t.Fatalf("CA-401: el diff del candidato trae %q:\n%s", quiero, diff)
 		}
 	}
-	if !strings.Contains(diff, "new file mode") {
-		t.Fatalf("CA-401: un no rastreado va como parche de archivo nuevo:\n%s", diff)
+	if !strings.Contains(raSeccion(diff, "diff --git a/nuevo.go b/nuevo.go"), "new file mode") {
+		t.Fatalf("CA-401: un archivo nuevo va como parche de archivo nuevo:\n%s", diff)
 	}
-	for _, nunca := range []string{"MARCA-BINARIA", "GIT binary patch", "SPEC-NO-VA-EN-EL-DIFF", "NOTA-HOOM-FUERA-DEL-DIFF", "a/.hoom/", "b/.hoom/"} {
+	for _, nunca := range []string{"MARCA-BINARIA", "GIT binary patch", "SPEC-NO-VA-EN-EL-DIFF", "NOTA-HOOM-FUERA-DEL-DIFF",
+		"NOTA-HOOM-SIN-COMMITEAR", "a/.hoom/", "b/.hoom/"} {
 		if strings.Contains(diff, nunca) {
-			t.Fatalf("CA-401: el diff no trae %q (binarios sin contenido, nada de .hoom/):\n%s", nunca, diff)
+			t.Fatalf("CA-401: el diff no trae %q (binarios sin contenido, nada de .hoom/ fuera de .hoom/agents/):\n%s", nunca, diff)
 		}
 	}
-	spec, _ := os.ReadFile(filepath.Join(root, ".hoom", "specs", "x.md"))
-	if !bytes.Equal(ev.Spec, spec) {
-		t.Fatalf("CA-401: Spec es el texto del spec tal cual esta en el arbol: %q", ev.Spec)
+	if !bytes.Equal(ev.Spec, []byte(specRama)) {
+		t.Fatalf("CA-401/CA-412: Spec es el texto del spec tal cual esta en HEAD: %q", ev.Spec)
 	}
 	if ev.Bytes != len(ev.Diff)+len(ev.Spec) {
 		t.Fatalf("CA-401: Bytes = len(Diff)+len(Spec): %d vs %d+%d", ev.Bytes, len(ev.Diff), len(ev.Spec))
@@ -109,14 +122,15 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 	}
 }
 
-// CA-401 (enmienda 1, caso limite): una rama que COMMITEA el borrado de
-// auth.go y el renombre de b.go a c.go. La evidencia trae el borrado con su
-// 'deleted file' y las lineas quitadas, y el renombre con sus dos lados (las
-// cabeceras 'rename from/to' de git o el par borrado + alta): no sale de
-// git.ChangedFiles, que deja afuera los borrados commiteados y el origen del
-// renombre. Sigue sin nada de .hoom/ (tampoco un borrado commiteado ahi), con
-// el no rastreado de nombre no ASCII y el binario sin contenido; un archivo
-// que solo EMPIEZA con .hoom esta fuera de .hoom/ y va.
+// CA-401 (enmienda 1, caso limite; enmienda 4: todo commiteado): una rama que
+// COMMITEA el borrado de auth.go y el renombre de b.go a c.go. La evidencia
+// trae el borrado con su 'deleted file' y las lineas quitadas, y el renombre
+// con sus dos lados (las cabeceras 'rename from/to' de git o el par borrado +
+// alta): no sale de git.ChangedFiles, que deja afuera los borrados
+// commiteados y el origen del renombre. Sigue sin nada de .hoom/ (tampoco un
+// borrado commiteado ahi), con el archivo nuevo de nombre no ASCII y el
+// binario sin contenido; un archivo que solo EMPIEZA con .hoom esta fuera de
+// .hoom/ y va.
 func TestCA401_BorradoYRenombreCommiteados(t *testing.T) {
 	root := raRepo(t, "")
 	write(t, root, "auth.go", "package app\n\n// Autoriza es la comprobacion de permisos que la rama borra.\n"+
@@ -139,10 +153,13 @@ func TestCA401_BorradoYRenombreCommiteados(t *testing.T) {
 	write(t, root, ".hoom-fuera.go", "package app\n\n// EMPIEZA-CON-HOOM-PERO-ESTA-FUERA\n")
 	git(t, root, "add", "-A")
 	git(t, root, "commit", "-q", "-m", "borra auth, renombra b a c")
-	// sin rastrear: nombre no ASCII, binario, y algo bajo .hoom/
-	write(t, root, "piñata/ñandú.go", "package pinata\n\n// NO-ASCII-SIN-RASTREAR\n")
+	// otro commit de la rama: nombre no ASCII y binario
+	write(t, root, "piñata/ñandú.go", "package pinata\n\n// NO-ASCII-COMMITEADO\n")
 	write(t, root, "datos.bin", "\x00\x01BINARIO-SIN-CONTENIDO\x00\xff")
+	raCommit(t, root, "no ascii y binario")
+	// sin commitear bajo .hoom/: no cuenta ni va
 	write(t, root, ".hoom/notas.txt", "NOTA-HOOM-FUERA-DEL-DIFF\n")
+	raLimpio(t, "CA-401", root)
 
 	ev, err := Evidence(root, "main", "", raTopeGrande)
 	if err != nil {
@@ -173,13 +190,13 @@ func TestCA401_BorradoYRenombreCommiteados(t *testing.T) {
 		t.Fatalf("CA-401: el renombre b.go -> c.go trae sus dos lados (rename from/to, o el borrado de b.go y el alta de c.go):\n%s", diff)
 	}
 
-	for _, quiero := range []string{"+// EMPIEZA-CON-HOOM-PERO-ESTA-FUERA", "+// NO-ASCII-SIN-RASTREAR", "datos.bin", "Binary files"} {
+	for _, quiero := range []string{"+// EMPIEZA-CON-HOOM-PERO-ESTA-FUERA", "+// NO-ASCII-COMMITEADO", "datos.bin", "Binary files"} {
 		if !strings.Contains(diff, quiero) {
 			t.Fatalf("CA-401: la evidencia trae %q:\n%s", quiero, diff)
 		}
 	}
 	if !raTieneNombre(diff, "piñata/ñandú.go") {
-		t.Fatalf("CA-401: el no rastreado de nombre no ASCII va con su nombre (crudo o citado por git):\n%s", diff)
+		t.Fatalf("CA-401: el archivo nuevo de nombre no ASCII va con su nombre (crudo o citado por git):\n%s", diff)
 	}
 	for _, nunca := range []string{"BINARIO-SIN-CONTENIDO", "GIT binary patch", "SPEC-VIEJO-BORRADO-EN-LA-RAMA",
 		"SPEC-CAMBIADO-Y-COMMITEADO", "NOTA-HOOM-FUERA-DEL-DIFF", "a/.hoom/", "b/.hoom/"} {
@@ -198,10 +215,7 @@ func TestCA401_BorradoYRenombreCommiteados(t *testing.T) {
 func TestCA401_SinSpecNoHayBloqueDeSpec(t *testing.T) {
 	root := raRepo(t, "")
 	raCambio(t, root)
-	ev, err := Evidence(root, "main", "", raTopeGrande)
-	if err != nil {
-		t.Fatalf("CA-401: %v", err)
-	}
+	ev := raEvidencia(t, "CA-401", root, "")
 	if ev.Spec != nil || ev.Bytes != len(ev.Diff) || len(ev.Diff) == 0 || ev.Over {
 		t.Fatalf("CA-401: sin spec, Spec nil y Bytes = len(Diff) > 0: %+v", ev)
 	}
@@ -209,12 +223,13 @@ func TestCA401_SinSpecNoHayBloqueDeSpec(t *testing.T) {
 		t.Fatalf("CA-401: sin spec el SHA256 es el del diff: %q", ev.SHA256)
 	}
 	if !strings.Contains(string(ev.Diff), "+func Nuevo() {}") {
-		t.Fatalf("CA-401: el diff trae el cambio sin commitear:\n%s", ev.Diff)
+		t.Fatalf("CA-401: el diff trae el cambio commiteado en la rama:\n%s", ev.Diff)
 	}
 }
 
 // CA-401: el diff sale del MERGE-BASE, no de la punta de la base: lo que la
-// base hizo despues de abrir la rama no aparece (ni revertido).
+// base hizo despues de abrir la rama no aparece (ni revertido). Enmienda 4:
+// los dos cambios de la rama estan commiteados.
 func TestCA401_DiffDesdeElMergeBase(t *testing.T) {
 	root := raRepo(t, "")
 	write(t, root, "app.go", "package app\n\n// linea base\n")
@@ -229,12 +244,13 @@ func TestCA401_DiffDesdeElMergeBase(t *testing.T) {
 	git(t, root, "add", "-A")
 	git(t, root, "commit", "-q", "-m", "main avanza")
 	git(t, root, "checkout", "-q", "feature")
-	write(t, root, "app.go", "package app\n\n// linea base\n// cambio de la rama sin commitear\n")
+	write(t, root, "app.go", "package app\n\n// linea base\n// cambio de la rama en su segundo commit\n")
+	raCommit(t, root, "segundo commit de la rama")
 
 	ev := raEvidencia(t, "CA-401", root, "")
 	diff := string(ev.Diff)
-	if !strings.Contains(diff, "+var EnLaRama = true") || !strings.Contains(diff, "+// cambio de la rama sin commitear") {
-		t.Fatalf("CA-401: el diff trae lo commiteado en la rama y lo sin commitear:\n%s", diff)
+	if !strings.Contains(diff, "+var EnLaRama = true") || !strings.Contains(diff, "+// cambio de la rama en su segundo commit") {
+		t.Fatalf("CA-401: el diff trae los dos commits de la rama:\n%s", diff)
 	}
 	if strings.Contains(diff, "CAMBIO-EN-MAIN-DESPUES-DE-LA-RAMA") || strings.Contains(diff, "SOLO-EN-MAIN") || strings.Contains(diff, "solo_main.go") {
 		t.Fatalf("CA-401: lo que la base hizo despues de la rama no es del candidato:\n%s", diff)
@@ -248,6 +264,7 @@ func TestCA401_LasCuatroPasadasRecibenLosMismosBytes(t *testing.T) {
 	root := raRepo(t, "")
 	raCuatro(t, root)
 	write(t, root, ".hoom/specs/x.md", "# Spec x\n\nCriterio con unicode: ñandú €\n")
+	raCommit(t, root, "spec")
 	cx := raInstalar(t, bin, "codex", "")
 	ev := raEvidenciaCruda(t, "CA-401", root, ".hoom/specs/x.md")
 
@@ -296,6 +313,70 @@ func TestCA401_UnaLenteMismaEvidencia(t *testing.T) {
 	}
 }
 
+// CA-401 (enmienda 4): "todo lo que esta fuera de .hoom/ mas .hoom/agents/ (el
+// contrato de los roles es parte del cambio)". Una rama que commitea un
+// cambio en .hoom/agents/04-writer.md, un contrato nuevo y el borrado de
+// otro: los tres van en la evidencia, como los escribe git. No van: un
+// directorio que solo EMPIEZA con 'agents' (.hoom/agents-viejo/), el spec,
+// los hallazgos ni el resto de .hoom/, ni una edicion sin commitear de
+// .hoom/agents/ (que tampoco ensucia el arbol).
+func TestCA401_CambioCommiteadoEnHoomAgentsVaEnLaEvidencia(t *testing.T) {
+	bin := raPATH(t)
+	root := raRepo(t, "")
+	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\nlinea base del writer\n")
+	write(t, root, ".hoom/agents/07-characterizer.md", "# Characterizer\n\nCONTRATO-QUE-LA-RAMA-BORRA\n")
+	write(t, root, ".hoom/agents-viejo/nota.md", "nota base\n")
+	write(t, root, ".hoom/specs/s.md", "# s\n\nbase\n")
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "base con contratos")
+	raCambio(t, root)
+	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\nlinea de la rama: CONTRATO-CAMBIADO-EN-LA-RAMA\n")
+	write(t, root, ".hoom/agents/99-nuevo.md", "# Nuevo\n\nAGENTE-NUEVO-EN-LA-RAMA\n")
+	git(t, root, "rm", "-q", ".hoom/agents/07-characterizer.md")
+	write(t, root, ".hoom/agents-viejo/nota.md", "FUERA-DE-AGENTS-POR-PREFIJO\n")
+	write(t, root, ".hoom/specs/s.md", "# s\n\nSPEC-DE-LA-RAMA-NO-VA\n")
+	write(t, root, ".hoom/findings/20260926T000000_aaaaaa.json", `{"id":"20260926T000000_aaaaaa","created_at":"2026-09-26T00:00:00Z",`+
+		`"severity":"low","lens":"risk","file":"app.go","description":"HALLAZGO-NO-VA","author":"reviewer@codex"}`+"\n")
+	write(t, root, ".hoom/intake/nota.md", "INTAKE-NO-VA\n")
+	raCommit(t, root, "la rama toca .hoom/agents/ y el resto de .hoom/")
+	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\nEDICION-SIN-COMMITEAR-DE-AGENTS\n")
+	raLimpio(t, "CA-401", root)
+
+	ev := raEvidencia(t, "CA-401", root, "")
+	diff := string(ev.Diff)
+	w := raSeccion(diff, "diff --git a/.hoom/agents/04-writer.md b/.hoom/agents/04-writer.md")
+	if !strings.Contains(w, "-linea base del writer") || !strings.Contains(w, "+linea de la rama: CONTRATO-CAMBIADO-EN-LA-RAMA") {
+		t.Fatalf("CA-401: el cambio commiteado en .hoom/agents/04-writer.md va en la evidencia con sus dos lados:\n%s", diff)
+	}
+	if n := raSeccion(diff, "diff --git a/.hoom/agents/99-nuevo.md b/.hoom/agents/99-nuevo.md"); !strings.Contains(n, "new file mode") ||
+		!strings.Contains(n, "+AGENTE-NUEVO-EN-LA-RAMA") {
+		t.Fatalf("CA-401: un contrato nuevo commiteado en .hoom/agents/ va como archivo nuevo:\n%s", diff)
+	}
+	if d := raSeccion(diff, "diff --git a/.hoom/agents/07-characterizer.md b/.hoom/agents/07-characterizer.md"); !strings.Contains(d, "deleted file mode") ||
+		!strings.Contains(d, "-CONTRATO-QUE-LA-RAMA-BORRA") {
+		t.Fatalf("CA-401: un contrato borrado en la rama va con su 'deleted file mode':\n%s", diff)
+	}
+	if !strings.Contains(diff, "+func Nuevo() {}") {
+		t.Fatalf("CA-401: la evidencia trae el cambio de codigo:\n%s", diff)
+	}
+	for _, nunca := range []string{"agents-viejo", "FUERA-DE-AGENTS-POR-PREFIJO", "SPEC-DE-LA-RAMA-NO-VA", "HALLAZGO-NO-VA",
+		"INTAKE-NO-VA", "EDICION-SIN-COMMITEAR-DE-AGENTS", "a/.hoom/specs", "b/.hoom/findings", "b/.hoom/intake"} {
+		if strings.Contains(diff, nunca) {
+			t.Fatalf("CA-401: de .hoom/ solo va lo commiteado en .hoom/agents/: la evidencia no trae %q:\n%s", nunca, diff)
+		}
+	}
+
+	// y la pasada recibe esa misma evidencia
+	cx := raInstalar(t, bin, "codex", "")
+	res, out := raRevisar(t, "CA-401", root, Options{Provider: "codex", Lens: "risk"})
+	if res.Status != "revisado" || cx.veces() != 1 || res.EvidenceSHA256 != ev.SHA256 {
+		t.Fatalf("CA-401: la review corre con esa evidencia: %+v\n%s", res, out)
+	}
+	if p := cx.pedido(t, 1); !strings.Contains(p, raBloque(t, ev, "", false)) || strings.Contains(p, "EDICION-SIN-COMMITEAR-DE-AGENTS") {
+		t.Fatalf("CA-401: el pedido trae la evidencia con .hoom/agents/ y nada sin commitear:\n%s", p)
+	}
+}
+
 // ---------------------------------------------------------------- CA-402
 
 func raHallazgos(t *testing.T, dir string) int {
@@ -316,6 +397,7 @@ func TestCA402_EvidenciaSobreElTopeNoLanzaPasadas(t *testing.T) {
 	}
 	root := raRepo(t, "review:\n  max_evidence_kib: 1\n")
 	write(t, root, "app.go", b.String())
+	raCommit(t, root, "relleno")
 	cx := raInstalar(t, bin, "codex", "")
 
 	res, out := raRevisar(t, "CA-402", root, Options{Provider: "codex"})
@@ -343,6 +425,7 @@ func TestCA402_EvidenciaSobreElTopeNoLanzaPasadas(t *testing.T) {
 	// el mismo cambio, sin tope en hoom.yaml (320 KiB), corre
 	root2 := raRepo(t, "")
 	write(t, root2, "app.go", b.String())
+	raCommit(t, root2, "relleno")
 	res, out = raRevisar(t, "CA-402", root2, Options{Provider: "codex"})
 	if res.Status != "revisado" || cx.veces() != 1 {
 		t.Fatalf("CA-402: bajo el tope por defecto la misma evidencia corre: %+v\n%s", res, out)
@@ -350,12 +433,16 @@ func TestCA402_EvidenciaSobreElTopeNoLanzaPasadas(t *testing.T) {
 }
 
 // CA-402: exactamente en el tope Evidence no pone Over y la review corre; un
-// byte mas, Over y la negativa con el tope en KiB.
+// byte mas, Over y la negativa con el tope en KiB. Cada relleno se commitea
+// en la rama (enmienda 4).
 func TestCA402_IgualAlTopeCorreYUnByteMasNo(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "review:\n  max_evidence_kib: 2\n")
 	cx := raInstalar(t, bin, "codex", "")
-	relleno := func(k int) { write(t, root, "relleno.go", "// "+strings.Repeat("x", k)+"\n") }
+	relleno := func(k int) {
+		write(t, root, "relleno.go", "// "+strings.Repeat("x", k)+"\n")
+		raCommit(t, root, fmt.Sprintf("relleno de %d", k))
+	}
 
 	relleno(1000)
 	ev := raEvidencia(t, "CA-402", root, "")
@@ -407,6 +494,7 @@ func TestCA402_OverAlByteConDiffYSpecJuntos(t *testing.T) {
 	raCambio(t, root)
 	const spec = ".hoom/specs/x.md"
 	write(t, root, spec, "# Spec x\n\n"+strings.Repeat("criterio del spec que empuja la evidencia\n", 80))
+	raCommit(t, root, "spec")
 	full := raEvidencia(t, "CA-402", root, spec)
 	total := full.Bytes
 	if len(full.Spec) < 2048 || len(full.Diff)+1 >= total {
@@ -438,6 +526,7 @@ func TestCA402_TopePorDefecto320KiB(t *testing.T) {
 		fmt.Fprintf(&b, "var Grande%05d = \"una linea de relleno para pasar el tope\"\n", i)
 	}
 	write(t, root, "grande.go", b.String())
+	raCommit(t, root, "grande")
 	cx := raInstalar(t, bin, "codex", "")
 
 	res, out := raRevisar(t, "CA-402", root, Options{Provider: "codex"})
@@ -452,10 +541,13 @@ func TestCA402_TopePorDefecto320KiB(t *testing.T) {
 // CA-402 (caso limite): 0 lentes (solo documentacion) no arma evidencia y
 // sigue SIN REVISAR, aunque la documentacion pase el tope. Guarda: el
 // esqueleto ya es asi; el tope no puede adelantarse a la regla de 0 lentes.
+// Enmienda 4: la documentacion esta commiteada (el arbol limpio no decide
+// nada aca).
 func TestCA402_CeroLentesNoArmaEvidencia(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "review:\n  max_evidence_kib: 1\n")
 	write(t, root, "README.md", strings.Repeat("documentacion larga\n", 400))
+	raCommit(t, root, "solo documentacion")
 	cx := raInstalar(t, bin, "codex", "")
 
 	res, out := raRevisar(t, "CA-402", root, Options{Provider: "codex"})
@@ -480,6 +572,7 @@ func TestCA402_ModeloQueNoAguantaLaEvidenciaEsNoEntregable(t *testing.T) {
 		fmt.Fprintf(&b, "var Relleno%02d = \"cuarenta bytes de relleno por linea\"\n", i)
 	}
 	write(t, root, "app.go", b.String())
+	raCommit(t, root, "relleno")
 	cx := raInstalar(t, bin, "codex",
 		"for last; do :; done\n"+
 			"if [ \"$last\" = \"-\" ]; then size=$(wc -c < \"$d/stdin.$n\"); else size=${#last}; fi\n"+
@@ -498,6 +591,12 @@ func TestCA402_ModeloQueNoAguantaLaEvidenciaEsNoEntregable(t *testing.T) {
 }
 
 // ---------------------------------------------------------------- CA-412
+//
+// Enmienda 4: el spec se lee de HEAD. Su entrada en HEAD tiene que ser un
+// archivo regular (no un symlink, a donde sea, ni un submodulo): si no,
+// `el spec <ruta> no es un archivo del arbol`, sin leer nada. Lo que no esta
+// en HEAD (un spec sin commitear, tambien un symlink sin commitear) es un
+// spec que no existe: la review sigue sin el.
 
 // raSymlink planta en root/rel un symlink a destino (tal cual: relativo o
 // absoluto).
@@ -512,9 +611,11 @@ func raSymlink(t *testing.T, root, rel, destino string) {
 	}
 }
 
-// raSpecsQueNoSonDelArbol arma, cada uno en su repo con un cambio de codigo,
-// un spec que existe pero no es un archivo regular dentro del arbol despues
-// de resolver symlinks. Devuelve la ruta que se pasa como --spec.
+// raSpecsQueNoSonDelArbol arma, cada uno en su repo, un spec cuya entrada en
+// HEAD existe pero no es un archivo regular: se commitea en main, y la rama
+// (raCambio, despues) la hereda. Devuelve la ruta que se pasa como --spec.
+// Re-expresa (enmienda 4) los casos sin commitear de antes, y el spec symlink
+// a un archivo del arbol, que antes se resolvia y leia.
 var raSpecsQueNoSonDelArbol = []struct {
 	nombre string
 	armar  func(t *testing.T, root string) string
@@ -531,42 +632,64 @@ var raSpecsQueNoSonDelArbol = []struct {
 		git(t, root, "commit", "-q", "-m", "spec symlink a un archivo de afuera")
 		return spec
 	}},
-	{"symlink-sin-commitear-absoluto-a-un-archivo-de-afuera", func(t *testing.T, root string) string {
+	{"symlink-commiteado-absoluto-a-un-archivo-de-afuera", func(t *testing.T, root string) string {
 		const spec = ".hoom/specs/x.md"
 		raSymlink(t, root, spec, raFuera(t, "fuera.md", "# SECRETO-FUERA-DEL-ARBOL\n"))
+		git(t, root, "add", spec)
+		git(t, root, "commit", "-q", "-m", "spec symlink absoluto a un archivo de afuera")
 		return spec
 	}},
-	{"symlink-a-un-directorio-del-arbol", func(t *testing.T, root string) string {
+	{"symlink-commiteado-a-un-directorio-del-arbol", func(t *testing.T, root string) string {
 		const spec = ".hoom/specs/x.md"
 		write(t, root, "sub/a.go", "package sub\n")
 		raSymlink(t, root, spec, "../../sub")
+		git(t, root, "add", "-A")
+		git(t, root, "commit", "-q", "-m", "spec symlink a un directorio")
 		return spec
 	}},
-	{"ruta-que-sale-del-arbol-con-puntos", func(t *testing.T, root string) string {
-		rel, err := filepath.Rel(root, raFuera(t, "fuera.md", "# SECRETO-FUERA-DEL-ARBOL\n"))
-		if err != nil || !strings.HasPrefix(rel, "..") {
-			t.Fatalf("CA-412: fixture: la ruta sale del arbol: %q %v", rel, err)
+	{"symlink-commiteado-a-un-archivo-del-arbol", func(t *testing.T, root string) string {
+		const spec = ".hoom/specs/alias.md"
+		write(t, root, ".hoom/specs/x.md", "# Spec x\n\ntexto del spec real\n")
+		raSymlink(t, root, spec, "x.md")
+		git(t, root, "add", "-A")
+		git(t, root, "commit", "-q", "-m", "spec symlink a otro spec del arbol")
+		return spec
+	}},
+	{"submodulo-commiteado", func(t *testing.T, root string) string {
+		const spec = ".hoom/specs/x.md"
+		cmd := exec.Command("git", "rev-parse", "HEAD")
+		cmd.Dir = root
+		sha, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
 		}
-		return filepath.ToSlash(rel)
+		git(t, root, "update-index", "--add", "--cacheinfo", "160000,"+strings.TrimSpace(string(sha))+","+spec)
+		git(t, root, "commit", "-q", "-m", "spec que es un submodulo")
+		// como un submodulo sin inicializar: un directorio vacio
+		if err := os.MkdirAll(filepath.Join(root, spec), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return spec
 	}},
 }
 
-// CA-412: un spec que existe pero no es un archivo regular del arbol despues
-// de resolver symlinks (symlink commiteado o no a un archivo de afuera,
-// symlink a un directorio, ruta que sale con '..') hace que Evidence
-// devuelva 'el spec <ruta> no es un archivo del arbol'.
+// CA-412: un spec cuya entrada en HEAD no es un archivo regular (symlink
+// commiteado a un archivo de afuera, relativo o absoluto, a un directorio o
+// a otro spec del arbol; un submodulo) hace que Evidence devuelva 'el spec
+// <ruta> no es un archivo del arbol', sin leer su destino.
 func TestCA412_SpecQueNoEsArchivoDelArbolEsError(t *testing.T) {
 	for _, c := range raSpecsQueNoSonDelArbol {
 		t.Run(c.nombre, func(t *testing.T) {
 			root := raRepo(t, "")
 			spec := c.armar(t, root)
 			raCambio(t, root)
+			raLimpio(t, "CA-412", root)
 			ev, err, _ := raEvidenceConReloj(t, "CA-412", 60*time.Second, root, "main", spec, raTopeGrande)
 			if err == nil || !strings.Contains(err.Error(), raNoEsDelArbol(spec)) {
 				t.Fatalf("CA-412: Evidence devuelve %q: %v (spec leido: %q)", raNoEsDelArbol(spec), err, ev.Spec)
 			}
-			if bytes.Contains(ev.Spec, []byte("SECRETO-FUERA-DEL-ARBOL")) {
-				t.Fatalf("CA-412: el spec de afuera no se lee: %q", ev.Spec)
+			if bytes.Contains(ev.Spec, []byte("SECRETO-FUERA-DEL-ARBOL")) || bytes.Contains(ev.Spec, []byte("texto del spec real")) {
+				t.Fatalf("CA-412: el destino del spec no se lee: %q", ev.Spec)
 			}
 		})
 	}
@@ -581,6 +704,7 @@ func TestCA412_ReviewConSpecQueNoEsDelArbolNoLanzaPasadas(t *testing.T) {
 			root := raRepo(t, "")
 			spec := c.armar(t, root)
 			raCambio(t, root)
+			raLimpio(t, "CA-412", root)
 			cx := raInstalar(t, bin, "codex", "")
 
 			var out bytes.Buffer
@@ -602,19 +726,146 @@ func TestCA412_ReviewConSpecQueNoEsDelArbolNoLanzaPasadas(t *testing.T) {
 	}
 }
 
-// CA-412 (caso limite): un spec symlink a un archivo regular DENTRO del arbol
-// es un archivo del arbol despues de resolver symlinks: se lee.
-func TestCA412_SpecSymlinkDentroDelArbolSeLee(t *testing.T) {
+// raSpecsSinCommitear arma, cada uno en su repo, un spec que esta en el
+// arbol de trabajo pero NO en HEAD (bajo .hoom/, asi que tampoco ensucia el
+// arbol). Devuelve la ruta y lo que no puede aparecer en ningun lado.
+var raSpecsSinCommitear = []struct {
+	nombre string
+	armar  func(t *testing.T, root string) (spec, oculto string)
+}{
+	{"archivo-sin-commitear", func(t *testing.T, root string) (string, string) {
+		write(t, root, ".hoom/specs/x.md", "# Spec x\n\nSPEC-SIN-COMMITEAR-CA412\n")
+		return ".hoom/specs/x.md", "SPEC-SIN-COMMITEAR-CA412"
+	}},
+	{"symlink-sin-commitear-a-un-archivo-de-afuera", func(t *testing.T, root string) (string, string) {
+		raSymlink(t, root, ".hoom/specs/x.md", raFuera(t, "fuera.md", "# SECRETO-FUERA-DEL-ARBOL\n"))
+		return ".hoom/specs/x.md", "SECRETO-FUERA-DEL-ARBOL"
+	}},
+	{"symlink-sin-commitear-a-un-directorio-del-arbol", func(t *testing.T, root string) (string, string) {
+		write(t, root, "sub/a.go", "package sub\n\n// CONTENIDO-DE-SUB\n")
+		git(t, root, "add", "sub/a.go")
+		git(t, root, "commit", "-q", "-m", "sub")
+		raSymlink(t, root, ".hoom/specs/x.md", "../../sub")
+		return ".hoom/specs/x.md", ""
+	}},
+}
+
+// CA-412 (enmienda 4, "una edicion sin commitear del spec no entra"): un spec
+// que solo esta en el arbol de trabajo (un archivo, o un symlink a afuera o a
+// un directorio, sin commitear) no esta en HEAD: Evidence no falla, Spec es
+// nil y nada de su contenido se lee; la review sigue con 'Spec: <ruta> (no
+// existe en este arbol)' y sin bloque de spec (CA-334).
+func TestCA412_SpecSinCommitearNoEstaEnHEAD(t *testing.T) {
+	for _, c := range raSpecsSinCommitear {
+		t.Run(c.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root := raRepo(t, "")
+			raCambio(t, root)
+			spec, oculto := c.armar(t, root)
+			raLimpio(t, "CA-412", root)
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-412", 60*time.Second, root, "main", spec, raTopeGrande)
+			if err != nil || ev.Over {
+				t.Fatalf("CA-412: un spec que no esta en HEAD no es error: %v (Over %v)", err, ev.Over)
+			}
+			if ev.Spec != nil || ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) || len(ev.Diff) == 0 {
+				t.Fatalf("CA-412: sin el spec en HEAD, Spec nil y la evidencia es la del diff: spec %q, %d bytes vs diff %d", ev.Spec, ev.Bytes, len(ev.Diff))
+			}
+
+			cx := raInstalar(t, bin, "codex", "")
+			g := gitx.Snapshot(root, "main")
+			res, out := raRevisar(t, "CA-412", root, Options{Provider: "codex", Lens: "risk", Spec: spec})
+			if res.Status != "revisado" || cx.veces() != 1 {
+				t.Fatalf("CA-412: con un spec que no esta en HEAD la review sigue: %+v\n%s", res, out)
+			}
+			p := cx.pedido(t, 1)
+			raRevisarPedido(t, p, "risk", g, ev, spec, false, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+			if oculto != "" && (strings.Contains(p, oculto) || strings.Contains(out, oculto)) {
+				t.Fatalf("CA-412: lo que no esta en HEAD no aparece en el pedido ni en la salida: %q", oculto)
+			}
+		})
+	}
+}
+
+// CA-412 (enmienda 4): una edicion sin commitear de un spec que SI esta en
+// HEAD no entra: la evidencia y el pedido llevan el texto de HEAD, tambien
+// si el spec se borro del arbol de trabajo o se cambio por un symlink a
+// afuera. Nada de eso ensucia el arbol (esta bajo .hoom/).
+func TestCA412_EdicionSinCommitearDelSpecNoEntra(t *testing.T) {
+	const spec = ".hoom/specs/x.md"
+	const commiteado = "# Spec x\n\n- CA-1: la version commiteada del spec.\n"
+	casos := []struct {
+		nombre string
+		tocar  func(t *testing.T, root string) string // devuelve lo que no puede aparecer
+	}{
+		{"editado-sin-commitear", func(t *testing.T, root string) string {
+			write(t, root, spec, "# Spec x\n\n- CA-1: EDICION-SIN-COMMITEAR-DEL-SPEC.\n")
+			return "EDICION-SIN-COMMITEAR-DEL-SPEC"
+		}},
+		{"borrado-sin-commitear", func(t *testing.T, root string) string {
+			if err := os.Remove(filepath.Join(root, spec)); err != nil {
+				t.Fatal(err)
+			}
+			return ""
+		}},
+		{"cambiado-por-un-symlink-de-afuera-sin-commitear", func(t *testing.T, root string) string {
+			if err := os.Remove(filepath.Join(root, spec)); err != nil {
+				t.Fatal(err)
+			}
+			raSymlink(t, root, spec, raFuera(t, "fuera.md", "# SECRETO-FUERA-DEL-ARBOL\n"))
+			return "SECRETO-FUERA-DEL-ARBOL"
+		}},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root := raRepo(t, "")
+			raCambio(t, root)
+			write(t, root, spec, commiteado)
+			raCommit(t, root, "spec")
+			oculto := c.tocar(t, root)
+			raLimpio(t, "CA-412", root)
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-412", 60*time.Second, root, "main", spec, raTopeGrande)
+			if err != nil || string(ev.Spec) != commiteado {
+				t.Fatalf("CA-412: el spec se lee de HEAD, no del arbol de trabajo: %v %q", err, ev.Spec)
+			}
+			cx := raInstalar(t, bin, "codex", "")
+			g := gitx.Snapshot(root, "main")
+			res, out := raRevisar(t, "CA-412", root, Options{Provider: "codex", Lens: "risk", Spec: spec})
+			if res.Status != "revisado" || cx.veces() != 1 {
+				t.Fatalf("CA-412: la review corre con el spec de HEAD: %+v\n%s", res, out)
+			}
+			p := cx.pedido(t, 1)
+			raRevisarPedido(t, p, "risk", g, ev, spec, true, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+			if oculto != "" && strings.Contains(p, oculto) {
+				t.Fatalf("CA-412: la edicion sin commitear del spec no entra en el pedido: %q\n%s", oculto, p)
+			}
+		})
+	}
+}
+
+// CA-412 (caso limite): una ruta de spec que sale del arbol con '..' no es
+// una entrada de HEAD: Evidence no lee el archivo de afuera. O se niega con
+// 'el spec <ruta> no es un archivo del arbol', o sigue sin spec (Spec nil);
+// nunca otro error ni el contenido de afuera.
+func TestCA412_RutaQueSaleDelArbolNoSeLee(t *testing.T) {
 	root := raRepo(t, "")
 	raCambio(t, root)
-	write(t, root, ".hoom/specs/x.md", "# Spec x\n\ntexto del spec real\n")
-	raSymlink(t, root, ".hoom/specs/alias.md", "x.md")
-	ev, err := Evidence(root, "main", ".hoom/specs/alias.md", raTopeGrande)
-	if err != nil || string(ev.Spec) != "# Spec x\n\ntexto del spec real\n" {
-		t.Fatalf("CA-412: un symlink a un archivo del arbol se lee: %v %q", err, ev.Spec)
+	rel, err := filepath.Rel(root, raFuera(t, "fuera.md", "# SECRETO-FUERA-DEL-ARBOL\n"))
+	if err != nil || !strings.HasPrefix(rel, "..") {
+		t.Fatalf("CA-412: fixture: la ruta sale del arbol: %q %v", rel, err)
 	}
-	if ev.Bytes != len(ev.Diff)+len(ev.Spec) || ev.SHA256 != raSHA(ev.Diff, ev.Spec) {
-		t.Fatalf("CA-401: Bytes y SHA256 cierran con el spec leido: %d, %q", ev.Bytes, ev.SHA256)
+	spec := filepath.ToSlash(rel)
+	ev, err, _ := raEvidenceConReloj(t, "CA-412", 60*time.Second, root, "main", spec, raTopeGrande)
+	if bytes.Contains(ev.Spec, []byte("SECRETO-FUERA-DEL-ARBOL")) || bytes.Contains(ev.Diff, []byte("SECRETO-FUERA-DEL-ARBOL")) {
+		t.Fatalf("CA-412: el archivo de afuera no se lee: %q", ev.Spec)
+	}
+	if err != nil && !strings.Contains(err.Error(), raNoEsDelArbol(spec)) {
+		t.Fatalf("CA-412: una ruta que sale del arbol se niega con %q (o sigue sin spec): %v", raNoEsDelArbol(spec), err)
+	}
+	if err == nil && ev.Spec != nil {
+		t.Fatalf("CA-412: sin error, una ruta que sale del arbol no tiene spec: %q", ev.Spec)
 	}
 }
 
@@ -637,7 +888,7 @@ func raHijoEvidencia(root, spec string) {
 		}
 	}()
 	ev, err := Evidence(root, "main", spec, 1<<20)
-	r := map[string]any{"over": ev.Over, "bytes": ev.Bytes}
+	r := map[string]any{"over": ev.Over, "bytes": ev.Bytes, "spec_nil": ev.Spec == nil}
 	if err != nil {
 		r["err"] = err.Error()
 	}
@@ -645,10 +896,11 @@ func raHijoEvidencia(root, spec string) {
 	fmt.Println("RA-CA412 " + string(raw))
 }
 
-// CA-412: un spec symlink a /dev/zero (commiteado en la base o sin commitear)
-// hace que Evidence devuelva 'el spec <ruta> no es un archivo del arbol' SIN
-// LEERLO: vuelve enseguida y sin asignar memoria. Corre en un proceso hijo con
-// reloj de 60 s y un vigilante de 256 MiB.
+// CA-412: un spec symlink a /dev/zero nunca se lee: vuelve enseguida y sin
+// asignar memoria. Commiteado (su entrada en HEAD es un symlink), Evidence
+// devuelve 'el spec <ruta> no es un archivo del arbol'; sin commitear
+// (enmienda 4: no esta en HEAD), Evidence sigue sin spec. Corre en un
+// proceso hijo con reloj de 60 s y un vigilante de 256 MiB.
 func TestCA412_SpecSymlinkADevZeroNoSeLee(t *testing.T) {
 	if root := os.Getenv(raHijoDevZero); root != "" {
 		raHijoEvidencia(root, os.Getenv(raHijoDevZero+"_SPEC"))
@@ -671,6 +923,7 @@ func TestCA412_SpecSymlinkADevZeroNoSeLee(t *testing.T) {
 				git(t, root, "commit", "-q", "-m", "spec symlink a /dev/zero")
 			}
 			raCambio(t, root)
+			raLimpio(t, "CA-412", root)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -692,13 +945,18 @@ func TestCA412_SpecSymlinkADevZeroNoSeLee(t *testing.T) {
 				t.Fatalf("CA-412: el proceso hijo no informo el resultado:\n%s", salida)
 			}
 			var r struct {
-				Err string `json:"err"`
+				Err     string `json:"err"`
+				Over    bool   `json:"over"`
+				SpecNil bool   `json:"spec_nil"`
 			}
 			if err := json.Unmarshal([]byte(m[1]), &r); err != nil {
 				t.Fatalf("CA-412: resultado ilegible del hijo: %v %s", err, m[1])
 			}
-			if !strings.Contains(r.Err, raNoEsDelArbol(spec)) {
-				t.Fatalf("CA-412: Evidence devuelve %q con un spec symlink a /dev/zero, devolvio %s", raNoEsDelArbol(spec), m[1])
+			if commitear && !strings.Contains(r.Err, raNoEsDelArbol(spec)) {
+				t.Fatalf("CA-412: Evidence devuelve %q con un spec symlink a /dev/zero commiteado, devolvio %s", raNoEsDelArbol(spec), m[1])
+			}
+			if !commitear && (r.Err != "" || r.Over || !r.SpecNil) {
+				t.Fatalf("CA-412: un spec symlink a /dev/zero sin commitear no esta en HEAD: sin error, sin Over y sin spec; fue %s", m[1])
 			}
 		})
 	}
@@ -730,19 +988,21 @@ func TestCA412_SpecQueNoExisteLaReviewSigue(t *testing.T) {
 		"No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
 }
 
-// CA-412 (caso limite): un spec de 0 bytes existe: la linea Spec: sin la
-// nota, y su bloque va vacio (el marcador del spec seguido del del diff).
+// CA-412 (caso limite): un spec de 0 bytes (commiteado: enmienda 4) existe:
+// la linea Spec: sin la nota, y su bloque va vacio (el marcador del spec
+// seguido del del diff).
 func TestCA412_SpecVacioLlevaSuBloqueVacio(t *testing.T) {
 	const spec = ".hoom/specs/vacio.md"
 	bin := raPATH(t)
 	root := raRepo(t, "")
 	raCambio(t, root)
 	write(t, root, spec, "")
+	raCommit(t, root, "spec vacio")
 	cx := raInstalar(t, bin, "codex", "")
 
 	ev, err := Evidence(root, "main", spec, raTopeGrande)
-	if err != nil || ev.Over || len(ev.Spec) != 0 || ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
-		t.Fatalf("CA-412: un spec vacio existe y no suma bytes: %v, Over %v, spec %q, %d bytes", err, ev.Over, ev.Spec, ev.Bytes)
+	if err != nil || ev.Over || ev.Spec == nil || len(ev.Spec) != 0 || ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
+		t.Fatalf("CA-412: un spec vacio existe (Spec vacio, no nil) y no suma bytes: %v, Over %v, spec %q (nil %v), %d bytes", err, ev.Over, ev.Spec, ev.Spec == nil, ev.Bytes)
 	}
 	g := gitx.Snapshot(root, "main")
 	res, out := raRevisar(t, "CA-412", root, Options{Provider: "codex", Lens: "risk", Spec: spec})
@@ -759,16 +1019,21 @@ func TestCA412_SpecVacioLlevaSuBloqueVacio(t *testing.T) {
 
 // ---------------------------------------------------------------- CA-413
 
-// CA-413: con un tope de 1 KiB y un archivo no rastreado de 64 MiB, Evidence
-// vuelve enseguida con Over, Diff y Spec vacios, SHA256 vacio y Bytes entre
-// el tope y el tope + 64 KiB. Y deja de leer de verdad: mientras arma la
-// evidencia el proceso no asigna ni la cuarta parte del archivo.
-func TestCA413_NoRastreadoDe64MiBConTopeDe1KiB(t *testing.T) {
+// CA-413 (re-expresado por la enmienda 4: antes el archivo estaba sin
+// rastrear): con un tope de 1 KiB y un archivo de 64 MiB COMMITEADO en la
+// rama, Evidence vuelve enseguida con Over, Diff y Spec vacios, SHA256 vacio
+// y Bytes entre el tope y el tope + 64 KiB. Y deja de leer de verdad:
+// mientras arma la evidencia el proceso no asigna ni la cuarta parte del
+// archivo.
+func TestCA413_ArchivoCommiteadoDe64MiBConTopeDe1KiB(t *testing.T) {
 	root := raRepo(t, "")
 	linea := strings.Repeat("x", 63) + "\n"
+	raRama(t, root)
 	if err := os.WriteFile(filepath.Join(root, "enorme.txt"), bytes.Repeat([]byte(linea), (64<<20)/len(linea)), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	raCommit(t, root, "archivo de 64 MiB")
+	raLimpio(t, "CA-413", root)
 	ev, err, asignado := raEvidenceConReloj(t, "CA-413", 60*time.Second, root, "main", "", 1024)
 	if err != nil {
 		t.Fatalf("CA-413: Evidence: %v", err)
@@ -780,13 +1045,15 @@ func TestCA413_NoRastreadoDe64MiBConTopeDe1KiB(t *testing.T) {
 }
 
 // CA-413 (caso limite): el tope tambien corta la lectura del spec: un spec de
-// 32 MiB con tope de 1 KiB es Over, con lo leido acotado, sin leerlo entero.
+// 32 MiB (commiteado: se lee de HEAD) con tope de 1 KiB es Over, con lo
+// leido acotado, sin leerlo entero.
 func TestCA413_SpecEnormeConTopeDe1KiB(t *testing.T) {
 	root := raRepo(t, "")
 	raCambio(t, root)
 	const spec = ".hoom/specs/grande.md"
 	linea := "criterio de relleno de un spec enorme, sesenta y cuatro bytes\n"
 	write(t, root, spec, strings.Repeat(linea, (32<<20)/len(linea)))
+	raCommit(t, root, "spec enorme")
 	ev, err, asignado := raEvidenceConReloj(t, "CA-413", 60*time.Second, root, "main", spec, 1024)
 	if err != nil {
 		t.Fatalf("CA-413: Evidence: %v", err)
@@ -812,10 +1079,11 @@ func raGitRoto(t *testing.T, bin, real string, subcomandos ...string) {
 	}
 }
 
-// CA-414: si falla git merge-base (una base que no existe, un clon shallow
-// sin el merge-base), el listado de no rastreados (git ls-files) o git diff,
-// Evidence devuelve el error y `hoom review` no lanza ninguna pasada ni
-// escribe registro: no revisa en silencio otro parche.
+// CA-414 (enmienda 4: merge-base, `git status` o `git diff`): si falla git
+// merge-base (una base que no existe, un clon shallow sin el merge-base),
+// git status o git diff, Evidence devuelve el error y `hoom review` no lanza
+// ninguna pasada ni escribe registro: no revisa en silencio otro parche. Los
+// cambios estan commiteados: el arbol limpio no es lo que frena.
 func TestCA414_GitQueFallaEsErrorYNoHayPasadas(t *testing.T) {
 	real := raGitReal(t)
 	casos := []struct {
@@ -833,24 +1101,27 @@ func TestCA414_GitQueFallaEsErrorYNoHayPasadas(t *testing.T) {
 			write(t, root, "hoom.yaml", strings.Replace(string(raw), "base_branch: main\n", "base_branch: rama-que-no-existe\n", 1))
 			git(t, root, "commit", "-q", "-am", "base_branch inexistente")
 			raCambio(t, root)
+			raLimpio(t, "CA-414", root)
 			return root, "rama-que-no-existe"
 		}},
 		{"clon-shallow-sin-merge-base", func(t *testing.T, bin string) (string, string) {
 			clon := raClonShallow(t)
-			write(t, clon, "rama.go", "package app\n\nvar Rama = 3 // sin commitear\n")
+			write(t, clon, "rama.go", "package app\n\nvar Rama = 3 // commiteado en el clon\n")
+			raCommit(t, clon, "rama 3")
+			raLimpio(t, "CA-414", clon)
 			return clon, "main"
 		}},
-		{"ls-files-falla", func(t *testing.T, bin string) (string, string) {
+		{"status-falla", func(t *testing.T, bin string) (string, string) {
 			root := raRepo(t, "")
 			raCambio(t, root)
-			write(t, root, "nuevo.go", "package app\n\n// sin rastrear\n")
-			raGitRoto(t, bin, real, "ls-files")
+			raLimpio(t, "CA-414", root)
+			raGitRoto(t, bin, real, "status")
 			return root, "main"
 		}},
 		{"diff-falla", func(t *testing.T, bin string) (string, string) {
 			root := raRepo(t, "")
 			raCambio(t, root)
-			write(t, root, "nuevo.go", "package app\n\n// sin rastrear\n")
+			raLimpio(t, "CA-414", root)
 			raGitRoto(t, bin, real, "diff", "diff-index", "diff-files", "diff-tree")
 			return root, "main"
 		}},
@@ -880,16 +1151,17 @@ func TestCA414_GitQueFallaEsErrorYNoHayPasadas(t *testing.T) {
 
 // ---------------------------------------------------------------- CA-416
 //
-// Enmienda 3: si el cambio toca algun .gitignore (rastreado y modificado,
-// commiteado en la rama o no, borrado, o nuevo sin rastrear) y hay archivos
-// sin rastrear fuera de .hoom/, Evidence se niega sin armar la evidencia:
-// asi un cambio no destapa un secreto local (.env) para que viaje al
-// provider.
+// Enmienda 4: con el arbol de trabajo sucio fuera de .hoom/ (un rastreado
+// modificado, algo en el indice, un borrado, un sin rastrear no ignorado),
+// Evidence devuelve `la review revisa solo lo commiteado y hay cambios sin
+// commitear (<ruta>): commitealos antes de revisar` con la primera ruta, sin
+// armar la evidencia; `hoom review` no lanza ninguna pasada ni escribe
+// registro; y nada sin commitear aparece en la salida. Lo ignorado y lo que
+// esta bajo .hoom/ no cuentan. Re-expresa la regla del .gitignore de la
+// enmienda 3 y las guardas de los no rastreados raros (FIFO, symlink): todos
+// esos arboles son ahora arboles sucios.
 
-// raErrGitignore es el texto del contrato (CA-416).
-const raErrGitignore = "el cambio toca un .gitignore y hay archivos sin rastrear: commitealos o sacalos antes de revisar"
-
-// raSecreto es lo que guarda el .env local: no puede aparecer en ningun lado.
+// raSecreto es lo que guarda un .env local: no puede aparecer en ningun lado.
 const raSecreto = "API_KEY=SECRETO-DEL-ENV-QUE-NO-VIAJA-CA416"
 
 // raBaseConGitignore es raRepo con un .gitignore en la raiz que ignora .env y
@@ -905,175 +1177,444 @@ func raBaseConGitignore(t *testing.T) string {
 	return root
 }
 
-// raRamaGitignore abre la rama feature sobre la base con .gitignore.
+// raRamaGitignore abre la rama feature sobre la base con .gitignore y le
+// commitea un cambio de codigo (una lente).
 func raRamaGitignore(t *testing.T) string {
 	t.Helper()
 	root := raBaseConGitignore(t)
 	git(t, root, "checkout", "-q", "-b", "feature")
+	raCambio(t, root)
 	return root
 }
 
-// raSinSecretoEnHoom exige que ningun archivo bajo .hoom/ (registros, runs,
-// hallazgos) traiga el secreto.
-func raSinSecretoEnHoom(t *testing.T, ca, root string) {
+// raConFIFO crea un FIFO en p y, al terminar el test, lo destraba.
+func raConFIFO(t *testing.T, p string) {
 	t.Helper()
-	_ = filepath.Walk(filepath.Join(root, ".hoom"), func(p string, fi os.FileInfo, err error) error {
-		if err != nil || fi.IsDir() || !fi.Mode().IsRegular() {
-			return nil
-		}
-		if raw, _ := os.ReadFile(p); bytes.Contains(raw, []byte(raSecreto)) {
-			t.Fatalf("%s: el secreto del .env quedo en %s", ca, p)
-		}
-		return nil
-	})
+	mkfifo, err := exec.LookPath("mkfifo")
+	if err != nil {
+		t.Skip("sin mkfifo")
+	}
+	if out, err := exec.Command(mkfifo, p).CombinedOutput(); err != nil {
+		t.Fatalf("fixture: mkfifo: %v %s", err, out)
+	}
+	t.Cleanup(func() { raDestrabarFIFO(t, p) })
 }
 
-// raGitignoreTocadoConNoRastreados: cada caso toca un .gitignore y deja al
-// menos un archivo sin rastrear fuera de .hoom/ (casi siempre el secreto que
-// el cambio destapa), mas un cambio de codigo rastreado (una lente).
-var raGitignoreTocadoConNoRastreados = []struct {
+// raCasoSucio es un arbol con un cambio commiteado (una lente) y algo sin
+// commitear fuera de .hoom/. rutas son las que la negativa puede nombrar (la
+// primera que liste git; un directorio nuevo sin rastrear puede nombrarse
+// entero); oculto es lo que no puede aparecer en ningun lado ("" = nada).
+type raCasoSucio struct {
 	nombre string
-	armar  func(t *testing.T, root string)
-}{
-	// el caso que motivo la enmienda: la base ignora .env, la rama commitea un
-	// .gitignore sin esa linea y hay un .env local con un secreto
-	{"gitignore-commiteado-en-la-rama-destapa-el-env", func(t *testing.T, root string) {
+	armar  func(t *testing.T) (root string, rutas []string, oculto string)
+}
+
+var raCasosSucios = []raCasoSucio{
+	{"rastreado-modificado", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "app.go", "package app\n\n// SIN-COMMITEAR-416-MODIFICADO\n")
+		return root, []string{"app.go"}, "SIN-COMMITEAR-416-MODIFICADO"
+	}},
+	{"rastreado-modificado-y-en-el-indice", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "app.go", "package app\n\n// SIN-COMMITEAR-416-EN-EL-INDICE\n")
+		git(t, root, "add", "app.go")
+		return root, []string{"app.go"}, "SIN-COMMITEAR-416-EN-EL-INDICE"
+	}},
+	{"nuevo-en-el-indice", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "nuevo.go", "package app\n\n// SIN-COMMITEAR-416-NUEVO-EN-EL-INDICE\n")
+		git(t, root, "add", "nuevo.go")
+		return root, []string{"nuevo.go"}, "SIN-COMMITEAR-416-NUEVO-EN-EL-INDICE"
+	}},
+	{"rastreado-borrado", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "otro.go", "package app\n\n// OTRO-COMMITEADO\n")
+		raCommit(t, root, "otro.go")
+		if err := os.Remove(filepath.Join(root, "otro.go")); err != nil {
+			t.Fatal(err)
+		}
+		return root, []string{"otro.go"}, ""
+	}},
+	{"borrado-en-el-indice", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "otro.go", "package app\n\n// OTRO-COMMITEADO\n")
+		raCommit(t, root, "otro.go")
+		git(t, root, "rm", "-q", "otro.go")
+		return root, []string{"otro.go"}, ""
+	}},
+	{"sin-rastrear", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "nuevo.go", "package app\n\n// SIN-COMMITEAR-416-SIN-RASTREAR\n")
+		return root, []string{"nuevo.go"}, "SIN-COMMITEAR-416-SIN-RASTREAR"
+	}},
+	{"binario-sin-rastrear", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "datos.bin", "\x00\x01MARCA-BINARIA-SIN-COMMITEAR-416\x00\xff")
+		return root, []string{"datos.bin"}, "MARCA-BINARIA-SIN-COMMITEAR-416"
+	}},
+	{"nombre-no-ascii-sin-rastrear", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "piñata/ñandú.go", "package pinata\n\n// SIN-COMMITEAR-416-NO-ASCII\n")
+		return root, []string{"piñata/ñandú.go", "piñata"}, "SIN-COMMITEAR-416-NO-ASCII"
+	}},
+	{"directorio-nuevo-sin-rastrear", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "dir nuevo/a.go", "package dir\n\n// SIN-COMMITEAR-416-DIRECTORIO\n")
+		return root, []string{"dir nuevo/a.go", "dir nuevo"}, "SIN-COMMITEAR-416-DIRECTORIO"
+	}},
+	{"rastreado-cambiado-por-un-symlink-de-afuera", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		if err := os.Remove(filepath.Join(root, "app.go")); err != nil {
+			t.Fatal(err)
+		}
+		raSymlink(t, root, "app.go", raFuera(t, "fuera.go", "// SECRETO-DE-AFUERA-POR-SYMLINK-416\n"))
+		return root, []string{"app.go"}, "SECRETO-DE-AFUERA-POR-SYMLINK-416"
+	}},
+	// antes TestCA401_NoRastreadoSymlinkAUnArchivoDeAfueraNoSeLee
+	{"symlink-sin-rastrear-a-un-archivo-de-afuera", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		raSymlink(t, root, "enlace-afuera", raFuera(t, "fuera.txt", "SECRETO-FUERA-DEL-ARBOL-POR-SYMLINK\n"))
+		return root, []string{"enlace-afuera"}, "SECRETO-FUERA-DEL-ARBOL-POR-SYMLINK"
+	}},
+	// antes TestCA401_NoRastreadoSymlinkAUnFIFONoCuelga: un symlink sin
+	// rastrear a un FIFO (fuera del arbol o dentro, que git no lista) es un
+	// arbol sucio; la negativa vuelve enseguida, sin abrir el FIFO
+	{"symlink-sin-rastrear-a-un-fifo-de-afuera", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		fifo := filepath.Join(dir, "tuberia")
+		raConFIFO(t, fifo)
+		raSymlink(t, root, "enlace-a-fifo", fifo)
+		return root, []string{"enlace-a-fifo"}, ""
+	}},
+	{"symlink-sin-rastrear-a-un-fifo-del-arbol", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		raConFIFO(t, filepath.Join(root, "tuberia"))
+		raSymlink(t, root, "enlace-a-fifo", "tuberia")
+		return root, []string{"enlace-a-fifo"}, ""
+	}},
+	{"varios-sucios", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		raCambio(t, root)
+		write(t, root, "otro.go", "package app\n")
+		raCommit(t, root, "otro.go")
+		write(t, root, "app.go", "package app\n\n// SIN-COMMITEAR-416-VARIOS\n")
+		write(t, root, "zz-nuevo.go", "package app\n\n// SIN-COMMITEAR-416-VARIOS-NUEVO\n")
+		if err := os.Remove(filepath.Join(root, "otro.go")); err != nil {
+			t.Fatal(err)
+		}
+		return root, []string{"app.go", "otro.go", "zz-nuevo.go"}, "SIN-COMMITEAR-416-VARIOS"
+	}},
+	// los casos de la regla del .gitignore de la enmienda 3: el .env que el
+	// cambio destapa esta sin rastrear y no ignorado, asi que el arbol esta
+	// sucio y el secreto no sale nunca
+	{"env-que-la-rama-destapo-en-su-gitignore-commiteado", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		write(t, root, ".gitignore", "*.log\n")
 		git(t, root, "commit", "-q", "-am", "la rama saca .env del .gitignore")
 		write(t, root, ".env", raSecreto+"\n")
+		return root, []string{".env"}, raSecreto
 	}},
-	{"gitignore-rastreado-modificado-sin-commitear", func(t *testing.T, root string) {
+	{"gitignore-sin-commitear-que-destapa-el-env", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		write(t, root, ".gitignore", "*.log\n")
 		write(t, root, ".env", raSecreto+"\n")
+		return root, []string{".gitignore", ".env"}, raSecreto
 	}},
-	{"gitignore-borrado-en-un-commit-de-la-rama", func(t *testing.T, root string) {
+	{"gitignore-borrado-en-un-commit-de-la-rama", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		git(t, root, "rm", "-q", ".gitignore")
 		git(t, root, "commit", "-q", "-m", "la rama borra el .gitignore")
 		write(t, root, ".env", raSecreto+"\n")
+		return root, []string{".env"}, raSecreto
 	}},
-	{"gitignore-borrado-sin-commitear", func(t *testing.T, root string) {
+	{"gitignore-borrado-sin-commitear", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		if err := os.Remove(filepath.Join(root, ".gitignore")); err != nil {
 			t.Fatal(err)
 		}
 		write(t, root, ".env", raSecreto+"\n")
+		return root, []string{".gitignore", ".env"}, raSecreto
 	}},
-	{"gitignore-de-un-subdirectorio-rastreado-y-modificado", func(t *testing.T, root string) {
+	{"gitignore-de-un-subdirectorio-modificado-sin-commitear", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		write(t, root, "sub/.gitignore", "*.tmp\n!clave.log\n")
 		write(t, root, "sub/clave.log", raSecreto+"\n")
+		return root, []string{"sub/.gitignore", "sub/clave.log"}, raSecreto
 	}},
-	{"gitignore-nuevo-sin-rastrear-en-un-subdirectorio", func(t *testing.T, root string) {
+	{"gitignore-nuevo-sin-rastrear-en-un-subdirectorio", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		write(t, root, "otro/.gitignore", "!clave.log\n")
 		write(t, root, "otro/clave.log", raSecreto+"\n")
+		return root, []string{"otro/.gitignore", "otro/clave.log", "otro"}, raSecreto
 	}},
-	{"gitignore-nuevo-commiteado-en-un-subdirectorio", func(t *testing.T, root string) {
+	{"gitignore-nuevo-commiteado-en-un-subdirectorio", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		write(t, root, "otro/.gitignore", "!clave.log\n")
 		git(t, root, "add", "otro/.gitignore")
 		git(t, root, "commit", "-q", "-m", "la rama destapa otro/clave.log")
 		write(t, root, "otro/clave.log", raSecreto+"\n")
+		return root, []string{"otro/clave.log"}, raSecreto
 	}},
-	// la regla es cerrada: tocar el .gitignore (aunque sea para ignorar MAS)
-	// con cualquier no rastreado fuera de .hoom/ alcanza; el .env sigue
-	// ignorado y tampoco viaja
-	{"gitignore-que-ignora-mas-con-un-no-rastreado-cualquiera", func(t *testing.T, root string) {
+	{"gitignore-modificado-sin-commitear-sin-nada-sin-rastrear", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
+		write(t, root, ".gitignore", ".env\n*.log\n*.bak\n# LINEA-NUEVA-SIN-COMMITEAR-416\n")
+		write(t, root, ".env", raSecreto+"\n") // sigue ignorado
+		return root, []string{".gitignore"}, raSecreto
+	}},
+	{"gitignore-que-ignora-mas-con-un-no-rastreado-cualquiera", func(t *testing.T) (string, []string, string) {
+		root := raRamaGitignore(t)
 		write(t, root, ".gitignore", ".env\n*.log\n*.bak\n")
 		git(t, root, "commit", "-q", "-am", "la rama ignora *.bak")
+		write(t, root, ".env", raSecreto+"\n") // ignorado: no es el que ensucia
+		write(t, root, "nuevo.go", "package app\n\n// SIN-COMMITEAR-416-CUALQUIERA\n")
+		return root, []string{"nuevo.go"}, raSecreto
+	}},
+	// antes TestCA416_GitignoreNuevoQueSeIgnoraASiMismo: git no lista el
+	// .gitignore nuevo (se ignora a si mismo) pero si el .env que destapa
+	{"gitignore-nuevo-que-se-ignora-a-si-mismo-en-un-subdirectorio", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		write(t, root, ".gitignore", "*.env\n")
+		git(t, root, "add", "-A")
+		git(t, root, "commit", "-q", "-m", "la base ignora *.env")
+		raCambio(t, root)
+		write(t, root, "sub/.gitignore", ".gitignore\n!.env\n")
+		write(t, root, "sub/.env", raSecreto+"\n")
+		return root, []string{"sub/.env", "sub"}, raSecreto
+	}},
+	{"gitignore-nuevo-que-se-ignora-a-si-mismo-en-la-raiz-sobre-info-exclude", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		write(t, root, ".git/info/exclude", "*.env\n")
+		raCambio(t, root)
+		write(t, root, ".gitignore", ".gitignore\n!.env\n")
 		write(t, root, ".env", raSecreto+"\n")
-		write(t, root, "nuevo.go", "package app\n\n// no rastreado cualquiera\n")
+		return root, []string{".env"}, raSecreto
+	}},
+	// antes la variante con-un-nuevo-go-sin-rastrear de
+	// TestCA416_GitignoreEnUnDirectorioIgnoradoNoCuenta
+	{"no-rastreado-junto-a-directorios-ignorados", func(t *testing.T) (string, []string, string) {
+		root := raRepo(t, "")
+		write(t, root, ".gitignore", "node_modules/\n.venv/\n")
+		git(t, root, "add", "-A")
+		git(t, root, "commit", "-q", "-m", "la base ignora node_modules/ y .venv/")
+		raCambio(t, root)
+		write(t, root, "node_modules/x/.gitignore", "!*\n")
+		write(t, root, "node_modules/x/index.js", "// DENTRO-DE-NODE-MODULES\n")
+		write(t, root, ".venv/.gitignore", "*\n")
+		write(t, root, ".venv/bin/activate", "# DENTRO-DE-VENV\n")
+		write(t, root, "nuevo.go", "package app\n\n// SIN-COMMITEAR-416-JUNTO-A-IGNORADOS\n")
+		return root, []string{"nuevo.go"}, "SIN-COMMITEAR-416-JUNTO-A-IGNORADOS"
 	}},
 }
 
-// CA-416: con un .gitignore tocado por el cambio y un archivo sin rastrear
-// fuera de .hoom/, Evidence devuelve el error del contrato sin armar la
-// evidencia: ni diff, ni spec, ni sha256, ni el secreto.
-func TestCA416_GitignoreTocadoConNoRastreadosEsError(t *testing.T) {
-	for _, c := range raGitignoreTocadoConNoRastreados {
-		t.Run(c.nombre, func(t *testing.T) {
-			root := raRamaGitignore(t)
-			c.armar(t, root)
-			raCambio(t, root)
-			write(t, root, ".hoom/specs/x.md", "# Spec x\n")
-
-			ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", ".hoom/specs/x.md", raTopeGrande)
-			if err == nil || !strings.Contains(err.Error(), raErrGitignore) {
-				t.Fatalf("CA-416: Evidence devuelve %q: %v (evidencia de %d bytes)\n%s", raErrGitignore, err, ev.Bytes, ev.Diff)
-			}
-			if len(ev.Diff) != 0 || len(ev.Spec) != 0 || ev.SHA256 != "" {
-				t.Fatalf("CA-416: sin armar la evidencia: diff %d bytes, spec %d bytes, sha256 %q", len(ev.Diff), len(ev.Spec), ev.SHA256)
-			}
-			if strings.Contains(err.Error(), raSecreto) {
-				t.Fatalf("CA-416: el error no trae el secreto: %v", err)
-			}
-		})
-	}
-}
-
-// CA-416: en esos casos `hoom review` no lanza ninguna pasada ni escribe
-// registro, dice por que, y el secreto no aparece en la salida, en el error
-// ni en nada de .hoom/: nunca llega al provider.
-func TestCA416_ReviewConGitignoreTocadoYNoRastreadosNoLanzaPasadas(t *testing.T) {
-	for _, c := range raGitignoreTocadoConNoRastreados {
+// CA-416: con el arbol sucio fuera de .hoom/ (cada forma: rastreado
+// modificado, en el indice, borrado, sin rastrear no ignorado, un .env que la
+// rama destapo, un symlink a un FIFO...), Evidence devuelve el error del
+// contrato con la primera ruta, enseguida y sin armar la evidencia; `hoom
+// review` no lanza ninguna pasada, no escribe registro, no sale con 0, dice
+// por que, y nada sin commitear (ni el secreto del .env, ni lo que hay del
+// otro lado de un symlink) aparece en la salida, en el error ni en .hoom/.
+func TestCA416_ArbolSucioEsErrorYLaReviewNoLanzaPasadas(t *testing.T) {
+	for _, c := range raCasosSucios {
 		t.Run(c.nombre, func(t *testing.T) {
 			bin := raPATH(t)
-			root := raRamaGitignore(t)
-			c.armar(t, root)
-			raCambio(t, root)
-			cx := raInstalar(t, bin, "codex", "")
+			root, rutas, oculto := c.armar(t)
+			if len(raSuciedad(t, root)) == 0 {
+				t.Fatalf("CA-416: fixture: el arbol esta sucio fuera de .hoom/")
+			}
 
-			var out bytes.Buffer
-			res, err := Run(root, "main", Options{Provider: "codex", Lens: "risk"}, &out)
+			ev, err, _ := raEvidenceConReloj(t, "CA-416", 20*time.Second, root, "main", "", raTopeGrande)
+			if err == nil {
+				t.Fatalf("CA-416: Evidence devuelve %q con una de %q; armo una evidencia de %d bytes:\n%s", raErrSucio("<ruta>"), rutas, ev.Bytes, ev.Diff)
+			}
+			if ruta, ok := raRutaSucia(err.Error()); !ok || !raRutaAceptada(ruta, rutas) {
+				t.Fatalf("CA-416: Evidence devuelve %q con la primera ruta sucia (una de %q): %v", raErrSucio("<ruta>"), rutas, err)
+			}
+			if len(ev.Diff) != 0 || len(ev.Spec) != 0 || ev.SHA256 != "" || ev.Over {
+				t.Fatalf("CA-416: sin armar la evidencia: diff %d bytes, spec %d bytes, sha256 %q, Over %v", len(ev.Diff), len(ev.Spec), ev.SHA256, ev.Over)
+			}
+			if oculto != "" && strings.Contains(err.Error(), oculto) {
+				t.Fatalf("CA-416: el error no trae nada sin commitear (%q): %v", oculto, err)
+			}
+
+			cx := raInstalar(t, bin, "codex", "")
+			res, rerr, out := raRunConReloj(t, "CA-416", 20*time.Second, root, Options{Provider: "codex", Lens: "risk"})
+			msg := out
+			if rerr != nil {
+				msg += "\n" + rerr.Error()
+			}
 			if cx.veces() != 0 || len(res.Passes) != 0 || res.Status == "revisado" {
-				t.Fatalf("CA-416: no se lanza ninguna pasada (codex %d): %+v %v\n%s", cx.veces(), res, err, out.String())
+				t.Fatalf("CA-416: con el arbol sucio no se lanza ninguna pasada (codex %d): %+v\n%s", cx.veces(), res, msg)
+			}
+			if rerr == nil && res.ExitCode == 0 {
+				t.Fatalf("CA-416: la negativa por arbol sucio no sale con 0: %+v\n%s", res, msg)
 			}
 			if recs, _ := Records(root); len(recs) != 0 {
 				t.Fatalf("CA-416: sin pasadas no hay registro: %+v", recs)
 			}
-			msg := out.String()
-			if err != nil {
-				msg += "\n" + err.Error()
+			if ruta, ok := raRutaSucia(msg); !ok || !raRutaAceptada(ruta, rutas) {
+				t.Fatalf("CA-416: la review dice %q con la primera ruta sucia (una de %q):\n%s", raErrSucio("<ruta>"), rutas, msg)
 			}
-			if !strings.Contains(msg, raErrGitignore) {
-				t.Fatalf("CA-416: la review dice %q: %v\n%s", raErrGitignore, err, out.String())
+			if oculto != "" && strings.Contains(msg, oculto) {
+				t.Fatalf("CA-416: nada sin commitear aparece en la salida ni en el error (%q):\n%s", oculto, msg)
 			}
-			if strings.Contains(msg, raSecreto) {
-				t.Fatalf("CA-416: el secreto no aparece en la salida ni en el error:\n%s", msg)
-			}
-			raSinSecretoEnHoom(t, "CA-416", root)
+			raSinTextoEnHoom(t, "CA-416", root, oculto)
 		})
 	}
 }
 
-// CA-416 (control): el cambio toca el .gitignore pero no hay nada sin
-// rastrear fuera de .hoom/ (lo que el .gitignore ignora no esta sin rastrear,
-// y un no rastreado bajo .hoom/ no cuenta): la evidencia se arma como
-// siempre y trae el cambio del .gitignore. Commiteado en la rama o sin
-// commitear.
-func TestCA416_GitignoreTocadoSinNoRastreadosArmaLaEvidencia(t *testing.T) {
-	for _, commitear := range []bool{true, false} {
-		nombre := "sin-commitear"
-		if commitear {
-			nombre = "commiteado-en-la-rama"
+// CA-416 (control): con cambios SOLO bajo .hoom/ (un rastreado modificado, un
+// sin rastrear, uno en el indice, un borrado, tambien en .hoom/agents/) o en
+// archivos ignorados (por el .gitignore de la base, dentro de un directorio
+// ignorado, por .git/info/exclude), el arbol no esta sucio: la evidencia se
+// arma como siempre, con lo commiteado y nada de eso; la review corre y
+// nada de eso llega al provider.
+func TestCA416_CambiosSoloEnHoomOIgnoradosArmanLaEvidencia(t *testing.T) {
+	bin := raPATH(t)
+	root := raRepo(t, "")
+	write(t, root, ".gitignore", ".env\nbuild/\nnode_modules/\n")
+	write(t, root, ".hoom/specs/x.md", "# Spec x\n\nversion commiteada\n")
+	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\ncontrato commiteado\n")
+	write(t, root, ".hoom/borrar.md", "se borra sin commitear\n")
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "base")
+	raCambio(t, root)
+	// bajo .hoom/
+	write(t, root, ".hoom/specs/x.md", "# Spec x\n\nEDICION-SIN-COMMITEAR-DEL-SPEC\n")
+	write(t, root, ".hoom/notas.txt", "NOTA-HOOM-SIN-COMMITEAR\n")
+	write(t, root, ".hoom/items/y.yaml", "titulo: ITEM-EN-EL-INDICE\n")
+	git(t, root, "add", ".hoom/items/y.yaml")
+	if err := os.Remove(filepath.Join(root, ".hoom", "borrar.md")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\nCONTRATO-SIN-COMMITEAR\n")
+	write(t, root, ".hoom/agents/99-nuevo.md", "# Nuevo\n\nAGENTE-SIN-RASTREAR\n")
+	// ignorado
+	write(t, root, ".env", raSecreto+"\n")
+	write(t, root, "build/salida.bin", "\x00IGNORADO-EN-BUILD\x00")
+	write(t, root, "node_modules/x/.gitignore", "!*\n")
+	write(t, root, "node_modules/x/index.js", "// DENTRO-DE-NODE-MODULES\n")
+	write(t, root, ".git/info/exclude", "*.local\n")
+	write(t, root, "notas.local", "EXCLUIDO-POR-INFO-EXCLUDE\n")
+	if s := raSuciedad(t, root); len(s) != 0 {
+		t.Fatalf("CA-416: fixture: git no ve nada sin commitear fuera de .hoom/: %q", s)
+	}
+
+	ocultos := []string{"EDICION-SIN-COMMITEAR-DEL-SPEC", "NOTA-HOOM-SIN-COMMITEAR", "ITEM-EN-EL-INDICE", "CONTRATO-SIN-COMMITEAR",
+		"AGENTE-SIN-RASTREAR", raSecreto, "IGNORADO-EN-BUILD", "DENTRO-DE-NODE-MODULES", "EXCLUIDO-POR-INFO-EXCLUDE"}
+	ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", ".hoom/specs/x.md", raTopeGrande)
+	if err != nil || ev.Over {
+		t.Fatalf("CA-416: con cambios solo en .hoom/ o ignorados la evidencia se arma como siempre: %v (Over %v)", err, ev.Over)
+	}
+	diff := string(ev.Diff)
+	if !strings.Contains(diff, "+func Nuevo() {}") {
+		t.Fatalf("CA-416: la evidencia trae el cambio commiteado:\n%s", diff)
+	}
+	if string(ev.Spec) != "# Spec x\n\nversion commiteada\n" {
+		t.Fatalf("CA-412: el spec es el de HEAD, no la edicion sin commitear: %q", ev.Spec)
+	}
+	for _, o := range ocultos {
+		if strings.Contains(diff, o) || strings.Contains(string(ev.Spec), o) {
+			t.Fatalf("CA-416: nada sin commitear ni ignorado va en la evidencia: %q\n%s", o, diff)
 		}
-		t.Run(nombre, func(t *testing.T) {
+	}
+	if ev.Bytes != len(ev.Diff)+len(ev.Spec) || ev.SHA256 != raSHA(ev.Diff, ev.Spec) {
+		t.Fatalf("CA-401: Bytes y SHA256 cierran: %d, %q", ev.Bytes, ev.SHA256)
+	}
+
+	cx := raInstalar(t, bin, "codex", "")
+	res, out := raRevisar(t, "CA-416", root, Options{Provider: "codex", Lens: "risk", Spec: ".hoom/specs/x.md"})
+	if res.Status != "revisado" || cx.veces() != 1 || res.EvidenceSHA256 != ev.SHA256 {
+		t.Fatalf("CA-416: la review corre como siempre: codex %d, %+v\n%s", cx.veces(), res, out)
+	}
+	p := cx.pedido(t, 1)
+	for _, o := range ocultos {
+		if strings.Contains(p, o) || strings.Contains(out, o) {
+			t.Fatalf("CA-416: %q no llega al provider ni a la salida", o)
+		}
+	}
+}
+
+// CA-416 (control, re-expresa TestCA416_GitignoreTocadoSinNoRastreados y
+// TestCA416_NoRastreadosSinGitignoreTocado de la enmienda 3): un .gitignore
+// que la rama commitea (tambien uno que solo cambio la base despues de la
+// rama, o archivos que se llaman parecido) es parte del cambio commiteado,
+// y lo que ese .gitignore ignora no ensucia el arbol ni viaja: la evidencia
+// trae el .gitignore y el codigo commiteados, sin el .env ni lo ignorado.
+func TestCA416_GitignoreCommiteadoYLoIgnoradoNoFrenanLaEvidencia(t *testing.T) {
+	casos := []struct {
+		nombre    string
+		armar     func(t *testing.T, root string)
+		gitignore bool // la evidencia trae el cambio del .gitignore de la raiz
+	}{
+		{"la-rama-commitea-su-gitignore", func(t *testing.T, root string) {
+			write(t, root, ".gitignore", ".env\n*.log\n*.bak\n# LINEA-NUEVA-DEL-GITIGNORE\n")
+			git(t, root, "commit", "-q", "-am", "la rama ignora *.bak")
+		}, true},
+		{"la-rama-no-toca-el-gitignore", func(t *testing.T, root string) {
+			write(t, root, "rama.go", "package app\n\nvar EnLaRama = true\n")
+			git(t, root, "add", "-A")
+			git(t, root, "commit", "-q", "-m", "rama")
+		}, false},
+		{"solo-la-base-toco-el-gitignore-despues-de-la-rama", func(t *testing.T, root string) {
+			git(t, root, "checkout", "-q", "main")
+			write(t, root, ".gitignore", ".env\n*.log\n*.bak\n")
+			git(t, root, "commit", "-q", "-am", "main ignora *.bak")
+			git(t, root, "checkout", "-q", "feature")
+		}, false},
+		{"archivos-que-no-son-un-gitignore", func(t *testing.T, root string) {
+			write(t, root, ".gitignore.bak", "*.log\n")
+			write(t, root, "docs/plantilla.gitignore", "*.log\n")
+			git(t, root, "add", "-A")
+			git(t, root, "commit", "-q", "-m", "archivos con gitignore en el nombre")
+		}, false},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
 			bin := raPATH(t)
 			root := raRamaGitignore(t)
-			write(t, root, ".gitignore", ".env\n*.log\n*.bak\n# LINEA-NUEVA-DEL-GITIGNORE\n")
-			if commitear {
-				git(t, root, "commit", "-q", "-am", "la rama ignora *.bak")
+			c.armar(t, root)
+			write(t, root, "nuevo.go", "package app\n\n// NUEVO-COMMITEADO-QUE-VA\n")
+			write(t, root, ".hoom/specs/x.md", "# Spec x\n")
+			raCommit(t, root, "nuevo.go y el spec")
+			write(t, root, ".env", raSecreto+"\n")               // ignorado por la base y por la rama
+			write(t, root, "sub/cache.tmp", "IGNORADO-EN-SUB\n") // ignorado por sub/.gitignore
+			if c.gitignore {
+				write(t, root, "copia.bak", "IGNORADO-POR-LA-RAMA\n") // ignorado por la linea nueva
 			}
-			raCambio(t, root)
-			write(t, root, ".env", raSecreto+"\n")                // ignorado por la base y por la rama
-			write(t, root, "copia.bak", "IGNORADO-POR-LA-RAMA\n") // ignorado por la linea nueva
-			write(t, root, "sub/cache.tmp", "IGNORADO-EN-SUB\n")  // ignorado por sub/.gitignore
-			write(t, root, ".hoom/specs/x.md", "# Spec x\n")      // sin rastrear, pero bajo .hoom/
+			raLimpio(t, "CA-416", root)
 
 			ev, err := Evidence(root, "main", ".hoom/specs/x.md", raTopeGrande)
 			if err != nil || ev.Over {
-				t.Fatalf("CA-416: sin no rastreados fuera de .hoom/ la evidencia se arma como siempre: %v (Over %v)", err, ev.Over)
+				t.Fatalf("CA-416: con lo commiteado y lo ignorado la evidencia se arma como siempre: %v (Over %v)", err, ev.Over)
 			}
 			diff := string(ev.Diff)
-			if !strings.Contains(diff, "diff --git a/.gitignore b/.gitignore") || !strings.Contains(diff, "+# LINEA-NUEVA-DEL-GITIGNORE") ||
-				!strings.Contains(diff, "+func Nuevo() {}") {
-				t.Fatalf("CA-416: la evidencia trae el cambio del .gitignore y el del codigo:\n%s", diff)
+			if !strings.Contains(diff, "+func Nuevo() {}") || !strings.Contains(diff, "+// NUEVO-COMMITEADO-QUE-VA") {
+				t.Fatalf("CA-416: la evidencia trae el codigo commiteado:\n%s", diff)
+			}
+			tieneGI := strings.Contains(diff, "diff --git a/.gitignore b/.gitignore")
+			if c.gitignore && (!tieneGI || !strings.Contains(diff, "+# LINEA-NUEVA-DEL-GITIGNORE")) {
+				t.Fatalf("CA-416: la evidencia trae el cambio commiteado del .gitignore:\n%s", diff)
+			}
+			if !c.gitignore && tieneGI {
+				t.Fatalf("CA-416: el .gitignore no es parte de este cambio:\n%s", diff)
 			}
 			for _, nunca := range []string{raSecreto, "IGNORADO-POR-LA-RAMA", "IGNORADO-EN-SUB"} {
 				if strings.Contains(diff, nunca) {
@@ -1096,54 +1637,62 @@ func TestCA416_GitignoreTocadoSinNoRastreadosArmaLaEvidencia(t *testing.T) {
 	}
 }
 
-// CA-416 (control): hay archivos sin rastrear pero el cambio no toca ningun
-// .gitignore: la evidencia se arma como siempre, con los no rastreados como
-// archivos nuevos y sin lo ignorado. Tampoco cuenta un .gitignore que solo
-// cambio la BASE despues de abrir la rama (el cambio es contra el
-// merge-base), ni un archivo que se llama parecido sin ser un .gitignore.
-func TestCA416_NoRastreadosSinGitignoreTocadoArmaLaEvidencia(t *testing.T) {
-	casos := []struct {
-		nombre string
-		armar  func(t *testing.T, root string)
-	}{
-		{"la-rama-no-toca-el-gitignore", func(t *testing.T, root string) {
-			write(t, root, "rama.go", "package app\n\nvar EnLaRama = true\n")
-			git(t, root, "add", "-A")
-			git(t, root, "commit", "-q", "-m", "rama")
-		}},
-		{"solo-la-base-toco-el-gitignore-despues-de-la-rama", func(t *testing.T, root string) {
-			git(t, root, "checkout", "-q", "main")
-			write(t, root, ".gitignore", ".env\n*.log\n*.bak\n")
-			git(t, root, "commit", "-q", "-am", "main ignora *.bak")
-			git(t, root, "checkout", "-q", "feature")
-		}},
-		{"archivos-que-no-son-un-gitignore", func(t *testing.T, root string) {
-			write(t, root, ".gitignore.bak", "*.log\n")
-			write(t, root, "docs/plantilla.gitignore", "*.log\n")
-			git(t, root, "add", "-A")
-			git(t, root, "commit", "-q", "-m", "archivos con gitignore en el nombre")
-		}},
+// CA-416 (control, re-expresa la variante sin-otro-no-rastreado de
+// TestCA416_GitignoreEnUnDirectorioIgnoradoNoCuenta): un .gitignore dentro
+// de un directorio que la base ignora (node_modules/x/.gitignore, el
+// .venv/.gitignore que deja virtualenv) no destapa nada: git no entra en un
+// directorio ignorado. Sin nada mas sin commitear, el arbol esta limpio y la
+// evidencia se arma sin nada de esos directorios. (Con un nuevo.go sin
+// rastrear al lado, el arbol esta sucio: raCasosSucios.)
+func TestCA416_GitignoreEnUnDirectorioIgnoradoNoCuenta(t *testing.T) {
+	root := raRepo(t, "")
+	write(t, root, ".gitignore", "node_modules/\n.venv/\n")
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "la base ignora node_modules/ y .venv/")
+	raCambio(t, root)
+	write(t, root, "node_modules/x/.gitignore", "!*\n")
+	write(t, root, "node_modules/x/index.js", "// DENTRO-DE-NODE-MODULES\n")
+	write(t, root, ".venv/.gitignore", "*\n")
+	write(t, root, ".venv/bin/activate", "# DENTRO-DE-VENV\n")
+	if s := raSuciedad(t, root); len(s) != 0 {
+		t.Fatalf("CA-416: fixture: lo de los directorios ignorados no esta sin rastrear: %q", s)
 	}
-	for _, c := range casos {
-		t.Run(c.nombre, func(t *testing.T) {
-			root := raRamaGitignore(t)
-			c.armar(t, root)
-			raCambio(t, root)
-			write(t, root, ".env", raSecreto+"\n")
-			write(t, root, "nuevo.go", "package app\n\n// NO-RASTREADO-QUE-VA\n")
 
-			ev, err := Evidence(root, "main", "", raTopeGrande)
-			if err != nil || ev.Over {
-				t.Fatalf("CA-416: sin un .gitignore tocado por el cambio, los no rastreados no frenan la evidencia: %v (Over %v)", err, ev.Over)
-			}
-			diff := string(ev.Diff)
-			if !strings.Contains(diff, "+// NO-RASTREADO-QUE-VA") || !strings.Contains(diff, "+func Nuevo() {}") {
-				t.Fatalf("CA-416: la evidencia trae el no rastreado y el cambio de codigo:\n%s", diff)
-			}
-			if strings.Contains(diff, raSecreto) || strings.Contains(diff, "diff --git a/.gitignore b/.gitignore") {
-				t.Fatalf("CA-416: sin el .gitignore tocado, el .env sigue ignorado y el .gitignore no es parte del cambio:\n%s", diff)
-			}
-		})
+	ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", "", raTopeGrande)
+	if err != nil || ev.Over {
+		t.Fatalf("CA-416: un .gitignore dentro de un directorio ignorado no ensucia el arbol: la evidencia se arma: %v (Over %v)", err, ev.Over)
+	}
+	diff := string(ev.Diff)
+	if !strings.Contains(diff, "+func Nuevo() {}") {
+		t.Fatalf("CA-416: la evidencia trae el cambio de codigo:\n%s", diff)
+	}
+	for _, nunca := range []string{"node_modules", ".venv", "DENTRO-DE-"} {
+		if strings.Contains(diff, nunca) {
+			t.Fatalf("CA-416: nada de los directorios ignorados va en la evidencia: %q\n%s", nunca, diff)
+		}
+	}
+	if ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
+		t.Fatalf("CA-401: Bytes y SHA256 cierran: %d vs %d, %q", ev.Bytes, len(ev.Diff), ev.SHA256)
+	}
+}
+
+// ---------------------------------------------------------------- FIFO y avisos de git
+
+// raDestrabarFIFO abre el FIFO para escribir y lo cierra: quien este colgado
+// leyendolo (Evidence o un git suyo) recibe EOF y sigue. Si el test fallo,
+// insiste un rato, por si el lector lo vuelve a abrir.
+func raDestrabarFIFO(t *testing.T, fifo string) {
+	veces := 1
+	if t.Failed() {
+		veces = 40
+	}
+	for i := 0; i < veces; i++ {
+		if f, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+			f.Close()
+		}
+		if veces > 1 {
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
 }
 
@@ -1166,282 +1715,40 @@ func raNoRastreados(t *testing.T, root string) []string {
 	return lista
 }
 
-// CA-416 (un .gitignore nuevo sin rastrear que se ignora a si mismo): el
-// .gitignore que el cambio agrega trae la linea '.gitignore', asi que git no
-// lo lista entre los no rastreados; pero git lo LEE igual, y su '!.env'
-// destapa un .env que la base ignora. Sigue siendo un .gitignore nuevo sin
-// rastrear que el cambio toca: con el .env destapado sin rastrear, Evidence
-// devuelve el error del contrato sin armar la evidencia, y `hoom review` no
-// lanza ninguna pasada ni escribe registro; el secreto no aparece en ningun
-// lado. En un subdirectorio (la base ignora *.env en su .gitignore) y en la
-// raiz (la base lo ignora en .git/info/exclude, que un .gitignore pisa).
-func TestCA416_GitignoreNuevoQueSeIgnoraASiMismo(t *testing.T) {
-	casos := []struct {
-		nombre, gitignore, env string
-		armar                  func(t *testing.T) string
-	}{
-		{"en-un-subdirectorio", "sub/.gitignore", "sub/.env", func(t *testing.T) string {
-			root := raRepo(t, "")
-			write(t, root, ".gitignore", "*.env\n")
-			git(t, root, "add", "-A")
-			git(t, root, "commit", "-q", "-m", "la base ignora *.env")
-			git(t, root, "checkout", "-q", "-b", "feature")
-			write(t, root, "sub/.gitignore", ".gitignore\n!.env\n")
-			write(t, root, "sub/.env", raSecreto+"\n")
-			return root
-		}},
-		{"en-la-raiz-sobre-info-exclude", ".gitignore", ".env", func(t *testing.T) string {
-			root := raRepo(t, "")
-			write(t, root, ".git/info/exclude", "*.env\n")
-			git(t, root, "checkout", "-q", "-b", "feature")
-			write(t, root, ".gitignore", ".gitignore\n!.env\n")
-			write(t, root, ".env", raSecreto+"\n")
-			return root
-		}},
-	}
-	for _, c := range casos {
-		t.Run(c.nombre, func(t *testing.T) {
-			bin := raPATH(t)
-			root := c.armar(t)
-			raCambio(t, root)
-			lista := raNoRastreados(t, root)
-			if raTiene(lista, c.gitignore) || !raTiene(lista, c.env) {
-				t.Fatalf("CA-416: fixture: git no lista %s (se ignora a si mismo) y si el %s que destapa: %v", c.gitignore, c.env, lista)
-			}
-
-			ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", "", raTopeGrande)
-			if err == nil || !strings.Contains(err.Error(), raErrGitignore) {
-				t.Fatalf("CA-416: un %s nuevo que se ignora a si mismo es un .gitignore tocado: Evidence devuelve %q: %v (evidencia de %d bytes, con el secreto adentro: %v)",
-					c.gitignore, raErrGitignore, err, ev.Bytes, bytes.Contains(ev.Diff, []byte(raSecreto)))
-			}
-			if len(ev.Diff) != 0 || len(ev.Spec) != 0 || ev.SHA256 != "" || strings.Contains(err.Error(), raSecreto) {
-				t.Fatalf("CA-416: sin armar la evidencia ni nombrar el secreto: diff %d bytes, sha256 %q, error %v", len(ev.Diff), ev.SHA256, err)
-			}
-
-			cx := raInstalar(t, bin, "codex", "")
-			var out bytes.Buffer
-			res, rerr := Run(root, "main", Options{Provider: "codex", Lens: "risk"}, &out)
-			msg := out.String()
-			if rerr != nil {
-				msg += "\n" + rerr.Error()
-			}
-			if cx.veces() != 0 || len(res.Passes) != 0 || res.Status == "revisado" {
-				t.Fatalf("CA-416: no se lanza ninguna pasada (codex %d): %+v\n%s", cx.veces(), res, msg)
-			}
-			if recs, _ := Records(root); len(recs) != 0 {
-				t.Fatalf("CA-416: sin pasadas no hay registro: %+v", recs)
-			}
-			if !strings.Contains(msg, raErrGitignore) || strings.Contains(msg, raSecreto) {
-				t.Fatalf("CA-416: la review dice %q y no dice el secreto:\n%s", raErrGitignore, msg)
-			}
-			raSinSecretoEnHoom(t, "CA-416", root)
-		})
-	}
-}
-
-// CA-416 (control): un .gitignore dentro de un directorio que la base ignora
-// (node_modules/x/.gitignore, o el .venv/.gitignore que deja virtualenv) no
-// es un .gitignore que el cambio toque: git no entra en un directorio
-// ignorado, asi que no lo lee ni destapa nada con el. Sin ningun otro no
-// rastreado, la evidencia se arma como siempre; con un nuevo.go sin
-// rastrear, tambien, con nuevo.go adentro y nada de los directorios
-// ignorados.
-func TestCA416_GitignoreEnUnDirectorioIgnoradoNoCuenta(t *testing.T) {
-	for _, conNuevo := range []bool{false, true} {
-		nombre := "sin-otro-no-rastreado"
-		if conNuevo {
-			nombre = "con-un-nuevo-go-sin-rastrear"
-		}
-		t.Run(nombre, func(t *testing.T) {
-			root := raRepo(t, "")
-			write(t, root, ".gitignore", "node_modules/\n.venv/\n")
-			git(t, root, "add", "-A")
-			git(t, root, "commit", "-q", "-m", "la base ignora node_modules/ y .venv/")
-			git(t, root, "checkout", "-q", "-b", "feature")
-			raCambio(t, root)
-			write(t, root, "node_modules/x/.gitignore", "!*\n")
-			write(t, root, "node_modules/x/index.js", "// DENTRO-DE-NODE-MODULES\n")
-			write(t, root, ".venv/.gitignore", "*\n")
-			write(t, root, ".venv/bin/activate", "# DENTRO-DE-VENV\n")
-			quiero := ""
-			if conNuevo {
-				write(t, root, "nuevo.go", "package app\n\n// NO-RASTREADO-QUE-VA\n")
-				quiero = "nuevo.go"
-			}
-			if lista := strings.Join(raNoRastreados(t, root), ","); lista != quiero {
-				t.Fatalf("CA-416: fixture: lo de los directorios ignorados no esta sin rastrear: no rastreados %q, quiero %q", lista, quiero)
-			}
-
-			ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", "", raTopeGrande)
-			if err != nil || ev.Over {
-				t.Fatalf("CA-416: un .gitignore dentro de un directorio ignorado no es un .gitignore tocado: la evidencia se arma: %v (Over %v)", err, ev.Over)
-			}
-			diff := string(ev.Diff)
-			if !strings.Contains(diff, "+func Nuevo() {}") || (conNuevo && !strings.Contains(diff, "+// NO-RASTREADO-QUE-VA")) {
-				t.Fatalf("CA-416: la evidencia trae el cambio de codigo y el no rastreado:\n%s", diff)
-			}
-			for _, nunca := range []string{"node_modules", ".venv", "DENTRO-DE-"} {
-				if strings.Contains(diff, nunca) {
-					t.Fatalf("CA-416: nada de los directorios ignorados va en la evidencia: %q\n%s", nunca, diff)
-				}
-			}
-			if ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
-				t.Fatalf("CA-401: Bytes y SHA256 cierran: %d vs %d, %q", ev.Bytes, len(ev.Diff), ev.SHA256)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------- CA-401 (no rastreados raros)
-
-// raDestrabarFIFO abre el FIFO para escribir y lo cierra: quien este colgado
-// leyendolo (Evidence o un git suyo) recibe EOF y sigue. Si el test fallo,
-// insiste un rato, por si el lector lo vuelve a abrir.
-func raDestrabarFIFO(t *testing.T, fifo string) {
-	veces := 1
-	if t.Failed() {
-		veces = 40
-	}
-	for i := 0; i < veces; i++ {
-		if f, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
-			f.Close()
-		}
-		if veces > 1 {
-			time.Sleep(50 * time.Millisecond)
-		}
-	}
-}
-
-// raSymlinkComoGit exige que el no rastreado enlace vaya en la evidencia como
-// lo escribe git para un symlink nuevo: modo 120000 y, como contenido, su
-// destino; nunca lo que hay del otro lado.
-func raSymlinkComoGit(t *testing.T, ca string, ev Evidencia, enlace, destino string) {
-	t.Helper()
-	sec := raSeccion(string(ev.Diff), "diff --git a/"+enlace+" b/"+enlace)
-	if !strings.Contains(sec, "\nnew file mode 120000\n") || !strings.Contains(sec, "\n+"+destino+"\n") {
-		t.Fatalf("%s: sin error, el symlink %s va como git escribe un symlink nuevo (new file mode 120000, con su destino %q):\n%s",
-			ca, enlace, destino, ev.Diff)
-	}
-}
-
-// CA-401 (caso limite, como el spec FIFO de CA-412): un no rastreado que es
-// un SYMLINK a un FIFO, con el FIFO fuera del arbol o dentro (git no lista
-// un FIFO; el symlink si). Leer el no rastreado siguiendo el symlink bloquea
-// hasta que aparezca quien escriba en el FIFO: Evidence tiene que volver
-// enseguida (reloj de 10 s), sin quedarse colgada. Vuelve con un error que
-// nombra la ruta del symlink (sin armar una evidencia) o, como con un
-// symlink a un archivo (TestCA401_NoRastreadoSymlinkAUnArchivoDeAfueraNoSeLee),
-// con el symlink como lo escribe git: modo 120000 y su destino. Al terminar,
-// el test abre el FIFO para escribir: un Evidence colgado se destraba y no
-// queda leyendo.
-func TestCA401_NoRastreadoSymlinkAUnFIFONoCuelga(t *testing.T) {
-	mkfifo, err := exec.LookPath("mkfifo")
-	if err != nil {
-		t.Skip("sin mkfifo")
-	}
-	const enlace = "enlace-a-fifo"
-	for _, dentro := range []bool{false, true} {
-		nombre := "fifo-fuera-del-arbol"
-		if dentro {
-			nombre = "fifo-dentro-del-arbol"
-		}
-		t.Run(nombre, func(t *testing.T) {
-			root := raRepo(t, "")
-			raCambio(t, root)
-			fifo, destino := filepath.Join(root, "tuberia"), "tuberia"
-			if !dentro {
-				dir, err := filepath.EvalSymlinks(t.TempDir())
-				if err != nil {
-					t.Fatal(err)
-				}
-				fifo = filepath.Join(dir, "tuberia")
-				destino = fifo
-			}
-			if out, err := exec.Command(mkfifo, fifo).CombinedOutput(); err != nil {
-				t.Fatalf("CA-401: fixture: mkfifo: %v %s", err, out)
-			}
-			raSymlink(t, root, enlace, destino)
-			t.Cleanup(func() { raDestrabarFIFO(t, fifo) })
-			if lista := raNoRastreados(t, root); !raTiene(lista, enlace) || raTiene(lista, "tuberia") {
-				t.Fatalf("CA-401: fixture: git lista el symlink como no rastreado y no el FIFO: %v", lista)
-			}
-
-			ev, err, _ := raEvidenceConReloj(t, "CA-401", 10*time.Second, root, "main", "", raTopeGrande)
-			if err != nil {
-				if !strings.Contains(err.Error(), enlace) {
-					t.Fatalf("CA-401: el error por un no rastreado symlink a un FIFO nombra su ruta %q: %v", enlace, err)
-				}
-				if len(ev.Diff) != 0 || ev.SHA256 != "" {
-					t.Fatalf("CA-401: con el error no hay evidencia: diff %d bytes, sha256 %q", len(ev.Diff), ev.SHA256)
-				}
-				return
-			}
-			raSymlinkComoGit(t, "CA-401", ev, enlace, destino)
-		})
-	}
-}
-
-// CA-401 (control de lo anterior): un no rastreado symlink a un archivo
-// regular FUERA del arbol va como git escribe un symlink nuevo (modo 120000
-// y su destino) o es un error que nombra su ruta; nunca trae el contenido de
-// afuera. Un arreglo del FIFO que abra los no rastreados siguiendo symlinks
-// mandaria al provider cualquier archivo de la maquina.
-func TestCA401_NoRastreadoSymlinkAUnArchivoDeAfueraNoSeLee(t *testing.T) {
-	const enlace = "enlace-afuera"
-	root := raRepo(t, "")
-	raCambio(t, root)
-	fuera := raFuera(t, "fuera.txt", "SECRETO-FUERA-DEL-ARBOL-POR-SYMLINK\n")
-	raSymlink(t, root, enlace, fuera)
-	if lista := raNoRastreados(t, root); !raTiene(lista, enlace) {
-		t.Fatalf("CA-401: fixture: git lista el symlink como no rastreado: %v", lista)
-	}
-
-	ev, err, _ := raEvidenceConReloj(t, "CA-401", 10*time.Second, root, "main", "", raTopeGrande)
-	if bytes.Contains(ev.Diff, []byte("SECRETO-FUERA-DEL-ARBOL-POR-SYMLINK")) {
-		t.Fatalf("CA-401: la evidencia no trae el contenido del archivo de afuera al que apunta un symlink no rastreado:\n%s", ev.Diff)
-	}
-	if err != nil {
-		if !strings.Contains(err.Error(), enlace) {
-			t.Fatalf("CA-401: el error por un no rastreado symlink nombra su ruta %q: %v", enlace, err)
-		}
-		return
-	}
-	raSymlinkComoGit(t, "CA-401", ev, enlace, fuera)
-}
-
-// CA-401 (control): un FIFO suelto sin rastrear no es un archivo para git (no
-// lo lista): la evidencia se arma como siempre, sin el FIFO y sin colgarse.
+// CA-401 / CA-416 (re-expresado por la enmienda 4): un FIFO suelto sin
+// rastrear no es un archivo para git (no lo lista). Evidence vuelve enseguida
+// (reloj de 10 s) sin abrirlo: o se niega por arbol sucio nombrandolo (el
+// caso limite del spec: "un FIFO: la review se niega por arbol sucio y nombra
+// la ruta"), o arma la evidencia de lo commiteado, sin el FIFO. Nunca se
+// cuelga ni otro error.
 func TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia(t *testing.T) {
-	mkfifo, err := exec.LookPath("mkfifo")
-	if err != nil {
-		t.Skip("sin mkfifo")
-	}
 	root := raRepo(t, "")
 	raCambio(t, root)
 	fifo := filepath.Join(root, "tuberia")
-	if out, err := exec.Command(mkfifo, fifo).CombinedOutput(); err != nil {
-		t.Fatalf("CA-401: fixture: mkfifo: %v %s", err, out)
-	}
-	t.Cleanup(func() { raDestrabarFIFO(t, fifo) })
+	raConFIFO(t, fifo)
 	if lista := raNoRastreados(t, root); len(lista) != 0 {
 		t.Fatalf("CA-401: fixture: git no lista un FIFO: %v", lista)
 	}
 
-	ev, err, _ := raEvidenceConReloj(t, "CA-401", 10*time.Second, root, "main", "", raTopeGrande)
-	if err != nil || ev.Over {
-		t.Fatalf("CA-401: un FIFO que git no lista no frena la evidencia: %v (Over %v)", err, ev.Over)
+	ev, err, _ := raEvidenceConReloj(t, "CA-416", 10*time.Second, root, "main", "", raTopeGrande)
+	if err != nil {
+		if ruta, ok := raRutaSucia(err.Error()); !ok || !raRutaAceptada(ruta, []string{"tuberia"}) {
+			t.Fatalf("CA-416: con un FIFO sin rastrear el unico error posible es la negativa por arbol sucio que lo nombra: %v", err)
+		}
+		return
 	}
-	if diff := string(ev.Diff); !strings.Contains(diff, "+func Nuevo() {}") || strings.Contains(diff, "tuberia") {
-		t.Fatalf("CA-401: la evidencia trae el cambio de codigo y no el FIFO:\n%s", diff)
+	if diff := string(ev.Diff); ev.Over || !strings.Contains(diff, "+func Nuevo() {}") || strings.Contains(diff, "tuberia") {
+		t.Fatalf("CA-401: la evidencia trae el cambio commiteado y no el FIFO:\n%s", diff)
 	}
 }
 
-// CA-401 (caso limite): con core.autocrlf true, o con un .gitattributes de la
-// base que pone '*.txt eol=crlf', git avisa por stderr ("LF will be replaced
-// by CRLF") cada vez que lee un archivo de texto con fines de linea LF. Es un
-// aviso, no un error de git: Evidence no falla, el no rastreado notas.txt va
-// como parche de archivo nuevo con sus lineas (y el cambio rastreado de
-// app.go con las suyas), y el aviso no entra en la evidencia.
+// CA-401 (caso limite; enmienda 4: notas.txt commiteado): con core.autocrlf
+// true, o con un .gitattributes de la base que pone '*.txt eol=crlf', git
+// avisa por stderr ("LF will be replaced by CRLF") cada vez que lee un
+// archivo de texto con fines de linea LF. Es un aviso, no un error de git ni
+// un arbol sucio: Evidence no falla, el archivo nuevo notas.txt va con sus
+// lineas (y el cambio de app.go con las suyas), y el aviso no entra en la
+// evidencia.
 func TestCA401_AvisoDeCRLFNoRompeLaEvidencia(t *testing.T) {
 	casos := []struct {
 		nombre string
@@ -1472,6 +1779,8 @@ func TestCA401_AvisoDeCRLFNoRompeLaEvidencia(t *testing.T) {
 			if !strings.Contains(stderr.String(), "LF will be replaced by CRLF") {
 				t.Fatalf("CA-401: fixture: git avisa por stderr al leer notas.txt: %q", stderr.String())
 			}
+			raCommit(t, root, "notas con LF")
+			raLimpio(t, "CA-401", root)
 
 			ev, err, _ := raEvidenceConReloj(t, "CA-401", 60*time.Second, root, "main", "", raTopeGrande)
 			if err != nil || ev.Over {
@@ -1481,10 +1790,10 @@ func TestCA401_AvisoDeCRLFNoRompeLaEvidencia(t *testing.T) {
 			nuevo := raSeccion(diff, "diff --git a/notas.txt b/notas.txt")
 			if !strings.Contains(nuevo, "new file mode") || !strings.Contains(nuevo, "+primera linea de las notas") ||
 				!strings.Contains(nuevo, "+SEGUNDA-LINEA-CON-LF") {
-				t.Fatalf("CA-401: el no rastreado notas.txt va como parche de archivo nuevo con sus lineas:\n%s", diff)
+				t.Fatalf("CA-401: el archivo nuevo notas.txt va como parche de archivo nuevo con sus lineas:\n%s", diff)
 			}
 			if !strings.Contains(diff, "+func Nuevo() {}") {
-				t.Fatalf("CA-401: la evidencia trae el cambio rastreado de app.go:\n%s", diff)
+				t.Fatalf("CA-401: la evidencia trae el cambio de app.go:\n%s", diff)
 			}
 			if strings.Contains(diff, "LF will be replaced") || strings.Contains(diff, "warning:") {
 				t.Fatalf("CA-401: el aviso de git no entra en la evidencia:\n%s", diff)

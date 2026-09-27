@@ -1,20 +1,26 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (enmienda 1) sobre la evidencia de `hoom review`, a partir de la segunda
-// review cruzada de la implementacion:
+// (enmiendas 1 y 4) sobre la evidencia de `hoom review`, a partir de la
+// segunda review cruzada de la implementacion:
 //
-//   - CA-413: el tope se aplica al LEER toda salida de git: la lista de
-//     nombres de los no rastreados no se lee entera antes de cortar, y el diff
-//     rastreado no se guarda dos veces ("Nunca retiene mas de maxBytes +
-//     64 KiB"); y (enmienda 3) buscar si el cambio toca un .gitignore
-//     (CA-416) tampoco guarda la lista de nombres del cambio.
+//   - CA-413: el tope se aplica al LEER toda salida de git: el diff
+//     commiteado no se guarda dos veces ("Nunca retiene mas de maxBytes +
+//     64 KiB"), un cambio de miles de rutas no se guarda como lista, y
+//     (enmienda 4) la negativa por arbol sucio (CA-416) no lee entera la lista
+//     de lo sin commitear: "nunca en proporcion al arbol".
 //   - CA-401: un binario lleva la linea que git escribe para un binario, sin
 //     contenido, aunque la config local del repo le ponga un driver de diff
 //     (textconv o diff externo) por .gitattributes; el driver nunca corre.
 //   - CA-414: un git merge-base que falla es el error de Evidence aunque el
 //     spec solo ya pase el tope: el error de git no queda tapado por Over.
-//   - CA-412: un spec FIFO no es un archivo regular: error sin abrirlo ni
-//     quedarse bloqueado; y un spec que cambia a symlink de afuera entre los
-//     git que corre Evidence nunca se lee de afuera.
+//   - CA-412: el spec se lee de HEAD: un FIFO en su ruta no se abre ni
+//     bloquea, y un spec que cambia a symlink de afuera en el arbol de
+//     trabajo entre los git que corre Evidence nunca se lee de afuera.
+//
+// ENMIENDA 4 (re-expresion): los fixtures commitean el cambio en la rama; la
+// lista de no rastreados de la enmienda 1 (que ya no se lee: la evidencia es
+// solo lo commiteado) pasa a ser la de la negativa por arbol sucio, y el
+// chequeo del .gitignore de la enmienda 3 (que ya no existe) pasa a ser un
+// cambio commiteado de miles de rutas.
 //
 // Reusa los fixtures de review_aislada_helpers_test.go (raRepo, raEvidenceConReloj,
 // raOver, raGitReal, raClonShallow, ...). En este paquete ningun test corre en
@@ -37,8 +43,7 @@ import (
 // ---------------------------------------------------------------- CA-413
 
 // ramListaNoRastreados es el tamano en bytes de la lista de nombres de los no
-// rastreados de root, tal como la escribe git: lo que Evidence NO puede leer
-// entero antes de aplicar el tope.
+// rastreados de root, tal como la escribe git.
 func ramListaNoRastreados(t *testing.T, root string) int {
 	t.Helper()
 	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard", "-z")
@@ -50,57 +55,97 @@ func ramListaNoRastreados(t *testing.T, root string) int {
 	return len(out)
 }
 
-// CA-413: "Se lee con tope: hoom deja de leer la salida de git ... en cuanto
-// pasan maxBytes. Nunca retiene mas de maxBytes + 64 KiB." La salida de git
-// incluye la LISTA de nombres de los no rastreados. Con 20.000 no rastreados
-// de nombre largo (la lista pesa ~6 MB) y un tope de 1 KiB, Evidence vuelve
-// con Over y asigna mucho menos que esa lista.
+// ramNombreLargo es el nombre de 248 bytes (bajo el limite de 255 de un
+// nombre de archivo) del archivo i: 20.000 de ellos son una lista de ~5 MB.
+func ramNombreLargo(i int) string {
+	return fmt.Sprintf("archivo-%05d-", i) + strings.Repeat("n", 230) + ".txt"
+}
+
+// ramPlantar escribe n archivos de nombre largo directo en dir (sin
+// subdirectorios: git los lista uno por uno, con cualquier modo de
+// no rastreados).
+func ramPlantar(t *testing.T, dir string, n int) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < n; i++ {
+		if err := os.WriteFile(filepath.Join(dir, ramNombreLargo(i)), []byte("contenido sin commitear\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// CA-413 / CA-416 (re-expresado por la enmienda 4; antes: la lista de no
+// rastreados de la evidencia se leia con tope). La evidencia ya no lee los
+// no rastreados; ahora son un arbol sucio. Con 20.000 no rastreados de
+// nombre largo en la raiz (la lista pesa mas de 4 MiB), Evidence devuelve la
+// negativa por arbol sucio (CA-416) nombrando uno de ellos y, para saber que
+// el arbol esta sucio, no lee la lista entera ("nunca en proporcion al
+// arbol", CA-413). Y con los mismos 20.000 bajo .hoom/ (no cuentan), la
+// evidencia se arma sin guardar esa lista.
 //
-// Umbral: 2 MiB de TotalAlloc durante Evidence. Leer la lista entera antes de
-// cortar cuesta al menos su tamano (~6 MB, el triple del umbral, y mas con el
-// crecimiento del buffer). Armar la evidencia hasta cortar cuesta el tope +
-// 64 KiB, los buffers de lectura y un punado de procesos git: decenas o
-// cientos de KiB, lejos de 2 MiB. El primer par de parches de archivo nuevo
-// (cada uno lleva el nombre de 300 bytes tres veces) ya pasa el tope.
+// Umbral: 2 MiB de TotalAlloc durante Evidence. Leer la lista entera cuesta
+// al menos su tamano (mas de 4 MiB, y mas con el crecimiento del buffer); la
+// negativa solo necesita la primera ruta sucia, y la evidencia del cambio
+// commiteado (un archivo) son unos pocos KiB y un punado de procesos git.
 func TestCA413_ListaDeNoRastreadosSeLeeConTope(t *testing.T) {
 	if testing.Short() {
 		t.Skip("CA-413: planta 20.000 archivos no rastreados; corre sin -short")
 	}
-	root := raRepo(t, "")
-	const dirs, porDir = 20, 1000
-	for d := 0; d < dirs; d++ {
-		dir := fmt.Sprintf("no-rastreado-%02d-", d) + strings.Repeat("d", 80)
-		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
-			t.Fatal(err)
+	const n = 20000
+	for _, bajoHoom := range []bool{false, true} {
+		nombre := "en-la-raiz"
+		if bajoHoom {
+			nombre = "bajo-hoom"
 		}
-		for i := 0; i < porDir; i++ {
-			nombre := fmt.Sprintf("archivo-%02d-%04d-", d, i) + strings.Repeat("n", 180) + ".txt"
-			if err := os.WriteFile(filepath.Join(root, dir, nombre), []byte("contenido del no rastreado\n"), 0o644); err != nil {
-				t.Fatal(err)
+		t.Run(nombre, func(t *testing.T) {
+			root := raRepo(t, "")
+			raCambio(t, root)
+			dir := root
+			if bajoHoom {
+				dir = filepath.Join(root, ".hoom", "montones")
 			}
-		}
-	}
-	lista := ramListaNoRastreados(t, root)
-	if lista < 4<<20 {
-		t.Fatalf("CA-413: fixture: la lista de nombres de los no rastreados pesa mas de 4 MiB: %d bytes", lista)
-	}
+			ramPlantar(t, dir, n)
+			if lista := ramListaNoRastreados(t, root); lista < 4<<20 {
+				t.Fatalf("CA-413: fixture: la lista de nombres de los no rastreados pesa mas de 4 MiB: %d bytes", lista)
+			}
 
-	const tope = 1024
-	ev, err, asignado := raEvidenceConReloj(t, "CA-413", 120*time.Second, root, "main", "", tope)
-	if err != nil {
-		t.Fatalf("CA-413: Evidence: %v", err)
-	}
-	raOver(t, "CA-413", ev, tope)
-	if asignado >= 2<<20 {
-		t.Fatalf("CA-413: con un tope de 1 KiB Evidence asigno %.1f MiB con una lista de no rastreados de %.1f MiB: "+
-			"leyo la lista entera antes de aplicar el tope (umbral 2 MiB)", float64(asignado)/(1<<20), float64(lista)/(1<<20))
+			// un tope chico (64 KiB, lejos de la evidencia de un archivo): lo
+			// que Evidence reserve por el tope no tapa lo que asigna por la lista
+			const tope = 64 << 10
+			ev, err, asignado := raEvidenceConReloj(t, "CA-413", 120*time.Second, root, "main", "", tope)
+			if bajoHoom {
+				if err != nil || ev.Over || !strings.Contains(string(ev.Diff), "+func Nuevo() {}") {
+					t.Fatalf("CA-416: 20.000 no rastreados bajo .hoom/ no ensucian el arbol: la evidencia se arma: %v (Over %v)", err, ev.Over)
+				}
+				if bytes.Contains(ev.Diff, []byte("montones")) {
+					t.Fatalf("CA-416: nada de .hoom/ sin commitear va en la evidencia")
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("CA-416: con 20.000 no rastreados Evidence se niega por arbol sucio; armo %d bytes", ev.Bytes)
+				}
+				ruta, ok := raRutaSucia(err.Error())
+				if !ok || !strings.HasPrefix(ruta, "archivo-") || !strings.HasSuffix(ruta, ".txt") {
+					t.Fatalf("CA-416: la negativa nombra uno de los no rastreados: %v", err)
+				}
+				if len(ev.Diff) != 0 || ev.SHA256 != "" {
+					t.Fatalf("CA-416: sin armar la evidencia: diff %d bytes", len(ev.Diff))
+				}
+			}
+			if asignado >= 2<<20 {
+				t.Fatalf("CA-413: con 20.000 no rastreados (%s) Evidence asigno %.1f MiB: leyo la lista de lo sin commitear entera "+
+					"(umbral 2 MiB, nunca en proporcion al arbol)", nombre, float64(asignado)/(1<<20))
+			}
+		})
 	}
 }
 
-// CA-413: el diff rastreado se lee UNA vez, directo a la evidencia. Con un
-// diff rastreado de ~3,9 MiB y un tope de 5 MiB (no hay Over), Evidence
-// devuelve el parche entero, lo que retiene no pasa maxBytes + 64 KiB, y
-// asigna menos de 2,75 veces el parche.
+// CA-413: el diff commiteado se lee UNA vez, directo a la evidencia. Con un
+// diff de ~3,9 MiB (commiteado en la rama: enmienda 4) y un tope de 5 MiB
+// (no hay Over), Evidence devuelve el parche entero, lo que retiene no pasa
+// maxBytes + 64 KiB, y asigna menos de 2,75 veces el parche.
 //
 // Umbral: 2,75x el parche, el punto medio entre leerlo una vez y dos. El
 // parche queda justo debajo de 4 MiB a proposito: asi un buffer que crece
@@ -113,7 +158,7 @@ func TestCA413_ListaDeNoRastreadosSeLeeConTope(t *testing.T) {
 // ademas maxBytes + 64 KiB (5,06 MiB).
 func TestCA413_DiffRastreadoNoSeGuardaDosVeces(t *testing.T) {
 	if testing.Short() {
-		t.Skip("CA-413: arma un diff rastreado de ~4 MiB; corre sin -short")
+		t.Skip("CA-413: arma un diff de ~4 MiB; corre sin -short")
 	}
 	root := raRepo(t, "")
 	write(t, root, "grande.txt", "linea base del archivo grande\n")
@@ -121,7 +166,7 @@ func TestCA413_DiffRastreadoNoSeGuardaDosVeces(t *testing.T) {
 	git(t, root, "commit", "-q", "-m", "archivo grande en la base")
 
 	linea := func(i int) string {
-		return fmt.Sprintf("linea %06d del diff rastreado grande: relleno sin commitear, 64 B\n", i)
+		return fmt.Sprintf("linea %06d del diff commiteado grande: relleno en la rama, 64 B\n", i)
 	}
 	ancho := len(linea(0))
 	n := (31 << 17) / (ancho + 1) // parche ~3,875 MiB: cada linea va con su '+'
@@ -130,7 +175,10 @@ func TestCA413_DiffRastreadoNoSeGuardaDosVeces(t *testing.T) {
 	for i := 0; i < n; i++ {
 		b.WriteString(linea(i))
 	}
+	raRama(t, root)
 	write(t, root, "grande.txt", b.String())
+	raCommit(t, root, "el archivo grande cambia en la rama")
+	raLimpio(t, "CA-413", root)
 
 	const tope = 5 << 20
 	ev, err, asignado := raEvidenceConReloj(t, "CA-413", 60*time.Second, root, "main", "", tope)
@@ -154,7 +202,7 @@ func TestCA413_DiffRastreadoNoSeGuardaDosVeces(t *testing.T) {
 		t.Fatalf("CA-413: la evidencia devuelta retiene %d bytes, mas que maxBytes + 64 KiB (%d)", retenido, tope+64<<10)
 	}
 	if asignado*4 >= 11*uint64(p) {
-		t.Fatalf("CA-413: Evidence asigno %.1f MiB para un parche de %.1f MiB (%.2fx): guarda el diff rastreado mas de una vez (umbral 2,75x)",
+		t.Fatalf("CA-413: Evidence asigno %.1f MiB para un parche de %.1f MiB (%.2fx): guarda el diff mas de una vez (umbral 2,75x)",
 			float64(asignado)/(1<<20), float64(p)/(1<<20), float64(asignado)/float64(p))
 	}
 	ref := raEvidencia(t, "CA-413", root, "")
@@ -163,26 +211,26 @@ func TestCA413_DiffRastreadoNoSeGuardaDosVeces(t *testing.T) {
 	}
 }
 
-// CA-413 (enmienda 3, el chequeo del .gitignore de CA-416): "por encima, un
-// multiplo chico del tope, nunca en proporcion al arbol". Para saber si el
-// cambio toca algun .gitignore, hoom no puede guardar la lista entera de lo
-// que el cambio toca. Con 7.600 .gitignore nuevos agregados al indice sin
-// commitear, cada uno en su directorio bajo dos directorios de nombre largo
-// (cada ruta pesa ~600 bytes: la lista de nombres del cambio pasa 4 MiB con
-// pocos archivos, asi el fixture es rapido), nada sin rastrear (asi CA-416
-// no aplica y la evidencia es solo Over) y un tope de 1 KiB, Evidence
-// vuelve con Over y asigna menos de 2 MiB.
+// CA-413 (re-expresado por la enmienda 4; antes: el chequeo del .gitignore de
+// CA-416 de la enmienda 3, que ya no existe): "por encima, un multiplo chico
+// del tope, nunca en proporcion al arbol". Un cambio COMMITEADO de 7.600
+// archivos (.gitignore, cada uno en su directorio bajo dos directorios de
+// nombre largo: la lista de nombres del cambio pasa 4 MiB con pocos
+// archivos, asi el fixture es rapido) con un tope de 1 KiB: Evidence vuelve
+// con Over y asigna menos de 2 MiB. Armar la evidencia (o saber que hay que
+// sacar .hoom/ salvo .hoom/agents/) no pide guardar la lista entera de lo
+// que toca el cambio.
 //
-// Umbral: 2 MiB de TotalAlloc, como en la lista de no rastreados. Guardar la
-// lista de nombres del cambio cuesta al menos su tamano (mas de 4 MiB, y mas
-// con el crecimiento del buffer); para saber que se toco un .gitignore
-// alcanza con leer hasta el primero, y armar la evidencia hasta cortar cuesta
-// el tope + 64 KiB y un punado de procesos git.
-func TestCA413_ElChequeoDelGitignoreNoGuardaLaListaDelCambio(t *testing.T) {
+// Umbral: 2 MiB de TotalAlloc. Guardar la lista de nombres del cambio cuesta
+// al menos su tamano (mas de 4 MiB, y mas con el crecimiento del buffer);
+// armar la evidencia hasta cortar cuesta el tope + 64 KiB y un punado de
+// procesos git.
+func TestCA413_UnCambioDeMilesDeRutasNoGuardaSuLista(t *testing.T) {
 	if testing.Short() {
-		t.Skip("CA-413: agrega 7.600 .gitignore de nombre largo al indice; corre sin -short")
+		t.Skip("CA-413: commitea 7.600 archivos de nombre largo; corre sin -short")
 	}
 	root := raRepo(t, "")
+	raCambio(t, root)
 	const n = 7600
 	padre := filepath.Join(root, "a-"+strings.Repeat("a", 198), "b-"+strings.Repeat("b", 198))
 	if err := os.MkdirAll(padre, 0o755); err != nil {
@@ -197,15 +245,13 @@ func TestCA413_ElChequeoDelGitignoreNoGuardaLaListaDelCambio(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	git(t, root, "add", "-A")
-	if lista := ramListaNoRastreados(t, root); lista != 0 {
-		t.Fatalf("CA-413: fixture: nada sin rastrear (CA-416 no aplica): la lista pesa %d bytes", lista)
-	}
-	cmd := exec.Command("git", "diff", "--cached", "--name-only", "-z", "main")
+	raCommit(t, root, "7.600 archivos de nombre largo")
+	raLimpio(t, "CA-413", root)
+	cmd := exec.Command("git", "diff", "--name-only", "-z", "main", "HEAD")
 	cmd.Dir = root
 	nombres, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("CA-413: fixture: git diff --cached --name-only: %v", err)
+		t.Fatalf("CA-413: fixture: git diff --name-only: %v", err)
 	}
 	tam := len(nombres)
 	if tam < 4<<20 {
@@ -215,12 +261,12 @@ func TestCA413_ElChequeoDelGitignoreNoGuardaLaListaDelCambio(t *testing.T) {
 	const tope = 1024
 	ev, err, asignado := raEvidenceConReloj(t, "CA-413", 120*time.Second, root, "main", "", tope)
 	if err != nil {
-		t.Fatalf("CA-413: sin nada sin rastrear, 7.600 .gitignore tocados no frenan la evidencia (CA-416): Evidence: %v", err)
+		t.Fatalf("CA-413: Evidence: %v", err)
 	}
 	raOver(t, "CA-413", ev, tope)
 	if asignado >= 2<<20 {
-		t.Fatalf("CA-413: con un tope de 1 KiB Evidence asigno %.1f MiB con 7.600 .gitignore tocados (nombres: %.1f MiB): "+
-			"guarda la lista de lo que toca el cambio para buscar un .gitignore (umbral 2 MiB)", float64(asignado)/(1<<20), float64(tam)/(1<<20))
+		t.Fatalf("CA-413: con un tope de 1 KiB Evidence asigno %.1f MiB con un cambio de 7.600 rutas (nombres: %.1f MiB): "+
+			"guarda la lista de lo que toca el cambio (umbral 2 MiB)", float64(asignado)/(1<<20), float64(tam)/(1<<20))
 	}
 }
 
@@ -229,10 +275,11 @@ func TestCA413_ElChequeoDelGitignoreNoGuardaLaListaDelCambio(t *testing.T) {
 // CA-401 (caso limite): "Un binario lleva la linea que git escribe para un
 // binario, sin contenido." La config LOCAL del repo define un driver de diff
 // (textconv, o un diff externo) y .gitattributes se lo pone a *.bin. La
-// evidencia de un binario rastreado que cambia (x.bin) y de uno no rastreado
-// (y.bin) sigue trayendo la linea 'Binary files ... differ' de git, sin la
-// salida del driver ni el contenido; y el driver no corre nunca (deja una
-// marca fuera del arbol si corre). Con textconv, ademas, x.bin no puede
+// evidencia de un binario rastreado que cambia (x.bin) y de uno nuevo
+// (y.bin), los dos commiteados en la rama (enmienda 4; antes y.bin estaba
+// sin rastrear), sigue trayendo la linea 'Binary files ... differ' de git,
+// sin la salida del driver ni el contenido; y el driver no corre nunca (deja
+// una marca fuera del arbol si corre). Con textconv, ademas, x.bin no puede
 // desaparecer de la evidencia: los dos lados convertidos dan el mismo texto.
 func TestCA401_BinarioConDriverDeDiffLlevaLaLineaDeGit(t *testing.T) {
 	for _, c := range []struct{ nombre, clave string }{
@@ -257,8 +304,11 @@ func TestCA401_BinarioConDriverDeDiffLlevaLaLineaDeGit(t *testing.T) {
 			}
 			git(t, root, "config", c.clave, driver)
 
+			raRama(t, root)
 			write(t, root, "x.bin", "\x00\x02MARCA-BINARIA-NUEVA\x00\xff")
-			write(t, root, "y.bin", "\x00\x03MARCA-BINARIA-NO-RASTREADA\x00\xff")
+			write(t, root, "y.bin", "\x00\x03MARCA-BINARIA-NUEVO-ARCHIVO\x00\xff")
+			raCommit(t, root, "binarios en la rama")
+			raLimpio(t, "CA-401", root)
 
 			ev, err, _ := raEvidenceConReloj(t, "CA-401", 60*time.Second, root, "main", "", raTopeGrande)
 			if err != nil || ev.Over {
@@ -281,7 +331,7 @@ func TestCA401_BinarioConDriverDeDiffLlevaLaLineaDeGit(t *testing.T) {
 			}
 			y := raSeccion(diff, "diff --git a/y.bin b/y.bin")
 			if !strings.Contains(y, "\nnew file mode ") || !strings.Contains(y, "\nBinary files /dev/null and b/y.bin differ\n") {
-				t.Errorf("CA-401: el binario no rastreado va como archivo nuevo con la linea de git 'Binary files /dev/null and b/y.bin differ':\n%s", diff)
+				t.Errorf("CA-401: el binario nuevo va como archivo nuevo con la linea de git 'Binary files /dev/null and b/y.bin differ':\n%s", diff)
 			}
 		})
 	}
@@ -294,7 +344,8 @@ func TestCA401_BinarioConDriverDeDiffLlevaLaLineaDeGit(t *testing.T) {
 // spec que solo ya pasa el tope no tapa el error con Over. Evidence (tope
 // 1 KiB) devuelve el error y no Over, y `hoom review` (tope por defecto,
 // 320 KiB, con un spec de ~420 KiB) no lanza ninguna pasada, no escribe
-// registro y no le dice al usuario que la evidencia pasa el tope.
+// registro y no le dice al usuario que la evidencia pasa el tope. Enmienda 4:
+// el cambio y el spec estan commiteados (el spec se lee de HEAD).
 func TestCA414_ErrorDeMergeBaseAntesQueUnSpecSobreElTope(t *testing.T) {
 	const spec = ".hoom/specs/grande.md"
 	grande := strings.Repeat("criterio de un spec mas grande que el tope, que no tapa el error de git\n", 6000)
@@ -318,7 +369,8 @@ func TestCA414_ErrorDeMergeBaseAntesQueUnSpecSobreElTope(t *testing.T) {
 		}},
 		{"clon-shallow-sin-merge-base", func(t *testing.T) (string, string) {
 			clon := raClonShallow(t)
-			write(t, clon, "rama.go", "package app\n\nvar Rama = 3 // sin commitear\n")
+			write(t, clon, "rama.go", "package app\n\nvar Rama = 3 // commiteado en el clon\n")
+			raCommit(t, clon, "rama 3")
 			return clon, "main"
 		}},
 	}
@@ -327,6 +379,8 @@ func TestCA414_ErrorDeMergeBaseAntesQueUnSpecSobreElTope(t *testing.T) {
 			bin := raPATH(t)
 			root, base := c.armar(t)
 			write(t, root, spec, grande)
+			raCommit(t, root, "spec mas grande que el tope")
+			raLimpio(t, "CA-414", root)
 
 			ev, err, _ := raEvidenceConReloj(t, "CA-414", 60*time.Second, root, base, spec, 1024)
 			if err == nil || ev.Over {
@@ -356,61 +410,83 @@ func TestCA414_ErrorDeMergeBaseAntesQueUnSpecSobreElTope(t *testing.T) {
 
 // ---------------------------------------------------------------- CA-412
 
-// CA-412 (caso limite): un spec que es un FIFO existe pero no es un archivo
-// regular: Evidence devuelve 'el spec <ruta> no es un archivo del arbol' sin
-// leerlo, y vuelve enseguida. Abrir un FIFO para leer bloquea hasta que
-// aparece quien escriba: una implementacion que lo abre antes de mirar que es
-// (por ejemplo, abrir y despues fstat del descriptor, para cerrar la carrera
-// entre mirar y leer) se queda colgada. Al final el test abre el FIFO para
-// escribir, asi un Evidence colgado se destraba y no queda leyendo.
+// CA-412 (caso limite; re-expresado por la enmienda 4: el spec se lee de
+// HEAD). Un FIFO en la ruta del spec no se abre: abrir un FIFO para leer
+// bloquea hasta que aparece quien escriba. Dos formas: el FIFO nunca se
+// commiteo (git no commitea un FIFO: el spec no esta en HEAD y la evidencia
+// sigue sin spec) y el spec commiteado cambiado en el arbol de trabajo por un
+// FIFO (la evidencia lleva el texto de HEAD). En las dos Evidence vuelve
+// enseguida y sin error; el FIFO esta bajo .hoom/ y no ensucia el arbol. Al
+// final el test abre el FIFO para escribir, asi un Evidence colgado se
+// destraba y no queda leyendo.
 func TestCA412_SpecFIFONoSeAbreNiBloquea(t *testing.T) {
 	mkfifo, err := exec.LookPath("mkfifo")
 	if err != nil {
 		t.Skip("sin mkfifo")
 	}
-	root := raRepo(t, "")
-	raCambio(t, root)
 	const spec = ".hoom/specs/x.md"
-	p := filepath.Join(root, spec)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if out, err := exec.Command(mkfifo, p).CombinedOutput(); err != nil {
-		t.Fatalf("CA-412: fixture: mkfifo: %v %s", err, out)
-	}
-	t.Cleanup(func() {
-		if f, err := os.OpenFile(p, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
-			f.Close()
+	const commiteado = "# Spec x\n\nel spec de HEAD\n"
+	for _, enHEAD := range []bool{false, true} {
+		nombre := "fifo-que-nunca-se-commiteo"
+		if enHEAD {
+			nombre = "spec-commiteado-cambiado-por-un-fifo"
 		}
-	})
+		t.Run(nombre, func(t *testing.T) {
+			root := raRepo(t, "")
+			raCambio(t, root)
+			p := filepath.Join(root, spec)
+			if enHEAD {
+				write(t, root, spec, commiteado)
+				raCommit(t, root, "spec")
+				if err := os.Remove(p); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if out, err := exec.Command(mkfifo, p).CombinedOutput(); err != nil {
+				t.Fatalf("CA-412: fixture: mkfifo: %v %s", err, out)
+			}
+			t.Cleanup(func() {
+				if f, err := os.OpenFile(p, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+					f.Close()
+				}
+			})
+			raLimpio(t, "CA-412", root)
 
-	ev, err, _ := raEvidenceConReloj(t, "CA-412", 30*time.Second, root, "main", spec, raTopeGrande)
-	if err == nil || !strings.Contains(err.Error(), raNoEsDelArbol(spec)) {
-		t.Fatalf("CA-412: un spec FIFO no es un archivo regular: Evidence devuelve %q: %v (spec %q)", raNoEsDelArbol(spec), err, ev.Spec)
-	}
-	if len(ev.Spec) != 0 {
-		t.Fatalf("CA-412: el spec FIFO no se lee: %q", ev.Spec)
+			ev, err, _ := raEvidenceConReloj(t, "CA-412", 30*time.Second, root, "main", spec, raTopeGrande)
+			if err != nil {
+				t.Fatalf("CA-412: un FIFO en el arbol de trabajo no es el spec de HEAD: Evidence no falla: %v", err)
+			}
+			if enHEAD && string(ev.Spec) != commiteado {
+				t.Fatalf("CA-412: con el spec en HEAD la evidencia lleva su texto, no el FIFO: %q", ev.Spec)
+			}
+			if !enHEAD && ev.Spec != nil {
+				t.Fatalf("CA-412: un FIFO que nunca se commiteo no esta en HEAD: Spec nil, fue %q", ev.Spec)
+			}
+		})
 	}
 }
 
-// CA-412 (la carrera, en lo que se puede reproducir sin azar): el spec tiene
-// que ser un archivo regular del arbol cuando se LEE, no solo cuando se mira.
-// Un git falso al frente del PATH cambia el spec por un symlink a un archivo
-// de afuera justo en la invocacion k de git (k = 1..N, N = las que hace
-// Evidence) y despues hace de git de verdad. Para cada k, Evidence o devuelve
-// 'el spec <ruta> no es un archivo del arbol', o trae el spec original: nunca
-// el texto de afuera. Es determinista (las invocaciones de git son en serie)
-// y atrapa una implementacion que mira el spec, corre git y lo lee despues.
-// NO alcanza la ventana entre mirar y leer sin ningun git en el medio: esa
-// carrera no se reproduce sin azar y aca no hay un test de carrera.
+// CA-412 (la carrera, re-expresada por la enmienda 4): el spec se lee de
+// HEAD, asi que lo que le pase al archivo del arbol de trabajo mientras
+// Evidence corre no cambia nada. Un git falso al frente del PATH cambia el
+// spec del arbol de trabajo por un symlink a un archivo de afuera justo en
+// la invocacion k de git (k = 1..N, N = las que hace Evidence) y despues hace
+// de git de verdad. Para cada k, Evidence trae el spec commiteado, sin error
+// (el cambio esta bajo .hoom/: no ensucia el arbol), y nunca el texto de
+// afuera. Es determinista (las invocaciones de git son en serie).
 func TestCA412_SpecQueCambiaMientrasCorreGitNoSeLeeDeAfuera(t *testing.T) {
 	real := raGitReal(t)
 	bin := raPATH(t)
 	root := raRepo(t, "")
 	raCambio(t, root)
-	write(t, root, "nuevo.go", "package app\n\n// no rastreado\n")
 	const spec = ".hoom/specs/x.md"
-	const original = "# Spec x\n\nel spec que se miro y se tiene que leer\n"
+	const original = "# Spec x\n\nel spec commiteado, el que se tiene que leer\n"
+	write(t, root, spec, original)
+	raCommit(t, root, "spec")
+	raLimpio(t, "CA-412", root)
 	p := filepath.Join(root, spec)
 	fuera := raFuera(t, "fuera.md", "# SECRETO-FUERA-DEL-ARBOL\n")
 
@@ -446,7 +522,7 @@ func TestCA412_SpecQueCambiaMientrasCorreGitNoSeLeeDeAfuera(t *testing.T) {
 
 	ev, err := armar(0)
 	if err != nil || string(ev.Spec) != original {
-		t.Fatalf("CA-412: sin cambios, el spec del arbol se lee: %v %q", err, ev.Spec)
+		t.Fatalf("CA-412: sin cambios, el spec de HEAD se lee: %v %q", err, ev.Spec)
 	}
 	n := invocaciones()
 	if n == 0 {
@@ -458,11 +534,8 @@ func TestCA412_SpecQueCambiaMientrasCorreGitNoSeLeeDeAfuera(t *testing.T) {
 			t.Fatalf("CA-412: con el spec cambiado a un symlink de afuera en la invocacion %d de %d de git, Evidence leyo el archivo de afuera: %q",
 				k, n, ev.Spec)
 		}
-		if err != nil && !strings.Contains(err.Error(), raNoEsDelArbol(spec)) {
-			t.Fatalf("CA-412: con el spec cambiado en la invocacion %d de git, el error es %q: %v", k, raNoEsDelArbol(spec), err)
-		}
-		if err == nil && string(ev.Spec) != original {
-			t.Fatalf("CA-412: con el spec cambiado en la invocacion %d de git, sin error Evidence trae el spec que miro: %q", k, ev.Spec)
+		if err != nil || string(ev.Spec) != original {
+			t.Fatalf("CA-412: con el spec del arbol de trabajo cambiado en la invocacion %d de git, Evidence trae sin error el spec de HEAD: %v %q", k, err, ev.Spec)
 		}
 	}
 	if raw, _ := os.ReadFile(filepath.Join(ctl, "cambios")); len(bytes.Fields(raw)) == 0 {

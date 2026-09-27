@@ -6,6 +6,12 @@
 // esfuerzo resuelto, y un tope fuera de rango en la base es un error, igual
 // que un hoom.yaml de la base que existe y no se puede leer (falla cerrado).
 // Los fixtures estan en review_aislada_helpers_test.go.
+//
+// ENMIENDA 4 (re-expresion): raCambio commitea el cambio en la rama. Los
+// casos de CA-417 en los que la rama cambiaba su hoom.yaml SIN commitear
+// ahora son un arbol sucio (hoom.yaml esta fuera de .hoom/): la review se
+// niega sin lanzar nada (CA-416), asi que la rama tampoco elige su review
+// por ese camino.
 package reviewcmd
 
 import (
@@ -440,8 +446,8 @@ func TestCA394_ReviewConTopeFueraDeRangoEnLaBaseEsError(t *testing.T) {
 
 // raRamaConReview arma la base (main) con baseReview en su hoom.yaml y abre
 // la rama feature, cuyo hoom.yaml trae candReview: commiteado en la rama o,
-// sin commitear, solo en el arbol de trabajo. Planta ademas un cambio de
-// codigo sin commitear (una lente).
+// sin commitear, solo en el arbol de trabajo (enmienda 4: un arbol sucio).
+// Commitea ademas un cambio de codigo (una lente, raCambio).
 func raRamaConReview(t *testing.T, baseReview, candReview string, commitear bool) string {
 	t.Helper()
 	root := raRepo(t, baseReview)
@@ -455,8 +461,8 @@ func raRamaConReview(t *testing.T, baseReview, candReview string, commitear bool
 }
 
 // raRamaSinHoomYamlEnLaBase: la base no tiene hoom.yaml; la rama lo agrega,
-// con candReview, en un commit. Sin hoom.yaml en la base valen los valores
-// por defecto.
+// con candReview, en un commit, y commitea un cambio de codigo. Sin
+// hoom.yaml en la base valen los valores por defecto.
 func raRamaSinHoomYamlEnLaBase(t *testing.T, candReview string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -513,12 +519,44 @@ func raSolo(got []string, want string) bool {
 // raAflojada es la review que una rama se quiere dar a si misma.
 const raAflojada = "review: {same_provider: true, isolated: false}\n"
 
+// raNegativaHoomYamlSinCommitear (CA-416 + CA-417, enmienda 4): con el
+// hoom.yaml de la rama cambiado sin commitear, la review no corre: ninguna
+// pasada (cli no se invoca), sin registro, no revisado, no sale con 0, y la
+// salida dice por que. Devuelve lo que dijo. otraNegativa (si no es "")
+// tambien vale como motivo: el spec no ordena las negativas que se deciden
+// antes de la primera pasada.
+func raNegativaHoomYamlSinCommitear(t *testing.T, root string, cli *raCLI, opt Options, otraNegativa string) string {
+	t.Helper()
+	var out bytes.Buffer
+	res, err := Run(root, "main", opt, &out)
+	msg := out.String()
+	if err != nil {
+		msg += "\n" + err.Error()
+	}
+	if cli.veces() != 0 || len(res.Passes) != 0 || res.Status == "revisado" || (err == nil && res.ExitCode == 0) {
+		t.Fatalf("CA-416/CA-417: con el hoom.yaml de la rama sin commitear la review no corre (%+v): %d invocaciones, %+v\n%s",
+			opt, cli.veces(), res, msg)
+	}
+	if recs, _ := Records(root); len(recs) != 0 {
+		t.Fatalf("CA-416/CA-417: la negativa no escribe registro: %+v", recs)
+	}
+	ruta, sucio := raRutaSucia(msg)
+	if sucio && ruta != "hoom.yaml" {
+		t.Fatalf("CA-416: la negativa por arbol sucio nombra hoom.yaml, nombro %q:\n%s", ruta, msg)
+	}
+	if !sucio && (otraNegativa == "" || !strings.Contains(msg, otraNegativa)) {
+		t.Fatalf("CA-416: la review se niega por arbol sucio: %q:\n%s", raErrSucio("hoom.yaml"), msg)
+	}
+	return msg
+}
+
 // CA-417: una rama que se da review: {same_provider: true, isolated: false}
 // sobre una base sin esa seccion no elige su reviewer: con solo el provider
 // que escribio instalado, la review se niega por no cruzada (no-entregable,
 // exit 1, no-cruzada, sin pasadas ni registro), con o sin --provider. Igual
-// si el cambio de hoom.yaml esta sin commitear o si la base ni tiene
-// hoom.yaml.
+// si la base ni tiene hoom.yaml. Con el cambio de hoom.yaml sin commitear
+// (enmienda 4) el arbol esta sucio: la review se niega igual, por arbol sucio
+// o por no cruzada (CA-416).
 func TestCA417_LaRamaNoSeDaSameProvider(t *testing.T) {
 	casos := []struct {
 		nombre string
@@ -535,6 +573,12 @@ func TestCA417_LaRamaNoSeDaSameProvider(t *testing.T) {
 			metaDeRun(t, root, "20260926T090000_wr1ter", "claude", "writer", time.Now().Add(-time.Minute))
 			cl := raInstalar(t, bin, "claude", "")
 
+			if c.nombre == "sin-commitear" {
+				for _, opt := range []Options{{Lens: "risk"}, {Lens: "risk", Provider: "claude"}} {
+					raNegativaHoomYamlSinCommitear(t, root, cl, opt, "--same-provider")
+				}
+				return
+			}
 			for _, opt := range []Options{{Lens: "risk"}, {Lens: "risk", Provider: "claude"}} {
 				res, out := raRevisar(t, "CA-417", root, opt)
 				if res.Status != "no-entregable" || res.ExitCode != 1 || res.Cross != CrossNo || len(res.Passes) != 0 || cl.veces() != 0 {
@@ -557,7 +601,8 @@ func TestCA417_LaRamaNoSeDaSameProvider(t *testing.T) {
 // claude con --strict-mcp-config y --setting-sources project. El Result y el
 // registro dicen aislado y la salida no culpa a hoom.yaml. Aun con el mismo
 // provider que escribio (solo porque el operador lo pide con la opcion
-// explicita), la review corre aislada.
+// explicita), la review corre aislada. Con el isolated: false de la rama sin
+// commitear (enmienda 4) la review no corre: arbol sucio (CA-416).
 func TestCA417_LaRamaNoSeSacaElAislamiento(t *testing.T) {
 	casos := []struct {
 		nombre, writer, reviewer string
@@ -577,6 +622,10 @@ func TestCA417_LaRamaNoSeSacaElAislamiento(t *testing.T) {
 			cli := raInstalar(t, bin, c.reviewer, "")
 			if c.writer != c.reviewer {
 				raInstalar(t, bin, c.writer, "")
+			}
+			if !c.commitear {
+				raNegativaHoomYamlSinCommitear(t, root, cli, c.opt, "")
+				return
 			}
 
 			res, out := raRevisar(t, "CA-417", root, c.opt)
@@ -609,8 +658,9 @@ func TestCA417_LaRamaNoSeSacaElAislamiento(t *testing.T) {
 // CA-417: con la seccion en la base, vale: same_provider: true deja revisar
 // con el provider que escribio (no-cruzada, y el registro lo dice) e
 // isolated: false apaga el aislamiento. La rama no la puede quitar ni
-// endurecer por su cuenta: aunque su hoom.yaml ya no traiga review: (o
-// traiga otra), rige la de la base.
+// endurecer por su cuenta: aunque su hoom.yaml commiteado ya no traiga
+// review: (o traiga otra), rige la de la base. Si la quita sin commitear
+// (enmienda 4), el arbol esta sucio y la review no corre (CA-416).
 func TestCA417_LaSeccionDeLaBaseVale(t *testing.T) {
 	casos := []struct {
 		nombre string
@@ -637,6 +687,10 @@ func TestCA417_LaSeccionDeLaBaseVale(t *testing.T) {
 			root := c.armar(t)
 			metaDeRun(t, root, "20260926T090000_wr1ter", "claude", "writer", time.Now().Add(-time.Minute))
 			cl := raInstalar(t, bin, "claude", "")
+			if c.nombre == "la-rama-quita-review-sin-commitear" {
+				raNegativaHoomYamlSinCommitear(t, root, cl, Options{Lens: "risk"}, "")
+				return
+			}
 
 			res, out := raRevisar(t, "CA-417", root, Options{Lens: "risk"})
 			if res.Status != "revisado" || res.ExitCode != 0 || res.Cross != CrossNo || res.Provider != "claude" || cl.veces() != 1 {
@@ -660,7 +714,8 @@ func TestCA417_LaSeccionDeLaBaseVale(t *testing.T) {
 // cambie: base {provider: codex, model: base-model, effort: low}, rama
 // {provider: claude, model: cand-model, effort: high} -> codex con
 // base-model y low. Y si la base no los elige y la rama si, quedan los del
-// provider (no elegidos).
+// provider (no elegidos). Con el cambio de la rama sin commitear (enmienda 4)
+// no corre ni el uno ni el otro: arbol sucio (CA-416).
 func TestCA417_ModeloYEsfuerzoDeLaBase(t *testing.T) {
 	const base = "review:\n  provider: codex\n  model: base-model\n  effort: low\n"
 	const cand = "review:\n  provider: claude\n  model: cand-model\n  effort: high\n"
@@ -674,6 +729,13 @@ func TestCA417_ModeloYEsfuerzoDeLaBase(t *testing.T) {
 			root := raRamaConReview(t, base, cand, commitear)
 			cl := raInstalar(t, bin, "claude", "") // primero en el orden de deteccion
 			cx := raInstalar(t, bin, "codex", "")
+			if !commitear {
+				raNegativaHoomYamlSinCommitear(t, root, cx, Options{Lens: "risk"}, "")
+				if cl.veces() != 0 {
+					t.Fatalf("CA-416: con el arbol sucio no corre ningun provider: claude %d", cl.veces())
+				}
+				return
+			}
 
 			res, out := raRevisar(t, "CA-417", root, Options{Lens: "risk"})
 			if res.Status != "revisado" || res.Provider != "codex" || cx.veces() != 1 || cl.veces() != 0 {
@@ -798,6 +860,7 @@ func TestCA417_ElTopeEsElDeLaBase(t *testing.T) {
 	bin := raPATH(t)
 	root := raRamaConReview(t, "review:\n  max_evidence_kib: 1\n", "review:\n  max_evidence_kib: 16384\n", true)
 	write(t, root, "app.go", b.String())
+	raCommit(t, root, "relleno")
 	cx := raInstalar(t, bin, "codex", "")
 	res, out := raRevisar(t, "CA-417", root, Options{Provider: "codex", Lens: "risk"})
 	if cx.veces() != 0 || res.Status != "no-entregable" || res.ExitCode != 1 || len(res.Passes) != 0 {
@@ -812,6 +875,7 @@ func TestCA417_ElTopeEsElDeLaBase(t *testing.T) {
 
 	root = raRamaConReview(t, "", "review:\n  max_evidence_kib: 1\n", true)
 	write(t, root, "app.go", b.String())
+	raCommit(t, root, "relleno")
 	res, out = raRevisar(t, "CA-417", root, Options{Provider: "codex", Lens: "risk"})
 	if res.Status != "revisado" || cx.veces() != 1 {
 		t.Fatalf("CA-417: el tope de 1 KiB de la rama no vale; rige el de la base (320 KiB) y corre: %+v\n%s", res, out)

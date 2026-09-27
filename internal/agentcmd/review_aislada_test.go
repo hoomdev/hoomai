@@ -6,6 +6,10 @@
 //
 // Guardas: el esqueleto ya las cumple (no hay aislamiento en ningun lado); lo
 // que prueban es que la implementacion no lo derrame fuera de la review.
+//
+// Enmienda 4 (CA-418): el pedido por stdin a cualquier tamano es solo de
+// `hoom review`; los roles de `hoom agent` siguen como en CA-109 (un prompt
+// chico va ultimo en argv, con el stdin vacio).
 package agentcmd
 
 import (
@@ -95,4 +99,55 @@ func TestCA400_HoomAgentNoAislaAunqueHoomYamlLoPidaParaLaReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	raSinAislamiento(t, "el writer", raArgvDe(t, dump2))
+}
+
+// CA-418: startOptions nunca pide PromptStdin, para ningun rol y con los dos
+// providers que lo soportan: el prompt de `hoom agent` sigue la regla de
+// CA-109 (stdin solo por encima de 16 KiB).
+func TestCA418_ElSobreNuncaPidePromptStdin(t *testing.T) {
+	for _, name := range []string{"codex", "claude"} {
+		prov, err := providers.Lookup(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, role := range agents.Roles() {
+			so, _ := startOptions(prov, role, "C", Options{Prompt: "trabaja", Model: "m"})
+			if so.PromptStdin {
+				t.Fatalf("CA-418: el rol %s en %s no manda su prompt por stdin (CA-109): %+v", role.Slug, name, so)
+			}
+		}
+	}
+}
+
+// CA-418 (CA-109 se conserva), de punta a punta: `hoom agent --role reviewer`
+// con codex y el writer con claude, con un prompt chico y aunque hoom.yaml
+// tenga una seccion review:, llevan el prompt ULTIMO en argv y el stdin del
+// proceso llega vacio.
+func TestCA418_HoomAgentConservaElPromptChicoEnArgv(t *testing.T) {
+	casos := []struct {
+		provider, role, prompt, extra string
+	}{
+		{"codex", "reviewer", "revisa el cambio con cuidado", ""},
+		{"claude", "writer", "implementa el spec hasta que verify de verde", "printf 'package app // hecho\\n' > app.go\n"},
+	}
+	for _, c := range casos {
+		t.Run(c.provider+"/"+c.role, func(t *testing.T) {
+			root := raRepoConReview(t)
+			dir := t.TempDir()
+			argv, in := filepath.Join(dir, "argv.txt"), filepath.Join(dir, "stdin.txt")
+			fakeProvider(t, c.provider, "printf '%s\\n' \"$@\" > '"+argv+"'\ncat > '"+in+"'\n"+c.extra+"exit 0\n")
+			opt := Options{Role: c.role, Provider: c.provider, Prompt: c.prompt}
+			if _, err := Run(root, "main", opt, io.Discard); err != nil {
+				t.Fatalf("CA-418: hoom agent --role %s corre: %v", c.role, err)
+			}
+			args := raArgvDe(t, argv)
+			if args[len(args)-1] != c.prompt {
+				t.Fatalf("CA-418/CA-109: el prompt chico de hoom agent --role %s sigue ultimo en argv: %q", c.role, args)
+			}
+			raw, err := os.ReadFile(in)
+			if err != nil || len(raw) != 0 {
+				t.Fatalf("CA-418/CA-109: hoom agent --role %s no manda su prompt chico por stdin: %v %q", c.role, err, raw)
+			}
+		})
+	}
 }

@@ -34,12 +34,15 @@ func hbComillas(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// hbArgv pone un codex falso que guarda cada argumento en una linea, FUERA
-// del arbol revisado (no dispara el gate de scope), y devuelve el archivo.
+// hbArgv pone un codex falso que guarda cada argumento en una linea y
+// despues su stdin, FUERA del arbol revisado (no dispara el gate de scope),
+// y devuelve el archivo. El pedido de la review viaja por stdin (CA-418,
+// enmienda 4 de review-aislada-y-modelo-elegido): lo que se busca del pedido
+// se busca en argv y stdin juntos.
 func hbArgv(t *testing.T) string {
 	t.Helper()
 	f := filepath.Join(t.TempDir(), "argv.txt")
-	fakeProvider(t, "codex", "printf '%s\\n' \"$@\" > '"+f+"'\nexit 0\n")
+	fakeProvider(t, "codex", "{ printf '%s\\n' \"$@\"; cat; } > '"+f+"'\nexit 0\n")
 	return f
 }
 
@@ -335,6 +338,7 @@ func TestCA293_ConTareaElControlUsaLaDeTask(t *testing.T) {
 				t.Fatal(err)
 			}
 			write(t, dir, "app.go", "package app\n\nfunc Nuevo() {}\n")
+			raCommit(t, dir, "cambio en la tarea") // enmienda 4 de review-aislada: solo lo commiteado
 			const id = "20260924T120002_d2d2d2"
 			script, cuerpo := hbHallazgo(id, caso.taskDelHallazgo)
 			fakeProvider(t, "codex", script+"exit 0\n")
@@ -360,6 +364,7 @@ func TestCA293_ElControlCorreEnCadaPasada(t *testing.T) {
 	root := repo(t)
 	write(t, root, htSpec, "# Spec: "+htSlug+"\n")
 	write(t, root, "internal/auth/login.go", "package auth\n\nfunc Login() {}\n")
+	raCommit(t, root, "ruta de riesgo") // enmienda 4 de review-aislada: solo lo commiteado
 	const id = "20260924T120003_e3e3e3"
 	script, _ := hbHallazgo(id, "")
 	contador := filepath.Join(t.TempDir(), "n.txt")
@@ -459,8 +464,9 @@ func TestCA293_E2EElReviewerQueSigueElPedidoNoUsaElHoomViejo(t *testing.T) {
 	t.Setenv("PATH", viejo+":"+os.Getenv("PATH"))
 	t.Setenv("HOOM_TASK", "ajena")
 	marca := filepath.Join(t.TempDir(), "marca.txt") // fuera del arbol revisado
+	// el pedido viaja por stdin (CA-418): el reviewer lo lee de argv y stdin
 	fakeProvider(t, "codex",
-		"hb=$(printf '%s\\n' \"$@\" | sed -n \"s/.*'\\([^']*\\)' finding add --sev.*/\\1/p\" | head -n 1)\n"+
+		"hb=$({ printf '%s\\n' \"$@\"; cat; } | sed -n \"s/.*'\\([^']*\\)' finding add --sev.*/\\1/p\" | head -n 1)\n"+
 			"if [ -z \"$hb\" ]; then echo 'sin comando citado en el pedido' > '"+marca+"'; exit 9; fi\n"+
 			"echo \"$hb\" > '"+marca+"'\n"+
 			"\"$hb\" finding add --sev medium --lens risk --file app.go --author reviewer@codex \"Nuevo() no tiene test (app.go:3)\" || exit 8\n"+

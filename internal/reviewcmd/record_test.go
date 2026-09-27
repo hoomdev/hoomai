@@ -120,6 +120,7 @@ func TestCA293_WriteRecordYRecords(t *testing.T) {
 func TestCA293_ReviewRevisadoDejaRegistro(t *testing.T) {
 	root := repo(t)
 	write(t, root, ".hoom/specs/precios.md", "# Spec: precios\n")
+	raCommit(t, root, "spec") // enmienda 4: el spec se lee de HEAD
 	fakeProvider(t, "claude", "exit 0\n")
 	fakeProvider(t, "codex", "exit 0\n")
 	metaDeRun(t, root, "20260904T190000_aaaaaa", "claude", "writer", time.Now())
@@ -173,12 +174,13 @@ func TestCA293_ReviewRevisadoDejaRegistro(t *testing.T) {
 // CA-293: --task manda sobre el --spec, y el registro va al arbol revisado
 // (el worktree de la tarea), no al principal.
 func TestCA293_ReviewConTareaEscribeEnElWorktree(t *testing.T) {
+	// enmienda 4 de review-aislada-y-modelo-elegido: repo ya commitea su
+	// cambio (en feature), y el de la tarea se commitea en su worktree
 	root := repo(t)
-	git(t, root, "add", "-A")
-	git(t, root, "commit", "-m", "cambio de codigo")
 	wt := filepath.Join(root, ".hoom", "worktrees", "tarea-a")
 	git(t, root, "worktree", "add", "-q", "-b", "hoom/tarea-a", wt, "main")
 	write(t, wt, "app.go", "package app\n\nfunc EnLaTarea() {}\n")
+	raCommit(t, wt, "cambio en la tarea")
 	fakeProvider(t, "claude", "exit 0\n")
 	fakeProvider(t, "codex", "exit 0\n")
 
@@ -223,6 +225,7 @@ func TestCA293_SinRevisarYNoEntregableNoDejanRegistro(t *testing.T) {
 	git(t, docs, "add", "-A")
 	git(t, docs, "commit", "-m", "inicial")
 	write(t, docs, "README.md", "# demo\n\nmas prosa\n")
+	raCommit(t, docs, "mas prosa") // enmienda 4: la review revisa solo lo commiteado
 	fakeProvider(t, "claude", "exit 0\n")
 	fakeProvider(t, "codex", "exit 0\n")
 	var out bytes.Buffer

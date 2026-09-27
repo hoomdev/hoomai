@@ -1,7 +1,9 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (CA-396..CA-399): los providers ganan las capacidades effort e isolation;
-// Codex y Claude traducen Isolated y Effort a sus flags sin tocar el argv de
-// hoy cuando no se piden; y un prompt de mas de 16 KiB viaja por stdin.
+// (CA-396..CA-399, CA-418): los providers ganan las capacidades effort e
+// isolation; Codex y Claude traducen Isolated y Effort a sus flags sin tocar
+// el argv de hoy cuando no se piden; un prompt de mas de 16 KiB viaja por
+// stdin; y (enmienda 4) con Request.PromptStdin viaja por stdin a cualquier
+// tamano.
 package providers
 
 import (
@@ -458,5 +460,82 @@ func TestCA399_PropiedadStdinSiYSoloSiPasaElUmbral(t *testing.T) {
 	}
 	if err := quick.Check(prop, &quick.Config{MaxCount: 120, Rand: rand.New(rand.NewSource(399))}); err != nil {
 		t.Fatalf("CA-399: stdin si y solo si el prompt pasa de 16384 bytes: %v", err)
+	}
+}
+
+// CA-399 / CA-418 (enmienda 4): con Request.PromptStdin, codex y claude
+// mandan el prompt por stdin A CUALQUIER TAMANO (uno chico, uno unicode, uno
+// de 16384 bytes justos, uno de 16385): Invocation.Stdin es el prompt entero,
+// ningun argumento lo trae, y el argv es el de siempre sin el prompt (codex
+// lo reemplaza por "-", claude no lleva prompt posicional). Tambien en
+// resume, con los flags del reviewer y con Strict (PromptStdin no es un campo
+// que se pueda negar).
+func TestCA399_PromptStdinACualquierTamano(t *testing.T) {
+	prompts := []string{
+		"hola",
+		"revisa esto: \"comillas\", 'simples', $HOME, `id` y ñandú €",
+		raPromptDe(StdinPromptBytes, "abc\n"),
+		raPromptDe(StdinPromptBytes+1, "abc\n"),
+	}
+	for _, name := range []string{"codex", "claude"} {
+		for _, p := range prompts {
+			for _, base := range []Request{
+				{Prompt: p},
+				{Prompt: p, SystemPrompt: "C", ReadOnly: true, Exec: true, Isolated: true, Effort: "high", Model: "m1", Strict: true},
+				{Prompt: p, ResumeID: "sess-1"},
+			} {
+				req := base
+				req.PromptStdin = true
+				inv := raCmd(t, name, req)
+				if inv.Stdin != p {
+					t.Fatalf("CA-399/CA-418: %s: con PromptStdin, Invocation.Stdin es el prompt entero (%d bytes), fue %d bytes", name, len(p), len(inv.Stdin))
+				}
+				for _, a := range inv.Args {
+					if strings.Contains(a, p) {
+						t.Fatalf("CA-399/CA-418: %s: con PromptStdin el argv no lleva el prompt (%d bytes): %q", name, len(p), a)
+					}
+				}
+				if len(inv.Ignored) != 0 {
+					t.Fatalf("CA-399/CA-418: %s honra PromptStdin: Ignored %v", name, inv.Ignored)
+				}
+				chico := base
+				chico.Prompt = "chico"
+				want := raCmd(t, name, chico).Args
+				want = want[:len(want)-1]
+				if name == "codex" {
+					want = append(want, "-")
+				}
+				if !reflect.DeepEqual(inv.Args, want) {
+					t.Fatalf("CA-399/CA-418: %s: con PromptStdin el argv es el de siempre sin el prompt:\nquiere %v\nfue    %v", name, want, inv.Args)
+				}
+			}
+		}
+	}
+}
+
+// CA-399 / CA-418 (propiedad): con PromptStdin, para cualquier largo (de 1 a
+// 40.000 bytes) el prompt va por stdin y nunca por argv, en codex y claude.
+func TestCA399_PropiedadPromptStdinSiempreStdin(t *testing.T) {
+	prop := func(largo uint16, codex bool) bool {
+		n := 1 + int(largo)%40000
+		p := raPromptDe(n, "linea del pedido con la evidencia\n")
+		name := "claude"
+		if codex {
+			name = "codex"
+		}
+		prov, _ := Lookup(name)
+		inv, err := prov.Command(Request{Prompt: p, PromptStdin: true, Isolated: true})
+		if err != nil || inv.Stdin != p {
+			return false
+		}
+		for _, a := range inv.Args {
+			if strings.Contains(a, p) {
+				return false
+			}
+		}
+		return !codex || inv.Args[len(inv.Args)-1] == "-"
+	}
+	if err := quick.Check(prop, &quick.Config{MaxCount: 120, Rand: rand.New(rand.NewSource(418))}); err != nil {
+		t.Fatalf("CA-399/CA-418: con PromptStdin el prompt va siempre por stdin: %v", err)
 	}
 }

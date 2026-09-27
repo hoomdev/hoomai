@@ -251,6 +251,7 @@ func TestCA293_ResultTraeLasNotasDelRegistro(t *testing.T) {
 		root := repo(t)
 		write(t, root, htSpec, "# Spec: "+htSlug+"\n")
 		write(t, root, "internal/auth/login.go", "package auth\n\nfunc Login() {}\n")
+		raCommit(t, root, "ruta de riesgo") // enmienda 4 de review-aislada: solo lo commiteado
 		const primero, tercero = "20260924T130001_c64133", "20260924T130002_c64133"
 		s1, _ := hbHallazgo(primero, "")
 		s3, _ := hbHallazgo(tercero, "otra-tarea")

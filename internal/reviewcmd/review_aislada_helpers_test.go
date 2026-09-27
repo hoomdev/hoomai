@@ -1,16 +1,23 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (enmiendas 1 a 3: CA-394, CA-395, CA-400..CA-407, CA-412..CA-417) sobre
+// (enmiendas 1 a 4: CA-394, CA-395, CA-400..CA-407, CA-412..CA-419) sobre
 // `hoom review`: provider, modelo, esfuerzo y same_provider se resuelven
 // opcion > hoom.yaml DE LA BASE (el del merge-base, nunca el del candidato)
 // > vacio (un --same-provider=false explicito tambien); cada pasada corre
-// aislada con el esfuerzo resuelto; hoom congela la evidencia (el cambio
-// entero contra el merge-base, con borrados y renombres, + el spec) una vez,
-// leyendo con tope, y se la da entera a cada lente entre marcadores con el
-// sha256 completo de la evidencia, antes de la linea de la lente; se niega a correr si
-// pasa el tope; el spec tiene que ser un archivo regular del arbol; un error
-// de git falla cerrado; un .gitignore tocado con archivos sin rastrear
-// frena la evidencia; risk va primero; la salida y el registro dicen
-// modelo, esfuerzo, aislamiento, evidencia y gasto por lente.
+// aislada con el esfuerzo resuelto y con el contrato del reviewer de la
+// base; hoom congela la evidencia (el cambio COMMITEADO entero contra el
+// merge-base, con borrados y renombres, fuera de .hoom/ mas .hoom/agents/,
+// + el spec de HEAD) una vez, leyendo con tope, y se la da entera a cada
+// lente entre marcadores con el sha256 completo de la evidencia, antes de la
+// linea de la lente, siempre por stdin; se niega a correr si pasa el tope o
+// si el arbol esta sucio fuera de .hoom/; el spec tiene que ser un archivo
+// regular de HEAD; un error de git falla cerrado; risk va primero; la salida
+// y el registro dicen modelo, esfuerzo, aislamiento, evidencia y gasto por
+// lente.
+//
+// Enmienda 4: la review revisa solo lo commiteado. raCambio, raCuatro y
+// raCommit commitean el cambio en la rama feature (la base es main); los
+// fixtures que antes dejaban el cambio sin commitear lo commitean, y raLimpio
+// exige que el arbol este limpio fuera de .hoom/ antes de revisar.
 //
 // Los CLIs de IA son falsos y viven en un PATH MINIMO (sistema + los falsos):
 // ningun claude/codex real de esta maquina puede colarse. Cada invocacion
@@ -153,17 +160,164 @@ func raRepo(t *testing.T, reviewYAML string) string {
 	return root
 }
 
-// raCambio planta un cambio de codigo chico sin commitear (una lente).
-func raCambio(t *testing.T, root string) {
+// raRama deja dir en la rama feature si esta en main: la base de la review
+// es main, y lo que se commitea sobre main no es un cambio contra su
+// merge-base. Una rama que no es main (feature, hoom/<slug>) queda igual.
+func raRama(t *testing.T, dir string) {
 	t.Helper()
-	write(t, root, "app.go", "package app\n\nfunc Nuevo() {}\n")
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("fixture: git rev-parse --abbrev-ref HEAD en %s: %v", dir, err)
+	}
+	if strings.TrimSpace(string(out)) == "main" {
+		git(t, dir, "checkout", "-q", "-b", "feature")
+	}
 }
 
-// raCuatro planta un cambio en una ruta de riesgo: las 4 lentes.
+// raCommit commitea en la rama (raRama) todo lo que hay en el arbol de dir,
+// sin los worktrees de .hoom/worktrees/ (enmienda 4: la review revisa solo lo
+// commiteado).
+func raCommit(t *testing.T, dir, msg string) {
+	t.Helper()
+	raRama(t, dir)
+	git(t, dir, "add", "-A")
+	git(t, dir, "rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", ".hoom/worktrees")
+	git(t, dir, "commit", "-q", "--allow-empty", "-m", msg)
+}
+
+// raCambio commitea en la rama un cambio de codigo chico (una lente). Solo
+// commitea app.go: lo demas que haya en el arbol queda como estaba.
+func raCambio(t *testing.T, root string) {
+	t.Helper()
+	raRama(t, root)
+	write(t, root, "app.go", "package app\n\nfunc Nuevo() {}\n")
+	git(t, root, "commit", "-q", "-m", "cambio de codigo (una lente)", "--", "app.go")
+}
+
+// raCuatro commitea en la rama un cambio en una ruta de riesgo: las 4
+// lentes. Solo commitea sus dos archivos.
 func raCuatro(t *testing.T, root string) {
 	t.Helper()
-	raCambio(t, root)
+	raRama(t, root)
+	write(t, root, "app.go", "package app\n\nfunc Nuevo() {}\n")
 	write(t, root, "internal/auth/token.go", "package auth\n\n// Valida revisa un token: ñandú €\nfunc Valida(s string) bool { return s != \"\" }\n")
+	git(t, root, "add", "--", "app.go", "internal/auth/token.go")
+	git(t, root, "commit", "-q", "-m", "cambio en una ruta de riesgo (4 lentes)", "--", "app.go", "internal/auth/token.go")
+}
+
+// raSuciedad lista lo que git ve sin commitear en dir FUERA de .hoom/ (sin
+// lo ignorado), una entrada 'XY ruta' por archivo.
+func raSuciedad(t *testing.T, dir string) []string {
+	t.Helper()
+	cmd := exec.Command("git", "status", "--porcelain=v1", "-z", "-uall", "--no-renames")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("fixture: git status en %s: %v", dir, err)
+	}
+	var lista []string
+	for _, e := range strings.Split(string(out), "\x00") {
+		if len(e) < 4 || strings.HasPrefix(e[3:], ".hoom/") {
+			continue
+		}
+		lista = append(lista, e)
+	}
+	return lista
+}
+
+// raLimpio (fixture, enmienda 4): el arbol de dir no tiene nada sin commitear
+// fuera de .hoom/, asi que la review no tiene por que negarse por arbol sucio
+// (CA-416).
+func raLimpio(t *testing.T, ca, dir string) {
+	t.Helper()
+	if s := raSuciedad(t, dir); len(s) != 0 {
+		t.Fatalf("%s: fixture: el arbol no tiene cambios sin commitear fuera de .hoom/ (enmienda 4): %q", ca, s)
+	}
+}
+
+// El texto del contrato de la negativa por arbol sucio (CA-416, enmienda 4):
+// `la review revisa solo lo commiteado y hay cambios sin commitear (<ruta>):
+// commitealos antes de revisar`.
+const (
+	raSucioPre = "la review revisa solo lo commiteado y hay cambios sin commitear ("
+	raSucioPos = "): commitealos antes de revisar"
+)
+
+func raErrSucio(ruta string) string { return raSucioPre + ruta + raSucioPos }
+
+// raRutaSucia devuelve la ruta que nombra la negativa por arbol sucio dentro
+// de msg, y si msg la trae.
+func raRutaSucia(msg string) (string, bool) {
+	i := strings.Index(msg, raSucioPre)
+	if i < 0 {
+		return "", false
+	}
+	resto := msg[i+len(raSucioPre):]
+	j := strings.Index(resto, raSucioPos)
+	if j < 0 {
+		return "", false
+	}
+	return resto[:j], true
+}
+
+// raRutaAceptada dice si la ruta que nombro la negativa es una de rutas: tal
+// cual, citada por git (core.quotePath, entre comillas con octales) o con la
+// barra final con la que git nombra un directorio nuevo.
+func raRutaAceptada(ruta string, rutas []string) bool {
+	if u, err := strconv.Unquote(ruta); err == nil && strings.HasPrefix(ruta, "\"") {
+		ruta = u
+	}
+	ruta = strings.TrimSuffix(ruta, "/")
+	for _, r := range rutas {
+		if ruta == strings.TrimSuffix(r, "/") {
+			return true
+		}
+	}
+	return false
+}
+
+// raSinTextoEnHoom exige que ningun archivo bajo .hoom/ (registros, runs,
+// hallazgos, sobres) traiga texto.
+func raSinTextoEnHoom(t *testing.T, ca, root, texto string) {
+	t.Helper()
+	if texto == "" {
+		return
+	}
+	_ = filepath.Walk(filepath.Join(root, ".hoom"), func(p string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() || !fi.Mode().IsRegular() {
+			return nil
+		}
+		if raw, _ := os.ReadFile(p); bytes.Contains(raw, []byte(texto)) {
+			t.Fatalf("%s: %q quedo en %s", ca, texto, p)
+		}
+		return nil
+	})
+}
+
+// raRunConReloj corre la review con reloj: si no vuelve en d, el test falla
+// (la goroutine queda colgada; el test no).
+func raRunConReloj(t *testing.T, ca string, d time.Duration, root string, opt Options) (Result, error, string) {
+	t.Helper()
+	type resultado struct {
+		res Result
+		err error
+		out string
+	}
+	ch := make(chan resultado, 1)
+	go func() {
+		var out bytes.Buffer
+		res, err := Run(root, "main", opt, &out)
+		ch <- resultado{res, err, out.String()}
+	}()
+	select {
+	case r := <-ch:
+		return r.res, r.err, r.out
+	case <-time.After(d):
+		t.Fatalf("%s: la review no volvio en %s", ca, d)
+	}
+	return Result{}, nil, ""
 }
 
 func raKiB(n int) int { return (n + 1023) / 1024 }
@@ -177,6 +331,7 @@ func raSHA(diff, spec []byte) string {
 
 func raRevisar(t *testing.T, ca, root string, opt Options) (Result, string) {
 	t.Helper()
+	raLimpio(t, ca, root)
 	var out bytes.Buffer
 	res, err := Run(root, "main", opt, &out)
 	if err != nil {
@@ -245,6 +400,7 @@ const raTopeGrande = 16 << 20
 
 func raEvidencia(t *testing.T, ca, root, spec string) Evidencia {
 	t.Helper()
+	raLimpio(t, ca, root)
 	ev, err := Evidence(root, "main", spec, raTopeGrande)
 	if err != nil {
 		t.Fatalf("%s: Evidence: %v", ca, err)
@@ -263,6 +419,7 @@ func raEvidencia(t *testing.T, ca, root, spec string) Evidencia {
 // criterio, no por el fixture.
 func raEvidenciaCruda(t *testing.T, ca, root, spec string) Evidencia {
 	t.Helper()
+	raLimpio(t, ca, root)
 	ev, err := Evidence(root, "main", spec, raTopeGrande)
 	if err != nil {
 		t.Fatalf("%s: Evidence: %v", ca, err)
