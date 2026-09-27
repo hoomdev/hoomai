@@ -57,12 +57,23 @@ func TestCA418_CadaPasadaMandaSuPedidoPorStdin(t *testing.T) {
 				if len(in) > providers.StdinPromptBytes {
 					t.Fatalf("CA-418: fixture: el pedido es chico (menos de %d bytes): %d", providers.StdinPromptBytes, len(in))
 				}
-				raRevisarPedido(t, in, lens, g, ev, "", false, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+				raRevisarPedido(t, in, lens, prov, g, ev, "", false, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+				// pedazos que SOLO tiene el pedido: el contrato 06 viaja en el
+				// argv como system prompt (CA-162) y nombra 'hoom finding add',
+				// asi que las lineas comunes con el contrato no sirven de
+				// marca. Estas si: la primera linea (con el sha256), el sha256
+				// de la evidencia (lo llevan sus tres marcadores), la linea
+				// Base:, la linea de la lente y una linea del diff.
+				lineas := raLineas(in)
+				pedazos := []string{lineas[0], raMarca(t, ev), lineas[2],
+					"Revisalo con la lente " + lens + ". Solo esa lente.", "func Valida(s string)"}
 				for _, a := range args {
-					for _, pedazo := range []string{"Revisa el cambio de esta rama", "=== diff ", "=== fin de la evidencia",
-						"Revisalo con la lente", " finding add ", "func Valida(s string)"} {
+					if a == in {
+						t.Fatalf("CA-418: %s: el argv de la pasada %s no trae el pedido entero", prov, lens)
+					}
+					for _, pedazo := range pedazos {
 						if strings.Contains(a, pedazo) {
-							t.Fatalf("CA-418: %s: el argv de la pasada %s no trae el pedido (%q en %q)", prov, lens, pedazo, a)
+							t.Fatalf("CA-418: %s: el argv de la pasada %s no trae ningun pedazo del pedido (%q en %.200q)", prov, lens, pedazo, a)
 						}
 					}
 				}

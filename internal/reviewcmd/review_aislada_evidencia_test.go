@@ -779,7 +779,7 @@ func TestCA412_SpecSinCommitearNoEstaEnHEAD(t *testing.T) {
 				t.Fatalf("CA-412: con un spec que no esta en HEAD la review sigue: %+v\n%s", res, out)
 			}
 			p := cx.pedido(t, 1)
-			raRevisarPedido(t, p, "risk", g, ev, spec, false, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+			raRevisarPedido(t, p, "risk", "codex", g, ev, spec, false, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
 			if oculto != "" && (strings.Contains(p, oculto) || strings.Contains(out, oculto)) {
 				t.Fatalf("CA-412: lo que no esta en HEAD no aparece en el pedido ni en la salida: %q", oculto)
 			}
@@ -837,7 +837,7 @@ func TestCA412_EdicionSinCommitearDelSpecNoEntra(t *testing.T) {
 				t.Fatalf("CA-412: la review corre con el spec de HEAD: %+v\n%s", res, out)
 			}
 			p := cx.pedido(t, 1)
-			raRevisarPedido(t, p, "risk", g, ev, spec, true, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+			raRevisarPedido(t, p, "risk", "codex", g, ev, spec, true, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
 			if oculto != "" && strings.Contains(p, oculto) {
 				t.Fatalf("CA-412: la edicion sin commitear del spec no entra en el pedido: %q\n%s", oculto, p)
 			}
@@ -984,7 +984,7 @@ func TestCA412_SpecQueNoExisteLaReviewSigue(t *testing.T) {
 	if res.Status != "revisado" || cx.veces() != 1 {
 		t.Fatalf("CA-412: con un spec que no existe la review sigue: %+v\n%s", res, out)
 	}
-	raRevisarPedido(t, cx.pedido(t, 1), "risk", g, ev, spec, false,
+	raRevisarPedido(t, cx.pedido(t, 1), "risk", "codex", g, ev, spec, false,
 		"No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
 }
 
@@ -1014,7 +1014,7 @@ func TestCA412_SpecVacioLlevaSuBloqueVacio(t *testing.T) {
 	if !strings.Contains(p, "\nSpec: "+spec+"\n=== spec "+spec+" "+h+" ===\n=== diff "+h+" ===\n") {
 		t.Fatalf("CA-412: el bloque del spec vacio es su marcador seguido del marcador del diff:\n%s", p)
 	}
-	raRevisarPedido(t, p, "risk", g, ev, spec, true, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+	raRevisarPedido(t, p, "risk", "codex", g, ev, spec, true, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
 }
 
 // ---------------------------------------------------------------- CA-413

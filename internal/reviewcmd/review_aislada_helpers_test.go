@@ -554,11 +554,13 @@ func raOver(t *testing.T, ca string, ev Evidencia, tope int) {
 	}
 }
 
-// raRevisarPedido comprueba la forma del pedido de una lente y devuelve su
-// prefijo comun: todo hasta '=== fin de la evidencia <sha256> ===' inclusive.
+// raRevisarPedido comprueba la forma del pedido de una lente, revisada con el
+// provider prov, y devuelve su prefijo comun: todo hasta
+// '=== fin de la evidencia <sha256> ===' inclusive. La linea de registro
+// lleva exactamente '--author reviewer@<prov>' (CA-162: <rol>@<provider>).
 // spec es la ruta de --spec ("" = sin spec); existe dice si el spec esta en
 // el arbol (sin el, la linea Spec: lo dice y no hay bloque de spec).
-func raRevisarPedido(t *testing.T, ped, lens string, g gitx.Info, ev Evidencia, spec string, existe bool, lineaVeredicto string) string {
+func raRevisarPedido(t *testing.T, ped, lens, prov string, g gitx.Info, ev Evidencia, spec string, existe bool, lineaVeredicto string) string {
 	t.Helper()
 	h := raMarca(t, ev)
 	lineas := raLineas(ped)
@@ -628,8 +630,11 @@ func raRevisarPedido(t *testing.T, ped, lens string, g gitx.Info, ev Evidencia, 
 	if !strings.HasPrefix(resto, lente) {
 		t.Fatalf("CA-403 (%s): despues de la evidencia van la linea de la lente y 'Registra cada hallazgo': %q", lens, resto[:min(len(resto), 200)])
 	}
-	if !strings.Contains(resto, " finding add --sev low|medium|high --lens "+lens+" --file <ruta> --author reviewer@codex ") {
-		t.Fatalf("CA-403 (%s): se conserva la linea de hoom finding add de CA-162:\n%s", lens, resto)
+	if prov == "" {
+		t.Fatalf("CA-403 (%s): fixture: raRevisarPedido necesita el provider de la review", lens)
+	}
+	if !strings.Contains(resto, " finding add --sev low|medium|high --lens "+lens+" --file <ruta> --author reviewer@"+prov+" ") {
+		t.Fatalf("CA-403 (%s): se conserva la linea de hoom finding add de CA-162, con --author reviewer@%s:\n%s", lens, prov, resto)
 	}
 	if !strings.Contains(resto, "El chat no es registro: lo que no quede como hallazgo, no paso.\n") ||
 		!strings.HasSuffix(strings.TrimRight(resto, "\n"), "No edites codigo: este arbol es de solo lectura para vos.") {

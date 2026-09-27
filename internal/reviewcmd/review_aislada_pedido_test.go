@@ -45,7 +45,7 @@ func TestCA403_PedidoConLaEvidenciaAntesDeLaLente(t *testing.T) {
 	lineaV := fmt.Sprintf("Veredicto vigente: %s (%s).", v.ID, v.Verdict)
 	var prefijo string
 	for n, lens := range res.Lenses {
-		pre := raRevisarPedido(t, cx.pedido(t, n+1), lens, g, ev, ".hoom/specs/x.md", true, lineaV)
+		pre := raRevisarPedido(t, cx.pedido(t, n+1), lens, "codex", g, ev, ".hoom/specs/x.md", true, lineaV)
 		if n == 0 {
 			prefijo = pre
 		} else if pre != prefijo {
@@ -68,7 +68,7 @@ func TestCA403_PedidoSinSpecNiVeredicto(t *testing.T) {
 	if cx.veces() != 1 || res.Status != "revisado" {
 		t.Fatalf("CA-403: fixture: una pasada: %+v", res)
 	}
-	raRevisarPedido(t, cx.pedido(t, 1), "risk", g, ev, "", false,
+	raRevisarPedido(t, cx.pedido(t, 1), "risk", "codex", g, ev, "", false,
 		"No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
 }
 
@@ -136,7 +136,7 @@ func TestCA403_SpecHostilNoFalsificaLosMarcadores(t *testing.T) {
 	var prefijo string
 	for n, lens := range res.Lenses {
 		p := cx.pedido(t, n+1)
-		pre := raRevisarPedido(t, p, lens, g, ev, spec, true, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
+		pre := raRevisarPedido(t, p, lens, "codex", g, ev, spec, true, "No hay veredicto vigente: la review no reemplaza a 'hoom verify'.")
 		if n == 0 {
 			prefijo = pre
 		} else if pre != prefijo {

@@ -39,13 +39,27 @@ const (
 	spPrefijo     = "piloto automatico: "
 )
 
-// spEscribeCodigo es el writer de mentira: deja 450 lineas de codigo (la
-// review de 4 lentes queda exigida) y sale 0.
+// spEscribeCodigoSinCommitear es un writer de mentira que deja 450 lineas de
+// codigo (la review de 4 lentes queda exigida) SIN commitear y sale 0.
+const spEscribeCodigoSinCommitear = `i=0
+{
+  printf 'package app\n\n'
+  while [ $i -lt 450 ]; do printf 'var cinta%d = %d\n' $i $i; i=$((i+1)); done
+} > cinta.go
+exit 0
+`
+
+// spEscribeCodigo es el writer de mentira de la cinta: deja esas 450 lineas
+// y las COMMITEA en su rama. Enmienda 4 de review-aislada-y-modelo-elegido:
+// la review revisa solo lo commiteado (CA-416), asi que un writer que no
+// commitea detiene la cinta (TestCA416_LaCintaSeDetieneSiElWriterNoCommitea);
+// commitear desde la cinta es otra spec.
 const spEscribeCodigo = `i=0
 {
   printf 'package app\n\n'
   while [ $i -lt 450 ]; do printf 'var cinta%d = %d\n' $i $i; i=$((i+1)); done
 } > cinta.go
+git add -A && git commit -qm cinta || exit 1
 exit 0
 `
 
@@ -366,6 +380,58 @@ func TestCA381_LaCintaPideAlReviewerSinOtroPOST(t *testing.T) {
 	}
 	if otros := spOtros(root, r.EnvelopeID, segundo.ID); len(otros) != 0 {
 		t.Fatalf("CA-381: la cinta no lanza nada despues de la review: %+v", otros)
+	}
+}
+
+// CA-416 (caso limite del spec review-aislada-y-modelo-elegido, enmienda 4:
+// "La cinta del Studio que lanza la review sobre lo que dejo el writer sin
+// commitear: la review se niega y la cinta se detiene hasta que alguien
+// commitee") sobre la cinta de CA-381: el mismo writer entregable que en
+// TestCA381_LaCintaPideAlReviewerSinOtroPOST, pero que deja cinta.go SIN
+// commitear. La cinta intenta pedir al reviewer, la review se niega por
+// arbol sucio antes de su primera pasada: claude nunca corre, ningun sobre
+// de reviewer llega a una pasada, y el log del writer dice que no se pudo
+// lanzar al reviewer con el texto de la negativa (la ruta cinta.go).
+func TestCA416_LaCintaSeDetieneSiElWriterNoCommitea(t *testing.T) {
+	f := lnPATH(t)
+	spCLI(t, f, "codex", spEscribeCodigoSinCommitear, false)
+	f.cli(t, "claude", false)
+	root := tbProyecto(t)
+	const slug = "sin-commitear"
+	spCartaWriter(t, "CA-416", root, slug, spPresupuesto+spAuto)
+	s := lnServidor(t, root, f)
+
+	r := lnAceptado(t, "CA-416", lnLaunch(t, s, slug, s.Token(),
+		lnCuerpo("pedir-writer", "codex", "", nil, "Implementa el spec hasta que verify de verde.")))
+	primero := spCerrado(t, "CA-416", root, r.EnvelopeID)
+	if primero.Status != envelope.StatusDeliverable {
+		t.Fatalf("CA-416: fixture: el writer de codex cierra entregable: %+v\n%s", primero, spLog(root, r.EnvelopeID))
+	}
+	spPersona(t, "CA-416", root, r.EnvelopeID)
+
+	const sucio = "la review revisa solo lo commiteado y hay cambios sin commitear (cinta.go)"
+	if !spEsperar(20*time.Second, func() bool {
+		for _, l := range spLineas(root, r.EnvelopeID) {
+			if strings.Contains(l, sucio) {
+				return true
+			}
+		}
+		return false
+	}) {
+		t.Fatalf("CA-416: la cinta se detiene y el log del writer dice que no pudo lanzar al reviewer con %q; lineas del piloto: %q\nlog:\n%s",
+			sucio, spLineas(root, r.EnvelopeID), spLog(root, r.EnvelopeID))
+	}
+	lnEsperarLanzamientos(t, "CA-416", s)
+	if n := len(f.llamadas(t, "claude")); n != 0 {
+		t.Fatalf("CA-416: con lo del writer sin commitear la review no llega a ninguna pasada: claude corrio %d veces", n)
+	}
+	for _, otro := range spOtros(root, r.EnvelopeID) {
+		if otro.Role == "reviewer" && (otro.RunID != "" || otro.Status == envelope.StatusDeliverable) {
+			t.Fatalf("CA-416: ningun sobre de reviewer llega a una pasada: %+v", otro)
+		}
+	}
+	if n := len(f.llamadas(t, "codex")); n != 1 {
+		t.Fatalf("CA-416: la cinta no reintenta al writer: codex corrio %d veces", n)
 	}
 }
 
