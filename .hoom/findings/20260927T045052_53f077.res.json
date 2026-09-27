@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T045052_53f077",
+  "as": "refutado",
+  "evidence": "No introducido: la misma clase existe en main y corre antes. Prueba (go test -overlay, git 2.54.0): con un filtro clean configurado que tarda 4 s (el 'helper configurado' del hallazgo), gitx.Snapshot, sin cambios vs main (internal/gitx/gitx.go:41-46, exec.Command+Output sin contexto), tardo 16,3 s y Evidence 8,1 s. Snapshot corre primero y tambien antes del primer sobre: main reviewcmd.go:199 (sobre en :291), rama reviewcmd.go:417 (Evidence en :490, sobre en :529). El Studio ya esperaba ready/done con el candado de la tarjeta tomado (servecmd/acciones.go:170-176 y 280-294 son de C3). Un git, un filesystem o un helper colgado ya dejaba la tarjeta bloqueada en main; la rama no crea el riesgo. Archivos especiales: cerrado en diff.go:141-146 (ver 2665fa y 14b27c). Plazo y cancelacion para todos los git de hoom, con un sobre cancelable antes de ellos, es una spec transversal.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T05:07:16.911402Z"
+}

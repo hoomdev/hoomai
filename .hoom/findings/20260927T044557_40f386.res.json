@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T044557_40f386",
+  "as": "refutado",
+  "evidence": "Repeticion de 20260926T051819_876602 y 20260926T145210_7e6deb (ya refutados, ver sus .res.json) sin argumento nuevo. Re-verificado en df516a3: el chequeo sigue en internal/providers/providers.go:397-399, junto a los del prompt (:302-304) y del id de sesion (:306-309): regla de argv, no de vocabulario (un nivel inventado pasa tal cual, prueba de 876602). El codificado TOML de Codex ya lo contesto 7e6deb; para Claude CA-398 fija la forma de dos argumentos (--effort \u003ce\u003e), donde un valor con guion inicial lo lee el parser como flag. '-1' no es un nivel de ningun provider actual (vocabularios verificados en 7e6deb).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T05:07:16.970143Z"
+}

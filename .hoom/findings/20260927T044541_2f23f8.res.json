@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T044541_2f23f8",
+  "as": "refutado",
+  "evidence": "Falla cerrado correcta y compartida con hoom verify, no una via para aflojar la review. Prueba (go test -overlay, base valida y rama que commitea review: {max_evidence_kib: 16385}): hoom review sale con 'hoom.yaml invalido: review: max_evidence_kib no puede pasar de 16384' y 0 invocaciones del CLI; manifest.Load(root), la misma llamada de hoom verify (cmd/hoom/main.go:299), da el mismo error: esa rama tampoco obtiene veredicto verde ni puede llevar la seccion invalida a la base. Es el patron previo: con findings: {foo: 1} en la rama, review (main reviewcmd.go:192-194) y verify fallan igual (reproducido). CA-417 impide que el candidato AFLOJE su review, y se cumple: la politica que rige sale de la base (reviewcmd.go:229-245 y :434). Que un hoom.yaml invalido no se revise ni se verifique es CA-394 ('fallan con los textos del contrato') y la deuda aceptada de la spec ('El resto del hoom.yaml del candidato ... sigue valiendo para el propio cambio'). Saltear la validacion del candidato dejaria llegar a main un review: invalido que haria fallar politicaDeLaBase en todas las reviews siguientes.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T05:07:16.881529Z"
+}
