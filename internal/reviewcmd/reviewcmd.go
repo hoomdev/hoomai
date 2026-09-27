@@ -113,20 +113,21 @@ type Evidencia struct {
 	Over   bool   // the evidence passed maxBytes: hoom stopped reading
 }
 
-// Evidence builds the review evidence of the change in dir: the patch of the
-// WHOLE change against the merge-base of base (deletions and renames
-// included, working tree included), plus the spec text. spec is the path as
-// the user gave it, relative to dir; "" = none. It reads at most maxBytes
-// between the two, into ONE buffer sized once: past that it returns Over and
-// keeps nothing. git runs first, so a broken base is an error even next to a
-// huge spec. A spec that does not exist leaves Spec nil (the dossier says so:
-// CA-334); one that exists but is not a regular file of the tree is an error,
-// never read.
+// Evidence builds the review evidence of the COMMITTED change in dir: the
+// patch of merge-base..HEAD (deletions and renames included; outside .hoom/
+// plus .hoom/agents/) and the spec text as HEAD has it. spec is the path as
+// the user gave it, relative to dir; "" = none. With anything uncommitted
+// outside .hoom/ it returns gitx.ArbolSucio and reads nothing. It reads at
+// most maxBytes between the two, into ONE buffer sized once: past that it
+// returns Over and keeps nothing. A spec that is not in HEAD leaves Spec nil
+// (the dossier says so: CA-334); one whose HEAD entry is not a regular file
+// is an error, never read.
 func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
 	var buf bytes.Buffer
 	buf.Grow(min(maxBytes+1, 8<<20)) // one allocation for a cap of up to 8 MiB
 	over, err := gitx.CandidatePatch(dir, base, &buf, maxBytes)
-	if errors.Is(err, gitx.ErrGitignoreTocado) {
+	var sucio gitx.ArbolSucio
+	if errors.As(err, &sucio) {
 		return Evidencia{}, err
 	}
 	if err != nil {
@@ -138,18 +139,25 @@ func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
 	d := buf.Len()
 	hayspec := false
 	if s := strings.TrimSpace(spec); s != "" {
-		f, err := abrirSpec(dir, s)
-		if err != nil {
-			return Evidencia{}, err
+		noEs := fmt.Errorf("el spec %s no es un archivo del arbol", s)
+		rel, ok := rutaDelArbol(dir, s)
+		if !ok {
+			return Evidencia{}, noEs
 		}
-		if f != nil {
-			hayspec = true
-			_, rerr := io.CopyN(&buf, f, int64(maxBytes-d)+1)
-			f.Close()
-			if rerr != nil && rerr != io.EOF {
-				return Evidencia{}, fmt.Errorf("no pude leer el spec %s: %v", s, rerr)
+		mode, oid, existe, err := gitx.HeadEntry(dir, rel)
+		if err != nil {
+			return Evidencia{}, fmt.Errorf("no pude leer el spec %s: %v", s, err)
+		}
+		if existe {
+			if mode != "100644" && mode != "100755" {
+				return Evidencia{}, noEs // un symlink, un submodulo, un directorio
 			}
-			if buf.Len() > maxBytes {
+			hayspec = true
+			over, err := gitx.AppendBlob(dir, oid, &buf, maxBytes)
+			if err != nil {
+				return Evidencia{}, fmt.Errorf("no pude leer el spec %s: %v", s, err)
+			}
+			if over {
 				return Evidencia{Bytes: maxBytes + 1, Over: true}, nil
 			}
 		}
@@ -164,59 +172,42 @@ func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
 	return ev, nil
 }
 
-// abrirSpec opens the spec for reading. nil, nil = it does not exist. It
-// must be a regular file inside dir once symlinks are resolved: a link out
-// of the tree, a device like /dev/zero or a directory is refused unread, so
-// a repository cannot make the review send a local file to the provider. The
-// check is repeated on the OPEN file (os.SameFile against a fresh
-// resolution), so swapping a link between the check and the open does not
-// slip a file from outside the tree in.
-func abrirSpec(dir, spec string) (*os.File, error) {
-	path := spec
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(dir, path)
-	}
-	if _, err := os.Lstat(path); err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("no pude leer el spec %s: %v", spec, err)
-	}
-	noEs := fmt.Errorf("el spec %s no es un archivo del arbol", spec)
-	raiz, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		return nil, fmt.Errorf("no pude resolver %s: %v", dir, err)
-	}
-	// resuelto: la ruta real, dentro del arbol y archivo regular
-	resuelto := func() (string, os.FileInfo, bool) {
-		real, err := filepath.EvalSymlinks(path)
+// rutaDelArbol is spec as a path relative to dir, or false when it points
+// outside the tree.
+func rutaDelArbol(dir, spec string) (string, bool) {
+	rel := filepath.Clean(spec)
+	if filepath.IsAbs(rel) {
+		r, err := filepath.Rel(dir, rel)
 		if err != nil {
-			return "", nil, false
+			return "", false
 		}
-		if rel, err := filepath.Rel(raiz, real); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return "", nil, false
-		}
-		info, err := os.Stat(real)
-		if err != nil || !info.Mode().IsRegular() {
-			return "", nil, false
-		}
-		return real, info, true
+		rel = r
 	}
-	real, _, ok := resuelto()
-	if !ok {
-		return nil, noEs
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
 	}
-	f, err := os.Open(real)
+	return filepath.ToSlash(rel), true
+}
+
+// contratoDeLaBase is the reviewer's contract as the merge-base of base has
+// it, or the embedded one when the base has none: never the candidate's, so
+// a change does not rewrite the instructions of its own reviewer (CA-419).
+func contratoDeLaBase(dir, base string, role agents.Role) (string, error) {
+	mb, err := gitx.MergeBase(dir, base)
 	if err != nil {
-		return nil, fmt.Errorf("no pude leer el spec %s: %v", spec, err)
+		return "", err
 	}
-	abierto, err := f.Stat()
-	_, ahora, ok := resuelto()
-	if err != nil || !ok || !abierto.Mode().IsRegular() || !os.SameFile(abierto, ahora) {
-		f.Close()
-		return nil, noEs // cambio entre la ruta y el archivo abierto
+	raw, ok, err := gitx.ShowFile(dir, mb, "./.hoom/agents/"+role.File)
+	if err != nil {
+		return "", err
 	}
-	return f, nil
+	if !ok {
+		return agents.Embedded(role)
+	}
+	if strings.TrimSpace(string(raw)) == "" {
+		return "", fmt.Errorf("el contrato %s de la base esta vacio: un rol sin contrato no es un rol", role.File)
+	}
+	return string(raw), nil
 }
 
 // kib rounds bytes up to KiB, the unit the review prints.
@@ -437,7 +428,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 	opt = resolveOptions(opt, politica)
 
-	contract, err := agents.Contract(dir, role)
+	contract, err := contratoDeLaBase(dir, base, role)
 	if err != nil {
 		return res, err
 	}
@@ -566,7 +557,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		info, err := mgr.Start(runcmd.StartOptions{
 			Provider: prov.Name(), Prompt: pedido(comun, lens, role, prov.Name(), bin),
 			Task: opt.Task, FindingTask: findingTask(opt), Role: role.Slug, SystemPrompt: contract,
-			Model: opt.Model, Effort: opt.Effort, Isolated: isolated, ReadOnly: readOnly, Exec: exec,
+			Model: opt.Model, Effort: opt.Effort, Isolated: isolated, PromptStdin: true, ReadOnly: readOnly, Exec: exec,
 			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
 		})
 		if err != nil {

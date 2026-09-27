@@ -3,13 +3,9 @@ package gitx
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -70,155 +66,137 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	return d, nil
 }
 
-// CandidatePatch appends to dst the unified patch of the WHOLE change
-// against the merge-base of base and HEAD, working tree included: one `git
-// diff` of everything tracked outside .hoom/ (deletions and both sides of a
-// rename, as git writes them), then each untracked file outside .hoom/ as a
-// new-file patch. A binary carries git's own binary line and no content, and
-// no textconv filter runs. dst holds at most max bytes of evidence: the
-// moment it would hold max+1 it stops git and returns over, and the caller
-// discards dst. The untracked names are
-// streamed, never held as a list. A failing git — no merge-base, the
-// untracked listing, a diff — is an error, never a shorter patch.
+// CandidatePatch appends to dst the unified patch of the COMMITTED change:
+// `git diff --find-renames` of the merge-base of base against HEAD, of
+// everything outside .hoom/ plus .hoom/agents/ (the roles' contracts are part
+// of the change), with deletions and both sides of a rename as git writes
+// them. Nothing comes from the working tree: with anything uncommitted
+// outside .hoom/ it returns ArbolSucio and reads no patch. A binary carries
+// git's own binary line and no content, and neither textconv nor clean
+// filters run (two commits are compared). dst holds at most max bytes of
+// evidence: the moment it would hold max+1 it stops git and returns over, and
+// the caller discards dst. A failing git (no merge-base, status, a diff) is
+// an error, never a shorter patch.
 func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, err error) {
 	mb, err := MergeBase(dir, base)
 	if err != nil {
 		return false, err
 	}
-	// a change that touches a .gitignore decides which untracked files the
-	// listing below sees: with any untracked file present, that could put a
-	// local secret (.env) in the evidence, so the review does not run
-	// (one byte of the listing is enough: it is never held whole)
-	gitignore, err := gitOutBounded(dir, new(bytes.Buffer), 0, false, "diff", "--name-only", mb, "--", ":(glob)**/.gitignore")
+	ruta, err := primerCambioSinCommitear(dir)
 	if err != nil {
-		return false, fmt.Errorf("git diff --name-only: %v", err)
+		return false, err
 	}
-	if !gitignore {
-		if gitignore, err = gitignoreIgnoradoSinRastrear(dir); err != nil {
-			return false, err
-		}
+	if ruta != "" {
+		return false, ArbolSucio{Ruta: ruta}
 	}
 	// quotePath=false: the patch names a file as it is on disk (ñ, not
 	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure
-	diff := []string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv"}
-	over, err = gitOutBounded(dir, dst, max, false, append(diff, "--find-renames", mb, "--", ".", ":(exclude).hoom")...)
-	if err != nil || over {
+	diff := []string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
+		"--no-textconv", "--find-renames", mb, "HEAD", "--"}
+	for _, paths := range [][]string{{".", ":(exclude).hoom"}, {".hoom/agents"}} {
+		over, err = gitOutBounded(dir, dst, max, false, append(append([]string{}, diff...), paths...)...)
 		if err != nil {
-			err = fmt.Errorf("git diff: %v", err)
+			return false, fmt.Errorf("git diff: %v", err)
 		}
-		return over, err
-	}
-
-	// -z: names as they are on disk, never C-quoted. Every name read counts
-	// against max too: each untracked patch carries its name, so a listing
-	// past max is an evidence past max.
-	ls := exec.Command("git", "ls-files", "-z", "--others", "--exclude-standard", "--", ".", ":(exclude).hoom")
-	ls.Dir = dir
-	var lsErr strings.Builder
-	ls.Stderr = &lsErr
-	pipe, err := ls.StdoutPipe()
-	if err != nil {
-		return false, err
-	}
-	if err := ls.Start(); err != nil {
-		return false, err
-	}
-	stop := func() { ls.Process.Kill(); ls.Wait() }
-	names := bufio.NewReader(io.LimitReader(pipe, int64(max)+1))
-	listed := 0
-	for {
-		name, rerr := names.ReadString(0)
-		listed += len(name)
-		if listed > max {
-			stop()
+		if over {
 			return true, nil
 		}
-		if name = strings.TrimSuffix(name, "\x00"); name != "" && rerr == nil {
-			if gitignore || path.Base(name) == ".gitignore" {
-				stop()
-				return false, ErrGitignoreTocado
-			}
-			// git lists a symlink to a FIFO as a file and --no-index follows it:
-			// it would block forever. A special file fails closed, named.
-			if info, err := os.Stat(filepath.Join(dir, name)); err == nil && info.Mode()&especial != 0 {
-				stop()
-				return false, fmt.Errorf("el archivo sin rastrear %s no es un archivo regular (%s): sacalo antes de revisar", name, info.Mode().Type())
-			}
-			// --no-index exits 1 when the files differ: that is the patch
-			over, err := gitOutBounded(dir, dst, max, true, append(diff, "--no-index", "--", "/dev/null", name)...)
-			if err != nil {
-				stop()
-				return false, fmt.Errorf("git diff --no-index %s: %v", name, err)
-			}
-			if over {
-				stop()
-				return true, nil
-			}
-		}
-		if rerr == io.EOF {
-			break
-		}
-		if rerr != nil {
-			stop()
-			return false, fmt.Errorf("git ls-files: %v", rerr)
-		}
-	}
-	if err := ls.Wait(); err != nil {
-		if msg := strings.TrimSpace(lsErr.String()); msg != "" {
-			return false, fmt.Errorf("git ls-files: %s", msg)
-		}
-		return false, fmt.Errorf("git ls-files: %v", err)
 	}
 	return false, nil
 }
 
-// especial are the file types --no-index would open and block on or read
-// without end: never part of the evidence.
-const especial = os.ModeNamedPipe | os.ModeSocket | os.ModeDevice | os.ModeCharDevice | os.ModeIrregular
-
-// gitignoreIgnoradoSinRastrear reports an untracked .gitignore that git
-// itself ignores — one that lists itself — outside ignored directories: git
-// still applies its rules (it can un-ignore a secret), so it counts as a
-// touched .gitignore. Ignored directories come collapsed (dir/) and are
-// skipped: a node_modules/x/.gitignore is not the change's.
-func gitignoreIgnoradoSinRastrear(dir string) (bool, error) {
-	cmd := exec.Command("git", "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory",
-		"--", ":(glob)**/.gitignore", ":(exclude).hoom")
+// primerCambioSinCommitear is the first path outside .hoom/ with anything
+// not committed (modified, staged, deleted, or untracked and not ignored);
+// "" when the tree is clean. Only that first entry is read: the listing is
+// never held.
+func primerCambioSinCommitear(dir string) (string, error) {
+	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
+		"--untracked-files=normal", "--", ".", ":(exclude).hoom")
 	cmd.Dir = dir
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if err := cmd.Start(); err != nil {
-		return false, err
+		return "", err
 	}
-	names := bufio.NewReader(pipe)
-	for {
-		name, rerr := names.ReadString(0)
-		name = strings.TrimSuffix(name, "\x00")
-		if name != "" && !strings.HasSuffix(name, "/") && path.Base(name) == ".gitignore" {
-			cmd.Process.Kill()
-			cmd.Wait()
-			return true, nil
+	entrada, rerr := bufio.NewReader(io.LimitReader(pipe, 64<<10)).ReadString(0)
+	if entrada = strings.TrimSuffix(entrada, "\x00"); rerr == nil && entrada != "" {
+		cmd.Process.Kill()
+		cmd.Wait()
+		// "XY ruta": the two status letters, a space, the path
+		if len(entrada) > 3 {
+			return entrada[3:], nil
 		}
-		if rerr != nil {
-			break
-		}
+		return entrada, nil
 	}
 	if err := cmd.Wait(); err != nil {
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return false, fmt.Errorf("git ls-files --ignored: %s", msg)
+			return "", fmt.Errorf("git status: %s", msg)
 		}
-		return false, fmt.Errorf("git ls-files --ignored: %v", err)
+		return "", fmt.Errorf("git status: %v", err)
 	}
-	return false, nil
+	return "", nil
 }
 
-// ErrGitignoreTocado: the change touches a .gitignore and there are untracked
-// files, so the evidence is not built (a change could uncover a local secret).
-var ErrGitignoreTocado = errors.New("el cambio toca un .gitignore y hay archivos sin rastrear: commitealos o sacalos antes de revisar")
+// ArbolSucio: the working tree has something uncommitted outside .hoom/, and
+// the review only reviews what is committed.
+type ArbolSucio struct{ Ruta string }
+
+func (e ArbolSucio) Error() string {
+	return fmt.Sprintf("la review revisa solo lo commiteado y hay cambios sin commitear (%s): commitealos antes de revisar", e.Ruta)
+}
+
+// stderrMax is how much of a git's stderr hoom keeps: enough for any real
+// message, never in proportion to what a repository makes git print.
+const stderrMax = 64 << 10
+
+// capped keeps the first n bytes written to it and drops the rest.
+type capped struct {
+	b strings.Builder
+	n int
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := c.n - c.b.Len(); room > 0 {
+		if len(p) > room {
+			c.b.Write(p[:room])
+		} else {
+			c.b.Write(p)
+		}
+	}
+	return len(p), nil
+}
+
+func (c *capped) String() string { return c.b.String() }
+
+// HeadEntry is the tree entry of path at HEAD: its mode and object id. ok is
+// false when HEAD does not have it; a failing git is an error.
+func HeadEntry(dir, path string) (mode, oid string, ok bool, err error) {
+	out, err := gitOut(dir, "ls-tree", "-z", "HEAD", "--", path)
+	if err != nil {
+		return "", "", false, fmt.Errorf("git ls-tree HEAD %s: %v", path, err)
+	}
+	entrada := strings.TrimSuffix(out, "\x00")
+	tab := strings.IndexByte(entrada, '\t')
+	if entrada == "" || tab < 0 {
+		return "", "", false, nil
+	}
+	// "<mode> <type> <oid>\t<path>"
+	meta := strings.Fields(entrada[:tab])
+	if len(meta) < 3 {
+		return "", "", false, fmt.Errorf("git ls-tree HEAD %s: entrada inesperada %q", path, entrada)
+	}
+	return meta[0], meta[2], true, nil
+}
+
+// AppendBlob appends the content of object oid to dst, within max as
+// gitOutBounded does.
+func AppendBlob(dir, oid string, dst *bytes.Buffer, max int) (over bool, err error) {
+	return gitOutBounded(dir, dst, max, false, "cat-file", "blob", oid)
+}
 
 // MergeBase is the merge-base of base and HEAD in dir. No common ancestor (a
 // shallow clone, a base that does not exist) is an error, never a fallback.
@@ -264,8 +242,8 @@ func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ..
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return false, err
@@ -302,8 +280,8 @@ func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ..
 func gitOut(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
 	out, err := cmd.Output()
 	if err != nil {
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
@@ -326,8 +304,8 @@ func gitOutPrefix(dir string, max int, args ...string) (out string, truncated bo
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", false, err

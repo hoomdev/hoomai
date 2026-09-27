@@ -284,13 +284,14 @@ type plan struct {
 	budgetUSD    float64
 	effort       string
 	isolated     bool
+	promptStdin  bool
 	ignored      []string
 }
 
 // promptArg is the prompt's place in argv: the prompt itself, or "" when it
 // is too large for argv and must travel by stdin (Invocation.Stdin).
 func (p plan) promptArg() (arg, stdin string) {
-	if len(p.prompt) > StdinPromptBytes {
+	if p.promptStdin || len(p.prompt) > StdinPromptBytes {
 		return "", p.prompt
 	}
 	return p.prompt, ""
@@ -414,6 +415,9 @@ func resolve(name string, caps Capabilities, req Request) (plan, error) {
 			p.ignored = append(p.ignored, FieldIsolation)
 		}
 	}
+	// stdin is how codex and claude take a large prompt already; an adapter
+	// that has no stdin path keeps its argv (no role that reviews uses one)
+	p.promptStdin = req.PromptStdin
 	if req.Strict && len(p.ignored) > 0 {
 		return plan{}, ErrUnsupported{Provider: name, Fields: append([]string(nil), p.ignored...)}
 	}

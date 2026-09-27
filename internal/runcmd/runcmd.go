@@ -130,7 +130,7 @@ func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Requ
 		AllowTools: o.AllowTools, DenyTools: o.DenyTools,
 		ReadOnly: o.ReadOnly, Exec: o.Exec, NoExec: o.NoExec, Unattended: o.Unattended,
 		MaxTurns: o.MaxTurns, BudgetUSD: o.BudgetUSD, Strict: o.Strict,
-		Effort: o.Effort, Isolated: o.Isolated,
+		Effort: o.Effort, Isolated: o.Isolated, PromptStdin: o.PromptStdin,
 	}
 }
 
