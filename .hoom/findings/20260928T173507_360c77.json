@@ -1,0 +1,11 @@
+{
+  "id": "20260928T173507_360c77",
+  "created_at": "2026-09-28T17:35:07.400818Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: Run carga y valida el hoom.yaml del arbol de trabajo antes de comprobar que el arbol este limpio; una edicion sin commitear como review: {SECRETO: x} sale en el error de clave desconocida, en vez de la negativa que solo nombra hoom.yaml, violando CA-416 y su garantia de que ningun contenido local aparezca en la salida (internal/reviewcmd/reviewcmd.go:401).",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

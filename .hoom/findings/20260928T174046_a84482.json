@@ -1,0 +1,11 @@
+{
+  "id": "20260928T174046_a84482",
+  "created_at": "2026-09-28T17:40:46.237909Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:408-415 consulta y rechaza el arbol sucio antes de calcular Lenses; por eso una rama de solo documentacion con cualquier cambio local fuera de .hoom deja de terminar SIN REVISAR, aunque CA-402 exige 0 lentes y que no se arme ni aplique la evidencia en ese caso.",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

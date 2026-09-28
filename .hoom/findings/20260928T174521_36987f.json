@@ -1,0 +1,11 @@
+{
+  "id": "20260928T174521_36987f",
+  "created_at": "2026-09-28T17:45:21.498704Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: CambioSinCommitear delega toda la deteccion a git status --porcelain (internal/gitx/diff.go:113-142), pero Git no enumera un FIFO suelto sin rastrear: en esta plataforma el comando exacto de :114 sobre un repo con mkfifo tuberia produjo 0 bytes. Por eso Evidence considera limpio ese arbol y la review corre, aunque CA-416 exige negarse y nombrar la ruta; el propio comentario de :108-112 presupone incorrectamente que el FIFO sera listado.",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

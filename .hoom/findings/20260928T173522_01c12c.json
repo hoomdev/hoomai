@@ -1,0 +1,11 @@
+{
+  "id": "20260928T173522_01c12c",
+  "created_at": "2026-09-28T17:35:22.031011Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: la frontera de arbol limpio depende solo de git status, que no enumera un FIFO suelto sin rastrear; CandidatePatch entonces arma evidencia y la review corre, aunque CA-416 exige negarse y nombrar la ruta. El propio test nuevo acepta silenciosamente ambos resultados y deja sin cubrir la garantia para archivos especiales (internal/gitx/diff.go:113).",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}
