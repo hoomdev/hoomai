@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174110_993f26",
+  "as": "corregido",
+  "evidence": "Mismo punto que 01c12c: enmienda 5 (0991314) corrige el texto de CA-416 y su caso limite (un FIFO suelto no es un archivo para git y no cuenta; nunca entra en la evidencia). El test que aceptaba los dos resultados exige ahora exactamente la evidencia sin el FIFO (7651189, TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.17679Z"
+}

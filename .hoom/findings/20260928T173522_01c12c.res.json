@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T173522_01c12c",
+  "as": "corregido",
+  "evidence": "El codigo era correcto y el texto prometia de mas: un FIFO suelto no es un archivo para git (git status no lo lista, no se puede commitear, nunca entra en la evidencia, que es solo lo commiteado). Enmienda 5 aprobada (0991314): caso limite 'Un FIFO suelto ... no cuenta y nunca entra en la evidencia' y CA-416 'o con un FIFO suelto, la evidencia se arma como siempre y el FIFO no entra'; un symlink aunque apunte a un FIFO sigue siendo negativa. Test ciego 7651189 TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia ahora exige un solo resultado (evidencia armada en \u003c10 s sin el nombre ni el contenido del FIFO, review revisado con el mismo hash, y el symlink al FIFO negado nombrandolo).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.144174Z"
+}

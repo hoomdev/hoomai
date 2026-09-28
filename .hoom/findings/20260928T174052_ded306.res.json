@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174052_ded306",
+  "as": "corregido",
+  "evidence": "Mismo defecto que 360c77 (tipo mal en vez de clave desconocida). 4a14383: guarda de arbol sucio antes de manifest.Load en Run y en la CLI sin --task. Test ciego 7651189 TestCA416_HoomYamlSinCommitearEsArbolSucioAntesDeLeerlo/tipo-mal (isolated: quizas_ZX82): rojo en 804d92b (error de yaml unmarshal), verde en c5aa07d (negativa de arbol sucio, 'quizas' no aparece). c5aa07d: el helper de CA-417 exige exactamente la negativa de arbol sucio.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.072064Z"
+}

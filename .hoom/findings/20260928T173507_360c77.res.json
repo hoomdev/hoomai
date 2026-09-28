@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T173507_360c77",
+  "as": "corregido",
+  "evidence": "4a14383: prepararRevision corre la guarda de arbol sucio (git status, no abre archivos) antes de manifest.Load; la CLI sin --task hace la misma guarda antes de leer ./hoom.yaml (cmd/hoom/main.go). Enmienda 5 (0991314): CA-416 incluye hoom.yaml sin commitear, negado antes de leerlo. Tests ciegos 7651189: TestCA416_HoomYamlSinCommitearEsArbolSucioAntesDeLeerlo, TestCA416_E2EHoomYamlSinCommitearPorLaCLI y TestCA416_HoomYamlSinRastrearEnUnHEADSinHoomYaml: rojos en 804d92b (el error sacaba SECRETO_ZX81/ZX85), verdes en c5aa07d (negativa que nombra hoom.yaml, el secreto no sale en ninguna salida ni archivo).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.042252Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174521_36987f",
+  "as": "corregido",
+  "evidence": "Enmienda 5 (0991314) alinea la spec con git (FIFO suelto no cuenta, nunca entra en la evidencia); b12d132 corrige el comentario de CambioSinCommitear en internal/gitx/diff.go ('A bare FIFO is not a file for git: it is not listed, cannot be committed, and so never enters the evidence'); 7651189 fija el resultado unico en TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.208395Z"
+}

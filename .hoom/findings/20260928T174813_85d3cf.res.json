@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174813_85d3cf",
+  "as": "corregido",
+  "evidence": "7651189: TestCA413_ListaDeNoRastreadosSeLeeConTope renombrado a TestCA413_MilesDeNoRastreadosNoSeLeenEnteros (solo el nombre; el comentario guarda el nombre viejo y la razon); el caso FIFO de review_aislada_evidencia_test.go exige ahora un solo resultado alineado con CA-416 enmienda 5.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.240302Z"
+}
