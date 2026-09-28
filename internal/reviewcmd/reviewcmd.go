@@ -455,43 +455,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return res, err
 	}
 
-	// cruzada: quien escribio sale del meta del run, no de la memoria de nadie.
-	// Las sesiones interactivas que declara el item suman writers DECLARADOS:
-	// pueden volver una review no cruzada, nunca cruzada.
-	writer, hayWriter := writerOf(root, dir)
-	if hayWriter {
-		res.Writer = writer.Provider
-	}
-	evitar := append([]string{}, res.WritersDeclared...)
-	if res.Writer != "" {
-		evitar = append(evitar, res.Writer)
-	}
-	prov, err := pickProvider(opt.Provider, evitar)
+	prov, err := elegirReviewer(w, &res, root, dir, opt.Provider)
 	if err != nil {
 		return res, err
-	}
-	res.Provider = prov.Name()
-	declarado := contains(res.WritersDeclared, prov.Name())
-	switch {
-	case hayWriter && writer.Provider == prov.Name():
-		res.Cross = CrossNo
-		fmt.Fprintf(w, "  reviewer    %s - NO seria cruzada: el writer corrio en %s (run %s)\n",
-			prov.Name(), writer.Provider, writer.ID)
-	case declarado:
-		res.Cross = CrossNo
-		fmt.Fprintf(w, "  reviewer    %s - NO seria cruzada: la tarea declara una sesion interactiva de %s (writer declarado)\n",
-			prov.Name(), prov.Name())
-	case hayWriter:
-		res.Cross = CrossYes
-		fmt.Fprintf(w, "  reviewer    %s - cruzada SI (el writer corrio en %s, run %s)\n",
-			prov.Name(), writer.Provider, writer.ID)
-	case len(res.WritersDeclared) > 0:
-		res.Cross = CrossDeclared
-		fmt.Fprintf(w, "  reviewer    %s - cruzada DECLARADA: ningun run registro al writer; la tarea declara sesiones de %s\n",
-			prov.Name(), strings.Join(res.WritersDeclared, ", "))
-	default:
-		res.Cross = CrossUnknown
-		fmt.Fprintf(w, "  reviewer    %s - cruzada DESCONOCIDA (no hay run previo registrado en este arbol)\n", prov.Name())
 	}
 	if res.Cross == CrossNo && !opt.SameProvider {
 		fmt.Fprintf(w, "  el mismo modelo que escribio no puede ser el que revisa: elegi otro provider\n"+
@@ -649,6 +615,49 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res.RecordID = registro.ID
 	fmt.Fprintf(w, "  registro    .hoom/%s/%s.json (commitealo: es el rastro de esta review)\n", RecordsDir, registro.ID)
 	return terminar("revisado", 0, "ok", ""), nil
+}
+
+// elegirReviewer picks the reviewer's provider and settles res.Writer and
+// res.Cross, printing the reviewer line. The writer comes from the run's
+// meta, never from anyone's memory; the sessions the item declares add
+// DECLARED writers: they can make a review not cross, never cross.
+func elegirReviewer(w io.Writer, res *Result, root, dir, provider string) (providers.Provider, error) {
+	writer, hayWriter := writerOf(root, dir)
+	if hayWriter {
+		res.Writer = writer.Provider
+	}
+	evitar := append([]string{}, res.WritersDeclared...)
+	if res.Writer != "" {
+		evitar = append(evitar, res.Writer)
+	}
+	prov, err := pickProvider(provider, evitar)
+	if err != nil {
+		return nil, err
+	}
+	res.Provider = prov.Name()
+	declarado := contains(res.WritersDeclared, prov.Name())
+	switch {
+	case hayWriter && writer.Provider == prov.Name():
+		res.Cross = CrossNo
+		fmt.Fprintf(w, "  reviewer    %s - NO seria cruzada: el writer corrio en %s (run %s)\n",
+			prov.Name(), writer.Provider, writer.ID)
+	case declarado:
+		res.Cross = CrossNo
+		fmt.Fprintf(w, "  reviewer    %s - NO seria cruzada: la tarea declara una sesion interactiva de %s (writer declarado)\n",
+			prov.Name(), prov.Name())
+	case hayWriter:
+		res.Cross = CrossYes
+		fmt.Fprintf(w, "  reviewer    %s - cruzada SI (el writer corrio en %s, run %s)\n",
+			prov.Name(), writer.Provider, writer.ID)
+	case len(res.WritersDeclared) > 0:
+		res.Cross = CrossDeclared
+		fmt.Fprintf(w, "  reviewer    %s - cruzada DECLARADA: ningun run registro al writer; la tarea declara sesiones de %s\n",
+			prov.Name(), strings.Join(res.WritersDeclared, ", "))
+	default:
+		res.Cross = CrossUnknown
+		fmt.Fprintf(w, "  reviewer    %s - cruzada DESCONOCIDA (no hay run previo registrado en este arbol)\n", prov.Name())
+	}
+	return prov, nil
 }
 
 // declaredWriters are the providers of the interactive sessions the task's

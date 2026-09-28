@@ -109,7 +109,8 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 // committed (modified, staged, deleted, or untracked and not ignored); ""
 // when the tree is clean. Only that first entry is read: the listing is
 // never held, and git status opens no file (a symlink to a FIFO is listed,
-// never read).
+// never read). A bare FIFO is not a file for git: it is not listed, cannot
+// be committed, and so never enters the evidence.
 func CambioSinCommitear(dir string) (string, error) {
 	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
 		"--untracked-files=normal", "--", ".", ":(exclude).hoom")
