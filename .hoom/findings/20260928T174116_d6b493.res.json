@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174116_d6b493",
+  "as": "refutado",
+  "evidence": "Repeticion de 20260926T051819_876602, 20260926T145210_7e6deb y 20260927T044557_40f386 (ya refutados, ver sus .res.json) sin argumento nuevo ('un valor no vacio admitido por la configuracion' es el mismo de 40f386). Re-verificado en 9c08d85: el chequeo sigue en internal/providers/providers.go:401-403, junto a los del prompt (:306-308) y del id de sesion (:310-312): regla de argv, no de vocabulario (un nivel inventado pasa tal cual, prueba de 876602; vocabularios de codex y claude sin niveles con guion inicial, verificados en 7e6deb). Para Claude CA-398 fija la forma de dos argumentos (--effort \u003ce\u003e), donde un valor con guion inicial lo lee el parser como flag.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T17:58:08.673834Z"
+}

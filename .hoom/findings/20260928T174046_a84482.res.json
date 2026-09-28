@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174046_a84482",
+  "as": "refutado",
+  "evidence": "(1) La premisa citada es falsa: CA-402 (spec :306) trata la evidencia sobre el tope (Over), no las 0 lentes. (2) El caso limite de 0 lentes (spec :270) dice 'no se arma evidencia; SIN REVISAR como hoy' y la guarda lo respeta: con el arbol sucio Run vuelve en internal/reviewcmd/reviewcmd.go:411-415 sin armar evidencia ni lanzar pasadas; la enmienda 4 (spec :3-11, 'se niega con el arbol sucio') y CA-416 (spec :320) piden esa negativa sin excepcion por tipo de cambio. (3) Decidir las lentes antes exige gitx.Snapshot, que lee el arbol de trabajo (internal/gitx/gitx.go:57-98: status, diff HEAD, ls-files --others, hash-object, os.ReadFile en diffStats): las lentes quedarian decididas por lo sin commitear. Reproducido con go test -overlay (test descartable TestRefutador6_SnapshotSobreArbolSucioSeCuelga): rama de solo docs + symlink sin rastrear notas.md -\u003e FIFO: gitx.Snapshot no vuelve en 5 s; CambioSinCommitear nombra notas.md en 14 ms y Run devuelve la negativa. El orden propuesto reabre el cuelgue que cerro 3ca7d0a. (4) 'Como hoy' nunca garantizo SIN REVISAR con arbol sucio: en main Snapshot une el arbol de trabajo, asi que un .go sin commitear ya daba lentes. Reproducido con el binario de la rama: rama de solo README.md limpia -\u003e SIN REVISAR exit 0; con NOTAS.md sin rastrear -\u003e negativa que nombra NOTAS.md, exit 1.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T17:58:25.661552Z"
+}
