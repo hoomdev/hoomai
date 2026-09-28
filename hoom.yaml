@@ -21,8 +21,9 @@ findings:
 # El reviewer de hoom review. `hoom review` lee esta seccion del hoom.yaml de
 # la BASE (el merge-base con main), nunca del cambio que revisa: un cambio no
 # elige a su propio reviewer. Modelo y esfuerzo explicitos; el tope de la
-# evidencia sube a 384 KiB (~130k tokens, la mitad de la ventana de Codex).
+# evidencia sube a 448 KiB (~150k tokens de los 258k de la ventana de Codex:
+# el maximo que deja lugar para que el reviewer lea y razone).
 review:
   model: gpt-5.6-sol
   effort: xhigh
-  max_evidence_kib: 384
+  max_evidence_kib: 448
