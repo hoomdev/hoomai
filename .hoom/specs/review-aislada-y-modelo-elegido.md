@@ -1,6 +1,13 @@
 # Spec: la review aislada, con la evidencia completa y el modelo elegido
 
-Estado: ENMIENDA 4 — pendiente de re-aprobación humana. La enmienda 3
+Estado: ENMIENDA 5 — pendiente de re-aprobación humana. La enmienda 4
+(sha256 6b9171ba) está implementada; su review mostró que el texto prometía
+de más y de menos: un FIFO suelto no es un archivo para git (no se lista ni
+se puede commitear), y una base rota con 0 lentes terminaba SIN REVISAR. La
+enmienda 5 corrige ese caso límite, fija el orden del preflight y cambia
+CA-414.
+
+Historia: ENMIENDA 4 (2026-09-27). La enmienda 3
 (sha256 10ed8df8) está implementada. Sus reviews cuarta y quinta siguieron
 encontrando bordes de la misma clase: armar la evidencia leyendo el árbol de
 trabajo (archivos sin rastrear, `.gitignore`, `.gitattributes`, symlinks,
@@ -172,6 +179,12 @@ func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error)
   binario, un FIFO) ni una regla de `.gitignore` o `.gitattributes` sin
   commitear llega al provider. Lo ignorado y lo que está en `.hoom/` no
   cuentan.
+- **Orden**: `hoom review` no lee nada del árbol de trabajo antes de saber
+  que está limpio: primero la guarda de árbol sucio (`git status`, que no
+  abre archivos), después `hoom.yaml`, después la base (merge-base y un
+  `git diff` que git pueda armar) y recién entonces la medida con la que se
+  deciden las lentes. Una base rota falla cerrado aunque el cambio pida 0
+  lentes: nunca termina `SIN REVISAR`.
 - **Se lee con tope**: hoom deja de leer la salida de git y el spec en
   cuanto los dos juntos pasan `maxBytes`, y devuelve `Over` sin guardar lo
   leído. Todo va a un solo buffer reservado
@@ -267,7 +280,9 @@ sacas vos: git diff ..." y la lista `Archivos:`.
 
 ## Casos límite y errores esperados
 
-- 0 lentes (solo documentación): no se arma evidencia; `SIN REVISAR` como hoy.
+- 0 lentes (solo documentación, con el árbol limpio y la base sana): no se
+  arma evidencia; `SIN REVISAR` como hoy. Con el árbol sucio va primero la
+  negativa de CA-416; con la base rota, el error de CA-414.
 - `--lens x`: la misma evidencia, una pasada.
 - Sin `--spec`: evidencia sin bloque de spec.
 - `--effort` con un provider sin `Effort`: `ErrUnsupported`, sin pasadas.
@@ -283,8 +298,13 @@ sacas vos: git diff ..." y la lista `Archivos:`.
 - Un spec que en `HEAD` es un symlink: error, sin leer su destino. Un spec
   de 0 bytes: su bloque va vacío. Un spec editado y sin commitear: la
   evidencia lleva el de `HEAD`.
-- Un `.env` sin rastrear, un binario local o un FIFO: la review se niega por
-  árbol sucio y nombra la ruta. Si están ignorados, no cuentan.
+- Un `.env` sin rastrear, un binario local o un symlink (aunque apunte a un
+  FIFO): la review se niega por árbol sucio y nombra la ruta. Si están
+  ignorados, no cuentan. Un FIFO suelto no es un archivo para git (no se
+  lista ni se puede commitear): no cuenta y nunca entra en la evidencia.
+- Un `hoom.yaml` editado y sin commitear (o reemplazado por un FIFO o un
+  symlink a `/dev/zero`): la negativa de árbol sucio lo nombra antes de
+  leerlo; su contenido no sale en ningún error.
 - La cinta del Studio que lanza la review sobre lo que dejó el writer sin
   commitear: la review se niega y la cinta se detiene hasta que alguien
   commitee.
@@ -315,9 +335,9 @@ sacas vos: git diff ..." y la lista `Archivos:`.
 - CA-411: el `hoom.yaml` de hoomai declara el reviewer de hoy de forma explícita. [verifica: grep -q "^review:" hoom.yaml && grep -q "model: gpt-5.6-sol" hoom.yaml && grep -q "effort: xhigh" hoom.yaml]
 - CA-412: el spec se lee de `HEAD`: si su entrada es un symlink (a un archivo de afuera, a `/dev/zero` o a un directorio) `Evidence` devuelve `el spec <ruta> no es un archivo del arbol` y `hoom review` no lanza ninguna pasada; un spec que no está en `HEAD` deja la review seguir (CA-334) con ` (no existe en este arbol)` en la línea `Spec:`; un spec de 0 bytes lleva su bloque vacío; una edición sin commitear del spec no entra.
 - CA-413: con un tope de 1 KiB y un archivo de 64 MiB commiteado en la rama, `Evidence` vuelve con `Over`, `Diff` y `Spec` vacíos, `SHA256` vacío y `Bytes` entre el tope y el tope + 64 KiB, sin retener memoria en proporción al archivo.
-- CA-414: si falla `git merge-base` (base inexistente o clon shallow), `git status` o `git diff`, `Evidence` devuelve el error y `hoom review` no lanza ninguna pasada ni escribe registro.
+- CA-414: si falla `git merge-base` (base inexistente o clon shallow), `git status` o `git diff` (un árbol que git no puede leer), `hoom review` devuelve el error de git sin lanzar ninguna pasada ni escribir registro, también sin `--lens` y antes de decidir las lentes (nunca termina `SIN REVISAR`); `Evidence` devuelve el mismo error.
 - CA-415: `--same-provider=false` explícito vence a `same_provider: true` de `hoom.yaml` (`Options.SameProviderSet`): con el mismo provider la review se niega por no cruzada; sin el flag, `hoom.yaml` sigue permitiéndola.
-- CA-416: con el árbol sucio fuera de `.hoom/` (un archivo rastreado modificado, uno en el índice, uno borrado o uno sin rastrear no ignorado, incluido un `.env` que la rama destapó en su `.gitignore`), `Evidence` devuelve el error del contrato con la primera ruta y `hoom review` no lanza ninguna pasada ni escribe registro, y ningún contenido sin commitear aparece en la salida; con cambios solo en `.hoom/` o en archivos ignorados, la evidencia se arma como siempre.
+- CA-416: con el árbol sucio fuera de `.hoom/` (un archivo rastreado modificado, uno en el índice, uno borrado, uno sin rastrear no ignorado, un symlink aunque apunte a un FIFO, incluido un `.env` que la rama destapó en su `.gitignore`, y un `hoom.yaml` sin commitear), `hoom review` y `Evidence` devuelven el error del contrato con la primera ruta antes de leer `hoom.yaml` o medir el árbol, sin lanzar ninguna pasada ni escribir registro, y ningún contenido sin commitear aparece en la salida; con cambios solo en `.hoom/` o en archivos ignorados, o con un FIFO suelto, la evidencia se arma como siempre y el FIFO no entra.
 - CA-417: la sección `review:` sale del `hoom.yaml` del merge-base: una rama que commitea `review: {same_provider: true, isolated: false}` sobre una base sin esa sección revisa aislada y se niega por no cruzada con el provider que escribió; con la sección en la base, vale; las opciones explícitas siguen mandando.
 - CA-418: cada pasada de `hoom review` manda su pedido por stdin aunque pese menos de 16 KiB: el argv del provider (codex y claude) no contiene el pedido y su stdin lo recibe entero; los roles de `hoom agent` siguen como en CA-109.
 - CA-419: el system prompt de cada pasada es el `.hoom/agents/06-reviewer.md` del merge-base: una rama que lo reescribe (commiteado o no) no cambia lo que recibe el provider, y el cambio aparece en la evidencia; una base sin ese archivo usa la copia embebida.
