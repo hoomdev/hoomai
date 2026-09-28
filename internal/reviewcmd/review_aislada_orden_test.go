@@ -682,70 +682,108 @@ func TestCA416_HoomYamlSinRastrearEnUnHEADSinHoomYaml(t *testing.T) {
 
 // ---------------------------------------------------------------- Orden
 
+// raOcultoOrden es el contenido sin commitear de los arboles sucios del
+// orden: no puede aparecer en ningun error ni salida.
+const raOcultoOrden = "SIN-COMMITEAR-ORDEN-ZX83"
+
+// raNuevoSucio deja en dir un nuevo.go sin rastrear con raOcultoOrden.
+func raNuevoSucio(t *testing.T, dir string) {
+	t.Helper()
+	write(t, dir, "nuevo.go", "package app\n\n// "+raOcultoOrden+"\n")
+}
+
+// raCasoOrden es un arbol sucio fuera de .hoom/ (rutas: las que la negativa
+// puede nombrar) revisado contra base.
+type raCasoOrden struct {
+	nombre string
+	armar  func(t *testing.T, bin, real string) (root, base string, rutas []string)
+}
+
+// raSucioYBaseRota son arboles sucios (un no rastreado, o un rastreado
+// editado) sobre una base rota: inexistente, clon shallow sin merge-base, un
+// arbol de la base que falta en .git/objects, un git diff que falla. El
+// cambio commiteado es solo documentacion.
+var raSucioYBaseRota = []raCasoOrden{
+	{"base-inexistente", func(t *testing.T, bin, real string) (string, string, []string) {
+		root := raConBaseInexistente(t)
+		raDocs(t, root)
+		raNuevoSucio(t, root)
+		return root, "rama-que-no-existe", []string{"nuevo.go"}
+	}},
+	{"base-inexistente-con-un-rastreado-editado", func(t *testing.T, bin, real string) (string, string, []string) {
+		root := raConBaseInexistente(t)
+		raDocs(t, root)
+		write(t, root, "app.go", "package app\n\n// "+raOcultoOrden+"\n")
+		return root, "rama-que-no-existe", []string{"app.go"}
+	}},
+	{"clon-shallow-sin-merge-base", func(t *testing.T, bin, real string) (string, string, []string) {
+		_, clon := raClonShallowDe(t, raSoloDocs)
+		raNuevoSucio(t, clon)
+		return clon, "main", []string{"nuevo.go"}
+	}},
+	{"falta-el-arbol-de-la-base", func(t *testing.T, bin, real string) (string, string, []string) {
+		root := raConSubdirEnLaBase(t, raSoloDocs)
+		raBorrarArbolDeLaBase(t, real, root, raSoloDocs)
+		raNuevoSucio(t, root)
+		return root, "main", []string{"nuevo.go"}
+	}},
+	{"diff-falla", func(t *testing.T, bin, real string) (string, string, []string) {
+		root := raRepo(t, "")
+		raDocs(t, root)
+		raNuevoSucio(t, root)
+		raGitRoto(t, bin, real, "diff", "diff-index", "diff-files", "diff-tree")
+		return root, "main", []string{"nuevo.go"}
+	}},
+}
+
+// raSucioConCeroLentes son arboles sucios sobre una base sana con un cambio
+// commiteado de 0 lentes (solo documentacion).
+var raSucioConCeroLentes = []raCasoOrden{
+	{"cero-lentes-con-un-no-rastreado", func(t *testing.T, bin, real string) (string, string, []string) {
+		root := raRepo(t, "")
+		raDocs(t, root)
+		raNuevoSucio(t, root)
+		return root, "main", []string{"nuevo.go"}
+	}},
+	{"cero-lentes-con-la-documentacion-editada-sin-commitear", func(t *testing.T, bin, real string) (string, string, []string) {
+		root := raRepo(t, "")
+		raDocs(t, root)
+		write(t, root, "README.md", "# demo\n\n"+raOcultoOrden+"\n")
+		return root, "main", []string{"README.md"}
+	}},
+	{"cero-lentes-con-hoom-yaml-editado", func(t *testing.T, bin, real string) (string, string, []string) {
+		root := raRepo(t, "")
+		raDocs(t, root)
+		write(t, root, "hoom.yaml", raYAML("review:\n  "+strings.ReplaceAll(raOcultoOrden, "-", "_")+": x\n"))
+		return root, "main", []string{"hoom.yaml"}
+	}},
+}
+
+// raSinOcultoOrden exige que msg no traiga lo sin commitear de los casos del
+// orden (tal cual, o como la clave de hoom.yaml).
+func raSinOcultoOrden(t *testing.T, ca, caso, msg string) {
+	t.Helper()
+	for _, o := range []string{raOcultoOrden, strings.ReplaceAll(raOcultoOrden, "-", "_")} {
+		if strings.Contains(msg, o) {
+			t.Fatalf("%s: %s: nada sin commitear aparece en la salida ni en el error (%q):\n%s", ca, caso, o, msg)
+		}
+	}
+}
+
 // CA-416 / CA-414 (orden, enmienda 5): "primero la guarda de arbol sucio
 // (git status, que no abre archivos), despues hoom.yaml, despues la base" y
 // "0 lentes ... con el arbol sucio va primero la negativa de CA-416; con la
-// base rota, el error de CA-414". Con el arbol sucio (un no rastreado con
-// contenido, fuera de .hoom/) Y la base rota (inexistente, clon shallow sin
-// merge-base, un arbol de la base que falta, un git diff que falla), `hoom
-// review` se niega por arbol sucio nombrando la ruta, no con el error de git.
-// Y con un cambio de 0 lentes (solo documentacion) y el arbol sucio (un no
-// rastreado, la documentacion editada sin commitear, hoom.yaml editado), la
-// negativa, no SIN REVISAR. Con y sin --lens; nunca una pasada ni registro, y
-// nada sin commitear en la salida.
+// base rota, el error de CA-414". Con el arbol sucio (un no rastreado o un
+// rastreado editado, fuera de .hoom/) Y la base rota (inexistente, clon
+// shallow sin merge-base, un arbol de la base que falta, un git diff que
+// falla), `hoom review` se niega por arbol sucio nombrando la ruta, no con el
+// error de git. Y con un cambio de 0 lentes (solo documentacion) y el arbol
+// sucio (un no rastreado, la documentacion editada sin commitear, hoom.yaml
+// editado), la negativa, no SIN REVISAR. Con y sin --lens; nunca una pasada
+// ni registro, y nada sin commitear en la salida.
 func TestCA416_ArbolSucioVaAntesQueLaBaseRotaYQueCeroLentes(t *testing.T) {
 	real := raGitReal(t)
-	const oculto = "SIN-COMMITEAR-ORDEN-ZX83"
-	nuevo := func(t *testing.T, dir string) {
-		write(t, dir, "nuevo.go", "package app\n\n// "+oculto+"\n")
-	}
-	casos := []struct {
-		nombre string
-		armar  func(t *testing.T, bin string) (root, base string, rutas []string)
-	}{
-		{"base-inexistente", func(t *testing.T, bin string) (string, string, []string) {
-			root := raConBaseInexistente(t)
-			raDocs(t, root)
-			nuevo(t, root)
-			return root, "rama-que-no-existe", []string{"nuevo.go"}
-		}},
-		{"clon-shallow-sin-merge-base", func(t *testing.T, bin string) (string, string, []string) {
-			_, clon := raClonShallowDe(t, raSoloDocs)
-			nuevo(t, clon)
-			return clon, "main", []string{"nuevo.go"}
-		}},
-		{"falta-el-arbol-de-la-base", func(t *testing.T, bin string) (string, string, []string) {
-			root := raConSubdirEnLaBase(t, raSoloDocs)
-			raBorrarArbolDeLaBase(t, real, root, raSoloDocs)
-			nuevo(t, root)
-			return root, "main", []string{"nuevo.go"}
-		}},
-		{"diff-falla", func(t *testing.T, bin string) (string, string, []string) {
-			root := raRepo(t, "")
-			raDocs(t, root)
-			nuevo(t, root)
-			raGitRoto(t, bin, real, "diff", "diff-index", "diff-files", "diff-tree")
-			return root, "main", []string{"nuevo.go"}
-		}},
-		{"cero-lentes-con-un-no-rastreado", func(t *testing.T, bin string) (string, string, []string) {
-			root := raRepo(t, "")
-			raDocs(t, root)
-			nuevo(t, root)
-			return root, "main", []string{"nuevo.go"}
-		}},
-		{"cero-lentes-con-la-documentacion-editada-sin-commitear", func(t *testing.T, bin string) (string, string, []string) {
-			root := raRepo(t, "")
-			raDocs(t, root)
-			write(t, root, "README.md", "# demo\n\n"+oculto+"\n")
-			return root, "main", []string{"README.md"}
-		}},
-		{"cero-lentes-con-hoom-yaml-editado", func(t *testing.T, bin string) (string, string, []string) {
-			root := raRepo(t, "")
-			raDocs(t, root)
-			write(t, root, "hoom.yaml", raYAML("review:\n  "+strings.ReplaceAll(oculto, "-", "_")+": x\n"))
-			return root, "main", []string{"hoom.yaml"}
-		}},
-	}
+	casos := append(append([]raCasoOrden{}, raSucioYBaseRota...), raSucioConCeroLentes...)
 	for _, c := range casos {
 		for _, lens := range []string{"", "risk"} {
 			nombre := c.nombre + "/sin-lens"
@@ -755,7 +793,7 @@ func TestCA416_ArbolSucioVaAntesQueLaBaseRotaYQueCeroLentes(t *testing.T) {
 			t.Run(nombre, func(t *testing.T) {
 				bin := raPATH(t)
 				cx := raInstalar(t, bin, "codex", "")
-				root, base, rutas := c.armar(t, bin)
+				root, base, rutas := c.armar(t, bin, real)
 
 				res, rerr, out := raRunBaseConReloj(t, "CA-416", 60*time.Second, root, base, Options{Provider: "codex", Lens: lens})
 				msg := raMsg(out, rerr)
@@ -772,13 +810,43 @@ func TestCA416_ArbolSucioVaAntesQueLaBaseRotaYQueCeroLentes(t *testing.T) {
 				if recs, _ := Records(root); len(recs) != 0 {
 					t.Fatalf("CA-416: %s: sin pasadas no hay registro: %+v", c.nombre, recs)
 				}
-				for _, o := range []string{oculto, strings.ReplaceAll(oculto, "-", "_")} {
-					if strings.Contains(msg, o) {
-						t.Fatalf("CA-416: %s: nada sin commitear aparece en la salida ni en el error (%q):\n%s", c.nombre, o, msg)
-					}
-				}
+				raSinOcultoOrden(t, "CA-416", c.nombre, msg)
 			})
 		}
+	}
+}
+
+// CA-416 / CA-414 (orden en Evidence, enmienda 5): "hoom review y Evidence
+// devuelven el error del contrato con la primera ruta antes de leer hoom.yaml
+// o medir el arbol", y el orden del paso previo ("primero la guarda de arbol
+// sucio ... despues la base") rige tambien para Evidence. Con el arbol sucio
+// (un no rastreado, o un rastreado editado) Y la base rota (inexistente, clon
+// shallow sin merge-base, un arbol de la base que falta, un git diff que
+// falla), Evidence vuelve con la negativa por arbol sucio que nombra la ruta,
+// no con el error de git, sin armar la evidencia y sin nada sin commitear en
+// el error.
+func TestCA416_EvidenceConArbolSucioYBaseRotaNiegaAntesQueLaBase(t *testing.T) {
+	real := raGitReal(t)
+	for _, c := range raSucioYBaseRota {
+		t.Run(c.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root, base, rutas := c.armar(t, bin, real)
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, base, "", raTopeGrande)
+			if err == nil {
+				t.Fatalf("CA-416: %s: Evidence devuelve %q (una de %q); armo una evidencia de %d bytes (Over %v)",
+					c.nombre, raErrSucio("<ruta>"), rutas, ev.Bytes, ev.Over)
+			}
+			if ruta, ok := raRutaSucia(err.Error()); !ok || !raRutaAceptada(ruta, rutas) {
+				t.Fatalf("CA-416: %s: con el arbol sucio Evidence devuelve primero %q (una de %q), no el error de git de la base: %v",
+					c.nombre, raErrSucio("<ruta>"), rutas, err)
+			}
+			if len(ev.Diff) != 0 || len(ev.Spec) != 0 || ev.SHA256 != "" || ev.Over {
+				t.Fatalf("CA-416: %s: sin armar la evidencia: diff %d bytes, spec %d bytes, sha256 %q, Over %v",
+					c.nombre, len(ev.Diff), len(ev.Spec), ev.SHA256, ev.Over)
+			}
+			raSinOcultoOrden(t, "CA-416", c.nombre, err.Error())
+		})
 	}
 }
 

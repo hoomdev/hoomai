@@ -71,23 +71,26 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 // everything outside .hoom/ plus .hoom/agents/ (the roles' contracts are part
 // of the change), with deletions and both sides of a rename as git writes
 // them. Nothing comes from the working tree: with anything uncommitted
-// outside .hoom/ it returns ArbolSucio and reads no patch. A binary carries
+// outside .hoom/ it returns ArbolSucio, before looking at the base, and
+// reads no patch. A binary carries
 // git's own binary line and no content, and neither textconv nor clean
 // filters run (two commits are compared). dst holds at most max bytes of
 // evidence: the moment it would hold max+1 it stops git and returns over, and
 // the caller discards dst. A failing git (no merge-base, status, a diff) is
 // an error, never a shorter patch.
 func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, err error) {
-	mb, err := MergeBase(dir, base)
-	if err != nil {
-		return false, err
-	}
+	// the dirty tree goes first, as in hoom review: a dirty tree over a
+	// broken base is refused for the dirt, not for the base
 	ruta, err := CambioSinCommitear(dir)
 	if err != nil {
 		return false, err
 	}
 	if ruta != "" {
 		return false, ArbolSucio{Ruta: ruta}
+	}
+	mb, err := MergeBase(dir, base)
+	if err != nil {
+		return false, err
 	}
 	// quotePath=false: the patch names a file as it is on disk (ñ, not
 	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure

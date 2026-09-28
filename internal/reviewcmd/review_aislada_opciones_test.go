@@ -1,5 +1,5 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
-// (enmiendas 1 y 3: CA-394, CA-395, CA-400, CA-415, CA-417): provider,
+// (enmiendas 1, 3 y 5: CA-394, CA-395, CA-400, CA-415, CA-417): provider,
 // modelo, esfuerzo y same_provider se resuelven opcion > hoom.yaml de la
 // base (el del merge-base, nunca el del candidato) > vacio (un
 // --same-provider=false explicito tambien), cada pasada corre aislada con el
@@ -11,7 +11,8 @@
 // casos de CA-417 en los que la rama cambiaba su hoom.yaml SIN commitear
 // ahora son un arbol sucio (hoom.yaml esta fuera de .hoom/): la review se
 // niega sin lanzar nada (CA-416), asi que la rama tampoco elige su review
-// por ese camino.
+// por ese camino. ENMIENDA 5: esa negativa es exactamente la de arbol sucio,
+// antes que cualquier otra (raNegativaHoomYamlSinCommitear).
 package reviewcmd
 
 import (
@@ -519,13 +520,17 @@ func raSolo(got []string, want string) bool {
 // raAflojada es la review que una rama se quiere dar a si misma.
 const raAflojada = "review: {same_provider: true, isolated: false}\n"
 
-// raNegativaHoomYamlSinCommitear (CA-416 + CA-417, enmienda 4): con el
-// hoom.yaml de la rama cambiado sin commitear, la review no corre: ninguna
-// pasada (cli no se invoca), sin registro, no revisado, no sale con 0, y la
-// salida dice por que. Devuelve lo que dijo. otraNegativa (si no es "")
-// tambien vale como motivo: el spec no ordena las negativas que se deciden
-// antes de la primera pasada.
-func raNegativaHoomYamlSinCommitear(t *testing.T, root string, cli *raCLI, opt Options, otraNegativa string) string {
+// raNegativaHoomYamlSinCommitear (CA-416 + CA-417; enmienda 5: el orden del
+// paso previo): con el hoom.yaml de la rama cambiado sin commitear, la review
+// no corre: ninguna pasada (cli no se invoca), sin registro, no revisado, no
+// sale con 0, y la negativa es EXACTAMENTE la de arbol sucio que nombra
+// hoom.yaml. La guarda de arbol sucio va primero ("primero la guarda de
+// arbol sucio ..., despues hoom.yaml"), asi que ninguna negativa que dependa
+// de hoom.yaml (la de no cruzada depende de review.same_provider de la base)
+// puede ganarle: la salida no trae la de no cruzada (la que nombra
+// --same-provider, CA-395). Antes (enmienda 4) valia tambien otra negativa
+// decidida antes de la primera pasada. Devuelve lo que dijo.
+func raNegativaHoomYamlSinCommitear(t *testing.T, root string, cli *raCLI, opt Options) string {
 	t.Helper()
 	var out bytes.Buffer
 	res, err := Run(root, "main", opt, &out)
@@ -540,12 +545,11 @@ func raNegativaHoomYamlSinCommitear(t *testing.T, root string, cli *raCLI, opt O
 	if recs, _ := Records(root); len(recs) != 0 {
 		t.Fatalf("CA-416/CA-417: la negativa no escribe registro: %+v", recs)
 	}
-	ruta, sucio := raRutaSucia(msg)
-	if sucio && ruta != "hoom.yaml" {
-		t.Fatalf("CA-416: la negativa por arbol sucio nombra hoom.yaml, nombro %q:\n%s", ruta, msg)
+	if ruta, sucio := raRutaSucia(msg); !sucio || ruta != "hoom.yaml" {
+		t.Fatalf("CA-416: la review se niega por arbol sucio nombrando hoom.yaml (%+v): %q:\n%s", opt, raErrSucio("hoom.yaml"), msg)
 	}
-	if !sucio && (otraNegativa == "" || !strings.Contains(msg, otraNegativa)) {
-		t.Fatalf("CA-416: la review se niega por arbol sucio: %q:\n%s", raErrSucio("hoom.yaml"), msg)
+	if strings.Contains(msg, "--same-provider") {
+		t.Fatalf("CA-416: la negativa de arbol sucio va antes que la de no cruzada: la salida no trae la de no cruzada (%+v):\n%s", opt, msg)
 	}
 	return msg
 }
@@ -555,8 +559,9 @@ func raNegativaHoomYamlSinCommitear(t *testing.T, root string, cli *raCLI, opt O
 // que escribio instalado, la review se niega por no cruzada (no-entregable,
 // exit 1, no-cruzada, sin pasadas ni registro), con o sin --provider. Igual
 // si la base ni tiene hoom.yaml. Con el cambio de hoom.yaml sin commitear
-// (enmienda 4) el arbol esta sucio: la review se niega igual, por arbol sucio
-// o por no cruzada (CA-416).
+// (enmienda 4) el arbol esta sucio: la review se niega igual, y (enmienda 5,
+// el orden del paso previo) EXACTAMENTE por arbol sucio nombrando hoom.yaml,
+// antes que la negativa de no cruzada (CA-416).
 func TestCA417_LaRamaNoSeDaSameProvider(t *testing.T) {
 	casos := []struct {
 		nombre string
@@ -575,7 +580,7 @@ func TestCA417_LaRamaNoSeDaSameProvider(t *testing.T) {
 
 			if c.nombre == "sin-commitear" {
 				for _, opt := range []Options{{Lens: "risk"}, {Lens: "risk", Provider: "claude"}} {
-					raNegativaHoomYamlSinCommitear(t, root, cl, opt, "--same-provider")
+					raNegativaHoomYamlSinCommitear(t, root, cl, opt)
 				}
 				return
 			}
@@ -624,7 +629,7 @@ func TestCA417_LaRamaNoSeSacaElAislamiento(t *testing.T) {
 				raInstalar(t, bin, c.writer, "")
 			}
 			if !c.commitear {
-				raNegativaHoomYamlSinCommitear(t, root, cli, c.opt, "")
+				raNegativaHoomYamlSinCommitear(t, root, cli, c.opt)
 				return
 			}
 
@@ -688,7 +693,7 @@ func TestCA417_LaSeccionDeLaBaseVale(t *testing.T) {
 			metaDeRun(t, root, "20260926T090000_wr1ter", "claude", "writer", time.Now().Add(-time.Minute))
 			cl := raInstalar(t, bin, "claude", "")
 			if c.nombre == "la-rama-quita-review-sin-commitear" {
-				raNegativaHoomYamlSinCommitear(t, root, cl, Options{Lens: "risk"}, "")
+				raNegativaHoomYamlSinCommitear(t, root, cl, Options{Lens: "risk"})
 				return
 			}
 
@@ -730,7 +735,7 @@ func TestCA417_ModeloYEsfuerzoDeLaBase(t *testing.T) {
 			cl := raInstalar(t, bin, "claude", "") // primero en el orden de deteccion
 			cx := raInstalar(t, bin, "codex", "")
 			if !commitear {
-				raNegativaHoomYamlSinCommitear(t, root, cx, Options{Lens: "risk"}, "")
+				raNegativaHoomYamlSinCommitear(t, root, cx, Options{Lens: "risk"})
 				if cl.veces() != 0 {
 					t.Fatalf("CA-416: con el arbol sucio no corre ningun provider: claude %d", cl.veces())
 				}
