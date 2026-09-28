@@ -1715,30 +1715,104 @@ func raNoRastreados(t *testing.T, root string) []string {
 	return lista
 }
 
-// CA-401 / CA-416 (re-expresado por la enmienda 4): un FIFO suelto sin
-// rastrear no es un archivo para git (no lo lista). Evidence vuelve enseguida
-// (reloj de 10 s) sin abrirlo: o se niega por arbol sucio nombrandolo (el
-// caso limite del spec: "un FIFO: la review se niega por arbol sucio y nombra
-// la ruta"), o arma la evidencia de lo commiteado, sin el FIFO. Nunca se
-// cuelga ni otro error.
-func TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia(t *testing.T) {
-	root := raRepo(t, "")
-	raCambio(t, root)
-	fifo := filepath.Join(root, "tuberia")
-	raConFIFO(t, fifo)
-	if lista := raNoRastreados(t, root); len(lista) != 0 {
-		t.Fatalf("CA-401: fixture: git no lista un FIFO: %v", lista)
-	}
+// raMarcaFIFO es lo que un escritor deja en el FIFO suelto si alguien lo abre
+// para leer: si aparece en algun lado, la review leyo el FIFO.
+const raMarcaFIFO = "LEIDO-DEL-FIFO-SUELTO-ZX84"
 
-	ev, err, _ := raEvidenceConReloj(t, "CA-416", 10*time.Second, root, "main", "", raTopeGrande)
-	if err != nil {
-		if ruta, ok := raRutaSucia(err.Error()); !ok || !raRutaAceptada(ruta, []string{"tuberia"}) {
-			t.Fatalf("CA-416: con un FIFO sin rastrear el unico error posible es la negativa por arbol sucio que lo nombra: %v", err)
+// CA-416 / CA-401 (re-expresado por la enmienda 5; la enmienda 4 aceptaba la
+// negativa o la evidencia): "con un FIFO suelto, la evidencia se arma como
+// siempre y el FIFO no entra" (caso limite: "Un FIFO suelto no es un archivo
+// para git (no se lista ni se puede commitear): no cuenta y nunca entra en la
+// evidencia"). Con un FIFO suelto sin rastrear (mkfifo, no un symlink) y todo
+// lo demas commiteado, Evidence arma la evidencia de lo commiteado enseguida
+// (reloj de 10 s), sin error, sin Over, sin el nombre del FIFO ni nada leido
+// de el; y `hoom review` corre su pasada con esa misma evidencia, sin el FIFO
+// en el pedido ni en la salida. Dos formas: nadie escribe en el FIFO (abrirlo
+// para leer colgaria) y un escritor espera para dejar raMarcaFIFO (leerlo la
+// traeria). Contraste: un symlink sin rastrear a ese mismo FIFO SI es un
+// arbol sucio y la negativa nombra el symlink, sin pasadas (raCasosSucios
+// cubre tambien el symlink a un FIFO de afuera).
+func TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia(t *testing.T) {
+	for _, escritor := range []bool{false, true} {
+		nombre := "fifo-sin-escritor"
+		if escritor {
+			nombre = "fifo-con-un-escritor-esperando"
 		}
-		return
-	}
-	if diff := string(ev.Diff); ev.Over || !strings.Contains(diff, "+func Nuevo() {}") || strings.Contains(diff, "tuberia") {
-		t.Fatalf("CA-401: la evidencia trae el cambio commiteado y no el FIFO:\n%s", diff)
+		t.Run(nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			root := raRepo(t, "")
+			raCambio(t, root)
+			fifo := filepath.Join(root, "tuberia")
+			raConFIFO(t, fifo)
+			if lista := raNoRastreados(t, root); len(lista) != 0 {
+				t.Fatalf("CA-416: fixture: git no lista un FIFO: %v", lista)
+			}
+			raLimpio(t, "CA-416", root)
+			if escritor {
+				listo := make(chan struct{})
+				go func() {
+					defer close(listo)
+					f, err := os.OpenFile(fifo, os.O_WRONLY, 0) // espera a que alguien lo abra para leer
+					if err != nil {
+						return
+					}
+					_, _ = f.WriteString(raMarcaFIFO + "\n")
+					f.Close()
+				}()
+				t.Cleanup(func() {
+					// si nadie lo abrio para leer, el escritor sigue esperando: se lo destraba
+					if r, err := os.OpenFile(fifo, os.O_RDONLY|syscall.O_NONBLOCK, 0); err == nil {
+						select {
+						case <-listo:
+						case <-time.After(5 * time.Second):
+						}
+						r.Close()
+					}
+				})
+			}
+
+			ev, err, _ := raEvidenceConReloj(t, "CA-416", 10*time.Second, root, "main", "", raTopeGrande)
+			if err != nil {
+				t.Fatalf("CA-416: un FIFO suelto no cuenta: Evidence arma la evidencia sin error: %v", err)
+			}
+			diff := string(ev.Diff)
+			if ev.Over || !strings.Contains(diff, "+func Nuevo() {}") {
+				t.Fatalf("CA-416: con un FIFO suelto la evidencia se arma como siempre, con el cambio commiteado (Over %v):\n%s", ev.Over, diff)
+			}
+			if strings.Contains(diff, "tuberia") || strings.Contains(diff, raMarcaFIFO) {
+				t.Fatalf("CA-416: el FIFO suelto nunca entra en la evidencia (ni su nombre ni lo que traiga):\n%s", diff)
+			}
+			if ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
+				t.Fatalf("CA-401: Bytes y SHA256 cierran: %d vs %d, %q", ev.Bytes, len(ev.Diff), ev.SHA256)
+			}
+
+			cx := raInstalar(t, bin, "codex", "")
+			res, rerr, out := raRunConReloj(t, "CA-416", 20*time.Second, root, Options{Provider: "codex", Lens: "risk"})
+			if rerr != nil || res.Status != "revisado" || cx.veces() != 1 || len(res.Passes) != 1 || res.EvidenceSHA256 != ev.SHA256 {
+				t.Fatalf("CA-416: con un FIFO suelto hoom review corre su pasada con la evidencia de siempre (codex %d): %+v %v\n%s", cx.veces(), res, rerr, out)
+			}
+			if p := cx.pedido(t, 1); strings.Contains(p, "tuberia") || strings.Contains(p, raMarcaFIFO) || strings.Contains(out, raMarcaFIFO) {
+				t.Fatalf("CA-416: el FIFO suelto no llega al provider ni a la salida:\n%s", p)
+			}
+
+			// contraste: un symlink sin rastrear a ese FIFO es un arbol sucio
+			raSymlink(t, root, "enlace-a-tuberia", "tuberia")
+			ev, err, _ = raEvidenceConReloj(t, "CA-416", 10*time.Second, root, "main", "", raTopeGrande)
+			if err == nil {
+				t.Fatalf("CA-416: un symlink sin rastrear (aunque apunte a un FIFO) ensucia el arbol: Evidence armo %d bytes", ev.Bytes)
+			}
+			if ruta, ok := raRutaSucia(err.Error()); !ok || ruta != "enlace-a-tuberia" {
+				t.Fatalf("CA-416: la negativa nombra el symlink: %v", err)
+			}
+			res, rerr, out = raRunConReloj(t, "CA-416", 10*time.Second, root, Options{Provider: "codex", Lens: "risk"})
+			msg := out
+			if rerr != nil {
+				msg += "\n" + rerr.Error()
+			}
+			if ruta, ok := raRutaSucia(msg); !ok || ruta != "enlace-a-tuberia" || cx.veces() != 1 || len(res.Passes) != 0 || strings.Contains(msg, raMarcaFIFO) {
+				t.Fatalf("CA-416: con el symlink al FIFO la review se niega nombrandolo, sin pasadas (codex %d): %+v\n%s", cx.veces(), res, msg)
+			}
+		})
 	}
 }
 

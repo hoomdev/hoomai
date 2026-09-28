@@ -76,8 +76,10 @@ func ramPlantar(t *testing.T, dir string, n int) {
 	}
 }
 
-// CA-413 / CA-416 (re-expresado por la enmienda 4; antes: la lista de no
-// rastreados de la evidencia se leia con tope). La evidencia ya no lee los
+// CA-413 / CA-416 (re-expresado por la enmienda 4; antes
+// TestCA413_ListaDeNoRastreadosSeLeeConTope: la lista de no rastreados de la
+// evidencia se leia con tope; renombrado por el hallazgo 85d3cf, sin tocar lo
+// que exige). La evidencia ya no lee los
 // no rastreados; ahora son un arbol sucio. Con 20.000 no rastreados de
 // nombre largo en la raiz (la lista pesa mas de 4 MiB), Evidence devuelve la
 // negativa por arbol sucio (CA-416) nombrando uno de ellos y, para saber que
@@ -89,7 +91,7 @@ func ramPlantar(t *testing.T, dir string, n int) {
 // al menos su tamano (mas de 4 MiB, y mas con el crecimiento del buffer); la
 // negativa solo necesita la primera ruta sucia, y la evidencia del cambio
 // commiteado (un archivo) son unos pocos KiB y un punado de procesos git.
-func TestCA413_ListaDeNoRastreadosSeLeeConTope(t *testing.T) {
+func TestCA413_MilesDeNoRastreadosNoSeLeenEnteros(t *testing.T) {
 	if testing.Short() {
 		t.Skip("CA-413: planta 20.000 archivos no rastreados; corre sin -short")
 	}

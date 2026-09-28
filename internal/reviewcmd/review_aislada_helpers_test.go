@@ -24,7 +24,7 @@
 // guarda su argv (separado por NUL) y su stdin FUERA del arbol revisado, asi
 // el gate de scope no los ve.
 //
-// Este archivo tiene los fixtures; los tests estan en review_aislada_{opciones,
+// Este archivo tiene los fixtures; los tests estan en review_aislada_{opciones,orden,
 // evidencia,pedido,registro}_test.go y review_aislada_memoria_test.go.
 package reviewcmd
 
