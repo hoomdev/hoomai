@@ -173,6 +173,29 @@ func (c *capped) Write(p []byte) (int, error) {
 
 func (c *capped) String() string { return c.b.String() }
 
+// VerificarBase fails when base and HEAD have no merge-base or git cannot
+// diff them (a shallow clone, a base that does not exist, a missing tree): it
+// runs before anything is measured, so a broken base never looks like "no
+// changes" (CA-414).
+func VerificarBase(dir, base string) error {
+	mb, err := MergeBase(dir, base)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("git", "diff", "--quiet", mb, "HEAD", "--")
+	cmd.Dir = dir
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
+	err = cmd.Run()
+	if exit, ok := err.(*exec.ExitError); err == nil || (ok && exit.ExitCode() == 1) {
+		return nil // 1 = hay diferencias: git pudo compararlas
+	}
+	if msg := strings.TrimSpace(stderr.String()); msg != "" {
+		return fmt.Errorf("git diff %s HEAD: %s", mb, msg)
+	}
+	return fmt.Errorf("git diff %s HEAD: %v", mb, err)
+}
+
 // HeadEntry is the tree entry of path at HEAD: its mode and object id. ok is
 // false when HEAD does not have it; a failing git is an error.
 func HeadEntry(dir, path string) (mode, oid string, ok bool, err error) {

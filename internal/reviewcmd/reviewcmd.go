@@ -213,6 +213,36 @@ func contratoDeLaBase(dir, base string, role agents.Role) (string, error) {
 // kib rounds bytes up to KiB, the unit the review prints.
 func kib(n int) int { return (n + 1023) / 1024 }
 
+// prepararRevision is the review's preflight, in the one order that reads
+// nothing of the working tree before knowing it is clean: the dirty-tree
+// refusal (CA-416; git status opens no file), then hoom.yaml, then the base
+// with a merge-base and a diff git can produce (a broken base fails closed,
+// never SIN REVISAR: CA-414), and only then the measure the lenses are
+// decided on.
+func prepararRevision(root, base string, opt Options) (dir string, m *manifest.Manifest, baseFinal string, git gitx.Info, err error) {
+	if dir, err = runcmd.TaskDir(root, opt.Task); err != nil {
+		return
+	}
+	ruta, err := gitx.CambioSinCommitear(dir)
+	if err != nil {
+		return
+	}
+	if ruta != "" {
+		err = gitx.ArbolSucio{Ruta: ruta}
+		return
+	}
+	if m, err = manifest.Load(dir, profiles.Resolve); err != nil {
+		return
+	}
+	if m.BaseBranch != "" {
+		base = m.BaseBranch
+	}
+	if err = gitx.VerificarBase(dir, base); err != nil {
+		return
+	}
+	return dir, m, base, gitx.Snapshot(dir, base), nil
+}
+
 // politicaDeLaBase reads the `review:` section of the hoom.yaml of the
 // merge-base of base and HEAD, never the candidate's: a change does not pick
 // its own reviewer nor loosen its own review (CA-417). nil = no hoom.yaml or
@@ -394,26 +424,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	dir, err := runcmd.TaskDir(root, opt.Task)
+	dir, m, base, git, err := prepararRevision(root, base, opt)
 	if err != nil {
 		return Result{}, err
 	}
-	m, err := manifest.Load(dir, profiles.Resolve)
-	if err != nil {
-		return Result{}, err
-	}
-	if m.BaseBranch != "" {
-		base = m.BaseBranch
-	}
-	// Solo lo commiteado se revisa (CA-416): el arbol sucio se nombra ANTES
-	// de medir nada, porque medir el arbol de trabajo lee sus archivos y un
-	// no rastreado especial (un symlink a un FIFO) lo colgaria.
-	if ruta, err := gitx.CambioSinCommitear(dir); err != nil {
-		return Result{}, err
-	} else if ruta != "" {
-		return Result{}, gitx.ArbolSucio{Ruta: ruta}
-	}
-	git := gitx.Snapshot(dir, base)
 	lentes, motivo, err := Lenses(git, opt.Lens)
 	if err != nil {
 		return Result{}, err

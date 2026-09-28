@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/itemcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -657,6 +658,20 @@ func cmdReview(args []string) error {
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	asJSON := fs.Bool("json", false, "emitir el resultado de la review como JSON en stdout")
 	_ = fs.Parse(args)
+	if strings.TrimSpace(*task) == "" {
+		// sin tarea la review es de este arbol: su hoom.yaml no se lee antes
+		// de saber que esta commiteado (una edicion suelta no sale en un error,
+		// y un FIFO o /dev/zero en su lugar no cuelgan nada)
+		raiz, err := manifest.Find(".")
+		if err != nil {
+			return err
+		}
+		if ruta, err := gitx.CambioSinCommitear(raiz); err != nil {
+			return err
+		} else if ruta != "" {
+			return gitx.ArbolSucio{Ruta: ruta}
+		}
+	}
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
 		return err
