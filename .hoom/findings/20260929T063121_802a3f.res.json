@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T063121_802a3f",
+  "as": "corregido",
+  "evidence": "d87be59 + 3a51e1d: el tablero resuelve HEAD una vez por arbol, lee la cola solo de los registros encadenables del mas nuevo al mas viejo hasta el primero que cubre la tarjeta, y guarda cada cola en un cache de proceso por (arbol, hasta, HEAD) (exacto: los commits no cambian; los errores no se guardan; tope 4096). Tests ciegos a315764 con 30 registros y un espia de git: TestCA427_BuildNoRecorreLaHistoriaDeReviews (\u003c=3 invocaciones sobre hasta viejos; 087 en 083f6c0) y TestCA427_SegundoBuildDelMismoArbolNoRecalculaColas (0 en el segundo Build; 90 en 083f6c0): rojos en 083f6c0, verdes en a315764.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T07:56:13.454552Z"
+}

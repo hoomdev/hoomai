@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T063107_48ee09",
+  "as": "corregido",
+  "evidence": "Enmienda 1 aprobada (f6288d8, sha256 6ad9ce21): el tablero pide --delta solo si el registro con el que --delta encadenaria tiene cadena de 4 lentes; si no, la review completa; CA-428 re-expresado. 3a51e1d: reviewcmd.Encadenable es la regla unica de --delta y del tablero; reviewState toma como atrasada ese registro solo con cadena de 4 lentes y veredicto verde de la tarjeta. Tests ciegos a315764: TestCA428_CompletaDeUnaLenteMasNuevaPideLaReviewCompleta, TestCA428_SeguirElSiguientePasoSaleDeReview (el bucle real de 3 --delta), TestCA428_DerivePuroPideElDeltaSoloSiElRegistroQueEncadenariaLaDejaSatisfecha: rojos en 083f6c0, verdes en a315764; control TestCA428_CadenaDeCuatroConCodigoDespuesPideElDeltaYElDeltaAlcanza verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T07:56:13.422742Z"
+}

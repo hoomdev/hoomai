@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T063114_14eaab",
+  "as": "corregido",
+  "evidence": "d87be59: resolverRango congela hasta una vez y la medida del rango (gitx.CambiosEntre desde..hasta), el parche (gitx.RangePatch desde..hasta), el spec (gitx.EntradaEn en hasta) y el ancestro de --delta usan ese sha, nunca HEAD simbolico; EvidenceDesde resuelve HEAD una vez y delega. Test ciego a315764 TestCA423_HastaEsElHEADRevisadoAunqueHEADSeMueva (shim de git que mueve HEAD alrededor de cada diff --find-renames: vuelta al desde, otra historia, commit posterior, review sin rango): rojo en 083f6c0 (diff vacio o de otro arbol con hasta=C), verde en a315764 (evidencia = oraculo desde..C, MARCA-DE-C en cada pedido).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T07:56:13.358564Z"
+}
