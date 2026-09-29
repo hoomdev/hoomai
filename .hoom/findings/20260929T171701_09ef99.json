@@ -1,0 +1,11 @@
+{
+  "id": "20260929T171701_09ef99",
+  "created_at": "2026-09-29T17:17:01.69881Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:158-163: EvidenceDesde resuelve HEAD antes de entrar a RangePatch, cuya guarda de arbol sucio recien ocurre en internal/gitx/diff.go:103-110. En un repositorio con HEAD roto o aun no nacido y cambios sin commitear, el helper devuelve primero el fallo de rev-parse y deja de cumplir la negativa de arbol sucio que su contrato hereda; la CLI se salva por otra guarda, pero el helper ya no conserva el orden de fallos prometido. Ejecutar CambioSinCommitear antes de Head o pasarle un hasta ya resuelto desde un caller que haya hecho la guarda.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a95ff0bea39ce34",
+  "task": "review-por-diferencia"
+}
