@@ -139,16 +139,25 @@ func Records(dir string) ([]Record, []string) {
 	return out, warnings
 }
 
-// validRecordID is the shape of an id: letters, digits, '_' and '-', up to
-// 64 (WriteRecord makes 20060102T150405_<6 hex>). Anything else — a newline,
-// a space, a path — would carry text into the pedido outside the evidence.
+// validRecordID is the shape WriteRecord gives an id: 20060102T150405_
+// plus 6 lowercase letters or digits. Anything else — a newline, a space,
+// text glued to a real-looking id — would carry text into the pedido outside
+// the evidence, so a record with another id is not trusted.
 func validRecordID(id string) bool {
-	if id == "" || len(id) > 64 {
+	if len(id) != len("20060102T150405_")+6 || id[8] != 'T' || id[15] != '_' {
 		return false
 	}
-	for _, c := range id {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-') {
-			return false
+	for i, c := range id {
+		switch {
+		case i == 8 || i == 15:
+		case i < 15:
+			if c < '0' || c > '9' {
+				return false
+			}
+		default:
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'z') {
+				return false
+			}
 		}
 	}
 	return true
