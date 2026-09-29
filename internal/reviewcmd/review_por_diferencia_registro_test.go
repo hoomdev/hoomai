@@ -7,6 +7,8 @@ package reviewcmd
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -244,11 +246,19 @@ func TestCA424_RangoConElCambioEnteroVacio(t *testing.T) {
 		t.Run(c.nombre, func(t *testing.T) {
 			bin := raPATH(t)
 			root := raRepo(t, "")
+			// la base del proyecto es la de base_branch de hoom.yaml (la que
+			// usan Run y la CLI): integrada, que despues va a contener HEAD
+			raw, err := os.ReadFile(filepath.Join(root, "hoom.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			write(t, root, "hoom.yaml", strings.Replace(string(raw), "base_branch: main\n", "base_branch: integrada\n", 1))
+			git(t, root, "commit", "-q", "-am", "la base del proyecto es integrada")
 			desde := rdSha(t, root, "main")
 			head := rdCommit(t, root, "el rango", c.rango)
 			git(t, root, "branch", "integrada", "HEAD")
-			if rdGit(t, root, "merge-base", "integrada", "HEAD") != head {
-				t.Fatal("CA-424: fixture: la base ya contiene HEAD: el cambio entero esta vacio")
+			if rdGit(t, root, "merge-base", "integrada", "HEAD") != head || !strings.Contains(rdGit(t, root, "show", "HEAD:hoom.yaml"), "base_branch: integrada") {
+				t.Fatal("CA-424: fixture: la base del proyecto (integrada) ya contiene HEAD: el cambio entero esta vacio")
 			}
 			cx := raInstalar(t, bin, "codex", "")
 			raLimpio(t, "CA-424", root)

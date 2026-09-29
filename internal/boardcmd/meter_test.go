@@ -341,12 +341,18 @@ func TestCA304_EnHechoNoSeExigeLaHuella(t *testing.T) {
 
 // CA-305: review es hecho con un registro que cuenta, no-aplica con un
 // veredicto de 400 lineas o menos sin registro, y falta con mas de 400 sin
-// registro que cuente (una sola lente no cuenta) o sin veredicto.
+// registro que cuente (una sola lente no cuenta) o sin veredicto. CA-427
+// (re-expresion): un registro cuenta solo anclado a commits (con hasta,
+// completa) y sin codigo despues de su hasta (bdColas); uno con el formato
+// viejo, sin hasta, ya no cuenta.
 func TestCA305_SegmentoReview(t *testing.T) {
-	rec := func(id string, lentes []string, verdictID string) reviewcmd.Record {
+	recViejo := func(id string, lentes []string, verdictID string) reviewcmd.Record {
 		return reviewcmd.Record{ID: id, CreatedAt: bdT0.Add(35 * time.Minute), Task: bdSlug, Spec: bdSpec,
 			Fingerprint: "huella-1", VerdictID: verdictID, Verdict: "green", Lenses: lentes,
 			Provider: "codex", Writer: "claude", Cross: reviewcmd.CrossYes, Findings: []string{}}
+	}
+	rec := func(id string, lentes []string, verdictID string) reviewcmd.Record {
+		return bdAnclado(recViejo(id, lentes, verdictID))
 	}
 	tam := func(ins, del int) Evidence {
 		ev := bdEv()
@@ -362,16 +368,24 @@ func TestCA305_SegmentoReview(t *testing.T) {
 	grande := tam(500, 112)
 	tbSegEs(t, "CA-305", Derive(grande), "review", SegFalta, "falta la revision de 4 lentes")
 	grande.Reviews = []reviewcmd.Record{rec("r-una", []string{"reliability"}, "v-tam")}
-	tbSegEs(t, "CA-305 (una lente)", Derive(grande), "review", SegFalta, "falta la revision de 4 lentes")
+	tbSegEs(t, "CA-305 (una lente)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de 4 lentes")
 	grande.Reviews = []reviewcmd.Record{rec("r-rojo", reviewcmd.Lentes, "v-que-no-es-verde")}
-	tbSegEs(t, "CA-305 (sobre un rojo)", Derive(grande), "review", SegFalta, "falta la revision de 4 lentes")
+	tbSegEs(t, "CA-305 (sobre un rojo)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de 4 lentes")
 	grande.Reviews = []reviewcmd.Record{rec("r-ok", reviewcmd.Lentes, "v-tam")}
-	tbSegEs(t, "CA-305", Derive(grande), "review", SegHecho, "revision de 4 lentes registrada")
+	tbSegEs(t, "CA-305", Derive(bdColas(grande)), "review", SegHecho, "revision de 4 lentes registrada")
+	// CA-427 (re-expresion): el mismo registro sin hasta ya no cuenta
+	grande.Reviews = []reviewcmd.Record{recViejo("r-ok", reviewcmd.Lentes, "v-tam")}
+	tbSegEs(t, "CA-427 (sin hasta)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de 4 lentes")
 
 	// un registro que cuenta tambien llena el segmento en un cambio chico
 	chico := tam(30, 5)
 	chico.Reviews = []reviewcmd.Record{rec("r-ok", reviewcmd.Lentes, "v-tam")}
-	tbSegEs(t, "CA-305", Derive(chico), "review", SegHecho, "revision de 4 lentes registrada")
+	tbSegEs(t, "CA-305", Derive(bdColas(chico)), "review", SegHecho, "revision de 4 lentes registrada")
+	// CA-427 (re-expresion): sin hasta no cuenta, y un cambio chico sin
+	// registro que cuente no exige la review
+	chico.Reviews = []reviewcmd.Record{recViejo("r-ok", reviewcmd.Lentes, "v-tam")}
+	tbSegEs(t, "CA-427 (sin hasta, chico)", Derive(bdColas(chico)), "review", SegNoAplica,
+		"el cambio es chico (35 lineas): no exige la revision de 4 lentes")
 
 	// sin veredicto
 	ev := bdEv()

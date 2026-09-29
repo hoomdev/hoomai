@@ -16,10 +16,23 @@ import (
 )
 
 // tbRegistro es un registro de review de la tarjeta; con cuatro lentes sobre
-// un verde de la tarjeta cuenta, con una sola no.
+// un verde de la tarjeta cuenta, con una sola no. CA-427 (re-expresion): el
+// que cuenta va anclado a commits (con hasta, completa, bdAnclado) y cuenta
+// solo con su cola en ev.ReviewTails (bdColas: sin codigo despues de su
+// hasta); tbRegistroViejo es el mismo sin hasta, que ya no cuenta.
 func tbRegistro(id string, en time.Duration, cuenta bool, provider, writer, cross string) reviewcmd.Record {
-	lentes := []string{"reliability"}
+	r := tbRegistroViejo(id, en, cuenta, provider, writer, cross)
 	if cuenta {
+		r = bdAnclado(r)
+	}
+	return r
+}
+
+// tbRegistroViejo es tbRegistro con el formato de antes de
+// review-por-diferencia: sin desde, hasta ni cobertura.
+func tbRegistroViejo(id string, en time.Duration, cuatro bool, provider, writer, cross string) reviewcmd.Record {
+	lentes := []string{"reliability"}
+	if cuatro {
 		lentes = reviewcmd.Lentes
 	}
 	return reviewcmd.Record{ID: id, CreatedAt: bdT0.Add(en), Task: bdSlug, Spec: bdSpec, Fingerprint: "huella-1",
@@ -47,7 +60,10 @@ func tbProv(t *testing.T, ca string, ev Evidence, writer, reviewer, cross string
 }
 
 // CA-310: con un registro de review que cuenta, los tres salen de el, aunque
-// haya uno mas nuevo que no cuenta y runs que digan otra cosa.
+// haya uno mas nuevo que no cuenta y runs que digan otra cosa. CA-427
+// (re-expresion): el que cuenta esta anclado y sin codigo despues de su
+// hasta; el mismo registro sin hasta ya no cuenta, y entonces manda el mas
+// nuevo.
 func TestCA310_ProvidersDelRegistroQueCuenta(t *testing.T) {
 	ev := bdEv()
 	ev.Reviews = []reviewcmd.Record{
@@ -55,11 +71,20 @@ func TestCA310_ProvidersDelRegistroQueCuenta(t *testing.T) {
 		tbRegistro("r-cuenta", 35*time.Minute, true, "codex", "claude", reviewcmd.CrossYes),
 	}
 	ev.Runs = []RunState{tbRun("run-w", "writer", "opencode", 20*time.Minute)}
+	ev = bdColas(ev)
 	c := Derive(ev)
 	if c.Evidence.ReviewID != "r-cuenta" {
 		t.Fatalf("CA-310: el fixture tiene un registro que cuenta: %+v", c.Evidence)
 	}
 	tbProv(t, "CA-310", ev, "claude", "codex", reviewcmd.CrossYes)
+
+	// CA-427: sin hasta, r-cuenta ya no cuenta: los tres salen del mas nuevo
+	ev.Reviews[1] = tbRegistroViejo("r-cuenta", 35*time.Minute, true, "codex", "claude", reviewcmd.CrossYes)
+	ev = bdColas(ev)
+	if c := Derive(ev); c.Evidence.ReviewID != "" {
+		t.Fatalf("CA-427: un registro sin hasta no cuenta: %+v", c.Evidence)
+	}
+	tbProv(t, "CA-427", ev, "opencode", "gemini", reviewcmd.CrossNo)
 }
 
 // CA-310: si ninguno cuenta, manda el mas NUEVO de la tarjeta (por fecha, no
@@ -76,7 +101,7 @@ func TestCA310_ProvidersDelRegistroMasNuevo(t *testing.T) {
 	// una review con --same-provider: los dos logos iguales y cross no-cruzada
 	ev = bdEv()
 	ev.Reviews = []reviewcmd.Record{tbRegistro("r-mismo", 35*time.Minute, true, "claude", "claude", reviewcmd.CrossNo)}
-	tbProv(t, "CA-310", ev, "claude", "claude", reviewcmd.CrossNo)
+	tbProv(t, "CA-310", bdColas(ev), "claude", "claude", reviewcmd.CrossNo)
 }
 
 // CA-310: sin writer en el registro, el writer es el provider del run mas
@@ -91,7 +116,7 @@ func TestCA310_WriterDeLosRunsSiElRegistroNoLoDice(t *testing.T) {
 		tbRun("run-writer", "writer", "claude", 20*time.Minute),
 		tbRun("run-tw", "test-writer", "opencode", 10*time.Minute),
 	}
-	tbProv(t, "CA-310", ev, "claude", "codex", reviewcmd.CrossUnknown)
+	tbProv(t, "CA-310", bdColas(ev), "claude", "codex", reviewcmd.CrossUnknown)
 }
 
 // CA-310: sin registro, writer sale de los runs (rol que escribe, el mas

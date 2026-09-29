@@ -468,3 +468,200 @@ func TestCA428_SinUnRegistroQueCumplaTodoSalvoLoUltimoElMotivoEsElDeHoy(t *testi
 		})
 	}
 }
+
+// ---------------------------------------------------------------- Derive puro
+
+// Los mismos criterios contra la funcion pura: Derive recibe en
+// ev.ReviewTails lo que Gather leyo de git (el hasta sigue en la historia del
+// HEAD; cambio codigo despues) y tiene que aplicar el resto de la regla por
+// su cuenta: que el registro tenga hasta (un sha de 40 hex), su cobertura,
+// su cadena, la tarea y las 4 lentes de cada eslabon. Una cola que Gather
+// no pudo leer falta en el mapa.
+
+const (
+	rdPuroMB = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	rdPuroH1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	rdPuroH2 = "cccccccccccccccccccccccccccccccccccccccc"
+)
+
+// rdPuroGrande es la tarjeta en Tu aceptacion salvo la review: su verde
+// cambia 612 lineas y la review de 4 lentes se exige.
+func rdPuroGrande() Evidence {
+	ev := bdEv()
+	v := bdVeredicto("v-grande", bdT0.Add(30*time.Minute), "huella-1", 500, 112, bdGatesVerdes())
+	ev.Verdict, ev.GreenVerdicts = v, []string{"v-antes", v.ID}
+	return ev
+}
+
+func rdPuroRec(id string, en time.Duration, desde, hasta, cobertura, desdeReview string, lentes []string) reviewcmd.Record {
+	return reviewcmd.Record{ID: id, CreatedAt: bdT0.Add(en), Task: bdSlug, Spec: bdSpec, Fingerprint: "huella-1",
+		VerdictID: "v-grande", Verdict: "green", Lenses: lentes, Provider: "codex", Writer: "claude",
+		Cross: reviewcmd.CrossYes, WritersDeclared: []string{}, Findings: []string{},
+		Desde: desde, Hasta: hasta, Cobertura: cobertura, DesdeReview: desdeReview}
+}
+
+// rdPuroDerive corre Derive con reloj: seguir desde_review no puede colgarse.
+func rdPuroDerive(t *testing.T, ca, caso string, ev Evidence) Card {
+	t.Helper()
+	ch := make(chan Card, 1)
+	go func() { ch <- Derive(ev) }()
+	select {
+	case c := <-ch:
+		return c
+	case <-time.After(10 * time.Second):
+		t.Fatalf("%s: %s: Derive no volvio en 10 s: seguir desde_review no termina", ca, caso)
+	}
+	return Card{}
+}
+
+const rdPuroSinRegistro = "la review exige las 4 lentes (612 lineas > 400) y no hay registro de review"
+
+// CA-427 (Derive puro): cuenta solo el registro con hasta, completa o delta
+// con su cadena hasta una completa de la tarea y de 4 lentes, y con su cola
+// {en la historia, sin codigo despues}. Una cola ausente (git no ubico el
+// hasta), un registro sin hasta aunque tenga cola, un parcial, una cadena
+// rota, un ciclo, un eslabon de otra tarea o de una sola lente: no cuenta,
+// con el motivo y el siguiente paso de hoy. (Un hasta que no es un sha de 40
+// hex lo fija TestCA427_HastaQueNoEsUnShaNoCuenta en disco: Gather no le
+// pone cola.)
+func TestCA427_DerivePuroCuentaSoloConColaYCadena(t *testing.T) {
+	cuatro, una := reviewcmd.Lentes, []string{reviewcmd.LenteDominante}
+	sana := ReviewTail{Ancestro: true, Codigo: false}
+	casos := []struct {
+		nombre string
+		recs   []reviewcmd.Record
+		colas  map[string]ReviewTail
+		cuenta string // id del registro que cuenta; "" = ninguno
+	}{
+		{"completa-con-cola-sana",
+			[]reviewcmd.Record{rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", cuatro)},
+			map[string]ReviewTail{"r1": sana}, "r1"},
+		{"delta-encadenado-a-una-completa",
+			[]reviewcmd.Record{
+				rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", cuatro),
+				rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r1", cuatro)},
+			map[string]ReviewTail{"r1": {Ancestro: true, Codigo: true}, "r2": sana}, "r2"},
+		{"completa-sin-cola",
+			[]reviewcmd.Record{rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", cuatro)},
+			map[string]ReviewTail{}, ""},
+		{"sin-hasta-con-cola",
+			[]reviewcmd.Record{rdPuroRec("r1", 35*time.Minute, "", "", "", "", cuatro)},
+			map[string]ReviewTail{"r1": sana}, ""},
+		{"sin-hasta-completa-con-cola",
+			[]reviewcmd.Record{rdPuroRec("r1", 35*time.Minute, rdPuroMB, "", reviewcmd.CoberturaCompleta, "", cuatro)},
+			map[string]ReviewTail{"r1": sana}, ""},
+		{"parcial-con-cola",
+			[]reviewcmd.Record{rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaParcial, "", cuatro)},
+			map[string]ReviewTail{"r1": sana}, ""},
+		{"delta-sin-el-registro-que-nombra",
+			[]reviewcmd.Record{rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r-no-esta", cuatro)},
+			map[string]ReviewTail{"r2": sana}, ""},
+		{"delta-sin-desde-review",
+			[]reviewcmd.Record{rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "", cuatro)},
+			map[string]ReviewTail{"r2": sana}, ""},
+		{"ciclo",
+			[]reviewcmd.Record{
+				rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r3", cuatro),
+				rdPuroRec("r3", 41*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r2", cuatro)},
+			map[string]ReviewTail{"r2": sana, "r3": sana}, ""},
+		{"se-nombra-a-si-mismo",
+			[]reviewcmd.Record{rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r2", cuatro)},
+			map[string]ReviewTail{"r2": sana}, ""},
+		{"eslabon-de-una-lente",
+			[]reviewcmd.Record{
+				rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", una),
+				rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r1", cuatro)},
+			map[string]ReviewTail{"r1": sana, "r2": sana}, ""},
+		{"eslabon-parcial",
+			[]reviewcmd.Record{
+				rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaParcial, "", cuatro),
+				rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r1", cuatro)},
+			map[string]ReviewTail{"r1": sana, "r2": sana}, ""},
+		{"eslabon-de-otra-tarea", func() []reviewcmd.Record {
+			otra := rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", cuatro)
+			otra.Task, otra.Spec = "otra", ".hoom/specs/otra.md"
+			return []reviewcmd.Record{otra, rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r1", cuatro)}
+		}(), map[string]ReviewTail{"r1": sana, "r2": sana}, ""},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			ev := rdPuroGrande()
+			ev.Reviews, ev.ReviewTails = c.recs, c.colas
+			card := rdPuroDerive(t, "CA-427", c.nombre, ev)
+			if c.cuenta != "" {
+				bdCol(t, "CA-427 ("+c.nombre+")", card, ColTuAceptacion)
+				if card.Evidence.ReviewID != c.cuenta {
+					t.Fatalf("CA-427: %s: la review de la tarjeta es %s: %+v", c.nombre, c.cuenta, card.Evidence)
+				}
+				return
+			}
+			bdCol(t, "CA-427 ("+c.nombre+")", card, ColReview)
+			if card.Evidence.ReviewID != "" {
+				t.Fatalf("CA-427: %s: no cuenta: %+v", c.nombre, card.Evidence)
+			}
+			bdPrimero(t, "CA-427 ("+c.nombre+")", card, rdPuroSinRegistro)
+			if card.Next != rdNextHoy {
+				t.Fatalf("CA-427: %s: el siguiente paso es el de hoy %q, fue %q", c.nombre, rdNextHoy, card.Next)
+			}
+		})
+	}
+}
+
+// CA-427 (Derive puro): un registro cuya cola dice que su hasta ya no esta
+// en la historia del HEAD (un rebase) no cuenta. El motivo no se fija aca:
+// el spec no dice si es el de hoy o el del delta.
+func TestCA427_DerivePuroHastaFueraDeLaHistoriaNoCuenta(t *testing.T) {
+	for _, codigo := range []bool{false, true} {
+		ev := rdPuroGrande()
+		ev.Reviews = []reviewcmd.Record{rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", reviewcmd.Lentes)}
+		ev.ReviewTails = map[string]ReviewTail{"r1": {Ancestro: false, Codigo: codigo}}
+		c := rdPuroDerive(t, "CA-427", "fuera de la historia", ev)
+		bdCol(t, "CA-427 (fuera de la historia)", c, ColReview)
+		if c.Evidence.ReviewID != "" {
+			t.Fatalf("CA-427: un hasta que ya no es ancestro del HEAD no cuenta: %+v", c.Evidence)
+		}
+	}
+}
+
+// CA-428 (Derive puro): el unico registro que cumpliria todo salvo lo ultimo
+// (codigo despues de su hasta) deja la tarjeta en Review con el motivo, las
+// palabras simples y el siguiente paso del delta; con el delta encadenado y
+// su cola sana, Tu aceptacion.
+func TestCA428_DerivePuroCodigoDespuesPideElDelta(t *testing.T) {
+	ev := rdPuroGrande()
+	r1 := rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", reviewcmd.Lentes)
+	r1.VerdictID = "v-antes" // la review fue sobre el verde anterior de la tarjeta
+	ev.Reviews = []reviewcmd.Record{r1}
+	ev.ReviewTails = map[string]ReviewTail{"r1": {Ancestro: true, Codigo: true}}
+	c := rdPuroDerive(t, "CA-428", "codigo despues", ev)
+	bdCol(t, "CA-428", c, ColReview)
+	bdPrimero(t, "CA-428", c, "la review r1 cubre hasta "+rdPuroH1[:12]+" y el codigo cambio despues")
+	if c.Next != rdNextDelta || c.Plain != "falta revisar lo nuevo desde la ultima review" || c.Evidence.ReviewID != "" {
+		t.Fatalf("CA-428: siguiente paso %q y en palabras simples %q; fue %q / %q (%+v)",
+			rdNextDelta, "falta revisar lo nuevo desde la ultima review", c.Next, c.Plain, c.Evidence)
+	}
+
+	ev.Reviews = append(ev.Reviews, rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r1", reviewcmd.Lentes))
+	ev.ReviewTails["r2"] = ReviewTail{Ancestro: true, Codigo: false}
+	c = rdPuroDerive(t, "CA-428", "con el delta", ev)
+	bdCol(t, "CA-428 (con el delta)", c, ColTuAceptacion)
+	if c.Evidence.ReviewID != "r2" {
+		t.Fatalf("CA-428: despues del delta de 4 lentes la review de la tarjeta es el delta: %+v", c.Evidence)
+	}
+}
+
+// CA-427 / CA-325: un registro sin hasta ya no cuenta, asi que con la review
+// exigida y un hallazgo que bloquea, la tarjeta vuelve a ofrecer pedir el
+// reviewer (antes, con ese registro, solo pedir el writer).
+func TestCA427_DerivePuroRegistroViejoVuelveAPedirReviewer(t *testing.T) {
+	ev := acConHallazgos(acGrande(acEv()), "f-a")
+	viejo := acRegistroQueCuenta()
+	viejo.Desde, viejo.Hasta, viejo.Cobertura = "", "", ""
+	ev.Reviews = []reviewcmd.Record{viejo}
+	c := Derive(bdColas(ev))
+	bdCol(t, "CA-427", c, ColReview)
+	want := []string{ActPedirReviewer, ActPedirWriter, ActSesion, ActTerminal}
+	if got := acIDs(c); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("CA-427/CA-325: con un registro sin hasta la tarjeta ofrece %v, fueron %v", want, got)
+	}
+}

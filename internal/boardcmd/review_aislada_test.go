@@ -30,17 +30,31 @@ func raModelo(t *testing.T, ev Evidence, reviewer, model, effort string) {
 }
 
 // CA-408: con un registro que cuenta, modelo y esfuerzo salen de el, aunque
-// haya uno mas nuevo que no cuenta con otros valores.
+// haya uno mas nuevo que no cuenta con otros valores. CA-427
+// (re-expresion): el que cuenta esta anclado a commits y sin codigo despues
+// de su hasta (bdColas); sin hasta ya no cuenta, y manda el mas nuevo.
 func TestCA408_ModeloYEsfuerzoDelRegistroQueCuenta(t *testing.T) {
 	ev := bdEv()
 	ev.Reviews = []reviewcmd.Record{
 		raRegistro("r-nuevo-una-lente", 40*time.Minute, false, "gemini", "otro-modelo", "low"),
 		raRegistro("r-cuenta", 35*time.Minute, true, "codex", "gpt-5.6-sol", "xhigh"),
 	}
+	ev = bdColas(ev)
 	if c := Derive(ev); c.Evidence.ReviewID != "r-cuenta" {
 		t.Fatalf("CA-408: fixture: r-cuenta es el registro que cuenta: %+v", c.Evidence)
 	}
 	raModelo(t, ev, "codex", "gpt-5.6-sol", "xhigh")
+
+	// CA-427: el mismo registro sin hasta ya no cuenta: modelo y esfuerzo
+	// salen del mas nuevo
+	viejo := tbRegistroViejo("r-cuenta", 35*time.Minute, true, "codex", "claude", reviewcmd.CrossYes)
+	viejo.Model, viejo.Effort = "gpt-5.6-sol", "xhigh"
+	ev.Reviews[1] = viejo
+	ev = bdColas(ev)
+	if c := Derive(ev); c.Evidence.ReviewID != "" {
+		t.Fatalf("CA-427: un registro sin hasta no cuenta: %+v", c.Evidence)
+	}
+	raModelo(t, ev, "gemini", "otro-modelo", "low")
 }
 
 // CA-408: si ninguno cuenta, del mas nuevo (por fecha); un vacio en el
@@ -54,10 +68,11 @@ func TestCA408_ModeloYEsfuerzoDelMasNuevoYVacios(t *testing.T) {
 	}
 	raModelo(t, ev, "claude", "opus", "")
 
-	// un registro viejo, sin modelo ni esfuerzo: los dos vacios
+	// un registro viejo, sin modelo ni esfuerzo: los dos vacios (CA-427: con
+	// el formato viejo tampoco tiene hasta y no cuenta; es el mas nuevo)
 	ev = bdEv()
-	ev.Reviews = []reviewcmd.Record{tbRegistro("r-viejo", 35*time.Minute, true, "codex", "claude", reviewcmd.CrossYes)}
-	raModelo(t, ev, "codex", "", "")
+	ev.Reviews = []reviewcmd.Record{tbRegistroViejo("r-viejo", 35*time.Minute, true, "codex", "claude", reviewcmd.CrossYes)}
+	raModelo(t, bdColas(ev), "codex", "", "")
 
 	// sin registro no hay reviewer, ni modelo ni esfuerzo
 	raModelo(t, bdEv(), "", "", "")
@@ -70,7 +85,10 @@ func TestCA408_JSONDeLaTarjeta(t *testing.T) {
 	r := raRegistro("r-cuenta", 35*time.Minute, true, "codex", "gpt-5.6-sol", "high")
 	r.Usage = []reviewcmd.LensUsage{{Lens: "risk", InputTokens: 999999, CachedTokens: 1, OutputTokens: 777777, Turns: 3}}
 	ev.Reviews = []reviewcmd.Record{r}
-	c := Derive(ev)
+	c := Derive(bdColas(ev)) // CA-427: r-cuenta anclado y sin codigo despues
+	if c.Evidence.ReviewID != "r-cuenta" {
+		t.Fatalf("CA-408: fixture: r-cuenta es el registro que cuenta: %+v", c.Evidence)
+	}
 	raw, err := json.Marshal(c)
 	if err != nil {
 		t.Fatal(err)

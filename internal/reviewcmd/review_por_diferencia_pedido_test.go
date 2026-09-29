@@ -303,10 +303,14 @@ func TestCA426_PoliticaYContratoDelMergeBaseConRango(t *testing.T) {
 		}
 	}
 
-	for _, opt := range []Options{
+	for i, opt := range []Options{
 		{Provider: "claude", Spec: spec, Delta: true},
 		{Provider: "claude", Spec: spec, Desde: c1},
 	} {
+		// codigo nuevo antes de cada caso: las reviews de arriba llegan hasta
+		// HEAD, y un rango vacio termina SIN REVISAR antes de decidir quien
+		// revisa; con codigo en el rango, lo que se prueba es la negativa
+		rdCommit(t, root, "mas codigo", map[string]string{fmt.Sprintf("mas%d.go", i): fmt.Sprintf("package app\n\nfunc Mas%d() {}\n", i)})
 		registros := rdRegistrosEn(root)
 		res, out := rdRevisar(t, "CA-426", root, opt)
 		if res.Status != "no-entregable" || res.ExitCode != 1 || res.Cross != CrossNo || len(res.Passes) != 0 || cl.veces() != 0 {
