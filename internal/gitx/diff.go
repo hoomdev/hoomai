@@ -345,12 +345,18 @@ func AppendBlob(dir, oid string, dst *bytes.Buffer, max int) (over bool, err err
 // MergeBase is the merge-base of base and HEAD in dir. No common ancestor (a
 // shallow clone, a base that does not exist) is an error, never a fallback.
 func MergeBase(dir, base string) (string, error) {
-	mb, err := gitOut(dir, "merge-base", base, "HEAD")
+	return MergeBaseDe(dir, base, "HEAD")
+}
+
+// MergeBaseDe is MergeBase against revision rev instead of HEAD (a frozen
+// sha, so a HEAD that moves meanwhile does not change it).
+func MergeBaseDe(dir, base, rev string) (string, error) {
+	mb, err := gitOut(dir, "merge-base", base, rev)
 	if err != nil {
-		return "", fmt.Errorf("git merge-base %s HEAD: %v", base, err)
+		return "", fmt.Errorf("git merge-base %s %s: %v", base, rev, err)
 	}
 	if mb = strings.TrimSpace(mb); mb == "" {
-		return "", fmt.Errorf("git merge-base %s HEAD: sin ancestro comun", base)
+		return "", fmt.Errorf("git merge-base %s %s: sin ancestro comun", base, rev)
 	}
 	return mb, nil
 }

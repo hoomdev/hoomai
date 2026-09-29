@@ -105,8 +105,10 @@ type Evidence struct {
 	Fingerprint   string           // current change fingerprint of E
 
 	Reviews []reviewcmd.Record // review records of E with task == slug
-	// ReviewTails: for each of Reviews with a hasta, what happened in E after
-	// it (reviewcmd.CambioDespues); a record git cannot place is absent.
+	// ReviewTails: what happened in E after the hasta of the records gather
+	// reads (colasDe): the encadenable ones, newest first, up to the first
+	// that covers the card. Any other record, or one git cannot place, has
+	// no entry, and Derive treats a missing entry as "does not cover".
 	ReviewTails map[string]ReviewTail
 	Findings    []finding.Item // OPEN findings of E with task == slug
 	// UnreadableFindings: finding files of E that could not be read. Their
