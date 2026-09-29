@@ -179,6 +179,19 @@ func ParseReview(raw []byte) (*ReviewPolicy, error) {
 	return doc.Review, nil
 }
 
+// ParseAgents reads only the `agents:` section of a hoom.yaml — the one the
+// review reads from its merge-base, never from the tree it reviews (like
+// ParseReview). nil = no section.
+func ParseAgents(raw []byte) (map[string]AgentPolicy, error) {
+	var doc struct {
+		Agents map[string]AgentPolicy `yaml:"agents"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	return doc.Agents, nil
+}
+
 // ReviewIsolated reports whether the reviewer runs without the user's
 // personal provider config: true unless review.isolated is false.
 func (m *Manifest) ReviewIsolated() bool {

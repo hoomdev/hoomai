@@ -281,7 +281,7 @@ func kib(n int) int { return (n + 1023) / 1024 }
 // with a merge-base and a diff git can produce (a broken base fails closed,
 // never SIN REVISAR: CA-414), and only then the measure the lenses are
 // decided on.
-func prepararRevision(root, base string, opt Options) (dir string, m *manifest.Manifest, baseFinal string, git gitx.Info, rng rango, err error) {
+func prepararRevision(root, base string, opt Options) (dir string, baseFinal string, git gitx.Info, rng rango, err error) {
 	if dir, err = runcmd.TaskDir(root, opt.Task); err != nil {
 		return
 	}
@@ -293,7 +293,8 @@ func prepararRevision(root, base string, opt Options) (dir string, m *manifest.M
 		err = gitx.ArbolSucio{Ruta: ruta}
 		return
 	}
-	if m, err = manifest.Load(dir, profiles.Resolve); err != nil {
+	m, err := manifest.Load(dir, profiles.Resolve)
+	if err != nil {
 		return
 	}
 	// The base is the project's — the one Run receives from the tree hoom
@@ -336,7 +337,27 @@ func prepararRevision(root, base string, opt Options) (dir string, m *manifest.M
 		return
 	}
 	rng.base, rng.avisoBase = nombre, aviso
-	return dir, m, base, gitx.Snapshot(dir, base), rng, nil
+	return dir, base, gitx.Snapshot(dir, base), rng, nil
+}
+
+// territorioEnMergeBase is the reviewer's write territory as the hoom.yaml
+// of the merge-base mb declares it (agents.reviewer.write), like the review
+// policy and the contract: never the reviewed tree's, with or without
+// --task, so a change does not widen what its own reviewer may write
+// (CA-431). No hoom.yaml or no section in that commit = the role's default.
+func territorioEnMergeBase(dir, mb string, role agents.Role) (agentcmd.Policy, error) {
+	raw, ok, err := gitx.ShowFile(dir, mb, "./"+manifest.FileName)
+	if err != nil {
+		return agentcmd.Policy{}, err
+	}
+	if !ok {
+		return agentcmd.PolicyFor(nil, role), nil
+	}
+	ag, err := manifest.ParseAgents(raw)
+	if err != nil {
+		return agentcmd.Policy{}, fmt.Errorf("el %s de la base (%s): %v", manifest.FileName, mb[:12], err)
+	}
+	return agentcmd.PolicyFor(&manifest.Manifest{Agents: ag}, role), nil
 }
 
 // mostrable is a value that came from the reviewed tree as it may reach a
@@ -686,7 +707,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	dir, m, base, git, rng, err := prepararRevision(root, base, opt)
+	dir, base, git, rng, err := prepararRevision(root, base, opt)
 	if err != nil {
 		return Result{}, err
 	}
@@ -739,6 +760,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return res, err
 	}
+	pol, err := territorioEnMergeBase(dir, rng.mb, role)
+	if err != nil {
+		return res, err
+	}
 
 	prov, err := elegirReviewer(w, &res, root, dir, opt.Provider)
 	if err != nil {
@@ -769,15 +794,6 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "  aviso: %s no puede imponer un rol de solo lectura; el limite se verifica solo despues del run\n", prov.Name())
 	}
 	v := ultimoVeredicto(dir)
-	// the reviewer's territory is the project's, never the branch's: a change
-	// does not widen what its own reviewer may write (CA-431)
-	proyecto := m
-	if strings.TrimSpace(opt.Task) != "" {
-		if proyecto, err = manifest.Load(root, profiles.Resolve); err != nil {
-			return res, err
-		}
-	}
-	pol := agentcmd.PolicyFor(proyecto, role)
 	mgr := runcmd.NewManager(root)
 	bin, err := hoomBin(opt)
 	if err != nil {
