@@ -121,7 +121,8 @@ type tree struct {
 	findingWarnings []string
 	unreadable      []string
 	reviews         []reviewcmd.Record
-	status          []string // uncommitted paths, relative to dir
+	tails           map[string]*ReviewTail // by hasta; nil = git could not place it
+	status          []string               // uncommitted paths, relative to dir
 	fingerprint     string
 	changed         []string // the candidate's files (gitx.Snapshot)
 	tokens          spec.TokenIndex
@@ -176,6 +177,22 @@ func (t *tree) allFindings(base string) []finding.Item {
 func (t *tree) allReviews() []reviewcmd.Record {
 	t.once("reviews", func() { t.reviews, _ = reviewcmd.Records(t.dir) })
 	return t.reviews
+}
+
+// tail is what changed in the tree after hasta, read once per hasta.
+func (t *tree) tail(hasta string) *ReviewTail {
+	if t.tails == nil {
+		t.tails = map[string]*ReviewTail{}
+	}
+	if rt, ok := t.tails[hasta]; ok {
+		return rt
+	}
+	var rt *ReviewTail
+	if anc, cod, err := reviewcmd.CambioDespues(t.dir, hasta); err == nil {
+		rt = &ReviewTail{Ancestro: anc, Codigo: cod}
+	}
+	t.tails[hasta] = rt
+	return rt
 }
 
 func (t *tree) uncommitted() []string {
@@ -324,8 +341,18 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 
 	for _, r := range t.allReviews() {
-		if r.Task == s {
-			ev.Reviews = append(ev.Reviews, r)
+		if r.Task != s {
+			continue
+		}
+		ev.Reviews = append(ev.Reviews, r)
+		if r.Hasta == "" {
+			continue
+		}
+		if rt := t.tail(r.Hasta); rt != nil {
+			if ev.ReviewTails == nil {
+				ev.ReviewTails = map[string]ReviewTail{}
+			}
+			ev.ReviewTails[r.ID] = *rt
 		}
 	}
 	var cardFindings []finding.Item

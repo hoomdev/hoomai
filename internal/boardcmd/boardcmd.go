@@ -104,8 +104,11 @@ type Evidence struct {
 	GreenVerdicts []string         // ids of every complete GREEN verdict of the card
 	Fingerprint   string           // current change fingerprint of E
 
-	Reviews  []reviewcmd.Record // review records of E with task == slug
-	Findings []finding.Item     // OPEN findings of E with task == slug
+	Reviews []reviewcmd.Record // review records of E with task == slug
+	// ReviewTails: for each of Reviews with a hasta, what happened in E after
+	// it (reviewcmd.CambioDespues); a record git cannot place is absent.
+	ReviewTails map[string]ReviewTail
+	Findings    []finding.Item // OPEN findings of E with task == slug
 	// UnreadableFindings: finding files of E that could not be read. Their
 	// task and severity are unknown, so they block every card of E, as they
 	// fail the findings_open gate.
@@ -130,6 +133,13 @@ type Evidence struct {
 	TreeFingerprint string
 	TreeChanges     []string // changed files of E's candidate (only with a task worktree)
 	Certified       bool     // some complete verdict of E has TreeFingerprint
+}
+
+// ReviewTail is what changed in the card's tree after a review reached its
+// hasta.
+type ReviewTail struct {
+	Ancestro bool // hasta is still in HEAD's history
+	Codigo   bool // something other than documentation changed from hasta to HEAD in the evidence's paths
 }
 
 // Card is one item on the board.

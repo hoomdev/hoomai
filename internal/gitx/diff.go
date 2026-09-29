@@ -92,11 +92,41 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 	if err != nil {
 		return false, err
 	}
+	return patchDesde(dir, mb, dst, max)
+}
+
+// RangePatch is CandidatePatch with an explicit start: the patch of
+// desde..HEAD, with the same paths, the same dirty-tree refusal (first) and
+// the same cap. desde must be an ancestor of HEAD.
+func RangePatch(dir, desde string, dst *bytes.Buffer, max int) (over bool, err error) {
+	ruta, err := CambioSinCommitear(dir)
+	if err != nil {
+		return false, err
+	}
+	if ruta != "" {
+		return false, ArbolSucio{Ruta: ruta}
+	}
+	ok, err := EsAncestro(dir, desde, "HEAD")
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, fmt.Errorf("%s no es un ancestro de HEAD", desde)
+	}
+	return patchDesde(dir, desde, dst, max)
+}
+
+// evidencePaths are the paths the evidence covers: everything outside .hoom/
+// plus .hoom/agents/ (the roles' contracts are part of the change).
+var evidencePaths = [][]string{{".", ":(exclude).hoom"}, {".hoom/agents"}}
+
+// patchDesde appends the patch of from..HEAD over the evidence's paths.
+func patchDesde(dir, from string, dst *bytes.Buffer, max int) (over bool, err error) {
 	// quotePath=false: the patch names a file as it is on disk (ñ, not
 	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure
 	diff := []string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
-		"--no-textconv", "--find-renames", mb, "HEAD", "--"}
-	for _, paths := range [][]string{{".", ":(exclude).hoom"}, {".hoom/agents"}} {
+		"--no-textconv", "--find-renames", from, "HEAD", "--"}
+	for _, paths := range evidencePaths {
 		over, err = gitOutBounded(dir, dst, max, false, append(append([]string{}, diff...), paths...)...)
 		if err != nil {
 			return false, fmt.Errorf("git diff: %v", err)
@@ -106,6 +136,85 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 		}
 	}
 	return false, nil
+}
+
+// EsAncestro says whether commit a is an ancestor of b (a commit is its own
+// ancestor). A git failure (an unknown object) is an error, never a no.
+func EsAncestro(dir, a, b string) (bool, error) {
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", a, b)
+	cmd.Dir = dir
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
+		return false, nil
+	}
+	if msg := strings.TrimSpace(stderr.String()); msg != "" {
+		return false, fmt.Errorf("git merge-base --is-ancestor %s %s: %s", a, b, msg)
+	}
+	return false, fmt.Errorf("git merge-base --is-ancestor %s %s: %v", a, b, err)
+}
+
+// ResolverCommit is the full sha of the commit rev names in dir; ok is false
+// when rev names no commit there. rev must not start with "-" (the caller
+// rejects it: it would be read as an option).
+func ResolverCommit(dir, rev string) (sha string, ok bool, err error) {
+	if strings.HasPrefix(rev, "-") {
+		return "", false, nil
+	}
+	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", rev+"^{commit}")
+	cmd.Dir = dir
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
+	out, err := cmd.Output()
+	if exit, isExit := err.(*exec.ExitError); isExit && exit.ExitCode() == 1 {
+		return "", false, nil // --quiet: not a commit
+	}
+	if err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return "", false, fmt.Errorf("git rev-parse %s: %s", rev, msg)
+		}
+		return "", false, fmt.Errorf("git rev-parse %s: %v", rev, err)
+	}
+	return strings.TrimSpace(string(out)), true, nil
+}
+
+// Head is the full sha of HEAD in dir.
+func Head(dir string) (string, error) {
+	out, err := gitOut(dir, "rev-parse", "--verify", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse HEAD: %v", err)
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// CambiosDesde are the files that changed from desde to HEAD in the
+// evidence's paths, with their added and deleted lines (a binary adds 0).
+// Renames count as a deletion and an addition.
+func CambiosDesde(dir, desde string) (files []string, ins, del int, err error) {
+	for _, paths := range evidencePaths {
+		args := append([]string{"-c", "core.quotePath=false", "diff", "--numstat", "-z", "--no-renames",
+			"--no-ext-diff", "--no-textconv", desde, "HEAD", "--"}, paths...)
+		out, err := gitOut(dir, args...)
+		if err != nil {
+			return nil, 0, 0, fmt.Errorf("git diff --numstat %s HEAD: %v", desde, err)
+		}
+		// "<added>\t<deleted>\t<path>\0"; a binary is "-\t-\t<path>\0"
+		for _, entry := range strings.Split(out, "\x00") {
+			parts := strings.SplitN(entry, "\t", 3)
+			if len(parts) != 3 {
+				continue
+			}
+			a, _ := strconv.Atoi(parts[0])
+			d, _ := strconv.Atoi(parts[1])
+			ins, del = ins+a, del+d
+			files = append(files, parts[2])
+		}
+	}
+	return files, ins, del, nil
 }
 
 // CambioSinCommitear is the first path outside .hoom/ with anything not

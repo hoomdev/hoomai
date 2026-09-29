@@ -122,6 +122,7 @@ Comandos:
               escribio, con la lente que sale de la evidencia (contrato 06) y
               los hallazgos que hoom VE aparecer en .hoom/findings/
               [--provider p] [--lens l] [--task <slug>] [--spec <ruta>]
+              [--desde <commit> | --delta]
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 10 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -189,6 +190,10 @@ Flags de review (no emite veredicto ni juzga el codigo: eso es de verify):
                        vacio = review.effort de hoom.yaml o el del provider
   --same-provider      Revisar con el MISMO provider que escribio (queda
                        marcado 'no-cruzada'); igual review.same_provider: true
+  --desde <commit>     Revisa solo de ese commit a HEAD (ancestro de HEAD); el
+                       registro dice la cobertura: completa, delta o parcial
+  --delta              Revisa solo lo que cambio desde la ultima review
+                       completa o delta de la tarea (no va con --desde)
   --json               Emite el resultado de la review como JSON en stdout
 
 Filosofia: veredicto ROJO = exit code 1. La narracion del agente no cuenta;
@@ -640,6 +645,9 @@ func cmdAgent(args []string) error {
 	return nil
 }
 
+// reviewUso is the review verb's usage line, for its argument errors.
+const reviewUso = "uso: hoom review [--task <slug>] [--spec <ruta>] [--desde <commit> | --delta] [--provider p] [--lens l] [--model m] [--effort e] [--same-provider] [--json]"
+
 // cmdReview runs the cross review: the reviewer role on a provider that is
 // NOT the one that wrote. It judges the review, never the code — no verdict,
 // no gate, and findings that do not move the exit code, because a finding is
@@ -660,6 +668,9 @@ func cmdReview(args []string) error {
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	asJSON := fs.Bool("json", false, "emitir el resultado de la review como JSON en stdout")
 	_ = fs.Parse(args)
+	if *delta && strings.TrimSpace(*desde) != "" {
+		return cliargs.NewUsageError("review", "--desde y --delta no van juntos", reviewUso)
+	}
 	if strings.TrimSpace(*task) == "" {
 		// sin tarea la review es de este arbol: su hoom.yaml no se lee antes
 		// de saber que esta commiteado (una edicion suelta no sale en un error,
