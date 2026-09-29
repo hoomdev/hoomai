@@ -92,13 +92,15 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 	if err != nil {
 		return false, err
 	}
-	return patchDesde(dir, mb, dst, max)
+	return patchDesde(dir, mb, "HEAD", dst, max)
 }
 
-// RangePatch is CandidatePatch with an explicit start: the patch of
-// desde..HEAD, with the same paths, the same dirty-tree refusal (first) and
-// the same cap. desde must be an ancestor of HEAD.
-func RangePatch(dir, desde string, dst *bytes.Buffer, max int) (over bool, err error) {
+// RangePatch is CandidatePatch with explicit ends: the patch of desde..hasta,
+// with the same paths, the same dirty-tree refusal (first) and the same cap.
+// hasta is a frozen sha (the HEAD the review resolved once), so a HEAD that
+// moves meanwhile never changes what the patch says; desde must be its
+// ancestor.
+func RangePatch(dir, desde, hasta string, dst *bytes.Buffer, max int) (over bool, err error) {
 	ruta, err := CambioSinCommitear(dir)
 	if err != nil {
 		return false, err
@@ -106,26 +108,26 @@ func RangePatch(dir, desde string, dst *bytes.Buffer, max int) (over bool, err e
 	if ruta != "" {
 		return false, ArbolSucio{Ruta: ruta}
 	}
-	ok, err := EsAncestro(dir, desde, "HEAD")
+	ok, err := EsAncestro(dir, desde, hasta)
 	if err != nil {
 		return false, err
 	}
 	if !ok {
-		return false, fmt.Errorf("%s no es un ancestro de HEAD", desde)
+		return false, fmt.Errorf("%s no es un ancestro de %s", desde, hasta)
 	}
-	return patchDesde(dir, desde, dst, max)
+	return patchDesde(dir, desde, hasta, dst, max)
 }
 
 // evidencePaths are the paths the evidence covers: everything outside .hoom/
 // plus .hoom/agents/ (the roles' contracts are part of the change).
 var evidencePaths = [][]string{{".", ":(exclude).hoom"}, {".hoom/agents"}}
 
-// patchDesde appends the patch of from..HEAD over the evidence's paths.
-func patchDesde(dir, from string, dst *bytes.Buffer, max int) (over bool, err error) {
+// patchDesde appends the patch of from..to over the evidence's paths.
+func patchDesde(dir, from, to string, dst *bytes.Buffer, max int) (over bool, err error) {
 	// quotePath=false: the patch names a file as it is on disk (ñ, not
 	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure
 	diff := []string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
-		"--no-textconv", "--find-renames", from, "HEAD", "--"}
+		"--no-textconv", "--find-renames", from, to, "--"}
 	for _, paths := range evidencePaths {
 		over, err = gitOutBounded(dir, dst, max, false, append(append([]string{}, diff...), paths...)...)
 		if err != nil {
@@ -162,7 +164,7 @@ func EsAncestro(dir, a, b string) (bool, error) {
 // when rev names no commit there. rev must not start with "-" (the caller
 // rejects it: it would be read as an option).
 func ResolverCommit(dir, rev string) (sha string, ok bool, err error) {
-	if strings.HasPrefix(rev, "-") {
+	if rev == "" || strings.HasPrefix(rev, "-") {
 		return "", false, nil
 	}
 	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", rev+"^{commit}")
@@ -191,16 +193,16 @@ func Head(dir string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-// CambiosDesde are the files that changed from desde to HEAD in the
+// CambiosEntre are the files that changed from desde to hasta in the
 // evidence's paths, with their added and deleted lines (a binary adds 0).
 // Renames count as a deletion and an addition.
-func CambiosDesde(dir, desde string) (files []string, ins, del int, err error) {
+func CambiosEntre(dir, desde, hasta string) (files []string, ins, del int, err error) {
 	for _, paths := range evidencePaths {
 		args := append([]string{"-c", "core.quotePath=false", "diff", "--numstat", "-z", "--no-renames",
-			"--no-ext-diff", "--no-textconv", desde, "HEAD", "--"}, paths...)
+			"--no-ext-diff", "--no-textconv", desde, hasta, "--"}, paths...)
 		out, err := gitOut(dir, args...)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("git diff --numstat %s HEAD: %v", desde, err)
+			return nil, 0, 0, fmt.Errorf("git diff --numstat %s %s: %v", desde, hasta, err)
 		}
 		// "<added>\t<deleted>\t<path>\0"; a binary is "-\t-\t<path>\0"
 		for _, entry := range strings.Split(out, "\x00") {
@@ -312,9 +314,14 @@ func VerificarBase(dir, base string) error {
 // HeadEntry is the tree entry of path at HEAD: its mode and object id. ok is
 // false when HEAD does not have it; a failing git is an error.
 func HeadEntry(dir, path string) (mode, oid string, ok bool, err error) {
-	out, err := gitOut(dir, "ls-tree", "-z", "HEAD", "--", path)
+	return EntradaEn(dir, "HEAD", path)
+}
+
+// EntradaEn is HeadEntry at revision rev.
+func EntradaEn(dir, rev, path string) (mode, oid string, ok bool, err error) {
+	out, err := gitOut(dir, "ls-tree", "-z", rev, "--", path)
 	if err != nil {
-		return "", "", false, fmt.Errorf("git ls-tree HEAD %s: %v", path, err)
+		return "", "", false, fmt.Errorf("git ls-tree %s %s: %v", rev, path, err)
 	}
 	entrada := strings.TrimSuffix(out, "\x00")
 	tab := strings.IndexByte(entrada, '\t')
@@ -324,7 +331,7 @@ func HeadEntry(dir, path string) (mode, oid string, ok bool, err error) {
 	// "<mode> <type> <oid>\t<path>"
 	meta := strings.Fields(entrada[:tab])
 	if len(meta) < 3 {
-		return "", "", false, fmt.Errorf("git ls-tree HEAD %s: entrada inesperada %q", path, entrada)
+		return "", "", false, fmt.Errorf("git ls-tree %s %s: entrada inesperada %q", rev, path, entrada)
 	}
 	return meta[0], meta[2], true, nil
 }

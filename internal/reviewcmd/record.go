@@ -111,7 +111,8 @@ func WriteRecord(dir string, r Record) (Record, error) {
 
 // Records reads every review record of dir, oldest first, plus one warning
 // per unreadable file (never fatal). The file name is the address: a record
-// whose id does not match its name is not trusted.
+// whose id does not match its name, or is not a plain id, is not trusted —
+// ids reach the reviewer's pedido and the board's reasons.
 func Records(dir string) ([]Record, []string) {
 	out, warnings := []Record{}, []string{}
 	entries, err := os.ReadDir(recordsDir(dir))
@@ -128,7 +129,7 @@ func Records(dir string) ([]Record, []string) {
 			continue
 		}
 		var r Record
-		if err := json.Unmarshal(raw, &r); err != nil || r.ID != strings.TrimSuffix(e.Name(), ".json") {
+		if err := json.Unmarshal(raw, &r); err != nil || r.ID != strings.TrimSuffix(e.Name(), ".json") || !validRecordID(r.ID) {
 			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Name()))
 			continue
 		}
@@ -138,9 +139,17 @@ func Records(dir string) ([]Record, []string) {
 	return out, warnings
 }
 
+// validRecordID is the shape of an id: letters, digits, '_' and '-', up to
+// 64 (WriteRecord makes 20060102T150405_<6 hex>). Anything else — a newline,
+// a space, a path — would carry text into the pedido outside the evidence.
 func validRecordID(id string) bool {
-	if id == "" || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+	if id == "" || len(id) > 64 {
 		return false
+	}
+	for _, c := range id {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-') {
+			return false
+		}
 	}
 	return true
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/approval"
@@ -121,8 +122,8 @@ type tree struct {
 	findingWarnings []string
 	unreadable      []string
 	reviews         []reviewcmd.Record
-	tails           map[string]*ReviewTail // by hasta; nil = git could not place it
-	status          []string               // uncommitted paths, relative to dir
+	head            string   // HEAD's sha, resolved once; "" = git could not
+	status          []string // uncommitted paths, relative to dir
 	fingerprint     string
 	changed         []string // the candidate's files (gitx.Snapshot)
 	tokens          spec.TokenIndex
@@ -179,20 +180,82 @@ func (t *tree) allReviews() []reviewcmd.Record {
 	return t.reviews
 }
 
-// tail is what changed in the tree after hasta, read once per hasta.
+func (t *tree) headSHA() string {
+	t.once("head", func() { t.head, _ = gitx.Head(t.dir) })
+	return t.head
+}
+
+// colas caches review tails for the whole process by (tree, hasta, HEAD):
+// commits never change, so neither does the answer, and the Studio asks for
+// the board every second. Failures are not cached: git may be fine next time.
+var colas = struct {
+	sync.Mutex
+	m map[[3]string]ReviewTail
+}{m: map[[3]string]ReviewTail{}}
+
+// colasMax bounds the cache; past it, it starts over.
+const colasMax = 4096
+
+// tail is what changed in the tree after hasta, or nil when git cannot
+// place it (the review then does not cover anything).
 func (t *tree) tail(hasta string) *ReviewTail {
-	if t.tails == nil {
-		t.tails = map[string]*ReviewTail{}
+	head := t.headSHA()
+	if head == "" {
+		return nil
 	}
-	if rt, ok := t.tails[hasta]; ok {
-		return rt
+	key := [3]string{t.dir, hasta, head}
+	colas.Lock()
+	rt, ok := colas.m[key]
+	colas.Unlock()
+	if ok {
+		return &rt
 	}
-	var rt *ReviewTail
-	if anc, cod, err := reviewcmd.CambioDespues(t.dir, hasta); err == nil {
-		rt = &ReviewTail{Ancestro: anc, Codigo: cod}
+	anc, cod, err := reviewcmd.CambioDespues(t.dir, hasta, head)
+	if err != nil {
+		return nil
 	}
-	t.tails[hasta] = rt
-	return rt
+	rt = ReviewTail{Ancestro: anc, Codigo: cod}
+	colas.Lock()
+	if len(colas.m) >= colasMax {
+		colas.m = map[[3]string]ReviewTail{}
+	}
+	colas.m[key] = rt
+	colas.Unlock()
+	return &rt
+}
+
+// colasDe reads the tails the board needs, newest first: only those of the
+// records that could cover the card (a green verdict of the card and a
+// valid 4-lens chain), stopping at the first that does. Records that could
+// never count cost no git.
+func colasDe(t *tree, ev Evidence) map[string]ReviewTail {
+	green := map[string]bool{}
+	for _, id := range ev.GreenVerdicts {
+		green[id] = true
+	}
+	byID := map[string]reviewcmd.Record{}
+	for _, r := range ev.Reviews {
+		byID[r.ID] = r
+	}
+	var out map[string]ReviewTail
+	for i := len(ev.Reviews) - 1; i >= 0; i-- {
+		r := ev.Reviews[i]
+		if !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug) {
+			continue
+		}
+		rt := t.tail(r.Hasta)
+		if rt == nil {
+			continue
+		}
+		if out == nil {
+			out = map[string]ReviewTail{}
+		}
+		out[r.ID] = *rt
+		if rt.Ancestro && !rt.Codigo {
+			break
+		}
+	}
+	return out
 }
 
 func (t *tree) uncommitted() []string {
@@ -341,20 +404,11 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 
 	for _, r := range t.allReviews() {
-		if r.Task != s {
-			continue
-		}
-		ev.Reviews = append(ev.Reviews, r)
-		if r.Hasta == "" {
-			continue
-		}
-		if rt := t.tail(r.Hasta); rt != nil {
-			if ev.ReviewTails == nil {
-				ev.ReviewTails = map[string]ReviewTail{}
-			}
-			ev.ReviewTails[r.ID] = *rt
+		if r.Task == s {
+			ev.Reviews = append(ev.Reviews, r)
 		}
 	}
+	ev.ReviewTails = colasDe(t, ev)
 	var cardFindings []finding.Item
 	for _, f := range t.allFindings(g.base) {
 		if f.Task != s {

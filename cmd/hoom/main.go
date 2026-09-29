@@ -668,7 +668,11 @@ func cmdReview(args []string) error {
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	asJSON := fs.Bool("json", false, "emitir el resultado de la review como JSON en stdout")
 	_ = fs.Parse(args)
-	if *delta && strings.TrimSpace(*desde) != "" {
+	// --desde dicho a mano cuenta aunque venga vacio: "--desde= --delta"
+	// sigue siendo pedir las dos cosas
+	desdeSet := false
+	fs.Visit(func(f *flag.Flag) { desdeSet = desdeSet || f.Name == "desde" })
+	if *delta && desdeSet {
 		return cliargs.NewUsageError("review", "--desde y --delta no van juntos", reviewUso)
 	}
 	if strings.TrimSpace(*task) == "" {
@@ -700,7 +704,7 @@ func cmdReview(args []string) error {
 	res, err := reviewcmd.Run(m.Dir, m.BaseBranch, reviewcmd.Options{
 		Provider: *provider, Lens: *lens, Task: *task, Spec: *specPath,
 		Model: *model, Effort: *effort, SameProvider: *same, SameProviderSet: sameSet,
-		MaxTurns: *maxTurns, BudgetUSD: *budget, Desde: *desde, Delta: *delta,
+		MaxTurns: *maxTurns, BudgetUSD: *budget, Desde: *desde, DesdeSet: desdeSet, Delta: *delta,
 	}, out)
 	if err != nil {
 		return err

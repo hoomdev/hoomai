@@ -90,6 +90,9 @@ type Options struct {
 	// Desde (--desde) is the commit the evidence starts from: "" = the
 	// merge-base with the base. It must be an ancestor of HEAD.
 	Desde string
+	// DesdeSet: --desde was given, even empty (an empty one names no
+	// commit: it is an error, never "no --desde").
+	DesdeSet bool
 	// Delta (--delta) starts where the task's newest chainable review ended
 	// (its hasta). Never together with Desde.
 	Delta bool
@@ -143,7 +146,7 @@ type Evidencia struct {
 // (the dossier says so: CA-334); one whose HEAD entry is not a regular file
 // is an error, never read.
 func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
-	return evidencia(dir, spec, maxBytes, func(buf *bytes.Buffer) (bool, error) {
+	return evidencia(dir, "HEAD", spec, maxBytes, func(buf *bytes.Buffer) (bool, error) {
 		return gitx.CandidatePatch(dir, base, buf, maxBytes)
 	})
 }
@@ -153,14 +156,25 @@ func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
 // refusal. desde must be an ancestor of HEAD. With the merge-base it gives
 // the same bytes as Evidence.
 func EvidenceDesde(dir, desde, spec string, maxBytes int) (Evidencia, error) {
-	return evidencia(dir, spec, maxBytes, func(buf *bytes.Buffer) (bool, error) {
-		return gitx.RangePatch(dir, desde, buf, maxBytes)
+	hasta, err := gitx.Head(dir)
+	if err != nil {
+		return Evidencia{}, err
+	}
+	return evidenciaRango(dir, desde, hasta, spec, maxBytes)
+}
+
+// evidenciaRango is the evidence of desde..hasta with both ends frozen: the
+// patch and the spec come from the sha hasta, never from a HEAD that may
+// have moved since the review resolved it.
+func evidenciaRango(dir, desde, hasta, spec string, maxBytes int) (Evidencia, error) {
+	return evidencia(dir, hasta, spec, maxBytes, func(buf *bytes.Buffer) (bool, error) {
+		return gitx.RangePatch(dir, desde, hasta, buf, maxBytes)
 	})
 }
 
 // evidencia builds the evidence around the patch that parche appends: one
-// buffer, the spec as HEAD has it, the cap over the two.
-func evidencia(dir, spec string, maxBytes int, parche func(*bytes.Buffer) (bool, error)) (Evidencia, error) {
+// buffer, the spec as revision rev has it, the cap over the two.
+func evidencia(dir, rev, spec string, maxBytes int, parche func(*bytes.Buffer) (bool, error)) (Evidencia, error) {
 	var buf bytes.Buffer
 	buf.Grow(min(maxBytes+1, 8<<20)) // one allocation for a cap of up to 8 MiB
 	over, err := parche(&buf)
@@ -182,7 +196,7 @@ func evidencia(dir, spec string, maxBytes int, parche func(*bytes.Buffer) (bool,
 		if !ok {
 			return Evidencia{}, noEs
 		}
-		mode, oid, existe, err := gitx.HeadEntry(dir, rel)
+		mode, oid, existe, err := gitx.EntradaEn(dir, rev, rel)
 		if err != nil {
 			return Evidencia{}, fmt.Errorf("no pude leer el spec %s: %v", s, err)
 		}
@@ -309,16 +323,17 @@ func resolverRango(dir, base string, opt Options) (rango, error) {
 	}
 	r := rango{desde: mb, hasta: hasta, cobertura: CoberturaCompleta}
 	desde := strings.TrimSpace(opt.Desde)
+	conDesde := desde != "" || opt.DesdeSet
 	switch {
-	case opt.Delta && desde != "":
+	case opt.Delta && conDesde:
 		return rango{}, errors.New("--desde y --delta no van juntos")
 	case opt.Delta:
-		prev, ok := ultimaEncadenable(dir, taskOf(opt), "")
+		prev, ok := ultimaEncadenable(dir, taskOf(opt), "", hasta)
 		if !ok {
 			return rango{}, fmt.Errorf("--delta: la tarea %s no tiene una review completa o delta que llegue a este HEAD: corre hoom review sin --delta", taskOf(opt))
 		}
 		r.desde, r.cobertura, r.desdeReview = prev.Hasta, CoberturaDelta, prev.ID
-	case desde != "":
+	case conDesde:
 		sha, ok, err := gitx.ResolverCommit(dir, desde)
 		if err != nil {
 			return rango{}, err
@@ -334,7 +349,7 @@ func resolverRango(dir, base string, opt Options) (rango, error) {
 		r.desde = sha
 		if sha != mb {
 			r.cobertura = CoberturaParcial
-			if prev, ok := ultimaEncadenable(dir, taskOf(opt), sha); ok {
+			if prev, ok := ultimaEncadenable(dir, taskOf(opt), sha, hasta); ok {
 				r.cobertura, r.desdeReview = CoberturaDelta, prev.ID
 			}
 		}
@@ -342,7 +357,7 @@ func resolverRango(dir, base string, opt Options) (rango, error) {
 		return r, nil
 	}
 	r.conRango = true
-	files, ins, del, err := gitx.CambiosDesde(dir, r.desde)
+	files, ins, del, err := gitx.CambiosEntre(dir, r.desde, hasta)
 	if err != nil {
 		return rango{}, err
 	}
@@ -351,10 +366,10 @@ func resolverRango(dir, base string, opt Options) (rango, error) {
 }
 
 // ultimaEncadenable is the task's newest record a delta can continue: a
-// completa or delta with a hasta that is still in HEAD's history (and equal
+// completa or delta with a hasta that is still in head's history (and equal
 // to hasta when hasta is given). A record whose hasta git does not know is
 // not chainable.
-func ultimaEncadenable(dir, task, hasta string) (Record, bool) {
+func ultimaEncadenable(dir, task, hasta, head string) (Record, bool) {
 	recs, _ := Records(dir)
 	for i := len(recs) - 1; i >= 0; i-- {
 		r := recs[i]
@@ -364,7 +379,7 @@ func ultimaEncadenable(dir, task, hasta string) (Record, bool) {
 		if r.Cobertura != CoberturaCompleta && r.Cobertura != CoberturaDelta {
 			continue
 		}
-		if ok, err := gitx.EsAncestro(dir, r.Hasta, "HEAD"); err == nil && ok {
+		if ok, err := gitx.EsAncestro(dir, r.Hasta, head); err == nil && ok {
 			return r, true
 		}
 	}
@@ -404,21 +419,21 @@ func lentesDe(rng rango, git gitx.Info, explicit string) (lentes []string, motiv
 }
 
 // CambioDespues says whether code changed after a review that reached
-// hasta: ancestro is false when hasta left HEAD's history; codigo is true
-// when, from hasta to HEAD, something other than documentation changed in
-// the evidence's paths. The board uses it to decide whether a review still
-// covers the card's code.
-func CambioDespues(dir, hasta string) (ancestro, codigo bool, err error) {
+// hasta: ancestro is false when hasta left head's history; codigo is true
+// when, from hasta to head, something other than documentation changed in
+// the evidence's paths. head is a resolved sha (the tree's HEAD). The board
+// uses it to decide whether a review still covers the card's code.
+func CambioDespues(dir, hasta, head string) (ancestro, codigo bool, err error) {
 	if !esSha(hasta) {
 		// a record is data: a hasta that is not a full sha ("HEAD", a
 		// branch, an option) never reaches git and never anchors anything
 		return false, false, fmt.Errorf("hasta %q no es un sha de 40 hex", hasta)
 	}
-	ok, err := gitx.EsAncestro(dir, hasta, "HEAD")
+	ok, err := gitx.EsAncestro(dir, hasta, head)
 	if err != nil || !ok {
 		return false, false, err
 	}
-	files, _, _, err := gitx.CambiosDesde(dir, hasta)
+	files, _, _, err := gitx.CambiosEntre(dir, hasta, head)
 	if err != nil {
 		return true, false, err
 	}
@@ -472,9 +487,9 @@ func resolveOptions(opt Options, r *manifest.ReviewPolicy) Options {
 // prepararEvidencia freezes the evidence ONCE — the 4 lenses get the same
 // bytes, whole. Past the cap it stops reading; the caller refuses without
 // launching a lens.
-func prepararEvidencia(dir, desde string, opt Options, pol *manifest.ReviewPolicy) (ev Evidencia, isolated bool, tope int, err error) {
+func prepararEvidencia(dir string, rng rango, opt Options, pol *manifest.ReviewPolicy) (ev Evidencia, isolated bool, tope int, err error) {
 	isolated, tope = pol.IsolatedOrDefault(), pol.MaxEvidenceKiBOrDefault()
-	ev, err = EvidenceDesde(dir, desde, opt.Spec, tope*1024)
+	ev, err = evidenciaRango(dir, rng.desde, rng.hasta, opt.Spec, tope*1024)
 	return ev, isolated, tope, err
 }
 
@@ -671,7 +686,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return finish(w, res, "no-entregable", 1, "la review no seria cruzada"), nil
 	}
 
-	ev, isolated, tope, err := prepararEvidencia(dir, rng.desde, opt, politica)
+	ev, isolated, tope, err := prepararEvidencia(dir, rng, opt, politica)
 	if err != nil {
 		return res, err
 	}
