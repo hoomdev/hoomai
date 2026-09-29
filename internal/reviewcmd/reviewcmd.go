@@ -248,11 +248,12 @@ func rutaDelArbol(dir, spec string) (string, bool) {
 	return filepath.ToSlash(rel), true
 }
 
-// contratoDeLaBase is the reviewer's contract as the merge-base mb (of the
-// base and the frozen hasta) has it, or the embedded one when the base has
-// none: never the candidate's, so a change does not rewrite the instructions
-// of its own reviewer (CA-419).
-func contratoDeLaBase(dir, mb string, role agents.Role) (string, error) {
+// contratoEnMergeBase is the reviewer's contract as the merge-base mb has
+// it — a resolved sha (resolverRango's, of the base and the frozen hasta),
+// never a ref to resolve — or the embedded one when that commit has none:
+// never the candidate's, so a change does not rewrite the instructions of its
+// own reviewer (CA-419).
+func contratoEnMergeBase(dir, mb string, role agents.Role) (string, error) {
 	raw, ok, err := gitx.ShowFile(dir, mb, "./.hoom/agents/"+role.File)
 	if err != nil {
 		return "", err
@@ -449,11 +450,12 @@ func CambioDespues(dir, hasta, head string) (ancestro, codigo bool, err error) {
 	return true, len(files) > 0 && !soloDocs(files), nil
 }
 
-// politicaDeLaBase reads the `review:` section of the hoom.yaml of the
-// merge-base mb (of the base and the frozen hasta), never the candidate's: a
-// change does not pick its own reviewer nor loosen its own review (CA-417).
-// nil = no hoom.yaml or no section in the base.
-func politicaDeLaBase(dir, mb string) (*manifest.ReviewPolicy, error) {
+// politicaEnMergeBase reads the `review:` section of the hoom.yaml of the
+// merge-base mb — a resolved sha (resolverRango's, of the base and the frozen
+// hasta), never a ref to resolve — never the candidate's: a change does not
+// pick its own reviewer nor loosen its own review (CA-417). nil = no
+// hoom.yaml or no section in that commit.
+func politicaEnMergeBase(dir, mb string) (*manifest.ReviewPolicy, error) {
 	raw, ok, err := gitx.ShowFile(dir, mb, "./"+manifest.FileName)
 	if err != nil || !ok {
 		return nil, err
@@ -669,13 +671,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	}
 	fmt.Fprintf(w, "  lentes      %s (%s)\n", strings.Join(lentes, ", "), motivo)
 
-	politica, err := politicaDeLaBase(dir, rng.mb)
+	politica, err := politicaEnMergeBase(dir, rng.mb)
 	if err != nil {
 		return res, err
 	}
 	opt = resolveOptions(opt, politica)
 
-	contract, err := contratoDeLaBase(dir, rng.mb, role)
+	contract, err := contratoEnMergeBase(dir, rng.mb, role)
 	if err != nil {
 		return res, err
 	}
