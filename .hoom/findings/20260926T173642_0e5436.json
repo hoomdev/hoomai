@@ -1,0 +1,11 @@
+{
+  "id": "20260926T173642_0e5436",
+  "created_at": "2026-09-26T17:36:42.268408Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/boardcmd/acciones.go",
+  "description": "INTRODUCIDO — internal/boardcmd/acciones.go:267 e internal/servecmd/ui/acciones.js:225: el Studio no comparte la resolución de review.provider/same_provider de la base. providerOptions deshabilita siempre la CLI del writer y marca como default el primer provider OK (líneas 272-286); el diálogo siempre envía ese nombre no vacío, que vence a hoom.yaml. Así review.provider puede cambiar silenciosamente al primer CLI instalado y, con review.same_provider: true y un solo provider, pedir-reviewer sigue sin poder lanzarse. CA-395 exige que el Studio sin una elección tome la política de la base.",
+  "author": "reviewer@codex",
+  "fingerprint": "d7321d3e442bb114",
+  "task": "review-aislada-y-modelo-elegido"
+}

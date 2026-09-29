@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T191215_3651a9",
+  "as": "corregido",
+  "evidence": "56b61ec (spec enmendada 130eba08, tests ciegos eeebf40 rojos en bf9bbcf, verdes ahora): parcial por diseno (CA-334/CA-412 de la spec enmendada): el spec inexistente sigue y el pedido lo dice; lo real, un spec de 0 bytes rotulado como inexistente, se corrigio: lleva su bloque vacio (TestCA412_SpecVacio, TestCA412_SpecQueNoExiste)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:07:31.323686Z"
+}

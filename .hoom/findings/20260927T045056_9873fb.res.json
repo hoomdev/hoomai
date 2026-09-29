@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T045056_9873fb",
+  "as": "corregido",
+  "evidence": "2351bdd: el stderr de todo git de gitx se guarda hasta 64 KiB (capped), tambien en gitOut/gitOutPrefix (BranchDiff)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T06:31:50.597405Z"
+}

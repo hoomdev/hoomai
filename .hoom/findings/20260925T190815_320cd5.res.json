@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T190815_320cd5",
+  "as": "corregido",
+  "evidence": "56b61ec (spec enmendada 130eba08, tests ciegos eeebf40 rojos en bf9bbcf, verdes ahora): gitOutBounded corta git en tope+1 y Evidence devuelve Over sin retener nada (TestCA413_NoRastreadoDe64MiB: Over, Bytes \u003c= tope+64 KiB, \u003c16 MiB asignados)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:07:30.832275Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T144558_131e1a",
+  "as": "corregido",
+  "evidence": "56e038f + enmienda 3 (10ed8df8, CA-416): con un .gitignore tocado (rastreado, commiteado o nuevo) y no rastreados, CandidatePatch devuelve ErrGitignoreTocado y no se arma la evidencia; TestCA416_GitignoreTocadoConNoRastreadosEsError y TestCA416_ReviewCon... (8 casos, el secreto no aparece en salida ni registro; rojos en 188fe75)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:57:34.304025Z"
+}

@@ -210,7 +210,9 @@ function dialogoRol(c, a) {
     <div class="fld"><label for="acc-prov">Provider</label>
       <select id="acc-prov"${reanuda ? " disabled" : ""}>${opciones}</select></div>
     <div class="fld"><label for="acc-model">Modelo</label>
-      <input id="acc-model" placeholder="vacío: el que usa el CLI por defecto"></div>
+      <input id="acc-model" placeholder="${revision ? "vacío: el de hoom.yaml o el del CLI" : "vacío: el que usa el CLI por defecto"}"></div>
+    ${revision ? `<div class="fld"><label for="acc-effort">Esfuerzo</label>
+      <input id="acc-effort" placeholder="vacío: el de hoom.yaml o el del CLI"></div>` : ""}
     <div class="fld"><label for="acc-budget">Presupuesto en USD</label>
       <input id="acc-budget" type="number" min="0" step="0.1" value="${a.budget_usd != null ? esc(String(a.budget_usd)) : ""}" placeholder="vacío: sin tope"></div>
     <div class="aviso" id="acc-budgetnote"></div>
@@ -224,6 +226,7 @@ function dialogoRol(c, a) {
       model: $("acc-model").value.trim(),
       budget_usd: valor,
       pedido: revision ? "" : $("acc-pedido").value,
+      effort: revision ? $("acc-effort").value.trim() : "",
     });
     return ACC_NORMAL.empezo(r.role || a.role);
   }, "Lanzar");

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T173451_94ac0c",
+  "as": "corregido",
+  "evidence": "4a14383: prepararRevision llama a gitx.VerificarBase (merge-base + git diff --quiet mb HEAD, exit 1 = OK, cualquier otro = error) antes de Snapshot y de Lenses: una base rota falla cerrado aunque el cambio pida 0 lentes. Enmienda 5 (0991314) re-expresa CA-414 ('tambien sin --lens ... nunca termina SIN REVISAR'). Tests ciegos 7651189: TestCA414_BaseRotaSinLensEsErrorNuncaSinRevisar (base inexistente, shallow, arbol de la base sin objeto, git status y git diff que fallan; docs y codigo) y TestCA414_E2EBaseRotaSinLensPorLaCLI: rojos en 804d92b (SIN REVISAR exit 0, tambien con cambios de codigo), verdes en c5aa07d.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.010514Z"
+}

@@ -27,12 +27,14 @@ func (codex) Capabilities() Capabilities {
 		// is the sandbox, and that is what the intention sets.
 		Unattended: true,
 		// Tools: Codex names no tools. MaxTurns/Budget: it has no caps.
+		Effort: true, Isolation: true,
 	}
 }
 
 // Command builds the headless invocation. The prompt is always the final
-// argument; on a resume the session id goes immediately after `resume`, which
-// is the positional order the CLI declares.
+// argument (`-` when it is too large for argv and travels by stdin); on a
+// resume the session id goes immediately after `resume`, which is the
+// positional order the CLI declares.
 func (c codex) Command(req Request) (Invocation, error) {
 	p, err := resolve(c.Name(), c.Capabilities(), req)
 	if err != nil {
@@ -46,8 +48,16 @@ func (c codex) Command(req Request) (Invocation, error) {
 		args = append(args, "resume", "--last")
 	}
 	args = append(args, "--json")
+	if p.isolated {
+		// skips $CODEX_HOME/config.toml (MCP servers, profile, model and
+		// effort of the user); auth still comes from CODEX_HOME
+		args = append(args, "--ignore-user-config")
+	}
 	if p.model != "" {
 		args = append(args, "-m", p.model)
+	}
+	if p.effort != "" {
+		args = append(args, "-c", "model_reasoning_effort="+tomlString(p.effort))
 	}
 	if p.systemPrompt != "" {
 		// developer_instructions is PREPENDED to Codex's own developer
@@ -72,8 +82,12 @@ func (c codex) Command(req Request) (Invocation, error) {
 		// config may not let it touch the worktree, so it is said explicitly.
 		args = append(args, "-c", "sandbox_mode="+tomlString("workspace-write"))
 	}
-	args = append(args, p.prompt)
-	return Invocation{Bin: c.Bin(), Args: args, Ignored: p.ignored}, nil
+	arg, stdin := p.promptArg()
+	if stdin != "" {
+		arg = "-" // `codex exec -` reads the instructions from stdin
+	}
+	args = append(args, arg)
+	return Invocation{Bin: c.Bin(), Args: args, Ignored: p.ignored, Stdin: stdin}, nil
 }
 
 // tomlString encodes any text as a TOML basic string, so the round trip

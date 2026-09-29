@@ -1,0 +1,11 @@
+{
+  "id": "20260926T150106_1b489e",
+  "created_at": "2026-09-26T15:01:06.438365Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/review_aislada_opciones_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/review_aislada_opciones_test.go:175 declara la closure correr con la misma preparación de comando, filtrado de HOOM_TASK y captura de salida que el helper raHoom definido en la línea 348 del mismo archivo. Reusar raHoom elimina dos caminos de mantenimiento para el mismo arnés E2E.",
+  "author": "reviewer@codex",
+  "fingerprint": "9de334843e68f2c4",
+  "task": "review-aislada-y-modelo-elegido"
+}

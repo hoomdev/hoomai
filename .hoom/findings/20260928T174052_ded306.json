@@ -1,0 +1,11 @@
+{
+  "id": "20260928T174052_ded306",
+  "created_at": "2026-09-28T17:40:52.867237Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:401-414 carga y valida el hoom.yaml del arbol de trabajo antes de comprobar que el arbol este limpio. Una edicion local invalida (por ejemplo review.isolated con tipo incorrecto) hace que hoom review devuelva el error de parseo —que puede incorporar el valor local— en vez del error cerrado de CA-416 que nombra hoom.yaml; el contenido sin commitear condiciona la review antes de ser rechazado.",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

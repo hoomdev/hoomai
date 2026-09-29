@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T145210_7e6deb",
+  "as": "refutado",
+  "evidence": "Mismo hallazgo que 20260926T051819_876602, ya refutado (.hoom/findings/20260926T051819_876602.res.json). El chequeo sigue en internal/providers/providers.go:397-399, junto a los del prompt (:302-304) y del id de sesion (:306-309): regla de argv, no de vocabulario (\"nivel-inventado-9000\" pasa tal cual, prueba de 876602). Lo unico nuevo (en Codex el valor viaja dentro de un -c TOML) no bloquea ninguna configuracion real: el vocabulario del propio provider no tiene niveles con guion inicial. Comprobado: codex-cli 0.157.0, codex debug models (catalogo local) lista effort low, medium, high, xhigh, max, ultra; claude 2.1.282 --help dice --effort \u003clevel\u003e (low, medium, high, xhigh, max). Para Claude, CA-398 fija la forma de dos argumentos (--effort high), donde un valor con guion inicial lo leeria el parser como flag. Un nivel futuro con guion inicial es hipotetico.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:13:07.747196Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T144606_6a36cf",
+  "as": "corregido",
+  "evidence": "56e038f + enmienda 3 (CA-417): review: sale del hoom.yaml del merge-base (politicaDeLaBase); TestCA417_LaRamaNoSeDaSameProvider, LaRamaNoSeSacaElAislamiento, ModeloYEsfuerzoDeLaBase, ElTopeEsElDeLaBase, LasOpcionesExplicitasSiguenMandando (rojos en 188fe75)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:57:34.421859Z"
+}

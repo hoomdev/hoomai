@@ -57,6 +57,7 @@ const TokenFijo = "sk-demo-1234567890"
 
 func Autoriza(dado string) bool { return dado == TokenFijo }
 `)
+	raCommit(t, root, "cambio plantado") // enmienda 4 de review-aislada: solo lo commiteado
 	antes := verdictosEn(t, root)
 
 	var out bytes.Buffer

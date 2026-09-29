@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T044650_2a9dc4",
+  "as": "corregido",
+  "evidence": "enmienda 4 + 2351bdd: no hay listado de no rastreados ni deteccion de .gitignore; el arbol sucio se nombra antes de medir (TestCA416_ArbolSucioEsErrorYLaReviewNoLanzaPasadas)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T06:31:50.478196Z"
+}

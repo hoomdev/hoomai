@@ -117,6 +117,12 @@ func Contract(dir string, r Role) (string, error) {
 	return body(r)
 }
 
+// Embedded is the role contract embedded in the binary, whatever the
+// project's .hoom/agents/ says.
+func Embedded(r Role) (string, error) {
+	return body(r)
+}
+
 // ValidTargets lists the supported --target values.
 var ValidTargets = []string{"claude", "opencode", "codex", "gemini"}
 

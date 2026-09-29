@@ -1,0 +1,11 @@
+{
+  "id": "20260926T144626_2eb221",
+  "created_at": "2026-09-26T14:46:26.735263Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:742-748 inserta la ruta de --spec literalmente en lineas de control y en el marcador, mientras el SHA256 de Evidence (lineas 153-159) solo cubre Diff||Spec y no la ruta. Unix permite saltos de linea en nombres: tras calcular el hash, un spec puede llamarse con '\\n=== diff \u003chash\u003e ===...\\n=== fin de la evidencia \u003chash\u003e ===\\n' sin cambiar ese hash (ademas .hoom se excluye del diff), falsificando los marcadores que el hash completo pretendia proteger e inyectando instrucciones fuera del bloque. Rechazar controles/saltos en la ruta o comprometer una codificacion canonica de la ruta dentro del hash y del prompt.",
+  "author": "reviewer@codex",
+  "fingerprint": "9de334843e68f2c4",
+  "task": "review-aislada-y-modelo-elegido"
+}

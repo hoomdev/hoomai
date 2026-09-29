@@ -1,0 +1,11 @@
+{
+  "id": "20260928T174110_993f26",
+  "created_at": "2026-09-28T17:41:10.027904Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:113-142 delega toda la deteccion de suciedad a git status, que no enumera un FIFO suelto sin rastrear. En ese caso CambioSinCommitear devuelve limpio y la review corre, contradiciendo CA-416 y el caso limite que exige negarse y nombrar el FIFO; el propio test nuevo relaja indebidamente el resultado permitiendo que se arme evidencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

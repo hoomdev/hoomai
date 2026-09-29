@@ -1,0 +1,11 @@
+{
+  "id": "20260925T191215_38456c",
+  "created_at": "2026-09-25T19:12:15.693128Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:101 construye el parche rastreado limitandolo a git.ChangedFiles; para un rename Git entrega solo la ruta destino, por lo que  lo serializa como archivo agregado y omite la eliminacion/ruta origen. Las cuatro lentes reciben asi evidencia incompleta y el SHA/tamano certifican una vista que no representa el candidato.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260927T045052_53f077",
+  "created_at": "2026-09-27T04:50:52.113064Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:115,185,265 lanza todos los procesos Git de Evidence con exec.Command/Wait sin contexto ni deadline. reviewcmd.Run arma la evidencia antes del primer envelope/Started (internal/reviewcmd/reviewcmd.go:490,524), mientras Studio conserva el candado por tarjeta y espera ready/done (internal/servecmd/acciones.go:170-176,280-294). Si git, el filesystem o un helper configurado se cuelga, POST /launch no vuelve, no existe run/sobre que cancelar y la tarjeta queda bloqueada hasta reiniciar el servidor. Propagar cancelacion/timeout a Evidence y matar el proceso (idealmente su grupo), o crear primero un sobre cancelable.",
+  "author": "reviewer@codex",
+  "fingerprint": "d155017e214ff09a",
+  "task": "review-aislada-y-modelo-elegido"
+}

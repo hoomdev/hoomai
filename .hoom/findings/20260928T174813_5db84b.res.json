@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174813_5db84b",
+  "as": "corregido",
+  "evidence": "4a14383: el preflight sale de Run a prepararRevision (orden: arbol sucio, hoom.yaml, base, medida); b12d132: la eleccion del provider, del writer y del cruce sale a elegirReviewer. Run baja de 246 a 197 lineas y el orden queda en pasos con nombre; el ciclo de pasadas sigue en Run porque comparte las transiciones del sobre (cerrarSobre/terminar).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.272552Z"
+}

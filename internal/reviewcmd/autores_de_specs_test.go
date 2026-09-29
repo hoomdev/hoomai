@@ -124,8 +124,10 @@ func TestCA244_LaReviewConTareaAtaElHallazgoDelGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// el cambio a revisar vive en el worktree de la tarea
+	// el cambio a revisar vive en el worktree de la tarea, commiteado
+	// (enmienda 4 de review-aislada: la review revisa solo lo commiteado)
 	write(t, dir, "app.go", "package app\n\nfunc Nuevo() {}\n")
+	raCommit(t, dir, "cambio en la tarea")
 	// el reviewer escribe fuera de .hoom/: violacion, y hoom deja su hallazgo
 	fakeProvider(t, "codex", "printf 'x' > colado.txt\nexit 0\n")
 	t.Setenv("HOOM_TASK", "ajena")

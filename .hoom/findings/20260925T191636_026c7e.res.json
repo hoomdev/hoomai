@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T191636_026c7e",
+  "as": "corregido",
+  "evidence": "56b61ec (spec enmendada 130eba08, tests ciegos eeebf40 rojos en bf9bbcf, verdes ahora): mismo defecto que 137bab; bajas commiteadas y los dos lados del renombre en la evidencia (TestCA401_BorradoYRenombreCommiteados)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:07:30.603527Z"
+}

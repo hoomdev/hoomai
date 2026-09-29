@@ -1,0 +1,11 @@
+{
+  "id": "20260926T051421_80ff3f",
+  "created_at": "2026-09-26T05:14:21.990353Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:86: CandidatePatch obtiene todo `git ls-files -z --others` mediante gitOut/cmd.Output antes de aplicar el tope; un arbol con muchisimos no rastreados o nombres enormes puede retener memoria muy por encima de max_evidence_kib + 64 KiB y tumbar hoom/Studio antes de devolver Over. El listado debe consumirse con limite/streaming incluido en el mismo presupuesto.",
+  "author": "reviewer@codex",
+  "fingerprint": "283e17c9a9fba3fa",
+  "task": "review-aislada-y-modelo-elegido"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T044541_52ea0c",
+  "as": "refutado",
+  "evidence": "Repeticion de 20260926T052027_8554db, 20260926T145056_8d74c7, 20260926T145057_3204ee y 20260926T173642_0e5436 (ya refutados, ver sus .res.json) sin argumento nuevo. Re-verificado en df516a3: git diff --quiet main...HEAD -- internal/boardcmd/acciones.go sale 0; blame de boardcmd/acciones.go:262-289 = solo 320dea53 (C3, en main); 'Provider: opt.Name' de servecmd/acciones.go:257 ya estaba en main (main:253), la rama solo agrego Effort. Decision C3 vigente: 'Desde la cabina la review es cruzada o no se lanza' y CA-337 sin --same-provider; el provider es campo obligatorio del dialogo (CA-354, CA-409) y la opcion explicita vence a hoom.yaml. go test -count=1 -run 'TestCA395_Studio|TestCA409' ./internal/servecmd/ -\u003e ok. Un solo provider desde el Studio es una decision de spec nueva.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T05:07:16.940687Z"
+}

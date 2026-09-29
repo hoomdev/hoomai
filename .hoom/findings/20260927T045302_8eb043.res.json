@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T045302_8eb043",
+  "as": "corregido",
+  "evidence": "2351bdd: CandidatePatch se reescribio y su comentario coincide con gitOutBounded (dst llega a max+1 y el llamador lo descarta); el over reutilizado con max 0 desaparecio",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T06:31:50.717466Z"
+}

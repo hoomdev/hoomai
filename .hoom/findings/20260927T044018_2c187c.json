@@ -1,0 +1,11 @@
+{
+  "id": "20260927T044018_2c187c",
+  "created_at": "2026-09-27T04:40:18.658099Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:103-104 asume que --no-textconv/--no-ext-diff impide ejecutar configuracion Git, pero git diff aun aplica filtros clean elegidos por .gitattributes. Repro aislada: con '*.txt filter=evil' y filter.evil.clean apuntando a un script marcador, esta invocacion ejecuto el script dos veces aun con ambos flags. Un writer con shell puede dejar filter.* en .git/config (fuera de la huella) y el candidato seleccionar el filtro, logrando ejecucion arbitraria durante Evidence, antes del provider aislado; hay que armar el parche sin conversiones/filtros ni configuracion local/global ejecutable.",
+  "author": "reviewer@codex",
+  "fingerprint": "d155017e214ff09a",
+  "task": "review-aislada-y-modelo-elegido"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260925T190814_c783cd",
+  "created_at": "2026-09-25T19:08:14.878553Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:123-132 acepta un --spec absoluto o con .. y os.ReadFile sigue symlinks sin comprobar que el destino real permanezca dentro del worktree; luego pedidoComun inserta esos bytes en el prompt (lineas 661-663). Un repositorio puede commitear .hoom/specs/\u003cslug\u003e.md como symlink a un archivo local y, al pedir la review desde Studio, hacer que su contenido se envie automaticamente al provider. Hay que resolver symlinks y exigir un archivo regular contenido en dir antes de leerlo.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

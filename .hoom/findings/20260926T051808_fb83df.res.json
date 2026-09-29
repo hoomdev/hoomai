@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T051808_fb83df",
+  "as": "corregido",
+  "evidence": "ecb7ab1: mismo defecto que 80ff3f; la lista de no rastreados se lee en streaming con tope y nunca se guarda entera (TestCA413_ListaDeNoRastreadosSeLeeConTope: rojo en 035db8c con 23,8 MiB, verde con \u003c2 MiB)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:43.65Z"
+}

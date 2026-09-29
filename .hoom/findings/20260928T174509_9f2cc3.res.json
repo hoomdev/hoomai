@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260928T174509_9f2cc3",
+  "as": "corregido",
+  "evidence": "4a14383: la guarda de arbol sucio (git status, no abre archivos) va antes de manifest.Load en Run y en la CLI sin --task: un hoom.yaml reemplazado por un FIFO o un symlink a /dev/zero se niega por arbol sucio sin abrirse. Tests ciegos 7651189 (subtests fifo y dev-zero en proceso hijo, 10 s y vigilante de 64 MiB; CLI con RSS \u003c 128 MiB): rojos en 804d92b (el FIFO colgaba, /dev/zero paso los 64 MiB), verdes en c5aa07d.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-28T19:41:40.108756Z"
+}

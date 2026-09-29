@@ -166,6 +166,7 @@ func crewOf(ev Evidence, reviewID string) Providers {
 	}
 	if rec != nil {
 		p.Reviewer, p.Writer, p.Cross = rec.Provider, rec.Writer, rec.Cross
+		p.ReviewerModel, p.ReviewerEffort = rec.Model, rec.Effort
 	}
 	if p.Writer != "" {
 		return p

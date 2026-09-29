@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260927T044018_2c187c",
+  "as": "refutado",
+  "evidence": "No introducido y no ejecutable desde el repositorio solo. Prueba (go test -overlay, test descartable en internal/reviewcmd, git 2.54.0, repos temporales con HOME aislado): con '*.txt filter=evil' en .gitattributes y SIN filter.evil.clean en la config, Evidence corre el filtro 0 veces (rastreado y no rastreado): el repositorio solo elige un nombre; el comando sale de la config local/global. Con esa config, el mismo filtro ya corre en codigo de main: gitx.Snapshot (internal/gitx/gitx.go sin cambios vs main; main reviewcmd.go:199, rama reviewcmd.go:417, antes de Evidence y de cualquier sobre) lo corrio 4 veces contra 2 de Evidence. Y quien puede escribir .git/config no necesita .gitattributes: core.fsmonitor=\u003cscript\u003e solo en .git/config corrio 10 veces en gitx.Snapshot y 8 en Evidence. Quitar los filtros de Evidence no cierra el vector (fsmonitor, Snapshot, hoom verify) y rompe git-lfs/git-crypt (sin clean, el archivo del arbol se compara crudo contra el puntero o el cifrado). Endurecer la config de git de todos los procesos de hoom es otra spec. Nota: 'ningun driver de la config del usuario corre' de la spec habla de textconv; conviene precisarlo en la proxima enmienda.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-27T05:07:16.850769Z"
+}

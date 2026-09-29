@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T052745_8e166d",
+  "as": "corregido",
+  "evidence": "este commit: review_aislada_test.go partido en helpers/opciones/evidencia/pedido/registro, 164 PASS antes y despues",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:31.666303Z"
+}

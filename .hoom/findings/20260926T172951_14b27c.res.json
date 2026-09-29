@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T172951_14b27c",
+  "as": "refutado",
+  "evidence": "Reproduccion completa: en un repositorio Git con un FIFO sin rastrear llamado pipe, git ls-files --others --exclude-standard -- . no devuelve ninguna ruta. CandidatePatch solo invoca git diff --no-index para nombres producidos por ese listado (lineas 121-133), por lo que el FIFO no alcanza la llamada bloqueante.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T17:31:25.236806Z"
+}

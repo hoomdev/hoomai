@@ -37,6 +37,24 @@ type Record struct {
 	// Notes: what hoom saw go wrong with the evidence, e.g. findings that
 	// do not carry the review's task.
 	Notes []string `json:"notes,omitempty"`
+	// Model and Effort as requested ("" = not chosen: the provider's default).
+	Model          string `json:"model"`
+	Effort         string `json:"effort"`
+	Isolated       bool   `json:"isolated"`
+	EvidenceBytes  int    `json:"evidence_bytes"`
+	EvidenceSHA256 string `json:"evidence_sha256"`
+	// Usage: one entry per pass the provider reported usage for. The board
+	// never adds it up: the runs already carry their spend (CA-334).
+	Usage []LensUsage `json:"usage"`
+}
+
+// LensUsage is what one lens cost, as its provider reported it.
+type LensUsage struct {
+	Lens         string `json:"lens"`
+	InputTokens  int    `json:"input_tokens"`
+	CachedTokens int    `json:"cached_input_tokens"`
+	OutputTokens int    `json:"output_tokens"`
+	Turns        int    `json:"turns"`
 }
 
 func recordsDir(dir string) string { return filepath.Join(dir, ".hoom", RecordsDir) }
@@ -60,6 +78,9 @@ func WriteRecord(dir string, r Record) (Record, error) {
 	}
 	if r.Findings == nil {
 		r.Findings = []string{}
+	}
+	if r.Usage == nil {
+		r.Usage = []LensUsage{}
 	}
 	raw, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {

@@ -248,6 +248,10 @@ type Providers struct {
 	Writer   string `json:"writer"`
 	Reviewer string `json:"reviewer"`
 	Cross    string `json:"cross"`
+	// ReviewerModel and ReviewerEffort come from the same review record as
+	// Reviewer; "" = not recorded.
+	ReviewerModel  string `json:"reviewer_model"`
+	ReviewerEffort string `json:"reviewer_effort"`
 	// Declared: the providers of the item's interactive sessions, distinct,
 	// in order of appearance.
 	Declared []string `json:"declared"`

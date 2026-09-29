@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T173642_0e5436",
+  "as": "refutado",
+  "evidence": "Repeticion de 20260926T052027_8554db, 20260926T145056_8d74c7 y 20260926T145057_3204ee (ya refutados, ver sus .res.json) sin argumento nuevo. Re-verificado sobre el arbol actual (HEAD 0df4791): git diff --quiet main...HEAD -- internal/boardcmd/acciones.go sale 0 (sin cambios); git blame de boardcmd/acciones.go:262-289 (el provider del writer NO OK en :267-268 y el default al primer OK en :280-286) da solo 320dea53, ancestro de main (C3). En acciones.js la rama solo agrego el campo esfuerzo (:213-215, :229); el provider enviado en :225 y la validacion de servecmd/acciones.go:188-199 son de C3. La enmienda 3 (CA-417, 56e038f) no toco boardcmd ni servecmd (git diff eb4e588 HEAD --stat -- internal/boardcmd internal/servecmd vacio) y conserva 'las opciones explicitas siguen mandando': el provider es campo obligatorio del dialogo (CA-354, re-expresado por CA-409), asi que en el Studio siempre es opcion explicita; lo que el Studio toma de la base sin opcion son modelo y esfuerzo. Decision C3 vigente: acciones-desde-la-tarjeta.md 'Desde la cabina la review es cruzada o no se lanza' y CA-337 sin --same-provider. go test -count=1 -run 'TestCA395_Studio|TestCA409' ./internal/servecmd/ -\u003e ok. Revisar con un solo provider o preseleccionar review.provider en el Studio es una decision de spec nueva, no una regresion de esta rama.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T18:05:21.966681Z"
+}

@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/itemcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -180,10 +181,14 @@ Flags de serve:
 Flags de review (no emite veredicto ni juzga el codigo: eso es de verify):
   --provider <p>       Provider de la review; vacio = el primero instalado que
                        sostenga el contrato y NO sea el del writer
-  --lens <l>           readability|reliability|resilience|risk; vacio = la
+  --lens <l>           risk|reliability|resilience|readability; vacio = la
                        regla del contrato 06 sobre la evidencia
+  --model <m>          Modelo del reviewer, en el vocabulario del provider;
+                       vacio = review.model de hoom.yaml o el del provider
+  --effort <e>         Esfuerzo del reviewer, en el vocabulario del provider;
+                       vacio = review.effort de hoom.yaml o el del provider
   --same-provider      Revisar con el MISMO provider que escribio (queda
-                       marcado 'no-cruzada' en el resultado)
+                       marcado 'no-cruzada'); igual review.same_provider: true
   --json               Emite el resultado de la review como JSON en stdout
 
 Filosofia: veredicto ROJO = exit code 1. La narracion del agente no cuenta;
@@ -643,15 +648,30 @@ func cmdAgent(args []string) error {
 func cmdReview(args []string) error {
 	fs := flag.NewFlagSet("review", flag.ExitOnError)
 	provider := fs.String("provider", "", "provider de la review; vacio = el primero instalado que no sea el del writer")
-	lens := fs.String("lens", "", "readability|reliability|resilience|risk; vacio = la regla del contrato 06")
+	lens := fs.String("lens", "", "risk|reliability|resilience|readability; vacio = la regla del contrato 06")
 	task := fs.String("task", "", "slug de la tarea: revisa su worktree aislado")
 	specPath := fs.String("spec", "", "ruta del spec que enmarca el cambio (viaja en el pedido)")
-	model := fs.String("model", "", "modelo, en el vocabulario del provider")
+	model := fs.String("model", "", "modelo, en el vocabulario del provider; vacio = review.model de hoom.yaml")
+	effort := fs.String("effort", "", "esfuerzo, en el vocabulario del provider; vacio = review.effort de hoom.yaml")
 	same := fs.Bool("same-provider", false, "permite revisar con el MISMO provider que escribio")
 	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	asJSON := fs.Bool("json", false, "emitir el resultado de la review como JSON en stdout")
 	_ = fs.Parse(args)
+	if strings.TrimSpace(*task) == "" {
+		// sin tarea la review es de este arbol: su hoom.yaml no se lee antes
+		// de saber que esta commiteado (una edicion suelta no sale en un error,
+		// y un FIFO o /dev/zero en su lugar no cuelgan nada)
+		raiz, err := manifest.Find(".")
+		if err != nil {
+			return err
+		}
+		if ruta, err := gitx.CambioSinCommitear(raiz); err != nil {
+			return err
+		} else if ruta != "" {
+			return gitx.ArbolSucio{Ruta: ruta}
+		}
+	}
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
 		return err
@@ -660,9 +680,14 @@ func cmdReview(args []string) error {
 	if *asJSON {
 		out = io.Discard // JSON puro: la narracion no se mezcla con el dato
 	}
+	// --same-provider=false dicho a mano tambien es una decision: vence a
+	// review.same_provider de hoom.yaml
+	sameSet := false
+	fs.Visit(func(f *flag.Flag) { sameSet = sameSet || f.Name == "same-provider" })
 	res, err := reviewcmd.Run(m.Dir, m.BaseBranch, reviewcmd.Options{
 		Provider: *provider, Lens: *lens, Task: *task, Spec: *specPath,
-		Model: *model, SameProvider: *same, MaxTurns: *maxTurns, BudgetUSD: *budget,
+		Model: *model, Effort: *effort, SameProvider: *same, SameProviderSet: sameSet,
+		MaxTurns: *maxTurns, BudgetUSD: *budget,
 	}, out)
 	if err != nil {
 		return err

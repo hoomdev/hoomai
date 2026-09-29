@@ -1,0 +1,11 @@
+{
+  "id": "20260927T043934_73b1c1",
+  "created_at": "2026-09-27T04:39:34.460516Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agents/targets.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo de esta rama): internal/agents/targets.go:102-117 carga el system prompt del reviewer desde .hoom/agents/06-reviewer.md del mismo arbol candidato. La evidencia nueva excluye todo .hoom/ (internal/gitx/diff.go:103-104), asi que una rama puede cambiar su propio contrato de reviewer para suprimir hallazgos y aun dejar un registro limpio, sin que esa alteracion aparezca como dato en el dossier. La review cruzada necesita fijar el contrato desde la base/embebido o incluir y autenticar esa ruta como evidencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "d155017e214ff09a",
+  "task": "review-aislada-y-modelo-elegido"
+}

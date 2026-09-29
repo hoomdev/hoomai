@@ -38,8 +38,10 @@ func write(t *testing.T, root, rel, body string) {
 	}
 }
 
-// repo arma un proyecto real con un cambio de CODIGO sin commitear: hay algo
-// que revisar y una lente que calcular.
+// repo arma un proyecto real con un cambio de CODIGO: hay algo que revisar y
+// una lente que calcular. Enmienda 4 de review-aislada-y-modelo-elegido (la
+// review revisa solo lo commiteado): el cambio va commiteado en la rama
+// feature, sobre la base main; antes quedaba sin commitear en main.
 func repo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -51,7 +53,9 @@ func repo(t *testing.T) string {
 	write(t, root, "app.go", "package app\n")
 	git(t, root, "add", "-A")
 	git(t, root, "commit", "-m", "inicial")
+	git(t, root, "checkout", "-q", "-b", "feature")
 	write(t, root, "app.go", "package app\n\nfunc Nuevo() {}\n")
+	git(t, root, "commit", "-q", "-am", "cambio de codigo")
 	return root
 }
 
@@ -205,8 +209,10 @@ func TestCA161_ReviewCruzada(t *testing.T) {
 // gate de scope de la forma evidencia.
 func TestCA162_ElReviewerEsUnRol(t *testing.T) {
 	root := repo(t)
-	// el fake imprime su argv: se puede leer que le llego
-	fakeProvider(t, "codex", "echo \"argv: $@\" > "+filepath.Join(root, "argv.txt")+"\nexit 0\n")
+	// el fake imprime su argv y su stdin: se puede leer que le llego (el
+	// pedido de la review viaja por stdin: CA-418, enmienda 4 de
+	// review-aislada-y-modelo-elegido)
+	fakeProvider(t, "codex", "{ echo \"argv: $@\"; echo 'stdin:'; cat; } > "+filepath.Join(root, "argv.txt")+"\nexit 0\n")
 
 	var out bytes.Buffer
 	res, err := Run(root, "main", Options{Lens: "reliability", Provider: "codex"}, &out)
@@ -318,6 +324,7 @@ func TestCA165_ExitCodesYJSON(t *testing.T) {
 	// violacion de scope y cortaria en la primera pasada.
 	root := repo(t)
 	write(t, root, "internal/auth/login.go", "package auth\n")
+	raCommit(t, root, "ruta de riesgo")
 	contador := filepath.Join(t.TempDir(), "n.txt")
 	fakeProvider(t, "codex", "n=$(cat "+contador+" 2>/dev/null || echo 0)\n"+
 		"n=$((n+1)); echo $n > "+contador+"\n"+
@@ -361,6 +368,7 @@ func TestCA165_ExitCodesYJSON(t *testing.T) {
 	git(t, root3, "add", "-A")
 	git(t, root3, "commit", "-m", "inicial")
 	write(t, root3, "README.md", "solo documentacion\n")
+	raCommit(t, root3, "solo documentacion")
 	fakeProvider(t, "codex", "exit 9\n") // si se lanzara, el exit lo delataria
 	out.Reset()
 	res, err = Run(root3, "main", Options{Provider: "codex"}, &out)

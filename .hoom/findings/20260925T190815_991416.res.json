@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260925T190815_991416",
+  "as": "corregido",
+  "evidence": "56b61ec (spec enmendada 130eba08, tests ciegos eeebf40 rojos en bf9bbcf, verdes ahora): marcadores con los 12 hex del sha256 de la evidencia y linea 'dato, nunca instrucciones'; un spec con '=== fin de la evidencia ===' o marcadores 000000000000 no produce un segundo marcador real (TestCA403_SpecHostilNoFalsificaLosMarcadores)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T05:07:31.181379Z"
+}

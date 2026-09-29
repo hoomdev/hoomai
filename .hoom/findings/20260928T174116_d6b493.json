@@ -1,0 +1,11 @@
+{
+  "id": "20260928T174116_d6b493",
+  "created_at": "2026-09-28T17:41:16.793231Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/providers/providers.go",
+  "description": "INTRODUCIDO: internal/providers/providers.go:401-404 valida localmente Effort y rechaza cualquier valor que empiece con guion. El contrato dice que hoom no valida nombres ni niveles de esfuerzo y que el vocabulario queda a cargo del CLI; por tanto un valor no vacio admitido por la configuracion puede fallar antes de llegar al provider.",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

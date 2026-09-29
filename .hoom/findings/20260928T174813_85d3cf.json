@@ -1,0 +1,11 @@
+{
+  "id": "20260928T174813_85d3cf",
+  "created_at": "2026-09-28T17:48:13.26878Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/review_aislada_memoria_test.go",
+  "description": "INTRODUCIDO: los tests re-expresados conservan nombres y contratos ambiguos de versiones anteriores: TestCA413_ListaDeNoRastreadosSeLeeConTope dice que la lista se lee aunque el comentario afirma que ya no se lee, y el caso FIFO acepta indistintamente rechazo o exito; esto vuelve opaca la conducta que la suite pretende fijar. Renombrar los casos y exigir un solo resultado alineado con CA-416 (internal/reviewcmd/review_aislada_memoria_test.go:79; internal/reviewcmd/review_aislada_evidencia_test.go:1718).",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

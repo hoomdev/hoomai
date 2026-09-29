@@ -1,0 +1,11 @@
+{
+  "id": "20260925T191808_a8d1ac",
+  "created_at": "2026-09-25T19:18:08.948931Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:81-96 tambien silencia el error de git ls-files usado para distinguir no rastreados. Si Snapshot alcanzo a listar un archivo nuevo y esta segunda invocacion falla transitoriamente, CandidatePatch lo clasifica como rastreado; git diff contra el merge-base devuelve cero bytes para esa ruta y la review continua con evidencia parcial. El fallo debe propagarse, no convertir silenciosamente todos los no rastreados en tracked.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

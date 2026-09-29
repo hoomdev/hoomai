@@ -1,0 +1,11 @@
+{
+  "id": "20260928T173451_94ac0c",
+  "created_at": "2026-09-28T17:34:51.067614Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: Run decide 0 lentes y devuelve SIN REVISAR antes de armar Evidence; gitx.Snapshot silencia el error de git diff/base, asi que una base inexistente, un clon shallow o un git diff roto sin --lens queda como exito (exit 0) en vez de fallar cerrado como CA-414 (internal/reviewcmd/reviewcmd.go:416).",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

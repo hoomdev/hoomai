@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T145821_f23bb2",
+  "as": "corregido",
+  "evidence": "f01eedc: el prompt va por un StdinPipe que hoom escribe y cierra, y el rescate del timeout lo cierra; TestCA399_StdinSinLeerConHuerfanoNoCuelgaElRun (cuelga con el runcmd de eb4e588, verde ahora)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:57:34.7649Z"
+}

@@ -54,13 +54,17 @@ func lnPATH(t *testing.T) *lnFakes {
 	return f
 }
 
-// cli instala un CLI de IA falso: guarda sus argumentos y, si espera, no
-// termina hasta que el test lo suelta (con un tope de 30 s).
+// cli instala un CLI de IA falso: guarda su stdin (en in-<name>.<pid>) y sus
+// argumentos y, si espera, no termina hasta que el test lo suelta (con un
+// tope de 30 s). El stdin se guarda porque el pedido de `hoom review` viaja
+// por ahi (CA-418, enmienda 4 de review-aislada-y-modelo-elegido).
 func (f *lnFakes) cli(t *testing.T, name string, espera bool) {
 	t.Helper()
 	tmp := filepath.Join(f.argv, ".tmp-"+name)
 	final := filepath.Join(f.argv, name)
+	in := filepath.Join(f.argv, "in-"+name)
 	s := "#!/bin/sh\n" +
+		"cat > '" + in + ".'$$\n" +
 		"printf '%s\\000' \"$@\" > '" + tmp + ".'$$\n" +
 		"mv '" + tmp + ".'$$ '" + final + ".'$$\n"
 	if espera {
@@ -93,6 +97,38 @@ func (f *lnFakes) llamadas(t *testing.T, name string) [][]string {
 			args = args[:len(args)-1]
 		}
 		out = append(out, args)
+	}
+	return out
+}
+
+// pedidos devuelve el prompt de cada invocacion del CLI name que instalo
+// cli: su stdin si el argv termina en "-" (codex) o si llego algo por stdin
+// (claude sin prompt posicional); si no, el ultimo argumento.
+func (f *lnFakes) pedidos(t *testing.T, name string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(f.argv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), name+".") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(f.argv, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		args := strings.Split(string(raw), "\x00")
+		if len(args) > 0 && args[len(args)-1] == "" {
+			args = args[:len(args)-1]
+		}
+		in, _ := os.ReadFile(filepath.Join(f.argv, "in-"+e.Name()))
+		if lnUltimo(args) == "-" || len(in) > 0 {
+			out = append(out, string(in))
+		} else {
+			out = append(out, lnUltimo(args))
+		}
 	}
 	return out
 }
@@ -699,6 +735,11 @@ func TestCA337_TestWriterYWriterTrabajanContraElSpec(t *testing.T) {
 
 // CA-337: pedir-reviewer corre hoom review (las 4 lentes, cada una con el
 // pedido que arma la review) con task y spec, y rechaza un pedido escrito.
+// CA-403 re-expresa el prefijo del pedido: empieza con "Revisa el cambio de
+// esta rama." (la evidencia va antes de la lente) y nombra su lente con
+// "con la lente <lente>"; entre las 4 pasadas estan las 4 lentes. CA-418
+// (enmienda 4 de review-aislada-y-modelo-elegido) mueve el pedido del argv
+// al stdin: se lee donde viaje (f.pedidos), no del ultimo argumento.
 func TestCA337_PedirAlReviewerCorreHoomReview(t *testing.T) {
 	f := lnPATH(t)
 	f.cli(t, "claude", false)
@@ -719,13 +760,24 @@ func TestCA337_PedirAlReviewerCorreHoomReview(t *testing.T) {
 	}
 	lnEsperarLanzamientos(t, "CA-337", s)
 
-	ll := f.llamadas(t, "claude")
+	ll := f.pedidos(t, "claude")
 	if len(ll) != len(reviewcmd.Lentes) {
 		t.Fatalf("CA-337: pedir-reviewer es hoom review: una pasada por lente (%d), hubo %d", len(reviewcmd.Lentes), len(ll))
 	}
-	for _, args := range ll {
-		if !strings.HasPrefix(lnUltimo(args), "Revisa el cambio de esta rama con la lente") {
-			t.Fatalf("CA-337: la review arma su propio pedido: %q", lnUltimo(args))
+	vistas := map[string]bool{}
+	for _, pedido := range ll {
+		if !strings.HasPrefix(pedido, "Revisa el cambio de esta rama.") {
+			t.Fatalf("CA-337/CA-403: la review arma su propio pedido: %q", pedido)
+		}
+		for _, lens := range reviewcmd.Lentes {
+			if strings.Contains(pedido, "con la lente "+lens) {
+				vistas[lens] = true
+			}
+		}
+	}
+	for _, lens := range reviewcmd.Lentes {
+		if !vistas[lens] {
+			t.Fatalf("CA-337/CA-403: una pasada por lente: ningun pedido dice 'con la lente %s'", lens)
 		}
 	}
 	recs, avisos := reviewcmd.Records(wt) // el segundo valor son avisos, no un error

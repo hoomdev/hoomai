@@ -31,14 +31,15 @@ func (claude) Capabilities() Capabilities {
 	return Capabilities{
 		Structured: true, Continue: true, Resume: true, SessionID: true,
 		Model: true, SystemPrompt: true, Tools: true, ReadOnly: true, NoExec: true, Unattended: true,
-		MaxTurns: true, Budget: true,
+		MaxTurns: true, Budget: true, Effort: true, Isolation: true,
 	}
 }
 
 // Command builds the headless invocation. The tool lists go FIRST: they are
 // variadic options in Claude's CLI parser (commander) and swallow every
 // positional until the next option — placed last they would eat the prompt.
-// The prompt is always the final argument.
+// The prompt is always the final argument, unless it is too large for argv:
+// then there is no positional prompt and it travels by stdin.
 func (c claude) Command(req Request) (Invocation, error) {
 	p, err := resolve(c.Name(), c.Capabilities(), req)
 	if err != nil {
@@ -96,8 +97,21 @@ func (c claude) Command(req Request) (Invocation, error) {
 		// plain decimal, never scientific notation
 		args = append(args, "--max-budget-usd", strconv.FormatFloat(p.budgetUSD, 'f', -1, 64))
 	}
-	args = append(args, p.prompt)
-	return Invocation{Bin: c.Bin(), Args: args, Ignored: p.ignored}, nil
+	if p.isolated {
+		// no MCP server and only the project's committed settings: the
+		// user's hooks, plugins and personal permissions stay out
+		args = append(args, "--strict-mcp-config", "--setting-sources", "project")
+	}
+	if p.effort != "" {
+		args = append(args, "--effort", p.effort)
+	}
+	// a prompt too large for argv goes by stdin: `-p` with no positional
+	// prompt reads it from there
+	arg, stdin := p.promptArg()
+	if arg != "" {
+		args = append(args, arg)
+	}
+	return Invocation{Bin: c.Bin(), Args: args, Ignored: p.ignored, Stdin: stdin}, nil
 }
 
 // claudeWriteTools is what a role that writes needs when nobody attends the

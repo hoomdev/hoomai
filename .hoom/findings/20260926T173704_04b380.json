@@ -1,0 +1,11 @@
+{
+  "id": "20260926T173704_04b380",
+  "created_at": "2026-09-26T17:37:04.621667Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:180: ShowFile convierte cualquier fallo de 'git cat-file -e' en exists=false, aunque su propio contrato dice que solo la ausencia debe hacerlo. politicaDeLaBase interpreta ese resultado como 'sin hoom.yaml' y aplica defaults, de modo que un fallo de Git/objeto ilegible puede cambiar provider, modelo, same_provider o max_evidence_kib sin avisar. Debe distinguir path ausente de los demás errores y propagarlos para no revisar con una política distinta a la aprobada.",
+  "author": "reviewer@codex",
+  "fingerprint": "d7321d3e442bb114",
+  "task": "review-aislada-y-modelo-elegido"
+}

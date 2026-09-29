@@ -1,0 +1,11 @@
+{
+  "id": "20260926T144613_94907f",
+  "created_at": "2026-09-26T14:46:13.2403Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/manifest/manifest.go:143-145 acepta cualquier int positivo para max_evidence_kib, pero internal/reviewcmd/reviewcmd.go:250 lo multiplica por 1024 sin comprobar overflow y Evidence usa el resultado en bytes.Buffer.Grow (linea 126). En 64 bits, max_evidence_kib: 9223372036854775807 produce un maxBytes negativo y panic 'bytes.Buffer.Grow: negative count'; un hoom.yaml del candidato puede tumbar hoom review o el goroutine del Studio. Validar el limite antes de convertir KiB a bytes o hacer la conversion con overflow comprobado.",
+  "author": "reviewer@codex",
+  "fingerprint": "9de334843e68f2c4",
+  "task": "review-aislada-y-modelo-elegido"
+}

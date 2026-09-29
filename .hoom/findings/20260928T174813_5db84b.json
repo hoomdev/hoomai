@@ -1,0 +1,11 @@
+{
+  "id": "20260928T174813_5db84b",
+  "created_at": "2026-09-28T17:48:13.057818Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: Run concentra en un unico flujo de unas 246 lineas la carga de politica y contrato de la base, seleccion cruzada, armado/impresion de evidencia, ciclo de pasadas, gasto, sobre y registro, con closures que mutan res y rec; extraer un preflight y la ejecucion de una pasada haria visibles el orden y los invariantes (internal/reviewcmd/reviewcmd.go:392).",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1aa3f1dfccf0bc",
+  "task": "review-aislada-y-modelo-elegido"
+}

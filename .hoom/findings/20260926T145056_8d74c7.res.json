@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T145056_8d74c7",
+  "as": "refutado",
+  "evidence": "Mitad de 20260926T052027_8554db, ya refutado (.hoom/findings/20260926T052027_8554db.res.json), sin argumento nuevo. Re-verificado ahora: git diff --stat main...HEAD -- internal/boardcmd/acciones.go esta vacio; git blame de boardcmd/acciones.go:262-289 da solo 320dea53 y el de servecmd/acciones.go:186-199 da 320dea53/d4772f4b, ambos ancestros de main (git merge-base --is-ancestor). Que la cabina no ofrezca al provider del writer (acciones.go:267-268) es la decision de C3: .hoom/specs/acciones-desde-la-tarjeta.md (\"Desde la cabina la review es cruzada o no se lanza\") y CA-337 (sin --same-provider); esta spec re-expresa solo el prefijo de CA-337 y los campos de CA-354, no levanta ese no-goal. review.same_provider rige donde la review no llega por la cabina (CLI, CA-395/CA-415). go test -count=1 -run \"TestCA395_Studio|TestCA409\" ./internal/servecmd/ -\u003e ok. Revisar con un solo provider desde el Studio es una decision nueva de spec, no un defecto de esta rama.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:13:22.482115Z"
+}

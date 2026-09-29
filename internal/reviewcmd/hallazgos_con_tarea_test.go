@@ -162,6 +162,7 @@ func TestCA293_SoloSpecCadaPasadaVeLaTarea(t *testing.T) {
 	root := repo(t)
 	write(t, root, htSpec, "# Spec: "+htSlug+"\n")
 	write(t, root, "internal/auth/login.go", "package auth\n\nfunc Login() {}\n")
+	raCommit(t, root, "ruta de riesgo") // enmienda 4 de review-aislada: solo lo commiteado
 	log := htReviewer(t, "")
 	t.Setenv("HOOM_TASK", "ajena")
 
@@ -184,6 +185,7 @@ func TestCA293_SoloSpecConWorktreeDelSlugCorreEnLaRaiz(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, root, "app.go", "package app\n\nfunc Nuevo() {}\n")
+	raCommit(t, root, "cambio en la raiz") // enmienda 4 de review-aislada: solo lo commiteado
 	log := htReviewer(t, "")
 	t.Setenv("HOOM_TASK", "ajena")
 
@@ -206,6 +208,7 @@ func TestCA293_ConTareaGanaLaTareaSobreElSpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, dir, "app.go", "package app\n\nfunc Nuevo() {}\n")
+	raCommit(t, dir, "cambio en la tarea") // enmienda 4 de review-aislada: solo lo commiteado
 	log := htReviewer(t, "")
 	t.Setenv("HOOM_TASK", "ajena")
 

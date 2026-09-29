@@ -141,6 +141,8 @@ type Capabilities struct {
 	Unattended   bool `json:"unattended"`    // can run with nobody answering prompts
 	MaxTurns     bool `json:"max_turns"`     // hard cap on agentic turns
 	Budget       bool `json:"budget"`        // hard cap on spend (USD)
+	Effort       bool `json:"effort"`        // reasoning effort selection
+	Isolation    bool `json:"isolation"`     // can run without the user's personal config
 }
 
 // Names lists the supported capabilities by their JSON name, in stable
@@ -154,7 +156,7 @@ func (c Capabilities) Names() []string {
 		{"structured", c.Structured}, {"continue", c.Continue}, {"resume", c.Resume},
 		{"session_id", c.SessionID}, {"model", c.Model}, {"system_prompt", c.SystemPrompt},
 		{"tools", c.Tools}, {"read_only", c.ReadOnly}, {"no_exec", c.NoExec}, {"unattended", c.Unattended},
-		{"max_turns", c.MaxTurns}, {"budget", c.Budget},
+		{"max_turns", c.MaxTurns}, {"budget", c.Budget}, {"effort", c.Effort}, {"isolation", c.Isolation},
 	} {
 		if f.on {
 			out = append(out, f.name)
@@ -200,14 +202,30 @@ type Request struct {
 	MaxTurns   int     // 0 = unbounded
 	BudgetUSD  float64 // 0 = unbounded
 	Strict     bool    // unsupported field = error instead of Ignored
+	// Effort is the reasoning effort, in the provider's vocabulary; "" = the
+	// provider's default.
+	Effort string
+	// Isolated: the session loads none of the user's personal provider
+	// config (MCP servers, hooks, plugins, profile).
+	Isolated bool
+	// PromptStdin: the prompt travels by stdin at any size, never in argv
+	// (an argv is readable by any user of the machine with ps).
+	PromptStdin bool
 }
 
+// StdinPromptBytes is the largest prompt that travels as an argument; a
+// longer one goes through the process stdin.
+const StdinPromptBytes = 16 << 10
+
 // Invocation is the materialized headless command. Ignored lists the
-// request fields the provider could not honor, by canonical name.
+// request fields the provider could not honor, by canonical name. Stdin,
+// when not empty, is written to the process stdin: it carries the prompt
+// when the prompt is too large for argv.
 type Invocation struct {
 	Bin     string
 	Args    []string
 	Ignored []string
+	Stdin   string
 }
 
 // Provider is one AI CLI as hoom sees it: a translator and a parser.
@@ -231,6 +249,8 @@ const (
 	FieldUnattended   = "unattended"
 	FieldMaxTurns     = "max_turns"
 	FieldBudget       = "budget"
+	FieldEffort       = "effort"
+	FieldIsolation    = "isolation"
 )
 
 // ErrUnsupported is what Command returns under Strict when the provider
@@ -262,7 +282,19 @@ type plan struct {
 	unattended   bool
 	maxTurns     int
 	budgetUSD    float64
+	effort       string
+	isolated     bool
+	promptStdin  bool
 	ignored      []string
+}
+
+// promptArg is the prompt's place in argv: the prompt itself, or "" when it
+// is too large for argv and must travel by stdin (Invocation.Stdin).
+func (p plan) promptArg() (arg, stdin string) {
+	if p.promptStdin || len(p.prompt) > StdinPromptBytes {
+		return "", p.prompt
+	}
+	return p.prompt, ""
 }
 
 // resolve applies the common Command rules against a provider's
@@ -366,6 +398,26 @@ func resolve(name string, caps Capabilities, req Request) (plan, error) {
 			p.ignored = append(p.ignored, FieldBudget)
 		}
 	}
+	if e := strings.TrimSpace(req.Effort); e != "" {
+		if strings.HasPrefix(e, "-") {
+			return plan{}, fmt.Errorf("esfuerzo invalido %q: no puede empezar con '-'", e)
+		}
+		if caps.Effort {
+			p.effort = e
+		} else {
+			p.ignored = append(p.ignored, FieldEffort)
+		}
+	}
+	if req.Isolated {
+		if caps.Isolation {
+			p.isolated = true
+		} else {
+			p.ignored = append(p.ignored, FieldIsolation)
+		}
+	}
+	// stdin is how codex and claude take a large prompt already; an adapter
+	// that has no stdin path keeps its argv (no role that reviews uses one)
+	p.promptStdin = req.PromptStdin
 	if req.Strict && len(p.ignored) > 0 {
 		return plan{}, ErrUnsupported{Provider: name, Fields: append([]string(nil), p.ignored...)}
 	}

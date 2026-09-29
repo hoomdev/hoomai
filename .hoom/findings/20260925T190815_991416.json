@@ -1,0 +1,11 @@
+{
+  "id": "20260925T190815_991416",
+  "created_at": "2026-09-25T19:08:15.108729Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:657-668 concatena spec y diff controlados por el repositorio como texto de instrucciones, con marcadores fijos que el propio contenido puede reproducir, y la instruccion real de la lente aparece recien en 687. Un diff malicioso puede cerrar falsamente la evidencia e inyectar ordenes al reviewer, que conserva Bash/exec y workspace-write para registrar hallazgos; el scope posterior no evita comandos ni exfiltracion. La evidencia debe quedar inequivocamente tratada como datos no confiables en una frontera que el contenido no pueda falsificar.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}

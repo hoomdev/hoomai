@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T051421_80ff3f",
+  "as": "corregido",
+  "evidence": "ecb7ab1: los nombres no rastreados se leen en streaming desde git ls-files -z con tope; TestCA413_ListaDeNoRastreadosSeLeeConTope (20.000 nombres, tope 1 KiB: Over con \u003c2 MiB asignados; rojo en 035db8c con 23,8 MiB)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:30.415097Z"
+}

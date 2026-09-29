@@ -44,13 +44,15 @@ func cbRepo(t *testing.T) string {
 }
 
 // cbTarea crea la tarea slug como la crea 'hoom task start' (rama
-// hoom/<slug>, worktree en .hoom/worktrees/<slug>) y le planta un cambio de
-// codigo: hay algo que revisar.
+// hoom/<slug>, worktree en .hoom/worktrees/<slug>) y le commitea un cambio
+// de codigo: hay algo que revisar. Enmienda 4 de review-aislada-y-modelo-
+// elegido: la review revisa solo lo commiteado (antes quedaba sin commitear).
 func cbTarea(t *testing.T, root, slug string) string {
 	t.Helper()
 	wt := filepath.Join(root, ".hoom", "worktrees", slug)
 	git(t, root, "worktree", "add", "-q", "-b", "hoom/"+slug, wt, "main")
 	write(t, wt, "app.go", "package app\n\nfunc EnLaTarea() {}\n")
+	raCommit(t, wt, "cambio en la tarea")
 	return wt
 }
 
@@ -201,6 +203,7 @@ func cbCasosSinPasada(t *testing.T) []cbCaso {
 	wt := filepath.Join(root, ".hoom", "worktrees", "precios")
 	git(t, root, "worktree", "add", "-q", "-b", "hoom/precios", wt, "main")
 	write(t, wt, "README.md", "# solo prosa\n")
+	raCommit(t, wt, "solo prosa")
 	casos = append(casos, cbCaso{nombre: "sin lentes", root: root, wt: wt,
 		opt: Options{Task: "precios", Spec: ".hoom/specs/precios.md", Provider: "codex"}})
 
@@ -233,6 +236,7 @@ func TestCA334_ReviewDejaRegistroDeSobre(t *testing.T) {
 	root := cbRepo(t)
 	wt := cbTarea(t, root, "precios")
 	write(t, wt, "internal/auth/login.go", "package auth\n") // ruta de riesgo: las 4 lentes
+	raCommit(t, wt, "ruta de riesgo")
 	cbMeta(t, root, wt, "20260923T110000_cbw002", "codex", "writer")
 	snap := t.TempDir()
 	fakeProvider(t, "claude", cbFoto(root, snap))
@@ -380,6 +384,7 @@ func TestCA335_ReviewUsaEnvelopeIDYLlamaStartedUnaVez(t *testing.T) {
 	root := cbRepo(t)
 	wt := cbTarea(t, root, "precios")
 	write(t, wt, "internal/auth/login.go", "package auth\n") // las 4 lentes: 4 pasadas
+	raCommit(t, wt, "ruta de riesgo")
 	cbMeta(t, root, wt, "20260923T110000_cbw005", "claude", "writer")
 	fakeProvider(t, "codex", "exit 0\n")
 	antes := cbMetasEn(root)

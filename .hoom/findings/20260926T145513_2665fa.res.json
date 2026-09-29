@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T145513_2665fa",
+  "as": "refutado",
+  "evidence": "No reproducible por el camino de Evidence: git ls-files --others (el listado de internal/gitx/diff.go:99) nunca lista un FIFO, asi que ningun FIFO llega al git diff --no-index de diff.go:122. Prueba ejecutada (git 2.54.0, repo temporal refutador3/r3, go test -overlay con test descartable en internal/reviewcmd que llama a Evidence con un plazo de 5 s): con pipe.dat (mkfifo) en la raiz y sub/p2 (mkfifo) junto a sub/n.txt, git ls-files -z --others --exclude-standard lista solo sub/n.txt y Evidence vuelve en 0,06 s con err=nil y un diff que trae a y sub/n.txt, sin pipe.dat. Un FIFO en lugar de un archivo RASTREADO tampoco cuelga: git diff \u003cmerge-base\u003e falla al instante con \"error: a: unsupported file type / fatal: cannot hash a\" (exit 128) y Evidence devuelve el error (falla cerrado, CA-414). La reproduccion del hallazgo corrio git diff --no-index a mano sobre el FIFO, una ruta que CandidatePatch no produce. Queda solo la carrera de cambiar un archivo ya listado por un FIFO durante la review, que exige escribir en el arbol mientras corre: la misma clase que la spec ya acepta para el hard link del spec (Riesgos).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T15:12:55.853205Z"
+}

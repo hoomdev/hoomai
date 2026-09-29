@@ -1,7 +1,9 @@
 package gitx
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os/exec"
 	"strconv"
@@ -64,13 +66,250 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	return d, nil
 }
 
+// CandidatePatch appends to dst the unified patch of the COMMITTED change:
+// `git diff --find-renames` of the merge-base of base against HEAD, of
+// everything outside .hoom/ plus .hoom/agents/ (the roles' contracts are part
+// of the change), with deletions and both sides of a rename as git writes
+// them. Nothing comes from the working tree: with anything uncommitted
+// outside .hoom/ it returns ArbolSucio, before looking at the base, and
+// reads no patch. A binary carries
+// git's own binary line and no content, and neither textconv nor clean
+// filters run (two commits are compared). dst holds at most max bytes of
+// evidence: the moment it would hold max+1 it stops git and returns over, and
+// the caller discards dst. A failing git (no merge-base, status, a diff) is
+// an error, never a shorter patch.
+func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, err error) {
+	// the dirty tree goes first, as in hoom review: a dirty tree over a
+	// broken base is refused for the dirt, not for the base
+	ruta, err := CambioSinCommitear(dir)
+	if err != nil {
+		return false, err
+	}
+	if ruta != "" {
+		return false, ArbolSucio{Ruta: ruta}
+	}
+	mb, err := MergeBase(dir, base)
+	if err != nil {
+		return false, err
+	}
+	// quotePath=false: the patch names a file as it is on disk (ñ, not
+	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure
+	diff := []string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
+		"--no-textconv", "--find-renames", mb, "HEAD", "--"}
+	for _, paths := range [][]string{{".", ":(exclude).hoom"}, {".hoom/agents"}} {
+		over, err = gitOutBounded(dir, dst, max, false, append(append([]string{}, diff...), paths...)...)
+		if err != nil {
+			return false, fmt.Errorf("git diff: %v", err)
+		}
+		if over {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// CambioSinCommitear is the first path outside .hoom/ with anything not
+// committed (modified, staged, deleted, or untracked and not ignored); ""
+// when the tree is clean. Only that first entry is read: the listing is
+// never held, and git status opens no file (a symlink to a FIFO is listed,
+// never read). A bare FIFO is not a file for git: it is not listed, cannot
+// be committed, and so never enters the evidence.
+func CambioSinCommitear(dir string) (string, error) {
+	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
+		"--untracked-files=normal", "--", ".", ":(exclude).hoom")
+	cmd.Dir = dir
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	entrada, rerr := bufio.NewReader(io.LimitReader(pipe, 64<<10)).ReadString(0)
+	if entrada = strings.TrimSuffix(entrada, "\x00"); rerr == nil && entrada != "" {
+		cmd.Process.Kill()
+		cmd.Wait()
+		// "XY ruta": the two status letters, a space, the path
+		if len(entrada) > 3 {
+			return entrada[3:], nil
+		}
+		return entrada, nil
+	}
+	if err := cmd.Wait(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return "", fmt.Errorf("git status: %s", msg)
+		}
+		return "", fmt.Errorf("git status: %v", err)
+	}
+	return "", nil
+}
+
+// ArbolSucio: the working tree has something uncommitted outside .hoom/, and
+// the review only reviews what is committed.
+type ArbolSucio struct{ Ruta string }
+
+func (e ArbolSucio) Error() string {
+	return fmt.Sprintf("la review revisa solo lo commiteado y hay cambios sin commitear (%s): commitealos antes de revisar", e.Ruta)
+}
+
+// stderrMax is how much of a git's stderr hoom keeps: enough for any real
+// message, never in proportion to what a repository makes git print.
+const stderrMax = 64 << 10
+
+// capped keeps the first n bytes written to it and drops the rest.
+type capped struct {
+	b strings.Builder
+	n int
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := c.n - c.b.Len(); room > 0 {
+		if len(p) > room {
+			c.b.Write(p[:room])
+		} else {
+			c.b.Write(p)
+		}
+	}
+	return len(p), nil
+}
+
+func (c *capped) String() string { return c.b.String() }
+
+// VerificarBase fails when base and HEAD have no merge-base or git cannot
+// diff them (a shallow clone, a base that does not exist, a missing tree): it
+// runs before anything is measured, so a broken base never looks like "no
+// changes" (CA-414).
+func VerificarBase(dir, base string) error {
+	mb, err := MergeBase(dir, base)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("git", "diff", "--quiet", mb, "HEAD", "--")
+	cmd.Dir = dir
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
+	err = cmd.Run()
+	if exit, ok := err.(*exec.ExitError); err == nil || (ok && exit.ExitCode() == 1) {
+		return nil // 1 = hay diferencias: git pudo compararlas
+	}
+	if msg := strings.TrimSpace(stderr.String()); msg != "" {
+		return fmt.Errorf("git diff %s HEAD: %s", mb, msg)
+	}
+	return fmt.Errorf("git diff %s HEAD: %v", mb, err)
+}
+
+// HeadEntry is the tree entry of path at HEAD: its mode and object id. ok is
+// false when HEAD does not have it; a failing git is an error.
+func HeadEntry(dir, path string) (mode, oid string, ok bool, err error) {
+	out, err := gitOut(dir, "ls-tree", "-z", "HEAD", "--", path)
+	if err != nil {
+		return "", "", false, fmt.Errorf("git ls-tree HEAD %s: %v", path, err)
+	}
+	entrada := strings.TrimSuffix(out, "\x00")
+	tab := strings.IndexByte(entrada, '\t')
+	if entrada == "" || tab < 0 {
+		return "", "", false, nil
+	}
+	// "<mode> <type> <oid>\t<path>"
+	meta := strings.Fields(entrada[:tab])
+	if len(meta) < 3 {
+		return "", "", false, fmt.Errorf("git ls-tree HEAD %s: entrada inesperada %q", path, entrada)
+	}
+	return meta[0], meta[2], true, nil
+}
+
+// AppendBlob appends the content of object oid to dst, within max as
+// gitOutBounded does.
+func AppendBlob(dir, oid string, dst *bytes.Buffer, max int) (over bool, err error) {
+	return gitOutBounded(dir, dst, max, false, "cat-file", "blob", oid)
+}
+
+// MergeBase is the merge-base of base and HEAD in dir. No common ancestor (a
+// shallow clone, a base that does not exist) is an error, never a fallback.
+func MergeBase(dir, base string) (string, error) {
+	mb, err := gitOut(dir, "merge-base", base, "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git merge-base %s HEAD: %v", base, err)
+	}
+	if mb = strings.TrimSpace(mb); mb == "" {
+		return "", fmt.Errorf("git merge-base %s HEAD: sin ancestro comun", base)
+	}
+	return mb, nil
+}
+
+// ShowFile is the content of path at revision rev. exists is false when the
+// file is not in that revision; any other git failure is an error.
+func ShowFile(dir, rev, path string) (content []byte, exists bool, err error) {
+	// ls-tree says "absent" with an empty listing and fails for anything
+	// else (a missing object, a broken repo): the two never mix
+	entry, err := gitOut(dir, "ls-tree", "-z", rev, "--", path)
+	if err != nil {
+		return nil, false, fmt.Errorf("git ls-tree %s %s: %v", rev, path, err)
+	}
+	if strings.Trim(entry, "\x00\n ") == "" {
+		return nil, false, nil
+	}
+	out, err := gitOut(dir, "show", rev+":"+path)
+	if err != nil {
+		return nil, false, fmt.Errorf("git show %s:%s: %v", rev, path, err)
+	}
+	return []byte(out), true, nil
+}
+
+// gitOutBounded runs git and appends its stdout to dst while dst holds at
+// most max bytes: when it would hold max+1 it stops git — the rest is never
+// read — and reports over (dst then has max+1 bytes the caller discards). exit1OK accepts exit code 1 with a silent stderr (git diff
+// --no-index says "the files differ" that way); anything else that fails is
+// an error carrying git's stderr.
+func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ...string) (over bool, err error) {
+	room := max - dst.Len()
+	if room < 0 {
+		return true, nil
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return false, err
+	}
+	if err := cmd.Start(); err != nil {
+		return false, err
+	}
+	_, rerr := io.CopyN(dst, pipe, int64(room)+1)
+	if rerr != io.EOF {
+		// room+1 bytes read (over), or a broken pipe: git is not read to the
+		// end, so it is stopped before Wait
+		cmd.Process.Kill()
+		cmd.Wait()
+		if rerr == nil {
+			return true, nil
+		}
+		return false, rerr
+	}
+	if werr := cmd.Wait(); werr != nil {
+		msg := strings.TrimSpace(stderr.String())
+		exit, ok := werr.(*exec.ExitError)
+		if !(exit1OK && ok && exit.ExitCode() == 1 && msg == "") {
+			if msg != "" {
+				return false, errorString(msg)
+			}
+			return false, werr
+		}
+	}
+	return false, nil
+}
+
 // gitOut runs git and returns its stdout untrimmed; on failure the error
 // carries git's stderr, which is what a person needs to read.
 func gitOut(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
 	out, err := cmd.Output()
 	if err != nil {
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
@@ -93,8 +332,8 @@ func gitOutPrefix(dir string, max int, args ...string) (out string, truncated bo
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", false, err

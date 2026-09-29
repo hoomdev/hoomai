@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T174020_9b3d2a",
+  "as": "corregido",
+  "evidence": "27ccffe: -c core.safecrlf=false en los diffs; TestCA401_AvisoDeCRLFNoRompeLaEvidencia (autocrlf y eol=crlf; rojo en 133927e)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T18:29:40.606632Z"
+}

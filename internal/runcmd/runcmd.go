@@ -116,7 +116,10 @@ type StartOptions struct {
 	Unattended   bool // nobody answers prompts: the provider gets the role's tools up front
 	MaxTurns     int
 	BudgetUSD    float64
-	Strict       bool // unsupported field = refuse to start instead of a warning
+	Strict       bool   // unsupported field = refuse to start instead of a warning
+	Effort       string // reasoning effort, provider vocabulary; "" = provider default
+	Isolated     bool   // run without the user's personal provider config
+	PromptStdin  bool   // the prompt travels by stdin at any size
 }
 
 // request builds the provider request for these options.
@@ -127,6 +130,7 @@ func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Requ
 		AllowTools: o.AllowTools, DenyTools: o.DenyTools,
 		ReadOnly: o.ReadOnly, Exec: o.Exec, NoExec: o.NoExec, Unattended: o.Unattended,
 		MaxTurns: o.MaxTurns, BudgetUSD: o.BudgetUSD, Strict: o.Strict,
+		Effort: o.Effort, Isolated: o.Isolated, PromptStdin: o.PromptStdin,
 	}
 }
 
@@ -789,6 +793,19 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		task = r.opts.Task
 	}
 	cmd.Env = append(os.Environ(), EnvTask+"="+task)
+	// a prompt too large for argv (E2BIG on Linux, the 32 KiB command line on
+	// Windows) travels by stdin; the adapter left it out of Args. It is a
+	// pipe WE write and close, not an exec copier: an orphan that inherits
+	// stdin and never reads cannot keep Wait from returning.
+	var stdin io.WriteCloser
+	if inv.Stdin != "" {
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipe de entrada")
+			return
+		}
+		stdin = w
+	}
 
 	stdout, err1 := cmd.StdoutPipe()
 	stderr, err2 := cmd.StderrPipe()
@@ -810,7 +827,21 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		time.Sleep(3 * time.Second)
 		stdout.Close()
 		stderr.Close()
+		if stdin != nil {
+			stdin.Close() // destraba la escritura del prompt si nadie lo lee
+		}
 	}()
+	// escrito dice si el pedido entero entro por stdin: un CLI que lee un
+	// prefijo y sale con 0 no puede cerrar el run como hecho
+	var escrito chan error
+	if stdin != nil {
+		escrito = make(chan error, 1)
+		go func() {
+			_, err := io.WriteString(stdin, inv.Stdin)
+			stdin.Close() // su error no importa: Wait tambien lo cierra
+			escrito <- err
+		}()
+	}
 
 	// Un normalizador por run: el que empareja una delegacion con su fin
 	// necesita recordar las lineas anteriores de ESTE run.
@@ -860,6 +891,13 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		}
 		status = StatusError
 		detail = fmt.Sprintf("el provider termino con exit %d", exit)
+	}
+	if escrito != nil {
+		// Wait ya cerro el pipe: la escritura termino, bien o mal
+		if werr := <-escrito; werr != nil && status == StatusDone {
+			status = StatusError
+			detail = fmt.Sprintf("el provider no leyo el pedido entero por stdin (%d bytes): %v", len(inv.Stdin), werr)
+		}
 	}
 	m.settle(r, status, exit, detail)
 }

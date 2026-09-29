@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260926T051914_c207c5",
+  "as": "corregido",
+  "evidence": "ecb7ab1: un solo buffer reservado una vez hasta el tope (max 8 MiB) donde gitOutBounded escribe directo; TestCA413_DiffRastreadoNoSeGuardaDosVeces (\u003c2,75x del parche; rojo en 035db8c con 3,11x)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-26T06:10:43.771753Z"
+}

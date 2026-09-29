@@ -1,0 +1,11 @@
+{
+  "id": "20260927T043909_335f12",
+  "created_at": "2026-09-27T04:39:09.107698Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/providers/providers.go",
+  "description": "INTRODUCIDO: internal/providers/providers.go:289-293 conserva todo prompt de hasta 16 KiB en argv. Con este cambio el prompt de hoom review ya no es solo instruccion: contiene automaticamente el diff y el spec completos (reviewcmd.go:555-570), por lo que cambios pequenos potencialmente sensibles quedan visibles durante cada lente en la tabla de procesos del host y se repiten cuatro veces. El stdin se usa solo al pasar el umbral; para la review la evidencia deberia viajar siempre por stdin (o el riesgo debe quedar explicitamente aceptado).",
+  "author": "reviewer@codex",
+  "fingerprint": "d155017e214ff09a",
+  "task": "review-aislada-y-modelo-elegido"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260925T191215_3651a9",
+  "created_at": "2026-09-25T19:12:15.922362Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:132-135 ignora os.ErrNotExist al leer un --spec y deja Spec vacio; la review continua y puede quedar REVISADA sin los criterios solicitados (ademas un spec existente de cero bytes se rotula como inexistente en pedidoComun). El contrato solo permite Spec vacio cuando no se paso --spec, por lo que una ruta equivocada debe fallar antes de lanzar lentes.",
+  "author": "reviewer@codex",
+  "fingerprint": "ee358fcab80799d2",
+  "task": "review-aislada-y-modelo-elegido"
+}
