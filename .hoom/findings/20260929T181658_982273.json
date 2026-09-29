@@ -1,0 +1,11 @@
+{
+  "id": "20260929T181658_982273",
+  "created_at": "2026-09-29T18:16:58.984814Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "PRE-EXISTENTE (follow-up), internal/reviewcmd/reviewcmd.go:302: despues de fijar rng.hasta, prepararRevision aun calcula gitx.Snapshot contra HEAD vivo. Si otro proceso mueve HEAD entre resolverRango y Snapshot (y luego puede devolverlo), la seleccion de lentes, la huella o un resultado SIN REVISAR pueden corresponder a otro commit mientras politica, evidencia y registro quedan anclados a rng.hasta; un cambio grande o de riesgo puede recibir menos lentes. La medida del cambio entero debe usar rng.hasta o la review debe abortar si HEAD cambio.",
+  "author": "reviewer@codex",
+  "fingerprint": "88ae9fe01f268fb8",
+  "task": "review-por-diferencia"
+}

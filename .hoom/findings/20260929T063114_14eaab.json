@@ -1,0 +1,11 @@
+{
+  "id": "20260929T063114_14eaab",
+  "created_at": "2026-09-29T06:31:14.532819Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO. internal/reviewcmd/reviewcmd.go:302-310 congela hasta una sola vez, pero internal/reviewcmd/reviewcmd.go:345 y :674 vuelven a medir y construir la evidencia contra el HEAD simbolico, y :799-807 persiste el hasta antiguo sin revalidarlo. Un commit, reset o rebase concurrente puede hacer que tamano, evidencia y pedido correspondan a otro arbol que el commit registrado; una ida temporal a una historia divergente y vuelta al HEAD original incluso deja que el tablero acepte un registro cuya evidencia omitio codigo de ese hasta. El ancla nueva no es resistente a cambios concurrentes del worktree.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a8b4cd2d929f28b",
+  "task": "review-por-diferencia"
+}

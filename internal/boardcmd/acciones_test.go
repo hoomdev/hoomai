@@ -124,10 +124,12 @@ func acConHallazgos(ev Evidence, ids ...string) Evidence {
 }
 
 // acRegistroQueCuenta es una review de 4 lentes sobre el verde grande.
+// CA-427 (re-expresion): anclada a commits (con hasta, completa); cuenta con
+// su cola en ev.ReviewTails (bdColas: sin codigo despues de su hasta).
 func acRegistroQueCuenta() reviewcmd.Record {
-	return reviewcmd.Record{ID: "r-cuenta", CreatedAt: bdT0.Add(35 * time.Minute), Task: bdSlug, Spec: bdSpec,
+	return bdAnclado(reviewcmd.Record{ID: "r-cuenta", CreatedAt: bdT0.Add(35 * time.Minute), Task: bdSlug, Spec: bdSpec,
 		Fingerprint: "huella-1", VerdictID: "v-grande", Verdict: "green", Lenses: reviewcmd.Lentes,
-		Provider: "codex", Writer: "claude", Cross: reviewcmd.CrossYes, Findings: []string{}}
+		Provider: "codex", Writer: "claude", Cross: reviewcmd.CrossYes, Findings: []string{}})
 }
 
 // acGasto es un run cerrado de la tarjeta que reporto (o no) su costo.
@@ -232,7 +234,7 @@ func acColumnas() []acCaso {
 		con(ActPedirReviewer, ActPedirWriter))
 	ev = acConHallazgos(acGrande(acEv()), "f-a")
 	ev.Reviews = []reviewcmd.Record{acRegistroQueCuenta()}
-	add("review exigida con registro que cuenta y con hallazgos", ev, ColReview, con(ActPedirWriter))
+	add("review exigida con registro que cuenta y con hallazgos", bdColas(ev), ColReview, con(ActPedirWriter))
 	add("review sin exigir ni hallazgos", tbListo(acEv(), taskcmd.ReadySinGuardar, tbMsgSinGuardar), ColReview, con())
 	add("tu-aceptacion", acEv(), ColTuAceptacion, con(ActIntegrar))
 	ev = acEv()

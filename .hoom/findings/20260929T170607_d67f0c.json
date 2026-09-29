@@ -1,0 +1,11 @@
+{
+  "id": "20260929T170607_d67f0c",
+  "created_at": "2026-09-29T17:06:07.188958Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:298,247-252,451-456: resolverRango congela rng.hasta y rng.desde, pero prepararRevision mide el cambio con gitx.Snapshot(dir, base), y politicaDeLaBase/contratoDeLaBase vuelven a calcular el merge-base contra HEAD y la referencia base vivos. Si HEAD o base cambian despues de resolver el rango (el mismo escenario de movimiento de HEAD que este cambio intenta soportar), la evidencia y el registro siguen anclados al commit C mientras las lentes y opciones de seguridad (isolated, max_evidence, same_provider, provider/model) o el contrato pueden salir de otro commit D. Eso permite revisar C con reglas mas debiles o incluso decidir cero/una lente usando la medida de D. Congele tambien el merge-base/medida/politica/contrato respecto de rng.hasta (y una base resuelta), o aborte si las referencias cambiaron antes de lanzar pasadas.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a95ff0bea39ce34",
+  "task": "review-por-diferencia"
+}

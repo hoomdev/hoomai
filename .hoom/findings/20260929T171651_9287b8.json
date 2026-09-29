@@ -1,0 +1,11 @@
+{
+  "id": "20260929T171651_9287b8",
+  "created_at": "2026-09-29T17:16:51.03695Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:298,451-456,496: la evidencia nueva queda anclada a rng.hasta, pero Snapshot y los merge-base usados para la politica y el contrato siguen resolviendo el HEAD mutable. Si otro proceso mueve HEAD despues de resolverRango, la review puede elegir lentes, fingerprint, aislamiento o contrato de otro commit mientras evidencia y registro declaran rng.hasta; tampoco se comprueba el drift antes de escribir el registro. Hay que derivar esas lecturas del hasta congelado o abortar si HEAD cambia.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a95ff0bea39ce34",
+  "task": "review-por-diferencia"
+}

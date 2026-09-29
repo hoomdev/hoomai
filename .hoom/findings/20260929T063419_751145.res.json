@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T063419_751145",
+  "as": "refutado",
+  "evidence": "La forma la fija el spec aprobado (9fe30ea5): 'Record gana: Desde, Hasta, Cobertura, DesdeReview' como campos directos y 'Result y --json ganan los mismos cuatro campos'. El value object propuesto rompe los tests ciegos: con record.go reemplazado por overlay (los 4 campos en un struct Ancla embebido en Record) 'go build ./...' pasa pero 'go vet -overlay ... ./internal/reviewcmd ./internal/boardcmd' falla: 'internal/reviewcmd/review_por_diferencia_rango_test.go:394:56: use of promoted field Ancla.Desde in struct literal of type Record requires go1.27 or later' y 'internal/boardcmd/review_por_diferencia_test.go:90:3: use of promoted field Ancla.Desde in struct literal of type reviewcmd.Record requires go1.27 or later' (go.mod declara go 1.22). La deriva que teme ya la impide un gate deterministico: rdCobertura (internal/reviewcmd/review_por_diferencia_registro_test.go:23-60), usado por cada test de CA-423, exige que el Result, el Record leido con Records, el JSON crudo del registro y el JSON del Result digan lo mismo en desde, hasta, cobertura y desde_review. Las 'dos conversiones' son dos sentencias (reviewcmd.go:630 y :807) y rango no es el mismo concepto: lleva ademas conRango y medida, que no van al registro.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T06:51:47.964401Z"
+}

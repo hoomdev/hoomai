@@ -1,0 +1,11 @@
+{
+  "id": "20260929T181855_993452",
+  "created_at": "2026-09-29T18:18:55.968284Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:251-256,452-457: contratoDeLaBase y politicaDeLaBase ya no reciben una base ni calculan su merge-base; ahora exigen que el caller les pase directamente rng.mb. Los nombres conservan la responsabilidad anterior y hacen que llamadas como politicaDeLaBase(dir, rng.mb) contradigan la firma real, mientras los comentarios tienen que corregir esa ambigüedad. Renombrarlos para expresar que leen en un merge-base (o encapsular ese snapshot en un tipo/helper) volvería explícita la precondición y evitaría que un futuro caller les entregue una referencia base esperando que la resuelvan.",
+  "author": "reviewer@codex",
+  "fingerprint": "88ae9fe01f268fb8",
+  "task": "review-por-diferencia"
+}

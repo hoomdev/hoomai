@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T170607_d67f0c",
+  "as": "corregido",
+  "evidence": "3c487d9: resolverRango calcula una sola vez el merge-base de la base y del hasta congelado (gitx.MergeBaseDe) y politicaDeLaBase/contratoDeLaBase leen ese sha, no el HEAD vivo; la medida del cambio entero (Snapshot) queda como esta (no-goal de la spec; la regla mas estricta parte del rango congelado, asi que no puede bajar las lentes del rango). Test ciego 7af4548 TestCA426_Ronda2_PoliticaYContratoNoCambianSiHEADVaYVuelve (shim ABA alrededor de cada merge-base salvo el primero; sin rango y --desde M0; tope de M1 de 1 y 64 KiB): rojo en 2445c7c (aislado no, tope 4096, CONTRATO-VIEJO, REVISADO en vez de NO ENTREGABLE), verde en 7af4548.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T17:48:08.630891Z"
+}

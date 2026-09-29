@@ -1,0 +1,11 @@
+{
+  "id": "20260929T063107_48ee09",
+  "created_at": "2026-09-29T06:31:07.123023Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO. internal/reviewcmd/reviewcmd.go:357-368 considera encadenable cualquier registro completa/delta con hasta ancestro, sin validar desde_review, continuidad ni las lentes de sus eslabones, mientras internal/boardcmd/derive.go:245-267 rechaza esas cadenas. Si hay un delta roto o una completa de una lente mas nuevos que una completa valida de 4 lentes, el tablero prescribe --delta por la valida, pero --delta elige el registro invalido y cada ejecucion exitosa prolonga una cadena que nunca puede contar; el flujo queda en un ciclo y no se recupera sin ignorar el siguiente paso y correr una review completa.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a8b4cd2d929f28b",
+  "task": "review-por-diferencia"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260929T062020_8ae76c",
+  "created_at": "2026-09-29T06:20:20.02278Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: el registro puede declarar un Hasta distinto del HEAD realmente congelado. resolverRango captura HEAD al inicio, pero EvidenceDesde vuelve a resolver el simbolo HEAD mas tarde y WriteRecord conserva el SHA anterior sin comprobar igualdad; un reset/checkout concurrente puede producir evidencia de otro arbol y, si HEAD se restaura, permitir que el tablero acepte codigo no revisado (internal/reviewcmd/reviewcmd.go:302, internal/reviewcmd/reviewcmd.go:674, internal/reviewcmd/reviewcmd.go:807).",
+  "author": "reviewer@codex",
+  "fingerprint": "9a8b4cd2d929f28b",
+  "task": "review-por-diferencia"
+}

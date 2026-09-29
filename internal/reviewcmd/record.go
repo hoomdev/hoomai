@@ -46,6 +46,14 @@ type Record struct {
 	// Usage: one entry per pass the provider reported usage for. The board
 	// never adds it up: the runs already carry their spend (CA-334).
 	Usage []LensUsage `json:"usage"`
+	// Desde and Hasta are the full shas the evidence went from and to: the
+	// anchor that lets the board tell whether the code changed after the
+	// review. Records older than review-por-diferencia do not have them.
+	Desde     string `json:"desde"`
+	Hasta     string `json:"hasta"`
+	Cobertura string `json:"cobertura"` // completa | delta | parcial
+	// DesdeReview names the record this delta continues.
+	DesdeReview string `json:"desde_review,omitempty"`
 }
 
 // LensUsage is what one lens cost, as its provider reported it.
@@ -103,7 +111,8 @@ func WriteRecord(dir string, r Record) (Record, error) {
 
 // Records reads every review record of dir, oldest first, plus one warning
 // per unreadable file (never fatal). The file name is the address: a record
-// whose id does not match its name is not trusted.
+// whose id does not match its name, or is not a plain id, is not trusted —
+// ids reach the reviewer's pedido and the board's reasons.
 func Records(dir string) ([]Record, []string) {
 	out, warnings := []Record{}, []string{}
 	entries, err := os.ReadDir(recordsDir(dir))
@@ -120,7 +129,7 @@ func Records(dir string) ([]Record, []string) {
 			continue
 		}
 		var r Record
-		if err := json.Unmarshal(raw, &r); err != nil || r.ID != strings.TrimSuffix(e.Name(), ".json") {
+		if err := json.Unmarshal(raw, &r); err != nil || r.ID != strings.TrimSuffix(e.Name(), ".json") || !validRecordID(r.ID) {
 			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Name()))
 			continue
 		}
@@ -130,9 +139,26 @@ func Records(dir string) ([]Record, []string) {
 	return out, warnings
 }
 
+// validRecordID is the shape WriteRecord gives an id: 20060102T150405_
+// plus 6 lowercase letters or digits. Anything else — a newline, a space,
+// text glued to a real-looking id — would carry text into the pedido outside
+// the evidence, so a record with another id is not trusted.
 func validRecordID(id string) bool {
-	if id == "" || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+	if len(id) != len("20060102T150405_")+6 || id[8] != 'T' || id[15] != '_' {
 		return false
+	}
+	for i, c := range id {
+		switch {
+		case i == 8 || i == 15:
+		case i < 15:
+			if c < '0' || c > '9' {
+				return false
+			}
+		default:
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'z') {
+				return false
+			}
+		}
 	}
 	return true
 }

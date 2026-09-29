@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T172032_984bf3",
+  "as": "corregido",
+  "evidence": "3c487d9: el comentario de boardcmd.Evidence.ReviewTails dice lo que colasDe lee: las colas de los registros encadenables, del mas nuevo hacia atras, hasta el primero que cubre la tarjeta; cualquier otro, o uno que git no ubica, no tiene entrada y Derive lo trata como que no cubre.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T17:48:08.765271Z"
+}

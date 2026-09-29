@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T062610_910be2",
+  "as": "corregido",
+  "evidence": "d87be59: la CLI detecta --desde por presencia (fs.Visit) y lo pasa como Options.DesdeSet; --desde con --delta (aunque --desde venga vacio o en blanco) es UsageError exit 2 sin efectos; --desde vacio solo llega a ResolverCommit y da '--desde : no es un commit de este repositorio' exit 1, nunca una review completa. Tests ciegos a315764 TestCA422_E2EDesdeVacioConDeltaEsErrorDeUso y TestCA421_E2EDesdeVacioNoEsLaReviewCompleta: rojos en 083f6c0 (corria un delta o una completa), verdes en a315764.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T07:56:13.3907Z"
+}

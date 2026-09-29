@@ -1,0 +1,11 @@
+{
+  "id": "20260929T063121_802a3f",
+  "created_at": "2026-09-29T06:31:21.572696Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO. internal/boardcmd/gather.go:343-355 calcula CambioDespues para cada hasta historico; el cache de :183-195 vive solo durante un Build, mientras Studio vuelve a pedir /api/board cada segundo. Cada hasta lanza merge-base y hasta dos git diff, y internal/gitx/diff.go:197-215 carga completo el --numstat en memoria sin el tope de evidencia. Como los registros son append-only, el costo de cada sondeo crece sin limite con el historial y con el numero de rutas, pudiendo saturar procesos/memoria o volver inusable el tablero precisamente en ramas con muchas rondas.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a8b4cd2d929f28b",
+  "task": "review-por-diferencia"
+}

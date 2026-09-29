@@ -1,0 +1,11 @@
+{
+  "id": "20260929T062610_64a76b",
+  "created_at": "2026-09-29T06:26:10.897238Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:302: resolverRango captura hasta con gitx.Head, pero la medida y la evidencia vuelven a consultar el HEAD vivo (líneas 345 y 674) sin fijar ni revalidar ese extremo. Si otro proceso commitea o mueve HEAD entre esas operaciones, el pedido y el registro declaran un hasta distinto de los bytes revisados y las lentes pueden decidirse sobre otro árbol; como mínimo el tablero pedirá un delta ya revisado, y una ida y vuelta de HEAD puede hacer que cuente un registro cuya evidencia omitió el commit declarado. Congelar el SHA como extremo del diff o verificarlo antes de registrar evita esa carrera.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a8b4cd2d929f28b",
+  "task": "review-por-diferencia"
+}

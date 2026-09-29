@@ -118,10 +118,18 @@ func column(ev Evidence) (string, []string, string, string) {
 			next = cmd
 		}
 	}
-	if lines, required := reviewRequired(v); required && reviewOf(ev) == "" {
-		fail(fmt.Sprintf("la review exige las 4 lentes (%d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
-			fmt.Sprintf("falta la revision de 4 lentes (%d lineas)", lines),
-			"hoom review"+task+" --spec "+spec)
+	if lines, required := reviewRequired(v); required {
+		switch id, atrasada := reviewState(ev); {
+		case id != "":
+		case atrasada != nil:
+			fail(fmt.Sprintf("la review %s cubre hasta %s y el codigo cambio despues", atrasada.ID, short12(atrasada.Hasta)),
+				"falta revisar lo nuevo desde la ultima review",
+				"hoom review"+task+" --spec "+spec+" --delta")
+		default:
+			fail(fmt.Sprintf("la review exige las 4 lentes (%d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
+				fmt.Sprintf("falta la revision de 4 lentes (%d lineas)", lines),
+				"hoom review"+task+" --spec "+spec)
+		}
 	}
 	if ids := blocking(ev); len(ids) > 0 {
 		plain := fmt.Sprintf("hay %d hallazgos que bloquean", len(ids))
@@ -188,25 +196,89 @@ func reviewRequired(v *verdict.Verdict) (int, bool) {
 	return n, n > reviewcmd.UmbralLineas
 }
 
-// reviewOf returns the newest review record that satisfies the card: its
-// task, the four lenses, and a verdict_id that is a complete green verdict of
-// the card (a review of a tree that never went green reviewed nothing).
+// reviewOf returns the newest review record that covers the card's code.
 func reviewOf(ev Evidence) string {
+	id, _ := reviewState(ev)
+	return id
+}
+
+// reviewState returns the newest review record that covers the card's code:
+// its task, a verdict_id that is a complete green verdict of the card (a
+// review of a tree that never went green reviewed nothing), a chain of 4-lens
+// records back to a completa, and nothing but documentation changed in the
+// card's tree after its hasta. When none covers it, atrasada is the record
+// --delta would continue (the newest encadenable one still in HEAD's
+// history) when it meets all of that but the last: only then is a --delta
+// the way out. A record without hasta (older than review-por-diferencia) or
+// parcial never covers anything.
+func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 	green := map[string]bool{}
-	for _, id := range ev.GreenVerdicts {
-		green[id] = true
+	for _, gid := range ev.GreenVerdicts {
+		green[gid] = true
 	}
-	best := ""
-	var bestAt int64
+	byID := map[string]reviewcmd.Record{}
 	for _, r := range ev.Reviews {
-		if r.Task != ev.Item.Slug || !green[r.VerdictID] || !containsAll(r.Lenses, reviewcmd.Lentes) {
+		byID[r.ID] = r
+	}
+	var bestAt, deltaAt int64
+	delta := -1 // the record --delta would continue
+	for i, r := range ev.Reviews {
+		tail, ok := ev.ReviewTails[r.ID]
+		if r.Task != ev.Item.Slug || !ok || !tail.Ancestro {
 			continue
 		}
-		if at := r.CreatedAt.UnixNano(); best == "" || at >= bestAt {
-			best, bestAt = r.ID, at
+		at := r.CreatedAt.UnixNano()
+		if reviewcmd.Encadenable(r) && (delta < 0 || at >= deltaAt) {
+			delta, deltaAt = i, at
+		}
+		if tail.Codigo || !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug) {
+			continue
+		}
+		if id == "" || at >= bestAt {
+			id, bestAt = r.ID, at
 		}
 	}
-	return best
+	if id != "" || delta < 0 {
+		return id, nil
+	}
+	p := ev.Reviews[delta]
+	if green[p.VerdictID] && cadenaValida(p, byID, ev.Item.Slug) {
+		return "", &ev.Reviews[delta]
+	}
+	return "", nil
+}
+
+// cadenaValida follows desde_review back to a completa: every record on the
+// way is of the card's task, has the four lenses and a hasta, and each delta
+// starts exactly where the record it continues ended. A missing link breaks
+// it.
+func cadenaValida(r reviewcmd.Record, byID map[string]reviewcmd.Record, slug string) bool {
+	for pasos := 0; pasos <= len(byID); pasos++ {
+		if r.Task != slug || r.Hasta == "" || !containsAll(r.Lenses, reviewcmd.Lentes) {
+			return false
+		}
+		switch r.Cobertura {
+		case reviewcmd.CoberturaCompleta:
+			return true
+		case reviewcmd.CoberturaDelta:
+			prev, ok := byID[r.DesdeReview]
+			if !ok || prev.Hasta != r.Desde {
+				return false
+			}
+			r = prev
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// short12 is a sha as the board prints it.
+func short12(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }
 
 // blocking lists the open findings of the card that block under the

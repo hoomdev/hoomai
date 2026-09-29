@@ -80,6 +80,37 @@ func bdArbol(ev Evidence) Evidence {
 	return ev
 }
 
+// CA-427 (review-por-diferencia): un registro cuenta como la review de la
+// tarjeta solo si tiene hasta (un sha de 40 hex), es completa o delta con su
+// cadena, y de su hasta al HEAD de la tarjeta no cambio codigo. En un fixture
+// de Derive (sin git) eso ultimo lo dice ev.ReviewTails, que Gather lee de
+// git. bdDesde y bdHasta son los shas de un registro de review nuevo.
+const (
+	bdDesde = "1111111111111111111111111111111111111111"
+	bdHasta = "2222222222222222222222222222222222222222"
+)
+
+// bdAnclado (CA-427) le pone a r lo que escribe hoy `hoom review` sin rango:
+// desde el merge-base, hasta el HEAD revisado, cobertura completa.
+func bdAnclado(r reviewcmd.Record) reviewcmd.Record {
+	r.Desde, r.Hasta, r.Cobertura = bdDesde, bdHasta, reviewcmd.CoberturaCompleta
+	return r
+}
+
+// bdColas (CA-427) dice, para cada registro con hasta de ev, que su hasta
+// sigue en la historia del HEAD de la tarjeta y que despues no cambio codigo
+// (lo que Gather leeria de git en una tarjeta que no se toco desde la
+// review).
+func bdColas(ev Evidence) Evidence {
+	ev.ReviewTails = map[string]ReviewTail{}
+	for _, r := range ev.Reviews {
+		if r.Hasta != "" {
+			ev.ReviewTails[r.ID] = ReviewTail{Ancestro: true, Codigo: false}
+		}
+	}
+	return ev
+}
+
 func bdCol(t *testing.T, ca string, c Card, want string) {
 	t.Helper()
 	if c.Column != want {
@@ -368,31 +399,69 @@ func TestCA274_ReviewPorTamano(t *testing.T) {
 		t.Fatal("CA-274: Review no espera a un humano")
 	}
 
-	rec := func(id string, lentes []string, verdictID string) reviewcmd.Record {
+	// recViejo es un registro con el formato de antes de review-por-diferencia
+	// (sin desde, hasta ni cobertura); rec, uno como el que escribe hoy
+	// `hoom review` sin rango (CA-427: completa, anclado a commits).
+	recViejo := func(id string, lentes []string, verdictID string) reviewcmd.Record {
 		return reviewcmd.Record{ID: id, CreatedAt: bdT0.Add(35 * time.Minute), Task: bdSlug, Spec: bdSpec,
 			Fingerprint: "huella-1", VerdictID: verdictID, Verdict: "green", Lenses: lentes,
 			Provider: "codex", Writer: "claude", Cross: reviewcmd.CrossYes, Findings: []string{}}
 	}
-	// cumple: 4 lentes sobre el verde actual
+	rec := func(id string, lentes []string, verdictID string) reviewcmd.Record {
+		return bdAnclado(recViejo(id, lentes, verdictID))
+	}
+	// cumple: 4 lentes sobre el verde actual (CA-427: con hasta, completa, y
+	// sin codigo despues de su hasta)
 	ev = grande()
 	ev.Reviews = []reviewcmd.Record{rec("r-ok", reviewcmd.Lentes, "v-grande")}
-	c = Derive(ev)
+	c = Derive(bdColas(ev))
 	bdCol(t, "CA-274", c, ColTuAceptacion)
 	if c.Evidence.ReviewID != "r-ok" || !c.Evidence.ReviewRequired {
 		t.Fatalf("CA-274: la evidencia muestra el registro que cumplio: %+v", c.Evidence)
 	}
+	// CA-427 (re-expresion): el mismo registro con el formato viejo, sin
+	// hasta, ya no cuenta: nada prueba que cubra el codigo actual
+	ev = grande()
+	ev.Reviews = []reviewcmd.Record{recViejo("r-ok", reviewcmd.Lentes, "v-grande")}
+	c = Derive(bdColas(ev))
+	bdCol(t, "CA-427", c, ColReview)
+	bdPrimero(t, "CA-427", c, "la review exige las 4 lentes (612 lineas > 400) y no hay registro de review")
+	if c.Evidence.ReviewID != "" || c.Next != "hoom review --task precios --spec .hoom/specs/precios.md" {
+		t.Fatalf("CA-427: un registro sin hasta no es review_id y el siguiente paso es el de hoy: %+v %q", c.Evidence, c.Next)
+	}
 
-	// cumple: 4 lentes sobre un verde ANTERIOR de la tarjeta (el codigo
-	// cambio despues de la review y volvio a verde)
+	// cumple: 4 lentes sobre un verde ANTERIOR de la tarjeta (despues de la
+	// review la tarjeta volvio a verde). CA-427/CA-428 (re-expresion): sigue
+	// valiendo solo si de su hasta al HEAD no cambio codigo (por ejemplo, solo
+	// documentacion); antes valia aunque hubiera cambiado el codigo.
 	ev = grande()
 	ev.Reviews = []reviewcmd.Record{rec("r-viejo", reviewcmd.Lentes, "v-viejo-verde")}
-	c = Derive(ev)
+	c = Derive(bdColas(ev))
 	bdCol(t, "CA-274", c, ColTuAceptacion)
 	if c.Evidence.ReviewID != "r-viejo" {
 		t.Fatalf("CA-274: el registro sigue valiendo tras corregir: %+v", c.Evidence)
 	}
+	// CA-428 (re-expresion): si lo que cambio despues de su hasta es codigo,
+	// ya no cuenta y la tarjeta pide el delta
+	ev = grande()
+	ev.Reviews = []reviewcmd.Record{rec("r-viejo", reviewcmd.Lentes, "v-viejo-verde")}
+	ev.ReviewTails = map[string]ReviewTail{"r-viejo": {Ancestro: true, Codigo: true}}
+	c = Derive(ev)
+	bdCol(t, "CA-428", c, ColReview)
+	bdPrimero(t, "CA-428", c, "la review r-viejo cubre hasta "+bdHasta[:12]+" y el codigo cambio despues")
+	if c.Evidence.ReviewID != "" || c.Next != "hoom review --task precios --spec .hoom/specs/precios.md --delta" {
+		t.Fatalf("CA-428: la review de antes no es review_id y el siguiente paso es el delta: %+v %q", c.Evidence, c.Next)
+	}
+	// CA-427 (re-expresion): con el formato viejo, sin hasta, tampoco cuenta
+	ev = grande()
+	ev.Reviews = []reviewcmd.Record{recViejo("r-viejo", reviewcmd.Lentes, "v-viejo-verde")}
+	c = Derive(bdColas(ev))
+	bdCol(t, "CA-427", c, ColReview)
+	bdPrimero(t, "CA-427", c, "la review exige las 4 lentes (612 lineas > 400) y no hay registro de review")
 
 	// no cumplen: una sola lente, un verdict_id rojo, uno de otro spec
+	// (CA-427: registros anclados y sin codigo despues, para que fallen por
+	// su propia razon y no por no tener hasta)
 	for nombre, r := range map[string]reviewcmd.Record{
 		"una lente":       rec("r-1", []string{"reliability"}, "v-grande"),
 		"tres lentes":     rec("r-3", []string{"readability", "reliability", "risk"}, "v-grande"),
@@ -402,7 +471,7 @@ func TestCA274_ReviewPorTamano(t *testing.T) {
 	} {
 		ev = grande()
 		ev.Reviews = []reviewcmd.Record{r}
-		c = Derive(ev)
+		c = Derive(bdColas(ev))
 		bdCol(t, "CA-274 ("+nombre+")", c, ColReview)
 		bdPrimero(t, "CA-274 ("+nombre+")", c, "la review exige las 4 lentes (612 lineas > 400) y no hay registro de review")
 		if c.Evidence.ReviewID != "" {

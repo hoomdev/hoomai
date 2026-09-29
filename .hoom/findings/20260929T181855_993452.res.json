@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T181855_993452",
+  "as": "corregido",
+  "evidence": "efd7172: contratoDeLaBase y politicaDeLaBase pasan a contratoEnMergeBase y politicaEnMergeBase; sus comentarios dicen que mb es un sha ya resuelto (el de resolverRango, de la base y el hasta congelado), nunca una ref a resolver. Solo renombre: las llamadas son politicaEnMergeBase(dir, rng.mb) y contratoEnMergeBase(dir, rng.mb, role); ningun test las llama directo.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T18:21:11.364707Z"
+}
