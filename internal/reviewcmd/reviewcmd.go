@@ -87,7 +87,27 @@ type Options struct {
 	// resolved, or on Windows, does the pedido fall back to plain `hoom`,
 	// which the reviewer's shell resolves by PATH.
 	HoomBin string
+	// Desde (--desde) is the commit the evidence starts from: "" = the
+	// merge-base with the base. It must be an ancestor of HEAD.
+	Desde string
+	// Delta (--delta) starts where the task's newest chainable review ended
+	// (its hasta). Never together with Desde.
+	Delta bool
 }
+
+// The coverage a review record claims: what the chain of reviews it belongs
+// to proves was reviewed.
+const (
+	// CoberturaCompleta: the evidence started at the merge-base.
+	CoberturaCompleta = "completa"
+	// CoberturaDelta: the evidence started at the hasta of a chainable
+	// record of the same task (DesdeReview names it).
+	CoberturaDelta = "delta"
+	// CoberturaParcial: any other start, or hand-picked lenses that do not
+	// cover the rule's: it says what was reviewed and never counts as the
+	// card's review.
+	CoberturaParcial = "parcial"
+)
 
 // Pass is one lens: one session, its scope gate and the findings hoom saw
 // appear while it ran.
@@ -170,6 +190,13 @@ func Evidence(dir, base, spec string, maxBytes int) (Evidencia, error) {
 	sum := sha256.Sum256(all)
 	ev.SHA256 = hex.EncodeToString(sum[:])
 	return ev, nil
+}
+
+// EvidenceDesde is Evidence with an explicit start: the patch goes from
+// desde to HEAD, with the same paths, cap, markers, spec and dirty-tree
+// refusal. desde must be an ancestor of HEAD.
+func EvidenceDesde(dir, desde, spec string, maxBytes int) (Evidencia, error) {
+	return Evidencia{}, errors.New("EvidenceDesde: sin implementar")
 }
 
 // rutaDelArbol is spec as a path relative to dir, or false when it points
@@ -348,6 +375,12 @@ type Result struct {
 	Isolated       bool   `json:"isolated"`
 	EvidenceBytes  int    `json:"evidence_bytes"`
 	EvidenceSHA256 string `json:"evidence_sha256"`
+	// Desde and Hasta: the full shas the evidence went from and to;
+	// Cobertura and DesdeReview as in the record.
+	Desde       string `json:"desde"`
+	Hasta       string `json:"hasta"`
+	Cobertura   string `json:"cobertura"`
+	DesdeReview string `json:"desde_review,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The

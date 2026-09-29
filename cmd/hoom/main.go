@@ -654,6 +654,8 @@ func cmdReview(args []string) error {
 	model := fs.String("model", "", "modelo, en el vocabulario del provider; vacio = review.model de hoom.yaml")
 	effort := fs.String("effort", "", "esfuerzo, en el vocabulario del provider; vacio = review.effort de hoom.yaml")
 	same := fs.Bool("same-provider", false, "permite revisar con el MISMO provider que escribio")
+	desde := fs.String("desde", "", "revisa de este commit a HEAD (ancestro de HEAD); vacio = el merge-base con la base")
+	delta := fs.Bool("delta", false, "revisa solo lo que cambio desde la ultima review completa o delta de la tarea")
 	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	asJSON := fs.Bool("json", false, "emitir el resultado de la review como JSON en stdout")
@@ -687,7 +689,7 @@ func cmdReview(args []string) error {
 	res, err := reviewcmd.Run(m.Dir, m.BaseBranch, reviewcmd.Options{
 		Provider: *provider, Lens: *lens, Task: *task, Spec: *specPath,
 		Model: *model, Effort: *effort, SameProvider: *same, SameProviderSet: sameSet,
-		MaxTurns: *maxTurns, BudgetUSD: *budget,
+		MaxTurns: *maxTurns, BudgetUSD: *budget, Desde: *desde, Delta: *delta,
 	}, out)
 	if err != nil {
 		return err

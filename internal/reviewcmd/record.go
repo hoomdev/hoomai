@@ -46,6 +46,14 @@ type Record struct {
 	// Usage: one entry per pass the provider reported usage for. The board
 	// never adds it up: the runs already carry their spend (CA-334).
 	Usage []LensUsage `json:"usage"`
+	// Desde and Hasta are the full shas the evidence went from and to: the
+	// anchor that lets the board tell whether the code changed after the
+	// review. Records older than review-por-diferencia do not have them.
+	Desde     string `json:"desde"`
+	Hasta     string `json:"hasta"`
+	Cobertura string `json:"cobertura"` // completa | delta | parcial
+	// DesdeReview names the record this delta continues.
+	DesdeReview string `json:"desde_review,omitempty"`
 }
 
 // LensUsage is what one lens cost, as its provider reported it.
