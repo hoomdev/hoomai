@@ -1,0 +1,11 @@
+{
+  "id": "20260929T194531_2d66d0",
+  "created_at": "2026-09-29T19:45:31.588233Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:748: con --base y sin --task, proyecto := m conserva el manifiesto del arbol candidato y PolicyFor (linea 754) confia en su agents.reviewer.write. La spec recomienda --base para revisar un checkout no confiable y dice que esa politica debe venir del proyecto o del --base explicito; una rama puede declarar allow: [\"**\"] y lograr que un provider sin solo-lectura efectivo modifique codigo sin que el gate de territorio falle. La politica de escritura debe cargarse desde el ancla confiable resuelta, no desde el candidato.",
+  "author": "reviewer@codex",
+  "fingerprint": "1b5d7a2095372b58",
+  "task": "base-de-la-review"
+}

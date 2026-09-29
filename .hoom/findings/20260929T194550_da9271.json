@@ -1,0 +1,11 @@
+{
+  "id": "20260929T194550_da9271",
+  "created_at": "2026-09-29T19:45:50.745061Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:315: m.BaseBranch proviene del hoom.yaml de la rama no confiable y se interpola sin escapar en avisoBase; la linea 697 lo imprime directamente al terminal. Un escalar YAML entre comillas puede contener saltos de linea y controles ANSI, permitiendo falsificar lineas de estado o ejecutar secuencias del terminal durante hoom review --task. Escapar o reemplazar caracteres de control en la salida humana, conservando el valor estructurado de forma segura.",
+  "author": "reviewer@codex",
+  "fingerprint": "1b5d7a2095372b58",
+  "task": "base-de-la-review"
+}

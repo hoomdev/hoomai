@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T195530_07e75c",
+  "as": "refutado",
+  "evidence": "Error de registro: el shell interpretó los acentos graves y eliminó identificadores de la descripción; se reemplaza por un hallazgo con texto íntegro.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T19:55:49.671829Z"
+}

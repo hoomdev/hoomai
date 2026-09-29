@@ -1,0 +1,11 @@
+{
+  "id": "20260929T195212_96651e",
+  "created_at": "2026-09-29T19:52:12.614165Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:302 descarta el SHA que devuelve ResolverCommit y conserva el nombre mutable de --base para VerificarBase, resolverRango, Snapshot y los gates posteriores. Si otro worktree/proceso mueve o elimina esa ref entre llamadas, la review puede combinar un merge-base/evidencia con otra medicion o scope; peor, Snapshot silencia el fallo de git diff (internal/gitx/gitx.go:65) y puede devolver cero cambios, haciendo que Run termine SIN REVISAR en internal/reviewcmd/reviewcmd.go:700 en vez de fallar cerrado. Conserva el nombre solo para salida/registro, pero usa el SHA resuelto en todas las operaciones Git.",
+  "author": "reviewer@codex",
+  "fingerprint": "1b5d7a2095372b58",
+  "task": "base-de-la-review"
+}

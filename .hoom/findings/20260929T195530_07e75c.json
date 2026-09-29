@@ -1,0 +1,11 @@
+{
+  "id": "20260929T195530_07e75c",
+  "created_at": "2026-09-29T19:55:30.85966Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:663 y :748:  sale de  como el manifiesto del candidato, pero unas 85 líneas después se reutiliza como  y solo se reemplaza para . Esa procedencia condicional deja la frontera central del cambio (candidato no confiable frente a proyecto confiable) repartida entre dos bloques y bajo nombres genéricos, haciendo fácil que un consumidor futuro aplique por error política del candidato. El preflight debería devolver fuentes con nombres/tipos explícitos, o devolver ya la política de escritura resuelta, para que la invariante quede local y visible.",
+  "author": "reviewer@codex",
+  "fingerprint": "1b5d7a2095372b58",
+  "task": "base-de-la-review"
+}
