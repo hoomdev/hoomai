@@ -281,7 +281,7 @@ func kib(n int) int { return (n + 1023) / 1024 }
 // with a merge-base and a diff git can produce (a broken base fails closed,
 // never SIN REVISAR: CA-414), and only then the measure the lenses are
 // decided on.
-func prepararRevision(root, base string, opt Options) (dir string, baseFinal string, git gitx.Info, rng rango, err error) {
+func prepararRevision(root, base string, opt Options) (dir string, baseSHA string, git gitx.Info, rng rango, err error) {
 	if dir, err = runcmd.TaskDir(root, opt.Task); err != nil {
 		return
 	}
@@ -300,44 +300,48 @@ func prepararRevision(root, base string, opt Options) (dir string, baseFinal str
 	// The base is the project's — the one Run receives from the tree hoom
 	// runs in — or --base; never the task tree's base_branch: a change does
 	// not pick the merge-base its own policy and contract come from (CA-430).
-	nombre, origen := base, "la del proyecto"
+	// It is resolved to a sha ONCE, before anything uses it: every git
+	// operation from here on takes baseSHA, so a ref that moves meanwhile
+	// does not change what is validated, measured, reviewed and gated.
+	// baseNombre is only for the output, the pedido and the record.
+	baseNombre, origen, explicita := base, "la del proyecto", false
 	if b := strings.TrimSpace(opt.Base); b != "" {
-		sha, ok, rerr := gitx.ResolverCommit(dir, b)
-		if rerr != nil {
-			err = rerr
-			return
-		}
-		if !ok {
-			err = fmt.Errorf("--base %s: no es un commit de este repositorio", b)
-			return
-		}
-		base, nombre, origen = sha, b, "la de --base"
+		baseNombre, origen, explicita = b, "la de --base", true
 	}
-	aviso := ""
-	if opt.Task != "" && m.BaseBranch != "" && m.BaseBranch != nombre {
-		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", mostrable(m.BaseBranch), nombre, origen)
-	}
-	if err = gitx.VerificarBase(dir, base); err != nil {
-		return
-	}
-	// From here on every git operation uses the base's sha, never its name:
-	// a ref that moves meanwhile does not change what was measured, reviewed
-	// and gated. The name stays for the output and the record.
-	sha, ok, rerr := gitx.ResolverCommit(dir, base)
+	sha, ok, rerr := gitx.ResolverCommit(dir, baseNombre)
 	if rerr != nil {
 		err = rerr
 		return
 	}
-	if !ok {
-		err = fmt.Errorf("la base %s no es un commit de este repositorio", nombre)
+	switch {
+	case ok:
+		baseSHA = sha
+	case explicita:
+		err = fmt.Errorf("--base %s: no es un commit de este repositorio", baseNombre)
+		return
+	case strings.HasPrefix(baseNombre, "-"):
+		err = fmt.Errorf("la base %s no es un commit de este repositorio", baseNombre)
+		return
+	default:
+		// the project's base names no commit: git's own error, as CA-414
+		// has always reported it
+		if err = gitx.VerificarBase(dir, baseNombre); err == nil {
+			err = fmt.Errorf("la base %s no es un commit de este repositorio", baseNombre)
+		}
 		return
 	}
-	base = sha
-	if rng, err = resolverRango(dir, base, opt); err != nil {
+	aviso := ""
+	if opt.Task != "" && m.BaseBranch != "" && m.BaseBranch != baseNombre {
+		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", mostrable(m.BaseBranch), baseNombre, origen)
+	}
+	if err = gitx.VerificarBase(dir, baseSHA); err != nil {
 		return
 	}
-	rng.base, rng.avisoBase = nombre, aviso
-	return dir, base, gitx.Snapshot(dir, base), rng, nil
+	if rng, err = resolverRango(dir, baseSHA, opt); err != nil {
+		return
+	}
+	rng.baseNombre, rng.avisoBase = baseNombre, aviso
+	return dir, baseSHA, gitx.Snapshot(dir, baseSHA), rng, nil
 }
 
 // territorioEnMergeBase is the reviewer's write territory as the hoom.yaml
@@ -378,7 +382,7 @@ type rango struct {
 	desde       string // full sha
 	hasta       string // full sha of HEAD, resolved once
 	mb          string // merge-base of the base and hasta: policy and contract come from it
-	base        string // the name the base was resolved from (--base or the project's)
+	baseNombre  string // the name the base was resolved from (--base or the project's): output and record only
 	avisoBase   string // the task branch declares another base_branch: said, never obeyed
 	cobertura   string
 	desdeReview string
@@ -707,7 +711,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	dir, base, git, rng, err := prepararRevision(root, base, opt)
+	dir, baseSHA, git, rng, err := prepararRevision(root, base, opt)
 	if err != nil {
 		return Result{}, err
 	}
@@ -723,7 +727,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{},
 		WritersDeclared: declaredWriters(root, taskOf(opt))}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
-	res.Base = rng.base
+	res.Base = rng.baseNombre
 	var notas []string
 
 	if rng.conRango {
@@ -738,7 +742,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	} else {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas contra %s\n",
 			plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
-			git.Insertions, git.Deletions, rng.base)
+			git.Insertions, git.Deletions, rng.baseNombre)
 	}
 	if rng.avisoBase != "" {
 		fmt.Fprintf(w, "  aviso: %s\n", rng.avisoBase)
@@ -839,14 +843,14 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return res
 	}
 
-	comun := pedidoComun(rng.base, git, rng, opt.Spec, v, ev)
+	comun := pedidoComun(rng.baseNombre, git, rng, opt.Spec, v, ev)
 	var usos []LensUsage
 	var total providers.Usage
 	for i, lens := range lentes {
 		fmt.Fprintf(w, "  [%d/%d] %s\n", i+1, len(lentes), lens)
 		pass := Pass{Lens: lens, Findings: []string{}}
-		before := agentcmd.Take(dir, base)
-		antes := idsDeHallazgos(dir, base)
+		before := agentcmd.Take(dir, baseSHA)
+		antes := idsDeHallazgos(dir, baseSHA)
 		rec.Stage, rec.Step, rec.RunID = "run", i+1, ""
 		_ = envelope.Write(root, rec) // best-effort (CA-202)
 
@@ -877,13 +881,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 		// Los hallazgos del reviewer se cuentan ANTES de que hoom escriba los
 		// suyos por violaciones: el arbitro no se cuenta como jugador.
-		pass.Findings = nuevos(antes, idsDeHallazgos(dir, base))
-		pass.Scope = agentcmd.Gate(dir, base, opt.Task, role, before, agentcmd.Take(dir, base), pol, nil)
+		pass.Findings = nuevos(antes, idsDeHallazgos(dir, baseSHA))
+		pass.Scope = agentcmd.Gate(dir, baseSHA, opt.Task, role, before, agentcmd.Take(dir, baseSHA), pol, nil)
 		printScope(w, pass.Scope, role)
 		printFindings(w, pass.Findings)
 		printGasto(w, pass.Usage)
 		if t := findingTask(opt); t != "" {
-			if fuera := fueraDeLaTarea(dir, base, pass.Findings, t); len(fuera) > 0 {
+			if fuera := fueraDeLaTarea(dir, baseSHA, pass.Findings, t); len(fuera) > 0 {
 				nota := fmt.Sprintf("hallazgos fuera de la tarea %s de la review (sin tarea o con otra): %s",
 					t, strings.Join(fuera, ", "))
 				fmt.Fprintf(w, "    aviso: %s\n", nota)
@@ -908,7 +912,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Model: opt.Model, Effort: opt.Effort, Isolated: isolated,
 		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos,
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
-		Base: rng.base,
+		Base: rng.baseNombre,
 	})
 	res.Notes = notas
 	if len(usos) == 0 {
@@ -1088,7 +1092,7 @@ func pickProvider(name string, writers []string) (providers.Provider, error) {
 // pedidoComun is the part of the reviewer's dossier every lens shares:
 // deterministic and built from evidence. hoom froze the evidence, so the
 // reviewer does not take the diff itself; its shell is for context.
-func pedidoComun(base string, git gitx.Info, rng rango, spec string, v *verdict.Verdict, ev Evidencia) string {
+func pedidoComun(baseNombre string, git gitx.Info, rng rango, spec string, v *verdict.Verdict, ev Evidencia) string {
 	// the markers carry the evidence's WHOLE sha256: to close the evidence
 	// early the content would have to contain the hash of itself (12 hex
 	// were 48 bits, within reach of rented compute)
@@ -1111,7 +1115,7 @@ func pedidoComun(base string, git gitx.Info, rng rango, spec string, v *verdict.
 		}
 		b.WriteString(antes + " INTRODUCIDO es lo que trae este rango o lo que este rango rompe de lo anterior; lo demas es pre-existente.\n")
 	} else {
-		fmt.Fprintf(&b, "Base: %s. Tamano: %d archivos, +%d/-%d lineas.\n", base, len(git.ChangedFiles), git.Insertions, git.Deletions)
+		fmt.Fprintf(&b, "Base: %s. Tamano: %d archivos, +%d/-%d lineas.\n", baseNombre, len(git.ChangedFiles), git.Insertions, git.Deletions)
 	}
 	if v != nil {
 		fmt.Fprintf(&b, "Veredicto vigente: %s (%s).\n", v.ID, v.Verdict)
