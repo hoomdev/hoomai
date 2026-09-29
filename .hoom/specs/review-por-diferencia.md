@@ -1,6 +1,14 @@
 # Spec: la review de lo que cambió desde la última review
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión
+aprobada (sha256 9fe30ea5) está implementada. Su primera review encontró un
+ciclo entre `--delta` y el tablero: el tablero pedía `--delta` por la última
+cadena de 4 lentes, pero `--delta` encadenaba con un registro más nuevo que
+el tablero no cuenta, y la tarjeta nunca salía de Review. La enmienda 1 hace
+que el tablero pida `--delta` solo cuando el registro con el que `--delta`
+encadenaría lo dejaría satisfecho, y cambia CA-428.
+
+Historia: aprobada el 2026-09-29 (sha256 9fe30ea5).
 Depende de: `review-aislada-y-modelo-elegido.md` integrada (PR #38).
 Tarea: `hoom task start review-por-diferencia`.
 
@@ -172,14 +180,19 @@ Un registro de 4 lentes cuenta como la review de la tarjeta solo si:
 
 Un registro sin `hasta` (anterior a esta spec) o `parcial` nunca cuenta.
 
-Si ningún registro cuenta pero uno cumpliría todo salvo lo último (el
-código siguió después de la review):
+Si ningún registro cuenta, el tablero mira el registro con el que
+`--delta` encadenaría: el más nuevo `completa` o `delta` de la tarea cuyo
+`hasta` sigue en la historia de `HEAD`. Si ese registro cumple todo lo de
+arriba salvo lo último (el código siguió después de la review):
 
 - motivo `la review <id> cubre hasta <hasta12> y el codigo cambio despues`;
 - en palabras simples, `falta revisar lo nuevo desde la ultima review`;
 - siguiente paso `hoom review --task <s> --spec <spec> --delta`.
 
-Si no, el motivo y el siguiente paso de hoy.
+Si no (su cadena no es toda de 4 lentes, está rota, o su veredicto no es un
+verde de la tarjeta), el motivo y el siguiente paso de hoy: la review
+completa. Así el tablero nunca pide un `--delta` que no lo dejaría
+satisfecho.
 
 ## Casos límite y errores esperados
 
@@ -204,6 +217,10 @@ Si no, el motivo y el siguiente paso de hoy.
 - Una cadena que empezó con una sola lente (el cambio era chico) y después
   creció: no tiene las 4 lentes en todo el camino y no cuenta; hace falta la
   review completa.
+- Una `completa` de una lente más nueva que una cadena de 4 lentes (el
+  cambio se achicó, se revisó con la lente dominante y volvió a crecer):
+  `--delta` encadenaría con ella, así que el tablero pide la review
+  completa, no el delta.
 - `--desde` y `--delta` con `--lens`: vale; la cobertura sale de la regla de
   arriba.
 
@@ -217,7 +234,7 @@ Si no, el motivo y el siguiente paso de hoy.
 - CA-425: con rango, el pedido cambia solo la primera línea, la línea `Rango:` y la línea de INTRODUCIDO (con la review encadenada en un delta y `no es parte de esta review` en un parcial); la review sin rango manda exactamente el pedido de hoy.
 - CA-426: con rango, la salida dice `desde <desde12>` en la primera línea y lleva la línea `rango`; la política `review:` y el contrato del reviewer salen del merge-base con la base aunque la rama los cambie en un commit anterior a `desde`.
 - CA-427: el tablero cuenta un registro de 4 lentes solo si tiene `hasta`, es `completa` o `delta`, su cadena llega a un `completa` con todos sus registros de la tarea y de 4 lentes, y de su `hasta` al `HEAD` de la tarjeta solo cambió documentación o nada en las rutas de la evidencia; un registro sin `hasta`, uno `parcial` o una cadena rota no cuentan.
-- CA-428: con código commiteado después de la review, la tarjeta vuelve a Review con `la review <id> cubre hasta <hasta12> y el codigo cambio despues` y el siguiente paso `hoom review --task <s> --spec <spec> --delta`; después del delta de 4 lentes pasa a Tu aceptación si lo demás se cumple; un commit solo de documentación o solo de `.hoom/` no la hace volver.
+- CA-428: con código commiteado después de la review, si el registro con el que `--delta` encadenaría tiene su cadena de 4 lentes, la tarjeta vuelve a Review con `la review <id> cubre hasta <hasta12> y el codigo cambio despues` y el siguiente paso `hoom review --task <s> --spec <spec> --delta`, y después de ese delta pasa a Tu aceptación si lo demás se cumple; si ese registro no la tiene (una `completa` de una lente más nueva que la cadena de 4), el motivo y el siguiente paso de hoy (la review completa); un commit solo de documentación o solo de `.hoom/` no la hace volver.
 - CA-429: el README y la ayuda de `hoom review` documentan `--desde` y `--delta`. [verifica: grep -q -- "--delta" README.md && grep -q -- "--desde" README.md && grep -q "cobertura" README.md]
 
 ## Decisiones
