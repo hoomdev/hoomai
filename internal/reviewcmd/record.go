@@ -54,6 +54,9 @@ type Record struct {
 	Cobertura string `json:"cobertura"` // completa | delta | parcial
 	// DesdeReview names the record this delta continues.
 	DesdeReview string `json:"desde_review,omitempty"`
+	// Base is the name the base was resolved from (--base or the project's
+	// base_branch), never the candidate's.
+	Base string `json:"base"`
 }
 
 // LensUsage is what one lens cost, as its provider reported it.

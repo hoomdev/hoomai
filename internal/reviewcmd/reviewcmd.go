@@ -93,6 +93,9 @@ type Options struct {
 	// DesdeSet: --desde was given, even empty (an empty one names no
 	// commit: it is an error, never "no --desde").
 	DesdeSet bool
+	// Base (--base) is the review's base, chosen by whoever runs it: it wins
+	// over the project's base_branch. "" = the base Run receives.
+	Base string
 	// Delta (--delta) starts where the task's newest chainable review ended
 	// (its hasta). Never together with Desde.
 	Delta bool
@@ -558,6 +561,9 @@ type Result struct {
 	Hasta       string `json:"hasta"`
 	Cobertura   string `json:"cobertura"`
 	DesdeReview string `json:"desde_review,omitempty"`
+	// Base is the name the base was resolved from: --base, or the
+	// project's base_branch.
+	Base string `json:"base"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
