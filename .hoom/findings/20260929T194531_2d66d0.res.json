@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T194531_2d66d0",
+  "as": "corregido",
+  "evidence": "Enmienda 1 aprobada (9ffefbd, sha256 975753b5): el territorio del reviewer sale del hoom.yaml del merge-base con la base, nunca del arbol revisado, con o sin --task; CA-431 re-expresado. 58aac9c: territorioEnMergeBase (manifest.ParseAgents sobre ShowFile(rng.mb)). Tests ciegos 89739ed: TestCA431_SinTareaLaRamaNoAgrandaElTerritorio (--base main y sin --base, allow ** y app.go), TestCA431_SinTareaLoQueDeclaraLaBaseVale, TestCA431_ElTerritorioSigueALaBaseElegida, TestCA431_MergeBaseSinHoomYAMLDejaElTerritorioPorDefecto, TestCA431_ConTareaElTerritorioNoSaleDelCheckoutDelProyecto: rojos en b4b700e, verdes en 89739ed.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T20:49:38.282025Z"
+}

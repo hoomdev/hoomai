@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T194550_da9271",
+  "as": "corregido",
+  "evidence": "50fb2fb: mostrable() cita y escapa (strconv.Quote) un valor del arbol revisado que trae un rune no imprimible antes de ponerlo en el aviso de la salida y de las notes; un valor comun (w) sale igual. Test ciego 89739ed TestCA430_ElAvisoNoLlevaControlesDelBaseBranchDeLaRama (salto de linea + ESC, y retorno de carro): rojo en b4b700e (linea de lentes falsa, ESC y CR crudos), verde en 89739ed.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T20:49:38.417589Z"
+}
