@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T171701_09ef99",
+  "as": "corregido",
+  "evidence": "3c487d9: EvidenceDesde devuelve ArbolSucio (gitx.CambioSinCommitear) antes de resolver HEAD, en el mismo orden que Evidence/CandidatePatch. Test ciego 7af4548 TestCA420_Ronda2_EvidenceDesdeConHEADSinNacerYArbolSucio (HEAD sin nacer, archivo sin rastrear o en el indice): rojo en 2445c7c (git rev-parse HEAD: Needed a single revision), verde en 7af4548.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T17:48:08.720268Z"
+}
