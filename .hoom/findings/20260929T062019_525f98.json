@@ -1,0 +1,11 @@
+{
+  "id": "20260929T062019_525f98",
+  "created_at": "2026-09-29T06:20:19.865401Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: un registro controlado por el repositorio puede inyectar texto fuera del bloque de evidencia. ultimaEncadenable acepta r.ID sin validar el formato generado y pedidoComun lo concatena crudo en el prompt; Records solo exige que el ID coincida con el nombre del archivo, por lo que un .hoom/reviews con saltos de linea o escapes y un Hasta ancestro puede hacer que --delta inserte instrucciones no marcadas y subvierta la review (internal/reviewcmd/reviewcmd.go:357, internal/reviewcmd/reviewcmd.go:1006; internal/reviewcmd/record.go:131).",
+  "author": "reviewer@codex",
+  "fingerprint": "9a8b4cd2d929f28b",
+  "task": "review-por-diferencia"
+}

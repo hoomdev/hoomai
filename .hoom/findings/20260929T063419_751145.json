@@ -1,0 +1,11 @@
+{
+  "id": "20260929T063419_751145",
+  "created_at": "2026-09-29T06:34:19.859448Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:287: el mismo concepto de ancla/cobertura se vuelve a declarar en rango, Result (lineas 533-538) y Record (internal/reviewcmd/record.go:49-56), y Run copia sus cuatro campos manualmente en las lineas 630 y 807. Esta representacion dispersa obliga a mantener sincronizados tres esquemas y dos conversiones cada vez que evolucione la cobertura; extraer un value object comun para desde/hasta/cobertura/desde_review haria explicitas las invariantes y eliminaria el riesgo de deriva.",
+  "author": "reviewer@codex",
+  "fingerprint": "9a8b4cd2d929f28b",
+  "task": "review-por-diferencia"
+}
