@@ -358,7 +358,7 @@ func ultimaEncadenable(dir, task, hasta string) (Record, bool) {
 	recs, _ := Records(dir)
 	for i := len(recs) - 1; i >= 0; i-- {
 		r := recs[i]
-		if r.Task != task || r.Hasta == "" || (hasta != "" && r.Hasta != hasta) {
+		if r.Task != task || !esSha(r.Hasta) || (hasta != "" && r.Hasta != hasta) {
 			continue
 		}
 		if r.Cobertura != CoberturaCompleta && r.Cobertura != CoberturaDelta {
@@ -409,6 +409,11 @@ func lentesDe(rng rango, git gitx.Info, explicit string) (lentes []string, motiv
 // the evidence's paths. The board uses it to decide whether a review still
 // covers the card's code.
 func CambioDespues(dir, hasta string) (ancestro, codigo bool, err error) {
+	if !esSha(hasta) {
+		// a record is data: a hasta that is not a full sha ("HEAD", a
+		// branch, an option) never reaches git and never anchors anything
+		return false, false, fmt.Errorf("hasta %q no es un sha de 40 hex", hasta)
+	}
 	ok, err := gitx.EsAncestro(dir, hasta, "HEAD")
 	if err != nil || !ok {
 		return false, false, err
@@ -1230,6 +1235,20 @@ func finish(w io.Writer, res Result, status string, code int, note string) Resul
 			plural(len(res.Findings), "hallazgo nuevo", "hallazgos nuevos"))
 	}
 	return res
+}
+
+// esSha says whether s is a full lowercase sha-1 (40 hex): the only form a
+// record's desde/hasta may take before reaching git.
+func esSha(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // cubre says whether the lenses used include every lens the rule asks for.
