@@ -294,8 +294,25 @@ func prepararRevision(root, base string, opt Options) (dir string, m *manifest.M
 	if m, err = manifest.Load(dir, profiles.Resolve); err != nil {
 		return
 	}
-	if m.BaseBranch != "" {
-		base = m.BaseBranch
+	// The base is the project's — the one Run receives from the tree hoom
+	// runs in — or --base; never the task tree's base_branch: a change does
+	// not pick the merge-base its own policy and contract come from (CA-430).
+	origen := "la del proyecto"
+	if b := strings.TrimSpace(opt.Base); b != "" {
+		_, ok, rerr := gitx.ResolverCommit(dir, b)
+		if rerr != nil {
+			err = rerr
+			return
+		}
+		if !ok {
+			err = fmt.Errorf("--base %s: no es un commit de este repositorio", b)
+			return
+		}
+		base, origen = b, "la de --base"
+	}
+	aviso := ""
+	if opt.Task != "" && m.BaseBranch != "" && m.BaseBranch != base {
+		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", m.BaseBranch, base, origen)
 	}
 	if err = gitx.VerificarBase(dir, base); err != nil {
 		return
@@ -303,6 +320,7 @@ func prepararRevision(root, base string, opt Options) (dir string, m *manifest.M
 	if rng, err = resolverRango(dir, base, opt); err != nil {
 		return
 	}
+	rng.base, rng.avisoBase = base, aviso
 	return dir, m, base, gitx.Snapshot(dir, base), rng, nil
 }
 
@@ -313,6 +331,8 @@ type rango struct {
 	desde       string // full sha
 	hasta       string // full sha of HEAD, resolved once
 	mb          string // merge-base of the base and hasta: policy and contract come from it
+	base        string // the name the base was resolved from (--base or the project's)
+	avisoBase   string // the task branch declares another base_branch: said, never obeyed
 	cobertura   string
 	desdeReview string
 	medida      gitx.Info // files and lines from desde to HEAD in the evidence's paths (conRango only)
@@ -656,6 +676,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{},
 		WritersDeclared: declaredWriters(root, taskOf(opt))}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
+	res.Base = rng.base
+	var notas []string
 
 	if rng.conRango {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas desde %s\n",
@@ -670,6 +692,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas contra %s\n",
 			plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
 			git.Insertions, git.Deletions, base)
+	}
+	if rng.avisoBase != "" {
+		fmt.Fprintf(w, "  aviso: %s\n", rng.avisoBase)
+		notas = append(notas, rng.avisoBase)
 	}
 	if len(lentes) == 0 {
 		fmt.Fprintf(w, "  lentes      ninguna - %s\n", motivo)
@@ -717,13 +743,20 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "  aviso: %s no puede imponer un rol de solo lectura; el limite se verifica solo despues del run\n", prov.Name())
 	}
 	v := ultimoVeredicto(dir)
-	pol := agentcmd.PolicyFor(m, role)
+	// the reviewer's territory is the project's, never the branch's: a change
+	// does not widen what its own reviewer may write (CA-431)
+	proyecto := m
+	if strings.TrimSpace(opt.Task) != "" {
+		if proyecto, err = manifest.Load(root, profiles.Resolve); err != nil {
+			return res, err
+		}
+	}
+	pol := agentcmd.PolicyFor(proyecto, role)
 	mgr := runcmd.NewManager(root)
 	bin, err := hoomBin(opt)
 	if err != nil {
 		fmt.Fprintf(w, "  aviso: no pude resolver este binario (%v): el reviewer usara el hoom de su PATH\n", err)
 	}
-	var notas []string
 
 	// El registro del sobre de la review: lo mismo que deja `hoom agent`, asi
 	// el tablero ve la review en curso, cortada o fallida como a cualquier
@@ -833,6 +866,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Model: opt.Model, Effort: opt.Effort, Isolated: isolated,
 		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos,
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
+		Base: rng.base,
 	})
 	res.Notes = notas
 	if len(usos) == 0 {
