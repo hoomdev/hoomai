@@ -1,6 +1,14 @@
 # Spec: la review toma la base del proyecto, no de la rama
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión
+aprobada (sha256 9cf40ac5) está implementada. Su review mostró que con
+`--base` y sin `--task` el territorio del reviewer seguía saliendo del
+`hoom.yaml` del árbol revisado, aunque la spec recomienda `--base` para
+revisar una rama en la que no confiás. La enmienda 1 saca el territorio del
+mismo lugar que la política `review:` y el contrato: el merge-base con la
+base. Cambia CA-431.
+
+Historia: aprobada el 2026-09-29 (sha256 9cf40ac5).
 Depende de: `review-por-diferencia.md` integrada (PR #39).
 Tarea: `hoom task start base-de-la-review`.
 
@@ -38,9 +46,12 @@ revisa.
 - `hoom agent` y `hoom verify` siguen tomando la base del árbol donde
   corren. El alcance de sus gates es otra conversación; esta spec es de la
   review.
-- Sin `--task`, el árbol revisado es el del proyecto: su `hoom.yaml` es el
-  del proyecto por construcción. Revisar en el propio checkout una rama en
-  la que no confiás se hace con una tarea (`--task`) o con `--base`.
+- Sin `--task` y sin `--base`, la base es el `base_branch` del `hoom.yaml`
+  del árbol donde corre hoom, que es el del proyecto por construcción.
+  Revisar en el propio checkout una rama en la que no confiás se hace con
+  una tarea (`--task`) o con `--base`: la base la elegís vos, y todo lo que
+  sale de ella (política, contrato, territorio) sale del merge-base, no de
+  la rama.
 - Validar que el `base_branch` del proyecto sea "bueno": lo elige quien
   corre hoom.
 
@@ -80,9 +91,11 @@ pasadas ni registro, en el orden de la enmienda 5 de la review aislada
 ### La política de escritura del reviewer
 
 El gate de territorio de cada pasada usa `agents.reviewer.write` del
-`hoom.yaml` del proyecto, no el del worktree de la tarea. Una rama que
-agranda lo que el reviewer puede escribir no agranda el gate de su propia
-review.
+`hoom.yaml` del merge-base con la base (la del proyecto o `--base`), como la
+política `review:` (CA-417) y el contrato (CA-419): nunca del árbol revisado,
+con o sin `--task`. Una rama que agranda lo que el reviewer puede escribir
+no agranda el gate de su propia review. Un merge-base sin `hoom.yaml` o sin
+esa sección deja el territorio por defecto del rol.
 
 ### Registro y salida
 
@@ -108,7 +121,7 @@ review.
 ## Criterios de aceptación
 
 - CA-430: con `--task`, una rama que commitea `base_branch: w` (con `w` en su propia historia, una política `review:` laxa y su propio contrato 06) se revisa contra la base del proyecto: el `desde` es el merge-base de esa base con `HEAD`, la política y el contrato son los de ese merge-base (aislada, su tope, su contrato), y la salida y `notes` del registro llevan `el hoom.yaml de la rama dice base_branch w: la review usa <base>, la del proyecto`.
-- CA-431: el gate de territorio del reviewer usa `agents.reviewer.write` del `hoom.yaml` del proyecto: una rama que lo agranda en su `hoom.yaml` no evita que un reviewer que escribe fuera del territorio por defecto termine en violación de territorio.
+- CA-431: el gate de territorio del reviewer usa `agents.reviewer.write` del `hoom.yaml` del merge-base con la base: una rama que lo agranda en su `hoom.yaml` no evita que un reviewer que escribe fuera del territorio por defecto termine en violación de territorio, con `--task`, y también sin `--task` con `--base`; lo que el proyecto declara en la base sí vale.
 - CA-432: `--base <ref>` manda sobre el `base_branch` del proyecto y de la rama para la evidencia, el rango, la política, el contrato y las lentes; un `--base` que no es un commit o que empieza con `-` da `--base <ref>: no es un commit de este repositorio` sin pasadas ni registro; el registro, el `Result` y `--json` llevan `base`.
 - CA-433: `pedir-reviewer` del Studio revisa una tarea cuya rama cambia `base_branch` contra la base del proyecto del servidor, con el mismo aviso en el registro.
 - CA-434: el README y la ayuda de `hoom review` documentan `--base`. [verifica: grep -q -- "--base <ref>" README.md]
@@ -129,14 +142,17 @@ review.
   se revisa como cualquier otro cambio del `hoom.yaml`, que está en la
   evidencia. Lo que no puede es decidir su propia review.
 - **La política de escritura del reviewer va con la base.** Es la misma
-  clase: una rama no afloja el gate de su propio reviewer.
+  clase: una rama no afloja el gate de su propio reviewer. Sale del
+  merge-base, como la política `review:` y el contrato, y no del `hoom.yaml`
+  del checkout del proyecto: así vale igual con `--task`, con `--base` y en
+  el Studio, y un cambio sin commitear en el checkout no la mueve.
 
 ## Riesgos y deuda aceptada
 
 - **El checkout del proyecto puede estar en otra rama.** Quien opera elige
   su checkout; `--base` lo resuelve explícitamente.
-- **Sin `--task`, la review confía en el `hoom.yaml` del árbol.** Es el del
-  proyecto porque es el checkout donde corre hoom. Si ese checkout es la
-  rama de otro, hay que usar una tarea o `--base`. Queda documentado.
+- **Sin `--task` y sin `--base`, la base sale del `hoom.yaml` del árbol.**
+  Es el del proyecto porque es el checkout donde corre hoom. Si ese checkout
+  es la rama de otro, hay que usar una tarea o `--base`. Queda documentado.
 - **`hoom agent` y `verify` siguen con la base de su árbol.** Fuera de esta
   spec.
