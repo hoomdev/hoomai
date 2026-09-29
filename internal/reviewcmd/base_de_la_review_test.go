@@ -7,7 +7,9 @@
 // CA-419) y las lentes. Si la rama declara otra base, la review sigue con la
 // del proyecto y lo avisa en la salida y en notes. La politica de escritura
 // del reviewer (agents.reviewer.write) tambien sale del hoom.yaml del
-// proyecto. Un --base que no es un commit, o que empieza con '-', es un error
+// merge-base con la base (enmienda 1; los casos nuevos estan en
+// base_de_la_review_ronda1_test.go). Un --base que no es un commit, o que
+// empieza con '-', es un error
 // sin pasadas ni registro, despues de la guarda de arbol sucio y antes de
 // medir. El registro, el Result y --json llevan base.
 //
@@ -565,8 +567,10 @@ func bdHito(t *testing.T) (root, mb, t1, t2, t3 string) {
 
 // bdRevisadaConHito exige lo que --base hito decide: la politica (sin
 // aislamiento) y el contrato del merge-base con hito (T1) en cada pasada, el
-// pedido con 'Base: hito.' y sin nada anterior a T1, y base hito en el
-// Result y en el registro de dir.
+// pedido sin nada anterior a T1, y base hito en el Result y en el registro
+// de dir. NO mira la linea 'Base: hito.' del pedido: un pedido con rango
+// (--desde, --delta) lleva en su lugar la linea 'Rango: ...' (CA-425), asi
+// que la exige cada llamador sin rango.
 func bdRevisadaConHito(t *testing.T, ca, caso, dir string, cx *raCLI, antes int, res Result, out string) {
 	t.Helper()
 	if res.Status != "revisado" || res.ExitCode != 0 || res.RecordID == "" || cx.veces() <= antes {
@@ -636,7 +640,7 @@ func TestCA432_BaseMandaSobreLaDelProyecto(t *testing.T) {
 // CA-432: con --task, --base manda tambien sobre el base_branch de la rama:
 // la rama declara base_branch w (la ref w en T2) y el proyecto main; con
 // --base hito (T1) la review va de T1 a HEAD, con la politica y el contrato
-// de T1, y base hito.
+// de T1, el pedido de cada pasada dice 'Base: hito.', y base hito.
 func TestCA432_BaseMandaSobreLaDeLaRama(t *testing.T) {
 	bin := raPATH(t)
 	root := bdProyecto(t, "")
@@ -662,6 +666,12 @@ func TestCA432_BaseMandaSobreLaDeLaRama(t *testing.T) {
 		t.Fatalf("CA-432: las lentes salen del cambio contra hito: %v\n%s", res.Lenses, out)
 	}
 	bdRevisadaConHito(t, "CA-432", "con tarea", wt, cx, 0, res, out)
+	for n := 1; n <= cx.veces(); n++ {
+		ped := cx.pedido(t, n)
+		if l := raLineas(ped); len(l) < 3 || !strings.HasPrefix(l[2], "Base: hito. ") {
+			t.Fatalf("CA-432: con tarea, el pedido de la pasada %d dice 'Base: hito.' (ni main ni w):\n%.600s", n, ped)
+		}
+	}
 }
 
 // CA-432 (caso limite "--base con --desde o con --delta: vale"): la base de
