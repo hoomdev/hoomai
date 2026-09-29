@@ -206,9 +206,11 @@ func reviewOf(ev Evidence) string {
 // its task, a verdict_id that is a complete green verdict of the card (a
 // review of a tree that never went green reviewed nothing), a chain of 4-lens
 // records back to a completa, and nothing but documentation changed in the
-// card's tree after its hasta. When none covers it, atrasada is the newest
-// that would, had the code not changed after it. A record without hasta
-// (older than review-por-diferencia) or parcial never covers anything.
+// card's tree after its hasta. When none covers it, atrasada is the record
+// --delta would continue (the newest encadenable one still in HEAD's
+// history) when it meets all of that but the last: only then is a --delta
+// the way out. A record without hasta (older than review-por-diferencia) or
+// parcial never covers anything.
 func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 	green := map[string]bool{}
 	for _, gid := range ev.GreenVerdicts {
@@ -218,28 +220,32 @@ func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 	for _, r := range ev.Reviews {
 		byID[r.ID] = r
 	}
-	var bestAt, staleAt int64
+	var bestAt, deltaAt int64
+	delta := -1 // the record --delta would continue
 	for i, r := range ev.Reviews {
-		if r.Task != ev.Item.Slug || !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug) {
-			continue
-		}
 		tail, ok := ev.ReviewTails[r.ID]
-		if !ok || !tail.Ancestro {
+		if r.Task != ev.Item.Slug || !ok || !tail.Ancestro {
 			continue
 		}
 		at := r.CreatedAt.UnixNano()
-		if !tail.Codigo {
-			if id == "" || at >= bestAt {
-				id, bestAt = r.ID, at
-			}
-		} else if atrasada == nil || at >= staleAt {
-			atrasada, staleAt = &ev.Reviews[i], at
+		if reviewcmd.Encadenable(r) && (delta < 0 || at >= deltaAt) {
+			delta, deltaAt = i, at
+		}
+		if tail.Codigo || !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug) {
+			continue
+		}
+		if id == "" || at >= bestAt {
+			id, bestAt = r.ID, at
 		}
 	}
-	if id != "" {
-		atrasada = nil
+	if id != "" || delta < 0 {
+		return id, nil
 	}
-	return id, atrasada
+	p := ev.Reviews[delta]
+	if green[p.VerdictID] && cadenaValida(p, byID, ev.Item.Slug) {
+		return "", &ev.Reviews[delta]
+	}
+	return "", nil
 }
 
 // cadenaValida follows desde_review back to a completa: every record on the

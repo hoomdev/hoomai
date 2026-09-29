@@ -365,6 +365,13 @@ func resolverRango(dir, base string, opt Options) (rango, error) {
 	return r, nil
 }
 
+// Encadenable says whether a delta may continue r: a completa or delta
+// with a hasta that is a full sha. --delta and the board use this one rule,
+// so the board never asks for a --delta that would continue another record.
+func Encadenable(r Record) bool {
+	return esSha(r.Hasta) && (r.Cobertura == CoberturaCompleta || r.Cobertura == CoberturaDelta)
+}
+
 // ultimaEncadenable is the task's newest record a delta can continue: a
 // completa or delta with a hasta that is still in head's history (and equal
 // to hasta when hasta is given). A record whose hasta git does not know is
@@ -373,10 +380,7 @@ func ultimaEncadenable(dir, task, hasta, head string) (Record, bool) {
 	recs, _ := Records(dir)
 	for i := len(recs) - 1; i >= 0; i-- {
 		r := recs[i]
-		if r.Task != task || !esSha(r.Hasta) || (hasta != "" && r.Hasta != hasta) {
-			continue
-		}
-		if r.Cobertura != CoberturaCompleta && r.Cobertura != CoberturaDelta {
+		if r.Task != task || !Encadenable(r) || (hasta != "" && r.Hasta != hasta) {
 			continue
 		}
 		if ok, err := gitx.EsAncestro(dir, r.Hasta, head); err == nil && ok {

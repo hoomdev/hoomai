@@ -224,10 +224,11 @@ func (t *tree) tail(hasta string) *ReviewTail {
 	return &rt
 }
 
-// colasDe reads the tails the board needs, newest first: only those of the
-// records that could cover the card (a green verdict of the card and a
-// valid 4-lens chain), stopping at the first that does. Records that could
-// never count cost no git.
+// colasDe reads the tails the board needs, newest first: those of the
+// records a delta could continue (reviewcmd.Encadenable), which include every
+// record that could cover the card, stopping at the first that covers it.
+// The newest one still in HEAD's history is the one --delta would continue.
+// Records that could never count cost no git.
 func colasDe(t *tree, ev Evidence) map[string]ReviewTail {
 	green := map[string]bool{}
 	for _, id := range ev.GreenVerdicts {
@@ -240,7 +241,7 @@ func colasDe(t *tree, ev Evidence) map[string]ReviewTail {
 	var out map[string]ReviewTail
 	for i := len(ev.Reviews) - 1; i >= 0; i-- {
 		r := ev.Reviews[i]
-		if !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug) {
+		if !reviewcmd.Encadenable(r) {
 			continue
 		}
 		rt := t.tail(r.Hasta)
@@ -251,7 +252,7 @@ func colasDe(t *tree, ev Evidence) map[string]ReviewTail {
 			out = map[string]ReviewTail{}
 		}
 		out[r.ID] = *rt
-		if rt.Ancestro && !rt.Codigo {
+		if rt.Ancestro && !rt.Codigo && green[r.VerdictID] && cadenaValida(r, byID, ev.Item.Slug) {
 			break
 		}
 	}
