@@ -22,8 +22,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
@@ -297,9 +299,9 @@ func prepararRevision(root, base string, opt Options) (dir string, m *manifest.M
 	// The base is the project's — the one Run receives from the tree hoom
 	// runs in — or --base; never the task tree's base_branch: a change does
 	// not pick the merge-base its own policy and contract come from (CA-430).
-	origen := "la del proyecto"
+	nombre, origen := base, "la del proyecto"
 	if b := strings.TrimSpace(opt.Base); b != "" {
-		_, ok, rerr := gitx.ResolverCommit(dir, b)
+		sha, ok, rerr := gitx.ResolverCommit(dir, b)
 		if rerr != nil {
 			err = rerr
 			return
@@ -308,20 +310,44 @@ func prepararRevision(root, base string, opt Options) (dir string, m *manifest.M
 			err = fmt.Errorf("--base %s: no es un commit de este repositorio", b)
 			return
 		}
-		base, origen = b, "la de --base"
+		base, nombre, origen = sha, b, "la de --base"
 	}
 	aviso := ""
-	if opt.Task != "" && m.BaseBranch != "" && m.BaseBranch != base {
-		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", m.BaseBranch, base, origen)
+	if opt.Task != "" && m.BaseBranch != "" && m.BaseBranch != nombre {
+		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", mostrable(m.BaseBranch), nombre, origen)
 	}
 	if err = gitx.VerificarBase(dir, base); err != nil {
 		return
 	}
+	// From here on every git operation uses the base's sha, never its name:
+	// a ref that moves meanwhile does not change what was measured, reviewed
+	// and gated. The name stays for the output and the record.
+	sha, ok, rerr := gitx.ResolverCommit(dir, base)
+	if rerr != nil {
+		err = rerr
+		return
+	}
+	if !ok {
+		err = fmt.Errorf("la base %s no es un commit de este repositorio", nombre)
+		return
+	}
+	base = sha
 	if rng, err = resolverRango(dir, base, opt); err != nil {
 		return
 	}
-	rng.base, rng.avisoBase = base, aviso
+	rng.base, rng.avisoBase = nombre, aviso
 	return dir, m, base, gitx.Snapshot(dir, base), rng, nil
+}
+
+// mostrable is a value that came from the reviewed tree as it may reach a
+// terminal: quoted and escaped when it carries a control or non-printable
+// character (a newline or an escape sequence would forge lines), as is
+// otherwise.
+func mostrable(v string) string {
+	if strings.IndexFunc(v, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
+		return strconv.Quote(v)
+	}
+	return v
 }
 
 // rango is where the evidence goes from and to, and what the record claims
@@ -691,7 +717,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	} else {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas contra %s\n",
 			plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
-			git.Insertions, git.Deletions, base)
+			git.Insertions, git.Deletions, rng.base)
 	}
 	if rng.avisoBase != "" {
 		fmt.Fprintf(w, "  aviso: %s\n", rng.avisoBase)
@@ -797,7 +823,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return res
 	}
 
-	comun := pedidoComun(base, git, rng, opt.Spec, v, ev)
+	comun := pedidoComun(rng.base, git, rng, opt.Spec, v, ev)
 	var usos []LensUsage
 	var total providers.Usage
 	for i, lens := range lentes {
