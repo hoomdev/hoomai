@@ -878,6 +878,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 		if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 			fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
+			// a pass that failed may have written anyway: its territory is
+			// measured all the same, so a resolution it left is a violation
+			// with its finding, not a quiet closing (CA-438)
+			pass.Scope = agentcmd.Gate(dir, baseSHA, opt.Task, role, before, agentcmd.Take(dir, baseSHA), pol, nil)
+			printScope(w, pass.Scope, role)
 			printGasto(w, pass.Usage)
 			res.Passes = append(res.Passes, pass)
 			return terminar("no-entregable", 1, "run", "el run del reviewer fallo"), nil

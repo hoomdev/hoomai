@@ -282,7 +282,7 @@ func allowedBy(p string, pol Policy) (bool, string) {
 func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol Policy, blind *Blind) ScopeResult {
 	sc := CheckScope(before, after, pol)
 	if role.Slug != finding.RolQueRefuta {
-		sc = sinCierres(sc, before, role)
+		sc = sinCierres(sc, before, after, role)
 	}
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
@@ -399,31 +399,38 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	return res
 }
 
-// universal applies the append-only floor to one path.
 // sinCierres marks every finding resolution the run created: only the
 // refutador closes findings inside a run (contract 09), and a role that
-// writes the .res.json by hand, without the CLI, is caught all the same.
-func sinCierres(sc ScopeResult, before Snapshot, role agents.Role) ScopeResult {
-	// a path already out of scope is also a closing: it gets the tampering
-	// violation too, which is what it is; one already tampering does not
-	marcadas := map[string]bool{}
-	for _, v := range sc.Violations {
-		if v.Rule == RuleTampering {
-			marcadas[v.Path] = true
+// writes the .res.json by hand, without the CLI, is caught all the same. It
+// compares the two photographs of the disk (Evidence), not what git lists: a
+// resolution git ignores (.gitignore, .git/info/exclude) still closes its
+// finding, so it is still a closing.
+func sinCierres(sc ScopeResult, before, after Snapshot, role agents.Role) ScopeResult {
+	// Only resolutions the run CREATED: an existing one that changed is
+	// already tampering (universal, append-only). One that is also out of
+	// scope (a role whose territory is .hoom/specs/) gets both violations:
+	// closing a finding is what it did.
+	creadas := make([]string, 0)
+	for p := range after.Evidence {
+		if strings.HasPrefix(p, ".hoom/findings/") && strings.HasSuffix(p, ".res.json") && !before.Evidence[p] {
+			creadas = append(creadas, p)
 		}
 	}
-	for _, p := range sc.Touched {
-		if !strings.HasPrefix(p, ".hoom/findings/") || !strings.HasSuffix(p, ".res.json") || before.Evidence[p] || marcadas[p] {
-			continue
-		}
+	sort.Strings(creadas)
+	for _, p := range creadas {
 		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering,
 			Detail: fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", role.Slug)})
+		if !contains(sc.Touched, p) {
+			sc.Touched = append(sc.Touched, p)
+		}
 		sc.Tampering, sc.OK = true, false
 	}
+	sort.Strings(sc.Touched)
 	sortViolations(sc.Violations)
 	return sc
 }
 
+// universal applies the append-only floor to one path.
 func universal(p string, before Snapshot, loosened []string) (Violation, bool) {
 	switch {
 	case p == manifest.FileName:

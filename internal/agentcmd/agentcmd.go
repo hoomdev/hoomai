@@ -259,6 +259,14 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			code = 1
 		}
 		fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
+		if tree == nil {
+			// a run that failed may have written anyway, in the real tree: its
+			// floor is measured all the same (a resolution closes a finding
+			// whether the run ended well or not); a blind run's writes stay
+			// in the quarantine, which is never transplanted
+			res.Scope = Gate(dir, base, opt.Task, role, before, Take(dir, base), PolicyFor(m, role), nil)
+			printScope(w, res.Scope, role, step(steps-2, steps))
+		}
 		keepQuarantine(w, tree, res.Isolation, "el run fallo")
 		return cerrar(w, root, &rec, res, "run", code, "el run fallo: no hay arbol confiable que medir"), nil
 	}
