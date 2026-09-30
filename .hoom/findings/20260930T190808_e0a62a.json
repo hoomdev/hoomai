@@ -1,0 +1,11 @@
+{
+  "id": "20260930T190808_e0a62a",
+  "created_at": "2026-09-30T19:08:08.401724Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:415: sinCierres solo inspecciona sc.Touched (derivado de git ls-files --others --exclude-standard) y no compara before.Evidence con after.Evidence. Si .hoom/findings/*.res.json esta ignorado —por una regla preexistente o porque un writer agrega la regla a .gitignore/.git/info/exclude— la resolucion nueva existe y cierra el hallazgo, pero no entra en Touched; el gate no registra manipulacion y verify puede quedar verde. La deteccion de creaciones debe usar la foto del filesystem after.Evidence, incluso si Git omite o falla al enumerar el archivo.",
+  "author": "reviewer@codex",
+  "fingerprint": "991fdc6f4e5c6dd5",
+  "task": "quien-cierra-un-hallazgo"
+}

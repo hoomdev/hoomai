@@ -1,0 +1,11 @@
+{
+  "id": "20260930T190944_0b98fe",
+  "created_at": "2026-09-30T19:09:44.350636Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:402: el comentario 'universal applies...' quedo unido al bloque de documentacion de sinCierres, por lo que describe otra funcion; ademas, el comentario de lineas 407-408 termina en la frase incompleta 'one already tampering does not'. Esto vuelve ambiguo por que se deduplican solo violaciones RuleTampering. Mover el comentario de universal junto a universal y completar la explicacion de marcadas.",
+  "author": "reviewer@codex",
+  "fingerprint": "991fdc6f4e5c6dd5",
+  "task": "quien-cierra-un-hallazgo"
+}
