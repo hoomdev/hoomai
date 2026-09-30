@@ -19,7 +19,10 @@ correccion es del Writer).
 2. Si la evidencia REFUTA el hallazgo (falso positivo):
    `hoom finding resolve <id> --as refutado --evidence "<la prueba>"`.
    PROHIBIDO refutar por opinion o por "me parece": sin evidencia
-   ejecutable o citable, el hallazgo queda abierto.
+   ejecutable o citable, el hallazgo queda abierto. El refutador cierra
+   solo como refutado: dentro de un run de hoom el autor lo pone hoom
+   (`refutador@<provider> (run <id>)`); fuera de uno, lleva
+   `--author refutador@<cli>`.
 3. Si la evidencia CORROBORA el hallazgo: queda abierto, y el reporte al
    Orquestador incluye la evidencia a favor y la correccion minima
    sugerida (el Writer corrige; el gate verde de la correccion habilita el

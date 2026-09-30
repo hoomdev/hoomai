@@ -281,6 +281,9 @@ func allowedBy(p string, pol Policy) (bool, string) {
 // those findings to the task the run belongs to ("" = none).
 func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol Policy, blind *Blind) ScopeResult {
 	sc := CheckScope(before, after, pol)
+	if role.Slug != finding.RolQueRefuta {
+		sc = sinCierres(sc, before, role)
+	}
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
 	}
@@ -397,6 +400,26 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 }
 
 // universal applies the append-only floor to one path.
+// sinCierres marks every finding resolution the run created: only the
+// refutador closes findings inside a run (contract 09), and a role that
+// writes the .res.json by hand, without the CLI, is caught all the same.
+func sinCierres(sc ScopeResult, before Snapshot, role agents.Role) ScopeResult {
+	marcadas := map[string]bool{}
+	for _, v := range sc.Violations {
+		marcadas[v.Path] = true
+	}
+	for _, p := range sc.Touched {
+		if !strings.HasPrefix(p, ".hoom/findings/") || !strings.HasSuffix(p, ".res.json") || before.Evidence[p] || marcadas[p] {
+			continue
+		}
+		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering,
+			Detail: fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", role.Slug)})
+		sc.Tampering, sc.OK = true, false
+	}
+	sortViolations(sc.Violations)
+	return sc
+}
+
 func universal(p string, before Snapshot, loosened []string) (Violation, bool) {
 	switch {
 	case p == manifest.FileName:

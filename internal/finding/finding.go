@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
 // Severities and terminal states.
@@ -161,6 +162,22 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 	if strings.TrimSpace(evidence) == "" {
 		return Resolution{}, fmt.Errorf("falta --evidence: nadie cierra un hallazgo sin decir por que")
 	}
+	// Inside a role's run only the refutador closes, only as refutado, and
+	// hoom signs it: a role never closes a finding in someone else's name.
+	var role, run string
+	if c := corridaDelEntorno(); c.role != "" {
+		if c.role != RolQueRefuta {
+			return Resolution{}, NoCierra(fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", c.role))
+		}
+		if as != "refutado" {
+			return Resolution{}, NoCierra("el refutador solo refuta: corregido lo cierra el Orquestador o una persona, con el gate verde")
+		}
+		sello := fmt.Sprintf("%s@%s (run %s)", c.role, c.provider, c.run)
+		if a := strings.TrimSpace(author); a != "" && a != sello {
+			return Resolution{}, NoCierra(fmt.Sprintf("dentro de un run el autor lo pone hoom (%s)", sello))
+		}
+		author, role, run = sello, c.role, c.run
+	}
 	if _, err := os.Stat(findingPath(root, id)); err != nil {
 		return Resolution{}, fmt.Errorf("hallazgo no encontrado: %s", id)
 	}
@@ -183,6 +200,8 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 		Evidence:   strings.TrimSpace(evidence),
 		Author:     author,
 		ResolvedAt: time.Now().UTC(),
+		Role:       role,
+		Run:        run,
 	}
 	raw, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
@@ -192,6 +211,28 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 		return Resolution{}, err
 	}
 	return r, nil
+}
+
+// RolQueRefuta is the one role that closes findings inside a run, and only
+// as refutado (contract 09).
+const RolQueRefuta = "refutador"
+
+// NoCierra is the refusal of a resolve inside a role's run: the role may not
+// close that finding, or not that way, or not in that name.
+type NoCierra string
+
+func (e NoCierra) Error() string { return string(e) }
+
+// corrida is the role's run this process runs inside, as the run that
+// launched it declared in the environment; role "" = not inside one.
+type corrida struct{ role, run, provider string }
+
+func corridaDelEntorno() corrida {
+	return corrida{
+		role:     strings.TrimSpace(os.Getenv(runcmd.EnvRole)),
+		run:      strings.TrimSpace(os.Getenv(runcmd.EnvRun)),
+		provider: strings.TrimSpace(os.Getenv(runcmd.EnvProvider)),
+	}
 }
 
 // parseResolution reads a resolution record and says why it does not close

@@ -38,7 +38,10 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
   .hoom/findings/, atado a la huella del arbol, con ciclo de vida
   (abierto -> corregido | refutado). El Refutador (09) intentara tumbarlos
   con evidencia antes de que se corrijan; el cierre exige evidencia
-  siempre (`hoom finding resolve`).
+  siempre (`hoom finding resolve`). El reviewer registra hallazgos y
+  nunca los cierra: los cierra el refutador (refutado) o el Orquestador o
+  una persona (corregido). Dentro de un run de hoom, un reviewer que
+  resuelve un hallazgo es una violacion de territorio.
 - No pide scope nuevo. No re-disena. Senala; el Orquestador decide.
 - Su opinion NUNCA reemplaza un gate: si verify esta rojo, no hay review que valga.
 - Lente risk: el gate `security` (Semgrep + reglas p/trailofbits) es su respaldo
