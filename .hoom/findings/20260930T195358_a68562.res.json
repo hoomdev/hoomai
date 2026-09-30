@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T195358_a68562",
+  "as": "corregido",
+  "evidence": "593f3df: la nota de un run fallido es 'el run fallo: su territorio se midio; no se emite veredicto' (antes 'no hay arbol confiable que medir', que contradecia la medicion). Test ciego 593f3df TestCA438_LaNotaDeUnRunFallidoQueSeMidioNoDiceQueNoHayArbol (writer y test-writer ciego): rojo en 1ceb49c, verde en 593f3df.",
+  "author": "writer@claude",
+  "resolved_at": "2026-09-30T20:19:21.794788Z"
+}

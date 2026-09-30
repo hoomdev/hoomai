@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T194553_a4e48c",
+  "as": "corregido",
+  "evidence": "ba647cb: la rama de fallo de hoom agent mide el territorio como la de exito, tambien con arbol ciego: cegado() arma Blind con Restored, Leaked y las dos fotos del arbol real, y Gate corre sinCierres sobre el arbol real despues de withIsolation. Test ciego 593f3df TestCA438_ElRolCiegoQueCierraEnElArbolRealYFallaQuedaMedido (a mano y por la CLI sin rol; la corrida siguiente del writer queda roja por findings_open): rojo en 1ceb49c, verde en 593f3df.",
+  "author": "writer@claude",
+  "resolved_at": "2026-09-30T20:19:21.771393Z"
+}
