@@ -266,7 +266,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), PolicyFor(m, role), cegado(tree, beforeReal, dir, base))
 		printScope(w, res.Scope, role, step(steps-2, steps))
 		keepQuarantine(w, tree, res.Isolation, "el run fallo")
-		return cerrar(w, root, &rec, res, "run", code, "el run fallo: su territorio se midio, pero no hay arbol confiable que verificar"), nil
+		return cerrar(w, root, &rec, res, "run", code, "el run fallo: su territorio se midio; no se emite veredicto"), nil
 	}
 
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
