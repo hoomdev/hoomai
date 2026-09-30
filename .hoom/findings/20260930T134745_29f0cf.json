@@ -1,0 +1,11 @@
+{
+  "id": "20260930T134745_29f0cf",
+  "created_at": "2026-09-30T13:47:45.483279Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:303: el comentario afirma que la base se resuelve antes de que nada la use y que toda operación git desde allí recibe baseSHA, pero ResolverCommit usa baseNombre en la línea 311 y la ruta de error vuelve a pasarlo a VerificarBase en la 328. Esa formulación hace falso el invariante que pretende documentar y obliga a deducir que la segunda excepción existe solo para conservar el error histórico; conviene acotarlo a la ruta posterior a una resolución exitosa y mencionar explícitamente la excepción de diagnóstico.",
+  "author": "reviewer@codex",
+  "fingerprint": "98c31a74faaa4190",
+  "task": "base-de-la-review"
+}
