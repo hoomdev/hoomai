@@ -300,10 +300,14 @@ func prepararRevision(root, base string, opt Options) (dir string, baseSHA strin
 	// The base is the project's — the one Run receives from the tree hoom
 	// runs in — or --base; never the task tree's base_branch: a change does
 	// not pick the merge-base its own policy and contract come from (CA-430).
-	// It is resolved to a sha ONCE, before anything uses it: every git
-	// operation from here on takes baseSHA, so a ref that moves meanwhile
-	// does not change what is validated, measured, reviewed and gated.
-	// baseNombre is only for the output, the pedido and the record.
+	// It is resolved to a sha ONCE, first (that resolution is the one git
+	// call that takes the name): once it resolves, every git operation takes
+	// baseSHA, so a ref that moves meanwhile does not change what is
+	// validated, measured, reviewed and gated. The one exception is the
+	// diagnosis when the project's base names no commit: VerificarBase runs
+	// on the name only to keep git's own error, as CA-414 reports it, and the
+	// review ends there. baseNombre is otherwise only for the output, the
+	// pedido and the record.
 	baseNombre, origen, explicita := base, "la del proyecto", false
 	if b := strings.TrimSpace(opt.Base); b != "" {
 		baseNombre, origen, explicita = b, "la de --base", true
