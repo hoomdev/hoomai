@@ -17,17 +17,20 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 // foCorrer ejecuta el binario sin HOOM_TASK: la tarea de un hallazgo la dice
 // el test con --task, no el entorno de quien corre la suite.
+// CA-435/CA-436: tampoco hereda HOOM_ROLE/HOOM_RUN/HOOM_PROVIDER: dentro de la corrida de un rol, resolve se negaria.
 func foCorrer(t *testing.T, bin, dir string, args ...string) salidaCLI {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = dir
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "HOOM_TASK=") {
+		if !strings.HasPrefix(kv, runcmd.EnvTask+"=") && !strings.HasPrefix(kv, runcmd.EnvRole+"=") &&
+			!strings.HasPrefix(kv, runcmd.EnvRun+"=") && !strings.HasPrefix(kv, runcmd.EnvProvider+"=") {
 			cmd.Env = append(cmd.Env, kv)
 		}
 	}
