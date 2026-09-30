@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T190808_e0a62a",
+  "as": "corregido",
+  "evidence": "10f5fca: sinCierres compara after.Evidence con before.Evidence (la foto del disco, WalkDir) en vez de sc.Touched (lo que git lista): una resolucion creada e ignorada por .git/info/exclude, el .gitignore de la raiz o un .hoom/findings/.gitignore sigue siendo manipulacion, y su ruta se suma a Touched. Tests ciegos 3da8b30: TestCA438_UnaResolucionQueGitNoListaSigueSiendoManipulacion (6 variantes), TestCA438_ElWriterQueEscondeLaResolucionDeGitNoTerminaVerde, TestCA438_ElReviewerQueEscondeLaResolucionDeGitEsNoEntregable: rojos en ad3a1ac, verdes en 3da8b30; control TestCA438_LoLegitimoQueGitNoListaSigueSinViolacion verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-09-30T19:31:01.405054Z"
+}

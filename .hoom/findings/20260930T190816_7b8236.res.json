@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T190816_7b8236",
+  "as": "corregido",
+  "evidence": "10f5fca: una pasada de hoom review que falla y una corrida de hoom agent que falla (sin arbol ciego) corren igual agentcmd.Gate: la resolucion que dejaron es manipulacion con su hallazgo high del gate, y el resultado sigue NO ENTREGABLE. Tests ciegos 3da8b30 TestCA438_ElWriterQueCierraYFallaQuedaMedido (a mano y por la CLI sin rol; la corrida siguiente no termina verde) y TestCA438_ElReviewerQueCierraYFallaEsNoEntregablePorTerritorio: rojos en ad3a1ac, verdes en 3da8b30.",
+  "author": "writer@claude",
+  "resolved_at": "2026-09-30T19:31:01.412447Z"
+}
