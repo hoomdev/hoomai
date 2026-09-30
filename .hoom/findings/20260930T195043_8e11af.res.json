@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T195043_8e11af",
+  "as": "refutado",
+  "evidence": "PRE-EXISTENTE (runner), no introducido por esta spec. Overlay sobre main baf2251 (zz_ref2main_test.go, no commiteado): un writer cuyo provider deja '( sleep 2; rm .hoom/findings/\u003cid\u003e.json ) \u003c/dev/null \u003e/dev/null 2\u003e\u00261 \u0026' y sale 0 pasa el gate sin nada (Touched [app.go], 0 violaciones), el hallazgo high desaparece y la corrida siguiente termina entregable/verde; control sin '\u0026': manipulacion append-only con su hallazgo high. En main internal/runcmd/runcmd.go:786/874 (bb19500, 2026-09-04) ya usa exec.CommandContext + cmd.Wait sin grupo de procesos, y en main cualquier rol escribia un .res.json como trabajo legitimo: la spec no vuelve alcanzable nada nuevo, toda regla de scope (codigo, hoom.yaml, evidencia, resoluciones) comparte el hueco. Reproducido tambien en 1ceb49c (hijo escribe el .res.json 2s despues: scope limpio, hallazgo refutado). Follow-up de runner: Setpgid y esperar/matar el grupo de procesos del provider antes de la foto after (agentcmd y reviewcmd).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-09-30T20:00:31.435713Z"
+}
