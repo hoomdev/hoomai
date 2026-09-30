@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
-	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
 // Severities and terminal states.
@@ -155,6 +154,14 @@ func Register(root, base string, d Draft) (Finding, error) {
 // binary refuses to close a finding without it. A resolved finding admits
 // no second transition — reopening is a NEW finding citing the old one.
 func Resolve(root, id, as, evidence, author string) (Resolution, error) {
+	return ResolveEnCorrida(root, id, as, evidence, author, Corrida{})
+}
+
+// ResolveEnCorrida is Resolve for a process that runs inside a role's run
+// (c.Role != ""; the CLI reads it from the run's environment): only the
+// refutador closes, only as refutado, and hoom signs it — a role never
+// closes a finding in someone else's name. An empty Corrida is Resolve.
+func ResolveEnCorrida(root, id, as, evidence, author string, c Corrida) (Resolution, error) {
 	as = strings.ToLower(strings.TrimSpace(as))
 	if !validStates[as] {
 		return Resolution{}, fmt.Errorf("estado invalido %q (corregido|refutado)", as)
@@ -165,18 +172,18 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 	// Inside a role's run only the refutador closes, only as refutado, and
 	// hoom signs it: a role never closes a finding in someone else's name.
 	var role, run string
-	if c := corridaDelEntorno(); c.role != "" {
-		if c.role != RolQueRefuta {
-			return Resolution{}, NoCierra(fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", c.role))
+	if c.Role = strings.TrimSpace(c.Role); c.Role != "" {
+		if c.Role != RolQueRefuta {
+			return Resolution{}, NoCierra(fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", c.Role))
 		}
 		if as != "refutado" {
 			return Resolution{}, NoCierra("el refutador solo refuta: corregido lo cierra el Orquestador o una persona, con el gate verde")
 		}
-		sello := fmt.Sprintf("%s@%s (run %s)", c.role, c.provider, c.run)
+		sello := fmt.Sprintf("%s@%s (run %s)", c.Role, strings.TrimSpace(c.Provider), strings.TrimSpace(c.Run))
 		if a := strings.TrimSpace(author); a != "" && a != sello {
 			return Resolution{}, NoCierra(fmt.Sprintf("dentro de un run el autor lo pone hoom (%s)", sello))
 		}
-		author, role, run = sello, c.role, c.run
+		author, role, run = sello, c.Role, strings.TrimSpace(c.Run)
 	}
 	if _, err := os.Stat(findingPath(root, id)); err != nil {
 		return Resolution{}, fmt.Errorf("hallazgo no encontrado: %s", id)
@@ -223,17 +230,10 @@ type NoCierra string
 
 func (e NoCierra) Error() string { return string(e) }
 
-// corrida is the role's run this process runs inside, as the run that
-// launched it declared in the environment; role "" = not inside one.
-type corrida struct{ role, run, provider string }
-
-func corridaDelEntorno() corrida {
-	return corrida{
-		role:     strings.TrimSpace(os.Getenv(runcmd.EnvRole)),
-		run:      strings.TrimSpace(os.Getenv(runcmd.EnvRun)),
-		provider: strings.TrimSpace(os.Getenv(runcmd.EnvProvider)),
-	}
-}
+// Corrida is the role's run a process runs inside, as the run that launched
+// it declared (runcmd.EnvRole, EnvRun, EnvProvider); Role "" = not inside
+// one.
+type Corrida struct{ Role, Run, Provider string }
 
 // parseResolution reads a resolution record and says why it does not close
 // its finding ("" = it does). This is the single definition of "closed": a

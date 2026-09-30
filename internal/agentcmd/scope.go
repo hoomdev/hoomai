@@ -404,9 +404,13 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 // refutador closes findings inside a run (contract 09), and a role that
 // writes the .res.json by hand, without the CLI, is caught all the same.
 func sinCierres(sc ScopeResult, before Snapshot, role agents.Role) ScopeResult {
+	// a path already out of scope is also a closing: it gets the tampering
+	// violation too, which is what it is; one already tampering does not
 	marcadas := map[string]bool{}
 	for _, v := range sc.Violations {
-		marcadas[v.Path] = true
+		if v.Rule == RuleTampering {
+			marcadas[v.Path] = true
+		}
 	}
 	for _, p := range sc.Touched {
 		if !strings.HasPrefix(p, ".hoom/findings/") || !strings.HasSuffix(p, ".res.json") || before.Evidence[p] || marcadas[p] {
