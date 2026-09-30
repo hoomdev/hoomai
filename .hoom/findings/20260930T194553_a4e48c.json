@@ -1,0 +1,11 @@
+{
+  "id": "20260930T194553_a4e48c",
+  "created_at": "2026-09-30T19:45:53.427774Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:262: la medicion nueva de runs fallidos solo ejecuta Gate cuando tree == nil. El test-writer aislado puede escribir desde .hoom/isolated/... al arbol real (el propio CA-184 usa ../../../app.go), crear alli .hoom/findings/\u003cid\u003e.res.json y salir con error; como tree != nil, no se calcula ni el delta del arbol real ni Breaches/Leaked, la resolucion queda cerrando el hallazgo alto sin violacion ni hallazgo high del gate, y una corrida posterior puede verificar verde. Medir tambien beforeReal/Take(dir, base) y la fuga en la ruta fallida.",
+  "author": "reviewer@codex",
+  "fingerprint": "ae50daaefd4d9d3c",
+  "task": "quien-cierra-un-hallazgo"
+}
