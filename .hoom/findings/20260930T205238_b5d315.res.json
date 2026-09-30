@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T205238_b5d315",
+  "as": "corregido",
+  "evidence": "68b301b: Blind.Real pasa a *Fotos{Antes, Despues} (nil = sin fotos del arbol real) en vez de RealBefore/RealAfter/Real bool; Gate corre withIsolation y despues UNA sinCierres(sc, role, arboles...) sobre los arboles que el run pudo escribir, con un conjunto de rutas creadas (un cierre en los dos arboles es uno) y el orden explicado en el comentario. Tests de agentcmd y reviewcmd verdes (incluidos todos los CA-438).",
+  "author": "writer@claude",
+  "resolved_at": "2026-09-30T21:02:01.219471Z"
+}
