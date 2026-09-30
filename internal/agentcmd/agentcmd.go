@@ -773,5 +773,5 @@ func cegado(tree *isolate.Tree, beforeReal Snapshot, dir, base string) *Blind {
 	}
 	realAfter := Take(dir, base)
 	return &Blind{Restored: tree.Breaches(), Leaked: delta(beforeReal.Touched, realAfter.Touched),
-		RealBefore: beforeReal, RealAfter: realAfter, Real: true}
+		Real: &Fotos{Antes: beforeReal, Despues: realAfter}}
 }

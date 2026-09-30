@@ -46,13 +46,14 @@ const (
 type Blind struct {
 	Restored []string // testigos que volvieron al disco del arbol ciego
 	Leaked   []string // rutas que cambiaron en el arbol REAL mientras el rol corria confinado
-	// RealBefore and RealAfter photograph the REAL tree around the blind run
-	// (Real = they were taken): its evidence is compared on disk, so a
-	// resolution written out of the quarantine is a closing even when git
-	// does not list it.
-	RealBefore, RealAfter Snapshot
-	Real                  bool
+	// Real photographs the REAL tree around the blind run (nil = not taken):
+	// its evidence is compared on disk, so a resolution written out of the
+	// quarantine is a closing even when git does not list it.
+	Real *Fotos
 }
+
+// Fotos are the two photographs of one tree around a run.
+type Fotos struct{ Antes, Despues Snapshot }
 
 const (
 	detalleRestaurado = "el rol devolvio al arbol un archivo que el aislamiento habia quitado"
@@ -287,14 +288,18 @@ func allowedBy(p string, pol Policy) (bool, string) {
 // those findings to the task the run belongs to ("" = none).
 func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol Policy, blind *Blind) ScopeResult {
 	sc := CheckScope(before, after, pol)
-	if role.Slug != finding.RolQueRefuta {
-		sc = sinCierres(sc, before, after, role)
-	}
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
-		if blind.Real && role.Slug != finding.RolQueRefuta {
-			sc = sinCierres(sc, blind.RealBefore, blind.RealAfter, role)
+	}
+	// Closings go last, over every tree the run could write to (the one it
+	// ran in and, blind, the real one): withIsolation replaces the earlier
+	// violations of a leaked path, and a closing must survive it.
+	if role.Slug != finding.RolQueRefuta {
+		arboles := []Fotos{{Antes: before, Despues: after}}
+		if blind != nil && blind.Real != nil {
+			arboles = append(arboles, *blind.Real)
 		}
+		sc = sinCierres(sc, role, arboles...)
 	}
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
@@ -408,33 +413,29 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	return res
 }
 
-// sinCierres marks every finding resolution the run created: only the
-// refutador closes findings inside a run (contract 09), and a role that
-// writes the .res.json by hand, without the CLI, is caught all the same. It
-// compares the two photographs of the disk (Evidence), not what git lists: a
-// resolution git ignores (.gitignore, .git/info/exclude) still closes its
-// finding, so it is still a closing.
-func sinCierres(sc ScopeResult, before, after Snapshot, role agents.Role) ScopeResult {
-	// Only resolutions the run CREATED: an existing one that changed is
-	// already tampering (universal, append-only). One that is also out of
-	// scope (a role whose territory is .hoom/specs/) gets both violations:
-	// closing a finding is what it did.
-	// a path the other photograph (quarantine or real tree) already marked
-	// as a closing keeps its one violation
-	cerradas := map[string]bool{}
-	for _, v := range sc.Violations {
-		if v.Rule == RuleTampering && strings.HasSuffix(v.Path, ".res.json") {
-			cerradas[v.Path] = true
+// sinCierres marks every finding resolution the run created, in any of the
+// trees it could write to: only the refutador closes findings inside a run
+// (contract 09), and a role that writes the .res.json by hand, without the
+// CLI, is caught all the same. It compares the photographs of the disk
+// (Evidence), not what git lists: a resolution git ignores (.gitignore,
+// .git/info/exclude) still closes its finding, so it is still a closing. A
+// path created in more than one tree is one closing. An existing resolution
+// that changed is already tampering (universal, append-only).
+func sinCierres(sc ScopeResult, role agents.Role, arboles ...Fotos) ScopeResult {
+	creadas := map[string]bool{}
+	for _, f := range arboles {
+		for p := range f.Despues.Evidence {
+			if strings.HasPrefix(p, ".hoom/findings/") && strings.HasSuffix(p, ".res.json") && !f.Antes.Evidence[p] {
+				creadas[p] = true
+			}
 		}
 	}
-	creadas := make([]string, 0)
-	for p := range after.Evidence {
-		if strings.HasPrefix(p, ".hoom/findings/") && strings.HasSuffix(p, ".res.json") && !before.Evidence[p] && !cerradas[p] {
-			creadas = append(creadas, p)
-		}
+	rutas := make([]string, 0, len(creadas))
+	for p := range creadas {
+		rutas = append(rutas, p)
 	}
-	sort.Strings(creadas)
-	for _, p := range creadas {
+	sort.Strings(rutas)
+	for _, p := range rutas {
 		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering,
 			Detail: fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", role.Slug)})
 		if !contains(sc.Touched, p) {
