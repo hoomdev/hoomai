@@ -483,6 +483,15 @@ func blindFrom(dir string) (string, bool) {
 // role's contract having to know.
 const EnvTask = "HOOM_TASK"
 
+// EnvRole, EnvRun and EnvProvider are what a run puts in its provider's
+// environment about itself: the role it embodies, its id and its provider.
+// `hoom finding resolve` reads them to know it runs inside a role's run.
+const (
+	EnvRole     = "HOOM_ROLE"
+	EnvRun      = "HOOM_RUN"
+	EnvProvider = "HOOM_PROVIDER"
+)
+
 // CurrentTask answers which task this process works for: an explicit flag
 // wins; without one, the task the run that launched us put in EnvTask;
 // without either, none.

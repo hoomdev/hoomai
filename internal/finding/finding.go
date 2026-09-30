@@ -75,6 +75,10 @@ type Resolution struct {
 	Evidence   string    `json:"evidence"`
 	Author     string    `json:"author"`
 	ResolvedAt time.Time `json:"resolved_at"`
+	// Role and Run: the role and the run that wrote the resolution, when it
+	// was written inside a role's run; empty outside one.
+	Role string `json:"role,omitempty"`
+	Run  string `json:"run,omitempty"`
 }
 
 // Item is the derived view: finding + state, for list/API.
