@@ -122,7 +122,7 @@ Comandos:
               escribio, con la lente que sale de la evidencia (contrato 06) y
               los hallazgos que hoom VE aparecer en .hoom/findings/
               [--provider p] [--lens l] [--task <slug>] [--spec <ruta>]
-              [--desde <commit> | --delta]
+              [--desde <commit> | --delta] [--base <ref>]
   hook        Instala el pre-push de Git que exige 'hoom check' antes de integrar
   agents      Instala los 10 contratos en .hoom/agents/ y AGENTS.md
               --target claude,opencode,codex,gemini|all genera ademas los
@@ -194,6 +194,8 @@ Flags de review (no emite veredicto ni juzga el codigo: eso es de verify):
                        registro dice la cobertura: completa, delta o parcial
   --delta              Revisa solo lo que cambio desde la ultima review
                        completa o delta de la tarea (no va con --desde)
+  --base <ref>         Base de la review; vacio = base_branch del hoom.yaml
+                       del proyecto. Nunca sale del hoom.yaml de la rama
   --json               Emite el resultado de la review como JSON en stdout
 
 Filosofia: veredicto ROJO = exit code 1. La narracion del agente no cuenta;
@@ -646,7 +648,7 @@ func cmdAgent(args []string) error {
 }
 
 // reviewUso is the review verb's usage line, for its argument errors.
-const reviewUso = "uso: hoom review [--task <slug>] [--spec <ruta>] [--desde <commit> | --delta] [--provider p] [--lens l] [--model m] [--effort e] [--same-provider] [--json]"
+const reviewUso = "uso: hoom review [--task <slug>] [--spec <ruta>] [--desde <commit> | --delta] [--base <ref>] [--provider p] [--lens l] [--model m] [--effort e] [--same-provider] [--json]"
 
 // cmdReview runs the cross review: the reviewer role on a provider that is
 // NOT the one that wrote. It judges the review, never the code — no verdict,
@@ -664,6 +666,7 @@ func cmdReview(args []string) error {
 	same := fs.Bool("same-provider", false, "permite revisar con el MISMO provider que escribio")
 	desde := fs.String("desde", "", "revisa de este commit a HEAD (ancestro de HEAD); vacio = el merge-base con la base")
 	delta := fs.Bool("delta", false, "revisa solo lo que cambio desde la ultima review completa o delta de la tarea")
+	baseFlag := fs.String("base", "", "base de la review; vacio = base_branch del hoom.yaml del proyecto (nunca el de la rama)")
 	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	asJSON := fs.Bool("json", false, "emitir el resultado de la review como JSON en stdout")
@@ -704,7 +707,7 @@ func cmdReview(args []string) error {
 	res, err := reviewcmd.Run(m.Dir, m.BaseBranch, reviewcmd.Options{
 		Provider: *provider, Lens: *lens, Task: *task, Spec: *specPath,
 		Model: *model, Effort: *effort, SameProvider: *same, SameProviderSet: sameSet,
-		MaxTurns: *maxTurns, BudgetUSD: *budget, Desde: *desde, DesdeSet: desdeSet, Delta: *delta,
+		MaxTurns: *maxTurns, BudgetUSD: *budget, Desde: *desde, DesdeSet: desdeSet, Delta: *delta, Base: *baseFlag,
 	}, out)
 	if err != nil {
 		return err

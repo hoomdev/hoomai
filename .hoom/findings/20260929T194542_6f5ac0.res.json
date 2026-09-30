@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T194542_6f5ac0",
+  "as": "corregido",
+  "evidence": "50fb2fb: prepararRevision resuelve la base (--base o la del proyecto, tras VerificarBase) una sola vez a un sha y todas las operaciones de git usan ese sha (resolverRango, Snapshot, Take, Gate, hallazgos); el nombre queda para salida, pedido y registro. Test ciego 89739ed TestCA432_LaBaseEsElCommitQueLaRefNombrabaAlEmpezar (shim que mueve o borra la ref hito tras la N-esima llamada que la nombra, N=1..8): en b4b700e N=1..5 usaba otra base, mezclaba bases o terminaba SIN REVISAR exit 0 (96651e); verde en 89739ed.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T20:49:38.318218Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T195549_728834",
+  "as": "corregido",
+  "evidence": "58aac9c: prepararRevision ya no devuelve el manifiesto del arbol revisado; Run no tiene configuracion de la rama de donde leer. El territorio sale de territorioEnMergeBase(dir, rng.mb, role), junto a politicaEnMergeBase y contratoEnMergeBase: la frontera candidato/base queda en un solo lugar.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T20:49:38.450318Z"
+}

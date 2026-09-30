@@ -1,0 +1,144 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-09-30T13-56-44Z_2cc45e71",
+  "created_at": "2026-09-30T13:56:44.525531Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "cd59fe7def92",
+    "branch": "hoom/base-de-la-review",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/base-de-la-review_975753b5.json",
+      ".hoom/approvals/base-de-la-review_9cf40ac5.json",
+      ".hoom/specs/base-de-la-review.md",
+      "README.md",
+      "cmd/hoom/base_de_la_review_test.go",
+      "cmd/hoom/main.go",
+      "internal/manifest/manifest.go",
+      "internal/reviewcmd/base_de_la_review_ronda1_test.go",
+      "internal/reviewcmd/base_de_la_review_test.go",
+      "internal/reviewcmd/record.go",
+      "internal/reviewcmd/reviewcmd.go",
+      "internal/servecmd/base_de_la_review_test.go"
+    ],
+    "change_fingerprint": "768441e776878e7c",
+    "insertions": 2866,
+    "deletions": 23
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "8 criterios (CA-*), 1 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 15,
+      "notes": "8/8 criterios: 7 trazados por test (203 archivos), 1 verificados por comando"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-09-29, sha 975753b5)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 8,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea base-de-la-review + sin tarea (1 de otras tareas no cuentan) · no bloquean: 1 medium, 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 449
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 373
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./cmd/hoom ./internal/manifest ./internal/reviewcmd ./internal/servecmd",
+      "exit_code": 0,
+      "duration_ms": 462280,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/cmd/hoom\t1.135s\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t457.255s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t93.383s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 7,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/base-de-la-review.md"
+}

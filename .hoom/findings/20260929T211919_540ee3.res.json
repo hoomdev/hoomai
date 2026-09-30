@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T211919_540ee3",
+  "as": "corregido",
+  "evidence": "db423a6: prepararRevision(root, base, opt) devuelve baseSHA, lo unico que va a git (VerificarBase, resolverRango, Snapshot; en Run Take, Gate, idsDeHallazgos, fueraDeLaTarea), y el nombre visible vive solo en rng.baseNombre (salida, pedidoComun(baseNombre, ...), Result/Record.Base); el parametro ya no cambia de significado. Solo nombres y el orden de resolucion; suite completa verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T21:38:36.650193Z"
+}

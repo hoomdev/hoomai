@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T134745_29f0cf",
+  "as": "corregido",
+  "evidence": "944e777: el comentario de prepararRevision dice que la resolucion a sha es la unica llamada de git con el nombre, que despues todo usa baseSHA, y nombra la excepcion de diagnostico (VerificarBase sobre el nombre cuando la base del proyecto no nombra un commit, solo para conservar el error de git de CA-414; la review termina ahi). Solo comentario.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-30T13:48:47.022548Z"
+}

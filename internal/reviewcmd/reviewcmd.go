@@ -22,8 +22,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
@@ -93,6 +95,9 @@ type Options struct {
 	// DesdeSet: --desde was given, even empty (an empty one names no
 	// commit: it is an error, never "no --desde").
 	DesdeSet bool
+	// Base (--base) is the review's base, chosen by whoever runs it: it wins
+	// over the project's base_branch. "" = the base Run receives.
+	Base string
 	// Delta (--delta) starts where the task's newest chainable review ended
 	// (its hasta). Never together with Desde.
 	Delta bool
@@ -276,7 +281,7 @@ func kib(n int) int { return (n + 1023) / 1024 }
 // with a merge-base and a diff git can produce (a broken base fails closed,
 // never SIN REVISAR: CA-414), and only then the measure the lenses are
 // decided on.
-func prepararRevision(root, base string, opt Options) (dir string, m *manifest.Manifest, baseFinal string, git gitx.Info, rng rango, err error) {
+func prepararRevision(root, base string, opt Options) (dir string, baseSHA string, git gitx.Info, rng rango, err error) {
 	if dir, err = runcmd.TaskDir(root, opt.Task); err != nil {
 		return
 	}
@@ -288,19 +293,90 @@ func prepararRevision(root, base string, opt Options) (dir string, m *manifest.M
 		err = gitx.ArbolSucio{Ruta: ruta}
 		return
 	}
-	if m, err = manifest.Load(dir, profiles.Resolve); err != nil {
+	m, err := manifest.Load(dir, profiles.Resolve)
+	if err != nil {
 		return
 	}
-	if m.BaseBranch != "" {
-		base = m.BaseBranch
+	// The base is the project's — the one Run receives from the tree hoom
+	// runs in — or --base; never the task tree's base_branch: a change does
+	// not pick the merge-base its own policy and contract come from (CA-430).
+	// It is resolved to a sha ONCE, first (that resolution is the one git
+	// call that takes the name): once it resolves, every git operation takes
+	// baseSHA, so a ref that moves meanwhile does not change what is
+	// validated, measured, reviewed and gated. The one exception is the
+	// diagnosis when the project's base names no commit: VerificarBase runs
+	// on the name only to keep git's own error, as CA-414 reports it, and the
+	// review ends there. baseNombre is otherwise only for the output, the
+	// pedido and the record.
+	baseNombre, origen, explicita := base, "la del proyecto", false
+	if b := strings.TrimSpace(opt.Base); b != "" {
+		baseNombre, origen, explicita = b, "la de --base", true
 	}
-	if err = gitx.VerificarBase(dir, base); err != nil {
+	sha, ok, rerr := gitx.ResolverCommit(dir, baseNombre)
+	if rerr != nil {
+		err = rerr
 		return
 	}
-	if rng, err = resolverRango(dir, base, opt); err != nil {
+	switch {
+	case ok:
+		baseSHA = sha
+	case explicita:
+		err = fmt.Errorf("--base %s: no es un commit de este repositorio", baseNombre)
+		return
+	case strings.HasPrefix(baseNombre, "-"):
+		err = fmt.Errorf("la base %s no es un commit de este repositorio", baseNombre)
+		return
+	default:
+		// the project's base names no commit: git's own error, as CA-414
+		// has always reported it
+		if err = gitx.VerificarBase(dir, baseNombre); err == nil {
+			err = fmt.Errorf("la base %s no es un commit de este repositorio", baseNombre)
+		}
 		return
 	}
-	return dir, m, base, gitx.Snapshot(dir, base), rng, nil
+	aviso := ""
+	if opt.Task != "" && m.BaseBranch != "" && m.BaseBranch != baseNombre {
+		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", mostrable(m.BaseBranch), baseNombre, origen)
+	}
+	if err = gitx.VerificarBase(dir, baseSHA); err != nil {
+		return
+	}
+	if rng, err = resolverRango(dir, baseSHA, opt); err != nil {
+		return
+	}
+	rng.baseNombre, rng.avisoBase = baseNombre, aviso
+	return dir, baseSHA, gitx.Snapshot(dir, baseSHA), rng, nil
+}
+
+// territorioEnMergeBase is the reviewer's write territory as the hoom.yaml
+// of the merge-base mb declares it (agents.reviewer.write), like the review
+// policy and the contract: never the reviewed tree's, with or without
+// --task, so a change does not widen what its own reviewer may write
+// (CA-431). No hoom.yaml or no section in that commit = the role's default.
+func territorioEnMergeBase(dir, mb string, role agents.Role) (agentcmd.Policy, error) {
+	raw, ok, err := gitx.ShowFile(dir, mb, "./"+manifest.FileName)
+	if err != nil {
+		return agentcmd.Policy{}, err
+	}
+	if !ok {
+		return agentcmd.PolicyFor(nil, role), nil
+	}
+	ag, err := manifest.ParseAgents(raw)
+	if err != nil {
+		return agentcmd.Policy{}, fmt.Errorf("el %s de la base (%s): %v", manifest.FileName, mb[:12], err)
+	}
+	return agentcmd.PolicyFor(&manifest.Manifest{Agents: ag}, role), nil
+}
+
+// mostrable is a value that came from the reviewed tree as it may reach a
+// terminal: quoted and escaped when it carries a control or non-printable
+// character (a newline or an escape sequence would forge lines), as is
+// otherwise.
+func mostrable(v string) string {
+	if strings.IndexFunc(v, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
+		return strconv.Quote(v)
+	}
+	return v
 }
 
 // rango is where the evidence goes from and to, and what the record claims
@@ -310,6 +386,8 @@ type rango struct {
 	desde       string // full sha
 	hasta       string // full sha of HEAD, resolved once
 	mb          string // merge-base of the base and hasta: policy and contract come from it
+	baseNombre  string // the name the base was resolved from (--base or the project's): output and record only
+	avisoBase   string // the task branch declares another base_branch: said, never obeyed
 	cobertura   string
 	desdeReview string
 	medida      gitx.Info // files and lines from desde to HEAD in the evidence's paths (conRango only)
@@ -558,6 +636,9 @@ type Result struct {
 	Hasta       string `json:"hasta"`
 	Cobertura   string `json:"cobertura"`
 	DesdeReview string `json:"desde_review,omitempty"`
+	// Base is the name the base was resolved from: --base, or the
+	// project's base_branch.
+	Base string `json:"base"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
@@ -634,7 +715,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	dir, m, base, git, rng, err := prepararRevision(root, base, opt)
+	dir, baseSHA, git, rng, err := prepararRevision(root, base, opt)
 	if err != nil {
 		return Result{}, err
 	}
@@ -650,6 +731,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{},
 		WritersDeclared: declaredWriters(root, taskOf(opt))}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
+	res.Base = rng.baseNombre
+	var notas []string
 
 	if rng.conRango {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas desde %s\n",
@@ -663,7 +746,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	} else {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas contra %s\n",
 			plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
-			git.Insertions, git.Deletions, base)
+			git.Insertions, git.Deletions, rng.baseNombre)
+	}
+	if rng.avisoBase != "" {
+		fmt.Fprintf(w, "  aviso: %s\n", rng.avisoBase)
+		notas = append(notas, rng.avisoBase)
 	}
 	if len(lentes) == 0 {
 		fmt.Fprintf(w, "  lentes      ninguna - %s\n", motivo)
@@ -678,6 +765,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	opt = resolveOptions(opt, politica)
 
 	contract, err := contratoEnMergeBase(dir, rng.mb, role)
+	if err != nil {
+		return res, err
+	}
+	pol, err := territorioEnMergeBase(dir, rng.mb, role)
 	if err != nil {
 		return res, err
 	}
@@ -711,13 +802,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "  aviso: %s no puede imponer un rol de solo lectura; el limite se verifica solo despues del run\n", prov.Name())
 	}
 	v := ultimoVeredicto(dir)
-	pol := agentcmd.PolicyFor(m, role)
 	mgr := runcmd.NewManager(root)
 	bin, err := hoomBin(opt)
 	if err != nil {
 		fmt.Fprintf(w, "  aviso: no pude resolver este binario (%v): el reviewer usara el hoom de su PATH\n", err)
 	}
-	var notas []string
 
 	// El registro del sobre de la review: lo mismo que deja `hoom agent`, asi
 	// el tablero ve la review en curso, cortada o fallida como a cualquier
@@ -758,14 +847,14 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return res
 	}
 
-	comun := pedidoComun(base, git, rng, opt.Spec, v, ev)
+	comun := pedidoComun(rng.baseNombre, git, rng, opt.Spec, v, ev)
 	var usos []LensUsage
 	var total providers.Usage
 	for i, lens := range lentes {
 		fmt.Fprintf(w, "  [%d/%d] %s\n", i+1, len(lentes), lens)
 		pass := Pass{Lens: lens, Findings: []string{}}
-		before := agentcmd.Take(dir, base)
-		antes := idsDeHallazgos(dir, base)
+		before := agentcmd.Take(dir, baseSHA)
+		antes := idsDeHallazgos(dir, baseSHA)
 		rec.Stage, rec.Step, rec.RunID = "run", i+1, ""
 		_ = envelope.Write(root, rec) // best-effort (CA-202)
 
@@ -796,13 +885,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 		// Los hallazgos del reviewer se cuentan ANTES de que hoom escriba los
 		// suyos por violaciones: el arbitro no se cuenta como jugador.
-		pass.Findings = nuevos(antes, idsDeHallazgos(dir, base))
-		pass.Scope = agentcmd.Gate(dir, base, opt.Task, role, before, agentcmd.Take(dir, base), pol, nil)
+		pass.Findings = nuevos(antes, idsDeHallazgos(dir, baseSHA))
+		pass.Scope = agentcmd.Gate(dir, baseSHA, opt.Task, role, before, agentcmd.Take(dir, baseSHA), pol, nil)
 		printScope(w, pass.Scope, role)
 		printFindings(w, pass.Findings)
 		printGasto(w, pass.Usage)
 		if t := findingTask(opt); t != "" {
-			if fuera := fueraDeLaTarea(dir, base, pass.Findings, t); len(fuera) > 0 {
+			if fuera := fueraDeLaTarea(dir, baseSHA, pass.Findings, t); len(fuera) > 0 {
 				nota := fmt.Sprintf("hallazgos fuera de la tarea %s de la review (sin tarea o con otra): %s",
 					t, strings.Join(fuera, ", "))
 				fmt.Fprintf(w, "    aviso: %s\n", nota)
@@ -827,6 +916,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Model: opt.Model, Effort: opt.Effort, Isolated: isolated,
 		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos,
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
+		Base: rng.baseNombre,
 	})
 	res.Notes = notas
 	if len(usos) == 0 {
@@ -1006,7 +1096,7 @@ func pickProvider(name string, writers []string) (providers.Provider, error) {
 // pedidoComun is the part of the reviewer's dossier every lens shares:
 // deterministic and built from evidence. hoom froze the evidence, so the
 // reviewer does not take the diff itself; its shell is for context.
-func pedidoComun(base string, git gitx.Info, rng rango, spec string, v *verdict.Verdict, ev Evidencia) string {
+func pedidoComun(baseNombre string, git gitx.Info, rng rango, spec string, v *verdict.Verdict, ev Evidencia) string {
 	// the markers carry the evidence's WHOLE sha256: to close the evidence
 	// early the content would have to contain the hash of itself (12 hex
 	// were 48 bits, within reach of rented compute)
@@ -1029,7 +1119,7 @@ func pedidoComun(base string, git gitx.Info, rng rango, spec string, v *verdict.
 		}
 		b.WriteString(antes + " INTRODUCIDO es lo que trae este rango o lo que este rango rompe de lo anterior; lo demas es pre-existente.\n")
 	} else {
-		fmt.Fprintf(&b, "Base: %s. Tamano: %d archivos, +%d/-%d lineas.\n", base, len(git.ChangedFiles), git.Insertions, git.Deletions)
+		fmt.Fprintf(&b, "Base: %s. Tamano: %d archivos, +%d/-%d lineas.\n", baseNombre, len(git.ChangedFiles), git.Insertions, git.Deletions)
 	}
 	if v != nil {
 		fmt.Fprintf(&b, "Veredicto vigente: %s (%s).\n", v.ID, v.Verdict)

@@ -1,0 +1,11 @@
+{
+  "id": "20260929T195550_3840f5",
+  "created_at": "2026-09-29T19:55:50.084198Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/base_de_la_review_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/base_de_la_review_test.go:566-570: el contrato de \"bdRevisadaConHito\" dice que el helper exige que el pedido contenga \"Base: hito.\", pero su bucle en :581-593 nunca lo comprueba; solo un llamador lo verifica aparte, mientras los casos con \"--task\", \"--desde\" y \"--delta\" parecen cubrirlo por el nombre y comentario del helper sin hacerlo. Mover esa aserción al helper o corregir su contrato evita que la lectura del test sobreestime la cobertura.",
+  "author": "reviewer@codex",
+  "fingerprint": "1b5d7a2095372b58",
+  "task": "base-de-la-review"
+}

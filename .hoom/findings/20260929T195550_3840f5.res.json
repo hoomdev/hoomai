@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T195550_3840f5",
+  "as": "corregido",
+  "evidence": "89739ed (test-writer): el comentario de bdRevisadaConHito ya no promete el chequeo de 'Base: hito.' (los pedidos con rango llevan Rango: por diseno) y TestCA432_BaseMandaSobreLaDeLaRama (el caso --task, el unico hueco real) exige 'Base: hito. ' en la linea 3 del pedido de cada pasada.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T20:49:38.48391Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20260929T211919_540ee3",
+  "created_at": "2026-09-29T21:19:19.758163Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:284: prepararRevision ahora usa base sucesivamente como ref de entrada y SHA fijado, declara el retorno baseFinal sin asignarlo por nombre, y guarda el nombre visible aparte en rng.base (líneas 303-340); Run vuelve a sobrescribir su parámetro base con ese SHA (línea 710). La misma entidad queda representada por base/baseFinal/nombre/rng.base con contratos implícitos, lo que dificulta seguir qué valor va a git y cuál a salida/registro. Separar explícitamente baseNombre y baseSHA (idealmente en una estructura resuelta) haría visible el invariante y reduciría usos cruzados al mantener este flujo.",
+  "author": "reviewer@codex",
+  "fingerprint": "01bdb4f978589a16",
+  "task": "base-de-la-review"
+}

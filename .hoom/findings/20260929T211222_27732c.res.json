@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260929T211222_27732c",
+  "as": "refutado",
+  "evidence": "PRE-EXISTENTE sin consecuencia nueva (follow-up). Overlay deterministico (shim de git que mueve refs/heads/main justo despues de la N-esima invocacion que nombra main o su sha; Run(root, \"main\") sin --base ni --task; rama feature con 2 archivos): (1) main e4172fa: mover main a HEAD tras N=1 (merge-base main HEAD de VerificarBase), N=2 (diff --quiet) y N=3 (merge-base de resolverRango) da SIN REVISAR exit 0 \"0 archivos cambiados\" sin registro; borrarla tras N=3 tambien da SIN REVISAR exit 0. (2) HEAD d71d314: la misma consecuencia solo en N=1 y N=2 (la ventana VerificarBase -\u003e ResolverCommit, reviewcmd.go:320-335); N\u003e=3 revisa lo del commit fijado y borrarla falla cerrada (\"la base main no es un commit\"). La rama estrecha la ventana de main y no agrega ninguna; la spec (No-goals y Casos limite) deja la base sin --task ni --base \"como hoy\", y CA-432/96651e eran sobre --base, que ya se resuelve antes de VerificarBase. Correccion minima verificada en copia desechable: ResolverCommit antes de VerificarBase (si ok, base=sha; si no, VerificarBase con el nombre da el error de git de CA-414): N=1..3 revisado, borrado revisado; go test ./internal/reviewcmd ./internal/servecmd ./cmd/... verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-09-29T21:32:53.786985Z"
+}

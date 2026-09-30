@@ -1,0 +1,11 @@
+{
+  "id": "20260929T211222_27732c",
+  "created_at": "2026-09-29T21:12:22.917267Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "PRE-EXISTENTE (follow-up) — internal/reviewcmd/reviewcmd.go:320 y :326: sin --base, la base del proyecto sigue siendo una ref durante VerificarBase y recién se fija a SHA después. Si main/origin-main se mueve entre ambas llamadas, hoom valida un commit pero mide, elige lentes, política, contrato y evidencia contra otro; si la ref avanza hasta HEAD puede terminar SIN REVISAR aunque al comenzar había cambios. Resolver también la base implícita una sola vez antes de VerificarBase y usar ese SHA en ambos pasos.",
+  "author": "reviewer@codex",
+  "fingerprint": "01bdb4f978589a16",
+  "task": "base-de-la-review"
+}

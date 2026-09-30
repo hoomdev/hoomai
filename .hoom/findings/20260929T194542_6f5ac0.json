@@ -1,0 +1,11 @@
+{
+  "id": "20260929T194542_6f5ac0",
+  "created_at": "2026-09-29T19:45:42.122914Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:302: ResolverCommit obtiene el SHA de --base pero se descarta; las lineas 311-324 reutilizan el nombre mutable en VerificarBase, resolverRango y Snapshot. Si la ref se mueve entre esas llamadas, la politica/contrato/evidencia pueden quedar anclados a un merge-base y la medicion que decide lentes y la metadata a otro, debilitando el limite de confianza que --base promete. Conservar el nombre solo para salida/registro y usar el SHA resuelto para todas las operaciones Git.",
+  "author": "reviewer@codex",
+  "fingerprint": "1b5d7a2095372b58",
+  "task": "base-de-la-review"
+}
