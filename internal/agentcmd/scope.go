@@ -46,6 +46,12 @@ const (
 type Blind struct {
 	Restored []string // testigos que volvieron al disco del arbol ciego
 	Leaked   []string // rutas que cambiaron en el arbol REAL mientras el rol corria confinado
+	// RealBefore and RealAfter photograph the REAL tree around the blind run
+	// (Real = they were taken): its evidence is compared on disk, so a
+	// resolution written out of the quarantine is a closing even when git
+	// does not list it.
+	RealBefore, RealAfter Snapshot
+	Real                  bool
 }
 
 const (
@@ -286,6 +292,9 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	}
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
+		if blind.Real && role.Slug != finding.RolQueRefuta {
+			sc = sinCierres(sc, blind.RealBefore, blind.RealAfter, role)
+		}
 	}
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
@@ -410,9 +419,17 @@ func sinCierres(sc ScopeResult, before, after Snapshot, role agents.Role) ScopeR
 	// already tampering (universal, append-only). One that is also out of
 	// scope (a role whose territory is .hoom/specs/) gets both violations:
 	// closing a finding is what it did.
+	// a path the other photograph (quarantine or real tree) already marked
+	// as a closing keeps its one violation
+	cerradas := map[string]bool{}
+	for _, v := range sc.Violations {
+		if v.Rule == RuleTampering && strings.HasSuffix(v.Path, ".res.json") {
+			cerradas[v.Path] = true
+		}
+	}
 	creadas := make([]string, 0)
 	for p := range after.Evidence {
-		if strings.HasPrefix(p, ".hoom/findings/") && strings.HasSuffix(p, ".res.json") && !before.Evidence[p] {
+		if strings.HasPrefix(p, ".hoom/findings/") && strings.HasSuffix(p, ".res.json") && !before.Evidence[p] && !cerradas[p] {
 			creadas = append(creadas, p)
 		}
 	}
