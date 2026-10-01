@@ -1,0 +1,11 @@
+{
+  "id": "20261001T200430_545ddc",
+  "created_at": "2026-10-01T20:04:30.35831Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este rango) — internal/agentcmd/scope.go:157-179 recorre evidencia con filepath.WalkDir y confia en el DirEntry de un directorio antes de que WalkDir vuelva a abrir esa ruta por nombre para descender. Un hijo del provider puede reemplazar atomicamente el directorio por un symlink entre ambas operaciones: WalkDir sigue entonces el destino y huella abre las hojas a traves de ese componente. hoomfs.AbrirRegular solo aplica no-follow al componente final (internal/hoomfs/regular_unix.go:13-14; en Windows ocurre lo mismo), de modo que la segunda foto puede leer/hashear fuera del arbol, recorrer un destino arbitrariamente grande o fotografiar una copia limpia mientras la evidencia real queda modificada. La promesa de que la foto nunca sigue symlinks requiere descenso por descriptores/no-follow en cada componente, no solo en la hoja.",
+  "author": "reviewer@codex",
+  "fingerprint": "e1a3ed4becbbf83c",
+  "task": "evidencia-en-disco"
+}

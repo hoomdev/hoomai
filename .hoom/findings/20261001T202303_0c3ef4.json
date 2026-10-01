@@ -1,0 +1,11 @@
+{
+  "id": "20261001T202303_0c3ef4",
+  "created_at": "2026-10-01T20:23:03.805452Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:129 afirma que Huellas contiene entradas que no son directorios, pero Take registra un directorio ilegible en Huellas en :169 y ya lo habia registrado en Directorios en :174. Esa superposicion contradice el contrato del struct y obliga a conocer el orden particular de callbacks de WalkDir para entender una foto; documentar explicitamente la excepcion o representar el estado en un unico tipo evitaria interpretaciones incorrectas.",
+  "author": "reviewer@codex",
+  "fingerprint": "e1a3ed4becbbf83c",
+  "task": "evidencia-en-disco"
+}

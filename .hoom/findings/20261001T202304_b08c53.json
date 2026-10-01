@@ -1,0 +1,11 @@
+{
+  "id": "20261001T202304_b08c53",
+  "created_at": "2026-10-01T20:23:04.068567Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gitx/evidencia_carrera_unix_test.go",
+  "description": "INTRODUCIDO: internal/gitx/evidencia_carrera_unix_test.go:57-87 vuelve a implementar la fixture concurrente de intercambio regular/symlink/FIFO que ya aparece en internal/agentcmd/evidencia_en_disco_ronda2_unix_test.go:34-73 e internal/hoomfs/regular_unix_test.go:110-138. Son bloques no triviales de goroutine, atomicos y cleanup y ya difieren en idempotencia del stop; extraer una utilidad de test compartida haria visible el escenario y evitaria que futuras correcciones de carrera queden desincronizadas.",
+  "author": "reviewer@codex",
+  "fingerprint": "e1a3ed4becbbf83c",
+  "task": "evidencia-en-disco"
+}
