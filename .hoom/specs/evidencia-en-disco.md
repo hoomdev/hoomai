@@ -1,6 +1,14 @@
 # Spec: la evidencia se mide en el disco, no en lo que git lista
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión
+aprobada (sha256 09dd8dae) está implementada. Su review mostró tres bordes
+que el texto no decía: un hash de solo los primeros 16 MiB, un symlink o un
+FIFO con nombre válido, y la evidencia que hoom no puede leer. La enmienda 1
+fija el hash del contenido entero, exige un archivo regular y hace que la
+evidencia ilegible, en cualquiera de las dos fotos, sea manipulación. Cambia
+CA-440 y CA-442 y agrega CA-444.
+
+Historia: aprobada el 2026-10-01 (sha256 09dd8dae).
 Depende de: `quien-cierra-un-hallazgo.md` integrada (PR #41).
 Tarea: `hoom task start evidencia-en-disco`.
 
@@ -48,9 +56,12 @@ disco, por forma y por contenido, diga lo que diga git.
 
 `agentcmd.Snapshot` gana `Huellas map[string]string`: para cada archivo bajo
 `.hoom/{verdicts,findings,approvals}` en el disco (también los que git
-ignora), su ruta relativa y el sha256 de su contenido. `Take` lo llena
-siempre (un mapa vacío si no hay evidencia). Una foto sin `Huellas` (nil,
-armada a mano en un test) no aplica las reglas de abajo.
+ignora), su ruta relativa y el sha256 de su contenido entero. Solo se leen
+archivos regulares: una entrada que no lo es (un symlink, un FIFO) se anota
+como tal, sin seguirla ni leerla, y una entrada o un directorio que hoom no
+puede leer se anota como ilegible. `Take` lo llena siempre (un mapa vacío si
+no hay evidencia). Una foto sin `Huellas` (nil, armada a mano en un test)
+no aplica las reglas de abajo.
 
 ### El piso en el disco
 
@@ -72,6 +83,15 @@ ciega, el real):
   `bajo .hoom/<dir> solo se crean archivos con la forma que escribe hoom: <ruta>`.
 - **Bajo `.hoom/approvals/`, toda creación** es manipulación (como hoy cuando
   git la lista), aunque git la ignore.
+- **Una entrada creada que no es un archivo regular** (un symlink, un FIFO)
+  es manipulación aunque tenga un nombre válido:
+  `la evidencia es un archivo regular: <ruta> no lo es (<tipo>)`. hoom nunca
+  escribe otra cosa, y los lectores de la evidencia la seguirían o se
+  colgarían.
+- **Una evidencia que hoom no puede leer, en cualquiera de las dos fotos**,
+  es manipulación: `la evidencia no se puede leer: <ruta>`. Lo que no se
+  puede leer no se puede comparar; y un directorio ilegible en una corrida
+  haría parecer nuevos sus archivos en la siguiente.
 
 Una ruta que el piso de hoy ya marcó como manipulación no se duplica. La
 regla de las resoluciones de `quien-cierra-un-hallazgo` sigue igual (y ve
@@ -95,10 +115,12 @@ igual que esta el árbol real de una corrida ciega).
 
 ## Criterios de aceptación
 
-- CA-440: `Take` fotografía en `Huellas` el sha256 de cada archivo bajo `.hoom/{verdicts,findings,approvals}` en el disco, incluidos los que git ignora (por el `.gitignore` de la raíz, uno en `.hoom/findings/` o `.git/info/exclude`); sin evidencia, `Huellas` es un mapa vacío.
+- CA-440: `Take` fotografía en `Huellas` el sha256 del contenido entero de cada archivo regular bajo `.hoom/{verdicts,findings,approvals}` en el disco (también uno de más de 16 MiB), incluidos los que git ignora (por el `.gitignore` de la raíz, uno en `.hoom/findings/` o `.git/info/exclude`); sin evidencia, `Huellas` es un mapa vacío.
 - CA-441: en la corrida de cualquier rol, un hallazgo o un veredicto que existía y cambió (por ejemplo, la severidad de un hallazgo `high` bajada a `low`) o desapareció es una violación de manipulación aunque git lo ignore, con su hallazgo `high` del gate; `findings_open` sigue bloqueando en la corrida siguiente; reescribirlo con el mismo contenido no es violación.
-- CA-442: en la corrida de cualquier rol, un archivo creado bajo `.hoom/findings/` o `.hoom/verdicts/` sin la forma que escribe hoom (un `.gitignore`, un dotfile, otro nombre, un subdirectorio) es manipulación con `bajo .hoom/<dir> solo se crean archivos con la forma que escribe hoom`, aunque git lo ignore; un hallazgo de `hoom finding add` y un veredicto de `hoom verify` siguen siendo legítimos; bajo `.hoom/approvals/` toda creación es manipulación aunque git la ignore.
+- CA-442: en la corrida de cualquier rol, un archivo creado bajo `.hoom/findings/` o `.hoom/verdicts/` sin la forma que escribe hoom (un `.gitignore`, un dotfile, otro nombre, un subdirectorio) es manipulación con `bajo .hoom/<dir> solo se crean archivos con la forma que escribe hoom`, aunque git lo ignore; un hallazgo de `hoom finding add` y un veredicto de `hoom verify` siguen siendo legítimos; bajo `.hoom/approvals/` toda creación es manipulación aunque git la ignore; un symlink o un FIFO creado con un nombre válido es manipulación con `la evidencia es un archivo regular`, y nunca se sigue ni se lee.
 - CA-443: en una corrida ciega, las mismas reglas valen para el árbol real; y en `hoom review`, un reviewer que crea `.hoom/findings/.gitignore` o edita un hallazgo ignorado termina `NO ENTREGABLE` por territorio.
+
+- CA-444: una evidencia que hoom no puede leer (un archivo o un directorio sin permiso de lectura) en la foto de antes o en la de después es manipulación con `la evidencia no se puede leer`: un hallazgo creado con modo 000, uno al que el rol le quita la lectura, y la corrida siguiente a una que dejó el directorio ilegible, cortan.
 
 ## Decisiones
 
