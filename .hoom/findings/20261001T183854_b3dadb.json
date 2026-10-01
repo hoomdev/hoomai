@@ -1,0 +1,11 @@
+{
+  "id": "20261001T183854_b3dadb",
+  "created_at": "2026-10-01T18:38:54.267674Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:166: Take descarta todos los directorios legibles antes de anotarlos. Si un rol crea un subdirectorio vacío bajo .hoom/findings, .hoom/verdicts o .hoom/approvals (incluso uno llamado 20261001T010101_abcdef.json), no aparece en Huellas/Evidence y Git tampoco lista directorios vacíos; pisoEnDisco no ve ninguna creación y la corrida puede quedar OK. CA-442 exige marcar como manipulación toda entrada nueva que no sea archivo regular y toda creación bajo approvals; deberían omitirse solo las tres raíces de evidencia, no sus directorios descendientes.",
+  "author": "reviewer@codex",
+  "fingerprint": "fdfab8aaaece5aa2",
+  "task": "evidencia-en-disco"
+}

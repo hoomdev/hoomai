@@ -1,0 +1,11 @@
+{
+  "id": "20261001T184829_ae9b30",
+  "created_at": "2026-10-01T18:48:29.22655Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "internal/agentcmd/scope.go:140: El comentario de Take sigue diciendo que la foto es deliberadamente barata, pero este cambio hace que cada foto lea y calcule el SHA-256 del contenido completo de toda la evidencia. Esa descripción contradice el costo lineal que acepta la spec y puede inducir decisiones equivocadas al reutilizar o mantener Take; documentar el costo real.",
+  "author": "reviewer@codex",
+  "fingerprint": "fdfab8aaaece5aa2",
+  "task": "evidencia-en-disco"
+}

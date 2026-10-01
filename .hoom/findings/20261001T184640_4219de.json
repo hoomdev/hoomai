@@ -1,0 +1,11 @@
+{
+  "id": "20261001T184640_4219de",
+  "created_at": "2026-10-01T18:46:40.540523Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este rango): internal/agentcmd/scope.go:166 omite todo directorio legible antes de anotarlo en Huellas. Un rol puede crear un directorio vacio .hoom/findings/\u003cid\u003e.res.json para un hallazgo abierto; Git no lista directorios vacios y Take tampoco, por lo que Gate queda OK, pero finding.Resolve despues falla al escribir la resolucion porque la ruta es un directorio. Esto contradice la regla de que una entrada creada no regular es manipulacion y deja la recuperacion bloqueada hasta intervencion manual. Hay que registrar los subdirectorios (excepto las tres raices de evidencia) como HuellaNoRegular sin dejar de recorrerlos y cubrir el caso con una prueba.",
+  "author": "reviewer@codex",
+  "fingerprint": "fdfab8aaaece5aa2",
+  "task": "evidencia-en-disco"
+}
