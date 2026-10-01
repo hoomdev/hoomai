@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -136,13 +135,30 @@ func LatestComplete(all []*Verdict) *Verdict {
 	return nil
 }
 
-// formaNombre is the name Write gives a verdict file: its id
-// (2006-01-02T15-04-05Z + "_" + 8 hex of its content) plus ".json".
-var formaNombre = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z_[0-9a-f]{8}\.json$`)
+// The id Write gives a verdict: its second written in idFecha, "_", and the
+// first idHex hex digits of the sha256 of its content. EsNombre checks a
+// name against the same two, so the name hoom writes and the name the scope
+// gate accepts have one definition.
+const (
+	idFecha = "2006-01-02T15-04-05Z"
+	idHex   = 8
+)
 
-// EsNombre says whether name is the file name Write gives a verdict: the one
-// definition the scope gate uses to tell a verdict from anything else.
-func EsNombre(name string) bool { return formaNombre.MatchString(name) }
+// EsNombre says whether name is the file name Write gives a verdict (its id
+// plus ".json"): the one definition the scope gate uses to tell a verdict
+// from anything else.
+func EsNombre(name string) bool {
+	id, ok := strings.CutSuffix(name, ".json")
+	if !ok {
+		return false
+	}
+	fecha, hash, ok := strings.Cut(id, "_")
+	t, err := time.Parse(idFecha, fecha)
+	// Format gives the same text back only for a second written as Write
+	// writes it
+	return ok && err == nil && t.Format(idFecha) == fecha &&
+		len(hash) == idHex && strings.Trim(hash, "0123456789abcdef") == ""
+}
 
 // Write persists the verdict as .hoom/verdicts/<timestamp>_<hash>.json.
 // Timestamp + content hash guarantees unique, collision-free, append-only
@@ -157,7 +173,7 @@ func Write(projectDir string, v *Verdict) (string, error) {
 		return "", err
 	}
 	sum := sha256.Sum256(raw)
-	v.ID = v.CreatedAt.Format("2006-01-02T15-04-05Z") + "_" + hex.EncodeToString(sum[:])[:8]
+	v.ID = v.CreatedAt.Format(idFecha) + "_" + hex.EncodeToString(sum[:])[:idHex]
 	raw, _ = json.MarshalIndent(v, "", "  ")
 
 	dir := filepath.Join(projectDir, ".hoom", "verdicts")

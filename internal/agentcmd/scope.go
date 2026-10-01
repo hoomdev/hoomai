@@ -127,20 +127,26 @@ type Snapshot struct {
 	Touched  map[string]string // gitx.Touched menos lo que escribe hoom: path -> content hash ("-" = gone)
 	Evidence map[string]bool   // paths that EXIST under .hoom/{verdicts,findings,approvals}
 	// Huellas: what the disk floor compares for every entry under
-	// .hoom/{verdicts,findings,approvals} on disk, git-ignored ones included:
-	// the hex sha256 of a regular file's whole content; HuellaNoRegular plus
-	// its type for anything else (a symlink, a FIFO: never followed or read);
-	// HuellaIlegible for an entry hoom could not read. nil in a hand-built
-	// photograph (the disk floor then does not apply).
-	Huellas  map[string]string
-	Manifest string        // hash of hoom.yaml ("" = unreadable)
-	Ratchet  *ratchet.File // nil = no baseline declared
+	// .hoom/{verdicts,findings,approvals} on disk that is not a directory,
+	// git-ignored ones included: the hex sha256 of a regular file's whole
+	// content; HuellaNoRegular plus its type for anything else (a symlink, a
+	// FIFO: never followed or read); HuellaIlegible for an entry hoom could
+	// not read. nil in a hand-built photograph (the disk floor then does not
+	// apply).
+	Huellas map[string]string
+	// Directorios: the directories under those three on disk (not the three
+	// themselves). hoom never creates one there, so the disk floor marks the
+	// ones a run created; nil in a hand-built photograph.
+	Directorios map[string]bool
+	Manifest    string        // hash of hoom.yaml ("" = unreadable)
+	Ratchet     *ratchet.File // nil = no baseline declared
 }
 
-// Take photographs the tree. It is cheap on purpose: two of these bracket the
-// run, and the difference between them is what the role actually did.
+// Take photographs the tree: two of these bracket the run, and the
+// difference between them is what the role actually did. Its cost is linear
+// in the evidence, read whole to hash it.
 func Take(root, base string) Snapshot {
-	s := Snapshot{Touched: map[string]string{}, Evidence: map[string]bool{}, Huellas: map[string]string{}}
+	s := Snapshot{Touched: map[string]string{}, Evidence: map[string]bool{}, Huellas: map[string]string{}, Directorios: map[string]bool{}}
 	for p, h := range gitx.Touched(root, base) {
 		if !hoomOwn(p) {
 			s.Touched[p] = h
@@ -164,6 +170,9 @@ func Take(root, base string) Snapshot {
 				return nil //nolint:nilerr // recorded, the walk goes on
 			}
 			if e.IsDir() {
+				if p != dir {
+					s.Directorios[rel] = true
+				}
 				return nil
 			}
 			s.Evidence[rel] = true
@@ -445,6 +454,8 @@ const (
 	// HuellaNoRegular prefixes the type of an entry that is not a regular
 	// file: it is never followed nor read (a FIFO would hang the photograph,
 	// a symlink would point it elsewhere), and no evidence hoom writes is one.
+	// A symlink's adds ":" and the sha256 of its target text (readlink does
+	// not follow it), so pointing it elsewhere changes it.
 	HuellaNoRegular = "no-regular:"
 	// HuellaIlegible marks an entry hoom could not open or read.
 	HuellaIlegible = "ilegible"
@@ -452,13 +463,27 @@ const (
 
 // huella is what the disk floor compares for one evidence entry: the sha256
 // of a regular file's whole content (the cost is linear in the evidence, and
-// a hash of less would leave bytes unwatched). Only regular files are read.
+// a hash of less would leave bytes unwatched). Only regular files are read,
+// and what is regular is decided on the descriptor that reads it: the entry
+// can change between the walk that listed it and the open.
 func huella(p string, e fs.DirEntry) string {
-	if !e.Type().IsRegular() {
-		return HuellaNoRegular + e.Type().String()
+	switch t := e.Type(); {
+	case t&fs.ModeSymlink != 0:
+		destino, err := os.Readlink(p)
+		if err != nil {
+			return HuellaIlegible
+		}
+		sum := sha256.Sum256([]byte(destino))
+		return HuellaNoRegular + t.String() + ":" + hex.EncodeToString(sum[:])
+	case !t.IsRegular():
+		return HuellaNoRegular + t.String()
 	}
-	f, err := os.Open(p)
-	if err != nil {
+	f, err := hoomfs.AbrirRegular(p)
+	var nr *hoomfs.NoRegular
+	switch {
+	case errors.As(err, &nr):
+		return HuellaNoRegular + nr.Mode.Type().String()
+	case err != nil:
 		return HuellaIlegible
 	}
 	defer f.Close()
@@ -484,10 +509,17 @@ func conForma(p string) bool {
 	return false
 }
 
+// noRegular is the tampering of an entry created under the evidence that is
+// not a regular file, tipo being what it is.
+func noRegular(p, tipo string) string {
+	return "la evidencia es un archivo regular: " + p + " no lo es (" + tipo + ")"
+}
+
 // pisoEnDisco is the append-only floor measured on disk, for every role
 // and every tree the run could write to: an evidence file that existed and
 // changed or disappeared is tampering, and a created one is legitimate only
-// with the shape hoom writes — whatever git lists or ignores. Photographs
+// with the shape hoom writes (a created directory never is) — whatever git
+// lists or ignores. Photographs
 // without Huellas (built by hand) do not apply it. A path the git-based floor
 // already marked keeps its one violation.
 func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
@@ -528,7 +560,8 @@ func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
 				continue
 			}
 			if strings.HasPrefix(d, HuellaNoRegular) {
-				nuevas[p] = "la evidencia es un archivo regular: " + p + " no lo es (" + strings.TrimPrefix(d, HuellaNoRegular) + ")"
+				tipo, _, _ := strings.Cut(strings.TrimPrefix(d, HuellaNoRegular), ":")
+				nuevas[p] = noRegular(p, tipo)
 				continue
 			}
 			if conForma(p) {
@@ -540,6 +573,14 @@ func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
 			}
 			dir := strings.SplitN(strings.TrimPrefix(p, ".hoom/"), "/", 2)[0]
 			nuevas[p] = "bajo .hoom/" + dir + " solo se crean archivos con la forma que escribe hoom: " + p
+		}
+		for p := range f.Despues.Directorios {
+			// a directory is an entry that is not a regular file too: empty,
+			// git does not even list it, and named like a resolution or an
+			// approval it blocks the one hoom would write there
+			if _, ya := nuevas[p]; !ya && !f.Antes.Directorios[p] {
+				nuevas[p] = noRegular(p, fs.ModeDir.String())
+			}
 		}
 	}
 	rutas := make([]string, 0, len(nuevas))

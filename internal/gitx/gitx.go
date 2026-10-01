@@ -304,14 +304,13 @@ func contentHash(path string) (string, error) {
 	case !st.Mode().IsRegular():
 		return "no-regular:" + st.Mode().Type().String(), nil
 	}
-	fh, err := os.Open(path)
+	// the Lstat above can be stale by now: open what is there without
+	// following it, and decide on that descriptor
+	fh, err := hoomfs.AbrirRegular(path)
 	if err != nil {
 		return "", err
 	}
 	defer fh.Close()
-	if st, err = fh.Stat(); err != nil || !st.Mode().IsRegular() {
-		return "", fmt.Errorf("%s no es un archivo regular", path)
-	}
 	h := sha256.New()
 	if _, err := io.Copy(h, fh); err != nil {
 		return "", err
