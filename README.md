@@ -22,7 +22,7 @@ irm https://raw.githubusercontent.com/hoomdev/hoomai/main/install.ps1 | iex
 Alternativas:
 
 ```sh
-go install github.com/hoomdev/hoomai/cmd/hoom@latest   # si tienes Go 1.22+
+go install github.com/hoomdev/hoomai/cmd/hoom@latest   # si tienes Go 1.25+
 go build -o hoom ./cmd/hoom                               # desde el repo (vendor incluido, sin red)
 ```
 

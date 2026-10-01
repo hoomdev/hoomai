@@ -7,6 +7,10 @@ import (
 	"syscall"
 )
 
+// sinBloquear is nothing on Windows: no entry of the file system blocks an
+// open there.
+const sinBloquear = 0
+
 // abrirSinSeguir opens path read-only on the entry itself: with
 // FILE_FLAG_OPEN_REPARSE_POINT a symlink or a junction is opened as what it
 // is, not as what it points to, and Stat on the handle says so. No entry of

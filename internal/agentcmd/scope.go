@@ -130,13 +130,14 @@ type Snapshot struct {
 	// .hoom/{verdicts,findings,approvals} on disk that is not a directory,
 	// git-ignored ones included: the hex sha256 of a regular file's whole
 	// content; HuellaNoRegular plus its type for anything else (a symlink, a
-	// FIFO: never followed or read); HuellaIlegible for an entry hoom could
-	// not read. nil in a hand-built photograph (the disk floor then does not
-	// apply).
+	// FIFO: never followed or read). And HuellaIlegible for an entry hoom
+	// could not read or that changed while it was being opened — a directory
+	// too, the one exception to "not a directory". nil in a hand-built
+	// photograph (the disk floor then does not apply).
 	Huellas map[string]string
 	// Directorios: the directories under those three on disk (not the three
-	// themselves). hoom never creates one there, so the disk floor marks the
-	// ones a run created; nil in a hand-built photograph.
+	// themselves), readable or not. hoom never creates one there, so the disk
+	// floor marks the ones a run created; nil in a hand-built photograph.
 	Directorios map[string]bool
 	Manifest    string        // hash of hoom.yaml ("" = unreadable)
 	Ratchet     *ratchet.File // nil = no baseline declared
@@ -152,33 +153,12 @@ func Take(root, base string) Snapshot {
 			s.Touched[p] = h
 		}
 	}
-	for _, d := range evidenceDirs {
-		dir := filepath.Join(root, ".hoom", d)
-		filepath.WalkDir(dir, func(p string, e fs.DirEntry, err error) error {
-			rel, rerr := filepath.Rel(root, p)
-			if rerr != nil {
-				return nil //nolint:nilerr // outside root: nothing to photograph
-			}
-			rel = filepath.ToSlash(rel)
-			if err != nil {
-				if p == dir && errors.Is(err, fs.ErrNotExist) {
-					return nil // a missing evidence dir is a valid state
-				}
-				// what hoom cannot read it cannot vouch for: the floor fails
-				// closed on it
-				s.Huellas[rel] = HuellaIlegible
-				return nil //nolint:nilerr // recorded, the walk goes on
-			}
-			if e.IsDir() {
-				if p != dir {
-					s.Directorios[rel] = true
-				}
-				return nil
-			}
-			s.Evidence[rel] = true
-			s.Huellas[rel] = huella(p, e)
-			return nil
-		})
+	switch r, err := os.OpenRoot(root); {
+	case err == nil:
+		s.fotoEvidencia(r)
+		r.Close()
+	case !errors.Is(err, fs.ErrNotExist):
+		s.sinEvidenciaLegible()
 	}
 	if raw, err := os.ReadFile(filepath.Join(root, manifest.FileName)); err == nil {
 		sum := sha256.Sum256(raw)
@@ -191,6 +171,86 @@ func Take(root, base string) Snapshot {
 	}
 	s.Ratchet = rf
 	return s
+}
+
+// fotoEvidencia photographs .hoom/{verdicts,findings,approvals} under the
+// project root r without ever following a symlink. Every component, .hoom
+// included, is looked at (Lstat) and then opened relative to its parent's
+// descriptor as that same object (hoomfs.AbrirDirEn, AbrirRegularEn): a
+// process still alive during the photograph can swap a directory for a
+// symlink between a look and an open, and a walk by name would follow it —
+// outside the repo, or to a clean copy of the evidence. hoom never makes
+// .hoom anything but a directory.
+func (s *Snapshot) fotoEvidencia(r *os.Root) {
+	fi, err := r.Lstat(".hoom")
+	if errors.Is(err, fs.ErrNotExist) {
+		return // no evidence yet is a valid state
+	}
+	if err == nil && fi.IsDir() {
+		if hoom, err := hoomfs.AbrirDirEn(r, ".hoom", fi); err == nil {
+			defer hoom.Close()
+			for _, d := range evidenceDirs {
+				s.fotoEntrada(hoom, d, ".hoom/"+d, true)
+			}
+			return
+		}
+	}
+	s.sinEvidenciaLegible()
+}
+
+// sinEvidenciaLegible is the photograph of evidence hoom cannot reach: what
+// it cannot read it cannot vouch for, so the floor fails closed on it.
+func (s *Snapshot) sinEvidenciaLegible() {
+	for _, d := range evidenceDirs {
+		s.Huellas[".hoom/"+d] = HuellaIlegible
+	}
+}
+
+// fotoEntrada photographs the entry name of the directory r as rel, and
+// everything under it if it is a directory. raiz marks one of the three
+// evidence directories: missing is a valid state, and it is not one of the
+// Directorios.
+func (s *Snapshot) fotoEntrada(r *os.Root, name, rel string, raiz bool) {
+	fi, err := r.Lstat(name)
+	switch {
+	case raiz && errors.Is(err, fs.ErrNotExist):
+		return
+	case err != nil:
+		s.Huellas[rel] = HuellaIlegible
+	case fi.IsDir():
+		if !raiz {
+			s.Directorios[rel] = true
+		}
+		s.fotoDirectorio(r, name, rel, fi)
+	default:
+		s.Evidence[rel] = true
+		s.Huellas[rel] = huella(r, name, fi)
+	}
+}
+
+// fotoDirectorio photographs what the directory name of r (the one fi
+// describes) holds. What it could list before an error is still
+// photographed; the directory itself is then HuellaIlegible.
+func (s *Snapshot) fotoDirectorio(r *os.Root, name, rel string, fi fs.FileInfo) {
+	sub, err := hoomfs.AbrirDirEn(r, name, fi)
+	if err != nil {
+		s.Huellas[rel] = HuellaIlegible
+		return
+	}
+	defer sub.Close()
+	d, err := sub.Open(".")
+	if err != nil {
+		s.Huellas[rel] = HuellaIlegible
+		return
+	}
+	entradas, err := d.ReadDir(-1)
+	d.Close()
+	if err != nil {
+		s.Huellas[rel] = HuellaIlegible
+	}
+	for _, e := range entradas {
+		s.fotoEntrada(sub, e.Name(), rel+"/"+e.Name(), false)
+	}
 }
 
 // hoomOwn marks the paths HOOM itself writes while the run happens: the
@@ -461,15 +521,15 @@ const (
 	HuellaIlegible = "ilegible"
 )
 
-// huella is what the disk floor compares for one evidence entry: the sha256
-// of a regular file's whole content (the cost is linear in the evidence, and
-// a hash of less would leave bytes unwatched). Only regular files are read,
-// and what is regular is decided on the descriptor that reads it: the entry
-// can change between the walk that listed it and the open.
-func huella(p string, e fs.DirEntry) string {
-	switch t := e.Type(); {
+// huella is what the disk floor compares for the entry name of r, which fi
+// (its Lstat) describes: the sha256 of a regular file's whole content (the
+// cost is linear in the evidence, and a hash of less would leave bytes
+// unwatched), read only if the descriptor shows that same regular file —
+// the entry can change between the Lstat and the open.
+func huella(r *os.Root, name string, fi fs.FileInfo) string {
+	switch t := fi.Mode().Type(); {
 	case t&fs.ModeSymlink != 0:
-		destino, err := os.Readlink(p)
+		destino, err := r.Readlink(name)
 		if err != nil {
 			return HuellaIlegible
 		}
@@ -478,12 +538,8 @@ func huella(p string, e fs.DirEntry) string {
 	case !t.IsRegular():
 		return HuellaNoRegular + t.String()
 	}
-	f, err := hoomfs.AbrirRegular(p)
-	var nr *hoomfs.NoRegular
-	switch {
-	case errors.As(err, &nr):
-		return HuellaNoRegular + nr.Mode.Type().String()
-	case err != nil:
+	f, err := hoomfs.AbrirRegularEn(r, name, fi)
+	if err != nil {
 		return HuellaIlegible
 	}
 	defer f.Close()
