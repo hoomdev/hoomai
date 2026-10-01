@@ -4,18 +4,16 @@
 // .hoom/specs/evidencia-en-disco.md (CA-442: un symlink o un FIFO "nunca se
 // sigue ni se lee") en la parte de la foto que pasa por git: Touched no se
 // cuelga si un proceso que la corrida dejo vivo cambia una evidencia que git
-// ve entre un archivo regular, un symlink a un FIFO y el FIFO mismo.
+// ve entre un archivo regular, un symlink a un FIFO y el FIFO mismo. La
+// carrera es la de internal/carreratest (hallazgo b08c53: una sola copia).
 package gitx
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
-	"sync"
-	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/carreratest"
 )
 
 // CA-442 (hallazgo 98faf2, propiedad de carrera): en un repo donde git ve
@@ -40,51 +38,8 @@ func TestCA442_TouchedNoSeCuelgaSiLaEvidenciaCambiaEntreRegularYFIFO(t *testing.
 	}
 
 	fifo := filepath.Join(t.TempDir(), "fifo")
-	if err := syscall.Mkfifo(fifo, 0o644); err != nil {
-		t.Fatalf("fixture: mkfifo: %v", err)
-	}
-	t.Cleanup(func() { // suelta una lectura colgada (de un git hijo, por ejemplo)
-		for i := 0; i < 16; i++ {
-			f, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0)
-			if err != nil {
-				return
-			}
-			f.Close()
-			time.Sleep(10 * time.Millisecond)
-		}
-	})
-
-	escenario := t.TempDir()
-	destino := filepath.Join(root, rel)
-	var parar atomic.Bool
-	var cambios atomic.Int64
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; !parar.Load(); i++ {
-			q := filepath.Join(escenario, fmt.Sprintf("e%d", i))
-			var err error
-			switch i % 4 {
-			case 0, 2:
-				err = os.WriteFile(q, regular, 0o644)
-			case 1:
-				err = os.Symlink(fifo, q)
-			case 3:
-				err = os.Link(fifo, q)
-			}
-			if err == nil {
-				err = os.Rename(q, destino)
-			}
-			if err != nil {
-				t.Errorf("fixture: el intercambiador no pudo cambiar %s: %v", rel, err)
-				return
-			}
-			cambios.Add(1)
-		}
-	}()
-	detener := func() { parar.Store(true); wg.Wait() }
-	t.Cleanup(detener)
+	carreratest.Fifo(t, fifo) // al final suelta una lectura colgada (de un git hijo, por ejemplo)
+	detener := carreratest.RegularYFifo(t, filepath.Join(root, rel), fifo, regular)
 
 	const reloj = 5 * time.Second
 	llamadas := 0
@@ -100,9 +55,9 @@ func TestCA442_TouchedNoSeCuelgaSiLaEvidenciaCambiaEntreRegularYFIFO(t *testing.
 		}
 		llamadas++
 	}
-	detener()
-	if cambios.Load() < 4 {
-		t.Fatalf("CA-442: fixture: el intercambiador cambio %s %d veces", rel, cambios.Load())
+	cambios := detener()
+	if cambios < 4 {
+		t.Fatalf("CA-442: fixture: el intercambiador cambio %s %d veces", rel, cambios)
 	}
-	t.Logf("CA-442: %d llamadas a Touched, %d cambios", llamadas, cambios.Load())
+	t.Logf("CA-442: %d llamadas a Touched, %d cambios", llamadas, cambios)
 }

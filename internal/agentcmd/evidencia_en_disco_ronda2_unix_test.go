@@ -6,18 +6,17 @@
 // una mirada anterior a la ruta. Un proceso que la corrida dejo vivo puede
 // cambiar la entrada entre la mirada y la apertura; la foto no se cuelga, no
 // lee un destino de afuera ni el FIFO, y no le pone a la ruta la huella de
-// otra cosa.
+// otra cosa. La carrera es la de internal/carreratest (hallazgo b08c53: una
+// sola copia para hoomfs, gitx y agentcmd).
 package agentcmd
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/carreratest"
 )
 
 // edr2Carrera es cuanto dura cada carrera.
@@ -26,52 +25,6 @@ const edr2Carrera = 1500 * time.Millisecond
 // edr2RelojPorFoto es cuanto puede tardar UNA foto durante la carrera: mas es
 // que siguio un symlink a un FIFO o abrio un FIFO.
 const edr2RelojPorFoto = 5 * time.Second
-
-// edr2Intercambiador cambia destino, con rename atomico y sin parar, entre
-// un archivo regular con contenido regular, un symlink a fifo y el mismo
-// fifo (un enlace duro, asi cualquier lectura colgada se suelta por la ruta
-// de fifo). Devuelve la funcion que lo para y dice cuantos cambios hizo.
-func edr2Intercambiador(t *testing.T, destino, fifo string, regular []byte) func() int {
-	t.Helper()
-	escenario := t.TempDir() // mismo disco que destino: rename atomico
-	var parar atomic.Bool
-	var cambios atomic.Int64
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; !parar.Load(); i++ {
-			p := filepath.Join(escenario, fmt.Sprintf("e%d", i))
-			var err error
-			switch i % 4 {
-			case 0, 2:
-				err = os.WriteFile(p, regular, 0o644)
-			case 1:
-				err = os.Symlink(fifo, p)
-			case 3:
-				err = os.Link(fifo, p)
-			}
-			if err == nil {
-				err = os.Rename(p, destino)
-			}
-			if err != nil {
-				t.Errorf("fixture: el intercambiador no pudo cambiar %s: %v", destino, err)
-				return
-			}
-			cambios.Add(1)
-		}
-	}()
-	var una sync.Once
-	stop := func() int {
-		una.Do(func() {
-			parar.Store(true)
-			wg.Wait()
-		})
-		return int(cambios.Load())
-	}
-	t.Cleanup(func() { stop() })
-	return stop
-}
 
 // CA-442 (hallazgo 98faf2, propiedad de carrera): mientras otro proceso
 // cambia una evidencia con nombre valido de hallazgo, con rename atomico y
@@ -103,9 +56,9 @@ func TestCA442_TakeNoSeCuelgaNiSigueLaEvidenciaQueCambiaEntreRegularYFIFO(t *tes
 				t.Fatalf("CA-442: fixture: %s: git ignora %s = %v", c.caso, rel, c.oculto)
 			}
 			fifo := filepath.Join(t.TempDir(), "fifo")
-			edr1Fifo(t, fifo)
+			carreratest.Fifo(t, fifo)
 
-			parar := edr2Intercambiador(t, filepath.Join(root, rel), fifo, regular)
+			parar := carreratest.RegularYFifo(t, filepath.Join(root, rel), fifo, regular)
 			fin := time.Now().Add(edr2Carrera)
 			fotos := 0
 			vistas := map[string]int{}

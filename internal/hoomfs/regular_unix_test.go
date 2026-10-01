@@ -4,6 +4,8 @@
 // ronda de review de .hoom/specs/evidencia-en-disco.md, CA-442): un FIFO no
 // bloquea la apertura, un symlink a un FIFO no se sigue, y la decision se
 // toma sobre el descriptor aunque otro proceso cambie la entrada sin parar.
+// El FIFO y la carrera son los de internal/carreratest (hallazgo b08c53: una
+// sola copia de la fixture para hoomfs, gitx y agentcmd).
 package hoomfs
 
 import (
@@ -14,31 +16,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sync"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
-)
 
-// arFifo crea un FIFO en p (que nadie escribe). Al final del test lo abre
-// para escribir, sin bloquear, unas veces: suelta una lectura colgada.
-func arFifo(t *testing.T, p string) {
-	t.Helper()
-	if err := syscall.Mkfifo(p, 0o644); err != nil {
-		t.Fatalf("fixture: mkfifo %s: %v", p, err)
-	}
-	t.Cleanup(func() {
-		for i := 0; i < 16; i++ {
-			f, err := os.OpenFile(p, os.O_WRONLY|syscall.O_NONBLOCK, 0)
-			if err != nil {
-				return
-			}
-			f.Close()
-			time.Sleep(10 * time.Millisecond)
-		}
-	})
-}
+	"github.com/hoomdev/hoomai/internal/carreratest"
+)
 
 // arNadieLee exige que ningun descriptor de lectura quede abierto en el
 // FIFO: abrirlo para escribir sin bloquear falla (ENXIO) si nadie lo lee.
@@ -58,7 +41,7 @@ func arEsFifo(m fs.FileMode) bool { return m&fs.ModeNamedPipe != 0 }
 // ModeNamedPipe, y no queda abierto.
 func TestCA442_AbrirRegularNoSeCuelgaEnUnFIFO(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "20261001T020202_f1f0f1.json")
-	arFifo(t, p)
+	carreratest.Fifo(t, p)
 	f, err := arAbrir(t, "FIFO", p)
 	nr := arNoRegular(t, "FIFO", p, f, err, arEsFifo)
 	if nr == nil {
@@ -75,7 +58,7 @@ func TestCA442_AbrirRegularNoSigueUnSymlinkAUnFIFO(t *testing.T) {
 	dir := t.TempDir()
 	afuera := t.TempDir()
 	fifo := filepath.Join(afuera, "fifo")
-	arFifo(t, fifo)
+	carreratest.Fifo(t, fifo)
 	for i, c := range []struct{ caso, destino string }{
 		{"symlink absoluto a un FIFO", fifo},
 		{"symlink relativo a un FIFO", filepath.Join("..", filepath.Base(afuera), "fifo")},
@@ -98,44 +81,15 @@ func TestCA442_AbrirRegularNoSigueUnSymlinkAUnFIFO(t *testing.T) {
 // *NoRegular nunca dice regular. Al final nadie quedo leyendo el FIFO.
 func TestCA442_AbrirRegularDecideSobreElDescriptorAunqueLaEntradaCambie(t *testing.T) {
 	dir := t.TempDir()
-	escenario := t.TempDir()
 	p := filepath.Join(dir, "20261001T060606_ca2e2a.json")
 	regular := []byte("{\"severity\":\"high\",\"relleno\":\"" + string(bytes.Repeat([]byte("x"), 4096)) + "\"}\n")
 	if err := os.WriteFile(p, regular, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	fifo := filepath.Join(t.TempDir(), "fifo")
-	arFifo(t, fifo)
+	carreratest.Fifo(t, fifo)
 
-	var parar atomic.Bool
-	var cambios atomic.Int64
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; !parar.Load(); i++ {
-			q := filepath.Join(escenario, fmt.Sprintf("e%d", i))
-			var err error
-			switch i % 4 {
-			case 0, 2:
-				err = os.WriteFile(q, regular, 0o644)
-			case 1:
-				err = os.Symlink(fifo, q)
-			case 3:
-				err = os.Link(fifo, q)
-			}
-			if err == nil {
-				err = os.Rename(q, p)
-			}
-			if err != nil {
-				t.Errorf("fixture: el intercambiador no pudo cambiar %s: %v", p, err)
-				return
-			}
-			cambios.Add(1)
-		}
-	}()
-	detener := func() { parar.Store(true); wg.Wait() }
-	t.Cleanup(detener)
+	detener := carreratest.RegularYFifo(t, p, fifo, regular)
 
 	vistas := map[string]int{}
 	fin := time.Now().Add(1500 * time.Millisecond)
@@ -188,10 +142,10 @@ func TestCA442_AbrirRegularDecideSobreElDescriptorAunqueLaEntradaCambie(t *testi
 		}
 		vistas["regular"]++
 	}
-	detener()
-	if cambios.Load() < 4 {
-		t.Fatalf("CA-442: fixture: el intercambiador cambio la entrada %d veces", cambios.Load())
+	cambios := detener()
+	if cambios < 4 {
+		t.Fatalf("CA-442: fixture: el intercambiador cambio la entrada %d veces", cambios)
 	}
 	arNadieLee(t, "despues de la carrera", fifo)
-	t.Logf("CA-442: %d cambios, aperturas vistas %v", cambios.Load(), vistas)
+	t.Logf("CA-442: %d cambios, aperturas vistas %v", cambios, vistas)
 }
