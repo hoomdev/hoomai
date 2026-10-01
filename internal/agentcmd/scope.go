@@ -123,8 +123,12 @@ func (s ScopeResult) has(rule string) bool {
 type Snapshot struct {
 	Touched  map[string]string // gitx.Touched menos lo que escribe hoom: path -> content hash ("-" = gone)
 	Evidence map[string]bool   // paths that EXIST under .hoom/{verdicts,findings,approvals}
-	Manifest string            // hash of hoom.yaml ("" = unreadable)
-	Ratchet  *ratchet.File     // nil = no baseline declared
+	// Huellas: the sha256 of every file under .hoom/{verdicts,findings,
+	// approvals} on disk, git-ignored ones included; nil in a hand-built
+	// photograph (the disk floor then does not apply).
+	Huellas  map[string]string
+	Manifest string        // hash of hoom.yaml ("" = unreadable)
+	Ratchet  *ratchet.File // nil = no baseline declared
 }
 
 // Take photographs the tree. It is cheap on purpose: two of these bracket the
