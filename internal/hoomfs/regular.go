@@ -49,9 +49,10 @@ func AbrirRegularEn(r *os.Root, name string, antes fs.FileInfo) (*os.File, error
 // the caller just took) describes, for a walk that never follows a
 // symlink: an os.Root follows one that stays inside it, and the entry can
 // be swapped between that Lstat and the open, so the directory opened must
-// be that same one (os.SameFile) or the open is refused.
+// be that same one (os.SameFile) or the open is refused. A FIFO swapped in
+// does not block it.
 func AbrirDirEn(r *os.Root, name string, antes fs.FileInfo) (*os.Root, error) {
-	sub, err := r.OpenRoot(name)
+	sub, err := abrirDirEn(r, name)
 	if err != nil {
 		return nil, err
 	}
