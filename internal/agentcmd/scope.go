@@ -14,10 +14,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"io"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -134,7 +136,7 @@ type Snapshot struct {
 // Take photographs the tree. It is cheap on purpose: two of these bracket the
 // run, and the difference between them is what the role actually did.
 func Take(root, base string) Snapshot {
-	s := Snapshot{Touched: map[string]string{}, Evidence: map[string]bool{}}
+	s := Snapshot{Touched: map[string]string{}, Evidence: map[string]bool{}, Huellas: map[string]string{}}
 	for p, h := range gitx.Touched(root, base) {
 		if !hoomOwn(p) {
 			s.Touched[p] = h
@@ -148,6 +150,7 @@ func Take(root, base string) Snapshot {
 			}
 			if rel, rerr := filepath.Rel(root, p); rerr == nil {
 				s.Evidence[filepath.ToSlash(rel)] = true
+				s.Huellas[filepath.ToSlash(rel)] = huella(p, e)
 			}
 			return nil
 		})
@@ -295,14 +298,16 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
 	}
-	// Closings go last, over every tree the run could write to (the one it
-	// ran in and, blind, the real one): withIsolation replaces the earlier
-	// violations of a leaked path, and a closing must survive it.
+	// The disk floor and the closings go last, over every tree the run could
+	// write to (the one it ran in and, blind, the real one): withIsolation
+	// replaces the earlier violations of a leaked path, and these must
+	// survive it.
+	arboles := []Fotos{{Antes: before, Despues: after}}
+	if blind != nil && blind.Real != nil {
+		arboles = append(arboles, *blind.Real)
+	}
+	sc = pisoEnDisco(sc, arboles...)
 	if role.Slug != finding.RolQueRefuta {
-		arboles := []Fotos{{Antes: before, Despues: after}}
-		if blind != nil && blind.Real != nil {
-			arboles = append(arboles, *blind.Real)
-		}
 		sc = sinCierres(sc, role, arboles...)
 	}
 	for i, v := range sc.Violations {
@@ -415,6 +420,113 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	}
 	res.OK = len(res.Violations) == 0
 	return res
+}
+
+// huellaMax bounds what huella reads of one file: evidence files are small
+// JSON; one past this is fingerprinted by its size and first bytes.
+const huellaMax = 16 << 20
+
+// huella is what the disk floor compares for one evidence file: the sha256
+// of its content. Only regular files are read — a FIFO, a socket or a
+// symlink a role left among the evidence must not hang or redirect the
+// photograph — and only up to huellaMax.
+func huella(p string, e fs.DirEntry) string {
+	if !e.Type().IsRegular() {
+		return "tipo:" + e.Type().String()
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return "ilegible"
+	}
+	defer f.Close()
+	h := sha256.New()
+	n, err := io.CopyN(h, f, huellaMax+1)
+	if err != nil && err != io.EOF {
+		return "ilegible"
+	}
+	sum := hex.EncodeToString(h.Sum(nil))
+	if n > huellaMax {
+		if info, ierr := f.Stat(); ierr == nil {
+			return fmt.Sprintf("grande:%d:%s", info.Size(), sum)
+		}
+	}
+	return sum
+}
+
+var (
+	formaHallazgo  = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}_[0-9a-f]{6}(\.res)?\.json$`)
+	formaVeredicto = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z_[0-9a-f]{8}\.json$`)
+)
+
+// conForma says whether a file a run created under the evidence has the
+// shape hoom writes: a finding or a resolution under .hoom/findings/, a
+// verdict under .hoom/verdicts/. Nothing created under .hoom/approvals/ has
+// it: the human approval is never a role's.
+func conForma(p string) bool {
+	switch dir, name := path.Split(p); dir {
+	case ".hoom/findings/":
+		return formaHallazgo.MatchString(name)
+	case ".hoom/verdicts/":
+		return formaVeredicto.MatchString(name)
+	}
+	return false
+}
+
+// pisoEnDisco is the append-only floor measured on disk, for every role
+// and every tree the run could write to: an evidence file that existed and
+// changed or disappeared is tampering, and a created one is legitimate only
+// with the shape hoom writes — whatever git lists or ignores. Photographs
+// without Huellas (built by hand) do not apply it. A path the git-based floor
+// already marked keeps its one violation.
+func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
+	marcadas := map[string]bool{}
+	for _, v := range sc.Violations {
+		if v.Rule == RuleTampering {
+			marcadas[v.Path] = true
+		}
+	}
+	nuevas := map[string]string{}
+	for _, f := range arboles {
+		if f.Antes.Huellas == nil || f.Despues.Huellas == nil {
+			continue
+		}
+		for p, h := range f.Antes.Huellas {
+			switch d, ok := f.Despues.Huellas[p]; {
+			case !ok:
+				nuevas[p] = "la evidencia es append-only: " + p + " desaparecio durante el run"
+			case d != h:
+				nuevas[p] = "la evidencia es append-only: " + p + " cambio durante el run"
+			}
+		}
+		for p := range f.Despues.Huellas {
+			if _, ok := f.Antes.Huellas[p]; ok || conForma(p) {
+				continue
+			}
+			if strings.HasPrefix(p, ".hoom/approvals/") {
+				nuevas[p] = "la aprobacion humana no la escribe un agente (usa 'hoom spec approve')"
+				continue
+			}
+			dir := strings.SplitN(strings.TrimPrefix(p, ".hoom/"), "/", 2)[0]
+			nuevas[p] = "bajo .hoom/" + dir + " solo se crean archivos con la forma que escribe hoom: " + p
+		}
+	}
+	rutas := make([]string, 0, len(nuevas))
+	for p := range nuevas {
+		if !marcadas[p] {
+			rutas = append(rutas, p)
+		}
+	}
+	sort.Strings(rutas)
+	for _, p := range rutas {
+		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering, Detail: nuevas[p]})
+		if !contains(sc.Touched, p) {
+			sc.Touched = append(sc.Touched, p)
+		}
+		sc.Tampering, sc.OK = true, false
+	}
+	sort.Strings(sc.Touched)
+	sortViolations(sc.Violations)
+	return sc
 }
 
 // sinCierres marks every finding resolution the run created, in any of the
