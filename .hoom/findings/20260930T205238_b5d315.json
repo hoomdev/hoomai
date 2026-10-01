@@ -1,0 +1,11 @@
+{
+  "id": "20260930T205238_b5d315",
+  "created_at": "2026-09-30T20:52:38.061226Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:49: la evidencia opcional del árbol real se representa con tres campos paralelos (RealBefore, RealAfter y el booleano ambiguo Real), y Gate depende de ese flag para ejecutar una segunda pasada ordenada de sinCierres (líneas 290-297), cuyo deduplicado a su vez inspecciona las violaciones de la pasada previa (líneas 422-429). La invariante y la dependencia de orden quedan implícitas; agrupar las dos fotografías en un valor opcional con nombre y procesar los cierres mediante una sola operación haría el flujo legible y evitaría estados incoherentes.",
+  "author": "reviewer@codex",
+  "fingerprint": "72ca6376f466e489",
+  "task": "quien-cierra-un-hallazgo"
+}

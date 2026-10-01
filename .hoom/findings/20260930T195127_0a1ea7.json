@@ -1,0 +1,11 @@
+{
+  "id": "20260930T195127_0a1ea7",
+  "created_at": "2026-09-30T19:51:27.086818Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "PRE-EXISTENTE (follow-up) — internal/agentcmd/scope.go:292-296 descarta cualquier error de finding.Register. Si la resolucion prohibida si se escribio pero el hallazgo high del gate no puede persistirse (ENOSPC, permisos o .hoom/findings vuelto no escribible), la corrida actual queda no-entregable pero no queda ningun bloqueo durable; al recuperarse el almacenamiento/permisos, la corrida siguiente toma la resolucion como previa y findings_open puede quedar verde. Las rutas nuevas de agentcmd.go:267 y reviewcmd.go:884 ahora dependen de esa persistencia para que un fallo no cierre silenciosamente un hallazgo.",
+  "author": "reviewer@codex",
+  "fingerprint": "ae50daaefd4d9d3c",
+  "task": "quien-cierra-un-hallazgo"
+}

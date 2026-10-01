@@ -75,6 +75,10 @@ type Resolution struct {
 	Evidence   string    `json:"evidence"`
 	Author     string    `json:"author"`
 	ResolvedAt time.Time `json:"resolved_at"`
+	// Role and Run: the role and the run that wrote the resolution, when it
+	// was written inside a role's run; empty outside one.
+	Role string `json:"role,omitempty"`
+	Run  string `json:"run,omitempty"`
 }
 
 // Item is the derived view: finding + state, for list/API.
@@ -150,12 +154,36 @@ func Register(root, base string, d Draft) (Finding, error) {
 // binary refuses to close a finding without it. A resolved finding admits
 // no second transition — reopening is a NEW finding citing the old one.
 func Resolve(root, id, as, evidence, author string) (Resolution, error) {
+	return ResolveEnCorrida(root, id, as, evidence, author, Corrida{})
+}
+
+// ResolveEnCorrida is Resolve for a process that runs inside a role's run
+// (c.Role != ""; the CLI reads it from the run's environment): only the
+// refutador closes, only as refutado, and hoom signs it — a role never
+// closes a finding in someone else's name. An empty Corrida is Resolve.
+func ResolveEnCorrida(root, id, as, evidence, author string, c Corrida) (Resolution, error) {
 	as = strings.ToLower(strings.TrimSpace(as))
 	if !validStates[as] {
 		return Resolution{}, fmt.Errorf("estado invalido %q (corregido|refutado)", as)
 	}
 	if strings.TrimSpace(evidence) == "" {
 		return Resolution{}, fmt.Errorf("falta --evidence: nadie cierra un hallazgo sin decir por que")
+	}
+	// Inside a role's run only the refutador closes, only as refutado, and
+	// hoom signs it: a role never closes a finding in someone else's name.
+	var role, run string
+	if c.Role = strings.TrimSpace(c.Role); c.Role != "" {
+		if c.Role != RolQueRefuta {
+			return Resolution{}, NoCierra(fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", c.Role))
+		}
+		if as != "refutado" {
+			return Resolution{}, NoCierra("el refutador solo refuta: corregido lo cierra el Orquestador o una persona, con el gate verde")
+		}
+		sello := fmt.Sprintf("%s@%s (run %s)", c.Role, strings.TrimSpace(c.Provider), strings.TrimSpace(c.Run))
+		if a := strings.TrimSpace(author); a != "" && a != sello {
+			return Resolution{}, NoCierra(fmt.Sprintf("dentro de un run el autor lo pone hoom (%s)", sello))
+		}
+		author, role, run = sello, c.Role, strings.TrimSpace(c.Run)
 	}
 	if _, err := os.Stat(findingPath(root, id)); err != nil {
 		return Resolution{}, fmt.Errorf("hallazgo no encontrado: %s", id)
@@ -179,6 +207,8 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 		Evidence:   strings.TrimSpace(evidence),
 		Author:     author,
 		ResolvedAt: time.Now().UTC(),
+		Role:       role,
+		Run:        run,
 	}
 	raw, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
@@ -189,6 +219,21 @@ func Resolve(root, id, as, evidence, author string) (Resolution, error) {
 	}
 	return r, nil
 }
+
+// RolQueRefuta is the one role that closes findings inside a run, and only
+// as refutado (contract 09).
+const RolQueRefuta = "refutador"
+
+// NoCierra is the refusal of a resolve inside a role's run: the role may not
+// close that finding, or not that way, or not in that name.
+type NoCierra string
+
+func (e NoCierra) Error() string { return string(e) }
+
+// Corrida is the role's run a process runs inside, as the run that launched
+// it declared (runcmd.EnvRole, EnvRun, EnvProvider); Role "" = not inside
+// one.
+type Corrida struct{ Role, Run, Provider string }
 
 // parseResolution reads a resolution record and says why it does not close
 // its finding ("" = it does). This is the single definition of "closed": a

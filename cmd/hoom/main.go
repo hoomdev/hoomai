@@ -764,9 +764,19 @@ func cmdFinding(args []string) error {
 		fs := flag.NewFlagSet("finding resolve", flag.ExitOnError)
 		as := fs.String("as", "", "corregido|refutado")
 		evidence := fs.String("evidence", "", "evidencia del cierre (obligatoria)")
-		author := fs.String("author", "", "rol o autor (default: git config)")
+		author := fs.String("author", "", "rol o autor (default: git config; dentro de un run lo pone hoom)")
 		_ = fs.Parse(rest[1:])
-		r, err := finding.Resolve(m.Dir, id, *as, *evidence, *author)
+		// dentro de la corrida de un rol, la corrida lo dijo en el entorno
+		corrida := finding.Corrida{Role: os.Getenv(runcmd.EnvRole), Run: os.Getenv(runcmd.EnvRun),
+			Provider: os.Getenv(runcmd.EnvProvider)}
+		r, err := finding.ResolveEnCorrida(m.Dir, id, *as, *evidence, *author, corrida)
+		var noCierra finding.NoCierra
+		if errors.As(err, &noCierra) {
+			// dentro de un run: el rol no cierra ese hallazgo, o no asi, o
+			// no con ese nombre; nada se escribio
+			fmt.Fprintln(os.Stderr, "hoom finding: "+noCierra.Error())
+			os.Exit(1)
+		}
 		if err != nil {
 			return err
 		}

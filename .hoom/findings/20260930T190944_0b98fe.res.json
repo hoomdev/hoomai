@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T190944_0b98fe",
+  "as": "corregido",
+  "evidence": "10f5fca: el comentario 'universal applies the append-only floor' vuelve a universal; el mapa marcadas de sinCierres se quito (era codigo muerto: una resolucion creada nunca es manipulacion de universal) y el comentario dice que solo cuentan las creadas.",
+  "author": "writer@claude",
+  "resolved_at": "2026-09-30T19:31:01.419529Z"
+}

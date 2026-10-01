@@ -1,0 +1,11 @@
+{
+  "id": "20260930T194224_528da7",
+  "created_at": "2026-09-30T19:42:24.080095Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: internal/agentcmd/agentcmd.go:262 omite Gate y la comprobacion de fugas cuando falla un rol con tree != nil. El test-writer corre en .hoom/isolated pero conserva shell y puede escribir ../../findings/\u003cid\u003e.res.json (el arbol real) y salir con error; esa resolucion cierra el hallazgo high, no se registra manipulacion ni un hallazgo high del gate, y una corrida posterior puede verificar verde. CA-438 exige medir cualquier corrida de rol no refutador aunque falle; hay que fotografiar el arbol real en este camino y aplicar la deteccion de cierre/fuga antes de retornar.",
+  "author": "reviewer@codex",
+  "fingerprint": "ae50daaefd4d9d3c",
+  "task": "quien-cierra-un-hallazgo"
+}

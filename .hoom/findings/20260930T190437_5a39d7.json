@@ -1,0 +1,11 @@
+{
+  "id": "20260930T190437_5a39d7",
+  "created_at": "2026-09-30T19:04:37.073173Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:415-416 detecta resoluciones nuevas solo recorriendo sc.Touched, que proviene de gitx.Touched y omite archivos ignorados, aunque Snapshot.Evidence si enumera el disco. Un writer puede agregar .hoom/findings/*.res.json a .gitignore (cambio permitido por su scope) y crear la resolucion: el gate no ve el .res.json, pasa a verify, y finding.Gate si lo lee del filesystem, cerrando incluso un hallazgo high. Comparar after.Evidence contra before.Evidence, no solo el delta visible para Git.",
+  "author": "reviewer@codex",
+  "fingerprint": "991fdc6f4e5c6dd5",
+  "task": "quien-cierra-un-hallazgo"
+}

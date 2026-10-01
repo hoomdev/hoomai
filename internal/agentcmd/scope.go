@@ -46,7 +46,14 @@ const (
 type Blind struct {
 	Restored []string // testigos que volvieron al disco del arbol ciego
 	Leaked   []string // rutas que cambiaron en el arbol REAL mientras el rol corria confinado
+	// Real photographs the REAL tree around the blind run (nil = not taken):
+	// its evidence is compared on disk, so a resolution written out of the
+	// quarantine is a closing even when git does not list it.
+	Real *Fotos
 }
+
+// Fotos are the two photographs of one tree around a run.
+type Fotos struct{ Antes, Despues Snapshot }
 
 const (
 	detalleRestaurado = "el rol devolvio al arbol un archivo que el aislamiento habia quitado"
@@ -284,6 +291,16 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
 	}
+	// Closings go last, over every tree the run could write to (the one it
+	// ran in and, blind, the real one): withIsolation replaces the earlier
+	// violations of a leaked path, and a closing must survive it.
+	if role.Slug != finding.RolQueRefuta {
+		arboles := []Fotos{{Antes: before, Despues: after}}
+		if blind != nil && blind.Real != nil {
+			arboles = append(arboles, *blind.Real)
+		}
+		sc = sinCierres(sc, role, arboles...)
+	}
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
@@ -394,6 +411,41 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	}
 	res.OK = len(res.Violations) == 0
 	return res
+}
+
+// sinCierres marks every finding resolution the run created, in any of the
+// trees it could write to: only the refutador closes findings inside a run
+// (contract 09), and a role that writes the .res.json by hand, without the
+// CLI, is caught all the same. It compares the photographs of the disk
+// (Evidence), not what git lists: a resolution git ignores (.gitignore,
+// .git/info/exclude) still closes its finding, so it is still a closing. A
+// path created in more than one tree is one closing. An existing resolution
+// that changed is already tampering (universal, append-only).
+func sinCierres(sc ScopeResult, role agents.Role, arboles ...Fotos) ScopeResult {
+	creadas := map[string]bool{}
+	for _, f := range arboles {
+		for p := range f.Despues.Evidence {
+			if strings.HasPrefix(p, ".hoom/findings/") && strings.HasSuffix(p, ".res.json") && !f.Antes.Evidence[p] {
+				creadas[p] = true
+			}
+		}
+	}
+	rutas := make([]string, 0, len(creadas))
+	for p := range creadas {
+		rutas = append(rutas, p)
+	}
+	sort.Strings(rutas)
+	for _, p := range rutas {
+		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering,
+			Detail: fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", role.Slug)})
+		if !contains(sc.Touched, p) {
+			sc.Touched = append(sc.Touched, p)
+		}
+		sc.Tampering, sc.OK = true, false
+	}
+	sort.Strings(sc.Touched)
+	sortViolations(sc.Violations)
+	return sc
 }
 
 // universal applies the append-only floor to one path.

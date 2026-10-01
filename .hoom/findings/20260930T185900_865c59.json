@@ -1,0 +1,11 @@
+{
+  "id": "20260930T185900_865c59",
+  "created_at": "2026-09-30T18:59:00.746217Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "[INTRODUCIDO] internal/agentcmd/scope.go:414 — sinCierres solo recorre sc.Touched, pero Take obtiene ese conjunto de gitx.Touched y este excluye archivos ignorados. Un writer puede agregar .hoom/findings/*.res.json a .gitignore (permitido por su scope, o usar .git/info/exclude), crear la resolucion a mano y hacer que List/verify la consuman mientras el gate nunca ve la ruta: el hallazgo high queda cerrado y el sobre puede terminar verde. La regla debe comparar tambien after.Evidence contra before.Evidence, independientemente de Git.",
+  "author": "reviewer@codex",
+  "fingerprint": "991fdc6f4e5c6dd5",
+  "task": "quien-cierra-un-hallazgo"
+}

@@ -1,0 +1,68 @@
+{
+  "id": "20260930T195423_ff8727",
+  "created_at": "2026-09-30T19:54:23.553142Z",
+  "task": "quien-cierra-un-hallazgo",
+  "spec": ".hoom/specs/quien-cierra-un-hallazgo.md",
+  "fingerprint": "ae50daaefd4d9d3c",
+  "verdict_id": "2026-09-30T19-39-28Z_f08fdc95",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20260930T194224_528da7",
+    "20260930T194553_a4e48c",
+    "20260930T194642_2626ca",
+    "20260930T195015_3a4a53",
+    "20260930T195043_8e11af",
+    "20260930T195127_0a1ea7",
+    "20260930T195358_a68562"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 38623,
+  "evidence_sha256": "82043fe95f248bfebaa3fd7e58e8f9d48820c0816e8c9379f22c99104b93cea9",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 402706,
+      "cached_input_tokens": 345344,
+      "output_tokens": 6944,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 677913,
+      "cached_input_tokens": 590720,
+      "output_tokens": 11877,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 728283,
+      "cached_input_tokens": 657280,
+      "output_tokens": 15801,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 347623,
+      "cached_input_tokens": 292864,
+      "output_tokens": 4095,
+      "turns": 1
+    }
+  ],
+  "desde": "b1a33d5fb5b2dac6f2dd547998ab915d0c7b7434",
+  "hasta": "cbd2cf61c75b7b06dc25dfb47218fcacfd75d544",
+  "cobertura": "delta",
+  "desde_review": "20260930T190954_455435",
+  "base": "main"
+}

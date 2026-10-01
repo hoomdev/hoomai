@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T195127_0a1ea7",
+  "as": "refutado",
+  "evidence": "PRE-EXISTENTE (el reviewer mismo lo marca asi). main baf2251 internal/agentcmd/scope.go:289 (4dcf4aa, 2026-09-18) ya descarta el error de finding.Register para toda violacion. Overlay sobre main (zz_ref2main_test.go, no commiteado): un writer borra un hallazgo high (manipulacion append-only) con .hoom/findings en 0555; Gate devuelve tampering con FindingID vacio y sin error, y la corrida siguiente no ve violacion con 0 high abiertos. Esta spec solo agrega otra regla (sinCierres) sobre el mismo registro. Follow-up: que Gate devuelva el error de Register y el sobre/la review terminen rotos en vez de callar.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-09-30T20:00:31.444024Z"
+}

@@ -483,6 +483,15 @@ func blindFrom(dir string) (string, bool) {
 // role's contract having to know.
 const EnvTask = "HOOM_TASK"
 
+// EnvRole, EnvRun and EnvProvider are what a run puts in its provider's
+// environment about itself: the role it embodies, its id and its provider.
+// `hoom finding resolve` reads them to know it runs inside a role's run.
+const (
+	EnvRole     = "HOOM_ROLE"
+	EnvRun      = "HOOM_RUN"
+	EnvProvider = "HOOM_PROVIDER"
+)
+
 // CurrentTask answers which task this process works for: an explicit flag
 // wins; without one, the task the run that launched us put in EnvTask;
 // without either, none.
@@ -785,14 +794,16 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 
 	cmd := exec.CommandContext(ctx, inv.Bin, inv.Args...)
 	cmd.Dir = r.dir
-	// The run tells whatever it launches which task it belongs to — always,
-	// empty without one, so a value inherited from the parent never leaks in.
-	// exec keeps the LAST value of a repeated key.
+	// The run tells whatever it launches which task it belongs to, which
+	// role it embodies, its id and its provider — always, empty without a
+	// value, so one inherited from the parent never leaks in. exec keeps the
+	// LAST value of a repeated key.
 	task := r.opts.FindingTask
 	if task == "" {
 		task = r.opts.Task
 	}
-	cmd.Env = append(os.Environ(), EnvTask+"="+task)
+	cmd.Env = append(os.Environ(), EnvTask+"="+task, EnvRole+"="+r.opts.Role,
+		EnvRun+"="+r.info.ID, EnvProvider+"="+r.opts.Provider)
 	// a prompt too large for argv (E2BIG on Linux, the 32 KiB command line on
 	// Windows) travels by stdin; the adapter left it out of Args. It is a
 	// pipe WE write and close, not an exec copier: an orphan that inherits

@@ -1,0 +1,11 @@
+{
+  "id": "20260930T194642_2626ca",
+  "created_at": "2026-09-30T19:46:42.031809Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:279: en una corrida aislada exitosa, la nueva deteccion por Snapshot.Evidence solo compara la cuarentena (before/Take(runDir)), mientras Blind.Leaked compara el arbol real exclusivamente con delta de Touched de Git. Un test-writer puede escribir ../../../.hoom/findings/\u003cid\u003e.res.json en el arbol real y ocultarlo con .git/info/exclude (incluso con una regla previa); la resolucion no existe en la foto de la cuarentena y Git no la incluye en Leaked, de modo que Scope queda OK, se trasplantan los tests y verify puede quedar verde con el hallazgo original cerrado. La foto del arbol real tambien debe comparar Evidence y convertir toda resolucion nueva en fuga/manipulacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "ae50daaefd4d9d3c",
+  "task": "quien-cierra-un-hallazgo"
+}

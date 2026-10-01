@@ -259,18 +259,20 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			code = 1
 		}
 		fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
+		// A run that failed may have written anyway: its territory is measured
+		// exactly like a finished one's — blind or not, with the real tree's
+		// photograph — because a resolution closes a finding whether the run
+		// ended well or not (CA-438). What it cannot give is a tree to verify.
+		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), PolicyFor(m, role), cegado(tree, beforeReal, dir, base))
+		printScope(w, res.Scope, role, step(steps-2, steps))
 		keepQuarantine(w, tree, res.Isolation, "el run fallo")
-		return cerrar(w, root, &rec, res, "run", code, "el run fallo: no hay arbol confiable que medir"), nil
+		return cerrar(w, root, &rec, res, "run", code, "el run fallo: su territorio se midio; no se emite veredicto"), nil
 	}
 
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
 	// blind tree lets us ask — is the blindfold still on?
 	seguir("scope", steps-2)
-	var blind *Blind
-	if tree != nil {
-		blind = &Blind{Restored: tree.Breaches(), Leaked: delta(beforeReal.Touched, Take(dir, base).Touched)}
-	}
-	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), PolicyFor(m, role), blind)
+	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), PolicyFor(m, role), cegado(tree, beforeReal, dir, base))
 	printScope(w, res.Scope, role, step(steps-2, steps))
 	if res.Scope.Cuts() {
 		note := "manipulacion de la evidencia: no se emite veredicto sobre este arbol"
@@ -759,4 +761,17 @@ func keepQuarantine(w io.Writer, t *isolate.Tree, iso *Isolation, why string) {
 	iso.Kept = true
 	fmt.Fprintf(w, "                cuarentena conservada en %s (%s)\n", t.Dir, why)
 	fmt.Fprintf(w, "                para descartarla: git worktree remove --force %s\n", t.Dir)
+}
+
+// cegado is what the blind tree lets the gate ask after a blind run: the
+// witnesses that came back, the real tree's changes as git lists them, and
+// the real tree's two photographs, so a resolution the role wrote OUT of its
+// quarantine — even one git ignores — is still a closing. nil = not blind.
+func cegado(tree *isolate.Tree, beforeReal Snapshot, dir, base string) *Blind {
+	if tree == nil {
+		return nil
+	}
+	realAfter := Take(dir, base)
+	return &Blind{Restored: tree.Breaches(), Leaked: delta(beforeReal.Touched, realAfter.Touched),
+		Real: &Fotos{Antes: beforeReal, Despues: realAfter}}
 }

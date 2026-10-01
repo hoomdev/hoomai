@@ -1,0 +1,7 @@
+{
+  "finding_id": "20260930T194642_2626ca",
+  "as": "corregido",
+  "evidence": "ba647cb: Blind lleva RealBefore/RealAfter y Gate corre sinCierres sobre el arbol real (Evidence en disco, no lo que git lista) despues de withIsolation; sinCierres no duplica un cierre ya marcado. Test ciego 593f3df TestCA438_ElRolCiegoQueCierraEnElArbolRealYSaleConCeroNoTerminaVerde (regla de .git/info/exclude agregada en el run, previa, y sin esconderla): rojo en 1ceb49c (entregable/green o solo aislamiento), verde en 593f3df; controles TestCA438_ElRolCiegoQueSoloEscribeSuTestSigueComoHoy verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-09-30T20:19:21.786924Z"
+}

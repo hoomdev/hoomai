@@ -1,0 +1,11 @@
+{
+  "id": "20260930T195358_a68562",
+  "created_at": "2026-09-30T19:53:58.594628Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: internal/agentcmd/agentcmd.go:262-271 ahora mide explicitamente el territorio del arbol real cuando falla un run no aislado, pero acto seguido cierra el sobre con la nota 'no hay arbol confiable que medir'. Las explicaciones adyacentes se contradicen y dejan ambiguo para mantenimiento y diagnostico si el gate de scope se ejecuto; la nota deberia distinguir el caso aislado del no aislado o describir la medicion que acaba de hacerse.",
+  "author": "reviewer@codex",
+  "fingerprint": "ae50daaefd4d9d3c",
+  "task": "quien-cierra-un-hallazgo"
+}

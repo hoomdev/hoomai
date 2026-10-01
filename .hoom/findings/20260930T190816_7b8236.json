@@ -1,0 +1,11 @@
+{
+  "id": "20260930T190816_7b8236",
+  "created_at": "2026-09-30T19:08:16.630928Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:879: si el reviewer crea un .res.json y luego el provider sale nonzero, se corta la pasada antes de agentcmd.Gate (linea 889). La review queda no-entregable por fallo del run, pero no por territorio, no se registra el hallazgo alto de manipulacion y la resolucion queda cerrando el hallazgo original; una corrida posterior la toma como preexistente y verify puede pasar. El mismo retorno anticipado existe en internal/agentcmd/agentcmd.go:256. El scope debe medirse y registrar manipulacion aun al fallar/cancelarse/expirar el provider.",
+  "author": "reviewer@codex",
+  "fingerprint": "991fdc6f4e5c6dd5",
+  "task": "quien-cierra-un-hallazgo"
+}
