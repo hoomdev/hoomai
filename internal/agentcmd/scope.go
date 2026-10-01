@@ -12,6 +12,7 @@ package agentcmd
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"io"
@@ -19,7 +20,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -28,6 +28,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/ratchet"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 // Violation rules. Tampering is the floor: it cuts the envelope before verify
@@ -125,8 +126,11 @@ func (s ScopeResult) has(rule string) bool {
 type Snapshot struct {
 	Touched  map[string]string // gitx.Touched menos lo que escribe hoom: path -> content hash ("-" = gone)
 	Evidence map[string]bool   // paths that EXIST under .hoom/{verdicts,findings,approvals}
-	// Huellas: the sha256 of every file under .hoom/{verdicts,findings,
-	// approvals} on disk, git-ignored ones included; nil in a hand-built
+	// Huellas: what the disk floor compares for every entry under
+	// .hoom/{verdicts,findings,approvals} on disk, git-ignored ones included:
+	// the hex sha256 of a regular file's whole content; HuellaNoRegular plus
+	// its type for anything else (a symlink, a FIFO: never followed or read);
+	// HuellaIlegible for an entry hoom could not read. nil in a hand-built
 	// photograph (the disk floor then does not apply).
 	Huellas  map[string]string
 	Manifest string        // hash of hoom.yaml ("" = unreadable)
@@ -145,13 +149,25 @@ func Take(root, base string) Snapshot {
 	for _, d := range evidenceDirs {
 		dir := filepath.Join(root, ".hoom", d)
 		filepath.WalkDir(dir, func(p string, e fs.DirEntry, err error) error {
-			if err != nil || e.IsDir() {
-				return nil //nolint:nilerr // a missing evidence dir is a valid state
+			rel, rerr := filepath.Rel(root, p)
+			if rerr != nil {
+				return nil //nolint:nilerr // outside root: nothing to photograph
 			}
-			if rel, rerr := filepath.Rel(root, p); rerr == nil {
-				s.Evidence[filepath.ToSlash(rel)] = true
-				s.Huellas[filepath.ToSlash(rel)] = huella(p, e)
+			rel = filepath.ToSlash(rel)
+			if err != nil {
+				if p == dir && errors.Is(err, fs.ErrNotExist) {
+					return nil // a missing evidence dir is a valid state
+				}
+				// what hoom cannot read it cannot vouch for: the floor fails
+				// closed on it
+				s.Huellas[rel] = HuellaIlegible
+				return nil //nolint:nilerr // recorded, the walk goes on
 			}
+			if e.IsDir() {
+				return nil
+			}
+			s.Evidence[rel] = true
+			s.Huellas[rel] = huella(p, e)
 			return nil
 		})
 	}
@@ -306,10 +322,12 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	if blind != nil && blind.Real != nil {
 		arboles = append(arboles, *blind.Real)
 	}
-	sc = pisoEnDisco(sc, arboles...)
+	// closings first: a resolution a role created keeps the one violation
+	// that says what it did, and the disk floor does not add a second
 	if role.Slug != finding.RolQueRefuta {
 		sc = sinCierres(sc, role, arboles...)
 	}
+	sc = pisoEnDisco(sc, arboles...)
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
@@ -422,52 +440,46 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	return res
 }
 
-// huellaMax bounds what huella reads of one file: evidence files are small
-// JSON; one past this is fingerprinted by its size and first bytes.
-const huellaMax = 16 << 20
+// The two Huellas that are not a content hash.
+const (
+	// HuellaNoRegular prefixes the type of an entry that is not a regular
+	// file: it is never followed nor read (a FIFO would hang the photograph,
+	// a symlink would point it elsewhere), and no evidence hoom writes is one.
+	HuellaNoRegular = "no-regular:"
+	// HuellaIlegible marks an entry hoom could not open or read.
+	HuellaIlegible = "ilegible"
+)
 
-// huella is what the disk floor compares for one evidence file: the sha256
-// of its content. Only regular files are read — a FIFO, a socket or a
-// symlink a role left among the evidence must not hang or redirect the
-// photograph — and only up to huellaMax.
+// huella is what the disk floor compares for one evidence entry: the sha256
+// of a regular file's whole content (the cost is linear in the evidence, and
+// a hash of less would leave bytes unwatched). Only regular files are read.
 func huella(p string, e fs.DirEntry) string {
 	if !e.Type().IsRegular() {
-		return "tipo:" + e.Type().String()
+		return HuellaNoRegular + e.Type().String()
 	}
 	f, err := os.Open(p)
 	if err != nil {
-		return "ilegible"
+		return HuellaIlegible
 	}
 	defer f.Close()
 	h := sha256.New()
-	n, err := io.CopyN(h, f, huellaMax+1)
-	if err != nil && err != io.EOF {
-		return "ilegible"
+	if _, err := io.Copy(h, f); err != nil {
+		return HuellaIlegible
 	}
-	sum := hex.EncodeToString(h.Sum(nil))
-	if n > huellaMax {
-		if info, ierr := f.Stat(); ierr == nil {
-			return fmt.Sprintf("grande:%d:%s", info.Size(), sum)
-		}
-	}
-	return sum
+	return hex.EncodeToString(h.Sum(nil))
 }
-
-var (
-	formaHallazgo  = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}_[0-9a-f]{6}(\.res)?\.json$`)
-	formaVeredicto = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z_[0-9a-f]{8}\.json$`)
-)
 
 // conForma says whether a file a run created under the evidence has the
 // shape hoom writes: a finding or a resolution under .hoom/findings/, a
-// verdict under .hoom/verdicts/. Nothing created under .hoom/approvals/ has
+// verdict under .hoom/verdicts/ (finding.EsNombre and verdict.EsNombre are
+// the one definition of each). Nothing created under .hoom/approvals/ has
 // it: the human approval is never a role's.
 func conForma(p string) bool {
 	switch dir, name := path.Split(p); dir {
 	case ".hoom/findings/":
-		return formaHallazgo.MatchString(name)
+		return finding.EsNombre(name)
 	case ".hoom/verdicts/":
-		return formaVeredicto.MatchString(name)
+		return verdict.EsNombre(name)
 	}
 	return false
 }
@@ -491,6 +503,14 @@ func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
 			continue
 		}
 		for p, h := range f.Antes.Huellas {
+			if h == HuellaIlegible {
+				// evidence hoom could not read BEFORE the run: whatever it
+				// holds now cannot be compared, so nothing after it is vouched
+				// for either (a dir made unreadable in one run would make its
+				// files look new in the next)
+				nuevas[p] = "la evidencia no se puede leer: " + p
+				continue
+			}
 			switch d, ok := f.Despues.Huellas[p]; {
 			case !ok:
 				nuevas[p] = "la evidencia es append-only: " + p + " desaparecio durante el run"
@@ -498,8 +518,20 @@ func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
 				nuevas[p] = "la evidencia es append-only: " + p + " cambio durante el run"
 			}
 		}
-		for p := range f.Despues.Huellas {
-			if _, ok := f.Antes.Huellas[p]; ok || conForma(p) {
+		for p, d := range f.Despues.Huellas {
+			if d == HuellaIlegible {
+				// what hoom cannot read it cannot vouch for: fail closed
+				nuevas[p] = "la evidencia no se puede leer: " + p
+				continue
+			}
+			if _, ok := f.Antes.Huellas[p]; ok {
+				continue
+			}
+			if strings.HasPrefix(d, HuellaNoRegular) {
+				nuevas[p] = "la evidencia es un archivo regular: " + p + " no lo es (" + strings.TrimPrefix(d, HuellaNoRegular) + ")"
+				continue
+			}
+			if conForma(p) {
 				continue
 			}
 			if strings.HasPrefix(p, ".hoom/approvals/") {

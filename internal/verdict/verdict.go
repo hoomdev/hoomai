@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -134,6 +135,14 @@ func LatestComplete(all []*Verdict) *Verdict {
 	}
 	return nil
 }
+
+// formaNombre is the name Write gives a verdict file: its id
+// (2006-01-02T15-04-05Z + "_" + 8 hex of its content) plus ".json".
+var formaNombre = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z_[0-9a-f]{8}\.json$`)
+
+// EsNombre says whether name is the file name Write gives a verdict: the one
+// definition the scope gate uses to tell a verdict from anything else.
+func EsNombre(name string) bool { return formaNombre.MatchString(name) }
 
 // Write persists the verdict as .hoom/verdicts/<timestamp>_<hash>.json.
 // Timestamp + content hash guarantees unique, collision-free, append-only

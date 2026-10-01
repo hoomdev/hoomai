@@ -94,6 +94,15 @@ func dir(root string) string { return filepath.Join(root, ".hoom", "findings") }
 func findingPath(root, id string) string { return filepath.Join(dir(root), id+".json") }
 func resPath(root, id string) string     { return filepath.Join(dir(root), id+".res.json") }
 
+// formaNombre is the name hoom gives a finding file (newID + ".json") and its
+// resolution (newID + ".res.json").
+var formaNombre = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}_[0-9a-f]{6}(\.res)?\.json$`)
+
+// EsNombre says whether name is the file name hoom gives a finding or its
+// resolution: the one definition the scope gate uses to tell them from
+// anything else.
+func EsNombre(name string) bool { return formaNombre.MatchString(name) }
+
 func newID() string {
 	raw := make([]byte, 3)
 	rand.Read(raw)
