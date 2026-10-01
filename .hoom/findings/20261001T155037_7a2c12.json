@@ -1,0 +1,11 @@
+{
+  "id": "20261001T155037_7a2c12",
+  "created_at": "2026-10-01T15:50:37.079904Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:309 ejecuta pisoEnDisco antes de sinCierres (línea 311), pero sinCierres agrega otra manipulación sin comprobar si la ruta ya estaba marcada (líneas 543-556). Si un rol no refutador crea, por ejemplo, .hoom/findings/x.res.json, pisoEnDisco registra la forma inválida y sinCierres registra además el cierre: Gate persiste dos hallazgos high para una sola ruta, incumpliendo el contrato de no duplicación y obligando a resolver dos artefactos por el mismo archivo.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

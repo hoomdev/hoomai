@@ -1,0 +1,11 @@
+{
+  "id": "20261001T155409_86842f",
+  "created_at": "2026-10-01T15:54:09.846527Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:501: pisoEnDisco acepta una creación únicamente por conForma, aun cuando Take la fotografió como tipo especial en scope.go:433-435. Un rol puede crear un FIFO o symlink con nombre válido; el scope pasa y los consumidores posteriores finding.List/verdict.LoadAll usan os.ReadFile, que puede bloquear indefinidamente (FIFO o dispositivo) o seguir el enlace. Las creaciones legítimas deben exigir archivo regular y los tipos especiales deben cortar como manipulación.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

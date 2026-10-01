@@ -1,0 +1,11 @@
+{
+  "id": "20261001T155036_72b57f",
+  "created_at": "2026-10-01T15:50:36.870461Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:443 limita la huella a 16 MiB+1 y, para archivos mayores, solo combina tamaño y ese prefijo (líneas 448-450). Dos evidencias grandes con igual tamaño y prefijo pero bytes distintos después del límite obtienen la misma Huellas, por lo que pisoEnDisco no detecta la edición; un hallazgo JSON válido puede poner severity después de un relleno de 16 MiB y bajarlo de high a low sin disparar CA-441. La spec exige sha256 del contenido completo y acepta explícitamente el costo lineal.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261001T155627_0d10d6",
+  "created_at": "2026-10-01T15:56:27.819277Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:128: Snapshot.Huellas se documenta como un mapa de sha256, pero huella devuelve tambien valores con protocolos implicitos (tipo:, ilegible y grande:\u003ctamano\u003e:\u003chash\u003e) en internal/agentcmd/scope.go:433-453. El nombre, el tipo y el comentario ocultan esas variantes y obligan a los consumidores a conocer cadenas magicas; documentar/modelar explicitamente una huella opaca o sus estados haria mantenible el contrato.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

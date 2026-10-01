@@ -1,0 +1,11 @@
+{
+  "id": "20261001T155409_a4f360",
+  "created_at": "2026-10-01T15:54:09.385112Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:443: huella solo lee 16 MiB + 1 y, para archivos mayores, combina ese prefijo con el tamaño (scope.go:448-450). Dos evidencias del mismo tamaño que difieran únicamente después de ese prefijo producen la misma Huellas, así que pisoEnDisco no detecta la edición y se pierde el piso append-only. La spec exige sha256 del contenido completo y acepta explícitamente su costo; debe hashearse el stream entero o fallar cerrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}
