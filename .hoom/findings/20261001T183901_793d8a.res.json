@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T183901_793d8a",
+  "as": "corregido",
+  "evidence": "cebcc4a: la huella de un symlink es HuellaNoRegular + tipo + ':' + sha256 del texto del enlace (os.Readlink, no lo sigue), como gitx.contentHash; redirigirlo de A a B cambia la huella y el piso lo marca 'cambio durante el run'. Test ciego bfb1fb3: TestCA441_UnSymlinkDeEvidenciaQueExistiaYCambiaDeDestinoEsManipulacion (4 escondites + git la ve, todo rol; mismo texto no es violacion); sin el hash del destino falla.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T19:35:46.714705Z"
+}
