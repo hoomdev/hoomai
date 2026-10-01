@@ -14,13 +14,17 @@ package agentcmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/finding"
@@ -58,6 +62,14 @@ func qcLimpiarEntorno(t *testing.T) {
 func qcRepoConHallazgo(t *testing.T, n int) (string, []string) {
 	t.Helper()
 	qcLimpiarEntorno(t)
+	return qcRepoConHallazgoSinEntorno(t, n)
+}
+
+// qcRepoConHallazgoSinEntorno es qcRepoConHallazgo sin limpiar el entorno,
+// que es del proceso: para un subtest en paralelo cuyo test de arriba ya lo
+// limpio.
+func qcRepoConHallazgoSinEntorno(t *testing.T, n int) (string, []string) {
+	t.Helper()
 	root := repo(t)
 	var ids []string
 	for i := 0; i < n; i++ {
@@ -171,14 +183,16 @@ func TestCA438_UnaResolucionNuevaEsManipulacionEnTodoRolQueNoEsRefutador(t *test
 // una lista: para todo slug distinto de refutador, aun uno que no esta en la
 // tabla y con el territorio mas amplio (codigo), la resolucion nueva es
 // manipulacion con el detalle del contrato que nombra ese slug.
+//
+// 40 muestras de quick.Value (las que antes sacaba quick.Check con MaxCount
+// 40), cada una en paralelo y en su propia copia del repo con el hallazgo:
+// el gate registra un hallazgo, y mira git, por cada manipulacion.
 func TestCA438_PropiedadTodoSlugQueNoEsRefutadorNoCierra(t *testing.T) {
-	root, ids := qcRepoConHallazgo(t, 1)
-	before := Take(root, "main")
-	write(t, root, qcResRel(ids[0]), qcResolucionAMano(ids[0], finding.StatusRefuted))
-	after := Take(root, "main")
+	plantilla, ids := qcRepoConHallazgo(t, 1)
+	resolucion := qcResRel(ids[0])
 
 	const letras = "abcdefghijklmnopqrstuvwxyz-"
-	prop := func(semilla []byte) bool {
+	slugDe := func(semilla []byte) string {
 		var b strings.Builder
 		b.WriteByte('a' + semilla0(semilla)%26)
 		for i, c := range semilla {
@@ -187,22 +201,37 @@ func TestCA438_PropiedadTodoSlugQueNoEsRefutadorNoCierra(t *testing.T) {
 			}
 			b.WriteByte(letras[int(c)%len(letras)])
 		}
-		slug := b.String()
-		if slug == "refutador" {
-			return true
-		}
-		r := agents.Role{Slug: slug, Scope: agents.ScopeCodigo}
-		res := Gate(root, "main", "", r, before, after, PolicyFor(nil, r), nil)
-		for _, v := range res.Violations {
-			if v.Path == qcResRel(ids[0]) && v.Rule == RuleTampering && strings.Contains(v.Detail, qcNoCierra(slug)) {
-				return res.Tampering && !res.OK
-			}
-		}
-		t.Logf("CA-438: rol %q: %+v", slug, res.Violations)
-		return false
+		return b.String()
 	}
-	if err := quick.Check(prop, &quick.Config{MaxCount: 40}); err != nil {
-		t.Fatalf("CA-438: una resolucion nueva es manipulacion para todo rol que no es refutador: %v", err)
+	azar := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 40; i++ {
+		v, ok := quick.Value(reflect.TypeOf([]byte(nil)), azar)
+		if !ok {
+			t.Fatal("fixture: quick genera un []byte")
+		}
+		semilla := v.Bytes()
+		slug := slugDe(semilla)
+		if slug == "refutador" {
+			continue
+		}
+		t.Run(fmt.Sprintf("rol %s", slug), func(t *testing.T) {
+			t.Parallel()
+			root := edCopiarArbol(t, plantilla)
+			before := Take(root, "main")
+			write(t, root, resolucion, qcResolucionAMano(ids[0], finding.StatusRefuted))
+			after := Take(root, "main")
+			r := agents.Role{Slug: slug, Scope: agents.ScopeCodigo}
+			res := Gate(root, "main", "", r, before, after, PolicyFor(nil, r), nil)
+			for _, v := range res.Violations {
+				if v.Path == resolucion && v.Rule == RuleTampering && strings.Contains(v.Detail, qcNoCierra(slug)) {
+					if !res.Tampering || res.OK {
+						t.Fatalf("CA-438: rol %q (semilla %v): el gate queda marcado como manipulacion: %+v", slug, semilla, res)
+					}
+					return
+				}
+			}
+			t.Fatalf("CA-438: una resolucion nueva es manipulacion para todo rol que no es refutador: rol %q (semilla %v): %+v", slug, semilla, res.Violations)
+		})
 	}
 }
 

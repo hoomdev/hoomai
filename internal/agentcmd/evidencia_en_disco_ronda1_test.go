@@ -423,14 +423,17 @@ func TestCA440_ElWriterQueBajaUnHallazgoDeMasDe16MiBConElMismoTamanoNoTerminaVer
 // UNA manipulacion con "la evidencia es un archivo regular" y su ruta, con
 // su hallazgo del gate. Nunca se sigue: la huella no es el sha256 del
 // destino. Una resolucion <id>.res.json que es un symlink tambien es UNA
-// manipulacion (en el refutador, por no ser un archivo regular).
+// manipulacion (en el refutador, por no ser un archivo regular). (Cada rol
+// corre en paralelo, en su copia del repo armado para la variante; los
+// destinos de afuera son los mismos para todos.)
 func TestCA442_UnSymlinkConNombreValidoEsManipulacionYNoSeSigue(t *testing.T) {
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
-			root := repo(t)
-			e.armar(t, root)
-			id, _ := edHallazgo(t, root, "high", "a refutar")
+			t.Parallel()
+			plantilla := repo(t)
+			e.armar(t, plantilla)
+			id, _ := edHallazgo(t, plantilla, "high", "a refutar")
 			afuera := t.TempDir()
 
 			type enlace struct {
@@ -460,39 +463,44 @@ func TestCA442_UnSymlinkConNombreValidoEsManipulacionYNoSeSigue(t *testing.T) {
 			}
 			res := qcResRel(id)
 
-			if err := os.MkdirAll(filepath.Join(root, ".hoom", "verdicts"), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Join(plantilla, ".hoom", "verdicts"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			before := edr1Take(t, "CA-442", e.caso+", foto de antes", root)
-			for _, l := range enlaces {
-				edr1Symlink(t, root, l.ruta, l.destino)
-			}
-			edr1Symlink(t, root, res, resolucionAfuera)
-			after := edr1Take(t, "CA-442", e.caso+", foto con symlinks", root)
-
-			for _, l := range append(enlaces, enlace{res, resolucionAfuera, resolucionBytes}) {
-				if e.oculto && !qcr1Ignorado(t, root, l.ruta) {
-					t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, l.ruta)
-				}
-				if l.contenido != nil && strings.EqualFold(after.Huellas[l.ruta], edSHA(l.contenido)) {
-					t.Fatalf("CA-442: %s: la foto no sigue el symlink %s: su huella es el sha256 del destino %s", e.caso, l.ruta, l.destino)
-				}
-			}
-
 			for _, rol := range agents.Roles() {
-				caso := e.caso + ", rol " + rol.Slug
-				r := edr1Gate(t, "CA-442", caso, root, rol, before, after, PolicyFor(nil, rol))
-				for _, l := range enlaces {
-					v := edExigir(t, "CA-442", caso+", symlink a "+filepath.Base(l.destino), r, l.ruta, edr1Regular, l.ruta)
-					if v.FindingID == "" {
-						t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, l.ruta)
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
+					caso := e.caso + ", rol " + rol.Slug
+					root := edCopiarArbol(t, plantilla)
+					before := edr1Take(t, "CA-442", caso+", foto de antes", root)
+					for _, l := range enlaces {
+						edr1Symlink(t, root, l.ruta, l.destino)
 					}
-				}
-				if rol.Slug == finding.RolQueRefuta {
-					edExigir(t, "CA-442", caso+", resolucion symlink", r, res, edr1Regular, res)
-				} else {
-					edr1Una(t, "CA-442", caso+", resolucion symlink", r, res, []string{edr1Regular, res}, []string{qcNoCierra(rol.Slug)})
-				}
+					edr1Symlink(t, root, res, resolucionAfuera)
+					after := edr1Take(t, "CA-442", caso+", foto con symlinks", root)
+
+					todos := append(append([]enlace(nil), enlaces...), enlace{res, resolucionAfuera, resolucionBytes})
+					for _, l := range todos {
+						if e.oculto && !qcr1Ignorado(t, root, l.ruta) {
+							t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, l.ruta)
+						}
+						if l.contenido != nil && strings.EqualFold(after.Huellas[l.ruta], edSHA(l.contenido)) {
+							t.Fatalf("CA-442: %s: la foto no sigue el symlink %s: su huella es el sha256 del destino %s", caso, l.ruta, l.destino)
+						}
+					}
+
+					r := edr1Gate(t, "CA-442", caso, root, rol, before, after, PolicyFor(nil, rol))
+					for _, l := range enlaces {
+						v := edExigir(t, "CA-442", caso+", symlink a "+filepath.Base(l.destino), r, l.ruta, edr1Regular, l.ruta)
+						if v.FindingID == "" {
+							t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, l.ruta)
+						}
+					}
+					if rol.Slug == finding.RolQueRefuta {
+						edExigir(t, "CA-442", caso+", resolucion symlink", r, res, edr1Regular, res)
+					} else {
+						edr1Una(t, "CA-442", caso+", resolucion symlink", r, res, []string{edr1Regular, res}, []string{qcNoCierra(rol.Slug)})
+					}
+				})
 			}
 		})
 	}
@@ -504,9 +512,10 @@ func TestCA442_UnSymlinkConNombreValidoEsManipulacionYNoSeSigue(t *testing.T) {
 // gate se cuelgan siguiendolo, y para el writer y el refutador es UNA
 // manipulacion con "la evidencia es un archivo regular" y su ruta.
 func TestCA442_UnSymlinkAUnFIFOConNombreValidoNoCuelgaLaFoto(t *testing.T) {
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
+			t.Parallel()
 			root := repo(t)
 			e.armar(t, root)
 			fifoAfuera := filepath.Join(t.TempDir(), "fifo")
@@ -539,42 +548,48 @@ func TestCA442_UnSymlinkAUnFIFOConNombreValidoNoCuelgaLaFoto(t *testing.T) {
 // refutador incluido: un FIFO creado con un nombre valido de hallazgo, de
 // veredicto o de resolucion es UNA manipulacion con "la evidencia es un
 // archivo regular" y su ruta. Nunca se lee: ni la foto ni el gate se cuelgan
-// en el FIFO (que nadie escribe).
+// en el FIFO (que nadie escribe). (Cada rol corre en paralelo, en su copia
+// del repo armado para la variante.)
 func TestCA442_UnFIFOConNombreValidoEsManipulacionYNoCuelgaLaFoto(t *testing.T) {
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
-			root := repo(t)
-			e.armar(t, root)
-			id, _ := edHallazgo(t, root, "high", "a refutar")
-			if err := os.MkdirAll(filepath.Join(root, ".hoom", "verdicts"), 0o755); err != nil {
+			t.Parallel()
+			plantilla := repo(t)
+			e.armar(t, plantilla)
+			id, _ := edHallazgo(t, plantilla, "high", "a refutar")
+			if err := os.MkdirAll(filepath.Join(plantilla, ".hoom", "verdicts"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			before := edr1Take(t, "CA-442", e.caso+", foto de antes", root)
 			fifos := []string{".hoom/findings/20261001T020202_f1f0f1.json", ".hoom/verdicts/2026-10-01T02-02-02Z_f1f0f1f0.json"}
 			res := qcResRel(id)
-			for _, f := range append(fifos, res) {
-				edr1Fifo(t, filepath.Join(root, f))
-				if e.oculto && !qcr1Ignorado(t, root, f) {
-					t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, f)
-				}
-			}
-			after := edr1Take(t, "CA-442", e.caso+", foto con FIFOs", root)
-
 			for _, rol := range agents.Roles() {
-				caso := e.caso + ", rol " + rol.Slug
-				r := edr1Gate(t, "CA-442", caso, root, rol, before, after, PolicyFor(nil, rol))
-				for _, f := range fifos {
-					v := edExigir(t, "CA-442", caso+", FIFO", r, f, edr1Regular, f)
-					if v.FindingID == "" {
-						t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, f)
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
+					caso := e.caso + ", rol " + rol.Slug
+					root := edCopiarArbol(t, plantilla)
+					before := edr1Take(t, "CA-442", caso+", foto de antes", root)
+					for _, f := range []string{fifos[0], fifos[1], res} {
+						edr1Fifo(t, filepath.Join(root, f))
+						if e.oculto && !qcr1Ignorado(t, root, f) {
+							t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, f)
+						}
 					}
-				}
-				if rol.Slug == finding.RolQueRefuta {
-					edExigir(t, "CA-442", caso+", resolucion FIFO", r, res, edr1Regular, res)
-				} else {
-					edr1Una(t, "CA-442", caso+", resolucion FIFO", r, res, []string{edr1Regular, res}, []string{qcNoCierra(rol.Slug)})
-				}
+					after := edr1Take(t, "CA-442", caso+", foto con FIFOs", root)
+
+					r := edr1Gate(t, "CA-442", caso, root, rol, before, after, PolicyFor(nil, rol))
+					for _, f := range fifos {
+						v := edExigir(t, "CA-442", caso+", FIFO", r, f, edr1Regular, f)
+						if v.FindingID == "" {
+							t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, f)
+						}
+					}
+					if rol.Slug == finding.RolQueRefuta {
+						edExigir(t, "CA-442", caso+", resolucion FIFO", r, res, edr1Regular, res)
+					} else {
+						edr1Una(t, "CA-442", caso+", resolucion FIFO", r, res, []string{edr1Regular, res}, []string{qcNoCierra(rol.Slug)})
+					}
+				})
 			}
 		})
 	}
@@ -676,7 +691,8 @@ func TestCA442_ElSymlinkCreadoCortaYCambiarSuDestinoDespuesNoBajaElHallazgo(t *t
 // mayusculas, otro largo, sin id) es UNA manipulacion — con el detalle de la
 // forma o con el de quien-cierra-un-hallazgo — y deja UN hallazgo del gate.
 // Control: una resolucion CON la forma de hoom tambien es una sola (la de
-// quien-cierra-un-hallazgo).
+// quien-cierra-un-hallazgo). (Cada rol corre en paralelo, en su copia del
+// repo armado para la variante.)
 func TestCA442_UnaResolucionSinFormaDeUnRolQueNoEsRefutadorEsUnaSolaManipulacion(t *testing.T) {
 	malas := []string{
 		".hoom/findings/x.res.json",
@@ -684,60 +700,65 @@ func TestCA442_UnaResolucionSinFormaDeUnRolQueNoEsRefutadorEsUnaSolaManipulacion
 		".hoom/findings/20260101T000000_abcde.res.json",
 		".hoom/findings/.res.json",
 	}
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
+			t.Parallel()
+			plantilla := repo(t)
+			e.armar(t, plantilla)
+			id, _ := edHallazgo(t, plantilla, "high", "a cerrar")
 			for _, rol := range agents.Roles() {
 				if rol.Slug == finding.RolQueRefuta {
 					continue
 				}
-				caso := e.caso + ", rol " + rol.Slug
-				qcLimpiarEntorno(t)
-				root := repo(t)
-				e.armar(t, root)
-				id, _ := edHallazgo(t, root, "high", "a cerrar")
-				before := Take(root, "main")
-				for _, m := range malas {
-					write(t, root, m, qcResolucionAMano(id, finding.StatusRefuted))
-				}
-				buena := qcResRel(id)
-				write(t, root, buena, qcResolucionAMano(id, finding.StatusRefuted))
-				after := Take(root, "main")
-				if e.oculto {
-					for _, m := range append(malas, buena) {
-						if !qcr1Ignorado(t, root, m) {
-							t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, m)
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
+					caso := e.caso + ", rol " + rol.Slug
+					root := edCopiarArbol(t, plantilla)
+					before := Take(root, "main")
+					for _, m := range malas {
+						write(t, root, m, qcResolucionAMano(id, finding.StatusRefuted))
+					}
+					buena := qcResRel(id)
+					write(t, root, buena, qcResolucionAMano(id, finding.StatusRefuted))
+					after := Take(root, "main")
+					if e.oculto {
+						for _, m := range append(append([]string(nil), malas...), buena) {
+							if !qcr1Ignorado(t, root, m) {
+								t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, m)
+							}
 						}
 					}
-				}
 
-				antes := edr1HallazgosEn(t, root)
-				r := Gate(root, "main", "", rol, before, after, todo(), nil)
-				nuevos := 0
-				for n := range edr1HallazgosEn(t, root) {
-					if !antes[n] {
-						nuevos++
-					}
-				}
-				for _, m := range malas {
-					var todas []Violation
-					for _, v := range r.Violations {
-						if v.Path == m {
-							todas = append(todas, v)
+					antes := edr1HallazgosEn(t, root)
+					r := Gate(root, "main", "", rol, before, after, todo(), nil)
+					nuevos := 0
+					for n := range edr1HallazgosEn(t, root) {
+						if !antes[n] {
+							nuevos++
 						}
 					}
-					if len(todas) != 1 {
-						t.Fatalf("CA-442: %s: %s es UNA violacion (hay %d): %s", caso, m, len(todas), edLista(r.Violations))
+					for _, m := range malas {
+						var todas []Violation
+						for _, v := range r.Violations {
+							if v.Path == m {
+								todas = append(todas, v)
+							}
+						}
+						if len(todas) != 1 {
+							t.Fatalf("CA-442: %s: %s es UNA violacion (hay %d): %s", caso, m, len(todas), edLista(r.Violations))
+						}
+						v := edr1Una(t, "CA-442", caso, r, m, []string{edForma("findings"), m}, []string{qcNoCierra(rol.Slug)})
+						if v.FindingID == "" {
+							t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, m)
+						}
 					}
-					v := edr1Una(t, "CA-442", caso, r, m, []string{edForma("findings"), m}, []string{qcNoCierra(rol.Slug)})
-					if v.FindingID == "" {
-						t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, m)
+					edr1Una(t, "CA-442", caso+", resolucion con forma", r, buena, []string{qcNoCierra(rol.Slug)})
+					if quiere := len(malas) + 1; len(r.Violations) != quiere || nuevos != quiere {
+						t.Fatalf("CA-442: %s: %d rutas, %d violaciones y %d hallazgos del gate (hay %d violaciones y %d hallazgos): %s",
+							caso, quiere, quiere, quiere, len(r.Violations), nuevos, edLista(r.Violations))
 					}
-				}
-				edr1Una(t, "CA-442", caso+", resolucion con forma", r, buena, []string{qcNoCierra(rol.Slug)})
-				if quiere := len(malas) + 1; len(r.Violations) != quiere || nuevos != quiere {
-					t.Fatalf("CA-442: %s: %d rutas, %d violaciones y %d hallazgos del gate (hay %d violaciones y %d hallazgos): %s",
-						caso, quiere, quiere, quiere, len(r.Violations), nuevos, edLista(r.Violations))
-				}
+				})
 			}
 		})
 	}
@@ -748,47 +769,53 @@ func TestCA442_UnaResolucionSinFormaDeUnRolQueNoEsRefutadorEsUnaSolaManipulacion
 // CA-444: para cada forma de esconder (o no) lo creado y para CADA rol, el
 // refutador incluido: un hallazgo y un veredicto creados con nombre valido y
 // modo 000 son UNA manipulacion; cuando git no los ve, con "la evidencia no
-// se puede leer" y su ruta. Con su hallazgo del gate.
+// se puede leer" y su ruta. Con su hallazgo del gate. (Cada rol corre en
+// paralelo, en su copia del repo armado para la variante.)
 func TestCA444_UnaEvidenciaCreadaSinPermisoDeLecturaEsManipulacion(t *testing.T) {
 	edr1NoRoot(t)
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
-			root := repo(t)
-			e.armar(t, root)
-			if err := os.MkdirAll(filepath.Join(root, ".hoom", "findings"), 0o755); err != nil {
+			t.Parallel()
+			plantilla := repo(t)
+			e.armar(t, plantilla)
+			if err := os.MkdirAll(filepath.Join(plantilla, ".hoom", "findings"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.MkdirAll(filepath.Join(root, ".hoom", "verdicts"), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Join(plantilla, ".hoom", "verdicts"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			before := Take(root, "main")
 			creadas := []string{".hoom/findings/20261001T040404_000000.json", ".hoom/verdicts/2026-10-01T04-04-04Z_00000000.json"}
-			write(t, root, creadas[0], string(edr1HallazgoJSON("20261001T040404_000000", "low")))
-			write(t, root, creadas[1], "{\"verdict\":\"green\"}\n")
-			for _, c := range creadas {
-				edr1SinLectura(t, root, c)
-				if e.oculto && !qcr1Ignorado(t, root, c) {
-					t.Fatalf("CA-444: fixture: con %s git ignora %s", e.caso, c)
-				}
-			}
-			after := Take(root, "main")
 			for _, rol := range agents.Roles() {
-				caso := e.caso + ", rol " + rol.Slug
-				r := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
-				for _, c := range creadas {
-					var v Violation
-					if e.oculto {
-						v = edExigir(t, "CA-444", caso+", creado con modo 000", r, c, edr1Ilegible, c)
-					} else {
-						v = edr1Una(t, "CA-444", caso+", creado con modo 000", r, c)
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
+					caso := e.caso + ", rol " + rol.Slug
+					root := edCopiarArbol(t, plantilla)
+					before := Take(root, "main")
+					write(t, root, creadas[0], string(edr1HallazgoJSON("20261001T040404_000000", "low")))
+					write(t, root, creadas[1], "{\"verdict\":\"green\"}\n")
+					for _, c := range creadas {
+						edr1SinLectura(t, root, c)
+						if e.oculto && !qcr1Ignorado(t, root, c) {
+							t.Fatalf("CA-444: fixture: con %s git ignora %s", e.caso, c)
+						}
 					}
-					if rol.Slug == "writer" {
-						edr1HallazgoDelGate(t, "CA-444", caso, root, v.FindingID)
-					} else if v.FindingID == "" {
-						t.Fatalf("CA-444: %s: la manipulacion en %s registra su hallazgo high del gate", caso, c)
+					after := Take(root, "main")
+					r := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
+					for _, c := range creadas {
+						var v Violation
+						if e.oculto {
+							v = edExigir(t, "CA-444", caso+", creado con modo 000", r, c, edr1Ilegible, c)
+						} else {
+							v = edr1Una(t, "CA-444", caso+", creado con modo 000", r, c)
+						}
+						if rol.Slug == "writer" {
+							edr1HallazgoDelGate(t, "CA-444", caso, root, v.FindingID)
+						} else if v.FindingID == "" {
+							t.Fatalf("CA-444: %s: la manipulacion en %s registra su hallazgo high del gate", caso, c)
+						}
 					}
-				}
+				})
 			}
 		})
 	}
@@ -798,40 +825,47 @@ func TestCA444_UnaEvidenciaCreadaSinPermisoDeLecturaEsManipulacion(t *testing.T)
 // CADA rol: bajar un hallazgo de high a low y quitarle la lectura,
 // quitarsela SIN cambiarlo a otro hallazgo, a un veredicto y a una
 // aprobacion: UNA manipulacion en cada ruta; cuando git no la ve, con "la
-// evidencia no se puede leer" y su ruta.
+// evidencia no se puede leer" y su ruta. (Cada rol corre en paralelo, en su
+// copia de la evidencia armada para el escondite.)
 func TestCA444_QuitarleLaLecturaAUnaEvidenciaQueExistiaEsManipulacion(t *testing.T) {
 	edr1NoRoot(t)
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondites() {
 		t.Run(e.caso, func(t *testing.T) {
-			root, r, _ := edArmarEvidencia(t, e)
-			before := Take(root, "main")
-			write(t, root, r["f1"], string(edBajarSeveridad(t, edLeer(t, root, r["f1"]))))
-			ilegibles := []string{r["f1"], r["f2"], r["v1"], r["a1"]}
-			for _, p := range ilegibles {
-				edr1SinLectura(t, root, p)
-			}
-			after := Take(root, "main")
-			oculta := map[string]bool{}
-			for _, p := range ilegibles {
-				oculta[p] = edOculta(t, root, p, e)
-			}
-			if !oculta[r["f1"]] || !oculta[r["f2"]] {
-				t.Fatalf("CA-444: fixture: con %s git no ve los hallazgos", e.caso)
-			}
+			t.Parallel()
+			plantilla, r, _ := edArmarEvidenciaSinEntorno(t, e)
 			for _, rol := range agents.Roles() {
-				caso := e.caso + ", rol " + rol.Slug
-				res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
-				for _, p := range ilegibles {
-					var v Violation
-					if oculta[p] {
-						v = edExigir(t, "CA-444", caso+", sin lectura", res, p, edr1Ilegible, p)
-					} else {
-						v = edr1Una(t, "CA-444", caso+", sin lectura", res, p)
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
+					caso := e.caso + ", rol " + rol.Slug
+					root := edCopiarArbol(t, plantilla)
+					before := Take(root, "main")
+					write(t, root, r["f1"], string(edBajarSeveridad(t, edLeer(t, root, r["f1"]))))
+					ilegibles := []string{r["f1"], r["f2"], r["v1"], r["a1"]}
+					for _, p := range ilegibles {
+						edr1SinLectura(t, root, p)
 					}
-					if v.FindingID == "" {
-						t.Fatalf("CA-444: %s: la manipulacion en %s registra su hallazgo high del gate", caso, p)
+					after := Take(root, "main")
+					oculta := map[string]bool{}
+					for _, p := range ilegibles {
+						oculta[p] = edOculta(t, root, p, e)
 					}
-				}
+					if !oculta[r["f1"]] || !oculta[r["f2"]] {
+						t.Fatalf("CA-444: fixture: con %s git no ve los hallazgos", e.caso)
+					}
+					res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
+					for _, p := range ilegibles {
+						var v Violation
+						if oculta[p] {
+							v = edExigir(t, "CA-444", caso+", sin lectura", res, p, edr1Ilegible, p)
+						} else {
+							v = edr1Una(t, "CA-444", caso+", sin lectura", res, p)
+						}
+						if v.FindingID == "" {
+							t.Fatalf("CA-444: %s: la manipulacion en %s registra su hallazgo high del gate", caso, p)
+						}
+					}
+				})
 			}
 		})
 	}
@@ -844,6 +878,7 @@ func TestCA444_QuitarleLaLecturaAUnaEvidenciaQueExistiaEsManipulacion(t *testing
 // el refutador: UNA manipulacion con "la evidencia no se puede leer".
 func TestCA444_UnaEvidenciaIlegibleEnLaFotoDeAntesEsManipulacion(t *testing.T) {
 	edr1NoRoot(t)
+	qcLimpiarEntorno(t)
 	for _, c := range []struct {
 		caso    string
 		durante func(t *testing.T, root, rel string, bajo []byte)
@@ -862,7 +897,7 @@ func TestCA444_UnaEvidenciaIlegibleEnLaFotoDeAntesEsManipulacion(t *testing.T) {
 		}},
 	} {
 		t.Run(c.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
+			t.Parallel()
 			root := repo(t)
 			qcr1Anexar(t, qcr1Exclude(t, root), ".hoom/findings/")
 			_, rel := edHallazgo(t, root, "high", "el retry no respeta el backoff")
@@ -887,12 +922,14 @@ func TestCA444_UnaEvidenciaIlegibleEnLaFotoDeAntesEsManipulacion(t *testing.T) {
 // Para el writer.
 func TestCA444_UnDirectorioDeEvidenciaIlegibleEsManipulacion(t *testing.T) {
 	edr1NoRoot(t)
+	qcLimpiarEntorno(t)
 	wr := edr1Rol(t, "writer")
 	for _, d := range []string{"findings", "verdicts", "approvals"} {
 		for _, cuando := range []string{"despues", "antes", "las dos"} {
 			caso := ".hoom/" + d + " ilegible " + cuando
 			t.Run(caso, func(t *testing.T) {
-				root, r, _ := edArmarEvidencia(t, edEscondites()[0]) // .gitignore de la raiz
+				t.Parallel()
+				root, r, _ := edArmarEvidenciaSinEntorno(t, edEscondites()[0]) // .gitignore de la raiz
 				dir := ".hoom/" + d
 				adentro := map[string]string{"findings": r["f1"], "verdicts": r["v1"], "approvals": r["a1"]}[d]
 				if !qcr1Ignorado(t, root, adentro) {
@@ -933,10 +970,11 @@ func TestCA444_UnDirectorioDeEvidenciaIlegibleEsManipulacion(t *testing.T) {
 // cortan con "la evidencia no se puede leer": la N+1 nunca queda OK.
 func TestCA444_LaCorridaSiguienteAUnaQueDejoIlegibleLosHallazgosCorta(t *testing.T) {
 	edr1NoRoot(t)
+	qcLimpiarEntorno(t)
 	for _, slug := range []string{"writer", finding.RolQueRefuta} {
 		t.Run(slug, func(t *testing.T) {
+			t.Parallel()
 			rol := edr1Rol(t, slug)
-			qcLimpiarEntorno(t)
 			root := repo(t)
 			write(t, root, ".gitignore", ".hoom/findings/\n")
 			edCommit(t, root, "la raiz ignora los hallazgos")

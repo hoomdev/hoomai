@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/fs"
 	"math/rand"
@@ -361,6 +362,91 @@ func edRepo(t *testing.T, bloquea, ciego bool) string {
 	return root
 }
 
+// ---------------------------------------------------------------- plantillas
+//
+// El gate registra un hallazgo high por cada manipulacion, y registrarlo
+// mira git: cada violacion cuesta del orden de una foto. Por eso los tests
+// de la tabla (variantes x roles x rutas) corren cada caso en paralelo y en
+// su propia copia de una plantilla: el repo armado UNA vez por variante (git
+// init, commits, reglas, la evidencia previa) y copiado para cada rol, que
+// despues saca sus fotos, hace su corrida y corre su gate sobre su copia,
+// igual que si hubiera armado el repo el mismo. Los subtests en paralelo no
+// tocan el entorno (es del proceso): lo limpia una vez el test de arriba con
+// qcLimpiarEntorno, y su limpieza corre recien cuando terminan todos.
+
+// edCopiarArbol copia la plantilla (directorios, archivos regulares con su
+// modo y su fecha, y symlinks tal cual; .git incluido) a un directorio
+// temporal nuevo del test y lo devuelve. Cualquier otra entrada en la
+// plantilla es un error del fixture.
+func edCopiarArbol(t *testing.T, plantilla string) string {
+	t.Helper()
+	destino := t.TempDir()
+	err := filepath.WalkDir(plantilla, func(p string, de fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(plantilla, p)
+		if err != nil || rel == "." {
+			return err
+		}
+		q := filepath.Join(destino, rel)
+		fi, err := de.Info()
+		if err != nil {
+			return err
+		}
+		switch {
+		case de.IsDir():
+			return os.Mkdir(q, fi.Mode().Perm())
+		case de.Type()&fs.ModeSymlink != 0:
+			l, err := os.Readlink(p)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(l, q)
+		case de.Type().IsRegular():
+			raw, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(q, raw, fi.Mode().Perm()); err != nil {
+				return err
+			}
+			return os.Chtimes(q, fi.ModTime(), fi.ModTime())
+		}
+		return fmt.Errorf("plantilla: %s no es un directorio, un archivo regular ni un symlink (%s)", rel, fi.Mode())
+	})
+	if err != nil {
+		t.Fatalf("fixture: copiar la plantilla %s: %v", plantilla, err)
+	}
+	return destino
+}
+
+// edIgnorados dice, para cada ruta, si git la ignora en root: lo mismo que
+// qcr1Ignorado (git check-ignore --no-index) ruta por ruta, en un solo
+// proceso.
+func edIgnorados(t *testing.T, root string, rels []string) map[string]bool {
+	t.Helper()
+	var in bytes.Buffer
+	for _, r := range rels {
+		in.WriteString(r)
+		in.WriteByte(0)
+	}
+	cmd := exec.Command("git", "check-ignore", "-z", "--stdin", "--no-index")
+	cmd.Dir = root
+	cmd.Stdin = &in
+	out, err := cmd.Output()
+	if ee, ok := err.(*exec.ExitError); err != nil && (!ok || ee.ExitCode() != 1) {
+		t.Fatalf("git check-ignore: %v", err)
+	}
+	ign := map[string]bool{}
+	for _, r := range strings.Split(string(out), "\x00") {
+		if r != "" {
+			ign[r] = true
+		}
+	}
+	return ign
+}
+
 // edCorrer corre el sobre con reloj.
 func edCorrer(t *testing.T, ca, caso, root string, opt Options) Result {
 	t.Helper()
@@ -617,6 +703,14 @@ type edEvidencia struct {
 func edArmarEvidencia(t *testing.T, e edEscondite) (string, map[string]string, string) {
 	t.Helper()
 	qcLimpiarEntorno(t)
+	return edArmarEvidenciaSinEntorno(t, e)
+}
+
+// edArmarEvidenciaSinEntorno es edArmarEvidencia sin limpiar el entorno, que
+// es del proceso: para un subtest en paralelo cuyo test de arriba ya lo
+// limpio.
+func edArmarEvidenciaSinEntorno(t *testing.T, e edEscondite) (string, map[string]string, string) {
+	t.Helper()
 	root := repo(t)
 	if e.antes != nil {
 		e.antes(t, root)
@@ -650,61 +744,67 @@ func edArmarEvidencia(t *testing.T, e edEscondite) (string, map[string]string, s
 // hallazgo high bajado a low, una resolucion reescrita, un veredicto y una
 // aprobacion editados son manipulacion "cambio durante el run"; un hallazgo y
 // un veredicto borrados, "desaparecio durante el run". Una sola violacion
-// por ruta, con su hallazgo high del gate.
+// por ruta, con su hallazgo high del gate. (Cada rol corre en paralelo, en
+// su copia de la evidencia armada para el escondite.)
 func TestCA441_EvidenciaQueCambiaODesapareceEsManipulacionAunqueGitNoLaVea(t *testing.T) {
+	qcLimpiarEntorno(t)
+	roles := agents.Roles()
+	if len(roles) < 6 {
+		t.Fatalf("CA-441: fixture: la tabla trae los roles de hoom (refutador incluido), trajo %d", len(roles))
+	}
 	for _, e := range edEscondites() {
 		t.Run(e.caso, func(t *testing.T) {
-			root, r, _ := edArmarEvidencia(t, e)
-			before := Take(root, "main")
-
-			write(t, root, r["f1"], string(edBajarSeveridad(t, edLeer(t, root, r["f1"]))))
-			if err := os.Remove(filepath.Join(root, r["f2"])); err != nil {
-				t.Fatal(err)
-			}
-			f3 := strings.TrimSuffix(strings.TrimPrefix(r["r3"], ".hoom/findings/"), ".res.json")
-			write(t, root, r["r3"], qcResolucionAMano(f3, finding.StatusCorrected))
-			write(t, root, r["v1"], strings.Replace(string(edLeer(t, root, r["v1"])), "red", "green", 1))
-			if err := os.Remove(filepath.Join(root, r["v2"])); err != nil {
-				t.Fatal(err)
-			}
-			write(t, root, r["a1"], string(edLeer(t, root, r["a1"]))+" ")
-			after := Take(root, "main")
-
-			casos := []edEvidencia{
-				{r["f1"], edCambio}, {r["f2"], edDesaparecio}, {r["r3"], edCambio},
-				{r["v1"], edCambio}, {r["v2"], edDesaparecio}, {r["a1"], edCambio},
-			}
-			oculta := map[string]bool{}
-			for _, c := range casos {
-				oculta[c.ruta] = edOculta(t, root, c.ruta, e)
-			}
-			if !oculta[r["f1"]] || !oculta[r["r3"]] {
-				t.Fatalf("CA-441: fixture: con %s git no ve los hallazgos: %v", e.caso, oculta)
-			}
-
-			vistos := 0
-			for _, rol := range agents.Roles() {
-				vistos++
-				res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
-				for _, c := range casos {
+			t.Parallel()
+			plantilla, r, _ := edArmarEvidenciaSinEntorno(t, e)
+			for _, rol := range roles {
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
 					caso := e.caso + ", rol " + rol.Slug
-					var v Violation
-					if oculta[c.ruta] {
-						v = edExigir(t, "CA-441", caso, res, c.ruta, edAppendOnly, c.ruta, c.frase)
-					} else {
-						// git la ve: el piso de hoy ya la marca y no se duplica
-						v = edExigir(t, "CA-441", caso, res, c.ruta)
+					root := edCopiarArbol(t, plantilla)
+					before := Take(root, "main")
+
+					write(t, root, r["f1"], string(edBajarSeveridad(t, edLeer(t, root, r["f1"]))))
+					if err := os.Remove(filepath.Join(root, r["f2"])); err != nil {
+						t.Fatal(err)
 					}
-					if v.FindingID == "" {
-						t.Fatalf("CA-441: %s: la manipulacion en %s registra su hallazgo high del gate", caso, c.ruta)
+					f3 := strings.TrimSuffix(strings.TrimPrefix(r["r3"], ".hoom/findings/"), ".res.json")
+					write(t, root, r["r3"], qcResolucionAMano(f3, finding.StatusCorrected))
+					write(t, root, r["v1"], strings.Replace(string(edLeer(t, root, r["v1"])), "red", "green", 1))
+					if err := os.Remove(filepath.Join(root, r["v2"])); err != nil {
+						t.Fatal(err)
 					}
-					if rol.Slug == "writer" {
-						edHallazgoDelGate(t, "CA-441", caso, root, v)
+					write(t, root, r["a1"], string(edLeer(t, root, r["a1"]))+" ")
+					after := Take(root, "main")
+
+					casos := []edEvidencia{
+						{r["f1"], edCambio}, {r["f2"], edDesaparecio}, {r["r3"], edCambio},
+						{r["v1"], edCambio}, {r["v2"], edDesaparecio}, {r["a1"], edCambio},
 					}
-				}
-			}
-			if vistos < 6 {
-				t.Fatalf("CA-441: fixture: la tabla trae los roles de hoom (refutador incluido), trajo %d", vistos)
+					oculta := map[string]bool{}
+					for _, c := range casos {
+						oculta[c.ruta] = edOculta(t, root, c.ruta, e)
+					}
+					if !oculta[r["f1"]] || !oculta[r["r3"]] {
+						t.Fatalf("CA-441: fixture: con %s git no ve los hallazgos: %v", e.caso, oculta)
+					}
+
+					res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
+					for _, c := range casos {
+						var v Violation
+						if oculta[c.ruta] {
+							v = edExigir(t, "CA-441", caso, res, c.ruta, edAppendOnly, c.ruta, c.frase)
+						} else {
+							// git la ve: el piso de hoy ya la marca y no se duplica
+							v = edExigir(t, "CA-441", caso, res, c.ruta)
+						}
+						if v.FindingID == "" {
+							t.Fatalf("CA-441: %s: la manipulacion en %s registra su hallazgo high del gate", caso, c.ruta)
+						}
+						if rol.Slug == "writer" {
+							edHallazgoDelGate(t, "CA-441", caso, root, v)
+						}
+					}
+				})
 			}
 		})
 	}
@@ -715,9 +815,11 @@ func TestCA441_EvidenciaQueCambiaODesapareceEsManipulacionAunqueGitNoLaVea(t *te
 // borrarla y volver a crearla igual. Para cada escondite y cada rol: sin
 // violaciones.
 func TestCA441_ReescribirLaEvidenciaConElMismoContenidoNoEsViolacion(t *testing.T) {
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondites() {
 		t.Run(e.caso, func(t *testing.T) {
-			root, r, _ := edArmarEvidencia(t, e)
+			t.Parallel()
+			root, r, _ := edArmarEvidenciaSinEntorno(t, e)
 			before := Take(root, "main")
 			later := time.Now().Add(2 * time.Hour)
 			for _, k := range edClaves(r) {
@@ -799,9 +901,16 @@ func TestCA441_CasosLimiteDeLoQueExistia(t *testing.T) {
 // es UNA manipulacion; lo que se creo sin forma, UNA manipulacion con el
 // detalle de la forma; una aprobacion creada, UNA manipulacion; lo intacto y
 // lo creado con forma, ninguna. Para el refutador y el writer.
+//
+// 25 semillas al azar por rol (lo que antes sacaba quick.Check con MaxCount
+// 25: la propiedad solo usaba la semilla), cada una en paralelo y con su
+// propia copia del repo donde el gate registra sus hallazgos. La semilla
+// queda en el nombre del subtest y en cada falla.
 func TestCA441_PropiedadElPisoComparaLasHuellasDeLasFotos(t *testing.T) {
 	qcLimpiarEntorno(t)
-	root := repo(t) // donde el gate registra sus hallazgos
+	plantilla := repo(t) // donde el gate registra sus hallazgos (una copia por semilla)
+	const semillasPorRol = 25
+	azar := rand.New(rand.NewSource(time.Now().UnixNano()))
 	previas := []string{
 		".hoom/findings/20260101T000000_aaaaaa.json", ".hoom/findings/20260101T000001_bbbbbb.json",
 		".hoom/findings/20260101T000000_aaaaaa.res.json", ".hoom/verdicts/2026-01-01T00-00-00Z_0123abcd.json",
@@ -826,7 +935,8 @@ func TestCA441_PropiedadElPisoComparaLasHuellasDeLasFotos(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		prop := func(semilla int64) bool {
+		// prop dice por que la semilla rompe la propiedad ("" si la cumple).
+		prop := func(root string, semilla int64) string {
 			rng := rand.New(rand.NewSource(semilla))
 			before, after := snap(map[string]string{}), snap(map[string]string{})
 			before.Huellas, after.Huellas = map[string]string{}, map[string]string{}
@@ -907,31 +1017,33 @@ func TestCA441_PropiedadElPisoComparaLasHuellasDeLasFotos(t *testing.T) {
 				ms := edManipulaciones(res.Violations, p)
 				if q.frases == nil && !q.regla {
 					if len(ms) != 0 {
-						t.Logf("CA-441: %s, semilla %d: %s no es manipulacion: %s", slug, semilla, p, edLista(res.Violations))
-						return false
+						return fmt.Sprintf("%s no es manipulacion: %s", p, edLista(res.Violations))
 					}
 					continue
 				}
 				hay = true
 				if len(ms) != 1 {
-					t.Logf("CA-441: %s, semilla %d: %s es UNA manipulacion (hay %d): %s", slug, semilla, p, len(ms), edLista(res.Violations))
-					return false
+					return fmt.Sprintf("%s es UNA manipulacion (hay %d): %s", p, len(ms), edLista(res.Violations))
 				}
 				for _, f := range q.frases {
 					if !strings.Contains(ms[0].Detail, f) {
-						t.Logf("CA-441: %s, semilla %d: el detalle en %s dice %q: %q", slug, semilla, p, f, ms[0].Detail)
-						return false
+						return fmt.Sprintf("el detalle en %s dice %q: %q", p, f, ms[0].Detail)
 					}
 				}
 			}
 			if hay != res.Tampering || hay == res.OK {
-				t.Logf("CA-441: %s, semilla %d: el gate queda marcado si y solo si hubo manipulacion: %+v", slug, semilla, res)
-				return false
+				return fmt.Sprintf("el gate queda marcado si y solo si hubo manipulacion: %+v", res)
 			}
-			return true
+			return ""
 		}
-		if err := quick.Check(prop, &quick.Config{MaxCount: 25}); err != nil {
-			t.Fatalf("CA-441: %s: el piso en el disco compara las huellas de las dos fotos: %v", slug, err)
+		for i := 0; i < semillasPorRol; i++ {
+			semilla := azar.Int63()
+			t.Run(fmt.Sprintf("%s, semilla %d", slug, semilla), func(t *testing.T) {
+				t.Parallel()
+				if porque := prop(edCopiarArbol(t, plantilla), semilla); porque != "" {
+					t.Fatalf("CA-441: %s, semilla %d: el piso en el disco compara las huellas de las dos fotos: %s", slug, semilla, porque)
+				}
+			})
 		}
 	}
 }
@@ -1153,44 +1265,55 @@ func edEscondenLoNuevo() []edEsconditeNuevo {
 // .hoom/<dir> solo se crean archivos con la forma que escribe hoom" y la
 // ruta. En la misma corrida, lo creado con la forma de hoom (finding.Add,
 // verdict.Write, o los mismos nombres escritos a mano) no es manipulacion.
+// (Cada rol corre en paralelo, en su copia del repo armado para la variante.)
 func TestCA442_UnArchivoCreadoSinLaFormaDeHoomEsManipulacion(t *testing.T) {
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
-			root := repo(t)
-			e.armar(t, root)
-			before := Take(root, "main")
-
-			for _, c := range edSinFormaComun {
-				write(t, root, c.ruta, "{\"lo\":\"creo el rol\"}\n")
-			}
-			_, hallazgo := edHallazgo(t, root, "medium", "un hallazgo nuevo")
-			veredicto := edVeredicto(t, root, "un veredicto nuevo")
-			aMano := []string{".hoom/findings/20260101T000000_abcdef.json", ".hoom/verdicts/2026-01-01T00-00-00Z_0123abcd.json"}
-			write(t, root, aMano[0], `{"id":"20260101T000000_abcdef","created_at":"2026-01-01T00:00:00Z","severity":"low",`+
-				`"lens":"risk","file":"app.go","description":"a mano","author":"rol@claude"}`+"\n")
-			write(t, root, aMano[1], "{\"verdict\":\"green\"}\n")
-			after := Take(root, "main")
-			if e.oculto {
-				for _, c := range edSinFormaComun {
-					if !qcr1Ignorado(t, root, c.ruta) {
-						t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, c.ruta)
-					}
-				}
-			}
-
+			t.Parallel()
+			plantilla := repo(t)
+			e.armar(t, plantilla)
 			for _, rol := range agents.Roles() {
-				res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
-				caso := e.caso + ", rol " + rol.Slug
-				for _, c := range edSinFormaComun {
-					v := edExigir(t, "CA-442", caso, res, c.ruta, edForma(c.dir), c.ruta)
-					if v.FindingID == "" {
-						t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, c.ruta)
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
+					caso := e.caso + ", rol " + rol.Slug
+					root := edCopiarArbol(t, plantilla)
+					before := Take(root, "main")
+
+					for _, c := range edSinFormaComun {
+						write(t, root, c.ruta, "{\"lo\":\"creo el rol\"}\n")
 					}
-				}
-				for _, ok := range append([]string{hallazgo, veredicto}, aMano...) {
-					edSinManipulacion(t, "CA-442", caso, res, ok)
-				}
+					_, hallazgo := edHallazgo(t, root, "medium", "un hallazgo nuevo")
+					veredicto := edVeredicto(t, root, "un veredicto nuevo")
+					aMano := []string{".hoom/findings/20260101T000000_abcdef.json", ".hoom/verdicts/2026-01-01T00-00-00Z_0123abcd.json"}
+					write(t, root, aMano[0], `{"id":"20260101T000000_abcdef","created_at":"2026-01-01T00:00:00Z","severity":"low",`+
+						`"lens":"risk","file":"app.go","description":"a mano","author":"rol@claude"}`+"\n")
+					write(t, root, aMano[1], "{\"verdict\":\"green\"}\n")
+					after := Take(root, "main")
+					if e.oculto {
+						var rutas []string
+						for _, c := range edSinFormaComun {
+							rutas = append(rutas, c.ruta)
+						}
+						ignoradas := edIgnorados(t, root, rutas)
+						for _, c := range edSinFormaComun {
+							if !ignoradas[c.ruta] {
+								t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, c.ruta)
+							}
+						}
+					}
+
+					res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
+					for _, c := range edSinFormaComun {
+						v := edExigir(t, "CA-442", caso, res, c.ruta, edForma(c.dir), c.ruta)
+						if v.FindingID == "" {
+							t.Fatalf("CA-442: %s: la manipulacion en %s registra su hallazgo high del gate", caso, c.ruta)
+						}
+					}
+					for _, ok := range append([]string{hallazgo, veredicto}, aMano...) {
+						edSinManipulacion(t, "CA-442", caso, res, ok)
+					}
+				})
 			}
 		})
 	}
@@ -1205,9 +1328,10 @@ func TestCA442_ElRefutadorSoloCreaResolucionesConLaFormaDeHoom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
+			t.Parallel()
 			root := repo(t)
 			e.armar(t, root)
 			id, _ := edHallazgo(t, root, "high", "a refutar")
@@ -1233,34 +1357,40 @@ func TestCA442_ElRefutadorSoloCreaResolucionesConLaFormaDeHoom(t *testing.T) {
 
 // CA-442: bajo .hoom/approvals/ toda creacion es manipulacion aunque git la
 // ignore — la de approval.Approve (la forma real), un JSON cualquiera y un
-// .gitignore — para cada rol, el refutador incluido.
+// .gitignore — para cada rol, el refutador incluido. (Cada rol corre en
+// paralelo, en su copia del repo armado para la variante.)
 func TestCA442_CrearBajoApprovalsEsManipulacionAunqueGitLaIgnore(t *testing.T) {
+	qcLimpiarEntorno(t)
 	for _, e := range edEscondenLoNuevo() {
 		t.Run(e.caso, func(t *testing.T) {
-			qcLimpiarEntorno(t)
-			root := repo(t)
-			e.armar(t, root)
-			specDemo(t, root) // el spec, antes: la corrida solo aprueba
-			before := Take(root, "main")
-			creadas := []string{edAprobacion(t, root), ".hoom/approvals/x.json", ".hoom/approvals/.gitignore"}
-			write(t, root, creadas[1], "{}\n")
-			write(t, root, creadas[2], "# nada\n")
-			after := Take(root, "main")
-			if e.oculto {
-				for _, c := range creadas {
-					if !qcr1Ignorado(t, root, c) {
-						t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, c)
-					}
-				}
-			}
+			t.Parallel()
+			plantilla := repo(t)
+			e.armar(t, plantilla)
+			specDemo(t, plantilla) // el spec, antes: la corrida solo aprueba
 			for _, rol := range agents.Roles() {
-				res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
-				for _, c := range creadas {
-					v := edExigir(t, "CA-442", e.caso+", rol "+rol.Slug, res, c)
-					if v.FindingID == "" {
-						t.Fatalf("CA-442: %s, rol %s: la manipulacion en %s registra su hallazgo high", e.caso, rol.Slug, c)
+				t.Run("rol "+rol.Slug, func(t *testing.T) {
+					t.Parallel()
+					root := edCopiarArbol(t, plantilla)
+					before := Take(root, "main")
+					creadas := []string{edAprobacion(t, root), ".hoom/approvals/x.json", ".hoom/approvals/.gitignore"}
+					write(t, root, creadas[1], "{}\n")
+					write(t, root, creadas[2], "# nada\n")
+					after := Take(root, "main")
+					if e.oculto {
+						for _, c := range creadas {
+							if !qcr1Ignorado(t, root, c) {
+								t.Fatalf("CA-442: fixture: con %s git ignora %s", e.caso, c)
+							}
+						}
 					}
-				}
+					res := Gate(root, "main", "", rol, before, after, PolicyFor(nil, rol), nil)
+					for _, c := range creadas {
+						v := edExigir(t, "CA-442", e.caso+", rol "+rol.Slug, res, c)
+						if v.FindingID == "" {
+							t.Fatalf("CA-442: %s, rol %s: la manipulacion en %s registra su hallazgo high", e.caso, rol.Slug, c)
+						}
+					}
+				})
 			}
 		})
 	}
