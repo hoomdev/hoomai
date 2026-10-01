@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T202304_b08c53",
+  "as": "corregido",
+  "evidence": "600ce71 (test-writer): el intercambio regular/symlink/FIFO vive una sola vez en internal/carreratest (paquete solo para tests, como httptest; con sus propios tests) y lo usan gitx, hoomfs y agentcmd; los conteos de aserciones de los archivos refactorizados se conservan (las que salieron son del fixture, ahora en carreratest). Los helpers de FIFO quedan tras //go:build !windows: los tests de esta spec compilan en windows.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T21:41:01.194154Z"
+}
