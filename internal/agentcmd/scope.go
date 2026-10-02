@@ -208,14 +208,15 @@ func (s *Snapshot) sinEvidenciaLegible() {
 
 // fotoEntrada photographs the entry name of the directory r as rel, and
 // everything under it if it is a directory. raiz marks one of the three
-// evidence directories: missing is a valid state, and it is not one of the
-// Directorios.
+// evidence directories: missing is a valid state, anything but a directory
+// leaves its evidence unreadable (like .hoom: following it would photograph
+// something else), and it is not one of the Directorios.
 func (s *Snapshot) fotoEntrada(r *os.Root, name, rel string, raiz bool) {
 	fi, err := r.Lstat(name)
 	switch {
 	case raiz && errors.Is(err, fs.ErrNotExist):
 		return
-	case err != nil:
+	case err != nil, raiz && !fi.IsDir():
 		s.Huellas[rel] = HuellaIlegible
 	case fi.IsDir():
 		if !raiz {
@@ -565,6 +566,17 @@ func conForma(p string) bool {
 	return false
 }
 
+// ilegible is the tampering of evidence hoom could not read. When the
+// reason is the system's (no /dev/fd nor /proc to open it without following
+// symlinks), the detail says so: that is not the role's doing to hide.
+func ilegible(p string) string {
+	d := "la evidencia no se puede leer: " + p
+	if err := hoomfs.DescriptoresDisponibles(); err != nil {
+		d += " (" + err.Error() + ")"
+	}
+	return d
+}
+
 // noRegular is the tampering of an entry created under the evidence that is
 // not a regular file, tipo being what it is.
 func noRegular(p, tipo string) string {
@@ -596,7 +608,7 @@ func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
 				// holds now cannot be compared, so nothing after it is vouched
 				// for either (a dir made unreadable in one run would make its
 				// files look new in the next)
-				nuevas[p] = "la evidencia no se puede leer: " + p
+				nuevas[p] = ilegible(p)
 				continue
 			}
 			switch d, ok := f.Despues.Huellas[p]; {
@@ -609,7 +621,7 @@ func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
 		for p, d := range f.Despues.Huellas {
 			if d == HuellaIlegible {
 				// what hoom cannot read it cannot vouch for: fail closed
-				nuevas[p] = "la evidencia no se puede leer: " + p
+				nuevas[p] = ilegible(p)
 				continue
 			}
 			if _, ok := f.Antes.Huellas[p]; ok {

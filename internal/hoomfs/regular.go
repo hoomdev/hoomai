@@ -35,32 +35,34 @@ func AbrirRegular(path string) (*os.File, error) {
 // AbrirRegularEn is AbrirRegular for name inside r, where antes is the
 // Lstat of name the caller just took: an os.Root follows a symlink that
 // stays inside it, and the entry can be swapped between that Lstat and the
-// open, so the descriptor must show that same file (os.SameFile) or the open
-// is refused. A FIFO does not block it either.
+// open, so the descriptor must show that same file (os.SameFile) and the
+// name must still be it after the open (sigueSiendo), or the open is
+// refused. A FIFO does not block it either.
 func AbrirRegularEn(r *os.Root, name string, antes fs.FileInfo) (*os.File, error) {
 	f, err := r.OpenFile(name, os.O_RDONLY|sinBloquear, 0)
 	if err != nil {
 		return nil, err
 	}
-	return regular(f, name, antes)
-}
-
-// AbrirDirEn opens name inside r as the directory antes (the Lstat of name
-// the caller just took) describes, for a walk that never follows a
-// symlink: an os.Root follows one that stays inside it, and the entry can
-// be swapped between that Lstat and the open, so the directory opened must
-// be that same one (os.SameFile) or the open is refused. A FIFO swapped in
-// does not block it.
-func AbrirDirEn(r *os.Root, name string, antes fs.FileInfo) (*os.Root, error) {
-	sub, err := abrirDirEn(r, name)
-	if err != nil {
+	if f, err = regular(f, name, antes); err != nil {
 		return nil, err
 	}
-	if st, err := sub.Stat("."); err != nil || !os.SameFile(antes, st) {
-		sub.Close()
-		return nil, fmt.Errorf("%s cambio entre mirarlo y abrirlo", name)
+	if err := sigueSiendo(r, name, antes); err != nil {
+		f.Close()
+		return nil, err
 	}
-	return sub, nil
+	return f, nil
+}
+
+// sigueSiendo says whether name in r is, by Lstat, still the object antes
+// describes once it has been opened: os.Root follows a symlink that stays
+// inside it, so a name moved aside and replaced by a symlink to itself
+// passes os.SameFile on the descriptor. Before and after the open, the name
+// is that object; what changes it later is a write after the photograph.
+func sigueSiendo(r *os.Root, name string, antes fs.FileInfo) error {
+	if st, err := r.Lstat(name); err != nil || !os.SameFile(antes, st) {
+		return fmt.Errorf("%s cambio entre mirarlo y abrirlo", name)
+	}
+	return nil
 }
 
 // regular keeps f only if its descriptor is a regular file — and, with

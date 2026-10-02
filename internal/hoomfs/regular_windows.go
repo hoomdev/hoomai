@@ -28,9 +28,3 @@ func abrirSinSeguir(path string) (*os.File, error) {
 	}
 	return os.NewFile(uintptr(h), path), nil
 }
-
-// abrirDirEn opens name inside r as an os.Root: no entry of the file system
-// blocks an open on Windows.
-func abrirDirEn(r *os.Root, name string) (*os.Root, error) {
-	return r.OpenRoot(name)
-}
