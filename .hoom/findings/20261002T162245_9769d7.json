@@ -1,0 +1,11 @@
+{
+  "id": "20261002T162245_9769d7",
+  "created_at": "2026-10-02T16:22:45.591384Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/evidencia_en_disco_ronda3_test.go",
+  "description": "INTRODUCIDO — internal/agentcmd/evidencia_en_disco_ronda3_test.go:103: el diagnostico de la guarda de PorRaiz imprime raiz dos veces (la evidencia de %s vive en %s), de modo que ante un mapeo incorrecto produce una frase tautologica y no identifica con claridad la ruta rel que quedo fuera de su raiz. Ajustar el mensaje para distinguir raiz esperada y ruta observada.",
+  "author": "reviewer@codex",
+  "fingerprint": "467acf40be611456",
+  "task": "evidencia-en-disco"
+}
