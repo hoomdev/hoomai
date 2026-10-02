@@ -89,7 +89,7 @@ const (
 func edr4RaizIlegible(t *testing.T, ca, caso, root string, s Snapshot, raiz string, ev edr3Evidencia, huellaDeAdentro string) {
 	t.Helper()
 	if h, ok := s.Huellas[raiz]; !ok || h != HuellaIlegible {
-		t.Fatalf("%s: %s: una raiz que no es un directorio deja ilegible su evidencia: Huellas[%s] es %q, no %q (ok=%v): %#v", ca, caso, raiz, HuellaIlegible, h, ok, s.Huellas)
+		t.Fatalf("%s: %s: una raiz que no es un directorio deja ilegible su evidencia: Huellas[%s] es %q, no %q (ok=%v): %#v", ca, caso, raiz, h, HuellaIlegible, ok, s.Huellas)
 	}
 	for k := range edr3Claves(s) {
 		if edr3Debajo(k, raiz) {

@@ -9,9 +9,11 @@
 //     error y nadie queda leyendo el FIFO.
 //   - hallazgo 71d0bd: DescriptoresDisponibles dice si el sistema deja
 //     reabrir un directorio por su descriptor (/dev/fd o /proc/self/fd), y
-//     ErrSinDescriptores dice que hoom los necesita. Un sistema SIN ninguno
-//     de los dos no se puede simular desde un test sin una costura (el
-//     paquete no expone donde los busca): aca se mide el sistema que hay.
+//     ErrSinDescriptores dice que hoom los necesita. Aca se mide el sistema
+//     que hay, decidiendo si "hay" reabriendo DE VERDAD un directorio por su
+//     descriptor (hallazgos 669a42, c32559: que /dev/fd exista no es que
+//     sirva). Un sistema sin ninguna que sirva se simula con la costura
+//     fdDirs en descriptores_unix_test.go.
 //
 // El FIFO es el de internal/carreratest.
 package hoomfs
@@ -20,6 +22,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -68,9 +71,13 @@ func TestCA445_UnSymlinkAlMismoFIFOMovidoNoCuelgaNiSeSigue(t *testing.T) {
 	}
 }
 
-// CA-445 (hallazgo 71d0bd): en un sistema con /dev/fd o /proc/self/fd
-// (darwin, linux con procfs) DescriptoresDisponibles es nil; sin ninguno de
-// los dos es ErrSinDescriptores. Mira una vez: preguntar de nuevo dice lo
+// CA-445 (hallazgo 71d0bd; hallazgos 669a42, c32559): en un sistema que
+// reabre DE VERDAD un directorio abierto por su descriptor por /dev/fd o
+// /proc/self/fd (darwin, linux con procfs) DescriptoresDisponibles es nil;
+// si ninguna de las dos sirve (no existe, o existe y no deja: sandbox-exec
+// negando /dev/fd/N) es ErrSinDescriptores. Que exista no decide: decide
+// reabrir. Las carpetas por defecto son esas dos, en ese orden; sondear (la
+// sonda sin cache) dice lo mismo. Mira una vez: preguntar de nuevo dice lo
 // mismo. Y el texto de ErrSinDescriptores dice que hoom necesita "/dev/fd o
 // /proc" (es el diagnostico que el detalle de la evidencia ilegible lleva en
 // un sistema asi).
@@ -81,20 +88,30 @@ func TestCA445_DescriptoresDisponiblesEnEsteSistemaYElDiagnostico(t *testing.T) 
 	if msg := ErrSinDescriptores.Error(); !strings.Contains(msg, "/dev/fd o /proc") || !strings.Contains(msg, "necesita") {
 		t.Fatalf("CA-445: ErrSinDescriptores dice que hoom necesita \"/dev/fd o /proc\": %q", msg)
 	}
+	if !reflect.DeepEqual(fdDirs, fdPorDefecto) {
+		t.Fatalf("CA-445: las carpetas de descriptores por defecto son %q, en ese orden, no %q", fdPorDefecto, fdDirs)
+	}
 	_, errDev := os.Stat("/dev/fd")
 	_, errProc := os.Stat("/proc/self/fd")
-	hay := errDev == nil || errProc == nil
+	anda, probado := fdQueAnda(t)
+	hay := anda != ""
 	err := DescriptoresDisponibles()
 	switch {
 	case hay && err != nil:
-		t.Fatalf("CA-445: este sistema tiene /dev/fd (%v) o /proc/self/fd (%v): DescriptoresDisponibles es nil, no %v", errDev, errProc, err)
+		t.Fatalf("CA-445: este sistema reabre un directorio por su descriptor por %s (%v): DescriptoresDisponibles es nil, no %v", anda, probado, err)
 	case !hay && !errors.Is(err, ErrSinDescriptores):
-		t.Fatalf("CA-445: este sistema no tiene /dev/fd ni /proc/self/fd: DescriptoresDisponibles es ErrSinDescriptores, no %v", err)
+		t.Fatalf("CA-445: este sistema no reabre un directorio por su descriptor ni por /dev/fd ni por /proc/self/fd (%v; existen: /dev/fd %v, /proc/self/fd %v): DescriptoresDisponibles es ErrSinDescriptores, no %v", probado, errDev == nil, errProc == nil, err)
+	case !hay && (!strings.Contains(err.Error(), "/proc/self/fd") || !strings.Contains(err.Error(), "; ") || strings.ContainsAny(err.Error(), "\n\r")):
+		t.Fatalf("CA-445: sin /dev/fd ni /proc que sirvan, ErrSinDescriptores trae la causa de cada carpeta (/dev/fd y /proc/self/fd) separadas por \"; \", en una linea: %q", err.Error())
+	}
+	s := sondear()
+	if (s == nil) != hay || (!hay && !errors.Is(s, ErrSinDescriptores)) {
+		t.Fatalf("CA-445: sondear dice lo mismo que reabrir de verdad (%s, %v): es %v", anda, probado, s)
 	}
 	for i := 0; i < 3; i++ {
 		if otra := DescriptoresDisponibles(); !errors.Is(otra, err) && otra != err {
 			t.Fatalf("CA-445: DescriptoresDisponibles mira una vez: la vez %d dijo %v y antes %v", i+2, otra, err)
 		}
 	}
-	t.Logf("CA-445: /dev/fd: %v, /proc/self/fd: %v, DescriptoresDisponibles: %v", errDev == nil, errProc == nil, err)
+	t.Logf("CA-445: existen /dev/fd: %v, /proc/self/fd: %v; reabre por: %q (%v); DescriptoresDisponibles: %v", errDev == nil, errProc == nil, anda, probado, err)
 }
