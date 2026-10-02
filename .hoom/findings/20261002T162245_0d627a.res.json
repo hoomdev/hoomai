@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T162245_0d627a",
+  "as": "corregido",
+  "evidence": "cdfd8fd: fotoEntrada separa 'case err != nil' de 'case raiz \u0026\u0026 !fi.IsDir()' (mismo cuerpo, con su comentario); la guarda de fi nil ya no depende del orden de la lista del case. Sin cambio de comportamiento (el refutador confirmo que no habia panic).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T16:43:31.834869Z"
+}

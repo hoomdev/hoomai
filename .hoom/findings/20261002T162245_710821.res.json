@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T162245_710821",
+  "as": "corregido",
+  "evidence": "a2b3dd2 (test-writer): edr4RaizIlegible pasa (raiz, h, HuellaIlegible, ok): el mensaje dice 'Huellas[...] es \u003cobservado\u003e, no \u003cesperado\u003e'; la comprobacion no cambia.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T16:43:52.468925Z"
+}
