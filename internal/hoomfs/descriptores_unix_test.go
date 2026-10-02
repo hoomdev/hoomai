@@ -9,6 +9,12 @@
 // de descriptores) no tapa la siguiente que si; y un fallo de todas no se
 // vuelve "disponible": es ErrSinDescriptores con cada causa.
 //
+// Hallazgo 25f656 de la sexta ronda: una carpeta por la que reabrir un
+// descriptor ABRE un directorio (os.OpenRoot anda) que despues no se deja
+// mirar (Stat(".") falla) tiene su propia causa, "<esa ruta>: <el error de
+// Stat>"; "no reabre el mismo directorio" es solo de una que abre OTRO
+// directorio (el senuelo). Cada causa nombra su ruta.
+//
 // La costura es la del paquete (fdDirs: donde rootDe reabre un descriptor,
 // en orden; sondear: la sonda sin cache de DescriptoresDisponibles). Estos
 // tests la cambian, asi que NO corren en paralelo y la restauran al final;
@@ -32,6 +38,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -113,25 +120,149 @@ func fdLaQueAnda(t *testing.T) string {
 }
 
 // fdInutil es una carpeta de descriptores que no sirve, y la causa (el
-// errno) que tiene que dar reabrir un descriptor por ella.
+// errno) que tiene que dar reabrir un descriptor por ella. tramo, si no es
+// nil, dice ademas que tiene que decir su tramo del error (ver fdTramo).
 type fdInutil struct {
 	caso  string
 	slug  string
 	causa syscall.Errno
 	armar func(t *testing.T, p string)
+	tramo fdTramo
 }
 
-// fdInutiles son las formas de una carpeta de descriptores que no sirve. La
-// de modo 000 se omite como root (root entra igual).
+// fdTramo revisa el tramo seg del error que corresponde a la carpeta de
+// descriptores p: "" si dice lo que tiene que decir, si no que le falta.
+type fdTramo func(p, seg string) string
+
+// fdOtroDirectorio es lo que dice la causa de una carpeta que reabre un
+// descriptor como OTRO directorio (hallazgo 25f656: solo esa).
+const fdOtroDirectorio = "no reabre el mismo directorio"
+
+// fdNoSeMira dice como falla, en este sistema, mirar (Stat(".")) un
+// directorio de modo 0400 (se lee, no se busca) abierto como os.Root: el
+// error y su errno; o nil y por que esa forma no se puede armar aca (root
+// entra igual, el sistema de archivos lo deja mirar, o ni se abre).
+func fdNoSeMira(t *testing.T) (error, syscall.Errno, string) {
+	t.Helper()
+	d := filepath.Join(t.TempDir(), "sin-busqueda")
+	if err := os.Mkdir(d, 0o700); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	if err := os.Chmod(d, 0o400); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(d, 0o700) })
+	r, err := os.OpenRoot(d)
+	if err != nil {
+		return nil, 0, fmt.Sprintf("un directorio de modo 0400 no se abre como os.Root: %v", err)
+	}
+	defer r.Close()
+	_, err = r.Stat(".")
+	if err == nil {
+		return nil, 0, "un directorio de modo 0400 abierto como os.Root se mira igual (root, o el sistema de archivos no pide permiso de busqueda)"
+	}
+	var errno syscall.Errno
+	if !errors.As(err, &errno) {
+		return nil, 0, fmt.Sprintf("mirar un directorio de modo 0400 falla sin errno: %v", err)
+	}
+	return err, errno, ""
+}
+
+// fdArmarNoSeMira arma en p una carpeta cuyo cada numero, de 0 a bastante
+// mas que el descriptor mas alto abierto ahora, es un directorio de modo
+// 0400: reabrir un descriptor por ella abre un directorio (os.OpenRoot anda,
+// alcanza con permiso de lectura) que despues no se deja mirar (Stat(".")
+// necesita permiso de busqueda).
+func fdArmarNoSeMira(t *testing.T, p string) {
+	t.Helper()
+	f, err := os.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	alto := int(f.Fd())
+	f.Close()
+	if err := os.Mkdir(p, 0o755); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	var hechos []string
+	t.Cleanup(func() {
+		for _, d := range hechos {
+			os.Chmod(d, 0o700)
+		}
+	})
+	for n := 0; n <= alto+256; n++ {
+		d := filepath.Join(p, strconv.Itoa(n))
+		if err := os.Mkdir(d, 0o700); err != nil {
+			t.Fatalf("fixture: %v", err)
+		}
+		hechos = append(hechos, d)
+		if err := os.Chmod(d, 0o400); err != nil {
+			t.Fatalf("fixture: %v", err)
+		}
+	}
+}
+
+// fdTramoNoSeMira: el tramo de una carpeta que abre y no se mira es
+// "<carpeta>/<descriptor>: <el error de Stat>" (statErr), y no dice
+// fdOtroDirectorio.
+func fdTramoNoSeMira(statErr error) fdTramo {
+	return func(p, seg string) string {
+		re := regexp.MustCompile(regexp.QuoteMeta(p) + `/[0-9]+: ` + regexp.QuoteMeta(statErr.Error()))
+		if !re.MatchString(seg) {
+			return fmt.Sprintf("una carpeta que abre un directorio que no se deja mirar da como causa la ruta que abrio y el error de Stat, \"%s/<descriptor>: %s\"", p, statErr)
+		}
+		if strings.Contains(seg, fdOtroDirectorio) {
+			return fmt.Sprintf("una carpeta que abre un directorio que no se deja mirar no dice %q: eso es de una que abre OTRO directorio", fdOtroDirectorio)
+		}
+		return ""
+	}
+}
+
+// fdTramoOtroDirectorio: el tramo de una carpeta que reabre el descriptor
+// como otro directorio (el senuelo) nombra la ruta que abrio,
+// "<carpeta>/<descriptor>", y dice fdOtroDirectorio.
+func fdTramoOtroDirectorio(p, seg string) string {
+	if !regexp.MustCompile(regexp.QuoteMeta(p) + `/[0-9]+`).MatchString(seg) {
+		return fmt.Sprintf("la causa nombra la ruta que se abrio, \"%s/<descriptor>\"", p)
+	}
+	if !strings.Contains(seg, fdOtroDirectorio) {
+		return fmt.Sprintf("una carpeta que reabre el descriptor como OTRO directorio dice %q", fdOtroDirectorio)
+	}
+	return ""
+}
+
+// fdInutiles son las formas de una carpeta de descriptores que no sirve. Las
+// de EACCES (modo 000; numeros que abren y no se miran) se omiten como root
+// (root entra igual); la de numeros que abren y no se miran, tambien en un
+// sistema de archivos que deja mirar un directorio sin permiso de busqueda.
+// Esa se arma UNA vez por test (cientos de directorios) y cada entrada es un
+// symlink a ella, como /dev/fd en linux lo es a /proc/self/fd: la ruta que
+// se reabre es la de la entrada. Con directorios de verdad, en
+// TestCA445_UnaCarpetaQueAbreUnDirectorioQueNoSeMiraDiceSuCausa.
 func fdInutiles(t *testing.T) []fdInutil {
 	t.Helper()
+	noSeMira := fdInutil{"es una carpeta cuyos numeros abren un directorio que no se deja mirar (modo 0400)", "no-se-mira", 0, nil, nil}
+	if statErr, errno, porQueNo := fdNoSeMira(t); statErr != nil {
+		compartida := filepath.Join(t.TempDir(), "no-se-mira")
+		fdArmarNoSeMira(t, compartida)
+		noSeMira.causa = errno
+		noSeMira.armar = func(t *testing.T, p string) {
+			t.Helper()
+			if err := os.Symlink(compartida, p); err != nil {
+				t.Fatalf("fixture: %v", err)
+			}
+		}
+		noSeMira.tramo = fdTramoNoSeMira(statErr)
+	} else {
+		t.Logf("CA-445 (25f656): se omite %q: %s", noSeMira.caso, porQueNo)
+	}
 	todas := []fdInutil{
-		{"no existe", "no-existe", syscall.ENOENT, func(t *testing.T, p string) {}},
+		{"no existe", "no-existe", syscall.ENOENT, func(t *testing.T, p string) {}, nil},
 		{"es un archivo regular", "archivo", syscall.ENOTDIR, func(t *testing.T, p string) {
 			if err := os.WriteFile(p, []byte("no soy una carpeta de descriptores\n"), 0o644); err != nil {
 				t.Fatalf("fixture: %v", err)
 			}
-		}},
+		}, nil},
 		{"es un directorio sin permiso (modo 000)", "sin-permiso", syscall.EACCES, func(t *testing.T, p string) {
 			if err := os.Mkdir(p, 0o700); err != nil {
 				t.Fatalf("fixture: %v", err)
@@ -140,11 +271,17 @@ func fdInutiles(t *testing.T) []fdInutil {
 				t.Fatalf("fixture: %v", err)
 			}
 			t.Cleanup(func() { os.Chmod(p, 0o700) })
-		}},
+		}, nil},
 		{"es un directorio que no es de descriptores", "no-es-de-descriptores", syscall.ENOENT, func(t *testing.T, p string) {
 			aeEscribir(t, p, "LEEME", []byte("aca no hay descriptores\n"))
 			aeEscribir(t, p, "fd/LEEME", []byte("tampoco\n"))
-		}},
+		}, nil},
+	}
+	if noSeMira.armar != nil {
+		// Antes de la ultima: la primera y la ultima siguen siendo las de
+		// "dos que no sirven y despues la que anda".
+		ultima := todas[len(todas)-1]
+		todas = append(todas[:len(todas)-1], noSeMira, ultima)
 	}
 	if os.Geteuid() != 0 {
 		return todas
@@ -202,8 +339,10 @@ func fdAbre(t *testing.T, caso string) {
 
 // fdCausas exige que msg sea el de ErrSinDescriptores con la causa de cada
 // carpeta de descriptores probada: la ruta de cada una en su orden, cada
-// una con su errno en su tramo, separadas por "; ", y sin saltos de linea.
-func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []syscall.Errno) {
+// una con su errno en su tramo (causas[i] 0: no se pide errno), separadas
+// por "; ", y sin saltos de linea; y, si tramos[i] no es nil, que el tramo
+// de rutas[i] diga lo que pide tramos[i] (hallazgo 25f656).
+func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []syscall.Errno, tramos []fdTramo) {
 	t.Helper()
 	if !strings.Contains(msg, "/dev/fd o /proc") {
 		t.Fatalf("CA-445: %s: %s: el error dice que hoom necesita \"/dev/fd o /proc\": %q", caso, quien, msg)
@@ -211,7 +350,7 @@ func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []sy
 	if strings.ContainsAny(msg, "\n\r") {
 		t.Fatalf("CA-445: %s: %s: las causas van en una linea, separadas por \"; \", sin saltos: %q", caso, quien, msg)
 	}
-	tramos := strings.Split(msg, "; ")
+	segs := strings.Split(msg, "; ")
 	desde := -1
 	for i, p := range rutas {
 		donde := strings.Index(msg, p)
@@ -226,14 +365,19 @@ func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []sy
 		}
 		desde = donde
 		var tramo string
-		for _, s := range tramos {
+		for _, s := range segs {
 			if strings.Contains(s, p) {
 				tramo = s
 				break
 			}
 		}
-		if !strings.Contains(tramo, causas[i].Error()) {
+		if causas[i] != 0 && !strings.Contains(tramo, causas[i].Error()) {
 			t.Fatalf("CA-445: %s: %s: la causa de %s dice %q (su errno), no %q: %q", caso, quien, p, causas[i].Error(), tramo, msg)
+		}
+		if i < len(tramos) && tramos[i] != nil {
+			if falta := tramos[i](p, tramo); falta != "" {
+				t.Fatalf("CA-445 (25f656): %s: %s: la causa de %s: %s; dice %q: %q", caso, quien, p, falta, tramo, msg)
+			}
 		}
 	}
 }
@@ -242,7 +386,8 @@ func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []sy
 // en fdDirs, AbrirDirEn no devuelva root y su error sea ErrSinDescriptores
 // con cada causa, que sondear diga lo mismo, y que DescriptoresDisponibles
 // siga diciendo lo que dijo con las de verdad (mira una vez por proceso).
-func fdNoAbre(t *testing.T, caso string, cache error, rutas []string, causas []syscall.Errno) {
+// tramos es lo que pide fdCausas de cada tramo (nil: solo el errno).
+func fdNoAbre(t *testing.T, caso string, cache error, rutas []string, causas []syscall.Errno, tramos []fdTramo) {
 	t.Helper()
 	r, antes, nombre := fdEvidencia(t)
 	d, err := aeAbrirDir(t, caso, r, nombre, antes)
@@ -256,25 +401,29 @@ func fdNoAbre(t *testing.T, caso string, cache error, rutas []string, causas []s
 	if !errors.Is(err, ErrSinDescriptores) {
 		t.Fatalf("CA-445: %s: sin ninguna carpeta de descriptores que ande en %q, el error de AbrirDirEn es ErrSinDescriptores, no %v", caso, rutas, err)
 	}
-	fdCausas(t, "AbrirDirEn", caso, err.Error(), rutas, causas)
+	fdCausas(t, "AbrirDirEn", caso, err.Error(), rutas, causas, tramos)
 
 	s := sondear()
 	if !errors.Is(s, ErrSinDescriptores) {
 		t.Fatalf("CA-445: %s: sin ninguna carpeta de descriptores que ande en %q, sondear es ErrSinDescriptores, no %v (un fallo de la sonda no es disponibilidad)", caso, rutas, s)
 	}
-	fdCausas(t, "sondear", caso, s.Error(), rutas, causas)
+	if errors.Is(s, ErrSinSonda) {
+		t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre (%q), sondear miro: es ErrSinDescriptores, no ErrSinSonda: %v", caso, dirsSonda, s)
+	}
+	fdCausas(t, "sondear", caso, s.Error(), rutas, causas, tramos)
 
 	if otra := DescriptoresDisponibles(); otra != cache && !errors.Is(otra, cache) {
 		t.Fatalf("CA-445: %s: DescriptoresDisponibles mira una vez por proceso: con las de verdad dijo %v y ahora %v", caso, cache, otra)
 	}
 }
 
-// CA-445 (hallazgos 669a42, c32559): con fdDirs = {una carpeta de
+// CA-445 (hallazgos 669a42, c32559; 25f656): con fdDirs = {una carpeta de
 // descriptores que no sirve, la que anda}, sea como sea que no sirve (no
 // existe; es un archivo regular, ENOTDIR; es un directorio sin permiso,
-// EACCES; es un directorio que no es de descriptores), AbrirDirEn prueba la
-// siguiente y abre el directorio mirado (el mismo, os.SameFile), y sondear
-// es nil. Tambien con la que anda primero y con dos que no sirven delante.
+// EACCES; sus numeros abren un directorio que no se deja mirar; es un
+// directorio que no es de descriptores), AbrirDirEn prueba la siguiente y
+// abre el directorio mirado (el mismo, os.SameFile), y sondear es nil.
+// Tambien con la que anda primero y con dos que no sirven delante.
 func TestCA445_UnaCarpetaDeDescriptoresQueNoSirveNoTapaLaQueAnda(t *testing.T) {
 	anda := fdLaQueAnda(t)
 	t.Logf("CA-445: la que anda en este sistema: %s", anda)
@@ -300,14 +449,15 @@ func TestCA445_UnaCarpetaDeDescriptoresQueNoSirveNoTapaLaQueAnda(t *testing.T) {
 	})
 }
 
-// CA-445 (hallazgos 669a42, c32559): con fdDirs = {dos carpetas de
+// CA-445 (hallazgos 669a42, c32559; 25f656): con fdDirs = {dos carpetas de
 // descriptores que no sirven}, de cualquier par de formas (en los dos
 // ordenes, y la misma forma dos veces), AbrirDirEn no abre y su error es
 // ErrSinDescriptores con las DOS causas (cada ruta con su errno, en orden,
-// separadas por "; ", sin saltos de linea); sondear da el mismo tipo de
-// error con las mismas causas; y DescriptoresDisponibles no cambia (mira
-// una vez por proceso). No necesita "la que anda": corre en cualquier
-// sistema.
+// separadas por "; ", sin saltos de linea; la de una que abre y no se mira,
+// "<ruta>/<descriptor>: <error de Stat>"); sondear da el mismo tipo de
+// error con las mismas causas (y no ErrSinSonda: "/" se abrio, miro); y
+// DescriptoresDisponibles no cambia (mira una vez por proceso). No necesita
+// "la que anda": corre en cualquier sistema.
 func TestCA445_SinCarpetaDeDescriptoresQueAndeElErrorDiceCadaCausa(t *testing.T) {
 	inutiles := fdInutiles(t)
 	for _, u1 := range inutiles {
@@ -318,7 +468,7 @@ func TestCA445_SinCarpetaDeDescriptoresQueAndeElErrorDiceCadaCausa(t *testing.T)
 				a := fdArmar(t, base, 0, u1)
 				b := fdArmar(t, base, 1, u2)
 				cache := fdUsar(t, a, b)
-				fdNoAbre(t, caso, cache, []string{a, b}, []syscall.Errno{u1.causa, u2.causa})
+				fdNoAbre(t, caso, cache, []string{a, b}, []syscall.Errno{u1.causa, u2.causa}, []fdTramo{u1.tramo, u2.tramo})
 			})
 		}
 	}
@@ -326,16 +476,16 @@ func TestCA445_SinCarpetaDeDescriptoresQueAndeElErrorDiceCadaCausa(t *testing.T)
 		u := inutiles[0]
 		a := fdArmar(t, t.TempDir(), 0, u)
 		cache := fdUsar(t, a)
-		fdNoAbre(t, "{"+u.caso+"}", cache, []string{a}, []syscall.Errno{u.causa})
+		fdNoAbre(t, "{"+u.caso+"}", cache, []string{a}, []syscall.Errno{u.causa}, []fdTramo{u.tramo})
 	})
 }
 
-// CA-445 (hallazgos 669a42, c32559), como propiedad: para TODA lista de una
-// a tres carpetas de descriptores tomadas de {las formas que no sirven, la
-// que anda} (con repeticion, en cualquier orden), AbrirDirEn abre el
-// directorio mirado y sondear es nil si y solo si la lista tiene la que
-// anda, este donde este; si no la tiene, los dos dan ErrSinDescriptores con
-// la causa de cada una en orden.
+// CA-445 (hallazgos 669a42, c32559; 25f656), como propiedad: para TODA
+// lista de una a tres carpetas de descriptores tomadas de {las formas que no
+// sirven (tambien la que abre y no se mira), la que anda} (con repeticion,
+// en cualquier orden), AbrirDirEn abre el directorio mirado y sondear es nil
+// si y solo si la lista tiene la que anda, este donde este; si no la tiene,
+// los dos dan ErrSinDescriptores con la causa de cada una en orden.
 func TestCA445_CualquierListaDeCarpetasDeDescriptoresAbreSiYSoloSiTieneLaQueAnda(t *testing.T) {
 	anda := fdLaQueAnda(t)
 	inutiles := fdInutiles(t)
@@ -374,6 +524,7 @@ func TestCA445_CualquierListaDeCarpetasDeDescriptoresAbreSiYSoloSiTieneLaQueAnda
 			base := t.TempDir()
 			var rutas []string
 			var causas []syscall.Errno
+			var tramos []fdTramo
 			tiene := false
 			for i, j := range l {
 				if f := formas[j]; f < 0 {
@@ -382,6 +533,7 @@ func TestCA445_CualquierListaDeCarpetasDeDescriptoresAbreSiYSoloSiTieneLaQueAnda
 				} else {
 					rutas = append(rutas, fdArmar(t, base, i, inutiles[f]))
 					causas = append(causas, inutiles[f].causa)
+					tramos = append(tramos, inutiles[f].tramo)
 				}
 			}
 			cache := fdUsar(t, rutas...)
@@ -389,7 +541,7 @@ func TestCA445_CualquierListaDeCarpetasDeDescriptoresAbreSiYSoloSiTieneLaQueAnda
 				fdAbre(t, caso)
 				return
 			}
-			fdNoAbre(t, caso, cache, rutas, causas)
+			fdNoAbre(t, caso, cache, rutas, causas, tramos)
 		})
 	}
 	t.Logf("CA-445: %d listas de carpetas de descriptores", len(listas))
@@ -450,5 +602,71 @@ func TestCA445_UnaCarpetaQueAbreOtroDirectorioNoEsUnaQueAnde(t *testing.T) {
 		anda := fdLaQueAnda(t)
 		fdUsar(t, fdSenuelo(t), anda)
 		fdAbre(t, "{senuelo, "+anda+"}")
+	})
+}
+
+// CA-445 (hallazgo 25f656): una carpeta de descriptores por la que reabrir
+// un descriptor ABRE un directorio (os.OpenRoot anda) que despues no se deja
+// mirar (Stat(".") falla: cada numero es un directorio de modo 0400) no es
+// una que ande, y su causa es la de verdad, "<carpeta>/<descriptor>: <el
+// error de Stat>", nunca "no reabre el mismo directorio": eso es solo de
+// una que abre OTRO directorio (el senuelo), que lo sigue diciendo. Cada
+// causa nombra su ruta, en el orden de fdDirs, separadas por "; ", en
+// AbrirDirEn y en sondear (que no es ErrSinSonda: miro). Con {esa, la que
+// anda}, AbrirDirEn abre el directorio mirado y sondear es nil.
+func TestCA445_UnaCarpetaQueAbreUnDirectorioQueNoSeMiraDiceSuCausa(t *testing.T) {
+	statErr, errno, porQueNo := fdNoSeMira(t)
+	if statErr == nil {
+		t.Skipf("CA-445 (25f656): no se puede armar una carpeta cuyos numeros abren y no se miran: %s", porQueNo)
+	}
+	t.Logf("CA-445 (25f656): mirar un directorio de modo 0400 abierto como os.Root da %q", statErr)
+	noSeMira := fdTramoNoSeMira(statErr)
+	armarNoSeMira := func(t *testing.T, base string, i int) string {
+		t.Helper()
+		p := filepath.Join(base, "entrada"+strconv.Itoa(i)+"-no-se-mira")
+		fdArmarNoSeMira(t, p)
+		return p
+	}
+	noExiste := func(base string, i int) string {
+		return filepath.Join(base, "entrada"+strconv.Itoa(i)+"-no-existe")
+	}
+
+	t.Run("{no se mira}", func(t *testing.T) {
+		p := armarNoSeMira(t, t.TempDir(), 0)
+		cache := fdUsar(t, p)
+		fdNoAbre(t, "{no se mira}", cache, []string{p}, []syscall.Errno{errno}, []fdTramo{noSeMira})
+	})
+	t.Run("{no se mira, no existe}", func(t *testing.T) {
+		base := t.TempDir()
+		p, q := armarNoSeMira(t, base, 0), noExiste(base, 1)
+		cache := fdUsar(t, p, q)
+		fdNoAbre(t, "{no se mira, no existe}", cache, []string{p, q}, []syscall.Errno{errno, syscall.ENOENT}, []fdTramo{noSeMira, nil})
+	})
+	t.Run("{no existe, no se mira}", func(t *testing.T) {
+		base := t.TempDir()
+		q, p := noExiste(base, 0), armarNoSeMira(t, base, 1)
+		cache := fdUsar(t, q, p)
+		fdNoAbre(t, "{no existe, no se mira}", cache, []string{q, p}, []syscall.Errno{syscall.ENOENT, errno}, []fdTramo{nil, noSeMira})
+	})
+	t.Run("{senuelo}", func(t *testing.T) {
+		s := fdSenuelo(t)
+		cache := fdUsar(t, s)
+		fdNoAbre(t, "{senuelo}", cache, []string{s}, []syscall.Errno{0}, []fdTramo{fdTramoOtroDirectorio})
+	})
+	t.Run("{senuelo, no se mira}", func(t *testing.T) {
+		s, p := fdSenuelo(t), armarNoSeMira(t, t.TempDir(), 1)
+		cache := fdUsar(t, s, p)
+		fdNoAbre(t, "{senuelo, no se mira}", cache, []string{s, p}, []syscall.Errno{0, errno}, []fdTramo{fdTramoOtroDirectorio, noSeMira})
+	})
+	t.Run("{no se mira, senuelo}", func(t *testing.T) {
+		p, s := armarNoSeMira(t, t.TempDir(), 0), fdSenuelo(t)
+		cache := fdUsar(t, p, s)
+		fdNoAbre(t, "{no se mira, senuelo}", cache, []string{p, s}, []syscall.Errno{errno, 0}, []fdTramo{noSeMira, fdTramoOtroDirectorio})
+	})
+	t.Run("{no se mira, la que anda}", func(t *testing.T) {
+		anda := fdLaQueAnda(t)
+		p := armarNoSeMira(t, t.TempDir(), 0)
+		fdUsar(t, p, anda)
+		fdAbre(t, "{no se mira, "+anda+"}")
 	})
 }
