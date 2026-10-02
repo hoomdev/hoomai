@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T145103_402186",
+  "as": "corregido",
+  "evidence": "40ae5ea: hoomfs.sigueSiendo exige que, despues de abrir por os.Root (que sigue symlinks internos y fuerza su propio O_NOFOLLOW con follow manual, asi que no hay modo sin seguir), r.Lstat(name) siga siendo el objeto mirado (os.SameFile); un nombre movido aparte y cambiado por un symlink a si mismo ya no pasa, en AbrirRegularEn y AbrirDirEn. Enmienda 2 aprobada (4e4a5cf7): el nombre es el mismo objeto antes y despues de abrirlo; lo que lo cambia despues es un proceso que escribe despues de la foto (grupos de procesos). Tests ciegos d20f561: TestCA445_AbrirRegularEnRechazaUnSymlinkAlMismoArchivoMovido y ...AbrirDirEn...MismoDirectorioMovido (6 formas de alias, desde la raiz y desde un subdirectorio; el fixture prueba que un os.Root solo con SameFile lo aceptaria), mas el FIFO; sin sigueSiendo fallan. No hay test a nivel Take: el alias da el mismo hash y no se puede caer en la ventana desde afuera (lo explica el test).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T15:46:20.33562Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T145841_817a1b",
+  "as": "corregido",
+  "evidence": "d20f561 (test-writer): edr3PlantillaConEvidencia devuelve edr3Evidencia{Hallazgo, Veredicto, Aprobacion} con PorRaiz() (raiz -\u003e ruta) y el fixture exige que cada ruta viva bajo su raiz; TestCA441_UnaRaiz... usa PorRaiz()[raiz] sin indices; mismas aserciones.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T15:46:20.367834Z"
+}
