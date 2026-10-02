@@ -1,14 +1,19 @@
 # Spec: la evidencia se mide en el disco, no en lo que git lista
 
-Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión
-aprobada (sha256 09dd8dae) está implementada. Su review mostró tres bordes
-que el texto no decía: un hash de solo los primeros 16 MiB, un symlink o un
-FIFO con nombre válido, y la evidencia que hoom no puede leer. La enmienda 1
-fija el hash del contenido entero, exige un archivo regular y hace que la
-evidencia ilegible, en cualquiera de las dos fotos, sea manipulación. Cambia
-CA-440 y CA-442 y agrega CA-444.
+Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 1
+(sha256 b361997e) está implementada. Sus reviews 3 y 4 mostraron que "sin
+seguirla" no decía contra quién: un proceso que la corrida dejó vivo puede
+cambiar un directorio por un symlink mientras la foto lo recorre. La
+enmienda 2 dice cómo se recorre (por descriptores, el mismo objeto antes y
+después de abrir cada nombre), qué pasa con una raíz de evidencia que no es
+un directorio, y qué necesita del sistema. Precisa CA-442 y agrega CA-445.
+Toca un test de otra spec: CA-140 hace que `.hoom/findings` sea un archivo
+para que el hallazgo del gate no se pueda registrar; con CA-445 esa foto
+además corta por evidencia ilegible, así que su test pasa a exigir las dos
+violaciones (la del rol y la de la evidencia), las dos sin hallazgo.
 
-Historia: aprobada el 2026-10-01 (sha256 09dd8dae).
+Historia: aprobada el 2026-10-01 (sha256 09dd8dae); enmienda 1 aprobada el
+2026-10-01 (sha256 b361997e).
 Depende de: `quien-cierra-un-hallazgo.md` integrada (PR #41).
 Tarea: `hoom task start evidencia-en-disco`.
 
@@ -62,6 +67,16 @@ como tal, sin seguirla ni leerla, y una entrada o un directorio que hoom no
 puede leer se anota como ilegible. `Take` lo llena siempre (un mapa vacío si
 no hay evidencia). Una foto sin `Huellas` (nil, armada a mano en un test)
 no aplica las reglas de abajo.
+
+`Take` recorre la evidencia sin seguir nunca un symlink: cada componente,
+`.hoom` incluido, se mira (Lstat), se abre relativo al directorio que lo
+contiene y tiene que ser el mismo objeto antes y después de abrirlo; lo que
+cambió en el medio se anota como ilegible. Una raíz (`.hoom`,
+`.hoom/findings`, `.hoom/verdicts`, `.hoom/approvals`) que existe y no es un
+directorio deja ilegible la evidencia que debería contener: hoom nunca las
+crea de otra forma, y siguiéndolas fotografiaría otra cosa. Lo que un
+proceso cambia en una entrada después de que la foto la tomó es un proceso
+que escribe después de la foto (ver no-goals).
 
 ### El piso en el disco
 
@@ -122,6 +137,8 @@ igual que esta el árbol real de una corrida ciega).
 
 - CA-444: una evidencia que hoom no puede leer (un archivo o un directorio sin permiso de lectura) en la foto de antes o en la de después es manipulación con `la evidencia no se puede leer`: un hallazgo creado con modo 000, uno al que el rol le quita la lectura, y la corrida siguiente a una que dejó el directorio ilegible, cortan.
 
+- CA-445: una raíz de evidencia (`.hoom` o una de las tres) que existe y no es un directorio (un symlink, aunque apunte a una copia idéntica; un archivo) deja ilegible su evidencia en esa foto: con `la evidencia no se puede leer`, la corrida corta. Un nombre que, entre mirarlo y abrirlo, pasa a ser un symlink (a otro objeto o al mismo movido) o cualquier otra cosa queda ilegible, nunca se sigue. Sin `/dev/fd` ni `/proc` (linux sin procfs), la foto no puede abrir los directorios sin seguir ni bloquearse: la evidencia queda ilegible y el detalle dice que hoom necesita `/dev/fd` o `/proc`.
+
 ## Decisiones
 
 - **El contenido, no la fecha.** Un hash del contenido dice si la evidencia
@@ -134,13 +151,30 @@ igual que esta el árbol real de una corrida ciega).
   resoluciones, pero nadie dentro de una corrida edita o borra evidencia.
 - **Fotos sin `Huellas` no aplican la regla.** Así los tests que arman fotos
   a mano siguen describiendo lo que describían; `Take` siempre la llena.
+- **Por descriptores, con Go 1.25.** Recorrer por nombre deja que un
+  directorio cambiado por un symlink se siga. `os.Root` (Go 1.24, y
+  `Root.Readlink` en 1.25) abre relativo al directorio padre; el go.mod, el
+  CI y el release pasan de 1.22 a 1.25 (decisión de Henry, 2026-10-01).
+  `Root.OpenRoot` no abre sin bloquearse: en unix el directorio se abre como
+  archivo con `O_DIRECTORY|O_NONBLOCK` y ese descriptor se vuelve `Root` por
+  `/dev/fd` o `/proc/self/fd`.
+- **Falla cerrado sin `/dev/fd` ni `/proc`** (decisión de Henry,
+  2026-10-02): una foto que no se puede tomar con estas garantías no se
+  declara; se corta y se dice por qué.
 
 ## Riesgos y deuda aceptada
 
 - **Costo de la foto.** Cada corrida hashea toda la evidencia dos veces
   (hoy, cientos de archivos chicos). Es lineal en la evidencia; si crece
   mucho, se puede cachear por mtime y tamaño (otra spec).
-- **Procesos hijos que escriben después de la segunda foto.** No los ve
-  nadie; es la tarea de los grupos de procesos.
+- **Procesos hijos que escriben después de la segunda foto**, o después de
+  que la foto tomó cada entrada. No los ve nadie; es la tarea de los grupos
+  de procesos, que los termina antes de la segunda foto.
+- **Linux sin `/dev/fd` ni `/proc`** (un chroot, un contenedor mínimo):
+  toda corrida corta con la evidencia ilegible y el diagnóstico.
+- **Un rol puede frenar la foto o git sin manipular nada**: un archivo
+  disperso enorme con nombre válido (se hashea entero) o un FIFO llamado
+  `.gitignore` en cualquier parte del repo (git lo abre y se cuelga; hallazgo
+  5c5342). Es la tarea del presupuesto de tiempo de la foto y de git.
 - **El hallazgo del gate puede no persistirse** (error de `Register`
   descartado): la otra tarea.
