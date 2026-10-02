@@ -12,6 +12,10 @@ import (
 // be opened without following a symlink nor blocking on a FIFO.
 var ErrSinDescriptores = errors.New("hoom necesita /dev/fd o /proc para abrir la evidencia sin seguir symlinks")
 
+// ErrSinSonda: hoom could not open any directory to check whether this
+// system lets it reopen one by its descriptor, so it cannot say either way.
+var ErrSinSonda = errors.New("hoom necesita /dev/fd o /proc y no pudo comprobar si los hay")
+
 // AbrirDirEn opens name inside r as the directory antes (the Lstat of name
 // the caller just took) describes, for a walk that never follows a
 // symlink: an os.Root follows one that stays inside it, and the entry can

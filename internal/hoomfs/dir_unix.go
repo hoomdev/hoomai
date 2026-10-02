@@ -47,12 +47,17 @@ func rootDe(d *os.File) (*os.Root, error) {
 			causas = append(causas, err.Error())
 			continue
 		}
-		if st, err := sub.Stat("."); err != nil || !os.SameFile(propio, st) {
+		st, err := sub.Stat(".")
+		switch {
+		case err != nil:
+			sub.Close()
+			causas = append(causas, p+": "+err.Error())
+		case !os.SameFile(propio, st):
 			sub.Close()
 			causas = append(causas, p+" no reabre el mismo directorio")
-			continue
+		default:
+			return sub, nil
 		}
-		return sub, nil
 	}
 	return nil, fmt.Errorf("%w (%s)", ErrSinDescriptores, strings.Join(causas, "; "))
 }
@@ -63,20 +68,35 @@ var sondeo struct {
 }
 
 // DescriptoresDisponibles says whether this system lets hoom reopen a
-// directory by its descriptor: nil, or ErrSinDescriptores with its causes.
-// It looks once (sondear).
+// directory by its descriptor: nil when it does, ErrSinDescriptores with its
+// causes when it does not, ErrSinSonda when hoom could not even look. Never
+// nil without having looked. It looks once (sondear).
 func DescriptoresDisponibles() error {
 	sondeo.once.Do(func() { sondeo.err = sondear() })
 	return sondeo.err
 }
 
-// sondear reopens "/" by its descriptor, the way the photograph reopens
-// each evidence directory: a failure there is the system's, never the
-// evidence's. Only when even "/" cannot be opened is there nothing to try.
+// dirsSonda are the directories sondear tries to probe with, in order: the
+// first one that opens. A test of this package may point it elsewhere.
+var dirsSonda = []string{"/", ".", os.TempDir()}
+
+// sondear reopens a directory by its descriptor, the way the photograph
+// reopens each evidence directory: a failure there is the system's, never
+// the evidence's. With no directory of dirsSonda to open, it has not looked,
+// and says so (ErrSinSonda) instead of vouching for the system.
 func sondear() error {
-	d, err := os.Open("/")
-	if err != nil {
-		return nil
+	var d *os.File
+	causas := make([]string, 0, len(dirsSonda))
+	for _, dir := range dirsSonda {
+		f, err := os.Open(dir)
+		if err == nil {
+			d = f
+			break
+		}
+		causas = append(causas, err.Error())
+	}
+	if d == nil {
+		return fmt.Errorf("%w (%s)", ErrSinSonda, strings.Join(causas, "; "))
 	}
 	defer d.Close()
 	sub, err := rootDe(d)
