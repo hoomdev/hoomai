@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T144620_4edaa7",
+  "as": "corregido",
+  "evidence": "d20f561 (test-writer): el test de carreratest ya no usa close+sleep como prueba de que el lector esta bloqueado: tras el subtest reintenta abrir O_WRONLY|O_NONBLOCK cada 10 ms ignorando ENXIO hasta que la lectura vuelve o vence ctReloj, y sigue exigiendo que la lectura colgada se suelte. Determinista (probado con una pausa de 300 ms inyectada). Costo declarado: ya no prueba que fue Soltar, y no el reintento, quien la solto; el log dice cuantas veces solto el test.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T15:46:20.351047Z"
+}

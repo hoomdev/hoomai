@@ -1,0 +1,11 @@
+{
+  "id": "20261001T154733_64f17b",
+  "created_at": "2026-10-01T15:47:33.556035Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:434: toda evidencia no regular se reduce a tipo:\u003cmodo\u003e; conForma (líneas 465-470) acepta por nombre symlinks y FIFOs nuevos. Los consumidores siguen symlinks con os.ReadFile (internal/approval/approval.go:121, internal/finding/finding.go:304, internal/verdict/verdict.go:195), así que cambiar el objetivo o su contenido altera approvals/findings/verdicts sin mover Huellas; un FIFO con nombre válido puede además bloquear la lectura. Los no-regulares deben rechazarse como manipulación o hacer fallar la foto de forma cerrada.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

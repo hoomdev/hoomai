@@ -1,0 +1,11 @@
+{
+  "id": "20261001T201001_c740a0",
+  "created_at": "2026-10-01T20:10:01.744754Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:577-583 solo compara Directorios para detectar directorios nuevos. Si una foto inicial contiene un directorio vacío bajo findings/verdicts y el rol lo borra, ninguna Huella desaparece y Git no lista el directorio; si lo reemplaza por un archivo regular con nombre válido, la ruta falta en Antes.Huellas, falta en Despues.Directorios y conForma la acepta como creación legítima. En ambos casos pisoEnDisco devuelve cero manipulaciones aunque una entrada de evidencia que existía desapareció o cambió de tipo, quebrando el piso append-only.",
+  "author": "reviewer@codex",
+  "fingerprint": "e1a3ed4becbbf83c",
+  "task": "evidencia-en-disco"
+}

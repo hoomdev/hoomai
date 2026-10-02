@@ -1,0 +1,11 @@
+{
+  "id": "20261002T145833_560c7c",
+  "created_at": "2026-10-02T14:58:33.013712Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/regular.go",
+  "description": "INTRODUCIDO: internal/hoomfs/regular.go:48 agrega AbrirDirEn y su implementación específica por SO dentro de regular.go/regular_{unix,windows}.go, archivos cuyo nombre y resto de API están dedicados a archivos regulares. La apertura de directorios es lógica distinta y sensible que queda difícil de descubrir; mover AbrirDirEn/abrirDirEn a dir.go y dir_{unix,windows}.go mantendría explícita la responsabilidad de cada archivo.",
+  "author": "reviewer@codex",
+  "fingerprint": "dcd1ff60ecade296",
+  "task": "evidencia-en-disco"
+}

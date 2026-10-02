@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T184829_ae9b30",
+  "as": "corregido",
+  "evidence": "cebcc4a: el comentario de Take ya no dice que es barata: dice que su costo es lineal en la evidencia, que se lee entera para hashearla. Solo comentario, sin test.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T19:35:46.720629Z"
+}

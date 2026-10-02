@@ -1,0 +1,11 @@
+{
+  "id": "20261002T144620_4edaa7",
+  "created_at": "2026-10-02T14:46:20.94752Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/carreratest/carreratest_unix_test.go",
+  "description": "INTRODUCIDO — internal/carreratest/carreratest_unix_test.go:33-40 usa cerrar empezo y dormir 50 ms como prueba de que la goroutine ya está bloqueada abriendo el FIFO, pero el cierre ocurre antes de os.ReadFile y no establece esa sincronización: el scheduler puede pausarla entre ambas líneas. En ese caso el cleanup Soltar corre sin lector, su OpenFile O_NONBLOCK recibe ENXIO y abandona en internal/carreratest/fifo_unix.go:36-38; luego la goroutine entra a os.ReadFile, queda bloqueada y el test falla cinco segundos después. El test nuevo del fixture es por tanto dependiente del timing y puede volver no determinista el gate bajo carga.",
+  "author": "reviewer@codex",
+  "fingerprint": "dcd1ff60ecade296",
+  "task": "evidencia-en-disco"
+}

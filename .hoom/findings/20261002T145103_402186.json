@@ -1,0 +1,11 @@
+{
+  "id": "20261002T145103_402186",
+  "created_at": "2026-10-02T14:51:03.422876Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/hoomfs/regular.go",
+  "description": "INTRODUCIDO: internal/hoomfs/regular.go:40-45 y :54-63 abren name mediante os.Root (que sigue symlinks internos) y solo validan os.SameFile contra el Lstat previo. Si tras ese Lstat la entrada se renombra dentro del root y name se reemplaza por un symlink a la misma entrada, SameFile sigue siendo verdadero: AbrirRegularEn/AbrirDirEn aceptan una apertura que atraveso el symlink. En Take (internal/agentcmd/scope.go:213-252), el ReadDir ya pudo haber fijado la lista antes de que aparezcan el nombre auxiliar y el symlink, por lo que la foto puede conservar las huellas anteriores, omitir ambas entradas nuevas y dejar pasar el gate aunque el disco termine con evidencia no regular. Esto rompe la promesa de no seguir symlinks frente a un proceso hijo concurrente y CA-442.",
+  "author": "reviewer@codex",
+  "fingerprint": "dcd1ff60ecade296",
+  "task": "evidencia-en-disco"
+}

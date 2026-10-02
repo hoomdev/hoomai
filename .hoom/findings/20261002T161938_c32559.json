@@ -1,0 +1,11 @@
+{
+  "id": "20261002T161938_c32559",
+  "created_at": "2026-10-02T16:19:38.026059Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/hoomfs/dir_unix.go",
+  "description": "INTRODUCIDO: internal/hoomfs/dir_unix.go:39 abandona rootDe ante cualquier error de /dev/fd distinto de ENOENT, sin probar /proc/self/fd. Si /dev/fd existe pero esta degradado o inaccesible mientras /proc funciona, AbrirDirEn falla y todas las fotos quedan con evidencia ilegible aunque el backend alternativo esta disponible; DescriptoresDisponibles ademas descarta ese error no-sentinel en lineas 60-64 y omite el diagnostico. Debe intentar ambos backends antes de fallar y conservar una causa util.",
+  "author": "reviewer@codex",
+  "fingerprint": "467acf40be611456",
+  "task": "evidencia-en-disco"
+}

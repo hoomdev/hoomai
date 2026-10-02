@@ -1,0 +1,11 @@
+{
+  "id": "20261002T162245_0d627a",
+  "created_at": "2026-10-02T16:22:45.142237Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:219: el case combina err != nil con raiz \u0026\u0026 !fi.IsDir() en una lista separada por coma; cuando Lstat falla, fi puede ser nil y la ausencia de panic depende de que el primer case expression coincida antes de evaluar el segundo. Separar los casos (aunque compartan el cuerpo) haria explicita la guarda de fi y evitaria que una reordenacion futura introduzca una desreferencia nil.",
+  "author": "reviewer@codex",
+  "fingerprint": "467acf40be611456",
+  "task": "evidencia-en-disco"
+}

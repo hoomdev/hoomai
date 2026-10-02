@@ -1,0 +1,11 @@
+{
+  "id": "20261002T161604_669a42",
+  "created_at": "2026-10-02T16:16:04.856843Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/dir_unix.go",
+  "description": "INTRODUCIDO — internal/hoomfs/dir_unix.go:39-40 deja de probar /proc/self/fd ante cualquier fallo de /dev/fd/N que no sea ErrNotExist (por ejemplo EACCES o una entrada que no es directorio), aunque /proc/self/fd/N sí pueda funcionar; luego :60-64 descarta ese mismo error no-sentinel y DescriptoresDisponibles devuelve nil. En un Linux/contenedor con /dev/fd presente pero inutilizable y /proc utilizable, cada AbrirDirEn falla, Take marca la evidencia ilegible y todas las corridas cortan, mientras el diagnóstico y TestCA445_DescriptoresDisponiblesEnEsteSistemaYElDiagnostico creen que los descriptores están disponibles. El contrato admite cualquiera de los dos mecanismos: debe intentar el segundo tras fallar el primero y no convertir un fallo de la sonda en disponibilidad.",
+  "author": "reviewer@codex",
+  "fingerprint": "467acf40be611456",
+  "task": "evidencia-en-disco"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261001T182656_a0c424",
+  "created_at": "2026-10-01T18:26:56.137054Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:166 descarta cualquier directorio antes de asignarle una Huella, asi que un rol puede crear una entrada como .hoom/findings/20261001T000000_abcdef.json que sea un directorio vacio y Take no la incluye ni en Evidence ni en Huellas. pisoEnDisco no emite la manipulacion exigida por CA-442 para una entrada creada que no es archivo regular; el piso de seguridad queda eludido para este tipo y el nombre puede reservarse para impedir que hoom escriba evidencia. Clasifique todos los directorios salvo las tres raices de evidencia como HuellaNoRegular.",
+  "author": "reviewer@codex",
+  "fingerprint": "fdfab8aaaece5aa2",
+  "task": "evidencia-en-disco"
+}

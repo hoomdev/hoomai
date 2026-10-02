@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T155036_72b57f",
+  "as": "corregido",
+  "evidence": "0e6c8a8: huella hashea el contenido entero con io.Copy (sin tope de 16 MiB ni valor grande:); enmienda 1 (a640f44) CA-440 lo fija. Tests ciegos 2c63133: TestCA440_LaHuellaEsElSHA256DelContenidoEnteroAlrededorDe16MiB y TestCA440_ElWriterQueBajaUnHallazgoDeMasDe16MiBConElMismoTamanoNoTerminaVerde (hallazgo de 17 MiB ignorado por git, high-\u003elow con el mismo tamano; la corrida siguiente queda roja): rojos en 9a8053e, verdes en 2c63133.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T16:57:28.636224Z"
+}

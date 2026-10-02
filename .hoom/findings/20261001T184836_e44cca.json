@@ -1,0 +1,11 @@
+{
+  "id": "20261001T184836_e44cca",
+  "created_at": "2026-10-01T18:48:36.560504Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/finding/finding.go",
+  "description": "internal/finding/finding.go:97: El nuevo validador EsNombre introduce una segunda representación textual del formato que ya construyen newID y findingPath; internal/verdict/verdict.go:139 repite la misma separación respecto de Write. Los comentarios afirman que son la definición única, pero generador y validador pueden cambiar por separado, obligando a sincronizar manualmente dos gramáticas para que el gate acepte los artefactos que hoom produce. Mantener construcción y validación desde una representación compartida.",
+  "author": "reviewer@codex",
+  "fingerprint": "fdfab8aaaece5aa2",
+  "task": "evidencia-en-disco"
+}

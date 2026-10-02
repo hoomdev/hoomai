@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T162245_9769d7",
+  "as": "refutado",
+  "evidence": "El mensaje SI identifica la ruta fuera de su raiz: evidencia_en_disco_ronda3_test.go:103 imprime raiz (la raiz esperada) y despues rel con %q (la ruta observada), que es justo lo que el hallazgo pide distinguir. Reproducido sobre el arbol comprometido (git archive 5b1d203, overlay -overlay que solo rota el mapeo de las lineas 100-101 para forzar la guarda): sale \"fixture: la evidencia de .hoom/verdicts vive en .hoom/verdicts: \\\".hoom/findings/20261002T162718_c36339.json\\\"\" -\u003e raiz esperada .hoom/verdicts, ruta mal ubicada .hoom/findings/... visible. La primera mitad enuncia el requisito y la segunda el observado, la convencion de los mensajes del repo (p.ej. ronda3:105 \"fixture: git ignora %s\").",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-02T16:29:45.366139Z"
+}

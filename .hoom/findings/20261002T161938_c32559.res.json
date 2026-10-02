@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T161938_c32559",
+  "as": "corregido",
+  "evidence": "cdfd8fd + 540688d: rootDe intenta cada entrada de fdDirs (/dev/fd, /proc/self/fd) sea cual sea el error de la anterior y solo acepta una que reabre el mismo directorio (os.SameFile con el fstat del descriptor); sin ninguna, ErrSinDescriptores con todas las causas unidas por '; '. DescriptoresDisponibles cachea sondear(), que reabre '/' por su descriptor y devuelve cualquier fallo: ya no lo convierte en disponibilidad, y el detalle de 'la evidencia no se puede leer' lleva el diagnostico. Tests ciegos a2b3dd2: TestCA445_UnaCarpetaDeDescriptoresQueNoSirveNoTapaLaQueAnda (faltante, ENOTDIR, EACCES, directorio cualquiera, en cada orden), TestCA445_SinCarpetaDeDescriptoresQueAndeElErrorDiceCadaCausa, la propiedad sobre 155 listas y el senuelo que abre otro directorio; con el corte ante no-ENOENT fallan. El refutador lo reprodujo con sandbox-exec negando /dev/fd/N; el test de DescriptoresDisponibles ahora decide por reapertura real.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T16:43:52.462532Z"
+}

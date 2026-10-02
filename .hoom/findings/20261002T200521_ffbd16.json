@@ -1,0 +1,11 @@
+{
+  "id": "20261002T200521_ffbd16",
+  "created_at": "2026-10-02T20:05:21.291286Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/sonda_unix_test.go",
+  "description": "INTRODUCIDO: internal/hoomfs/sonda_unix_test.go:170 hace que sondaNoMiro (que valida ErrSinSonda y rutas de dirsSonda) reutilice fdCausas, cuyo nombre y contrato en internal/hoomfs/descriptores_unix_test.go:340 dicen que valida ErrSinDescriptores y carpetas de descriptores. Desde este cambio la abstraccion tiene un contrato falso y obliga a entender otro fixture para leer la nueva suite; conviene extraer una validacion neutral de causas en orden o renombrar y documentar el helper compartido.",
+  "author": "reviewer@codex",
+  "fingerprint": "0a5bbbddc5a74ddc",
+  "task": "evidencia-en-disco"
+}

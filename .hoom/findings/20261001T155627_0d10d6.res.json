@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T155627_0d10d6",
+  "as": "corregido",
+  "evidence": "0e6c8a8: HuellaNoRegular y HuellaIlegible son constantes exportadas y documentadas en Snapshot.Huellas (el sha256 del contenido entero o uno de esos dos valores); el valor grande: desaparecio con el tope.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T16:57:28.679698Z"
+}

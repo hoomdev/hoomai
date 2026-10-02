@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T201839_a081cb",
+  "as": "corregido",
+  "evidence": "1a70fd2 + 3010a28 (Go 1.25, decidido por Henry): Take abre la raiz del proyecto como os.Root y baja componente por componente, .hoom incluido: Lstat, abrir relativo al descriptor del padre (hoomfs.AbrirDirEn / AbrirRegularEn) y exigir el mismo objeto con os.SameFile; lo que cambio entre mirar y abrir queda ilegible (falla cerrado); un .hoom que no es directorio deja la evidencia ilegible. AbrirDirEn abre el directorio con O_DIRECTORY|O_NONBLOCK y lo vuelve Root por /dev/fd/N (un FIFO puesto en su lugar no cuelga; lo encontro el test-writer). Tests ciegos 600ce71: TestCA442_LaFotoNoSigueUnSubdirectorioDeLaEvidenciaQueCambiaPorUnSymlink, TestCA441_LaFotoNoTomaUnaCopiaLimpia... (raiz de evidencia y .hoom), TestCA442_UnPuntoHoomQueNoEsUnDirectorio..., TestCA441_UnaRaizDeEvidenciaCambiada..., y los de hoomfs AbrirDirEn/AbrirRegularEn; con el WalkDir anterior (ab0dd2c) fallan. Linux (/proc/self/fd) no se probo localmente: lo ejercita el CI de ubuntu; windows compila, sin probar.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T21:41:01.181584Z"
+}

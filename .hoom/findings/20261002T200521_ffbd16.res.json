@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T200521_ffbd16",
+  "as": "corregido",
+  "evidence": "5b5a462 (test-writer): fdCausas pasa a causasEnOrden con contrato neutral ('/dev/fd o /proc', una linea, cada ruta probada en orden con su errno, '; '; cual error es lo comprueba quien llama), usado por fdNoAbre, sondaMiro y sondaNoMiro; sondaNoMiro deja de repetir las dos comprobaciones que causasEnOrden ya hace (tambien con lista vacia).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T20:13:30.646846Z"
+}

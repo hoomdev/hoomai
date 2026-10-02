@@ -1,0 +1,11 @@
+{
+  "id": "20261002T152520_8aed7c",
+  "created_at": "2026-10-02T15:25:20.922311Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO (hallado por el refutador en la ronda 4, TestRefutador_RaizSymlinkDejadaPorUnHijoPostFoto): si una raiz de evidencia (.hoom/findings, .hoom/verdicts, .hoom/approvals) ya es un symlink en la primera foto, Take la anota como una entrada no regular y no la recorre: durante toda la corrida el piso ve solo el enlace y un rol puede bajar un hallazgo a traves del destino (p. ej. .hoom/aux) con cero violaciones, mientras hoom lee la evidencia por el symlink. En cambio un .hoom que no es directorio ya falla cerrado. Solo lo arma un actor del no-goal (un hijo que quedo vivo o una persona entre corridas), pero el piso queda ciego. Una raiz que no es directorio deberia dejar su evidencia ilegible.",
+  "author": "writer@claude",
+  "fingerprint": "c7b70c6575bc2d00",
+  "task": "evidencia-en-disco"
+}

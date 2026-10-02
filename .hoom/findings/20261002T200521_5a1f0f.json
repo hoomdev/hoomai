@@ -1,0 +1,11 @@
+{
+  "id": "20261002T200521_5a1f0f",
+  "created_at": "2026-10-02T20:05:21.516521Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/sonda_unix_test.go",
+  "description": "INTRODUCIDO: internal/hoomfs/sonda_unix_test.go:179 concentra tres expectativas distintas en sondaMiro mediante sentinelas cruzados (fdRutas == nil, anda == \"\", o rutas no nil), e incluso ignora anda en una de las ramas. Las llamadas como internal/hoomfs/sonda_unix_test.go:567 terminan pasando nil, nil sin expresar la expectativa; separar los modos o usar una expectativa explicita haria la suite mas legible y menos fragil al agregar casos.",
+  "author": "reviewer@codex",
+  "fingerprint": "0a5bbbddc5a74ddc",
+  "task": "evidencia-en-disco"
+}

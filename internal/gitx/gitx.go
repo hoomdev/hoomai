@@ -284,15 +284,33 @@ func Touched(dir, base string) map[string]string {
 // is the primitive that detects tampering, so it must never depend on a
 // subprocess that can fail and leave two snapshots agreeing on "unknown".
 func contentHash(path string) (string, error) {
-	fh, err := os.Open(path)
+	// Never follow a symlink nor open anything but a regular file: a link
+	// to a FIFO, or a FIFO itself, would block the open and hang the
+	// photograph. A symlink is its target text, as git stores it.
+	st, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case st.Mode()&os.ModeSymlink != 0:
+		target, err := os.Readlink(path)
+		if err != nil {
+			return "", err
+		}
+		sum := sha256.Sum256([]byte(target))
+		return "symlink:" + hex.EncodeToString(sum[:]), nil
+	case st.IsDir():
+		return "", fmt.Errorf("%s no es un archivo regular", path)
+	case !st.Mode().IsRegular():
+		return "no-regular:" + st.Mode().Type().String(), nil
+	}
+	// the Lstat above can be stale by now: open what is there without
+	// following it, and decide on that descriptor
+	fh, err := hoomfs.AbrirRegular(path)
 	if err != nil {
 		return "", err
 	}
 	defer fh.Close()
-	st, err := fh.Stat()
-	if err != nil || st.IsDir() {
-		return "", fmt.Errorf("%s no es un archivo regular", path)
-	}
 	h := sha256.New()
 	if _, err := io.Copy(h, fh); err != nil {
 		return "", err

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T172354_25f656",
+  "as": "corregido",
+  "evidence": "b16939e: rootDe guarda '\u003cruta\u003e/\u003cN\u003e: \u003cerror de Stat\u003e' cuando OpenRoot anda y Stat('.') falla, y deja 'no reabre el mismo directorio' solo para cuando Stat anda y no es el mismo objeto (el refutador mostro que antes hoom afirmaba algo que no habia comprobado). Tests ciegos 7c7906a: el tipo 'abre un directorio que no se deja mirar (modo 0400)' en fdInutiles, TestCA445_UnaCarpetaQueAbreUnDirectorioQueNoSeMiraDiceSuCausa y la propiedad (258 listas); con la causa vieja fallan.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T17:59:57.170251Z"
+}

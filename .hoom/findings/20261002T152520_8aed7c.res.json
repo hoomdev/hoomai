@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T152520_8aed7c",
+  "as": "corregido",
+  "evidence": "40ae5ea + enmienda 2 (CA-445): una raiz de evidencia (.hoom o una de las tres) que existe y no es un directorio deja su evidencia ilegible en esa foto y la corrida corta con 'la evidencia no se puede leer'. Tests ciegos d20f561: TestCA445_UnaRaizDeEvidenciaQueNoEsUnDirectorioDejaSuEvidenciaIlegible (3 raices x 4 formas x en reposo/durante), TestCA445_UnRolQueBajaUnHallazgoPorElDestinoDeUnaRaizSymlinkNoPasaElGate (el escenario exacto, todo rol), FIFO como raiz y como .hoom sin colgarse; sin la regla fallan. CA-140 pasa a dos violaciones, declarado en la enmienda.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T15:46:20.374842Z"
+}

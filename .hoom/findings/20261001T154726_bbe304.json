@@ -1,0 +1,11 @@
+{
+  "id": "20261001T154726_bbe304",
+  "created_at": "2026-10-01T15:47:26.80397Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:443: huella solo hashea los primeros 16 MiB+1 y, para archivos mayores, combina ese prefijo con el tamaño (líneas 448-450). Un rol puede conservar prefijo y tamaño y cambiar bytes posteriores de un finding, verdict o approval; pisoEnDisco verá la misma huella y no reportará la manipulación, contradiciendo CA-440/CA-441. Debe hashear el contenido completo o fallar cerrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

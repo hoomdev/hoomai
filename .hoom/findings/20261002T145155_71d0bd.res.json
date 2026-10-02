@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T145155_71d0bd",
+  "as": "corregido",
+  "evidence": "40ae5ea + enmienda 2 (decision de Henry: falla cerrado y lo dice): rootDe prueba /dev/fd/N y despues /proc/self/fd/N; sin ninguno devuelve hoomfs.ErrSinDescriptores y el detalle de 'la evidencia no se puede leer' agrega 'hoom necesita /dev/fd o /proc para abrir la evidencia sin seguir symlinks' (DescriptoresDisponibles, una sola sonda). La spec lo declara en Riesgos y CA-445. Test ciego d20f561 TestCA445_DescriptoresDisponiblesEnEsteSistemaYElDiagnostico y el detalle en cada test de CA-445; un sistema sin /dev/fd ni /proc no se puede simular sin una costura (no se probo esa rama; linux con procfs lo ejercita el CI).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T15:46:20.344209Z"
+}

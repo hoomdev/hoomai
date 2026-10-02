@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T145833_560c7c",
+  "as": "corregido",
+  "evidence": "40ae5ea: AbrirDirEn, ErrSinDescriptores y DescriptoresDisponibles viven en hoomfs/dir.go, y abrirDirEn/rootDe en dir_unix.go / dir_windows.go; regular*.go queda solo con archivos regulares (y sigueSiendo, que usan los dos). Movimiento sin cambio de comportamiento salvo lo de 71d0bd/bd4403.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T15:46:20.35983Z"
+}
