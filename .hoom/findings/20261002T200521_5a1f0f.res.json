@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T200521_5a1f0f",
+  "as": "corregido",
+  "evidence": "5b5a462 (test-writer): sondaMiro recibe un solo fdEsperado construido por fdLasDeSiempre(anda) o fdNingunaSirve(rutas, causas), con un modo explicito; ninguna llamada pasa nil, nil y anda solo existe en el modo que lo usa. Mismos casos y aserciones; mutaciones de los constructores ponen rojos 40 y 36 subtests.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T20:13:30.640332Z"
+}
