@@ -77,18 +77,21 @@ func DescriptoresDisponibles() error {
 }
 
 // dirsSonda are the directories sondear tries to probe with, in order: the
-// first one that opens. A test of this package may point it elsewhere.
+// first one that opens as a directory. A test of this package may point it
+// elsewhere.
 var dirsSonda = []string{"/", ".", os.TempDir()}
 
 // sondear reopens a directory by its descriptor, the way the photograph
-// reopens each evidence directory: a failure there is the system's, never
-// the evidence's. With no directory of dirsSonda to open, it has not looked,
-// and says so (ErrSinSonda) instead of vouching for the system.
+// reopens each evidence directory (opened with O_DIRECTORY|O_NONBLOCK: a
+// file or a FIFO in dirsSonda is no directory to probe with, and never
+// blocks it): a failure there is the system's, never the evidence's. With no
+// directory of dirsSonda to open, it has not looked, and says so
+// (ErrSinSonda) instead of vouching for the system.
 func sondear() error {
 	var d *os.File
 	causas := make([]string, 0, len(dirsSonda))
 	for _, dir := range dirsSonda {
-		f, err := os.Open(dir)
+		f, err := os.OpenFile(dir, os.O_RDONLY|syscall.O_DIRECTORY|sinBloquear, 0)
 		if err == nil {
 			d = f
 			break
