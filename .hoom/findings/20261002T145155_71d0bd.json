@@ -1,0 +1,11 @@
+{
+  "id": "20261002T145155_71d0bd",
+  "created_at": "2026-10-02T14:51:55.588474Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/hoomfs/regular_unix.go",
+  "description": "INTRODUCIDO: internal/hoomfs/regular_unix.go:27-33 convierte el descriptor de cada directorio en *os.Root reabriendolo exclusivamente por /dev/fd/\u003cn\u003e. /dev/fd no es una garantia del binario ni del kernel en Linux: normalmente depende de que procfs/devfs este montado y puede faltar en chroots o contenedores minimos. En ese entorno toda apertura de .hoom falla aunque el directorio sea legible; internal/agentcmd/scope.go:184-205 transforma el fallo en tres HuellaIlegible y pisoEnDisco bloquea cada run como manipulacion. No hay fallback ni diagnostico de dependencia degradada, de modo que la nueva proteccion vuelve hoom indisponible en un entorno release soportado (linux) por una condicion ajena al repositorio.",
+  "author": "reviewer@codex",
+  "fingerprint": "dcd1ff60ecade296",
+  "task": "evidencia-en-disco"
+}
