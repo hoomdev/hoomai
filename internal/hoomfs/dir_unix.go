@@ -30,17 +30,29 @@ func abrirDirEn(r *os.Root, name string) (*os.Root, error) {
 var fdDirs = []string{"/dev/fd", "/proc/self/fd"}
 
 // rootDe turns the open directory d into an os.Root on that very directory
-// by reopening its descriptor through each of fdDirs until one works:
-// whatever made one fail (missing, unreadable, not what it should be), the
-// next may still work. With none, ErrSinDescriptores and every cause.
+// by reopening its descriptor through each of fdDirs until one works — one
+// that opens and gives back d itself (os.SameFile): whatever made one fail
+// (missing, unreadable, another directory under that name), the next may
+// still work. With none, ErrSinDescriptores and every cause.
 func rootDe(d *os.File) (*os.Root, error) {
+	propio, err := d.Stat()
+	if err != nil {
+		return nil, err
+	}
 	causas := make([]string, 0, len(fdDirs))
 	for _, fds := range fdDirs {
-		sub, err := os.OpenRoot(fmt.Sprintf("%s/%d", fds, d.Fd()))
-		if err == nil {
-			return sub, nil
+		p := fmt.Sprintf("%s/%d", fds, d.Fd())
+		sub, err := os.OpenRoot(p)
+		if err != nil {
+			causas = append(causas, err.Error())
+			continue
 		}
-		causas = append(causas, err.Error())
+		if st, err := sub.Stat("."); err != nil || !os.SameFile(propio, st) {
+			sub.Close()
+			causas = append(causas, p+" no reabre el mismo directorio")
+			continue
+		}
+		return sub, nil
 	}
 	return nil, fmt.Errorf("%w (%s)", ErrSinDescriptores, strings.Join(causas, "; "))
 }
