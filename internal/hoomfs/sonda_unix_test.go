@@ -146,9 +146,9 @@ func sondaVer(err error) sondaVisto {
 // sondaNoMiro exige que v sea lo de una sonda que no pudo mirar (ningun
 // directorio de dirsSonda se abrio): no nil (nunca nil sin haber reabierto
 // un descriptor), ErrSinSonda, no ErrSinDescriptores (no comprobo que
-// falten), que diga "/dev/fd o /proc", en una linea, y con el fallo de
-// apertura de cada entrada de rutas, en orden, separados por "; " (causas[i]
-// es su errno; 0, solo la ruta).
+// falten), y que su texto pase causasEnOrden con rutas: "/dev/fd o /proc",
+// en una linea, y el fallo de apertura de cada entrada de rutas, en orden,
+// separados por "; " (causas[i] es su errno; 0, solo la ruta).
 func sondaNoMiro(t *testing.T, quien, caso string, v sondaVisto, rutas []string, causas []syscall.Errno) {
 	t.Helper()
 	if v.Nil {
@@ -160,41 +160,53 @@ func sondaNoMiro(t *testing.T, quien, caso string, v sondaVisto, rutas []string,
 	if v.SinDescriptores {
 		t.Fatalf("CA-445 (2d68e4): %s: sin ningun directorio de dirsSonda que se abra, %s no es ErrSinDescriptores: no comprobo que falten /dev/fd y /proc: %q", caso, quien, v.Msg)
 	}
-	if !strings.Contains(v.Msg, "/dev/fd o /proc") {
-		t.Fatalf("CA-445 (2d68e4): %s: %s dice que hoom necesita \"/dev/fd o /proc\": %q", caso, quien, v.Msg)
-	}
-	if strings.ContainsAny(v.Msg, "\n\r") {
-		t.Fatalf("CA-445 (2d68e4): %s: %s: los fallos van en una linea, separados por \"; \", sin saltos: %q", caso, quien, v.Msg)
-	}
-	if len(rutas) > 0 {
-		fdCausas(t, quien, caso, v.Msg, rutas, causas, nil)
-	}
+	causasEnOrden(t, quien, caso, v.Msg, rutas, causas, nil)
+}
+
+// fdEsperado es lo que sondaMiro espera de las carpetas de descriptores en
+// fdDirs cuando la sonda miro. Se arma con fdLasDeSiempre o con
+// fdNingunaSirve, nunca a mano.
+type fdEsperado struct {
+	ningunaSirve bool
+	anda         string          // fdLasDeSiempre
+	rutas        []string        // fdNingunaSirve
+	causas       []syscall.Errno // fdNingunaSirve
+}
+
+// fdLasDeSiempre: fdDirs son las carpetas de descriptores por defecto, y
+// anda es la que anda en este sistema (fdQueAnda; "" si ninguna).
+func fdLasDeSiempre(anda string) fdEsperado { return fdEsperado{anda: anda} }
+
+// fdNingunaSirve: fdDirs son rutas, ninguna sirve, y causas[i] es el errno
+// de rutas[i] (sondaFdInutiles).
+func fdNingunaSirve(rutas []string, causas []syscall.Errno) fdEsperado {
+	return fdEsperado{ningunaSirve: true, rutas: rutas, causas: causas}
 }
 
 // sondaMiro exige que v sea lo de una sonda que miro con un directorio de
-// dirsSonda que se abrio: nunca ErrSinSonda; con las carpetas de
-// descriptores de siempre (fdRutas nil), nil si este sistema reabre por
-// alguna (anda) y si no ErrSinDescriptores; con fdRutas (ninguna sirve),
-// ErrSinDescriptores con la causa de cada una (fdErrnos).
-func sondaMiro(t *testing.T, quien, caso string, v sondaVisto, anda string, fdRutas []string, fdErrnos []syscall.Errno) {
+// dirsSonda que se abrio: nunca ErrSinSonda; con fdLasDeSiempre, nil si
+// este sistema reabre por alguna (anda) y si no ErrSinDescriptores; con
+// fdNingunaSirve, ErrSinDescriptores con la causa de cada una
+// (causasEnOrden).
+func sondaMiro(t *testing.T, quien, caso string, v sondaVisto, fd fdEsperado) {
 	t.Helper()
 	if v.SinSonda {
 		t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre, %s miro: no es ErrSinSonda: %q", caso, quien, v.Msg)
 	}
 	switch {
-	case fdRutas == nil && anda != "":
-		if !v.Nil {
-			t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre y %s que reabre, %s es nil, no %q", caso, anda, quien, v.Msg)
+	case fd.ningunaSirve:
+		if v.Nil || !v.SinDescriptores {
+			t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre y ninguna carpeta de descriptores que sirva (%q), %s es ErrSinDescriptores, no %q", caso, fd.rutas, quien, v.Msg)
 		}
-	case fdRutas == nil:
+		causasEnOrden(t, quien, caso, v.Msg, fd.rutas, fd.causas, nil)
+	case fd.anda != "":
+		if !v.Nil {
+			t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre y %s que reabre, %s es nil, no %q", caso, fd.anda, quien, v.Msg)
+		}
+	default:
 		if !v.SinDescriptores {
 			t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre en un sistema que no reabre por /dev/fd ni /proc/self/fd, %s es ErrSinDescriptores, no %q", caso, quien, v.Msg)
 		}
-	default:
-		if v.Nil || !v.SinDescriptores {
-			t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre y ninguna carpeta de descriptores que sirva (%q), %s es ErrSinDescriptores, no %q", caso, fdRutas, quien, v.Msg)
-		}
-		fdCausas(t, quien, caso, v.Msg, fdRutas, fdErrnos, nil)
 	}
 }
 
@@ -354,14 +366,14 @@ func TestCA445_LaSondaPruebaConElPrimerDirectorioQueSeAbre(t *testing.T) {
 				for i, f := range l.formas {
 					rutas = append(rutas, sondaArmar(t, base, i, f))
 				}
-				var fd []string
-				var fdErr []syscall.Errno
+				fd := fdLasDeSiempre(anda)
 				if fdMalas {
-					fd, fdErr = sondaFdInutiles(t)
-					fdUsar(t, fd...)
+					malas, errnos := sondaFdInutiles(t)
+					fdUsar(t, malas...)
+					fd = fdNingunaSirve(malas, errnos)
 				}
 				cache := sondaUsar(t, rutas...)
-				sondaMiro(t, "sondear", caso, sondaVer(sondear()), anda, fd, fdErr)
+				sondaMiro(t, "sondear", caso, sondaVer(sondear()), fd)
 				sondaMiraUnaVez(t, caso, cache)
 			})
 		}
@@ -440,16 +452,16 @@ func TestCA445_CualquierListaDeSondasMiraSiYSoloSiTieneUnDirectorioQueSeAbre(t *
 					causas = append(causas, f.causa)
 					tiene = tiene || f.abre
 				}
-				var fd []string
-				var fdErr []syscall.Errno
+				fd := fdLasDeSiempre(anda)
 				if fdMalas {
-					fd, fdErr = sondaFdInutiles(t)
-					fdUsar(t, fd...)
+					malas, errnos := sondaFdInutiles(t)
+					fdUsar(t, malas...)
+					fd = fdNingunaSirve(malas, errnos)
 				}
 				cache := sondaUsar(t, rutas...)
 				v := sondaVer(sondear())
 				if tiene {
-					sondaMiro(t, "sondear", caso, v, anda, fd, fdErr)
+					sondaMiro(t, "sondear", caso, v, fd)
 				} else {
 					sondaNoMiro(t, "sondear", caso, v, rutas, causas)
 				}
@@ -564,7 +576,7 @@ func TestCA445_DescriptoresDisponiblesSinSondaNoEsNilYMiraUnaVez(t *testing.T) {
 		if r.Segunda != r.Primera {
 			t.Fatalf("CA-445 (2d68e4): DescriptoresDisponibles mira una vez por proceso: dijo %+v y, con un directorio que se abre en dirsSonda, %+v", r.Primera, r.Segunda)
 		}
-		sondaMiro(t, "sondear (sin cache, despues)", "{directorio}", r.Sondear, anda, nil, nil)
+		sondaMiro(t, "sondear (sin cache, despues)", "{directorio}", r.Sondear, fdLasDeSiempre(anda))
 	})
 	t.Run("un directorio que se abre detras de uno que no, y despues ninguno", func(t *testing.T) {
 		base := t.TempDir()
@@ -572,7 +584,7 @@ func TestCA445_DescriptoresDisponiblesSinSondaNoEsNilYMiraUnaVez(t *testing.T) {
 		a, d := sondaArmar(t, base, 0, f0), sondaArmar(t, base, 1, abre)
 		x := filepath.Join(base, "sonda2-no-existe")
 		r := sondaEnOtroProceso(t, sondaPedido{Sonda: []string{a, d}, Despues: []string{x}})
-		sondaMiro(t, "DescriptoresDisponibles", "{"+f0.slug+", directorio}", r.Primera, anda, nil, nil)
+		sondaMiro(t, "DescriptoresDisponibles", "{"+f0.slug+", directorio}", r.Primera, fdLasDeSiempre(anda))
 		if r.Segunda != r.Primera {
 			t.Fatalf("CA-445 (2d68e4): DescriptoresDisponibles mira una vez por proceso: dijo %+v y, sin ningun directorio que se abra en dirsSonda, %+v", r.Primera, r.Segunda)
 		}
@@ -583,7 +595,7 @@ func TestCA445_DescriptoresDisponiblesSinSondaNoEsNilYMiraUnaVez(t *testing.T) {
 		d := sondaArmar(t, base, 0, abre)
 		fd, fdErr := sondaFdInutiles(t)
 		r := sondaEnOtroProceso(t, sondaPedido{Sonda: []string{d}, Fd: fd, Despues: []string{d}})
-		sondaMiro(t, "DescriptoresDisponibles", "{directorio} con fdDirs que no sirven", r.Primera, anda, fd, fdErr)
+		sondaMiro(t, "DescriptoresDisponibles", "{directorio} con fdDirs que no sirven", r.Primera, fdNingunaSirve(fd, fdErr))
 		if r.Segunda != r.Primera {
 			t.Fatalf("CA-445 (2d68e4): DescriptoresDisponibles mira una vez por proceso: dijo %+v y despues %+v", r.Primera, r.Segunda)
 		}
@@ -640,7 +652,7 @@ func TestCA445_LaSondaSoloPruebaConUnDirectorio(t *testing.T) {
 		aeEscribir(t, base, "sonda0-archivo", []byte("no soy un directorio\n"))
 		d := sondaArmar(t, base, 1, abre)
 		cache := sondaUsar(t, p, d)
-		sondaMiro(t, "sondear", "{archivo regular, directorio}: un archivo regular no es un directorio que se abre; prueba con el directorio", sondaVer(sondear()), anda, nil, nil)
+		sondaMiro(t, "sondear", "{archivo regular, directorio}: un archivo regular no es un directorio que se abre; prueba con el directorio", sondaVer(sondear()), fdLasDeSiempre(anda))
 		sondaMiraUnaVez(t, "{archivo, directorio}", cache)
 	})
 	t.Run("{archivo}", func(t *testing.T) {
@@ -661,7 +673,7 @@ func TestCA445_LaSondaSoloPruebaConUnDirectorio(t *testing.T) {
 		if colgo {
 			t.Errorf("CA-445 (2d68e4): {FIFO, directorio}: un FIFO que nadie escribe no cuelga la sonda: sondear no volvio en %s (volvio soltando el FIFO con %v)", arRelojPorApertura, err)
 		}
-		sondaMiro(t, "sondear", "{FIFO, directorio}: un FIFO no es un directorio que se abre; prueba con el directorio", sondaVer(err), anda, nil, nil)
+		sondaMiro(t, "sondear", "{FIFO, directorio}: un FIFO no es un directorio que se abre; prueba con el directorio", sondaVer(err), fdLasDeSiempre(anda))
 		sondaMiraUnaVez(t, "{FIFO, directorio}", cache)
 	})
 	t.Run("{FIFO}", func(t *testing.T) {

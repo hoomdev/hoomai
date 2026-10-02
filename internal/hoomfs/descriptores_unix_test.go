@@ -337,12 +337,14 @@ func fdAbre(t *testing.T, caso string) {
 	}
 }
 
-// fdCausas exige que msg sea el de ErrSinDescriptores con la causa de cada
-// carpeta de descriptores probada: la ruta de cada una en su orden, cada
-// una con su errno en su tramo (causas[i] 0: no se pide errno), separadas
-// por "; ", y sin saltos de linea; y, si tramos[i] no es nil, que el tramo
-// de rutas[i] diga lo que pide tramos[i] (hallazgo 25f656).
-func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []syscall.Errno, tramos []fdTramo) {
+// causasEnOrden exige que msg, el texto de un error, diga que hoom necesita
+// "/dev/fd o /proc", vaya en una linea, y lleve la causa de cada ruta
+// probada: cada una de rutas en su orden, con su errno en su tramo
+// (causas[i] 0: no se pide errno), separadas por "; "; y, si tramos[i] no es
+// nil, que el tramo de rutas[i] diga lo que pide tramos[i] (hallazgo
+// 25f656). Que error es (ErrSinDescriptores, ErrSinSonda) lo mira quien
+// llama. Sin rutas, mira solo lo primero: "/dev/fd o /proc" y una linea.
+func causasEnOrden(t *testing.T, quien, caso, msg string, rutas []string, causas []syscall.Errno, tramos []fdTramo) {
 	t.Helper()
 	if !strings.Contains(msg, "/dev/fd o /proc") {
 		t.Fatalf("CA-445: %s: %s: el error dice que hoom necesita \"/dev/fd o /proc\": %q", caso, quien, msg)
@@ -358,7 +360,7 @@ func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []sy
 			t.Fatalf("CA-445: %s: %s: el error nombra cada causa: falta la de %s (%s): %q", caso, quien, p, causas[i], msg)
 		}
 		if donde <= desde {
-			t.Fatalf("CA-445: %s: %s: las causas van en el orden de las carpetas %q: %s aparece antes que la anterior: %q", caso, quien, rutas, p, msg)
+			t.Fatalf("CA-445: %s: %s: las causas van en el orden de las rutas probadas %q: %s aparece antes que la anterior: %q", caso, quien, rutas, p, msg)
 		}
 		if i > 0 && !strings.Contains(msg[desde:donde], "; ") {
 			t.Fatalf("CA-445: %s: %s: la causa de %s y la de %s van separadas por \"; \": %q", caso, quien, rutas[i-1], p, msg)
@@ -386,7 +388,7 @@ func fdCausas(t *testing.T, quien, caso, msg string, rutas []string, causas []sy
 // en fdDirs, AbrirDirEn no devuelva root y su error sea ErrSinDescriptores
 // con cada causa, que sondear diga lo mismo, y que DescriptoresDisponibles
 // siga diciendo lo que dijo con las de verdad (mira una vez por proceso).
-// tramos es lo que pide fdCausas de cada tramo (nil: solo el errno).
+// tramos es lo que pide causasEnOrden de cada tramo (nil: solo el errno).
 func fdNoAbre(t *testing.T, caso string, cache error, rutas []string, causas []syscall.Errno, tramos []fdTramo) {
 	t.Helper()
 	r, antes, nombre := fdEvidencia(t)
@@ -401,7 +403,7 @@ func fdNoAbre(t *testing.T, caso string, cache error, rutas []string, causas []s
 	if !errors.Is(err, ErrSinDescriptores) {
 		t.Fatalf("CA-445: %s: sin ninguna carpeta de descriptores que ande en %q, el error de AbrirDirEn es ErrSinDescriptores, no %v", caso, rutas, err)
 	}
-	fdCausas(t, "AbrirDirEn", caso, err.Error(), rutas, causas, tramos)
+	causasEnOrden(t, "AbrirDirEn", caso, err.Error(), rutas, causas, tramos)
 
 	s := sondear()
 	if !errors.Is(s, ErrSinDescriptores) {
@@ -410,7 +412,7 @@ func fdNoAbre(t *testing.T, caso string, cache error, rutas []string, causas []s
 	if errors.Is(s, ErrSinSonda) {
 		t.Fatalf("CA-445 (2d68e4): %s: con un directorio de dirsSonda que se abre (%q), sondear miro: es ErrSinDescriptores, no ErrSinSonda: %v", caso, dirsSonda, s)
 	}
-	fdCausas(t, "sondear", caso, s.Error(), rutas, causas, tramos)
+	causasEnOrden(t, "sondear", caso, s.Error(), rutas, causas, tramos)
 
 	if otra := DescriptoresDisponibles(); otra != cache && !errors.Is(otra, cache) {
 		t.Fatalf("CA-445: %s: DescriptoresDisponibles mira una vez por proceso: con las de verdad dijo %v y ahora %v", caso, cache, otra)
