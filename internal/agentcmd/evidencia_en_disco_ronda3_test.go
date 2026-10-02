@@ -68,22 +68,45 @@ func edr3Mover(t *testing.T, root, rel, destino string) {
 	}
 }
 
+// edr3Evidencia es la evidencia que arma edr3PlantillaConEvidencia, con
+// nombre (hallazgo 817a1b: una tupla sin tipo consumida por indice deja
+// invertir en silencio que evidencia vive en que raiz).
+type edr3Evidencia struct {
+	Hallazgo   string // el hallazgo high, bajo .hoom/findings
+	Veredicto  string // el veredicto, bajo .hoom/verdicts
+	Aprobacion string // la aprobacion, bajo .hoom/approvals
+}
+
+// PorRaiz devuelve, para cada raiz de la evidencia, la ruta de la que vive
+// en ella.
+func (e edr3Evidencia) PorRaiz() map[string]string {
+	return map[string]string{".hoom/findings": e.Hallazgo, ".hoom/verdicts": e.Veredicto, ".hoom/approvals": e.Aprobacion}
+}
+
 // edr3PlantillaConEvidencia arma un repo con un hallazgo high, un veredicto
 // y una aprobacion, y con .hoom y hoom-copia escondidos de git (el piso en el
-// disco es lo unico que mira). Devuelve la plantilla y las tres rutas.
-func edr3PlantillaConEvidencia(t *testing.T) (string, []string) {
+// disco es lo unico que mira). Devuelve la plantilla y su evidencia, y exige
+// que cada ruta viva en su raiz.
+func edr3PlantillaConEvidencia(t *testing.T) (string, edr3Evidencia) {
 	t.Helper()
 	root := repo(t)
 	qcr1Anexar(t, qcr1Exclude(t, root), ".hoom\nhoom-copia")
 	_, hallazgo := edHallazgo(t, root, "high", "el retry no respeta el backoff")
-	veredicto := edVeredicto(t, root, "un veredicto")
-	aprobacion := edAprobacion(t, root)
-	for _, rel := range []string{hallazgo, veredicto, aprobacion} {
+	ev := edr3Evidencia{Hallazgo: hallazgo, Veredicto: edVeredicto(t, root, "un veredicto"), Aprobacion: edAprobacion(t, root)}
+	porRaiz := ev.PorRaiz()
+	if len(porRaiz) != len(edr3Raices) {
+		t.Fatalf("fixture: una evidencia por raiz: %v", porRaiz)
+	}
+	for _, raiz := range edr3Raices {
+		rel := porRaiz[raiz]
+		if !edr3Debajo(rel, raiz) {
+			t.Fatalf("fixture: la evidencia de %s vive en %s: %q", raiz, raiz, rel)
+		}
 		if !qcr1Ignorado(t, root, rel) {
 			t.Fatalf("fixture: git ignora %s", rel)
 		}
 	}
-	return root, []string{hallazgo, veredicto, aprobacion}
+	return root, ev
 }
 
 // edr3TresIlegibles exige que la foto tenga exactamente las tres raices,
@@ -212,9 +235,9 @@ func TestCA442_SinPuntoHoomNoHayEntradasYElGatePasa(t *testing.T) {
 // (Cada caso corre en paralelo, en su copia del repo.)
 func TestCA441_UnaRaizDeEvidenciaCambiadaPorUnSymlinkNoSeSigue(t *testing.T) {
 	qcLimpiarEntorno(t)
-	plantilla, rutas := edr3PlantillaConEvidencia(t)
+	plantilla, evidencia := edr3PlantillaConEvidencia(t)
 	for _, raiz := range edr3Raices {
-		adentro := map[string]string{".hoom/verdicts": rutas[1], ".hoom/findings": rutas[0], ".hoom/approvals": rutas[2]}[raiz]
+		adentro := evidencia.PorRaiz()[raiz]
 		for _, donde := range []string{"adentro de .hoom, relativo", "afuera del repo, absoluto"} {
 			caso := raiz + " cambiada por un symlink al mismo directorio movido " + donde
 			t.Run(caso, func(t *testing.T) {

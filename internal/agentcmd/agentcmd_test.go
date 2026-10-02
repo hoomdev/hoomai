@@ -334,15 +334,36 @@ func TestCA140_ViolacionEsHallazgo(t *testing.T) {
 		t.Fatalf("CA-140: el hallazgo %s no quedo en .hoom/findings/", id)
 	}
 
-	// el artefacto no se puede escribir: la violacion no desaparece
+	// el artefacto no se puede escribir: la violacion no desaparece. Con
+	// CA-445 (.hoom/specs/evidencia-en-disco.md, enmienda 2) una raiz de
+	// evidencia que existe y no es un directorio deja ilegible su evidencia,
+	// asi que esta foto ademas corta por manipulacion en .hoom/findings: son
+	// exactamente DOS violaciones, la del rol (nuevo.go, fuera de scope) y la
+	// de la evidencia (.hoom/findings, "la evidencia no se puede leer"), y
+	// ninguna de las dos trae hallazgo, porque no se puede escribir.
 	root2 := repo(t)
 	write(t, root2, ".hoom/findings", "no soy un directorio\n")
 	res, err = Run(root2, "main", Options{Role: "scout", Prompt: "explora"}, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Scope.Violations) != 1 || res.Scope.Violations[0].FindingID != "" {
-		t.Fatalf("CA-140: sin poder registrar el hallazgo, la violacion sigue en pie: %+v", res.Scope)
+	porRuta := map[string]Violation{}
+	for _, v := range res.Scope.Violations {
+		porRuta[v.Path] = v
+	}
+	delRol, okRol := porRuta["nuevo.go"]
+	deLaEvidencia, okEvidencia := porRuta[".hoom/findings"]
+	if len(res.Scope.Violations) != 2 || !okRol || !okEvidencia {
+		t.Fatalf("CA-140/CA-445: sin poder registrar el hallazgo, la violacion del rol sigue en pie, junto a la de la evidencia ilegible (dos, ni una mas): %+v", res.Scope)
+	}
+	if delRol.Rule != RuleOutOfScope {
+		t.Fatalf("CA-140: un scout que escribe codigo esta fuera de scope: %+v", delRol)
+	}
+	if deLaEvidencia.Rule != RuleTampering || !strings.Contains(deLaEvidencia.Detail, "la evidencia no se puede leer") {
+		t.Fatalf("CA-445: un .hoom/findings que no es un directorio es manipulacion con \"la evidencia no se puede leer\": %+v", deLaEvidencia)
+	}
+	if delRol.FindingID != "" || deLaEvidencia.FindingID != "" {
+		t.Fatalf("CA-140: sin poder escribir el artefacto, ninguna violacion trae hallazgo: %+v", res.Scope)
 	}
 	if res.ExitCode != 1 {
 		t.Fatalf("CA-140: el exit no depende del artefacto: %+v", res)

@@ -8,9 +8,11 @@ package carreratest
 
 import (
 	"bytes"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -20,6 +22,15 @@ const ctReloj = 5 * time.Second
 
 // CA-442 (b08c53): Fifo crea un FIFO (y el directorio que falta arriba), y
 // al final del test suelta una lectura que se quedo colgada en el.
+//
+// Hallazgo 4edaa7: que la goroutine haya empezado no prueba que ya este
+// colgada abriendo el FIFO (el scheduler la puede pausar antes de
+// os.ReadFile), asi que Soltar puede correr sin lector, recibir ENXIO y no
+// hacer nada; la lectura se cuelga despues. No hay como mirar desde afuera
+// que la goroutine ya esta en el open sin soltarla, asi que, terminado el
+// subtest, hasta que la lectura vuelva (o venza ctReloj) se reintenta cada
+// 10 ms abrir para escribir sin bloquear, ignorando ENXIO (todavia nadie
+// lee). El test sigue exigiendo que la lectura colgada se suelte y vuelva.
 func TestCA442_FifoCreaUnFIFOYSueltaLaLecturaColgadaAlFinal(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "falta", "fifo")
@@ -44,10 +55,29 @@ func TestCA442_FifoCreaUnFIFOYSueltaLaLecturaColgadaAlFinal(t *testing.T) {
 		default:
 		}
 	})
-	select {
-	case <-listo:
-	case <-time.After(ctReloj):
-		t.Fatalf("CA-442: fixture: al final del test Fifo suelta la lectura colgada en %s", p)
+	vence := time.After(ctReloj)
+	tic := time.NewTicker(10 * time.Millisecond)
+	defer tic.Stop()
+	soltadas := 0 // aperturas del test que encontraron un lector
+	for {
+		select {
+		case <-listo:
+			t.Logf("CA-442: la lectura colgada volvio (aperturas del test con lector, despues de Soltar: %d)", soltadas)
+			return
+		case <-vence:
+			t.Fatalf("CA-442: fixture: al final del test Fifo suelta la lectura colgada en %s (y %d aperturas del test con lector despues)", p, soltadas)
+		case <-tic.C:
+			f, err := os.OpenFile(p, os.O_WRONLY|syscall.O_NONBLOCK, 0)
+			switch {
+			case err == nil:
+				soltadas++
+				f.Close()
+			case errors.Is(err, syscall.ENXIO):
+				// nadie lo lee todavia: la goroutine no llego al open
+			default:
+				t.Fatalf("CA-442: fixture: abrir %s para escribir sin bloquear falla solo con ENXIO (nadie lo lee): %v", p, err)
+			}
+		}
 	}
 }
 
