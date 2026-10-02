@@ -216,7 +216,11 @@ func (s *Snapshot) fotoEntrada(r *os.Root, name, rel string, raiz bool) {
 	switch {
 	case raiz && errors.Is(err, fs.ErrNotExist):
 		return
-	case err != nil, raiz && !fi.IsDir():
+	case err != nil:
+		s.Huellas[rel] = HuellaIlegible
+	case raiz && !fi.IsDir():
+		// following a root that is not a directory would photograph
+		// something else
 		s.Huellas[rel] = HuellaIlegible
 	case fi.IsDir():
 		if !raiz {

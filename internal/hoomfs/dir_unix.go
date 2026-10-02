@@ -3,10 +3,9 @@
 package hoomfs
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 )
@@ -25,22 +24,25 @@ func abrirDirEn(r *os.Root, name string) (*os.Root, error) {
 	return rootDe(d)
 }
 
+// fdDirs are where rootDe reopens a descriptor by its number, in order:
+// /dev/fd (darwin dups it; on linux it links to /proc/self/fd), then
+// /proc/self/fd. A test of this package may point it elsewhere.
+var fdDirs = []string{"/dev/fd", "/proc/self/fd"}
+
 // rootDe turns the open directory d into an os.Root on that very directory
-// by reopening its descriptor: /dev/fd/N (darwin dups it; on linux it is a
-// link to /proc/self/fd), then /proc/self/fd/N. With neither,
-// ErrSinDescriptores.
+// by reopening its descriptor through each of fdDirs until one works:
+// whatever made one fail (missing, unreadable, not what it should be), the
+// next may still work. With none, ErrSinDescriptores and every cause.
 func rootDe(d *os.File) (*os.Root, error) {
-	var err error
-	for _, fds := range []string{"/dev/fd", "/proc/self/fd"} {
-		var sub *os.Root
-		if sub, err = os.OpenRoot(fmt.Sprintf("%s/%d", fds, d.Fd())); err == nil {
+	causas := make([]string, 0, len(fdDirs))
+	for _, fds := range fdDirs {
+		sub, err := os.OpenRoot(fmt.Sprintf("%s/%d", fds, d.Fd()))
+		if err == nil {
 			return sub, nil
 		}
-		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, err
-		}
+		causas = append(causas, err.Error())
 	}
-	return nil, fmt.Errorf("%w (%v)", ErrSinDescriptores, err)
+	return nil, fmt.Errorf("%w (%s)", ErrSinDescriptores, strings.Join(causas, "; "))
 }
 
 var sondeo struct {
@@ -49,19 +51,26 @@ var sondeo struct {
 }
 
 // DescriptoresDisponibles says whether this system lets hoom reopen a
-// directory by its descriptor: nil, or ErrSinDescriptores. It looks once.
+// directory by its descriptor: nil, or ErrSinDescriptores with its causes.
+// It looks once (sondear).
 func DescriptoresDisponibles() error {
-	sondeo.once.Do(func() {
-		d, err := os.Open(os.TempDir())
-		if err != nil {
-			return // nothing to probe with: no verdict on the system
-		}
-		defer d.Close()
-		if sub, err := rootDe(d); err == nil {
-			sub.Close()
-		} else if errors.Is(err, ErrSinDescriptores) {
-			sondeo.err = err
-		}
-	})
+	sondeo.once.Do(func() { sondeo.err = sondear() })
 	return sondeo.err
+}
+
+// sondear reopens "/" by its descriptor, the way the photograph reopens
+// each evidence directory: a failure there is the system's, never the
+// evidence's. Only when even "/" cannot be opened is there nothing to try.
+func sondear() error {
+	d, err := os.Open("/")
+	if err != nil {
+		return nil
+	}
+	defer d.Close()
+	sub, err := rootDe(d)
+	if err != nil {
+		return err
+	}
+	sub.Close()
+	return nil
 }
