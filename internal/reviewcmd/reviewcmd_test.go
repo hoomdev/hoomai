@@ -59,14 +59,16 @@ func repo(t *testing.T) string {
 	return root
 }
 
-// fakeProvider pone al frente del PATH un CLI de IA falso.
+// fakeProvider pone al frente del PATH un CLI de IA falso que corre script.
+// Lo arma cliFalso: salga por donde salga, el falso lee antes su stdin
+// entero, que es por donde le llega el pedido de la review (CA-418).
 func fakeProvider(t *testing.T, name, script string) {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "bin")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), cliFalso(t, script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))

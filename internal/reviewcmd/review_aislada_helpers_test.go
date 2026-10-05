@@ -63,16 +63,18 @@ func raPATH(t *testing.T) string {
 type raCLI struct{ dir string }
 
 // raInstalar pone en bin un CLI falso name. extra corre antes del exit 0 y
-// ve $n, el numero de invocacion (1, 2, ...).
+// ve $n, el numero de invocacion (1, 2, ...). Lo arma cliFalso, como a todo
+// CLI de IA falso del paquete; este ya lee su stdin entero (lo guarda) antes
+// de extra, asi que al drenaje no le queda nada.
 func raInstalar(t *testing.T, bin, name, extra string) *raCLI {
 	t.Helper()
 	dir := t.TempDir()
-	s := "#!/bin/sh\nd='" + dir + "'\n" +
+	s := "d='" + dir + "'\n" +
 		"n=$(cat \"$d/n\" 2>/dev/null || echo 0); n=$((n+1)); echo $n > \"$d/n\"\n" +
 		"printf '%s\\000' \"$@\" > \"$d/argv.$n\"\n" +
 		"cat > \"$d/stdin.$n\"\n" +
 		extra + "exit 0\n"
-	if err := os.WriteFile(filepath.Join(bin, name), []byte(s), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, name), cliFalso(t, s), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return &raCLI{dir: dir}

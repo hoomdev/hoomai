@@ -104,9 +104,11 @@ func cbPathAislado(t *testing.T) string {
 	return bin
 }
 
+// cbFake pone en bin un CLI de IA falso que corre script. Lo arma cliFalso:
+// salga por donde salga, lee antes su stdin entero (el pedido de la review).
 func cbFake(t *testing.T, bin, name, script string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+script), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, name), cliFalso(t, script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 }
