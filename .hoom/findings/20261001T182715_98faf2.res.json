@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T182715_98faf2",
+  "as": "corregido",
+  "evidence": "cebcc4a: hoomfs.AbrirRegular abre con O_NOFOLLOW|O_NONBLOCK (windows: CreateFile con FILE_FLAG_OPEN_REPARSE_POINT, compila pero no se probo en windows) y decide con fstat sobre el mismo descriptor (*NoRegular si no es regular); la usan huella (scope.go) y gitx.contentHash, que tenia la misma ventana Lstat-\u003eos.Open. Tests ciegos bfb1fb3: TestCA442_AbrirRegular* (symlink, FIFO con watchdog, cambio de entrada en carrera), TestCA442_TakeNoSeCuelgaNiSigue... y TestCA442_TouchedNoSeCuelga...; con os.Open en lugar de AbrirRegular fallan los de hoomfs y el de Take siempre, el de gitx 1 de 3 (carrera).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T19:35:46.708795Z"
+}

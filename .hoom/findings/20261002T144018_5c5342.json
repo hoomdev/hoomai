@@ -1,0 +1,11 @@
+{
+  "id": "20261002T144018_5c5342",
+  "created_at": "2026-10-02T14:40:18.431726Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "[PRE-EXISTENTE; follow-up] internal/agentcmd/scope.go:151 ejecuta gitx.Touched antes de fotoEvidencia (linea 158); un rol puede dejar un FIFO en .hoom/findings/.gitignore y git ls-files --others --exclude-standard lo abre y queda bloqueado, por lo que la segunda foto nunca alcanza el piso en disco ni registra la manipulacion. Reproducido contra ese subcomando de Git; internal/gitx/gitx.go:260-263 lo invoca sin timeout.",
+  "author": "reviewer@codex",
+  "fingerprint": "dcd1ff60ecade296",
+  "task": "evidencia-en-disco"
+}

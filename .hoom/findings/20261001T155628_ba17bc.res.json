@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T155628_ba17bc",
+  "as": "corregido",
+  "evidence": "0e6c8a8: finding.EsNombre (junto a newID) y verdict.EsNombre (junto a Write) son la unica definicion de la forma de cada nombre; conForma los usa y las regex de scope.go desaparecieron. Lo cubre ademas TestCA442_HoomFindingAddYHoomVerifyDentroDeLaCorridaSiguenLegitimos, que corre los generadores reales.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T16:57:28.686724Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T182656_a0c424",
+  "as": "corregido",
+  "evidence": "cebcc4a: Take anota en Snapshot.Directorios los subdirectorios bajo .hoom/{findings,verdicts,approvals} (no las raices) y pisoEnDisco marca cada uno creado en la corrida como 'la evidencia es un archivo regular: \u003cp\u003e no lo es (d---------)', para todo rol; Huellas sigue siendo solo archivos (CA-440). Tests ciegos bfb1fb3: TestCA442_UnDirectorioCreadoBajoLaEvidenciaEsManipulacion (incluye \u003cid\u003e.res.json/ de un hallazgo abierto y approvals/y/), ...DondeNoHabiaEvidencia, TestCA442_TakeAnotaLosDirectorios..., end-to-end writer y ciego (CA-443); con la regla deshecha los 4 de Gate fallan.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T19:35:46.689278Z"
+}

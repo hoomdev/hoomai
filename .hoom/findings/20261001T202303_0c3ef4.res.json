@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T202303_0c3ef4",
+  "as": "corregido",
+  "evidence": "1a70fd2: el contrato de Snapshot.Huellas dice que un directorio que hoom no pudo leer (o que cambio al abrirlo) tambien va ahi como HuellaIlegible, la unica excepcion a 'no es un directorio', y que Directorios lo sigue listando (legible o no). Solo comentario; el comportamiento ya lo cubren los tests de CA-444.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T21:41:01.187849Z"
+}

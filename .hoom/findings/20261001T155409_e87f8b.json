@@ -1,0 +1,11 @@
+{
+  "id": "20261001T155409_e87f8b",
+  "created_at": "2026-10-01T15:54:09.618817Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:147: Take descarta todos los errores de WalkDir (scope.go:148-150) y huella colapsa cualquier fallo de apertura/lectura al valor constante ilegible (scope.go:437-445). Una evidencia o subárbol ilegible en ambas fotos puede cambiar sin que las huellas difieran, y una foto parcial sigue pareciendo válida; ante fallos de I/O el gate queda fail-open. La captura debe propagar el error o representar cada fallo de forma que el gate corte.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

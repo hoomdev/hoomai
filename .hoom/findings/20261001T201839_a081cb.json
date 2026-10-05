@@ -1,0 +1,11 @@
+{
+  "id": "20261001T201839_a081cb",
+  "created_at": "2026-10-01T20:18:39.30994Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:157: Take usa filepath.WalkDir, que observa que una entrada es directorio y luego la reabre por nombre para ReadDir; un proceso hijo puede reemplazarla por un symlink entre ambos pasos y WalkDir seguira el destino. AbrirRegular solo protege archivos hoja, asi que la foto puede recorrer/hashar fuera del repo o quedar ocupada indefinidamente en un arbol/archivo externo, contradiciendo CA-442 (un symlink nunca se sigue ni se lee) y permitiendo que el gate no termine. El recorrido de directorios necesita la misma decision basada en descriptor/no-follow que los archivos.",
+  "author": "reviewer@codex",
+  "fingerprint": "e1a3ed4becbbf83c",
+  "task": "evidencia-en-disco"
+}

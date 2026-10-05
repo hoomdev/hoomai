@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T154733_64f17b",
+  "as": "corregido",
+  "evidence": "0e6c8a8 + 2c63133: una entrada creada que no es archivo regular (symlink, FIFO) es manipulacion con 'la evidencia es un archivo regular' aunque tenga nombre valido; huella nunca la sigue ni la lee (HuellaNoRegular), y gitx.contentHash ya no sigue symlinks ni abre FIFOs (un symlink a un FIFO que git ve colgaba Take). Enmienda 1 CA-442. Tests ciegos 2c63133: TestCA442_UnSymlinkConNombreValidoEsManipulacionYNoSeSigue, TestCA442_UnSymlinkAUnFIFOConNombreValidoNoCuelgaLaFoto, TestCA442_UnFIFOConNombreValidoEsManipulacionYNoCuelgaLaFoto, TestCA442_ElSymlinkCreadoCortaYCambiarSuDestinoDespuesNoBajaElHallazgo: rojos en 9a8053e, verdes en 2c63133.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T16:57:28.650786Z"
+}

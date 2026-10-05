@@ -1,0 +1,11 @@
+{
+  "id": "20261001T182715_98faf2",
+  "created_at": "2026-10-01T18:27:15.589681Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:456-466 decide que la ruta es regular usando el DirEntry y despues hace os.Open(p), que vuelve a resolver la ruta y sigue symlinks. Un provider puede dejar un hijo huerfano (runcmd no mata el grupo) que cambie la entrada entre ambas operaciones: la segunda foto puede abrir un symlink a un FIFO y colgarse, leer un destino externo, o hashear un inode distinto del que queda en la ruta, quebrando la promesa de que symlinks/FIFOs nunca se siguen y el piso append-only. Abra con semantica no-follow/no-block y valide con fstat sobre ese mismo descriptor antes de leer. El patron metadata-check seguido de os.Open(path) es candidato a una regla Semgrep custom en .hoom/semgrep/.",
+  "author": "reviewer@codex",
+  "fingerprint": "fdfab8aaaece5aa2",
+  "task": "evidencia-en-disco"
+}

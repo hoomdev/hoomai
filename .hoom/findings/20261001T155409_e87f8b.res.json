@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T155409_e87f8b",
+  "as": "corregido",
+  "evidence": "0e6c8a8: Take anota HuellaIlegible para cada entrada o directorio que no pudo leer (no traga los errores de WalkDir) y pisoEnDisco falla cerrado con 'la evidencia no se puede leer' si aparece en cualquiera de las dos fotos (enmienda 1, CA-444). Tests ciegos 2c63133: TestCA444_UnaEvidenciaCreadaSinPermisoDeLecturaEsManipulacion, ..._QuitarleLaLectura..., ..._UnaEvidenciaIlegibleEnLaFotoDeAntes..., ..._UnDirectorioDeEvidenciaIlegible... (9 casos), ..._LaCorridaSiguienteAUnaQueDejoIlegibleLosHallazgosCorta y el sobre siguiente que no baja: rojos en 9a8053e, verdes en 2c63133.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T16:57:28.665821Z"
+}

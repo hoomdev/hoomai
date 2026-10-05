@@ -1,0 +1,143 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-01T17-07-31Z_b5ace72e",
+  "created_at": "2026-10-01T17:07:31.491865Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "601930544740",
+    "branch": "hoom/evidencia-en-disco",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/evidencia-en-disco_09dd8dae.json",
+      ".hoom/approvals/evidencia-en-disco_b361997e.json",
+      ".hoom/specs/evidencia-en-disco.md",
+      "internal/agentcmd/arquitecto_bajo_el_sobre_test.go",
+      "internal/agentcmd/evidencia_en_disco_ronda1_test.go",
+      "internal/agentcmd/evidencia_en_disco_test.go",
+      "internal/agentcmd/scope.go",
+      "internal/finding/finding.go",
+      "internal/gitx/gitx.go",
+      "internal/reviewcmd/evidencia_en_disco_test.go",
+      "internal/verdict/verdict.go"
+    ],
+    "change_fingerprint": "a8089d9234ec6a68",
+    "insertions": 3524,
+    "deletions": 17
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "5 criterios (CA-*)"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 16,
+      "notes": "5/5 criterios trazados en 214 archivos de test"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 1,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-10-01, sha b361997e)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 59,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea evidencia-en-disco + sin tarea (1 de otras tareas no cuentan) · no bloquean: 1 medium, 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 479
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 421
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "fail",
+      "scope": "diff",
+      "command": "go test -race ./internal/agentcmd ./internal/finding ./internal/gitx ./internal/reviewcmd ./internal/verdict",
+      "exit_code": 1,
+      "duration_ms": 601570,
+      "output_tail": "...[truncado]...\nhoomai/.hoom/worktrees/evidencia-en-disco/internal/runcmd/runcmd.go:836 +0x63c\n\ngoroutine 68792 [IO wait]:\ninternal/poll.runtime_pollWait(0x114553800, 0x72)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/runtime/netpoll.go:351 +0xa0\ninternal/poll.(*pollDesc).wait(0xc00022c080, 0x72, 0x1)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8\ninternal/poll.(*pollDesc).waitRead(...)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/internal/poll/fd_poll_runtime.go:89\ninternal/poll.(*FD).Read(0xc00022c060, {0xc0001e4005, 0xfffb, 0xfffb})\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/internal/poll/fd_unix.go:170 +0x350\nos.(*File).read(...)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/os/file_posix.go:30\nos.(*File).Read(0xc000210000, {0xc0001e4005, 0xfffb, 0xfffb})\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/os/file.go:144 +0xb0\nbufio.(*Scanner).Scan(0xc00014def0)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/bufio/scan.go:219 +0x87c\ngithub.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute.func3({0x114b040c8, 0xc000210000}, 0x0)\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/evidencia-en-disco/internal/runcmd/runcmd.go:868 +0x1a0\ncreated by github.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute in goroutine 68828\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/evidencia-en-disco/internal/runcmd/runcmd.go:882 +0xb80\n\ngoroutine 68828 [sync.WaitGroup.Wait]:\nsync.runtime_SemacquireWaitGroup(0xc00014bca8?, 0x44?)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/runtime/sema.go:114 +0x38\nsync.(*WaitGroup).Wait(0xc00018a030)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/sync/waitgroup.go:206 +0xb8\ngithub.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute(0xc00010d320, 0xc000329348, {{0x104e78a5a, 0x6}, {0xc000494000, 0x9, 0xc}, {0x0, 0x0, 0x0}, ...})\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/evidencia-en-disco/internal/runcmd/runcmd.go:884 +0xc4c\ncreated by github.com/hoomdev/hoomai/internal/runcmd.(*Manager).Start in goroutine 68819\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/evidencia-en-disco/internal/runcmd/runcmd.go:604 +0x1270\n\ngoroutine 68793 [IO wait]:\ninternal/poll.runtime_pollWait(0x114553400, 0x72)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/runtime/netpoll.go:351 +0xa0\ninternal/poll.(*pollDesc).wait(0xc00022c1a0, 0x72, 0x1)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8\ninternal/poll.(*pollDesc).waitRead(...)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/internal/poll/fd_poll_runtime.go:89\ninternal/poll.(*FD).Read(0xc00022c180, {0xc000192000, 0x10000, 0x10000})\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/internal/poll/fd_unix.go:170 +0x350\nos.(*File).read(...)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/os/file_posix.go:30\nos.(*File).Read(0xc000210078, {0xc000192000, 0x10000, 0x10000})\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/os/file.go:144 +0xb0\nbufio.(*Scanner).Scan(0xc000506ef0)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/bufio/scan.go:219 +0x87c\ngithub.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute.func3({0x114b040c8, 0xc000210078}, 0x1)\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/evidencia-en-disco/internal/runcmd/runcmd.go:868 +0x1a0\ncreated by github.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute in goroutine 68828\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/evidencia-en-disco/internal/runcmd/runcmd.go:883 +0xc44\n\ngoroutine 68790 [select]:\nos/exec.(*Cmd).watchCtx(0xc000324000, 0xc0000a0620)\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/os/exec/exec.go:808 +0xac\ncreated by os/exec.(*Cmd).Start in goroutine 68828\n\t/opt/homebrew/Cellar/go/1.27.0/libexec/src/os/exec/exec.go:794 +0xaec\nFAIL\tgithub.com/hoomdev/hoomai/internal/agentcmd\t600.235s\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t23.710s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t8.842s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t530.813s\n?   \tgithub.com/hoomdev/hoomai/internal/verdict\t[no test files]\nFAIL"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 1,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "red",
+  "spec": ".hoom/specs/evidencia-en-disco.md"
+}

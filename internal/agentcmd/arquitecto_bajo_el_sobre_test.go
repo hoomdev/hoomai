@@ -614,7 +614,8 @@ func TestCA237_WriterSinEntrega(t *testing.T) {
 
 	t.Run("solo corrio hoom verify", func(t *testing.T) {
 		root := repo(t)
-		propio := "2026-09-18T12-00-00Z_propio.json"
+		// CA-442: un veredicto creado en la corrida lleva la forma que escribe hoom (<AAAA-MM-DDTHH-MM-SSZ>_<8 hex>)
+		propio := "2026-09-18T12-00-00Z_0123abcd.json"
 		fakeProvider(t, "claude", "mkdir -p .hoom/verdicts\nprintf '{\"verdict\":\"green\"}\\n' > .hoom/verdicts/"+propio+"\nexit 0\n")
 		var buf bytes.Buffer
 		res, err := Run(root, "main", Options{Role: "writer", Prompt: "implementa"}, &buf)

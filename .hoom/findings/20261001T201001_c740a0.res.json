@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T201001_c740a0",
+  "as": "refutado",
+  "evidence": "Overlay sobre git archive HEAD (c67d905), test TestRef_C740a0 (Gate real, roles writer/reviewer/refutador): un directorio VACIO preexistente bajo findings/verdicts/approvals que el rol borra deja Huellas antes==despues (ningun hallazgo, resolucion, veredicto ni aprobacion cambio ni desaparecio) y 0 violaciones; reemplazado por un archivo regular con nombre valido: hallazgo y veredicto = 0 violaciones, que es exactamente una creacion legitima de CA-442 (la misma ruta creada desde un arbol sin el directorio da el mismo resultado); resolucion = 'un writer/reviewer no cierra hallazgos' (sinCierres) y solo el refutador puede, como ya puede crearla; aprobacion = 'la aprobacion humana no la escribe un agente' en los 3 roles. Un directorio vacio no es evidencia: la spec define la evidencia como hallazgos, resoluciones, veredictos y aprobaciones (Objetivo, CA-441), Directorios no es contrato de la spec, y ningun lector la ve: finding.scan (internal/finding/finding.go:302) y approval (internal/approval/approval.go:118) saltan directorios, verdict lee el nivel plano (verdict.go:207). hoom nunca crea subdirectorios (solo MkdirAll de las tres raices: finding.go:165, verdict.go:180, approval.go:91), asi que ese directorio solo existe si una corrida anterior ya fue cortada por crearlo. Ningun estado no marcado esta fuera de lo que el rol puede alcanzar legitimamente: no se rompe el piso append-only.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-01T20:43:41.18973Z"
+}

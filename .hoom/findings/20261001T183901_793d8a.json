@@ -1,0 +1,11 @@
+{
+  "id": "20261001T183901_793d8a",
+  "created_at": "2026-10-01T18:39:01.504528Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:457-458: huella representa todo symlink únicamente como no-regular:\u003ctipo\u003e, sin incluir el texto del enlace. Si una evidencia symlink ya existe en la foto anterior y un rol la retargetea de A a B mientras Git la ignora, las dos Huellas son idénticas y Gate no registra que la evidencia existente cambió. os.Readlink permitiría distinguir esa identidad sin seguir el destino. Los tests nuevos cubren regular→symlink y creación de symlink, pero no symlink→symlink; el caso de la corrida siguiente solo modifica el archivo destino y queda rojo por findings_open, por lo que no detecta este falso negativo del piso append-only.",
+  "author": "reviewer@codex",
+  "fingerprint": "fdfab8aaaece5aa2",
+  "task": "evidencia-en-disco"
+}

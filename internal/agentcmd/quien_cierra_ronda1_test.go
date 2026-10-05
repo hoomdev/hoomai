@@ -233,37 +233,45 @@ const qcr1Implementar = "printf 'package app // implementado\\n' > app.go\n"
 // .hoom/findings/.gitignore, el directorio entero, o una regla que ya estaba
 // antes de la corrida) y para CADA rol que no es refutador: manipulacion en
 // esa ruta con el detalle del contrato, y el hallazgo high del gate
-// registrado y abierto.
+// registrado y abierto. (Cada rol corre en paralelo, en su copia del repo
+// armado para el escondite.)
 func TestCA438_UnaResolucionQueGitNoListaSigueSiendoManipulacion(t *testing.T) {
+	qcLimpiarEntorno(t)
+	var roles []agents.Role
+	for _, r := range agents.Roles() {
+		if r.Slug != finding.RolQueRefuta {
+			roles = append(roles, r)
+		}
+	}
+	if len(roles) < 5 {
+		t.Fatalf("CA-438: fixture: la tabla trae los roles de hoom, trajo %d sin el refutador", len(roles))
+	}
 	for _, e := range qcr1Escondites() {
 		t.Run(e.caso, func(t *testing.T) {
-			root, ids := qcRepoConHallazgo(t, 1)
+			t.Parallel()
+			plantilla, ids := qcRepoConHallazgoSinEntorno(t, 1)
 			res := qcResRel(ids[0])
 			if e.previo {
-				e.armar(t, root)
+				e.armar(t, plantilla)
 			}
-			before := Take(root, "main")
-			if !e.previo {
-				e.armar(t, root)
-			}
-			write(t, root, res, qcResolucionAMano(ids[0], finding.StatusRefuted))
-			after := Take(root, "main")
-			if !qcr1Ignorado(t, root, res) {
-				t.Fatalf("CA-438: fixture: con %s Git ignora %s", e.caso, res)
-			}
+			for _, r := range roles {
+				t.Run("rol "+r.Slug, func(t *testing.T) {
+					t.Parallel()
+					root := edCopiarArbol(t, plantilla)
+					before := Take(root, "main")
+					if !e.previo {
+						e.armar(t, root)
+					}
+					write(t, root, res, qcResolucionAMano(ids[0], finding.StatusRefuted))
+					after := Take(root, "main")
+					if !qcr1Ignorado(t, root, res) {
+						t.Fatalf("CA-438: fixture: con %s Git ignora %s", e.caso, res)
+					}
 
-			vistos := 0
-			for _, r := range agents.Roles() {
-				if r.Slug == finding.RolQueRefuta {
-					continue
-				}
-				vistos++
-				got := Gate(root, "main", "", r, before, after, PolicyFor(nil, r), nil)
-				qcManipulacionDe(t, e.caso+", rol "+r.Slug, r.Slug, got, res)
-				qcr1HallazgoAlto(t, e.caso+", rol "+r.Slug, root, got, res)
-			}
-			if vistos < 5 {
-				t.Fatalf("CA-438: fixture: la tabla trae los roles de hoom, trajo %d sin el refutador", vistos)
+					got := Gate(root, "main", "", r, before, after, PolicyFor(nil, r), nil)
+					qcManipulacionDe(t, e.caso+", rol "+r.Slug, r.Slug, got, res)
+					qcr1HallazgoAlto(t, e.caso+", rol "+r.Slug, root, got, res)
+				})
 			}
 		})
 	}

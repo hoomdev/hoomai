@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261001T155037_7a2c12",
+  "as": "corregido",
+  "evidence": "0e6c8a8: sinCierres corre antes que pisoEnDisco y pisoEnDisco no duplica una ruta ya marcada como manipulacion: una resolucion sin forma de un rol que no es refutador es una sola violacion y un solo hallazgo del gate. Test ciego 2c63133 TestCA442_UnaResolucionSinFormaDeUnRolQueNoEsRefutadorEsUnaSolaManipulacion: rojo en 9a8053e (2 violaciones por ruta), verde en 2c63133.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-01T16:57:28.672574Z"
+}

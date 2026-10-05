@@ -1,0 +1,11 @@
+{
+  "id": "20261002T171616_2d68e4",
+  "created_at": "2026-10-02T17:16:16.955565Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/hoomfs/dir_unix.go",
+  "description": "INTRODUCIDO — internal/hoomfs/dir_unix.go:77-80: sondear trata un fallo de os.Open(\"/\") como disponibilidad (nil). En un entorno donde el workspace es abrible pero la raiz no se puede abrir para lectura (por ejemplo, raiz 0111 o un sandbox), la fotografia puede comprobar que no logra reabrir la evidencia por /dev/fd ni /proc, pero ilegible omite el diagnostico requerido porque DescriptoresDisponibles queda cacheado en nil. CA-445 exige que ese detalle diga que hoom necesita /dev/fd o /proc; falta cubrir la falla de la propia sonda sin declararla disponible.",
+  "author": "reviewer@codex",
+  "fingerprint": "6395e726f2c5f5e8",
+  "task": "evidencia-en-disco"
+}

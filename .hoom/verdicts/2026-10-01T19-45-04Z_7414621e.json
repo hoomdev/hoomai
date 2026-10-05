@@ -1,0 +1,155 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-01T19-45-04Z_7414621e",
+  "created_at": "2026-10-01T19:45:04.196044Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "fbfc98f7ee50",
+    "branch": "hoom/evidencia-en-disco",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/evidencia-en-disco_09dd8dae.json",
+      ".hoom/approvals/evidencia-en-disco_b361997e.json",
+      ".hoom/specs/evidencia-en-disco.md",
+      "internal/agentcmd/arquitecto_bajo_el_sobre_test.go",
+      "internal/agentcmd/evidencia_en_disco_ronda1_test.go",
+      "internal/agentcmd/evidencia_en_disco_ronda2_test.go",
+      "internal/agentcmd/evidencia_en_disco_ronda2_unix_test.go",
+      "internal/agentcmd/evidencia_en_disco_test.go",
+      "internal/agentcmd/quien_cierra_ronda1_test.go",
+      "internal/agentcmd/quien_cierra_test.go",
+      "internal/agentcmd/scope.go",
+      "internal/finding/finding.go",
+      "internal/finding/nombre_test.go",
+      "internal/gitx/evidencia_carrera_unix_test.go",
+      "internal/gitx/gitx.go",
+      "internal/hoomfs/regular.go",
+      "internal/hoomfs/regular_test.go",
+      "internal/hoomfs/regular_unix.go",
+      "internal/hoomfs/regular_unix_test.go",
+      "internal/hoomfs/regular_windows.go",
+      "internal/reviewcmd/evidencia_en_disco_test.go",
+      "internal/verdict/nombre_test.go",
+      "internal/verdict/verdict.go"
+    ],
+    "change_fingerprint": "e1a3ed4becbbf83c",
+    "insertions": 6079,
+    "deletions": 66
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "5 criterios (CA-*)"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 11,
+      "notes": "5/5 criterios trazados en 221 archivos de test"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 1,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-10-01, sha b361997e)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 10,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea evidencia-en-disco + sin tarea (1 de otras tareas no cuentan) · no bloquean: 1 medium, 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 479
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 210
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/agentcmd ./internal/finding ./internal/gitx ./internal/hoomfs ./internal/reviewcmd ./internal/verdict",
+      "exit_code": 0,
+      "duration_ms": 549764,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t279.313s\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t23.898s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t10.210s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t8.385s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t543.999s\nok  \tgithub.com/hoomdev/hoomai/internal/verdict\t1.192s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 7,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/evidencia-en-disco.md"
+}

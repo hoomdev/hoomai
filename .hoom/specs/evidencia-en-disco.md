@@ -1,0 +1,180 @@
+# Spec: la evidencia se mide en el disco, no en lo que git lista
+
+Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 1
+(sha256 b361997e) está implementada. Sus reviews 3 y 4 mostraron que "sin
+seguirla" no decía contra quién: un proceso que la corrida dejó vivo puede
+cambiar un directorio por un symlink mientras la foto lo recorre. La
+enmienda 2 dice cómo se recorre (por descriptores, el mismo objeto antes y
+después de abrir cada nombre), qué pasa con una raíz de evidencia que no es
+un directorio, y qué necesita del sistema. Precisa CA-442 y agrega CA-445.
+Toca un test de otra spec: CA-140 hace que `.hoom/findings` sea un archivo
+para que el hallazgo del gate no se pueda registrar; con CA-445 esa foto
+además corta por evidencia ilegible, así que su test pasa a exigir las dos
+violaciones (la del rol y la de la evidencia), las dos sin hallazgo.
+
+Historia: aprobada el 2026-10-01 (sha256 09dd8dae); enmienda 1 aprobada el
+2026-10-01 (sha256 b361997e).
+Depende de: `quien-cierra-un-hallazgo.md` integrada (PR #41).
+Tarea: `hoom task start evidencia-en-disco`.
+
+## Objetivo
+
+La evidencia de hoom vive en `.hoom/findings/` (hallazgos y resoluciones),
+`.hoom/verdicts/` (veredictos) y `.hoom/approvals/` (aprobaciones humanas).
+El gate de territorio la protege con un piso append-only: un rol puede
+agregar un hallazgo o un veredicto, pero no tocar uno que ya existía, y
+nunca escribir una aprobación. Ese piso mira solo lo que git lista
+(`Snapshot.Touched`, de `gitx.Touched`). `Snapshot.Evidence` sí recorre el
+disco, pero solo anota qué archivos existen, no su contenido.
+
+Eso deja dos agujeros, anteriores a `quien-cierra-un-hallazgo` y encontrados
+por su refutador y su test-writer:
+
+1. **Un archivo cualquiera bajo `.hoom/findings/` pasa como legítimo.**
+   Cualquier creación ahí es "trabajo legítimo (finding add)". Un rol (hasta
+   el reviewer) puede crear `.hoom/findings/.gitignore` con `*.json` y
+   esconderle a git los hallazgos, incluidos los que registra el propio gate.
+2. **Una evidencia que git ignora se puede editar sin que el gate la vea.**
+   Un rol que hace que git ignore los hallazgos (`.gitignore` de la raíz, un
+   `.gitignore` en `.hoom/findings/` o `.git/info/exclude`) puede bajar un
+   hallazgo de `high` a `low` para que deje de bloquear `findings_open`, o
+   borrarlo, o editar un veredicto. La ruta no aparece en `Touched` y el piso
+   nunca la mira.
+
+`quien-cierra-un-hallazgo` ya compara en disco las resoluciones creadas.
+Esta spec extiende la misma idea a toda la evidencia: el piso se mide en el
+disco, por forma y por contenido, diga lo que diga git.
+
+## No-goals
+
+- Validar el contenido de un hallazgo o un veredicto nuevo (que el JSON sea
+  coherente): lo hacen `finding.List` y `verdict` al leerlo.
+- Cambiar quién puede crear qué: un rol sigue pudiendo agregar hallazgos y
+  veredictos; las resoluciones siguen la regla de `quien-cierra-un-hallazgo`.
+- Proteger la evidencia de una persona con acceso al repo fuera de una
+  corrida: eso queda en Git.
+- Los procesos hijos que escriben después de la foto (otra tarea).
+
+## Contratos
+
+### La foto
+
+`agentcmd.Snapshot` gana `Huellas map[string]string`: para cada archivo bajo
+`.hoom/{verdicts,findings,approvals}` en el disco (también los que git
+ignora), su ruta relativa y el sha256 de su contenido entero. Solo se leen
+archivos regulares: una entrada que no lo es (un symlink, un FIFO) se anota
+como tal, sin seguirla ni leerla, y una entrada o un directorio que hoom no
+puede leer se anota como ilegible. `Take` lo llena siempre (un mapa vacío si
+no hay evidencia). Una foto sin `Huellas` (nil, armada a mano en un test)
+no aplica las reglas de abajo.
+
+`Take` recorre la evidencia sin seguir nunca un symlink: cada componente,
+`.hoom` incluido, se mira (Lstat), se abre relativo al directorio que lo
+contiene y tiene que ser el mismo objeto antes y después de abrirlo; lo que
+cambió en el medio se anota como ilegible. Una raíz (`.hoom`,
+`.hoom/findings`, `.hoom/verdicts`, `.hoom/approvals`) que existe y no es un
+directorio deja ilegible la evidencia que debería contener: hoom nunca las
+crea de otra forma, y siguiéndolas fotografiaría otra cosa. Lo que un
+proceso cambia en una entrada después de que la foto la tomó es un proceso
+que escribe después de la foto (ver no-goals).
+
+### El piso en el disco
+
+En la corrida de cualquier rol (el refutador incluido), comparando las dos
+fotos de cada árbol que la corrida pudo escribir (el suyo y, en una corrida
+ciega, el real):
+
+- **Una evidencia que existía y cambió o desapareció** es manipulación:
+  `la evidencia es append-only: <ruta> cambio durante el run` o
+  `... desaparecio durante el run`. Vale aunque git la ignore.
+- **Un archivo creado** es legítimo solo con la forma que escribe hoom:
+  - bajo `.hoom/findings/`: `<id>.json` (un hallazgo) o `<id>.res.json` (una
+    resolución), con `<id>` = `AAAAMMDDTHHMMSS_` + 6 hex;
+  - bajo `.hoom/verdicts/`: `<id>.json` con `<id>` =
+    `AAAA-MM-DDTHH-MM-SSZ_` + 8 hex.
+
+  Cualquier otro (un `.gitignore`, un dotfile, otro nombre, un archivo en un
+  subdirectorio) es manipulación:
+  `bajo .hoom/<dir> solo se crean archivos con la forma que escribe hoom: <ruta>`.
+- **Bajo `.hoom/approvals/`, toda creación** es manipulación (como hoy cuando
+  git la lista), aunque git la ignore.
+- **Una entrada creada que no es un archivo regular** (un symlink, un FIFO)
+  es manipulación aunque tenga un nombre válido:
+  `la evidencia es un archivo regular: <ruta> no lo es (<tipo>)`. hoom nunca
+  escribe otra cosa, y los lectores de la evidencia la seguirían o se
+  colgarían.
+- **Una evidencia que hoom no puede leer, en cualquiera de las dos fotos**,
+  es manipulación: `la evidencia no se puede leer: <ruta>`. Lo que no se
+  puede leer no se puede comparar; y un directorio ilegible en una corrida
+  haría parecer nuevos sus archivos en la siguiente.
+
+Una ruta que el piso de hoy ya marcó como manipulación no se duplica. La
+regla de las resoluciones de `quien-cierra-un-hallazgo` sigue igual (y ve
+igual que esta el árbol real de una corrida ciega).
+
+## Casos límite y errores esperados
+
+- `hoom finding add` dentro de una corrida: crea `<id>.json` con la forma
+  correcta; legítimo, como hoy.
+- `hoom verify` dentro de una corrida (un writer que verifica): crea un
+  veredicto con la forma correcta; legítimo.
+- Un hallazgo que el gate registra por una violación: se escribe después de
+  la segunda foto; no es parte de la corrida.
+- Un rol que borra un hallazgo que git ignora: manipulación (desapareció).
+- Un rol que reescribe un hallazgo con el mismo contenido byte a byte: no es
+  cambio.
+- Un `.gitignore` que el rol pone en `.hoom/findings/`: manipulación aunque
+  todavía no esconda nada.
+- Corrida ciega: un cambio a la evidencia del árbol real (fuera de la
+  cuarentena) es manipulación además de la fuga.
+
+## Criterios de aceptación
+
+- CA-440: `Take` fotografía en `Huellas` el sha256 del contenido entero de cada archivo regular bajo `.hoom/{verdicts,findings,approvals}` en el disco (también uno de más de 16 MiB), incluidos los que git ignora (por el `.gitignore` de la raíz, uno en `.hoom/findings/` o `.git/info/exclude`); sin evidencia, `Huellas` es un mapa vacío.
+- CA-441: en la corrida de cualquier rol, un hallazgo o un veredicto que existía y cambió (por ejemplo, la severidad de un hallazgo `high` bajada a `low`) o desapareció es una violación de manipulación aunque git lo ignore, con su hallazgo `high` del gate; `findings_open` sigue bloqueando en la corrida siguiente; reescribirlo con el mismo contenido no es violación.
+- CA-442: en la corrida de cualquier rol, un archivo creado bajo `.hoom/findings/` o `.hoom/verdicts/` sin la forma que escribe hoom (un `.gitignore`, un dotfile, otro nombre, un subdirectorio) es manipulación con `bajo .hoom/<dir> solo se crean archivos con la forma que escribe hoom`, aunque git lo ignore; un hallazgo de `hoom finding add` y un veredicto de `hoom verify` siguen siendo legítimos; bajo `.hoom/approvals/` toda creación es manipulación aunque git la ignore; un symlink o un FIFO creado con un nombre válido es manipulación con `la evidencia es un archivo regular`, y nunca se sigue ni se lee.
+- CA-443: en una corrida ciega, las mismas reglas valen para el árbol real; y en `hoom review`, un reviewer que crea `.hoom/findings/.gitignore` o edita un hallazgo ignorado termina `NO ENTREGABLE` por territorio.
+
+- CA-444: una evidencia que hoom no puede leer (un archivo o un directorio sin permiso de lectura) en la foto de antes o en la de después es manipulación con `la evidencia no se puede leer`: un hallazgo creado con modo 000, uno al que el rol le quita la lectura, y la corrida siguiente a una que dejó el directorio ilegible, cortan.
+
+- CA-445: una raíz de evidencia (`.hoom` o una de las tres) que existe y no es un directorio (un symlink, aunque apunte a una copia idéntica; un archivo) deja ilegible su evidencia en esa foto: con `la evidencia no se puede leer`, la corrida corta. Un nombre que, entre mirarlo y abrirlo, pasa a ser un symlink (a otro objeto o al mismo movido) o cualquier otra cosa queda ilegible, nunca se sigue. Sin `/dev/fd` ni `/proc` (linux sin procfs), la foto no puede abrir los directorios sin seguir ni bloquearse: la evidencia queda ilegible y el detalle dice que hoom necesita `/dev/fd` o `/proc`.
+
+## Decisiones
+
+- **El contenido, no la fecha.** Un hash del contenido dice si la evidencia
+  cambió sin depender de mtimes ni de git; un archivo reescrito igual no
+  es un cambio.
+- **La forma, no una lista de permitidos por rol.** hoom sabe qué nombres
+  escribe (`newID` de `finding`, el id del veredicto); todo lo demás bajo
+  esos directorios no lo escribió hoom.
+- **Para todos los roles, el refutador incluido.** El refutador puede crear
+  resoluciones, pero nadie dentro de una corrida edita o borra evidencia.
+- **Fotos sin `Huellas` no aplican la regla.** Así los tests que arman fotos
+  a mano siguen describiendo lo que describían; `Take` siempre la llena.
+- **Por descriptores, con Go 1.25.** Recorrer por nombre deja que un
+  directorio cambiado por un symlink se siga. `os.Root` (Go 1.24, y
+  `Root.Readlink` en 1.25) abre relativo al directorio padre; el go.mod, el
+  CI y el release pasan de 1.22 a 1.25 (decisión de Henry, 2026-10-01).
+  `Root.OpenRoot` no abre sin bloquearse: en unix el directorio se abre como
+  archivo con `O_DIRECTORY|O_NONBLOCK` y ese descriptor se vuelve `Root` por
+  `/dev/fd` o `/proc/self/fd`.
+- **Falla cerrado sin `/dev/fd` ni `/proc`** (decisión de Henry,
+  2026-10-02): una foto que no se puede tomar con estas garantías no se
+  declara; se corta y se dice por qué.
+
+## Riesgos y deuda aceptada
+
+- **Costo de la foto.** Cada corrida hashea toda la evidencia dos veces
+  (hoy, cientos de archivos chicos). Es lineal en la evidencia; si crece
+  mucho, se puede cachear por mtime y tamaño (otra spec).
+- **Procesos hijos que escriben después de la segunda foto**, o después de
+  que la foto tomó cada entrada. No los ve nadie; es la tarea de los grupos
+  de procesos, que los termina antes de la segunda foto.
+- **Linux sin `/dev/fd` ni `/proc`** (un chroot, un contenedor mínimo):
+  toda corrida corta con la evidencia ilegible y el diagnóstico.
+- **Un rol puede frenar la foto o git sin manipular nada**: un archivo
+  disperso enorme con nombre válido (se hashea entero) o un FIFO llamado
+  `.gitignore` en cualquier parte del repo (git lo abre y se cuelga; hallazgo
+  5c5342). Es la tarea del presupuesto de tiempo de la foto y de git.
+- **El hallazgo del gate puede no persistirse** (error de `Register`
+  descartado): la otra tarea.

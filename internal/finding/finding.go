@@ -94,10 +94,35 @@ func dir(root string) string { return filepath.Join(root, ".hoom", "findings") }
 func findingPath(root, id string) string { return filepath.Join(dir(root), id+".json") }
 func resPath(root, id string) string     { return filepath.Join(dir(root), id+".res.json") }
 
+// The id newID gives a finding: its UTC second written in idFecha, "_", and
+// idHex random hex digits. EsNombre checks a name against the same two, so
+// the name hoom writes and the name the scope gate accepts have one
+// definition.
+const (
+	idFecha = "20060102T150405"
+	idHex   = 6
+)
+
+// EsNombre says whether name is the file name hoom gives a finding (its id
+// plus ".json") or its resolution (plus ".res.json"): the one definition the
+// scope gate uses to tell them from anything else.
+func EsNombre(name string) bool {
+	id, ok := strings.CutSuffix(name, ".json")
+	if !ok {
+		return false
+	}
+	fecha, azar, ok := strings.Cut(strings.TrimSuffix(id, ".res"), "_")
+	t, err := time.Parse(idFecha, fecha)
+	// Format gives the same text back only for a second written as newID
+	// writes it
+	return ok && err == nil && t.Format(idFecha) == fecha &&
+		len(azar) == idHex && strings.Trim(azar, "0123456789abcdef") == ""
+}
+
 func newID() string {
-	raw := make([]byte, 3)
+	raw := make([]byte, idHex/2)
 	rand.Read(raw)
-	return time.Now().UTC().Format("20060102T150405") + "_" + hex.EncodeToString(raw)
+	return time.Now().UTC().Format(idFecha) + "_" + hex.EncodeToString(raw)
 }
 
 // Add records a new immutable finding bound to the current tree fingerprint,

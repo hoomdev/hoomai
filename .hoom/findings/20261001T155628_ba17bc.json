@@ -1,0 +1,11 @@
+{
+  "id": "20261001T155628_ba17bc",
+  "created_at": "2026-10-01T15:56:28.055986Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:456: formaHallazgo y formaVeredicto duplican manualmente la gramatica que producen finding.newID y verdict.Write, de modo que la regla descrita como 'la forma que escribe hoom' no tiene una unica fuente de verdad. Exponer validadores canonicos junto a cada generador y reutilizarlos aqui evitaria que un cambio futuro de formato exija mantener regex dispersas sincronizadas.",
+  "author": "reviewer@codex",
+  "fingerprint": "ceed305dbe04c02f",
+  "task": "evidencia-en-disco"
+}

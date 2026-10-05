@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T171616_2d68e4",
+  "as": "corregido",
+  "evidence": "b16939e + 760ae86: sondear prueba con el primer candidato de dirsSonda ('/', '.', os.TempDir()) que abre como directorio (O_DIRECTORY|O_NONBLOCK: un archivo o un FIFO no cuenta ni la cuelga); si no abre ninguno devuelve ErrSinSonda ('hoom necesita /dev/fd o /proc y no pudo comprobar si los hay') con cada causa, nunca nil sin haber reabierto un descriptor, y no ErrSinDescriptores (no verifico que falten). Tests ciegos 7c7906a: TestCA445_SinDirectorioQueSeAbraLaSondaNoMiroYLoDice, ...PruebaConElPrimerDirectorioQueSeAbre, la propiedad sobre 39 listas x 2, DescriptoresDisponibles en subproceso (mira una vez), y LaSondaSoloPruebaConUnDirectorio (archivo y FIFO; rojo en b16939e). El refutador lo reprodujo con sandbox_init negando '/' y /dev/fd. Con 'return nil' sin directorio, fallan.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-02T17:59:57.162038Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261002T144344_bd4403",
+  "created_at": "2026-10-02T14:43:44.613834Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/hoomfs/regular.go",
+  "description": "INTRODUCIDO — internal/hoomfs/regular.go:41 y :55 validan la apertura solo con os.SameFile después de r.OpenFile/abrirDirEn, pero os.Root sigue symlinks que permanecen dentro de la raíz y SameFile en Unix solo compara dispositivo+inodo. Un hijo puede hacer Lstat sobre el archivo/directorio original, mover ese mismo objeto dentro de la raíz y poner en su nombre un symlink relativo al objeto movido antes del open: el descriptor sigue describiendo el mismo inodo, SameFile acepta y Take recorre/hashea a través del symlink en vez de producir HuellaIlegible/NoRegular. Si deja el symlink tras la apertura, la segunda foto puede ser idéntica a la primera y el piso pasa aunque la evidencia ya no sea un archivo/directorio regular, rompiendo CA-441/CA-442. Los tests de carrera usan symlinks a copias u otros inodos y no cubren este alias al mismo inodo.",
+  "author": "reviewer@codex",
+  "fingerprint": "dcd1ff60ecade296",
+  "task": "evidencia-en-disco"
+}

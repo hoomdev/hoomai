@@ -12,8 +12,10 @@ package agentcmd
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -26,6 +28,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/ratchet"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 // Violation rules. Tampering is the floor: it cuts the envelope before verify
@@ -123,30 +126,39 @@ func (s ScopeResult) has(rule string) bool {
 type Snapshot struct {
 	Touched  map[string]string // gitx.Touched menos lo que escribe hoom: path -> content hash ("-" = gone)
 	Evidence map[string]bool   // paths that EXIST under .hoom/{verdicts,findings,approvals}
-	Manifest string            // hash of hoom.yaml ("" = unreadable)
-	Ratchet  *ratchet.File     // nil = no baseline declared
+	// Huellas: what the disk floor compares for every entry under
+	// .hoom/{verdicts,findings,approvals} on disk that is not a directory,
+	// git-ignored ones included: the hex sha256 of a regular file's whole
+	// content; HuellaNoRegular plus its type for anything else (a symlink, a
+	// FIFO: never followed or read). And HuellaIlegible for an entry hoom
+	// could not read or that changed while it was being opened — a directory
+	// too, the one exception to "not a directory". nil in a hand-built
+	// photograph (the disk floor then does not apply).
+	Huellas map[string]string
+	// Directorios: the directories under those three on disk (not the three
+	// themselves), readable or not. hoom never creates one there, so the disk
+	// floor marks the ones a run created; nil in a hand-built photograph.
+	Directorios map[string]bool
+	Manifest    string        // hash of hoom.yaml ("" = unreadable)
+	Ratchet     *ratchet.File // nil = no baseline declared
 }
 
-// Take photographs the tree. It is cheap on purpose: two of these bracket the
-// run, and the difference between them is what the role actually did.
+// Take photographs the tree: two of these bracket the run, and the
+// difference between them is what the role actually did. Its cost is linear
+// in the evidence, read whole to hash it.
 func Take(root, base string) Snapshot {
-	s := Snapshot{Touched: map[string]string{}, Evidence: map[string]bool{}}
+	s := Snapshot{Touched: map[string]string{}, Evidence: map[string]bool{}, Huellas: map[string]string{}, Directorios: map[string]bool{}}
 	for p, h := range gitx.Touched(root, base) {
 		if !hoomOwn(p) {
 			s.Touched[p] = h
 		}
 	}
-	for _, d := range evidenceDirs {
-		dir := filepath.Join(root, ".hoom", d)
-		filepath.WalkDir(dir, func(p string, e fs.DirEntry, err error) error {
-			if err != nil || e.IsDir() {
-				return nil //nolint:nilerr // a missing evidence dir is a valid state
-			}
-			if rel, rerr := filepath.Rel(root, p); rerr == nil {
-				s.Evidence[filepath.ToSlash(rel)] = true
-			}
-			return nil
-		})
+	switch r, err := os.OpenRoot(root); {
+	case err == nil:
+		s.fotoEvidencia(r)
+		r.Close()
+	case !errors.Is(err, fs.ErrNotExist):
+		s.sinEvidenciaLegible()
 	}
 	if raw, err := os.ReadFile(filepath.Join(root, manifest.FileName)); err == nil {
 		sum := sha256.Sum256(raw)
@@ -159,6 +171,91 @@ func Take(root, base string) Snapshot {
 	}
 	s.Ratchet = rf
 	return s
+}
+
+// fotoEvidencia photographs .hoom/{verdicts,findings,approvals} under the
+// project root r without ever following a symlink. Every component, .hoom
+// included, is looked at (Lstat) and then opened relative to its parent's
+// descriptor as that same object (hoomfs.AbrirDirEn, AbrirRegularEn): a
+// process still alive during the photograph can swap a directory for a
+// symlink between a look and an open, and a walk by name would follow it —
+// outside the repo, or to a clean copy of the evidence. hoom never makes
+// .hoom anything but a directory.
+func (s *Snapshot) fotoEvidencia(r *os.Root) {
+	fi, err := r.Lstat(".hoom")
+	if errors.Is(err, fs.ErrNotExist) {
+		return // no evidence yet is a valid state
+	}
+	if err == nil && fi.IsDir() {
+		if hoom, err := hoomfs.AbrirDirEn(r, ".hoom", fi); err == nil {
+			defer hoom.Close()
+			for _, d := range evidenceDirs {
+				s.fotoEntrada(hoom, d, ".hoom/"+d, true)
+			}
+			return
+		}
+	}
+	s.sinEvidenciaLegible()
+}
+
+// sinEvidenciaLegible is the photograph of evidence hoom cannot reach: what
+// it cannot read it cannot vouch for, so the floor fails closed on it.
+func (s *Snapshot) sinEvidenciaLegible() {
+	for _, d := range evidenceDirs {
+		s.Huellas[".hoom/"+d] = HuellaIlegible
+	}
+}
+
+// fotoEntrada photographs the entry name of the directory r as rel, and
+// everything under it if it is a directory. raiz marks one of the three
+// evidence directories: missing is a valid state, anything but a directory
+// leaves its evidence unreadable (like .hoom: following it would photograph
+// something else), and it is not one of the Directorios.
+func (s *Snapshot) fotoEntrada(r *os.Root, name, rel string, raiz bool) {
+	fi, err := r.Lstat(name)
+	switch {
+	case raiz && errors.Is(err, fs.ErrNotExist):
+		return
+	case err != nil:
+		s.Huellas[rel] = HuellaIlegible
+	case raiz && !fi.IsDir():
+		// following a root that is not a directory would photograph
+		// something else
+		s.Huellas[rel] = HuellaIlegible
+	case fi.IsDir():
+		if !raiz {
+			s.Directorios[rel] = true
+		}
+		s.fotoDirectorio(r, name, rel, fi)
+	default:
+		s.Evidence[rel] = true
+		s.Huellas[rel] = huella(r, name, fi)
+	}
+}
+
+// fotoDirectorio photographs what the directory name of r (the one fi
+// describes) holds. What it could list before an error is still
+// photographed; the directory itself is then HuellaIlegible.
+func (s *Snapshot) fotoDirectorio(r *os.Root, name, rel string, fi fs.FileInfo) {
+	sub, err := hoomfs.AbrirDirEn(r, name, fi)
+	if err != nil {
+		s.Huellas[rel] = HuellaIlegible
+		return
+	}
+	defer sub.Close()
+	d, err := sub.Open(".")
+	if err != nil {
+		s.Huellas[rel] = HuellaIlegible
+		return
+	}
+	entradas, err := d.ReadDir(-1)
+	d.Close()
+	if err != nil {
+		s.Huellas[rel] = HuellaIlegible
+	}
+	for _, e := range entradas {
+		s.fotoEntrada(sub, e.Name(), rel+"/"+e.Name(), false)
+	}
 }
 
 // hoomOwn marks the paths HOOM itself writes while the run happens: the
@@ -291,16 +388,20 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	if blind != nil {
 		sc = withIsolation(sc, *blind)
 	}
-	// Closings go last, over every tree the run could write to (the one it
-	// ran in and, blind, the real one): withIsolation replaces the earlier
-	// violations of a leaked path, and a closing must survive it.
+	// The disk floor and the closings go last, over every tree the run could
+	// write to (the one it ran in and, blind, the real one): withIsolation
+	// replaces the earlier violations of a leaked path, and these must
+	// survive it.
+	arboles := []Fotos{{Antes: before, Despues: after}}
+	if blind != nil && blind.Real != nil {
+		arboles = append(arboles, *blind.Real)
+	}
+	// closings first: a resolution a role created keeps the one violation
+	// that says what it did, and the disk floor does not add a second
 	if role.Slug != finding.RolQueRefuta {
-		arboles := []Fotos{{Antes: before, Despues: after}}
-		if blind != nil && blind.Real != nil {
-			arboles = append(arboles, *blind.Real)
-		}
 		sc = sinCierres(sc, role, arboles...)
 	}
+	sc = pisoEnDisco(sc, arboles...)
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
@@ -411,6 +512,166 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	}
 	res.OK = len(res.Violations) == 0
 	return res
+}
+
+// The two Huellas that are not a content hash.
+const (
+	// HuellaNoRegular prefixes the type of an entry that is not a regular
+	// file: it is never followed nor read (a FIFO would hang the photograph,
+	// a symlink would point it elsewhere), and no evidence hoom writes is one.
+	// A symlink's adds ":" and the sha256 of its target text (readlink does
+	// not follow it), so pointing it elsewhere changes it.
+	HuellaNoRegular = "no-regular:"
+	// HuellaIlegible marks an entry hoom could not open or read.
+	HuellaIlegible = "ilegible"
+)
+
+// huella is what the disk floor compares for the entry name of r, which fi
+// (its Lstat) describes: the sha256 of a regular file's whole content (the
+// cost is linear in the evidence, and a hash of less would leave bytes
+// unwatched), read only if the descriptor shows that same regular file —
+// the entry can change between the Lstat and the open.
+func huella(r *os.Root, name string, fi fs.FileInfo) string {
+	switch t := fi.Mode().Type(); {
+	case t&fs.ModeSymlink != 0:
+		destino, err := r.Readlink(name)
+		if err != nil {
+			return HuellaIlegible
+		}
+		sum := sha256.Sum256([]byte(destino))
+		return HuellaNoRegular + t.String() + ":" + hex.EncodeToString(sum[:])
+	case !t.IsRegular():
+		return HuellaNoRegular + t.String()
+	}
+	f, err := hoomfs.AbrirRegularEn(r, name, fi)
+	if err != nil {
+		return HuellaIlegible
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return HuellaIlegible
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// conForma says whether a file a run created under the evidence has the
+// shape hoom writes: a finding or a resolution under .hoom/findings/, a
+// verdict under .hoom/verdicts/ (finding.EsNombre and verdict.EsNombre are
+// the one definition of each). Nothing created under .hoom/approvals/ has
+// it: the human approval is never a role's.
+func conForma(p string) bool {
+	switch dir, name := path.Split(p); dir {
+	case ".hoom/findings/":
+		return finding.EsNombre(name)
+	case ".hoom/verdicts/":
+		return verdict.EsNombre(name)
+	}
+	return false
+}
+
+// ilegible is the tampering of evidence hoom could not read. When the
+// reason is the system's (no /dev/fd nor /proc to open it without following
+// symlinks), the detail says so: that is not the role's doing to hide.
+func ilegible(p string) string {
+	d := "la evidencia no se puede leer: " + p
+	if err := hoomfs.DescriptoresDisponibles(); err != nil {
+		d += " (" + err.Error() + ")"
+	}
+	return d
+}
+
+// noRegular is the tampering of an entry created under the evidence that is
+// not a regular file, tipo being what it is.
+func noRegular(p, tipo string) string {
+	return "la evidencia es un archivo regular: " + p + " no lo es (" + tipo + ")"
+}
+
+// pisoEnDisco is the append-only floor measured on disk, for every role
+// and every tree the run could write to: an evidence file that existed and
+// changed or disappeared is tampering, and a created one is legitimate only
+// with the shape hoom writes (a created directory never is) — whatever git
+// lists or ignores. Photographs
+// without Huellas (built by hand) do not apply it. A path the git-based floor
+// already marked keeps its one violation.
+func pisoEnDisco(sc ScopeResult, arboles ...Fotos) ScopeResult {
+	marcadas := map[string]bool{}
+	for _, v := range sc.Violations {
+		if v.Rule == RuleTampering {
+			marcadas[v.Path] = true
+		}
+	}
+	nuevas := map[string]string{}
+	for _, f := range arboles {
+		if f.Antes.Huellas == nil || f.Despues.Huellas == nil {
+			continue
+		}
+		for p, h := range f.Antes.Huellas {
+			if h == HuellaIlegible {
+				// evidence hoom could not read BEFORE the run: whatever it
+				// holds now cannot be compared, so nothing after it is vouched
+				// for either (a dir made unreadable in one run would make its
+				// files look new in the next)
+				nuevas[p] = ilegible(p)
+				continue
+			}
+			switch d, ok := f.Despues.Huellas[p]; {
+			case !ok:
+				nuevas[p] = "la evidencia es append-only: " + p + " desaparecio durante el run"
+			case d != h:
+				nuevas[p] = "la evidencia es append-only: " + p + " cambio durante el run"
+			}
+		}
+		for p, d := range f.Despues.Huellas {
+			if d == HuellaIlegible {
+				// what hoom cannot read it cannot vouch for: fail closed
+				nuevas[p] = ilegible(p)
+				continue
+			}
+			if _, ok := f.Antes.Huellas[p]; ok {
+				continue
+			}
+			if strings.HasPrefix(d, HuellaNoRegular) {
+				tipo, _, _ := strings.Cut(strings.TrimPrefix(d, HuellaNoRegular), ":")
+				nuevas[p] = noRegular(p, tipo)
+				continue
+			}
+			if conForma(p) {
+				continue
+			}
+			if strings.HasPrefix(p, ".hoom/approvals/") {
+				nuevas[p] = "la aprobacion humana no la escribe un agente (usa 'hoom spec approve')"
+				continue
+			}
+			dir := strings.SplitN(strings.TrimPrefix(p, ".hoom/"), "/", 2)[0]
+			nuevas[p] = "bajo .hoom/" + dir + " solo se crean archivos con la forma que escribe hoom: " + p
+		}
+		for p := range f.Despues.Directorios {
+			// a directory is an entry that is not a regular file too: empty,
+			// git does not even list it, and named like a resolution or an
+			// approval it blocks the one hoom would write there
+			if _, ya := nuevas[p]; !ya && !f.Antes.Directorios[p] {
+				nuevas[p] = noRegular(p, fs.ModeDir.String())
+			}
+		}
+	}
+	rutas := make([]string, 0, len(nuevas))
+	for p := range nuevas {
+		if !marcadas[p] {
+			rutas = append(rutas, p)
+		}
+	}
+	sort.Strings(rutas)
+	for _, p := range rutas {
+		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering, Detail: nuevas[p]})
+		if !contains(sc.Touched, p) {
+			sc.Touched = append(sc.Touched, p)
+		}
+		sc.Tampering, sc.OK = true, false
+	}
+	sort.Strings(sc.Touched)
+	sortViolations(sc.Violations)
+	return sc
 }
 
 // sinCierres marks every finding resolution the run created, in any of the
