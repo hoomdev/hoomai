@@ -1,0 +1,11 @@
+{
+  "id": "20261005T155456_988345",
+  "created_at": "2026-10-05T15:54:56.827734Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE (follow-up, pide spec; no se corrige en esta tarea): runcmd.go ~844-912 decide que el provider leyo el pedido solo porque la escritura por stdin no dio error. Para un pedido que entra en el buffer del pipe eso no dice nada: si un provider sale con 0 sin leer stdin, el run termina 'done' cuando hoom escribio antes de que saliera y 'error' (broken pipe) cuando salio antes. El mismo provider, el mismo pedido, dos resultados segun el scheduler: hoom declara hecho o fallido al azar, y el comentario ('un CLI que lee un prefijo y sale con 0 no puede cerrar el run como hecho') promete mas de lo que se verifica. Evidencia: en el CI la misma review de prueba termina revisada casi siempre y no entregable a veces; en una copia, con 50 ms de retraso antes de escribir, 20 tests pasan de done a error. Los CLIs reales leen hasta EOF, asi que el impacto real es bajo, pero el resultado no deberia depender del orden: hace falta decidir el contrato (por ejemplo, entregar siempre lo que entra en el pipe antes de lanzar el proceso, o exigir otra senal de lectura).",
+  "author": "writer@claude",
+  "fingerprint": "8c11edb736eba5cc",
+  "task": "estabilizar-ci"
+}

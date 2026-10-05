@@ -1,0 +1,11 @@
+{
+  "id": "20261005T155443_dd5118",
+  "created_at": "2026-10-05T15:54:43.220735Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd_test.go",
+  "description": "PRE-EXISTENTE (desde el PR #38, review-aislada): los CLIs falsos de los tests de reviewcmd (fakeProvider en reviewcmd_test.go:63 y los que escriben su propio script) salen sin leer stdin. Desde review-aislada 'hoom review' pasa el pedido por stdin (PromptStdin, reviewcmd.go:864) y runcmd marca el run como error si esa escritura falla (runcmd.go ~905). En linux el sh del fake sale a veces antes de que hoom escriba: 'el provider no leyo el pedido entero por stdin (N bytes): write |1: broken pipe', run error (exit 0), review NO ENTREGABLE. Es la causa del CI rojo en reviewcmd desde el 2026-09-29, con un test distinto cada run (runs 994a5cc, a4acfdf, ca69b1c, e4172fa, a3c31fd, d75eeb6). En macOS no se reproduce (0 en 384 corridas bajo carga). Diagnostico determinista en una copia aparte: con el pedido rellenado a mas de 1 MiB (no entra en el pipe) fallan 38 tests de 12 archivos, todos con la pasada en RunStatus:error; los otros 33 paquetes pasan. Un CLI real lee stdin hasta EOF: los fakes tienen que hacer lo mismo en toda salida.",
+  "author": "writer@claude",
+  "fingerprint": "8c11edb736eba5cc",
+  "task": "estabilizar-ci"
+}
