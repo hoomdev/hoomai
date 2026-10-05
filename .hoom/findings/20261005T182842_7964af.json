@@ -1,0 +1,11 @@
+{
+  "id": "20261005T182842_7964af",
+  "created_at": "2026-10-05T18:28:42.387803Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/servecmd/hallazgos_c1_sobre_test.go",
+  "description": "PREEXISTENTE (follow-up, no bloqueo) — internal/servecmd/hallazgos_c1_sobre_test.go:89: h3Trampa sigue dependiendo de que alguno de los goroutines sea planificado dentro de la ventana entre la creacion del log y la del JSON. parar cierra stop al volver el launch (linea 102) y la mirada final de linea 105 deliberadamente no planta, mientras el test falla despues de ocho perdidas (linea 198); seis pollers y una pausa empirica bajan la probabilidad pero no eliminan el fallo espurio bajo otro scheduler/carga. La carrera ya estaba en la base y este cambio la mitiga, por eso queda como follow-up.",
+  "author": "reviewer@codex",
+  "fingerprint": "4a0ebf292459df61",
+  "task": "estabilizar-ci"
+}

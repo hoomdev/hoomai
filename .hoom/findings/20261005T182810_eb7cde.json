@@ -1,0 +1,11 @@
+{
+  "id": "20261005T182810_eb7cde",
+  "created_at": "2026-10-05T18:28:10.162483Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/cli_falso_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/cli_falso_test.go:52: cliFalsoPierde decide si exec reemplaza el shell mirando solo el primer caracter despues de exec, por lo que acepta un cuerpo valido como `exec \u003e/dev/null true`: /bin/sh reemplaza el shell, no ejecuta el trap EXIT y el provider vuelve a salir sin drenar stdin. Las variantes con exec/trap despues de otro comando en la misma linea tambien eluden el anclaje de inicio. El guard nuevo puede permitir que reaparezca el EPIPE/flakiness que pretende impedir; faltan casos que cubran redirecciones seguidas de comando y comandos compuestos.",
+  "author": "reviewer@codex",
+  "fingerprint": "4a0ebf292459df61",
+  "task": "estabilizar-ci"
+}

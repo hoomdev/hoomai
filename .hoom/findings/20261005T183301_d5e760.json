@@ -1,0 +1,11 @@
+{
+  "id": "20261005T183301_d5e760",
+  "created_at": "2026-10-05T18:33:01.011372Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/servecmd/hallazgos_c1_sobre_test.go",
+  "description": "PRE-EXISTENTE / FOLLOW-UP: la prueba aun depende de que alguno de seis pollers gane una ventana submilisegundo y falla tras ocho intentos; el propio comentario solo aporta frecuencias empiricas, no sincronizacion determinista. Bajo carga o latencia de filesystem, los fallos de ReadDir ademas se descartan, de modo que las perdidas pueden correlacionarse y mantener el CI flaky aunque esta rama reduzca la probabilidad (internal/servecmd/hallazgos_c1_sobre_test.go:59; internal/servecmd/hallazgos_c1_sobre_test.go:89; internal/servecmd/hallazgos_c1_sobre_test.go:198).",
+  "author": "reviewer@codex",
+  "fingerprint": "4a0ebf292459df61",
+  "task": "estabilizar-ci"
+}
