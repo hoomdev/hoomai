@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261005T155443_0fcace",
+  "as": "corregido",
+  "evidence": "91641b9 (test-writer): h3Trampa mira el directorio una vez mas al parar (solo informa, no planta), asi un id en disco se informa siempre y el intento se repite; ademas vigilan seis goroutines (una sola perdia 4 de cada 10 intentos bajo carga). El test, desde h3IDsEn, es identico byte a byte a la base. Bajo carga (16 procesos x 8, GOMAXPROCS=2): antes 8 de 16 procesos fallaban; despues 0 de 16 en 3 rondas mias (384 corridas, 11 reintentos) y 0 de 16 en 2 del refutador; determinista del refutador (GOMAXPROCS=1, registro en disco antes de armar): id vacio 200/200 en 8fc93a0 y 0/200 en 91641b9. Limite: sigue siendo una carrera por construccion ('en 8 intentos la trampa nunca llego antes'); quitarla pide una costura en produccion (id de sobre inyectable).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-05T18:11:42.230288Z"
+}

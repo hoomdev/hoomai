@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261005T155456_b3ed04",
+  "as": "corregido",
+  "evidence": "8fc93a0: si 'hoom verify --gate build,static,test' falla, el paso del CI imprime con jq el output_tail de los gates en fail o error del veredicto mas nuevo y sale con 1. Probado contra un veredicto rojo real (2026-10-01T17-07-31Z_b5ace72e): imprime la salida guardada del gate test. Limite (refutador): los 4000 bytes siempre traen la linea 'FAIL \u003cpaquete\u003e' cuando falla un paquete, no siempre la linea '--- FAIL: Test'.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-05T18:11:42.236827Z"
+}
