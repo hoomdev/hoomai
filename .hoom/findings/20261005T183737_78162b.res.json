@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261005T183737_78162b",
+  "as": "corregido",
+  "evidence": "27e6915 (test-writer): raHoomConReloj muestrea el VmHWM del hijo (/proc/\u003cpid\u003e/status) tras Start y cada 2 ms en linux y, despues de Wait, raPicoPropio usa ru_maxrss solo si supera el VmHWM del padre + 8 MiB; si no, el maximo muestreado (sin muestra: ru_maxrss, estricto). La cota de 128 MiB no cambia; macOS sigue con ru_maxrss. Tests: tabla de la decision (incluye el caso del CI 324/324/14), parser de status, y de punta a punta con un padre de 320 MiB, un hijo flaco y un gloton de 192 MiB. Probado en linux por el CI: en los runs 37483833453 y 37489921731 (dogfood, go test -race) reviewcmd pasa, donde antes fallaban los 12 casos de CA-414/CA-416 con '324 MiB'. Limite documentado: crecimiento posterior a la ultima muestra dentro de la banda entre 128 MiB y el pico del padre.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T16:10:39.038317Z"
+}
