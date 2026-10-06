@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261006T184909_e440da",
+  "as": "corregido",
+  "evidence": "59de95d (test-writer): moComprobar es un despachador de 11 lineas; los dos recorridos viven en moComprobarDir y moComprobarRegular.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T20:34:21.926856Z"
+}

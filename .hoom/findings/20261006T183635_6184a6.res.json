@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261006T183635_6184a6",
+  "as": "corregido",
+  "evidence": "59de95d (test-writer) + 426277d: los tests ya no EXIGEN aceptar un objeto del mismo tipo que hereda el numero de inodo de uno borrado. Las dos filas del mismo tipo aceptan que el helper lo rechace (error y nada abierto) o que abra lo que hay AHORA en el nombre, y ninguna otra cosa (nunca el contenido de la entrada borrada); dejan en el log cual vieron. Se quito la frase 'es lo que la foto quiere'; el comentario de mismo() dice lo que no puede distinguir. Las 6 filas de otro tipo quedan identicas y siguen fallando contra el codigo anterior al arreglo (6 de 6). El refutador REFUTO el impacto con reutilizacion real en una imagen FAT: AbrirRegularEn entrega siempre lo que hay en el nombre ahora (400 de 400), y Take + pisoEnDisco marcan 'cambio durante el run' cuando el recreado trae otro contenido; un atacante no gana nada que no logre reemplazando antes de la mirada o reescribiendo en el lugar, que os.SameFile nunca detecto; reforzar con tamano+mtime+ctime distingue 1 de 400 reutilizaciones y no cubre directorios. La decision de contrato (que la spec diga identidad = numero + tipo, o fijar el inodo con un descriptor O_PATH) queda en el seguimiento 20261006T191534_1caad0, que pide spec.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T20:34:21.91936Z"
+}
