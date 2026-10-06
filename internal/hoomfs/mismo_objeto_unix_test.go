@@ -4,22 +4,37 @@
 // hallazgo 15a8a5 (tarea estabilizar-ci; CA-442 de
 // .hoom/specs/evidencia-en-disco.md: lo que se abre es lo que se miro).
 //
-// "Lo mismo que describe antes" es el mismo dispositivo y numero de inodo Y
-// el mismo tipo. El numero solo no es una identidad: un sistema de archivos
-// le puede dar un numero liberado al siguiente objeto que crea (linux lo hace
-// enseguida; macOS/APFS no). Un nombre mirado (Lstat) como symlink, FIFO o
-// directorio, y ocupado despues por un archivo regular que se quedo con ese
-// numero, no es el archivo regular que antes describe, y AbrirRegularEn lo
-// rechaza; uno mirado como archivo regular, symlink o FIFO, y ocupado despues
-// por un directorio con ese numero, no es el directorio que antes describe, y
-// AbrirDirEn lo rechaza. os.SameFile no ve la diferencia: compara esos dos
-// campos y nada mas.
+// El spec pide que cada componente sea "el mismo objeto antes y despues de
+// abrirlo". De ese objeto, el Lstat de antes deja comparar el dispositivo, el
+// numero de inodo y el tipo, y el numero solo no es una identidad: un sistema
+// de archivos le puede dar un numero liberado al siguiente objeto que crea
+// (linux lo hace enseguida; macOS/APFS no). os.SameFile no ve la diferencia:
+// compara el dispositivo y el numero y nada mas. Con el numero reutilizado
+// hay dos casos, y solo el primero esta decidido:
+//
+//   - OTRO TIPO (decidido: 15a8a5). Un nombre mirado (Lstat) como symlink,
+//     FIFO o directorio, y ocupado despues por un archivo regular que se
+//     quedo con ese numero, no es el archivo regular que antes describe, y
+//     AbrirRegularEn lo rechaza; uno mirado como archivo regular, symlink o
+//     FIFO, y ocupado despues por un directorio con ese numero, no es el
+//     directorio que antes describe, y AbrirDirEn lo rechaza.
+//   - EL MISMO TIPO (indistinguible, no decidido: hallazgo 1caad0). Un
+//     archivo regular borrado y otro creado con su numero, o un directorio
+//     borrado y otro creado con el suyo, tampoco son el mismo objeto. Pero
+//     stat no expone una generacion del inodo: con el mismo dispositivo,
+//     numero y tipo, lo nuevo es para el helper igual a lo mirado reescrito
+//     en el lugar, que tampoco se detecto nunca. Que contrato gana (el spec
+//     pasa a decir que la identidad es numero y tipo y que la foto registra
+//     lo que hay en el nombre, o el inodo mirado se fija con un descriptor)
+//     lo decide el seguimiento 1caad0, no estos tests: aceptan que el helper
+//     lo rechace o que abra lo que hay AHORA en el nombre, y ninguna otra
+//     cosa, y dejan en el log cual de las dos salidas vieron.
 //
 // La carrera TestCA442_AbrirRegularEnDecideSobreElDescriptorAunqueLaEntradaCambie
-// lo encontro una vez en el CI de linux ("lo mirado era L--------- y
-// AbrirRegularEn devolvio un archivo") y por suerte: hace falta que el numero
-// se reutilice justo entre la mirada y la apertura. Aca hay dos tests que no
-// esperan a la suerte, y los dos exigen lo mismo (moComprobar):
+// encontro el primer caso una vez en el CI de linux ("lo mirado era
+// L--------- y AbrirRegularEn devolvio un archivo") y por suerte: hace falta
+// que el numero se reutilice justo entre la mirada y la apertura. Aca hay dos
+// tests que no esperan a la suerte, y los dos exigen lo mismo (moComprobar):
 //
 //   - uno PROVOCA el reuso: crea en el nombre una entrada de un tipo, la
 //     mira, la borra y crea otra, hasta que la nueva sale con el numero de la
@@ -95,6 +110,15 @@ func (c moCaso) ahora() int {
 
 // otroTipo: lo que hay ahora no es del tipo que se miro.
 func (c moCaso) otroTipo() bool { return c.antes != c.ahora() }
+
+// nota marca en el log los casos de mismo tipo: ahi lo que el helper hizo es
+// lo que se vio, no lo que el contrato pide (valen las dos salidas).
+func (c moCaso) nota() string {
+	if c.otroTipo() {
+		return ""
+	}
+	return " [mismo tipo: indistinguible, no decidido (1caad0): valen rechazarlo y abrir lo de ahora; esto es lo que se vio]"
+}
 
 // moCasos son todos: cada tipo mirado, con cada helper.
 func moCasos() []moCaso {
@@ -200,52 +224,79 @@ func moInodo(fi fs.FileInfo) string {
 //   - si son de OTRO TIPO, lo de ahora no es lo que antes describe: el
 //     helper lo rechaza con error y sin devolver archivo ni root (y si el
 //     error es *NoRegular, no dice que la entrada es regular).
-//   - si son del MISMO tipo, antes describe tambien a lo de ahora (el mismo
-//     dispositivo, numero y tipo: es toda la identidad que el contrato
-//     pide), y el helper abre lo que hay AHORA en el nombre: el descriptor es
-//     el de ahora y se lee su contenido (el directorio lista lo suyo), nunca
-//     lo de la entrada borrada. Es lo que la foto quiere: registra lo que hay
-//     en el nombre ahora.
+//   - si son del MISMO tipo, es indistinguible y NO ESTA DECIDIDO (hallazgo
+//     1caad0). Lo de ahora tampoco es el objeto mirado (ese se borro, y el
+//     spec pide "el mismo objeto antes y despues de abrirlo"), pero stat no
+//     expone una generacion del inodo: con el mismo dispositivo, numero y
+//     tipo, lo de ahora es para el helper igual a lo mirado reescrito en el
+//     lugar. Que contrato gana (el spec pasa a decir que la identidad es
+//     numero y tipo, o el inodo mirado se fija con un descriptor) lo decide
+//     el seguimiento 1caad0 y no este test, que acepta dos salidas y ninguna
+//     otra. RECHAZARLO: error, y ni archivo ni root (con la misma regla para
+//     un *NoRegular). O ABRIRLO: entonces lo abierto es lo que hay AHORA en
+//     el nombre (os.SameFile con el Lstat de ahora, y lee o lista la marca
+//     de esta vuelta), nunca el contenido de la entrada borrada ni otra cosa.
 //
-// Devuelve el error del rechazo (nil si abrio lo de ahora).
+// Devuelve el error del rechazo (nil si abrio lo de ahora). Cada helper tiene
+// su recorrido, con su apertura, su cierre y sus aserciones: moComprobarDir y
+// moComprobarRegular.
 func moComprobar(t *testing.T, r *os.Root, c moCaso, v moVuelta, como string) error {
 	t.Helper()
 	if !os.SameFile(v.antes, v.ahora) {
 		t.Fatalf("fixture: %s: lo mirado y lo de ahora comparten dispositivo y numero de inodo (%s y %s)", c.caso, moInodo(v.antes), moInodo(v.ahora))
 	}
 	que := fmt.Sprintf("%s, con el numero de inodo %s %s", c.caso, moInodo(v.ahora), como)
-
 	if c.dir {
-		d, err := AbrirDirEn(r, c.nombre, v.antes)
-		var fi fs.FileInfo
-		var serr error
-		var lista []string
-		if d != nil {
-			fi, serr = d.Stat(".")
-			if es, lerr := fs.ReadDir(d.FS(), "."); lerr != nil {
-				serr = lerr
-			} else {
-				for _, e := range es {
-					lista = append(lista, e.Name())
-				}
-			}
-			d.Close()
-		}
-		if c.otroTipo() {
-			if err == nil || d != nil {
-				t.Fatalf("CA-442 (15a8a5): %s: lo mirado era %s (%s) y el directorio de ahora no es lo que antes describe: AbrirDirEn no lo abre: root=%v err=%v (lista %v)", que, moTipos[c.antes].nombre, v.antes.Mode().Type(), d != nil, err, lista)
-			}
-			return err
-		}
-		if err != nil || d == nil {
-			t.Fatalf("CA-442 (15a8a5): %s: antes describe un directorio con ese numero y AbrirDirEn abre el que hay ahora en el nombre: root=%v err=%v", que, d != nil, err)
-		}
-		if serr != nil || !fi.IsDir() || !os.SameFile(fi, v.ahora) || !reflect.DeepEqual(lista, []string{v.marca}) {
-			t.Fatalf("CA-442 (15a8a5): %s: el root que AbrirDirEn devuelve es el directorio que hay ahora en el nombre y lista [%s]: lista %v (%v)", que, v.marca, lista, serr)
-		}
-		return nil
+		return moComprobarDir(t, r, c, v, que)
 	}
+	return moComprobarRegular(t, r, c, v, que)
+}
 
+// moComprobarDir es moComprobar para AbrirDirEn: lo que hay ahora en el
+// nombre es un directorio con el dispositivo y el numero de lo mirado. que
+// dice el caso y el numero, para los mensajes.
+func moComprobarDir(t *testing.T, r *os.Root, c moCaso, v moVuelta, que string) error {
+	t.Helper()
+	d, err := AbrirDirEn(r, c.nombre, v.antes)
+	var fi fs.FileInfo
+	var serr error
+	var lista []string
+	if d != nil {
+		fi, serr = d.Stat(".")
+		if es, lerr := fs.ReadDir(d.FS(), "."); lerr != nil {
+			serr = lerr
+		} else {
+			for _, e := range es {
+				lista = append(lista, e.Name())
+			}
+		}
+		d.Close()
+	}
+	if c.otroTipo() {
+		if err == nil || d != nil {
+			t.Fatalf("CA-442 (15a8a5): %s: lo mirado era %s (%s) y el directorio de ahora no es lo que antes describe: AbrirDirEn no lo abre: root=%v err=%v (lista %v)", que, moTipos[c.antes].nombre, v.antes.Mode().Type(), d != nil, err, lista)
+		}
+		return err
+	}
+	// El mismo tipo: indistinguible, no decidido (1caad0). O lo rechaza, o
+	// abre lo de ahora.
+	if (err == nil) == (d == nil) {
+		t.Fatalf("CA-442 (15a8a5, 1caad0): %s: otro directorio con el numero del mirado (indistinguible del mirado reescrito en el lugar): AbrirDirEn o lo rechaza (error y ningun root) o lo abre (un root y ningun error), no las dos cosas ni ninguna: root=%v err=%v (lista %v)", que, d != nil, err, lista)
+	}
+	if err != nil {
+		return err
+	}
+	if serr != nil || !fi.IsDir() || !os.SameFile(fi, v.ahora) || !reflect.DeepEqual(lista, []string{v.marca}) {
+		t.Fatalf("CA-442 (15a8a5, 1caad0): %s: si AbrirDirEn lo abre, el root es el directorio que hay AHORA en el nombre (os.SameFile con su Lstat) y lista [%s], nunca lo de la entrada borrada ni otra cosa: el de ahora=%v, lista %v (%v)", que, v.marca, fi != nil && os.SameFile(fi, v.ahora), lista, serr)
+	}
+	return nil
+}
+
+// moComprobarRegular es moComprobar para AbrirRegularEn: lo que hay ahora en
+// el nombre es un archivo regular con el dispositivo y el numero de lo
+// mirado. que dice el caso y el numero, para los mensajes.
+func moComprobarRegular(t *testing.T, r *os.Root, c moCaso, v moVuelta, que string) error {
+	t.Helper()
 	f, err := AbrirRegularEn(r, c.nombre, v.antes)
 	var fi fs.FileInfo
 	var serr error
@@ -263,11 +314,17 @@ func moComprobar(t *testing.T, r *os.Root, c moCaso, v moVuelta, como string) er
 		aeRechazadoRegular(t, "15a8a5: "+que, nil, err, nil)
 		return err
 	}
-	if err != nil || f == nil {
-		t.Fatalf("CA-442 (15a8a5): %s: antes describe un archivo regular con ese numero y AbrirRegularEn abre el que hay ahora en el nombre: archivo=%v err=%v", que, f != nil, err)
+	// El mismo tipo: indistinguible, no decidido (1caad0). O lo rechaza, o
+	// abre lo de ahora.
+	if (err == nil) == (f == nil) {
+		t.Fatalf("CA-442 (15a8a5, 1caad0): %s: otro archivo regular con el numero del mirado (indistinguible del mirado reescrito en el lugar): AbrirRegularEn o lo rechaza (error y ningun archivo) o lo abre (un archivo y ningun error), no las dos cosas ni ninguna: archivo=%v err=%v (leyo %q)", que, f != nil, err, leyo)
+	}
+	if err != nil {
+		aeRechazadoRegular(t, "15a8a5, 1caad0: "+que, nil, err, nil)
+		return err
 	}
 	if serr != nil || !fi.Mode().IsRegular() || !os.SameFile(fi, v.ahora) || !bytes.Equal(leyo, []byte(v.marca)) {
-		t.Fatalf("CA-442 (15a8a5): %s: el archivo que AbrirRegularEn devuelve es el que hay ahora en el nombre y se lee entero (%q): leyo %q (%v)", que, v.marca, leyo, serr)
+		t.Fatalf("CA-442 (15a8a5, 1caad0): %s: si AbrirRegularEn lo abre, el archivo es el que hay AHORA en el nombre (os.SameFile con su Lstat) y se lee entero (%q), nunca el contenido de la entrada borrada ni otra cosa: el de ahora=%v, leyo %q (%v)", que, v.marca, fi != nil && os.SameFile(fi, v.ahora), leyo, serr)
 	}
 	return nil
 }
@@ -278,17 +335,20 @@ func moComprobar(t *testing.T, r *os.Root, c moCaso, v moVuelta, como string) er
 // pone ahi un archivo regular (para AbrirRegularEn) o un directorio (para
 // AbrirDirEn). Cada vez que lo nuevo sale con el dispositivo y el numero de
 // lo borrado (os.SameFile), llama al helper con el Lstat de antes y exige lo
-// de moComprobar: con otro tipo, error y nada abierto; con el mismo tipo, lo
-// que hay ahora en el nombre.
+// de moComprobar: con otro tipo, error y nada abierto; con el mismo tipo
+// (indistinguible, no decidido: 1caad0), o error y nada abierto, o lo que hay
+// ahora en el nombre.
 //
 // Un caso que no vio ningun reuso se saltea diciendolo (no midio nada), y si
 // no lo vio ninguno se saltea el test: en macOS/APFS es lo esperado, porque
 // ahi un numero liberado no vuelve. Si corrio, dice cuantos reusos ejercito
-// cada caso. Los casos van a la vez, pero el test no: mientras corre, los
-// tests paralelos del paquete esperan y no le sacan los numeros liberados.
+// cada caso, y cuantos de esos el helper rechazo y cuantos abrio: en los de
+// mismo tipo valen las dos salidas, y un cambio de comportamiento se ve ahi.
+// Los casos van a la vez, pero el test no: mientras corre, los tests
+// paralelos del paquete esperan y no le sacan los numeros liberados.
 func TestCA442_UnNumeroDeInodoReutilizadoPorOtroTipoNoEsLoMirado(t *testing.T) {
 	casos := moCasos()
-	reusos, vueltas := make([]int, len(casos)), make([]int, len(casos))
+	reusos, rechazos, vueltas := make([]int, len(casos)), make([]int, len(casos)), make([]int, len(casos))
 	t.Run("casos", func(t *testing.T) {
 		for i, c := range casos {
 			t.Run(c.caso, func(t *testing.T) {
@@ -301,21 +361,23 @@ func TestCA442_UnNumeroDeInodoReutilizadoPorOtroTipoNoEsLoMirado(t *testing.T) {
 					vueltas[i]++
 					if os.SameFile(v.antes, v.ahora) {
 						reusos[i]++
-						moComprobar(t, r, c, v, "reutilizado por el sistema de archivos")
+						if moComprobar(t, r, c, v, "reutilizado por el sistema de archivos") != nil {
+							rechazos[i]++
+						}
 					}
 					moQuitar(t, dir, c)
 				}
 				if reusos[i] == 0 {
 					t.Skipf("CA-442 (15a8a5): %s: SIN EJERCITAR: en %d vueltas el sistema de archivos no le dio a lo nuevo el numero de inodo de lo borrado (APFS no lo hace)", c.caso, vueltas[i])
 				}
-				t.Logf("CA-442 (15a8a5): %s: %d reusos ejercitados en %d vueltas", c.caso, reusos[i], vueltas[i])
+				t.Logf("CA-442 (15a8a5): %s: %d reusos ejercitados en %d vueltas: %d RECHAZADOS, %d ABIERTOS (lo que hay ahora en el nombre)%s", c.caso, reusos[i], vueltas[i], rechazos[i], reusos[i]-rechazos[i], c.nota())
 			})
 		}
 	})
 	total, resumen := 0, make([]string, len(casos))
 	for i, c := range casos {
 		total += reusos[i]
-		resumen[i] = fmt.Sprintf("%s: %d reusos en %d vueltas", c.caso, reusos[i], vueltas[i])
+		resumen[i] = fmt.Sprintf("%s: %d reusos en %d vueltas (%d rechazados, %d abiertos)", c.caso, reusos[i], vueltas[i], rechazos[i], reusos[i]-rechazos[i])
 	}
 	if total == 0 {
 		t.Skipf("CA-442 (15a8a5): SIN EJERCITAR: este sistema de archivos no reutilizo ningun numero de inodo (APFS no lo hace; ext4 en linux si): %s", strings.Join(resumen, "; "))
@@ -347,7 +409,9 @@ func moCalcar(t *testing.T, c moCaso, antes, ahora fs.FileInfo) {
 // por caso, y si lo nuevo no salio con el numero de lo borrado, se lo calca
 // al Lstat de antes (moCalcar). Con el mismo dispositivo y numero y OTRO
 // tipo, AbrirRegularEn y AbrirDirEn rechazan lo que hay en el nombre; con el
-// mismo tipo, abren lo que hay ahora (moComprobar).
+// mismo tipo (indistinguible, no decidido: 1caad0), o lo rechazan o abren lo
+// que hay ahora, y ninguna otra cosa (moComprobar). Cada caso deja en el log
+// cual de las dos salidas vio.
 func TestCA442_ElMismoNumeroDeInodoConOtroTipoNoEsLoMirado(t *testing.T) {
 	for _, c := range moCasos() {
 		t.Run(c.caso, func(t *testing.T) {
@@ -361,9 +425,9 @@ func TestCA442_ElMismoNumeroDeInodoConOtroTipoNoEsLoMirado(t *testing.T) {
 				como = "calcado en el Lstat de antes"
 			}
 			if err := moComprobar(t, r, c, v, como); err != nil {
-				t.Logf("CA-442 (15a8a5): %s: con el numero de inodo %s, rechazado: %v", c.caso, como, err)
+				t.Logf("CA-442 (15a8a5): %s: con el numero de inodo %s: RECHAZADO: %v%s", c.caso, como, err, c.nota())
 			} else {
-				t.Logf("CA-442 (15a8a5): %s: con el numero de inodo %s, abrio lo que hay ahora en el nombre", c.caso, como)
+				t.Logf("CA-442 (15a8a5): %s: con el numero de inodo %s: ABIERTO lo que hay ahora en el nombre%s", c.caso, como, c.nota())
 			}
 		})
 	}
