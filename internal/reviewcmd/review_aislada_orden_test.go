@@ -886,7 +886,10 @@ func raRSS(pid int) uint64 {
 
 // raHoomConReloj corre el binario de hoom en root (sin HOOM_TASK, con el
 // PATH del test) con reloj y un vigilante de memoria: si no vuelve en d, o
-// si pasa los 512 MiB residentes, lo mata y lo dice.
+// si pasa los 512 MiB residentes, lo mata y lo dice. maxRSS es el pico de
+// memoria residente del hoom hijo: el ru_maxrss de wait4, salvo en linux,
+// donde esa cifra puede ser la del proceso que lo lanzo y decide raPicoPropio
+// (review_aislada_rss_test.go) con el VmHWM que se le muestrea al hijo.
 func raHoomConReloj(t *testing.T, hoom, root string, d time.Duration, args ...string) raCorrida {
 	t.Helper()
 	cmd := exec.Command(hoom, args...)
@@ -902,12 +905,24 @@ func raHoomConReloj(t *testing.T, hoom, root string, d time.Duration, args ...st
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("no pude correr hoom %v: %v", args, err)
 	}
+	// linux: el mayor VmHWM que se le ve al hijo mientras vive. Start vuelve
+	// con el exec hecho, asi que desde la primera muestra es el del hijo
+	var muestreado uint64
+	muestrear := func() {
+		if runtime.GOOS != "linux" {
+			return
+		}
+		if hwm, ok := raVmHWMDe(cmd.Process.Pid); ok && hwm > muestreado {
+			muestreado = hwm
+		}
+	}
+	muestrear()
 	hecho := make(chan struct{})
 	go func() { _ = cmd.Wait(); close(hecho) }()
 	var c raCorrida
 	reloj := time.NewTimer(d)
 	defer reloj.Stop()
-	tic := time.NewTicker(25 * time.Millisecond)
+	tic := time.NewTicker(raTic())
 	defer tic.Stop()
 espera:
 	for {
@@ -920,6 +935,7 @@ espera:
 			<-hecho
 			break espera
 		case <-tic.C:
+			muestrear()
 			if raRSS(cmd.Process.Pid) > 512<<20 {
 				c.glotona = true
 				_ = cmd.Process.Kill()
@@ -932,7 +948,13 @@ espera:
 	if ru, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
 		c.maxRSS = uint64(ru.Maxrss)
 		if runtime.GOOS == "linux" {
-			c.maxRSS *= 1024
+			// en kB, y puede ser el pico del padre: el VmHWM del padre se lee
+			// aca, despues del Wait (raPicoPropio dice por que no antes)
+			ruMaxrss := c.maxRSS * 1024
+			padre, _ := raVmHWMDe(os.Getpid())
+			c.maxRSS = raPicoPropio(ruMaxrss, padre, muestreado)
+			t.Logf("memoria de hoom %v: ru_maxrss %d kB, VmHWM del padre %d kB, VmHWM muestreado al hijo %d kB: cuentan %d kB",
+				args, ruMaxrss>>10, padre>>10, muestreado>>10, c.maxRSS>>10)
 		}
 	}
 	c.out, c.errOut = o.String(), e.String()
@@ -951,7 +973,7 @@ func raCLIVolvio(t *testing.T, ca, caso string, c raCorrida) {
 	if c.glotona {
 		t.Fatalf("%s: %s: hoom review paso los 512 MiB residentes (lo mato el vigilante): esta leyendo algo que no termina", ca, caso)
 	}
-	if c.maxRSS > 128<<20 {
+	if c.maxRSS > raTopeRSS {
 		t.Fatalf("%s: %s: hoom review llego a %d MiB residentes: leyo en proporcion a algo que no tenia que leer", ca, caso, c.maxRSS>>20)
 	}
 }
