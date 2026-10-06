@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261005T183447_6df35b",
+  "as": "corregido",
+  "evidence": "88966bb (test-writer): mirar(bool) ya no existe. Mirar el id y plantar la trampa son dos funciones con resultados nombrados: h3IDNuevo(dir, previos) (id, err) y h3Plantar(dir, id) (trampa, err).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T17:37:12.145487Z"
+}
