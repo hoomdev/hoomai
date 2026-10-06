@@ -1,0 +1,11 @@
+{
+  "id": "20261006T204527_30abfc",
+  "created_at": "2026-10-06T20:45:27.973701Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/evidencia_en_disco_test.go",
+  "description": "INTRODUCIDO por la aceleracion de tests de evidencia-en-disco (06a3326, PR #42) sobre algo PRE-EXISTENTE: los repos git de los tests se crean sin apagar el mantenimiento automatico, y git (2.47+; aca 2.54) lanza 'git maintenance run --auto --quiet --detach' en segundo plano despues de cada commit, que crea y borra .git/objects/maintenance.lock. edCopiarArbol (evidencia_en_disco_test.go:381) copia el repo plantilla recorriendolo: si lista el lock y ya no esta cuando lo mira, el test muere con 'fixture: copiar la plantilla ...: lstat .../.git/objects/maintenance.lock: no such file or directory'. Fallo en el CI del PR #43, run 37519586064 (59de95d), paso test, TestCA442_UnArchivoCreadoSinLaFormaDeHoomEsManipulacion/git_lo_ve/rol_refutador, despues de seis runs verdes. Misma exposicion en edCopiar (:486) y en los 'cp -R' de internal/agentcmd/e2e_test.go:26 e internal/reviewcmd/e2e_test.go:24. Comprobado aca con GIT_TRACE: con maintenance.auto=false y gc.auto=0 en el repo git no lanza nada. Los repos de prueba deberian crearse con el mantenimiento apagado (y el que copia, exigirlo).",
+  "author": "writer@claude",
+  "fingerprint": "689d51980be2be2b",
+  "task": "estabilizar-ci"
+}

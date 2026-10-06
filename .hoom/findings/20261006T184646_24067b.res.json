@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261006T184646_24067b",
+  "as": "corregido",
+  "evidence": "0e811b9 (test-writer): hoom ya no se mide muestreando. raHoomConReloj lo lanza a traves de un medidor (este binario de tests re-ejecutado desde un TestMain nuevo) que hace fork de hoom, lo espera con wait4 e informa por el descriptor 3 su pid, su codigo, su ru_maxrss y el pico del propio medidor; como hoom nace de un proceso flaco, su ru_maxrss es exacto para la cota de 128 MiB y no hay carrera de muestreo. Un medidor por encima de 112 MiB es error de fixture. El reloj y el vigilante de 512 MiB matan al grupo. Test nuevo: un hijo que sale enseguida, 200 veces con GOMAXPROCS chico y goroutines ocupadas, siempre tiene su cifra; y los del medidor (no se mete con hoom, sin informe entero no hay corrida, el reloj y el vigilante matan al grupo). Ocho mutantes inyectados, todos detectados. Linux: run 37527426557 del CI sobre 0e811b9 en verde, dogfood con go test -race incluido (ahi el medidor corre con -race). Verde local 2026-10-06T20-43-28Z_fa477ce9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T20:45:27.966619Z"
+}
