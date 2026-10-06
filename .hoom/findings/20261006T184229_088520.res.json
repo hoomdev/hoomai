@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261006T184229_088520",
+  "as": "refutado",
+  "evidence": "REFUTADO el impacto ('regresion antes cubierta que desaparece en windows'): en windows ese test nunca llego a medir CA-335. En la base del rango (git show e4d545f:internal/servecmd/hallazgos_c1_sobre_test.go, lineas 152-154) ya armaba el caso con lnPATH + f.cli + tbProyecto: lnPATH deja PATH=bin+':/usr/bin:/bin:/usr/sbin:/sbin' (lanzar_test.go:53: separador ':' y rutas unix), el CLI falso es un script '#!/bin/sh' sin extension (lanzar_test.go:66-74) y tbProyecto corre exec.Command(\"git\") con ese PATH y hace t.Fatalf si falla (tablero_test.go:51, servecmd_v2_test.go:26-32). En windows git no se encuentra con ese PATH y el test moria en la fixture, como las otras 30 llamadas a lnPATH del paquete: con el tag unix pasa de fallar en la fixture a no existir, no de cubrir a no cubrir. Verificado en una copia de HEAD: GOOS=windows go test -c ./internal/servecmd compila. El CI corre solo en ubuntu-latest (.github/workflows/ci.yml:8) y los tests de reviewcmd no compilan en windows ya en main (ru.Maxrss, review_aislada_orden_test.go:933). El encabezado del archivo (lineas 10-13) declara la decision. No se pudo ejecutar en windows: es lectura de codigo citada. Opcional y sin bloquear: un archivo //go:build !unix con los dos nombres de test y un t.Skip visible.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-06T19:14:22.263617Z"
+}
