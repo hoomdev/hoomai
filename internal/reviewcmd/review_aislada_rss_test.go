@@ -1,32 +1,49 @@
-// Hallazgo 78162b (tarea estabilizar-ci): con que memoria se juzga al hoom
-// hijo de CA-414 y CA-416.
+// Hallazgo 78162b (tarea estabilizar-ci) y los de su review, 00cbcf y 24067b:
+// con que memoria se juzga al hoom hijo de CA-414 y CA-416.
 //
 // raHoomConReloj (review_aislada_orden_test.go) corre el binario de hoom y
 // raCLIVolvio le exige no pasar de raTopeRSS residentes: una review que lee
 // en proporcion a algo que no tenia que leer (un hoom.yaml symlink a
-// /dev/zero, un FIFO, una base rota) no pasa. La cifra salia de ru_maxrss
+// /dev/zero, un FIFO, una base rota) no pasa. La cifra sale de ru_maxrss
 // (wait4), y en linux esa cifra no es solo del hijo: Go lanza a sus hijos con
 // clone(CLONE_VFORK|CLONE_VM) y, al hacer exec, el kernel le anota al hijo el
-// pico del espacio de memoria que deja, que es el del padre. Queda
-// ru_maxrss = max(pico del padre al exec, pico propio del hijo). Con el
-// binario de tests gordo (-race) los 12 casos del run 37355349622 del CI
-// fallaban con la misma cifra, 324 MiB, que era la del padre.
+// pico del espacio de memoria que deja, que es el de quien lo lanzo. Queda
+// ru_maxrss = max(pico de quien lo lanzo al exec, pico propio del hijo). Con
+// el binario de tests gordo (-race) los 12 casos del run 37355349622 del CI
+// fallaban con la misma cifra, 324 MiB, que era la del binario de tests.
 //
-// Aca estan las piezas puras de la medida (raVmHWM, raPicoPropio), sus
-// constantes y sus tests. La cota no cambia: 128 MiB, sobre la memoria PROPIA
-// del hijo. En macOS ru_maxrss ya es la del hijo y la medida queda como
-// estaba.
+// El primer arreglo le muestreaba el VmHWM al hijo mientras vivia. Un hoom
+// que rechaza enseguida vive unos 20 ms y podia morir antes de la primera
+// muestra; sin muestra volvia la cifra heredada, y con ella el rojo falso
+// (hallazgos 00cbcf y 24067b). Ahora no se muestrea nada y no hay carrera que
+// perder: a hoom lo lanza un proceso FLACO, el medidor (raMedidor), que es
+// este mismo binario de tests vuelto a ejecutar con ese papel (TestMain). Lo
+// que hoom hereda es el pico del medidor, muy por debajo del tope, asi que
+// para lo que pregunta raCLIVolvio su ru_maxrss es el suyo, viva lo que viva.
+// Y si el medidor engordara, eso es un error del fixture, que raCifraDeHoom
+// dice con todas las letras: no un fallo de hoom. El camino es el mismo en
+// linux y en macOS (donde ru_maxrss ya era del hijo). En los sistemas que no
+// son unix los tests de este paquete no compilan, ni antes ni ahora (usan
+// syscall.Rusage, Mmap, Mkfifo).
+//
+// Aca estan el medidor, lo que informa, las piezas puras que leen el informe
+// (raLeerInforme, raCifraDeHoom, raVmHWM) y sus tests. La cota no cambia: 128
+// MiB, sobre la memoria PROPIA del hijo.
 package reviewcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"testing/quick"
@@ -41,33 +58,199 @@ const (
 	// /dev/zero. Es de la memoria propia del hijo.
 	raTopeRSS = 128 << 20
 
-	// raMargenDelPadre es por cuanto tiene que pasar ru_maxrss al pico del
-	// padre para que raPicoPropio lo tome como del hijo. Cubre que las dos
-	// cifras (la que el kernel anoto al exec y el VmHWM que se lee despues)
-	// salen de contadores aproximados y no coinciden al kB.
-	raMargenDelPadre = 8 << 20
+	// raMargenDelMedidor es cuanto tiene que quedar el pico del medidor por
+	// debajo de raTopeRSS para que raCifraDeHoom le crea al ru_maxrss de hoom.
+	// En linux hoom hereda el pico del medidor: con un medidor de hasta
+	// raTopeRSS - raMargenDelMedidor (112 MiB), un ru_maxrss por encima del
+	// tope no puede ser heredado. El margen cubre que las dos cifras (la que
+	// el kernel le anoto a hoom al exec y el VmHWM que el medidor se lee
+	// despues) salen de contadores aproximados y no coinciden al kB. En macOS
+	// el medidor pesa unos 7 MiB, y unos 25 con -race.
+	raMargenDelMedidor = 16 << 20
 
-	// raTicLinux es cada cuanto raHoomConReloj mira al hijo en linux, donde
-	// mirar es leer dos archivos de /proc; raTicOtros, en el resto, donde es
-	// lanzar un ps.
-	raTicLinux = 2 * time.Millisecond
-	raTicOtros = 25 * time.Millisecond
+	// raTechoRSS es cuanto puede llegar a tener residente hoom mientras
+	// corre: si lo pasa, el vigilante de raHoomConReloj lo mata sin esperar a
+	// que termine.
+	raTechoRSS = 512 << 20
+
+	// raTic es cada cuanto el vigilante de raHoomConReloj mira a hoom.
+	raTic = 25 * time.Millisecond
+
+	// raPapelMedidor: con esta variable en el entorno, este binario de tests
+	// no corre tests: hace de medidor de hoom (TestMain, raMedidor).
+	raPapelMedidor = "HOOM_TW_MEDIDOR"
+
+	// raFDInforme es el descriptor por el que el medidor le escribe su
+	// informe a quien lo lanzo: el primero de los que no son stdin, stdout ni
+	// stderr, que son de hoom.
+	raFDInforme = 3
+
+	// raExitMedidorRoto es con lo que sale el medidor cuando no pudo lanzar a
+	// hoom o esperarlo. Lo que paso lo dice el informe; este numero no decide
+	// nada (hoom tambien puede salir con el).
+	raExitMedidorRoto = 125
+
+	// raPlazoDelInforme es cuanto espera raHoomConReloj lo que falte del
+	// informe cuando el medidor ya termino. Lo que escribio ya esta en el
+	// pipe; el plazo es para no quedarse esperando si alguien mas se quedo
+	// con la otra punta.
+	raPlazoDelInforme = 2 * time.Second
 )
 
-// raTic es cada cuanto raHoomConReloj mira al hijo en este sistema.
-func raTic() time.Duration {
-	if runtime.GOOS == "linux" {
-		return raTicLinux
+// TestMain reparte los papeles de este binario de tests. Con raPapelMedidor
+// en el entorno no corre ningun test: hace de medidor de hoom y sale con lo
+// que salio hoom. El papel se reparte aca, antes de m.Run, y no dentro de un
+// test (como los papeles del experimento de mas abajo), porque el medidor no
+// puede imprimir nada: su stdout y su stderr son los de hoom, y un test deja
+// ahi su PASS y su ok.
+//
+// El medidor sale con syscall.Exit y no con os.Exit: con -race, os.Exit(0)
+// pasa por el cierre del detector de carreras, que duerme un segundo antes de
+// salir, y eso seria un segundo por cada hoom que termina bien. El medidor no
+// tiene nada que cerrar: no lanza goroutines ni deja nada a medio escribir.
+func TestMain(m *testing.M) {
+	if os.Getenv(raPapelMedidor) != "" {
+		syscall.Exit(raMedidor(os.Args[1:]))
 	}
-	return raTicOtros
+	os.Exit(m.Run())
+}
+
+// raMedidor es el papel de medidor: lanza a hoom (argv: su ruta y sus
+// argumentos), lo espera y sale con lo que salio hoom. No se mete con el: le
+// pasa tal cual su stdin, su stdout, su stderr, su directorio y su entorno
+// (menos raPapelMedidor, para que un hoom que es este mismo binario no haga
+// de medidor el tambien), y no le deja el descriptor del informe. Devuelve el
+// codigo de salida del medidor.
+//
+// El informe va por el descriptor raFDInforme, en lineas (raLeerInforme las
+// lee):
+//
+//	hoom <pid>
+//	fin <codigo> <bytes de hoom> <bytes del medidor>
+//
+// La primera sale apenas hoom arranca, para que el vigilante de memoria sepa
+// a quien mirar. La ultima sale cuando hoom termino: con que salio (-1 si lo
+// mato una senal), su ru_maxrss (el de wait4) y el pico de memoria residente
+// del propio medidor, las dos en bytes. Si el medidor no puede lanzarlo o
+// esperarlo, en lugar de la linea que toca escribe
+//
+//	error <por que>
+//
+// Es el unico proceso que lanza el medidor, y lo lanza con el medidor recien
+// nacido: lo que hoom hereda en linux es el pico de un proceso que no hizo
+// nada mas que arrancar.
+func raMedidor(argv []string) int {
+	var st syscall.Stat_t
+	if err := syscall.Fstat(raFDInforme, &st); err != nil || st.Mode&syscall.S_IFMT != syscall.S_IFIFO || len(argv) == 0 {
+		fmt.Fprintf(os.Stderr, "fixture: al medidor de hoom lo lanza raHoomConReloj, con la ruta de hoom, sus argumentos y un pipe para el informe en el descriptor %d (argumentos: %d; descriptor: %v, modo %o)\n",
+			raFDInforme, len(argv), err, st.Mode)
+		return raExitMedidorRoto
+	}
+	syscall.CloseOnExec(raFDInforme)
+	var env []string
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, raPapelMedidor+"=") {
+			env = append(env, kv)
+		}
+	}
+	pid, err := syscall.ForkExec(argv[0], argv, &syscall.ProcAttr{Env: env, Files: []uintptr{0, 1, 2}})
+	if err != nil {
+		raInformar(raLineaDeError("no pude lanzar " + argv[0] + ": " + err.Error()))
+		return raExitMedidorRoto
+	}
+	raInformar(raLineaDeHoom(pid))
+	var (
+		ws syscall.WaitStatus
+		ru syscall.Rusage
+	)
+	for {
+		if _, err = syscall.Wait4(pid, &ws, 0, &ru); err != syscall.EINTR {
+			break
+		}
+	}
+	if err != nil {
+		raInformar(raLineaDeError("no pude esperar a hoom con wait4: " + err.Error()))
+		return raExitMedidorRoto
+	}
+	code := ws.ExitStatus() // -1: lo mato una senal
+	raInformar(raLineaDeFin(code, raBytesDeRuMaxrss(int64(ru.Maxrss)), raPicoDeEsteProceso()))
+	if code < 0 {
+		return 128 + int(ws.Signal())
+	}
+	return code
+}
+
+// raInformar escribe una linea del informe del medidor. Si no puede (quien
+// lo lanzo ya no esta) no hay a quien avisarle.
+func raInformar(linea string) {
+	for b := []byte(linea); len(b) > 0; {
+		n, err := syscall.Write(raFDInforme, b)
+		if err != nil && err != syscall.EINTR {
+			return
+		}
+		if n > 0 {
+			b = b[n:]
+		}
+	}
+}
+
+// raLineaDeHoom, raLineaDeFin y raLineaDeError arman las lineas del informe
+// del medidor.
+func raLineaDeHoom(pid int) string {
+	return "hoom " + strconv.Itoa(pid) + "\n"
+}
+
+func raLineaDeFin(code int, hoom, medidor uint64) string {
+	return fmt.Sprintf("fin %d %d %d\n", code, hoom, medidor)
+}
+
+func raLineaDeError(motivo string) string {
+	motivo = strings.Join(strings.Fields(motivo), " ") // en una sola linea
+	if motivo == "" {
+		motivo = "sin motivo"
+	}
+	return "error " + motivo + "\n"
+}
+
+// raBytesDeRuMaxrss pasa a bytes el ru_maxrss de un rusage: macOS lo da en
+// bytes; linux (y los BSD), en kB.
+func raBytesDeRuMaxrss(maxrss int64) uint64 {
+	switch {
+	case maxrss <= 0:
+		return 0
+	case runtime.GOOS == "darwin":
+		return uint64(maxrss)
+	case uint64(maxrss) > math.MaxUint64>>10:
+		return math.MaxUint64
+	}
+	return uint64(maxrss) << 10
+}
+
+// raPicoDeEsteProceso es el pico de memoria residente de este proceso, en
+// bytes (0 si no se sabe). Donde hay /proc/<pid>/status (linux) es su VmHWM
+// y no su ru_maxrss: el VmHWM es del espacio de memoria y arranca de cero en
+// el exec, que es justo lo que le hereda un hijo, mientras que el ru_maxrss
+// propio trae ademas el pico de quien lanzo a este proceso. Donde no hay
+// VmHWM es el ru_maxrss propio: en macOS es la cifra exacta, y en un linux
+// que no informe VmHWM es una cota superior (puede hacer parecer gordo a un
+// medidor flaco, nunca al reves).
+func raPicoDeEsteProceso() uint64 {
+	if hwm, ok := raVmHWMDe(os.Getpid()); ok {
+		return hwm
+	}
+	var ru syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil {
+		return 0
+	}
+	return raBytesDeRuMaxrss(int64(ru.Maxrss))
 }
 
 // raVmHWM saca de un /proc/<pid>/status el VmHWM, el pico de memoria
 // residente del proceso, en bytes. El VmHWM es del espacio de memoria: arranca
-// de cero en el exec, asi que el de un hijo es solo suyo. ok es false si el
+// de cero en el exec, asi que el de un proceso es solo suyo. ok es false si el
 // texto no lo trae (un hilo del kernel o un zombie no tienen lineas Vm*) o si
 // la linea no es "VmHWM: <kB en decimal> kB", que es lo unico que escribe el
-// kernel: ante la duda no hay cifra, y sin cifra la medida es la estricta.
+// kernel: ante la duda no hay cifra.
 func raVmHWM(status string) (bytes uint64, ok bool) {
 	for _, linea := range strings.Split(status, "\n") {
 		resto, es := strings.CutPrefix(linea, "VmHWM:")
@@ -97,233 +280,472 @@ func raVmHWMDe(pid int) (bytes uint64, ok bool) {
 	return raVmHWM(string(raw))
 }
 
-// raPicoPropio decide, en linux, cuanta memoria residente llego a tener el
-// hijo, en bytes, con tres cifras en bytes:
-//
-//   - ruMaxrss: el ru_maxrss que dio wait4 por el hijo, que es
-//     max(pico del padre al exec, pico propio del hijo);
-//   - padre: el VmHWM del proceso que lo lanzo, leido DESPUES del Wait (0 = no
-//     se pudo leer). Despues y no antes: el pico no baja, asi que el de
-//     despues nunca es menor que el que heredo el hijo; uno leido antes del
-//     exec podria quedar por debajo de lo heredado y hacer pasar por memoria
-//     del hijo lo que era del padre (un rojo falso);
-//   - muestreado: el mayor VmHWM que se le leyo al hijo mientras vivia (0 = no
-//     se le leyo nada).
-//
-// Si ruMaxrss pasa al padre por mas de raMargenDelPadre no puede ser
-// heredado: es el pico del hijo, exacto. Si no, ruMaxrss no dice nada del
-// hijo y vale lo muestreado. Sin el pico del padre o sin ninguna muestra no
-// hay con que bajar la cifra y vale ruMaxrss, estricto, como antes del
-// hallazgo: un muestreo roto se ve como un rojo, nunca como un verde.
-//
-// Lo que se le puede escapar, siempre dentro de la banda en la que ruMaxrss no
-// decide (el pico del hijo entre raTopeRSS y padre + raMargenDelPadre):
-//
-//   - lo que el hijo crezca despues de la ultima muestra (un tic, o lo que
-//     tarde el planificador en volver al test): ahi la cifra queda por debajo
-//     del pico real. Se acepta porque CA-414 y CA-416 buscan una review que
-//     lee en proporcion a algo enorme o que no termina (/dev/zero, un FIFO):
-//     pasar de raTopeRSS le lleva mucho mas que un tic y no vuelve sola al
-//     llegar; sigue creciendo hasta el vigilante de 512 MiB o el reloj;
-//   - la memoria de los procesos que el hijo lanza y espera (git): ruMaxrss
-//     los incluye, el muestreo mira solo al hijo. Se acepta porque CA-414 y
-//     CA-416 miden lo que lee hoom, y el vigilante tampoco los mira;
-//   - cuanto mas crezca el padre entre el exec y el Wait, mas ancha la banda:
-//     padre queda por encima de lo que heredo el hijo. Eso nunca da un rojo
-//     falso; solo deja mas casos en manos del muestreo.
-//
-// Fuera de la banda no se escapa nada, y con un padre de hasta raTopeRSS -
-// raMargenDelPadre la banda esta vacia: la medida es la exacta. Y el margen
-// puede quedar corto (si las dos cifras del kernel difieren en mas de
-// raMargenDelPadre): entonces lo heredado se toma por memoria del hijo, que
-// es el rojo falso de antes del hallazgo, nunca un verde falso.
-func raPicoPropio(ruMaxrss, padre, muestreado uint64) uint64 {
-	if padre == 0 || muestreado == 0 {
-		return ruMaxrss
+// raInforme es lo que el medidor dejo dicho de una corrida de hoom.
+type raInforme struct {
+	pid     int    // el de hoom (0: el medidor no llego a lanzarlo)
+	fin     bool   // trae la ultima linea: hoom termino y el medidor lo espero
+	code    int    // con que salio hoom (-1: lo mato una senal)
+	hoom    uint64 // el ru_maxrss de hoom, en bytes
+	medidor uint64 // el pico de memoria residente del medidor, en bytes
+	falla   string // el medidor no pudo lanzar a hoom o esperarlo: por que
+}
+
+// raLeerInforme lee el informe del medidor (raMedidor dice como es). Puede
+// venir cortado entre dos lineas, si al medidor lo mataron: vacio, o solo con
+// la primera. Todo lo demas es un error: una linea sin terminar, una que no
+// es la que toca, una de mas, un numero que no es un decimal a secas o que no
+// entra. Ante la duda no hay informe: quien lo lee no adivina una cifra.
+func raLeerInforme(texto string) (raInforme, error) {
+	var inf raInforme
+	for n := 1; texto != ""; n++ {
+		linea, resto, entera := strings.Cut(texto, "\n")
+		if !entera {
+			return raInforme{}, fmt.Errorf("la linea %d quedo sin terminar: %q", n, linea)
+		}
+		texto = resto
+		clave, valor, _ := strings.Cut(linea, " ")
+		switch {
+		case inf.fin || inf.falla != "":
+			return raInforme{}, fmt.Errorf("la linea %d esta de mas: %q", n, linea)
+		case clave == "error" && valor != "":
+			inf.falla = valor
+		case clave == "hoom" && n == 1:
+			pid, ok := raDecimal(valor)
+			if !ok || pid == 0 || pid > math.MaxInt32 {
+				return raInforme{}, fmt.Errorf("la linea %d no trae el pid de hoom: %q", n, linea)
+			}
+			inf.pid = int(pid)
+		case clave == "fin" && n == 2:
+			f := strings.Split(valor, " ")
+			if len(f) != 3 {
+				return raInforme{}, fmt.Errorf("la linea %d no trae el codigo y las dos cifras: %q", n, linea)
+			}
+			code, okCode := raCodigo(f[0])
+			hoom, okHoom := raDecimal(f[1])
+			medidor, okMedidor := raDecimal(f[2])
+			if !okCode || !okHoom || !okMedidor {
+				return raInforme{}, fmt.Errorf("la linea %d no trae el codigo (-1 o de 0 a 255) y las dos cifras: %q", n, linea)
+			}
+			inf.fin, inf.code, inf.hoom, inf.medidor = true, code, hoom, medidor
+		default:
+			return raInforme{}, fmt.Errorf("la linea %d no es la que toca: %q", n, linea)
+		}
 	}
-	if ruMaxrss > padre && ruMaxrss-padre > raMargenDelPadre {
-		return ruMaxrss
+	return inf, nil
+}
+
+// raCodigo lee con que salio hoom: -1 (lo mato una senal) o de 0 a 255.
+func raCodigo(s string) (int, bool) {
+	if s == "-1" {
+		return -1, true
 	}
-	return muestreado
+	n, ok := raDecimal(s)
+	if !ok || n > 255 {
+		return 0, false
+	}
+	return int(n), true
+}
+
+// raDecimal lee un entero sin signo escrito solo con digitos decimales.
+func raDecimal(s string) (uint64, bool) {
+	if s == "" || strings.Trim(s, "0123456789") != "" {
+		return 0, false
+	}
+	n, err := strconv.ParseUint(s, 10, 64)
+	return n, err == nil
+}
+
+// raCifraDeHoom dice, con el informe de una corrida que termino, con cuanta
+// memoria residente se juzga a hoom, en bytes: su ru_maxrss. En linux esa
+// cifra es max(pico del medidor al lanzarlo, pico propio de hoom, pico de los
+// procesos que hoom lanzo y espero), asi que es la de hoom para raCLIVolvio
+// siempre que el medidor quede bien por debajo del tope.
+//
+// El error es SIEMPRE del fixture, nunca un fallo de hoom: el informe no trae
+// alguna de las dos cifras, o el medidor paso de raTopeRSS -
+// raMargenDelMedidor y entonces un ru_maxrss alto ya no se sabe de quien es.
+// Sin cifra de la que fiarse no hay cifra: raHoomConReloj falla con este
+// error en vez de dejar pasar a hoom o de culparlo.
+//
+// Lo que la cifra no separa, y es lo mismo que antes del hallazgo: la memoria
+// de los procesos que hoom lanza y espera (git, el CLI de IA) cuenta como de
+// hoom; y por debajo del pico del medidor no distingue nada: un hoom mas
+// flaco que el medidor figura con el pico del medidor (en linux).
+func raCifraDeHoom(inf raInforme) (uint64, error) {
+	const MiB = 1 << 20
+	switch {
+	case !inf.fin:
+		return 0, errors.New("el informe del medidor no llega al final: no dice con que salio hoom ni cuanta memoria tuvo")
+	case inf.medidor == 0:
+		return 0, errors.New("el medidor no pudo decir cuanta memoria residente llego a tener el mismo: sin eso no se sabe si el ru_maxrss de hoom es de hoom")
+	case inf.medidor > raTopeRSS-raMargenDelMedidor:
+		return 0, fmt.Errorf("el medidor llego a %d MiB residentes y puede tener hasta %d (el tope de %d MiB menos un margen de %d): en linux hoom hereda ese pico, asi que su ru_maxrss (%d MiB) ya no se sabe de quien es. No es un fallo de hoom: hay que adelgazar el medidor (lo que este binario de tests hace antes de TestMain). Si este linux no informa VmHWM en /proc/<pid>/status, esa cifra del medidor es su ru_maxrss, que trae el pico de quien lo lanzo",
+			inf.medidor/MiB, (raTopeRSS-raMargenDelMedidor)/MiB, raTopeRSS/MiB, raMargenDelMedidor/MiB, inf.hoom/MiB)
+	case inf.hoom == 0:
+		return 0, errors.New("wait4 no le dio al medidor el ru_maxrss de hoom")
+	}
+	return inf.hoom, nil
 }
 
 // ---------------------------------------------------------------- los tests
 
-// CA-414 / CA-416 (hallazgo 78162b): la cifra con la que raCLIVolvio juzga
-// al hoom hijo. El tope sigue siendo 128 MiB; lo que cambia es de quien es la
-// memoria que se compara con el.
-func TestHallazgo_78162b_PicoPropioDecideDeQuienEsElRuMaxrss(t *testing.T) {
+// CA-414 / CA-416 (hallazgos 78162b, 00cbcf y 24067b): la cifra con la que
+// raCLIVolvio juzga al hoom hijo. El tope sigue siendo 128 MiB sobre la
+// memoria propia del hijo; la cifra es su ru_maxrss siempre que el medidor
+// que lo lanzo haya quedado bien por debajo del tope. Si no, o si falta
+// alguna de las dos cifras, no hay cifra: hay un error del fixture.
+func TestHallazgo_00cbcf_24067b_LaCifraDeHoomEsSuRuMaxrssConUnMedidorFlaco(t *testing.T) {
 	const (
-		kB  = uint64(1) << 10
-		MiB = uint64(1) << 20
+		kB     = uint64(1) << 10
+		MiB    = uint64(1) << 20
+		tope   = uint64(raTopeRSS)
+		limite = uint64(raTopeRSS - raMargenDelMedidor) // lo mas que puede pesar el medidor
 	)
-	if tope := uint64(raTopeRSS); tope != 128*MiB {
+	if tope != 128*MiB {
 		t.Fatalf("CA-414 / CA-416: el tope del hoom hijo es 128 MiB residentes, no %d bytes", tope)
 	}
-	if tope, margen := uint64(raTopeRSS), uint64(raMargenDelPadre); margen == 0 || margen > tope/8 {
-		t.Fatalf("el margen (%d bytes) es una fraccion chica del tope (%d bytes)", margen, tope)
+	if margen := uint64(raMargenDelMedidor); margen == 0 || margen > tope/2 {
+		t.Fatalf("el margen del medidor (%d bytes) es una parte del tope (%d bytes): ni nada ni mas de la mitad", margen, tope)
+	}
+	if techo := uint64(raTechoRSS); techo <= tope {
+		t.Fatalf("el techo con el que el vigilante mata a hoom (%d bytes) queda por encima del tope con el que se lo juzga (%d bytes)", techo, tope)
 	}
 	casos := []struct {
-		nombre                      string
-		ruMaxrss, padre, muestreado uint64
-		quiero                      uint64
-		pasa                        bool // raCLIVolvio lo deja pasar
+		nombre        string
+		hoom, medidor uint64
+		sinFin        bool
+		quiero        uint64
+		hay           bool // hay cifra
+		pasa          bool // raCLIVolvio lo deja pasar
 	}{
-		// lo que se vio
-		{"el dogfood con -race del run 37355349622: los 324 MiB eran del padre",
-			324 * MiB, 324 * MiB, 14 * MiB, 14 * MiB, true},
-		{"el paso sin -race de hoy: los 108 MiB tambien son del padre",
-			108 * MiB, 108 * MiB, 14 * MiB, 14 * MiB, true},
-		{"el padre siguio creciendo despues del exec",
-			300 * MiB, 324 * MiB, 14 * MiB, 14 * MiB, true},
-		{"un hijo mas grande que su padre flaco, bajo el tope: exacto",
-			60 * MiB, 20 * MiB, 55 * MiB, 60 * MiB, true},
+		// lo que se ve
+		{"macOS con -race: hoom con lo suyo, el medidor con 25 MiB", 14 * MiB, 25 * MiB, false, 14 * MiB, true, true},
+		{"linux con -race: un hoom mas flaco que el medidor figura con el pico del medidor", 25 * MiB, 25 * MiB, false, 25 * MiB, true, true},
+		{"linux sin -race: el medidor pesa 7 MiB", 14 * MiB, 7 * MiB, false, 14 * MiB, true, true},
+		{"el hijo que sale enseguida: su cifra, chica", 2 * MiB, 7 * MiB, false, 2 * MiB, true, true},
 
 		// glotones
-		{"un gloton por encima del padre: exacto aunque el muestreo no lo haya visto",
-			600 * MiB, 324 * MiB, 14 * MiB, 600 * MiB, false},
-		{"un gloton por encima del padre, visto a medias por el muestreo",
-			600 * MiB, 324 * MiB, 590 * MiB, 600 * MiB, false},
-		{"un gloton dentro de la banda: lo dice el muestreo",
-			324 * MiB, 324 * MiB, 200 * MiB, 200 * MiB, false},
-		{"un gloton por encima de un padre flaco",
-			200 * MiB, 108 * MiB, 14 * MiB, 200 * MiB, false},
+		{"un gloton", 600 * MiB, 25 * MiB, false, 600 * MiB, true, false},
+		{"un gloton de 192 MiB: exacto, ya no hay padre de 320 MiB que lo tape", 192 * MiB, 25 * MiB, false, 192 * MiB, true, false},
+		{"la cifra mas grande que entra", math.MaxUint64, 25 * MiB, false, math.MaxUint64, true, false},
 
 		// el tope, como siempre: pasarlo es tener MAS de 128 MiB
-		{"justo en el tope dentro de la banda",
-			324 * MiB, 324 * MiB, 128 * MiB, 128 * MiB, true},
-		{"un kB sobre el tope dentro de la banda",
-			324 * MiB, 324 * MiB, 128*MiB + kB, 128*MiB + kB, false},
-		{"justo en el tope por encima del padre",
-			128 * MiB, 100 * MiB, 14 * MiB, 128 * MiB, true},
-		{"un kB sobre el tope por encima del padre",
-			128*MiB + kB, 100 * MiB, 14 * MiB, 128*MiB + kB, false},
+		{"justo en el tope", tope, 25 * MiB, false, tope, true, true},
+		{"un byte sobre el tope", tope + 1, 25 * MiB, false, tope + 1, true, false},
+		{"un kB sobre el tope", tope + kB, 25 * MiB, false, tope + kB, true, false},
+		{"un kB bajo el tope", tope - kB, 25 * MiB, false, tope - kB, true, true},
 
-		// los bordes del margen
-		{"un kB por debajo del margen: no alcanza para ser del hijo",
-			324*MiB + raMargenDelPadre - kB, 324 * MiB, 14 * MiB, 14 * MiB, true},
-		{"justo en el margen: no alcanza para ser del hijo",
-			324*MiB + raMargenDelPadre, 324 * MiB, 14 * MiB, 14 * MiB, true},
-		{"un byte por encima del margen: es del hijo",
-			324*MiB + raMargenDelPadre + 1, 324 * MiB, 14 * MiB, 324*MiB + raMargenDelPadre + 1, false},
-		{"un kB por encima del margen: es del hijo",
-			324*MiB + raMargenDelPadre + kB, 324 * MiB, 14 * MiB, 324*MiB + raMargenDelPadre + kB, false},
-		{"igual al padre",
-			100 * MiB, 100 * MiB, 14 * MiB, 14 * MiB, true},
-		{"padre + margen no da la vuelta al sumar",
-			100 * MiB, math.MaxUint64, 14 * MiB, 14 * MiB, true},
-		{"ru_maxrss - padre no da la vuelta al restar",
-			math.MaxUint64, math.MaxUint64 - kB, 14 * MiB, 14 * MiB, true},
+		// el medidor en su limite: con el todavia se cree la cifra
+		{"el medidor justo en su limite, hoom flaco", limite, limite, false, limite, true, true},
+		{"el medidor justo en su limite, hoom gloton", 600 * MiB, limite, false, 600 * MiB, true, false},
+		{"el medidor con un byte", 14 * MiB, 1, false, 14 * MiB, true, true},
 
-		// sin con que bajar la cifra: la estricta, la de antes
-		{"sin el VmHWM del padre: ru_maxrss, que aca era del padre",
-			324 * MiB, 0, 14 * MiB, 324 * MiB, false},
-		{"sin el VmHWM del padre, con un hijo flaco de un padre flaco",
-			14 * MiB, 0, 14 * MiB, 14 * MiB, true},
-		{"sin el VmHWM del padre no vale ni un muestreo mayor",
-			100 * MiB, 0, 120 * MiB, 100 * MiB, true},
-		{"sin el VmHWM del padre tampoco con un ru_maxrss menor que el margen",
-			4 * MiB, 0, 6 * MiB, 4 * MiB, true},
-		{"sin ninguna muestra del hijo: ru_maxrss",
-			324 * MiB, 324 * MiB, 0, 324 * MiB, false},
-		{"sin ninguna muestra del hijo, con el padre bajo el tope",
-			108 * MiB, 108 * MiB, 0, 108 * MiB, true},
-		{"sin nada",
-			0, 0, 0, 0, true},
+		// un medidor gordo: un error del fixture, pese lo que pese hoom
+		{"el medidor un byte sobre su limite, hoom flaco", limite + 1, limite + 1, false, 0, false, false},
+		{"el medidor un kB sobre su limite, hoom gloton", 600 * MiB, limite + kB, false, 0, false, false},
+		{"el medidor en el tope", tope, tope, false, 0, false, false},
+		{"el medidor como el binario de tests del run 37355349622", 324 * MiB, 324 * MiB, false, 0, false, false},
+		{"el medidor con la cifra mas grande que entra", 14 * MiB, math.MaxUint64, false, 0, false, false},
+
+		// sin alguna de las cifras
+		{"el medidor no dijo su pico", 14 * MiB, 0, false, 0, false, false},
+		{"el medidor no dijo su pico y hoom es un gloton", 600 * MiB, 0, false, 0, false, false},
+		{"wait4 no dio el ru_maxrss de hoom", 0, 25 * MiB, false, 0, false, false},
+		{"sin ninguna de las dos", 0, 0, false, 0, false, false},
+		{"el informe no llega al final", 14 * MiB, 25 * MiB, true, 0, false, false},
+		{"el informe no llega al final y no trae nada", 0, 0, true, 0, false, false},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
-			got := raPicoPropio(c.ruMaxrss, c.padre, c.muestreado)
-			if got != c.quiero {
-				t.Fatalf("raPicoPropio(ru_maxrss %d, padre %d, muestreado %d) = %d bytes, no %d",
-					c.ruMaxrss, c.padre, c.muestreado, got, c.quiero)
+			inf := raInforme{pid: 4242, fin: !c.sinFin, hoom: c.hoom, medidor: c.medidor}
+			got, err := raCifraDeHoom(inf)
+			if got != c.quiero || (err == nil) != c.hay {
+				t.Fatalf("raCifraDeHoom(%+v) = %d bytes, %v; quiero %d bytes y que haya cifra = %v", inf, got, err, c.quiero, c.hay)
+			}
+			if !c.hay {
+				// sin cifra, quien llama no tiene con que dejar pasar a hoom
+				if c.pasa {
+					t.Fatalf("fixture: un caso sin cifra no pasa")
+				}
+				return
 			}
 			if pasa := got <= raTopeRSS; pasa != c.pasa {
 				t.Fatalf("con %d bytes residentes raCLIVolvio deja pasar = %v, no %v", got, pasa, c.pasa)
 			}
 		})
 	}
-}
 
-// CA-414 / CA-416 (hallazgo 78162b), como propiedades. En el modelo del
-// kernel (el hijo hereda el pico del padre al exec, el padre puede seguir
-// creciendo, el muestreo puede perderse el final) la cifra nunca supera el
-// pico propio del hijo (no hay rojo falso) ni baja de lo que se le vio (asi
-// que es exacta si el muestreo no se perdio nada), y es exacta tambien si el
-// hijo paso al padre por mas que el margen, vea lo que vea el muestreo. Y con
-// cifras cualesquiera: la respuesta es una de las dos medidas, y es ru_maxrss
-// siempre que no haya con que bajarla o que no pueda ser heredado.
-func TestHallazgo_78162b_PicoPropioEnElModeloDelKernel(t *testing.T) {
-	t.Run("modelo", func(t *testing.T) {
-		// en kB, como las cifras del kernel: hasta 4 TiB. El muestreo se pierde
-		// entre nada y casi todo lo que crecio el hijo, pero algo le vio
-		modelo := func(heredadoKB, crecioElPadreKB, propioKB uint32, sePerdio uint16) bool {
-			const kB = 1 << 10
-			heredado := (uint64(heredadoKB) + 1) * kB
-			padre := heredado + uint64(crecioElPadreKB)*kB
-			propio := (uint64(propioKB) + 1) * kB
-			muestreado := max(propio-propio/(1<<16)*uint64(sePerdio), kB)
-			got := raPicoPropio(max(heredado, propio), padre, muestreado)
+	// un medidor gordo no es un fallo de hoom, y el error lo dice
+	_, err := raCifraDeHoom(raInforme{pid: 4242, fin: true, hoom: 324 * MiB, medidor: 324 * MiB})
+	if err == nil || !strings.Contains(err.Error(), "No es un fallo de hoom") || !strings.Contains(err.Error(), "324 MiB") {
+		t.Fatalf("con un medidor de 324 MiB el error dice que el gordo es el medidor y que no es un fallo de hoom: %v", err)
+	}
+
+	// en el modelo del kernel: hoom hereda el pico que el medidor tenia al
+	// lanzarlo, el medidor informa su pico de despues (que no baja) y el
+	// ru_maxrss de hoom es el mayor entre lo heredado y lo suyo. Si hay cifra,
+	// nunca es menos que lo propio de hoom (no hay verde falso) y pasa del tope
+	// solo si lo propio de hoom paso (no hay rojo falso); y no hay cifra solo
+	// cuando el medidor paso de su limite
+	t.Run("modelo-del-kernel", func(t *testing.T) {
+		modelo := func(alLanzarlo, crecioDespues, propio uint64) bool {
+			alLanzarlo, propio = alLanzarlo+1, propio+1
+			medidor := alLanzarlo + crecioDespues
+			got, err := raCifraDeHoom(raInforme{pid: 4242, fin: true, hoom: max(alLanzarlo, propio), medidor: medidor})
 			switch {
-			case got > propio:
-				t.Logf("rojo falso: heredado %d, padre %d, propio %d, muestreado %d: %d", heredado, padre, propio, muestreado, got)
-			case got < muestreado:
-				t.Logf("menos de lo que se vio: heredado %d, padre %d, propio %d, muestreado %d: %d", heredado, padre, propio, muestreado, got)
-			case propio > padre+raMargenDelPadre && got != propio:
-				t.Logf("por encima del padre es exacto: heredado %d, padre %d, propio %d, muestreado %d: %d", heredado, padre, propio, muestreado, got)
+			case err != nil && (medidor <= limite || got != 0):
+				t.Logf("sin cifra con un medidor flaco: al lanzarlo %d, medidor %d, propio %d: %d, %v", alLanzarlo, medidor, propio, got, err)
+			case err == nil && medidor > limite:
+				t.Logf("una cifra con un medidor gordo: al lanzarlo %d, medidor %d, propio %d: %d", alLanzarlo, medidor, propio, got)
+			case err == nil && got < propio:
+				t.Logf("verde falso: al lanzarlo %d, medidor %d, propio %d: %d", alLanzarlo, medidor, propio, got)
+			case err == nil && (got > tope) != (propio > tope):
+				t.Logf("rojo falso: al lanzarlo %d, medidor %d, propio %d: %d", alLanzarlo, medidor, propio, got)
 			default:
 				return true
 			}
 			return false
 		}
-		if err := quick.Check(modelo, &quick.Config{MaxCount: 20000}); err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	t.Run("cifras-cualesquiera", func(t *testing.T) {
-		cualquiera := func(ruMaxrss, padre, muestreado uint64, sinPadre, sinMuestra bool) bool {
-			if sinPadre {
-				padre = 0
-			}
-			if sinMuestra {
-				muestreado = 0
-			}
-			got := raPicoPropio(ruMaxrss, padre, muestreado)
-			noEsHeredado := ruMaxrss > padre && ruMaxrss-padre > raMargenDelPadre
-			switch {
-			case got != ruMaxrss && got != muestreado:
-				t.Logf("ni una medida ni la otra: ru_maxrss %d, padre %d, muestreado %d: %d", ruMaxrss, padre, muestreado, got)
-			case (padre == 0 || muestreado == 0 || noEsHeredado) && got != ruMaxrss:
-				t.Logf("tenia que ser ru_maxrss: ru_maxrss %d, padre %d, muestreado %d: %d", ruMaxrss, padre, muestreado, got)
-			case padre != 0 && muestreado != 0 && !noEsHeredado && got != muestreado:
-				t.Logf("tenia que ser lo muestreado: ru_maxrss %d, padre %d, muestreado %d: %d", ruMaxrss, padre, muestreado, got)
-			default:
-				return true
-			}
-			return false
+		// un medidor de cualquier tamano hasta 1 GiB, con un hoom de hasta 4 TiB
+		cualquiera := func(alLanzarloKB uint16, crecioDespuesKB uint16, propioKB uint32) bool {
+			return modelo(uint64(alLanzarloKB)*8*kB, uint64(crecioDespuesKB)*8*kB, uint64(propioKB)*kB)
 		}
 		if err := quick.Check(cualquiera, &quick.Config{MaxCount: 20000}); err != nil {
 			t.Fatal(err)
 		}
-		// cerca del margen, que al azar no sale
-		cerca := func(padreKB uint32, sobreElMargen int16, muestreadoKB uint32) bool {
-			padre := (uint64(padreKB) + 1) << 10
-			muestreado := (uint64(muestreadoKB) + 1) << 10
-			ruMaxrss := uint64(int64(padre+raMargenDelPadre) + int64(sobreElMargen))
-			got := raPicoPropio(ruMaxrss, padre, muestreado)
-			quiero := muestreado
-			if sobreElMargen > 0 {
-				quiero = ruMaxrss
+		// un medidor dentro de su limite, con un hoom a menos de 32 KiB del tope,
+		// que al azar no sale
+		cerca := func(alLanzarloKB uint16, crecioDespuesKB uint16, delTope int16) bool {
+			alLanzarlo := uint64(alLanzarloKB) * kB           // hasta 64 MiB
+			crecioDespues := uint64(crecioDespuesKB) * kB / 2 // hasta 32 MiB mas
+			return modelo(alLanzarlo, crecioDespues, uint64(int64(tope)+int64(delTope))-1)
+		}
+		if err := quick.Check(cerca, &quick.Config{MaxCount: 20000}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// CA-414 / CA-416 (hallazgos 00cbcf y 24067b): el informe del medidor se lee
+// tal cual lo escribe raMedidor y de ninguna otra forma. Puede venir cortado
+// entre dos lineas (al medidor lo mato el reloj o el vigilante); cualquier
+// otra cosa es un error, nunca una cifra adivinada.
+func TestHallazgo_00cbcf_24067b_ElInformeDelMedidorSeLeeTalCual(t *testing.T) {
+	const max64 = "18446744073709551615"
+	casos := []struct {
+		nombre string
+		texto  string
+		quiero raInforme
+		ok     bool
+	}{
+		// lo que escribe el medidor
+		{"entero", "hoom 4242\nfin 0 14680064 26214400\n", raInforme{pid: 4242, fin: true, hoom: 14680064, medidor: 26214400}, true},
+		{"hoom salio con error", "hoom 4242\nfin 1 14680064 26214400\n", raInforme{pid: 4242, fin: true, code: 1, hoom: 14680064, medidor: 26214400}, true},
+		{"hoom salio con 255", "hoom 4242\nfin 255 14680064 26214400\n", raInforme{pid: 4242, fin: true, code: 255, hoom: 14680064, medidor: 26214400}, true},
+		{"a hoom lo mato una senal", "hoom 4242\nfin -1 14680064 26214400\n", raInforme{pid: 4242, fin: true, code: -1, hoom: 14680064, medidor: 26214400}, true},
+		{"sin cifras: las lee, y es raCifraDeHoom quien no las cree", "hoom 1\nfin 0 0 0\n", raInforme{pid: 1, fin: true}, true},
+		{"las cifras mas grandes que entran", "hoom 2147483647\nfin 0 " + max64 + " " + max64 + "\n", raInforme{pid: math.MaxInt32, fin: true, hoom: math.MaxUint64, medidor: math.MaxUint64}, true},
+		{"no pudo lanzar a hoom", "error no pude lanzar /no/existe/hoom: no such file or directory\n", raInforme{falla: "no pude lanzar /no/existe/hoom: no such file or directory"}, true},
+		{"no pudo esperarlo", "hoom 4242\nerror no pude esperar a hoom con wait4: no child processes\n", raInforme{pid: 4242, falla: "no pude esperar a hoom con wait4: no child processes"}, true},
+
+		// cortado entre dos lineas: al medidor lo mataron
+		{"vacio: lo mataron antes de lanzar a hoom", "", raInforme{}, true},
+		{"solo la primera linea: lo mataron esperando a hoom", "hoom 4242\n", raInforme{pid: 4242}, true},
+
+		// cortado en medio de una linea
+		{"la primera sin terminar", "hoom 4242", raInforme{}, false},
+		{"la ultima sin terminar", "hoom 4242\nfin 0 14680064 26214400", raInforme{}, false},
+		{"la ultima cortada en una cifra", "hoom 4242\nfin 0 1468", raInforme{}, false},
+		{"el error sin terminar", "error no pude lanzar", raInforme{}, false},
+
+		// lineas que no tocan
+		{"el fin sin hoom", "fin 0 14680064 26214400\n", raInforme{}, false},
+		{"dos hoom", "hoom 4242\nhoom 4243\n", raInforme{}, false},
+		{"dos fin", "hoom 4242\nfin 0 1 2\nfin 0 1 2\n", raInforme{}, false},
+		{"algo despues del fin", "hoom 4242\nfin 0 1 2\nhoom 4242\n", raInforme{}, false},
+		{"un error despues del fin", "hoom 4242\nfin 0 1 2\nerror tarde\n", raInforme{}, false},
+		{"algo despues del error", "error no pude\nhoom 4242\n", raInforme{}, false},
+		{"dos errores", "error uno\nerror dos\n", raInforme{}, false},
+		{"una linea vacia", "\n", raInforme{}, false},
+		{"una linea vacia al final", "hoom 4242\nfin 0 1 2\n\n", raInforme{}, false},
+		{"una linea vacia en el medio", "hoom 4242\n\nfin 0 1 2\n", raInforme{}, false},
+		{"otra clave", "pid 4242\n", raInforme{}, false},
+		{"la clave en mayusculas", "HOOM 4242\n", raInforme{}, false},
+		{"con sangria", " hoom 4242\n", raInforme{}, false},
+		{"con retorno de carro", "hoom 4242\r\nfin 0 1 2\r\n", raInforme{}, false},
+		{"lo que imprime un test, no un medidor", "PASS\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t0.012s\n", raInforme{}, false},
+		{"binario", "\x00\x01\xff\xfehoom\x00 1\n", raInforme{}, false},
+
+		// el pid
+		{"sin pid", "hoom\n", raInforme{}, false},
+		{"el pid vacio", "hoom \n", raInforme{}, false},
+		{"el pid 0", "hoom 0\n", raInforme{}, false},
+		{"el pid negativo", "hoom -4242\n", raInforme{}, false},
+		{"el pid con signo", "hoom +4242\n", raInforme{}, false},
+		{"el pid con decimales", "hoom 4242.0\n", raInforme{}, false},
+		{"el pid en hexadecimal", "hoom 0x1092\n", raInforme{}, false},
+		{"el pid con guion bajo", "hoom 4_242\n", raInforme{}, false},
+		{"el pid en letras", "hoom alguno\n", raInforme{}, false},
+		{"el pid no entra en 31 bits", "hoom 2147483648\n", raInforme{}, false},
+		{"el pid no entra en 64 bits", "hoom 18446744073709551616\n", raInforme{}, false},
+		{"dos espacios antes del pid", "hoom  4242\n", raInforme{}, false},
+		{"algo despues del pid", "hoom 4242 4243\n", raInforme{}, false},
+		{"un espacio despues del pid", "hoom 4242 \n", raInforme{}, false},
+		{"un tab en vez del espacio", "hoom\t4242\n", raInforme{}, false},
+
+		// el fin
+		{"el fin sin nada", "hoom 4242\nfin\n", raInforme{}, false},
+		{"el fin sin cifras", "hoom 4242\nfin 0\n", raInforme{}, false},
+		{"el fin con una sola cifra", "hoom 4242\nfin 0 14680064\n", raInforme{}, false},
+		{"el fin con una cifra de mas", "hoom 4242\nfin 0 1 2 3\n", raInforme{}, false},
+		{"el fin con dos espacios", "hoom 4242\nfin 0 1  2\n", raInforme{}, false},
+		{"el fin con un espacio al final", "hoom 4242\nfin 0 1 2 \n", raInforme{}, false},
+		{"el codigo 256", "hoom 4242\nfin 256 1 2\n", raInforme{}, false},
+		{"el codigo -2", "hoom 4242\nfin -2 1 2\n", raInforme{}, false},
+		{"el codigo -0", "hoom 4242\nfin -0 1 2\n", raInforme{}, false},
+		{"el codigo con signo", "hoom 4242\nfin +1 1 2\n", raInforme{}, false},
+		{"el codigo en letras", "hoom 4242\nfin bien 1 2\n", raInforme{}, false},
+		{"el codigo no entra en 64 bits", "hoom 4242\nfin 18446744073709551616 1 2\n", raInforme{}, false},
+		{"la cifra de hoom negativa", "hoom 4242\nfin 0 -1 2\n", raInforme{}, false},
+		{"la cifra de hoom en kB", "hoom 4242\nfin 0 14336kB 2\n", raInforme{}, false},
+		{"la cifra de hoom con decimales", "hoom 4242\nfin 0 1.5 2\n", raInforme{}, false},
+		{"la cifra de hoom no entra en 64 bits", "hoom 4242\nfin 0 18446744073709551616 2\n", raInforme{}, false},
+		{"la cifra del medidor negativa", "hoom 4242\nfin 0 1 -2\n", raInforme{}, false},
+		{"la cifra del medidor en hexadecimal", "hoom 4242\nfin 0 1 0x2\n", raInforme{}, false},
+		{"la cifra del medidor no entra en 64 bits", "hoom 4242\nfin 0 1 18446744073709551616\n", raInforme{}, false},
+		{"digitos sin fin", "hoom 4242\nfin 0 " + strings.Repeat("9", 400) + " 2\n", raInforme{}, false},
+
+		// el error
+		{"el error sin motivo", "error\n", raInforme{}, false},
+		{"el error con el motivo vacio", "error \n", raInforme{}, false},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			got, err := raLeerInforme(c.texto)
+			if got != c.quiero || (err == nil) != c.ok {
+				t.Fatalf("raLeerInforme(%q) = %+v, %v; quiero %+v y sin error = %v", c.texto, got, err, c.quiero, c.ok)
 			}
-			if got != quiero {
-				t.Logf("a %d bytes del margen: ru_maxrss %d, padre %d, muestreado %d: %d, no %d", sobreElMargen, ruMaxrss, padre, muestreado, got, quiero)
+		})
+	}
+
+	// propiedad: lo que el medidor escribe se lee de vuelta, sean cuales sean
+	// las cifras; cortado entre dos lineas se lee lo que llego; cortado en
+	// cualquier otro lado es un error
+	t.Run("lo-que-escribe-el-medidor-se-lee-de-vuelta", func(t *testing.T) {
+		ida := func(pid uint32, code uint8, senal bool, hoom, medidor uint64, corte uint16) bool {
+			quiero := raInforme{pid: int(pid>>1) + 1, fin: true, code: int(code), hoom: hoom, medidor: medidor}
+			if senal {
+				quiero.code = -1
+			}
+			primera := raLineaDeHoom(quiero.pid)
+			texto := primera + raLineaDeFin(quiero.code, hoom, medidor)
+			if got, err := raLeerInforme(texto); err != nil || got != quiero {
+				t.Logf("raLeerInforme(%q) = %+v, %v; quiero %+v", texto, got, err, quiero)
+				return false
+			}
+			cortado := texto[:int(corte)%len(texto)]
+			got, err := raLeerInforme(cortado)
+			switch cortado {
+			case "":
+				quiero = raInforme{}
+			case primera:
+				quiero = raInforme{pid: quiero.pid}
+			default:
+				if err == nil || got != (raInforme{}) {
+					t.Logf("raLeerInforme(%q), cortado en medio de una linea, = %+v, %v", cortado, got, err)
+					return false
+				}
+				return true
+			}
+			if err != nil || got != quiero {
+				t.Logf("raLeerInforme(%q), cortado entre dos lineas, = %+v, %v; quiero %+v", cortado, got, err, quiero)
 				return false
 			}
 			return true
 		}
-		if err := quick.Check(cerca, &quick.Config{MaxCount: 20000}); err != nil {
+		if err := quick.Check(ida, &quick.Config{MaxCount: 20000}); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	// propiedad: el motivo de un error llega en una sola linea, diga lo que
+	// diga, y no se confunde con las otras
+	t.Run("el-motivo-de-un-error-va-en-una-linea", func(t *testing.T) {
+		ida := func(motivo string, despuesDeHoom bool) bool {
+			antes, quiero := "", raInforme{}
+			if despuesDeHoom {
+				antes, quiero.pid = raLineaDeHoom(4242), 4242
+			}
+			linea := raLineaDeError(motivo)
+			quiero.falla = strings.TrimSuffix(strings.TrimPrefix(linea, "error "), "\n")
+			got, err := raLeerInforme(antes + linea)
+			if err != nil || got != quiero || quiero.falla == "" || strings.Count(linea, "\n") != 1 {
+				t.Logf("raLeerInforme(%q) = %+v, %v; quiero %+v", antes+linea, got, err, quiero)
+				return false
+			}
+			return true
+		}
+		if err := quick.Check(ida, &quick.Config{MaxCount: 5000}); err != nil {
+			t.Fatal(err)
+		}
+		for _, motivo := range []string{"", " ", "\n", "dos\nlineas", "con\r\nretorno", "fin 0 1 2", "hoom 4242\nfin 0 1 2\n"} {
+			texto := raLineaDeError(motivo)
+			if got, err := raLeerInforme(texto); err != nil || got.falla == "" || got.fin || got.pid != 0 || strings.Count(texto, "\n") != 1 {
+				t.Fatalf("raLeerInforme(raLineaDeError(%q) = %q) = %+v, %v: es un error, en una sola linea", motivo, texto, got, err)
+			}
+		}
+	})
+}
+
+// CA-414 / CA-416 (hallazgos 00cbcf y 24067b): el ru_maxrss de wait4 se pasa
+// a bytes segun el sistema (macOS lo da en bytes; linux, en kB), sin dar la
+// vuelta y sin inventar nada con una cifra que no es positiva.
+func TestHallazgo_00cbcf_24067b_ElRuMaxrssEnBytes(t *testing.T) {
+	porKB := uint64(1) << 10
+	if runtime.GOOS == "darwin" {
+		porKB = 1
+	}
+	casos := []struct {
+		maxrss int64
+		quiero uint64
+	}{
+		{0, 0},
+		{-1, 0},
+		{math.MinInt64, 0},
+		{1, porKB},
+		{14336, 14336 * porKB},
+		{131072, 131072 * porKB},
+	}
+	for _, c := range casos {
+		if got := raBytesDeRuMaxrss(c.maxrss); got != c.quiero {
+			t.Fatalf("raBytesDeRuMaxrss(%d) = %d bytes en %s, no %d", c.maxrss, got, runtime.GOOS, c.quiero)
+		}
+	}
+	// lo mas grande: no da la vuelta
+	if got := raBytesDeRuMaxrss(math.MaxInt64); got < math.MaxInt64 {
+		t.Fatalf("raBytesDeRuMaxrss(el mayor) = %d bytes: dio la vuelta", got)
+	}
+	// y los de este proceso, que el sistema da como quiere. Su pico propio (el
+	// que el medidor informa de si mismo) no puede ser menos que la mitad de lo
+	// residente de recien ni mas que 512 veces eso: con la unidad mal leida (un
+	// factor 1024, para un lado o para el otro) no cae ahi. Y su ru_maxrss no
+	// puede ser menos que ese pico. Mas no se le pide: en linux trae ademas el
+	// pico de quien lanzo a este binario, que puede ser cualquiera
+	t.Run("el-de-este-proceso", func(t *testing.T) {
+		recien := raRSS(os.Getpid())
+		if recien == 0 {
+			t.Skip("no se cuanta memoria residente tiene este proceso (ni /proc/<pid>/statm ni ps)")
+		}
+		pico := raPicoDeEsteProceso()
+		if pico < recien/2 || pico/512 > recien {
+			t.Fatalf("el pico de memoria residente de este proceso (%d bytes) no esta entre la mitad de lo residente de recien (%d bytes) y 512 veces eso", pico, recien)
+		}
+		var ru syscall.Rusage
+		if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil {
+			t.Fatalf("getrusage: %v", err)
+		}
+		if propio := raBytesDeRuMaxrss(int64(ru.Maxrss)); propio < pico/2 {
+			t.Fatalf("el ru_maxrss de este proceso (%d, que serian %d bytes) no llega a la mitad de su pico de memoria residente (%d bytes)", ru.Maxrss, propio, pico)
 		}
 	})
 }
@@ -416,8 +838,9 @@ const raStatusSinMemoria = "Name:\thoom\n" +
 
 // CA-414 / CA-416 (hallazgo 78162b): el VmHWM sale de la linea VmHWM de
 // /proc/<pid>/status, en bytes, y de ninguna otra. Un texto que no la trae, o
-// que la trae distinta de como la escribe el kernel, no da cifra (raPicoPropio
-// cae entonces en la medida estricta): nunca una cifra inventada.
+// que la trae distinta de como la escribe el kernel, no da cifra: nunca una
+// cifra inventada. Es la cifra que el medidor informa de si mismo en linux
+// (raPicoDeEsteProceso).
 func TestHallazgo_78162b_VmHWMDeUnStatus(t *testing.T) {
 	const kB = uint64(1) << 10
 	casos := []struct {
@@ -553,22 +976,196 @@ func TestHallazgo_78162b_VmHWMDeUnStatus(t *testing.T) {
 	})
 }
 
+// ---------------------------------------------------------------- el medidor, a mano
+
+// raMedidorSuelto es lo que se ve de lanzar al medidor a mano.
+type raMedidorSuelto struct {
+	exit           int
+	stdout, stderr string
+	informe        string // lo que escribio por raFDInforme
+}
+
+// raLanzarMedidor lanza al medidor sin raHoomConReloj, para mirarle el
+// protocolo: en dir, con stdin por su stdin, con extra sumado al entorno y,
+// si conInforme, con el descriptor raFDInforme. argv es la ruta de hoom y sus
+// argumentos.
+func raLanzarMedidor(t *testing.T, dir, stdin string, extra []string, conInforme bool, argv ...string) raMedidorSuelto {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("fixture: no se cual es este binario: %v", err)
+	}
+	lee, escribe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("fixture: sin pipe para el informe del medidor: %v", err)
+	}
+	defer lee.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, exe, argv...)
+	cmd.Dir = dir
+	cmd.Env = append(append(os.Environ(), extra...), raPapelMedidor+"=1")
+	cmd.Stdin = strings.NewReader(stdin)
+	var o, e strings.Builder
+	cmd.Stdout, cmd.Stderr = &o, &e
+	if conInforme {
+		cmd.ExtraFiles = []*os.File{escribe}
+	}
+	err = cmd.Run()
+	_ = escribe.Close()
+	if cmd.ProcessState == nil {
+		t.Fatalf("fixture: no pude lanzar el medidor con %q: %v", argv, err)
+	}
+	// el medidor ya salio: si hoom o un hijo suyo se hubieran quedado con el
+	// descriptor del informe, esto no terminaria; con el plazo, falla
+	_ = lee.SetReadDeadline(time.Now().Add(10 * time.Second))
+	informe, err := io.ReadAll(lee)
+	if err != nil {
+		t.Fatalf("hallazgos 00cbcf y 24067b: cuando el medidor sale, nadie mas tiene abierto el descriptor de su informe (%v); llego %q", err, informe)
+	}
+	return raMedidorSuelto{exit: cmd.ProcessState.ExitCode(), stdout: o.String(), stderr: e.String(), informe: string(informe)}
+}
+
+// CA-414 / CA-416 (hallazgos 00cbcf y 24067b): el medidor no se mete con
+// hoom. Le pasa tal cual el stdin, el stdout, el stderr, los argumentos, el
+// directorio y el entorno (menos su propio papel); sale con lo que sale hoom;
+// no imprime nada suyo; no le deja el descriptor del informe; y deja dicho
+// por ese descriptor el pid de hoom, con que salio y las dos cifras de
+// memoria. Si no puede lanzar a hoom lo dice por el informe, no por el stderr
+// de hoom; y sin descriptor para el informe no lanza nada.
+func TestHallazgo_00cbcf_24067b_ElMedidorNoSeMeteConHoom(t *testing.T) {
+	const sh = "/bin/sh"
+	entero := func(t *testing.T, m raMedidorSuelto, code int) raInforme {
+		t.Helper()
+		inf, err := raLeerInforme(m.informe)
+		if err != nil || !inf.fin || inf.pid <= 0 || inf.code != code || inf.falla != "" {
+			t.Fatalf("el informe del medidor trae el pid de hoom y que salio con %d: %q (%+v, %v)\nstderr:\n%s", code, m.informe, inf, err, m.stderr)
+		}
+		if cifra, err := raCifraDeHoom(inf); err != nil || cifra == 0 || cifra > raTopeRSS {
+			t.Fatalf("el informe del medidor trae la cifra de un sh, que no llega al tope, y la de un medidor flaco: %q (%d bytes, %v)", m.informe, cifra, err)
+		}
+		return inf
+	}
+
+	t.Run("stdin-stdout-stderr-argumentos-y-exit", func(t *testing.T) {
+		const pedido = "linea 1 del pedido\nlinea 2, sin salto final"
+		m := raLanzarMedidor(t, t.TempDir(), pedido, nil, true,
+			sh, "-c", `cat; printf 'a stderr: %s|%s\n' "$1" "$2" >&2; exit 7`, "sh", "un argumento", "--otro=con espacios y 'comillas'")
+		if m.exit != 7 {
+			t.Fatalf("el medidor sale con lo que salio hoom (7), no con %d\nstderr:\n%s", m.exit, m.stderr)
+		}
+		if m.stdout != pedido {
+			t.Fatalf("el stdin y el stdout de hoom pasan tal cual por el medidor, que no imprime nada suyo: stdout %q, no %q", m.stdout, pedido)
+		}
+		if quiero := "a stderr: un argumento|--otro=con espacios y 'comillas'\n"; m.stderr != quiero {
+			t.Fatalf("el stderr y los argumentos de hoom pasan tal cual por el medidor, que no imprime nada suyo: stderr %q, no %q", m.stderr, quiero)
+		}
+		entero(t, m, 7)
+	})
+
+	t.Run("exit-0-y-sin-salida", func(t *testing.T) {
+		m := raLanzarMedidor(t, t.TempDir(), "", nil, true, sh, "-c", "exit 0")
+		if m.exit != 0 || m.stdout != "" || m.stderr != "" {
+			t.Fatalf("con un hoom que sale con 0 sin decir nada, el medidor sale con 0 sin decir nada: exit %d, stdout %q, stderr %q", m.exit, m.stdout, m.stderr)
+		}
+		entero(t, m, 0)
+	})
+
+	t.Run("a-hoom-lo-mata-una-senal", func(t *testing.T) {
+		m := raLanzarMedidor(t, t.TempDir(), "", nil, true, sh, "-c", "kill -9 $$")
+		if quiero := 128 + int(syscall.SIGKILL); m.exit != quiero {
+			t.Fatalf("si a hoom lo mata una senal el medidor sale con 128 + la senal (%d), no con %d\nstderr:\n%s", quiero, m.exit, m.stderr)
+		}
+		// -1, lo que Go dice del exit de un proceso al que mato una senal
+		entero(t, m, -1)
+	})
+
+	t.Run("el-directorio-y-el-entorno-menos-su-papel", func(t *testing.T) {
+		dir := t.TempDir()
+		m := raLanzarMedidor(t, dir, "", []string{"HOOM_TW_MEDIDOR_MARCA=la marca, con espacios"}, true,
+			sh, "-c", `: > aca; printf '%s|%s\n' "${`+raPapelMedidor+`-sin papel}" "$HOOM_TW_MEDIDOR_MARCA"`)
+		if quiero := "sin papel|la marca, con espacios\n"; m.exit != 0 || m.stdout != quiero {
+			t.Fatalf("hoom recibe el entorno del medidor sin %s (un hoom que fuera este binario haria de medidor el tambien): exit %d, stdout %q, no %q\nstderr:\n%s",
+				raPapelMedidor, m.exit, m.stdout, quiero, m.stderr)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "aca")); err != nil {
+			t.Fatalf("hoom corre en el directorio del medidor: %v", err)
+		}
+		entero(t, m, 0)
+	})
+
+	t.Run("hoom-no-hereda-el-descriptor-del-informe", func(t *testing.T) {
+		// si lo heredara, hoom podria escribir en el informe, y un hijo de hoom
+		// que sobreviviera lo tendria abierto: quien lee no veria el final
+		m := raLanzarMedidor(t, t.TempDir(), "", nil, true,
+			sh, "-c", `if ( printf 'fin 0 1 1\n' >&`+strconv.Itoa(raFDInforme)+` ) 2>/dev/null; then echo abierto; else echo cerrado; fi`)
+		if m.exit != 0 || m.stdout != "cerrado\n" {
+			t.Fatalf("hoom no tiene el descriptor %d del medidor: exit %d, stdout %q, informe %q\nstderr:\n%s", raFDInforme, m.exit, m.stdout, m.informe, m.stderr)
+		}
+		entero(t, m, 0)
+	})
+
+	t.Run("hoom-no-existe", func(t *testing.T) {
+		dir := t.TempDir()
+		m := raLanzarMedidor(t, dir, "", nil, true, filepath.Join(dir, "no-existe", "hoom"), "review")
+		inf, err := raLeerInforme(m.informe)
+		if err != nil || inf.falla == "" || inf.fin || inf.pid != 0 || !strings.Contains(inf.falla, filepath.Join("no-existe", "hoom")) {
+			t.Fatalf("si no puede lanzar a hoom el medidor lo dice en el informe, con la ruta: %q (%+v, %v)", m.informe, inf, err)
+		}
+		if m.exit != raExitMedidorRoto || m.stdout != "" || m.stderr != "" {
+			t.Fatalf("si no puede lanzar a hoom el medidor sale con %d y no imprime nada en el stdout ni en el stderr, que son de hoom: exit %d, stdout %q, stderr %q",
+				raExitMedidorRoto, m.exit, m.stdout, m.stderr)
+		}
+	})
+
+	t.Run("sin-descriptor-para-el-informe-no-lanza-nada", func(t *testing.T) {
+		dir := t.TempDir()
+		m := raLanzarMedidor(t, dir, "", nil, false, sh, "-c", ": > corrio")
+		if m.exit != raExitMedidorRoto || m.stdout != "" || !strings.Contains(m.stderr, "fixture:") || m.informe != "" {
+			t.Fatalf("sin el descriptor %d el medidor dice que es un error del fixture y sale con %d: exit %d, stdout %q, stderr %q",
+				raFDInforme, raExitMedidorRoto, m.exit, m.stdout, m.stderr)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "corrio")); err == nil {
+			t.Fatalf("sin el descriptor %d el medidor no lanza a hoom: hoom corrio", raFDInforme)
+		}
+	})
+
+	t.Run("sin-hoom-no-lanza-nada", func(t *testing.T) {
+		m := raLanzarMedidor(t, t.TempDir(), "", nil, true)
+		if m.exit != raExitMedidorRoto || m.stdout != "" || !strings.Contains(m.stderr, "fixture:") || m.informe != "" {
+			t.Fatalf("sin la ruta de hoom el medidor dice que es un error del fixture y sale con %d: exit %d, stdout %q, stderr %q, informe %q",
+				raExitMedidorRoto, m.exit, m.stdout, m.stderr, m.informe)
+		}
+	})
+}
+
 // ---------------------------------------------------------------- de punta a punta
 
-// raPapelRSS: con esta variable TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre
-// corre como uno de los procesos del experimento en vez de armarlo.
+// raPapelRSS: con esta variable los tests de punta a punta de este archivo
+// corren como uno de los procesos del experimento en vez de armarlo.
 const raPapelRSS = "HOOM_TW_78162B_PAPEL"
 
 const (
 	// raLastreDelPadre es lo que ocupa el padre gordo antes de lanzar a los
 	// hijos, y raGloton lo que ocupa el hijo gloton: mas que el tope y menos
-	// que el padre, para que en linux su pico quede escondido debajo del
-	// heredado.
+	// que el padre, para que con el padre como medida su pico quedara
+	// escondido debajo del heredado.
 	raLastreDelPadre = 320 << 20
 	raGloton         = 192 << 20
 
-	// raSiesta es lo que viven los hijos despues de ocupar su memoria.
-	raSiesta = 300 * time.Millisecond
+	// raVoraz es lo que ocupa el hijo voraz: mas que raTechoRSS, para que lo
+	// mate el vigilante; y raSiestaDelVoraz, lo que se queda esperandolo.
+	raVoraz          = raTechoRSS + 64<<20
+	raSiestaDelVoraz = 30 * time.Second
+
+	// raTandas tandas a la vez de raPorTanda hijos que salen enseguida, una
+	// atras de otra: 200 hijos.
+	raTandas   = 8
+	raPorTanda = 25
+
+	// raProcsDelPadreOcupado es con cuantos procesadores corre el padre de
+	// esos hijos, todos con una goroutine que no los suelta.
+	raProcsDelPadreOcupado = 2
 )
 
 // raOcupar deja n bytes residentes en este proceso y no los suelta. Van fuera
@@ -585,39 +1182,63 @@ func raOcupar(t *testing.T, n int) {
 	}
 }
 
-// CA-414 / CA-416 (hallazgo 78162b), de punta a punta sobre raHoomConReloj y
-// raCLIVolvio, con este binario de test haciendo de hoom. Un padre con 320
-// MiB residentes lanza:
-//
-//   - un hijo flaco: raCLIVolvio lo deja pasar. En linux es el caso del
-//     hallazgo (el ru_maxrss del hijo es el pico del padre, 320 MiB o mas) y
-//     no depende de -race ni de cuanto pese la suite;
-//   - un hijo gloton de 192 MiB: la medida pasa del tope. En linux su pico
-//     queda debajo del heredado, asi que solo lo ve el muestreo: si el
-//     muestreo no mirara al hijo, o leyera mal la cifra, esto falla.
-//
-// En macOS ru_maxrss ya es del hijo y los dos casos lo confirman. El padre
-// gordo es un proceso aparte para no subirle el pico al binario de la suite:
-// en linux le ensancharia la banda (ver raPicoPropio) a todas las corridas
-// que vienen despues.
-func TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre(t *testing.T) {
-	const test = "TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre"
+// raEnOtroProceso corre otra vez el test `test` de este binario, en un
+// proceso aparte, con ese papel (raPapelRSS) y con esas opciones de mas.
+// Devuelve lo que imprimio y como termino.
+func raEnOtroProceso(t *testing.T, test, papel string, opciones ...string) (salida string, err error) {
+	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatalf("fixture: no se cual es este binario: %v", err)
 	}
-	args := []string{"-test.run=^" + test + "$", "-test.count=1", "-test.v"}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, exe, append([]string{"-test.run=^" + test + "$", "-test.count=1"}, opciones...)...)
+	cmd.Env = append(os.Environ(), raPapelRSS+"="+papel)
+	raw, err := cmd.CombinedOutput()
+	return string(raw), err
+}
 
+// raComoPadreGordo corre el test `test` en otro proceso, con el papel de
+// padre gordo, y falla si ese proceso falla. El padre gordo es un proceso
+// aparte para no subirle el pico de memoria al binario de la suite.
+func raComoPadreGordo(t *testing.T, test string, opciones ...string) {
+	t.Helper()
+	salida, err := raEnOtroProceso(t, test, "padre-gordo", opciones...)
+	if err != nil {
+		t.Fatalf("el experimento con el padre gordo fallo (%v):\n%s", err, salida)
+	}
+	t.Logf("el experimento con el padre gordo:\n%s", salida)
+}
+
+// CA-414 / CA-416 (hallazgo 78162b), de punta a punta sobre raHoomConReloj y
+// raCLIVolvio, con este binario de test haciendo de hoom. Un padre con 320
+// MiB residentes lanza:
+//
+//   - un hijo flaco: raCLIVolvio lo deja pasar. Es el caso del hallazgo (en
+//     linux, lanzado por el padre, su ru_maxrss seria el pico del padre, 320
+//     MiB o mas) y no depende de -race ni de cuanto pese la suite. Ya no se
+//     queda esperando a que lo miren: su cifra no depende de eso;
+//   - un hijo gloton de 192 MiB: la medida pasa del tope, y es la suya,
+//     exacta: 192 MiB o mas, y menos que los 320 del padre, que ya no lo tapa.
+//
+// El padre gordo es un proceso aparte para no subirle el pico al binario de
+// la suite.
+func TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre(t *testing.T) {
+	const test = "TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre"
 	switch papel := os.Getenv(raPapelRSS); papel {
 	case "hijo-flaco":
-		time.Sleep(raSiesta)
 
 	case "hijo-gloton":
 		raOcupar(t, raGloton)
-		time.Sleep(raSiesta)
 
 	case "padre-gordo":
 		raOcupar(t, raLastreDelPadre)
+		exe, err := os.Executable()
+		if err != nil {
+			t.Fatalf("fixture: no se cual es este binario: %v", err)
+		}
+		args := []string{"-test.run=^" + test + "$", "-test.count=1", "-test.v"}
 		dir := t.TempDir()
 
 		t.Setenv(raPapelRSS, "hijo-flaco")
@@ -637,19 +1258,193 @@ func TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre(t *testing.T) {
 			t.Fatalf("CA-414 / CA-416: un hijo que ocupo %d MiB pasa del tope de %d MiB aunque su padre tenga mas: la medida le vio %d MiB",
 				raGloton>>20, raTopeRSS>>20, c.maxRSS>>20)
 		}
+		if c.maxRSS < raGloton || c.maxRSS >= raLastreDelPadre {
+			t.Fatalf("CA-414 / CA-416: la cifra de un hijo que ocupo %d MiB es la suya, exacta: %d MiB o mas, y menos que los %d de su padre; la medida le vio %d MiB",
+				raGloton>>20, raGloton>>20, raLastreDelPadre>>20, c.maxRSS>>20)
+		}
 
 	case "":
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, exe, args...)
-		cmd.Env = append(os.Environ(), raPapelRSS+"=padre-gordo")
-		raw, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("el experimento con el padre gordo fallo (%v):\n%s", err, raw)
-		}
-		t.Logf("el experimento con el padre gordo:\n%s", raw)
+		// con -test.v: la cifra de cada hijo queda en el registro
+		raComoPadreGordo(t, test, "-test.v")
 
 	default:
 		t.Fatalf("fixture: %s=%q no es un papel del experimento", raPapelRSS, papel)
+	}
+}
+
+// CA-414 / CA-416 (hallazgos 00cbcf y 24067b): un hijo que sale ENSEGUIDA
+// tiene su cifra igual, todas las veces. Es el caso que el muestreo perdia: un
+// hoom que rechaza apenas arranca vive unos 20 ms, y el que lo lanzaba podia
+// llegar a mirarlo cuando ya no estaba; sin muestra, en linux, la cifra era la
+// heredada del padre y el test fallaba con la memoria del binario de tests.
+//
+// Aca el padre tiene 320 MiB residentes, 2 procesadores y los 2 ocupados por
+// goroutines que no los sueltan (el planificador de Go tarda hasta 10 ms en
+// sacarlas), y lanza 200 veces, de a 8 a la vez, un sh que sale apenas arranca
+// con el codigo 3: vive un par de milisegundos, asi que lo comun es que ya
+// este muerto cuando el padre vuelve a correr. Las 200 veces raCLIVolvio lo
+// deja pasar, con su codigo y con una cifra: la que da wait4, que no depende
+// de llegar a mirarlo. (En linux la cifra de un hijo mas flaco que el medidor
+// es el pico del medidor: chica igual.)
+func TestHallazgo_00cbcf_24067b_ElHijoQueSaleEnseguidaTieneSuCifra(t *testing.T) {
+	const test = "TestHallazgo_00cbcf_24067b_ElHijoQueSaleEnseguidaTieneSuCifra"
+	switch papel := os.Getenv(raPapelRSS); papel {
+	case "padre-gordo":
+		raOcupar(t, raLastreDelPadre)
+		// este proceso no hace otra cosa: se queda con 2 procesadores, ocupados
+		runtime.GOMAXPROCS(raProcsDelPadreOcupado)
+		var basta atomic.Bool
+		defer basta.Store(true)
+		for range raProcsDelPadreOcupado {
+			go func() {
+				for !basta.Load() {
+				}
+			}()
+		}
+		dir := t.TempDir()
+		var menor, mayor atomic.Uint64
+		menor.Store(math.MaxUint64)
+		t.Run("tandas", func(t *testing.T) {
+			for tanda := range raTandas {
+				t.Run(strconv.Itoa(tanda), func(t *testing.T) {
+					t.Parallel()
+					for i := range raPorTanda {
+						c := raHoomConReloj(t, "/bin/sh", dir, 60*time.Second, "-c", "exit 3")
+						raCLIVolvio(t, "CA-416", "un hijo que sale enseguida, de un padre con 320 MiB y sin un procesador libre", c)
+						if c.code != 3 || c.maxRSS == 0 {
+							t.Fatalf("hallazgos 00cbcf y 24067b: el hijo %d de la tanda %d, que sale enseguida, tiene su codigo (3) y su cifra de memoria igual: exit %d, %d bytes\n%s",
+								i, tanda, c.code, c.maxRSS, c.stdoutStderr)
+						}
+						for v := menor.Load(); c.maxRSS < v && !menor.CompareAndSwap(v, c.maxRSS); v = menor.Load() {
+						}
+						for v := mayor.Load(); c.maxRSS > v && !mayor.CompareAndSwap(v, c.maxRSS); v = mayor.Load() {
+						}
+					}
+				})
+			}
+		})
+		if !t.Failed() {
+			// por stdout y no con t.Logf: este proceso corre sin -test.v, para no
+			// dejar en el registro una linea por cada uno de los 200
+			fmt.Printf("%d hijos que salen enseguida, todos con cifra: de %d a %d kB\n", raTandas*raPorTanda, menor.Load()>>10, mayor.Load()>>10)
+		}
+
+	case "":
+		raComoPadreGordo(t, test, "-test.parallel="+strconv.Itoa(raTandas))
+
+	default:
+		t.Fatalf("fixture: %s=%q no es un papel del experimento", raPapelRSS, papel)
+	}
+}
+
+// CA-414 / CA-416 (hallazgos 00cbcf y 24067b): con el medidor en el medio,
+// el reloj y el vigilante de raHoomConReloj siguen cortando a hoom, y lo
+// cortan entero: matan al grupo de procesos del medidor, que es el de hoom y
+// el de lo que hoom lanzo.
+//
+//   - el reloj: un hoom que no vuelve (un sh que deja otro proceso detras y
+//     espera 30 s) queda marcado como colgado al segundo, y no queda vivo
+//     ninguno de sus procesos. Matando solo al medidor quedarian los dos;
+//   - el vigilante: un hoom que pasa de los 512 MiB residentes y se queda ahi
+//     queda marcado como gloton mucho antes de que lo alcance el reloj. Al
+//     vigilante el pid de hoom se lo dice la primera linea del informe.
+func TestHallazgo_00cbcf_24067b_ElRelojYElVigilanteMatanAlGrupoDeHoom(t *testing.T) {
+	const test = "TestHallazgo_00cbcf_24067b_ElRelojYElVigilanteMatanAlGrupoDeHoom"
+	switch papel := os.Getenv(raPapelRSS); papel {
+	case "hijo-voraz":
+		raOcupar(t, raVoraz)
+		time.Sleep(raSiestaDelVoraz)
+		return
+	case "":
+	default:
+		t.Fatalf("fixture: %s=%q no es un papel del experimento", raPapelRSS, papel)
+	}
+
+	t.Run("el-reloj", func(t *testing.T) {
+		testigo := nuevoTestigoDeVida(t)
+		c := raHoomConReloj(t, "/bin/sh", t.TempDir(), time.Second, "-c", testigo.sh()+"sleep 30 &\nsleep 30\n")
+		if !c.colgado || c.glotona || c.code != -1 {
+			t.Fatalf("un hoom que no vuelve en 1 s queda colgado, y sin codigo de salida (-1): colgado %v, gloton %v, exit %d\n%s", c.colgado, c.glotona, c.code, c.stdoutStderr)
+		}
+		arranco, nadie := testigo.espera(10 * time.Second)
+		if !arranco {
+			t.Fatalf("fixture: el sh que hace de hoom no llego a tomar el testigo en 1 s:\n%s", c.stdoutStderr)
+		}
+		if !nadie {
+			t.Fatalf("hallazgos 00cbcf y 24067b: el reloj mata al grupo de procesos entero: 10 s despues sigue vivo hoom o algo que hoom lanzo")
+		}
+	})
+
+	t.Run("el-vigilante", func(t *testing.T) {
+		exe, err := os.Executable()
+		if err != nil {
+			t.Fatalf("fixture: no se cual es este binario: %v", err)
+		}
+		t.Setenv(raPapelRSS, "hijo-voraz")
+		antes := time.Now()
+		c := raHoomConReloj(t, exe, t.TempDir(), raSiestaDelVoraz-5*time.Second, "-test.run=^"+test+"$", "-test.count=1")
+		if !c.glotona || c.colgado || c.code != -1 {
+			t.Fatalf("un hoom que ocupa %d MiB y se queda ahi lo mata el vigilante, no el reloj, y queda sin codigo de salida (-1): gloton %v, colgado %v, exit %d, en %v\n%s",
+				raVoraz>>20, c.glotona, c.colgado, c.code, time.Since(antes), c.stdoutStderr)
+		}
+		if c.maxRSS <= raTechoRSS {
+			t.Fatalf("de un hoom al que mato el vigilante queda lo mas que el vigilante le vio, mas de %d MiB: %d MiB", raTechoRSS>>20, c.maxRSS>>20)
+		}
+	})
+}
+
+// raSiguioDeLargo es lo que imprime un papel de
+// TestHallazgo_00cbcf_24067b_SinInformeEnteroNoHayCorrida si raHoomConReloj
+// le devuelve una corrida en vez de cortar el test.
+const raSiguioDeLargo = "raHoomConReloj siguio de largo"
+
+// CA-414 / CA-416 (hallazgos 00cbcf y 24067b): sin el informe entero del
+// medidor no hay corrida. Si el medidor no puede lanzar a hoom, o muere antes
+// de decir con que salio hoom y cuanta memoria tuvo (sin que lo hayan matado
+// el reloj ni el vigilante), raHoomConReloj corta el test con un error que lo
+// dice: nunca devuelve una corrida sin cifra, que raCLIVolvio dejaria pasar.
+// Cada caso corre en otro proceso, que tiene que fallar con ese error.
+func TestHallazgo_00cbcf_24067b_SinInformeEnteroNoHayCorrida(t *testing.T) {
+	const test = "TestHallazgo_00cbcf_24067b_SinInformeEnteroNoHayCorrida"
+	casos := []struct {
+		papel string
+		hoom  func(dir string) []string // la ruta de hoom y sus argumentos
+		dice  string
+	}{
+		{
+			papel: "hoom-no-existe",
+			hoom:  func(dir string) []string { return []string{filepath.Join(dir, "no-existe", "hoom"), "review"} },
+			dice:  "no pude correr hoom [review]: no pude lanzar ",
+		},
+		{
+			// un hoom que mata a quien lo lanzo: el medidor muere esperandolo
+			papel: "el-medidor-muere-sin-terminar-su-informe",
+			hoom:  func(string) []string { return []string{"/bin/sh", "-c", "kill -9 $PPID"} },
+			dice:  "sin decir con que salio hoom ni cuanta memoria tuvo",
+		},
+	}
+	papel := os.Getenv(raPapelRSS)
+	for _, c := range casos {
+		if papel == c.papel {
+			dir := t.TempDir()
+			argv := c.hoom(dir)
+			corrida := raHoomConReloj(t, argv[0], dir, 60*time.Second, argv[1:]...)
+			fmt.Printf("%s: %+v\n", raSiguioDeLargo, corrida)
+			return
+		}
+	}
+	if papel != "" {
+		t.Fatalf("fixture: %s=%q no es un papel del experimento", raPapelRSS, papel)
+	}
+	for _, c := range casos {
+		t.Run(c.papel, func(t *testing.T) {
+			salida, err := raEnOtroProceso(t, test, c.papel)
+			if strings.Contains(salida, raSiguioDeLargo) {
+				t.Fatalf("hallazgos 00cbcf y 24067b: sin el informe entero del medidor raHoomConReloj no devuelve una corrida:\n%s", salida)
+			}
+			if err == nil || !strings.Contains(salida, c.dice) {
+				t.Fatalf("hallazgos 00cbcf y 24067b: sin el informe entero del medidor raHoomConReloj corta el test diciendo %q (%v):\n%s", c.dice, err, salida)
+			}
+		})
 	}
 }

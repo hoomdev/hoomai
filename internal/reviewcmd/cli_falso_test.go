@@ -1,6 +1,9 @@
 // El fixture unico de los CLIs de IA falsos de este paquete, y sus pruebas
-// (hallazgo 20261005T155443_dd5118, reliability; y los de su review:
-// 20261005T182810_eb7cde, 20261005T183300_d88b8d y 20261005T183447_b56921).
+// (hallazgo 20261005T155443_dd5118, reliability; los de su review:
+// 20261005T182810_eb7cde, 20261005T183300_d88b8d y 20261005T183447_b56921; y
+// los de la review siguiente: 20261006T184223_d0064a, matar a un falso es
+// matar a su grupo de procesos, y 20261006T184910_323d51, cliFalso no depende
+// del test que lo llama).
 //
 // `hoom review` le manda el pedido al reviewer por STDIN (CA-418, enmienda 4
 // de review-aislada-y-modelo-elegido), y un provider que sale sin que el
@@ -82,8 +85,8 @@ const (
 // No mira el cuerpo: no hay forma que rechazar. (Antes el drenaje era un trap
 // en el shell del cuerpo y una expresion regular rechazaba los cuerpos que lo
 // perdian; dejaba pasar los diez primeros de cliFalsoFormasHostiles:
-// hallazgos eb7cde y d88b8d.) Por eso su primer parametro ya no se usa: queda
-// porque asi lo llaman los tres instaladores.
+// hallazgos eb7cde y d88b8d.) Es una transformacion pura del cuerpo: no
+// depende del test que la llama (hallazgo 323d51).
 //
 // Lo que NO cierra (lo muestra TestHallazgo_dd5118_LoQueElCLIFalsoNoCierra):
 //   - que el cuerpo mate al shell del script (`kill -9 $$`; en el subshell
@@ -102,10 +105,18 @@ const (
 //     Un test con un provider colgado al que hoom mata tiene que contar con
 //     eso.
 //
+// Por eso MATAR A UN CLI FALSO ES MATAR A SU GRUPO DE PROCESOS (hallazgo
+// d0064a): quien lo lanza lo pone en un grupo propio y, si tiene que cortarlo,
+// le manda la senal al grupo, que se lleva al shell del script, al subshell
+// del cuerpo y a lo que el cuerpo haya lanzado. Asi corren los falsos los
+// tests de este archivo (cliFalsoShell.comando) y asi los corta su reloj
+// (cliFalsoMatar). Matar solo al proceso deja al cuerpo corriendo, con los
+// pipes del falso abiertos y haciendo lo suyo despues de que el test termino.
+//
 // Un test que necesite un provider que NO lee su stdin (para probar ese
 // error) no lo arma con cliFalso: escribe su script a mano, con un nombre y
 // un comentario que lo digan, y lo suma a cliFalsoOtrosScripts.
-func cliFalso(_ testing.TB, cuerpo string) []byte {
+func cliFalso(cuerpo string) []byte {
 	return []byte(cliFalsoAntes + cuerpo + cliFalsoDespues)
 }
 
@@ -176,12 +187,94 @@ func cliFalsoShells(t *testing.T) []cliFalsoShell {
 	return shells
 }
 
-// comando arma la invocacion del script de ruta con este shell.
+// comando arma la invocacion del script de ruta con este shell, en un grupo
+// de procesos propio: al falso se lo corta con cliFalsoMatar.
 func (s cliFalsoShell) comando(ruta string, args ...string) *exec.Cmd {
-	if s.interprete == "" {
-		return exec.Command(ruta, args...)
+	cmd := exec.Command(ruta, args...)
+	if s.interprete != "" {
+		cmd = exec.Command(s.interprete, append([]string{ruta}, args...)...)
 	}
-	return exec.Command(s.interprete, append([]string{ruta}, args...)...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd
+}
+
+// cliFalsoMatar corta al CLI falso de cmd, que arranco con
+// cliFalsoShell.comando: mata a su grupo de procesos entero (hallazgo d0064a).
+// El cuerpo de un falso corre en un subshell, y matando solo al proceso de cmd
+// (el shell del script) el cuerpo sigue: lo muestra
+// TestHallazgo_dd5118_LoQueElCLIFalsoNoCierra.
+//
+// El grupo lleva el pid de cmd, y ese numero sigue siendo suyo mientras nadie
+// haya esperado a cmd (Wait) o mientras quede vivo alguien del grupo. Los
+// relojes de este archivo lo llaman porque el falso no termino, y a un falso
+// que no termino nadie llego a esperarlo; el caso que lo prueba lo llama
+// despues de esperar al shell del script, con el cuerpo todavia ahi.
+func cliFalsoMatar(cmd *exec.Cmd) {
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+}
+
+// testigoDeVida le dice a un test si queda vivo alguno de los procesos que
+// lanzo, sin contar pids: es un FIFO que el test tiene abierto para leer. El
+// proceso que quiere ser visto lo abre (sh, las lineas que el proceso corre) y
+// escribe testigoListo; el descriptor lo heredan sus hijos. Mientras alguno lo
+// tenga abierto, leer del FIFO no da fin de archivo; cuando no queda ninguno,
+// lo da. Un proceso muerto no tiene descriptores, aunque nadie lo haya
+// esperado todavia.
+type testigoDeVida struct {
+	ruta  string
+	fd    int
+	dicho strings.Builder // lo que escribieron los que lo abrieron
+}
+
+// testigoListo es lo que escribe en el testigo el proceso que lo abre.
+const testigoListo = "listo\n"
+
+func nuevoTestigoDeVida(t *testing.T) *testigoDeVida {
+	t.Helper()
+	w := &testigoDeVida{ruta: filepath.Join(t.TempDir(), "testigo")}
+	if err := syscall.Mkfifo(w.ruta, 0o600); err != nil {
+		t.Fatalf("fixture: no pude crear el FIFO testigo: %v", err)
+	}
+	// sin bloquear: no hay todavia quien escriba, y se lee de a ratos
+	fd, err := syscall.Open(w.ruta, syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatalf("fixture: no pude abrir el FIFO testigo: %v", err)
+	}
+	w.fd = fd
+	t.Cleanup(func() { _ = syscall.Close(fd) })
+	return w
+}
+
+// sh son las lineas de sh con las que un proceso toma el testigo: lo deja
+// abierto en su descriptor 8 y avisa. Lo abre para leer y escribir, que no
+// espera a nadie: abierto solo para escribir, un proceso cuyo test ya murio se
+// quedaria esperando un lector para siempre.
+func (w *testigoDeVida) sh() string {
+	return "exec 8<>'" + w.ruta + "'\nprintf 'listo\\n' >&8\n"
+}
+
+// espera lee del testigo hasta que no queda ningun proceso que lo tenga
+// abierto (nadie) o hasta que pasa plazo. arranco dice si alguno llego a
+// tomarlo: sin eso, que no quede nadie no dice nada.
+func (w *testigoDeVida) espera(plazo time.Duration) (arranco, nadie bool) {
+	buf := make([]byte, 256)
+	for fin := time.Now().Add(plazo); ; {
+		n, err := syscall.Read(w.fd, buf)
+		switch {
+		case n > 0:
+			w.dicho.Write(buf[:n])
+			continue
+		case err == nil: // fin de archivo: nadie lo tiene abierto para escribir
+			return w.dicho.String() == testigoListo, true
+		case err != syscall.EAGAIN && err != syscall.EINTR:
+			return w.dicho.String() == testigoListo, false
+		}
+		// alguien lo tiene abierto y no escribio nada mas
+		if !time.Now().Before(fin) {
+			return w.dicho.String() == testigoListo, false
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
 }
 
 // cliFalsoForma es una forma de cuerpo de un CLI de IA falso, con lo que ese
@@ -311,8 +404,8 @@ func cliFalsoGuardar(t *testing.T, name string, script []byte) string {
 
 // cliFalsoCorrer corre el ejecutable de ruta como hoom corre al reviewer: por
 // su shebang, y le escribe el pedido entero por stdin y cierra. Lo corre en
-// un directorio nuevo y con reloj: si no termina en 30 s lo mata y el test
-// falla.
+// un directorio nuevo y con reloj: si no termina en 30 s lo mata, a el y a
+// todo su grupo de procesos (cliFalsoMatar), y el test falla.
 func cliFalsoCorrer(t *testing.T, ruta string, pedido []byte, args ...string) cliFalsoCorrida {
 	t.Helper()
 	return cliFalsoCorrerCon(t, cliFalsoShell{}, ruta, pedido, args...)
@@ -345,7 +438,7 @@ func cliFalsoCorrerCon(t *testing.T, sh cliFalsoShell, ruta string, pedido []byt
 	case c := <-ch:
 		return c
 	case <-time.After(30 * time.Second):
-		_ = cmd.Process.Kill()
+		cliFalsoMatar(cmd)
 		t.Fatalf("fixture: %s no termino en 30 s con el pedido por stdin", ruta)
 	}
 	return cliFalsoCorrida{}
@@ -397,7 +490,7 @@ func TestHallazgo_dd5118_ElCLIFalsoLeeTodoElPedidoEnCadaSalida(t *testing.T) {
 		for _, c := range slices.Concat(cliFalsoFormasDeSalida, cliFalsoFormasHostiles) {
 			caso := sh.nombre + ": " + c.nombre
 			t.Run(caso, func(t *testing.T) {
-				ruta := cliFalsoGuardar(t, "codex", cliFalso(t, c.cuerpo))
+				ruta := cliFalsoGuardar(t, "codex", cliFalso(c.cuerpo))
 				t.Parallel()
 				got := cliFalsoCorrerCon(t, sh, ruta, pedido)
 				cliFalsoEntero(t, caso, got, pedido)
@@ -479,7 +572,7 @@ func TestHallazgo_dd5118_ElDrenajeNoLeRobaElPedidoAlQueLoLee(t *testing.T) {
 		for _, c := range casos {
 			caso := sh.nombre + ": " + c.nombre
 			t.Run(caso, func(t *testing.T) {
-				ruta := cliFalsoGuardar(t, "codex", cliFalso(t, c.cuerpo))
+				ruta := cliFalsoGuardar(t, "codex", cliFalso(c.cuerpo))
 				t.Parallel()
 				got := cliFalsoCorrerCon(t, sh, ruta, pedido, c.args...)
 				cliFalsoEntero(t, caso, got, pedido)
@@ -575,12 +668,14 @@ func TestHallazgo_dd5118_ControlSinDrenajeElPedidoNoEntra(t *testing.T) {
 const cliFalsoEsperaConElStdinAbierto = 200 * time.Millisecond
 
 // cliFalsoCuerpoQueSigue avisa que ya corre (deja `corre`), espera a que le
-// dejen `seguir` y recien entonces deja `siguio`. Espera hasta 30 s: si el
-// test se cae antes, no queda girando.
+// dejen `seguir`, recien entonces deja `siguio`, y no sale: se queda como un
+// provider colgado, hasta que lo matan. Gira 3000 vueltas en total, unos 30
+// s: si el test se cae antes, no queda girando para siempre.
 const cliFalsoCuerpoQueSigue = ": > corre\n" +
 	"i=0\n" +
 	"while [ ! -e seguir ] && [ $i -lt 3000 ]; do sleep 0.01; i=$((i+1)); done\n" +
-	"[ -e seguir ] && : > siguio\n"
+	"[ -e seguir ] && : > siguio\n" +
+	"while [ $i -lt 3000 ]; do sleep 0.01; i=$((i+1)); done\n"
 
 // Hallazgos eb7cde y d88b8d (CA-418): lo que el comentario de cliFalso dice
 // que cliFalso NO cierra, visto. Un cuerpo que mata al shell del script o que
@@ -588,11 +683,15 @@ const cliFalsoCuerpoQueSigue = ": > corre\n" +
 // falso al que nadie le cierra el stdin no sale hasta que se lo cierran; y el
 // cuerpo de un falso al que matan desde afuera sigue corriendo. Si alguno de
 // estos casos falla, el limite se movio: hay que corregir ese comentario.
+//
+// Hallazgo d0064a: y lo que si lo corta. Al mismo cuerpo que sobrevivio a que
+// mataran a su shell, matar al GRUPO (cliFalsoMatar, lo que hacen los relojes
+// de este archivo) no le deja ni un proceso vivo.
 func TestHallazgo_dd5118_LoQueElCLIFalsoNoCierra(t *testing.T) {
 	pedido := cliFalsoPedido()
 	casos := []cliFalsoScript{
-		{nombre: "el cuerpo mata al shell del script", script: string(cliFalso(t, "kill -9 $$\n"))},
-		{nombre: "el cuerpo cierra el parentesis y reemplaza el shell del script", script: string(cliFalso(t, ")\nexec true\n(\n:\n"))},
+		{nombre: "el cuerpo mata al shell del script", script: string(cliFalso("kill -9 $$\n"))},
+		{nombre: "el cuerpo cierra el parentesis y reemplaza el shell del script", script: string(cliFalso(")\nexec true\n(\n:\n"))},
 	}
 	for _, sh := range cliFalsoShells(t) {
 		for _, c := range casos {
@@ -606,7 +705,7 @@ func TestHallazgo_dd5118_LoQueElCLIFalsoNoCierra(t *testing.T) {
 
 		caso := sh.nombre + ": nadie le cierra el stdin"
 		t.Run(caso, func(t *testing.T) {
-			ruta := cliFalsoGuardar(t, "codex", cliFalso(t, "exit 0\n"))
+			ruta := cliFalsoGuardar(t, "codex", cliFalso("exit 0\n"))
 			t.Parallel()
 			cmd := sh.comando(ruta)
 			cmd.Dir = t.TempDir()
@@ -631,21 +730,33 @@ func TestHallazgo_dd5118_LoQueElCLIFalsoNoCierra(t *testing.T) {
 					t.Fatalf("hallazgo dd5118: %s: con el stdin cerrado el CLI falso sale con el exit de su cuerpo (0): %v", caso, err)
 				}
 			case <-time.After(30 * time.Second):
-				_ = cmd.Process.Kill()
+				cliFalsoMatar(cmd)
 				t.Fatalf("fixture: %s no termino en 30 s con el stdin cerrado", ruta)
 			}
 		})
 
 		caso = sh.nombre + ": lo matan desde afuera"
 		t.Run(caso, func(t *testing.T) {
-			ruta := cliFalsoGuardar(t, "codex", cliFalso(t, cliFalsoCuerpoQueSigue))
+			// el cuerpo toma el testigo antes de avisar que corre: lo tienen el
+			// subshell y cada sleep que lanza, no el shell del script
+			testigo := nuevoTestigoDeVida(t)
+			ruta := cliFalsoGuardar(t, "codex", cliFalso(testigo.sh()+cliFalsoCuerpoQueSigue))
 			t.Parallel()
 			cmd := sh.comando(ruta)
 			cmd.Dir = t.TempDir()
 			if err := cmd.Start(); err != nil {
 				t.Fatalf("fixture: no pude correr %s: %v", ruta, err)
 			}
+			// pase lo que pase, de este falso no queda nada cuando el caso termina
+			grupoMuerto := false
+			defer func() {
+				if !grupoMuerto {
+					cliFalsoMatar(cmd)
+				}
+			}()
 			corre := cliFalsoAparece(filepath.Join(cmd.Dir, "corre"))
+			// A PROPOSITO solo al proceso del falso, que es el shell del script, y
+			// no a su grupo: es lo que este caso muestra
 			_ = cmd.Process.Kill()
 			_ = cmd.Wait()
 			if !corre {
@@ -657,6 +768,16 @@ func TestHallazgo_dd5118_LoQueElCLIFalsoNoCierra(t *testing.T) {
 			}
 			if !cliFalsoAparece(filepath.Join(cmd.Dir, "siguio")) {
 				t.Fatalf("hallazgo dd5118: %s: el cuerpo corre en un subshell y sigue cuando matan al shell del script: no dejo `siguio`", caso)
+			}
+			if arranco, nadie := testigo.espera(0); !arranco || nadie {
+				t.Fatalf("fixture: %s: el cuerpo, que sigue, tiene el testigo abierto (lo tomo %v, ya no queda nadie %v)", caso, arranco, nadie)
+			}
+
+			// el cuerpo sigue ahi, asi que el grupo sigue siendo el de cmd
+			cliFalsoMatar(cmd)
+			grupoMuerto = true
+			if _, nadie := testigo.espera(30 * time.Second); !nadie {
+				t.Fatalf("hallazgo d0064a: %s: matar al grupo de procesos del CLI falso no deja vivo ni al cuerpo ni a lo que lanzo: 30 s despues alguno sigue con el testigo abierto", caso)
 			}
 		})
 	}
