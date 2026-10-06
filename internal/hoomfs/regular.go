@@ -65,11 +65,15 @@ func sigueSiendo(r *os.Root, name string, antes fs.FileInfo) error {
 	return nil
 }
 
-// mismo says whether antes and ahora describe the same object: the same
+// mismo says whether antes and ahora can be the same object: the same
 // device and inode number (os.SameFile) AND the same kind. The number alone
 // is not an identity: a file system may hand a freed one to the next object
 // it creates (linux does at once), so a name looked at as a symlink and the
-// regular file put there afterwards can share it.
+// regular file put there afterwards can share it. What mismo cannot tell
+// apart is an object of the SAME kind that inherited the number of a
+// deleted one: stat exposes no generation, so it looks exactly like the
+// old object rewritten in place, which nothing here detects either. For
+// both it says yes, and the caller gets what is at the name now.
 func mismo(antes, ahora fs.FileInfo) bool {
 	return os.SameFile(antes, ahora) && antes.Mode().Type() == ahora.Mode().Type()
 }
