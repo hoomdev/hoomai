@@ -1,0 +1,11 @@
+{
+  "id": "20261006T183635_6184a6",
+  "created_at": "2026-10-06T18:36:35.25396Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/hoomfs/mismo_objeto_unix_test.go",
+  "description": "INTRODUCIDO EN ESTE RANGO en los tests y la definicion del contrato; la aceptacion productiva residual es PRE-EXISTENTE: internal/hoomfs/regular.go:68-74 llama mismo objeto a dispositivo+inodo+tipo, e internal/hoomfs/mismo_objeto_unix_test.go:203-208,240-270 exige abrir el archivo o directorio nuevo despues de borrar el mirado cuando el filesystem reutiliza el mismo inodo para el mismo tipo. Son objetos distintos y esto contradice .hoom/specs/evidencia-en-disco.md:71-74, que manda marcar ilegible todo componente cambiado entre Lstat y apertura. En Linux el propio test provoca reutilizacion real; un hijo concurrente puede sustituir evidencia por una copia limpia del mismo tipo entre la mirada y la apertura y hacer que Take hashee o liste el reemplazo en vez de fallar cerrado, debilitando el piso append-only. Los casos de mismo tipo deben rechazar el reemplazo, no convertirlo en resultado esperado.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0d982f27328fddb",
+  "task": "estabilizar-ci"
+}

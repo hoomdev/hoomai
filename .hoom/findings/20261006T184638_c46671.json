@@ -1,0 +1,11 @@
+{
+  "id": "20261006T184638_c46671",
+  "created_at": "2026-10-06T18:46:38.419324Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/hoomfs/mismo_objeto_unix_test.go",
+  "description": "INTRODUCIDO: internal/hoomfs/mismo_objeto_unix_test.go:203-208 afirma y exige que, tras borrar una entrada, otra nueva del mismo tipo que reutiliza dispositivo/inodo sea el mismo objeto y deba abrirse (aserciones en :240-270). Eso contradice el contrato congelado de que lo abierto sea el mismo objeto mirado: el objeto anterior fue borrado, y un reemplazo regular-\u003eregular o directorio-\u003edirectorio puede inyectar contenido nuevo. mismo en internal/hoomfs/regular.go:73-74 conserva exactamente esa aceptación; el cambio solo cierra el reuso entre tipos y además convierte la brecha preexistente de mismo tipo en comportamiento protegido por tests.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0d982f27328fddb",
+  "task": "estabilizar-ci"
+}

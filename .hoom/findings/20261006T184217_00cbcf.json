@@ -1,0 +1,11 @@
+{
+  "id": "20261006T184217_00cbcf",
+  "created_at": "2026-10-06T18:42:17.710846Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/review_aislada_orden_test.go",
+  "description": "INTRODUCIDO. internal/reviewcmd/review_aislada_orden_test.go:919: raHoomConReloj solo intenta leer VmHWM una vez despues de Start y luego cada 2 ms; un hoom que rechaza enseguida puede haber terminado y estar zombie antes de esa primera lectura (review_aislada_rss_test.go:68 documenta que entonces no hay VmHWM). Con muestreado=0, raPicoPropio vuelve al ru_maxrss heredado del padre y reaparece el rojo falso de 324 MiB que este cambio pretende estabilizar. El E2E nuevo no cubre la carrera porque mantiene cada hijo vivo 300 ms.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0d982f27328fddb",
+  "task": "estabilizar-ci"
+}
