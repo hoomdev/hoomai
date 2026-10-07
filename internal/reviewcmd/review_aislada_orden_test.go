@@ -946,7 +946,6 @@ func raHoomMedido(t *testing.T, medidor, hoom, root string, d time.Duration, arg
 	var o, e bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &o, &e
 	cmd.ExtraFiles = []*os.File{escribe} // el descriptor raFDInforme del medidor
-	cmd.WaitDelay = 2 * time.Second
 	g, err := grupoArrancar(t, cmd)
 	_ = escribe.Close()
 	if err != nil {

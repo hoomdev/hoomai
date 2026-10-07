@@ -992,6 +992,7 @@ type raMedidorSuelto struct {
 	stdout, stderr string
 	informe        string // lo que escribio por raFDInforme
 	vencio         bool   // no termino a tiempo: se lo corto, a el y a su grupo
+	tomada         bool   // termino, y alguien que dejo detras conservo su stdout o su stderr
 }
 
 // raLanzarMedidor lanza al medidor sin raHoomConReloj, para mirarle el
@@ -1005,6 +1006,9 @@ func raLanzarMedidor(t *testing.T, dir, stdin string, extra []string, conInforme
 	if m.vencio {
 		t.Fatalf("fixture: el medidor con %q no termino en 60 s: se lo corto\nstdout:\n%s\nstderr:\n%s", argv, m.stdout, m.stderr)
 	}
+	if m.tomada {
+		t.Fatalf("fixture: el medidor con %q termino, y alguien que dejo detras conservo su stdout o su stderr: su salida no esta entera\nstdout:\n%s\nstderr:\n%s", argv, m.stdout, m.stderr)
+	}
 	return m
 }
 
@@ -1012,7 +1016,8 @@ func raLanzarMedidor(t *testing.T, dir, stdin string, extra []string, conInforme
 // sin cortar el test cuando vence: lo dice en vencio. Cuando vence corta al
 // grupo entero del medidor, que es el de hoom y el de lo que hoom lanzo
 // (grupoCorrer): no queda vivo ninguno, ni nadie esperando sus pipes
-// (hallazgo ef9963).
+// (hallazgo ef9963). Y si el medidor termina con alguien todavia con su
+// stdout o su stderr tomado, tampoco corta el test: lo dice en tomada.
 func raLanzarMedidorHasta(t *testing.T, vence <-chan time.Time, dir, stdin string, extra []string, conInforme bool, argv ...string) raMedidorSuelto {
 	t.Helper()
 	exe, err := os.Executable()
@@ -1041,11 +1046,12 @@ func raLanzarMedidorHasta(t *testing.T, vence <-chan time.Time, dir, stdin strin
 	// el medidor ya salio: si hoom o un hijo suyo se hubieran quedado con el
 	// descriptor del informe, esto no terminaria; con el plazo, falla
 	_ = lee.SetReadDeadline(time.Now().Add(10 * time.Second))
-	informe, err := io.ReadAll(lee)
-	if err != nil {
-		t.Fatalf("hallazgos 00cbcf y 24067b: cuando el medidor sale, nadie mas tiene abierto el descriptor de su informe (%v); llego %q", err, informe)
+	informe, errInforme := io.ReadAll(lee)
+	if errInforme != nil {
+		t.Fatalf("hallazgos 00cbcf y 24067b: cuando el medidor sale, nadie mas tiene abierto el descriptor de su informe (%v); llego %q", errInforme, informe)
 	}
-	return raMedidorSuelto{exit: cmd.ProcessState.ExitCode(), stdout: o.String(), stderr: e.String(), informe: string(informe), vencio: vencio}
+	return raMedidorSuelto{exit: cmd.ProcessState.ExitCode(), stdout: o.String(), stderr: e.String(), informe: string(informe),
+		vencio: vencio, tomada: errors.Is(err, exec.ErrWaitDelay)}
 }
 
 // CA-414 / CA-416 (hallazgos 00cbcf y 24067b): el medidor no se mete con
@@ -1234,8 +1240,9 @@ func raEnOtroProceso(t *testing.T, papel string, opciones ...string) (salida str
 // -test.run) y ese papel hasta que termina o hasta que llega algo por vence,
 // y entonces corta a su grupo de procesos entero (grupoCorrer; hallazgo
 // ef9963). falla dice lo que el fixture no puede dejar pasar ("" si nada): que
-// hubo que cortarlo, o que la seleccion no era de ningun test y el proceso
-// salio bien sin correr nada (hallazgo 3909e4).
+// hubo que cortarlo, que termino con alguien todavia con su stdout o su stderr
+// tomado (su salida no esta entera), o que la seleccion no era de ningun test
+// y el proceso salio bien sin correr nada (hallazgo 3909e4).
 func raEsteBinarioComoTest(t *testing.T, seleccion, papel string, vence <-chan time.Time, opciones ...string) (salida, falla string, err error) {
 	t.Helper()
 	exe, err := os.Executable()
@@ -1250,6 +1257,8 @@ func raEsteBinarioComoTest(t *testing.T, seleccion, papel string, vence <-chan t
 	switch salida = junta.String(); {
 	case vencio:
 		falla = "no termino a tiempo y hubo que cortarlo"
+	case errors.Is(err, exec.ErrWaitDelay):
+		falla = "termino, y alguien que dejo detras conservo su stdout o su stderr"
 	case strings.Contains(salida, raNoHayTests):
 		falla = "no corrio ningun test: " + seleccion + " no selecciona ninguno"
 	}

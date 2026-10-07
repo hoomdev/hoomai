@@ -327,7 +327,9 @@ func cliFalsoGuardar(t *testing.T, name string, script []byte) string {
 // cliFalsoCorrer corre el ejecutable de ruta como hoom corre al reviewer: por
 // su shebang, y le escribe el pedido entero por stdin y cierra. Lo corre en
 // un directorio nuevo y con reloj: si no termina en 30 s lo mata, a el y a
-// todo su grupo de procesos, y el test falla.
+// todo su grupo de procesos, y el test falla. Y si termina, cuando vuelve
+// tampoco queda nadie de ese grupo: lo que el cuerpo haya dejado detras se
+// corta apenas el falso sale (hallazgos 139218 y c89063).
 func cliFalsoCorrer(t *testing.T, ruta string, pedido []byte, args ...string) cliFalsoCorrida {
 	t.Helper()
 	return cliFalsoCorrerCon(t, cliFalsoShell{}, ruta, pedido, args...)
@@ -336,35 +338,54 @@ func cliFalsoCorrer(t *testing.T, ruta string, pedido []byte, args ...string) cl
 // cliFalsoCorrerCon es cliFalsoCorrer con el shell sh.
 func cliFalsoCorrerCon(t *testing.T, sh cliFalsoShell, ruta string, pedido []byte, args ...string) cliFalsoCorrida {
 	t.Helper()
+	c, err := cliFalsoIntentar(t, sh, 0, ruta, pedido, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// cliFalsoIntentar es cliFalsoCorrerCon sin cortar el test: el error del
+// fixture lo devuelve. Son dos: que el falso no termine en 30 s, y que termine
+// dejando a alguien con su stdout o su stderr tomado todavia plazoDeLosPipes
+// despues (0: el del grupo, grupoPlazoDeLosPipes). La salida de ese falso no
+// esta entera; y antes de que el grupo trajera ese plazo, a ese falso lo
+// cortaba el reloj de 30 s.
+func cliFalsoIntentar(t *testing.T, sh cliFalsoShell, plazoDeLosPipes time.Duration, ruta string, pedido []byte, args ...string) (cliFalsoCorrida, error) {
+	t.Helper()
 	cmd := sh.comando(ruta, args...)
 	cmd.Dir = t.TempDir()
+	cmd.WaitDelay = plazoDeLosPipes
 	var o, e bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &o, &e
 	in, err := cmd.StdinPipe()
 	if err != nil {
-		t.Fatal(err)
+		return cliFalsoCorrida{}, err
 	}
 	g, err := grupoArrancar(t, cmd)
 	if err != nil {
-		t.Fatalf("fixture: no pude correr %s: %v", ruta, err)
+		return cliFalsoCorrida{}, fmt.Errorf("fixture: no pude correr %s: %v", ruta, err)
 	}
+	var errEspera error // lo que dio esperar: se lee con la corrida ya recibida
 	ch := make(chan cliFalsoCorrida, 1)
 	go func() {
 		c := cliFalsoCorrida{dir: cmd.Dir}
 		c.escritos, c.errStdin = in.Write(pedido)
 		_ = in.Close()
-		_ = g.esperar()
+		errEspera = g.esperar()
 		c.exit, c.stdout, c.stderr = cmd.ProcessState.ExitCode(), o.String(), e.String()
 		ch <- c
 	}()
 	select {
 	case c := <-ch:
-		return c
+		if errors.Is(errEspera, exec.ErrWaitDelay) {
+			return c, fmt.Errorf("fixture: %s termino, y alguien que dejo detras conservo su stdout o su stderr: su salida no esta entera (%v)", ruta, errEspera)
+		}
+		return c, nil
 	case <-time.After(30 * time.Second):
 		g.cortar()
-		t.Fatalf("fixture: %s no termino en 30 s con el pedido por stdin", ruta)
+		return cliFalsoCorrida{}, fmt.Errorf("fixture: %s no termino en 30 s con el pedido por stdin", ruta)
 	}
-	return cliFalsoCorrida{}
 }
 
 // cliFalsoAparece espera, hasta 30 s, a que exista el archivo ruta.
@@ -713,6 +734,55 @@ func TestHallazgo_dd5118_LoQueElCLIFalsoNoCierra(t *testing.T) {
 				t.Fatalf("hallazgo d0064a: %s: matar al grupo de procesos del CLI falso no deja vivo ni al cuerpo ni a lo que lanzo: 30 s despues alguno sigue con el testigo abierto", caso)
 			}
 		})
+	}
+}
+
+// Hallazgos 139218 y c89063: lo que el cuerpo de un CLI falso deja vivo no
+// sobrevive al falso que vuelve SOLO. El cuerpo lanza un sleep de 30 s que no
+// conserva ninguno de los pipes del falso (tampoco su stdin, que el script
+// guarda en el descriptor 9) y sale con 3; el falso lee el pedido entero y
+// sale con lo de su cuerpo, como siempre. Antes, a ese sleep ya no lo cortaba
+// nadie: el shell del script quedaba anotado como recolectado apenas salia.
+//
+// Y si ese sleep SI conserva el stdout y el stderr del falso, es un error del
+// fixture, salga el falso con lo que salga (lo que el arreglo de ef9963 habia
+// ablandado; lo midio el refutador de la cuarta review). Antes de que el grupo
+// trajera un WaitDelay, a ese falso lo cortaba el reloj de 30 s y el test
+// fallaba; con el WaitDelay volvia a los 2 s y el test seguia como si nada,
+// con una salida que no estaba entera. Aca el plazo de los pipes es de 10 ms.
+// El que los conservaba tampoco queda vivo.
+func TestHallazgo_139218_c89063_LoQueDejaUnCLIFalsoQueVuelveSoloNoQuedaVivo(t *testing.T) {
+	pedido := cliFalsoPedido()
+	for _, sh := range cliFalsoShells(t) {
+		t.Run(sh.nombre, func(t *testing.T) {
+			testigo := nuevoTestigoDeVida(t)
+			ruta := cliFalsoGuardar(t, "codex", cliFalso(testigo.shConUnoDetras("</dev/null >/dev/null 2>&1 9<&-")+"exit 3\n"))
+			t.Parallel()
+			got := cliFalsoCorrerCon(t, sh, ruta, pedido)
+			cliFalsoEntero(t, sh.nombre, got, pedido)
+			if got.exit != 3 || got.stdout != "" {
+				t.Fatalf("fixture: %s: el falso sale con lo de su cuerpo (3, sin salida): %+v", sh.nombre, got)
+			}
+			if arranco, nadie := testigo.espera(10 * time.Second); !arranco || !nadie {
+				t.Fatalf("hallazgos 139218 y c89063: %s: cuando el CLI falso vuelve solo no queda vivo lo que su cuerpo dejo detras: el cuerpo tomo el testigo %v, 10 s despues no queda nadie %v", sh.nombre, arranco, nadie)
+			}
+		})
+
+		for _, exit := range []string{"0", "3"} {
+			caso := sh.nombre + ": con su salida tomada, exit " + exit
+			t.Run(caso, func(t *testing.T) {
+				testigo := nuevoTestigoDeVida(t)
+				ruta := cliFalsoGuardar(t, "codex", cliFalso(testigo.shConUnoDetras("</dev/null 9<&-")+"exit "+exit+"\n"))
+				t.Parallel()
+				_, err := cliFalsoIntentar(t, sh, 10*time.Millisecond, ruta, pedido)
+				if err == nil || !strings.Contains(err.Error(), "conservo su stdout o su stderr") {
+					t.Fatalf("%s: un CLI falso que termina dejando a alguien con su stdout tomado es un error del fixture, no una corrida: %v", caso, err)
+				}
+				if arranco, nadie := testigo.espera(10 * time.Second); !arranco || !nadie {
+					t.Fatalf("hallazgos 139218 y c89063: %s: el que conservaba la salida del falso tampoco queda vivo: el cuerpo tomo el testigo %v, 10 s despues no queda nadie %v", caso, arranco, nadie)
+				}
+			})
+		}
 	}
 }
 
