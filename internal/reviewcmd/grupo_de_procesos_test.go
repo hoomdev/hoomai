@@ -116,6 +116,15 @@ func (g *grupoDeProcesos) mirar(w io.Writer) io.Writer {
 	return p
 }
 
+// grupoMismoWriter dice si a y b son el mismo Writer, como lo mira exec.Cmd
+// para darles un solo pipe. Ante un tipo que no se puede comparar (un struct
+// por valor con un slice adentro) el == de dos interfaces entra en panico:
+// aca, como en exec.Cmd, eso es "distintos".
+func grupoMismoWriter(a, b io.Writer) (mismo bool) {
+	defer func() { _ = recover() }()
+	return a == b
+}
+
 // grupoArrancar lanza cmd en un grupo de procesos propio, del que es el lider.
 // Quien lo llama no lo espera ni le manda senales por su cuenta: lo hace por
 // el grupo. Cuando t termina, haya salido por donde haya salido y haya
@@ -128,7 +137,7 @@ func grupoArrancar(t testing.TB, cmd *exec.Cmd) (*grupoDeProcesos, error) {
 		cmd.WaitDelay = grupoPlazoDeLosPipes
 	}
 	g := &grupoDeProcesos{cmd: cmd, senal: syscall.Kill}
-	junta := cmd.Stdout != nil && cmd.Stdout == cmd.Stderr // un solo pipe para los dos
+	junta := cmd.Stdout != nil && grupoMismoWriter(cmd.Stdout, cmd.Stderr) // un solo pipe para los dos
 	cmd.Stdout = g.mirar(cmd.Stdout)
 	if junta {
 		cmd.Stderr = cmd.Stdout
@@ -158,13 +167,14 @@ func (g *grupoDeProcesos) cortar() {
 // devuelve cmd.Wait, se lo llame las veces que sea y desde donde sea; salvo
 // que el WaitDelay haya tenido que cerrar el stdout o el stderr del comando
 // con alguien todavia del otro lado: entonces es un exec.ErrWaitDelay, haya
-// salido el lider con lo que haya salido. Esa salida no esta entera.
+// salido el lider con lo que haya salido, que trae ademas el error del lider
+// (su *exec.ExitError). Esa salida no esta entera.
 func (g *grupoDeProcesos) esperar() error {
 	g.una.Do(func() {
 		g.err = g.cmd.Wait()
 		conservado := slices.ContainsFunc(g.pipes, func(p *grupoPipe) bool { return p.conservado })
 		if conservado && !errors.Is(g.err, exec.ErrWaitDelay) {
-			g.err = fmt.Errorf("%w (el lider: %v)", exec.ErrWaitDelay, g.err)
+			g.err = fmt.Errorf("%w (el lider: %w)", exec.ErrWaitDelay, g.err)
 		}
 		g.mu.Lock()
 		defer g.mu.Unlock()
@@ -188,8 +198,9 @@ func (g *grupoDeProcesos) recolectar() error {
 // queda nadie del grupo. El reloj de un exec.CommandContext mata solo al hijo
 // directo: lo que lanzo sigue vivo, y su Wait espera el fin de archivo de los
 // pipes que conserva (hallazgo ef9963). vencio dice que hubo que cortarlo; err
-// es el de cmd.Wait, o el de no haber podido lanzarlo (y entonces
-// cmd.ProcessState es nil).
+// es el de esperar (el de cmd.Wait, o el exec.ErrWaitDelay que arma el grupo
+// cuando alguien conservo la salida del comando), o el de no haber podido
+// lanzarlo (y entonces cmd.ProcessState es nil).
 func grupoCorrer(t testing.TB, cmd *exec.Cmd, vence <-chan time.Time) (vencio bool, err error) {
 	t.Helper()
 	g, err := grupoArrancar(t, cmd)
@@ -496,6 +507,10 @@ func TestHallazgo_139218_c89063_LoQueDejaUnLiderQueTerminaSoloNoQuedaVivo(t *tes
 				if vencio || !errors.Is(err, exec.ErrWaitDelay) {
 					t.Fatalf("un comando que sale con %d dejando a otro con su stdout tomado vuelve, sin llegar al reloj, con un exec.ErrWaitDelay: vencio %v, %v", exit, vencio, err)
 				}
+				var delLider *exec.ExitError
+				if exit != 0 && (!errors.As(err, &delLider) || delLider.ExitCode() != exit) {
+					t.Fatalf("ese exec.ErrWaitDelay sigue trayendo el error del lider, un *exec.ExitError con su %d: %v", exit, err)
+				}
 				if cmd.ProcessState.ExitCode() != exit || salida.String() != "dicho\n" {
 					t.Fatalf("del comando quedan su codigo de salida (%d) y lo que llego a imprimir: %v, %q", exit, cmd.ProcessState, salida.String())
 				}
@@ -557,6 +572,40 @@ func TestHallazgo_ef9963_AlVencerElRelojMuereElGrupoEnteroYNadieEsperaUnPipe(t *
 				t.Fatalf("un comando que no trae su WaitDelay arranca con el del grupo (%v): tiene %v", grupoPlazoDeLosPipes, cmd.WaitDelay)
 			}
 		})
+	}
+}
+
+// grupoSalidaPorValor es un Writer por valor de un tipo que no se puede
+// comparar (lleva un slice): el == de dos interfaces que lo traen entra en
+// panico. Escribe en su unico buffer, con candado: exec.Cmd, que tampoco los
+// puede comparar, le arma un pipe a cada uno y escribe de los dos a la vez.
+type grupoSalidaPorValor struct {
+	mu  *sync.Mutex
+	buf []*bytes.Buffer
+}
+
+func (s grupoSalidaPorValor) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf[0].Write(p)
+}
+
+// El stdout y el stderr de un comando pueden ser un Writer por valor de un
+// tipo que no se puede comparar. grupoArrancar, que mira si son el mismo para
+// darles un solo pipe, no se rompe: los toma por distintos, como exec.Cmd; el
+// comando corre, sale con lo suyo y lo que imprimio por los dos llega.
+func TestHallazgo_ef9963_UnWriterQueNoSePuedeCompararNoRompeAlGrupo(t *testing.T) {
+	var buf bytes.Buffer
+	salida := grupoSalidaPorValor{mu: new(sync.Mutex), buf: []*bytes.Buffer{&buf}}
+	cmd := exec.Command("/bin/sh", "-c", "echo a stdout\necho a stderr >&2\nexit 7\n")
+	cmd.Stdout, cmd.Stderr = salida, salida
+	vencio, err := grupoCorrer(t, cmd, time.After(30*time.Second))
+	if vencio || cmd.ProcessState == nil || cmd.ProcessState.ExitCode() != 7 {
+		t.Fatalf("un comando con un Writer que no se puede comparar en su stdout y en su stderr corre y sale con lo suyo (7): vencio %v, %v, %v", vencio, cmd.ProcessState, err)
+	}
+	// van por dos pipes: llegan las dos lineas, en el orden que sea
+	if got := buf.String(); got != "a stdout\na stderr\n" && got != "a stderr\na stdout\n" {
+		t.Fatalf("lo que el comando imprimio por su stdout y por su stderr llega entero: %q", got)
 	}
 }
 
