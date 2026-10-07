@@ -1,0 +1,11 @@
+{
+  "id": "20261007T201143_0b292e",
+  "created_at": "2026-10-07T20:11:43.026254Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/grupo_de_procesos_test.go:150 y :186 consumen dos veces cmd.WaitDelay. salidaTomada espera un WaitDelay completo antes de cortar; si un descendiente hizo setsid y conserva stdout/stderr, el SIGKILL al grupo no lo alcanza y cmd.Wait inicia otro WaitDelay antes de cerrar los pipes. Asi grupoCorrer/esperar pueden tardar hasta 2*WaitDelay (y rebasar el reloj vence) en vez de quedar acotados por el plazo configurado.",
+  "author": "reviewer@codex",
+  "fingerprint": "4920f4653d0ce1ea",
+  "task": "estabilizar-ci"
+}
