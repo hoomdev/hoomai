@@ -1,0 +1,11 @@
+{
+  "id": "20261007T171925_139218",
+  "created_at": "2026-10-07T17:19:25.115513Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:92-106: esperar marca recolectado=true inmediatamente despues de cmd.Wait; desde ese momento cortar no envia ninguna señal. Si el lider termina por si solo dejando descendientes en su mismo grupo (por ejemplo, un proceso en background que no conserva los pipes, o despues de que WaitDelay los cierre), grupoCorrer toma el caso termino y el Cleanup posterior tampoco mata ese grupo. La garantia nueva de grupoArrancar de no dejar procesos al terminar el test queda incumplida y esos descendientes pueden seguir ejecutandose e interferir con otros tests/CI. Los tests agregados solo cubren el corte mientras el lider sigue vivo con wait; falta cubrir un lider que sale dejando un hijo vivo.",
+  "author": "reviewer@codex",
+  "fingerprint": "244d8d448cd97035",
+  "task": "estabilizar-ci"
+}

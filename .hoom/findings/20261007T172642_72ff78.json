@@ -1,0 +1,11 @@
+{
+  "id": "20261007T172642_72ff78",
+  "created_at": "2026-10-07T17:26:42.621185Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/review_aislada_orden_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/review_aislada_orden_test.go:949: el nuevo grupoArrancar ya define grupoPlazoDeLosPipes como WaitDelay por defecto cuando el comando no trae uno, pero raHoomMedido conserva el literal independiente 2 * time.Second antes de llamarlo. Al tener exactamente el mismo valor y ninguna explicacion de que este caso necesite una politica distinta, quedan dos fuentes de verdad: cambiar el plazo central no actualizaria este medidor. Eliminar la asignacion redundante o referenciar el valor nombrado deja explicita la intencion.",
+  "author": "reviewer@codex",
+  "fingerprint": "244d8d448cd97035",
+  "task": "estabilizar-ci"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261007T172254_c89063",
+  "created_at": "2026-10-07T17:22:54.83609Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:126-133: grupoCorrer espera al líder con g.esperar(), que tras cmd.Wait marca recolectado=true; si el líder termina por sí solo dejando un descendiente en el grupo, la rama \u003c-termino llega luego a g.recolectar(), pero cortar ya omite SIGKILL por ese flag. El descendiente queda vivo (WaitDelay solo evita esperar indefinidamente sus pipes), de modo que una falla parcial del líder puede filtrar procesos al CI; falta cubrir el caso donde el líder sale tras lanzar un hijo que sigue vivo.",
+  "author": "reviewer@codex",
+  "fingerprint": "244d8d448cd97035",
+  "task": "estabilizar-ci"
+}
