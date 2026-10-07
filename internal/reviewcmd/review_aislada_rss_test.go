@@ -110,9 +110,15 @@ const (
 // salir, y eso seria un segundo por cada hoom que termina bien. El medidor no
 // tiene nada que cerrar: no deja nada a medio escribir, y su unica goroutine
 // es la que mira si sigue vivo quien lo lanzo.
+//
+// El otro papel que se reparte aca es el del proceso que se va de su grupo
+// (grupoPapelSeVa, en grupo_de_procesos_test.go).
 func TestMain(m *testing.M) {
 	if os.Getenv(raPapelMedidor) != "" {
 		syscall.Exit(raMedidor(os.Args[1:]))
+	}
+	if testigo := os.Getenv(grupoPapelSeVa); testigo != "" {
+		syscall.Exit(grupoElQueSeVa(testigo))
 	}
 	os.Exit(m.Run())
 }

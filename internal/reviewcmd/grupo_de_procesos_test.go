@@ -17,18 +17,24 @@
 //
 // El grupo se nombra con el pid de su lider, que deja de ser suyo cuando al
 // lider lo recolectan y no queda nadie mas en el grupo. Lo que se cumple:
-// NUNCA sale una senal al grupo con el lider ya recolectado, y cuando esperar
-// o recolectar vuelven no queda nadie del grupo. Como: al lider se lo espera
-// SIN recolectarlo (grupoEsperarSinRecolectar, por sistema operativo); con el
-// lider terminado y todavia sin recolectar se corta al grupo y se anota, bajo
-// un candado, que ya no sale ninguna senal mas; y recien entonces se lo
-// recolecta (cmd.Wait).
+// NUNCA sale una senal al grupo con el lider ya recolectado, y antes de
+// recolectarlo se corta a todo lo que esta en el grupo en ese momento. Como:
+// al lider se lo espera SIN recolectarlo (grupoEsperarSinRecolectar, por
+// sistema operativo); con el lider terminado y todavia sin recolectar se
+// corta al grupo y se anota, bajo un candado, que ya no sale ninguna senal
+// mas; y recien entonces se lo recolecta (cmd.Wait).
 //
-// Lo que no alcanza ningun corte: al que se fue del grupo. Y un corte puede no
-// alcanzar al proceso que el grupo esta lanzando en ese instante: medido aca
-// (macOS, dash), cortando apenas el shell avisaba quedo vivo en 60 de 3000 con
-// un solo corte, y en 0 de 3000 con los dos de recolectar (con /bin/sh, 0 de
-// 3000 de las dos maneras). Es una medicion, no una garantia.
+// Lo que un corte no alcanza: al que se fue del grupo, y al proceso que el
+// grupo esta lanzando en ese instante. De esto ultimo hay dos mediciones
+// (macOS), no una garantia. Cortando apenas el shell avisaba, con dash quedo
+// alguien vivo en 60 de 3000 con un solo corte y en 0 de 3000 con los dos de
+// recolectar (con /bin/sh, 0 de 3000 de las dos maneras). Y con un grupo que
+// lanza procesos sin parar (un subshell que lanza sleeps): por el camino
+// natural, que es UN corte, quedo alguien vivo en 110 de 120 (dash) y en 109
+// de 120 (/bin/sh); por recolectar, que son dos, en 0 de 60. Hoy ningun
+// fixture termina con su grupo lanzando sin parar: el unico cuerpo que lo
+// hace ("lo matan desde afuera", en cli_falso_test.go) lanza sleeps de 10 ms,
+// que se mueren solos.
 package reviewcmd
 
 import (
@@ -65,11 +71,11 @@ type grupoDeProcesos struct {
 	senal               func(pid int, sig syscall.Signal) error
 	esperaSinRecolectar func(pid int) error
 
-	pipes        []*grupoPipe // el stdout y el stderr del comando
-	una          sync.Once    // la espera del lider, y err lo que dio
-	err          error
-	mu           sync.Mutex // cuida recolectando
-	recolectando bool       // al lider ya se lo va a recolectar: no sale ninguna senal mas
+	pipes         []*grupoPipe // el stdout y el stderr del comando
+	una           sync.Once    // la espera del lider, y err lo que dio
+	err           error
+	mu            sync.Mutex // cuida sinMasSenales
+	sinMasSenales bool       // al lider ya se lo va a recolectar, o ya se lo recolecto: no sale ninguna mas
 }
 
 // grupoPipe es el stdout o el stderr de un comando, mirado por su grupo.
@@ -137,17 +143,21 @@ func grupoArrancar(t testing.TB, cmd *exec.Cmd) (*grupoDeProcesos, error) {
 func (g *grupoDeProcesos) cortar() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if !g.recolectando {
+	if !g.sinMasSenales {
 		_ = g.senal(-g.cmd.Process.Pid, syscall.SIGKILL)
 	}
 }
 
-// salidaTomada dice, con el lider ya terminado, si alguien mas conserva el
-// stdout o el stderr del comando: lo que el lider dejo escrito llega enseguida,
-// y con eso el fin de archivo; si pasado el WaitDelay del comando alguna de
-// las copias de exec.Cmd no termino, es que del otro lado queda otro.
-func (g *grupoDeProcesos) salidaTomada() bool {
-	plazo := time.NewTimer(g.cmd.WaitDelay)
+// salidaTomada dice, con el lider ya terminado, si llegado hasta (cuando se
+// cumple el WaitDelay del comando) alguna de las copias que exec.Cmd hace de
+// su stdout y de su stderr no termino: lo mismo que mide exec.ErrWaitDelay.
+// Lo que el lider dejo escrito llega enseguida, y con eso el fin de archivo:
+// si no llego, lo comun es que del otro lado del pipe quede otro. Tambien lo
+// da un Writer lento, que tarda mas que el plazo en recibir lo que ya estaba
+// escrito (medido: un plazo de 100 ms y un Writer que tarda 150 ms, con la
+// salida entera); ningun llamador usa uno.
+func (g *grupoDeProcesos) salidaTomada(hasta time.Time) bool {
+	plazo := time.NewTimer(time.Until(hasta))
 	defer plazo.Stop()
 	for _, p := range g.pipes {
 		select {
@@ -159,17 +169,25 @@ func (g *grupoDeProcesos) salidaTomada() bool {
 	return false
 }
 
-// esperar espera a que el lider termine SOLO, corta lo que haya dejado en su
-// grupo y recien entonces lo recolecta: cuando vuelve no queda nadie del
-// grupo. Devuelve lo que devuelve cmd.Wait, se lo llame las veces que sea y
-// desde donde sea; salvo que alguien que el lider dejo detras conservara el
-// stdout o el stderr del comando (salidaTomada, o el exec.ErrWaitDelay de
-// cmd.Wait): entonces es un exec.ErrWaitDelay, haya salido el lider con lo que
-// haya salido, que trae ademas el error del lider (su *exec.ExitError). Esa
-// salida no esta entera.
+// esperar espera a que el lider termine SOLO, corta lo que en ese momento
+// quede en su grupo y recien entonces lo recolecta. Devuelve lo que devuelve
+// cmd.Wait, se lo llame las veces que sea y desde donde sea; salvo que la
+// copia del stdout o del stderr del comando no haya terminado dentro del
+// plazo (salidaTomada, o el exec.ErrWaitDelay de cmd.Wait): entonces es un
+// exec.ErrWaitDelay, haya salido el lider con lo que haya salido, que trae
+// ademas el error del lider (su *exec.ExitError). Lo comun es que alguien que
+// el lider dejo detras conserve el pipe, y que esa salida no este entera.
 //
 // Si no puede esperar sin recolectar es un error, del que la llama y de t: no
 // sabe si el lider termino, lo corta igual y lo recolecta.
+//
+// El WaitDelay del comando es UN plazo, contado desde que el lider termino
+// (hallazgos 65dc61 y 0b292e): lo que se gasto mirando los pipes se le
+// descuenta al que cmd.Wait arranca por su cuenta, que si no serian dos cuando
+// los conserva uno que se fue del grupo. A cmd.Wait se le deja lo que queda, y
+// nunca 0, que para exec.Cmd es esperar sin limite. (Vale porque exec.Cmd lee
+// su WaitDelay recien en Wait; con un contexto en el comando no valdria, y
+// ningun llamador trae uno.)
 func (g *grupoDeProcesos) esperar() error {
 	g.una.Do(func() {
 		pid := g.cmd.Process.Pid
@@ -178,10 +196,14 @@ func (g *grupoDeProcesos) esperar() error {
 			errEspera = fmt.Errorf("fixture: no pude esperar sin recolectar al lider del grupo %d (%s): %w", pid, g.cmd.Path, errEspera)
 			g.t.Error(errEspera)
 		}
-		tomada := errEspera == nil && g.salidaTomada()
+		plazo := g.cmd.WaitDelay
+		hasta := time.Now().Add(plazo)
+		tomada := errEspera == nil && g.salidaTomada(hasta)
+		g.cmd.WaitDelay = max(time.Until(hasta), time.Nanosecond)
+		defer func() { g.cmd.WaitDelay = plazo }() // el comando queda como lo trajeron
 		g.mu.Lock()
 		_ = g.senal(-pid, syscall.SIGKILL)
-		g.recolectando = true
+		g.sinMasSenales = true
 		g.mu.Unlock()
 		switch g.err = g.cmd.Wait(); {
 		case errEspera != nil:
@@ -206,13 +228,13 @@ func (g *grupoDeProcesos) recolectar() error {
 // grupoCorrer es el Run de un comando que lanza a otros (y su CombinedOutput,
 // con un mismo buffer en cmd.Stdout y cmd.Stderr): lo corre en un grupo propio
 // hasta que su lider termina o hasta que llega algo por vence (un time.After),
-// y entonces corta al grupo ENTERO. Termine como termine, cuando vuelve no
-// queda nadie del grupo. El reloj de un exec.CommandContext mata solo al hijo
-// directo: lo que lanzo sigue vivo, y su Wait espera el fin de archivo de los
-// pipes que conserva (hallazgo ef9963). vencio dice que hubo que cortarlo; err
-// es el de esperar (el de cmd.Wait, o el exec.ErrWaitDelay que arma el grupo
-// cuando alguien conservo la salida del comando), o el de no haber podido
-// lanzarlo (y entonces cmd.ProcessState es nil).
+// y entonces corta al grupo ENTERO. Termine como termine, cuando vuelve el
+// grupo esta cortado y su lider recolectado. El reloj de un
+// exec.CommandContext mata solo al hijo directo: lo que lanzo sigue vivo, y su
+// Wait espera el fin de archivo de los pipes que conserva (hallazgo ef9963).
+// vencio dice que hubo que cortarlo; err es el de esperar (el de cmd.Wait, o
+// su exec.ErrWaitDelay), o el de no haber podido lanzarlo (y entonces
+// cmd.ProcessState es nil).
 func grupoCorrer(t testing.TB, cmd *exec.Cmd, vence <-chan time.Time) (vencio bool, err error) {
 	t.Helper()
 	g, err := grupoArrancar(t, cmd)
@@ -247,6 +269,34 @@ func grupoSeguirAQuienLoLanzo() {
 			_ = syscall.Kill(0, syscall.SIGKILL)
 		}
 	}()
+}
+
+// grupoPapelSeVa: con esta variable en el entorno (la ruta de un testigo de
+// vida) este binario no corre tests: es un proceso que se va del grupo en que
+// lo lanzaron (TestMain, grupoElQueSeVa).
+const grupoPapelSeVa = "HOOM_TW_SE_VA_DEL_GRUPO"
+
+// grupoElQueSeVa es ese papel: arma una sesion propia, y con ella un grupo
+// propio, al que ya no llega el corte del grupo en que nacio; deja dicho su
+// pid en <testigo>.pid, toma el testigo y se queda, con el stdout y el stderr
+// que heredo. Se muere solo a los 30 s. Devuelve con que sale.
+func grupoElQueSeVa(testigo string) int {
+	_, err := syscall.Setsid()
+	if err == nil {
+		err = os.WriteFile(testigo+".pid", []byte(strconv.Itoa(os.Getpid())), 0o600)
+	}
+	if err == nil {
+		var fd int
+		if fd, err = syscall.Open(testigo, syscall.O_RDWR, 0); err == nil {
+			_, err = syscall.Write(fd, []byte(testigoListo))
+		}
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fixture: el que se va del grupo no pudo: %v\n", err)
+		return 1
+	}
+	time.Sleep(30 * time.Second)
+	return 0
 }
 
 // testigoDeVida le dice a un test si queda vivo alguno de los procesos que
@@ -552,6 +602,81 @@ func TestHallazgo_8710cd_SiLaEsperaSinRecolectarFallaEsUnError(t *testing.T) {
 	}
 	if arranco, nadie := testigo.espera(10 * time.Second); !arranco || !nadie {
 		t.Fatalf("hallazgo 8710cd: y no queda nadie del grupo: el comando tomo el testigo %v, 10 s despues no queda nadie %v", arranco, nadie)
+	}
+}
+
+// Hallazgos 65dc61 y 0b292e: el WaitDelay de un comando es UN plazo. El lider
+// lanza a uno que se va del grupo (otra sesion: el corte no lo alcanza) con el
+// stdout del comando, y sale solo. Mirando los pipes se gasta el plazo entero;
+// antes cmd.Wait arrancaba despues OTRO plazo entero, y esperar tardaba dos.
+// Ahora a cmd.Wait le queda lo minimo: se mira el WaitDelay del comando en el
+// momento del corte, que es justo antes de cmd.Wait, y no cuanto tardo. Y
+// cuando esperar vuelve, el WaitDelay del comando es el que traia.
+//
+// El lider sale recien cuando el otro ya se fue (el test le cierra el stdin
+// cuando el testigo aviso). Al que se fue lo mata el test al final, por su
+// pid, si el testigo dice que sigue vivo; si no llegara, se muere solo.
+func TestHallazgo_65dc61_0b292e_ElPlazoDeLosPipesEsUnoSolo(t *testing.T) {
+	const plazo = 50 * time.Millisecond
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("fixture: no se cual es este binario: %v", err)
+	}
+	testigo := nuevoTestigoDeVida(t)
+	cmd := exec.Command("/bin/sh", "-c", "\"$0\" &\nread nada\nexit 0\n", exe)
+	cmd.Env = append(os.Environ(), grupoPapelSeVa+"="+testigo.ruta)
+	cmd.WaitDelay = plazo
+	var salida bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &salida, &salida
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := grupoArrancar(t, cmd)
+	if err != nil {
+		t.Fatalf("fixture: no pude lanzar /bin/sh: %v", err)
+	}
+	var quedaba []time.Duration // el WaitDelay del comando al salir cada senal
+	g.senal = func(pid int, sig syscall.Signal) error {
+		quedaba = append(quedaba, cmd.WaitDelay)
+		return syscall.Kill(pid, sig)
+	}
+	<-testigo.alTomarlo(t)
+	raw, err := os.ReadFile(testigo.ruta + ".pid")
+	seFue, errPid := strconv.Atoi(string(raw))
+	if err != nil || errPid != nil || seFue <= 0 {
+		t.Fatalf("fixture: el que se va del grupo deja dicho su pid antes de tomar el testigo: %q (%v, %v)\n%s", raw, err, errPid, salida.String())
+	}
+	matarAlQueSeFue := func() {
+		if _, nadie := testigo.espera(0); !nadie { // sigue vivo: el pid es el suyo
+			_ = syscall.Kill(seFue, syscall.SIGKILL)
+		}
+	}
+	t.Cleanup(matarAlQueSeFue)
+
+	antes := time.Now()
+	_ = stdin.Close()
+	err = g.esperar()
+	tardo := time.Since(antes)
+	if !errors.Is(err, exec.ErrWaitDelay) || cmd.ProcessState.ExitCode() != 0 {
+		t.Fatalf("un lider que sale con 0 dejando su stdout en manos de uno que se fue del grupo: esperar da exec.ErrWaitDelay: %v, %v\n%s", err, cmd.ProcessState, salida.String())
+	}
+	if arranco, nadie := testigo.espera(0); !arranco || nadie {
+		t.Fatalf("fixture: al que se fue del grupo el corte no lo alcanza: tomo el testigo %v, ya no queda nadie %v", arranco, nadie)
+	}
+	if !slices.Equal(quedaba, []time.Duration{time.Nanosecond}) {
+		t.Fatalf("hallazgos 65dc61 y 0b292e: con el plazo (%v) gastado mirando los pipes, a cmd.Wait le queda lo minimo (1 ns), no otro plazo: al salir el corte el WaitDelay del comando era %v", plazo, quedaba)
+	}
+	if cmd.WaitDelay != plazo {
+		t.Fatalf("cuando esperar vuelve, el WaitDelay del comando es el que traia (%v): %v", plazo, cmd.WaitDelay)
+	}
+	if tardo > 10*time.Second {
+		t.Fatalf("esperar no se queda esperando al que se fue, que vive 30 s: tardo %v", tardo)
+	}
+
+	matarAlQueSeFue()
+	if _, nadie := testigo.espera(10 * time.Second); !nadie {
+		t.Fatalf("fixture: al que se fue del grupo lo mata el test por su pid (%d): 10 s despues sigue con el testigo abierto", seFue)
 	}
 }
 

@@ -327,9 +327,9 @@ func cliFalsoGuardar(t *testing.T, name string, script []byte) string {
 // cliFalsoCorrer corre el ejecutable de ruta como hoom corre al reviewer: por
 // su shebang, y le escribe el pedido entero por stdin y cierra. Lo corre en
 // un directorio nuevo y con reloj: si no termina en 30 s lo mata, a el y a
-// todo su grupo de procesos, y el test falla. Y si termina, cuando vuelve
-// tampoco queda nadie de ese grupo: lo que el cuerpo haya dejado detras se
-// corta apenas el falso sale (hallazgos 139218 y c89063).
+// todo su grupo de procesos, y el test falla. Y si termina, lo que el cuerpo
+// haya dejado detras en ese grupo se corta apenas el falso sale (hallazgos
+// 139218 y c89063).
 func cliFalsoCorrer(t *testing.T, ruta string, pedido []byte, args ...string) cliFalsoCorrida {
 	t.Helper()
 	return cliFalsoCorrerCon(t, cliFalsoShell{}, ruta, pedido, args...)
