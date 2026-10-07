@@ -1,0 +1,11 @@
+{
+  "id": "20261007T142544_ef9963",
+  "created_at": "2026-10-07T14:25:44.832712Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/review_aislada_rss_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/review_aislada_rss_test.go:1003-1014 y 1194-1198 usan exec.CommandContext como reloj para procesos que crean descendientes (el medidor crea hoom, y el proceso de experimento crea medidores/hoom), pero no los ponen en un grupo propio ni configuran una cancelacion que mate ese grupo. Al vencer el contexto Go mata solo al proceso directo; los hijos pueden seguir vivos y conservar stdout/stderr, por lo que Run/CombinedOutput incluso pueden continuar bloqueados esperando EOF despues de los 60 s/3 min. Los relojes nuevos no contienen justamente el fallo parcial que pretenden acotar y pueden dejar el CI colgado o con procesos filtrados.",
+  "author": "reviewer@codex",
+  "fingerprint": "40607cb8d2bae2c0",
+  "task": "estabilizar-ci"
+}

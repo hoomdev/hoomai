@@ -20,7 +20,7 @@ var ErrSinSonda = errors.New("hoom necesita /dev/fd o /proc y no pudo comprobar 
 // the caller just took) describes, for a walk that never follows a
 // symlink: an os.Root follows one that stays inside it, and the entry can
 // be swapped between that Lstat and the open, so the directory opened must
-// be that same one (os.SameFile) and the name must still be it after the
+// be that same one (mismo) and the name must still be it after the
 // open (sigueSiendo), or the open is refused. A FIFO swapped in does not
 // block it.
 func AbrirDirEn(r *os.Root, name string, antes fs.FileInfo) (*os.Root, error) {
@@ -28,7 +28,7 @@ func AbrirDirEn(r *os.Root, name string, antes fs.FileInfo) (*os.Root, error) {
 	if err != nil {
 		return nil, err
 	}
-	if st, err := sub.Stat("."); err != nil || !os.SameFile(antes, st) {
+	if st, err := sub.Stat("."); err != nil || !mismo(antes, st) {
 		sub.Close()
 		return nil, fmt.Errorf("%s cambio entre mirarlo y abrirlo", name)
 	}

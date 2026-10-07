@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261005T183300_d88b8d",
+  "as": "corregido",
+  "evidence": "6fe176f (test-writer): cliFalso guarda el stdin en el descriptor 9, corre el cuerpo en un subshell y drena al salir (exec 9\u003c\u00260; trap 'cat \u003c\u00269 \u003e/dev/null 2\u003e\u00261' EXIT; ( : cuerpo ); exit $?): ningun exec, trap o redireccion del cuerpo le saca el drenaje y el que lee el pedido lo recibe entero. Se elimino el filtro por regex (cliFalsoPierde). Las diez formas del hallazgo y cinco mas son casos de prueba: con cliFalso drenan 2 MiB y conservan exit y stdout; con el script viejo de solo trap dan EPIPE. Corre con /bin/sh y /bin/dash. Validado por mi de punta a punta: con el pedido rellenado a mas de 1 MiB (copia aparte sobre 83b18e0) solo fallan los 4 tests que miden el tamano del pedido y no queda ninguna pasada en RunStatus:error. Run 37489921731 del CI (ubuntu, dash) verde. (exec \u003c/dev/null, exec 0\u003c\u0026- y exec \u003c\u0026- estan entre los casos: el drenaje lee del descriptor 9, no del stdin que el cuerpo cambia.)",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T16:10:39.00694Z"
+}

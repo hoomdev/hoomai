@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T201409_8eb75d",
+  "as": "corregido",
+  "evidence": "308fb4c (test-writer): el campo recolectando pasa a llamarse sinMasSenales en el tipo, en cortar (su unica lectura) y en esperar (su unica escritura), y su comentario dice el hecho consumado: al lider ya se lo va a recolectar, o ya se lo recolecto, y no sale ninguna senal mas. El refutador habia listado sus cuatro lugares y confirmado que nunca vuelve a false. Solo cambia el nombre. Verde local 2026-10-07T20-51-47Z_ba57cb4f (reviewcmd 552 s con -race). Linux: run 37684024322 del CI sobre 308fb4c en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T20:52:18.99653Z"
+}

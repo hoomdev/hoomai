@@ -1,0 +1,11 @@
+{
+  "id": "20261005T155456_b3ed04",
+  "created_at": "2026-10-05T15:54:56.995322Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": ".github/workflows/ci.yml",
+  "description": "PRE-EXISTENTE: cuando el paso 'hoom verify (dogfood)' del CI falla en el gate test, el log solo muestra las ultimas 6 lineas de la salida (report.lastLines) y no se ve que paquete ni que test fallo; el veredicto guarda 4000 bytes (gates.defaultTail) pero el CI no lo imprime ni lo sube. Paso en los runs 3ff7401, baf2251 y 6a8344d: todos los tests sin -race en ok, dogfood ROJO, causa ilegible desde el log. El workflow deberia imprimir la salida guardada del gate que fallo.",
+  "author": "writer@claude",
+  "fingerprint": "8c11edb736eba5cc",
+  "task": "estabilizar-ci"
+}

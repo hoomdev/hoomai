@@ -31,10 +31,12 @@
 package reviewcmd
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,10 +44,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/gittest"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
@@ -132,6 +134,7 @@ func raClonShallowDe(t *testing.T, tc raTipoDeCambio) (origen, clon string) {
 	}
 	clon = filepath.Join(padre, "clon")
 	git(t, padre, "clone", "-q", "--depth", "1", "--no-single-branch", "--branch", "feature", "file://"+origen, clon)
+	gittest.ApagarMantenimiento(t, clon) // un clon no hereda el .git/config de su origen
 	git(t, clon, "branch", "-q", "main", "origin/main")
 	git(t, clon, "config", "user.email", "test@hoom.dev")
 	git(t, clon, "config", "user.name", "hoom test")
@@ -884,60 +887,147 @@ func raRSS(pid int) uint64 {
 	return kb * 1024
 }
 
-// raHoomConReloj corre el binario de hoom en root (sin HOOM_TASK, con el
-// PATH del test) con reloj y un vigilante de memoria: si no vuelve en d, o
-// si pasa los 512 MiB residentes, lo mata y lo dice.
+// raHoomConReloj corre el binario de hoom (su ruta) en root (sin HOOM_TASK,
+// con el PATH del test) con reloj y un vigilante de memoria: si no vuelve en
+// d, o si pasa los 512 MiB residentes, lo mata y lo dice.
+//
+// A hoom no lo lanza este proceso sino el medidor (raMedidor, en
+// review_aislada_rss_test.go): este mismo binario de tests, vuelto a ejecutar
+// con ese papel, que le pasa todo tal cual, lo espera con wait4 y deja dicho
+// por un pipe aparte el pid de hoom, con que salio y cuanta memoria tuvo. Asi
+// maxRSS, el pico de memoria residente del hoom hijo, es el ru_maxrss de hoom
+// y no el de este binario, que en linux se lo heredaria (raCifraDeHoom): no
+// depende de llegar a mirar a hoom mientras vive.
+//
+// El medidor arranca en un grupo de procesos propio (grupoArrancar), que es
+// tambien el de hoom y el de lo que hoom lance, y salga por donde salga la
+// corrida (con el informe entero, con uno trunco o que no se entiende, por el
+// reloj, por el vigilante, por un error del fixture) el grupo se corta ANTES
+// de recolectar al medidor: no queda vivo nada de la corrida (hallazgos 5b4172
+// y 4c2a57). De una corrida que hubo que matar no hay ru_maxrss (el medidor
+// muere con el grupo): code es el de un proceso al que mato una senal, -1, y
+// maxRSS es lo mas que le vio el vigilante, una cota inferior.
+//
+// Un medidor que no puede lanzar a hoom, que no deja su informe o que deja
+// uno del que no sale una cifra de la que fiarse es un error del fixture y
+// corta el test: nunca una corrida sin cifra que raCLIVolvio dejaria pasar.
 func raHoomConReloj(t *testing.T, hoom, root string, d time.Duration, args ...string) raCorrida {
 	t.Helper()
-	cmd := exec.Command(hoom, args...)
+	medidor, err := os.Executable()
+	if err != nil {
+		t.Fatalf("fixture: no se cual es este binario, que hace de medidor de hoom: %v", err)
+	}
+	c, err := raHoomMedido(t, medidor, hoom, root, d, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// raHoomMedido es raHoomConReloj con el medidor por afuera (su ruta) y sin
+// cortar el test: el error del fixture lo devuelve. Es para el test que mira
+// que queda vivo despues de cada salida.
+func raHoomMedido(t *testing.T, medidor, hoom, root string, d time.Duration, args ...string) (raCorrida, error) {
+	t.Helper()
+	var c raCorrida
+	lee, escribe, err := os.Pipe()
+	if err != nil {
+		return c, fmt.Errorf("fixture: sin pipe para el informe del medidor de hoom: %v", err)
+	}
+	defer lee.Close()
+	cmd := exec.Command(medidor, append([]string{hoom}, args...)...)
 	cmd.Dir = root
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(kv, "HOOM_TASK=") {
 			cmd.Env = append(cmd.Env, kv)
 		}
 	}
+	cmd.Env = append(cmd.Env, raPapelMedidor+"=1")
 	var o, e bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &o, &e
-	cmd.WaitDelay = 2 * time.Second
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("no pude correr hoom %v: %v", args, err)
+	cmd.ExtraFiles = []*os.File{escribe} // el descriptor raFDInforme del medidor
+	g, err := grupoArrancar(t, cmd)
+	_ = escribe.Close()
+	if err != nil {
+		return c, fmt.Errorf("fixture: no pude lanzar el medidor de hoom %v: %v", args, err)
 	}
-	hecho := make(chan struct{})
-	go func() { _ = cmd.Wait(); close(hecho) }()
-	var c raCorrida
+
+	// el informe: el pid de hoom apenas el medidor lo dice, y todo el texto
+	// cuando el medidor cierra su punta del pipe, que es cuando sale
+	pidDeHoom := make(chan int, 1)
+	informe := make(chan string, 1)
+	go func() {
+		br := bufio.NewReader(lee)
+		primera, _ := br.ReadString('\n')
+		inf, _ := raLeerInforme(primera)
+		pidDeHoom <- inf.pid
+		resto, _ := io.ReadAll(br)
+		informe <- primera + string(resto)
+	}()
+
+	var (
+		pid   int    // el de hoom, desde que el medidor lo dice
+		visto uint64 // lo mas que el vigilante le vio a hoom
+		texto string // el informe
+		llego bool
+	)
 	reloj := time.NewTimer(d)
 	defer reloj.Stop()
-	tic := time.NewTicker(25 * time.Millisecond)
+	tic := time.NewTicker(raTic)
 	defer tic.Stop()
 espera:
 	for {
 		select {
-		case <-hecho:
+		case texto = <-informe:
+			llego = true
 			break espera
+		case pid = <-pidDeHoom:
 		case <-reloj.C:
 			c.colgado = true
-			_ = cmd.Process.Kill()
-			<-hecho
 			break espera
 		case <-tic.C:
-			if raRSS(cmd.Process.Pid) > 512<<20 {
+			if pid == 0 {
+				continue
+			}
+			rss := raRSS(pid)
+			visto = max(visto, rss)
+			if rss > raTechoRSS {
 				c.glotona = true
-				_ = cmd.Process.Kill()
-				<-hecho
 				break espera
 			}
 		}
 	}
-	c.code = cmd.ProcessState.ExitCode()
-	if ru, ok := cmd.ProcessState.SysUsage().(*syscall.Rusage); ok {
-		c.maxRSS = uint64(ru.Maxrss)
-		if runtime.GOOS == "linux" {
-			c.maxRSS *= 1024
-		}
+	// el grupo se corta siempre, y antes de recolectar al medidor: tambien
+	// cuando el informe llego, que el medidor puede haber muerto con hoom vivo
+	_ = g.recolectar()
+	if !llego {
+		_ = lee.SetReadDeadline(time.Now().Add(raPlazoDelInforme))
+		texto = <-informe
 	}
 	c.out, c.errOut = o.String(), e.String()
 	c.stdoutStderr = c.out + "\n" + c.errOut
-	return c
+
+	inf, err := raLeerInforme(texto)
+	switch {
+	case err != nil:
+		return c, fmt.Errorf("fixture: el informe del medidor de hoom %v no se entiende (%v): %q\n%s", args, err, texto, c.stdoutStderr)
+	case inf.falla != "":
+		return c, fmt.Errorf("no pude correr hoom %v: %s", args, inf.falla)
+	case inf.fin:
+		c.code = inf.code
+		if c.maxRSS, err = raCifraDeHoom(inf); err != nil {
+			return c, fmt.Errorf("fixture: no hay con que medir la memoria de hoom %v: %v\n%s", args, err, c.stdoutStderr)
+		}
+	case c.colgado || c.glotona:
+		c.code = cmd.ProcessState.ExitCode()
+		c.maxRSS = visto
+	default:
+		return c, fmt.Errorf("fixture: el medidor de hoom %v salio (%v) sin decir con que salio hoom ni cuanta memoria tuvo: su informe es %q\n%s",
+			args, cmd.ProcessState, texto, c.stdoutStderr)
+	}
+	t.Logf("memoria de hoom %v: ru_maxrss %d kB, pico del medidor %d kB, lo mas que le vio el vigilante %d kB: cuentan %d kB",
+		args, inf.hoom>>10, inf.medidor>>10, visto>>10, c.maxRSS>>10)
+	return c, nil
 }
 
 // raCLIVolvio exige que la corrida haya vuelto sola, a tiempo y sin
@@ -951,7 +1041,7 @@ func raCLIVolvio(t *testing.T, ca, caso string, c raCorrida) {
 	if c.glotona {
 		t.Fatalf("%s: %s: hoom review paso los 512 MiB residentes (lo mato el vigilante): esta leyendo algo que no termina", ca, caso)
 	}
-	if c.maxRSS > 128<<20 {
+	if c.maxRSS > raTopeRSS {
 		t.Fatalf("%s: %s: hoom review llego a %d MiB residentes: leyo en proporcion a algo que no tenia que leer", ca, caso, c.maxRSS>>20)
 	}
 }

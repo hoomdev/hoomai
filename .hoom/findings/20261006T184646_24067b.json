@@ -1,0 +1,11 @@
+{
+  "id": "20261006T184646_24067b",
+  "created_at": "2026-10-06T18:46:46.53897Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/review_aislada_orden_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/review_aislada_orden_test.go:915-925 solo intenta leer VmHWM despues de cmd.Start y luego por ticks. Start confirma el exec, pero no impide que un hoom que rechaza enseguida (por ejemplo los casos de :1024) termine antes de que el padre vuelva a ejecutarse; entonces muestreado queda 0 y raPicoPropio cae deliberadamente al ru_maxrss heredado del padre (internal/reviewcmd/review_aislada_rss_test.go:140-143). Con el padre de CI por encima de 128 MiB reaparece el rojo espurio que este cambio busca eliminar. El E2E no cubre la salida rapida porque ambos hijos duermen 300 ms (:612-617). Hace falta garantizar una observacion del hijo o usar una medida post mortem que no herede el pico del padre.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0d982f27328fddb",
+  "task": "estabilizar-ci"
+}

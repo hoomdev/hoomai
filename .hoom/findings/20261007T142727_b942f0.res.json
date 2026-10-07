@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T142727_b942f0",
+  "as": "corregido",
+  "evidence": "2e514f7 (test-writer): testigoDeVida se mudo a grupo_de_procesos_test.go, el archivo del helper de procesos que usan cli_falso_test.go y review_aislada_rss_test.go; cli_falso_test.go ya no lo define. Mudanza sin cambio de comportamiento (suma shConUnoDetras para los tests nuevos). El refutador habia probado la mudanza pura: vet limpio y los tests que lo usan pasan. Verde local 2026-10-07T15-57-26Z_997c270d (reviewcmd 546 s con -race). Linux: run 37646905035 del CI sobre 2e514f7 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T15:58:27.434894Z"
+}

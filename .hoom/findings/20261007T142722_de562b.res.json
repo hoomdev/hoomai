@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T142722_de562b",
+  "as": "corregido",
+  "evidence": "889fbcd (test-writer): la constante, el apagado, el parser estricto, el entorno de git solo, el repo crudo, el commit con traza y la tabla de formas viven en un solo paquete de fixture, internal/gittest (solo lo importan tests, en la linea de internal/carreratest, con doc.go y tests propios); agentcmd y reviewcmd lo usan desde su git() y desde los tests de sus constructores. Ninguna asercion se perdio: el test de la tabla (24 formas contrastadas con git config --get) se mudo con el parser; los de los constructores conservan nombre y aserciones, y el de reviewcmd suma que cada constructor pase Exigir. Mutantes detectados: el git() de cada paquete sin apagar, los clones sin apagar, la copia sin exigir, Exigir aceptando un true al final, y siete mas sobre el fixture. El refutador corroboro la duplicacion y el precedente (carreratest/doc.go). CI linux verde sobre 889fbcd (run 37640657186). Verde local 2026-10-07T15-57-26Z_997c270d (reviewcmd 546 s con -race). Linux: run 37646905035 del CI sobre 2e514f7 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T15:58:27.428599Z"
+}

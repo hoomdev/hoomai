@@ -1,0 +1,11 @@
+{
+  "id": "20261006T184910_323d51",
+  "created_at": "2026-10-06T18:49:10.093591Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/cli_falso_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/cli_falso_test.go:108 conserva un testing.TB que ya no usa y lo oculta con _, solo para evitar cambiar tres instaladores. La firma sigue comunicando que cliFalso depende del test o puede marcarse como helper aunque ahora es una transformacion pura; eliminar ese parametro y actualizar los tres llamadores deja la API alineada con su responsabilidad.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0d982f27328fddb",
+  "task": "estabilizar-ci"
+}

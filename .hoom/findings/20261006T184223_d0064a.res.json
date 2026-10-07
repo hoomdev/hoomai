@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261006T184223_d0064a",
+  "as": "corregido",
+  "evidence": "0e811b9 (test-writer): el corredor del autotest lanza cada CLI falso con Setpgid y cliFalsoMatar hace kill(-pid, SIGKILL) en los dos relojes; la demostracion deliberada (matar solo el shell deja al cuerpo corriendo) se conserva y despues mata al grupo y comprueba con un testigo que no queda nadie. El doc de cliFalso dice que matar un falso es matar su grupo. El refutador verifico que ningun test real del paquete tiene un cuerpo que se cuelgue y dependa de un kill, y que con el kill de grupo no sobrevive nada en ninguno de los seis casos que midio.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T20:34:21.933861Z"
+}

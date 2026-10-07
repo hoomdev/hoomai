@@ -21,4 +21,9 @@ jobs:
       - name: hoom verify (dogfood)
         run: |
           go build -mod=vendor -o /usr/local/bin/hoom ./cmd/hoom
-          hoom verify --gate build,static,test
+          hoom verify --gate build,static,test || {
+            # el reporte muestra solo las ultimas lineas de cada gate: aca va
+            # lo que el veredicto guardo del que fallo, para ver que paquete fue
+            jq -r '.gates[] | select(.status == "fail" or .status == "error") | "--- gate \(.name): salida guardada\n\(.output_tail)"' "$(ls -t .hoom/verdicts/*.json | head -1)"
+            exit 1
+          }

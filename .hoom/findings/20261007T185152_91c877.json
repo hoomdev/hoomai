@@ -1,0 +1,11 @@
+{
+  "id": "20261007T185152_91c877",
+  "created_at": "2026-10-07T18:51:52.810151Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:667-671: la rama AssignStmt registra cualquier selector cuyo campo se llame Setpgid, sin comprobar que el receptor sea syscall.SysProcAttr. A diferencia del literal (líneas 659-664), una asignación inocua como cfg.Setpgid = true sobre un tipo propio en cualquier otro _test.go hace fallar TestHallazgo_786f65_NingunTestMandaSenalesAUnGrupoAMano aunque no arme ningún grupo de procesos. El caso de control de líneas 757-760 solo cubre otro.Setpgid dentro de un literal, por lo que no detecta este falso positivo y la guarda puede volver rojo el CI por código ajeno a la frontera que protege.",
+  "author": "reviewer@codex",
+  "fingerprint": "e83cafe73cbb32e0",
+  "task": "estabilizar-ci"
+}

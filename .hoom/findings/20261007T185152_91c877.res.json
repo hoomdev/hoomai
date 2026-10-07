@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T185152_91c877",
+  "as": "corregido",
+  "evidence": "70994c2 (test-writer): la guarda TestHallazgo_786f65_NingunTestMandaSenalesAUnGrupoAMano se RETIRO, con su test propio (TestHallazgo_954d37_LaGuardaVeLosUsosDeVerdadYNadaMas) y sus dos funciones. Decision de Henry, a quien se escalo por el tope anti-loop del contrato del refutador: era el segundo ciclo sobre la misma guarda (954d37 en la cuarta review; 1a36eb, 2aa6b9 y 91c877 en la quinta). Motivo: nacio del hallazgo 786f65, que quedo refutado, y mirando el fuente sin tipos no puede ser completa y precisa a la vez; el refutador lo mostro con 17 fuentes chicas contra cinco versiones (cada parche cambia un escape por un falso rojo; el syscall crudo y los kill de shell no los ve ninguna). La cabecera de grupo_de_procesos_test.go ya no afirma que eso se hace cumplir: lo dice como convencion y nombra la excepcion que existe a proposito (el caso lo matan desde afuera de cli_falso_test.go, que mata solo al shell del script con cmd.Process.Kill). Con la guarda fuera ya no hay rama AssignStmt que de un falso rojo con el campo Setpgid de un tipo propio. Verde local 2026-10-07T19-46-46Z_0a516e36 (reviewcmd 537 s con -race). Linux: run 37675882680 del CI sobre 70994c2 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T19:47:33.51256Z"
+}

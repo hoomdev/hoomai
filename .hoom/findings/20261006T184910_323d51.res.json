@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261006T184910_323d51",
+  "as": "corregido",
+  "evidence": "0e811b9 (test-writer): cliFalso(cuerpo string) ya no recibe testing.TB; se actualizaron los nueve llamadores (los tres instaladores y seis en cli_falso_test.go).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T20:34:21.940825Z"
+}

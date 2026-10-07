@@ -1,0 +1,11 @@
+{
+  "id": "20261005T183737_78162b",
+  "created_at": "2026-10-05T18:37:37.010914Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/review_aislada_orden_test.go",
+  "description": "PRE-EXISTENTE (desde review-aislada, CA-414/CA-416): raHoomConReloj (review_aislada_orden_test.go:~891-940) mide la memoria del hoom hijo con ProcessState.SysUsage().Maxrss y raCLIVolvio exige menos de 128 MiB. En linux el ru_maxrss de un hijo no es solo suyo: al hacer exec el kernel le anota el pico de RSS del espacio de memoria anterior, que con vfork/clone es el del padre. Con el binario de tests bajo -race (padre grande) el test falla aunque hoom no haya leido nada de mas. Evidencia, run 37355349622 del PR #43 (e4d545f): el paso 'test' (sin -race) pasa y el dogfood (go test -race ./...) falla en 12 casos de CA-414/CA-416, TODOS con exactamente 'hoom review llego a 324 MiB residentes', en escenarios distintos; el hoom hijo se compila con 'go build' sin -race (hbHoomReal y afines) en los dos pasos, asi que es el mismo binario y su consumo no puede depender de que el padre este instrumentado. En macOS pasa tambien con -race. Es la causa del dogfood rojo que el log no dejaba ver (probablemente tambien 3ff7401, baf2251 y 6a8344d: inferencia). La cota de 128 MiB tiene que medirse sobre la memoria propia del hijo (por ejemplo VmHWM de /proc/\u003cpid\u003e/status, que arranca de cero en el exec).",
+  "author": "writer@claude",
+  "fingerprint": "4a0ebf292459df61",
+  "task": "estabilizar-ci"
+}

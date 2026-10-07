@@ -1,0 +1,11 @@
+{
+  "id": "20261007T185518_2aa6b9",
+  "created_at": "2026-10-07T18:55:18.179742Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:655: la guarda solo registra syscall.Kill cuando el selector importado es directamente CallExpr.Fun. Un uso como matar := syscall.Kill; _ = matar(-pid, syscall.SIGKILL) manda una senal manual real pero pasa inadvertido, porque el selector aparece como valor y la llamada usa un identificador; la guarda textual reemplazada por este rango si rechazaba ese syscall.Kill. Esto permite eludir la propiedad centralizada del grupo y volver a introducir procesos descendientes sin limpiar o senales al proceso equivocado.",
+  "author": "reviewer@codex",
+  "fingerprint": "e83cafe73cbb32e0",
+  "task": "estabilizar-ci"
+}

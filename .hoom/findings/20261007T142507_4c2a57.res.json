@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T142507_4c2a57",
+  "as": "corregido",
+  "evidence": "Duplicado exacto de 20261007T141141_5b4172 (lo establecio el refutador: misma ruta, mismas lineas, misma correccion, mismo hueco del test). Corregido en 2e514f7 con el mismo cambio (raHoomMedido corta el grupo siempre y antes de recolectar al medidor) y cubierto por el mismo test, TestHallazgo_5b4172_4c2a57_SalgaPorDondeSalgaLaCorridaNoQuedaNadieDelGrupo, cuyo caso del hoom que mata a su medidor y sigue vivo es el ejemplo de este hallazgo. Verde local 2026-10-07T15-57-26Z_997c270d (reviewcmd 546 s con -race). Linux: run 37646905035 del CI sobre 2e514f7 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T15:58:27.415387Z"
+}

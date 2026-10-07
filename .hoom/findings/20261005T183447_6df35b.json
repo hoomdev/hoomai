@@ -1,0 +1,11 @@
+{
+  "id": "20261005T183447_6df35b",
+  "created_at": "2026-10-05T18:34:47.71936Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/hallazgos_c1_sobre_test.go",
+  "description": "INTRODUCIDO — internal/servecmd/hallazgos_c1_sobre_test.go:58: mirar(bool) mezcla la observacion final con el intento concurrente de plantar la trampa, y su bool de retorno significa que encontro un id, no que gano; por eso mirar(true), mirar(false) y for !mirar(true) no expresan la semantica en los call sites. Separar ambos modos o usar nombres/tipos explicitos reduciria la carga de entender y mantener este fixture concurrente.",
+  "author": "reviewer@codex",
+  "fingerprint": "4a0ebf292459df61",
+  "task": "estabilizar-ci"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261007T185659_aba013",
+  "created_at": "2026-10-07T18:56:59.14698Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/cli_falso_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/cli_falso_test.go:348: el comentario de cliFalsoIntentar afirma que los errores posibles «son dos» (timeout y pipes conservados), pero el cuerpo también devuelve el error de StdinPipe (:361-364) y el de grupoArrancar/Start (:365-368). El contrato escrito queda incompleto y puede confundir a quien mantenga los llamadores; conviene distinguir explícitamente errores de preparación/arranque de las dos condiciones de ejecución.",
+  "author": "reviewer@codex",
+  "fingerprint": "e83cafe73cbb32e0",
+  "task": "estabilizar-ci"
+}

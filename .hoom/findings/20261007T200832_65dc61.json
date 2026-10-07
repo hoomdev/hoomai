@@ -1,0 +1,11 @@
+{
+  "id": "20261007T200832_65dc61",
+  "created_at": "2026-10-07T20:08:32.725564Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:181-186: salidaTomada consume un WaitDelay completo antes de llamar cmd.Wait. Si quien conserva stdout/stderr abandono el grupo (caso que los comentarios reconocen que SIGKILL al grupo no alcanza), el corte de la linea 183 no cierra el pipe y cmd.Wait inicia otro WaitDelay; esperar tarda aproximadamente 2× el plazo configurado y puede rebasar el reloj del fixture. Debe compartirse un unico deadline o evitar que cmd.Wait vuelva a esperar el plazo completo.",
+  "author": "reviewer@codex",
+  "fingerprint": "4920f4653d0ce1ea",
+  "task": "estabilizar-ci"
+}

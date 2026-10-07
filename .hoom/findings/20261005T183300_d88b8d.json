@@ -1,0 +1,11 @@
+{
+  "id": "20261005T183300_d88b8d",
+  "created_at": "2026-10-05T18:33:00.785025Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/cli_falso_test.go",
+  "description": "INTRODUCIDO: cliFalsoPierde excluye todas las redirecciones de su deteccion de exec, por lo que acepta cuerpos como 'exec \u003c/dev/null' o 'exec 0\u003c\u0026-'. Esos cuerpos cambian/cierran stdin; el trap luego encuentra EOF y el escritor vuelve a recibir EPIPE, violando la garantia que este helper pretende imponer y pudiendo reintroducir el flake al agregar fixtures (internal/reviewcmd/cli_falso_test.go:52).",
+  "author": "reviewer@codex",
+  "fingerprint": "4a0ebf292459df61",
+  "task": "estabilizar-ci"
+}

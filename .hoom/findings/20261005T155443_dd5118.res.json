@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261005T155443_dd5118",
+  "as": "corregido",
+  "evidence": "91641b9 (test-writer): cliFalso (internal/reviewcmd/cli_falso_test.go) es el unico lugar que arma un CLI de IA falso y le pone 'trap cat \u003e/dev/null EXIT': el falso consume su stdin entero en toda salida sin robarle el pedido al script que lo lee; fakeProvider, cbFake y raInstalar pasan por ahi (una linea cada uno; ninguna asercion ni test baja: 1305-\u003e1330 y 219-\u003e225 en el paquete). Seis autotests TestHallazgo_dd5118_* (cada salida, no robar, los tres instaladores, control sin drenaje, cuerpo que lo pierde, guarda de shebangs a mano). Validacion determinista en copias aparte: con el pedido rellenado a mas de 1 MiB fallaban 38 tests por la pasada en error y con el arreglo ninguno (solo los 4 que miden el tamano del pedido, ruido del relleno); el refutador, con 150 ms de demora antes de escribir, 37 tests rojos en 8fc93a0 y 0 en 91641b9 (34 paquetes ok). Autotests verdes tambien con /bin/dash. Linux real: lo dira el CI (sin Docker local).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-05T18:11:42.224124Z"
+}

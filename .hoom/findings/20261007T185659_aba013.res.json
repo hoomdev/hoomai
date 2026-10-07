@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T185659_aba013",
+  "as": "corregido",
+  "evidence": "70994c2 (test-writer): el comentario de cliFalsoIntentar distingue los errores de preparacion (el pipe de stdin, no poder lanzarlo) de las dos condiciones de la corrida (no termino en 30 s; termino dejando a alguien con su stdout o su stderr tomado). Solo cambia el comentario. El refutador habia corroborado el tercer error con una ruta que no existe. Verde local 2026-10-07T19-46-46Z_0a516e36 (reviewcmd 537 s con -race). Linux: run 37675882680 del CI sobre 70994c2 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T19:47:33.530035Z"
+}

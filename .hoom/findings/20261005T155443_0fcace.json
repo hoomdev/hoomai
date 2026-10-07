@@ -1,0 +1,11 @@
+{
+  "id": "20261005T155443_0fcace",
+  "created_at": "2026-10-05T15:54:43.38952Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/servecmd/hallazgos_c1_sobre_test.go",
+  "description": "PRE-EXISTENTE (desde 5b292f6, fixes de la cabina C1): h3Trampa (hallazgos_c1_sobre_test.go:30) sondea .hoom/envelopes con ReadDir en un bucle y, cuando parar() cierra stop, vuelve al tope del bucle y sale SIN una ultima lectura. Si el scheduler no le dio turno entre el primer registro escrito y parar(), devuelve id vacio y TestHallazgo_151300_LaunchSinPrimerRegistroEs409 muere en :122 con 'fixture: el launch no dejo nada con id de sobre' aunque el launch respondio 202 con su registro. Fallo en el CI del PR #42 (run 37062178428). Reproducido bajo carga (16 procesos x 8 repeticiones, GOMAXPROCS=2): fallan 8 de 16 procesos, igual en a3c31fd (anterior al PR #42) que en d75eeb6; sin carga pasa 40 de 40. Una ultima lectura tras stop convierte ese caso en 'el registro llego antes: se repite', que el test ya contempla.",
+  "author": "writer@claude",
+  "fingerprint": "8c11edb736eba5cc",
+  "task": "estabilizar-ci"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261006T191534_1caad0",
+  "created_at": "2026-10-06T19:15:34.337187Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/hoomfs/regular.go",
+  "description": "PRE-EXISTENTE (follow-up, pide spec; no se corrige en esta tarea): la spec evidencia-en-disco (lineas 71-74) dice que cada componente 'tiene que ser el mismo objeto antes y despues de abrirlo; lo que cambio en el medio se anota como ilegible', pero hoomfs solo puede comparar dispositivo, numero de inodo y tipo: un objeto del MISMO tipo que hereda el numero de uno borrado no se distingue de ese objeto reescrito en el lugar (stat no expone generacion; el refutador probo que tamano+mtime+ctime distinguen 1 de 400 reutilizaciones reales y no cubren directorios), y una reescritura en el lugar entre la mirada y la apertura tampoco se detecto nunca. El impacto esta refutado (con reutilizacion real la foto entrega lo que hay en el nombre ahora y pisoEnDisco marca cualquier cambio de contenido respecto de la primera foto; ocultar una manipulacion sigue pidiendo escribir despues de la foto, que es no-goal). Queda decidir el contrato: o la spec dice que la identidad es numero+tipo y que la foto registra lo que hay en el nombre, o se fija el inodo mirado con un descriptor (O_PATH en linux), que es un rediseno con validacion en linux. Surge de los hallazgos c46671 y 6184a6 de la review de estabilizar-ci.",
+  "author": "writer@claude",
+  "fingerprint": "9735047e1eed2efb",
+  "task": "estabilizar-ci"
+}

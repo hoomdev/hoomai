@@ -1,0 +1,11 @@
+{
+  "id": "20261006T154221_15a8a5",
+  "created_at": "2026-10-06T15:42:21.497182Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/regular.go",
+  "description": "INTRODUCIDO por evidencia-en-disco (PR #42, CA-442/CA-445): hoomfs.AbrirRegularEn, sigueSiendo y AbrirDirEn deciden que lo abierto es 'lo que se miro' con os.SameFile, que compara solo dispositivo y numero de inodo. En linux un numero liberado se le da enseguida al siguiente objeto creado: un nombre mirado como symlink y el archivo regular puesto despues pueden compartirlo, y el helper acepta un antes que no era un archivo regular. Evidencia: run 37483833453 del PR #43 (27e6915), dogfood con -race: TestCA442_AbrirRegularEnDecideSobreElDescriptorAunqueLaEntradaCambie falla con 'lo mirado era L--------- y AbrirRegularEn devolvio un archivo' (abrir_en_unix_test.go:208); en el run anterior (e4d545f) hoomfs paso: depende de la carrera y de que el numero se reutilice. En macOS no aparece (APFS no reutiliza asi los numeros). En la foto no llega a hacer dano: huella solo llama a AbrirRegularEn con un Lstat regular, y la mirada de despues de abrir sigue impidiendo aceptar un symlink (el descriptor mantiene vivo su inodo, asi que el nombre que tiene ese numero es el objeto abierto). Pero el contrato del helper ('solo si es el archivo regular que antes describe') no se cumple: la identidad tiene que ser el numero Y el tipo.",
+  "author": "writer@claude",
+  "fingerprint": "9a16f65794c4edb7",
+  "task": "estabilizar-ci"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T172629_954d37",
+  "as": "corregido",
+  "evidence": "bfd3afa (test-writer): la guarda es estructural. grupoUsosAMano parsea cada _test.go del paquete (go/parser y go/ast) y anota los usos de verdad: la llamada a Kill de syscall, se importe como se importe (con alias o con punto), y el campo Setpgid en un literal de syscall.SysProcAttr o asignado. Un comentario, una cadena o el script de un fixture ya no cuentan. Sabe cual es su archivo por runtime.Caller, no por una constante, y si no lo encuentra entre los fuentes o no le ve las senales, falla en vez de decir que no hay. El refutador habia mostrado que la guarda vieja se ponia en rojo con un comentario, quedaba en SKIP al renombrar el archivo del helper (y entonces una llamada real pasaba) y dejaba pasar una llamada real con el import renombrado. TestHallazgo_954d37_LaGuardaVeLosUsosDeVerdadYNadaMas: 8 fuentes chicas y 4 casos en que la guarda tiene que fallar. 10 mutantes de la guarda, todos detectados; con un _test.go de mas, la llamada directa, con alias, con punto, el literal y el asignado fallan con archivo:linea, y solo-comentario y solo-cadena pasan. Limite: no ve senales que no pasen por syscall.Kill (un kill de shell, un syscall crudo). Verde local 2026-10-07T18-24-45Z_335b990a (reviewcmd 503 s con -race). Linux: runs 37665214124 (bfd3afa) y 37665494725 (7d941c2) del CI en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T18:25:29.067928Z"
+}

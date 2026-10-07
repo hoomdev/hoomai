@@ -1,0 +1,11 @@
+{
+  "id": "20261007T185147_579ef7",
+  "created_at": "2026-10-07T18:51:47.870002Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:102-105,175-178: grupoPipe marca conservado ante cualquier error de io.Copy, no solo cuando WaitDelay cierra el pipe. Si el Writer de stdout/stderr devuelve un error y el líder además sale no-cero, os/exec prioriza *exec.ExitError y descarta el error de copia; esperar ve conservado y lo reetiqueta falsamente como exec.ErrWaitDelay. Los llamadores de líneas 381-382 de cli_falso_test.go y 1054/1260 de review_aislada_rss_test.go informan entonces que un descendiente conservó la salida, aunque no hubo descendiente ni venció el plazo, ocultando el fallo real del writer.",
+  "author": "reviewer@codex",
+  "fingerprint": "e83cafe73cbb32e0",
+  "task": "estabilizar-ci"
+}

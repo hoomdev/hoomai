@@ -1,0 +1,11 @@
+{
+  "id": "20261006T184909_e440da",
+  "created_at": "2026-10-06T18:49:09.878789Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/mismo_objeto_unix_test.go",
+  "description": "INTRODUCIDO: internal/hoomfs/mismo_objeto_unix_test.go:211 concentra en moComprobar dos recorridos independientes (AbrirDirEn y AbrirRegularEn) seleccionados por c.dir, cada uno con apertura, cierre y aserciones propias; el bloque de mas de 60 lineas obliga a mantener ambos contratos dentro de una sola funcion. Separar moComprobarDir y moComprobarRegular, dejando un despachador pequeno, haria explicitas las responsabilidades y aislaria cambios futuros.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0d982f27328fddb",
+  "task": "estabilizar-ci"
+}

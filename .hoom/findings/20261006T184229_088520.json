@@ -1,0 +1,11 @@
+{
+  "id": "20261006T184229_088520",
+  "created_at": "2026-10-06T18:42:29.222169Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/servecmd/hallazgos_c1_sobre_test.go",
+  "description": "INTRODUCIDO. internal/servecmd/hallazgos_c1_sobre_test.go:1: el build tag unix excluye tambien TestHallazgo_151300_LaunchSinPrimerRegistroEs409 (linea 481) y su control, aunque CA-335 y la respuesta HTTP no son comportamiento exclusivo de Unix. El paquete servecmd sigue compilando para windows, pero alli esta regresion antes cubierta desaparece silenciosamente; conviene aislar solo la fixture FIFO o conservar una variante para Windows.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0d982f27328fddb",
+  "task": "estabilizar-ci"
+}

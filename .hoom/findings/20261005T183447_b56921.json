@@ -1,0 +1,11 @@
+{
+  "id": "20261005T183447_b56921",
+  "created_at": "2026-10-05T18:34:47.488814Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/cli_falso_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/cli_falso_test.go:234: los casos de esta tabla (y los de lineas 191-208) usan literales posicionales para structs anonimos de 4-5 campos; filas como nil, 0, string(pedido) obligan a volver a la declaracion para saber que representa cada valor y vuelven riesgoso agregar o reordenar campos. Usar campos nombrados o un tipo de caso con literales keyed haria cada escenario autocontenido.",
+  "author": "reviewer@codex",
+  "fingerprint": "4a0ebf292459df61",
+  "task": "estabilizar-ci"
+}

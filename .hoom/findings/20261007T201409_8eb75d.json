@@ -1,0 +1,11 @@
+{
+  "id": "20261007T201409_8eb75d",
+  "created_at": "2026-10-07T20:14:09.768946Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:72,140,184: recolectando no representa una fase en curso sino un estado terminal enclavado: se activa antes de cmd.Wait y permanece true después de que el líder ya fue recolectado, para significar que nunca más pueden salir señales. El nombre obliga a reconstruir esa máquina de estados desde los usos y resulta especialmente ambiguo una vez que esperar volvió; un nombre de hecho consumado/invariante (por ejemplo, recoleccionIniciada o noMasSenales) haría explícito el contrato.",
+  "author": "reviewer@codex",
+  "fingerprint": "4920f4653d0ce1ea",
+  "task": "estabilizar-ci"
+}

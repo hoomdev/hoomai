@@ -1,0 +1,11 @@
+{
+  "id": "20261007T142735_3909e4",
+  "created_at": "2026-10-07T14:27:35.525547Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/review_aislada_rss_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/review_aislada_rss_test.go:1290, :1352 y :1408 duplican literalmente el nombre de su propia función para construir -test.run. Cada renombre exige editar también una cadena que las herramientas de refactor no siguen; si queda vieja, el subproceso puede seleccionar cero tests y el flujo padre deja de representar el experimento nombrado. Encapsular la selección del papel/subproceso sin nombres propios repetidos eliminaría ese acoplamiento textual.",
+  "author": "reviewer@codex",
+  "fingerprint": "40607cb8d2bae2c0",
+  "task": "estabilizar-ci"
+}

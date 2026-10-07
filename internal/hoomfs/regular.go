@@ -35,7 +35,7 @@ func AbrirRegular(path string) (*os.File, error) {
 // AbrirRegularEn is AbrirRegular for name inside r, where antes is the
 // Lstat of name the caller just took: an os.Root follows a symlink that
 // stays inside it, and the entry can be swapped between that Lstat and the
-// open, so the descriptor must show that same file (os.SameFile) and the
+// open, so the descriptor must show that same object (mismo) and the
 // name must still be it after the open (sigueSiendo), or the open is
 // refused. A FIFO does not block it either.
 func AbrirRegularEn(r *os.Root, name string, antes fs.FileInfo) (*os.File, error) {
@@ -59,10 +59,23 @@ func AbrirRegularEn(r *os.Root, name string, antes fs.FileInfo) (*os.File, error
 // passes os.SameFile on the descriptor. Before and after the open, the name
 // is that object; what changes it later is a write after the photograph.
 func sigueSiendo(r *os.Root, name string, antes fs.FileInfo) error {
-	if st, err := r.Lstat(name); err != nil || !os.SameFile(antes, st) {
+	if st, err := r.Lstat(name); err != nil || !mismo(antes, st) {
 		return fmt.Errorf("%s cambio entre mirarlo y abrirlo", name)
 	}
 	return nil
+}
+
+// mismo says whether antes and ahora can be the same object: the same
+// device and inode number (os.SameFile) AND the same kind. The number alone
+// is not an identity: a file system may hand a freed one to the next object
+// it creates (linux does at once), so a name looked at as a symlink and the
+// regular file put there afterwards can share it. What mismo cannot tell
+// apart is an object of the SAME kind that inherited the number of a
+// deleted one: stat exposes no generation, so it looks exactly like the
+// old object rewritten in place, which nothing here detects either. For
+// both it says yes, and the caller gets what is at the name now.
+func mismo(antes, ahora fs.FileInfo) bool {
+	return os.SameFile(antes, ahora) && antes.Mode().Type() == ahora.Mode().Type()
 }
 
 // regular keeps f only if its descriptor is a regular file — and, with
@@ -73,7 +86,7 @@ func regular(f *os.File, path string, antes fs.FileInfo) (*os.File, error) {
 	case err != nil:
 		f.Close()
 		return nil, err
-	case antes != nil && !os.SameFile(antes, st):
+	case antes != nil && !mismo(antes, st):
 		f.Close()
 		return nil, fmt.Errorf("%s cambio entre mirarlo y abrirlo", path)
 	case !st.Mode().IsRegular():

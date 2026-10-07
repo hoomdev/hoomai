@@ -14,16 +14,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/gittest"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
+// git corre git en dir. Con `init`, ademas, deja el repo recien creado con el
+// mantenimiento automatico de git apagado (gittest.ApagarMantenimiento,
+// hallazgo 30abfc): todo repo de prueba de este paquete nace por aca, menos
+// los clones, que lo apagan ellos.
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	if len(args) > 0 && args[0] == "init" {
+		gittest.ApagarMantenimiento(t, dir)
 	}
 }
 
@@ -59,14 +67,16 @@ func repo(t *testing.T) string {
 	return root
 }
 
-// fakeProvider pone al frente del PATH un CLI de IA falso.
+// fakeProvider pone al frente del PATH un CLI de IA falso que corre script.
+// Lo arma cliFalso: salga por donde salga, el falso lee antes su stdin
+// entero, que es por donde le llega el pedido de la review (CA-418).
 func fakeProvider(t *testing.T, name, script string) {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "bin")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+script), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), cliFalso(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))

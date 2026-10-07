@@ -1,0 +1,11 @@
+{
+  "id": "20261007T142727_b942f0",
+  "created_at": "2026-10-07T14:27:27.242584Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/cli_falso_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/cli_falso_test.go:216 aloja testigoDeVida, un helper genérico para observar grupos de procesos, dentro del fixture de CLIs falsos; el cambio además lo consume desde internal/reviewcmd/review_aislada_rss_test.go:1364. Esa ubicación oculta una dependencia entre suites no relacionadas y obliga a conocer cli_falso_test.go para mantener las pruebas de RSS; mover el testigo a un helper de procesos compartido haría visible su propósito y sus consumidores.",
+  "author": "reviewer@codex",
+  "fingerprint": "40607cb8d2bae2c0",
+  "task": "estabilizar-ci"
+}

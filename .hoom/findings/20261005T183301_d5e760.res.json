@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261005T183301_d5e760",
+  "as": "corregido",
+  "evidence": "88966bb (test-writer): el test deja de ser una carrera. El contrato del rol (\u003cwt\u003e/.hoom/agents/04-writer.md) es un FIFO; el Studio lo lee entre crear \u003cid\u003e.log y escribir el primer registro, asi que el fixture sabe cuando esta parado ahi y planta la trampa en UN intento (se van h3Trampa, los seis vigias y los 8 intentos). Tiene abierta la punta de escritura antes de poner el FIFO, detecta al lector con open(O_WRONLY|O_NONBLOCK) hasta que deja de dar ENXIO y, despues de escribir el contrato, toca el FIFO hasta ENXIO (en macOS un lector puede perder el EOF, y un open bloqueante dormido puede perder el encuentro bajo senales). Las cinco aserciones del test (nunca 202, 409 JSON, el CLI no se invoca, sin meta de run, sin registro del sobre) quedan identicas. Suma un control (el mismo alto sin trampa da 202 con ese id) y un autotest del fixture con 8 subtests. Carga (16 procesos x 8, GOMAXPROCS=2): 11.520 corridas de cada test del test-writer y 1.536 mias, 0 fallas y ningun reintento; con -race, limpio. Limite: depende del orden log -\u003e lectura del contrato -\u003e primer registro; si produccion lo cambia, falla con un mensaje de fixture. Linux: lo corre el CI. (h3IDsEn ahora devuelve el error de ReadDir en vez de descartarlo.)",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-06T17:37:12.138608Z"
+}

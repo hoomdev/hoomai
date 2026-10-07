@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T172254_c89063",
+  "as": "corregido",
+  "evidence": "Contenido en 20261007T171925_139218 (lo establecio el refutador: mismo defecto, misma correccion y mismo test faltante; este nombra solo grupoCorrer). Corregido en bfd3afa con el mismo cambio: esperar manda un corte mas al grupo apenas vuelve cmd.Wait y recien despues anota recolectado, asi que la rama termino de grupoCorrer ya no deja vivo lo que el lider dejo detras. Lo cubre el subtest por grupoCorrer de TestHallazgo_139218_c89063_LoQueDejaUnLiderQueTerminaSoloNoQuedaVivo (sh y dash), que falla sin ese corte. Ver la evidencia de 139218. Verde local 2026-10-07T18-24-45Z_335b990a (reviewcmd 503 s con -race). Linux: runs 37665214124 (bfd3afa) y 37665494725 (7d941c2) del CI en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T18:25:29.061205Z"
+}

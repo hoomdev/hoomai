@@ -1,0 +1,11 @@
+{
+  "id": "20261007T205533_22eae1",
+  "created_at": "2026-10-07T20:55:33.411625Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:650-653: matarAlQueSeFue comprueba por el FIFO que alguien sigue vivo y luego manda SIGKILL al PID guardado, pero no conserva una referencia estable ni vuelve a validar la identidad del proceso. El helper se auto-termina a los 30 s (linea 298), por lo que puede salir entre la comprobacion y kill; si el PID se reutiliza, una corrida demorada puede matar un proceso ajeno del mismo usuario. La ventana es pequena, por eso la severidad es low, pero el efecto cruza el aislamiento del test.",
+  "author": "reviewer@codex",
+  "fingerprint": "a0bcb7b2a398a98d",
+  "task": "estabilizar-ci"
+}
