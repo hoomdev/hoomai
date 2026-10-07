@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T142735_3909e4",
+  "as": "corregido",
+  "evidence": "2e514f7 (test-writer): el -test.run de los CUATRO tests que se vuelven a ejecutar (los tres del hallazgo y TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre, que el refutador encontro con la misma forma) sale de t.Name() (raSoloEsteTest), y un proceso aparte que no corre ningun test (testing: warning: no tests to run) es error del fixture: TestHallazgo_3909e4_UnProcesoAparteSinNingunTestEsUnErrorDelFixture. El refutador habia mostrado que con el nombre viejo dos de ellos pasaban en falso. Mutantes: sin la guarda falla el test nuevo; con el nombre viejo en -test.run fallan los 4. Limite: raRunEnHijo y TestCA412, que ya estaban en main, repiten el nombre de su test en una cadena; ahi un no tests to run ya falla ruidoso. Verde local 2026-10-07T15-57-26Z_997c270d (reviewcmd 546 s con -race). Linux: run 37646905035 del CI sobre 2e514f7 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T15:58:27.440996Z"
+}

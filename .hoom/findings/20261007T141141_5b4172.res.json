@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T141141_5b4172",
+  "as": "corregido",
+  "evidence": "2e514f7 (test-writer): raHoomConReloj (ahora raHoomMedido, que devuelve el error, mas t.Fatal) corta el grupo SIEMPRE y antes de recolectar al medidor (g.recolectar()), salga por donde salga: informe entero, trunco, que no se entiende, la ruta error del medidor, reloj o vigilante. El grupo lo arma y lo corta un solo lugar, grupo_de_procesos_test.go. Test nuevo TestHallazgo_5b4172_4c2a57_SalgaPorDondeSalgaLaCorridaNoQuedaNadieDelGrupo: 4 casos con testigo de vida, entre ellos un hoom que mata a su medidor (kill -9 $PPID) y se queda vivo; despues de cada salida el testigo dice que no queda nadie. Mutante (esperar en vez de recolectar): el test falla; lo corrio el test-writer y lo repitio el writer. El refutador lo habia corroborado antes del arreglo (quedaban dos sleep vivos en el grupo del medidor muerto; con el corte antes del Wait no queda nadie, a los 18 ms). Verde local 2026-10-07T15-57-26Z_997c270d (reviewcmd 546 s con -race). Linux: run 37646905035 del CI sobre 2e514f7 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T15:58:27.408114Z"
+}
