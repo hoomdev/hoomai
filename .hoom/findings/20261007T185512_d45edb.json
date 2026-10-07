@@ -1,0 +1,11 @@
+{
+  "id": "20261007T185512_d45edb",
+  "created_at": "2026-10-07T18:55:12.379142Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:104: grupoPipe toma cualquier error de io.Copy como prueba de que WaitDelay cerro un pipe, y esperar lo convierte en exec.ErrWaitDelay en las lineas 175-177. Un error real del Writer de destino (por ejemplo, un writer que falla al escribir) tambien hace err != nil aunque ningun descendiente conserve el pipe; los callers entonces reportan una fuga y salida incompleta en vez del fallo de I/O real. La inferencia no distingue el cierre forzado del pipe de los demas fallos parciales de la copia.",
+  "author": "reviewer@codex",
+  "fingerprint": "e83cafe73cbb32e0",
+  "task": "estabilizar-ci"
+}

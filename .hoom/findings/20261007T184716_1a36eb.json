@@ -1,0 +1,11 @@
+{
+  "id": "20261007T184716_1a36eb",
+  "created_at": "2026-10-07T18:47:16.099857Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:653: la guarda AST solo reconoce syscall.Kill, y el propio caso de línea 759 exige que cmd.Process.Kill pase inadvertido. Así, otro _test.go puede volver a matar solo al líder mediante Process.Kill/Signal (o usar unix.Kill), dejar descendientes vivos con pipes abiertos y aun pasar TestHallazgo_786f65; esto contradice la centralización de cortes que el test declara en líneas 792-823. Es patronizable: agregar una regla Semgrep custom en .hoom/semgrep/ para APIs de señal/proceso fuera del helper evitaría el bypass.",
+  "author": "reviewer@codex",
+  "fingerprint": "e83cafe73cbb32e0",
+  "task": "estabilizar-ci"
+}

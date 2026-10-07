@@ -1,0 +1,11 @@
+{
+  "id": "20261007T184715_8710cd",
+  "created_at": "2026-10-07T18:47:15.871269Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/grupo_de_procesos_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/grupo_de_procesos_test.go:181: esperar envía SIGKILL al PGID después de que cmd.Wait ya recolectó al líder. Si el grupo quedó vacío, ese identificador queda reutilizable; además Wait puede demorarse hasta 2 s por WaitDelay (líneas 36-42), por lo que otro proceso/grupo del mismo usuario puede adquirir el número antes del kill y ser terminado por este fixture. Las mediciones locales de tiempo de reciclado no establecen la propiedad en otros kernels, namespaces PID ni cargas de CI.",
+  "author": "reviewer@codex",
+  "fingerprint": "e83cafe73cbb32e0",
+  "task": "estabilizar-ci"
+}
