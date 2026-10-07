@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T172642_72ff78",
+  "as": "corregido",
+  "evidence": "bfd3afa (test-writer): raHoomMedido ya no asigna cmd.WaitDelay; vale el que pone grupoArrancar (grupoPlazoDeLosPipes), una sola fuente. El refutador probo que sin esa linea el WaitDelay sigue en 2 s y pasan todos los tests que usan raHoomMedido, CA-414 y CA-416 de punta a punta incluidos. Verde local 2026-10-07T18-24-45Z_335b990a (reviewcmd 503 s con -race). Linux: runs 37665214124 (bfd3afa) y 37665494725 (7d941c2) del CI en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T18:25:29.074333Z"
+}
