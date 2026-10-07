@@ -346,11 +346,12 @@ func cliFalsoCorrerCon(t *testing.T, sh cliFalsoShell, ruta string, pedido []byt
 }
 
 // cliFalsoIntentar es cliFalsoCorrerCon sin cortar el test: el error del
-// fixture lo devuelve. Son dos: que el falso no termine en 30 s, y que termine
-// dejando a alguien con su stdout o su stderr tomado todavia plazoDeLosPipes
-// despues (0: el del grupo, grupoPlazoDeLosPipes). La salida de ese falso no
-// esta entera; y antes de que el grupo trajera ese plazo, a ese falso lo
-// cortaba el reloj de 30 s.
+// fixture lo devuelve. Puede ser de preparar la corrida (no pudo armar el
+// pipe del stdin, o no pudo lanzar al falso) o de la corrida, que son dos: que
+// el falso no termine en 30 s, y que termine dejando a alguien con su stdout o
+// su stderr tomado todavia plazoDeLosPipes despues (0: el del grupo,
+// grupoPlazoDeLosPipes). La salida de ese falso no esta entera; y antes de que
+// el grupo trajera ese plazo, a ese falso lo cortaba el reloj de 30 s.
 func cliFalsoIntentar(t *testing.T, sh cliFalsoShell, plazoDeLosPipes time.Duration, ruta string, pedido []byte, args ...string) (cliFalsoCorrida, error) {
 	t.Helper()
 	cmd := sh.comando(ruta, args...)

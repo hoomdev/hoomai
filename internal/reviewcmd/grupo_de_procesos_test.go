@@ -1,66 +1,44 @@
 // El grupo de procesos de un comando que lanza un test, y sus pruebas (tercera
 // review de estabilizar-ci: hallazgos 20261007T142544_ef9963,
-// 20261007T141141_5b4172 / 20261007T142507_4c2a57 y 20261007T142727_b942f0; y
-// cuarta: 20261007T171925_139218 / 20261007T172254_c89063 y
-// 20261007T172629_954d37).
+// 20261007T141141_5b4172 / 20261007T142507_4c2a57 y 20261007T142727_b942f0;
+// cuarta: 20261007T171925_139218 / 20261007T172254_c89063; quinta:
+// 20261007T184715_8710cd, 20261007T185147_579ef7 / 20261007T185512_d45edb).
 //
 // Un comando que lanza a otros (un CLI falso, cuyo cuerpo corre en un
 // subshell; el medidor, que lanza a hoom; este binario vuelto a ejecutar) no
 // se corta matando al proceso que se lanzo: los demas siguen, con sus pipes
-// abiertos. Se corta su GRUPO de procesos, y este archivo es el unico del
-// paquete que arma uno y le manda una senal.
+// abiertos. Se corta su GRUPO de procesos. Por convencion, quien tenga que
+// cortar a un comando y a lo que lanzo lo hace por aca; la excepcion, a
+// proposito, es el caso "lo matan desde afuera" de cli_falso_test.go, que mata
+// SOLO al shell del script (cmd.Process.Kill) para mostrar que no alcanza.
+// (Hubo una guarda que lo hacia cumplir. Nacio del hallazgo
+// 20261007T141236_786f65, que quedo refutado, y mirando el fuente no se puede
+// ser completo y preciso a la vez: cada arreglo le abria otro hueco.)
 //
 // El grupo se nombra con el pid de su lider, que deja de ser suyo cuando al
-// lider lo recolectan y no queda nadie mas en el grupo. Por eso los cortes son
-// dos y nada mas: uno ANTES de recolectar al lider (recolectar, que es tambien
-// lo que corre cuando el test termina) y uno apenas vuelve su Wait (esperar),
-// para lo que un lider que termino SOLO haya dejado en su grupo (hallazgos
-// 139218 y c89063). Con el lider ya anotado como recolectado, cortar no manda
-// nada.
+// lider lo recolectan y no queda nadie mas en el grupo. Lo que se cumple:
+// NUNCA sale una senal al grupo con el lider ya recolectado, y cuando esperar
+// o recolectar vuelven no queda nadie del grupo. Como: al lider se lo espera
+// SIN recolectarlo (grupoEsperarSinRecolectar, por sistema operativo); con el
+// lider terminado y todavia sin recolectar se corta al grupo y se anota, bajo
+// un candado, que ya no sale ninguna senal mas; y recien entonces se lo
+// recolecta (cmd.Wait).
 //
-// El corte de despues del Wait sale con el lider ya recolectado, y solo hace
-// algo cuando el numero sigue siendo del grupo. Si queda alguien del grupo, el
-// numero es del grupo: POSIX no deja reusar un pid mientras exista un grupo
-// con ese id (medido aca: el pid de un lider recolectado con un miembro vivo
-// no volvio en toda la vuelta de numeros). Si no queda nadie, la senal no le
-// llega a nadie: el kill da ESRCH (401 de 401 medidos), o EPERM en macOS si
-// del grupo solo quedan zombies. Y para que el numero fuera de OTRO grupo el
-// kernel tendria que dar la vuelta entera de pids entre que recolecta al lider
-// y que sale la senal: el pid de un lider recolectado y sin miembros tardo 74
-// s en volver, y de que cmd.Wait vuelve a que sale el kill hay menos de 1
-// microsegundo de mediana y 74 de maximo (383 medidos, todos sin nadie a quien
-// alcanzar). Cerrar esa ventana es lo que pedia el hallazgo
-// 20261007T141236_786f65, que quedo REFUTADO con mediciones (la peor ventana
-// entre recolectar y cortar: 9,7 ms).
-//
-// El limite de eso: cmd.Wait recolecta al lider y despues espera los pipes del
-// comando, hasta el WaitDelay. Si los conserva alguien del grupo, el numero
-// sigue siendo del grupo. Si los conserva un descendiente que se FUE del grupo
-// (setsid), el corte de despues sale hasta 2 s despues de que el lider murio,
-// con el grupo vacio todo ese tiempo: 2 s contra los 74 s de la vuelta. Hoy
-// ningun fixture ni hoom se sale de su grupo; y al que se fue, ademas, ningun
-// corte lo alcanza.
-//
-// Y un corte solo puede no alcanzar al proceso que el grupo esta lanzando en
-// ese instante: medido aca (macOS, dash), cortando apenas el shell avisaba
-// quedo vivo en 13 de 3000; con los dos cortes de recolectar, en 0 de 3000
-// (con /bin/sh, 0 de 3000 de las dos maneras). Es una medicion, no una
-// garantia.
+// Lo que no alcanza ningun corte: al que se fue del grupo. Y un corte puede no
+// alcanzar al proceso que el grupo esta lanzando en ese instante: medido aca
+// (macOS, dash), cortando apenas el shell avisaba quedo vivo en 60 de 3000 con
+// un solo corte, y en 0 de 3000 con los dos de recolectar (con /bin/sh, 0 de
+// 3000 de las dos maneras). Es una medicion, no una garantia.
 package reviewcmd
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"io"
-	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -70,39 +48,41 @@ import (
 	"time"
 )
 
-// grupoPlazoDeLosPipes es el WaitDelay de un comando que no trae el suyo: su
-// Wait no se queda esperando un pipe que conserva alguien que el comando dejo
-// detras. Que se cumpla es un error (esperar), no una salida mas.
+// grupoPlazoDeLosPipes es el WaitDelay de un comando que no trae el suyo:
+// cuanto se espera, con el lider ya terminado, a que llegue el fin de archivo
+// de su stdout y de su stderr. Que no llegue es un error (esperar), no una
+// salida mas.
 const grupoPlazoDeLosPipes = 2 * time.Second
 
 // grupoDeProcesos es el grupo de procesos de un comando que lanzo un test: el
 // comando, que es su lider, y lo que el comando haya lanzado.
 type grupoDeProcesos struct {
+	t   testing.TB
 	cmd *exec.Cmd
-	// senal es syscall.Kill: un campo, para que un test vea que senales salen
-	senal func(pid int, sig syscall.Signal) error
+	// senal es syscall.Kill y esperaSinRecolectar, grupoEsperarSinRecolectar:
+	// campos, para que un test vea que senales salen y que pasa si la espera
+	// falla
+	senal               func(pid int, sig syscall.Signal) error
+	esperaSinRecolectar func(pid int) error
 
-	pipes       []*grupoPipe // el stdout y el stderr del comando
-	una         sync.Once    // el Wait del lider, y err lo que devolvio
-	err         error
-	mu          sync.Mutex // cuida recolectado
-	recolectado bool       // el Wait del lider ya volvio y el corte de despues ya salio
+	pipes        []*grupoPipe // el stdout y el stderr del comando
+	una          sync.Once    // la espera del lider, y err lo que dio
+	err          error
+	mu           sync.Mutex // cuida recolectando
+	recolectando bool       // al lider ya se lo va a recolectar: no sale ninguna senal mas
 }
 
 // grupoPipe es el stdout o el stderr de un comando, mirado por su grupo.
-// exec.Cmd copia cada pipe con io.Copy, que lee por aca (ReadFrom): si la
-// lectura termina con un error y no con el fin de archivo, al pipe lo cerro el
-// WaitDelay con alguien todavia del otro lado. cmd.Wait eso lo dice
-// (exec.ErrWaitDelay) solo cuando el lider salio con 0: si no, lo calla.
+// exec.Cmd copia cada pipe con io.Copy, que lee por aca (ReadFrom): cuando esa
+// copia termina, como sea que termine, fin se cierra.
 type grupoPipe struct {
 	io.Writer
-	conservado bool
+	fin chan struct{}
 }
 
 func (p *grupoPipe) ReadFrom(r io.Reader) (int64, error) {
-	n, err := io.Copy(p.Writer, r)
-	p.conservado = err != nil
-	return n, err
+	defer close(p.fin)
+	return io.Copy(p.Writer, r)
 }
 
 // mirar devuelve w mirado por el grupo, si exec.Cmd le va a armar un pipe: ni
@@ -111,7 +91,7 @@ func (g *grupoDeProcesos) mirar(w io.Writer) io.Writer {
 	if _, archivo := w.(*os.File); w == nil || archivo {
 		return w
 	}
-	p := &grupoPipe{Writer: w}
+	p := &grupoPipe{Writer: w, fin: make(chan struct{})}
 	g.pipes = append(g.pipes, p)
 	return p
 }
@@ -136,7 +116,7 @@ func grupoArrancar(t testing.TB, cmd *exec.Cmd) (*grupoDeProcesos, error) {
 	if cmd.WaitDelay == 0 {
 		cmd.WaitDelay = grupoPlazoDeLosPipes
 	}
-	g := &grupoDeProcesos{cmd: cmd, senal: syscall.Kill}
+	g := &grupoDeProcesos{t: t, cmd: cmd, senal: syscall.Kill, esperaSinRecolectar: grupoEsperarSinRecolectar}
 	junta := cmd.Stdout != nil && grupoMismoWriter(cmd.Stdout, cmd.Stderr) // un solo pipe para los dos
 	cmd.Stdout = g.mirar(cmd.Stdout)
 	if junta {
@@ -152,40 +132,72 @@ func grupoArrancar(t testing.TB, cmd *exec.Cmd) (*grupoDeProcesos, error) {
 }
 
 // cortar mata al grupo entero (SIGKILL): al lider y a lo que lanzo y sigue en
-// su grupo. Con el lider ya anotado como recolectado no manda nada.
+// su grupo. Si al lider ya se lo va a recolectar, o ya se lo recolecto, no
+// manda nada.
 func (g *grupoDeProcesos) cortar() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if !g.recolectado {
+	if !g.recolectando {
 		_ = g.senal(-g.cmd.Process.Pid, syscall.SIGKILL)
 	}
 }
 
-// esperar espera a que el lider termine SOLO, lo recolecta y corta lo que
-// haya dejado en su grupo (el corte de despues: la cabecera dice por que no le
-// cae a otro): cuando vuelve no queda nadie del grupo. Devuelve lo que
-// devuelve cmd.Wait, se lo llame las veces que sea y desde donde sea; salvo
-// que el WaitDelay haya tenido que cerrar el stdout o el stderr del comando
-// con alguien todavia del otro lado: entonces es un exec.ErrWaitDelay, haya
-// salido el lider con lo que haya salido, que trae ademas el error del lider
-// (su *exec.ExitError). Esa salida no esta entera.
+// salidaTomada dice, con el lider ya terminado, si alguien mas conserva el
+// stdout o el stderr del comando: lo que el lider dejo escrito llega enseguida,
+// y con eso el fin de archivo; si pasado el WaitDelay del comando alguna de
+// las copias de exec.Cmd no termino, es que del otro lado queda otro.
+func (g *grupoDeProcesos) salidaTomada() bool {
+	plazo := time.NewTimer(g.cmd.WaitDelay)
+	defer plazo.Stop()
+	for _, p := range g.pipes {
+		select {
+		case <-p.fin:
+		case <-plazo.C:
+			return true
+		}
+	}
+	return false
+}
+
+// esperar espera a que el lider termine SOLO, corta lo que haya dejado en su
+// grupo y recien entonces lo recolecta: cuando vuelve no queda nadie del
+// grupo. Devuelve lo que devuelve cmd.Wait, se lo llame las veces que sea y
+// desde donde sea; salvo que alguien que el lider dejo detras conservara el
+// stdout o el stderr del comando (salidaTomada, o el exec.ErrWaitDelay de
+// cmd.Wait): entonces es un exec.ErrWaitDelay, haya salido el lider con lo que
+// haya salido, que trae ademas el error del lider (su *exec.ExitError). Esa
+// salida no esta entera.
+//
+// Si no puede esperar sin recolectar es un error, del que la llama y de t: no
+// sabe si el lider termino, lo corta igual y lo recolecta.
 func (g *grupoDeProcesos) esperar() error {
 	g.una.Do(func() {
-		g.err = g.cmd.Wait()
-		conservado := slices.ContainsFunc(g.pipes, func(p *grupoPipe) bool { return p.conservado })
-		if conservado && !errors.Is(g.err, exec.ErrWaitDelay) {
+		pid := g.cmd.Process.Pid
+		errEspera := g.esperaSinRecolectar(pid)
+		if errEspera != nil {
+			errEspera = fmt.Errorf("fixture: no pude esperar sin recolectar al lider del grupo %d (%s): %w", pid, g.cmd.Path, errEspera)
+			g.t.Error(errEspera)
+		}
+		tomada := errEspera == nil && g.salidaTomada()
+		g.mu.Lock()
+		_ = g.senal(-pid, syscall.SIGKILL)
+		g.recolectando = true
+		g.mu.Unlock()
+		switch g.err = g.cmd.Wait(); {
+		case errEspera != nil:
+			g.err = errEspera
+		case g.err == nil && tomada:
+			g.err = exec.ErrWaitDelay
+		case tomada && !errors.Is(g.err, exec.ErrWaitDelay):
 			g.err = fmt.Errorf("%w (el lider: %w)", exec.ErrWaitDelay, g.err)
 		}
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		_ = g.senal(-g.cmd.Process.Pid, syscall.SIGKILL)
-		g.recolectado = true
 	})
 	return g.err
 }
 
-// recolectar corta al grupo y RECIEN ENTONCES recolecta a su lider, sin
-// esperar a que termine solo. Devuelve lo mismo que esperar.
+// recolectar corta al grupo sin esperar a que su lider termine solo, y lo
+// espera: son dos cortes, los dos antes de recolectarlo. Devuelve lo mismo
+// que esperar.
 func (g *grupoDeProcesos) recolectar() error {
 	g.cortar()
 	return g.esperar()
@@ -348,37 +360,42 @@ func grupoShells() []string {
 }
 
 // grupoSenalVista es una senal que salio de un grupoDeProcesos: a que pid, y
-// si salio con el Wait del lider ya vuelto.
+// si en ese momento su lider seguia SIN recolectar: todavia era un proceso,
+// vivo o terminado (kill con la senal 0, que no manda nada, lo encuentra).
 type grupoSenalVista struct {
 	pid           int
-	despuesDeWait bool
+	sinRecolectar bool
 }
 
 // grupoEspiar anota las senales que salen de g, que salen igual. Devuelve
 // donde quedan anotadas. Es para el test que usa a g desde una sola goroutine.
 func grupoEspiar(g *grupoDeProcesos) *[]grupoSenalVista {
-	vistas := new([]grupoSenalVista)
+	vistas, lider := new([]grupoSenalVista), g.cmd.Process.Pid
 	g.senal = func(pid int, sig syscall.Signal) error {
-		*vistas = append(*vistas, grupoSenalVista{pid, g.cmd.ProcessState != nil})
+		*vistas = append(*vistas, grupoSenalVista{pid, syscall.Kill(lider, 0) == nil})
 		return syscall.Kill(pid, sig)
 	}
 	return vistas
 }
 
-// Lo que queda del hallazgo 786f65 (refutado: lo cuenta la cabecera de este
-// archivo), y los hallazgos 139218 y c89063: que senales salen de un grupo, y
-// cuando. Todas son al grupo (-pid).
+// Hallazgo 8710cd (y lo que quedo del 786f65, que pedia lo mismo y se habia
+// dado por refutado con mediciones): que senales salen de un grupo, y cuando.
+// Todas son al grupo (-pid), y TODAS salen con el lider todavia sin
+// recolectar: el espia lo mira en el momento de cada una.
 //
-//   - por recolectar, dos: una ANTES de recolectar al lider, que es la que lo
-//     mata, y el corte de despues. El comando no termina solo: si recolectar
-//     lo esperara antes de cortarlo, saldria con 0 medio minuto despues;
-//   - por el camino natural (esperar a un lider que termina solo), una: el
-//     corte de despues, que no le cambia con que salio;
-//   - con el lider ya anotado como recolectado, ninguna mas, se llame a lo
-//     que se llame y las veces que sea.
+//   - por el camino natural (esperar a un lider que termina solo), una: con
+//     el lider ya terminado, que no le cambia con que salio;
+//   - por recolectar, dos: la que mata al lider, y la de esperar. El comando
+//     no termina solo: si recolectar lo esperara antes de cortarlo, saldria
+//     con 0 medio minuto despues;
+//   - una vez que esperar volvio, con el lider recolectado, ninguna mas, se
+//     llame a lo que se llame y las veces que sea.
 func TestHallazgo_786f65_DespuesDeRecolectarCortarNoMandaNada(t *testing.T) {
 	despues := func(t *testing.T, g *grupoDeProcesos, vistas *[]grupoSenalVista) {
 		t.Helper()
+		if lider := g.cmd.Process.Pid; syscall.Kill(lider, 0) == nil {
+			t.Fatalf("fixture: cuando esperar vuelve el lider esta recolectado: su pid %d sigue nombrando a un proceso", lider)
+		}
 		salieron := len(*vistas)
 		for range 3 {
 			g.cortar()
@@ -386,7 +403,7 @@ func TestHallazgo_786f65_DespuesDeRecolectarCortarNoMandaNada(t *testing.T) {
 			_ = g.recolectar()
 		}
 		if len(*vistas) != salieron {
-			t.Fatalf("una vez recolectado el lider no sale ninguna senal mas (el numero del grupo ya puede no ser suyo): salieron %+v", (*vistas)[salieron:])
+			t.Fatalf("hallazgo 8710cd: con el lider recolectado no sale ninguna senal mas (el numero del grupo ya puede no ser suyo): salieron %+v", (*vistas)[salieron:])
 		}
 	}
 
@@ -401,8 +418,8 @@ func TestHallazgo_786f65_DespuesDeRecolectarCortarNoMandaNada(t *testing.T) {
 		<-testigo.alTomarlo(t)
 
 		_ = g.recolectar()
-		if !slices.Equal(*vistas, []grupoSenalVista{{grupo, false}, {grupo, true}}) || cmd.ProcessState.ExitCode() != -1 {
-			t.Fatalf("recolectar corta al grupo (%d) antes de recolectar a su lider, al que mata esa senal (exit -1), y una vez mas despues: salieron %+v, %v",
+		if !slices.Equal(*vistas, []grupoSenalVista{{grupo, true}, {grupo, true}}) || cmd.ProcessState.ExitCode() != -1 {
+			t.Fatalf("hallazgo 8710cd: recolectar corta al grupo (%d) dos veces, las dos con su lider sin recolectar, y la primera lo mata (exit -1): salieron %+v, %v",
 				grupo, *vistas, cmd.ProcessState)
 		}
 		if arranco, nadie := testigo.espera(10 * time.Second); !arranco || !nadie {
@@ -420,13 +437,154 @@ func TestHallazgo_786f65_DespuesDeRecolectarCortarNoMandaNada(t *testing.T) {
 		vistas, grupo := grupoEspiar(g), -cmd.Process.Pid
 
 		if err := g.esperar(); err == nil || cmd.ProcessState.ExitCode() != 3 {
-			t.Fatalf("esperar devuelve lo que devuelve el Wait de un comando que salio con 3: %v, %v", err, cmd.ProcessState)
+			t.Fatalf("esperar devuelve lo que devuelve el Wait de un comando que salio con 3, y el corte no se lo cambia: %v, %v", err, cmd.ProcessState)
 		}
 		if !slices.Equal(*vistas, []grupoSenalVista{{grupo, true}}) {
-			t.Fatalf("hallazgos 139218 y c89063: por el camino natural sale UN corte al grupo (%d), apenas vuelve el Wait del lider: salieron %+v", grupo, *vistas)
+			t.Fatalf("hallazgo 8710cd: por el camino natural sale UN corte al grupo (%d), con su lider terminado y todavia sin recolectar: salieron %+v", grupo, *vistas)
 		}
 		despues(t, g, vistas)
 	})
+}
+
+// grupoConReloj corre f, que espera a un proceso, y dice si volvio en d y con
+// que: una espera rota no cuelga al test.
+func grupoConReloj(d time.Duration, f func() error) (volvio bool, err error) {
+	fin := make(chan error, 1)
+	go func() { fin <- f() }()
+	select {
+	case err := <-fin:
+		return true, err
+	case <-time.After(d):
+		return false, nil
+	}
+}
+
+// Hallazgo 8710cd: la espera sin recolectar, que es distinta en cada sistema
+// operativo. No vuelve mientras el proceso vive; vuelve cuando termina; para
+// uno que ya termino vuelve enseguida, las veces que sea; y despues de todo
+// eso el proceso sigue ahi para quien lo recolecte, con su codigo de salida.
+// Y de uno que ya no es un hijo sin recolectar no dice "ya termino": es un
+// error. El proceso vive hasta que le cierran el stdin, y sale con 5.
+func TestHallazgo_8710cd_LaEsperaSinRecolectarNoRecolecta(t *testing.T) {
+	cmd := exec.Command("/bin/sh", "-c", "read nada\nexit 5\n")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("fixture: no pude lanzar /bin/sh: %v", err)
+	}
+	pid, recolectado := cmd.Process.Pid, false
+	defer func() {
+		if !recolectado {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	}()
+	esperar := func() error { return grupoEsperarSinRecolectar(pid) }
+
+	primera := make(chan error, 1)
+	go func() { primera <- esperar() }()
+	select {
+	case err := <-primera:
+		t.Fatalf("hallazgo 8710cd: la espera sin recolectar no vuelve mientras el proceso vive: volvio con %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	_ = stdin.Close()
+	select {
+	case err := <-primera:
+		if err != nil {
+			t.Fatalf("hallazgo 8710cd: la espera sin recolectar vuelve sin error cuando el proceso termina: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatalf("hallazgo 8710cd: la espera sin recolectar vuelve cuando el proceso termina: 30 s despues sigue esperando")
+	}
+	for range 2 {
+		if volvio, err := grupoConReloj(30*time.Second, esperar); !volvio || err != nil {
+			t.Fatalf("hallazgo 8710cd: para un proceso que ya termino y sigue sin recolectar, la espera vuelve enseguida y sin error: volvio %v, %v", volvio, err)
+		}
+	}
+
+	err = cmd.Wait()
+	recolectado = true
+	var salida *exec.ExitError
+	if !errors.As(err, &salida) || salida.ExitCode() != 5 {
+		t.Fatalf("hallazgo 8710cd: despues de esperarlo sin recolectar el proceso sigue ahi para su Wait, con su codigo de salida (5): %v", err)
+	}
+	if volvio, err := grupoConReloj(30*time.Second, esperar); !volvio || err == nil {
+		t.Fatalf("hallazgo 8710cd: de un proceso ya recolectado la espera no dice \"ya termino\": es un error; volvio %v, %v", volvio, err)
+	}
+}
+
+// grupoTAnotada es el t de un grupo que anota los errores que el grupo le
+// marca, en vez de fallar: para el test que mira justamente eso.
+type grupoTAnotada struct {
+	testing.TB
+	errores []string
+}
+
+func (a *grupoTAnotada) Error(args ...any) {
+	a.errores = append(a.errores, fmt.Sprint(args...))
+}
+
+// Hallazgo 8710cd: si la espera sin recolectar falla (el sistema dice que no,
+// o es uno donde no la hay), eso no es "el lider ya termino": es un error, que
+// esperar devuelve y que ademas le marca a su test, para el que no mira lo que
+// esperar devuelve. Y el grupo queda igual cortado, con su lider recolectado
+// y sin nadie.
+func TestHallazgo_8710cd_SiLaEsperaSinRecolectarFallaEsUnError(t *testing.T) {
+	testigo := nuevoTestigoDeVida(t)
+	anotada := &grupoTAnotada{TB: t}
+	cmd := exec.Command("/bin/sh", "-c", testigo.shConUnoDetras("")+"wait\n")
+	g, err := grupoArrancar(anotada, cmd)
+	if err != nil {
+		t.Fatalf("fixture: no pude lanzar /bin/sh: %v", err)
+	}
+	falla := errors.New("aca no se puede esperar sin recolectar")
+	g.esperaSinRecolectar = func(int) error { return falla }
+	<-testigo.alTomarlo(t)
+
+	if err := g.esperar(); !errors.Is(err, falla) || len(anotada.errores) != 1 || !strings.Contains(anotada.errores[0], falla.Error()) {
+		t.Fatalf("hallazgo 8710cd: una espera sin recolectar que falla es un error de esperar y de su test, no un lider que ya termino: esperar dio %v, y al test le marco %q", err, anotada.errores)
+	}
+	if cmd.ProcessState == nil || cmd.ProcessState.ExitCode() != -1 {
+		t.Fatalf("hallazgo 8710cd: sin saber si el lider termino, esperar lo corta y lo recolecta igual (exit -1): %v", cmd.ProcessState)
+	}
+	if arranco, nadie := testigo.espera(10 * time.Second); !arranco || !nadie {
+		t.Fatalf("hallazgo 8710cd: y no queda nadie del grupo: el comando tomo el testigo %v, 10 s despues no queda nadie %v", arranco, nadie)
+	}
+}
+
+// grupoWriterRoto es un Writer que falla siempre.
+type grupoWriterRoto struct{ err error }
+
+func (w grupoWriterRoto) Write([]byte) (int, error) { return 0, w.err }
+
+// Hallazgos 579ef7 y d45edb: un Writer que falla al escribir no es una salida
+// tomada. La copia de exec.Cmd termina con ese error y nadie conserva el
+// pipe: esperar devuelve lo que da cmd.Wait (el error del Writer si el lider
+// salio con 0; el del lider si no), nunca un exec.ErrWaitDelay. Antes el
+// grupo tomaba cualquier error de la copia por un pipe que cerro el WaitDelay.
+func TestHallazgo_579ef7_d45edb_UnWriterQueFallaNoEsUnaSalidaTomada(t *testing.T) {
+	roto := errors.New("este writer no escribe")
+	for _, exit := range []int{0, 3} {
+		t.Run("exit-"+strconv.Itoa(exit), func(t *testing.T) {
+			t.Parallel()
+			cmd := exec.Command("/bin/sh", "-c", "echo dicho\nexit "+strconv.Itoa(exit)+"\n")
+			cmd.Stdout = grupoWriterRoto{roto}
+			vencio, err := grupoCorrer(t, cmd, time.After(30*time.Second))
+			if vencio || errors.Is(err, exec.ErrWaitDelay) {
+				t.Fatalf("hallazgos 579ef7 y d45edb: un Writer que falla no es una salida que alguien conservo: vencio %v, %v", vencio, err)
+			}
+			var delLider *exec.ExitError
+			switch {
+			case exit == 0 && !errors.Is(err, roto):
+				t.Fatalf("con el lider salido con 0, el error es el del Writer, como en cmd.Wait: %v", err)
+			case exit != 0 && (!errors.As(err, &delLider) || delLider.ExitCode() != exit):
+				t.Fatalf("con el lider salido con %d, el error es el del lider, como en cmd.Wait: %v", exit, err)
+			}
+		})
+	}
 }
 
 // Hallazgos 139218 y c89063: un lider que termina SOLO dejando un proceso vivo
@@ -445,9 +603,8 @@ func TestHallazgo_786f65_DespuesDeRecolectarCortarNoMandaNada(t *testing.T) {
 // habia ablandado; lo midio el refutador de la cuarta review). Sin WaitDelay
 // su Wait no volvia y lo cortaba el reloj del que lo corria, en rojo; con el
 // WaitDelay del grupo volvia a los 2 s como si nada. Ahora vuelve igual, pero
-// con un exec.ErrWaitDelay, salga el lider con 0 o con otra cosa (que es
-// cuando cmd.Wait lo calla), con lo que llego a imprimir y sin dejar vivo al
-// que conservaba el pipe.
+// con un exec.ErrWaitDelay, salga el lider con 0 o con otra cosa, con lo que
+// llego a imprimir y sin dejar vivo al que conservaba el pipe.
 func TestHallazgo_139218_c89063_LoQueDejaUnLiderQueTerminaSoloNoQuedaVivo(t *testing.T) {
 	caminos := []struct {
 		nombre string
@@ -606,220 +763,5 @@ func TestHallazgo_ef9963_UnWriterQueNoSePuedeCompararNoRompeAlGrupo(t *testing.T
 	// van por dos pipes: llegan las dos lineas, en el orden que sea
 	if got := buf.String(); got != "a stdout\na stderr\n" && got != "a stderr\na stdout\n" {
 		t.Fatalf("lo que el comando imprimio por su stdout y por su stderr llega entero: %q", got)
-	}
-}
-
-// grupoUsosAMano son los lugares de un fuente de Go (src, de nombre archivo)
-// que le mandan una senal a un proceso o arman un grupo de procesos por su
-// cuenta: una llamada a Kill del paquete syscall, con el nombre con que ese
-// fuente lo importe, y el campo Setpgid, en un literal de syscall.SysProcAttr
-// o asignado. Mira el codigo: lo que solo lo nombra (un comentario, una
-// cadena, el `kill` del script de un fixture) no es un uso.
-func grupoUsosAMano(archivo string, src []byte) ([]string, error) {
-	if !bytes.Contains(src, []byte("Kill")) && !bytes.Contains(src, []byte("Setpgid")) {
-		return nil, nil // ni los nombra: no hace falta parsearlo
-	}
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, archivo, src, parser.SkipObjectResolution)
-	if err != nil {
-		return nil, err
-	}
-	var syscalls []string // los nombres de syscall en este fuente
-	for _, imp := range f.Imports {
-		switch {
-		case imp.Path.Value != strconv.Quote("syscall"):
-		case imp.Name == nil:
-			syscalls = append(syscalls, "syscall")
-		default:
-			syscalls = append(syscalls, imp.Name.Name)
-		}
-	}
-	// deSyscall: e nombra a ese nombre del paquete syscall (syscall.Kill, o
-	// Kill a secas con un import con punto)
-	deSyscall := func(e ast.Expr, nombre string) bool {
-		switch e := e.(type) {
-		case *ast.SelectorExpr:
-			x, ok := e.X.(*ast.Ident)
-			return ok && e.Sel.Name == nombre && slices.Contains(syscalls, x.Name)
-		case *ast.Ident:
-			return e.Name == nombre && slices.Contains(syscalls, ".")
-		}
-		return false
-	}
-	var usos []string
-	uso := func(n ast.Node, que string) {
-		usos = append(usos, archivo+":"+strconv.Itoa(fset.Position(n.Pos()).Line)+": "+que)
-	}
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.CallExpr:
-			if deSyscall(n.Fun, "Kill") {
-				uso(n, "llama a syscall.Kill")
-			}
-		case *ast.CompositeLit:
-			for _, e := range n.Elts {
-				if kv, ok := e.(*ast.KeyValueExpr); ok && deSyscall(n.Type, "SysProcAttr") {
-					if k, ok := kv.Key.(*ast.Ident); ok && k.Name == "Setpgid" {
-						uso(kv, "pone Setpgid en un syscall.SysProcAttr")
-					}
-				}
-			}
-		case *ast.AssignStmt:
-			for _, e := range n.Lhs {
-				if sel, ok := e.(*ast.SelectorExpr); ok && sel.Sel.Name == "Setpgid" {
-					uso(e, "asigna el campo Setpgid")
-				}
-			}
-		}
-		return true
-	})
-	return usos, nil
-}
-
-// grupoOtrosUsosAMano son los usos a mano (grupoUsosAMano) de esos fuentes
-// (nombre -> texto) que no son de este, el unico que puede tenerlos. Si este
-// no esta entre ellos, o no tiene ninguno, la guarda dejo de mirar: es un
-// error, no un "no hay".
-func grupoOtrosUsosAMano(este string, fuentes map[string][]byte) ([]string, error) {
-	if _, esta := fuentes[este]; !esta {
-		return nil, fmt.Errorf("%s, el que arma los grupos, no esta entre los fuentes", este)
-	}
-	var otros []string
-	for _, nombre := range slices.Sorted(maps.Keys(fuentes)) {
-		usos, err := grupoUsosAMano(nombre, fuentes[nombre])
-		switch {
-		case err != nil:
-			return nil, fmt.Errorf("%s no parsea: %v", nombre, err)
-		case nombre != este:
-			otros = append(otros, usos...)
-		case len(usos) == 0:
-			return nil, fmt.Errorf("la guarda no ve ni las senales de %s, que las manda: dejo de mirar", este)
-		}
-	}
-	return otros, nil
-}
-
-// Hallazgo 954d37: la guarda de abajo ve los usos de verdad y nada mas. Sobre
-// fuentes chicas, al lado de un helper que se llama de otra manera que el de
-// verdad (la guarda no depende de su nombre): la llamada a syscall.Kill, se
-// importe syscall como se importe, y el campo Setpgid en un literal o
-// asignado quedan anotados con su linea; lo que solo los nombra (un
-// comentario, una cadena, el script de un fixture) y un Kill o un Setpgid de
-// otro, no. Y una guarda que no encuentra a su helper, o que no le ve las
-// senales, no dice "no hay": falla.
-func TestHallazgo_954d37_LaGuardaVeLosUsosDeVerdadYNadaMas(t *testing.T) {
-	const (
-		helper = "el_grupo_con_otro_nombre_test.go"
-		cabeza = "package reviewcmd\n\nimport (\n\t\"os/exec\"\n\t\"syscall\"\n)\n\n" // 7 lineas
-		// lo que hace el helper de verdad
-		delHelper = cabeza + "func f(cmd *exec.Cmd) {\n\tcmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}\n\t_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)\n}\n"
-	)
-	casos := []struct {
-		nombre string
-		src    string
-		usos   []string // lo que anota, sin el nombre del fuente
-	}{
-		{
-			"la llamada directa",
-			cabeza + "func f(cmd *exec.Cmd) {\n\t_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)\n}\n",
-			[]string{"9: llama a syscall.Kill"},
-		},
-		{
-			"el import con alias",
-			"package reviewcmd\n\nimport sc \"syscall\"\n\nfunc f(pid int) {\n\t_ = sc.Kill(-pid, sc.SIGKILL)\n}\n",
-			[]string{"6: llama a syscall.Kill"},
-		},
-		{
-			"el import con punto",
-			"package reviewcmd\n\nimport . \"syscall\"\n\nfunc f(pid int) *SysProcAttr {\n\t_ = Kill(-pid, SIGKILL)\n\treturn &SysProcAttr{Setpgid: true}\n}\n",
-			[]string{"6: llama a syscall.Kill", "7: pone Setpgid en un syscall.SysProcAttr"},
-		},
-		{
-			"el campo Setpgid en un literal",
-			cabeza + "func f(cmd *exec.Cmd) {\n\tcmd.SysProcAttr = &syscall.SysProcAttr{\n\t\tSetpgid: true,\n\t}\n}\n",
-			[]string{"10: pone Setpgid en un syscall.SysProcAttr"},
-		},
-		{
-			"el campo Setpgid asignado",
-			cabeza + "func f(cmd *exec.Cmd) {\n\tcmd.SysProcAttr = &syscall.SysProcAttr{}\n\tcmd.SysProcAttr.Setpgid = true\n}\n",
-			[]string{"10: asigna el campo Setpgid"},
-		},
-		{
-			"solo en un comentario",
-			cabeza + "// f no hace syscall.Kill(-pid, syscall.SIGKILL) ni pone Setpgid: true\nfunc f(cmd *exec.Cmd) syscall.Signal {\n\treturn syscall.SIGKILL // syscall.Kill\n}\n",
-			nil,
-		},
-		{
-			"solo en una cadena",
-			cabeza + "const cuerpo = \"kill -9 $$ # syscall.Kill(-pid, 9), Setpgid: true\"\n\nvar crudo = `syscall.Kill(-pid, syscall.SIGKILL)`\n\nvar _ = exec.Command(\"/bin/sh\", \"-c\", cuerpo+crudo, syscall.SIGKILL.String())\n",
-			nil,
-		},
-		{
-			"un Kill y un Setpgid de otro",
-			cabeza + "type otro struct{ Setpgid bool }\n\nfunc (otro) Kill(int) {}\n\nfunc f(cmd *exec.Cmd, Kill func(int)) {\n\tp := cmd.Process\n\t_ = p.Kill()\n\totro{Setpgid: true}.Kill(-1)\n\tKill(-1)\n\t_ = syscall.Getpgrp()\n}\n",
-			nil,
-		},
-	}
-	for _, c := range casos {
-		t.Run(c.nombre, func(t *testing.T) {
-			got, err := grupoOtrosUsosAMano(helper, map[string][]byte{helper: []byte(delHelper), "x.go": []byte(c.src)})
-			if err != nil {
-				t.Fatalf("fixture: %v\n%s", err, c.src)
-			}
-			for i := range got {
-				got[i] = strings.TrimPrefix(got[i], "x.go:")
-			}
-			if !slices.Equal(got, c.usos) {
-				t.Fatalf("hallazgo 954d37: la guarda anota %q, y tiene que anotar %q, en:\n%s", got, c.usos, c.src)
-			}
-		})
-	}
-
-	for nombre, fuentes := range map[string]map[string][]byte{
-		"no encuentra a su helper":           {"x.go": []byte(delHelper)},
-		"no le ve las senales a su helper":   {helper: []byte(cabeza + "var _ = exec.Command\n\nvar _ syscall.Signal\n"), "x.go": []byte(delHelper)},
-		"un fuente no parsea":                {helper: []byte(delHelper), "x.go": []byte("package reviewcmd\n\nfunc Kill( {\n")},
-		"el helper mismo no parsea (y Kill)": {helper: []byte("package reviewcmd\n\nfunc Kill( {\n")},
-	} {
-		t.Run("la guarda falla si "+nombre, func(t *testing.T) {
-			if usos, err := grupoOtrosUsosAMano(helper, fuentes); err == nil {
-				t.Fatalf("hallazgo 954d37: una guarda que %s no puede decir que no hay usos a mano: dijo %q", nombre, usos)
-			}
-		})
-	}
-}
-
-// Lo que queda del hallazgo 786f65: ningun otro _test.go del paquete le manda
-// una senal a un proceso con syscall.Kill ni arma un grupo de procesos
-// (Setpgid). El que tiene que cortar a un comando y a lo que lanzo lo arranca
-// con grupoArrancar o lo corre con grupoCorrer: ahi los cortes son los de la
-// cabecera de este archivo, y despues no sale ninguno.
-//
-// Hallazgo 954d37: mira los usos de verdad (grupoUsosAMano), no el texto: un
-// comentario o una cadena que los nombre no cuentan. Y "este archivo" es el
-// que tiene este test, se llame como se llame.
-func TestHallazgo_786f65_NingunTestMandaSenalesAUnGrupoAMano(t *testing.T) {
-	_, este, _, _ := runtime.Caller(0)
-	este = filepath.Base(este)
-	archivos, err := filepath.Glob("*_test.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Contains(archivos, este) {
-		t.Skipf("los fuentes de los tests no estan en el directorio de trabajo: no se puede mirar quien manda senales (falta %s)", este)
-	}
-	fuentes := map[string][]byte{}
-	for _, a := range archivos {
-		if fuentes[a], err = os.ReadFile(a); err != nil {
-			t.Fatal(err)
-		}
-	}
-	usos, err := grupoOtrosUsosAMano(este, fuentes)
-	if err != nil {
-		t.Fatalf("fixture: %v", err)
-	}
-	for _, uso := range usos {
-		t.Errorf("%s: a un comando y a lo que lanzo se los corta por su grupo de procesos, y eso lo hace solo %s "+
-			"(grupoArrancar o grupoCorrer, y despues cortar o recolectar)", uso, este)
 	}
 }
