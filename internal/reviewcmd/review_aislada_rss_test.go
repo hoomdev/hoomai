@@ -32,7 +32,7 @@
 package reviewcmd
 
 import (
-	"context"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -40,6 +40,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -107,7 +108,8 @@ const (
 // El medidor sale con syscall.Exit y no con os.Exit: con -race, os.Exit(0)
 // pasa por el cierre del detector de carreras, que duerme un segundo antes de
 // salir, y eso seria un segundo por cada hoom que termina bien. El medidor no
-// tiene nada que cerrar: no lanza goroutines ni deja nada a medio escribir.
+// tiene nada que cerrar: no deja nada a medio escribir, y su unica goroutine
+// es la que mira si sigue vivo quien lo lanzo.
 func TestMain(m *testing.M) {
 	if os.Getenv(raPapelMedidor) != "" {
 		syscall.Exit(raMedidor(os.Args[1:]))
@@ -139,6 +141,11 @@ func TestMain(m *testing.M) {
 // Es el unico proceso que lanza el medidor, y lo lanza con el medidor recien
 // nacido: lo que hoom hereda en linux es el pico de un proceso que no hizo
 // nada mas que arrancar.
+//
+// El medidor sigue a quien lo lanzo (grupoSeguirAQuienLoLanzo): si ese
+// proceso muere sin cortarlo, el medidor mata a su grupo, que es el de hoom.
+// Asi el reloj de raEnOtroProceso, que corta a un proceso que lanzo medidores,
+// no los deja vivos (hallazgo ef9963).
 func raMedidor(argv []string) int {
 	var st syscall.Stat_t
 	if err := syscall.Fstat(raFDInforme, &st); err != nil || st.Mode&syscall.S_IFMT != syscall.S_IFIFO || len(argv) == 0 {
@@ -147,6 +154,7 @@ func raMedidor(argv []string) int {
 		return raExitMedidorRoto
 	}
 	syscall.CloseOnExec(raFDInforme)
+	grupoSeguirAQuienLoLanzo()
 	var env []string
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(kv, raPapelMedidor+"=") {
@@ -983,13 +991,29 @@ type raMedidorSuelto struct {
 	exit           int
 	stdout, stderr string
 	informe        string // lo que escribio por raFDInforme
+	vencio         bool   // no termino a tiempo: se lo corto, a el y a su grupo
 }
 
 // raLanzarMedidor lanza al medidor sin raHoomConReloj, para mirarle el
 // protocolo: en dir, con stdin por su stdin, con extra sumado al entorno y,
 // si conInforme, con el descriptor raFDInforme. argv es la ruta de hoom y sus
-// argumentos.
+// argumentos. Tiene un reloj de 60 s: un medidor que no termina es un error
+// del fixture.
 func raLanzarMedidor(t *testing.T, dir, stdin string, extra []string, conInforme bool, argv ...string) raMedidorSuelto {
+	t.Helper()
+	m := raLanzarMedidorHasta(t, time.After(60*time.Second), dir, stdin, extra, conInforme, argv...)
+	if m.vencio {
+		t.Fatalf("fixture: el medidor con %q no termino en 60 s: se lo corto\nstdout:\n%s\nstderr:\n%s", argv, m.stdout, m.stderr)
+	}
+	return m
+}
+
+// raLanzarMedidorHasta es raLanzarMedidor con el reloj por afuera (vence) y
+// sin cortar el test cuando vence: lo dice en vencio. Cuando vence corta al
+// grupo entero del medidor, que es el de hoom y el de lo que hoom lanzo
+// (grupoCorrer): no queda vivo ninguno, ni nadie esperando sus pipes
+// (hallazgo ef9963).
+func raLanzarMedidorHasta(t *testing.T, vence <-chan time.Time, dir, stdin string, extra []string, conInforme bool, argv ...string) raMedidorSuelto {
 	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
@@ -1000,9 +1024,7 @@ func raLanzarMedidor(t *testing.T, dir, stdin string, extra []string, conInforme
 		t.Fatalf("fixture: sin pipe para el informe del medidor: %v", err)
 	}
 	defer lee.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, exe, argv...)
+	cmd := exec.Command(exe, argv...)
 	cmd.Dir = dir
 	cmd.Env = append(append(os.Environ(), extra...), raPapelMedidor+"=1")
 	cmd.Stdin = strings.NewReader(stdin)
@@ -1011,7 +1033,7 @@ func raLanzarMedidor(t *testing.T, dir, stdin string, extra []string, conInforme
 	if conInforme {
 		cmd.ExtraFiles = []*os.File{escribe}
 	}
-	err = cmd.Run()
+	vencio, err := grupoCorrer(t, cmd, vence)
 	_ = escribe.Close()
 	if cmd.ProcessState == nil {
 		t.Fatalf("fixture: no pude lanzar el medidor con %q: %v", argv, err)
@@ -1023,7 +1045,7 @@ func raLanzarMedidor(t *testing.T, dir, stdin string, extra []string, conInforme
 	if err != nil {
 		t.Fatalf("hallazgos 00cbcf y 24067b: cuando el medidor sale, nadie mas tiene abierto el descriptor de su informe (%v); llego %q", err, informe)
 	}
-	return raMedidorSuelto{exit: cmd.ProcessState.ExitCode(), stdout: o.String(), stderr: e.String(), informe: string(informe)}
+	return raMedidorSuelto{exit: cmd.ProcessState.ExitCode(), stdout: o.String(), stderr: e.String(), informe: string(informe), vencio: vencio}
 }
 
 // CA-414 / CA-416 (hallazgos 00cbcf y 24067b): el medidor no se mete con
@@ -1182,29 +1204,64 @@ func raOcupar(t *testing.T, n int) {
 	}
 }
 
-// raEnOtroProceso corre otra vez el test `test` de este binario, en un
-// proceso aparte, con ese papel (raPapelRSS) y con esas opciones de mas.
-// Devuelve lo que imprimio y como termino.
-func raEnOtroProceso(t *testing.T, test, papel string, opciones ...string) (salida string, err error) {
+// raSoloEsteTest es el -test.run con el que este binario, vuelto a ejecutar,
+// corre solo el test de primer nivel de t: el nombre sale de t, no de una
+// cadena que haya que acordarse de cambiar cuando el test cambia de nombre
+// (hallazgo 3909e4).
+func raSoloEsteTest(t *testing.T) string {
+	nombre, _, _ := strings.Cut(t.Name(), "/")
+	return "-test.run=^" + regexp.QuoteMeta(nombre) + "$"
+}
+
+// raNoHayTests es lo que imprime un binario de tests cuando su -test.run no
+// selecciona ninguno. Y sale con 0: sin mirar esto, pasa.
+const raNoHayTests = "testing: warning: no tests to run"
+
+// raEnOtroProceso corre otra vez el test de primer nivel de t, en un proceso
+// aparte de este binario, con ese papel (raPapelRSS) y con esas opciones de
+// mas. Devuelve lo que imprimio y como termino. Que el proceso no termine en
+// 3 minutos o que no haya corrido ningun test son errores del fixture.
+func raEnOtroProceso(t *testing.T, papel string, opciones ...string) (salida string, err error) {
+	t.Helper()
+	salida, falla, err := raEsteBinarioComoTest(t, raSoloEsteTest(t), papel, time.After(3*time.Minute), opciones...)
+	if falla != "" {
+		t.Fatalf("fixture: el proceso con el papel %q %s (%v):\n%s", papel, falla, err, salida)
+	}
+	return salida, err
+}
+
+// raEsteBinarioComoTest corre este binario con esa seleccion de tests (un
+// -test.run) y ese papel hasta que termina o hasta que llega algo por vence,
+// y entonces corta a su grupo de procesos entero (grupoCorrer; hallazgo
+// ef9963). falla dice lo que el fixture no puede dejar pasar ("" si nada): que
+// hubo que cortarlo, o que la seleccion no era de ningun test y el proceso
+// salio bien sin correr nada (hallazgo 3909e4).
+func raEsteBinarioComoTest(t *testing.T, seleccion, papel string, vence <-chan time.Time, opciones ...string) (salida, falla string, err error) {
 	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatalf("fixture: no se cual es este binario: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, exe, append([]string{"-test.run=^" + test + "$", "-test.count=1"}, opciones...)...)
+	cmd := exec.Command(exe, append([]string{seleccion, "-test.count=1"}, opciones...)...)
 	cmd.Env = append(os.Environ(), raPapelRSS+"="+papel)
-	raw, err := cmd.CombinedOutput()
-	return string(raw), err
+	var junta bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &junta, &junta
+	vencio, err := grupoCorrer(t, cmd, vence)
+	switch salida = junta.String(); {
+	case vencio:
+		falla = "no termino a tiempo y hubo que cortarlo"
+	case strings.Contains(salida, raNoHayTests):
+		falla = "no corrio ningun test: " + seleccion + " no selecciona ninguno"
+	}
+	return salida, falla, err
 }
 
-// raComoPadreGordo corre el test `test` en otro proceso, con el papel de
-// padre gordo, y falla si ese proceso falla. El padre gordo es un proceso
-// aparte para no subirle el pico de memoria al binario de la suite.
-func raComoPadreGordo(t *testing.T, test string, opciones ...string) {
+// raComoPadreGordo corre el test de primer nivel de t en otro proceso, con el
+// papel de padre gordo, y falla si ese proceso falla. El padre gordo es un
+// proceso aparte para no subirle el pico de memoria al binario de la suite.
+func raComoPadreGordo(t *testing.T, opciones ...string) {
 	t.Helper()
-	salida, err := raEnOtroProceso(t, test, "padre-gordo", opciones...)
+	salida, err := raEnOtroProceso(t, "padre-gordo", opciones...)
 	if err != nil {
 		t.Fatalf("el experimento con el padre gordo fallo (%v):\n%s", err, salida)
 	}
@@ -1225,7 +1282,6 @@ func raComoPadreGordo(t *testing.T, test string, opciones ...string) {
 // El padre gordo es un proceso aparte para no subirle el pico al binario de
 // la suite.
 func TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre(t *testing.T) {
-	const test = "TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre"
 	switch papel := os.Getenv(raPapelRSS); papel {
 	case "hijo-flaco":
 
@@ -1238,7 +1294,7 @@ func TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fixture: no se cual es este binario: %v", err)
 		}
-		args := []string{"-test.run=^" + test + "$", "-test.count=1", "-test.v"}
+		args := []string{raSoloEsteTest(t), "-test.count=1", "-test.v"}
 		dir := t.TempDir()
 
 		t.Setenv(raPapelRSS, "hijo-flaco")
@@ -1265,7 +1321,7 @@ func TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre(t *testing.T) {
 
 	case "":
 		// con -test.v: la cifra de cada hijo queda en el registro
-		raComoPadreGordo(t, test, "-test.v")
+		raComoPadreGordo(t, "-test.v")
 
 	default:
 		t.Fatalf("fixture: %s=%q no es un papel del experimento", raPapelRSS, papel)
@@ -1287,7 +1343,6 @@ func TestHallazgo_78162b_RSSDelHijoNoEsElDelPadre(t *testing.T) {
 // de llegar a mirarlo. (En linux la cifra de un hijo mas flaco que el medidor
 // es el pico del medidor: chica igual.)
 func TestHallazgo_00cbcf_24067b_ElHijoQueSaleEnseguidaTieneSuCifra(t *testing.T) {
-	const test = "TestHallazgo_00cbcf_24067b_ElHijoQueSaleEnseguidaTieneSuCifra"
 	switch papel := os.Getenv(raPapelRSS); papel {
 	case "padre-gordo":
 		raOcupar(t, raLastreDelPadre)
@@ -1330,7 +1385,7 @@ func TestHallazgo_00cbcf_24067b_ElHijoQueSaleEnseguidaTieneSuCifra(t *testing.T)
 		}
 
 	case "":
-		raComoPadreGordo(t, test, "-test.parallel="+strconv.Itoa(raTandas))
+		raComoPadreGordo(t, "-test.parallel="+strconv.Itoa(raTandas))
 
 	default:
 		t.Fatalf("fixture: %s=%q no es un papel del experimento", raPapelRSS, papel)
@@ -1349,7 +1404,6 @@ func TestHallazgo_00cbcf_24067b_ElHijoQueSaleEnseguidaTieneSuCifra(t *testing.T)
 //     queda marcado como gloton mucho antes de que lo alcance el reloj. Al
 //     vigilante el pid de hoom se lo dice la primera linea del informe.
 func TestHallazgo_00cbcf_24067b_ElRelojYElVigilanteMatanAlGrupoDeHoom(t *testing.T) {
-	const test = "TestHallazgo_00cbcf_24067b_ElRelojYElVigilanteMatanAlGrupoDeHoom"
 	switch papel := os.Getenv(raPapelRSS); papel {
 	case "hijo-voraz":
 		raOcupar(t, raVoraz)
@@ -1382,7 +1436,7 @@ func TestHallazgo_00cbcf_24067b_ElRelojYElVigilanteMatanAlGrupoDeHoom(t *testing
 		}
 		t.Setenv(raPapelRSS, "hijo-voraz")
 		antes := time.Now()
-		c := raHoomConReloj(t, exe, t.TempDir(), raSiestaDelVoraz-5*time.Second, "-test.run=^"+test+"$", "-test.count=1")
+		c := raHoomConReloj(t, exe, t.TempDir(), raSiestaDelVoraz-5*time.Second, raSoloEsteTest(t), "-test.count=1")
 		if !c.glotona || c.colgado || c.code != -1 {
 			t.Fatalf("un hoom que ocupa %d MiB y se queda ahi lo mata el vigilante, no el reloj, y queda sin codigo de salida (-1): gloton %v, colgado %v, exit %d, en %v\n%s",
 				raVoraz>>20, c.glotona, c.colgado, c.code, time.Since(antes), c.stdoutStderr)
@@ -1405,7 +1459,6 @@ const raSiguioDeLargo = "raHoomConReloj siguio de largo"
 // dice: nunca devuelve una corrida sin cifra, que raCLIVolvio dejaria pasar.
 // Cada caso corre en otro proceso, que tiene que fallar con ese error.
 func TestHallazgo_00cbcf_24067b_SinInformeEnteroNoHayCorrida(t *testing.T) {
-	const test = "TestHallazgo_00cbcf_24067b_SinInformeEnteroNoHayCorrida"
 	casos := []struct {
 		papel string
 		hoom  func(dir string) []string // la ruta de hoom y sus argumentos
@@ -1438,12 +1491,206 @@ func TestHallazgo_00cbcf_24067b_SinInformeEnteroNoHayCorrida(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.papel, func(t *testing.T) {
-			salida, err := raEnOtroProceso(t, test, c.papel)
+			salida, err := raEnOtroProceso(t, c.papel)
 			if strings.Contains(salida, raSiguioDeLargo) {
 				t.Fatalf("hallazgos 00cbcf y 24067b: sin el informe entero del medidor raHoomConReloj no devuelve una corrida:\n%s", salida)
 			}
 			if err == nil || !strings.Contains(salida, c.dice) {
 				t.Fatalf("hallazgos 00cbcf y 24067b: sin el informe entero del medidor raHoomConReloj corta el test diciendo %q (%v):\n%s", c.dice, err, salida)
+			}
+		})
+	}
+}
+
+// Hallazgos 5b4172 y 4c2a57: salga por donde salga la corrida de
+// raHoomConReloj, no queda vivo nadie del grupo del medidor, que es el de
+// hoom y el de lo que hoom lanzo: el grupo se corta ANTES de recolectar al
+// medidor, tambien cuando su informe ya llego. Antes, las salidas sin informe
+// final (el medidor muere con hoom vivo, el medidor informa un error, el
+// informe no se entiende) cortaban el test sin matar a nadie, y la del informe
+// entero dejaba vivo lo que hoom hubiera dejado detras. En cada caso lo que
+// hace de hoom deja un sleep de 30 s detras (testigoDeVida.shConUnoDetras).
+//
+// Los dos ultimos no se le pueden pedir al medidor de verdad (un wait4 que
+// falla, un informe roto): hace de medidor un sh que escribe ese informe por
+// el descriptor raFDInforme y sale, sin llevarse a lo que lanzo. (Las salidas
+// por el reloj y por el vigilante:
+// TestHallazgo_00cbcf_24067b_ElRelojYElVigilanteMatanAlGrupoDeHoom.)
+func TestHallazgo_5b4172_4c2a57_SalgaPorDondeSalgaLaCorridaNoQuedaNadieDelGrupo(t *testing.T) {
+	const sh = "/bin/sh"
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("fixture: no se cual es este binario: %v", err)
+	}
+	// el medidor falso: lo que deja detras no se queda con el descriptor del
+	// informe (como hoom con el medidor de verdad), y el informe es este
+	falso := func(testigo *testigoDeVida, informe string) []string {
+		fd := strconv.Itoa(raFDInforme)
+		return []string{"-c", testigo.shConUnoDetras(fd+">&-") + "printf '" + informe + "' \"$!\" >&" + fd + "\n"}
+	}
+	casos := []struct {
+		nombre  string
+		medidor string                                // la ruta del medidor
+		argv    func(testigo *testigoDeVida) []string // lo que va detras: la ruta de hoom y sus argumentos
+		dice    string                                // el error del fixture ("": no hay, la corrida vuelve)
+	}{
+		{
+			nombre:  "el-informe-trunco-el-medidor-muere-con-hoom-vivo",
+			medidor: exe,
+			argv: func(testigo *testigoDeVida) []string {
+				return []string{sh, "-c", testigo.shConUnoDetras("") + "kill -9 $PPID\nwait\n"}
+			},
+			dice: "sin decir con que salio hoom ni cuanta memoria tuvo",
+		},
+		{
+			nombre:  "el-informe-entero-hoom-deja-un-proceso-detras",
+			medidor: exe,
+			argv: func(testigo *testigoDeVida) []string {
+				return []string{sh, "-c", testigo.shConUnoDetras("") + "exit 0\n"}
+			},
+		},
+		{
+			nombre:  "el-informe-dice-error-el-medidor-no-pudo-esperar-a-hoom",
+			medidor: sh,
+			argv: func(testigo *testigoDeVida) []string {
+				return falso(testigo, `hoom %s\nerror no pude esperar a hoom con wait4: interrupted system call\n`)
+			},
+			dice: "no pude esperar a hoom con wait4",
+		},
+		{
+			nombre:  "el-informe-no-se-entiende",
+			medidor: sh,
+			argv: func(testigo *testigoDeVida) []string {
+				return falso(testigo, `hoom %s\nfin de la corrida\n`)
+			},
+			dice: "no se entiende",
+		},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			testigo := nuevoTestigoDeVida(t)
+			t.Parallel()
+			argv := c.argv(testigo)
+			antes := time.Now()
+			corrida, err := raHoomMedido(t, c.medidor, argv[0], t.TempDir(), 60*time.Second, argv[1:]...)
+			tardo := time.Since(antes)
+			switch {
+			case c.dice == "" && (err != nil || corrida.code != 0 || corrida.colgado || corrida.glotona):
+				t.Fatalf("fixture: un hoom que sale con 0 dejando un proceso detras es una corrida que volvio: %+v, %v", corrida, err)
+			case c.dice != "" && (err == nil || !strings.Contains(err.Error(), c.dice)):
+				t.Fatalf("fixture: esta corrida sale por el error %q: %+v, %v", c.dice, corrida, err)
+			}
+			arranco, nadie := testigo.espera(10 * time.Second)
+			if !arranco {
+				t.Fatalf("fixture: lo que hace de hoom no llego a tomar el testigo: %+v, %v", corrida, err)
+			}
+			if !nadie {
+				t.Fatalf("hallazgos 5b4172 y 4c2a57: por esta salida (%v) tambien se corta al grupo del medidor: 10 s despues sigue vivo hoom o algo que lanzo", err)
+			}
+			if tardo > 15*time.Second {
+				t.Fatalf("hallazgos 5b4172 y 4c2a57: el grupo se corta apenas la corrida sale, sin esperar a lo que quedo vivo: tardo %v", tardo)
+			}
+		})
+	}
+}
+
+// Hallazgo ef9963, en el lanzador del medidor: cuando vence su reloj no queda
+// vivo nadie del grupo del medidor y el lanzador vuelve enseguida, aunque un
+// proceso que hoom dejo detras tenga abierto el stdout del medidor. Con el
+// exec.CommandContext de antes moria solo el medidor: hoom y lo suyo seguian,
+// y Run esperaba el fin de archivo de ese pipe. El reloj vence recien cuando
+// hoom ya tomo el testigo.
+func TestHallazgo_ef9963_ElRelojDelLanzadorDelMedidorCortaAlGrupoEntero(t *testing.T) {
+	testigo := nuevoTestigoDeVida(t)
+	antes := time.Now()
+	m := raLanzarMedidorHasta(t, testigo.alTomarlo(t), t.TempDir(), "", nil, true,
+		"/bin/sh", "-c", "echo corriendo\n"+testigo.shConUnoDetras("")+"wait\necho no-llega\n")
+	tardo := time.Since(antes)
+	if !m.vencio || m.exit != -1 {
+		t.Fatalf("hallazgo ef9963: un medidor cuyo hoom no vuelve queda cortado por el reloj, sin codigo de salida (-1): vencio %v, exit %d\nstdout:\n%s\nstderr:\n%s", m.vencio, m.exit, m.stdout, m.stderr)
+	}
+	if tardo > 15*time.Second {
+		t.Fatalf("hallazgo ef9963: cuando vence el reloj el lanzador del medidor vuelve enseguida: tardo %v, lo que tarda en soltar el pipe el sleep de 30 s", tardo)
+	}
+	if m.stdout != "corriendo\n" {
+		t.Fatalf("hallazgo ef9963: lo que hoom imprimio antes del corte queda en la salida, y nada mas: %q", m.stdout)
+	}
+	if inf, err := raLeerInforme(m.informe); err != nil || inf.pid <= 0 || inf.fin {
+		t.Fatalf("hallazgo ef9963: de un medidor cortado queda el informe trunco, con el pid de hoom y nada mas: %q (%+v, %v)", m.informe, inf, err)
+	}
+	if arranco, nadie := testigo.espera(10 * time.Second); !arranco || !nadie {
+		t.Fatalf("hallazgo ef9963: cuando vence el reloj del lanzador muere el grupo entero del medidor: hoom tomo el testigo %v, 10 s despues no queda vivo ni el ni el sleep que lanzo %v", arranco, nadie)
+	}
+}
+
+// raTestigoDelPapel: por esta variable le llega la ruta del testigo de vida
+// al proceso que corre con el papel hoom-que-no-vuelve.
+const raTestigoDelPapel = "HOOM_TW_EF9963_TESTIGO"
+
+// Hallazgo ef9963, en raEnOtroProceso: cuando vence el reloj del proceso
+// aparte no queda vivo nadie de lo que ese proceso lanzo. Ahi el Wait no se
+// bloqueaba, pero el medidor que el proceso habia lanzado, y su hoom, seguian
+// vivos. El proceso aparte corre a un hoom que no vuelve (deja un sleep de 30
+// s y se queda esperandolo), con el reloj de adentro en 60 s; el de afuera
+// vence cuando ese hoom tomo el testigo.
+//
+// Al medidor de adentro no lo alcanza el corte de afuera: tiene su grupo
+// propio, para que el reloj de adentro lo pueda cortar solo a el. Lo que lo
+// mata es que el medidor sigue a quien lo lanzo (raMedidor).
+func TestHallazgo_ef9963_ElRelojDeOtroProcesoNoDejaVivoLoQueEseProcesoLanzo(t *testing.T) {
+	const papel = "hoom-que-no-vuelve"
+	switch os.Getenv(raPapelRSS) {
+	case papel:
+		// a este proceso lo van a matar: no arma directorios, que no llegaria a
+		// borrar. Corre a hoom en el del testigo, que es del proceso de afuera
+		testigo := &testigoDeVida{ruta: os.Getenv(raTestigoDelPapel)}
+		raHoomConReloj(t, "/bin/sh", filepath.Dir(testigo.ruta), 60*time.Second, "-c", testigo.shConUnoDetras("")+"wait\n")
+		return
+	case "":
+	default:
+		t.Fatalf("fixture: %s=%q no es un papel del experimento", raPapelRSS, os.Getenv(raPapelRSS))
+	}
+	testigo := nuevoTestigoDeVida(t)
+	t.Setenv(raTestigoDelPapel, testigo.ruta)
+	antes := time.Now()
+	salida, falla, err := raEsteBinarioComoTest(t, raSoloEsteTest(t), papel, testigo.alTomarlo(t))
+	if tardo := time.Since(antes); !strings.Contains(falla, "hubo que cortarlo") || tardo > 15*time.Second {
+		t.Fatalf("hallazgo ef9963: un proceso aparte que no termina queda cortado por el reloj, enseguida y como error del fixture: %q, %v, en %v\n%s", falla, err, tardo, salida)
+	}
+	if arranco, nadie := testigo.espera(10 * time.Second); !arranco || !nadie {
+		t.Fatalf("hallazgo ef9963: cuando vence el reloj del proceso aparte no queda vivo nadie de lo que lanzo: el hoom de su medidor tomo el testigo %v, 10 s despues no queda vivo ni el medidor, ni ese hoom, ni el sleep que dejo %v", arranco, nadie)
+	}
+}
+
+// Hallazgo 3909e4: un proceso aparte que no selecciona ningun test es un
+// error del fixture. El binario de tests avisa ("no tests to run") y sale con
+// 0: un test que se vuelve a ejecutar con un nombre que ya no es el suyo
+// pasaba sin correr su experimento. Y el -test.run de raSoloEsteTest es el
+// del test de primer nivel, se lo pida desde donde se lo pida.
+func TestHallazgo_3909e4_UnProcesoAparteSinNingunTestEsUnErrorDelFixture(t *testing.T) {
+	const yo = "-test.run=^TestHallazgo_3909e4_UnProcesoAparteSinNingunTestEsUnErrorDelFixture$"
+	t.Run("un-subtest/con.puntos", func(t *testing.T) {
+		if got := raSoloEsteTest(t); got != yo {
+			t.Fatalf("hallazgo 3909e4: desde un subtest, raSoloEsteTest selecciona el test de primer nivel, a secas: %q, no %q", got, yo)
+		}
+	})
+	if os.Getenv(raPapelRSS) != "" {
+		return // el control de abajo: este test, en otro proceso, corre
+	}
+	// con -race un binario de tests que sale con 0 duerme un segundo antes de
+	// salir; aca no hay carrera que esperar
+	t.Setenv("GORACE", "atexit_sleep_ms=0")
+	for _, c := range []struct {
+		nombre, seleccion string
+		falla             string // "": corre
+	}{
+		{"un-nombre-que-no-es-de-ningun-test", "-test.run=^TestHallazgo_3909e4_UnNombreQueYaNoEsDeNadie$", "no corrio ningun test"},
+		{"control-el-nombre-de-este-test", raSoloEsteTest(t), ""},
+	} {
+		t.Run(c.nombre, func(t *testing.T) {
+			salida, falla, err := raEsteBinarioComoTest(t, c.seleccion, "control", time.After(time.Minute))
+			if err != nil || (c.falla == "") != (falla == "") || !strings.Contains(falla, c.falla) {
+				t.Fatalf("hallazgo 3909e4: el proceso sale con 0 las dos veces, y sin ningun test seleccionado es un error del fixture (%q): dijo %q, %v\n%s", c.falla, falla, err, salida)
 			}
 		})
 	}
