@@ -1,0 +1,11 @@
+{
+  "id": "20261007T141944_c05fc2",
+  "created_at": "2026-10-07T14:19:44.804048Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/review_aislada_rss_test.go",
+  "description": "INTRODUCIDO. internal/reviewcmd/review_aislada_rss_test.go:1161-1164,1307-1324 agrega un stress test de 200 corridas, cada una relanzando el binario medidor y /bin/sh, dentro del paquete que el gate ejecuta con -race. El veredicto vigente 2026-10-07T14-03-30Z_ad27226c registra internal/reviewcmd en 572.199 s; el comando no fija -timeout y GOFLAGS esta vacio, por lo que el timeout por paquete sigue siendo 600 s: quedan solo 27.8 s (4.6%) de margen. Una variacion normal de carga puede hacer fallar el gate por timeout aunque el comportamiento sea correcto, justo en una rama que busca estabilizar CI. El test necesita recuperar margen determinista (menos repeticiones/costo o un presupuesto explicito separado).",
+  "author": "reviewer@codex",
+  "fingerprint": "40607cb8d2bae2c0",
+  "task": "estabilizar-ci"
+}

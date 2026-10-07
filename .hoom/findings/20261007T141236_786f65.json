@@ -1,0 +1,11 @@
+{
+  "id": "20261007T141236_786f65",
+  "created_at": "2026-10-07T14:12:36.760651Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/cli_falso_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/cli_falso_test.go:212-213 envia SIGKILL a -cmd.Process.Pid sin asegurar que el lider siga sin recolectar. En cliFalsoCorrerCon, cmd.Wait lo recolecta en :433 antes de publicar el resultado en :435; si el timer de :440 gana un select con ambos casos listos, :441 usa un PGID basado en un PID ya reutilizable. La misma carrera existe entre :720 y :733, y el defer de :752-755 puede ejecutar el kill crudo despues del Wait de :761 cuando `corre` es falso y no hay ningun descendiente demostrado. Si el numero fue reutilizado, se mata un grupo de procesos ajeno del mismo usuario/runner. Hay que serializar el reap con la senal de grupo o conservar un lider no recolectado hasta terminar el cleanup; este uso de syscall.Kill con un PID negativo derivado de exec.Cmd es candidato a una regla Semgrep custom que obligue a pasar por un helper con esa garantia.",
+  "author": "reviewer@codex",
+  "fingerprint": "40607cb8d2bae2c0",
+  "task": "estabilizar-ci"
+}

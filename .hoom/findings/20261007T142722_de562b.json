@@ -1,0 +1,11 @@
+{
+  "id": "20261007T142722_de562b",
+  "created_at": "2026-10-07T14:27:22.498459Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/git_sin_mantenimiento_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/git_sin_mantenimiento_test.go:24 vuelve a definir gitSinMantenimiento, gitApagarMantenimiento, gitEntornoSolo y gitCommitConTraza, mientras internal/agentcmd/git_sin_mantenimiento_test.go:25 mantiene la misma política y casi la misma implementación. El apagado de mantenimiento y la interpretación de GIT_TRACE quedan con dos fuentes de verdad que deben evolucionar juntas; extraer el fixture común de pruebas reduciría la duplicación y haría explícita una sola política.",
+  "author": "reviewer@codex",
+  "fingerprint": "40607cb8d2bae2c0",
+  "task": "estabilizar-ci"
+}

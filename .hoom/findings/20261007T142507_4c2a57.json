@@ -1,0 +1,11 @@
+{
+  "id": "20261007T142507_4c2a57",
+  "created_at": "2026-10-07T14:25:07.124514Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/review_aislada_orden_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/review_aislada_orden_test.go:971 recibe el EOF/informe truncado del medidor, espera solo a cmd y en 1002-1016 termina con Fatalf sin invocar matar. Como el fd del informe no se hereda, si el medidor muere mientras hoom o un descendiente sigue vivo (por ejemplo, hoom ejecuta 'kill -9 $PPID; sleep 30'), el pipe se cierra, esta rama corre y deja vivo al resto del grupo, que puede filtrar procesos e interferir o colgar el CI. TestHallazgo_00cbcf_24067b_SinInformeEnteroNoHayCorrida usa solo 'kill -9 $PPID', cuyo shell sale enseguida, y no cubre esa fuga.",
+  "author": "reviewer@codex",
+  "fingerprint": "40607cb8d2bae2c0",
+  "task": "estabilizar-ci"
+}
