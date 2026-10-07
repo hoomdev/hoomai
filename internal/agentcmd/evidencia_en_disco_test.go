@@ -39,6 +39,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/gittest"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -384,7 +385,7 @@ func edRepo(t *testing.T, bloquea, ciego bool) string {
 // .git/objects/maintenance.lock, y la copia, que lista y despues mira, se
 // cae cuando el lock ya no esta. La copia no tolera archivos que
 // desaparecen: exige que el .git/config de cada repo que copia lo tenga
-// apagado (gitExigirMantenimientoApagado), y sin eso se niega siempre.
+// apagado (gittest.ExigirMantenimientoApagado), y sin eso se niega siempre.
 func edCopiarArbol(t *testing.T, plantilla string) string {
 	t.Helper()
 	destino := t.TempDir()
@@ -413,7 +414,7 @@ func edCopiarArbolEn(plantilla, destino string) error {
 		switch {
 		case de.IsDir():
 			if de.Name() == ".git" {
-				if err := gitExigirMantenimientoApagado(filepath.Join(p, "config")); err != nil {
+				if err := gittest.ExigirMantenimientoApagado(filepath.Join(p, "config")); err != nil {
 					return err
 				}
 			}

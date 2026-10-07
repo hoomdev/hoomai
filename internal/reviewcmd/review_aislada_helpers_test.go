@@ -44,6 +44,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/gittest"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
@@ -702,7 +703,7 @@ func raClonShallow(t *testing.T) string {
 	}
 	clon := filepath.Join(padre, "clon")
 	git(t, padre, "clone", "-q", "--depth", "1", "--no-single-branch", "--branch", "feature", "file://"+origen, clon)
-	gitApagarMantenimiento(t, clon) // un clon no hereda el .git/config de su origen
+	gittest.ApagarMantenimiento(t, clon) // un clon no hereda el .git/config de su origen
 	git(t, clon, "branch", "-q", "main", "origin/main")
 	git(t, clon, "config", "user.email", "test@hoom.dev")
 	git(t, clon, "config", "user.name", "hoom test")

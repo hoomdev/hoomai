@@ -14,14 +14,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/gittest"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
 // git corre git en dir. Con `init`, ademas, deja el repo recien creado con el
-// mantenimiento automatico de git apagado (gitApagarMantenimiento, hallazgo
-// 30abfc): todo repo de prueba de este paquete nace por aca, menos los
-// clones, que lo apagan ellos.
+// mantenimiento automatico de git apagado (gittest.ApagarMantenimiento,
+// hallazgo 30abfc): todo repo de prueba de este paquete nace por aca, menos
+// los clones, que lo apagan ellos.
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
@@ -30,7 +31,7 @@ func git(t *testing.T, dir string, args ...string) {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 	if len(args) > 0 && args[0] == "init" {
-		gitApagarMantenimiento(t, dir)
+		gittest.ApagarMantenimiento(t, dir)
 	}
 }
 
