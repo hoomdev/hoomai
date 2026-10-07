@@ -277,14 +277,12 @@ func grupoSeguirAQuienLoLanzo() {
 const grupoPapelSeVa = "HOOM_TW_SE_VA_DEL_GRUPO"
 
 // grupoElQueSeVa es ese papel: arma una sesion propia, y con ella un grupo
-// propio, al que ya no llega el corte del grupo en que nacio; deja dicho su
-// pid en <testigo>.pid, toma el testigo y se queda, con el stdout y el stderr
-// que heredo. Se muere solo a los 30 s. Devuelve con que sale.
+// propio, al que ya no llega el corte del grupo en que nacio; toma el testigo
+// y se queda, con el stdout y el stderr que heredo, hasta que el testigo deja
+// de estar en su ruta, que es como su test le avisa que se vaya (hallazgo
+// 22eae1: sin un pid al que mandarle una senal), o 30 s. Devuelve con que sale.
 func grupoElQueSeVa(testigo string) int {
 	_, err := syscall.Setsid()
-	if err == nil {
-		err = os.WriteFile(testigo+".pid", []byte(strconv.Itoa(os.Getpid())), 0o600)
-	}
 	if err == nil {
 		var fd int
 		if fd, err = syscall.Open(testigo, syscall.O_RDWR, 0); err == nil {
@@ -295,7 +293,11 @@ func grupoElQueSeVa(testigo string) int {
 		fmt.Fprintf(os.Stderr, "fixture: el que se va del grupo no pudo: %v\n", err)
 		return 1
 	}
-	time.Sleep(30 * time.Second)
+	for hasta := time.Now().Add(30 * time.Second); time.Now().Before(hasta); time.Sleep(5 * time.Millisecond) {
+		if _, err := os.Stat(testigo); err != nil {
+			break
+		}
+	}
 	return 0
 }
 
@@ -614,8 +616,8 @@ func TestHallazgo_8710cd_SiLaEsperaSinRecolectarFallaEsUnError(t *testing.T) {
 // cuando esperar vuelve, el WaitDelay del comando es el que traia.
 //
 // El lider sale recien cuando el otro ya se fue (el test le cierra el stdin
-// cuando el testigo aviso). Al que se fue lo mata el test al final, por su
-// pid, si el testigo dice que sigue vivo; si no llegara, se muere solo.
+// cuando el testigo aviso). Al que se fue no lo mata nadie: se va solo cuando
+// el test borra el testigo de su ruta, al final o si falla antes.
 func TestHallazgo_65dc61_0b292e_ElPlazoDeLosPipesEsUnoSolo(t *testing.T) {
 	const plazo = 50 * time.Millisecond
 	exe, err := os.Executable()
@@ -642,17 +644,12 @@ func TestHallazgo_65dc61_0b292e_ElPlazoDeLosPipesEsUnoSolo(t *testing.T) {
 		return syscall.Kill(pid, sig)
 	}
 	<-testigo.alTomarlo(t)
-	raw, err := os.ReadFile(testigo.ruta + ".pid")
-	seFue, errPid := strconv.Atoi(string(raw))
-	if err != nil || errPid != nil || seFue <= 0 {
-		t.Fatalf("fixture: el que se va del grupo deja dicho su pid antes de tomar el testigo: %q (%v, %v)\n%s", raw, err, errPid, salida.String())
+	despedir := func() bool { // le avisa al que se fue, y dice si ya no queda nadie
+		_ = os.Remove(testigo.ruta)
+		_, nadie := testigo.espera(10 * time.Second)
+		return nadie
 	}
-	matarAlQueSeFue := func() {
-		if _, nadie := testigo.espera(0); !nadie { // sigue vivo: el pid es el suyo
-			_ = syscall.Kill(seFue, syscall.SIGKILL)
-		}
-	}
-	t.Cleanup(matarAlQueSeFue)
+	t.Cleanup(func() { despedir() })
 
 	antes := time.Now()
 	_ = stdin.Close()
@@ -674,9 +671,8 @@ func TestHallazgo_65dc61_0b292e_ElPlazoDeLosPipesEsUnoSolo(t *testing.T) {
 		t.Fatalf("esperar no se queda esperando al que se fue, que vive 30 s: tardo %v", tardo)
 	}
 
-	matarAlQueSeFue()
-	if _, nadie := testigo.espera(10 * time.Second); !nadie {
-		t.Fatalf("fixture: al que se fue del grupo lo mata el test por su pid (%d): 10 s despues sigue con el testigo abierto", seFue)
+	if !despedir() {
+		t.Fatalf("fixture: el que se fue del grupo se va solo cuando el testigo deja de estar en su ruta: 10 s despues sigue con el testigo abierto")
 	}
 }
 
