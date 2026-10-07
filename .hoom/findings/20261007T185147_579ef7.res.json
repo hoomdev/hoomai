@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261007T185147_579ef7",
+  "as": "corregido",
+  "evidence": "70994c2 (test-writer): grupoPipe ya no infiere nada del error de la copia: solo cierra un canal cuando la copia de exec.Cmd termino, como sea que termine. Que la salida quedo tomada por otro lo decide esperar ANTES de recolectar: con el lider ya terminado, si pasado el WaitDelay alguna copia no llego a su fin de archivo (salidaTomada). Un Writer que falla termina su copia enseguida: no es una salida tomada. Test nuevo TestHallazgo_579ef7_d45edb_UnWriterQueFallaNoEsUnaSalidaTomada: con el lider saliendo con 0 llega el error del Writer y con 3 el *exec.ExitError, como con exec.Cmd a secas; nunca exec.ErrWaitDelay. Mutante (grupoPipe infiriendo del error): el test falla con 0 y con 3. Los 8 casos con su salida tomada (grupo y CLI falso, sh y dash, exit 0 y 3) siguen siendo error del fixture; sin mirar los pipes fallan (mutante repetido por el writer). El refutador habia reproducido el defecto y establecido que 579ef7 y d45edb son el mismo (la linea que marcaba conservado ante cualquier error). Verde local 2026-10-07T19-46-46Z_0a516e36 (reviewcmd 537 s con -race). Linux: run 37675882680 del CI sobre 70994c2 en verde, dogfood con go test -race incluido.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-07T19:47:33.518312Z"
+}
