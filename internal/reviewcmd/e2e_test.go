@@ -21,11 +21,21 @@ func copiaDeEsteRepo(t *testing.T) string {
 		t.Fatal(err)
 	}
 	dst := t.TempDir()
-	if out, err := exec.Command("cp", "-R", src+"/.", dst).CombinedOutput(); err != nil {
-		t.Fatalf("CA-169: no se pudo copiar el repo: %v\n%s", err, out)
+	// Todo menos .git: la copia arma su propio historial, y el .git de este
+	// repo esta vivo (hallazgo 30abfc: git crea y borra archivos ahi por su
+	// cuenta, y un cp que lista uno y ya no lo encuentra se cae).
+	entradas, err := os.ReadDir(src)
+	if err != nil {
+		t.Fatalf("CA-169: no se pudo listar el repo: %v", err)
 	}
-	if out, err := exec.Command("rm", "-rf", filepath.Join(dst, ".git")).CombinedOutput(); err != nil {
-		t.Fatalf("CA-169: %v\n%s", err, out)
+	cp := []string{"-R"}
+	for _, e := range entradas {
+		if e.Name() != ".git" {
+			cp = append(cp, filepath.Join(src, e.Name()))
+		}
+	}
+	if out, err := exec.Command("cp", append(cp, dst)...).CombinedOutput(); err != nil {
+		t.Fatalf("CA-169: no se pudo copiar el repo: %v\n%s", err, out)
 	}
 	git(t, dst, "init", "-b", "main")
 	git(t, dst, "config", "user.email", "test@hoom.dev")

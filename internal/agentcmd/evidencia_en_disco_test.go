@@ -378,10 +378,26 @@ func edRepo(t *testing.T, bloquea, ciego bool) string {
 // modo y su fecha, y symlinks tal cual; .git incluido) a un directorio
 // temporal nuevo del test y lo devuelve. Cualquier otra entrada en la
 // plantilla es un error del fixture.
+//
+// Y un repo git con el mantenimiento automatico prendido tambien (hallazgo
+// 30abfc): despues de cada commit git crea y borra por su cuenta
+// .git/objects/maintenance.lock, y la copia, que lista y despues mira, se
+// cae cuando el lock ya no esta. La copia no tolera archivos que
+// desaparecen: exige que el .git/config de cada repo que copia lo tenga
+// apagado (gitExigirMantenimientoApagado), y sin eso se niega siempre.
 func edCopiarArbol(t *testing.T, plantilla string) string {
 	t.Helper()
 	destino := t.TempDir()
-	err := filepath.WalkDir(plantilla, func(p string, de fs.DirEntry, err error) error {
+	if err := edCopiarArbolEn(plantilla, destino); err != nil {
+		t.Fatalf("fixture: copiar la plantilla %s: %v", plantilla, err)
+	}
+	return destino
+}
+
+// edCopiarArbolEn es la copia de edCopiarArbol sobre destino (un directorio
+// que ya existe y esta vacio), con su error.
+func edCopiarArbolEn(plantilla, destino string) error {
+	return filepath.WalkDir(plantilla, func(p string, de fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -396,6 +412,11 @@ func edCopiarArbol(t *testing.T, plantilla string) string {
 		}
 		switch {
 		case de.IsDir():
+			if de.Name() == ".git" {
+				if err := gitExigirMantenimientoApagado(filepath.Join(p, "config")); err != nil {
+					return err
+				}
+			}
 			return os.Mkdir(q, fi.Mode().Perm())
 		case de.Type()&fs.ModeSymlink != 0:
 			l, err := os.Readlink(p)
@@ -415,10 +436,6 @@ func edCopiarArbol(t *testing.T, plantilla string) string {
 		}
 		return fmt.Errorf("plantilla: %s no es un directorio, un archivo regular ni un symlink (%s)", rel, fi.Mode())
 	})
-	if err != nil {
-		t.Fatalf("fixture: copiar la plantilla %s: %v", plantilla, err)
-	}
-	return destino
 }
 
 // edIgnorados dice, para cada ruta, si git la ignora en root: lo mismo que
