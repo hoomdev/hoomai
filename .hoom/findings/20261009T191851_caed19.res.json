@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T191851_caed19",
+  "as": "corregido",
+  "evidence": "Era cierto en d42c384 y ya no: lo corrigio el PR 32 (commits f38c6a0 y 881d24e, 2026-09-24, merge 8cd2e00), que cerro el hallazgo 20260924T051338_395420, el mismo defecto. BranchDiff ya no materializa el parche con cmd.Output: lee con gitOutPrefix (internal/gitx/diff.go), que corta en el tope mientras lee. El refutador lo midio contra el arbol de hoy: un parche de 64 MiB con tope de 256 KiB aloja 1,41 MiB, contra 321 MiB con el codigo de d42c384. TestHallazgo_395420 pasa hoy (corrido por el writer: go test ./internal/gitx/ -run TestHallazgo_395420, ok). No se aplica la otra mitad de lo que pide (cortar o cancelar el proceso al pasar el tope): matar a git al llegar al tope es justo lo que el hallazgo 57c18a marco como defecto y 881d24e saco, porque tapaba los fallos tardios. Residuo que queda anotado y no se corrige aca: git corre sin el contexto de la peticion ni limite de tiempo (0,42 s por cada 64 MiB agregados, medido).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T19:59:59.814539Z"
+}
