@@ -30,26 +30,26 @@ type DiffFile struct {
 	Deletions  int    `json:"deletions"`
 }
 
-// endOfOptions goes before every revision that comes from outside (the
-// base_branch of a hoom.yaml, a --base): after it git reads the next argument
-// as a revision, never as an option, so a value like `--output=<path>` is a
-// bad revision instead of a file a read creates or truncates (finding
-// bb986a). manifest.Load already refuses such a base_branch; this is the same
-// guarantee for whoever calls gitx with a base of its own.
-const endOfOptions = "--end-of-options"
+// EndOfOptions goes before every revision that comes from outside (the
+// base_branch of a hoom.yaml, a --base, the commit_final of an item): after
+// it git reads the next argument as a revision, never as an option, so a
+// value like `--output=<path>` is a bad revision instead of a file a read
+// creates or truncates (finding bb986a). manifest.Load already refuses such a
+// base_branch; this is the same guarantee for whoever calls git with a
+// revision of its own.
+const EndOfOptions = "--end-of-options"
 
 // BranchDiff runs `git diff <base>...HEAD` in dir: only what the branch
 // committed, never the working tree. It is a read, so git runs no program of
 // the local configuration for it: no external diff (--no-ext-diff) and no
 // textconv driver (--no-textconv, finding 43bde9). The patch is cut at
-// maxBytes on a line
-// end (Truncated). When git fails, Available is false and Note carries git's
-// own words; the error is reserved for nothing else, so a reader never has to
-// tell the two apart.
+// maxBytes on a line end (Truncated). When git fails, Available is false and
+// Note carries git's own words; the error is reserved for nothing else, so a
+// reader never has to tell the two apart.
 func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	d := Diff{Base: base, Files: []DiffFile{}}
 	rng := base + "...HEAD"
-	numstat, err := gitOut(dir, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--numstat", endOfOptions, rng, "--")
+	numstat, err := gitOut(dir, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--numstat", EndOfOptions, rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil
@@ -66,7 +66,7 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 		d.Insertions += f.Insertions
 		d.Deletions += f.Deletions
 	}
-	patch, truncated, err := gitOutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", "--no-textconv", endOfOptions, rng, "--")
+	patch, truncated, err := gitOutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", "--no-textconv", EndOfOptions, rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil

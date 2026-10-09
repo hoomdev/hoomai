@@ -19,6 +19,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/spec"
@@ -364,11 +365,11 @@ func (h *history) taskCommits() error {
 	switch {
 	case h.ev.Item.CommitFinal != "":
 		cf := h.ev.Item.CommitFinal
-		if !gitOK(h.root, "merge-base", "--is-ancestor", cf, h.base) {
+		if !gitOK(h.root, "merge-base", "--is-ancestor", gitx.EndOfOptions, cf, h.base) {
 			rng = h.base + ".." + cf
 			break
 		}
-		out, err := gitRun(h.root, "rev-list", "--first-parent", "--ancestry-path", cf+".."+h.base)
+		out, err := gitRun(h.root, "rev-list", "--first-parent", "--ancestry-path", gitx.EndOfOptions, cf+".."+h.base)
 		lines := strings.Fields(out)
 		if err != nil || len(lines) == 0 {
 			h.notes = append(h.notes, NoteFastForward)
@@ -715,9 +716,11 @@ func logFiles(dir string, pathspecs []string) ([]gitCommit, error) {
 	return parseLog(out, true), nil
 }
 
-// logNames is `git log --no-merges --name-only` over a range.
+// logNames is `git log --no-merges --name-only` over a range. The range is
+// built from the project's base and the item's commit_final, so it goes
+// after gitx.EndOfOptions: git never reads it as an option (finding bb986a).
 func logNames(dir, rng string) ([]gitCommit, error) {
-	out, err := gitRun(dir, "log", "--no-merges", "--no-renames", logFormat, "--name-only", rng, "--")
+	out, err := gitRun(dir, "log", "--no-merges", "--no-renames", logFormat, "--name-only", gitx.EndOfOptions, rng, "--")
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +764,7 @@ func parseLog(out string, status bool) []gitCommit {
 func testTokens(dir, rng string) (map[string][]string, bool) {
 	out := map[string][]string{}
 	cmd := exec.Command("git", "-c", "core.quotePath=false", "log", "--no-merges", "--no-renames",
-		"--format=%x1e%H", "-p", "--unified=0", "--no-color", "--no-ext-diff", rng, "--")
+		"--format=%x1e%H", "-p", "--unified=0", "--no-color", "--no-ext-diff", gitx.EndOfOptions, rng, "--")
 	cmd.Dir = dir
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
