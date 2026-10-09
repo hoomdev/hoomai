@@ -760,11 +760,14 @@ func parseLog(out string, status bool) []gitCommit {
 
 // testTokens reads the patch of a range and returns, per commit, the CA
 // tokens its added lines bring to test files (spec_trace's filter). The
-// patch is read up to TimelinePatchMax.
+// patch is read up to TimelinePatchMax. It is a read, so git runs no program
+// of the local configuration for it, as in gitx.BranchDiff: no external diff
+// and no textconv driver, which would also make the tokens depend on the
+// machine (findings 9fa7ac and 394505).
 func testTokens(dir, rng string) (map[string][]string, bool) {
 	out := map[string][]string{}
 	cmd := exec.Command("git", "-c", "core.quotePath=false", "log", "--no-merges", "--no-renames",
-		"--format=%x1e%H", "-p", "--unified=0", "--no-color", "--no-ext-diff", gitx.EndOfOptions, rng, "--")
+		"--format=%x1e%H", "-p", "--unified=0", "--no-color", "--no-ext-diff", "--no-textconv", gitx.EndOfOptions, rng, "--")
 	cmd.Dir = dir
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {

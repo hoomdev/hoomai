@@ -533,9 +533,13 @@ function panePruebas(d, ex) {
   const hallazgos = !d.findings.length ? `<div class="empty">sin hallazgos de esta tarjeta</div>`
     : `<table class="dtable"><tr><th>sev</th><th>estado</th><th>hallazgo</th></tr>${[...abiertos, ...resueltos].map(hallazgo).join("")}</table>`;
   // los registros de review de la tarjeta, con su id y su ruta: solo en experto
-  const reviews = !ex ? "" : `<h3 class="dsub">Reviews</h3>${!(d.reviews || []).length ? `<div class="empty">sin registro de review de esta tarjeta</div>`
-    : `<table class="dtable"><tr><th>registro</th><th>qué cubrió</th></tr>${d.reviews.map(r => `<tr><td><code>${esc(r.id)}</code></td><td>${esc(when(r.created_at))}${r.cobertura ? " · " + esc(r.cobertura) : ""}${(r.lenses || []).length ? " · " + esc(r.lenses.join(", ")) : ""}${r.provider ? " · " + esc(r.provider) : ""}</td></tr>`).join("")}</table>`}
-    ${rutasDe("registros", d.paths.reviews)}`;
+  const review = r => {
+    const cubrio = [when(r.created_at), r.cobertura, (r.lenses || []).join(", "), r.provider].filter(Boolean);
+    return `<tr><td><code>${esc(r.id)}</code></td><td>${cubrio.map(esc).join(" · ")}</td></tr>`;
+  };
+  const tablaReviews = !(d.reviews || []).length ? `<div class="empty">sin registro de review de esta tarjeta</div>`
+    : `<table class="dtable"><tr><th>registro</th><th>qué cubrió</th></tr>${d.reviews.map(review).join("")}</table>`;
+  const reviews = !ex ? "" : `<h3 class="dsub">Reviews</h3>${tablaReviews}${rutasDe("registros", d.paths.reviews)}`;
   return `<h3 class="dsub">Último veredicto de la tarjeta</h3>${veredicto}
     <h3 class="dsub">Traza por criterio</h3>${listaCriterios(d, ex, true)}
     <h3 class="dsub">Hallazgos</h3>${hallazgos}
