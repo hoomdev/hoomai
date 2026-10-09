@@ -30,13 +30,21 @@
 //     uno. Esa lectura no ejecuta un textconv de la configuracion local de
 //     git, y los tokens salen del contenido real de los archivos de test, no
 //     de lo que imprima un driver.
+//   - 20261009T205855_d4d677 (low, resilience), PRE-EXISTENTE; CA-363 (y
+//     CA-359, CA-360): si git falla mientras entrega el parche de los commits
+//     de la tarea, la historia no sale como un exito con atribuciones a
+//     medias: notes dice "sin historial de git: <error>". Y una linea muy
+//     larga del parche no corta la lectura antes de los 8 MiB.
 package boardcmd
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -672,5 +680,158 @@ func TestHallazgo_394505_LosTokensDeLaHistoriaSalenDelContenidoRealNoDelTextconv
 	}
 	if hiTieneNota(tl, NoteTestsCortados) {
 		t.Fatalf("394505 CA-363: un parche chico no se corta: %q", tl.Notes)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 20261009T205855_d4d677: el parche de la historia, cuando git falla o una
+// linea es muy larga
+// ---------------------------------------------------------------------------
+
+// c2GitCrudo corre git en dir y devuelve stdout, stderr y el codigo de
+// salida, sin juzgarlos.
+func c2GitCrudo(t *testing.T, dir string, args ...string) (string, string, int) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	code := 0
+	if err := cmd.Run(); err != nil {
+		var ee *exec.ExitError
+		if !errors.As(err, &ee) {
+			t.Fatalf("fixture: no se pudo correr git %v: %v", args, err)
+		}
+		code = ee.ExitCode()
+	}
+	return out.String(), errb.String(), code
+}
+
+// c2NotasSinGit son las notas de la historia que empiezan con "sin historial
+// de git: ".
+func c2NotasSinGit(tl Timeline) []string {
+	var out []string
+	for _, n := range tl.Notes {
+		if strings.HasPrefix(n, NoteSinGitPrefijo) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// Hallazgo 20261009T205855_d4d677 (PRE-EXISTENTE). historia-doctor-y-cinta
+// CA-363 sobre los commits de la tarea de CA-360, y la regla del contrato "si
+// git falla, las entradas de git faltan y notes dice sin historial de git:
+// <error>" (CA-359). La tarea tiene tres commits: el mas viejo agrega un
+// archivo de test que cita CA-1, el del medio agrega un archivo con un driver
+// de diff cuyo xfuncname es invalido en la config local, y el mas nuevo
+// agrega otro archivo de test que cita CA-2. git log -p de ese rango muere
+// con "fatal:" al llegar al archivo del medio, despues de haber emitido
+// parte del parche (el fixture lo confirma). La historia no puede salir como
+// un exito con los criterios a medias: err es nil, notes trae UNA nota "sin
+// historial de git: " con las palabras de git, no hay entradas de commit,
+// ninguna entrada enciende un criterio y no va la nota del corte de 8 MiB.
+// De las entradas de item, spec, aprobacion y veredicto este test no dice
+// nada.
+func TestHallazgo_d4d677_SiGitFallaAMitadDelParcheLaHistoriaLoDice(t *testing.T) {
+	root := bdRepo(t, "")
+	d0 := time.Date(2026, 9, 22, 6, 0, 0, 0, time.UTC)
+	h := func(n int) time.Time { return d0.Add(time.Duration(n) * time.Hour) }
+	bdItemArchivo(t, root, bdSlug, "Precios", "")
+	hiCommit(t, root, "item", h(0), "")
+	wt := bdWorktree(t, root, bdSlug)
+	bdEscribir(t, wt, bdSpec, hiSpecV1)
+	bdEscribir(t, wt, "precios_test.go", "package app\n\n// CA-1: el precio sale por region\n")
+	hiCommit(t, wt, "spec y prueba del uno", h(1), "")
+	bdEscribir(t, wt, ".gitattributes", "z_malo.txt diff=malo\n")
+	bdEscribir(t, wt, "z_malo.txt", "uno\ndos\n")
+	hiCommit(t, wt, "archivo con driver de diff", h(2), "")
+	bdEscribir(t, wt, "vista_test.go", "package app\n\n// CA-2: la vista muestra el precio\n")
+	hiCommit(t, wt, "prueba del dos", h(3), "")
+	bdGit(t, root, "config", "diff.malo.xfuncname", "([")
+
+	out, stderr, code := c2GitCrudo(t, wt, "log", "-p", "--no-ext-diff", "--no-textconv", "main..HEAD")
+	if code == 0 || !strings.Contains(stderr, "fatal:") || len(out) == 0 {
+		t.Fatalf("fixture: en esta maquina git log -p main..HEAD sale no-cero con fatal: despues de haber emitido algo: exit=%d, %d bytes, stderr=%q",
+			code, len(out), stderr)
+	}
+	fatal := ""
+	for _, linea := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(linea, "fatal:") {
+			fatal = strings.TrimSpace(linea)
+		}
+	}
+
+	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("d4d677 CA-359: si git falla la historia no es un error (lo dice notes): %v", err)
+	}
+	notas := c2NotasSinGit(tl)
+	if len(notas) != 1 {
+		t.Errorf("d4d677 CA-363: git murio a mitad del parche de los commits de la tarea: notes trae UNA nota %q<error>, trajo %d: %q",
+			NoteSinGitPrefijo, len(notas), tl.Notes)
+	} else if !strings.Contains(notas[0], fatal) {
+		t.Errorf("d4d677 CA-363: la nota trae las palabras de git %q, fue %q", fatal, notas[0])
+	}
+	if commits := hiCommitsDe(tl); len(commits) != 0 {
+		t.Errorf("d4d677 CA-360: si git falla las entradas de los commits de la tarea faltan, hubo %d: %v", len(commits), hiCortos(commits))
+	}
+	for _, e := range tl.Entries {
+		for _, m := range e.Meter {
+			if strings.HasPrefix(m.ID, "CA-") && m.State == SegHecho {
+				t.Errorf("d4d677 CA-363: con el parche a medias no se sabe que commit agrego cada token: ninguna entrada enciende un criterio, y %s %s encendio %s",
+					e.Kind, hiCorto(e.Ref), m.ID)
+			}
+		}
+	}
+	if hiTieneNota(tl, NoteTestsCortados) {
+		t.Errorf("d4d677 CA-363: un git que falla no es un parche cortado en 8 MiB: no va la nota %q: %q", NoteTestsCortados, tl.Notes)
+	}
+}
+
+// Hallazgo 20261009T205855_d4d677 (PRE-EXISTENTE). historia-doctor-y-cinta
+// CA-363 ("el parche de los commits de la tarea se lee hasta 8 MiB") sobre
+// los commits de CA-360: una linea muy larga no corta la lectura. La tarea
+// tiene un commit viejo que agrega un archivo de test que cita CA-1 y uno mas
+// nuevo que agrega un archivo que no es de test con una sola linea de 5 MiB.
+// El parche entero queda bajo los 8 MiB y git sale 0 (el fixture lo
+// confirma), asi que la historia se lee completa: los dos commits estan, el
+// viejo enciende CA-1, y no hay nota de corte ni de "sin historial de git".
+func TestHallazgo_d4d677_UnaLineaLargaNoCortaLaLecturaDelParche(t *testing.T) {
+	root := bdRepo(t, "")
+	d0 := time.Date(2026, 9, 22, 6, 0, 0, 0, time.UTC)
+	h := func(n int) time.Time { return d0.Add(time.Duration(n) * time.Hour) }
+	bdItemArchivo(t, root, bdSlug, "Precios", "")
+	hiCommit(t, root, "item", h(0), "")
+	wt := bdWorktree(t, root, bdSlug)
+	bdEscribir(t, wt, bdSpec, hiSpecV1)
+	bdEscribir(t, wt, "precios_test.go", "package app\n\n// CA-1: el precio sale por region\n")
+	viejo := hiCommit(t, wt, "spec y prueba del uno", h(1), "")
+	bdEscribir(t, wt, "relleno.txt", strings.Repeat("x", 5<<20)+"\n")
+	nuevo := hiCommit(t, wt, "una linea de 5 MiB", h(2), "")
+
+	out, stderr, code := c2GitCrudo(t, wt, "log", "-p", "--no-ext-diff", "--no-textconv", "main..HEAD")
+	if code != 0 || len(out) <= 5<<20 || len(out) >= TimelinePatchMax {
+		t.Fatalf("fixture: git log -p main..HEAD sale 0 con un parche de mas de 5 MiB y menos de %d bytes: exit=%d, %d bytes, stderr=%q",
+			TimelinePatchMax, code, len(out), stderr)
+	}
+
+	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("d4d677 CA-363: TimelineFor con una linea de 5 MiB en el parche: %v", err)
+	}
+	if got := hiCommitsDe(tl); len(got) != 2 || got[0] != viejo || got[1] != nuevo {
+		t.Fatalf("d4d677 CA-360: la historia trae los dos commits de la tarea, en orden: %v\n%s", hiCortos(got), hiListado(tl))
+	}
+	const ca = "d4d677 CA-363"
+	hiEfectos(t, ca, "el commit viejo, que agrega precios_test.go con CA-1 (el parche del commit mas nuevo trae una linea de 5 MiB y la lectura sigue)",
+		hiUna(t, ca, tl, KindCommit, viejo, ""), map[string]string{"CA-1": SegHecho})
+	hiEfectos(t, ca, "el commit de la linea de 5 MiB (no es un archivo de test)",
+		hiUna(t, ca, tl, KindCommit, nuevo, ""), map[string]string{})
+	if hiTieneNota(tl, NoteTestsCortados) {
+		t.Fatalf("d4d677 CA-363: un parche de menos de 8 MiB no se corta: no va la nota %q: %q", NoteTestsCortados, tl.Notes)
+	}
+	if notas := c2NotasSinGit(tl); len(notas) != 0 {
+		t.Fatalf("d4d677 CA-359: git no fallo: no va ninguna nota %q<error>: %q", NoteSinGitPrefijo, notas)
 	}
 }

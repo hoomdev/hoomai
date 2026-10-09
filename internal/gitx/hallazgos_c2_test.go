@@ -12,10 +12,20 @@
 //     un textconv de la configuracion local de git. El driver no corre
 //     ninguna vez y el parche trae el contenido real de los archivos.
 //
+// Y de la review de esas correcciones (tarea fixes-cabina-c2):
+//
+//   - 20261009T211516_402447 (medium, risk), PRE-EXISTENTE; CA-414 de
+//     .hoom/specs/review-aislada-y-modelo-elegido.md: VerificarBase, la
+//     comprobacion que hoom review corre antes de medir nada, es una lectura:
+//     no ejecuta el textconv de la config local, y un textconv roto no es una
+//     base rota. Una base que git no puede comparar con HEAD sigue siendo un
+//     error.
+//
 // Todas las rutas hostiles, las marcas y los drivers viven en t.TempDir().
 package gitx
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -285,5 +295,129 @@ func TestHallazgo_43bde9_BranchDiffNoEjecutaUnDriverDeLaConfigLocal(t *testing.T
 				t.Errorf("43bde9 CA-315: el numstat cuenta las lineas reales (notas.txt 1/0, nuevo.txt 1/0, .gitattributes 1/0): %+v", d.Files)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 20261009T211516_402447: VerificarBase no ejecuta un textconv
+// ---------------------------------------------------------------------------
+
+// c2GitCodigo corre git en dir y devuelve su salida (stdout y stderr juntos)
+// y el codigo de salida, sin juzgarlos.
+func c2GitCodigo(t *testing.T, dir string, args ...string) (string, int) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	code := 0
+	if err != nil {
+		var ee *exec.ExitError
+		if !errors.As(err, &ee) {
+			t.Fatalf("fixture: no se pudo correr git %v: %v", args, err)
+		}
+		code = ee.ExitCode()
+	}
+	return string(out), code
+}
+
+// c2RepoParaVerificar arma main con notas.txt y un .gitattributes que YA en
+// la base le pone el driver c2drv a *.txt, y una rama "tarea" que cambia
+// SOLO notas.txt. Es lo unico distinto entre la base y HEAD, asi que para
+// saber si hay diferencia git tiene que mirar ese archivo (con un textconv,
+// convertirlo). La config LOCAL define diff.c2drv.textconv = textconv.
+func c2RepoParaVerificar(t *testing.T, textconv string) string {
+	t.Helper()
+	idAislarGit(t) // sin la config global ni del sistema del que corre el test
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dfGit(t, dir, "init", "-b", "main")
+	dfGit(t, dir, "config", "user.email", "test@hoom.dev")
+	dfGit(t, dir, "config", "user.name", "hoom test")
+	write(t, dir, ".gitattributes", "*.txt diff=c2drv\n")
+	write(t, dir, "notas.txt", "linea vieja\n")
+	dfGit(t, dir, "add", "-A")
+	dfGit(t, dir, "commit", "-q", "-m", "inicial")
+	dfGit(t, dir, "checkout", "-q", "-b", "tarea")
+	write(t, dir, "notas.txt", "linea vieja\nlinea real agregada\n")
+	dfGit(t, dir, "add", "-A")
+	dfGit(t, dir, "commit", "-q", "-m", "cambio de la tarea")
+	dfGit(t, dir, "config", "diff.c2drv.textconv", textconv)
+	return dir
+}
+
+// Hallazgo 20261009T211516_402447 (PRE-EXISTENTE). CA-414 (review-aislada-
+// y-modelo-elegido): VerificarBase es una lectura. Con un driver
+// diff.<x>.textconv en la config local y un .gitattributes que se lo aplica
+// al archivo que cambio entre la base y HEAD, VerificarBase devuelve nil (git
+// puede comparar la base con HEAD) y el comando del driver no corre ninguna
+// vez: el driver deja una marca fuera del repo si corre. El fixture no es
+// ciego: git diff --quiet <base> HEAD, sobre ese mismo repo, SI lo corre.
+func TestHallazgo_402447_VerificarBaseNoEjecutaElTextconvDeLaConfigLocal(t *testing.T) {
+	fuera, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	marca := filepath.Join(fuera, "el-driver-corrio")
+	driver := filepath.Join(fuera, "driver.sh")
+	if err := os.WriteFile(driver, []byte("#!/bin/sh\necho corrio >> '"+marca+"'\necho "+c2SalidaDelDriver+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dir := c2RepoParaVerificar(t, driver)
+	if out, code := c2GitCodigo(t, dir, "diff", "--quiet", "main", "HEAD", "--"); c2Corridas(t, marca) == 0 {
+		t.Fatalf("fixture: en esta maquina git diff --quiet main HEAD corre el textconv de la config local (sin eso el test no ve nada): exit=%d %s", code, out)
+	}
+	if err := os.Remove(marca); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := VerificarBase(dir, "main"); err != nil {
+		t.Errorf("402447 CA-414: git puede comparar la base con HEAD: VerificarBase devuelve nil, devolvio: %v", err)
+	}
+	if n := c2Corridas(t, marca); n != 0 {
+		t.Errorf("402447 CA-414: VerificarBase es una lectura: no ejecuta el textconv de la config local; corrio %d veces", n)
+	}
+}
+
+// Hallazgo 20261009T211516_402447 (PRE-EXISTENTE). CA-414: un textconv de la
+// config local que sale no-cero (false) no es una base rota. git si puede
+// comparar la base con HEAD; lo roto es un programa de la maquina, que
+// VerificarBase no corre: devuelve nil. El fixture confirma que con ese
+// driver git diff --quiet <base> HEAD falla con fatal.
+func TestHallazgo_402447_UnTextconvRotoNoEsUnaBaseRota(t *testing.T) {
+	dir := c2RepoParaVerificar(t, "false")
+	if out, code := c2GitCodigo(t, dir, "diff", "--quiet", "main", "HEAD", "--"); code == 0 || code == 1 || !strings.Contains(out, "fatal:") {
+		t.Fatalf("fixture: en esta maquina git diff --quiet main HEAD falla con fatal cuando el textconv sale no-cero: exit=%d %q", code, out)
+	}
+	if err := VerificarBase(dir, "main"); err != nil {
+		t.Fatalf("402447 CA-414: un textconv roto de la config local no es una base rota: VerificarBase devuelve nil, devolvio: %v", err)
+	}
+}
+
+// Guarda del hallazgo 20261009T211516_402447. CA-414: lo que VerificarBase
+// si tiene que negar sigue negado. Una base que no existe y una base sin
+// merge-base con HEAD (una rama huerfana) son error; y cuando git puede
+// comparar devuelve nil, haya diferencias (la rama contra main) o no (la rama
+// contra si misma).
+func TestHallazgo_402447_GuardaUnaBaseQueGitNoPuedeCompararSigueSiendoError(t *testing.T) {
+	dir := dfRepo(t)
+	if err := VerificarBase(dir, "main"); err != nil {
+		t.Fatalf("402447 CA-414: con la base y cambios commiteados VerificarBase devuelve nil: %v", err)
+	}
+	if err := VerificarBase(dir, "tarea"); err != nil {
+		t.Fatalf("402447 CA-414: sin diferencias entre la base y HEAD VerificarBase tambien devuelve nil: %v", err)
+	}
+	if err := VerificarBase(dir, "no-existe-esta-base"); err == nil {
+		t.Fatal("402447 CA-414: una base que no existe es un error de VerificarBase, devolvio nil")
+	}
+	// una rama sin historia en comun con main: no hay merge-base
+	dfGit(t, dir, "checkout", "-q", "--orphan", "huerfana")
+	dfGit(t, dir, "commit", "-q", "-m", "sin historia en comun")
+	if out, code := c2GitCodigo(t, dir, "merge-base", "main", "HEAD"); code == 0 {
+		t.Fatalf("fixture: la rama huerfana no tiene merge-base con main, git encontro %q", out)
+	}
+	if err := VerificarBase(dir, "main"); err == nil {
+		t.Fatal("402447 CA-414: sin merge-base entre la base y HEAD VerificarBase es un error, devolvio nil")
 	}
 }
