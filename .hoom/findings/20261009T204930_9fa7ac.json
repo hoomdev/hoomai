@@ -1,0 +1,11 @@
+{
+  "id": "20261009T204930_9fa7ac",
+  "created_at": "2026-10-09T20:49:30.321589Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo): internal/boardcmd/timeline.go:766-767 genera el parche de la historia con git log -p y --no-ext-diff, pero sin --no-textconv. Git habilita textconv por defecto en git-log, asi que GET /api/board/{slug}/timeline (taskCommits lo llama en :397) puede ejecutar un comando diff.\u003cdriver\u003e.textconv de la configuracion local seleccionado por .gitattributes, con efectos fuera del repo o bloqueo; es el mismo limite que BranchDiff acaba de cerrar. Agregar --no-textconv. Patronizable con una regla Semgrep custom para exigir --no-ext-diff y --no-textconv en invocaciones de git diff/log que producen parches.",
+  "author": "reviewer@codex",
+  "fingerprint": "bcb046050a392fd8",
+  "task": "fixes-cabina-c2"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261009T210157_324452",
+  "created_at": "2026-10-09T21:01:57.542733Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gitx/fallo_tardio_test.go",
+  "description": "INTRODUCIDO — internal/gitx/fallo_tardio_test.go:53-57,167,196-204: los casos B/D ahora se provocan con diff.\u003cdriver\u003e.funcname inválido, pero las variables, el test y el subtest siguen llamándose Textconv/textconv. Los comentarios dedican varias secciones a explicar la contradicción y la salida de go test atribuye el caso al mecanismo equivocado; la historia ya queda preservada por el ID del hallazgo y esos comentarios. Renombrar los identificadores y el subtest según funcname dejaría visible la causa actual sin cambiar el contrato probado.",
+  "author": "reviewer@codex",
+  "fingerprint": "bcb046050a392fd8",
+  "task": "fixes-cabina-c2"
+}
