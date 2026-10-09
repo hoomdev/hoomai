@@ -89,7 +89,12 @@ function mostrarPestana(cual) {
   $("cockpit").style.display = !tb.on && !runOpen ? "" : "none";
   $("runview").style.display = !tb.on && runOpen ? "" : "none";
   if (tb.on) arrancarTablero();
-  else tb.genB++; // corta el sondeo del tablero
+  else {
+    tb.genB++; // corta el sondeo del tablero
+    // y el del detalle que quedara abierto, con su En vivo y su terminal: por
+    // teclado se sale de Tablero sin pasar por el velo, que es quien lo cerraba
+    if (tb.open) cerrarDetalle();
+  }
 }
 for (const b of document.querySelectorAll(".tabs .tab"))
   b.addEventListener("click", () => mostrarPestana(b.dataset.tab));
@@ -437,9 +442,17 @@ function paneQue(d, ex) {
     ${it.pedido ? `<h3 class="dsub">Pedido</h3><div class="md"><p>${esc(it.pedido)}</p></div>` : ""}
     <h3 class="dsub">Criterios</h3>
     ${listaCriterios(d, ex, false)}
-    ${ex ? `<div class="dmeta">spec <code>${esc(d.paths.spec || d.spec.path)}</code>${a ? ` · aprobado por <code>${esc(a.approved_by)}</code> el ${esc(when(a.approved_at))} · sha <code>${esc(a.sha256.slice(0, 8))}</code>` : " · sin aprobación vigente"}</div>` : ""}
+    ${ex ? `<div class="dmeta">spec <code>${esc(d.paths.spec || d.spec.path)}</code>${a ? ` · aprobado por <code>${esc(a.approved_by)}</code> el ${esc(when(a.approved_at))} · sha <code>${esc(a.sha256.slice(0, 8))}</code>` : " · sin aprobación vigente"}</div>
+      ${rutasDe("item", [d.paths.item])}${rutasDe("aprobación", [d.paths.approval])}` : ""}
     <h3 class="dsub">Spec</h3>
     ${d.spec.exists ? `<div class="md">${mdRender(d.spec.markdown)}</div>` : `<div class="empty">todavía no hay spec</div>`}`;
+}
+
+// rutasDe pinta rutas de la evidencia de la tarjeta (paths), una al lado de
+// la otra. Solo se llama en experto.
+function rutasDe(rotulo, lista) {
+  const l = (lista || []).filter(Boolean);
+  return !l.length ? "" : `<div class="dmeta">${esc(rotulo)} ${l.map(r => `<code>${esc(r)}</code>`).join(" · ")}</div>`;
 }
 
 function paneDiff(df) {
@@ -506,6 +519,7 @@ function panePruebas(d, ex) {
   const veredicto = !v ? `<div class="empty">${esc(NORMAL.sinVeredicto)}</div>` : `
     <div class="dmeta">${vBadge(v.verdict)} ${esc(when(v.created_at))}
       ${ex ? `<br><code>${esc(v.id)}</code> · huella del veredicto <code>${esc(v.git?.change_fingerprint || "")}</code> · actual <code>${esc(d.fingerprint)}</code>${d.card.evidence.fingerprint_match ? " (coincide)" : " (distinta)"}` : ""}</div>
+    ${ex ? rutasDe("veredicto", [d.paths.verdict]) : ""}
     <table class="dtable">
       <tr><th>estado</th><th>gate (* requerido)</th></tr>
       ${(v.gates || []).map(g => `<tr><td>${stBadge(g.status)}</td><td class="g">${esc(g.name)}${g.required ? " *" : ""}
@@ -518,9 +532,15 @@ function panePruebas(d, ex) {
       ${f.resolution ? `<br><small style="color:var(--text-3)">evidencia: ${esc(f.resolution.evidence)}</small>` : ""}</td></tr>`;
   const hallazgos = !d.findings.length ? `<div class="empty">sin hallazgos de esta tarjeta</div>`
     : `<table class="dtable"><tr><th>sev</th><th>estado</th><th>hallazgo</th></tr>${[...abiertos, ...resueltos].map(hallazgo).join("")}</table>`;
+  // los registros de review de la tarjeta, con su id y su ruta: solo en experto
+  const reviews = !ex ? "" : `<h3 class="dsub">Reviews</h3>${!(d.reviews || []).length ? `<div class="empty">sin registro de review de esta tarjeta</div>`
+    : `<table class="dtable"><tr><th>registro</th><th>qué cubrió</th></tr>${d.reviews.map(r => `<tr><td><code>${esc(r.id)}</code></td><td>${esc(when(r.created_at))}${r.cobertura ? " · " + esc(r.cobertura) : ""}${(r.lenses || []).length ? " · " + esc(r.lenses.join(", ")) : ""}${r.provider ? " · " + esc(r.provider) : ""}</td></tr>`).join("")}</table>`}
+    ${rutasDe("registros", d.paths.reviews)}`;
   return `<h3 class="dsub">Último veredicto de la tarjeta</h3>${veredicto}
     <h3 class="dsub">Traza por criterio</h3>${listaCriterios(d, ex, true)}
-    <h3 class="dsub">Hallazgos</h3>${hallazgos}`;
+    <h3 class="dsub">Hallazgos</h3>${hallazgos}
+    ${ex ? rutasDe("hallazgos", d.paths.findings) : ""}
+    ${reviews}`;
 }
 
 /* ---------- En vivo: el Escenario y el Feed del run activo ---------- */
