@@ -11,9 +11,19 @@
 //     atiende como GET (asi lo hace net/http con toda ruta registrada con
 //     GET): 200, sin cuerpo, sin token y sin efectos. 405 es para POST, PUT,
 //     PATCH y DELETE.
+//
+// Y de la review de esas correcciones (tarea fixes-cabina-c2), sobre
+// .hoom/specs/historia-doctor-y-cinta.md:
+//
+//   - 20261009T204930_9fa7ac (medium, risk) y 20261009T205337_394505 (medium,
+//     reliability), PRE-EXISTENTES; CA-365 y CA-360: GET
+//     /api/board/{slug}/timeline no ejecuta un textconv de la configuracion
+//     local de git, y los criterios que le atribuye a cada commit de la tarea
+//     salen del contenido real de sus archivos de test.
 package servecmd
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -256,5 +266,86 @@ func TestHallazgo_146964_HEADSeAtiendeComoGETSinCuerpoYSinEfectos(t *testing.T) 
 	}
 	if c := c2Cambios(antes, tbFoto(t, dir)); len(c) != 0 {
 		t.Fatalf("146964 CA-318: un 405 no tiene efectos; %s", strings.Join(c, ", "))
+	}
+}
+
+// Hallazgos 20261009T204930_9fa7ac y 20261009T205337_394505 (PRE-EXISTENTES).
+// historia-doctor-y-cinta CA-365 (GET /api/board/{slug}/timeline es una
+// lectura: 200, sin token, y deja el repo y .hoom/ byte a byte iguales) sobre
+// los commits de la tarea de CA-360: con un driver diff.<x>.textconv en la
+// config local y un .gitattributes de la rama que se lo aplica a los archivos
+// de test, pedir la historia no corre el comando del driver ninguna vez (deja
+// una marca fuera del proyecto si corre), y el commit que agrego lista_test.go
+// enciende CA-70, que es lo que el archivo cita de verdad (el driver imprime
+// otro texto, sin ese token).
+func TestHallazgo_9fa7ac_GETTimelineNoEjecutaElTextconvDeLaConfigLocal(t *testing.T) {
+	dir, wt := c2ConTarea(t)
+	tbEscribir(t, wt, ".gitattributes", "*_test.go diff=c2drv\n")
+	gitRun(t, wt, "add", "-A")
+	gitRun(t, wt, "commit", "-q", "-m", "atributos de diff")
+
+	fuera, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	marca := filepath.Join(fuera, "el-driver-corrio")
+	driver := filepath.Join(fuera, "driver.sh")
+	if err := os.WriteFile(driver, []byte("#!/bin/sh\necho corrio >> '"+marca+"'\necho '// CA-99 segun el driver de diff'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, dir, "config", "diff.c2drv.textconv", driver)
+	// el fixture no es ciego: el git log -p de siempre SI corre el driver
+	gitRun(t, wt, "log", "-p", "--no-ext-diff", "main..HEAD", "--", "lista_test.go")
+	if err := os.Remove(marca); err != nil {
+		t.Fatalf("fixture: en esta maquina git log -p corre el textconv de la config local y deja su marca: %v", err)
+	}
+
+	s := newServer(t, dir)
+	antes := tbFoto(t, dir)
+	rec := tbGET(t, s, "/api/board/lista/timeline")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("9fa7ac CA-365: GET /api/board/lista/timeline responde 200 sin token, respondio %d: %s", rec.Code, rec.Body.String())
+	}
+	if raw, err := os.ReadFile(marca); err == nil {
+		t.Errorf("9fa7ac CA-365: pedir la historia es una lectura: no ejecuta el textconv de la config local; corrio %d veces",
+			strings.Count(string(raw), "corrio"))
+	}
+	if c := c2Cambios(antes, tbFoto(t, dir)); len(c) != 0 {
+		t.Fatalf("9fa7ac CA-365: pedir la historia deja el repo y .hoom/ byte a byte iguales, ignorados incluidos; %s", strings.Join(c, ", "))
+	}
+
+	var tl struct {
+		Entries []struct {
+			Kind  string `json:"kind"`
+			Ref   string `json:"ref"`
+			Meter []struct {
+				ID    string `json:"id"`
+				State string `json:"state"`
+			} `json:"meter"`
+		} `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &tl); err != nil {
+		t.Fatalf("9fa7ac CA-365: la historia es JSON: %v\n%s", err, rec.Body.String())
+	}
+	commits, encienden := 0, 0
+	for _, e := range tl.Entries {
+		if e.Kind != "commit" {
+			continue
+		}
+		commits++
+		for _, m := range e.Meter {
+			if m.ID == "CA-70" && m.State == "hecho" {
+				encienden++
+			}
+			if m.ID != "CA-70" {
+				t.Fatalf("394505 CA-360: un commit de la tarea solo enciende criterios que sus archivos de test citan de verdad (CA-70): el commit %.12s toco %s", e.Ref, m.ID)
+			}
+		}
+	}
+	if commits != 2 {
+		t.Fatalf("394505 CA-360: fixture: la tarea tiene dos commits (el trabajo y los atributos de diff), la historia trae %d", commits)
+	}
+	if encienden != 1 {
+		t.Fatalf("394505 CA-360: el commit que agrego lista_test.go enciende CA-70 (lo que el archivo cita de verdad, no lo que imprime el driver): lo encendieron %d commits", encienden)
 	}
 }

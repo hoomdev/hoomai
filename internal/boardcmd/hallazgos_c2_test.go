@@ -20,6 +20,16 @@
 //     1): el nombre de un gate se muestra como el proyecto lo escribio,
 //     tambien en plain y red.plain. Es la unica excepcion al vocabulario del
 //     modo normal; el resto de la frase lo sigue cumpliendo.
+//
+// Y de la review de esas correcciones (tarea fixes-cabina-c2), sobre
+// .hoom/specs/historia-doctor-y-cinta.md:
+//
+//   - 20261009T204930_9fa7ac (medium, risk) y 20261009T205337_394505 (medium,
+//     reliability), PRE-EXISTENTES; CA-360 y CA-363: la historia lee el
+//     parche de los commits de la tarea para saber que tokens CA agrego cada
+//     uno. Esa lectura no ejecuta un textconv de la configuracion local de
+//     git, y los tokens salen del contenido real de los archivos de test, no
+//     de lo que imprima un driver.
 package boardcmd
 
 import (
@@ -539,5 +549,128 @@ func TestHallazgo_12f52d_LaExcepcionEsSoloElNombreDelGate(t *testing.T) {
 			t.Fatalf("12f52d CA-306: %s nombra el gate git-secrets: %q", que, frase)
 		}
 		tbNormal(t, "12f52d CA-306", que+" sin el nombre del gate", strings.Replace(frase, "git-secrets", "<gate>", 1))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 20261009T204930_9fa7ac y 20261009T205337_394505: la historia y el textconv
+// ---------------------------------------------------------------------------
+
+// c2DriverDice es lo que imprime el driver de diff de la historia en vez del
+// contenido del archivo: cita CA-3, que ningun archivo de test cita de verdad.
+const c2DriverDice = "// CA-3 segun el driver de diff"
+
+// c2Historia es el fixture de la historia con un driver de diff: los shas de
+// sus tres commits de la tarea y la marca que deja el driver si corre.
+type c2Historia struct {
+	root, marca         string
+	atributos, uno, dos string
+}
+
+// c2HistoriaConDriver arma la tarjeta "precios" con su espacio de trabajo y
+// tres commits de la tarea: (1) el spec (criterios CA-1, CA-2 y CA-3) y un
+// .gitattributes que le pone el driver c2drv a *_test.go; (2) agrega
+// precios_test.go, que cita CA-1; (3) lo cambia para citar tambien CA-2. La
+// config LOCAL del repo define diff.c2drv.textconv con un script (fuera del
+// proyecto) que deja una linea en marca cada vez que corre e imprime
+// c2DriverDice. Confirma que el git log -p de siempre SI corre el driver en
+// este repo, y borra la marca.
+func c2HistoriaConDriver(t *testing.T) c2Historia {
+	t.Helper()
+	root := bdRepo(t, "")
+	d0 := time.Date(2026, 9, 22, 6, 0, 0, 0, time.UTC)
+	h := func(n int) time.Time { return d0.Add(time.Duration(n) * time.Hour) }
+	bdItemArchivo(t, root, bdSlug, "Precios", "")
+	hiCommit(t, root, "item", h(0), "")
+	wt := bdWorktree(t, root, bdSlug)
+	f := c2Historia{root: root}
+	bdEscribir(t, wt, bdSpec, hiSpecV1)
+	bdEscribir(t, wt, ".gitattributes", "*_test.go diff=c2drv\n")
+	f.atributos = hiCommit(t, wt, "spec y atributos de diff", h(1), "")
+	bdEscribir(t, wt, "precios_test.go", "package app\n\n// CA-1: el precio sale por region\n")
+	f.uno = hiCommit(t, wt, "prueba del uno", h(2), "")
+	bdEscribir(t, wt, "precios_test.go", "package app\n\n// CA-1: el precio sale por region\n// CA-2: la vista muestra el precio\n")
+	f.dos = hiCommit(t, wt, "prueba del dos", h(3), "")
+
+	fuera, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.marca = filepath.Join(fuera, "el-driver-corrio")
+	driver := bdEscribir(t, fuera, "driver.sh", "#!/bin/sh\necho corrio >> '"+f.marca+"'\necho '"+c2DriverDice+"'\n")
+	if err := os.Chmod(driver, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bdGit(t, root, "config", "diff.c2drv.textconv", driver)
+	if out := bdGit(t, wt, "log", "-p", "--no-ext-diff", "--format=%H", "main..HEAD", "--", "precios_test.go"); !strings.Contains(out, c2DriverDice) {
+		t.Fatalf("fixture: en esta maquina git log -p corre el textconv de la config local y muestra su salida (sin eso el test no ve nada):\n%s", out)
+	}
+	if err := os.Remove(f.marca); err != nil {
+		t.Fatalf("fixture: el driver deja su marca cuando corre: %v", err)
+	}
+	return f
+}
+
+// Hallazgo 20261009T204930_9fa7ac (PRE-EXISTENTE). historia-doctor-y-cinta
+// CA-360 (los commits de la tarea, <base>..HEAD en el espacio de trabajo) y
+// el contrato de TimelineFor ("los unicos comandos que corre son lecturas de
+// git"): con un driver diff.<x>.textconv en la config local y un
+// .gitattributes de la rama que se lo aplica al archivo de test que la tarea
+// cambio, pedir la historia de la tarjeta no corre el comando del driver
+// ninguna vez (el driver deja una marca fuera del proyecto si corre). La
+// historia sale igual: sus tres commits de la tarea, sin error.
+func TestHallazgo_9fa7ac_LaHistoriaNoEjecutaElTextconvDeLaConfigLocal(t *testing.T) {
+	f := c2HistoriaConDriver(t)
+	tl, err := TimelineFor(f.root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("9fa7ac CA-360: TimelineFor con un textconv configurado: %v", err)
+	}
+	if raw, err := os.ReadFile(f.marca); err == nil {
+		t.Fatalf("9fa7ac CA-360: pedir la historia de la tarjeta no ejecuta el textconv de la config local: corrio %d veces",
+			strings.Count(string(raw), "corrio"))
+	}
+	if got := hiCommitsDe(tl); len(got) != 3 || got[0] != f.atributos || got[1] != f.uno || got[2] != f.dos {
+		t.Fatalf("9fa7ac CA-360: la historia trae los tres commits de la tarea, en orden: %v\n%s", hiCortos(got), hiListado(tl))
+	}
+}
+
+// Hallazgo 20261009T205337_394505 (PRE-EXISTENTE). historia-doctor-y-cinta
+// CA-363 (un commit de la tarea enciende los criterios cuyo token aparece por
+// primera vez en una linea agregada de un archivo de test) sobre los commits
+// de CA-360: con un textconv de la config local sobre el archivo de test, los
+// tokens que la historia le atribuye a cada commit son los del contenido REAL
+// del archivo, los mismos en cualquier maquina. El commit que agrega
+// precios_test.go enciende CA-1 y el que lo cambia enciende CA-2; ninguno
+// enciende CA-3, que es lo que imprimiria el driver.
+func TestHallazgo_394505_LosTokensDeLaHistoriaSalenDelContenidoRealNoDelTextconv(t *testing.T) {
+	f := c2HistoriaConDriver(t)
+	tl, err := TimelineFor(f.root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("394505 CA-363: TimelineFor con un textconv configurado: %v", err)
+	}
+	var ids []string
+	for _, s := range tl.Meter {
+		ids = append(ids, s.ID)
+	}
+	if !strings.HasPrefix(strings.Join(ids, ","), "spec,CA-1,CA-2,CA-3,") {
+		t.Fatalf("394505 CA-363: fixture: el esqueleto del medidor trae spec y los criterios CA-1, CA-2 y CA-3: %v", ids)
+	}
+	const ca = "394505 CA-363"
+	hiEfectos(t, ca, "el commit que agrega precios_test.go (cita CA-1; el driver diria CA-3)",
+		hiUna(t, ca, tl, KindCommit, f.uno, ""), map[string]string{"CA-1": SegHecho})
+	hiEfectos(t, ca, "el commit que le agrega la linea de CA-2 a precios_test.go (con el driver no habria diferencia)",
+		hiUna(t, ca, tl, KindCommit, f.dos, ""), map[string]string{"CA-2": SegHecho})
+	hiEfectos(t, ca, "el commit del spec y de .gitattributes (ninguno es un archivo de test)",
+		hiUna(t, ca, tl, KindCommit, f.atributos, ""), map[string]string{})
+	for _, e := range tl.Entries {
+		for _, m := range e.Meter {
+			if m.ID == "CA-3" && m.State == SegHecho {
+				t.Fatalf("394505 CA-363: ningun archivo de test cita CA-3 (solo lo imprime el driver): ninguna entrada lo enciende, lo encendio %s %s",
+					e.Kind, hiCorto(e.Ref))
+			}
+		}
+	}
+	if hiTieneNota(tl, NoteTestsCortados) {
+		t.Fatalf("394505 CA-363: un parche chico no se corta: %q", tl.Notes)
 	}
 }
