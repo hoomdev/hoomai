@@ -7,6 +7,17 @@
 // salida no-cero de git. Lo que no cambia: un parche grande que git entrega
 // entero y sin error sale truncado, disponible, sin nota, de a lo sumo
 // maxBytes y cortado en fin de linea.
+//
+// Enmienda 1 de tablero-de-solo-lectura (hallazgo 20261009T191847_43bde9):
+// BranchDiff corre git diff con --no-textconv, asi que un textconv roto ya
+// no puede hacer fallar a git: ese driver no corre nunca. Los casos B y D,
+// que provocaban el fallo con diff.roto.textconv = false, lo provocan ahora
+// con diff.roto.funcname = \( (una regex basica invalida para el encabezado
+// de hunk): git muere igual con 128 al llegar al archivo z_*, despues de
+// haber emitido todo lo anterior, y su --numstat sigue saliendo 0. Cambio
+// SOLO la forma de provocar el fallo: lo que cada test afirma de BranchDiff
+// quedo letra por letra. Los nombres con "Textconv" (tests, subtests y
+// variables) se conservan por historia.
 package gitx
 
 import (
@@ -31,17 +42,19 @@ type ftCaso struct {
 	grande  bool
 	archivo string // el archivo con el atributo diff=<driver>
 	driver  string
-	clave   string // config del driver: textconv o xfuncname
+	clave   string // config del driver: funcname, xfuncname o textconv
 	valor   string
 }
 
 var (
-	// B: textconv que sale no-cero -> "fatal: unable to read files to diff"
-	ftTextconvRoto = ftCaso{grande: true, archivo: "z_conv.txt", driver: "roto", clave: "textconv", valor: "false"}
+	// B: funcname invalido (regex basica) -> "fatal: Invalid regexp to look for hunk header: \("
+	// (hasta la enmienda 1 era un textconv que salia no-cero -> "fatal: unable
+	// to read files to diff"; con --no-textconv ese driver ya no corre)
+	ftTextconvRoto = ftCaso{grande: true, archivo: "z_conv.txt", driver: "roto", clave: "funcname", valor: `\(`}
 	// C: xfuncname invalido -> "fatal: Invalid regexp to look for hunk header: (["
 	ftXfuncnameRoto = ftCaso{grande: true, archivo: "z_re.txt", driver: "malo", clave: "xfuncname", valor: "(["}
-	// D: el mismo textconv roto, sin el archivo grande delante (falla antes del corte)
-	ftTextconvRotoChico = ftCaso{grande: false, archivo: "z_conv.txt", driver: "roto", clave: "textconv", valor: "false"}
+	// D: el mismo driver roto de B, sin el archivo grande delante (falla antes del corte)
+	ftTextconvRotoChico = ftCaso{grande: false, archivo: "z_conv.txt", driver: "roto", clave: "funcname", valor: `\(`}
 	// sano: el gemelo de B con un textconv que funciona
 	ftTextconvSano = ftCaso{grande: true, archivo: "z_conv.txt", driver: "roto", clave: "textconv", valor: "cat"}
 )
@@ -140,15 +153,22 @@ func ftAssertFallo(t *testing.T, d Diff, err error, fatal string) {
 }
 
 // Hallazgo 20260924T145643_57c18a, caso B. CA-315: a_big.txt (~625 KiB) y
-// despues z_conv.txt con un textconv que sale no-cero: git ya emitio mas de
-// 256 KiB de parche cuando muere con "fatal: unable to read files to diff".
-// BranchDiff con maxBytes 256 KiB no puede devolver ese parche cortado como
-// si fuera un diff disponible: available false, sin parche, nota con git.
+// despues z_conv.txt con un driver de diff que hace morir a git: git ya
+// emitio mas de 256 KiB de parche cuando muere con "fatal: Invalid regexp to
+// look for hunk header: \(". BranchDiff con maxBytes 256 KiB no puede
+// devolver ese parche cortado como si fuera un diff disponible: available
+// false, sin parche, nota con git.
+//
+// Enmienda 1 (hallazgo 20261009T191847_43bde9): este caso provocaba el fallo
+// con un textconv que salia no-cero ("fatal: unable to read files to diff"),
+// y de ahi su nombre. BranchDiff corre ahora git con --no-textconv y ese
+// driver ya no corre, asi que el fallo tardio se provoca con un funcname
+// invalido en el mismo driver. Lo que afirma de BranchDiff no cambio.
 func TestHallazgo_57c18a_FalloTardioTextconvNoSeTapaConElCorte(t *testing.T) {
 	dir := ftRepo(t, ftTextconvRoto)
 	fatal := ftFixtureFalloTardio(t, dir)
-	if !strings.Contains(fatal, "unable to read files to diff") {
-		t.Logf("git de esta maquina dice otra cosa para el textconv roto: %q", fatal)
+	if !strings.Contains(fatal, "Invalid regexp to look for hunk header") {
+		t.Logf("git de esta maquina dice otra cosa para el funcname invalido: %q", fatal)
 	}
 	d, err := BranchDiff(dir, "main", ftMax)
 	ftAssertFallo(t, d, err, fatal)
@@ -172,6 +192,11 @@ func TestHallazgo_57c18a_FalloTardioXfuncnameNoSeTapaConElCorte(t *testing.T) {
 // fallo tardio no depende de donde cae el corte: con cualquier maxBytes por
 // debajo de lo que git emitio antes de morir, el resultado es el de "git
 // fallo". Sin tope (0) git entrega todo y el fallo se ve (guarda).
+//
+// Enmienda 1 (hallazgo 20261009T191847_43bde9): los subtests "textconv"
+// conservan su nombre, pero el fallo del caso B ya no lo provoca un textconv
+// (con --no-textconv no corre) sino un funcname invalido. Lo que afirman no
+// cambio.
 func TestHallazgo_57c18a_FalloTardioConCualquierTope(t *testing.T) {
 	for _, caso := range []struct {
 		nombre string
@@ -189,8 +214,12 @@ func TestHallazgo_57c18a_FalloTardioConCualquierTope(t *testing.T) {
 }
 
 // Guarda del hallazgo 20260924T145643_57c18a, caso D. CA-315: el mismo
-// textconv roto, sin el archivo grande delante: git muere antes de llegar a
-// maxBytes y BranchDiff ya da available false con la nota de git.
+// driver roto de B, sin el archivo grande delante: git muere antes de llegar
+// a maxBytes y BranchDiff ya da available false con la nota de git.
+//
+// Enmienda 1 (hallazgo 20261009T191847_43bde9): el driver roto era un
+// textconv que salia no-cero; con --no-textconv ya no corre, y el fallo
+// temprano se provoca con el funcname invalido de B. Lo que afirma no cambio.
 func TestHallazgo_57c18a_GuardaFalloTempranoYaEsNoDisponible(t *testing.T) {
 	dir := ftRepo(t, ftTextconvRotoChico)
 	out, stderr, code := ftGitDiff(t, dir, "main")
