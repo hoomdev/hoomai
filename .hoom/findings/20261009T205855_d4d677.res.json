@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T205855_d4d677",
+  "as": "corregido",
+  "evidence": "Corregido en 4d97d8b: internal/boardcmd/timeline.go, testTokens devuelve error cuando git falla sin que el corte en 8 MiB sea nuestro (mira Scanner.Err y cmd.Wait, con el stderr de git) y taskCommits lo propaga como ya hacia con logNames: la historia sale con la nota 'sin historial de git: \u003cerror\u003e' y sin entradas de commit, que es lo que la spec historia-doctor-y-cinta dice de un git que falla (el refutador confirmo que cabe en el contrato de hoy, sin enmienda: ref-c2b/INFORME.md). El Scanner admite una linea de hasta lo que se lee (TimelinePatchMax+1), asi que una linea larga ya no corta la lectura. Regresion (test-writer, arbol limpio): TestHallazgo_d4d677_SiGitFallaAMitadDelParcheLaHistoriaLoDice y TestHallazgo_d4d677_UnaLineaLargaNoCortaLaLecturaDelParche (boardcmd, CA-359/360/363). Sobre 3d567df fallan ('notes trae UNA nota sin historial de git, trajo 0'; 'hubo 3' entradas de commit; 'deben ser map[CA-1:hecho], fueron map[]'); con el arreglo pasan.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T21:26:04.674342Z"
+}

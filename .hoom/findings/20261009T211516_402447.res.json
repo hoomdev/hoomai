@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T211516_402447",
+  "as": "corregido",
+  "evidence": "Corregido en 4d97d8b: internal/gitx/diff.go, VerificarBase corre 'git diff --quiet --no-ext-diff --no-textconv \u003cmerge-base\u003e HEAD --'. Regresion (test-writer, arbol limpio, internal/gitx): TestHallazgo_402447_VerificarBaseNoEjecutaElTextconvDeLaConfigLocal y TestHallazgo_402447_UnTextconvRotoNoEsUnaBaseRota (CA-414), mas la guarda TestHallazgo_402447_GuardaUnaBaseQueGitNoPuedeCompararSigueSiendoError. Sobre 3d567df los dos primeros fallan ('corrio 2 veces'; 'devolvio: git diff \u003csha\u003e HEAD: fatal: unable to read files to diff'); con el arreglo pasan, y la guarda pasa en los dos. Con git 2.54 'git diff --quiet' no corre diff.external (medido por el test-writer: 0 corridas), asi que --no-ext-diff queda sin test propio.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T21:26:04.680664Z"
+}
