@@ -62,7 +62,7 @@ func Snapshot(dir, base string) Info {
 
 	set := map[string]bool{}
 	local := map[string]bool{} // worktree divergence vs HEAD: uncommitted + untracked + deleted
-	if out, err := run(dir, "diff", "--name-only", "--diff-filter=ACMR", base+"...HEAD"); err == nil {
+	if out, err := run(dir, "diff", "--name-only", "--diff-filter=ACMR", endOfOptions, base+"...HEAD"); err == nil {
 		for _, f := range strings.Split(out, "\n") {
 			if f != "" {
 				set[f] = true
@@ -181,7 +181,7 @@ func excludedFromCandidate(path string) bool {
 // diffStats measures the change candidate size: numstat of base vs working
 // tree, plus line counts of untracked files. Binary files are skipped.
 func diffStats(dir, base string, changed []string) (ins, del int) {
-	out, err := run(dir, "diff", "--numstat", base)
+	out, err := run(dir, "diff", "--numstat", endOfOptions, base)
 	if err != nil {
 		out, err = run(dir, "diff", "--numstat", "HEAD")
 	}
@@ -255,7 +255,7 @@ func Touched(dir, base string) map[string]string {
 	set := map[string]bool{}
 	// No --diff-filter here: a path DELETED in the branch is a change too.
 	for _, args := range [][]string{
-		{"diff", "--name-only", base + "...HEAD"},
+		{"diff", "--name-only", endOfOptions, base + "...HEAD"},
 		{"diff", "--name-only", "HEAD"},
 		{"ls-files", "--others", "--exclude-standard"},
 	} {

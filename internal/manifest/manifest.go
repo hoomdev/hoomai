@@ -274,6 +274,18 @@ func (m *Manifest) validateFindings() error {
 		*m.Findings.BlockOn, strings.Join(Severities, "|"))
 }
 
+// validateBaseBranch refuses a base_branch that git would read as an option.
+// The value ends up as a revision argument of git (`<base>...HEAD`), and a
+// name starting with "-" is never a branch: `--output=<path>` made a plain
+// read create or truncate that path (finding bb986a). The same rule
+// gitx.ResolverCommit applies to --base.
+func (m *Manifest) validateBaseBranch() error {
+	if strings.HasPrefix(m.BaseBranch, "-") {
+		return fmt.Errorf("base_branch invalido %q: el nombre de una rama no empieza con \"-\"", m.BaseBranch)
+	}
+	return nil
+}
+
 // canonical execution order for well-known gates; unknown gates go last, alphabetical.
 var gateOrder = []string{"build", "lint", "static", "security", "arch", "compose_lint", "compose_metrics", "test", "mutation"}
 
@@ -344,6 +356,9 @@ func Load(dir string, resolveProfile func(name string) (map[string]Gate, string,
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	if err := m.validateReview(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	if err := m.validateBaseBranch(); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	if m.BaseBranch == "" {
