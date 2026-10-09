@@ -1,0 +1,11 @@
+{
+  "id": "20261009T211516_402447",
+  "created_at": "2026-10-09T21:15:16.643395Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "PRE-EXISTENTE (fuera de los cinco de la review; lo encontro el refutador en su vuelta 2 y lo registra el writer): internal/gitx/diff.go:311, VerificarBase corre 'git diff --quiet \u003cmerge-base\u003e HEAD --' sin --no-ext-diff ni --no-textconv. git diff --quiet ejecuta el textconv de la config local (medido con git 2.54: corre 2 veces), y con un driver que sale no-cero hoom review se niega con 'git diff \u003csha\u003e HEAD: fatal: unable to read files to diff': una lectura de la review corre un programa de la maquina y su resultado depende de esa config. Es la ultima invocacion de la clase que cerraron 43bde9 (BranchDiff) y 9fa7ac/394505 (la historia). Correccion minima: agregar --no-ext-diff y --no-textconv. No pide spec: CA-414 no cambia (un git que no puede comparar sigue siendo el error de git).",
+  "author": "refutador@claude",
+  "fingerprint": "724d9ba5d1a93e11",
+  "task": "fixes-cabina-c2"
+}
