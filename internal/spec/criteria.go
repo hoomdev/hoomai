@@ -1,11 +1,14 @@
 package spec
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
 // Criterion is one acceptance criterion as written: its id and the statement
@@ -91,6 +94,32 @@ type TokenIndex struct {
 	files   map[string][]string
 }
 
+// maxTestFile is the largest test file the index reads.
+const maxTestFile = 2 << 20
+
+// readTestFile reads a test file for the index only if it is a regular file
+// of at most maxTestFile bytes, and it decides on the descriptor it opened
+// (hoomfs.AbrirRegular), never on an earlier look at the entry: a symlink is
+// not followed and a FIFO does not block the open. Looking at the entry and
+// then reading the path let a *_test file that is a symlink skip the size
+// limit, read /dev/zero without end or hang on a FIFO (finding af65de). The
+// read is capped too: a file that grows after the look is not read whole.
+func readTestFile(path string) ([]byte, bool) {
+	f, err := hoomfs.AbrirRegular(path)
+	if err != nil {
+		return nil, false
+	}
+	defer f.Close()
+	if st, err := f.Stat(); err != nil || st.Size() > maxTestFile {
+		return nil, false
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxTestFile+1))
+	if err != nil || len(raw) > maxTestFile {
+		return nil, false
+	}
+	return raw, true
+}
+
 // IndexTokens reads the test files of root once, with the same filter as
 // Trace, and records which files cite each whole token. A token never
 // matches inside a longer one: the regexp takes every digit.
@@ -110,12 +139,8 @@ func IndexTokens(root string) (TokenIndex, error) {
 		if !isTestFile(rel) {
 			return nil
 		}
-		info, ierr := d.Info()
-		if ierr != nil || info.Size() > 2<<20 {
-			return nil
-		}
-		raw, rerr := os.ReadFile(path)
-		if rerr != nil {
+		raw, ok := readTestFile(path)
+		if !ok {
 			return nil
 		}
 		idx.Scanned++
