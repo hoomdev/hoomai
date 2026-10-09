@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T210157_324452",
+  "as": "corregido",
+  "evidence": "Corregido en 3d567df (test-writer): en internal/gitx/fallo_tardio_test.go ftTextconvRoto -\u003e ftFuncnameRoto, ftTextconvRotoChico -\u003e ftFuncnameRotoChico, ftTextconvSano -\u003e ftDriverSano (su fixture sigue siendo un textconv sano), los subtests textconv/max=N -\u003e funcname/max=N y el test -\u003e TestHallazgo_57c18a_FalloTardioFuncnameNoSeTapaConElCorte. Solo cambian identificadores y comentarios: ninguna asercion ni el fixture. go test ./internal/gitx -run TestHallazgo_57c18a -v: 13 PASS con los nombres nuevos.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T21:20:05.160589Z"
+}
