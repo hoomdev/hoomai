@@ -39,14 +39,17 @@ type DiffFile struct {
 const endOfOptions = "--end-of-options"
 
 // BranchDiff runs `git diff <base>...HEAD` in dir: only what the branch
-// committed, never the working tree. The patch is cut at maxBytes on a line
+// committed, never the working tree. It is a read, so git runs no program of
+// the local configuration for it: no external diff (--no-ext-diff) and no
+// textconv driver (--no-textconv, finding 43bde9). The patch is cut at
+// maxBytes on a line
 // end (Truncated). When git fails, Available is false and Note carries git's
 // own words; the error is reserved for nothing else, so a reader never has to
 // tell the two apart.
 func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	d := Diff{Base: base, Files: []DiffFile{}}
 	rng := base + "...HEAD"
-	numstat, err := gitOut(dir, "diff", "--no-color", "--no-ext-diff", "--numstat", endOfOptions, rng, "--")
+	numstat, err := gitOut(dir, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--numstat", endOfOptions, rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil
@@ -63,7 +66,7 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 		d.Insertions += f.Insertions
 		d.Deletions += f.Deletions
 	}
-	patch, truncated, err := gitOutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", endOfOptions, rng, "--")
+	patch, truncated, err := gitOutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", "--no-textconv", endOfOptions, rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil
