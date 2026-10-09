@@ -302,13 +302,15 @@ func (c *capped) String() string { return c.b.String() }
 // VerificarBase fails when base and HEAD have no merge-base or git cannot
 // diff them (a shallow clone, a base that does not exist, a missing tree): it
 // runs before anything is measured, so a broken base never looks like "no
-// changes" (CA-414).
+// changes" (CA-414). It is a read: git runs no external diff and no textconv
+// driver of the local configuration for it, so a broken one is not a broken
+// base (finding 402447).
 func VerificarBase(dir, base string) error {
 	mb, err := MergeBase(dir, base)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("git", "diff", "--quiet", mb, "HEAD", "--")
+	cmd := exec.Command("git", "diff", "--quiet", "--no-ext-diff", "--no-textconv", mb, "HEAD", "--")
 	cmd.Dir = dir
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr

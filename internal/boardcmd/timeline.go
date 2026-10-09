@@ -394,7 +394,10 @@ func (h *history) taskCommits() error {
 	if err != nil {
 		return err
 	}
-	cites, truncated := testTokens(gitDir, rng)
+	cites, truncated, err := testTokens(gitDir, rng)
+	if err != nil {
+		return err
+	}
 	if truncated {
 		h.notes = append(h.notes, NoteTestsCortados)
 	}
@@ -691,13 +694,19 @@ func gitRun(dir string, args ...string) (string, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", fmt.Errorf("git %s: %s", args[0], msg)
+		return "", gitFailed(args[0], &stderr, err)
 	}
 	return string(out), nil
+}
+
+// gitFailed is the error of a git that failed: what it said on stderr, or
+// err when it said nothing.
+func gitFailed(sub string, stderr *bytes.Buffer, err error) error {
+	msg := strings.TrimSpace(stderr.String())
+	if msg == "" {
+		msg = err.Error()
+	}
+	return fmt.Errorf("git %s: %s", sub, msg)
 }
 
 func gitOK(dir string, args ...string) bool {
@@ -760,25 +769,30 @@ func parseLog(out string, status bool) []gitCommit {
 
 // testTokens reads the patch of a range and returns, per commit, the CA
 // tokens its added lines bring to test files (spec_trace's filter). The
-// patch is read up to TimelinePatchMax. It is a read, so git runs no program
-// of the local configuration for it, as in gitx.BranchDiff: no external diff
-// and no textconv driver, which would also make the tokens depend on the
-// machine (findings 9fa7ac and 394505).
-func testTokens(dir, rng string) (map[string][]string, bool) {
-	out := map[string][]string{}
+// patch is read up to TimelinePatchMax, and truncated says it was cut there.
+// A git that fails before that is an error, never a shorter patch read as a
+// whole one (finding d4d677). It is a read, so git runs no program of the
+// local configuration for it, as in gitx.BranchDiff: no external diff and no
+// textconv driver, which would also make the tokens depend on the machine
+// (findings 9fa7ac and 394505).
+func testTokens(dir, rng string) (cites map[string][]string, truncated bool, err error) {
 	cmd := exec.Command("git", "-c", "core.quotePath=false", "log", "--no-merges", "--no-renames",
 		"--format=%x1e%H", "-p", "--unified=0", "--no-color", "--no-ext-diff", "--no-textconv", gitx.EndOfOptions, rng, "--")
 	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return out, false
+		return nil, false, gitFailed("log", &stderr, err)
 	}
 	if err := cmd.Start(); err != nil {
-		return out, false
+		return nil, false, gitFailed("log", &stderr, err)
 	}
 	limited := &countingReader{r: pipe, max: TimelinePatchMax}
 	sc := bufio.NewScanner(limited)
-	sc.Buffer(make([]byte, 0, 64<<10), 4<<20)
+	// no line is longer than what is read, so a long one never stops the scan
+	sc.Buffer(make([]byte, 0, 64<<10), TimelinePatchMax+1)
+	cites = map[string][]string{}
 	sha, file := "", ""
 	seen := map[string]bool{}
 	for sc.Scan() {
@@ -795,18 +809,27 @@ func testTokens(dir, rng string) (map[string][]string, bool) {
 			for _, tok := range spec.TokensIn(l[1:]) {
 				if !seen[tok] {
 					seen[tok] = true
-					out[sha] = append(out[sha], tok)
+					cites[sha] = append(cites[sha], tok)
 				}
 			}
 		}
 	}
-	truncated := limited.hit
-	if truncated && cmd.Process != nil {
+	if limited.hit {
+		// the cut is ours: git is stopped, and how it ends says nothing
 		cmd.Process.Kill()
+		io.Copy(io.Discard, pipe)
+		cmd.Wait()
+		return cites, true, nil
 	}
-	io.Copy(io.Discard, pipe)
-	cmd.Wait()
-	return out, truncated
+	if err := sc.Err(); err != nil {
+		cmd.Process.Kill()
+		cmd.Wait()
+		return nil, false, gitFailed("log", &stderr, err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return nil, false, gitFailed("log", &stderr, err)
+	}
+	return cites, false, nil
 }
 
 // countingReader stops at max bytes and says it did.
