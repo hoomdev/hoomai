@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T192818_6fb82d",
+  "as": "corregido",
+  "evidence": "28d3ec9 (writer). mostrarPestana cierra el detalle que quede abierto al salir de Tablero (cerrarDetalle: corta su sondeo, su En vivo y su terminal, y esconde el panel). Toca CA-322. SIN test automatico: el test-writer no lo escribio porque es comportamiento en el tiempo y el metodo estatico de los tests de interfaz no lo fija sin atarse a nombres internos del .js. Comprobado a mano por el writer en el navegador, con un hoom serve compilado de esta rama en 127.0.0.1:4699 y fetch envuelto para contar los pedidos: con el detalle abierto, 3 GET a /api/board/tablero-de-solo-lectura en 4 s; con foco en el boton Cockpit y Enter, en los 7 s siguientes 0 GET al detalle, 0 a /api/board y 0 a /api/runs/\u003cid\u003e; el detalle queda cerrado y el velo oculto. El refutador habia medido el defecto de la misma manera antes del arreglo (5 GET al detalle en 8 s). Limites de la comprobacion: el panel del navegador estaba en segundo plano y se forzo document.visibilityState a visible; el foco se puso con focus(); el clic en la tarjeta y el Enter fueron reales. Gates build, static y test en verde en el veredicto 2026-10-09T20-43-25Z_247ef5be (rojo solo por findings_open, porque bb986a seguia abierto); el gate test corrio con -race gitx, manifest, spec, boardcmd y servecmd.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T20:44:44.235793Z"
+}

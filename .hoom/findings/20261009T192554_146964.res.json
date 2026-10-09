@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T192554_146964",
+  "as": "corregido",
+  "evidence": "Sin cambio de codigo: decision de Henry (2026-10-09) de aceptar HEAD. Enmienda 1 de la spec aprobada (sha256 4b85b2ed): Endpoints y CA-318 dicen que HEAD se atiende como GET y que 405 es para POST, PUT, PATCH y DELETE. El refutador lo habia medido por HTTP real: HEAD da 200 en todas las lecturas del Studio y los cuatro metodos de escritura dan 405. Test que fija la decision (CA-318), en 3e8f5cf: TestHallazgo_146964_HEADSeAtiendeComoGETSinCuerpoYSinEfectos (200 sin cuerpo y sin token, sin cambios en el repo ni en .hoom/, y los cuatro de escritura siguen en 405). Gates build, static y test en verde en el veredicto 2026-10-09T20-43-25Z_247ef5be (rojo solo por findings_open, porque bb986a seguia abierto); el gate test corrio con -race gitx, manifest, spec, boardcmd y servecmd.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T20:44:44.227373Z"
+}

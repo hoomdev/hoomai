@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T191901_af65de",
+  "as": "corregido",
+  "evidence": "acbadba (writer), tests en 3e8f5cf (test-writer). IndexTokens lee cada archivo de test con hoomfs.AbrirRegular (no sigue symlinks; un FIFO no bloquea), decide por el descriptor que abrio y lee con tope de 2 MiB. PRE-EXISTENTE (venia de antes de C2); se corrige aca porque no pide spec. El refutador lo reprodujo contra el arbol de hoy (un symlink a /dev/zero llevaba el proceso a 326 MiB en 53 ms; un FIFO lo colgaba, tambien en el gate spec_trace). Tests (CA-312), en un archivo //go:build unix: symlink a un archivo de 3 MiB fuera del arbol, symlink a /dev/zero (en un proceso hijo con vigilante de 64 MiB) y FIFO con nombre de test: se saltean y la llamada vuelve. Sobre 3de472d fallan los tres. Cambio de comportamiento: un *_test que es un symlink deja de indexarse, tambien si apunta a un archivo regular chico. Gates build, static y test en verde en el veredicto 2026-10-09T20-43-25Z_247ef5be (rojo solo por findings_open, porque bb986a seguia abierto); el gate test corrio con -race gitx, manifest, spec, boardcmd y servecmd.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T20:44:44.200428Z"
+}

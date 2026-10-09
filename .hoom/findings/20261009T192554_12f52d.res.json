@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T192554_12f52d",
+  "as": "corregido",
+  "evidence": "Sin cambio de codigo: decision de Henry (2026-10-09) de que manda el nombre del gate. Enmienda 1 de la spec aprobada (sha256 4b85b2ed; commits 12dfca0 y 7beee66): la seccion plain dice que el nombre de un gate se muestra como el proyecto lo escribio y que es la unica excepcion a la regla del vocabulario; queda tambien en Decisiones. El refutador habia mostrado que el contrato se contradecia: la tabla mandaba nombrar el gate que fallo y la regla prohibia palabras que un nombre de gate puede traer (git-secrets, commit-lint). Tests que fijan la decision (CA-306, CA-308), en 3e8f5cf: TestHallazgo_12f52d_ElNombreDelGateSeMuestraComoElProyectoLoEscribio (git-secrets en fail: plain y red.plain lo nombran tal cual) y TestHallazgo_12f52d_LaExcepcionEsSoloElNombreDelGate. Gates build, static y test en verde en el veredicto 2026-10-09T20-43-25Z_247ef5be (rojo solo por findings_open, porque bb986a seguia abierto); el gate test corrio con -race gitx, manifest, spec, boardcmd y servecmd.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T20:44:44.21868Z"
+}
