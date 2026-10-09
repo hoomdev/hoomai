@@ -1,0 +1,11 @@
+{
+  "id": "20261009T191851_caed19",
+  "created_at": "2026-10-09T19:18:51.664545Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:54-61 llama cmd.Output mediante gitOut, materializa todo el patch en memoria y solo despues lo recorta a 256 KiB; tampoco ata el proceso al contexto de la peticion. Un branch con un diff textual grande o un textconv verboso permite que el GET sin token agote memoria/CPU aunque la respuesta aparente estar limitada. Limitar stdout durante la lectura y cancelar/temporizar el proceso.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}

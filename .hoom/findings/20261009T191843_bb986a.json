@@ -1,0 +1,11 @@
+{
+  "id": "20261009T191843_bb986a",
+  "created_at": "2026-10-09T19:18:43.251685Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:36-37 concatena base_branch, controlado por hoom.yaml y no validado por manifest.Load, y pasa base...HEAD antes de --. Un valor como --output=/tmp/x se interpreta como opcion de git y GET /api/board/{slug}?diff=1 crea o trunca /tmp/x...HEAD, violando el contrato de solo lectura. Validar la ref y usar --end-of-options; este patron es candidato a una regla Semgrep custom.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}

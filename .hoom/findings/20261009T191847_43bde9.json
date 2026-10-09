@@ -1,0 +1,11 @@
+{
+  "id": "20261009T191847_43bde9",
+  "created_at": "2026-10-09T19:18:47.783377Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO: internal/gitx/diff.go:37 y :54 invoca git diff con --no-ext-diff pero sin --no-textconv. Git habilita textconv por defecto en git-diff, por lo que una lectura GET con diff puede ejecutar el comando de un driver seleccionado por .gitattributes/config local; el endpoint deja de ser una lectura sin efectos y permite disparar repetidamente procesos externos. Agregar --no-textconv en ambas invocaciones; patronizable con una regla Semgrep custom.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}

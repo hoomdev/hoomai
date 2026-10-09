@@ -1,0 +1,11 @@
+{
+  "id": "20261009T193105_08ae7d",
+  "created_at": "2026-10-09T19:31:05.94141Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/detail.go",
+  "description": "INTRODUCIDO — internal/boardcmd/detail.go:190: workOf vuelve a implementar la regla de propiedad y deduplicacion de usage (sidecar del run, fallback al sobre y un solo conteo por run) que spend ya implementa en internal/boardcmd/derive.go:366. Los dos recorridos usan estructuras y ordenes distintos (sidecars/referenced frente a seen), aunque el contrato exige que sus sumas sean siempre identicas; cualquier extension de telemetria debera modificarse dos veces y puede romper ese invariante. Extraer una unica seleccion de usage/filas y derivar de ella tanto Spend como Work.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}
