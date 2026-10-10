@@ -35,6 +35,19 @@
 //     de la tarea, la historia no sale como un exito con atribuciones a
 //     medias: notes dice "sin historial de git: <error>". Y una linea muy
 //     larga del parche no corta la lectura antes de los 8 MiB.
+//
+// Y de la review delta de esas correcciones, sobre la misma lectura del
+// parche (el contrato: "si git falla, las entradas de git faltan y notes dice
+// sin historial de git: <error>"; las entradas de git son TODAS las de source
+// git, como lee TestCA359_SinHistorialDeGit):
+//
+//   - 20261010T042645_cc4f5b (medium, resilience): cuando git falla a mitad
+//     del parche no queda NINGUNA entrada de source git (tampoco item ni
+//     spec).
+//   - 20261010T042641_dac517 (medium, resilience): si git falla DESPUES de
+//     haber emitido mas de 8 MiB, es un fallo de git y no un corte.
+//   - 20261010T042035_ad88b6 (medium, risk): el <error> de la nota sale del
+//     stderr de git y esta acotado aunque git escriba megas ahi.
 package boardcmd
 
 import (
@@ -719,22 +732,39 @@ func c2NotasSinGit(tl Timeline) []string {
 	return out
 }
 
-// Hallazgo 20261009T205855_d4d677 (PRE-EXISTENTE). historia-doctor-y-cinta
-// CA-363 sobre los commits de la tarea de CA-360, y la regla del contrato "si
-// git falla, las entradas de git faltan y notes dice sin historial de git:
-// <error>" (CA-359). La tarea tiene tres commits: el mas viejo agrega un
+// c2EntradasDeGit lista las entradas de source git de la historia ("kind
+// ref artifact"), para decir cuales quedaron.
+func c2EntradasDeGit(tl Timeline) []string {
+	var out []string
+	for _, e := range tl.Entries {
+		if e.Source == SourceGit {
+			out = append(out, strings.TrimSpace(e.Kind+" "+hiCorto(e.Ref)+" "+e.Artifact))
+		}
+	}
+	return out
+}
+
+// c2Fatal es la linea "fatal: ..." del stderr de git ("" si no hay).
+func c2Fatal(stderr string) string {
+	fatal := ""
+	for _, linea := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(linea, "fatal:") {
+			fatal = strings.TrimSpace(linea)
+		}
+	}
+	return fatal
+}
+
+// c2HistoriaConParcheRoto arma la tarjeta "precios" con su espacio de
+// trabajo y tres commits de la tarea: el mas viejo agrega el spec y un
 // archivo de test que cita CA-1, el del medio agrega un archivo con un driver
 // de diff cuyo xfuncname es invalido en la config local, y el mas nuevo
-// agrega otro archivo de test que cita CA-2. git log -p de ese rango muere
-// con "fatal:" al llegar al archivo del medio, despues de haber emitido
-// parte del parche (el fixture lo confirma). La historia no puede salir como
-// un exito con los criterios a medias: err es nil, notes trae UNA nota "sin
-// historial de git: " con las palabras de git, no hay entradas de commit,
-// ninguna entrada enciende un criterio y no va la nota del corte de 8 MiB.
-// De las entradas de item, spec, aprobacion y veredicto este test no dice
-// nada.
-func TestHallazgo_d4d677_SiGitFallaAMitadDelParcheLaHistoriaLoDice(t *testing.T) {
-	root := bdRepo(t, "")
+// agrega otro archivo de test que cita CA-2. Confirma que en esta maquina git
+// log -p de ese rango muere con "fatal:" despues de haber emitido parte del
+// parche, y devuelve el proyecto y esas palabras de git.
+func c2HistoriaConParcheRoto(t *testing.T) (root, fatal string) {
+	t.Helper()
+	root = bdRepo(t, "")
 	d0 := time.Date(2026, 9, 22, 6, 0, 0, 0, time.UTC)
 	h := func(n int) time.Time { return d0.Add(time.Duration(n) * time.Hour) }
 	bdItemArchivo(t, root, bdSlug, "Precios", "")
@@ -755,12 +785,25 @@ func TestHallazgo_d4d677_SiGitFallaAMitadDelParcheLaHistoriaLoDice(t *testing.T)
 		t.Fatalf("fixture: en esta maquina git log -p main..HEAD sale no-cero con fatal: despues de haber emitido algo: exit=%d, %d bytes, stderr=%q",
 			code, len(out), stderr)
 	}
-	fatal := ""
-	for _, linea := range strings.Split(stderr, "\n") {
-		if strings.HasPrefix(linea, "fatal:") {
-			fatal = strings.TrimSpace(linea)
-		}
-	}
+	return root, c2Fatal(stderr)
+}
+
+// Hallazgo 20261009T205855_d4d677 (PRE-EXISTENTE). historia-doctor-y-cinta
+// CA-363 sobre los commits de la tarea de CA-360, y la regla del contrato "si
+// git falla, las entradas de git faltan y notes dice sin historial de git:
+// <error>" (CA-359). La tarea tiene tres commits: el mas viejo agrega un
+// archivo de test que cita CA-1, el del medio agrega un archivo con un driver
+// de diff cuyo xfuncname es invalido en la config local, y el mas nuevo
+// agrega otro archivo de test que cita CA-2. git log -p de ese rango muere
+// con "fatal:" al llegar al archivo del medio, despues de haber emitido
+// parte del parche (el fixture lo confirma). La historia no puede salir como
+// un exito con los criterios a medias: err es nil, notes trae UNA nota "sin
+// historial de git: " con las palabras de git, no hay entradas de commit,
+// ninguna entrada enciende un criterio y no va la nota del corte de 8 MiB.
+// De las entradas de item, spec, aprobacion y veredicto este test no dice
+// nada: eso lo fija TestHallazgo_cc4f5b_SiGitFallaAMitadDelParcheNoQuedaNingunaEntradaDeGit.
+func TestHallazgo_d4d677_SiGitFallaAMitadDelParcheLaHistoriaLoDice(t *testing.T) {
+	root, fatal := c2HistoriaConParcheRoto(t)
 
 	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
 	if err != nil {
@@ -833,5 +876,183 @@ func TestHallazgo_d4d677_UnaLineaLargaNoCortaLaLecturaDelParche(t *testing.T) {
 	}
 	if notas := c2NotasSinGit(tl); len(notas) != 0 {
 		t.Fatalf("d4d677 CA-359: git no fallo: no va ninguna nota %q<error>: %q", NoteSinGitPrefijo, notas)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 20261010T042645_cc4f5b, 20261010T042641_dac517 y 20261010T042035_ad88b6: si
+// git falla al entregar el parche, faltan TODAS las entradas de git
+// ---------------------------------------------------------------------------
+
+// Hallazgo 20261010T042645_cc4f5b. historia-doctor-y-cinta CA-359 ("si git
+// falla, las entradas de git faltan y notes dice sin historial de git:
+// <error>") sobre el parche de los commits de la tarea (CA-360, CA-363): con
+// el mismo fixture del fallo a mitad del parche (el xfuncname invalido en el
+// commit del medio), la historia no queda poblada a medias. NINGUNA entrada
+// tiene source git: ni los commits, ni el item, ni el spec. err es nil y la
+// nota "sin historial de git: " esta una vez. De las entradas de telemetria
+// este test no dice nada.
+func TestHallazgo_cc4f5b_SiGitFallaAMitadDelParcheNoQuedaNingunaEntradaDeGit(t *testing.T) {
+	root, _ := c2HistoriaConParcheRoto(t)
+	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("cc4f5b CA-359: si git falla la historia no es un error (lo dice notes): %v", err)
+	}
+	if notas := c2NotasSinGit(tl); len(notas) != 1 {
+		t.Errorf("cc4f5b CA-359: git murio a mitad del parche: notes trae UNA nota %q<error>, trajo %d: %q", NoteSinGitPrefijo, len(notas), tl.Notes)
+	}
+	if quedan := c2EntradasDeGit(tl); len(quedan) != 0 {
+		t.Errorf("cc4f5b CA-359: si git falla las entradas de git faltan, TODAS (item, spec, aprobacion, veredicto, hallazgo, resolucion, review y commit): quedaron %d: %q",
+			len(quedan), quedan)
+	}
+}
+
+// c2HistoriaGrande arma la tarjeta "precios" con tres commits de la tarea: el
+// mas viejo agrega el spec y un archivo de test que cita CA-1, el del medio
+// agrega z_malo.txt con el atributo diff=malo, y el mas nuevo agrega un
+// archivo de 9 MiB en lineas cortas. git log -p emite primero el commit mas
+// nuevo, asi que pasa los 8 MiB antes de llegar a z_malo.txt. Con roto, la
+// config local define diff.malo.xfuncname invalido y git muere ahi, DESPUES
+// de haber emitido mas de 8 MiB; sin roto, git sale 0. El mismo git log -p
+// confirma las dos cosas. Devuelve el proyecto, los tres commits (del mas
+// viejo al mas nuevo) y las palabras de git si fallo.
+func c2HistoriaGrande(t *testing.T, roto bool) (root string, commits []string, fatal string) {
+	t.Helper()
+	root = bdRepo(t, "")
+	d0 := time.Date(2026, 9, 22, 6, 0, 0, 0, time.UTC)
+	h := func(n int) time.Time { return d0.Add(time.Duration(n) * time.Hour) }
+	bdItemArchivo(t, root, bdSlug, "Precios", "")
+	hiCommit(t, root, "item", h(0), "")
+	wt := bdWorktree(t, root, bdSlug)
+	bdEscribir(t, wt, bdSpec, hiSpecV1)
+	bdEscribir(t, wt, "precios_test.go", "package app\n\n// CA-1: el precio sale por region\n")
+	commits = append(commits, hiCommit(t, wt, "spec y prueba del uno", h(1), ""))
+	bdEscribir(t, wt, ".gitattributes", "z_malo.txt diff=malo\n")
+	bdEscribir(t, wt, "z_malo.txt", "uno\ndos\n")
+	commits = append(commits, hiCommit(t, wt, "archivo con driver de diff", h(2), ""))
+	linea := "relleno de prueba sin ningun criterio citado\n"
+	bdEscribir(t, wt, "relleno.txt", strings.Repeat(linea, (TimelinePatchMax+(1<<20))/len(linea)))
+	commits = append(commits, hiCommit(t, wt, "relleno grande", h(3), ""))
+	if roto {
+		bdGit(t, root, "config", "diff.malo.xfuncname", "([")
+	}
+
+	out, stderr, code := c2GitCrudo(t, wt, "log", "-p", "--no-ext-diff", "--no-textconv", "main..HEAD")
+	if len(out) <= TimelinePatchMax {
+		t.Fatalf("fixture: git log -p main..HEAD emite mas de %d bytes (8 MiB), emitio %d", TimelinePatchMax, len(out))
+	}
+	if roto && (code == 0 || !strings.Contains(stderr, "fatal:")) {
+		t.Fatalf("fixture: con el xfuncname invalido git log -p sale no-cero con fatal: DESPUES de emitir %d bytes: exit=%d stderr=%q", len(out), code, stderr)
+	}
+	if !roto && code != 0 {
+		t.Fatalf("fixture: sin el driver roto git log -p sale 0: exit=%d stderr=%q", code, stderr)
+	}
+	return root, commits, c2Fatal(stderr)
+}
+
+// Hallazgo 20261010T042641_dac517. historia-doctor-y-cinta CA-359 y CA-363:
+// pasar los 8 MiB del parche no convierte un fallo de git en un corte. La
+// tarea agrega un archivo de 9 MiB en su commit mas nuevo y, mas atras, un
+// archivo con un xfuncname invalido: git log -p emite mas de 8 MiB y DESPUES
+// muere con "fatal:" (el fixture confirma las dos cosas con el mismo git log
+// -p). git fallo, asi que: err es nil, notes trae UNA nota "sin historial de
+// git: " con las palabras de git, NO trae la nota del corte de 8 MiB, y no
+// queda ninguna entrada de source git.
+func TestHallazgo_dac517_SiGitFallaDespuesDeLos8MiBNoEsUnCorte(t *testing.T) {
+	root, _, fatal := c2HistoriaGrande(t, true)
+	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("dac517 CA-359: si git falla la historia no es un error (lo dice notes): %v", err)
+	}
+	notas := c2NotasSinGit(tl)
+	if len(notas) != 1 {
+		t.Errorf("dac517 CA-359: git murio despues de emitir mas de 8 MiB de parche: notes trae UNA nota %q<error>, trajo %d: %q",
+			NoteSinGitPrefijo, len(notas), tl.Notes)
+	} else if !strings.Contains(notas[0], fatal) {
+		t.Errorf("dac517 CA-359: la nota trae las palabras de git %q, fue %q", fatal, notas[0])
+	}
+	if hiTieneNota(tl, NoteTestsCortados) {
+		t.Errorf("dac517 CA-363: un git que falla despues de los 8 MiB no es un parche cortado: no va la nota %q: %q", NoteTestsCortados, tl.Notes)
+	}
+	if quedan := c2EntradasDeGit(tl); len(quedan) != 0 {
+		t.Errorf("dac517 CA-359: si git falla las entradas de git faltan, todas: quedaron %d: %q", len(quedan), quedan)
+	}
+}
+
+// Guarda del hallazgo 20261010T042641_dac517. CA-363 y CA-360: el mismo repo
+// SIN el driver roto. El parche pasa los 8 MiB y git sale 0: eso si es un
+// corte. notes trae la nota del corte, estan los tres commits de la tarea y
+// no hay nota "sin historial de git". (TestCA363_ParcheDeMasDe8MiB ya fija la
+// nota del corte; esta guarda es la gemela del test de arriba y agrega que
+// los commits siguen y que cortar a proposito no se confunde con un fallo.)
+func TestHallazgo_dac517_GuardaUnParcheSanoDeMasDe8MiBSigueSiendoUnCorte(t *testing.T) {
+	root, commits, _ := c2HistoriaGrande(t, false)
+	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("dac517 CA-363: TimelineFor con un parche sano de mas de 8 MiB: %v", err)
+	}
+	if !hiTieneNota(tl, NoteTestsCortados) {
+		t.Fatalf("dac517 CA-363: con un parche de mas de 8 MiB y git en 0, notes dice %q: %q", NoteTestsCortados, tl.Notes)
+	}
+	if got := hiCommitsDe(tl); len(got) != 3 || got[0] != commits[0] || got[1] != commits[1] || got[2] != commits[2] {
+		t.Fatalf("dac517 CA-360: cortar el parche no quita los commits de la tarea: deben ser %v, fueron %v\n%s", hiCortos(commits), hiCortos(got), hiListado(tl))
+	}
+	if notas := c2NotasSinGit(tl); len(notas) != 0 {
+		t.Fatalf("dac517 CA-359: git no fallo (se corto la lectura a proposito): no va ninguna nota %q<error>: %q", NoteSinGitPrefijo, notas)
+	}
+}
+
+// c2TopeDeLaNota: lo que puede medir, como mucho, la nota "sin historial de
+// git: <error>" cuando git escribe megas en stderr.
+const c2TopeDeLaNota = 128 << 10
+
+// Hallazgo 20261010T042035_ad88b6. historia-doctor-y-cinta CA-359: el <error>
+// de "sin historial de git: <error>" sale del stderr de git, y la rama
+// controla cuanto escribe git ahi. El commit mas nuevo de la tarea trae un
+// .gitattributes con 20000 lineas con un nombre de atributo invalido (git
+// avisa "is not a valid attribute name" por cada una) y un archivo con un
+// xfuncname invalido, para que ademas falle. El fixture mide el stderr real
+// de git log -p de ese rango y exige que pase de 1 MiB. La historia no es un
+// error, la nota esta, y mide menos de 128 KiB: lo que git escriba en stderr
+// no se guarda ni se devuelve entero.
+func TestHallazgo_ad88b6_ElErrorDeLaNotaEstaAcotadoAunqueGitEscribaMegasEnStderr(t *testing.T) {
+	root := bdRepo(t, "")
+	d0 := time.Date(2026, 9, 22, 6, 0, 0, 0, time.UTC)
+	h := func(n int) time.Time { return d0.Add(time.Duration(n) * time.Hour) }
+	bdItemArchivo(t, root, bdSlug, "Precios", "")
+	hiCommit(t, root, "item", h(0), "")
+	wt := bdWorktree(t, root, bdSlug)
+	bdEscribir(t, wt, bdSpec, hiSpecV1)
+	bdEscribir(t, wt, "precios_test.go", "package app\n\n// CA-1: el precio sale por region\n")
+	hiCommit(t, wt, "spec y prueba del uno", h(1), "")
+	var atributos strings.Builder
+	atributos.WriteString("z_malo.txt diff=malo\n")
+	for i := 0; i < 20000; i++ {
+		fmt.Fprintf(&atributos, "*.x%d in!valido%d\n", i, i)
+	}
+	bdEscribir(t, wt, ".gitattributes", atributos.String())
+	bdEscribir(t, wt, "z_malo.txt", "uno\ndos\n")
+	hiCommit(t, wt, "atributos invalidos y archivo con driver de diff", h(2), "")
+	bdGit(t, root, "config", "diff.malo.xfuncname", "([")
+
+	_, stderr, code := c2GitCrudo(t, wt, "log", "-p", "--no-ext-diff", "--no-textconv", "main..HEAD")
+	if code == 0 || !strings.Contains(stderr, "fatal:") || len(stderr) <= 1<<20 {
+		t.Fatalf("fixture: en esta maquina git log -p main..HEAD falla con fatal: y escribe mas de 1 MiB en stderr: exit=%d, stderr de %d bytes", code, len(stderr))
+	}
+
+	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("ad88b6 CA-359: si git falla la historia no es un error (lo dice notes): %v", err)
+	}
+	notas := c2NotasSinGit(tl)
+	if len(notas) != 1 {
+		t.Fatalf("ad88b6 CA-359: git fallo: notes trae UNA nota %q<error>, trajo %d", NoteSinGitPrefijo, len(notas))
+	}
+	if strings.TrimSpace(strings.TrimPrefix(notas[0], NoteSinGitPrefijo)) == "" {
+		t.Errorf("ad88b6 CA-359: la nota dice %q seguido del error de git, y vino sin error", NoteSinGitPrefijo)
+	}
+	if len(notas[0]) >= c2TopeDeLaNota {
+		t.Errorf("ad88b6 CA-359: git escribio %d bytes en stderr: la nota %q<error> esta acotada (menos de %d bytes), mide %d",
+			len(stderr), NoteSinGitPrefijo, c2TopeDeLaNota, len(notas[0]))
 	}
 }
