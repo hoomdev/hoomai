@@ -1,0 +1,11 @@
+{
+  "id": "20261010T042823_c37e47",
+  "created_at": "2026-10-10T04:28:23.913019Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/ui/tablero.js",
+  "description": "INTRODUCIDO — internal/servecmd/ui/tablero.js:536-542: la sección está documentada como «solo en experto», pero el refactor define el renderer y construye tablaReviews (incluido recorrer d.reviews y formatear cada registro) antes de comprobar ex; el guard quedó únicamente en la asignación final de reviews. Esta estructura oculta el límite entre los modos normal y experto y obliga a ejecutar/razonar sobre código que el modo normal descarta. Mantener la construcción dentro del branch ex, o encapsularla en un helper invocado solo allí, haría explícito el flujo.",
+  "author": "reviewer@codex",
+  "fingerprint": "f052acaa456b8d39",
+  "task": "fixes-cabina-c2"
+}

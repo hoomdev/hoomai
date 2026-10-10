@@ -1,0 +1,11 @@
+{
+  "id": "20261010T042035_ad88b6",
+  "created_at": "2026-10-10T04:20:35.177781Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:782-783 captura todo el stderr de git log -p en un bytes.Buffer sin limite, aunque el stdout se corta en TimelinePatchMax. La rama controla .gitattributes y Git puede emitir una advertencia por cada linea de atributos invalida al preparar el diff; abrir GET /api/board/{slug}/timeline sobre un historial hostil puede por tanto hacer crecer la memoria sin cota y tumbar el proceso. Acotar tambien stderr (el propio gitx usa 64 KiB). Patronizable en Semgrep: Cmd.Stderr asignado a bytes.Buffer sin un writer acotado.",
+  "author": "reviewer@codex",
+  "fingerprint": "f052acaa456b8d39",
+  "task": "fixes-cabina-c2"
+}

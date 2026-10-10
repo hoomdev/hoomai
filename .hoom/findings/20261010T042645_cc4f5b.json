@@ -1,0 +1,11 @@
+{
+  "id": "20261010T042645_cc4f5b",
+  "created_at": "2026-10-10T04:26:45.882116Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:397-399 propaga el nuevo error de testTokens despues de que gitEntries ya agrego las entradas de item/spec/aprobacion/veredicto (lineas 243-271); TimelineFor:132-140 agrega la nota pero conserva esas entradas. En el fixture nuevo de fallo a mitad del parche quedan al menos item y spec aunque el contrato dice que, si git falla, las entradas git faltan. La prueba internal/boardcmd/hallazgos_c2_test.go:776-785 solo descarta kind=commit y efectos CA, por lo que no detecta la historia parcialmente poblada.",
+  "author": "reviewer@codex",
+  "fingerprint": "f052acaa456b8d39",
+  "task": "fixes-cabina-c2"
+}
