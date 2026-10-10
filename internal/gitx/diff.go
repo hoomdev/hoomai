@@ -66,7 +66,7 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 		d.Insertions += f.Insertions
 		d.Deletions += f.Deletions
 	}
-	patch, truncated, err := gitOutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", "--no-textconv", EndOfOptions, rng, "--")
+	patch, truncated, err := OutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", "--no-textconv", EndOfOptions, rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil
@@ -455,12 +455,12 @@ func gitOut(dir string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// gitOutPrefix is gitOut for an output that may not fit: it returns at most
+// OutPrefix is gitOut for an output that may not fit: it returns at most
 // max bytes of git's stdout, cut on a line end, and truncated when there was
 // more. It reads one byte past max to know that, drains the rest without
 // keeping it and waits for git, so a failure after the cut is still git's
 // error. max <= 0 reads everything.
-func gitOutPrefix(dir string, max int, args ...string) (out string, truncated bool, err error) {
+func OutPrefix(dir string, max int, args ...string) (out string, truncated bool, err error) {
 	if max <= 0 {
 		out, err = gitOut(dir, args...)
 		return out, false, err

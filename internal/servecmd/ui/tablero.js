@@ -532,19 +532,23 @@ function panePruebas(d, ex) {
       ${f.resolution ? `<br><small style="color:var(--text-3)">evidencia: ${esc(f.resolution.evidence)}</small>` : ""}</td></tr>`;
   const hallazgos = !d.findings.length ? `<div class="empty">sin hallazgos de esta tarjeta</div>`
     : `<table class="dtable"><tr><th>sev</th><th>estado</th><th>hallazgo</th></tr>${[...abiertos, ...resueltos].map(hallazgo).join("")}</table>`;
-  // los registros de review de la tarjeta, con su id y su ruta: solo en experto
-  const review = r => {
-    const cubrio = [when(r.created_at), r.cobertura, (r.lenses || []).join(", "), r.provider].filter(Boolean);
-    return `<tr><td><code>${esc(r.id)}</code></td><td>${cubrio.map(esc).join(" · ")}</td></tr>`;
-  };
-  const tablaReviews = !(d.reviews || []).length ? `<div class="empty">sin registro de review de esta tarjeta</div>`
-    : `<table class="dtable"><tr><th>registro</th><th>qué cubrió</th></tr>${d.reviews.map(review).join("")}</table>`;
-  const reviews = !ex ? "" : `<h3 class="dsub">Reviews</h3>${tablaReviews}${rutasDe("registros", d.paths.reviews)}`;
   return `<h3 class="dsub">Último veredicto de la tarjeta</h3>${veredicto}
     <h3 class="dsub">Traza por criterio</h3>${listaCriterios(d, ex, true)}
     <h3 class="dsub">Hallazgos</h3>${hallazgos}
     ${ex ? rutasDe("hallazgos", d.paths.findings) : ""}
-    ${reviews}`;
+    ${ex ? reviewsDe(d) : ""}`;
+}
+
+// reviewsDe son los registros de review de la tarjeta, con su id y su ruta:
+// el modo experto es el unico que los pide.
+function reviewsDe(d) {
+  const fila = r => {
+    const cubrio = [when(r.created_at), r.cobertura, (r.lenses || []).join(", "), r.provider].filter(Boolean);
+    return `<tr><td><code>${esc(r.id)}</code></td><td>${cubrio.map(esc).join(" · ")}</td></tr>`;
+  };
+  const tabla = !(d.reviews || []).length ? `<div class="empty">sin registro de review de esta tarjeta</div>`
+    : `<table class="dtable"><tr><th>registro</th><th>qué cubrió</th></tr>${d.reviews.map(fila).join("")}</table>`;
+  return `<h3 class="dsub">Reviews</h3>${tabla}${rutasDe("registros", d.paths.reviews)}`;
 }
 
 /* ---------- En vivo: el Escenario y el Feed del run activo ---------- */

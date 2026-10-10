@@ -1,13 +1,11 @@
 package boardcmd
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -130,6 +128,9 @@ func TimelineFor(root, base, blockOn, slug string, now time.Time) (Timeline, err
 
 	h := &history{root: root, base: base, dir: dir, ev: ev, t: t}
 	if err := h.gitEntries(); err != nil {
+		// a git that fails leaves no git entry, not the ones read before it
+		// failed (finding cc4f5b); nothing else has added entries yet
+		h.items = nil
 		tl.Notes = append(tl.Notes, NoteSinGitPrefijo+err.Error())
 	}
 	h.telemetry()
@@ -694,19 +695,13 @@ func gitRun(dir string, args ...string) (string, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return "", gitFailed(args[0], &stderr, err)
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("git %s: %s", args[0], msg)
 	}
 	return string(out), nil
-}
-
-// gitFailed is the error of a git that failed: what it said on stderr, or
-// err when it said nothing.
-func gitFailed(sub string, stderr *bytes.Buffer, err error) error {
-	msg := strings.TrimSpace(stderr.String())
-	if msg == "" {
-		msg = err.Error()
-	}
-	return fmt.Errorf("git %s: %s", sub, msg)
 }
 
 func gitOK(dir string, args ...string) bool {
@@ -770,33 +765,24 @@ func parseLog(out string, status bool) []gitCommit {
 // testTokens reads the patch of a range and returns, per commit, the CA
 // tokens its added lines bring to test files (spec_trace's filter). The
 // patch is read up to TimelinePatchMax, and truncated says it was cut there.
-// A git that fails before that is an error, never a shorter patch read as a
-// whole one (finding d4d677). It is a read, so git runs no program of the
-// local configuration for it, as in gitx.BranchDiff: no external diff and no
-// textconv driver, which would also make the tokens depend on the machine
-// (findings 9fa7ac and 394505).
+// A git that fails, before or after the cut, is an error, never a shorter
+// patch read as a whole one (findings d4d677 and dac517). It is a read, so
+// git runs no program of the local configuration for it, as in
+// gitx.BranchDiff: no external diff and no textconv driver, which would also
+// make the tokens depend on the machine (findings 9fa7ac and 394505).
 func testTokens(dir, rng string) (cites map[string][]string, truncated bool, err error) {
-	cmd := exec.Command("git", "-c", "core.quotePath=false", "log", "--no-merges", "--no-renames",
-		"--format=%x1e%H", "-p", "--unified=0", "--no-color", "--no-ext-diff", "--no-textconv", gitx.EndOfOptions, rng, "--")
-	cmd.Dir = dir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	pipe, err := cmd.StdoutPipe()
+	patch, truncated, err := gitx.OutPrefix(dir, TimelinePatchMax, "-c", "core.quotePath=false", "log", "--no-merges",
+		"--no-renames", "--format=%x1e%H", "-p", "--unified=0", "--no-color", "--no-ext-diff", "--no-textconv",
+		gitx.EndOfOptions, rng, "--")
 	if err != nil {
-		return nil, false, gitFailed("log", &stderr, err)
+		return nil, false, fmt.Errorf("git log: %v", err)
 	}
-	if err := cmd.Start(); err != nil {
-		return nil, false, gitFailed("log", &stderr, err)
-	}
-	limited := &countingReader{r: pipe, max: TimelinePatchMax}
-	sc := bufio.NewScanner(limited)
-	// no line is longer than what is read, so a long one never stops the scan
-	sc.Buffer(make([]byte, 0, 64<<10), TimelinePatchMax+1)
 	cites = map[string][]string{}
 	sha, file := "", ""
 	seen := map[string]bool{}
-	for sc.Scan() {
-		l := sc.Text()
+	for len(patch) > 0 {
+		var l string
+		l, patch, _ = strings.Cut(patch, "\n")
 		switch {
 		case strings.HasPrefix(l, "\x1e"):
 			sha, file = strings.TrimSpace(l[1:]), ""
@@ -814,43 +800,7 @@ func testTokens(dir, rng string) (cites map[string][]string, truncated bool, err
 			}
 		}
 	}
-	if limited.hit {
-		// the cut is ours: git is stopped, and how it ends says nothing
-		cmd.Process.Kill()
-		io.Copy(io.Discard, pipe)
-		cmd.Wait()
-		return cites, true, nil
-	}
-	if err := sc.Err(); err != nil {
-		cmd.Process.Kill()
-		cmd.Wait()
-		return nil, false, gitFailed("log", &stderr, err)
-	}
-	if err := cmd.Wait(); err != nil {
-		return nil, false, gitFailed("log", &stderr, err)
-	}
-	return cites, false, nil
-}
-
-// countingReader stops at max bytes and says it did.
-type countingReader struct {
-	r   io.Reader
-	n   int
-	max int
-	hit bool
-}
-
-func (c *countingReader) Read(p []byte) (int, error) {
-	if c.n >= c.max {
-		c.hit = true
-		return 0, io.EOF
-	}
-	if rest := c.max - c.n; len(p) > rest {
-		p = p[:rest]
-	}
-	n, err := c.r.Read(p)
-	c.n += n
-	return n, err
+	return cites, truncated, nil
 }
 
 // blob is a file's bytes at a commit, exactly as git stores them.
