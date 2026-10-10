@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261010T042645_cc4f5b",
+  "as": "corregido",
+  "evidence": "Corregido en c01b44b: TimelineFor vacia las entradas juntadas (h.items = nil) cuando gitEntries falla, asi que con la nota 'sin historial de git' no queda ninguna entrada de source git, que es lo que dice la spec historia-doctor-y-cinta ('si git falla, las entradas de git faltan') y lo que ya afirmaba TestCA359_SinHistorialDeGit. Regresion (test-writer, 991fd16): TestHallazgo_cc4f5b_SiGitFallaAMitadDelParcheNoQuedaNingunaEntradaDeGit; sobre 5d6e8df falla ('quedaron 2: item y spec'), con el arreglo pasa. El refutador lo confirmo en los dos caminos (falla el parche y falla el git log del rango): 0 entradas de git. Nota del refutador: el defecto es PRE-EXISTENTE (d4772f4), el arreglo de d4d677 solo le sumo un disparador; y el costo de seguir el contrato al pie de la letra es que tambien faltan item, spec y aprobaciones validas cuando solo fallo el parche (conservarlas pediria enmendar la spec).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-10T04:42:51.311969Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261010T042035_ad88b6",
+  "as": "corregido",
+  "evidence": "Corregido en c01b44b: internal/boardcmd/timeline.go, testTokens lee el parche con gitx.OutPrefix, que guarda el stderr de git en un escritor acotado a 64 KiB (gitx.stderrMax); ya no hay bytes.Buffer propio. Regresion (test-writer, arbol limpio, 991fd16): TestHallazgo_ad88b6_ElErrorDeLaNotaEstaAcotadoAunqueGitEscribaMegasEnStderr (CA-359): con un .gitattributes de 20000 lineas invalidas git escribe 2,6 MiB en stderr; sobre 5d6e8df la nota 'sin historial de git' mide 2635656 bytes, con el arreglo menos de 128 KiB. El refutador (ref-c2c/INFORME.md) midio ademas la memoria con git saliendo 0 y 64 MiB de stderr: TimelineFor alojaba 130,5 MiB en 5d6e8df y 3,0 MiB en 991fd16.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-10T04:42:51.304636Z"
+}

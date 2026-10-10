@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261010T042823_c37e47",
+  "as": "corregido",
+  "evidence": "Corregido en c01b44b: internal/servecmd/ui/tablero.js arma la tabla de reviews en reviewsDe(d), que panePruebas solo llama en modo experto (${ex ? reviewsDe(d) : ''}). El refutador lo midio con un arnes node sobre panePruebas en modo normal: en 5d6e8df se recorria d.reviews (when 3 llamadas con 3 registros, 1000 con 1000); en 991fd16, 0. El HTML no cambia. go test ./internal/servecmd entero verde (104 s).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-10T04:42:51.318534Z"
+}
