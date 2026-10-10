@@ -1,6 +1,14 @@
 # Spec: historia, doctor y cinta de la tarjeta (cabina visual, C4)
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión aprobada
+(sha256 e6b0ca14) está implementada e integrada (PR 27). La review de las
+correcciones de C2 (tarea `fixes-cabina-c2`, 2026-10-09) encontró un caso que
+esta spec no decidía: el parche de los commits de la tarea pasa los 8 MiB y
+git falla después. Henry decidió que gana el fallo. La enmienda 1 lo escribe
+en el contrato de la historia, en su decisión y en su riesgo; no agrega ni
+cambia criterios.
+
+Historia: aprobada el 2026-09-23 (sha256 e6b0ca14).
 Depende de: `acciones-desde-la-tarjeta.md` (C3) integrada (PR #25).
 Tarea sugerida: `hoom task start historia-doctor-y-cinta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 4 de 4, "C4 — Timeline,
@@ -224,7 +232,10 @@ efectos en orden. Un `id` que el esqueleto no tiene se ignora.
   que `spec_trace`). Un veredicto completo cuyo gate `spec_trace` pasó
   enciende todos los criterios. El parche de los commits de la tarea se lee
   hasta 8 MiB; si se corta, `notes` dice `la historia de los tests se corto
-  en 8 MiB: los criterios se encienden con el veredicto`.
+  en 8 MiB: los criterios se encienden con el veredicto`. El corte no tapa un
+  fallo: a git se lo lee hasta el final aunque el parche pase de 8 MiB, y si
+  falla, antes o después del corte, vale la regla de git que falla (`sin
+  historial de git: <error>`, sin entradas de git) y la nota del corte no va.
 - **Gates** (`build`, `static`, `test`): un veredicto **completo** pone cada
   uno en `hecho` si pasó, en `falta` si falló o dio error, y en `no-aplica`
   si el veredicto no lo trae. Un veredicto parcial no toca el medidor.
@@ -651,7 +662,11 @@ reviewer, en ese orden. La cinta siempre termina.
 - **Los criterios se encienden con el primer test que los cita**, leyendo
   las líneas agregadas de los commits de la tarea con la misma regla de
   archivo de test que `spec_trace`. Si el parche es enorme, se corta en 8 MiB
-  y el veredicto los enciende igual.
+  y el veredicto los enciende igual. Un git que falla después del corte sigue
+  siendo un git que falla (enmienda 1): la historia dice `sin historial de
+  git`, no que se cortó. Es lo que ya hace el diff del detalle (C2), y es más
+  honesto que mostrar commits y criterios de un parche que git no terminó de
+  dar.
 - **Los commits de una tarjeta integrada** salen del merge que la integró
   (`M^1..commit_final`), porque después del merge `base..hoom/<slug>` está
   vacío y la rama puede no existir. Con fast-forward no hay forma honesta de
@@ -722,8 +737,10 @@ reviewer, en ese orden. La cinta siempre termina.
 
 - **La historia de un proyecto grande es lenta.** `git log` sobre los
   archivos de la tarjeta y el parche de sus commits de tarea se leen cada vez
-  que se abre la pestaña (con el tope de 8 MiB). La cache regenerable del
-  roadmap sigue disponible si hace falta.
+  que se abre la pestaña. El tope de 8 MiB acota lo que hoom guarda del
+  parche, no lo que git tarda en darlo: se lo lee hasta el final para saber
+  si falló (enmienda 1). La cache regenerable del roadmap sigue disponible si
+  hace falta.
 - **El replay no es la verdad del pasado.** Un veredicto verde que después
   quedó vencido por un commit sigue encendido en el replay hasta que otro
   veredicto lo cambie. El último cuadro lo corrige.
