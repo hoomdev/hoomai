@@ -1,0 +1,11 @@
+{
+  "id": "20261014T164649_173dde",
+  "created_at": "2026-10-14T16:46:49.120824Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:302 reemplaza el resultado fallido de manifest.Load por un Manifest esqueletico cuando detecta BaseBranchInvalida, pero manifest.Load valida el perfil despues de base_branch (internal/manifest/manifest.go:381-385). Por eso una rama de tarea con base_branch invalido y profile desconocido continua la review, mientras el mismo profile con una base valida falla: el recovery de un campo irrelevante silencia un fallo independiente del manifiesto.",
+  "author": "reviewer@codex",
+  "fingerprint": "6781e73fc232d998",
+  "task": "fixes-cabina-c2"
+}

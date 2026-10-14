@@ -1,0 +1,11 @@
+{
+  "id": "20261014T164806_a51efa",
+  "created_at": "2026-10-14T16:48:06.644182Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:302: ante BaseBranchInvalida se reemplaza el resultado de Load por un *Manifest sintético con solo BaseBranch para llevar el valor hasta el aviso de las líneas 345-346. Así m deja de significar «manifest validado» dentro de la misma función y queda una trampa para futuras lecturas de otros campos; conservar el valor en una variable local con nombre explícito evitaría ese estado parcial.",
+  "author": "reviewer@codex",
+  "fingerprint": "6781e73fc232d998",
+  "task": "fixes-cabina-c2"
+}
