@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T194026_186524",
+  "as": "corregido",
+  "evidence": "Corregido en e5811eb y fdfa486: boardcmd.porcelain cuenta el origen de un rename como ruta sin guardar, y itemcmd.commitPaths agrega con add lo que esta en el disco y saca del indice con 'git update-index --remove' lo que no (el nombre viejo de un git mv, un git rm), porque 'git add -A' se cortaba con esas rutas. Tests del test-writer (e55749b): TestHallazgo_186524_GuardarCommiteaUnRenameEntero (4 casos, CLI y Studio) y ..._GuardarCommiteaUnBorradoYaEnElIndice (CA-344: despues, unsynced vacio): fallan sobre 950b79c y sobre e5811eb, pasan con fdfa486. El caso del git rm sin rename ya fallaba antes de C3 segun el test-writer; la spec prescribe 'git add -A -- \u003crutas\u003e' y la enmienda de C3 lo va a ajustar.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T20:21:43.151962Z"
+}
