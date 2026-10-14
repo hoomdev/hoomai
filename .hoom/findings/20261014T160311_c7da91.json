@@ -1,0 +1,11 @@
+{
+  "id": "20261014T160311_c7da91",
+  "created_at": "2026-10-14T16:03:11.91374Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "PRE-EXISTENTE (follow-up para la review de C4, pide spec; decision de Henry 2026-10-14): ninguna lectura de git de TimelineFor (gitRun, gitOK, blob y testTokens en internal/boardcmd/timeline.go; gitx.OutPrefix y gitOut), de Gather/Snapshot ni el servidor tiene tope de tiempo: no hay CommandContext, WaitDelay ni deadline en internal/boardcmd ni internal/gitx, http.ListenAndServe (internal/servecmd/servecmd.go:886) no fija ReadTimeout, WriteTimeout ni IdleTimeout, y los handlers no pasan r.Context() a git. Un git colgado retiene la peticion de GET /api/board/{slug}/timeline y su goroutine sin limite: antes del corte de 8 MiB desde d4772f4 (el Scanner sobre el pipe; con el OutPrefix de hoy, io.CopyN) y despues del corte desde c01b44b (OutPrefix drena hasta el final y espera a git). Reproducido por el refutador con un git falso en el PATH que emite y despues duerme 30 s: colgado despues del tope, OutPrefix sigue bloqueado a los 4 s y el corte con Kill de 5d6e8df volvia en 107 ms; colgado antes del tope, los dos siguen bloqueados a los 4 s. La enmienda 1 (a34e2cec) acepta que el parche se lea hasta el final, no un git que no termina. Acotarlo pide decidir en spec el limite (tiempo o trabajo) y que dice la historia al llegar a el (una nota nueva o sin historial de git), y aplicarlo tambien al resto de las lecturas de git del Studio.",
+  "author": "refutador@claude",
+  "fingerprint": "7f9c31ebdf533808",
+  "task": "fixes-cabina-c2"
+}
