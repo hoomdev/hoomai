@@ -1,0 +1,125 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-14T17-09-27Z_27c2422c",
+  "created_at": "2026-10-14T17:09:27.296401Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "53162ee012fc",
+    "branch": "hoom/fixes-cabina-c2",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/historia-doctor-y-cinta_a34e2cec.json",
+      ".hoom/approvals/tablero-de-solo-lectura_4b85b2ed.json",
+      ".hoom/specs/historia-doctor-y-cinta.md",
+      ".hoom/specs/tablero-de-solo-lectura.md",
+      "internal/boardcmd/derive.go",
+      "internal/boardcmd/detail.go",
+      "internal/boardcmd/hallazgos_c2_test.go",
+      "internal/boardcmd/timeline.go",
+      "internal/gitx/diff.go",
+      "internal/gitx/fallo_tardio_test.go",
+      "internal/gitx/gitx.go",
+      "internal/gitx/hallazgos_c2_test.go",
+      "internal/manifest/hallazgos_c2_test.go",
+      "internal/manifest/manifest.go",
+      "internal/reviewcmd/hallazgos_fixes_c2_test.go",
+      "internal/reviewcmd/reviewcmd.go",
+      "internal/servecmd/hallazgos_c2_test.go",
+      "internal/servecmd/hallazgos_c2_ui_test.go",
+      "internal/servecmd/ui/tablero.js",
+      "internal/spec/criteria.go",
+      "internal/spec/hallazgos_c2_unix_test.go"
+    ],
+    "change_fingerprint": "81f047835eebae6f",
+    "insertions": 4620,
+    "deletions": 166
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 69,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 7 medium, 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 479
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 358
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/boardcmd ./internal/gitx ./internal/manifest ./internal/reviewcmd ./internal/servecmd ./internal/spec",
+      "exit_code": 0,
+      "duration_ms": 524400,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t174.577s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t1.529s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t517.832s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t107.020s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t(cached)"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 4,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green"
+}
