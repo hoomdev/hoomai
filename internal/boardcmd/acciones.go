@@ -8,6 +8,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/reviewcmd"
 )
 
 // C3: what a person can do with the card. Everything here is part of Derive
@@ -49,8 +50,8 @@ var pedirRole = map[string]string{
 }
 
 // ReviewLenses is how many passes the budget of a review is split among: the
-// worst case, a review that demands the four lenses.
-const ReviewLenses = 4
+// worst case, a review that runs every lens hoom review has (finding 285834).
+const ReviewLenses = reviewcmd.CantidadDeLentes
 
 // Why sentences of the actions, in the normal mode's words.
 const (

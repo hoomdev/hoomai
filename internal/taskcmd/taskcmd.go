@@ -400,10 +400,8 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 		return res, err
 	}
 	wt := worktreeDir(root, slug)
-	for _, meta := range runcmd.Metas(root) {
-		if meta.Status == runcmd.StatusRunning && meta.Dir == wt && (meta.PID == 0 || runcmd.Alive(meta.PID)) {
-			return res, fmt.Errorf("hay un run activo (%s) en el espacio de trabajo de la tarea %q: descartar ahora pisaria su trabajo. Accion: espera a que termine", meta.ID, slug)
-		}
+	if id, busy := runcmd.Active(root, wt); busy {
+		return res, fmt.Errorf("hay un run activo (%s) en el espacio de trabajo de la tarea %q: descartar ahora pisaria su trabajo. Accion: espera a que termine", id, slug)
 	}
 	if expect != nil {
 		now := make([]string, len(local))
@@ -414,16 +412,24 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 			return res, fmt.Errorf("%s", ErrChanged)
 		}
 	}
+	// what HEAD has comes from git, before touching anything: a git that
+	// cannot say is an error, never "HEAD does not have it" (finding b1b1bc)
+	enHEAD, err := headPaths(wt)
+	if err != nil {
+		return res, err
+	}
 	var restore, remove []string
 	for _, p := range local {
-		if _, err := run(wt, "cat-file", "-e", "HEAD:"+p); err == nil {
+		if enHEAD[p] {
 			restore = append(restore, p)
 		} else {
 			remove = append(remove, p)
 		}
 	}
+	// the paths are names, never patterns: `:(glob)**` is a file
+	// (finding 3113eb)
 	if back := append(append([]string{}, restore...), origins...); len(back) > 0 {
-		if out, err := run(wt, append([]string{"restore", "--source=HEAD", "--staged", "--worktree", "--"}, back...)...); err != nil {
+		if out, err := run(wt, append([]string{"--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--"}, back...)...); err != nil {
 			return res, fmt.Errorf("git restore fallo: %s", out)
 		}
 		for _, p := range restore {
@@ -431,14 +437,40 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 		}
 	}
 	for _, p := range remove {
-		// lo que HEAD no tiene: fuera del indice (si estaba) y fuera del disco
-		run(wt, "rm", "-q", "--cached", "--ignore-unmatch", "--", p)
+		// lo que HEAD no tiene: fuera del indice (si estaba) y recien
+		// entonces fuera del disco (finding 646e6f)
+		if out, err := run(wt, "--literal-pathspecs", "rm", "-q", "--cached", "--ignore-unmatch", "--", p); err != nil {
+			return res, fmt.Errorf("git rm --cached %s fallo: %s", p, out)
+		}
 		if err := os.Remove(filepath.Join(wt, filepath.FromSlash(p))); err != nil && !os.IsNotExist(err) {
 			return res, fmt.Errorf("no pude borrar %s: %v", p, err)
 		}
 		res.Removed = append(res.Removed, taskRel(slug, p))
 	}
 	return res, nil
+}
+
+// headPaths is every path HEAD tracks in dir (gitlinks included, without
+// entering submodules), listed from its trees: a missing blob does not hide
+// that HEAD has the path.
+func headPaths(dir string) (map[string]bool, error) {
+	cmd := exec.Command("git", "ls-tree", "-r", "-z", "--name-only", "--full-tree", "HEAD")
+	cmd.Dir = dir
+	raw, err := cmd.Output()
+	if err != nil {
+		msg := err.Error()
+		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+			msg = strings.TrimSpace(string(ee.Stderr))
+		}
+		return nil, fmt.Errorf("git ls-tree HEAD fallo en %s: %s", dir, msg)
+	}
+	out := map[string]bool{}
+	for _, p := range strings.Split(string(raw), "\x00") {
+		if p != "" {
+			out[p] = true
+		}
+	}
+	return out, nil
 }
 
 func sameSet(a, b []string) bool {

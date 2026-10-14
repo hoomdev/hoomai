@@ -43,7 +43,15 @@ import (
 // Lentes are the 4 lenses of contract 06, in the fixed order they run: risk
 // first, so that when the provider's quota cuts a review the lens that gave
 // the highest findings has already run; reliability keeps the second place.
-var Lentes = []string{"risk", "reliability", "resilience", "readability"}
+var Lentes = lentes[:]
+
+// CantidadDeLentes is how many lenses Lentes has, as an untyped constant so a
+// budget in USD splits by it: whoever splits a review among its passes counts
+// here, never with a 4 of its own (finding 285834). The array cannot hold
+// more, and the guard of that finding checks it holds that many.
+const CantidadDeLentes = 4
+
+var lentes = [CantidadDeLentes]string{"risk", "reliability", "resilience", "readability"}
 
 // LenteDominante is the lens of a standard change. It is FIXED instead of
 // guessed from the content: guessing would be the model's judgement wearing a

@@ -317,6 +317,15 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 		}
 		sha, err := commitPaths(dir, res.Message, local)
 		if err != nil {
+			if len(res.Commits) > 0 {
+				// the workspace is already saved: say so, with its commit
+				// (finding 42fa10)
+				var hechos []string
+				for _, c := range res.Commits {
+					hechos = append(hechos, fmt.Sprintf("%s en %s", short(c.SHA), c.Dir))
+				}
+				err = fmt.Errorf("%v (ya quedo guardado %s; lo que falta se guarda de nuevo desde la tarjeta)", err, strings.Join(hechos, ", "))
+			}
 			return res, err
 		}
 		res.Commits = append(res.Commits, SaveCommit{Dir: tr.rel, SHA: sha, Paths: tr.paths})
@@ -327,10 +336,11 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 // commitPaths stages exactly paths and commits only them: whatever else sits
 // in the index stays there, uncommitted. The repository's hooks run.
 func commitPaths(dir, msg string, paths []string) (string, error) {
-	if out, err := git(dir, append([]string{"add", "-A", "--"}, paths...)...); err != nil {
+	// the paths are names, never patterns (finding a26f9d)
+	if out, err := git(dir, append([]string{"--literal-pathspecs", "add", "-A", "--"}, paths...)...); err != nil {
 		return "", fmt.Errorf("git add fallo: %s", out)
 	}
-	if out, err := git(dir, append([]string{"commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
+	if out, err := git(dir, append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
 		return "", fmt.Errorf("git commit fallo: %s", out)
 	}
 	sha, err := git(dir, "rev-parse", "HEAD")

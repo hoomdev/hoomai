@@ -527,9 +527,18 @@ func (m *Manager) Busy(dir string) (string, bool) {
 	if ok {
 		return id, true
 	}
-	for _, meta := range Metas(m.root) {
-		if meta.Status == StatusRunning && meta.Dir == dir && (meta.PID == 0 || alive(meta.PID)) {
-			return meta.ID, true
+	return Active(m.root, dir)
+}
+
+// Active is the live run whose tree is dir, from its sidecar: in root's runs
+// and in dir's own, where a run started from inside a task's worktree keeps
+// it (finding f237b9).
+func Active(root, dir string) (string, bool) {
+	for _, base := range []string{root, dir} {
+		for _, meta := range Metas(base) {
+			if meta.Status == StatusRunning && meta.Dir == dir && (meta.PID == 0 || alive(meta.PID)) {
+				return meta.ID, true
+			}
 		}
 	}
 	return "", false
