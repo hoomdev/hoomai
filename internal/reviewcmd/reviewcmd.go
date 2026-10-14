@@ -742,8 +742,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// what was reviewed, and it never continues a chain
 		rng.cobertura, rng.desdeReview = CoberturaParcial, ""
 	}
+	declarados, err := declaredWriters(root, taskOf(opt))
+	if err != nil {
+		return Result{}, err
+	}
 	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{},
-		WritersDeclared: declaredWriters(root, taskOf(opt))}
+		WritersDeclared: declarados}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
 	res.Base = rng.baseNombre
 	var notas []string
@@ -998,16 +1002,21 @@ func elegirReviewer(w io.Writer, res *Result, root, dir, provider string) (provi
 }
 
 // declaredWriters are the providers of the interactive sessions the task's
-// item declares in root: distinct and sorted. A missing or unreadable item
-// declares none.
-func declaredWriters(root, task string) []string {
+// item declares in root: distinct and sorted. A missing item declares none;
+// one that exists and cannot be read is an error, never "no sessions": it
+// could declare the very writer the review must not be (findings 9e2b00 and
+// 5d64ca).
+func declaredWriters(root, task string) ([]string, error) {
 	out := []string{}
 	if strings.TrimSpace(task) == "" || !item.ValidSlug(task) {
-		return out
+		return out, nil
 	}
 	it, err := item.Load(root, task)
+	if os.IsNotExist(err) {
+		return out, nil
+	}
 	if err != nil {
-		return out
+		return nil, fmt.Errorf("el item de la tarea %q no se puede leer (%v): sin el, no se sabe quien escribio. Accion: arreglalo y vuelve a revisar", task, err)
 	}
 	seen := map[string]bool{}
 	for _, s := range it.Sesiones {
@@ -1017,7 +1026,7 @@ func declaredWriters(root, task string) []string {
 		}
 	}
 	sort.Strings(out)
-	return out
+	return out, nil
 }
 
 // taskOf is the task a review belongs to: --task, or the task of its spec.

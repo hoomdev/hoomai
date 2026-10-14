@@ -621,6 +621,12 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		return Run{}, err
 	}
 	defer unlock()
+	// a run another process registered on the tree counts too: under the
+	// lock, nobody registers one between this check and ours (finding
+	// 57eff9)
+	if id, ok := Active(m.root, dir); ok {
+		return Run{}, ErrBusy{RunID: id}
+	}
 
 	m.mu.Lock()
 	if active, ok := m.byDir[dir]; ok {
@@ -679,12 +685,16 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	if !ok {
 		return Run{}, fmt.Errorf("run no encontrado: %s", id)
 	}
-	// like Start: the run goes back to running under its tree's lock
+	// like Start: the run goes back to running under its tree's lock, and
+	// not while another process's run works on the tree
 	unlock, err := lockRegistro(r.dir)
 	if err != nil {
 		return Run{}, err
 	}
 	defer unlock()
+	if active, ok := Active(m.root, r.dir); ok && active != id {
+		return Run{}, ErrBusy{RunID: active}
+	}
 	m.mu.Lock()
 	if r.info.Status == StatusRunning {
 		m.mu.Unlock()
