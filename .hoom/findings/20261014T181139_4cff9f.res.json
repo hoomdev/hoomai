@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T181139_4cff9f",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: el comentario de providers.Info.MinBudgetUSD dice los dos casos del 0 (no acepta tope, o acepta y no declara piso). Solo comentario.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.65284Z"
+}

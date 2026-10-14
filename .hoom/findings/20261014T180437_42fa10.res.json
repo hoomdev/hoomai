@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180437_42fa10",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: si el commit del arbol raiz falla despues del del espacio de trabajo, el error de Guardar dice que el espacio de trabajo ya quedo guardado y nombra su commit (sha de 12). Tests del test-writer en arbol limpio (entraron en e5811eb, junto con parte del codigo): fallan sobre 950b79c (el commit sin arreglos, comprobado por el writer) y pasan con el arreglo. TestHallazgo_42fa10_SiFallaElCommitDelRaizElErrorNombraElDelEspacio (itemcmd) y TestHallazgo_42fa10_GuardarDesdeLaTarjetaConElCommitDelRaizRechazado (servecmd, 409 con el sha). Nota del test-writer para el arquitecto: el caso limite de la spec 'un hook de pre-commit que falla: 409 ... y las rutas quedan en el indice' no describe este caso, en que las del espacio de trabajo ya quedaron commiteadas.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.635118Z"
+}

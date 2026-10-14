@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T181136_285834",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: la cantidad de lentes vive junto a la lista en reviewcmd (CantidadDeLentes, constante sin tipo; el arreglo de Lentes no admite mas) y boardcmd.ReviewLenses es esa constante en vez de un 4 propio. Guarda del test-writer: TestHallazgo_285834_GuardaReviewLensesEsLaCantidadDeLentes (ReviewLenses == len(reviewcmd.Lentes)).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.658721Z"
+}

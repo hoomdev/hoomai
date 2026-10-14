@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180752_646e6f",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: si 'git rm --cached' falla, Discard devuelve error antes de borrar el archivo del disco. Tests del test-writer en arbol limpio (entraron en e5811eb, junto con parte del codigo): fallan sobre 950b79c (el commit sin arreglos, comprobado por el writer) y pasan con el arreglo. TestHallazgo_646e6f_CA346_IndiceBloqueadoNoBorraElArchivoNuevo (con un index.lock).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.617263Z"
+}

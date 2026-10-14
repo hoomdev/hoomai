@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180753_f2a6d3",
+  "as": "corregido",
+  "evidence": "Es el mismo defecto que 42fa10 (lo dijo el refutador de C3): corregido en 33b0463 con el mismo arreglo y los mismos tests (TestHallazgo_42fa10_*).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.641016Z"
+}

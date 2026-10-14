@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180752_b1b1bc",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463 y e5811eb: Discard ya no usa 'git cat-file -e'; lo que HEAD tiene sale de un solo 'git ls-tree -r HEAD' antes de tocar nada (si git falla, error), y antes de restaurar comprueba con 'git cat-file --batch-check' que el repositorio tenga el contenido de HEAD de cada archivo: si falta alguno se niega sin tocar nada (el test-writer mostro que git restore borra el archivo en ese caso). Tests del test-writer en arbol limpio (entraron en e5811eb, junto con parte del codigo): fallan sobre 950b79c (el commit sin arreglos, comprobado por el writer) y pasan con el arreglo. TestHallazgo_b1b1bc_CA346_ObjetoFaltanteNoBorraLoQueHEADTiene y ..._SubmoduloModificadoNoSeBorra; la guarda ..._GuardaRepoSanoRestaura pasa en los dos.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.611424Z"
+}
