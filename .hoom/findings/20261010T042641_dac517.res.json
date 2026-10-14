@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261010T042641_dac517",
+  "as": "corregido",
+  "evidence": "Corregido en c01b44b: testTokens lee el parche de la historia con gitx.OutPrefix, que despues del corte de 8 MiB sigue leyendo a git hasta el final sin guardar el resto y espera su salida; si git falla, antes o despues del corte, TimelineFor dice 'sin historial de git: \u003cerror\u003e' sin entradas de git y sin la nota del corte. La spec no decidia que ganaba cuando se daban las dos cosas (lo encontro el refutador en su vuelta 3: el comportamiento anterior venia de d4772f4); Henry decidio que gana el fallo y aprobo la enmienda 1 de historia-doctor-y-cinta (sha256 a34e2cec, 2026-10-14) que lo escribe. Regresion (test-writer, arbol limpio, 991fd16): TestHallazgo_dac517_SiGitFallaDespuesDeLos8MiBNoEsUnCorte (sobre 5d6e8df falla: 'trajo 0' notas de git, nota de corte presente, 'quedaron 5' entradas; con el arreglo pasa) y la guarda TestHallazgo_dac517_GuardaUnParcheSanoDeMasDe8MiBSigueSiendoUnCorte (verde en los dos). Costo medido por el refutador: el tope acota la memoria, no el tiempo (parche de 128 MiB: 1,11 s contra 0,61 s).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T15:24:25.138561Z"
+}
