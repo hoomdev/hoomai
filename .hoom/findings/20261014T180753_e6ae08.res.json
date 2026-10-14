@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180753_e6ae08",
+  "as": "corregido",
+  "evidence": "Ya corregido despues de C3 por 5b292f6 (fixes de C1, PR 34; hallazgo c1a9da): cockpitcmd.Open mata la sesion tmux a medio armar o sin declarar (killSession) en vez de dejarla viva, y 67dbaaa (PR 35, hallazgo 363285) cubre el caso en que kill-session tambien falla. Evidencia del refutador de C3 (informes en .hoom/cache/cabina-review/INFORME-refutador-c3-mitad1-*.md): los tests TestHallazgo_c1a9da_* de internal/cockpitcmd/hallazgos_c1_test.go, copiados sobre ece9882 (el merge de C3), fallan 2 ('Open fallo y dejo viva la sesion ... a medio armar'); en main (b7e0480) pasan. Es el mismo defecto que c3c8ed (la sesion como marcador de inicializacion completa); el caso split-window ya existia en la base 645e832.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:32:49.116389Z"
+}

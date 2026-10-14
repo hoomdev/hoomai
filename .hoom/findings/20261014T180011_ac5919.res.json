@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180011_ac5919",
+  "as": "corregido",
+  "evidence": "Ya corregido despues de C3 por 5b292f6 (fixes de C1, PR 34; hallazgo ff6cf4): item.update escribe el item bajo hoomfs.Lock, asi que AddSession y MarkDone concurrentes ya no se pisan. Evidencia del refutador de C3: TestCA349_H1Hallazgo200412_MarkDoneYAddSessionConcurrentes y TestCA348_H1Hallazgo200412_DosAddSessionConcurrentes, corridos contra ece9882 (el merge de C3), pierden una escritura en 100 de 100 items; en main (b7e0480) pasan.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:32:49.129488Z"
+}
