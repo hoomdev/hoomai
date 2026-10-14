@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203136_ead726",
+  "as": "corregido",
+  "evidence": "Ya corregido despues de C3 por 5b292f6 (fixes de C1, PR 34; hallazgo ff6cf4): es ac5919 de la mitad 1 (item.update bajo hoomfs.Lock). El refutador de C3: TestCA349_H1Hallazgo200412_* y TestCA348_H1Hallazgo200412_* pierden 100 de 100 escrituras en ece9882 y pasan en 985f9f2.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T20:57:08.240644Z"
+}

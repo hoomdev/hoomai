@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203055_2c5073",
+  "as": "corregido",
+  "evidence": "Ya corregido despues de C3 por 5b292f6 (fixes de C1, PR 34; hallazgo c1a9da): es el mismo defecto que 17ff71 y c3c8ed de la mitad 1, cerrados como corregidos. El refutador de C3: los 3 TestHallazgo_c1a9da_* fallan 2 contra ece9882 y pasan en la rama (985f9f2).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T20:57:08.233785Z"
+}
