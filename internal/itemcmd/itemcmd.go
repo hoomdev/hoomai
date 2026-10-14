@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -336,9 +337,30 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 // commitPaths stages exactly paths and commits only them: whatever else sits
 // in the index stays there, uncommitted. The repository's hooks run.
 func commitPaths(dir, msg string, paths []string) (string, error) {
-	// the paths are names, never patterns (finding a26f9d)
-	if out, err := git(dir, append([]string{"--literal-pathspecs", "add", "-A", "--"}, paths...)...); err != nil {
-		return "", fmt.Errorf("git add fallo: %s", out)
+	// what is on disk is added; what is not (a deletion, also one a git rm
+	// or a git mv already staged) leaves the index: git add stops at a name
+	// that is in neither (finding 186524). The paths are names, never
+	// patterns (finding a26f9d).
+	var presentes, ausentes []string
+	for _, p := range paths {
+		if _, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(p))); os.IsNotExist(err) {
+			ausentes = append(ausentes, p)
+		} else {
+			presentes = append(presentes, p)
+		}
+	}
+	if len(presentes) > 0 {
+		if out, err := git(dir, append([]string{"--literal-pathspecs", "add", "-A", "--"}, presentes...)...); err != nil {
+			return "", fmt.Errorf("git add fallo: %s", out)
+		}
+	}
+	if len(ausentes) > 0 {
+		cmd := exec.Command("git", "update-index", "--remove", "-z", "--stdin")
+		cmd.Dir = dir
+		cmd.Stdin = strings.NewReader(strings.Join(ausentes, "\x00") + "\x00")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git update-index fallo: %s", strings.TrimSpace(string(out)))
+		}
 	}
 	if out, err := git(dir, append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
 		return "", fmt.Errorf("git commit fallo: %s", out)
