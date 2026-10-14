@@ -565,3 +565,113 @@ func TestHallazgo_646e6f_CA346_IndiceBloqueadoNoBorraElArchivoNuevo(t *testing.T
 		t.Fatal("hallazgo 646e6f (CA-346): sacado el bloqueo, indexado.go sigue en el indice")
 	}
 }
+
+// h3RepoAnidado crea en wt/rel un repositorio git propio, sin seguimiento en
+// el worktree: un commit con dentro.txt y un archivo sin commitear. Devuelve
+// su HEAD.
+func h3RepoAnidado(t *testing.T, wt, rel string) string {
+	t.Helper()
+	dir := filepath.Join(wt, rel)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cbGit(t, dir, "init", "-q", "-b", "main")
+	cbEscribir(t, dir, "dentro.txt", "trabajo del repo anidado\n")
+	cbGit(t, dir, "add", "-A")
+	cbGit(t, dir, "-c", "user.email=test@hoom.dev", "-c", "user.name=hoom test", "commit", "-q", "-m", "propio")
+	cbEscribir(t, dir, "sin-commitear.txt", "todavia no commiteado\n")
+	return cbGit(t, dir, "rev-parse", "HEAD")
+}
+
+// h3AppYNuevo deja fuera de .hoom/ un archivo rastreado modificado (app.go)
+// y uno nuevo (nuevo.go).
+func h3AppYNuevo(t *testing.T, wt string) {
+	t.Helper()
+	cbEscribir(t, wt, "app.go", "package app\n\nfunc Roto() {}\n")
+	cbEscribir(t, wt, "nuevo.go", "package app\n")
+}
+
+// Hallazgo 20261014T194026_5e4bcd (low), CA-346: un repositorio anidado sin
+// seguimiento en el espacio de trabajo (git status lo lista como
+// "?? anidado/") es un directorio con contenido propio. Descartar se NIEGA
+// antes de tocar nada, con un error que nombra esa ruta: nada cambia en el
+// indice ni en el disco, ni los otros archivos sin guardar (app.go
+// modificado, nuevo.go nuevo), ni el repo anidado (su commit y su archivo sin
+// commitear), ni nada bajo .hoom/. Igual con `hoom task discard --yes` y con
+// Discard y las rutas que vio la persona (el camino del Studio), con el repo
+// en la raiz del worktree o en un subdirectorio.
+func TestHallazgo_5e4bcd_CA346_RepoAnidadoSeNiegaSinTocarNada(t *testing.T) {
+	for _, rel := range []string{"anidado", "pkg/anidado"} {
+		t.Run(strings.ReplaceAll(rel, "/", "-"), func(t *testing.T) {
+			root, wt := h3Tarea(t, nil, nil)
+			h3AppYNuevo(t, wt)
+			anidado := filepath.Join(wt, rel)
+			cabeza := h3RepoAnidado(t, wt, rel)
+			if st := cbGit(t, wt, "status", "--porcelain", "--untracked-files=all"); !strings.Contains(st, "?? "+rel+"/") {
+				t.Fatalf("CA-346: fixture: git status lista el repo anidado como \"?? %s/\":\n%s", rel, st)
+			}
+			vio, err := Discardable(root, cbSlug)
+			if err != nil {
+				t.Fatalf("hallazgo 5e4bcd (CA-346): Discardable: %v", err)
+			}
+			hay := map[string]bool{}
+			for _, p := range vio {
+				hay[strings.TrimSuffix(p, "/")] = true
+			}
+			if len(vio) != 3 || !hay[h3Rel("app.go")] || !hay[h3Rel("nuevo.go")] || !hay[h3Rel(rel)] {
+				t.Fatalf("hallazgo 5e4bcd (CA-346): lo descartable es app.go, nuevo.go y el repo anidado %s: %q", rel, vio)
+			}
+			antes := h3Foto(t, wt)
+			anidadoAntes := cbGit(t, anidado, "status", "--porcelain", "--untracked-files=all")
+
+			nada := func(como string) {
+				t.Helper()
+				if despues := h3Foto(t, wt); despues != antes {
+					t.Fatalf("hallazgo 5e4bcd (CA-346): %s se niega ANTES de tocar nada: ni el indice ni el disco cambian (- antes, + despues):\n%s", como, h3Cambios(antes, despues))
+				}
+				if got := cbGit(t, anidado, "rev-parse", "HEAD"); got != cabeza {
+					t.Fatalf("hallazgo 5e4bcd (CA-346): %s no toca el repo anidado %s: su HEAD era %s y quedo %s", como, rel, cabeza, got)
+				}
+				if got := cbGit(t, anidado, "status", "--porcelain", "--untracked-files=all"); got != anidadoAntes {
+					t.Fatalf("hallazgo 5e4bcd (CA-346): %s no toca el repo anidado %s: su status era %q y quedo %q", como, rel, anidadoAntes, got)
+				}
+				h3Evidencia(t, "5e4bcd", wt)
+			}
+
+			res, out, err := h3Descartar(t, root)
+			if err == nil || !strings.Contains(err.Error()+"\n"+out, rel) {
+				t.Fatalf("hallazgo 5e4bcd (CA-346): con el repo anidado %s, hoom task discard --yes se niega con un error que nombra esa ruta: error %v, restored %q removed %q\n%s", rel, err, res.Restored, res.Removed, out)
+			}
+			nada("hoom task discard --yes")
+
+			res, err = Discard(root, cbSlug, vio)
+			if err == nil || !strings.Contains(err.Error(), rel) {
+				t.Fatalf("hallazgo 5e4bcd (CA-346): con el repo anidado %s, Discard con las rutas que se vieron se niega con un error que nombra esa ruta: error %v, restored %q removed %q", rel, err, res.Restored, res.Removed)
+			}
+			nada("Discard con las rutas que se vieron")
+		})
+	}
+}
+
+// Hallazgo 20261014T194026_5e4bcd, CA-346 (guarda): sin el repo anidado, el
+// mismo arbol se descarta bien: app.go vuelve a HEAD, nuevo.go se borra y
+// .hoom/ sigue igual.
+func TestHallazgo_5e4bcd_CA346_GuardaSinRepoAnidadoDescarta(t *testing.T) {
+	root, wt := h3Tarea(t, nil, nil)
+	h3AppYNuevo(t, wt)
+	h3Descartable(t, "5e4bcd", root, []string{h3Rel("app.go"), h3Rel("nuevo.go")})
+	res, out, err := h3Descartar(t, root)
+	if err != nil {
+		t.Fatalf("hallazgo 5e4bcd (CA-346): guarda: sin repo anidado Descartar funciona: %v\n%s", err, out)
+	}
+	if !cbMismos(res.Restored, []string{h3Rel("app.go")}) || !cbMismos(res.Removed, []string{h3Rel("nuevo.go")}) {
+		t.Fatalf("hallazgo 5e4bcd (CA-346): guarda: se restaura app.go y se borra nuevo.go: restored %q removed %q", res.Restored, res.Removed)
+	}
+	if got, ok := cbLeer(t, wt, "app.go"); !ok || got != "package app\n" {
+		t.Fatalf("hallazgo 5e4bcd (CA-346): guarda: app.go vuelve a como esta en HEAD: %q (existe: %v)", got, ok)
+	}
+	if _, ok := cbLeer(t, wt, "nuevo.go"); ok {
+		t.Fatal("hallazgo 5e4bcd (CA-346): guarda: nuevo.go no esta en HEAD y se borra")
+	}
+	h3Evidencia(t, "5e4bcd", wt)
+}
