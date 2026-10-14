@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180436_db973e",
+  "as": "refutado",
+  "evidence": "Efecto del corte de la review en dos mitades: el reviewer leyo el arbol del commit sintetico A (4abccc9), donde internal/reviewcmd estaba como en la base 645e832. En ece9882 (el merge real de C3, arbol identico a B=ff9428f) el codigo esta. reviewcmd.go:263-290 crea el registro de sobre antes de la primera pasada: rol reviewer, provider, task, dir, spec, steps igual a la cantidad de lentes y PID: os.Getpid() (:275). Llama a Started y actualiza step y run_id en cada pasada. Cierra con cerrar(): entregable con stage ok, o no-entregable con stage run (el run del reviewer fallo) o scope (el reviewer escribio fuera de su territorio). Una caida deja el registro abierto con el PID de un proceso muerto, asi que se ve interrupted y relanzable. Lo fijan TestCA334_ReviewDejaRegistroDeSobre, TestCA334_ReviewNoEntregableCierraConStageYNota, TestCA334_ReviewDecididaAntesDeLaPrimeraPasadaNoDejaRegistro, TestCA335_ReviewUsaEnvelopeIDYLlamaStartedUnaVez y TestCA335_ReviewSinPasadaNoLlamaStarted (internal/reviewcmd/sobre_review_test.go), que pasan en ece9882. Sigue igual en main a9a3eeb (reviewcmd.go:822-859) y en hoom/fixes-cabina-c2 e17c4a6 (reviewcmd.go:828-865).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-14T19:34:36.593221Z"
+}

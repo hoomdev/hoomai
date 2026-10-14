@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180437_081b21",
+  "as": "refutado",
+  "evidence": "Efecto del corte de la review en dos mitades: el reviewer leyo el arbol del commit sintetico A (4abccc9), donde cmd/hoom estaba como en la base 645e832. En ece9882 (el merge real de C3, arbol identico a B=ff9428f) el codigo esta: cmd/hoom/main.go:930 tiene case discard, que acepta --yes y --json y llama a taskcmd.RunDiscard(m.Dir, slug, yes, asJSON, os.Stdout). Reproducido por el refutador con el binario compilado de ece9882 en un repo temporal. hoom task discard zzr lista la ruta sin guardar, dice 'Accion: repeti con --yes para descartarlos (no se puede deshacer)' y sale con 1. hoom task discard zzr --yes --json restaura la ruta (restored: [.hoom/worktrees/zzr/a.go]) y sale con 0. Un subcomando desconocido dice (start|list|done|discard). Sigue igual en main a9a3eeb y en hoom/fixes-cabina-c2 e17c4a6 (main.go:1026).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-14T19:34:36.606899Z"
+}

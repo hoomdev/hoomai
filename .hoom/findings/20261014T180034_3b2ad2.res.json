@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180034_3b2ad2",
+  "as": "refutado",
+  "evidence": "Efecto del corte de la review en dos mitades: el reviewer leyo el arbol del commit sintetico A (4abccc9), donde internal/agentcmd e internal/reviewcmd estaban como en la base 645e832. En ece9882 (el merge real de C3, arbol identico a B=ff9428f) el codigo esta. El primer registro del sobre lleva PID: os.Getpid() en agentcmd.go:141, y hoom review si crea su sobre (reviewcmd.go:263-290, PID en :275). Gather resuelve la vida de un sobre abierto por su PID (boardcmd/gather.go, envelopeAlive: PID \u003e 0 =\u003e runcmd.Alive), sin mirar el latido. Un dueno vivo en una etapa larga no vence a los 15 minutos ni aparece interrupted. Con running, la tarjeta no ofrece reanudar, relanzar ni descartar, y POST /api/board/{slug}/discard re-deriva la tarjeta antes de actuar (409). Lo fijan TestCA334_ElSobreDelAgenteLlevaSuPID (internal/agentcmd/started_pid_test.go), TestCA334_ReviewDejaRegistroDeSobre (internal/reviewcmd/sobre_review_test.go) y TestCA333_PIDDelDuenoDecideLaVida (internal/boardcmd/relevo_pid_test.go), que pasan en ece9882. Sigue igual en main a9a3eeb y en hoom/fixes-cabina-c2 e17c4a6. El refutador si encontro un residuo, pero es otro defecto: el CLI hoom task discard --yes no mira los sobres vivos (solo sidecars de runs), y lo reprodujo en las tres ramas. La spec (lineas 438-439 y CA-346) solo pide Busy, asi que queda como follow-up aparte que pide spec: 20261014T193403_cd24a3.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-14T19:34:45.67962Z"
+}

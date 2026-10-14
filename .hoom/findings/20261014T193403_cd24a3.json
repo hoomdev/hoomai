@@ -1,0 +1,11 @@
+{
+  "id": "20261014T193403_cd24a3",
+  "created_at": "2026-10-14T19:34:03.838518Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "PRE-EXISTENTE de la spec (follow-up, pide spec; de la review de C3) internal/taskcmd/taskcmd.go: hoom task discard \u003cslug\u003e --yes (taskcmd.Discard) solo se niega con un run activo (los sidecars de runcmd) y no mira los sobres. Con un sobre vivo de la tarea (registro abierto con el PID de un proceso vivo) en su etapa verify o de cierre, sin run en curso, descarta igual: puede restaurar o borrar el arbol mientras el dueno sigue verificando o cerrando. Reproducido por el refutador en ece9882 (merge de C3), main a9a3eeb y hoom/fixes-cabina-c2 e17c4a6: con envelope.Record{Task: \u003cslug\u003e, Dir: \u003cworktree\u003e, Stage: verify, Status: running, PID: os.Getpid()} en .hoom/envelopes, Discard(root, slug, nil) restaura app.go sin error. El Studio no tiene el problema: descartar exige interrupted y POST /api/board/{slug}/discard re-deriva la tarjeta. La spec acciones-desde-la-tarjeta (lineas 438-439) y CA-346 solo piden Busy (run activo), asi que corregirlo pide enmendar la spec: negarse tambien con un sobre abierto de la tarea cuyo dueno vive. Surge del residuo de 20261014T180034_3b2ad2.",
+  "author": "refutador@claude",
+  "fingerprint": "c89fa0c43d77dcc8",
+  "task": "fixes-cabina-c3"
+}
