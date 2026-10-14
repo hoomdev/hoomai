@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T153137_177236",
+  "as": "corregido",
+  "evidence": "Corregido en 3fb66a4: internal/gitx/diff.go, capped guarda los primeros y los ultimos 32 KiB del stderr de git y, si omitio algo, lo dice ('[... N bytes omitidos ...]') cortando en saltos de linea; hasta 64 KiB devuelve el texto exacto. Cubre los siete usos de capped (la historia via gitx.OutPrefix y el diff del detalle incluidos). El refutador (ref-c2d/INFORME.md) confirmo el defecto: con 31 MiB de avisos la nota quedaba en 65.567 bytes sin el fatal y cortada a mitad de linea, en la historia y en BranchDiff. Regresion (test-writer, 803fbe9): TestHallazgo_177236_LaNotaDeLaHistoriaConservaElFatalDeGit (boardcmd, CA-359) y TestHallazgo_177236_LaNotaDelDiffConservaElFatalDeGit (gitx, CA-315) fallan sobre 2df273b y pasan con el arreglo; la guarda TestHallazgo_177236_GuardaConPocoStderrLaNotaEsElTextoDeGit pasa en los dos. Suite entera (go test ./...) verde sobre 803fbe9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T16:30:46.215876Z"
+}

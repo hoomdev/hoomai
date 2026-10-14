@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T162046_f3e283",
+  "as": "corregido",
+  "evidence": "Corregido en 3fb66a4: manifest.Load sigue rechazando un base_branch que empieza con '-' (enmienda 1 de tablero-de-solo-lectura y los tests de bb986a de internal/manifest, verdes), ahora con el error propio manifest.BaseBranchInvalida; prepararRevision (internal/reviewcmd/reviewcmd.go) carga el hoom.yaml de la rama de la tarea solo para avisar su base_branch, y con ese error sigue con la base del proyecto y lo avisa, como pide CA-430. Regresion: el test existente TestCA430_LaBaseDeLaRamaQueEmpiezaConGuionNoLlegaAGit fallaba desde 69d3dcd ('hoom.yaml invalido: base_branch invalido \"--output=...\"') y pasa con el arreglo, igual que los otros ocho TestCA430_*. Suite entera (go test ./... -count=1) verde sobre 803fbe9: 37 paquetes, reviewcmd 514 s.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T16:30:46.230504Z"
+}

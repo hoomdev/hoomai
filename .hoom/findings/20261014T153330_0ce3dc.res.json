@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T153330_0ce3dc",
+  "as": "corregido",
+  "evidence": "Corregido en 3fb66a4: internal/boardcmd/timeline.go, gitEntries es todo o nada por si misma: anota len(h.items) al entrar y, si devuelve error, restaura h.items a ese largo (defer); TimelineFor ya no vacia h.items. El refutador confirmo que hoy nadie mas agrega entradas antes de gitEntries, asi que el comportamiento no cambia: lo fijan TestHallazgo_cc4f5b_SiGitFallaAMitadDelParcheNoQuedaNingunaEntradaDeGit, TestHallazgo_dac517_SiGitFallaDespuesDeLos8MiBNoEsUnCorte y TestCA359_SinHistorialDeGit, verdes con el cambio. Suite entera verde sobre 803fbe9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T16:30:46.223222Z"
+}
