@@ -1,0 +1,11 @@
+{
+  "id": "20261014T180437_c3c8ed",
+  "created_at": "2026-10-14T18:04:37.560921Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:187-191 deja creada la sesión si falla split-window, y internal/cockpitcmd/cockpitcmd.go:287-290 devuelve error después de crearla si falla AddSession. En ambos casos el reintento ve has-session, retorna created=false y omite tanto completar los panes como registrar el writer, dejando un estado parcial permanente.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

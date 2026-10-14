@@ -1,0 +1,11 @@
+{
+  "id": "20261014T181127_e208a6",
+  "created_at": "2026-10-14T18:11:27.548508Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "[INTRODUCIDO] internal/taskcmd/taskcmd.go:326: Discard introduce un segundo parser manual de `git status --porcelain -z`, aunque internal/boardcmd/gather.go:413 ya mantiene el parser que produce la lista mostrada por la tarjeta. El contrato exige que ambas listas coincidan, pero renames, filtros y formato quedan mantenidos en dos implementaciones distintas. Extraer una representacion comun del estado de Git y derivar de ella tanto el tablero como el descarte.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}
