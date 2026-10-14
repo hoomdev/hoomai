@@ -294,6 +294,13 @@ func prepararRevision(root, base string, opt Options) (dir string, baseSHA strin
 		return
 	}
 	m, err := manifest.Load(dir, profiles.Resolve)
+	var ajena manifest.BaseBranchInvalida
+	if err != nil && opt.Task != "" && errors.As(err, &ajena) {
+		// the task branch's base_branch is said and never obeyed (CA-430),
+		// so one that git would read as an option (bb986a) does not stop the
+		// review either: it never reaches git (finding f3e283)
+		m, err = &manifest.Manifest{BaseBranch: ajena.Valor}, nil
+	}
 	if err != nil {
 		return
 	}

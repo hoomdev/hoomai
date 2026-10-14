@@ -128,9 +128,6 @@ func TimelineFor(root, base, blockOn, slug string, now time.Time) (Timeline, err
 
 	h := &history{root: root, base: base, dir: dir, ev: ev, t: t}
 	if err := h.gitEntries(); err != nil {
-		// a git that fails leaves no git entry, not the ones read before it
-		// failed (finding cc4f5b); nothing else has added entries yet
-		h.items = nil
 		tl.Notes = append(tl.Notes, NoteSinGitPrefijo+err.Error())
 	}
 	h.telemetry()
@@ -189,7 +186,16 @@ type gitCommit struct {
 
 type gitFile struct{ letter, path string }
 
-func (h *history) gitEntries() error {
+// gitEntries adds the card's git entries, all or none: a git that fails
+// leaves none of them, not even the ones read before it failed (findings
+// cc4f5b and 0ce3dc).
+func (h *history) gitEntries() (err error) {
+	before := len(h.items)
+	defer func() {
+		if err != nil {
+			h.items = h.items[:before]
+		}
+	}()
 	s := h.ev.Item.Slug
 	h.approvalsAt = map[string][]string{}
 	specPath := specOf(h.ev)

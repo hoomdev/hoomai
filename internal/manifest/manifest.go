@@ -274,14 +274,23 @@ func (m *Manifest) validateFindings() error {
 		*m.Findings.BlockOn, strings.Join(Severities, "|"))
 }
 
-// validateBaseBranch refuses a base_branch that git would read as an option.
-// The value ends up as a revision argument of git (`<base>...HEAD`), and a
-// name starting with "-" is never a branch: `--output=<path>` made a plain
-// read create or truncate that path (finding bb986a). The same rule
-// gitx.ResolverCommit applies to --base.
+// BaseBranchInvalida is the error of a base_branch that git would read as an
+// option. The value ends up as a revision argument of git (`<base>...HEAD`),
+// and a name starting with "-" is never a branch: `--output=<path>` made a
+// plain read create or truncate that path (finding bb986a). Load refuses that
+// hoom.yaml; a caller that only reports another tree's base_branch can tell
+// this error apart with errors.As (finding f3e283).
+type BaseBranchInvalida struct{ Valor string }
+
+func (e BaseBranchInvalida) Error() string {
+	return fmt.Sprintf("base_branch invalido %q: el nombre de una rama no empieza con \"-\"", e.Valor)
+}
+
+// validateBaseBranch refuses a base_branch that git would read as an option:
+// the same rule gitx.ResolverCommit applies to --base.
 func (m *Manifest) validateBaseBranch() error {
 	if strings.HasPrefix(m.BaseBranch, "-") {
-		return fmt.Errorf("base_branch invalido %q: el nombre de una rama no empieza con \"-\"", m.BaseBranch)
+		return BaseBranchInvalida{Valor: m.BaseBranch}
 	}
 	return nil
 }

@@ -280,24 +280,56 @@ func (e ArbolSucio) Error() string {
 // message, never in proportion to what a repository makes git print.
 const stderrMax = 64 << 10
 
-// capped keeps the first n bytes written to it and drops the rest.
+// capped keeps the first and the last n/2 bytes written to it. git prints
+// the cause of a failure (fatal:) last, after whatever warnings came before,
+// so a long stderr keeps its end too, and String says what was left out
+// (finding 177236). Up to n bytes come back exactly as written.
 type capped struct {
-	b strings.Builder
-	n int
+	head    strings.Builder
+	tail    []byte
+	n       int
+	dropped int
 }
 
 func (c *capped) Write(p []byte) (int, error) {
-	if room := c.n - c.b.Len(); room > 0 {
-		if len(p) > room {
-			c.b.Write(p[:room])
-		} else {
-			c.b.Write(p)
-		}
+	written := len(p)
+	half := c.n / 2
+	if room := half - c.head.Len(); room > 0 {
+		k := min(room, len(p))
+		c.head.Write(p[:k])
+		p = p[k:]
 	}
-	return len(p), nil
+	tailMax := c.n - half
+	if len(p) >= tailMax {
+		c.dropped += len(c.tail) + len(p) - tailMax
+		c.tail = append(c.tail[:0], p[len(p)-tailMax:]...)
+		return written, nil
+	}
+	c.tail = append(c.tail, p...)
+	if over := len(c.tail) - tailMax; over > 0 {
+		c.dropped += over
+		c.tail = append(c.tail[:0], c.tail[over:]...)
+	}
+	return written, nil
 }
 
-func (c *capped) String() string { return c.b.String() }
+func (c *capped) String() string {
+	head, tail := c.head.String(), string(c.tail)
+	if c.dropped == 0 {
+		return head + tail
+	}
+	// what is left out starts and ends on a line break, when there is one
+	omitted := c.dropped
+	if i := strings.LastIndexByte(head, '\n'); i >= 0 {
+		omitted += len(head) - i
+		head = head[:i]
+	}
+	if i := strings.IndexByte(tail, '\n'); i >= 0 {
+		omitted += i + 1
+		tail = tail[i+1:]
+	}
+	return fmt.Sprintf("%s\n[... %d bytes omitidos ...]\n%s", head, omitted, tail)
+}
 
 // VerificarBase fails when base and HEAD have no merge-base or git cannot
 // diff them (a shallow clone, a base that does not exist, a missing tree): it
