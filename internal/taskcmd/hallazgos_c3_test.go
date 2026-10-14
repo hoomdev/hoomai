@@ -18,24 +18,34 @@
 //     archivo nuevo (el indice del worktree esta bloqueado), Descartar
 //     devuelve error y el archivo sigue en el disco: su contenido no se
 //     pierde.
+//   - 20261014T194026_5e4bcd (low): con un repositorio anidado entre las
+//     rutas a borrar, Descartar se niega antes de tocar nada.
+//   - 20261014T180914_b6e55b (high): Descartar toma el candado del espacio
+//     de trabajo (runcmd.LockArbol) desde que mira los runs hasta el ultimo
+//     borrado; con el candado tomado por otro (goroutine o proceso) espera
+//     hasta runcmd.EsperaArbol y se niega sin tocar nada.
 //
 // Repos git reales bajo t.TempDir. Reusa los ayudantes de discard_test.go
 // (cbGit, cbEscribir, cbLeer, cbMismos, cbSlug).
 package taskcmd
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
 // Evidencia sin guardar que h3Tarea deja bajo .hoom/ del worktree.
@@ -674,4 +684,256 @@ func TestHallazgo_5e4bcd_CA346_GuardaSinRepoAnidadoDescarta(t *testing.T) {
 		t.Fatal("hallazgo 5e4bcd (CA-346): guarda: nuevo.go no esta en HEAD y se borra")
 	}
 	h3Evidencia(t, "5e4bcd", wt)
+}
+
+// h3Tope es lo maximo que Descartar puede tardar en negarse con el candado
+// tomado: espera hasta runcmd.EsperaArbol y se niega, no se cuelga.
+const h3Tope = runcmd.EsperaArbol + 8*time.Second
+
+// h3Tomar toma el candado del arbol dir como lo toma un run que se esta
+// registrando ahi (runcmd.LockArbol) y devuelve como soltarlo; si nadie lo
+// suelta antes, se suelta al final del test.
+func h3Tomar(t *testing.T, dir string) func() {
+	t.Helper()
+	suelta, err := runcmd.LockArbol(dir, time.Second)
+	if err != nil {
+		t.Fatalf("CA-346: el test toma el candado del arbol %s: %v", dir, err)
+	}
+	var una sync.Once
+	soltar := func() { una.Do(suelta) }
+	t.Cleanup(soltar)
+	return soltar
+}
+
+// h3TareaParaElCandado es h3Tarea con app.go modificado y nuevo.go nuevo.
+func h3TareaParaElCandado(t *testing.T) (root, wt string) {
+	t.Helper()
+	root, wt = h3Tarea(t, nil, nil)
+	h3AppYNuevo(t, wt)
+	h3Descartable(t, "b6e55b", root, []string{h3Rel("app.go"), h3Rel("nuevo.go")})
+	return root, wt
+}
+
+// h3Descartado exige el resultado de descartar h3TareaParaElCandado.
+func h3Descartado(t *testing.T, caso string, res DiscardResult, wt string) {
+	t.Helper()
+	if !cbMismos(res.Restored, []string{h3Rel("app.go")}) || !cbMismos(res.Removed, []string{h3Rel("nuevo.go")}) {
+		t.Fatalf("hallazgo b6e55b (CA-346): %s: se restaura app.go y se borra nuevo.go: restored %q removed %q", caso, res.Restored, res.Removed)
+	}
+	if got, ok := cbLeer(t, wt, "app.go"); !ok || got != "package app\n" {
+		t.Fatalf("hallazgo b6e55b (CA-346): %s: app.go vuelve a como esta en HEAD: %q (existe: %v)", caso, got, ok)
+	}
+	if _, ok := cbLeer(t, wt, "nuevo.go"); ok {
+		t.Fatalf("hallazgo b6e55b (CA-346): %s: nuevo.go no esta en HEAD y se borra", caso)
+	}
+	h3Evidencia(t, "b6e55b", wt)
+}
+
+// Hallazgo 20261014T180914_b6e55b (high), CA-346: "con un run activo en el
+// arbol se niega" exige que ningun run se registre entre esa comprobacion y
+// el ultimo borrado. Con el candado del espacio de trabajo tomado (como lo
+// toma un run que se esta registrando ahi), `hoom task discard --yes` se
+// niega en a lo sumo unos segundos (no se cuelga), con error, y no toca nada:
+// la foto de antes de tomar el candado y la de despues son identicas (el
+// candado tampoco escribe nada en el arbol). El candado es del arbol real:
+// tomado por un symlink al worktree frena igual. Suelto, el mismo descarte
+// funciona (Descartar no se queda con el candado).
+func TestHallazgo_b6e55b_CA346_CandadoTomadoDescartarSeNiega(t *testing.T) {
+	for _, c := range []struct {
+		nombre string
+		dir    func(t *testing.T, wt string) string
+	}{
+		{"el-worktree", func(t *testing.T, wt string) string { return wt }},
+		{"por-un-symlink", func(t *testing.T, wt string) string {
+			alias := filepath.Join(t.TempDir(), "alias")
+			if err := os.Symlink(wt, alias); err != nil {
+				t.Fatal(err)
+			}
+			return alias
+		}},
+	} {
+		t.Run(c.nombre, func(t *testing.T) {
+			root, wt := h3TareaParaElCandado(t)
+			antes := h3Foto(t, wt)
+			soltar := h3Tomar(t, c.dir(t, wt))
+
+			desde := time.Now()
+			res, out, err := h3Descartar(t, root)
+			if tardo := time.Since(desde); tardo > h3Tope {
+				t.Fatalf("hallazgo b6e55b (CA-346): con el candado tomado Descartar se niega en a lo sumo %v, no se cuelga: tardo %v", h3Tope, tardo)
+			}
+			if err == nil {
+				t.Fatalf("hallazgo b6e55b (CA-346): con el candado del espacio de trabajo tomado (%s), hoom task discard --yes se niega con error; devolvio exito: restored %q removed %q\n%s", c.nombre, res.Restored, res.Removed, out)
+			}
+			if despues := h3Foto(t, wt); despues != antes {
+				t.Fatalf("hallazgo b6e55b (CA-346): con el candado tomado Descartar no toca nada (- antes, + despues):\n%s", h3Cambios(antes, despues))
+			}
+
+			soltar()
+			res, out, err = h3Descartar(t, root)
+			if err != nil {
+				t.Fatalf("hallazgo b6e55b (CA-346): suelto el candado, Descartar funciona (no se quedo con el): %v\n%s", err, out)
+			}
+			h3Descartado(t, "suelto el candado", res, wt)
+		})
+	}
+}
+
+// h3AlSoltar es lo que habia en el worktree justo antes de soltar el
+// candado: si Descartar no espero, ya lo habia tocado.
+type h3AlSoltar struct {
+	cuando      time.Time
+	app         string
+	nuevoExiste bool
+}
+
+// Hallazgo 20261014T180914_b6e55b (high), CA-346: Descartar ESPERA el
+// candado (hasta runcmd.EsperaArbol) y despues actua: soltado a los ~300 ms
+// por otra goroutine, mientras estuvo tomado no toco nada (app.go seguia
+// modificado y nuevo.go seguia ahi), termina despues de que se solto y
+// termina bien.
+func TestHallazgo_b6e55b_CA346_CandadoSueltoDescartarEsperaYActua(t *testing.T) {
+	root, wt := h3TareaParaElCandado(t)
+	soltar := h3Tomar(t, wt)
+	soltado := make(chan h3AlSoltar, 1)
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		var a h3AlSoltar
+		raw, _ := os.ReadFile(filepath.Join(wt, "app.go"))
+		a.app = string(raw)
+		_, err := os.Stat(filepath.Join(wt, "nuevo.go"))
+		a.nuevoExiste = err == nil
+		a.cuando = time.Now()
+		soltar()
+		soltado <- a
+	}()
+
+	res, out, err := h3Descartar(t, root)
+	fin := time.Now()
+	var a h3AlSoltar
+	select {
+	case a = <-soltado:
+	case <-time.After(10 * time.Second):
+		t.Fatal("CA-346: la goroutine del test no solto el candado")
+	}
+	if a.app != "package app\n\nfunc Roto() {}\n" || !a.nuevoExiste {
+		t.Fatalf("hallazgo b6e55b (CA-346): mientras el candado estuvo tomado Descartar no toca nada: al soltarlo app.go era %q y nuevo.go existia: %v", a.app, a.nuevoExiste)
+	}
+	if err != nil {
+		t.Fatalf("hallazgo b6e55b (CA-346): con el candado soltado a los 300 ms, Descartar espera y actua: %v\n%s", err, out)
+	}
+	if fin.Before(a.cuando) {
+		t.Fatalf("hallazgo b6e55b (CA-346): Descartar termino (%s) antes de que se soltara el candado (%s): no lo espero", fin.Format(time.StampMicro), a.cuando.Format(time.StampMicro))
+	}
+	h3Descartado(t, "soltado a los 300 ms", res, wt)
+}
+
+// h3EnvCandado lleva al proceso ayudante el arbol cuyo candado toma.
+const h3EnvCandado = "HOOM_TEST_CANDADO_ARBOL"
+
+// TestAyudanteCandadoEnOtroProceso no es un test: es el OTRO proceso de
+// TestHallazgo_b6e55b_CA346_CandadoDeOtroProcesoFrenaDescartar (un run que
+// se registra desde otra terminal). Toma el candado, dice "tomado" y lo
+// suelta cuando el padre le cierra stdin.
+func TestAyudanteCandadoEnOtroProceso(t *testing.T) {
+	dir := os.Getenv(h3EnvCandado)
+	if dir == "" {
+		t.Skip("solo corre como proceso ayudante de TestHallazgo_b6e55b_CA346_CandadoDeOtroProcesoFrenaDescartar")
+	}
+	suelta, err := runcmd.LockArbol(dir, 5*time.Second)
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		return
+	}
+	fmt.Println("tomado")
+	io.Copy(io.Discard, os.Stdin)
+	suelta()
+	fmt.Println("soltado")
+}
+
+// Hallazgo 20261014T180914_b6e55b (high), CA-346: el candado es entre
+// PROCESOS (el hallazgo es un run de otra terminal): con el candado del
+// espacio de trabajo tomado por otro proceso, Descartar se niega sin tocar
+// nada; cuando ese proceso lo suelta, Descartar funciona.
+func TestHallazgo_b6e55b_CA346_CandadoDeOtroProcesoFrenaDescartar(t *testing.T) {
+	root, wt := h3TareaParaElCandado(t)
+	antes := h3Foto(t, wt)
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestAyudanteCandadoEnOtroProceso$", "-test.count=1")
+	cmd.Env = append(os.Environ(), h3EnvCandado+"="+wt)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	var cerrar sync.Once
+	terminar := func() {
+		cerrar.Do(func() {
+			stdin.Close()
+			io.Copy(io.Discard, stdout)
+			cmd.Wait()
+		})
+	}
+	t.Cleanup(func() {
+		cmd.Process.Kill()
+		terminar()
+	})
+	linea := make(chan string, 1)
+	go func() {
+		l, _ := bufio.NewReader(stdout).ReadString('\n')
+		linea <- strings.TrimSpace(l)
+	}()
+	select {
+	case l := <-linea:
+		if l != "tomado" {
+			t.Fatalf("CA-346: el proceso ayudante toma el candado de %s: dijo %q\n%s", wt, l, stderr.String())
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatalf("CA-346: el proceso ayudante no tomo el candado en 30 s\n%s", stderr.String())
+	}
+
+	desde := time.Now()
+	res, out, err := h3Descartar(t, root)
+	if tardo := time.Since(desde); tardo > h3Tope {
+		t.Fatalf("hallazgo b6e55b (CA-346): con el candado tomado por otro proceso Descartar se niega en a lo sumo %v: tardo %v", h3Tope, tardo)
+	}
+	if err == nil {
+		t.Fatalf("hallazgo b6e55b (CA-346): con el candado del espacio de trabajo tomado por OTRO proceso, hoom task discard --yes se niega con error; devolvio exito: restored %q removed %q\n%s", res.Restored, res.Removed, out)
+	}
+	if despues := h3Foto(t, wt); despues != antes {
+		t.Fatalf("hallazgo b6e55b (CA-346): con el candado de otro proceso Descartar no toca nada (- antes, + despues):\n%s", h3Cambios(antes, despues))
+	}
+
+	terminar() // el otro proceso suelta el candado y termina
+	res, out, err = h3Descartar(t, root)
+	if err != nil {
+		t.Fatalf("hallazgo b6e55b (CA-346): soltado por el otro proceso, Descartar funciona: %v\n%s", err, out)
+	}
+	h3Descartado(t, "soltado por el otro proceso", res, wt)
+}
+
+// Hallazgo 20261014T180914_b6e55b, CA-346 (guarda): el candado es POR arbol.
+// Con el de la raiz del proyecto tomado, Descartar en el espacio de trabajo
+// de la tarea (otro arbol) no espera ni se niega.
+func TestHallazgo_b6e55b_CA346_GuardaOtroArbolNoFrenaDescartar(t *testing.T) {
+	root, wt := h3TareaParaElCandado(t)
+	h3Tomar(t, root)
+	desde := time.Now()
+	res, out, err := h3Descartar(t, root)
+	tardo := time.Since(desde)
+	if err != nil {
+		t.Fatalf("hallazgo b6e55b (CA-346): guarda: el candado de la raiz no frena a Descartar en el worktree: %v\n%s", err, out)
+	}
+	if tardo >= runcmd.EsperaArbol {
+		t.Fatalf("hallazgo b6e55b (CA-346): guarda: Descartar en el worktree no espera el candado de la raiz: tardo %v", tardo)
+	}
+	h3Descartado(t, "con el candado de la raiz tomado", res, wt)
 }
