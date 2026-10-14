@@ -19,6 +19,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/envelope"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/isolate"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
@@ -641,24 +642,13 @@ func blindPrechecks(mgr *runcmd.Manager, dir, specPath string, pol Policy) strin
 // where the role may write: a transplant would have to overwrite them, and it
 // refuses to. hoom's own local dirs and its ignore file never count.
 func localChanges(dir string, pol Policy) []string {
-	cmd := exec.Command("git", "status", "--porcelain", "-z", "--untracked-files=all")
-	cmd.Dir = dir
-	out, err := cmd.Output()
+	cambios, err := gitx.Cambios(dir)
 	if err != nil {
 		return nil
 	}
 	var dirty []string
-	fields := strings.Split(string(out), "\x00")
-	for i := 0; i < len(fields); i++ {
-		e := fields[i]
-		if len(e) < 4 {
-			continue
-		}
-		st, p := e[:2], e[3:]
-		if st[0] == 'R' || st[0] == 'C' {
-			i++ // el origen del rename viaja en el campo siguiente
-		}
-		p = filepath.ToSlash(p)
+	for _, c := range cambios {
+		p := filepath.ToSlash(c.Ruta)
 		if hoomfs.IsLocal(p) || strings.HasPrefix(p, ".hoom/") {
 			continue
 		}

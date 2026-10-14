@@ -230,6 +230,49 @@ func CambiosEntre(dir, desde, hasta string) (files []string, ins, del int, err e
 	return files, ins, del, nil
 }
 
+// Cambio is one entry of `git status --porcelain -z`: its two status letters
+// and its path; a rename or a copy also brings the path it came from.
+type Cambio struct {
+	XY     string
+	Ruta   string
+	Origen string
+}
+
+// Cambios lists every uncommitted path of dir, file by file (untracked
+// directories expanded), with git's own quoting off. It is the one reader of
+// that listing: the board, Discard and the envelope used to parse it each on
+// their own (finding e208a6).
+func Cambios(dir string) ([]Cambio, error) {
+	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "-z")
+	cmd.Dir = dir
+	stderr := &capped{n: stderrMax}
+	cmd.Stderr = stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("git status: %s", msg)
+		}
+		return nil, fmt.Errorf("git status: %v", err)
+	}
+	var cambios []Cambio
+	fields := strings.Split(string(out), "\x00")
+	for i := 0; i < len(fields); i++ {
+		f := fields[i]
+		if len(f) < 4 {
+			continue
+		}
+		c := Cambio{XY: f[:2], Ruta: f[3:]}
+		if f[0] == 'R' || f[0] == 'C' {
+			i++ // the origin travels in the next field
+			if i < len(fields) {
+				c.Origen = fields[i]
+			}
+		}
+		cambios = append(cambios, c)
+	}
+	return cambios, nil
+}
+
 // CambioSinCommitear is the first path outside .hoom/ with anything not
 // committed (modified, staged, deleted, or untracked and not ignored); ""
 // when the tree is clean. Only that first entry is read: the listing is

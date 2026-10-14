@@ -356,32 +356,23 @@ func discardable(root, slug string) ([]string, []string, error) {
 	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
 		return nil, nil, fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
 	}
-	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "-z")
-	cmd.Dir = wt
-	raw, err := cmd.Output()
+	cambios, err := gitx.Cambios(wt)
 	if err != nil {
-		return nil, nil, fmt.Errorf("git status fallo en %s: %v", wt, err)
+		return nil, nil, fmt.Errorf("%v (en %s)", err, wt)
 	}
 	seen := map[string]bool{}
 	var out, origins []string
 	keep := func(p string) bool {
 		return p != "" && p != ".hoom" && !strings.HasPrefix(p, ".hoom/") && !seen[p]
 	}
-	fields := strings.Split(string(raw), "\x00")
-	for i := 0; i < len(fields); i++ {
-		f := fields[i]
-		if len(f) < 4 {
-			continue
-		}
-		if p := filepath.ToSlash(f[3:]); keep(p) {
+	for _, c := range cambios {
+		if p := filepath.ToSlash(c.Ruta); keep(p) {
 			seen[p] = true
 			out = append(out, p)
 		}
-		if f[0] == 'R' || f[0] == 'C' {
-			i++ // el origen del rename viaja en el campo siguiente, y vuelve tambien
-			if i < len(fields) && keep(filepath.ToSlash(fields[i])) && f[0] == 'R' {
-				origins = append(origins, filepath.ToSlash(fields[i]))
-			}
+		// el origen de un rename vuelve tambien
+		if o := filepath.ToSlash(c.Origen); c.XY[0] == 'R' && keep(o) {
+			origins = append(origins, o)
 		}
 	}
 	sort.Strings(out)
@@ -414,16 +405,41 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	}
 	// what HEAD has comes from git, before touching anything: a git that
 	// cannot say is an error, never "HEAD does not have it" (finding b1b1bc)
-	enHEAD, err := headPaths(wt)
+	enHEAD, err := headEntries(wt)
 	if err != nil {
 		return res, err
 	}
-	var restore, remove []string
+	var restore, remove, blobs []string
 	for _, p := range local {
-		if enHEAD[p] {
+		if e, ok := enHEAD[p]; ok {
 			restore = append(restore, p)
+			if e.tipo == "blob" {
+				blobs = append(blobs, e.objeto)
+			}
 		} else {
 			remove = append(remove, p)
+		}
+	}
+	// git restore deletes a file whose content HEAD names and the repository
+	// lacks: then nothing is touched (finding b1b1bc)
+	if falta, err := faltantes(wt, blobs); err != nil {
+		return res, err
+	} else if len(falta) > 0 {
+		var rutas []string
+		for _, p := range restore {
+			if falta[enHEAD[p].objeto] {
+				rutas = append(rutas, taskRel(slug, p))
+			}
+		}
+		return res, fmt.Errorf("al repositorio le falta el contenido de HEAD de %s: descartar ahora borraria esos archivos, asi que no se toco nada. Accion: recupera los objetos que faltan (git fsck) y vuelve a descartar", strings.Join(rutas, ", "))
+	}
+	// git lists a nested repository as one path, a directory: deleting it
+	// would take another repository's work, and failing halfway would leave
+	// the rest discarded; so it is refused before touching anything
+	// (finding 5e4bcd)
+	for _, p := range remove {
+		if st, err := os.Lstat(filepath.Join(wt, filepath.FromSlash(p))); err == nil && st.IsDir() {
+			return res, fmt.Errorf("%s es un directorio con contenido propio (un repositorio anidado): descartar no lo borra, y no se toco nada. Accion: muevelo o borralo a mano y vuelve a descartar", taskRel(slug, p))
 		}
 	}
 	// the paths are names, never patterns: `:(glob)**` is a file
@@ -450,27 +466,60 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	return res, nil
 }
 
-// headPaths is every path HEAD tracks in dir (gitlinks included, without
+// headEntry is a path of HEAD's tree: the kind of object (blob, or commit for
+// a submodule) and its id.
+type headEntry struct{ tipo, objeto string }
+
+// headEntries is every path HEAD tracks in dir (gitlinks included, without
 // entering submodules), listed from its trees: a missing blob does not hide
 // that HEAD has the path.
-func headPaths(dir string) (map[string]bool, error) {
-	cmd := exec.Command("git", "ls-tree", "-r", "-z", "--name-only", "--full-tree", "HEAD")
+func headEntries(dir string) (map[string]headEntry, error) {
+	cmd := exec.Command("git", "ls-tree", "-r", "-z", "--full-tree", "HEAD")
 	cmd.Dir = dir
 	raw, err := cmd.Output()
 	if err != nil {
-		msg := err.Error()
-		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
-			msg = strings.TrimSpace(string(ee.Stderr))
-		}
-		return nil, fmt.Errorf("git ls-tree HEAD fallo en %s: %s", dir, msg)
+		return nil, fmt.Errorf("git ls-tree HEAD fallo en %s: %s", dir, gitStderr(err))
 	}
-	out := map[string]bool{}
-	for _, p := range strings.Split(string(raw), "\x00") {
-		if p != "" {
-			out[p] = true
+	out := map[string]headEntry{}
+	for _, rec := range strings.Split(string(raw), "\x00") {
+		// "<modo> <tipo> <objeto>\t<ruta>"
+		meta, ruta, ok := strings.Cut(rec, "\t")
+		if f := strings.Fields(meta); ok && len(f) == 3 {
+			out[ruta] = headEntry{tipo: f[1], objeto: f[2]}
 		}
 	}
 	return out, nil
+}
+
+// faltantes are the objects among ids that the repository of dir does not
+// have.
+func faltantes(dir string, ids []string) (map[string]bool, error) {
+	falta := map[string]bool{}
+	if len(ids) == 0 {
+		return falta, nil
+	}
+	cmd := exec.Command("git", "cat-file", "--batch-check")
+	cmd.Dir = dir
+	cmd.Stdin = strings.NewReader(strings.Join(ids, "\n") + "\n")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git cat-file --batch-check fallo en %s: %s", dir, gitStderr(err))
+	}
+	for _, l := range strings.Split(string(out), "\n") {
+		// "<objeto> missing" for an object the repository lacks
+		if id, ok := strings.CutSuffix(l, " missing"); ok {
+			falta[id] = true
+		}
+	}
+	return falta, nil
+}
+
+// gitStderr is what a git that failed said, or its exit status.
+func gitStderr(err error) string {
+	if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+		return strings.TrimSpace(string(ee.Stderr))
+	}
+	return err.Error()
 }
 
 func sameSet(a, b []string) bool {
