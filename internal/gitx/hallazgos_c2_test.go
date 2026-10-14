@@ -21,11 +21,21 @@
 //     base rota. Una base que git no puede comparar con HEAD sigue siendo un
 //     error.
 //
+// Y de la review delta 2:
+//
+//   - 20261014T153137_177236 (low, resilience; CA-315): cuando git diff
+//     falla, la nota del diff del detalle trae las palabras de git acotadas,
+//     y acotarlas no pierde la causa: con megas de avisos en stderr antes del
+//     "fatal:", la nota mide menos de 128 KiB y trae ese "fatal:". Con un
+//     stderr chico, la nota es la de siempre: el texto de git, sin nada
+//     agregado. Como se marca lo que se omite no se afirma.
+//
 // Todas las rutas hostiles, las marcas y los drivers viven en t.TempDir().
 package gitx
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -419,5 +429,106 @@ func TestHallazgo_402447_GuardaUnaBaseQueGitNoPuedeCompararSigueSiendoError(t *t
 	}
 	if err := VerificarBase(dir, "main"); err == nil {
 		t.Fatal("402447 CA-414: sin merge-base entre la base y HEAD VerificarBase es un error, devolvio nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 20261014T153137_177236: la nota acotada conserva el fatal de git
+// ---------------------------------------------------------------------------
+
+// c2TopeDeLaNota: lo que puede medir, como mucho, la nota de un git diff que
+// fallo cuando git escribe megas en stderr.
+const c2TopeDeLaNota = 128 << 10
+
+// Hallazgo 20261014T153137_177236. CA-315 ("si git falla, available: false
+// con el error de git en note"): la rama de la tarea commitea un
+// .gitattributes con 20000 lineas con un nombre de atributo invalido y un
+// archivo con un xfuncname invalido en la config local. git diff
+// main...HEAD escribe mas de 1 MiB de avisos en stderr y despues muere con
+// "fatal:" (el fixture lo mide con el mismo git diff, con --no-textconv).
+// BranchDiff da available false, sin error, y su nota mide menos de 128 KiB
+// y trae la linea "fatal:" que git escribio al final: la causa no se pierde
+// por acotar.
+func TestHallazgo_177236_LaNotaDelDiffConservaElFatalDeGit(t *testing.T) {
+	idAislarGit(t)
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dfGit(t, dir, "init", "-b", "main")
+	dfGit(t, dir, "config", "user.email", "test@hoom.dev")
+	dfGit(t, dir, "config", "user.name", "hoom test")
+	write(t, dir, "base.txt", "base\n")
+	dfGit(t, dir, "add", "-A")
+	dfGit(t, dir, "commit", "-q", "-m", "inicial")
+	dfGit(t, dir, "checkout", "-q", "-b", "tarea")
+	var atributos strings.Builder
+	atributos.WriteString("z_malo.txt diff=malo\n")
+	for i := 0; i < 20000; i++ {
+		fmt.Fprintf(&atributos, "*.x%d in!valido%d\n", i, i)
+	}
+	write(t, dir, ".gitattributes", atributos.String())
+	write(t, dir, "z_malo.txt", "uno\ndos\n")
+	dfGit(t, dir, "add", "-A")
+	dfGit(t, dir, "commit", "-q", "-m", "atributos invalidos y archivo con driver de diff")
+	dfGit(t, dir, "config", "diff.malo.xfuncname", "([")
+
+	_, stderr, code := ftGitDiff(t, dir, "main", "--no-textconv")
+	fatal := ""
+	for _, linea := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(linea, "fatal:") {
+			fatal = strings.TrimSpace(linea)
+		}
+	}
+	if code == 0 || fatal == "" || len(stderr) <= 1<<20 || !strings.HasSuffix(strings.TrimSpace(stderr), fatal) {
+		t.Fatalf("fixture: en esta maquina git diff main...HEAD escribe mas de 1 MiB de avisos en stderr y termina con fatal: exit=%d, stderr de %d bytes, fatal=%q",
+			code, len(stderr), fatal)
+	}
+
+	d, err := BranchDiff(dir, "main", ftMax)
+	if err != nil {
+		t.Fatalf("177236 CA-315: si git falla el error es nil (lo dice la nota): %v", err)
+	}
+	if d.Available {
+		t.Fatalf("177236 CA-315: git diff salio no-cero: available false, fue true (nota %d bytes)", len(d.Note))
+	}
+	if len(d.Note) >= c2TopeDeLaNota {
+		t.Errorf("177236 CA-315: la nota del diff esta acotada (menos de %d bytes), mide %d", c2TopeDeLaNota, len(d.Note))
+	}
+	if !strings.Contains(d.Note, fatal) {
+		final := d.Note
+		if len(final) > 160 {
+			final = "..." + final[len(final)-160:]
+		}
+		t.Errorf("177236 CA-315: git escribio %d bytes de avisos antes de la causa: la nota acotada trae igual la linea %q, y no la trae (mide %d bytes, termina en %q)",
+			len(stderr), fatal, len(d.Note), final)
+	}
+}
+
+// Guarda del hallazgo 20261014T153137_177236. CA-315: con un stderr CHICO (un
+// solo "fatal:"), la nota del diff que fallo es la de siempre: "git diff
+// main...HEAD fallo: " y el stderr de git tal cual, entero y sin nada
+// agregado. Acotar lo grande no cambia lo chico. Dos fallos de git: tarde (el
+// xfuncname invalido de 57c18a, caso C) y temprano (el funcname invalido sin
+// el archivo grande, caso D).
+func TestHallazgo_177236_GuardaConPocoStderrLaNotaEsElTextoDeGit(t *testing.T) {
+	for _, caso := range []struct {
+		nombre string
+		c      ftCaso
+	}{{"tarde", ftXfuncnameRoto}, {"temprano", ftFuncnameRotoChico}} {
+		t.Run(caso.nombre, func(t *testing.T) {
+			dir := ftRepo(t, caso.c)
+			_, stderr, code := ftGitDiff(t, dir, "main", "--no-textconv")
+			if code == 0 || !strings.HasPrefix(stderr, "fatal:") || strings.Count(stderr, "\n") != 1 {
+				t.Fatalf("fixture: git diff main...HEAD falla con un stderr chico de una sola linea fatal: exit=%d %q", code, stderr)
+			}
+			d, err := BranchDiff(dir, "main", ftMax)
+			if err != nil || d.Available {
+				t.Fatalf("177236 CA-315: git fallo: error nil y available false: err=%v available=%v", err, d.Available)
+			}
+			if quiere := "git diff main...HEAD fallo: " + strings.TrimSpace(stderr); d.Note != quiere {
+				t.Fatalf("177236 CA-315: con poco stderr la nota es la de siempre, el texto de git sin nada agregado:\nquiere %q\nfue    %q", quiere, d.Note)
+			}
+		})
 	}
 }

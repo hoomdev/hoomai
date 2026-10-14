@@ -48,6 +48,14 @@
 //     haber emitido mas de 8 MiB, es un fallo de git y no un corte.
 //   - 20261010T042035_ad88b6 (medium, risk): el <error> de la nota sale del
 //     stderr de git y esta acotado aunque git escriba megas ahi.
+//
+// Y de la review delta 2:
+//
+//   - 20261014T153137_177236 (low, resilience): acotar el <error> no puede
+//     perder la causa. Con megas de avisos de git en stderr antes del
+//     "fatal:", la nota sigue acotada y trae el "fatal:" que git escribio al
+//     final. Como se marca lo que se omite lo decide el writer: estos tests
+//     no lo afirman.
 package boardcmd
 
 import (
@@ -1006,17 +1014,16 @@ func TestHallazgo_dac517_GuardaUnParcheSanoDeMasDe8MiBSigueSiendoUnCorte(t *test
 // git: <error>" cuando git escribe megas en stderr.
 const c2TopeDeLaNota = 128 << 10
 
-// Hallazgo 20261010T042035_ad88b6. historia-doctor-y-cinta CA-359: el <error>
-// de "sin historial de git: <error>" sale del stderr de git, y la rama
-// controla cuanto escribe git ahi. El commit mas nuevo de la tarea trae un
-// .gitattributes con 20000 lineas con un nombre de atributo invalido (git
-// avisa "is not a valid attribute name" por cada una) y un archivo con un
-// xfuncname invalido, para que ademas falle. El fixture mide el stderr real
-// de git log -p de ese rango y exige que pase de 1 MiB. La historia no es un
-// error, la nota esta, y mide menos de 128 KiB: lo que git escriba en stderr
-// no se guarda ni se devuelve entero.
-func TestHallazgo_ad88b6_ElErrorDeLaNotaEstaAcotadoAunqueGitEscribaMegasEnStderr(t *testing.T) {
-	root := bdRepo(t, "")
+// c2HistoriaConStderrEnorme arma la tarjeta "precios" con dos commits de la
+// tarea: el mas viejo agrega el spec y un archivo de test que cita CA-1, y el
+// mas nuevo trae un .gitattributes con 20000 lineas con un nombre de
+// atributo invalido (git avisa "is not a valid attribute name" por cada una)
+// y un archivo con un xfuncname invalido en la config local, para que ademas
+// falle. Mide el stderr real de git log -p de ese rango, exige que falle con
+// "fatal:" y que pase de 1 MiB, y devuelve el proyecto y ese stderr.
+func c2HistoriaConStderrEnorme(t *testing.T) (root, stderr string) {
+	t.Helper()
+	root = bdRepo(t, "")
 	d0 := time.Date(2026, 9, 22, 6, 0, 0, 0, time.UTC)
 	h := func(n int) time.Time { return d0.Add(time.Duration(n) * time.Hour) }
 	bdItemArchivo(t, root, bdSlug, "Precios", "")
@@ -1039,6 +1046,20 @@ func TestHallazgo_ad88b6_ElErrorDeLaNotaEstaAcotadoAunqueGitEscribaMegasEnStderr
 	if code == 0 || !strings.Contains(stderr, "fatal:") || len(stderr) <= 1<<20 {
 		t.Fatalf("fixture: en esta maquina git log -p main..HEAD falla con fatal: y escribe mas de 1 MiB en stderr: exit=%d, stderr de %d bytes", code, len(stderr))
 	}
+	return root, stderr
+}
+
+// Hallazgo 20261010T042035_ad88b6. historia-doctor-y-cinta CA-359: el <error>
+// de "sin historial de git: <error>" sale del stderr de git, y la rama
+// controla cuanto escribe git ahi. El commit mas nuevo de la tarea trae un
+// .gitattributes con 20000 lineas con un nombre de atributo invalido (git
+// avisa "is not a valid attribute name" por cada una) y un archivo con un
+// xfuncname invalido, para que ademas falle. El fixture mide el stderr real
+// de git log -p de ese rango y exige que pase de 1 MiB. La historia no es un
+// error, la nota esta, y mide menos de 128 KiB: lo que git escriba en stderr
+// no se guarda ni se devuelve entero.
+func TestHallazgo_ad88b6_ElErrorDeLaNotaEstaAcotadoAunqueGitEscribaMegasEnStderr(t *testing.T) {
+	root, stderr := c2HistoriaConStderrEnorme(t)
 
 	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
 	if err != nil {
@@ -1054,5 +1075,41 @@ func TestHallazgo_ad88b6_ElErrorDeLaNotaEstaAcotadoAunqueGitEscribaMegasEnStderr
 	if len(notas[0]) >= c2TopeDeLaNota {
 		t.Errorf("ad88b6 CA-359: git escribio %d bytes en stderr: la nota %q<error> esta acotada (menos de %d bytes), mide %d",
 			len(stderr), NoteSinGitPrefijo, c2TopeDeLaNota, len(notas[0]))
+	}
+}
+
+// Hallazgo 20261014T153137_177236. historia-doctor-y-cinta CA-359 ("si git
+// falla ... notes dice sin historial de git: <error>"): el <error> son las
+// palabras de git, acotadas, y acotarlas no puede perder la causa. Con el
+// fixture de ad88b6 (mas de 1 MiB de avisos de atributos invalidos en stderr
+// y despues el "fatal:" del xfuncname invalido), la historia no es un error,
+// la nota "sin historial de git: " esta UNA vez, mide menos de 128 KiB y
+// trae la linea "fatal:" que git escribio al final del stderr real. Como se
+// marca lo que se omite no se afirma.
+func TestHallazgo_177236_LaNotaDeLaHistoriaConservaElFatalDeGit(t *testing.T) {
+	root, stderr := c2HistoriaConStderrEnorme(t)
+	fatal := c2Fatal(stderr)
+	if fatal == "" || !strings.HasSuffix(strings.TrimSpace(stderr), fatal) {
+		t.Fatalf("fixture: el stderr de git termina con su linea fatal: (la causa, despues de los avisos): %q", fatal)
+	}
+
+	tl, err := TimelineFor(root, "main", "high", bdSlug, hiAhora)
+	if err != nil {
+		t.Fatalf("177236 CA-359: si git falla la historia no es un error (lo dice notes): %v", err)
+	}
+	notas := c2NotasSinGit(tl)
+	if len(notas) != 1 {
+		t.Fatalf("177236 CA-359: git fallo: notes trae UNA nota %q<error>, trajo %d", NoteSinGitPrefijo, len(notas))
+	}
+	if len(notas[0]) >= c2TopeDeLaNota {
+		t.Errorf("177236 CA-359: la nota sigue acotada (menos de %d bytes), mide %d", c2TopeDeLaNota, len(notas[0]))
+	}
+	if !strings.Contains(notas[0], fatal) {
+		final := notas[0]
+		if len(final) > 160 {
+			final = "..." + final[len(final)-160:]
+		}
+		t.Errorf("177236 CA-359: git escribio %d bytes de avisos antes de la causa: la nota acotada trae igual la linea %q, y no la trae (mide %d bytes, termina en %q)",
+			len(stderr), fatal, len(notas[0]), final)
 	}
 }
