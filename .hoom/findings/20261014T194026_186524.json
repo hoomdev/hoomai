@@ -1,0 +1,11 @@
+{
+  "id": "20261014T194026_186524",
+  "created_at": "2026-10-14T19:40:26.762639Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO por C3 (lo encontro el refutador de la review de C3, mitad 1, fuera de la lista; lo registra el writer): Guardar no maneja un rename en el indice. boardcmd.porcelain (gather.go, al leer 'git status --porcelain -z') se salta el campo del origen de un rename, asi que despues de 'git mv app.go movido.go' unsynced solo trae movido.go: Guardar commitea movido.go y dice que guardo, pero el borrado de app.go queda en el indice y la tarjeta sigue con cambios sin guardar. Descartar si maneja los origenes (taskcmd devuelve tambien el origen). Reproducido en ece9882, a9a3eeb y e17c4a6. CA-344: 'Despues, unsynced esta vacio'.",
+  "author": "refutador@claude",
+  "fingerprint": "120cc17251989a0c",
+  "task": "fixes-cabina-c3"
+}
