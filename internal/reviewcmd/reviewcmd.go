@@ -293,15 +293,19 @@ func prepararRevision(root, base string, opt Options) (dir string, baseSHA strin
 		err = gitx.ArbolSucio{Ruta: ruta}
 		return
 	}
+	// the task tree's base_branch, said and never obeyed (CA-430)
+	baseDeLaRama := ""
 	m, err := manifest.Load(dir, profiles.Resolve)
-	var ajena manifest.BaseBranchInvalida
-	if err != nil && opt.Task != "" && errors.As(err, &ajena) {
-		// the task branch's base_branch is said and never obeyed (CA-430),
-		// so one that git would read as an option (bb986a) does not stop the
-		// review either: it never reaches git (finding f3e283)
-		m, err = &manifest.Manifest{BaseBranch: ajena.Valor}, nil
-	}
-	if err != nil {
+	var invalida manifest.BaseBranchInvalida
+	switch {
+	case err == nil:
+		baseDeLaRama = m.BaseBranch
+	case opt.Task != "" && errors.As(err, &invalida):
+		// Load found the rest of hoom.yaml valid; a base_branch that git
+		// would read as an option (bb986a) is said like any other and never
+		// reaches git either (findings f3e283 and 173dde)
+		baseDeLaRama, err = invalida.Valor, nil
+	default:
 		return
 	}
 	// The base is the project's — the one Run receives from the tree hoom
@@ -342,8 +346,8 @@ func prepararRevision(root, base string, opt Options) (dir string, baseSHA strin
 		return
 	}
 	aviso := ""
-	if opt.Task != "" && m.BaseBranch != "" && m.BaseBranch != baseNombre {
-		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", mostrable(m.BaseBranch), baseNombre, origen)
+	if opt.Task != "" && baseDeLaRama != "" && baseDeLaRama != baseNombre {
+		aviso = fmt.Sprintf("el hoom.yaml de la rama dice base_branch %s: la review usa %s, %s", mostrable(baseDeLaRama), baseNombre, origen)
 	}
 	if err = gitx.VerificarBase(dir, baseSHA); err != nil {
 		return

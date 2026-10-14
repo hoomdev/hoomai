@@ -278,8 +278,9 @@ func (m *Manifest) validateFindings() error {
 // option. The value ends up as a revision argument of git (`<base>...HEAD`),
 // and a name starting with "-" is never a branch: `--output=<path>` made a
 // plain read create or truncate that path (finding bb986a). Load refuses that
-// hoom.yaml; a caller that only reports another tree's base_branch can tell
-// this error apart with errors.As (finding f3e283).
+// hoom.yaml, and checks it after everything else, so this error also says the
+// rest of the file is valid: a caller that only reports another tree's
+// base_branch can tell it apart with errors.As (findings f3e283 and 173dde).
 type BaseBranchInvalida struct{ Valor string }
 
 func (e BaseBranchInvalida) Error() string {
@@ -367,9 +368,6 @@ func Load(dir string, resolveProfile func(name string) (map[string]Gate, string,
 	if err := m.validateReview(); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	if err := m.validateBaseBranch(); err != nil {
-		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
-	}
 	if m.BaseBranch == "" {
 		m.BaseBranch = DefaultBase
 	}
@@ -395,6 +393,10 @@ func Load(dir string, resolveProfile func(name string) (map[string]Gate, string,
 	}
 	if len(m.Gates) == 0 {
 		return nil, fmt.Errorf("hoom.yaml no declara gates y el perfil %q no aporta ninguno", m.Profile)
+	}
+	// last: its error says the rest of hoom.yaml is valid (finding 173dde)
+	if err := m.validateBaseBranch(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	return &m, nil
 }
