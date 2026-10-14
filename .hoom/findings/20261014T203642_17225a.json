@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203642_17225a",
+  "created_at": "2026-10-14T20:36:42.238835Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO: internal/servecmd/acciones.go:252 selecciona entre ready y done sin registrar si Started ya ocurrio. Si el goroutine alcanza onStart y termina antes de que el handler ejecute el select, ambos canales quedan listos y Go puede elegir done: se devuelve 409 y se borra el .log aunque el sobre ya existe y corrio. El cliente puede reintentar y duplicar trabajo/costo. El resultado de done debe distinguir que Started ocurrio (o cerrar ready de forma que el primer registro gane siempre).",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

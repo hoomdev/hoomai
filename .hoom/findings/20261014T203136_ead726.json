@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203136_ead726",
+  "created_at": "2026-10-14T20:31:36.049046Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO — internal/item/item.go:398-416 implementa AddSession como read-modify-write sin lock ni comparacion de la version leida. El endpoint session puede correr a la vez que task done o una edicion humana; AddSession y MarkDone pueden escribir snapshots obsoletos y perder sesiones, hecho_en o commit_final. Perder sesiones tambien degrada la exclusion del writer declarado en review. La actualizacion del item necesita CAS o un lock compartido con las demas escrituras.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

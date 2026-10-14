@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203738_933c74",
+  "created_at": "2026-10-14T20:37:38.804548Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/servecmd/ui/acciones.js",
+  "description": "INTRODUCIDO: internal/servecmd/ui/acciones.js:259-262 implementa el enlace 'Leer el spec' solo con abrirDetalle(c.slug), pero abrirDetalle conserva tb.pane. Si la persona dejo el detalle en Quien o Pruebas, el enlace del dialogo Aprobar vuelve a esa pestaña en vez de abrir Que como exige el flujo, por lo que no muestra el spec que se va a firmar. Debe seleccionar explicitamente la pestaña data-pane=que.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

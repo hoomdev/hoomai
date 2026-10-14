@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203828_5d64ca",
+  "created_at": "2026-10-14T20:38:28.304586Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:363-365 trata cualquier error de item.Load igual que 'sin sesiones'. Si el item existe pero queda ilegible/invalido y declaraba una sesion del provider elegido, la review olvida ese writer declarado y puede marcarla cruzada o desconocida y ejecutarla con el mismo provider, rompiendo la restriccion de review cruzada. Solo item inexistente puede equivaler a []; los errores de lectura/parseo deben detener la review (fail closed).",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

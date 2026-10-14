@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203055_2c5073",
+  "created_at": "2026-10-14T20:30:55.830112Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:280 crea y arranca primero la sesion tmux y solo declara al writer en el item en 287-289. Si split-window falla, Open retorna antes de AddSession; si AddSession falla, la sesion tambien queda viva. En ambos casos la CLI de IA puede modificar el arbol pero el provider no queda declarado, y una reapertura ve created=false y no reintenta el registro, permitiendo que una review del mismo provider sea tratada como cruzada o desconocida. La creacion debe cerrar o registrar conservadoramente la sesion en toda falla parcial.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

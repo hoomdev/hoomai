@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203056_9e2b00",
+  "created_at": "2026-10-14T20:30:56.079925Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:363-365 convierte cualquier error al leer o parsear el item en writers_declared vacio y la review continua. Si el item que contiene sesiones declaradas queda ilegible o invalido, el mismo provider puede ser elegido y, sin writer observado, la review corre como desconocida en vez de negarse por no-cruzada. La decision de separacion de providers falla abierta; un item existente que no se pueda validar debe abortar la review.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

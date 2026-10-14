@@ -1,0 +1,11 @@
+{
+  "id": "20261014T204421_0cf41f",
+  "created_at": "2026-10-14T20:44:21.47656Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO: internal/servecmd/acciones.go:135-147 mantiene launching[slug] hasta que el handler retorna y 252-268 espera solo ready o done, sin observar r.Context ni tener timeout. reviewcmd.Run ejecuta varias lecturas de Git antes de llamar Started (internal/reviewcmd/reviewcmd.go:174-223; gitx.Snapshot usa exec.Command sin contexto), y taskcmd.Start tambien ocurre bajo ese candado. Si uno de esos procesos/lecturas se cuelga antes del primer registro, cancelar el HTTP no libera el handler ni el slot: toda accion posterior de esa tarjeta recibe 'ya se esta lanzando' indefinidamente hasta reiniciar hoom serve. El handshake previo al registro necesita cancelacion/plazo y liberar de forma segura el slot.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}
