@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T164806_a51efa",
+  "as": "corregido",
+  "evidence": "Corregido en 390ea39: prepararRevision lleva el base_branch de la rama en la variable baseDeLaRama (de m.BaseBranch si Load anda, de BaseBranchInvalida.Valor si no) y ya no arma un Manifest a medias; m solo existe como el resultado de Load. El refutador confirmo que m no se usaba para nada mas que el aviso, asi que el comportamiento no cambia: lo fijan los nueve TestCA430_* y los dos TestHallazgo_173dde_*, verdes. Suite entera verde sobre 6ca7cf2.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T17:00:41.749475Z"
+}
