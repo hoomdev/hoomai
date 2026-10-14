@@ -1,0 +1,11 @@
+{
+  "id": "20261014T153137_177236",
+  "created_at": "2026-10-14T15:31:37.723118Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO: internal/boardcmd/timeline.go:774 hace que los fallos de git log usen el capped de internal/gitx/diff.go:470; ese writer conserva solo los primeros 64 KiB y descarta el resto sin marca (internal/gitx/diff.go:279-300). Si git emite muchas advertencias antes de la causa final —justamente el fixture nuevo genera mas de 1 MiB antes del fatal— la nota sin historial puede omitir el fatal o acabar a mitad de linea sin avisar que fue truncada. La unica pista de recuperacion queda engañosamente incompleta; conviene conservar tambien la cola o indicar explicitamente el truncamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "1226e9d6125322bf",
+  "task": "fixes-cabina-c2"
+}

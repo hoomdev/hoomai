@@ -1,0 +1,11 @@
+{
+  "id": "20261014T152648_5c5440",
+  "created_at": "2026-10-14T15:26:48.300417Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO: internal/boardcmd/timeline.go:774 pasa la lectura del parche de la tarea a gitx.OutPrefix; cuando supera TimelinePatchMax, internal/gitx/diff.go:484 drena sin limite todo el stdout antes de esperar a git. Por eso el supuesto corte de 8 MiB limita lo retenido pero no CPU, E/S ni duracion: un repo con un parche de texto arbitrariamente grande hace que cada GET abierto de /api/board/{slug}/timeline mantenga un git y la solicitud trabajando hasta consumir el parche completo, y solicitudes concurrentes lo amplifican. Hace falta conservar la deteccion de fallo tardio con un limite explicito de tiempo/trabajo, sin tratar como exito completo lo que quede mas alla de ese limite.",
+  "author": "reviewer@codex",
+  "fingerprint": "1226e9d6125322bf",
+  "task": "fixes-cabina-c2"
+}
