@@ -274,6 +274,18 @@ func (m *Manifest) validateFindings() error {
 		*m.Findings.BlockOn, strings.Join(Severities, "|"))
 }
 
+// validateBaseBranch refuses a base_branch that git would read as an option.
+// The value ends up as a revision argument of git (`<base>...HEAD`), and a
+// name starting with "-" is never a branch: `--output=<path>` made a plain
+// read create or truncate that path (finding bb986a). The same rule
+// gitx.ResolverCommit applies to --base.
+func (m *Manifest) validateBaseBranch() error {
+	if strings.HasPrefix(m.BaseBranch, "-") {
+		return fmt.Errorf("base_branch invalido %q: el nombre de una rama no empieza con \"-\"", m.BaseBranch)
+	}
+	return nil
+}
+
 // canonical execution order for well-known gates; unknown gates go last, alphabetical.
 var gateOrder = []string{"build", "lint", "static", "security", "arch", "compose_lint", "compose_metrics", "test", "mutation"}
 
@@ -323,8 +335,25 @@ func Find(dir string) (string, error) {
 }
 
 // Load reads hoom.yaml from dir and resolves profile inheritance using the
-// provided resolver (injected to avoid an import cycle with profiles).
+// provided resolver (injected to avoid an import cycle with profiles). Its
+// base_branch is the base hoom hands to git, so one that git would read as an
+// option makes the file invalid (finding bb986a).
 func Load(dir string, resolveProfile func(name string) (map[string]Gate, string, error)) (*Manifest, error) {
+	m, err := LoadWithoutBaseCheck(dir, resolveProfile)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.validateBaseBranch(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	return m, nil
+}
+
+// LoadWithoutBaseCheck is Load for a hoom.yaml whose base_branch hoom only
+// shows and never hands to git: the task branch's, which the review reads to
+// say it does not obey it (CA-430). Every other rule of Load applies
+// (findings f3e283, 173dde and 461d05).
+func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[string]Gate, string, error)) (*Manifest, error) {
 	root, err := Find(dir)
 	if err != nil {
 		return nil, err

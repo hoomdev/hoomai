@@ -293,7 +293,13 @@ func prepararRevision(root, base string, opt Options) (dir string, baseSHA strin
 		err = gitx.ArbolSucio{Ruta: ruta}
 		return
 	}
-	m, err := manifest.Load(dir, profiles.Resolve)
+	load := manifest.Load
+	if opt.Task != "" {
+		// the task tree's base_branch is said, never obeyed and never handed
+		// to git (CA-430), so it is not checked as a base (finding f3e283)
+		load = manifest.LoadWithoutBaseCheck
+	}
+	m, err := load(dir, profiles.Resolve)
 	if err != nil {
 		return
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
-	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -185,12 +184,15 @@ func criteriaOf(specAbs string, ev Evidence, t *tree) []CriterionTrace {
 }
 
 // workOf lists what ran for the card: one row per envelope, and one per run
-// no envelope references. The usage of each row follows the rule of spend,
-// so the rows add up to exactly the card's spend.
+// no envelope references. The usage of each row is the one spend adds up
+// (runUsages), so the rows add up to exactly the card's spend.
 func workOf(ev Evidence) []WorkRow {
-	sidecars := map[string]runcmd.Meta{}
-	for _, r := range ev.Runs {
-		sidecars[r.Meta.ID] = r.Meta
+	usages := runUsages(ev)
+	ofEnvelope := map[int]*providers.Usage{}
+	for _, c := range usages {
+		if c.envelope >= 0 {
+			ofEnvelope[c.envelope] = c.usage
+		}
 	}
 	since := func(from, to time.Time) *int64 {
 		ms := to.Sub(from).Milliseconds()
@@ -200,20 +202,11 @@ func workOf(ev Evidence) []WorkRow {
 		return &ms
 	}
 	rows := []WorkRow{}
-	referenced := map[string]bool{}
-	for _, e := range ev.Envelopes {
+	for i, e := range ev.Envelopes {
 		rec := e.Record
 		row := WorkRow{Kind: WorkSobre, ID: rec.ID, RunID: rec.RunID, Role: rec.Role, Provider: rec.Provider,
 			Status: rec.Status, Stage: rec.Stage, Step: rec.Step, Steps: rec.Steps, Isolated: rec.Isolated,
-			StartedAt: rec.StartedAt, Alive: e.Alive, Note: rec.Note}
-		if rec.RunID != "" && !referenced[rec.RunID] {
-			referenced[rec.RunID] = true
-			if m, ok := sidecars[rec.RunID]; ok {
-				row.Usage = m.Usage
-			} else {
-				row.Usage = rec.Usage
-			}
-		}
+			StartedAt: rec.StartedAt, Alive: e.Alive, Note: rec.Note, Usage: ofEnvelope[i]}
 		switch {
 		case rec.Done():
 			if !rec.EndedAt.IsZero() {
@@ -228,13 +221,14 @@ func workOf(ev Evidence) []WorkRow {
 		}
 		rows = append(rows, row)
 	}
-	for _, r := range ev.Runs {
-		m := r.Meta
-		if referenced[m.ID] {
+	for _, c := range usages {
+		if c.envelope >= 0 {
 			continue
 		}
+		r := ev.Runs[c.run]
+		m := r.Meta
 		row := WorkRow{Kind: WorkRun, ID: m.ID, Role: m.Role, Provider: m.Provider, Status: m.Status,
-			Isolated: m.Isolated, StartedAt: m.CreatedAt, Alive: r.Alive, Usage: m.Usage}
+			Isolated: m.Isolated, StartedAt: m.CreatedAt, Alive: r.Alive, Usage: c.usage}
 		switch {
 		case !m.EndedAt.IsZero():
 			end := m.EndedAt

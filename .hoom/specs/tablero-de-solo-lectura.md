@@ -1,6 +1,18 @@
 # Spec: tablero de solo lectura en el Studio (cabina visual, C2)
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión aprobada
+(sha256 67627da7) está implementada e integrada (PR 23). Su review de 4
+lentes, corrida el 2026-10-09 sobre el rango ya mergeado, dejó cuatro
+hallazgos que tocan el contrato, y Henry decidió cada uno. La enmienda 1 dice
+que (a) el nombre de la rama base nunca se lee como una opción de git y el
+diff del detalle no ejecuta programas externos; (b) el nombre de un gate se
+muestra como el proyecto lo escribió, también en el modo normal; (c) `HEAD`
+se atiende como `GET`. Precisa CA-315 y CA-318 y no agrega criterios. Toca
+tests de otro hallazgo: los tres de `57c18a` que provocaban el fallo tardío
+de git con un `textconv` roto pasan a provocarlo de otra manera, sin cambiar
+lo que afirman.
+
+Historia: aprobada el 2026-09-23 (sha256 67627da7).
 Depende de: `items-y-columna-derivada.md` (C1) integrada.
 Tarea sugerida: `hoom task start tablero-de-solo-lectura`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 2 de 4, "C2 — Tablero
@@ -120,8 +132,12 @@ existe y vale hoy:
 
 Nunca vacío. Sin acentos, como toda cadena del binario. Nunca contiene las
 palabras `git`, `commit`, `worktree`, `merge`, `rama`, `branch`, `diff`,
-`HEAD` ni `huella`, ni `.hoom/`, ni un comando `hoom `. Es la primera entrada
-de `missing` dicha con el vocabulario del RFC v2:
+`HEAD` ni `huella`, ni `.hoom/`, ni un comando `hoom `. La única excepción es
+el nombre de un gate: se muestra como el proyecto lo escribió en su
+`hoom.yaml`, igual que el contenido del spec y de los criterios, así que un
+gate llamado `git-secrets` que falla da `la verificacion dio rojo: fallo el
+gate git-secrets`. Es la primera entrada de `missing` dicha con el
+vocabulario del RFC v2:
 
 | columna | caso | `plain` |
 |---|---|---|
@@ -285,7 +301,12 @@ bool) (Detail, error)` lee con el mismo `Gather`, falla igual que `CardFor`
   ```
 
   Con el worktree de la tarea: `git diff --no-color --no-ext-diff
-  <base>...HEAD` y su `--numstat`, en el worktree. Lo sin commitear no entra
+  --no-textconv --end-of-options <base>...HEAD` y su `--numstat`, en el
+  worktree. Ninguno de los dos ejecuta un programa externo: ni un diff
+  externo ni un `textconv` de la configuración local de git. Y `<base>` nunca
+  se lee como una opción de git: va después de `--end-of-options`, y un
+  `hoom.yaml` cuyo `base_branch` empieza con `-` es inválido y no se carga
+  (`manifest.Load` falla nombrándolo). Lo sin commitear no entra
   (lo muestra `unsynced`). El parche se corta en 256 KiB en un fin de línea y
   `truncated` pasa a `true`. Sin worktree: `available: false` y `note: "sin
   espacio de trabajo de la tarea: no hay diff base...HEAD que mostrar"`. Si
@@ -302,8 +323,10 @@ bool) (Detail, error)` lee con el mismo `Gather`, falla igual que `CardFor`
   400 JSON. Item inexistente o inválido es 404 JSON con el mensaje de
   `CardFor`. Si no, 200 con el `Detail`. `?diff=1` pide el diff.
 - Los dos son lecturas: sin token, como el resto de las lecturas del Studio.
-  Cualquier otro método es 405 y no tiene efectos. Ninguno crea ni modifica un
-  archivo del repo ni de `.hoom/`.
+  `HEAD` se atiende como `GET`: es una lectura y así lo hace la biblioteca
+  estándar. Cualquier otro método (`POST`, `PUT`, `PATCH`, `DELETE`) es 405 y
+  no tiene efectos. Ninguno crea ni modifica un archivo del repo ni de
+  `.hoom/`.
 
 ### La UI
 
@@ -458,10 +481,10 @@ bool) (Detail, error)` lee con el mismo `Gather`, falla igual que `CardFor`
 - CA-312: `spec.IndexTokens` guarda por token entero los archivos de test que lo citan (un token no coincide dentro de otro con más dígitos), con el mismo filtro de archivos de hoy. `spec.Tokens` da el mismo resultado que antes, y los tests existentes de `spec.Tokens` y `spec.Trace` pasan sin cambios.
 - CA-313: `DetailFor` devuelve una `card` igual (igualdad profunda) a la de `CardFor` para el mismo slug. `spec` trae el markdown y la aprobación vigente. `criteria` trae `text`, `traced_by` (`test`, `comando` o vacío) y `files`. `verdict` es el veredicto completo de la tarjeta. `findings` trae los de la tarjeta abiertos y resueltos (con su resolución), y ninguno de otra tarea ni sin tarea. `paths` nombra rutas relativas a `root` que existen en disco.
 - CA-314: `work` trae una fila por sobre de la tarjeta y una por run de la tarjeta que ningún sobre referencia, del más nuevo al más viejo. El `usage` sigue la regla del contrato, y la suma de `cost_usd` y de los tokens de las filas es igual a `card.spend` (costo `null` si ninguna fila trae costo). `duration_ms` cumple los cuatro casos del contrato, y `alive` coincide con lo que resolvió `Gather`.
-- CA-315: sin `withDiff` el detalle no trae `diff`. Con worktree trae `base...HEAD` con archivos, inserciones, borrados, `head` y parche, sin los cambios sin commitear, y un parche de más de 256 KiB se corta con `truncated: true`. Sin worktree, `available: false` con la nota del contrato.
+- CA-315: sin `withDiff` el detalle no trae `diff`. Con worktree trae `base...HEAD` con archivos, inserciones, borrados, `head` y parche, sin los cambios sin commitear, y un parche de más de 256 KiB se corta con `truncated: true`. Sin worktree, `available: false` con la nota del contrato. El diff no ejecuta un `textconv` de la configuración local de git.
 - CA-316: `GET /api/board` emite los mismos bytes que `boardcmd.JSONBytes(boardcmd.Build(...))` sobre el mismo árbol, que es lo que imprime `hoom board --json`. Con fixtures de C1 para backlog, tu-aprobacion, test-writer, writer, review y hecho, cada tarjeta está en su columna, `human` es `true` solo en las dos humanas y un item inválido aparece en `warnings`. Cada test cita el criterio de C1 que fija la columna de su fixture.
 - CA-317: `GET /api/board/{slug}` responde 200 con el detalle, y su `card` es igual a la de `hoom item show <slug> --json`. Un slug inválido es 400 JSON, un item inexistente es 404 JSON con el mensaje de `CardFor`, y `?diff=1` agrega `diff`.
-- CA-318: `POST`, `PUT`, `PATCH` y `DELETE` sobre `/api/board` y `/api/board/{slug}` responden 405, con token o sin él. Los `GET` no piden token. Pedir el tablero y el detalle (con diff) deja el repo y `.hoom/` byte a byte iguales, ignorados incluidos.
+- CA-318: `POST`, `PUT`, `PATCH` y `DELETE` sobre `/api/board` y `/api/board/{slug}` responden 405, con token o sin él. Los `GET` no piden token. Pedir el tablero y el detalle (con diff) deja el repo y `.hoom/` byte a byte iguales, ignorados incluidos. `HEAD` responde como `GET`. Un `hoom.yaml` cuyo `base_branch` empieza con `-` no se carga, y ninguna lectura de `gitx` con una base así crea ni trunca un archivo.
 - CA-319: `index.html` tiene las pestañas Cockpit y Tablero y carga `tablero.js`, que se sirve embebido (`GET /tablero.js` es 200), y el test de UI sin assets de red pasa sobre los dos archivos. `index.html` define `--human`. `tablero.js` pinta las columnas desde `columns` y usa `human`, `needs_decision`, `meter`, `plain` y `providers`. `renderStage` y `appendFeed` reciben su contenedor, y `tablero.js` los reusa sin definir los suyos.
 - CA-320: la pestaña Tablero no emite ningún POST: `tablero.js` no contiene `act(`, `POST`, `method`, `fetch(`, `XMLHttpRequest`, `sendBeacon`, `X-Hoom-Token`, `draggable`, `dragstart`, `drop` ni `<form`. Cada literal `/api/` de `tablero.js` es `/api/board`, `/api/board/` o `/api/runs/`, y un GET a cada uno no es 405. La función `j` de `index.html` llama a `fetch` sin opciones.
 - CA-321: `tablero.js` guarda el modo en `localStorage` con la clave `hoom-tablero-modo` y los valores `normal` y `experto`, dentro de `try/catch`. El bloque del vocabulario normal contiene "espacio de trabajo", "integrar" y "guardar", y no contiene `git`, `commit`, `worktree`, `merge`, `rama`, `branch`, `diff`, `HEAD` ni `huella`. El filtro se llama "Necesitan tu decisión" y filtra por `needs_decision`.
@@ -524,6 +547,22 @@ bool) (Detail, error)` lee con el mismo `Gather`, falla igual que `CardFor`
   C3 para tener una columna destino. La curva queda en el roadmap.
 - **El filtro no se recuerda y el modo sí.** El modo es una preferencia de la
   persona. El filtro es una pregunta del momento.
+- **La base nunca es una opción de git, y el diff no ejecuta nada (enmienda
+  1).** El `base_branch` llegaba sin validar a `git diff <base>...HEAD`: con
+  `--output=<ruta>` una lectura creaba o truncaba un archivo (hallazgo
+  `bb986a`), y lo mismo pasaba en la foto del árbol. Ahora el manifest lo
+  rechaza y git lo recibe después de `--end-of-options`. `--no-textconv`
+  sigue la misma razón que `--no-ext-diff` (hallazgo `43bde9`): una lectura
+  no ejecuta programas configurables.
+- **El nombre de un gate se muestra como está escrito (enmienda 1).** La
+  tabla de `plain` mandaba nombrar el gate que falló y la regla del
+  vocabulario prohibía palabras que un nombre de gate puede traer
+  (`git-secrets`, `commit-lint`). Se resolvió a favor del nombre: es dato
+  del proyecto, y callarlo esconde qué falló (hallazgo `12f52d`).
+- **`HEAD` se atiende como `GET` (enmienda 1).** `net/http` responde `HEAD`
+  en toda ruta registrada con `GET`, en todo el Studio. Es una lectura sin
+  efectos, y rechazarla era ir contra la biblioteca para no ganar nada
+  (hallazgo `146964`).
 
 ## Riesgos y deuda aceptada
 

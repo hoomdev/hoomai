@@ -460,36 +460,80 @@ func endOf(r envelope.Record) time.Time {
 	return r.UpdatedAt
 }
 
-// spend adds up the card's runs, plus every envelope whose run has no sidecar
-// (so nothing is counted twice). A cost nobody reported stays nil.
+// runUsage is one run of the card with the usage that counts for it.
+type runUsage struct {
+	envelope int              // index in ev.Envelopes of the envelope whose row carries it; -1: no envelope references the run
+	run      int              // index in ev.Runs of its sidecar; -1: it has none, only the envelope knows the run
+	usage    *providers.Usage // the sidecar's when there is one, the envelope's otherwise; countedUsage applied
+}
+
+// runUsages is the ONE rule of which usage counts for a card, and on which
+// row: every run exactly once — on the first envelope that references it,
+// with the usage of its sidecar when it has one and the envelope's own
+// otherwise, or on a row of its own when no envelope references it. workOf
+// shows it and spend adds it up, both from this list, so the rows always add
+// up to the card's spend (CA-314). They used to be two walks of the same
+// rule, and they drifted: only spend learned that an invalid cost does not
+// count (finding 08ae7d).
+func runUsages(ev Evidence) []runUsage {
+	sidecar := map[string]int{}
+	for i, r := range ev.Runs {
+		sidecar[r.Meta.ID] = i
+	}
+	var out []runUsage
+	referenced := map[string]bool{}
+	for i, e := range ev.Envelopes {
+		id := e.Record.RunID
+		if id == "" || referenced[id] {
+			continue
+		}
+		referenced[id] = true
+		if j, ok := sidecar[id]; ok {
+			out = append(out, runUsage{envelope: i, run: j, usage: countedUsage(ev.Runs[j].Meta.Usage)})
+		} else {
+			out = append(out, runUsage{envelope: i, run: -1, usage: countedUsage(e.Record.Usage)})
+		}
+	}
+	for j, r := range ev.Runs {
+		if !referenced[r.Meta.ID] {
+			out = append(out, runUsage{envelope: -1, run: j, usage: countedUsage(r.Meta.Usage)})
+		}
+	}
+	return out
+}
+
+// countedUsage is u as it counts and as it shows: a cost no provider reports
+// (negative, NaN, infinite) is a sidecar someone edited. It never gives
+// budget back, so it is no cost at all; the tokens stay.
+func countedUsage(u *providers.Usage) *providers.Usage {
+	if u == nil || u.CostUSD == nil {
+		return u
+	}
+	if c := *u.CostUSD; c < 0 || math.IsNaN(c) || math.IsInf(c, 0) {
+		sin := *u
+		sin.CostUSD = nil
+		return &sin
+	}
+	return u
+}
+
+// spend adds up the usage of every run of the card (runUsages: each run
+// once, so nothing is counted twice). A cost nobody reported stays nil.
 func spend(ev Evidence) Spend {
 	s := Spend{BudgetUSD: ev.Item.PresupuestoUSD}
 	var total float64
 	reported := false
-	add := func(u *providers.Usage) {
+	for _, c := range runUsages(ev) {
 		s.Runs++
-		// a cost no provider reports (negative, NaN, infinite) is a sidecar
-		// someone edited: it never gives budget back, so it counts as none
-		if u == nil || u.CostUSD == nil || *u.CostUSD < 0 || math.IsNaN(*u.CostUSD) || math.IsInf(*u.CostUSD, 0) {
+		if c.usage == nil || c.usage.CostUSD == nil {
 			s.RunsWithoutCost++
 		} else {
-			total += *u.CostUSD
+			total += *c.usage.CostUSD
 			reported = true
 		}
-		if u != nil {
-			s.InputTokens += u.InputTokens
-			s.OutputTokens += u.OutputTokens
-		}
-	}
-	seen := map[string]bool{}
-	for _, r := range ev.Runs {
-		seen[r.Meta.ID] = true
-		add(r.Meta.Usage)
-	}
-	for _, e := range ev.Envelopes {
-		if id := e.Record.RunID; id != "" && !seen[id] {
-			seen[id] = true
-			add(e.Record.Usage)
+		if c.usage != nil {
+			s.InputTokens += c.usage.InputTokens
+			s.OutputTokens += c.usage.OutputTokens
 		}
 	}
 	if reported {

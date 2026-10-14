@@ -1,0 +1,11 @@
+{
+  "id": "20261009T191901_af65de",
+  "created_at": "2026-10-09T19:19:01.11639Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/spec/criteria.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo; el refactor lo conserva y el nuevo polling lo vuelve repetible): internal/spec/criteria.go:116-124 valida el tamano con DirEntry.Info sobre el symlink y luego os.ReadFile sigue su destino. Un archivo *_test symlink a un archivo externo salta el tope de 2 MiB; apuntando a /dev/zero puede consumir memoria sin limite en cada GET /api/board. Rechazar symlinks o abrir y leer con un limite real; patronizable con Semgrep custom.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}

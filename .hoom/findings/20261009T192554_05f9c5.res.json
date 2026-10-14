@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T192554_05f9c5",
+  "as": "corregido",
+  "evidence": "28d3ec9 (writer), tests en 3e8f5cf (test-writer). En experto el detalle muestra las rutas de paths que faltaban (item, aprobacion, veredicto, registros de review, hallazgos) y una tabla Reviews con el id de cada registro y lo que cubrio; en normal no cambia. Tests estaticos (CA-313, CA-319): TestHallazgo_05f9c5_TableroLeeLasReviewsDelDetalle y TestHallazgo_05f9c5_ElPintorDeRutasNombraCadaRutaDelContrato; sobre 3de472d fallan. Son acotados, y lo dice el test-writer: no fijan que sea solo en experto ni distinguen las reviews de sus rutas. Por eso el writer lo comprobo ademas a mano en el navegador, con un hoom serve compilado de esta rama en 127.0.0.1:4699: en experto aparecen las lineas item .hoom/items/tablero-de-solo-lectura.yaml, aprobacion .hoom/approvals/tablero-de-solo-lectura_4b85b2ed.json, veredicto .hoom/verdicts/2026-10-08T19-54-27Z_1e364c8b.json, hallazgos (la lista) y registros .hoom/reviews/20261009T193145_007d48.json, y la fila de la review (completa, las 4 lentes, codex); en normal no aparece ninguna de esas lineas ni la seccion Reviews. Limite de la comprobacion manual: el panel del navegador estaba en segundo plano y se forzo document.visibilityState a visible. Gates build, static y test en verde en el veredicto 2026-10-09T20-43-25Z_247ef5be (rojo solo por findings_open, porque bb986a seguia abierto); el gate test corrio con -race gitx, manifest, spec, boardcmd y servecmd.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T20:44:44.209766Z"
+}

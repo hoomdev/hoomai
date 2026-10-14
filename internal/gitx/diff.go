@@ -30,15 +30,26 @@ type DiffFile struct {
 	Deletions  int    `json:"deletions"`
 }
 
+// EndOfOptions goes before every revision that comes from outside (the
+// base_branch of a hoom.yaml, a --base, the commit_final of an item): after
+// it git reads the next argument as a revision, never as an option, so a
+// value like `--output=<path>` is a bad revision instead of a file a read
+// creates or truncates (finding bb986a). manifest.Load already refuses such a
+// base_branch; this is the same guarantee for whoever calls git with a
+// revision of its own.
+const EndOfOptions = "--end-of-options"
+
 // BranchDiff runs `git diff <base>...HEAD` in dir: only what the branch
-// committed, never the working tree. The patch is cut at maxBytes on a line
-// end (Truncated). When git fails, Available is false and Note carries git's
-// own words; the error is reserved for nothing else, so a reader never has to
-// tell the two apart.
+// committed, never the working tree. It is a read, so git runs no program of
+// the local configuration for it: no external diff (--no-ext-diff) and no
+// textconv driver (--no-textconv, finding 43bde9). The patch is cut at
+// maxBytes on a line end (Truncated). When git fails, Available is false and
+// Note carries git's own words; the error is reserved for nothing else, so a
+// reader never has to tell the two apart.
 func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 	d := Diff{Base: base, Files: []DiffFile{}}
 	rng := base + "...HEAD"
-	numstat, err := gitOut(dir, "diff", "--no-color", "--no-ext-diff", "--numstat", rng, "--")
+	numstat, err := gitOut(dir, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--numstat", EndOfOptions, rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil
@@ -55,7 +66,7 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 		d.Insertions += f.Insertions
 		d.Deletions += f.Deletions
 	}
-	patch, truncated, err := gitOutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", rng, "--")
+	patch, truncated, err := OutPrefix(dir, maxBytes, "diff", "--no-color", "--no-ext-diff", "--no-textconv", EndOfOptions, rng, "--")
 	if err != nil {
 		d.Note = "git diff " + rng + " fallo: " + err.Error()
 		return d, nil
@@ -269,35 +280,69 @@ func (e ArbolSucio) Error() string {
 // message, never in proportion to what a repository makes git print.
 const stderrMax = 64 << 10
 
-// capped keeps the first n bytes written to it and drops the rest.
+// capped keeps the first and the last n/2 bytes written to it. git prints
+// the cause of a failure (fatal:) last, after whatever warnings came before,
+// so a long stderr keeps its end too, and String says what was left out
+// (finding 177236). Up to n bytes come back exactly as written.
 type capped struct {
-	b strings.Builder
-	n int
+	head    strings.Builder
+	tail    []byte
+	n       int
+	dropped int
 }
 
 func (c *capped) Write(p []byte) (int, error) {
-	if room := c.n - c.b.Len(); room > 0 {
-		if len(p) > room {
-			c.b.Write(p[:room])
-		} else {
-			c.b.Write(p)
-		}
+	written := len(p)
+	half := c.n / 2
+	if room := half - c.head.Len(); room > 0 {
+		k := min(room, len(p))
+		c.head.Write(p[:k])
+		p = p[k:]
 	}
-	return len(p), nil
+	tailMax := c.n - half
+	if len(p) >= tailMax {
+		c.dropped += len(c.tail) + len(p) - tailMax
+		c.tail = append(c.tail[:0], p[len(p)-tailMax:]...)
+		return written, nil
+	}
+	c.tail = append(c.tail, p...)
+	if over := len(c.tail) - tailMax; over > 0 {
+		c.dropped += over
+		c.tail = append(c.tail[:0], c.tail[over:]...)
+	}
+	return written, nil
 }
 
-func (c *capped) String() string { return c.b.String() }
+func (c *capped) String() string {
+	head, tail := c.head.String(), string(c.tail)
+	if c.dropped == 0 {
+		return head + tail
+	}
+	// what is left out starts and ends on a line break, when there is one
+	omitted := c.dropped
+	if i := strings.LastIndexByte(head, '\n'); i >= 0 {
+		omitted += len(head) - i
+		head = head[:i]
+	}
+	if i := strings.IndexByte(tail, '\n'); i >= 0 {
+		omitted += i + 1
+		tail = tail[i+1:]
+	}
+	return fmt.Sprintf("%s\n[... %d bytes omitidos ...]\n%s", head, omitted, tail)
+}
 
 // VerificarBase fails when base and HEAD have no merge-base or git cannot
 // diff them (a shallow clone, a base that does not exist, a missing tree): it
 // runs before anything is measured, so a broken base never looks like "no
-// changes" (CA-414).
+// changes" (CA-414). It is a read: git runs no external diff and no textconv
+// driver of the local configuration for it, so a broken one is not a broken
+// base (finding 402447).
 func VerificarBase(dir, base string) error {
 	mb, err := MergeBase(dir, base)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("git", "diff", "--quiet", mb, "HEAD", "--")
+	cmd := exec.Command("git", "diff", "--quiet", "--no-ext-diff", "--no-textconv", mb, "HEAD", "--")
 	cmd.Dir = dir
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
@@ -442,12 +487,12 @@ func gitOut(dir string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// gitOutPrefix is gitOut for an output that may not fit: it returns at most
+// OutPrefix is gitOut for an output that may not fit: it returns at most
 // max bytes of git's stdout, cut on a line end, and truncated when there was
 // more. It reads one byte past max to know that, drains the rest without
 // keeping it and waits for git, so a failure after the cut is still git's
 // error. max <= 0 reads everything.
-func gitOutPrefix(dir string, max int, args ...string) (out string, truncated bool, err error) {
+func OutPrefix(dir string, max int, args ...string) (out string, truncated bool, err error) {
 	if max <= 0 {
 		out, err = gitOut(dir, args...)
 		return out, false, err

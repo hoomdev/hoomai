@@ -1,0 +1,11 @@
+{
+  "id": "20261009T210134_86b2f1",
+  "created_at": "2026-10-09T21:01:34.281436Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/ui/tablero.js",
+  "description": "INTRODUCIDO — internal/servecmd/ui/tablero.js:536-538: el render de reviews quedó concentrado en un único template literal con un ternario, un map y cuatro campos opcionales anidados en la misma línea. A diferencia del render de hallazgos justo arriba, no extrae una función de fila; leer o modificar la tabla exige desentrañar toda la expresión y aumenta el riesgo de romper el marcado o el escape al sumar campos. Extraer el cuerpo/row de review en un helper pequeño mantendría panePruebas legible.",
+  "author": "reviewer@codex",
+  "fingerprint": "bcb046050a392fd8",
+  "task": "fixes-cabina-c2"
+}

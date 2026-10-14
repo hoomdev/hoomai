@@ -1,0 +1,11 @@
+{
+  "id": "20261010T042641_dac517",
+  "created_at": "2026-10-10T04:26:41.720144Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:817-822 trata alcanzar TimelinePatchMax como exito truncado: mata git, descarta Wait y devuelve nil. Si git log emite mas de 8 MiB y despues falla (por ejemplo, un xfuncname invalido en un archivo posterior), TimelineFor conserva las entradas de commits y solo anota el corte, ocultando el fallo; contradice el contrato de que cualquier fallo de git elimina las entradas git y deja 'sin historial de git'. El helper analogo gitOutPrefix ya drena stdout y comprueba Wait para preservar los fallos tardios.",
+  "author": "reviewer@codex",
+  "fingerprint": "f052acaa456b8d39",
+  "task": "fixes-cabina-c2"
+}

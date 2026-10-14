@@ -1,0 +1,11 @@
+{
+  "id": "20261014T171507_461d05",
+  "created_at": "2026-10-14T17:15:07.863125Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/manifest/manifest.go",
+  "description": "INTRODUCIDO — internal/manifest/manifest.go:397 y internal/reviewcmd/reviewcmd.go:303 convierten BaseBranchInvalida en una señal de que todo el resto del manifiesto ya fue validado. Esa garantía depende solo de que validateBaseBranch permanezca físicamente al final de Load: si una validación futura se agrega debajo, prepararRevision seguirá descartando el error vía errors.As y continuará. Hacer explícito en la API el estado «manifiesto válido salvo base_branch» o encapsular la carga tolerante evitaría que el orden interno de validaciones sea un contrato de corrección entre paquetes.",
+  "author": "reviewer@codex",
+  "fingerprint": "81f047835eebae6f",
+  "task": "fixes-cabina-c2"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T204930_9fa7ac",
+  "as": "corregido",
+  "evidence": "Corregido en 3594f46: internal/boardcmd/timeline.go (testTokens) corre el git log -p de la historia con --no-textconv ademas de --no-ext-diff. Regresion en 3d567df (test-writer, arbol limpio): TestHallazgo_9fa7ac_LaHistoriaNoEjecutaElTextconvDeLaConfigLocal (boardcmd, CA-360) y TestHallazgo_9fa7ac_GETTimelineNoEjecutaElTextconvDeLaConfigLocal (servecmd, CA-365). Sobre cb925c8 fallan ('corrio 3 veces' / 'corrio 1 veces'); en 3594f46 pasan. El refutador lo reprodujo aparte (ref-c2b/INFORME.md): en cb925c8 el driver corre 1 vez por lectura, en 3594f46 ninguna.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T21:20:05.134347Z"
+}

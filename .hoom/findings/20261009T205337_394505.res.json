@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T205337_394505",
+  "as": "corregido",
+  "evidence": "Mismo defecto y mismo arreglo que 9fa7ac (3594f46: --no-textconv en el git log -p de testTokens). Regresion en 3d567df: TestHallazgo_394505_LosTokensDeLaHistoriaSalenDelContenidoRealNoDelTextconv (boardcmd, CA-363 sobre los commits de CA-360). Sobre cb925c8 falla ('los efectos sobre el medidor deben ser map[CA-1:hecho], fueron map[CA-3:hecho]'); en 3594f46 pasa: los tokens salen del contenido real del archivo de test, iguales en cualquier maquina.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T21:20:05.144682Z"
+}

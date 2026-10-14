@@ -1,0 +1,11 @@
+{
+  "id": "20261009T205337_394505",
+  "created_at": "2026-10-09T20:53:37.522356Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "PRE-EXISTENTE (no introducido): internal/boardcmd/timeline.go:766-767 ejecuta git log -p con --no-ext-diff pero sin --no-textconv. Git habilita textconv por defecto para log, de modo que TimelineFor/GET /api/board/{slug}/timeline puede ejecutar un filtro de la config local, producir tokens CA distintos entre maquinas o dejar efectos laterales; este cambio solo agrego --end-of-options y no elimina esa fuente de comportamiento no determinista.",
+  "author": "reviewer@codex",
+  "fingerprint": "bcb046050a392fd8",
+  "task": "fixes-cabina-c2"
+}

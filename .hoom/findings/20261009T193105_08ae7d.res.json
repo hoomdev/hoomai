@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T193105_08ae7d",
+  "as": "corregido",
+  "evidence": "8f49839 (writer), tests en 3e8f5cf (test-writer). runUsages es la unica seleccion de que usage cuenta para la tarjeta y en que fila (cada run una vez: en el primer sobre que lo referencia, con el usage de su sidecar si lo tiene, o en su propia fila); countedUsage trata igual el costo invalido en la fila y en la suma (no es costo; los tokens quedan); spend suma esa lista y workOf la muestra. El refutador habia mostrado que los dos recorridos ya habian divergido (con costos -5 y 0.8, spend daba 0.8 y las filas sumaban -4.2). Tests (CA-314): TestHallazgo_08ae7d_LaSumaDeWorkEsSpendConUnCostoNegativo, TestHallazgo_08ae7d_ElCostoInvalidoQuedaSinCostoEnLaFilaYEnElGasto (5 casos) y TestHallazgo_08ae7d_PropiedadLaSumaDeWorkEsSpend (testing/quick); sobre 3de472d fallan. Limite: invalido en los tests es solo negativo, porque por el JSON del disco no entra NaN ni Inf. Gates build, static y test en verde en el veredicto 2026-10-09T20-43-25Z_247ef5be (rojo solo por findings_open, porque bb986a seguia abierto); el gate test corrio con -race gitx, manifest, spec, boardcmd y servecmd.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T20:44:44.243986Z"
+}

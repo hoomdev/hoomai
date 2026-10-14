@@ -1,0 +1,11 @@
+{
+  "id": "20261009T193045_509757",
+  "created_at": "2026-10-09T19:30:45.144754Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/servecmd/ui/tablero.js",
+  "description": "INTRODUCIDO — internal/servecmd/ui/tablero.js:172: el vocabulario del modo normal no vive en una sola tabla como declara el contrato: subestados (lineas 177-186), estados de criterios (349-357) y mensajes En vivo (481-507) mantienen frases visibles incrustadas fuera de NORMAL (lineas 9-22). Esto obliga a buscar y editar texto por todo el renderer de 510 lineas y hace facil que normal y experto diverjan; mover toda copia propia del modo normal a NORMAL y consumirla desde los pintores.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}

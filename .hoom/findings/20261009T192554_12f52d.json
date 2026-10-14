@@ -1,0 +1,11 @@
+{
+  "id": "20261009T192554_12f52d",
+  "created_at": "2026-10-09T19:25:54.47771Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/plain.go",
+  "description": "INTRODUCIDO: internal/boardcmd/plain.go:98 concatena sin filtrar el nombre de cada gate fallido en plain y red.plain. Como hoom.yaml admite nombres de gate arbitrarios, un gate requerido valido llamado git (o diff, merge, branch, etc.) produce \"la verificacion dio rojo: fallo el gate git\" y rompe la garantia absoluta de que el modo normal nunca contiene ese vocabulario.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}

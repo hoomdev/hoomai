@@ -1,0 +1,11 @@
+{
+  "id": "20261014T153127_677457",
+  "created_at": "2026-10-14T15:31:27.562171Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO: internal/boardcmd/timeline.go:774 cambia testTokens al helper OutPrefix, pero internal/gitx/diff.go:482-484, al alcanzar 8 MiB, drena todo el stdout restante antes de esperar a git. TimelinePatchMax pasa a limitar solo la memoria conservada, no el trabajo ni la latencia: un historial con un parche de varios GiB obliga a generar y leerlo completo (y un git que no termina deja TimelineFor bloqueado), mientras la implementacion anterior mataba el proceso al llegar al limite. Esto degrada la recuperacion ante repositorios enormes o dañados y puede dejar indisponible la historia.",
+  "author": "reviewer@codex",
+  "fingerprint": "1226e9d6125322bf",
+  "task": "fixes-cabina-c2"
+}

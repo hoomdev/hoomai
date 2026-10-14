@@ -1,0 +1,11 @@
+{
+  "id": "20261009T193123_5abaad",
+  "created_at": "2026-10-09T19:31:23.100622Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/derive.go",
+  "description": "INTRODUCIDO — internal/boardcmd/derive.go:54: column crecio a cuatro retornos posicionales (columna, missing, next, plain), tres de ellos string/string-like, a traves de una tabla de decision de mas de 100 lineas; llamadas como la de la linea 35 y retornos como los de 75-76 o 157-158 no nombran que representa cada posicion y facilitan intercambiar next/plain al extender ramas. Devolver un struct pequeno con campos Column, Missing, Next y Plain haria explicito el contrato sin cambiar la derivacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "5f6b7f3e760dbfee",
+  "task": "tablero-de-solo-lectura"
+}

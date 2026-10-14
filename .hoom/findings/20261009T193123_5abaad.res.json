@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T193123_5abaad",
+  "as": "refutado",
+  "evidence": "Refutado por impacto, contra el arbol de hoy (5ba30cc). El hecho es cierto (internal/boardcmd/derive.go:60: column devuelve (string, []string, string, string), 10 return, un solo llamador en la linea 36), pero el riesgo que sostiene el hallazgo, intercambiar next y plain sin que se note, no existe. Prueba de mutacion en la copia del refutador (.refutador-tmp/mutar.py): se cruzaron el tercer y el cuarto valor en cada uno de los 10 return de column (lineas 70, 78, 81, 90, 93, 101, 104, 106, 173 y 175) y en el llamador (linea 36), y con cada mutante se corrio go test ./internal/boardcmd/ -run \"TestCA(269|270|271|272|273|274|275|276|277|278|279|306)_\": 11 mutantes, 11 matados por tests que ya existen (TestCA269_Backlog, TestCA270_Arquitecto, TestCA271_TuAprobacion, TestCA272_TestWriter, TestCA273_Writer, TestCA274_ReviewPorTamano, TestCA278_TuAceptacion, TestCA279_Hecho y TestCA306_PlainPorCadaRamaDeLaColumna). derive.go quedo byte a byte igual al original (cmp). El gate ya impide el intercambio en todas las ramas que existen; devolver un struct queda como preferencia de estilo (un refactor que puede pedir Henry), no como defecto.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-09T19:56:42.001818Z"
+}

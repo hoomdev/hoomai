@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T171507_461d05",
+  "as": "corregido",
+  "evidence": "Corregido en 569cbae: manifest.LoadWithoutBaseCheck es la carga con todas las reglas de Load salvo la de base_branch, y Load es esa carga mas la validacion de la base (con el mismo mensaje de siempre); se va BaseBranchInvalida y prepararRevision usa LoadWithoutBaseCheck solo con --task, sin errors.As. La regla 'todo menos la base' ya no depende del orden interno de Load. El refutador (ref-c2f/INFORME.md) confirmo que era cierto en 4104ffb (moviendo la validacion entre el perfil y 'no declara gates' ningun test fallaba) y que 569cbae no cambia comportamiento: 17 casos identicos contra 6ca7cf2, con y sin --task. Guardas del contrato (test-writer, 7422e3e): TestHallazgo_461d05_* en internal/manifest; el writer comprobo con dos mutantes que fallan si LoadWithoutBaseCheck deja de validar el perfil o si las dos cargas difieren. Suite entera (go test ./... -count=1) verde sobre 7422e3e.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T17:28:44.177722Z"
+}

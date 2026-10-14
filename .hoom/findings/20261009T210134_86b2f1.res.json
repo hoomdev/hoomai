@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261009T210134_86b2f1",
+  "as": "corregido",
+  "evidence": "Corregido en 3594f46: internal/servecmd/ui/tablero.js extrae la fila de la tabla de reviews a 'const review = r =\u003e {...}', junto a 'const hallazgo', y panePruebas solo hace reviews.map(review). El refutador comparo el HTML de las dos versiones con un arnes node sobre 7 juegos de registros en experto y normal: igual en 13 de 14 casos (escape incluido); el distinto mejora (un registro sin fecha ya no lleva un separador suelto adelante). go test ./internal/servecmd -run '05f9c5|TestCA319|TestCA320|TestCA321|TestCA322' verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-09T21:20:05.153475Z"
+}

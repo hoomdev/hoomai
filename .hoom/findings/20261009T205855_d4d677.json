@@ -1,0 +1,11 @@
+{
+  "id": "20261009T205855_d4d677",
+  "created_at": "2026-10-09T20:58:55.955824Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo): internal/boardcmd/timeline.go:800-805 ignora tanto Scanner.Err() como el error de cmd.Wait() despues de leer git log -p. Si Git falla tras emitir un prefijo (repositorio degradado, regex de diff invalida o error de E/S), testTokens devuelve atribuciones CA parciales con truncated=false; TimelineFor responde como exito y no agrega NoteTestsCortados, ocultando la falla del subproceso. Debe distinguir fin limpio, corte intencional y fallo de lectura/proceso, y propagarlo o marcar la historia como degradada.",
+  "author": "reviewer@codex",
+  "fingerprint": "bcb046050a392fd8",
+  "task": "fixes-cabina-c2"
+}

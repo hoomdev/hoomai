@@ -1,0 +1,11 @@
+{
+  "id": "20261014T162046_f3e283",
+  "created_at": "2026-10-14T16:20:46.973164Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO por el arreglo de bb986a (69d3dcd, 2026-10-09); lo encontro el writer corriendo enteros los paquetes que dependen de manifest: manifest.Load rechaza un base_branch que empieza con '-', y prepararRevision (internal/reviewcmd/reviewcmd.go:296) carga con Load el hoom.yaml del arbol de la TAREA. Una rama que commitea base_branch '--output=\u003cruta\u003e' hace que hoom review --task falle con 'hoom.yaml invalido', cuando CA-430 (spec base-de-la-review) exige que la review siga con la base del proyecto: el base_branch de la rama se dice y nunca se obedece. TestCA430_LaBaseDeLaRamaQueEmpiezaConGuionNoLlegaAGit falla desde 69d3dcd; no se vio porque el verify de la tarea solo corre los paquetes cambiados (reviewcmd no lo estaba). Correccion minima: que la review trate ese base_branch de la rama como cualquier otra base que la rama declara (se avisa, no se obedece) sin dejar de rechazarlo en el hoom.yaml del proyecto, que es lo que manda la enmienda 1 de tablero-de-solo-lectura.",
+  "author": "writer@claude",
+  "fingerprint": "7f9c31ebdf533808",
+  "task": "fixes-cabina-c2"
+}

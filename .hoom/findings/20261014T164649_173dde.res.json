@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T164649_173dde",
+  "as": "corregido",
+  "evidence": "Corregido en 390ea39: manifest.Load chequea base_branch al final, despues de resolver el perfil y de 'no declara gates', asi que BaseBranchInvalida implica que el resto del hoom.yaml es valido y la review de una rama con base_branch con guion ya no se saltea ninguna validacion. El refutador (ref-c2e/INFORME.md) lo reprodujo (rama con base_branch '--x' y perfil inexistente: 'revisado' con codex; con base main: error de perfil) y probo el mismo cambio: los dos casos coinciden, tambien con gates vacios, y ningun llamador de Load depende del orden de los errores. Regresion (test-writer, 6ca7cf2): TestHallazgo_173dde_UnPerfilQueNoExisteEnLaRamaFallaAunqueSuBaseEmpieceConGuion (CA-430, CA-414) falla sobre 00bf35a y pasa con el arreglo; la guarda con base main pasa en los dos. Suite entera (go test ./... -count=1) verde sobre 6ca7cf2.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T17:00:41.741919Z"
+}
