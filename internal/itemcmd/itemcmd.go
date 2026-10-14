@@ -6,6 +6,7 @@ package itemcmd
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -19,7 +20,9 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
 // Subcommands.
@@ -272,6 +275,17 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 	if err != nil {
 		return SaveResult{}, err
 	}
+	// from the check of the card to the last commit, under the lock of each
+	// tree it commits in: a run that starts meanwhile waits until it is over
+	// (finding ac2feb). The card is derived again under them.
+	unlock, err := lockArboles(root, c)
+	if err != nil {
+		return SaveResult{}, err
+	}
+	defer unlock()
+	if c, err = boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC()); err != nil {
+		return SaveResult{}, err
+	}
 	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
 	if r := c.Running; r != nil {
 		quien := "el agente"
@@ -332,6 +346,34 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 		res.Commits = append(res.Commits, SaveCommit{Dir: tr.rel, SHA: sha, Paths: tr.paths})
 	}
 	return res, nil
+}
+
+// lockArboles takes the lock of the card's workspace (when it has one) and of
+// the project, in that order, and returns what releases both.
+func lockArboles(root string, c boardcmd.Card) (func(), error) {
+	dirs := []string{}
+	if c.Evidence.Source == boardcmd.SourceWorktree {
+		dirs = append(dirs, filepath.Join(root, filepath.FromSlash(c.Evidence.Dir)))
+	}
+	dirs = append(dirs, root)
+	var unlocks []func()
+	release := func() {
+		for i := len(unlocks) - 1; i >= 0; i-- {
+			unlocks[i]()
+		}
+	}
+	for _, d := range dirs {
+		u, err := runcmd.LockArbol(d, runcmd.EsperaArbol)
+		if err != nil {
+			release()
+			if errors.Is(err, hoomfs.ErrLocked) {
+				return nil, fmt.Errorf("un agente esta arrancando en la tarjeta %s: guardar ahora commitearia su trabajo a medias. Accion: espera a que termine", c.Slug)
+			}
+			return nil, err
+		}
+		unlocks = append(unlocks, u)
+	}
+	return release, nil
 }
 
 // commitPaths stages exactly paths and commits only them: whatever else sits

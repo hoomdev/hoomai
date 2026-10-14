@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -530,6 +531,47 @@ func (m *Manager) Busy(dir string) (string, bool) {
 	return Active(m.root, dir)
 }
 
+// EsperaArbol is how long a discard or a save waits for a run that is being
+// registered on the same tree.
+const EsperaArbol = 2 * time.Second
+
+// esperaRegistro is how long registering a run waits for a discard or a save
+// of its tree to finish.
+const esperaRegistro = 30 * time.Second
+
+// LockArbol takes the lock of the working tree dir. Registering a run on it
+// (Start, Input) and checking-then-acting on it (Discard, Save) take it, so
+// no run starts between a "no run is active" check and the action that
+// relies on it (findings b6e55b and ac2feb); a run does not hold it while it
+// works. It lives in the repository's common git dir, keyed by the tree's
+// real path: the CLI in the project, the CLI in a task worktree and the
+// Studio find the same one, and nothing is written inside the tree (a blind
+// tree stays as it is). A dir outside any git repository has nothing a
+// discard or a save could race with: the lock is then a no-op.
+func LockArbol(dir string, wait time.Duration) (func(), error) {
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, err
+	}
+	out, err := exec.Command("git", "-C", real, "rev-parse", "--path-format=absolute", "--git-common-dir").Output()
+	if err != nil {
+		return func() {}, nil
+	}
+	sum := sha256.Sum256([]byte(real))
+	path := filepath.Join(strings.TrimSpace(string(out)), "hoom-locks", hex.EncodeToString(sum[:8])+".lock")
+	return hoomfs.Lock(path, wait)
+}
+
+// lockRegistro is LockArbol for registering a run: it waits longer, and says
+// what it waited for.
+func lockRegistro(dir string) (func(), error) {
+	unlock, err := LockArbol(dir, esperaRegistro)
+	if errors.Is(err, hoomfs.ErrLocked) {
+		return nil, fmt.Errorf("se esta guardando o descartando el trabajo de %s: el run no arranco. Accion: vuelve a lanzarlo cuando termine", dir)
+	}
+	return unlock, err
+}
+
 // Active is the live run whose tree is dir, from its sidecar: in root's runs
 // and in dir's own, where a run started from inside a task's worktree keeps
 // it (finding f237b9).
@@ -572,6 +614,13 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	if err != nil {
 		return Run{}, err
 	}
+	// the run is registered under its tree's lock: a discard or a save that
+	// checked "no run is active" has finished acting when it gets it
+	unlock, err := lockRegistro(dir)
+	if err != nil {
+		return Run{}, err
+	}
+	defer unlock()
 
 	m.mu.Lock()
 	if active, ok := m.byDir[dir]; ok {
@@ -626,10 +675,17 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	}
 	m.mu.Lock()
 	r, ok := m.runs[id]
+	m.mu.Unlock()
 	if !ok {
-		m.mu.Unlock()
 		return Run{}, fmt.Errorf("run no encontrado: %s", id)
 	}
+	// like Start: the run goes back to running under its tree's lock
+	unlock, err := lockRegistro(r.dir)
+	if err != nil {
+		return Run{}, err
+	}
+	defer unlock()
+	m.mu.Lock()
 	if r.info.Status == StatusRunning {
 		m.mu.Unlock()
 		return Run{}, ErrBusy{RunID: id}

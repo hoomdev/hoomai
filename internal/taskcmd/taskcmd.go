@@ -386,11 +386,27 @@ func taskRel(slug, p string) string { return ".hoom/worktrees/" + slug + "/" + p
 // Discardable as a set. Evidence is never discarded.
 func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	res := DiscardResult{Slug: slug, Restored: []string{}, Removed: []string{}}
+	if err := checkSlug(slug); err != nil {
+		return res, err
+	}
+	wt := worktreeDir(root, slug)
+	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
+		return res, fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
+	}
+	// from the check of runs to the last deletion, under the tree's lock: a
+	// run that starts meanwhile waits until it is over (finding b6e55b)
+	unlock, err := runcmd.LockArbol(wt, runcmd.EsperaArbol)
+	if errors.Is(err, hoomfs.ErrLocked) {
+		return res, fmt.Errorf("un run esta arrancando en el espacio de trabajo de la tarea %q: descartar ahora pisaria su trabajo. Accion: espera a que termine", slug)
+	}
+	if err != nil {
+		return res, err
+	}
+	defer unlock()
 	local, origins, err := discardable(root, slug)
 	if err != nil {
 		return res, err
 	}
-	wt := worktreeDir(root, slug)
 	if id, busy := runcmd.Active(root, wt); busy {
 		return res, fmt.Errorf("hay un run activo (%s) en el espacio de trabajo de la tarea %q: descartar ahora pisaria su trabajo. Accion: espera a que termine", id, slug)
 	}
