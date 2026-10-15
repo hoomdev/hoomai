@@ -1,6 +1,32 @@
 # Spec: acciones desde la tarjeta (cabina visual, C3)
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión aprobada
+(sha256 d0160342) está implementada e integrada (PR 25). Su review de 4
+lentes (2026-10-14, en dos mitades porque no entraba en el tope de
+evidencia) dejó hallazgos que tocan el contrato de Guardar y Descartar, y
+Henry decidió el del candado. La enmienda 1 dice que (a) un candado por árbol
+hace que ningún run se registre entre el "no hay run activo" de Guardar o
+Descartar y su acción; (b) las rutas son nombres, nunca patrones de git;
+(c) Guardar saca del índice lo que ya no está en el disco en vez de `git add
+-A` sobre todo, y el nombre viejo de un rename es una ruta sin guardar más;
+(d) Descartar se niega antes de tocar nada si al repositorio le falta el
+contenido de `HEAD` de una ruta o si una ruta a borrar es un repositorio
+anidado, y cuenta como run activo uno lanzado desde adentro del espacio de
+trabajo; (e) si falla el commit del árbol raíz después del del espacio de
+trabajo, el error nombra el commit que ya quedó hecho; (f) el Studio servido
+en loopback solo atiende pedidos cuyo `Host` es ese loopback (DNS
+rebinding); (g) el agente corre en su propio grupo de procesos, que se mata
+al cancelar o cuando el proceso dueño recibe SIGINT, SIGTERM o SIGHUP, y su
+PID queda en el registro del run: si el dueño muere de golpe, mientras el
+agente viva nada actúa sobre su árbol (opción recomendada por el writer
+entre tres; Henry la aprueba con esta enmienda); (h) un item de la tarea que
+existe y no se puede leer frena la review; (i) un provider que no toma lo
+pedido se decide antes del registro del sobre; (j) el candado de
+lanzamiento de la tarjeta lo suelta el trabajo, y un pedido cancelado no
+deja al handler esperando; (k) cada llamada a tmux del Studio tiene un plazo.
+Precisa CA-344 y CA-346; no agrega criterios.
+
+Historia: aprobada el 2026-09-23 (sha256 d0160342).
 Depende de: `tablero-de-solo-lectura.md` (C2) integrada (PR #23).
 Tarea sugerida: `hoom task start acciones-desde-la-tarjeta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 3 de 4, "C3 — Acciones
@@ -287,8 +313,9 @@ Cada columna de rol tiene sus **roles de estación**: `backlog` y `arquitecto`
   `run_id` = su run. Cierra `entregable` (revisado, `stage: "ok"`) o
   `no-entregable` con `stage` y nota (`run`: `el run del reviewer fallo`;
   `scope`: `el reviewer escribio fuera de su territorio`). Lo que se decide
-  antes de la primera pasada (sin lentes, review no cruzada, sin provider) no
-  escribe registro. `usage` queda vacío: el gasto de cada pasada ya está en su
+  antes de la primera pasada (sin lentes, review no cruzada, sin provider, o
+  un provider que no toma lo pedido, como un tope de turnos o de presupuesto
+  que no acepta) no escribe registro (enmienda 1). `usage` queda vacío: el gasto de cada pasada ya está en su
   sidecar.
 - `reviewcmd.Options` gana `EnvelopeID` y `Started`, con el mismo contrato.
 
@@ -349,9 +376,16 @@ este orden:
    cuádruple no más que lo que queda en la review.
 6. Un solo lanzamiento por tarjeta a la vez en el Studio (409: `ya se esta
    lanzando un trabajo en esta tarjeta`), y el árbol de la tarjeta sin run
-   activo de ningún proceso (`runcmd.Manager.Busy`, 409 que nombra el run).
+   activo de ningún proceso (`runcmd.Manager.Busy`, 409 que nombra el run;
+   también uno cuyo dueño murió y cuyo agente sigue vivo). El candado de
+   lanzamiento lo suelta el trabajo cuando escribe su primer registro o
+   cuando termina sin escribirlo; si el pedido se cancela antes, el handler
+   vuelve y el trabajo sigue solo. Registrar el run de otro proceso y el
+   propio no se cruzan: los dos toman el candado del árbol. (Enmienda 1.)
 7. Sin espacio de trabajo propio y en Backlog: `taskcmd.Start` (el mismo
-   `hoom task start <slug>`). Si falla, 409 con su mensaje.
+   `hoom task start <slug>`), al principio del trabajo del paso 8 y no en el
+   handler, así un pedido cancelado no espera a git. Si falla, el trabajo
+   termina sin registro y el 409 lo dice (enmienda 1).
 8. Lanzamiento, en una goroutine del Studio:
    - `pedir-arquitecto`, `pedir-test-writer`, `pedir-writer`, y `reanudar` y
      `relanzar` de esos roles o de otro que no sea reviewer: `agentcmd.Run`
@@ -396,12 +430,21 @@ su rechazo viaja tal cual (409) y, si cierra, escribe `hecho_en` y
 
 - Un commit por árbol, con el mensaje fijo `hoom: guardar la tarjeta <slug>`
   y la identidad git configurada (sin `--author`). En el espacio de trabajo
-  de la tarjeta van sus rutas, y en el árbol raíz, el item. Se hace `git add
-  -A -- <rutas>` y `git commit -m <mensaje> -- <rutas>`, así que lo que otro
-  dejó en el índice del árbol raíz no entra ni se pierde. Los hooks del repo
-  corren.
+  de la tarjeta van sus rutas, y en el árbol raíz, el item. Las rutas son
+  nombres, nunca patrones de git (`--literal-pathspecs`): las que están en el
+  disco se agregan con `git add -A`, las que no (un archivo borrado, el
+  nombre viejo de un `git mv`, un `git rm`) salen del índice con `git
+  update-index --remove`, y el commit es `git commit -m <mensaje> --
+  <rutas>`, así que lo que otro dejó en el índice del árbol raíz no entra ni
+  se pierde. El nombre viejo de un rename es una ruta sin guardar más: el
+  commit lleva el rename entero. Los hooks del repo corren. (Enmienda 1.)
 - Con `running` se niega (`espera a que termine el <rol> que esta
-  trabajando`). Sin nada que guardar no commitea y lo dice.
+  trabajando`). El chequeo y los commits van bajo el candado de cada árbol
+  que commitea (ver "El candado del árbol"). Sin nada que guardar no
+  commitea y lo dice.
+- Si el commit del árbol raíz falla después del del espacio de trabajo, el
+  error dice que el espacio de trabajo ya quedó guardado y nombra ese commit;
+  volver a guardar commitea solo lo que falta. (Enmienda 1.)
 - `expect` no `nil` tiene que ser igual (como conjunto) a `unsynced`. Si no,
   se niega: `los cambios de la tarjeta cambiaron desde que los viste:
   revisalos de nuevo`. El Studio siempre lo pasa y la CLI nunca.
@@ -434,9 +477,18 @@ guardar`, exit 0.
   hoom nunca descarta evidencia: veredictos, hallazgos, aprobaciones y
   registros son de solo agregar.
 - Una ruta que existe en `HEAD` vuelve a como está ahí (`git restore
-  --source=HEAD --staged --worktree`). Una que `HEAD` no tiene se borra.
+  --source=HEAD --staged --worktree`). Una que `HEAD` no tiene se borra. Las
+  rutas son nombres, nunca patrones de git (`--literal-pathspecs`). Lo que
+  `HEAD` tiene sale de su árbol (`git ls-tree`), y antes de tocar nada se
+  comprueba que el repositorio tenga el contenido de `HEAD` de cada ruta a
+  restaurar: si falta alguno (`git restore` borraría el archivo), o si una
+  ruta a borrar es un directorio (un repositorio anidado), se niega sin
+  tocar nada y nombra esas rutas. Si git no puede sacar una ruta del índice,
+  no la borra del disco. (Enmienda 1.)
 - Se niega si la tarea no existe o si su árbol tiene un run activo
-  (`Busy`).
+  (`Busy`), también uno lanzado desde adentro del espacio de trabajo, que
+  guarda su registro ahí. El chequeo y la acción van bajo el candado del
+  árbol.
 - Sin `yes` no toca nada: la CLI lista las rutas y termina con exit 1 y
   `Accion: repeti con --yes para descartarlos (no se puede deshacer)`. El
   Studio pasa `yes` y `expect`, que tiene que ser igual al conjunto actual
@@ -445,6 +497,24 @@ guardar`, exit 0.
 
 `POST /api/board/{slug}/discard` con `{"paths": [...]}` exige además la
 acción `descartar` habilitada en la tarjeta.
+
+#### El candado del árbol (enmienda 1)
+
+Registrar un run en un árbol de trabajo (`hoom run`, un sobre, el Studio;
+también reanudarlo) y comprobar-y-actuar sobre él (Guardar y Descartar)
+toman el mismo candado de ese árbol: un candado del sistema (`flock`) en el
+directorio común de git del repositorio, con la ruta real del árbol como
+clave. Así lo encuentran igual la CLI en el proyecto, la CLI en un espacio
+de trabajo y el Studio, y no se escribe nada dentro del árbol. Ningún run se
+registra entre el "no hay run activo" de Guardar o Descartar y su acción.
+
+- El run no lo retiene mientras trabaja: lo toma solo para registrarse, y
+  espera hasta 30 s a que termine un guardado o un descarte.
+- Guardar (el espacio de trabajo y el raíz, en ese orden) y Descartar
+  esperan hasta 2 s a que termine un registro; si no lo consiguen, se niegan
+  sin tocar nada.
+- Fuera de un repositorio de git no hay nada que proteger: el candado no
+  hace nada.
 
 #### Abrir sesión: `cockpitcmd.Open`
 
@@ -496,6 +566,9 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   no esta instalado` o `no hay una sesion abierta para esta tarjeta`).
 - Es una lectura: sin token, como las demás, y no crea ni modifica nada. Otro
   método es 405.
+- Cada llamada a tmux que hace el Studio termina a los 5 s: una que no
+  contesta da `available: false` con la nota, y el pedido no queda colgado
+  (enmienda 1).
 
 ### El writer declarado en `hoom review`
 
@@ -512,6 +585,9 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   - `desconocida` sin ninguno de los dos.
 - Sin `--provider`, la review elige el primer provider que no sea ni el
   observado ni un declarado.
+- Un item de la tarea que existe y no se puede leer frena la review antes de
+  la primera pasada, sin registro: podría declarar justo al writer que la
+  review no puede ser. Uno que no existe declara `[]` (enmienda 1).
 - La tarjeta: `providers.declared` es la lista de providers de `sesiones`,
   distintos y en orden de aparición. `writer`, `reviewer` y `cross` siguen la
   regla de C2, y `cross` puede traer `cruzada-declarada` desde el registro.
@@ -593,7 +669,10 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
 
 - Una tarjeta en Backlog sin espacio de trabajo: Pedir al arquitecto crea la
   tarea y lanza el sobre ahí. Si el sobre falla antes de su primer registro,
-  la tarea queda creada y el 409 lo dice.
+  la tarea queda creada y el 409 lo dice. La tarea se crea al principio del
+  trabajo, no en el handler: si el pedido se cancela mientras git la crea, el
+  handler vuelve y el trabajo sigue. Si no se puede abrir el log del sobre,
+  500 sin crear nada (enmienda 1).
 - Una tarjeta en Test-writer sin espacio de trabajo propio (su evidencia vive
   en el proyecto): `pedir-test-writer` aparece deshabilitada con su `why`.
 - Dos pestañas del navegador piden al writer a la vez: una recibe 202 y la
@@ -603,7 +682,13 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   en el mismo árbol, el POST responde 409 nombrando el run.
 - `hoom serve` se cae con un sobre en curso: su registro queda abierto con el
   PID de un proceso muerto, y la tarjeta se ve interrumpida en el próximo
-  sondeo, sin esperar 15 minutos.
+  sondeo, sin esperar 15 minutos. Si cae por SIGINT, SIGTERM o SIGHUP, antes
+  mata el grupo de procesos de cada agente. Si muere de golpe (SIGKILL), el
+  agente puede seguir: mientras su PID (que está en el registro del run) siga
+  vivo, el run cuenta como activo y Descartar, Reanudar y lanzar se niegan
+  (enmienda 1).
+- Un pedido al Studio con un `Host` que no es su loopback: 421, sin tocar
+  nada (enmienda 1).
 - Reanudar un writer cuyo sidecar tiene `provider_session_id`: sobre nuevo con
   `--resume` de esa sesión. El registro viejo queda byte a byte igual y deja
   de contar como interrumpido.
@@ -630,8 +715,19 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   nada commiteado.
 - Guardar con un archivo propio de la persona en el índice del árbol raíz: el
   commit lleva solo el item, y el archivo sigue en el índice.
-- Un hook de pre-commit que falla: 409 con su salida, y las rutas quedan en el
-  índice.
+- Un hook de pre-commit que falla en el primer commit: 409 con su salida, y
+  las rutas quedan en el índice. Si falla en el del árbol raíz, el espacio de
+  trabajo ya quedó guardado: el 409 lo dice y nombra ese commit (enmienda 1).
+- Guardar después de un `git mv` o un `git rm`: el commit lleva el rename o
+  el borrado entero (enmienda 1).
+- Guardar o Descartar con archivos llamados `:(glob)**`, `:!app.go` o
+  `*.go`: son esos archivos, nada más (enmienda 1).
+- Descartar con un repositorio anidado sin seguimiento, o cuando al
+  repositorio le falta el contenido de `HEAD` de una ruta: se niega sin tocar
+  nada y nombra la ruta (enmienda 1).
+- Un run que se registra mientras se guarda o se descarta la tarjeta: espera
+  a que termine; un guardado o un descarte mientras un run se registra:
+  espera hasta 2 s y si no, se niega (enmienda 1).
 - Descartar con un veredicto sin commitear en el espacio de trabajo: el
   veredicto no se toca.
 - Abrir sesión dos veces: la segunda responde `created: false` y el item
@@ -664,9 +760,9 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
 - CA-341: `reanudar` lanza un sobre nuevo con `ResumeID` = el `resume_id` de la acción y el rol y el provider del interrumpido, y `relanzar` uno sin `ResumeID`. En los dos, el registro del sobre interrumpido queda byte a byte igual y la tarjeta deja de estar interrumpida.
 - CA-342: `POST /api/specs/{name}/approve` con `{"card": "<slug>"}` escribe la aprobación en el árbol de evidencia de la tarjeta (su espacio de trabajo), con `approved_by` igual a `gitx.Identity` de ese árbol, y la tarjeta sale de Tu aprobación. Con `name` distinto del slug es 400, con la tarjeta fuera de Tu aprobación es 409, con una clave `approved_by` es 400 y sin token es 401, sin aprobación escrita en ninguno de los cuatro. Sin cuerpo, el endpoint hace lo de hoy y sus tests pasan sin cambios.
 - CA-343: una tarjeta en Tu aceptación, integrada con `POST /api/tasks/{slug}/done`, pasa a Hecho con `hecho_en` y `commit_final` en el item. Una en Writer recibe 409 con el mensaje de `task done`, y su item y su espacio de trabajo quedan igual. `integrar` aparece solo en Tu aceptación.
-- CA-344: `hoom item save <slug>` hace un commit por árbol con `hoom: guardar la tarjeta <slug>`: en el espacio de trabajo, sus rutas sin guardar; en el árbol raíz, solo el item. Un archivo ajeno que estaba en el índice del árbol raíz sigue ahí sin commitear. Después, `unsynced` está vacío. Con la tarjeta en curso se niega sin commitear. Sin nada que guardar dice `la tarjeta <slug> no tiene nada sin guardar` y sale con 0. `--json` emite el `SaveResult` del contrato.
+- CA-344: `hoom item save <slug>` hace un commit por árbol con `hoom: guardar la tarjeta <slug>`: en el espacio de trabajo, sus rutas sin guardar; en el árbol raíz, solo el item. Un archivo ajeno que estaba en el índice del árbol raíz sigue ahí sin commitear. Las rutas son nombres, y un rename o un borrado ya puestos en el índice entran enteros (enmienda 1). Después, `unsynced` está vacío. Con la tarjeta en curso, o con el candado de uno de sus árboles tomado más de 2 s, se niega sin commitear. Sin nada que guardar dice `la tarjeta <slug> no tiene nada sin guardar` y sale con 0. `--json` emite el `SaveResult` del contrato.
 - CA-345: `POST /api/board/{slug}/save` con las rutas de `unsynced` responde 200 con el `SaveResult`. Con otras rutas es 409 con `los cambios de la tarjeta cambiaron desde que los viste: revisalos de nuevo`, sin cuerpo o sin `paths` es 400 y sin token es 401, sin commit en los tres casos.
-- CA-346: `hoom task discard <slug>` sin `--yes` lista las rutas y sale con 1 sin tocar nada. Con `--yes` vuelve a `HEAD` las rutas que `HEAD` tiene y borra las que no, y nunca toca nada bajo `.hoom/` (un veredicto sin commitear sigue ahí). Con un run activo en el árbol se niega. `POST /api/board/{slug}/discard` exige la acción `descartar` habilitada y las mismas rutas (409 si no), y sin token es 401.
+- CA-346: `hoom task discard <slug>` sin `--yes` lista las rutas y sale con 1 sin tocar nada. Con `--yes` vuelve a `HEAD` las rutas que `HEAD` tiene y borra las que no, y nunca toca nada bajo `.hoom/` (un veredicto sin commitear sigue ahí). Las rutas son nombres, nunca patrones; si al repositorio le falta el contenido de `HEAD` de una ruta, o si una ruta a borrar es un repositorio anidado, se niega sin tocar nada (enmienda 1). Con un run activo en el árbol se niega, también si lo lanzaron desde adentro del espacio de trabajo o se está registrando (enmienda 1). `POST /api/board/{slug}/discard` exige la acción `descartar` habilitada y las mismas rutas (409 si no), y sin token es 401.
 - CA-347: `cockpitcmd.Open` arma con tmux el plan de CA-82 y CA-85 sin `attach-session` ni `switch-client`, y devuelve `created: true`. Con la sesión existente devuelve `created: false` y no crea nada. `Run` es `Open` más el attach, y los tests de CA-81 a CA-88 pasan sin cambios.
 - CA-348: cuando `Open` crea la sesión de una tarea con item, el item del árbol raíz gana una entrada en `sesiones` con `provider`, `abierta_por` = `gitx.Identity` y `abierta_en`. Con la sesión existente, o sin item, no escribe nada. `POST /api/board/{slug}/session` responde con `session`, `created`, `provider`, `dir` y `attach`. Sin espacio de trabajo propio es 409, sin tmux o sin el provider instalado es 409 con el mensaje de `cockpitcmd`, sin `provider` es 400 y sin token es 401.
 - CA-349: `item.Parse` acepta `sesiones` con `provider` y `abierta_en` en cada entrada, rechaza una entrada sin ellos y sigue rechazando claves desconocidas. Un item sin `sesiones` se lee y se escribe byte a byte como antes. `item.AddSession` agrega al final sin tocar las demás claves.
@@ -721,6 +817,15 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   lo exige limpio. Guardar solo la evidencia dejaría el ícono prendido.
   Pendiente de confirmar: si preferís que el código lo commitee siempre la
   persona desde la terminal, el cambio es filtrar `paths` a `.hoom/`.
+- **Un candado por árbol, tomado solo al registrar el run** (enmienda 1,
+  decisión de Henry). El chequeo "no hay run activo" y la acción de Guardar o
+  Descartar no eran atómicos: un run de otra terminal podía arrancar en el
+  medio y quedar pisado o commiteado a medias. Que el run retenga el
+  candado mientras trabaja bloquearía Guardar y Descartar por horas; que lo
+  tome solo para registrarse alcanza, porque después su registro dice que
+  está activo. Vive en el directorio común de git para que todos los
+  procesos encuentren el mismo sin escribir nada dentro del árbol (un árbol
+  ciego queda igual).
 - **Guardar y Descartar tienen verbo** (`hoom item save`, `hoom task
   discard`): el Studio es un control remoto y lo nuevo nace como verbo. Los
   dos piden las rutas que la persona vio y se niegan si cambiaron. Descartar
@@ -742,7 +847,10 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   15 minutos deja de verse interrumpido (riesgo aceptado en C2).
 - **El sobre corre dentro de `hoom serve`**, en una goroutine, con la misma
   función que la CLI. Si el Studio se cae, el sobre muere con él y la tarjeta
-  lo muestra interrumpido. Un proceso aparte sería otro camino para lanzar
+  lo muestra interrumpido. El agente, que es otro proceso, no moría con él:
+  ahora corre en su propio grupo, que el Studio mata ante SIGINT, SIGTERM o
+  SIGHUP, y si al Studio lo matan de golpe el PID del agente en el registro
+  del run lo mantiene activo hasta que termine (enmienda 1). Un proceso aparte sería otro camino para lanzar
   roles, y el RFC lo prohíbe.
 - **El mínimo de Claude es 0.5 USD**, declarado en su adapter. Pendiente de
   confirmar.
@@ -759,7 +867,10 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
 - **`hoom cockpit --task` también declara el writer.** Si solo lo hiciera el
   Studio, la misma sesión contaría distinto según por dónde se abrió.
 - **Ver terminal es una lectura sin token**, como la narración de los runs:
-  el Studio escucha en loopback y otra página no puede leer sus respuestas.
+  el Studio escucha en loopback y otra página no puede leer sus respuestas,
+  porque solo atiende pedidos cuyo `Host` es ese loopback (127.0.0.1,
+  localhost o [::1] con su puerto). Una página que apunta su nombre a
+  127.0.0.1 (DNS rebinding) manda su propio `Host` y recibe 421 (enmienda 1).
   Escribir en el pane queda afuera (no-goals).
 - **Un archivo `acciones.js` aparte.** `tablero.js` sigue siendo el pintor
   sin POST de C2 y su test (CA-320) no cambia. Lo único que se re-expresa es
