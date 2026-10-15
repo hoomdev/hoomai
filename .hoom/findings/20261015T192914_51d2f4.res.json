@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T192914_51d2f4",
+  "as": "corregido",
+  "evidence": "Corregido en ff3a52c: deshecho el reorden de soltarGrupo de 1647c34 (un extra que ningun hallazgo pidio); MatarGrupo, el borrado del registro y el candado vuelven a ir juntos, como en c529494. Refutador (INFORME-refutador-c3-delta2.md): cierto pero no alcanzable en macOS/Linux (3000 de 3000 PIDs crecientes, 0 reusos; la vuelta a PID_MAX tarda ~17 h al ritmo normal); lo de fondo (soltar por un PID que Wait ya libero, plausible solo en Windows) es anterior a la vuelta 3 y queda como follow-up low 20261015T195555_710266. Sin test nuevo: no alcanzable en las plataformas que corren los tests; los de e30013, 1da9c4 y da369a siguen verdes (5 de 5).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T20:04:42.370033Z"
+}
