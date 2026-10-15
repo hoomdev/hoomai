@@ -906,14 +906,18 @@ func SoloLocal(h http.Handler, addr string) http.Handler {
 		return h
 	}
 	validos := map[string]bool{
-		net.JoinHostPort("127.0.0.1", port):      true,
-		net.JoinHostPort("localhost", port):      true,
-		net.JoinHostPort("::1", port):            true,
-		hostNormal(net.JoinHostPort(host, port)): true,
+		net.JoinHostPort("127.0.0.1", port): true,
+		net.JoinHostPort("localhost", port): true,
+		net.JoinHostPort("::1", port):       true,
+	}
+	nombres := "127.0.0.1, localhost o [::1]"
+	if propio := hostNormal(net.JoinHostPort(host, port)); !validos[propio] {
+		validos[propio] = true
+		nombres = "127.0.0.1, localhost, [::1] o " + host
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !validos[hostNormal(r.Host)] {
-			writeError(w, http.StatusMisdirectedRequest, fmt.Sprintf("el Studio solo atiende pedidos a 127.0.0.1, localhost, [::1] o %s en el puerto %s: el Host %q es de otra pagina", host, port, r.Host))
+			writeError(w, http.StatusMisdirectedRequest, fmt.Sprintf("el Studio solo atiende pedidos a %s en el puerto %s: el Host %q es de otra pagina", nombres, port, r.Host))
 			return
 		}
 		h.ServeHTTP(w, r)
