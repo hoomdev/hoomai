@@ -1,0 +1,11 @@
+{
+  "id": "20261015T164619_a46d0c",
+  "created_at": "2026-10-15T16:46:19.613748Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO. internal/servecmd/acciones.go:180-347 representa el ciclo de vida de un launch con soltado, lanzado, arranco, fin.arranco, ready y done, y reparte la liberacion del candado entre onStart, el defer del handler y la goroutine. Lanzado y arranco parecen sinonimos pero significan propiedad del cleanup y primer registro, respectivamente; una salida nueva tiene que mantener coordinadas todas esas piezas. Encapsular esas transiciones en un estado/helper del trabajo haria explicitas las invariantes y reduciria el riesgo de dejar la tarjeta tomada o responder con el estado equivocado.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

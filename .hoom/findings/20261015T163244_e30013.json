@@ -1,0 +1,11 @@
+{
+  "id": "20261015T163244_e30013",
+  "created_at": "2026-10-15T16:32:44.053442Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO. internal/runcmd/runcmd.go:927-934 arranca al proveedor en un grupo propio antes de registrarlo para limpieza; ademas internal/runcmd/grupo_unix.go:41-60 instala el handler y agrega el PID en pasos separados. Si SIGINT, SIGTERM o SIGHUP llega despues de cmd.Start y antes de insertar el PID, el dueno termina pero el proveedor, aislado por Setpgid, no recibe la senal ni aparece en el mapa que se mata: puede seguir modificando el arbol sin dueno. Hay que eliminar esa ventana al activar la gestion de senales/registro alrededor del arranque.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

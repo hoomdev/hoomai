@@ -1,0 +1,11 @@
+{
+  "id": "20261015T163243_d24626",
+  "created_at": "2026-10-15T16:32:43.817871Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/runcmd/grupo_windows.go",
+  "description": "INTRODUCIDO EN ESTA ENMIENDA. internal/runcmd/grupo_windows.go:7-11 deja enGrupo y registrarGrupo como no-op en Windows. Ese sistema es un target publicado, y alli Cancel/timeout solo termina el proceso proveedor mientras sus descendientes pueden seguir escribiendo; al cerrar hoom serve tampoco se los limpia y el run puede quedar terminal, habilitando Guardar/Descartar sobre un arbol que aun cambia. Incumple el contrato nuevo de matar el arbol de procesos y requiere cobertura Windows equivalente.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

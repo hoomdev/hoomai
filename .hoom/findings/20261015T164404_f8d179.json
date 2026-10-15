@@ -1,0 +1,11 @@
+{
+  "id": "20261015T164404_f8d179",
+  "created_at": "2026-10-15T16:44:04.204874Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO EN EL ARREGLO. internal/cockpitcmd/cockpitcmd.go:83-97 crea CommandContext con plazo, pero no configura WaitDelay ni un grupo de procesos. En Output, os/exec espera tambien a que cierren los pipes: si un wrapper de tmux lanza un descendiente que hereda stdout, al vencer el contexto solo muere el proceso directo y cmd.Output puede seguir bloqueado hasta que ese descendiente cierre el pipe; en QuietCmd el pedido vuelve, pero el descendiente queda vivo. Por eso una dependencia degradada todavia puede exceder los 5 s prometidos en la spec y retener goroutines/procesos. El test nuevo usa exec sleep, sin descendientes, y no cubre este caso.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

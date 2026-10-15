@@ -1,0 +1,11 @@
+{
+  "id": "20261015T164614_9a93be",
+  "created_at": "2026-10-15T16:46:14.586447Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO. internal/reviewcmd/reviewcmd.go:46-54 reparte el catalogo entre Lentes, lentes y CantidadDeLentes, con dos identificadores que solo difieren en mayuscula. La cantidad sigue siendo una fuente manual: reducir el literal o aumentar la constante compila rellenando el array con una lente vacia, y la guarda que compara longitudes no detecta ese estado. El comentario promete una sola fuente, pero un cambio del catalogo exige coordinar el numero y los elementos; conviene derivar la cantidad del array inferido y evitar el alias mutable.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}
