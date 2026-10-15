@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T164619_a46d0c",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: el ciclo de vida del launch vive en el tipo trabajo (soltarCandado con sync.Once, empezo, termino, canales listo y fin); un solo lugar suelta la tarjeta. Guarda del test-writer (b578143): TestHallazgo_a46d0c_GuardaElTrabajoSueltaLaTarjeta, mas los tests previos de 0cf41f y 17225a que siguen verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.769152Z"
+}

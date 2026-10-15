@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T163642_0c71ae",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3 y 9ca799b: taskcmd.mostradas() es la union que usa tanto Discardable como la comparacion de Descartar (destino y origen del rename), y Restored lista tambien el origen. Tests del test-writer: TestHallazgo_0c71ae_CA346_DescartarUnRenameConLoQueSeVio y ..._ElResultadoNombraLasDosRutasDelRename (20d2edd) y TestHallazgo_0c71ae_DescartarUnRenameDesdeElStudio (b578143); fallan sobre e8babf9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.735746Z"
+}

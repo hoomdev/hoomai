@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T163244_7a04de",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: LockArbol solo es no-op cuando git dice 'not a git repository' (leido con LC_ALL=C); cualquier otro fallo de git es error y nadie actua sin candado. Tests del test-writer (20d2edd): TestHallazgo_7a04de_LockArbolConGitFallandoEsError (falla sobre e8babf9) y la guarda TestHallazgo_7a04de_GuardaFueraDeUnRepoNoFalla.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.72244Z"
+}

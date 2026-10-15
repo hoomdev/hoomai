@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T163244_e30013",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3 y 6babfea: arrancar() hace Start y registra el PID bajo el candado de grupos; el handler de SIGINT/SIGTERM/SIGHUP se queda con el candado (nadie arranca despues) y mata todos los grupos; procesos.MatarGrupo repite la senal hasta que el grupo queda vacio (en macOS un fork en curso dejaba escapar un nieto, ~5 de 25); soltarGrupo mata el grupo al terminar el run. Test del test-writer (20d2edd): TestHallazgo_e30013_SenalDuranteLosArranquesMataATodos (SIGTERM tras 1, 7, 19 y 33 arranques); falla sobre e8babf9 y 30 de 30 verde con 6babfea.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.71558Z"
+}

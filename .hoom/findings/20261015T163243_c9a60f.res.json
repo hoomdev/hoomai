@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T163243_c9a60f",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: isLoopback compara sin mayusculas (EqualFold) y quita el punto final, asi LOCALHOST, Localhost y localhost. tambien instalan SoloLocal (421 al Host ajeno). Test del test-writer (b578143): TestHallazgo_c9a60f_LocalhostEnOtraFormaTambienSeProtege; falla sobre e8babf9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.694498Z"
+}

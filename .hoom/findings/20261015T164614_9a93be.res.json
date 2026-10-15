@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T164614_9a93be",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: Lentes es la unica lista (literal) y CantidadDeLentes una constante sin tipo (len de un array es constante TIPADA int y rompe 9.0/ReviewLenses); boardcmd.ReviewLenses usa reviewcmd.CantidadDeLentes. Guarda del test-writer (20d2edd): TestHallazgo_9a93be_GuardaLentesSinVaciasNiRepetidas (pasa antes y despues: es guarda, la consistencia de la cuenta la cubren los tests existentes).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.762563Z"
+}
