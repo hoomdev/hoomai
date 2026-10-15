@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T204919_cfe12b",
+  "as": "corregido",
+  "evidence": "Corregido en c3c99e0: Descartar tiene un unico conjunto restaurar (rutas locales que HEAD tiene y origenes de rename) que usan el chequeo de contenido, git restore y el resultado; mismo contenido y orden que antes. Refutador: cierto, y la correccion lo resuelve (go vet y tests de Descartar ok). Sin test nuevo: legibilidad; los de af25ed y 0c71ae siguen verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:19:12.218953Z"
+}

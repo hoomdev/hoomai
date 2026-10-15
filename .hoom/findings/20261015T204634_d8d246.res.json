@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T204634_d8d246",
+  "as": "corregido",
+  "evidence": "Corregido por cambio de diseno en c3c99e0 (ver 6a6780): ningun error de new-session (plazo, senal, fallo al arrancar) lleva a cerrar una sesion. Enmienda 3 de acciones-desde-la-tarjeta aprobada por Henry (sha256 dc7cbfe1, 2026-10-15 21:00 UTC; eligio completar en vez de cerrar). Refutador: cierto sobre b7f8302 (reproducido con tmux real y un arranque fallido EAGAIN). Test: TestHallazgo_6a6780_d8d246_UnNewSessionCortadoNoCierraLaSesionDeOtraApertura, variantes de corte por senal antes del plazo (Studio y CLI); fallan sobre 0ab5ba0 y pasan sobre 7ed9d86.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:19:12.194976Z"
+}

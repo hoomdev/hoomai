@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T204235_878cbd",
+  "as": "corregido",
+  "evidence": "Corregido por cambio de diseno en c3c99e0: ya no se clasifica el error de new-session por exit code (en Windows un proceso terminado da 1, no -1); nunca se cierra tras el fallo y la sesion a medias se completa en la proxima apertura, igual en todos los sistemas. Enmienda 3 de acciones-desde-la-tarjeta aprobada por Henry (sha256 dc7cbfe1, 2026-10-15 21:00 UTC; eligio completar en vez de cerrar). Refutador: mecanismo cierto, no alcanzable segun la spec (cockpit-tmux-zellij.md No-goals: Windows nativo). Sin test de Windows (no se ejecuta aca; enmienda 2); la ruta comun la cubren los tests de la enmienda 3.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:19:12.201134Z"
+}
