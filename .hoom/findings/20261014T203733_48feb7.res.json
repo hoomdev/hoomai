@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203733_48feb7",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: el manejador de visibilitychange de tablero.js vuelve a pedir el espejo de la terminal si el detalle y la seccion de terminal estan abiertos. Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_48feb7_AlVolverVisibleSigueElEspejoDeLaTerminal (estatico).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.550165Z"
+}

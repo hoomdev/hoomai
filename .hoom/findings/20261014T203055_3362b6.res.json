@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203055_3362b6",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: servecmd.SoloLocal envuelve el Studio servido en loopback y responde 421, sin llamar al handler, a un Host que no sea 127.0.0.1, localhost o [::1] con su puerto; un addr no loopback queda como esta (ya avisado). La decision 'Ver terminal es una lectura sin token' queda anclada a ese control. Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_3362b6_SoloLocalAtiendeSoloHostLoopback y ..._ElStudioConHostAjenoEs421 (terminal y /api/status con Host atacante y sin token: 421).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.517531Z"
+}

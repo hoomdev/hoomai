@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203738_933c74",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: 'Leer el spec' del dialogo de aprobar deja el detalle en la pestana Que (data-pane=que). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_933c74_LeerElSpecDejaElDetalleEnQue (estatico).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.556576Z"
+}

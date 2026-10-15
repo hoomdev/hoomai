@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203056_9e2b00",
+  "as": "corregido",
+  "evidence": "Corregido en 484ffcf: reviewcmd.declaredWriters solo trata como 'sin sesiones' un item que no existe; uno que existe y no se puede leer frena la review antes de la primera pasada, sin registro. Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_9e2b00_5d64ca_CA351_ItemIlegibleFrenaLaReview (clave desconocida, YAML roto, sin permiso: en 8ebb532 la review salia cruzada con el mismo provider que el item declaraba); guarda sin item.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.523709Z"
+}

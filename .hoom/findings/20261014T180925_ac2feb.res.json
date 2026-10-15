@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180925_ac2feb",
+  "as": "corregido",
+  "evidence": "Corregido en 0903afb: itemcmd.Save toma el candado del espacio de trabajo y el del proyecto, vuelve a derivar la tarjeta bajo ellos y los suelta despues del ultimo commit; si no los consigue en 2 s, se niega sin commitear. Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests (8ebb532): TestHallazgo_ac2feb_CA344_CandadoTomadoGuardarSeNiega (worktree y proyecto) y ..._CandadoSueltoGuardarEsperaYGuarda; con un LockArbol que no hace nada fallan.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.504882Z"
+}

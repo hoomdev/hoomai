@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T204543_b5e187",
+  "as": "corregido",
+  "evidence": "Corregido en d5c2eec (opcion recomendada por el writer, aprobada por Henry con la enmienda): el provider corre en su propio grupo de procesos (Setpgid) y cancelar o vencer el plazo mata el grupo; el primer run del proceso instala un manejador de SIGINT, SIGTERM y SIGHUP que mata todos los grupos y deja que la senal siga; Meta.ChildPID guarda el PID del provider y mientras viva el run cuenta como activo (Active, Busy) y markOrphans no lo cierra. Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_b5e187_CancelarMataAlNieto (cancel y plazo), ..._SenalAlDuenoMataSusRuns (SIGTERM, SIGINT, SIGHUP), ..._DuenoMuertoConProviderVivoSigueActivo. En Windows queda como estaba.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.511095Z"
+}
