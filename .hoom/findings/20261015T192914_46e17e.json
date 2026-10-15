@@ -1,0 +1,11 @@
+{
+  "id": "20261015T192914_46e17e",
+  "created_at": "2026-10-15T19:29:14.699106Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO: internal/cockpitcmd/cockpitcmd.go:226-230 atribuye cualquier error de new-session a una sesion parcial propia y mata la sesion que exista tras el error. Dos aperturas concurrentes pueden pasar has-session; una crea la sesion y la otra recibe duplicate session, ve la sesion de la primera y la cierra. Como Open/session no serializa por nombre, un intento atrasado tambien puede cerrar un cockpit ya completado y terminar su CLI de IA, con posible perdida de trabajo.",
+  "author": "reviewer@codex",
+  "fingerprint": "c8f85edae5a6e5f8",
+  "task": "fixes-cabina-c3"
+}
