@@ -472,7 +472,9 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 		if out, err := run(wt, append([]string{"--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--"}, back...)...); err != nil {
 			return res, fmt.Errorf("git restore fallo: %s", out)
 		}
-		for _, p := range restore {
+		// what went back, the origin of a rename too: the card showed it as
+		// one more path, and the result says it came back (finding 0c71ae)
+		for _, p := range back {
 			res.Restored = append(res.Restored, taskRel(slug, p))
 		}
 	}
