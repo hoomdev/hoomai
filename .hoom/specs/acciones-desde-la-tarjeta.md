@@ -1,6 +1,14 @@
 # Spec: acciones desde la tarjeta (cabina visual, C3)
 
-Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión aprobada
+Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 2 es
+una sola: (l) en Windows el grupo de procesos del agente es un Job Object en
+el que el agente entra apenas arrancó, no antes, así que un proceso que el
+agente lance en ese instante queda fuera del grupo; es un límite declarado,
+no un defecto a corregir en esta spec (hallazgo 107001 de la review de las
+correcciones; Henry eligió declararlo). Y lo de Windows se compila pero no se
+ejecuta en el CI. No agrega criterios.
+
+Enmienda 1 (aprobada el 2026-10-15, sha256 bbc78a95): la versión aprobada
 (sha256 d0160342) está implementada e integrada (PR 25). Su review de 4
 lentes (2026-10-14, en dos mitades porque no entraba en el tope de
 evidencia) dejó hallazgos que tocan el contrato de Guardar y Descartar, y
@@ -26,7 +34,8 @@ lanzamiento de la tarjeta lo suelta el trabajo, y un pedido cancelado no
 deja al handler esperando; (k) cada llamada a tmux del Studio tiene un plazo.
 Precisa CA-344 y CA-346; no agrega criterios.
 
-Historia: aprobada el 2026-09-23 (sha256 d0160342).
+Historia: aprobada el 2026-09-23 (sha256 d0160342); enmienda 1 aprobada el
+2026-10-15 (sha256 bbc78a95).
 Depende de: `tablero-de-solo-lectura.md` (C2) integrada (PR #23).
 Tarea sugerida: `hoom task start acciones-desde-la-tarjeta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 3 de 4, "C3 — Acciones
@@ -850,8 +859,9 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   lo muestra interrumpido. El agente, que es otro proceso, no moría con él:
   ahora corre en su propio grupo, que el Studio mata ante SIGINT, SIGTERM o
   SIGHUP, y si al Studio lo matan de golpe el PID del agente en el registro
-  del run lo mantiene activo hasta que termine (enmienda 1). Un proceso aparte sería otro camino para lanzar
-  roles, y el RFC lo prohíbe.
+  del run lo mantiene activo hasta que termine (enmienda 1). En Windows el
+  grupo es un Job Object, con un límite (ver riesgos, enmienda 2). Un proceso
+  aparte sería otro camino para lanzar roles, y el RFC lo prohíbe.
 - **El mínimo de Claude es 0.5 USD**, declarado en su adapter. Pendiente de
   confirmar.
 - **La review tiene presupuesto por lente**, porque `hoom review` le pasa
@@ -889,6 +899,15 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   que reanuda. Queda a la vista en `unsynced` y en el diálogo, y lo cubren
   `verify` y `check` al cerrar, pero una escritura fuera de territorio de un
   run muerto no se registra como hallazgo.
+- **En Windows el grupo del agente empieza un instante tarde** (enmienda 2).
+  El grupo es un Job Object, y en Windows un proceso entra a un job después
+  de arrancar: algo que el agente lance entre su arranque y su entrada al job
+  queda fuera, y puede sobrevivir a la cancelación o al cierre del Studio.
+  Antes de la enmienda 1 quedaban fuera todos los procesos del agente.
+  Cerrar esa ventana (arrancarlo suspendido, meterlo al job y recién ahí
+  reanudarlo) es código de Windows que el CI no ejecuta, porque corre en
+  Linux: queda para cuando haya dónde probarlo. Por lo mismo, todo lo de
+  Windows de esta spec se compila pero no se ejecuta en el CI.
 - **El PID puede reciclarse.** Después de un reinicio, otro proceso con el
   mismo PID haría ver vivo un sobre muerto. Es improbable y se corrige solo
   cuando el proceso termina.
