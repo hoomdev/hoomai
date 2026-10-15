@@ -893,11 +893,12 @@ func Run(dir, addr string) error {
 const cockpitPlazo = 5 * time.Second
 
 // SoloLocal guards the Studio served at addr. On a loopback addr it answers
-// only requests whose Host is that same loopback (127.0.0.1, localhost or
-// [::1] with addr's port): a page of another site that rebinds its name to
-// 127.0.0.1 (DNS rebinding) sends its own Host, and gets 421 instead of the
-// board or the terminal mirror, which need no token because no other page
-// could read them (finding 3362b6). A non-loopback addr is already exposed,
+// only requests whose Host is a loopback with addr's port: 127.0.0.1,
+// localhost, [::1], or addr's own host, the one the URL it prints names
+// (localhost., 127.0.0.2: finding 1b1fc7). A page of another site that
+// rebinds its name to 127.0.0.1 (DNS rebinding) sends its own Host, and gets
+// 421 instead of the board or the terminal mirror, which need no token
+// because no other page could read them (finding 3362b6). A non-loopback addr is already exposed,
 // and warned about: it is served as is.
 func SoloLocal(h http.Handler, addr string) http.Handler {
 	host, port, err := net.SplitHostPort(addr)
@@ -905,26 +906,24 @@ func SoloLocal(h http.Handler, addr string) http.Handler {
 		return h
 	}
 	validos := map[string]bool{
-		net.JoinHostPort("127.0.0.1", port): true,
-		net.JoinHostPort("localhost", port): true,
-		net.JoinHostPort("::1", port):       true,
-		// and the address it listens on, the one the URL it prints names:
-		// localhost., 127.0.0.2 (finding 1b1fc7)
+		net.JoinHostPort("127.0.0.1", port):      true,
+		net.JoinHostPort("localhost", port):      true,
+		net.JoinHostPort("::1", port):            true,
 		hostNormal(net.JoinHostPort(host, port)): true,
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !validos[hostNormal(r.Host)] {
-			writeError(w, http.StatusMisdirectedRequest, fmt.Sprintf("el Studio solo atiende pedidos a 127.0.0.1, localhost o [::1] en el puerto %s: el Host %q es de otra pagina", port, r.Host))
+			writeError(w, http.StatusMisdirectedRequest, fmt.Sprintf("el Studio solo atiende pedidos a 127.0.0.1, localhost, [::1] o %s en el puerto %s: el Host %q es de otra pagina", host, port, r.Host))
 			return
 		}
 		h.ServeHTTP(w, r)
 	})
 }
 
-// hostNormal writes a Host header the way SoloLocal lists the valid ones: a
-// name is case-insensitive and may end in a dot, so LOCALHOST:4666 and
-// localhost.:4666 are localhost:4666, the same as for isLoopback (findings
-// c9a60f, 1b1fc7).
+// hostNormal normalizes a "host:port" the way SoloLocal lists the valid
+// ones: a name is case-insensitive and may end in a dot, so LOCALHOST:4666
+// and localhost.:4666 are localhost:4666, the same as for isLoopback
+// (findings c9a60f, 1b1fc7, f21e0e).
 func hostNormal(h string) string {
 	h = strings.ToLower(h)
 	host, port, err := net.SplitHostPort(h)

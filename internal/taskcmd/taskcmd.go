@@ -433,18 +433,20 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	if err != nil {
 		return res, err
 	}
-	var restore, remove, blobs []string
+	// restaurar is every path that goes back to HEAD, the one set the
+	// content check, git restore and the result use: the local paths HEAD has
+	// and the origins of renames, which the card showed as paths too
+	// (findings 0c71ae, af25ed, cfe12b); remove is what HEAD does not have
+	var restaurar, remove, blobs []string
 	for _, p := range local {
 		if _, ok := enHEAD[p]; ok {
-			restore = append(restore, p)
+			restaurar = append(restaurar, p)
 		} else {
 			remove = append(remove, p)
 		}
 	}
-	// what goes back: the origin of a rename too, since the card showed it as
-	// one more path (finding 0c71ae)
-	back := append(append([]string{}, restore...), origins...)
-	for _, p := range back {
+	restaurar = append(restaurar, origins...)
+	for _, p := range restaurar {
 		if e := enHEAD[p]; e.tipo == "blob" {
 			blobs = append(blobs, e.objeto)
 		}
@@ -456,7 +458,7 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 		return res, err
 	} else if len(falta) > 0 {
 		var rutas []string
-		for _, p := range back {
+		for _, p := range restaurar {
 			if falta[enHEAD[p].objeto] {
 				rutas = append(rutas, taskRel(slug, p))
 			}
@@ -474,12 +476,12 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	}
 	// the paths are names, never patterns: `:(glob)**` is a file
 	// (finding 3113eb)
-	if len(back) > 0 {
-		if out, err := run(wt, append([]string{"--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--"}, back...)...); err != nil {
+	if len(restaurar) > 0 {
+		if out, err := run(wt, append([]string{"--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--"}, restaurar...)...); err != nil {
 			return res, fmt.Errorf("git restore fallo: %s", out)
 		}
 		// the result names the origin of a rename too (finding 0c71ae)
-		for _, p := range back {
+		for _, p := range restaurar {
 			res.Restored = append(res.Restored, taskRel(slug, p))
 		}
 	}
