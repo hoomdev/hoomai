@@ -218,56 +218,28 @@ func resolveProvider(name string, deps Deps) (string, string, error) {
 // ~70%, watch pane beside it, both rooted at dir. Idempotent by session name;
 // it reports whether it created the session. It never attaches.
 //
-// After new-session fails or runs out of time it never closes the session:
-// it cannot tell whether it created it or another opening of the same card
-// did, and closing it would kill that one's CLI. A session with only the AI
-// pane was left half-built, and the next opening completes it and counts it
-// as created (enmienda 3; findings 0fc76d, 46e17e, 6a6780).
+// After new-session fails or runs out of time it leaves the session as it
+// is, neither closed nor completed: it cannot tell whether it created it or
+// another opening of the same card did, nor which provider runs in its pane.
+// The error says how to close a half-built one by hand, and until then it
+// counts as existing (enmienda 4).
 func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 	// exactly this session (=): tmux matches a prefix too, and with fix-login
 	// open the card fix would find it and build nothing (finding fa374d)
 	if deps.QuietCmd(dir, "tmux", "has-session", "-t", "="+session) == nil {
-		if panes(dir, session, deps) != 1 {
-			return false, nil
-		}
-		if err := splitWatch(dir, session, deps); err != nil {
-			return false, err
-		}
-		return true, nil
+		return false, nil
 	}
 	if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
-		return false, err
+		return false, fmt.Errorf("%w; si la sesion %s quedo a medias (sin el pane de vigilancia), cerrala con 'tmux kill-session -t =%s' y reintenta", err, session, session)
 	}
-	if err := splitWatch(dir, session, deps); err != nil {
+	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {
 		// this opening just created the session: a half-built cockpit of its
 		// own goes, and the next try builds it whole
 		return false, killSession(dir, session, deps, err)
 	}
-	return true, nil
-}
-
-// panes counts the panes of session; 0 when it cannot tell (no Output in
-// deps, or tmux did not say), which leaves the session as it is.
-func panes(dir, session string, deps Deps) int {
-	if deps.Output == nil {
-		return 0
-	}
-	out, err := deps.Output(dir, "tmux", "list-panes", "-t", "="+session, "-F", "#{pane_id}")
-	if err != nil {
-		return 0
-	}
-	return len(strings.Fields(string(out)))
-}
-
-// splitWatch adds the watch pane beside the AI pane and leaves the focus on
-// the AI pane.
-func splitWatch(dir, session string, deps Deps) error {
-	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {
-		return err
-	}
 	// foco inicial en el pane de la IA; cosmetico, jamas fatal
 	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", session, "-L")
-	return nil
+	return true, nil
 }
 
 // killSession closes exactly session (= : no prefix match on another one)
