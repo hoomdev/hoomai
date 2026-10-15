@@ -177,18 +177,16 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 	}
 	s.launching[slug] = true
 	s.launchMu.Unlock()
-	var soltado sync.Once
-	soltar := func() {
-		soltado.Do(func() {
-			s.launchMu.Lock()
-			delete(s.launching, slug)
-			s.launchMu.Unlock()
-		})
-	}
-	lanzado := false
+	t := &trabajo{soltar: func() {
+		s.launchMu.Lock()
+		delete(s.launching, slug)
+		s.launchMu.Unlock()
+	}, listo: make(chan struct{}, 1), fin: make(chan finDeTrabajo, 1)}
+	// hasta que el trabajo arranca, el candado es de este handler: cualquier
+	// salida antes lo suelta
 	defer func() {
-		if !lanzado {
-			soltar()
+		if !t.enMarcha {
+			t.soltarCandado()
 		}
 	}()
 	c, err := boardcmd.CardFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug, time.Now().UTC())
@@ -253,29 +251,14 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 	crearTarea := c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog
 	var tareaCreada atomic.Bool
 
-	ready := make(chan struct{}, 1)
-	var arranco atomic.Bool
-	onStart := func() {
-		arranco.Store(true)
-		soltar()
-		ready <- struct{}{}
-	}
-	// fin is how the job ended: its error, or the note of a review decided
-	// without passes, and whether it reached its first record
-	type fin struct {
-		err     error
-		nota    string
-		arranco bool
-	}
-	done := make(chan fin, 1)
 	spec := ".hoom/specs/" + slug + ".md"
 
-	lanzado = true
+	t.enMarcha = true
 	s.launches.Add(1)
 	go func() {
 		defer s.launches.Done()
 		defer logFile.Close()
-		var f fin
+		var f finDeTrabajo
 		if crearTarea {
 			if f.err = taskcmd.Start(s.m.Dir, slug, s.m.BaseBranch); f.err == nil {
 				tareaCreada.Store(true)
@@ -288,13 +271,13 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 			var res reviewcmd.Result
 			res, f.err = reviewcmd.Run(s.m.Dir, s.m.BaseBranch, reviewcmd.Options{
 				Provider: opt.Name, Task: slug, Spec: spec, Model: req.Model, Effort: req.Effort, BudgetUSD: budget,
-				EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
+				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 			}, logFile)
 			f.nota = res.Nota
 		default:
 			o := agentcmd.Options{
 				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: req.Model,
-				BudgetUSD: budget, EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
+				BudgetUSD: budget, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec
@@ -304,15 +287,13 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 			}
 			_, f.err = agentcmd.Run(s.m.Dir, s.m.BaseBranch, o, logFile)
 		}
-		f.arranco = arranco.Load()
-		if !f.arranco {
+		if !t.arranco.Load() {
 			// termino antes de su primer registro: no corrio nada, y no
 			// queda nada (tampoco su log)
 			logFile.Close()
 			os.Remove(logPath)
 		}
-		soltar()
-		done <- f
+		t.termino(f)
 		// la cinta: despues de un trabajo que lanzo el Studio, y solo si
 		// ese trabajo llego a dejar su registro
 		s.belt(slug, c, id, logFile)
@@ -322,9 +303,9 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 		return launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: tareaCreada.Load()}, 0, nil
 	}
 	select {
-	case <-ready:
+	case <-t.listo:
 		return ok202()
-	case f := <-done:
+	case f := <-t.fin:
 		if f.arranco {
 			// llego a su primer registro y termino antes de esta respuesta:
 			// corrio, y su registro dice como (hallazgo 17225a)
@@ -346,6 +327,45 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 		// tarjeta lo muestra (hallazgo 0cf41f)
 		return fail(http.StatusRequestTimeout, "el pedido se cancelo antes de que el trabajo arrancara; la tarjeta muestra como sigue")
 	}
+}
+
+// trabajo is one launch's job as the handler sees it (finding a46d0c). Until
+// it is enMarcha the card's launch lock belongs to the handler, which
+// releases it on any early exit; from then on the job releases it, once,
+// when its envelope writes the first record (empezo) or when it ends without
+// writing it (termino). listo and fin tell the handler which of the two
+// happened; fin also says whether the first record came before the end.
+type trabajo struct {
+	soltar   func() // releases the card's launch lock
+	soltado  sync.Once
+	enMarcha bool
+	arranco  atomic.Bool
+	listo    chan struct{}
+	fin      chan finDeTrabajo
+}
+
+// finDeTrabajo is how a job ended: its error, or the note of a review
+// decided without passes, and whether it reached its first record.
+type finDeTrabajo struct {
+	err     error
+	nota    string
+	arranco bool
+}
+
+func (t *trabajo) soltarCandado() { t.soltado.Do(t.soltar) }
+
+// empezo is the envelope's Started: its first record is on disk.
+func (t *trabajo) empezo() {
+	t.arranco.Store(true)
+	t.soltarCandado()
+	t.listo <- struct{}{}
+}
+
+// termino closes the job with how it ended.
+func (t *trabajo) termino(f finDeTrabajo) {
+	f.arranco = t.arranco.Load()
+	t.soltarCandado()
+	t.fin <- f
 }
 
 // belt is the autopilot of a card with `auto: hasta-humano`: a conveyor

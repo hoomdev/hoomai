@@ -331,15 +331,27 @@ type DiscardResult struct {
 // Discardable lists the uncommitted paths of the task's workspace outside
 // .hoom/ (relative to root): what Discard would take back.
 func Discardable(root, slug string) ([]string, error) {
-	local, _, err := discardable(root, slug)
+	local, origins, err := discardable(root, slug)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, len(local))
-	for i, p := range local {
-		out[i] = taskRel(slug, p)
+	return mostradas(slug, local, origins), nil
+}
+
+// mostradas are the paths a discard shows and checks against what the person
+// saw: those it restores or deletes, and the origin of each rename, which
+// goes back too and which the card shows as its own path (finding 0c71ae).
+func mostradas(slug string, local, origins []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range append(append([]string{}, local...), origins...) {
+		if r := taskRel(slug, p); !seen[r] {
+			seen[r] = true
+			out = append(out, r)
+		}
 	}
-	return out, nil
+	sort.Strings(out)
+	return out
 }
 
 // ErrChanged: the paths a person saw are not the ones there are now.
@@ -411,11 +423,7 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 		return res, fmt.Errorf("hay un run activo (%s) en el espacio de trabajo de la tarea %q: descartar ahora pisaria su trabajo. Accion: espera a que termine", id, slug)
 	}
 	if expect != nil {
-		now := make([]string, len(local))
-		for i, p := range local {
-			now[i] = taskRel(slug, p)
-		}
-		if !sameSet(expect, now) {
+		if !sameSet(expect, mostradas(slug, local, origins)) {
 			return res, fmt.Errorf("%s", ErrChanged)
 		}
 	}

@@ -43,15 +43,14 @@ import (
 // Lentes are the 4 lenses of contract 06, in the fixed order they run: risk
 // first, so that when the provider's quota cuts a review the lens that gave
 // the highest findings has already run; reliability keeps the second place.
-var Lentes = lentes[:]
+var Lentes = []string{"risk", "reliability", "resilience", "readability"}
 
-// CantidadDeLentes is how many lenses Lentes has, as an untyped constant so a
-// budget in USD splits by it: whoever splits a review among its passes counts
-// here, never with a 4 of its own (finding 285834). The array cannot hold
-// more, and the guard of that finding checks it holds that many.
+// CantidadDeLentes is len(Lentes) as an untyped constant, so a budget in USD
+// splits by it: whoever splits a review among its passes counts here, never
+// with a 4 of its own (finding 285834). Go cannot take the length of a slice
+// as a constant: the guard of that finding checks that the two agree, and
+// the one of 9a93be that no lens is empty or repeated.
 const CantidadDeLentes = 4
-
-var lentes = [CantidadDeLentes]string{"risk", "reliability", "resilience", "readability"}
 
 // LenteDominante is the lens of a standard change. It is FIXED instead of
 // guessed from the content: guessing would be the model's judgement wearing a
@@ -1035,10 +1034,12 @@ func declaredWriters(root, task string) ([]string, error) {
 	if strings.TrimSpace(task) == "" || !item.ValidSlug(task) {
 		return out, nil
 	}
-	it, err := item.Load(root, task)
-	if os.IsNotExist(err) {
+	// "no item" is a path with nothing on it; a symlink that leads nowhere
+	// is an item that cannot be read (finding 0aade6)
+	if _, err := os.Lstat(item.Path(root, task)); os.IsNotExist(err) {
 		return out, nil
 	}
+	it, err := item.Load(root, task)
 	if err != nil {
 		return nil, fmt.Errorf("el item de la tarea %q no se puede leer (%v): sin el, no se sabe quien escribio. Accion: arreglalo y vuelve a revisar", task, err)
 	}

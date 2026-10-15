@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -77,13 +78,17 @@ func DefaultDeps() Deps {
 // DepsConPlazo is DefaultDeps whose probes end after plazo. The Studio calls
 // tmux inside an HTTP request (Abrir sesion, Ver terminal): a tmux that hangs
 // must not hold the request, nor the goroutine behind it, for ever (finding
-// 0f7f5c). A probe cut by its plazo fails like one that did not answer.
+// 0f7f5c). A probe cut by its plazo fails like one that did not answer, and
+// takes with it what it launched: it runs in a group of its own, and its
+// output is not awaited past a second more (finding f8d179).
 func DepsConPlazo(plazo time.Duration) Deps {
 	d := DefaultDeps()
 	conPlazo := func(dir, name string, args ...string) (*exec.Cmd, context.CancelFunc) {
 		ctx, cancel := context.WithTimeout(context.Background(), plazo)
 		cmd := exec.CommandContext(ctx, name, args...)
 		cmd.Dir = dir
+		procesos.EnGrupo(cmd)
+		cmd.WaitDelay = time.Second
 		return cmd, cancel
 	}
 	d.QuietCmd = func(dir, name string, args ...string) error {
@@ -91,6 +96,10 @@ func DepsConPlazo(plazo time.Duration) Deps {
 		defer cancel()
 		return cmd.Run()
 	}
+	// the Studio's steps (new-session, split-window) too, without the
+	// server's own terminal: nobody is there to type into them (finding
+	// 1ceba2)
+	d.RunCmd = d.QuietCmd
 	d.Output = func(dir, name string, args ...string) ([]byte, error) {
 		cmd, cancel := conPlazo(dir, name, args...)
 		defer cancel()

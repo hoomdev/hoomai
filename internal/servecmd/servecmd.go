@@ -919,7 +919,9 @@ func SoloLocal(h http.Handler, addr string) http.Handler {
 }
 
 func isLoopback(host string) bool {
-	if host == "localhost" {
+	// a name is case-insensitive, and may end in a dot: LOCALHOST and
+	// localhost. are localhost too (finding c9a60f)
+	if strings.EqualFold(strings.TrimSuffix(host, "."), "localhost") {
 		return true
 	}
 	ip := net.ParseIP(host)

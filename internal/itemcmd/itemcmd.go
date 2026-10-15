@@ -283,8 +283,14 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 		return SaveResult{}, err
 	}
 	defer unlock()
+	tomados := arbolesDe(root, c)
 	if c, err = boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC()); err != nil {
 		return SaveResult{}, err
+	}
+	// the trees committed are the ones locked: a workspace that appeared
+	// between the two derivations has no lock taken (finding ebae2a)
+	if !sameSet(tomados, arbolesDe(root, c)) {
+		return SaveResult{}, fmt.Errorf("%s", ErrChanged)
 	}
 	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
 	if r := c.Running; r != nil {
@@ -348,14 +354,20 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 	return res, nil
 }
 
-// lockArboles takes the lock of the card's workspace (when it has one) and of
-// the project, in that order, and returns what releases both.
-func lockArboles(root string, c boardcmd.Card) (func(), error) {
+// arbolesDe are the trees saving card c commits in: its workspace (when it
+// has one) and the project, in that order.
+func arbolesDe(root string, c boardcmd.Card) []string {
 	dirs := []string{}
 	if c.Evidence.Source == boardcmd.SourceWorktree {
 		dirs = append(dirs, filepath.Join(root, filepath.FromSlash(c.Evidence.Dir)))
 	}
-	dirs = append(dirs, root)
+	return append(dirs, root)
+}
+
+// lockArboles takes the lock of each tree of arbolesDe, in order, and returns
+// what releases them.
+func lockArboles(root string, c boardcmd.Card) (func(), error) {
+	dirs := arbolesDe(root, c)
 	var unlocks []func()
 	release := func() {
 		for i := len(unlocks) - 1; i >= 0; i-- {

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -227,12 +228,22 @@ type Meta struct {
 	// killing it (hoom serve killed with SIGKILL), the run is still at work
 	// while it lives, and nothing may act on its tree (finding b5e187).
 	ChildPID int `json:"child_pid,omitempty"`
+	// ChildStartedAt is when the provider started: a ChildPID that another
+	// process reused started at another time (finding cea64f).
+	ChildStartedAt time.Time `json:"child_started_at,omitempty"`
 }
 
 // vivo says whether the run of meta still has someone working: its owner, or
-// the provider its owner left behind.
+// the provider its owner left behind while its PID is still that provider
+// (not another process that reused it: finding cea64f).
 func vivo(meta Meta) bool {
-	return meta.PID == 0 || alive(meta.PID) || (meta.ChildPID > 0 && alive(meta.ChildPID))
+	return meta.PID == 0 || alive(meta.PID) || provider(meta)
+}
+
+// provider says whether the provider of meta is still alive and still the
+// same process.
+func provider(meta Meta) bool {
+	return meta.ChildPID > 0 && alive(meta.ChildPID) && procesos.MismoProceso(meta.ChildPID, meta.ChildStartedAt)
 }
 
 // idRe is what an id may look like: one file name, no separators, no dots
@@ -264,15 +275,15 @@ func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+"
 
 // writeMeta records a run's identity. Best-effort by contract: telemetry that
 // cannot be written never breaks the run it describes.
-func writeMeta(root string, meta Meta) {
+func writeMeta(root string, meta Meta) error {
 	if !validID(meta.ID) {
-		return // the id is the address: content never chooses the path
+		return fmt.Errorf("id de run invalido %q", meta.ID) // the id is the address: content never chooses the path
 	}
 	raw, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
-		return
+		return err
 	}
-	hoomfs.AtomicWrite(metaPath(root, meta.ID), append(raw, '\n'), 0o644)
+	return hoomfs.AtomicWrite(metaPath(root, meta.ID), append(raw, '\n'), 0o644)
 }
 
 // readMeta loads one sidecar by id and refuses one that lies about its
@@ -449,11 +460,14 @@ func (m *Manager) liveElsewhere(id string, lastTS time.Time) bool {
 	if !ok || meta.PID == 0 || meta.Status != StatusRunning {
 		return false
 	}
-	if meta.ChildPID > 0 && alive(meta.ChildPID) {
-		return true // its owner died, but the provider is still working
+	// the provider its owner left behind is still at work, as long as it
+	// lives and is the same process: no narration speaks for it, nobody is
+	// left to write it (findings b5e187 and cea64f)
+	if provider(meta) {
+		return true
 	}
 	if !lastTS.IsZero() && time.Since(lastTS) > m.Timeout+5*time.Minute {
-		return false
+		return false // too old: a live PID may be another process by now
 	}
 	return alive(meta.PID)
 }
@@ -572,15 +586,29 @@ const esperaRegistro = 30 * time.Second
 // real path: the CLI in the project, the CLI in a task worktree and the
 // Studio find the same one, and nothing is written inside the tree (a blind
 // tree stays as it is). A dir outside any git repository has nothing a
-// discard or a save could race with: the lock is then a no-op.
+// discard or a save could race with: the lock is then a no-op. Any other
+// failure of git (missing, unsafe directory, no permission) is an error:
+// two processes that disagree on where the lock is would not exclude each
+// other (finding 7a04de).
 func LockArbol(dir string, wait time.Duration) (func(), error) {
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return nil, err
 	}
-	out, err := exec.Command("git", "-C", real, "rev-parse", "--path-format=absolute", "--git-common-dir").Output()
+	cmd := exec.Command("git", "-C", real, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANGUAGE=C") // the message is read: untranslated
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return func() {}, nil
+		if strings.Contains(stderr.String(), "not a git repository") {
+			return func() {}, nil
+		}
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("no pude ubicar el candado del arbol %s: git rev-parse: %s", real, msg)
 	}
 	sum := sha256.Sum256([]byte(real))
 	path := filepath.Join(strings.TrimSpace(string(out)), "hoom-locks", hex.EncodeToString(sum[:8])+".lock")
@@ -677,7 +705,14 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1, PID: os.Getpid(),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
-	writeMeta(m.root, r.meta)
+	// the sidecar is how another process sees this run: without it the run
+	// would not exclude anybody, so it does not start (finding da369a)
+	if err := writeMeta(m.root, r.meta); err != nil {
+		m.mu.Unlock()
+		logFile.Close()
+		os.Remove(filepath.Join(runsDir(m.root), id+".jsonl"))
+		return Run{}, fmt.Errorf("no se pudo registrar el run: %v", err)
+	}
 	m.runs[id] = r
 	m.byDir[dir] = id
 	m.mu.Unlock()
@@ -924,19 +959,23 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipes")
 		return
 	}
-	enGrupo(cmd)
-	if err := cmd.Start(); err != nil {
+	if err := arrancar(cmd); err != nil {
 		// the cause matters: a missing binary and an argv too large (E2BIG
 		// with a huge --system-prompt) look the same otherwise
 		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), err))
 		return
 	}
-	registrarGrupo(cmd.Process.Pid)
 	defer soltarGrupo(cmd.Process.Pid)
+	// the provider's PID keeps the run alive for other processes if this
+	// one dies: without it on disk the run is not protected, so it does not
+	// go on (finding da369a)
 	m.mu.Lock()
-	r.meta.ChildPID = cmd.Process.Pid
-	writeMeta(m.root, r.meta)
+	r.meta.ChildPID, r.meta.ChildStartedAt = cmd.Process.Pid, time.Now().UTC()
+	errPID := writeMeta(m.root, r.meta)
 	m.mu.Unlock()
+	if errPID != nil {
+		procesos.MatarGrupo(cmd.Process.Pid)
+	}
 	// Si un hijo huerfano del provider retiene los pipes tras el kill,
 	// los cerramos por la fuerza pasada una gracia: cancelar (o el timeout)
 	// nunca puede colgar el cockpit esperando un EOF que no llega.
@@ -1009,6 +1048,10 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		}
 		status = StatusError
 		detail = fmt.Sprintf("el provider termino con exit %d", exit)
+	}
+	if errPID != nil {
+		status, exit = StatusError, -1
+		detail = fmt.Sprintf("no se pudo registrar el PID del provider (%v): el run se corto", errPID)
 	}
 	if escrito != nil {
 		// Wait ya cerro el pipe: la escritura termino, bien o mal
