@@ -1,0 +1,11 @@
+{
+  "id": "20261015T204919_cfe12b",
+  "created_at": "2026-10-15T20:49:19.538548Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "INTRODUCIDO: internal/taskcmd/taskcmd.go:436-483 mantiene dos slices vecinas llamadas restore y back con significados casi iguales pero distintos: restore son cambios locales presentes en HEAD, mientras back es el conjunto efectivo a restaurar (incluidos origenes de rename) y ahora gobierna preflight, ejecucion y resultado. Al ampliar el alcance de back, esa diferencia queda sostenida solo por comentarios y facilita usar el conjunto equivocado en una correccion futura; nombres que expresen ambos roles, o un helper que construya el conjunto final, harian explicita la invariante.",
+  "author": "reviewer@codex",
+  "fingerprint": "463286818ffca327",
+  "task": "fixes-cabina-c3"
+}

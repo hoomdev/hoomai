@@ -1,0 +1,11 @@
+{
+  "id": "20261015T204919_f21e0e",
+  "created_at": "2026-10-15T20:49:19.296565Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/servecmd.go",
+  "description": "INTRODUCIDO: internal/servecmd/servecmd.go:895-927 deja contradictorio el contrato legible de SoloLocal: el mapa ahora acepta tambien el Host derivado de addr (por ejemplo 127.0.0.2), pero el comentario y el error 421 siguen diciendo que solo se aceptan 127.0.0.1, localhost o ::1; ademas hostNormal se documenta como si escribiera un header aunque solo devuelve una cadena. Documentar la direccion escuchada como parte explicita del conjunto permitido y describir el helper como normalizador evitaria que quien mantenga esta barrera interprete una politica distinta de la implementada.",
+  "author": "reviewer@codex",
+  "fingerprint": "463286818ffca327",
+  "task": "fixes-cabina-c3"
+}

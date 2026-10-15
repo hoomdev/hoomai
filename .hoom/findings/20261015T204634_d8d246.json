@@ -1,0 +1,11 @@
+{
+  "id": "20261015T204634_d8d246",
+  "created_at": "2026-10-15T20:46:34.703424Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO. internal/cockpitcmd/cockpitcmd.go:227-239: tras cualquier error de new-session que no sea *exec.ExitError (incluye un fallo al arrancar tmux o un corte por deadline), se vuelve a consultar la sesion solo por nombre y se la mata si existe. Entre el has-session inicial/el fallo y esa consulta, otra apertura concurrente puede crear y completar la misma sesion; no hay evidencia de propiedad, por lo que killSession termina la sesion y la CLI ajenas y deja al otro pedido o al item apuntando a un cockpit muerto. Los tests de 46e17e solo cubren al perdedor que recibe ExitError por duplicate session, no el interleaving fallo no-ExitError + creador concurrente.",
+  "author": "reviewer@codex",
+  "fingerprint": "463286818ffca327",
+  "task": "fixes-cabina-c3"
+}

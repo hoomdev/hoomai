@@ -1,0 +1,11 @@
+{
+  "id": "20261015T204709_afecb4",
+  "created_at": "2026-10-15T20:47:09.452782Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO. internal/cockpitcmd/cockpitcmd.go:231-239: la rama considera que todo *exec.ExitError con ExitCode \u003e= 0 significa que tmux respondio y por eso no limpia. En Windows, DepsConPlazo usa procesos.EnGrupo y su cancelacion fuerza el arbol mediante taskkill /F (internal/procesos/procesos_windows.go:66-70,118-137); un proceso terminado por la fuerza conserva un codigo de salida numerico no negativo, de modo que el deadline tambien cae en la rama 231-233. Si new-session creo la sesion antes de colgarse, queda a medio armar y los reintentos la encuentran como existente para siempre. El test 0fc76d ejercita SIGKILL Unix (ExitCode -1), no esta clasificacion en Windows.",
+  "author": "reviewer@codex",
+  "fingerprint": "463286818ffca327",
+  "task": "fixes-cabina-c3"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261015T203754_6a6780",
+  "created_at": "2026-10-15T20:37:54.094283Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:235-238: tras un new-session cortado por el plazo, el codigo usa solo has-session para atribuirse la sesion y la mata. Si esa llamada vencio antes de crearla y otra apertura concurrente crea y termina la misma sesion entre el timeout y el probe, has-session ve la sesion ajena y killSession termina su cockpit/CLI, con posible perdida de la sesion de trabajo. El ExitError de duplicate evita un caso, pero un timeout no prueba propiedad; falta una forma de limpiar solo la sesion creada por esta invocacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "463286818ffca327",
+  "task": "fixes-cabina-c3"
+}
