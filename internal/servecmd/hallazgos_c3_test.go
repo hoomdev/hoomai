@@ -44,7 +44,9 @@
 //     queda vivo.
 //   - 20261015T165851_1ceba2 (low, resilience): Abrir sesion con un tmux
 //     colgado en new-session responde en a lo sumo unos segundos con un error,
-//     y tmux no recibe la entrada ni la salida de hoom serve.
+//     y tmux no recibe la entrada ni la salida de hoom serve. Su fixture mide
+//     los descriptores con el stat de GNU (-c) o el de BSD (-f), el que haya
+//     (hallazgo 60b360: el CI corre en Linux).
 //   - 20261015T163642_0c71ae (medium, reliability): Descartar desde el Studio
 //     despues de un git mv acepta las dos rutas que publica la tarjeta (el
 //     nombre nuevo y el viejo) y deshace el rename.
@@ -69,6 +71,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -713,19 +716,39 @@ func TestHallazgo_f8d179_VerTerminalConUnProcesoDeFondoQueHeredaLaSalida(t *test
 // ---------------------------------------------------------------------------
 // 1ceba2: Abrir sesion con tmux colgado en new-session
 
+// h3Stat define la funcion de sh h3stat, que imprime "<dev> <inodo>" (una
+// linea por archivo, siguiendo los enlaces) con el stat que haya: el de GNU
+// coreutils o busybox (Linux, el CI) toma el formato con -c, y el de BSD
+// (macOS) con -f. Con GNU, `-f` es "estado del filesystem" y el formato pasa
+// a ser un nombre de archivo (hallazgo 60b360), asi que primero se prueba -c
+// sobre / y solo si no lo entiende se usa -f. La usan el tmux falso y
+// h3Descriptores, para que los dos midan exactamente igual. Solo builtins de
+// sh y /usr/bin/stat (el PATH del test no tiene stat).
+const h3Stat = `h3stat() {
+  if /usr/bin/stat -L -c '%d %i' / >/dev/null 2>&1; then
+    /usr/bin/stat -L -c '%d %i' "$@"
+  else
+    /usr/bin/stat -L -f '%d %i' "$@"
+  fi
+}
+`
+
+// h3DevIno es una medida de h3stat: "<dev> <inodo>".
+var h3DevIno = regexp.MustCompile(`^[0-9]+ [0-9]+$`)
+
 // h3Descriptores devuelve lo que `stat -L` dice de /dev/fd/0, 1 y 2 de un
 // proceso que hereda la entrada y las salidas de ESTE proceso (o /dev/null),
-// medido igual que lo mide el tmux falso: una linea "<dev> <inodo>" por
-// descriptor.
+// medido igual que lo mide el tmux falso (h3Stat): una linea "<dev> <inodo>"
+// por descriptor.
 func h3Descriptores(t *testing.T, heredar bool) []string {
 	t.Helper()
 	out := filepath.Join(t.TempDir(), "fds")
 	var cmd *exec.Cmd
 	if heredar {
-		cmd = exec.Command("/bin/sh", "-c", "exec 5<&0 3>&1 4>&2\n/usr/bin/stat -L -f '%d %i' /dev/fd/5 /dev/fd/3 /dev/fd/4 > '"+out+"' 2>&1")
+		cmd = exec.Command("/bin/sh", "-c", h3Stat+"exec 5<&0 3>&1 4>&2\nh3stat /dev/fd/5 /dev/fd/3 /dev/fd/4 > '"+out+"' 2>&1")
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	} else {
-		cmd = exec.Command("/usr/bin/stat", "-L", "-f", "%d %i", os.DevNull, os.DevNull, os.DevNull)
+		cmd = exec.Command("/bin/sh", "-c", h3Stat+`h3stat "$1" "$1" "$1"`, "sh", os.DevNull)
 		raw, err := cmd.Output()
 		if err != nil {
 			t.Fatalf("fixture: stat de /dev/null: %v", err)
@@ -753,14 +776,14 @@ func TestHallazgo_1ceba2_AbrirSesionConTmuxColgadoNoSeCuelga(t *testing.T) {
 	marcas := t.TempDir()
 	log, pids := filepath.Join(marcas, "tmux.log"), filepath.Join(marcas, "pids")
 	tty, fds := filepath.Join(marcas, "tty"), filepath.Join(marcas, "fds")
-	tmux := strings.NewReplacer("@LOG@", log, "@PIDS@", pids, "@TTY@", tty, "@FDS@", fds).Replace(`printf '%s\n' "$*" >> '@LOG@'
+	tmux := strings.NewReplacer("@LOG@", log, "@PIDS@", pids, "@TTY@", tty, "@FDS@", fds, "@STAT@", h3Stat).Replace(`@STAT@printf '%s\n' "$*" >> '@LOG@'
 case "$1" in
 has-session)
   exit 1 ;;
 new-session)
   if [ -t 0 ]; then printf 'tty\n' > '@TTY@'; else printf 'no\n' > '@TTY@'; fi
   exec 5<&0 3>&1 4>&2
-  /usr/bin/stat -L -f '%d %i' /dev/fd/5 /dev/fd/3 /dev/fd/4 > '@FDS@' 2>&1
+  h3stat /dev/fd/5 /dev/fd/3 /dev/fd/4 > '@FDS@' 2>&1
   printf '%s\n' "$$" >> '@PIDS@'
   exec /bin/sleep 20 5<&- 3>&- 4>&- ;;
 esac
@@ -821,6 +844,15 @@ exit 0
 	nuestros, nulos := h3Descriptores(t, true), h3Descriptores(t, false)
 	if len(nuestros) != 3 || len(nulos) != 3 {
 		t.Fatalf("fixture: stat de los tres descriptores: %q %q", nuestros, nulos)
+	}
+	// 60b360: cada medida es "<dev> <inodo>"; un stat que no entendio su
+	// formato (o un error) no puede pasar por una medida distinta de la nuestra
+	for _, medidas := range [][]string{suyos, nuestros, nulos} {
+		for _, m := range medidas {
+			if !h3DevIno.MatchString(strings.TrimSpace(m)) {
+				t.Fatalf("fixture: stat imprime \"<dev> <inodo>\" por descriptor, imprimio %q (tmux %q, nuestros %q, /dev/null %q)", m, suyos, nuestros, nulos)
+			}
+		}
 	}
 	for i := range nuestros {
 		if nuestros[i] == nulos[i] {
