@@ -1,13 +1,18 @@
 # Spec: acciones desde la tarjeta (cabina visual, C3)
 
-Estado: ENMIENDA 3 — pendiente de re-aprobación humana. La enmienda 3 es
-una sola: (m) Abrir sesión nunca cierra una sesión después de que `tmux
-new-session` falló o venció su plazo, porque no puede saber si la creó ella
-u otra apertura de la misma tarjeta; una sesión de la tarjeta con un solo
-pane quedó a medias, y la próxima apertura la completa y la cuenta como
-creada (hallazgos 0fc76d, 46e17e, 6a6780, d8d246, 878cbd y afecb4: tres
-vueltas de review sobre ese cierre; Henry eligió completar en vez de
-cerrar). Precisa CA-347 y CA-348; no agrega criterios.
+Estado: ENMIENDA 4 — pendiente de re-aprobación humana. La enmienda 4 es
+una sola y reemplaza a la 3: (m) después de que `tmux new-session` falló o
+venció su plazo, Abrir sesión no cierra ni completa la sesión, porque no
+puede saber si la creó ella u otra apertura de la misma tarjeta, ni qué
+provider corre en su pane: devuelve el error y dice cómo cerrarla a mano. Una
+sesión a medias cuenta como existente. Es un límite declarado (la enmienda 3
+la completaba, y la review de esa completación dejó 13 hallazgos sobre
+propiedad y provider; Henry eligió no tocar y avisar). Precisa CA-347 y
+CA-348; no agrega criterios.
+
+Enmienda 3 (aprobada el 2026-10-15, sha256 dc7cbfe1), reemplazada por la 4:
+completaba la sesión a medias en la próxima apertura y la contaba como
+creada.
 
 Enmienda 2 (aprobada el 2026-10-15, sha256 31a8b1d2), una sola: (l) en
 Windows el grupo de procesos del agente es un Job Object en el que el agente
@@ -45,7 +50,7 @@ Precisa CA-344 y CA-346; no agrega criterios.
 
 Historia: aprobada el 2026-09-23 (sha256 d0160342); enmienda 1 aprobada el
 2026-10-15 (sha256 bbc78a95); enmienda 2 aprobada el 2026-10-15 (sha256
-31a8b1d2).
+31a8b1d2); enmienda 3 aprobada el 2026-10-15 (sha256 dc7cbfe1).
 Depende de: `tablero-de-solo-lectura.md` (C2) integrada (PR #23).
 Tarea sugerida: `hoom task start acciones-desde-la-tarjeta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 3 de 4, "C3 — Acciones
@@ -550,13 +555,15 @@ registra entre el "no hay run activo" de Guardar o Descartar y su acción.
   sesión ya existía, no registra nada. Lo hace igual desde la CLI (`hoom
   cockpit --task <slug>` con tmux) y desde el Studio.
 - Si `tmux new-session` falla o vence su plazo, `Open` devuelve el error y
-  no cierra nada: la sesión pudo crearla otra apertura de la misma tarjeta
-  (otra pestaña, o la CLI), y cerrarla mataría su CLI. Una sesión de la
-  tarjeta con un solo pane (el de la IA) quedó a medias: la próxima apertura
-  le agrega el pane de vigilancia (`split-window`), la cuenta como creada
-  (`created: true`, y el item gana su entrada) y no la vuelve a crear. Si el
-  que falla es el `split-window` justo después de que esta apertura creó la
-  sesión, la cierra como hasta ahora: esa sí es suya. (Enmienda 3.)
+  no toca la sesión: ni la cierra ni la completa. La sesión pudo crearla
+  otra apertura de la misma tarjeta (otra pestaña, o la CLI), y cerrarla
+  mataría su CLI; completarla declararía un provider que quizás no es el
+  del pane. El error nombra la sesión y dice que, si quedó a medias (sin el
+  pane de vigilancia), se cierra con `tmux kill-session -t =<session>` antes
+  de reintentar. Una sesión a medias cuenta como existente: el reintento
+  responde `created: false` y no registra nada. Si el que falla es el
+  `split-window` justo después de que esta apertura creó la sesión, la
+  cierra como hasta ahora: esa sí es suya. (Enmienda 4.)
 - `POST /api/board/{slug}/session` con `{"provider": "<p>"}` (obligatorio:
   desde el Studio no se autodetecta) exige `sesion` en la tarjeta y responde
   `{"session", "created", "provider", "dir", "attach": "tmux attach -t
@@ -760,13 +767,11 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
 - Abrir sesión dos veces: la segunda responde `created: false` y el item
   tiene una sola entrada.
 - Abrir sesión con un `tmux new-session` que crea la sesión y vence su
-  plazo: la apertura responde el error y la sesión queda a medias, con un
-  solo pane; el reintento la completa y responde `created: true` (enmienda
-  3).
+  plazo: la apertura responde el error, que dice cómo cerrar la sesión a
+  mano, y la sesión queda a medias, con un solo pane; el reintento la ve
+  existente, responde `created: false` y no registra nada (enmienda 4).
 - Dos aperturas a la vez de la misma tarjeta: una crea la sesión y la otra
-  recibe `duplicate session` y responde el error sin tocarla. Si la segunda
-  la ve justo cuando todavía tiene un solo pane, también la completa: queda
-  un pane de vigilancia de más y dos entradas en el item (enmienda 3).
+  recibe `duplicate session` y responde el error sin tocarla (enmienda 4).
 - Ver terminal sin sesión o sin tmux: `available: false` con la nota. La
   sección lo dice y sigue sondeando mientras está abierta.
 - Un item escrito por esta versión con `sesiones`, leído por un `hoom` viejo:
@@ -925,11 +930,13 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   que reanuda. Queda a la vista en `unsynced` y en el diálogo, y lo cubren
   `verify` y `check` al cerrar, pero una escritura fuera de territorio de un
   run muerto no se registra como hallazgo.
-- **Una sesión a medias se completa, no se cierra** (enmienda 3). Después
-  de un corte no se puede saber de quién es la sesión, así que nadie la
-  cierra. El costo: quien cerró a propósito el pane de vigilancia lo ve
-  volver en la próxima apertura, que además suma una entrada al item, y dos
-  aperturas a la vez pueden dejar un pane de más y dos entradas.
+- **Una sesión a medias queda como está** (enmienda 4). Después de un corte
+  de `tmux new-session` no se puede saber de quién es la sesión ni qué
+  provider corre en ella, así que nadie la cierra ni la completa: la
+  próxima apertura la ve existente y no la registra en el item, y el writer
+  queda sin declarar hasta que alguien la cierra a mano (el error dice cómo)
+  y la vuelve a abrir. Pasa solo si tmux tarda más que el plazo de 5 s en
+  crear la sesión.
 - **En Windows el grupo del agente empieza un instante tarde** (enmienda 2).
   El grupo es un Job Object, y en Windows un proceso entra a un job después
   de arrancar: algo que el agente lance entre su arranque y su entrada al job
