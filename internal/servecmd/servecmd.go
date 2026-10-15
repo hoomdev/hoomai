@@ -107,7 +107,7 @@ func New(dir string) (*Server, error) {
 		return nil, err
 	}
 	return &Server{m: m, token: hex.EncodeToString(raw), runs: runcmd.NewManager(m.Dir), logs: map[string]*foreignLog{},
-		cockpit: cockpitcmd.DefaultDeps(), launching: map[string]bool{}}, nil
+		cockpit: cockpitcmd.DepsConPlazo(cockpitPlazo), launching: map[string]bool{}}, nil
 }
 
 // Token returns the per-session action token. It is printed exactly once at
@@ -883,10 +883,39 @@ func Run(dir, addr string) error {
 	}
 	fmt.Printf("hoom serve: HoomAI Studio para %s en http://%s/ (Ctrl-C para salir)\n", s.m.Project, addr)
 	fmt.Printf("hoom serve: token de acciones (header %s, se muestra SOLO ahora): %s\n", TokenHeader, s.token)
-	if err := http.ListenAndServe(addr, s.Handler()); err != nil {
+	if err := http.ListenAndServe(addr, SoloLocal(s.Handler(), addr)); err != nil {
 		return fmt.Errorf("no se pudo escuchar en %s: %w (elegi otro puerto con --addr host:puerto)", addr, err)
 	}
 	return nil
+}
+
+// cockpitPlazo bounds each tmux probe the Studio runs inside a request.
+const cockpitPlazo = 5 * time.Second
+
+// SoloLocal guards the Studio served at addr. On a loopback addr it answers
+// only requests whose Host is that same loopback (127.0.0.1, localhost or
+// [::1] with addr's port): a page of another site that rebinds its name to
+// 127.0.0.1 (DNS rebinding) sends its own Host, and gets 421 instead of the
+// board or the terminal mirror, which need no token because no other page
+// could read them (finding 3362b6). A non-loopback addr is already exposed,
+// and warned about: it is served as is.
+func SoloLocal(h http.Handler, addr string) http.Handler {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil || !isLoopback(host) {
+		return h
+	}
+	validos := map[string]bool{
+		net.JoinHostPort("127.0.0.1", port): true,
+		net.JoinHostPort("localhost", port): true,
+		net.JoinHostPort("::1", port):       true,
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !validos[strings.ToLower(r.Host)] {
+			writeError(w, http.StatusMisdirectedRequest, fmt.Sprintf("el Studio solo atiende pedidos a 127.0.0.1, localhost o [::1] en el puerto %s: el Host %q es de otra pagina", port, r.Host))
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func isLoopback(host string) bool {

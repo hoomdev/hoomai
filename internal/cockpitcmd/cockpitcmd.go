@@ -9,6 +9,7 @@ package cockpitcmd
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -71,6 +72,31 @@ func DefaultDeps() Deps {
 		Getenv:  os.Getenv,
 		HoomBin: bin,
 	}
+}
+
+// DepsConPlazo is DefaultDeps whose probes end after plazo. The Studio calls
+// tmux inside an HTTP request (Abrir sesion, Ver terminal): a tmux that hangs
+// must not hold the request, nor the goroutine behind it, for ever (finding
+// 0f7f5c). A probe cut by its plazo fails like one that did not answer.
+func DepsConPlazo(plazo time.Duration) Deps {
+	d := DefaultDeps()
+	conPlazo := func(dir, name string, args ...string) (*exec.Cmd, context.CancelFunc) {
+		ctx, cancel := context.WithTimeout(context.Background(), plazo)
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Dir = dir
+		return cmd, cancel
+	}
+	d.QuietCmd = func(dir, name string, args ...string) error {
+		cmd, cancel := conPlazo(dir, name, args...)
+		defer cancel()
+		return cmd.Run()
+	}
+	d.Output = func(dir, name string, args ...string) ([]byte, error) {
+		cmd, cancel := conPlazo(dir, name, args...)
+		defer cancel()
+		return cmd.Output()
+	}
+	return d
 }
 
 var slugRe = regexp.MustCompile(`[^a-z0-9]+`)

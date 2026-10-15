@@ -531,6 +531,18 @@ func (m *Manager) Busy(dir string) (string, bool) {
 	return Active(m.root, dir)
 }
 
+// Check is Start's translation of opts without starting anything: the
+// provider exists and takes every option asked for (Strict refuses what it
+// does not). A caller that must decide before writing anything asks here.
+func Check(opts StartOptions) error {
+	p, err := providers.Lookup(opts.Provider)
+	if err != nil {
+		return err
+	}
+	_, err = p.Command(opts.request(opts.Prompt, opts.ResumeID, false))
+	return err
+}
+
 // EsperaArbol is how long a discard or a save waits for a run that is being
 // registered on the same tree.
 const EsperaArbol = 2 * time.Second

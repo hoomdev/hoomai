@@ -261,7 +261,9 @@ function dialogoAprobar(c, a) {
   }, "Aprobar");
   $("acc-verspec").addEventListener("click", () => {
     cerrarDialogo();
-    abrirDetalle(c.slug);
+    if (tb.open !== c.slug) abrirDetalle(c.slug);
+    // el spec esta en la pestana Que, aunque el detalle haya quedado en otra
+    $("tb-dtabs").querySelector('[data-pane="que"]').click();
   });
 }
 
