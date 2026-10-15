@@ -10,6 +10,7 @@ package cockpitcmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -224,8 +225,15 @@ func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 		return false, nil
 	}
 	if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
-		// new-session can create the session and then fail or run out of
-		// time: that half-built cockpit goes too (finding 0fc76d)
+		// a tmux that answered (duplicate session: another opening got there
+		// first) created nothing here, and the session is someone else's
+		// (finding 46e17e)
+		var salio *exec.ExitError
+		if errors.As(err, &salio) && salio.ExitCode() >= 0 {
+			return false, err
+		}
+		// a new-session cut by its deadline may have created the session
+		// first: that half-built cockpit goes too (finding 0fc76d)
 		if deps.QuietCmd(dir, "tmux", "has-session", "-t", "="+session) == nil {
 			return false, killSession(dir, session, deps, err)
 		}
