@@ -33,6 +33,25 @@
 //     terminal responde en a lo sumo unos segundos (el plazo es 5 s) con
 //     available false y una nota, y el tmux colgado no queda vivo.
 //
+// Y de la review de esas correcciones (tarea fixes-cabina-c3):
+//
+//   - 20261015T163243_c9a60f (medium, risk): SoloLocal reconoce como
+//     loopback un addr con localhost en mayusculas o con punto final
+//     (LOCALHOST:4666, Localhost:4666, localhost.:4666) y lo protege.
+//   - 20261015T164404_f8d179 (medium, resilience): un tmux cuyo capture-pane
+//     deja de fondo un proceso que hereda su salida no deja colgado a Ver
+//     terminal (5 s de plazo y 1 s de espera de la salida), y ese proceso no
+//     queda vivo.
+//   - 20261015T165851_1ceba2 (low, resilience): Abrir sesion con un tmux
+//     colgado en new-session responde en a lo sumo unos segundos con un error,
+//     y tmux no recibe la entrada ni la salida de hoom serve.
+//   - 20261015T163642_0c71ae (medium, reliability): Descartar desde el Studio
+//     despues de un git mv acepta las dos rutas que publica la tarjeta (el
+//     nombre nuevo y el viejo) y deshace el rename.
+//   - 20261015T164619_a46d0c (medium, readability; guarda de comportamiento):
+//     un lanzamiento cuyo trabajo termina sin primer registro suelta la
+//     tarjeta, y uno que arranco tambien.
+//
 // Fixtures de acciones_tarjeta_test.go (atPATH, atConEspacio, atTarjeta,
 // atPedir, atCuerpoPaths, atGit, atTmux, atInterrumpida), lanzar_test.go
 // (lnPATH, lnServidor, lnLaunch, lnCuerpo, lnHuellas, lnSinEfectos,
@@ -582,4 +601,366 @@ func h3EsperarHasta(d time.Duration, cond func() bool) bool {
 		time.Sleep(25 * time.Millisecond)
 	}
 	return cond()
+}
+
+// ---------------------------------------------------------------------------
+// c9a60f: localhost con mayusculas o con punto final tambien es loopback
+
+// Hallazgo c9a60f (CA-350, enmienda 1 (f)): un addr loopback escrito con
+// mayusculas o con el punto final de un nombre DNS (LOCALHOST:4666,
+// Localhost:4666, localhost.:4666) tambien queda protegido: un Host atacante
+// es 421 y no llega al Studio. Guarda: el Host localhost:4666 sigue llegando.
+func TestHallazgo_c9a60f_LocalhostEnOtraFormaTambienSeProtege(t *testing.T) {
+	for _, addr := range []string{"LOCALHOST:4666", "Localhost:4666", "localhost.:4666"} {
+		h := &h3Eco{}
+		rec := httptest.NewRecorder()
+		SoloLocal(h, addr).ServeHTTP(rec, h3ConHost("/api/board", "rebind.atacante.example:4666"))
+		if rec.Code != http.StatusMisdirectedRequest || h.llamadas() != 0 {
+			t.Errorf("c9a60f: con addr %s (loopback), un Host atacante es 421 y no llega al Studio: codigo %d, llamadas %d", addr, rec.Code, h.llamadas())
+		}
+
+		h = &h3Eco{}
+		rec = httptest.NewRecorder()
+		SoloLocal(h, addr).ServeHTTP(rec, h3ConHost("/api/board", "localhost:4666"))
+		if h.llamadas() != 1 || rec.Code != http.StatusTeapot {
+			t.Errorf("c9a60f: guarda: con addr %s, el Host localhost:4666 llega al Studio: codigo %d, llamadas %d", addr, rec.Code, h.llamadas())
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// f8d179: un tmux que deja un proceso de fondo con su salida
+
+// h3PIDs lee los pids que anoto un tmux falso.
+func h3PIDs(t *testing.T, archivo string) []int {
+	t.Helper()
+	raw, _ := os.ReadFile(archivo)
+	var out []int
+	for _, l := range strings.Fields(string(raw)) {
+		pid, err := strconv.Atoi(l)
+		if err != nil {
+			t.Fatalf("fixture: pid %q en %s", l, archivo)
+		}
+		out = append(out, pid)
+	}
+	return out
+}
+
+// Hallazgo f8d179 (CA-350, enmienda 1 (k)): el capture-pane del tmux falso
+// deja de fondo un `sleep 9` que hereda su salida, y despues se cuelga (o
+// sale enseguida). GET /api/board/<slug>/terminal responde 200 en menos de 8 s
+// (el plazo es 5 s, mas 1 s de espera de la salida). Cuando el tmux se cuelga
+// (vence el plazo), el proceso de fondo ya no vive a lo sumo 3 s despues de la
+// respuesta. Cuando tmux sale solo, el contrato no dice nada de su proceso de
+// fondo: solo se exige que el pedido no espere su salida.
+func TestHallazgo_f8d179_VerTerminalConUnProcesoDeFondoQueHeredaLaSalida(t *testing.T) {
+	for _, c := range []struct {
+		caso, captura string
+		muere         bool // vence el plazo: el proceso de fondo no queda vivo
+	}{
+		{"capture-pane se cuelga", "/bin/sleep 9 &\nprintf '%s\\n' \"$!\" >> '@PIDS@'\nexec /bin/sleep 20", true},
+		{"capture-pane sale enseguida", "/bin/sleep 9 &\nprintf '%s\\n' \"$!\" >> '@PIDS@'\nprintf 'pantalla\\n'", false},
+	} {
+		t.Run(c.caso, func(t *testing.T) {
+			ca := "f8d179 (CA-350): " + c.caso
+			marcas := t.TempDir()
+			log, marca, pids := filepath.Join(marcas, "tmux.log"), filepath.Join(marcas, "sesion"), filepath.Join(marcas, "pids")
+			atPATH(t, map[string]string{"tmux": atTmux(log, marca, strings.ReplaceAll(c.captura, "@PIDS@", pids))})
+			dir := tbProyecto(t)
+			const slug = "de-fondo"
+			atConEspacio(t, dir, slug)
+			if err := os.WriteFile(marca, nil, 0o644); err != nil { // la sesion existe
+				t.Fatal(err)
+			}
+			s := newServer(t, dir)
+
+			type respuesta struct {
+				rec *httptest.ResponseRecorder
+				d   time.Duration
+			}
+			llego := make(chan respuesta, 1)
+			go func() {
+				inicio := time.Now()
+				rec := httptest.NewRecorder()
+				s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/board/"+slug+"/terminal", nil))
+				llego <- respuesta{rec, time.Since(inicio)}
+			}()
+			var r respuesta
+			select {
+			case r = <-llego:
+			case <-time.After(8 * time.Second):
+				t.Fatalf("%s: Ver terminal se quedo colgado mas de 8 s esperando la salida del proceso de fondo", ca)
+			}
+			var term atTerminal
+			atOK(t, ca, r.rec, &term)
+
+			fondo := h3PIDs(t, pids)
+			if len(fondo) == 0 {
+				t.Fatalf("%s: fixture: capture-pane dejo su proceso de fondo", ca)
+			}
+			if !c.muere {
+				return
+			}
+			for _, pid := range fondo {
+				if !h3EsperarHasta(3*time.Second, func() bool { return !h3VivoPID(pid) }) {
+					t.Fatalf("%s: el proceso de fondo de tmux (pid %d) sigue vivo 3 s despues de la respuesta (que llego a los %v)", ca, pid, r.d.Round(time.Millisecond))
+				}
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 1ceba2: Abrir sesion con tmux colgado en new-session
+
+// h3Descriptores devuelve lo que `stat -L` dice de /dev/fd/0, 1 y 2 de un
+// proceso que hereda la entrada y las salidas de ESTE proceso (o /dev/null),
+// medido igual que lo mide el tmux falso: una linea "<dev> <inodo>" por
+// descriptor.
+func h3Descriptores(t *testing.T, heredar bool) []string {
+	t.Helper()
+	out := filepath.Join(t.TempDir(), "fds")
+	var cmd *exec.Cmd
+	if heredar {
+		cmd = exec.Command("/bin/sh", "-c", "exec 5<&0 3>&1 4>&2\n/usr/bin/stat -L -f '%d %i' /dev/fd/5 /dev/fd/3 /dev/fd/4 > '"+out+"' 2>&1")
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	} else {
+		cmd = exec.Command("/usr/bin/stat", "-L", "-f", "%d %i", os.DevNull, os.DevNull, os.DevNull)
+		raw, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("fixture: stat de /dev/null: %v", err)
+		}
+		return strings.Split(strings.TrimSpace(string(raw)), "\n")
+	}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("fixture: stat de los descriptores de este proceso: %v", err)
+	}
+	raw, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(raw)), "\n")
+}
+
+// Hallazgo 1ceba2 (CA-348, enmienda 1 (k)): con un tmux que se cuelga en
+// new-session, POST /api/board/<slug>/session responde en menos de 8 s con un
+// error JSON, el tmux colgado no queda vivo, y tmux no recibe la entrada ni la
+// salida de hoom serve: su stdin no es una terminal, y ni su stdin, ni su
+// stdout, ni su stderr son los de este proceso (salvo /dev/null, que es lo
+// que os/exec da a una entrada vacia).
+func TestHallazgo_1ceba2_AbrirSesionConTmuxColgadoNoSeCuelga(t *testing.T) {
+	const ca = "1ceba2 (CA-348)"
+	marcas := t.TempDir()
+	log, pids := filepath.Join(marcas, "tmux.log"), filepath.Join(marcas, "pids")
+	tty, fds := filepath.Join(marcas, "tty"), filepath.Join(marcas, "fds")
+	tmux := strings.NewReplacer("@LOG@", log, "@PIDS@", pids, "@TTY@", tty, "@FDS@", fds).Replace(`printf '%s\n' "$*" >> '@LOG@'
+case "$1" in
+has-session)
+  exit 1 ;;
+new-session)
+  if [ -t 0 ]; then printf 'tty\n' > '@TTY@'; else printf 'no\n' > '@TTY@'; fi
+  exec 5<&0 3>&1 4>&2
+  /usr/bin/stat -L -f '%d %i' /dev/fd/5 /dev/fd/3 /dev/fd/4 > '@FDS@' 2>&1
+  printf '%s\n' "$$" >> '@PIDS@'
+  exec /bin/sleep 20 5<&- 3>&- 4>&- ;;
+esac
+exit 0
+`)
+	atPATH(t, map[string]string{"tmux": tmux, "claude": "exit 0\n"})
+	dir := tbProyecto(t)
+	const slug = "sesion-colgada"
+	atConEspacio(t, dir, slug)
+	s := newServer(t, dir)
+
+	type respuesta struct {
+		rec *httptest.ResponseRecorder
+		d   time.Duration
+	}
+	llego := make(chan respuesta, 1)
+	go func() {
+		inicio := time.Now()
+		rec := atPedir(t, ca, s, http.MethodPost, "/api/board/"+slug+"/session", s.Token(), `{"provider": "claude"}`)
+		llego <- respuesta{rec, time.Since(inicio)}
+	}()
+	var r respuesta
+	select {
+	case r = <-llego:
+	case <-time.After(8 * time.Second):
+		t.Fatalf("%s: Abrir sesion con tmux colgado en new-session se quedo colgado mas de 8 s (el plazo es 5 s)", ca)
+	}
+	if r.rec.Code < 400 {
+		t.Fatalf("%s: con tmux colgado en new-session, Abrir sesion responde un error, fue %d: %s", ca, r.rec.Code, r.rec.Body.String())
+	}
+	tbErrorJSON(t, ca, r.rec, r.rec.Code)
+	if l := atConVerbo(atLineas(t, log), "new-session"); len(l) == 0 {
+		t.Fatalf("%s: fixture: Abrir sesion llego a tmux new-session: %q", ca, atLineas(t, log))
+	}
+
+	colgados := h3PIDs(t, pids)
+	if len(colgados) == 0 {
+		t.Fatalf("%s: fixture: el tmux falso se colgo en new-session", ca)
+	}
+	for _, pid := range colgados {
+		if !h3EsperarHasta(3*time.Second, func() bool { return !h3VivoPID(pid) }) {
+			t.Fatalf("%s: el tmux colgado (pid %d) sigue vivo despues de la respuesta", ca, pid)
+		}
+	}
+
+	// tmux no recibe la entrada ni la salida de hoom serve
+	if raw, _ := os.ReadFile(tty); strings.TrimSpace(string(raw)) != "no" {
+		t.Fatalf("%s: la entrada de tmux no es una terminal: %q", ca, raw)
+	}
+	raw, err := os.ReadFile(fds)
+	if err != nil {
+		t.Fatalf("%s: fixture: el tmux falso anoto sus archivos: %v", ca, err)
+	}
+	suyos := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(suyos) != 3 {
+		t.Fatalf("%s: fixture: stat de los tres descriptores de tmux: %q", ca, raw)
+	}
+	nuestros, nulos := h3Descriptores(t, true), h3Descriptores(t, false)
+	if len(nuestros) != 3 || len(nulos) != 3 {
+		t.Fatalf("fixture: stat de los tres descriptores: %q %q", nuestros, nulos)
+	}
+	for i := range nuestros {
+		if nuestros[i] == nulos[i] {
+			continue // este proceso tiene /dev/null ahi: lo mismo que os/exec da a una entrada vacia
+		}
+		if strings.TrimSpace(suyos[i]) == nuestros[i] {
+			t.Fatalf("%s: tmux no hereda el descriptor %d de hoom serve (%s)", ca, i, nuestros[i])
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 0c71ae: Descartar un rename desde el Studio
+
+// Hallazgo 0c71ae (CA-346): una tarjeta interrumpida con `git mv app.go
+// movido.go` en su espacio de trabajo publica en descartar las dos rutas del
+// rename. POST /discard con las dos responde 200 y deshace el rename (app.go
+// vuelve a HEAD, movido.go se borra, nada queda sin guardar fuera de .hoom/);
+// con solo una de las dos es 409 y no toca nada.
+func TestHallazgo_0c71ae_DescartarUnRenameDesdeElStudio(t *testing.T) {
+	const ca = "0c71ae (CA-346)"
+	atPATH(t, nil)
+	dir := tbProyecto(t)
+	const slug = "renombrada"
+	wt := atConEspacio(t, dir, slug)
+	atInterrumpida(t, dir, slug)
+	gitRun(t, wt, "mv", "app.go", "movido.go")
+	pre := ".hoom/worktrees/" + slug + "/"
+	las2 := []string{pre + "app.go", pre + "movido.go"}
+
+	a, ok := lnAccion(atTarjeta(t, dir, slug), "descartar")
+	if !ok || !a.Enabled {
+		t.Fatalf("%s: fixture: la tarjeta interrumpida tiene descartar habilitada: %+v", ca, a)
+	}
+	if !atMismas(a.Paths, las2) {
+		t.Fatalf("%s: descartar publica las dos rutas del rename (%v): %v", ca, las2, a.Paths)
+	}
+	s := newServer(t, dir)
+	ruta := "/api/board/" + slug + "/discard"
+	antes := tbFoto(t, dir)
+
+	for _, una := range las2 {
+		msg := tbErrorJSON(t, ca+" (una ruta)", atPedir(t, ca, s, http.MethodPost, ruta, s.Token(), atCuerpoPaths([]string{una})), http.StatusConflict)
+		if !strings.Contains(msg, atCambiaron) {
+			t.Fatalf("%s: con solo %s, 409 con la negativa de Guardar: %q", ca, una, msg)
+		}
+		tbMismaFoto(t, ca+" (una ruta)", antes, tbFoto(t, dir))
+	}
+
+	rec := atPedir(t, ca, s, http.MethodPost, ruta, s.Token(), atCuerpoPaths(a.Paths))
+	var res struct {
+		Restored []string `json:"restored"`
+		Removed  []string `json:"removed"`
+	}
+	atOK(t, ca+": con las dos rutas que publica la tarjeta", rec, &res)
+	if !atMismas(res.Restored, []string{pre + "app.go"}) || !atMismas(res.Removed, []string{pre + "movido.go"}) {
+		t.Errorf("%s: el resultado dice que app.go vuelve a HEAD (restored) y movido.go se borra (removed): %s", ca, rec.Body.String())
+	}
+	if raw, err := os.ReadFile(filepath.Join(wt, "app.go")); err != nil || string(raw) != "package app\n" {
+		t.Fatalf("%s: app.go vuelve a como esta en HEAD: %v %q", ca, err, raw)
+	}
+	if _, err := os.Stat(filepath.Join(wt, "movido.go")); !os.IsNotExist(err) {
+		t.Fatalf("%s: movido.go se borra: %v", ca, err)
+	}
+	if st := atGit(t, wt, "status", "--porcelain", "--untracked-files=all"); st != "" {
+		t.Fatalf("%s: el rename queda deshecho entero, sin nada en el indice:\n%s", ca, st)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// a46d0c (guarda): el candado de lanzamiento se suelta
+
+// h3GitQueFalla instala un git falso al frente del PATH que falla en
+// `worktree add` (sin crear nada) y deja todo lo demas al git de verdad.
+func h3GitQueFalla(t *testing.T, bin string) {
+	t.Helper()
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(real, bin) {
+		t.Fatalf("fixture: el git de verdad no es el falso: %s", real)
+	}
+	script := strings.NewReplacer("@REAL@", real).Replace(`#!/bin/sh
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "worktree" ] && [ "$a" = "add" ]; then
+    echo "fatal: el disco de prueba no deja crear el espacio de trabajo" >&2
+    exit 128
+  fi
+  prev="$a"
+done
+exec '@REAL@' "$@"
+`)
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Hallazgo a46d0c (CA-340 y CA-336, enmienda 1 (j)), guarda: el candado de
+// lanzamiento lo suelta el trabajo.
+//   - Un trabajo que termina sin su primer registro (hoom task start falla en
+//     una tarjeta de Backlog): 409 y ningun registro; un segundo lanzamiento
+//     INMEDIATO no es "ya se esta lanzando" (20 veces seguidas).
+//   - Un trabajo que arranco (202): un segundo lanzamiento inmediato es 409
+//     porque la tarjeta esta en curso, con su motivo y no "ya se esta
+//     lanzando"; y cuando el trabajo termino, uno nuevo es 202.
+func TestHallazgo_a46d0c_GuardaElTrabajoSueltaLaTarjeta(t *testing.T) {
+	const ca = "a46d0c (CA-340)"
+	f := lnPATH(t)
+	f.cli(t, "claude", true)
+	root := tbProyecto(t)
+	tbItem(t, root, "sin-tarea", "")
+	lnColumna(t, ca, root, "sin-tarea", boardcmd.ColBacklog)
+	lnCartaWriter(t, ca, root, "arranca", "")
+	h3GitQueFalla(t, f.bin)
+	s := lnServidor(t, root, f)
+	pedir := lnCuerpo("pedir-arquitecto", "claude", "", nil, "Escribi el spec.")
+
+	// el trabajo termina sin primer registro
+	for i := 0; i < 20; i++ {
+		rec := lnLaunch(t, s, "sin-tarea", s.Token(), pedir)
+		msg := tbErrorJSON(t, fmt.Sprintf("%s: vuelta %d, un trabajo que termina sin registro", ca, i), rec, http.StatusConflict)
+		if strings.Contains(msg, "ya se esta lanzando") {
+			t.Fatalf("%s: vuelta %d: el trabajo anterior termino sin registro y solto la tarjeta: %q", ca, i, msg)
+		}
+	}
+	if regs := lnRegistros(t, root); len(regs) != 0 {
+		t.Fatalf("%s: un trabajo que termina sin primer registro no deja registro: %v", ca, regs)
+	}
+	lnSinLlamadas(t, ca, "un trabajo que termina sin primer registro", f)
+
+	// el trabajo arranco: la tarjeta queda en curso, no tomada por el lanzamiento
+	escribir := lnCuerpo("pedir-writer", "claude", "", nil, "Implementa el spec.")
+	lnAceptado(t, ca, lnLaunch(t, s, "arranca", s.Token(), escribir))
+	msg := tbErrorJSON(t, ca+": segundo lanzamiento con el trabajo en curso", lnLaunch(t, s, "arranca", s.Token(), escribir), http.StatusConflict)
+	if strings.Contains(msg, "ya se esta lanzando") || msg != "espera a que termine el writer que esta trabajando" {
+		t.Fatalf("%s: con el trabajo ya registrado, el 409 es el de la tarjeta en curso, no el del lanzamiento: %q", ca, msg)
+	}
+	f.soltar()
+	lnEsperarLanzamientos(t, ca, s)
+	lnAceptado(t, ca+": terminado el trabajo, un lanzamiento nuevo", lnLaunch(t, s, "arranca", s.Token(), escribir))
 }
