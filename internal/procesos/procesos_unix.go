@@ -47,12 +47,24 @@ func MismoProceso(pid int, arranco time.Time) bool {
 	return diff > -3*time.Second && diff < 3*time.Second
 }
 
-// MatarGrupo kills the process group whose leader is pid.
+// MatarGrupo kills the process group whose leader is pid. A process that is
+// forking right when the signal reaches the group can leave a child that did
+// not get it (macOS does not hold the fork back): so the group is signalled
+// again a few times in the next milliseconds, until it is gone (finding
+// e30013).
 func MatarGrupo(pid int) error {
 	if pid <= 0 {
 		return nil
 	}
-	return syscall.Kill(-pid, syscall.SIGKILL)
+	err := syscall.Kill(-pid, syscall.SIGKILL)
+	for i := 0; i < 5 && err == nil; i++ {
+		time.Sleep(10 * time.Millisecond)
+		err = syscall.Kill(-pid, syscall.SIGKILL)
+	}
+	if err == syscall.ESRCH {
+		return nil // nobody left in the group
+	}
+	return err
 }
 
 // Senales are the signals after which this process must not leave its

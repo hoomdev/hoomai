@@ -26,11 +26,13 @@ func prepararSenales() {
 		signal.Notify(ch, procesos.Senales...)
 		go func() {
 			s := <-ch
+			// the lock is never released: a provider that another goroutine
+			// was about to start never starts, and the process ends holding
+			// it (finding e30013)
 			grupos.Lock()
 			for p := range grupos.pids {
 				procesos.MatarGrupo(p)
 			}
-			grupos.Unlock()
 			procesos.Terminar(s)
 		}()
 	})
@@ -52,8 +54,14 @@ func arrancar(cmd *exec.Cmd) error {
 	return nil
 }
 
+// soltarGrupo is the end of a run's group, once its provider has ended:
+// whatever the provider left running in it (a tool in the background) dies
+// too, as in Windows when the Job Object closes. A process left behind would
+// keep writing in the tree of a run that already looks over, and no signal
+// would reach it any more (finding e30013).
 func soltarGrupo(pid int) {
 	grupos.Lock()
+	procesos.MatarGrupo(pid)
 	delete(grupos.pids, pid)
 	grupos.Unlock()
 	procesos.Soltar(pid)
