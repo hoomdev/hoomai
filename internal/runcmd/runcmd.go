@@ -223,6 +223,16 @@ type Meta struct {
 	// PID is the process that owns the run while it runs: the only way another
 	// process can tell a live run from one whose owner died.
 	PID int `json:"pid,omitempty"`
+	// ChildPID is the provider's own process. If the owner dies without
+	// killing it (hoom serve killed with SIGKILL), the run is still at work
+	// while it lives, and nothing may act on its tree (finding b5e187).
+	ChildPID int `json:"child_pid,omitempty"`
+}
+
+// vivo says whether the run of meta still has someone working: its owner, or
+// the provider its owner left behind.
+func vivo(meta Meta) bool {
+	return meta.PID == 0 || alive(meta.PID) || (meta.ChildPID > 0 && alive(meta.ChildPID))
 }
 
 // idRe is what an id may look like: one file name, no separators, no dots
@@ -439,6 +449,9 @@ func (m *Manager) liveElsewhere(id string, lastTS time.Time) bool {
 	if !ok || meta.PID == 0 || meta.Status != StatusRunning {
 		return false
 	}
+	if meta.ChildPID > 0 && alive(meta.ChildPID) {
+		return true // its owner died, but the provider is still working
+	}
 	if !lastTS.IsZero() && time.Since(lastTS) > m.Timeout+5*time.Minute {
 		return false
 	}
@@ -590,7 +603,7 @@ func lockRegistro(dir string) (func(), error) {
 func Active(root, dir string) (string, bool) {
 	for _, base := range []string{root, dir} {
 		for _, meta := range Metas(base) {
-			if meta.Status == StatusRunning && meta.Dir == dir && (meta.PID == 0 || alive(meta.PID)) {
+			if meta.Status == StatusRunning && meta.Dir == dir && vivo(meta) {
 				return meta.ID, true
 			}
 		}
@@ -911,12 +924,19 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipes")
 		return
 	}
+	enGrupo(cmd)
 	if err := cmd.Start(); err != nil {
 		// the cause matters: a missing binary and an argv too large (E2BIG
 		// with a huge --system-prompt) look the same otherwise
 		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), err))
 		return
 	}
+	registrarGrupo(cmd.Process.Pid)
+	defer soltarGrupo(cmd.Process.Pid)
+	m.mu.Lock()
+	r.meta.ChildPID = cmd.Process.Pid
+	writeMeta(m.root, r.meta)
+	m.mu.Unlock()
 	// Si un hijo huerfano del provider retiene los pipes tras el kill,
 	// los cerramos por la fuerza pasada una gracia: cancelar (o el timeout)
 	// nunca puede colgar el cockpit esperando un EOF que no llega.
