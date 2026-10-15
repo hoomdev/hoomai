@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T181858_989bfd",
+  "as": "corregido",
+  "evidence": "Corregido en 1647c34: el comentario de writeMeta dice quien exige el registro (Start, Input, execute: findings da369a, 1da9c4) y quien no (los cierres settle y settleMeta, que lo descartan con '_ =' y su motivo, del lado seguro: el arbol se ve ocupado hasta que markOrphans lo cierra). Refutador B: cierto, solo legibilidad. Sin test (legibilidad).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.943952Z"
+}

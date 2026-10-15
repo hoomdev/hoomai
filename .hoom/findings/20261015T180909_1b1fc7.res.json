@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T180909_1b1fc7",
+  "as": "corregido",
+  "evidence": "Corregido en 1647c34: SoloLocal normaliza el Host como isLoopback (hostNormal: minusculas y sin el punto final del nombre) y admite tambien el Host del propio addr (localhost., y la variante 127.0.0.2 que encontro el refutador). Tests del test-writer (0639223): TestHallazgo_1b1fc7_SoloLocalAtiendeElHostDeSuPropioAddr y ..._ElStudioEnLocalhostConPuntoAtiendeASuNavegador; fallan sobre 7565283 (421).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.902894Z"
+}

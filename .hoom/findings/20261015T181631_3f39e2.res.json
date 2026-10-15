@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T181631_3f39e2",
+  "as": "corregido",
+  "evidence": "Corregido en 1647c34: el taskkill de respaldo de procesos.MatarGrupo (Windows) corre con exec.CommandContext y un plazo de 5 s, asi un taskkill colgado no retiene a quien cancela; y soltarGrupo mata el grupo antes de tomar el candado de grupos (extra del refutador). Refutador B: cierto pero no alcanzable en lo que el spec soporta (Windows nativo es no-goal del cockpit). Sin test: compilado con GOOS=windows, NO ejecutado (no hay Windows aqui y el CI corre en Linux; enmienda 2).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.930198Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T180910_60b360",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en 0639223: el fixture de TestHallazgo_1ceba2 mide dispositivo e inodo con stat -L -c (GNU) y si falla -f (BSD), y valida cada medida como '\u003cdev\u003e \u003cinodo\u003e'. Refutador B: cierto (GNU stat toma -f como filesystem; en ubuntu-latest moria siempre en el fixture) y era la unica construccion solo-macOS que rompia el CI. Probado en macOS y con un stat GNU simulado; no corrido en Linux (lo corre el CI del PR).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.916562Z"
+}

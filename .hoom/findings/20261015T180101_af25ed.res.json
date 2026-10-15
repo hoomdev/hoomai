@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T180101_af25ed",
+  "as": "corregido",
+  "evidence": "Corregido en 1647c34: Descartar arma lo que vuelve (restore + origenes del rename) antes del chequeo de contenido faltante de HEAD y lo chequea entero; si falta algo se niega sin tocar nada. Refutador (INFORME-refutador-c3-delta1-A): cierto, reproducido; el fix pasa su reproduccion. Tests del test-writer (933f318): TestHallazgo_af25ed_CA346_RenameSinContenidoDeHEADSeNiegaSinTocarNada (falla sobre 7565283: b.go volvia a HEAD y cambiaba el indice) y la guarda ..._GuardaRenameConRepoSanoSeDescarta.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.893899Z"
+}
