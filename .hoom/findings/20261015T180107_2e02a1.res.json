@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T180107_2e02a1",
+  "as": "refutado",
+  "evidence": "Premisa inexistente: ningun binario publicado ni instalado escribe child_pid sin child_started_at. (1) main b7e0480 no tiene child_pid (git show b7e0480:internal/runcmd/runcmd.go | grep -ic child = 0). (2) child_pid entra en d5c2eec y child_started_at en 95310f3, ambos solo en la rama sin mergear hoom/fixes-cabina-c3: git tag --contains d5c2eec y git tag --contains 95310f3 vacios; release.yml solo publica en tags v*; gh release list: ultima v0.10.0 (2026-09-13). (3) hoom instalado v0.10.0-379-gb7e0480 y los otros 2 binarios hoom en disco: strings | grep -c 'json:\"child_pid' = 0. (4) find de los 198 sidecars *.meta.json bajo .hoom/runs del proyecto (worktrees y caches incluidos) y de ~ (maxdepth 6): ninguno tiene child_pid. (5) En la punta 7565283 el unico escritor es runcmd.go:973, que asigna ChildPID y ChildStartedAt en la misma sentencia antes del writeMeta. Para los sidecars que si existen (v0.10.0: solo pid) provider() da false igual que en main, que no tenia proteccion por hijo: no hay regresion. El mecanismo (MismoProceso con hora cero = false) se confirmo con TestZZR_2e02a1 en el clon ref-c3a, pero solo lo alcanzaria un sidecar escrito por un commit intermedio d5c2eec..e8babf9 que nunca se publico ni se instalo.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-15T18:30:01.708198Z"
+}

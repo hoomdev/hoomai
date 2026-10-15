@@ -273,8 +273,13 @@ func validStatus(s string) bool {
 
 func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+".meta.json") }
 
-// writeMeta records a run's identity. Best-effort by contract: telemetry that
-// cannot be written never breaks the run it describes.
+// writeMeta records a run's identity and says whether it could. Opening a run
+// (Start, Input) and naming its provider (execute) need the record: without
+// it another process would not see the run working on its tree, so they fail
+// (findings da369a, 1da9c4). Closing records (settle, settleMeta) are
+// best-effort: the run is already over, and a close that could not be
+// written leaves the sidecar saying "running", the safe side: the tree looks
+// busy until markOrphans settles it (finding 989bfd).
 func writeMeta(root string, meta Meta) error {
 	if !validID(meta.ID) {
 		return fmt.Errorf("id de run invalido %q", meta.ID) // the id is the address: content never chooses the path
@@ -447,7 +452,7 @@ func (m *Manager) settleMeta(id string) {
 		return
 	}
 	meta.Status, meta.ExitCode, meta.EndedAt = StatusError, -1, time.Now().UTC()
-	writeMeta(m.root, meta)
+	_ = writeMeta(m.root, meta) // best-effort: a close (see writeMeta)
 }
 
 // liveElsewhere reports whether a run still in "running" belongs to a process
@@ -785,14 +790,21 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 		}
 		return Run{}, err
 	}
+	// like Start: the sidecar is how another process sees the run working
+	// again, so without it the run does not continue, and the refusal leaves
+	// it exactly as it was (finding 1da9c4)
+	meta := r.meta
+	meta.Status, meta.ExitCode = StatusRunning, -1
+	if err := writeMeta(m.root, meta); err != nil {
+		m.mu.Unlock()
+		return Run{}, fmt.Errorf("no se pudo registrar la continuacion del run: %v", err)
+	}
 	r.info.Status = StatusRunning
 	r.info.ExitCode = -1
 	r.canceled = false
-	r.meta.Status, r.meta.ExitCode = StatusRunning, -1
-	meta := r.meta
+	r.meta = meta
 	m.byDir[r.dir] = id
 	m.mu.Unlock()
-	writeMeta(m.root, meta)
 
 	// una sola linea sobre la sesion perdida, y que dice lo que importa: no
 	// que se ignoro un campo, sino que el contexto anterior no viaja
@@ -1087,7 +1099,7 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	// el meta se escribe ANTES de soltar el lock, como en Start: quien ve el
 	// run cerrado (Get, Wait, Events) ya puede leer su meta cerrado, y ningun
 	// archivo aparece despues de que el run dejo de estar en curso.
-	writeMeta(m.root, r.meta)
+	_ = writeMeta(m.root, r.meta) // best-effort: a close (see writeMeta)
 	m.mu.Unlock()
 }
 

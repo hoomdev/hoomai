@@ -435,22 +435,28 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	}
 	var restore, remove, blobs []string
 	for _, p := range local {
-		if e, ok := enHEAD[p]; ok {
+		if _, ok := enHEAD[p]; ok {
 			restore = append(restore, p)
-			if e.tipo == "blob" {
-				blobs = append(blobs, e.objeto)
-			}
 		} else {
 			remove = append(remove, p)
 		}
 	}
+	// what goes back: the origin of a rename too, since the card showed it as
+	// one more path (finding 0c71ae)
+	back := append(append([]string{}, restore...), origins...)
+	for _, p := range back {
+		if e := enHEAD[p]; e.tipo == "blob" {
+			blobs = append(blobs, e.objeto)
+		}
+	}
 	// git restore deletes a file whose content HEAD names and the repository
-	// lacks: then nothing is touched (finding b1b1bc)
+	// lacks, and with several paths it can restore some before failing on
+	// that one: so nothing is touched (findings b1b1bc, af25ed)
 	if falta, err := faltantes(wt, blobs); err != nil {
 		return res, err
 	} else if len(falta) > 0 {
 		var rutas []string
-		for _, p := range restore {
+		for _, p := range back {
 			if falta[enHEAD[p].objeto] {
 				rutas = append(rutas, taskRel(slug, p))
 			}
@@ -468,12 +474,11 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	}
 	// the paths are names, never patterns: `:(glob)**` is a file
 	// (finding 3113eb)
-	if back := append(append([]string{}, restore...), origins...); len(back) > 0 {
+	if len(back) > 0 {
 		if out, err := run(wt, append([]string{"--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--"}, back...)...); err != nil {
 			return res, fmt.Errorf("git restore fallo: %s", out)
 		}
-		// what went back, the origin of a rename too: the card showed it as
-		// one more path, and the result says it came back (finding 0c71ae)
+		// the result names the origin of a rename too (finding 0c71ae)
 		for _, p := range back {
 			res.Restored = append(res.Restored, taskRel(slug, p))
 		}

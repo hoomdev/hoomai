@@ -908,14 +908,30 @@ func SoloLocal(h http.Handler, addr string) http.Handler {
 		net.JoinHostPort("127.0.0.1", port): true,
 		net.JoinHostPort("localhost", port): true,
 		net.JoinHostPort("::1", port):       true,
+		// and the address it listens on, the one the URL it prints names:
+		// localhost., 127.0.0.2 (finding 1b1fc7)
+		hostNormal(net.JoinHostPort(host, port)): true,
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !validos[strings.ToLower(r.Host)] {
+		if !validos[hostNormal(r.Host)] {
 			writeError(w, http.StatusMisdirectedRequest, fmt.Sprintf("el Studio solo atiende pedidos a 127.0.0.1, localhost o [::1] en el puerto %s: el Host %q es de otra pagina", port, r.Host))
 			return
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+// hostNormal writes a Host header the way SoloLocal lists the valid ones: a
+// name is case-insensitive and may end in a dot, so LOCALHOST:4666 and
+// localhost.:4666 are localhost:4666, the same as for isLoopback (findings
+// c9a60f, 1b1fc7).
+func hostNormal(h string) string {
+	h = strings.ToLower(h)
+	host, port, err := net.SplitHostPort(h)
+	if err != nil {
+		return h
+	}
+	return net.JoinHostPort(strings.TrimSuffix(host, "."), port)
 }
 
 func isLoopback(host string) bool {

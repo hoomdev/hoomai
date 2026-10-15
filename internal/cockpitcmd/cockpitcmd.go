@@ -218,10 +218,17 @@ func resolveProvider(name string, deps Deps) (string, string, error) {
 // ~70%, watch pane beside it, both rooted at dir. Idempotent by session name;
 // it reports whether it created the session. It never attaches.
 func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
-	if deps.QuietCmd(dir, "tmux", "has-session", "-t", session) == nil {
+	// exactly this session (=): tmux matches a prefix too, and with fix-login
+	// open the card fix would find it and build nothing (finding fa374d)
+	if deps.QuietCmd(dir, "tmux", "has-session", "-t", "="+session) == nil {
 		return false, nil
 	}
 	if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
+		// new-session can create the session and then fail or run out of
+		// time: that half-built cockpit goes too (finding 0fc76d)
+		if deps.QuietCmd(dir, "tmux", "has-session", "-t", "="+session) == nil {
+			return false, killSession(dir, session, deps, err)
+		}
 		return false, err
 	}
 	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {

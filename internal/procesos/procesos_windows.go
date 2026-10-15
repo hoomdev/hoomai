@@ -3,6 +3,7 @@
 package procesos
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strconv"
@@ -128,8 +129,16 @@ func MatarGrupo(pid int) error {
 		}
 		return nil
 	}
-	return exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).Run()
+	// taskkill has its own bound: exec calls Cancel before WaitDelay starts,
+	// so a taskkill that hangs would hold whoever is cancelling (finding
+	// 3f39e2)
+	ctx, cancel := context.WithTimeout(context.Background(), plazoTaskkill)
+	defer cancel()
+	return exec.CommandContext(ctx, "taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).Run()
 }
+
+// plazoTaskkill bounds the taskkill of MatarGrupo.
+const plazoTaskkill = 5 * time.Second
 
 // MismoProceso answers true on Windows: a reused pid is not told apart there
 // (the risk the spec accepts for a recycled PID).

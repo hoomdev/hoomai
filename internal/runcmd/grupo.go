@@ -59,9 +59,13 @@ func arrancar(cmd *exec.Cmd) error {
 // too, as in Windows when the Job Object closes. A process left behind would
 // keep writing in the tree of a run that already looks over, and no signal
 // would reach it any more (finding e30013).
+//
+// The kill goes before taking the lock: a kill that takes long (taskkill in
+// Windows) does not hold back the starts of other runs, and a signal that
+// arrives in between kills the group once more, which does no harm.
 func soltarGrupo(pid int) {
-	grupos.Lock()
 	procesos.MatarGrupo(pid)
+	grupos.Lock()
 	delete(grupos.pids, pid)
 	grupos.Unlock()
 	procesos.Soltar(pid)
