@@ -1,0 +1,11 @@
+{
+  "id": "20261015T213838_9054b0",
+  "created_at": "2026-10-15T21:38:38.421467Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — la ruta nueva de reparación comprueba y cuenta la sesión con destino exacto en internal/cockpitcmd/cockpitcmd.go:229 y :255, pero luego internal/cockpitcmd/cockpitcmd.go:265 ejecuta split-window con -t session sin el prefijo exacto igual. Si la sesión de un pane desaparece entre list-panes y split-window y existe otra cuyo nombre empieza igual, tmux resuelve el prefijo y agrega el watch a la tarjeta equivocada; Open responde created=true y registra una sesión que ya no existe. El cambio reabre en la fase nueva el mismo problema de prefijos documentado por fa374d.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

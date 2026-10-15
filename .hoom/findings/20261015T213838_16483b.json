@@ -1,0 +1,11 @@
+{
+  "id": "20261015T213838_16483b",
+  "created_at": "2026-10-15T21:38:38.190888Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:233-235 devuelve error si split-window falla al completar una sesión preexistente, pero split-window puede haber creado el watch antes de que el cliente falle o venza su plazo. La sesión queda entonces con dos panes sin que AddSession se ejecute; el siguiente Open cae por :230-231 como sesión existente, devuelve created=false y nunca registra al writer. El estado queda permanentemente completo pero sin la entrada de sesiones que exige CA-348.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

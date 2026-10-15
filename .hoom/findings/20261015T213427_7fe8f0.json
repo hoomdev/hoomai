@@ -1,0 +1,11 @@
+{
+  "id": "20261015T213427_7fe8f0",
+  "created_at": "2026-10-15T21:34:27.263258Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:229-236 decide que cualquier sesión existente de un pane fue creada por esta apertura, y internal/cockpitcmd/cockpitcmd.go:374-375 registra como writer el provider pedido ahora, sin comprobar el comando/provider del pane existente. Reproducción: una apertura con Claude deja su pane tras vencer new-session; el reintento selecciona Codex, solo agrega el watch y escribe una sesión Codex. declaredWriters usa ese dato para decidir si la review es cruzada, por lo que puede considerar no cruzada a una review de Codex aunque el writer real fue Claude. La prueba nueva solo reintenta con el mismo provider y no cubre esta atribución falsa; la sesión a medias debe conservar/validar su provider real o negarse a declararla con uno distinto.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

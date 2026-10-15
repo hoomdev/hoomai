@@ -1,0 +1,11 @@
+{
+  "id": "20261015T214312_eb8a06",
+  "created_at": "2026-10-15T21:43:12.917145Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:230: `panes` codifica \"no se pudo consultar\" como 0 y el llamador decide con `!= 1`; una cuenta real y el fallo del sondeo quedan representados por el mismo entero, por lo que entender la rama exige recordar el comentario de líneas 249-250. Hacer explícito el estado (por ejemplo, conteo más `ok`/error, o un resultado con nombre) dejaría visible que solo un pane significa \"sesión incompleta\" y que una consulta indeterminada conserva la sesión.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}
