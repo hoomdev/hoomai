@@ -247,15 +247,11 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 	if err != nil {
 		return fail(http.StatusInternalServerError, "%s", err.Error())
 	}
-	started := false
-	if c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog {
-		if err := taskcmd.Start(s.m.Dir, slug, s.m.BaseBranch); err != nil {
-			logFile.Close()
-			os.Remove(logPath)
-			return fail(http.StatusConflict, "%s", err.Error())
-		}
-		started = true
-	}
+	// a card in Backlog without a workspace gets its task first: inside the
+	// job, so a request canceled meanwhile does not wait for git (finding
+	// 0cf41f)
+	crearTarea := c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog
+	var tareaCreada atomic.Bool
 
 	ready := make(chan struct{}, 1)
 	var arranco atomic.Bool
@@ -280,14 +276,22 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 		defer s.launches.Done()
 		defer logFile.Close()
 		var f fin
-		if review {
+		if crearTarea {
+			if f.err = taskcmd.Start(s.m.Dir, slug, s.m.BaseBranch); f.err == nil {
+				tareaCreada.Store(true)
+			}
+		}
+		switch {
+		case f.err != nil:
+			// la tarea no se pudo crear: no corre nada, y el 409 lo dice
+		case review:
 			var res reviewcmd.Result
 			res, f.err = reviewcmd.Run(s.m.Dir, s.m.BaseBranch, reviewcmd.Options{
 				Provider: opt.Name, Task: slug, Spec: spec, Model: req.Model, Effort: req.Effort, BudgetUSD: budget,
 				EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
 			}, logFile)
 			f.nota = res.Nota
-		} else {
+		default:
 			o := agentcmd.Options{
 				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: req.Model,
 				BudgetUSD: budget, EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
@@ -314,15 +318,17 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 		s.belt(slug, c, id, logFile)
 	}()
 
-	ok202 := launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: started}
+	ok202 := func() (launchResp, int, error) {
+		return launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: tareaCreada.Load()}, 0, nil
+	}
 	select {
 	case <-ready:
-		return ok202, 0, nil
+		return ok202()
 	case f := <-done:
 		if f.arranco {
 			// llego a su primer registro y termino antes de esta respuesta:
 			// corrio, y su registro dice como (hallazgo 17225a)
-			return ok202, 0, nil
+			return ok202()
 		}
 		// el error, o la nota de una review que se decidio sin pasadas: lo
 		// que el resultado dice, no la ultima linea de su texto (hallazgo
