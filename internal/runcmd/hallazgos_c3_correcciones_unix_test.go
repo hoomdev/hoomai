@@ -108,11 +108,20 @@ func TestHallazgo_da369a_SinRegistroDelRunNoHayRun(t *testing.T) {
 	}
 }
 
+// ccPsC es ps con LC_ALL=C: con otro locale (por ejemplo es_ES) lstart sale
+// traducido ("jue. 15 oct. ...") y no se puede leer con el formato de C.
+func ccPsC(args ...string) *exec.Cmd {
+	cmd := exec.Command("ps", args...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	return cmd
+}
+
 // ccArranque es la hora de arranque de pid que da ps (con resolucion de un
-// segundo), la misma con la que se lo puede reconocer.
+// segundo), la misma con la que se lo puede reconocer. ps corre con
+// LC_ALL=C (ccPsC): la hora sale en el formato de C con cualquier locale.
 func ccArranque(t *testing.T, pid int) time.Time {
 	t.Helper()
-	out, err := exec.Command("ps", "-o", "lstart=", "-p", strconv.Itoa(pid)).Output()
+	out, err := ccPsC("-o", "lstart=", "-p", strconv.Itoa(pid)).Output()
 	if err != nil {
 		t.Fatalf("CA-346: fixture: ps da la hora de arranque de %d: %v", pid, err)
 	}
@@ -276,7 +285,7 @@ func ccPIDs(t *testing.T, d string) []ccPID {
 
 // ccPs es lo que ps dice de pid, para el mensaje de un fallo.
 func ccPs(pid int) string {
-	out, _ := exec.Command("ps", "-o", "pid=,ppid=,pgid=,stat=,lstart=,command=", "-p", strconv.Itoa(pid)).CombinedOutput()
+	out, _ := ccPsC("-o", "pid=,ppid=,pgid=,stat=,lstart=,command=", "-p", strconv.Itoa(pid)).CombinedOutput()
 	return strings.TrimSpace(string(out))
 }
 
