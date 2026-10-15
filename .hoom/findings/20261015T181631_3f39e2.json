@@ -1,0 +1,11 @@
+{
+  "id": "20261015T181631_3f39e2",
+  "created_at": "2026-10-15T18:16:31.963767Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/procesos/procesos_windows.go",
+  "description": "INTRODUCIDO — internal/procesos/procesos_windows.go:131 ejecuta el fallback taskkill con exec.Command(...).Run sin contexto ni plazo. Los comandos tmux del Studio solo llaman procesos.EnGrupo (internal/cockpitcmd/cockpitcmd.go:86-106) y nunca Adoptar, por lo que en Windows todo timeout entra por ese fallback. os/exec invoca Cmd.Cancel sincronicamente antes de iniciar WaitDelay: si taskkill se cuelga, el plazo de 5 s y el WaitDelay de 1 s no llegan a actuar y el handler HTTP vuelve a quedar retenido indefinidamente, justo la degradacion que este rango pretende acotar.",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}

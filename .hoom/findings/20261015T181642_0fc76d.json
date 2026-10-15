@@ -1,0 +1,11 @@
+{
+  "id": "20261015T181642_0fc76d",
+  "created_at": "2026-10-15T18:16:42.103432Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:224 devuelve directamente cuando tmux new-session falla o vence el nuevo plazo, sin comprobar ni cerrar la sesion. El comando puede haber creado la sesion (y arrancado la CLI) antes de quedarse colgado; al cancelar se mata el grupo del cliente, pero un servidor tmux ya desacoplado puede conservarla. El siguiente Open ve has-session en :221 y la acepta como completa, por lo que nunca ejecuta split-window ni reintenta la inicializacion. El recovery que :227-230 ya aplica cuando falla split-window tambien hace falta para el fallo parcial de new-session creado por este timeout.",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261015T180909_1da9c4",
+  "created_at": "2026-10-15T18:09:09.58326Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE / follow-up — internal/runcmd/runcmd.go:788-807 reactiva una continuacion en memoria y lanza execute aunque writeMeta falle: la llamada de :795 ignora el error que este rango hizo observable. Si .hoom/runs permite conservar el sidecar terminal pero no reescribirlo, el provider reanudado corre mientras Active de otro proceso ve el arbol libre; ese segundo proceso puede iniciar otro run, guardar o descartar sobre el mismo arbol. La regla nueva de no arrancar sin identidad en disco se aplica en Start (:708-715) pero no en Input.",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}
