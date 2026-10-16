@@ -1,0 +1,11 @@
+{
+  "id": "20261016T201007_030d5d",
+  "created_at": "2026-10-16T20:10:07.338506Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO — internal/servecmd/acciones.go:270-281 envía done antes de ejecutar la cinta y luego un select trata done como prueba de que nunca hubo primer registro. Si un trabajo corto ya dejó ready y también termina antes de que el caller entre al select, Go puede elegir done: se responde conflicto y se borra el log aunque el sobre existe; inmediatamente internal/servecmd/acciones.go:273 ejecuta belt y puede lanzar más roles y gasto sin que el cliente sepa que el primer trabajo sí corrió. Al resolver done debe comprobar o drenar ready/registro antes de clasificarlo como no iniciado, y no borrar el log ni continuar de forma contradictoria.",
+  "author": "reviewer@codex",
+  "fingerprint": "420d1ec7373ab320",
+  "task": "historia-doctor-y-cinta"
+}

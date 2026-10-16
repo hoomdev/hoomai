@@ -1,0 +1,11 @@
+{
+  "id": "20261016T201737_1f8d09",
+  "created_at": "2026-10-16T20:17:37.187389Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO — internal/servecmd/acciones.go:270: la goroutine publica done antes de ejecutar belt. Si un trabajo termina rapido despues de Started, ready y done quedan ambos listos y el select de lineas 276-289 puede elegir done, borrar el log y responder 409 como si nada hubiera arrancado; aun asi la goroutine continua a belt y puede lanzar el siguiente sobre. El cliente recibe fallo mientras la cinta sigue gastando presupuesto sin un rastro accesible del sobre inicial.",
+  "author": "reviewer@codex",
+  "fingerprint": "420d1ec7373ab320",
+  "task": "historia-doctor-y-cinta"
+}
