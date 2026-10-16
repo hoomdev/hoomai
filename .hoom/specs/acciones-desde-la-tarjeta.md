@@ -1,7 +1,16 @@
 # Spec: acciones desde la tarjeta (cabina visual, C3)
 
-Estado: ENMIENDA 4 — pendiente de re-aprobación humana. La enmienda 4 es
-una sola y reemplaza a la 3: (m) después de que `tmux new-session` falló o
+Estado: ENMIENDA 5 — pendiente de re-aprobación humana. La enmienda 5 es
+una sola: (n) los comandos de tmux que apuntan a la sesión de la tarjeta
+usan el destino exacto `=<session>:` (con los dos puntos), porque tmux
+resuelve un nombre suelto, y también `=<session>` en `list-panes`, como
+ventana o como prefijo de otra sesión: Ver terminal lista los panes con
+`tmux list-panes -t '=<session>:'`, y el pane de vigilancia se agrega con
+ese mismo destino (hallazgo 337b23, que venía de main; Henry eligió
+corregirlo). Precisa CA-350; no agrega criterios.
+
+Enmienda 4 (aprobada el 2026-10-16, sha256 02d10290), una sola, que
+reemplaza a la 3: (m) después de que `tmux new-session` falló o
 venció su plazo, Abrir sesión no cierra ni completa la sesión, porque no
 puede saber si la creó ella u otra apertura de la misma tarjeta, ni qué
 provider corre en su pane: devuelve el error y dice cómo cerrarla a mano. Una
@@ -50,7 +59,8 @@ Precisa CA-344 y CA-346; no agrega criterios.
 
 Historia: aprobada el 2026-09-23 (sha256 d0160342); enmienda 1 aprobada el
 2026-10-15 (sha256 bbc78a95); enmienda 2 aprobada el 2026-10-15 (sha256
-31a8b1d2); enmienda 3 aprobada el 2026-10-15 (sha256 dc7cbfe1).
+31a8b1d2); enmienda 3 aprobada el 2026-10-15 (sha256 dc7cbfe1); enmienda 4
+aprobada el 2026-10-16 (sha256 02d10290).
 Depende de: `tablero-de-solo-lectura.md` (C2) integrada (PR #23).
 Tarea sugerida: `hoom task start acciones-desde-la-tarjeta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 3 de 4, "C3 — Acciones
@@ -593,9 +603,12 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
  "text": "<la pantalla, con sus secuencias de color>", "note": ""}
 ```
 
-- El pane es el primero que lista `tmux list-panes -t =<session> -F
+- El pane es el primero que lista `tmux list-panes -t '=<session>:' -F
   '#{pane_id}'` (el del CLI de la IA, que el cockpit crea primero), y `text`
-  es `tmux capture-pane -p -e -t <pane>`, cortado en 256 KiB.
+  es `tmux capture-pane -p -e -t <pane>`, cortado en 256 KiB. El destino
+  `=<session>:` es exacto: `=<session>` sin los dos puntos no lo es para
+  `list-panes`, y una sesión cerrada justo antes listaría los panes de otra
+  tarjeta (enmienda 5).
 - Sin tmux, o sin la sesión: `available: false`, `text: ""` y la nota (`tmux
   no esta instalado` o `no hay una sesion abierta para esta tarjeta`).
 - Es una lectura: sin token, como las demás, y no crea ni modifica nada. Otro
