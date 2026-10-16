@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T154955_f7efdc",
+  "as": "corregido",
+  "evidence": "Corregido en 731c108: si kill-session falla y has-session ya no encuentra la sesion, el error dice que ya no existe y que se puede reintentar, en vez de 'quedo abierta, cerrala a mano'. Refutador: cierto sobre 738e4bb y resuelto en el escenario del hallazgo con tmux real; el resto de borde (una sonda has-session que vence o no arranca tambien cuenta como 'ya no existe') queda como follow-up low 20261016T161156_9300fd. Tests: TestCA347_CA348_HallazgoF7efdc_SiLaSesionMurioElErrorNoPideCerrarlaAMano (cockpitcmd, con contraste de sesion viva) y TestCA347_CA348_HallazgoF7efdc_AbrirSesionQueMurioNoPideCerrarlaAMano (servecmd, Studio y CLI); fallan sobre ebd523f y pasan sobre 731c108.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T16:12:13.426413Z"
+}

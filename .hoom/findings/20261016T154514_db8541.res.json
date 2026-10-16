@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T154514_db8541",
+  "as": "corregido",
+  "evidence": "Corregido en 731c108: comandoCierre escribe tmux kill-session -t '=\u003csesion\u003e' (destino entre comillas) en el error de new-session (enmienda 4) y en el de killSession (C1). Enmienda 5 aprobada por Henry (sha256 4e1232b9). Refutador (INFORME-refutador-c3-delta4.md): cierto; con tmux 3.6b real el comando nuevo sale con 0 en zsh -f, zsh -i, bash y sh y cierra exactamente esa sesion. Tests del test-writer (commit de tests de la vuelta 8): cierreEjecutable en TestCA347/CA348_HC3Hallazgo363285_KillSessionRoto* y TestHallazgo_0fc76d_..., que corren el comando del mensaje con sh y zsh; fallan sobre ebd523f (zsh: not found) y pasan sobre 731c108.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T16:12:13.420101Z"
+}
