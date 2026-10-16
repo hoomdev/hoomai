@@ -21,6 +21,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -87,6 +88,10 @@ func (r Record) Done() bool { return r.Status != "" && r.Status != StatusRunning
 
 // NewID mints a record id with the same shape as a run's: sortable by name
 // and unique per invocation.
+// idRe is the shape of an envelope id: one file name, no separators, no
+// dots that climb, nothing a shell would read.
+var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+
 func NewID() string {
 	raw := make([]byte, 3)
 	rand.Read(raw)
@@ -139,6 +144,13 @@ func List(root string) []Record {
 		}
 		var rec Record
 		if json.Unmarshal(raw, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
+			continue
+		}
+		// the file name is the address and the content only describes it: a
+		// record whose id is not its file's name, or is not an id at all, is
+		// not hoom's and never reaches a command the doctor proposes
+		// (finding f34bc3)
+		if rec.ID+".json" != e.Name() || !idRe.MatchString(rec.ID) {
 			continue
 		}
 		out = append(out, rec)
