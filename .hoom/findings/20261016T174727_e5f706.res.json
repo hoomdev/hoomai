@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T174727_e5f706",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 11: las 26 filas de cockpitcmd exigen cero has-session y ninguna otra llamada a tmux despues del kill-session fallido; servecmd lo mismo desde el log del tmux falso, y has-session colgado para siempre desde el Studio y la CLI responde en menos de 5 s sin dejar tmux vivos. Refutador (INFORME-refutador-c3-delta7.md): cierto, con una mutacion (un has-session descartado en killSession) que los tests anteriores no atrapaban; las guardas nuevas fallan sobre 640fee6 (que sondeaba) y pasan sobre 2155cb4.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T18:06:48.807287Z"
+}
