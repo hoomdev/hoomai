@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T170320_57bd29",
+  "as": "corregido",
+  "evidence": "Duplicado de 9c1816. Corregido en 0f1af72 por decision de Henry (tercera vuelta sobre el diagnostico de killSession): se quito el sondeo has-session y los tres estados; si kill-session falla, el error dice siempre 'no pude cerrar la sesion S (...) y no pude saber si sigue abierta: si sigue, cerrala y reintenta: tmux kill-session -t '=S'', verdadero sin importar como salga tmux. Refutador (INFORME-refutador-c3-delta6.md): cierto sobre 640fee6 con tmux 3.6b real (socket en 000, directorio inseguro, socket movido: exit 1 con la sesion viva); 0f1af72 lo deja sin efecto y ningun camino de Open ni killSession afirma algo falso. Tests del test-writer (commit de tests de la vuelta 10): TestCA347_CA348_Hallazgo9c1816_SiElCierreFallaElErrorEsUnoSoloYNoSabeSiLaSesionSigueAbierta (cockpitcmd, incluye exit 1 de cliente con la sesion viva) y ..._AbrirSesionConElCierreFallidoDiceQueNoSabeSiSigueAbierta (servecmd); fallan sobre 640fee6 y pasan sobre 0f1af72.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T17:29:30.266762Z"
+}
