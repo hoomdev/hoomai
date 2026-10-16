@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200720_54431d",
+  "as": "corregido",
+  "evidence": "Ya corregido en main antes de esta review: 5b292f6 (PR 34, hallazgo e9f4d8 de C1) reemplazo entries y extra por un solo slice timelineItem. Refutador: cierto en a73c5da, corregido en main 6a68392.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:20:36.430809Z"
+}

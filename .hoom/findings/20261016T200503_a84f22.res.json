@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200503_a84f22",
+  "as": "corregido",
+  "evidence": "Duplicado de 6e9731 y ya corregido en main antes de esta review: c01b44b (cc4f5b) y 3fb66a4 (0ce3dc, gitEntries atomico). Refutador (INFORME-refutador-c4-mitad1-resil-read.md): con un commit_final inexistente, a73c5da da la nota 'sin historial de git' junto a 2 entradas git; main 6a68392 da 0.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:20:36.417398Z"
+}
