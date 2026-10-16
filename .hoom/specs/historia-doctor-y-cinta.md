@@ -1,6 +1,13 @@
 # Spec: historia, doctor y cinta de la tarjeta (cabina visual, C4)
 
-Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión aprobada
+Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 2 es
+una sola: la historia lee los veredictos, hallazgos, resoluciones y registros
+de review de la tarjeta como están hoy, y uno editado o borrado a mano no se
+reconstruye desde git (hallazgo 43fe5d de la review de 4 lentes de C4: con
+hoom no se alcanza, porque esos archivos se escriben una sola vez; Henry
+eligió declararlo). Está en Decisiones; no agrega ni cambia criterios.
+
+Enmienda 1 (aprobada el 2026-10-14, sha256 a34e2cec): la versión aprobada
 (sha256 e6b0ca14) está implementada e integrada (PR 27). La review de las
 correcciones de C2 (tarea `fixes-cabina-c2`, 2026-10-09) encontró un caso que
 esta spec no decidía: el parche de los commits de la tarea pasa los 8 MiB y
@@ -8,7 +15,8 @@ git falla después. Henry decidió que gana el fallo. La enmienda 1 lo escribe
 en el contrato de la historia, en su decisión y en su riesgo; no agrega ni
 cambia criterios.
 
-Historia: aprobada el 2026-09-23 (sha256 e6b0ca14).
+Historia: aprobada el 2026-09-23 (sha256 e6b0ca14); enmienda 1 aprobada el
+2026-10-14 (sha256 a34e2cec).
 Depende de: `acciones-desde-la-tarjeta.md` (C3) integrada (PR #25).
 Tarea sugerida: `hoom task start historia-doctor-y-cinta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 4 de 4, "C4 — Timeline,
@@ -645,6 +653,13 @@ reviewer, en ese orden. La cinta siempre termina.
   la telemetría cada vez que alguien abre la pestaña. Un log propio sería una
   segunda verdad (RFC). Por eso la pestaña no sondea: pedir git cada segundo
   no aporta nada.
+- **Los artefactos de la tarjeta se leen como están hoy** (enmienda 2).
+  Qué archivos de evidencia son de la tarjeta, y qué dice cada veredicto,
+  hallazgo, resolución o registro de review, sale de esos archivos tal como
+  están hoy: hoom los escribe una sola vez, así que es lo mismo que tenían
+  en su commit. Uno editado o borrado a mano no se reconstruye desde git: su
+  historia se pierde o muestra lo de hoy. Leer cada uno en su commit
+  costaría un `git show` por archivo en cada pedido de la pestaña.
 - **Una entrada por archivo y por commit**, no por commit: el replay enciende
   el medidor artefacto por artefacto, y "qué artefacto" es un dato de cada
   entrada.
