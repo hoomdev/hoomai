@@ -22,7 +22,8 @@
 //
 // Fixtures de open_capture_test.go (cbProyecto, cbLeerItem),
 // hallazgos_c1_test.go (h3Tmux, h3Sesion, h3Reintento), hallazgos_c1c_test.go
-// (hc3Tmux) y tmuxdoble_test.go (tmuxSinSesion, ciNoSabeSiSigueAbierta).
+// (hc3Tmux) y tmuxdoble_test.go (tmuxSinSesion,
+// incumplimientosDelCierreFallido).
 // Ningun tmux real.
 package cockpitcmd
 
@@ -251,12 +252,13 @@ func (f *hf7Tmux) deps() Deps {
 //   - la sesion sigue viva: el split-window falla y kill-session esta roto
 //     (el caso de 363285).
 //
-// En los dos el error es el mismo contrato (ciNoSabeSiSigueAbierta):
-// conserva el del split-window, no afirma que la sesion ya no existe ni que
-// quedo abierta, dice que no se pudo saber si sigue abierta y muestra `tmux
-// kill-session -t '=<sesion>'`, que corre tal cual en sh y en zsh
-// (cierreEjecutable). El item no declara nada, y con la sesion muerta el
-// reintento con tmux sano la crea (created: true) y la registra.
+// En los dos el error cumple el mismo contrato (lo verifica
+// incumplimientosDelCierreFallido): conserva el del split-window, no afirma
+// que la sesion ya no existe ni que quedo abierta, dice que no se pudo saber
+// si sigue abierta y muestra `tmux kill-session -t '=<sesion>'`, que corre
+// tal cual en sh y en zsh (cierreEjecutable). El item no declara nada, y con
+// la sesion muerta el reintento con tmux sano la crea (created: true) y la
+// registra.
 //
 // El contrato de tres estados (A: "ya no existe" si has-session salia con
 // codigo 1; B: "quedo abierta" si salia bien; C: "no se sabe" si no
@@ -284,7 +286,7 @@ func TestCA347_CA348_HallazgoF7efdc_SiNoPudoCerrarlaElErrorNoSabeSiLaSesionSigue
 			t.Fatalf("%s: con el split-window roto Open devuelve el error:\n%s", ca, f.todas())
 		}
 		msg := err.Error()
-		if mal := ciNoSabeSiSigueAbierta(msg, "can't find session: "+h3Sesion, h3Sesion); len(mal) > 0 {
+		if mal := incumplimientosDelCierreFallido(msg, "can't find session: "+h3Sesion, h3Sesion); len(mal) > 0 {
 			t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, f.todas())
 		}
 		cierreEjecutable(t, ca, msg, h3Sesion)
@@ -308,7 +310,7 @@ func TestCA347_CA348_HallazgoF7efdc_SiNoPudoCerrarlaElErrorNoSabeSiLaSesionSigue
 			t.Fatalf("%s: con el split-window roto Open devuelve el error:\n%s", ca, f.todas())
 		}
 		msg := err.Error()
-		if mal := ciNoSabeSiSigueAbierta(msg, h3ErrPaso.Error(), h3Sesion); len(mal) > 0 {
+		if mal := incumplimientosDelCierreFallido(msg, h3ErrPaso.Error(), h3Sesion); len(mal) > 0 {
 			t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, f.todas())
 		}
 		cierreEjecutable(t, ca, msg, h3Sesion)

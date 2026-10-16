@@ -11,12 +11,13 @@
 //     sesion no esta) y tmuxClienteRoto (falla el propio cliente de tmux).
 //     Las dos salen con codigo 1: por eso el codigo de salida no prueba nada
 //     (9c1816).
-//   - ciNoSabeSiSigueAbierta: que dice el error cuando Open creo la sesion,
-//     algo fallo despues y el cierre `tmux kill-session -t =<sesion>` TAMBIEN
-//     fallo. Un solo mensaje para todos los casos, este la sesion viva,
-//     muerta o sin saberse. Lo comun con servecmd (y lo de la guarda de C1,
-//     con kill-session sano: DiceQueLaCerro) vive en internal/cierretmuxtest
-//     (hallazgo 9accd8); aca queda lo propio de Open.
+//   - incumplimientosDelCierreFallido: en que incumple el contrato el error
+//     de Open cuando creo la sesion, algo fallo despues y el cierre `tmux
+//     kill-session -t =<sesion>` TAMBIEN fallo. Un solo mensaje para todos
+//     los casos, este la sesion viva, muerta o sin saberse. Lo comun con
+//     servecmd (y lo de la guarda de C1, con kill-session sano:
+//     DiceQueLaCerro) vive en internal/cierretmuxtest (hallazgo 9accd8); aca
+//     queda lo propio de Open.
 package cockpitcmd
 
 import (
@@ -50,27 +51,28 @@ func tmuxClienteRoto() error {
 	return err
 }
 
-// ciNoSabeSiSigueAbierta exige el contrato nuevo (hallazgos 9c1816, 57bd29 y
-// 03481c, decision de Henry) sobre msg, el error de Open cuando creo la sesion
-// sesion, algo fallo despues y el cierre `tmux kill-session -t =<sesion>`
-// TAMBIEN fallo: tmux sale con codigo 1 tanto si la sesion no esta como si
-// falla su propio cliente, asi que nada de lo que responda prueba si la sesion
-// sigue abierta. Lo comun con servecmd vive en internal/cierretmuxtest
-// (hallazgo 9accd8: no dice que la cerro, no afirma como hecho que la sesion
-// ya no existe ni que quedo abierta, dice que no se pudo saber si sigue
-// abierta y muestra el comando de cierre con el destino entre comillas). Lo
-// propio de Open:
+// incumplimientosDelCierreFallido devuelve en que incumple msg el contrato
+// nuevo (hallazgos 9c1816, 57bd29 y 03481c, decision de Henry): msg es el
+// error de Open cuando creo la sesion sesion, algo fallo despues y el cierre
+// `tmux kill-session -t =<sesion>` TAMBIEN fallo: tmux sale con codigo 1
+// tanto si la sesion no esta como si falla su propio cliente, asi que nada de
+// lo que responda prueba si la sesion sigue abierta. Lo comun con servecmd
+// vive en internal/cierretmuxtest (hallazgo 9accd8: no dice que la cerro, no
+// afirma como hecho que la sesion ya no existe ni que quedo abierta, dice que
+// no se pudo saber si sigue abierta y muestra el comando de cierre con el
+// destino entre comillas). Lo propio de Open:
 //
 //   - conserva original, el error del paso que fallo (va primero);
 //   - el comando de cierre `tmux kill-session -t '=<sesion>'` se busca tal
 //     cual (strings.Contains); que corra tal cual en sh y en zsh lo exige
 //     aparte cierreEjecutable.
 //
-// Devuelve lo que esta mal ([] si nada).
-func ciNoSabeSiSigueAbierta(msg, original, sesion string) []string {
+// No es un predicado: devuelve la lista de incumplimientos, vacia si msg
+// cumple todo.
+func incumplimientosDelCierreFallido(msg, original, sesion string) []string {
 	var mal []string
 	if !strings.Contains(msg, original) {
 		mal = append(mal, "conserva el error del paso que fallo ("+original+")")
 	}
-	return append(mal, cierretmuxtest.NoSabeSiSigueAbierta(msg, sesion, strings.Contains)...)
+	return append(mal, cierretmuxtest.IncumplimientosDelCierreFallido(msg, sesion, strings.Contains)...)
 }

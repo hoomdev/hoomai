@@ -8,7 +8,7 @@
 // propio cliente (9c1816), asi que ni el codigo de salida del kill-session ni
 // un sondeo `tmux has-session` despues prueban si la sesion sigue abierta. El
 // error es UNO SOLO para todos los casos, este la sesion viva, muerta o sin
-// saberse (ciNoSabeSiSigueAbierta, en tmuxdoble_test.go):
+// saberse (lo verifica incumplimientosDelCierreFallido, en tmuxdoble_test.go):
 //
 //   - conserva el error original del paso que fallo;
 //   - no dice que la cerro, ni afirma como hecho que la sesion ya no existe o
@@ -40,9 +40,10 @@
 // (cbProyecto, cbLeerItem), hallazgos_c1_test.go (h3Tmux, h3Sesion,
 // h3ErrPaso, h3SinHuerfana), hallazgos_c1c_test.go (hc3Tmux, hc3Llamada,
 // hc3ItemSoloLectura), hallazgos_db8541_f7efdc_test.go (cierreEjecutable) y
-// tmuxdoble_test.go (tmuxSinSesion, tmuxClienteRoto, ciNoSabeSiSigueAbierta),
-// y el verificador compartido internal/cierretmuxtest (DiceQueLaCerro,
-// DiceQueNoSabe; hallazgo 9accd8). Ningun tmux real.
+// tmuxdoble_test.go (tmuxSinSesion, tmuxClienteRoto,
+// incumplimientosDelCierreFallido), y el verificador compartido
+// internal/cierretmuxtest (DiceQueLaCerro, DiceQueNoSabe; hallazgo 9accd8).
+// Ningun tmux real.
 package cockpitcmd
 
 import (
@@ -284,10 +285,11 @@ func TestCA347_HallazgosB59c30E0001e_ElDobleRespondeComoTmux(t *testing.T) {
 // cliente: 9c1816), sale bien, no arranca, sale por una senal, vence su plazo
 // o falla sin codigo de salida.
 //
-// En todos, el error cumple ciNoSabeSiSigueAbierta (conserva el del paso que
-// fallo, no dice que la cerro, no afirma que la sesion ya no existe ni que
-// quedo abierta, dice que no se pudo saber si sigue abierta y muestra el
-// comando de cierre con comillas), el comando corre tal cual en sh y en zsh, y
+// En todos, el error no tiene incumplimientos para
+// incumplimientosDelCierreFallido (conserva el del paso que fallo, no dice
+// que la cerro, no afirma que la sesion ya no existe ni que quedo abierta,
+// dice que no se pudo saber si sigue abierta y muestra el comando de cierre
+// con comillas), el comando corre tal cual en sh y en zsh, y
 // el item queda byte a byte igual (CA-348). Y con el mismo paso fallido y el
 // mismo error del kill-session, el mensaje es identico en todos los casos:
 // no depende de has-session ni de si la sesion vive.
@@ -360,7 +362,7 @@ func TestCA347_CA348_Hallazgo9c1816_SiElCierreFallaElErrorEsUnoSoloYNoSabeSiLaSe
 				msg := err.Error()
 				clave := paso.caso + " / " + c.kill.nombre
 				mensajes[clave] = append(mensajes[clave], visto{c.caso, hb5Comparable(msg, root)})
-				if mal := ciNoSabeSiSigueAbierta(msg, paso.original, h3Sesion); len(mal) > 0 {
+				if mal := incumplimientosDelCierreFallido(msg, paso.original, h3Sesion); len(mal) > 0 {
 					t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, f.todas())
 				}
 				cierreEjecutable(t, ca, msg, h3Sesion)
@@ -436,47 +438,27 @@ func TestCA347_CA348_Hallazgo9c1816_GuardaConElCierreSanoElErrorDiceQueLaCerro(t
 	}
 }
 
-// Guarda del verificador (9c1816): ciNoSabeSiSigueAbierta acepta mensajes que
-// cumplen el contrato nuevo aunque lo digan con otras palabras (un
-// condicional, una disyuncion, con o sin tildes) y rechaza los del contrato
-// de tres estados y los que no muestran el comando con comillas; y
-// DiceQueLaCerro reconoce el "la cerre" de C1 y no una negacion. Sin esto,
-// los tests de arriba podrian pasar o fallar por el verificador y no por el
-// mensaje.
+// Guarda del verificador (9c1816), lo propio de cockpitcmd: el envoltorio
+// incumplimientosDelCierreFallido de Open exige ademas que el error conserve
+// el del paso que fallo, y busca el comando de cierre tal cual
+// (strings.Contains). La matriz comun de frases que acepta y rechaza el
+// verificador (y la de DiceQueLaCerro) vive en el test del paquete
+// compartido, internal/cierretmuxtest/mensaje_test.go (hallazgo 1c0773). Sin
+// esto, los tests de arriba podrian pasar o fallar por el verificador y no
+// por el mensaje.
 func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
 	const s, orig = h3Sesion, "split-window: fallo"
 	cmd := "tmux kill-session -t '=" + s + "'"
-	for _, c := range []struct {
-		msg  string
-		vale bool
-	}{
-		{orig + "; no pude cerrar la sesion " + s + " (exit status 1) y no pude saber si sigue abierta: si sigue, cerrala y reintenta: " + cmd, true},
-		{orig + "; no pude cerrar la sesión " + s + " y no sé si quedó abierta: " + cmd, true},
-		{orig + "; no pude saber si la sesion " + s + " sigue abierta o ya no existe; si sigue, " + cmd, true},
-		{orig + "; no pude cerrarla: puede que siga abierta (" + cmd + ")", true},
-		{orig + "; la sesion " + s + " ya no existe: reintenta", false},
-		{orig + "; la sesion " + s + " quedo abierta y no pude cerrarla (exit status 1): cerrala y reintenta: " + cmd, false},
-		{orig + "; la sesión " + s + " quedó abierta, no sé si podrás cerrarla: " + cmd, false},
-		{orig + "; no pude saber si sigue abierta: cerrala con tmux kill-session -t =" + s, false},
-		{orig + "; no pude cerrar la sesion " + s + ": " + cmd, false},
-		{orig + "; cerre la sesion " + s + ", pero no pude saber si sigue abierta: " + cmd, false},
-		{"otro error; no pude saber si sigue abierta: " + cmd, false},
-	} {
-		if mal := ciNoSabeSiSigueAbierta(c.msg, orig, s); (len(mal) == 0) != c.vale {
-			t.Errorf("9c1816: ciNoSabeSiSigueAbierta(%q) = %q, quiere que valga = %v", c.msg, mal, c.vale)
-		}
+	resto := "; no pude saber si sigue abierta: " + cmd
+	// Con el error del paso que fallo y el comando tal cual, vale.
+	if msg := orig + resto; len(incumplimientosDelCierreFallido(msg, orig, s)) != 0 {
+		t.Errorf("9c1816: incumplimientosDelCierreFallido(%q) = %q, quiere que valga", msg, incumplimientosDelCierreFallido(msg, orig, s))
 	}
-	for _, c := range []struct {
-		msg   string
-		cerro bool
-	}{
-		{orig + "; cerré la sesión " + s + " para que el próximo intento la arme entera", true},
-		{orig + "; la cerre: reintenta", true},
-		{orig + "; no la cerré: " + cmd, false},
-		{orig + "; no pude cerrar la sesion " + s, false},
-	} {
-		if got := cierretmuxtest.DiceQueLaCerro(c.msg); got != c.cerro {
-			t.Errorf("C1: DiceQueLaCerro(%q) = %v, quiere %v", c.msg, got, c.cerro)
-		}
+	// El mismo mensaje con otro error en vez del original no vale, y solo por
+	// eso.
+	msg := "otro error" + resto
+	mal := incumplimientosDelCierreFallido(msg, orig, s)
+	if len(mal) != 1 || !strings.Contains(mal[0], orig) {
+		t.Errorf("9c1816: incumplimientosDelCierreFallido(%q) = %q, quiere un solo incumplimiento: que conserve el error del paso que fallo (%s)", msg, mal, orig)
 	}
 }

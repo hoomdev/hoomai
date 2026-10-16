@@ -10,11 +10,12 @@
 // cliente (9c1816), asi que ni el kill-session ni un sondeo `tmux has-session`
 // despues prueban si la sesion sigue abierta. El error es UNO SOLO, este la
 // sesion viva, muerta o sin saberse, y responda lo que responda tmux a
-// has-session (o aunque no se le pregunte): cumple ciNoSabeSiSigueAbierta (en
-// tmuxfalso_test.go: no dice que la cerro, no afirma que la sesion ya no
-// existe ni que quedo abierta, dice que no se pudo saber si sigue abierta y
-// muestra `tmux kill-session -t '=<sesion>'` con comillas, que corre tal cual
-// en sh y en zsh: cierreEjecutable). El item queda byte a byte igual.
+// has-session (o aunque no se le pregunte): no tiene incumplimientos para
+// incumplimientosDelCierreFallido (en tmuxfalso_test.go: no dice que la
+// cerro, no afirma que la sesion ya no existe ni que quedo abierta, dice que
+// no se pudo saber si sigue abierta y muestra `tmux kill-session -t
+// '=<sesion>'` con comillas, que corre tal cual en sh y en zsh:
+// cierreEjecutable). El item queda byte a byte igual.
 //
 // Reemplaza al contrato de tres estados (has-session con codigo 1 => "ya no
 // existe"; sale bien => "quedo abierta"; no confirma nada => "no se sabe"):
@@ -109,11 +110,11 @@ func hb5Comparable(msg string, carpetas ...string) string {
 //   - la sesion murio con el kill-session (el servidor se cayo), y has-session
 //     sale con codigo 1 ("can't find session").
 //
-// Desde el Studio y desde la CLI, la apertura responde un error que cumple
-// ciNoSabeSiSigueAbierta, con el comando de cierre que corre tal cual en sh y
-// en zsh, y el item de fix queda byte a byte igual. Y para cada quien, el
-// mensaje es el MISMO en todos los casos: no depende de has-session ni de si
-// la sesion vive.
+// Desde el Studio y desde la CLI, la apertura responde un error sin
+// incumplimientos para incumplimientosDelCierreFallido, con el comando de
+// cierre que corre tal cual en sh y en zsh, y el item de fix queda byte a
+// byte igual. Y para cada quien, el mensaje es el MISMO en todos los casos:
+// no depende de has-session ni de si la sesion vive.
 //
 // Hallazgo e5f706 (CA-347, CA-348): en todas las filas, despues del
 // kill-session fallido el log del tmux falso no tiene ningun has-session ni
@@ -248,7 +249,7 @@ func TestCA347_CA348_Hallazgo9c1816_AbrirSesionConElCierreFallidoDiceQueNoSabeSi
 			}
 			msg := a.mensaje()
 			mensajes[c.quien] = append(mensajes[c.quien], visto{c.caso, hb5Comparable(msg, wtFix, dir)})
-			if mal := ciNoSabeSiSigueAbierta(msg, propia); len(mal) > 0 {
+			if mal := incumplimientosDelCierreFallido(msg, propia); len(mal) > 0 {
 				t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, tmux)
 			}
 			cierreEjecutable(t, ca, msg, propia)
@@ -346,38 +347,32 @@ func TestCA347_CA348_Hallazgo9c1816_GuardaAbrirSesionConElCierreSanoDiceQueLaCer
 	}
 }
 
-// Guarda del verificador (9c1816), la copia de servecmd: ciNoSabeSiSigueAbierta
-// acepta mensajes que cumplen el contrato nuevo aunque lo digan con otras
-// palabras y rechaza los del contrato de tres estados y los que no muestran
-// el comando de esta sesion con comillas; DiceQueLaCerro reconoce el "la
-// cerre" de C1 y no una negacion.
+// Guarda del verificador (9c1816), lo propio de servecmd: el envoltorio
+// incumplimientosDelCierreFallido busca el comando de cierre con el nombre
+// exacto de la sesion (contieneElAviso), asi que el de otra sesion cuyo
+// nombre empieza igual no cuenta. La matriz comun de frases que acepta y
+// rechaza el verificador (y la de DiceQueLaCerro) vive en el test del
+// paquete compartido, internal/cierretmuxtest/mensaje_test.go (hallazgo
+// 1c0773).
 func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
 	s := cockpitcmd.SessionName("demo", "fix")
 	cmd := "tmux kill-session -t '=" + s + "'"
-	for _, c := range []struct {
-		msg  string
-		vale bool
-	}{
-		{"exit status 1; no pude cerrar la sesion " + s + " (exit status 1) y no pude saber si sigue abierta: si sigue, cerrala y reintenta: " + cmd, true},
-		{"exit status 1; no pude saber si la sesión " + s + " sigue abierta o ya no existe; si sigue, " + cmd, true},
-		{"exit status 1; la sesion " + s + " ya no existe: reintenta", false},
-		{"exit status 1; la sesion " + s + " quedo abierta y no pude cerrarla (exit status 1): cerrala y reintenta: " + cmd, false},
-		{"exit status 1; no pude saber si sigue abierta: tmux kill-session -t '=" + s + "-login'", false},
-		{"exit status 1; no pude saber si sigue abierta: tmux kill-session -t =" + s, false},
-	} {
-		if mal := ciNoSabeSiSigueAbierta(c.msg, s); (len(mal) == 0) != c.vale {
-			t.Errorf("9c1816: ciNoSabeSiSigueAbierta(%q) = %q, quiere que valga = %v", c.msg, mal, c.vale)
-		}
+	const pre = "exit status 1; no pude saber si sigue abierta: "
+	// Con el comando de esta sesion, vale.
+	if msg := pre + cmd; len(incumplimientosDelCierreFallido(msg, s)) != 0 {
+		t.Errorf("9c1816: incumplimientosDelCierreFallido(%q) = %q, quiere que valga", msg, incumplimientosDelCierreFallido(msg, s))
 	}
-	for _, c := range []struct {
-		msg   string
-		cerro bool
-	}{
-		{"exit status 1; cerré la sesión " + s + " para que el próximo intento la arme entera", true},
-		{"exit status 1; no la cerré: " + cmd, false},
+	// Con el comando de otra sesion cuyo nombre empieza igual no vale, y solo
+	// por el comando.
+	for _, c := range []struct{ msg, porque string }{
+		{pre + "tmux kill-session -t '=" + s + "-login'", "el destino entre comillas es " + s + "-login"},
+		// El shell junta '=<s>'-login en =<s>-login: strings.Contains
+		// encontraria el comando de esta sesion, contieneElAviso no.
+		{pre + cmd + "-login", "el destino '=" + s + "'-login es " + s + "-login"},
 	} {
-		if got := cierretmuxtest.DiceQueLaCerro(c.msg); got != c.cerro {
-			t.Errorf("C1: DiceQueLaCerro(%q) = %v, quiere %v", c.msg, got, c.cerro)
+		mal := incumplimientosDelCierreFallido(c.msg, s)
+		if len(mal) != 1 || !strings.Contains(mal[0], cmd) {
+			t.Errorf("9c1816 (%s): incumplimientosDelCierreFallido(%q) = %q, quiere un solo incumplimiento: que muestre %s", c.porque, c.msg, mal, cmd)
 		}
 	}
 }

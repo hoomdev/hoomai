@@ -13,11 +13,14 @@
 // Existe solo para tests, como net/http/httptest: ningun codigo de
 // produccion lo importa. Es un paquete y no un _test.go porque el mismo
 // verificador lo usan internal/cockpitcmd (Open) e internal/servecmd (el
-// Studio y la CLI de punta a punta), y con una copia en cada uno habia dos
-// analizadores de lenguaje natural que mover juntos (hallazgo 9accd8). Cada
-// paquete conserva lo propio en su ciNoSabeSiSigueAbierta: cockpitcmd exige
-// ademas que el error conserve el del paso que fallo, y servecmd busca el
-// comando de cierre con el nombre exacto de la sesion (contieneElAviso).
+// Studio y la CLI de punta a punta): antes cada uno tenia el suyo y eran dos
+// analizadores de lenguaje natural que mover juntos (hallazgo 9accd8). La
+// matriz de frases que acepta y rechaza vive en mensaje_test.go, aca mismo
+// (hallazgo 1c0773). Cada paquete conserva lo propio en su envoltorio
+// incumplimientosDelCierreFallido, y lo prueba en su test del verificador:
+// cockpitcmd exige ademas que el error conserve el del paso que fallo y busca
+// el comando de cierre tal cual (strings.Contains), y servecmd lo busca con
+// el nombre exacto de la sesion (contieneElAviso).
 package cierretmuxtest
 
 import (
@@ -85,10 +88,13 @@ var hechos = []string{"ya no existe", "no existe mas", "quedo abierta", "sigue a
 // sesion.
 var cerro = []string{"la cerre", "cerre la sesion", "se cerro la sesion", "la sesion se cerro"}
 
-// NoSabeSiSigueAbierta exige el contrato de 9c1816, 57bd29 y 03481c sobre
-// msg, el error de una apertura que creo la sesion sesion, fallo despues y no
-// pudo cerrarla con `tmux kill-session -t =<sesion>`. Este la sesion viva,
-// muerta o sin saberse, el error:
+// IncumplimientosDelCierreFallido devuelve en que incumple msg el contrato de
+// 9c1816, 57bd29 y 03481c: msg es el error de una apertura que creo la sesion
+// sesion, fallo despues y no pudo cerrarla con `tmux kill-session -t
+// =<sesion>`. No es un predicado: devuelve la lista de incumplimientos,
+// vacia si msg cumple todo y, si no, con al menos uno por cada regla que
+// rompe, en el orden de abajo. Este la sesion viva, muerta o sin saberse, el
+// error:
 //
 //   - no dice que la cerro (kill-session fallo);
 //   - NO afirma como hecho que la sesion ya no existe ni que quedo abierta;
@@ -97,9 +103,7 @@ var cerro = []string{"la cerre", "cerre la sesion", "se cerro la sesion", "la se
 //     destino entre comillas, segun contiene(msg, comando): cada paquete dice
 //     como lo busca. Que corra tal cual en sh y en zsh lo exige aparte
 //     cierreEjecutable, en cada paquete.
-//
-// Devuelve lo que esta mal ([] si nada), en ese orden.
-func NoSabeSiSigueAbierta(msg, sesion string, contiene func(msg, aviso string) bool) []string {
+func IncumplimientosDelCierreFallido(msg, sesion string, contiene func(msg, aviso string) bool) []string {
 	bajo := sinTildes(msg)
 	var mal []string
 	for _, frase := range cerro {
