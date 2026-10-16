@@ -1,13 +1,17 @@
 # Spec: acciones desde la tarjeta (cabina visual, C3)
 
 Estado: ENMIENDA 5 — pendiente de re-aprobación humana. La enmienda 5 es
-una sola: (n) los comandos de tmux que apuntan a la sesión de la tarjeta
-usan el destino exacto `=<session>:` (con los dos puntos), porque tmux
-resuelve un nombre suelto, y también `=<session>` en `list-panes`, como
-ventana o como prefijo de otra sesión: Ver terminal lista los panes con
-`tmux list-panes -t '=<session>:'`, y el pane de vigilancia se agrega con
-ese mismo destino (hallazgo 337b23, que venía de main; Henry eligió
-corregirlo). Precisa CA-350; no agrega criterios.
+una sola: (n) al armar la sesión de la tarjeta y al leer su pantalla, los
+comandos de tmux `split-window`, `select-pane` y `list-panes` usan el
+destino exacto `=<session>:` (con los dos puntos), porque tmux resuelve un
+nombre suelto, y también `=<session>` en `list-panes`, como ventana o como
+prefijo de otra sesión: Ver terminal lista los panes con `tmux list-panes -t
+'=<session>:'`, y el pane de vigilancia se agrega con ese mismo destino
+(hallazgo 337b23, que venía de main; Henry eligió corregirlo).
+`has-session` y `kill-session` ya usaban `=<session>`, que para ellos es
+exacto. Adjuntarse (`attach-session` y `switch-client` de `hoom cockpit`)
+queda como lo fija la spec del cockpit (CA-84): va a la sesión que la misma
+llamada acaba de encontrar o crear. Precisa CA-350; no agrega criterios.
 
 Enmienda 4 (aprobada el 2026-10-16, sha256 02d10290), una sola, que
 reemplaza a la 3: (m) después de que `tmux new-session` falló o
