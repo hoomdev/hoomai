@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200140_b8f216",
+  "created_at": "2026-10-16T20:01:40.381765Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:775: testTokens limita Scanner a 4 MiB por línea aunque el contrato permite un parche de 8 MiB, e ignora sc.Err(). Una sola línea agregada de test de 4–8 MiB hace que el scanner se detenga, se pierdan ese criterio y todas las líneas posteriores, y limited.hit queda falso, por lo que tampoco aparece NoteTestsCortados; el replay queda incompleto sin advertencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

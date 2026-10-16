@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200503_a84f22",
+  "created_at": "2026-10-16T20:05:03.763752Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:131-139 publica h.entries aun cuando gitEntries devuelve error; gitEntries ya agrega entradas de item y evidencia en internal/boardcmd/timeline.go:239-269 antes de que taskCommits pueda fallar. Por ejemplo, una base inexistente hace fallar logNames despues de acumular artefactos, y el endpoint devuelve historia git parcial junto a la nota sin historial de git, en vez del fallback coherente del contrato. La recoleccion git debe ser transaccional o descartar todas sus entradas al fallar.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200721_58f3c9",
+  "created_at": "2026-10-16T20:07:21.126672Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/statuscmd/statuscmd.go",
+  "description": "INTRODUCIDO — internal/statuscmd/statuscmd.go:182: el comentario presenta Ratchet como fuente unica, pero BuildFor evita esa API y llama a ratchetView, mientras Ratchet es solo otro wrapper sobre ratchetView. Los dos nombres contradicen el contrato y facilitan que una futura validacion se agregue solo en una ruta. Convertir la implementacion en Ratchet y hacer que BuildFor la invoque elimina la doble entrada.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

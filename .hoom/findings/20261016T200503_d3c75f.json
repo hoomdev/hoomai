@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200503_d3c75f",
+  "created_at": "2026-10-16T20:05:03.303913Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:540-547 llama runcmd.ReadEvents completo por cada run; esa funcion carga el archivo entero con io.ReadAll en internal/runcmd/runcmd.go:340. Un log local grande, o varios logs acumulados, hacen que un solo GET /api/board/{slug}/timeline cargue toda la narracion en memoria sin limite y pueda bloquear o agotar la memoria del Studio. La historia debe filtrar los eventos en streaming o imponer un limite explicito con una nota de degradacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

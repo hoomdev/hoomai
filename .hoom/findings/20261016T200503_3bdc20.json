@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200503_3bdc20",
+  "created_at": "2026-10-16T20:05:03.047742Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:810-815 crea NewNormalizer dentro de execute, que representa una invocacion, aunque Input en internal/runcmd/runcmd.go:594-658 reutiliza el mismo run llamando execute otra vez. Si una delegacion queda abierta al terminar una invocacion y su task_notification o tool_result llega al continuar la sesion, el correlador nuevo olvida el tool_id: no se emite agent_end y Stage y Timeline la dejan abierta para siempre. El normalizador debe vivir en run e inicializarse una sola vez por run.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

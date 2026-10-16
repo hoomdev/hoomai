@@ -1,0 +1,11 @@
+{
+  "id": "20261016T195646_f47433",
+  "created_at": "2026-10-16T19:56:46.277917Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO: internal/boardcmd/timeline.go:541 pasa el run_id de cada sobre directamente a runcmd.ReadEvents; envelope.List solo exige que ID no este vacio y no valida RunID (internal/envelope/envelope.go:140), mientras ReadEventsFrom concatena id a una ruta y la limpia con filepath.Join (internal/runcmd/runcmd.go:330). Un sobre plantado con run_id ../../... hace que GET /api/board/{slug}/timeline lea un .jsonl fuera de .hoom/runs y publique los eventos agent/agent_end, permitiendo exposicion entre proyectos. Validar el id en ReadEventsFrom (defensa central) y rechazar referencias de sobre que no correspondan a telemetria valida; este patron es apto para una regla Semgrep que prohiba unir IDs no validados a rutas de telemetria.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}
