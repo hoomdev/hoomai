@@ -1,0 +1,11 @@
+{
+  "id": "20261016T182627_bbadcb",
+  "created_at": "2026-10-16T18:26:27.056878Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/cierretmuxtest/mensaje.go",
+  "description": "INTRODUCIDO — internal/cierretmuxtest/mensaje.go:102: el nombre exportado NoSabeSiSigueAbierta sugiere un predicado, y contrasta con DiceQueNoSabe/DiceQueLaCerro, pero devuelve []string de incumplimientos. Los llamadores deben traducir len(mal)==0 para conocer el resultado; un nombre de validacion o de problemas haria explicito el contrato de retorno.",
+  "author": "reviewer@codex",
+  "fingerprint": "a3c8702621c7683b",
+  "task": "fixes-cabina-c3"
+}
