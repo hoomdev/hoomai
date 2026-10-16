@@ -230,7 +230,7 @@ func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 		return false, nil
 	}
 	if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
-		return false, fmt.Errorf("%w; si la sesion %s quedo a medias (sin el pane de vigilancia), cerrala con 'tmux kill-session -t =%s' y reintenta", err, session, session)
+		return false, fmt.Errorf("%w; si la sesion %s quedo a medias (sin el pane de vigilancia), cerrala y reintenta: %s", err, session, comandoCierre(session))
 	}
 	// =<session>: is exactly this session's window: a bare name is looked up
 	// as a window first and then as a session prefix, and the watch pane
@@ -253,9 +253,21 @@ func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 // next try never completes).
 func killSession(dir, session string, deps Deps, cause error) error {
 	if err := deps.QuietCmd(dir, "tmux", "kill-session", "-t", "="+session); err != nil {
-		return fmt.Errorf("%w; la sesion %s quedo abierta y no pude cerrarla (%v): cerrala con 'tmux kill-session -t =%s' y reintenta", cause, session, err, session)
+		// a session that already died is not "still open": the next try is
+		// safe (finding f7efdc)
+		if deps.QuietCmd(dir, "tmux", "has-session", "-t", "="+session) != nil {
+			return fmt.Errorf("%w; la sesion %s ya no existe: reintenta", cause, session)
+		}
+		return fmt.Errorf("%w; la sesion %s quedo abierta y no pude cerrarla (%v): cerrala y reintenta: %s", cause, session, err, comandoCierre(session))
 	}
 	return fmt.Errorf("%w; cerre la sesion %s para que el proximo intento la arme entera", cause, session)
+}
+
+// comandoCierre is the command that closes exactly session, written to be
+// pasted in a shell: the target goes quoted, since zsh expands a word that
+// starts with = as the path of a command (finding db8541).
+func comandoCierre(session string) string {
+	return "tmux kill-session -t '=" + session + "'"
 }
 
 // runZellij writes the KDL layout under .hoom/cache/ (the only place the
