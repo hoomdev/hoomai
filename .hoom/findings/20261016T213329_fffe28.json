@@ -1,0 +1,11 @@
+{
+  "id": "20261016T213329_fffe28",
+  "created_at": "2026-10-16T21:33:29.760718Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/doctor.go",
+  "description": "PREEXISTENTE (follow-up): internal/boardcmd/doctor.go:154 acepta roles con espacios externos porque agents.Lookup aplica TrimSpace, pero internal/boardcmd/doctor.go:163-164 interpola el in.Role original en una accion de shell. Un sobre plantado con role igual a salto-de-linea seguido de writer pasa la validacion y, al pegar la accion, separa hoom agent --role de un segundo comando writer --task ... . Debe interpolarse el Role.Slug canonico devuelto por Lookup. Es patronizable con una regla Semgrep custom que impida reutilizar el valor crudo tras validar/canonicalizar un argumento de comando.",
+  "author": "reviewer@codex",
+  "fingerprint": "66432c70f18abe1a",
+  "task": "fixes-cabina-c4"
+}
