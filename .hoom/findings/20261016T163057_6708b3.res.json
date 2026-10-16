@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T163057_6708b3",
+  "as": "corregido",
+  "evidence": "Corregido en c0179f2: el comentario de killSession enumera los tres estados (cerrada, ya no existe porque tmux lo dice, posiblemente abierta con el comando) y por que solo el exit 1 de tmux prueba que no esta. Sin test: legibilidad.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T16:46:02.283533Z"
+}
