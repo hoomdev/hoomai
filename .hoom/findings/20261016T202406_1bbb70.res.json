@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T202406_1bbb70",
+  "as": "corregido",
+  "evidence": "Corregido en 0b3977e: los seis problemas de la tarjeta se arman con literales Problem de campos nombrados; fuera el helper add de cinco strings posicionales. Refutador: cierto. Sin test nuevo: legibilidad; los de CA-367..370 siguen verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T21:03:50.102523Z"
+}

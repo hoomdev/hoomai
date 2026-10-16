@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T201007_f34bc3",
+  "as": "corregido",
+  "evidence": "Corregido en 0b3977e: envelope.List descarta un registro cuyo id no es el nombre de su archivo o no tiene forma de id (^[A-Za-z0-9][A-Za-z0-9_-]*$); la accion de un sobre interrumpido solo arma el comando con un rol de hoom (agents.Lookup) y un session id de forma segura. Refutador (INFORME-refutador-c4-mitad2-risk-relia.md): con 'x; touch PWNED; #' y '../../../VICTIMA' creaba un archivo y borraba fuera del proyecto, en a73c5da y en main. Test del test-writer (commit de tests del doctor de C4), que falla sobre 34af093 y pasa sobre 0b3977e (con -race). TestCA369_f34bc3_ListSalteaRegistrosPlantados, ..._SobresPlantadosNoLleganAUnaAccion, TestCA367_f34bc3_SobreDeTarjetaConValoresHostiles y sus guardas.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T21:03:50.089989Z"
+}

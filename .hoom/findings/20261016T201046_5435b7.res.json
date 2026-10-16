@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T201046_5435b7",
+  "as": "corregido",
+  "evidence": "Corregido en 0b3977e: la evidencia sin item solo cuenta hallazgos cuya tarea es un slug valido (item.ValidSlug), como specTask para los veredictos. Refutador: un hallazgo con task 'x;touch PWNED_TASK;#' inyectaba en a73c5da y en main. Test del test-writer (commit de tests del doctor de C4), que falla sobre 34af093 y pasa sobre 0b3977e (con -race). TestCA369_5435b7_TareaDeHallazgoConMetacaracteres y la guarda ..._TareaValidaSinItem.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T21:03:50.096265Z"
+}
