@@ -232,13 +232,17 @@ func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 	if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
 		return false, fmt.Errorf("%w; si la sesion %s quedo a medias (sin el pane de vigilancia), cerrala con 'tmux kill-session -t =%s' y reintenta", err, session, session)
 	}
-	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {
+	// =<session>: is exactly this session's window: a bare name is looked up
+	// as a window first and then as a session prefix, and the watch pane
+	// would land in another card's session if this one already died
+	// (finding 337b23)
+	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", "="+session+":", "-c", dir, watchCommand(deps)); err != nil {
 		// this opening just created the session: a half-built cockpit of its
 		// own goes, and the next try builds it whole
 		return false, killSession(dir, session, deps, err)
 	}
 	// foco inicial en el pane de la IA; cosmetico, jamas fatal
-	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", session, "-L")
+	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", "="+session+":", "-L")
 	return true, nil
 }
 
@@ -366,7 +370,10 @@ func Capture(root, project, slug string, deps Deps) (Terminal, error) {
 		t.Note = "no hay una sesion abierta para esta tarjeta"
 		return t, nil
 	}
-	out, err := deps.Output(root, "tmux", "list-panes", "-t", "="+t.Session, "-F", "#{pane_id}")
+	// =<session>: is exact; =<session> alone is not for list-panes, and a
+	// session closed after has-session would list another card's panes
+	// (finding 337b23)
+	out, err := deps.Output(root, "tmux", "list-panes", "-t", "="+t.Session+":", "-F", "#{pane_id}")
 	if err != nil {
 		t.Note = "no hay una sesion abierta para esta tarjeta"
 		return t, nil
