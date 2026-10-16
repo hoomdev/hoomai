@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T182627_bbadcb",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 12: la funcion se llama IncumplimientosDelCierreFallido (y los envoltorios incumplimientosDelCierreFallido), con doc que dice que devuelve la lista de incumplimientos; DiceQueNoSabe y DiceQueLaCerro siguen siendo predicados bool. Refutador (INFORME-refutador-c3-delta8.md): cierto.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T19:16:57.12711Z"
+}
