@@ -11,7 +11,11 @@ prefijo de otra sesión: Ver terminal lista los panes con `tmux list-panes -t
 `has-session` y `kill-session` ya usaban `=<session>`, que para ellos es
 exacto. Adjuntarse (`attach-session` y `switch-client` de `hoom cockpit`)
 queda como lo fija la spec del cockpit (CA-84): va a la sesión que la misma
-llamada acaba de encontrar o crear. Precisa CA-350; no agrega criterios.
+llamada acaba de encontrar o crear. Y el comando que los errores proponen
+para cerrar una sesión a mano lleva el destino entre comillas, `tmux
+kill-session -t '=<session>'`, porque zsh expande una palabra que empieza
+con `=` como la ruta de un comando (hallazgo db8541). Precisa CA-347, CA-348
+y CA-350; no agrega criterios.
 
 Enmienda 4 (aprobada el 2026-10-16, sha256 02d10290), una sola, que
 reemplaza a la 3: (m) después de que `tmux new-session` falló o
@@ -573,7 +577,7 @@ registra entre el "no hay run activo" de Guardar o Descartar y su acción.
   otra apertura de la misma tarjeta (otra pestaña, o la CLI), y cerrarla
   mataría su CLI; completarla declararía un provider que quizás no es el
   del pane. El error nombra la sesión y dice que, si quedó a medias (sin el
-  pane de vigilancia), se cierra con `tmux kill-session -t =<session>` antes
+  pane de vigilancia), se cierra con `tmux kill-session -t '=<session>'` antes
   de reintentar. Una sesión a medias cuenta como existente: el reintento
   responde `created: false` y no registra nada. Si el que falla es el
   `split-window` justo después de que esta apertura creó la sesión, la
