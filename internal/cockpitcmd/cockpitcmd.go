@@ -269,7 +269,7 @@ func killSession(dir, session string, deps Deps, cause error) error {
 	if sondeo == nil {
 		return fmt.Errorf("%w; la sesion %s quedo abierta y no pude cerrarla (%v): cerrala y reintenta: %s", cause, session, err, comandoCierre(session))
 	}
-	return fmt.Errorf("%w; no pude cerrar la sesion %s (%v) ni saber si sigue abierta (%v): si sigue, cerrala y reintenta: %s", cause, session, err, sondeo, comandoCierre(session))
+	return fmt.Errorf("%w; no pude cerrar la sesion %s (%v) y no pude saber si sigue abierta (%v): si sigue, cerrala y reintenta: %s", cause, session, err, sondeo, comandoCierre(session))
 }
 
 // comandoCierre is the command that closes exactly session, written to be
