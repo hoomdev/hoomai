@@ -1,0 +1,11 @@
+{
+  "id": "20261016T154514_db8541",
+  "created_at": "2026-10-16T15:45:14.519279Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:233: el aviso de recuperacion muestra tmux kill-session -t =\u003csession\u003e con el argumento =\u003csession\u003e sin comillas. En zsh con la opcion EQUALS predeterminada, ese argumento se intenta expandir como nombre de comando y el shell falla (por ejemplo, zsh: hoom-demo-a-medias not found) antes de ejecutar tmux; por eso una sesion a medias no se puede cerrar siguiendo la instruccion exigida por la enmienda 4 y los reintentos quedan atados a la sesion incompleta. El comando mostrado debe proteger el argumento, por ejemplo tmux kill-session -t '=hoom-demo-a-medias', y la prueba debe validar una forma ejecutable.",
+  "author": "reviewer@codex",
+  "fingerprint": "2a1cc513218bcfe1",
+  "task": "fixes-cabina-c3"
+}
