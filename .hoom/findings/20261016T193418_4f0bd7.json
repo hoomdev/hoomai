@@ -1,0 +1,11 @@
+{
+  "id": "20261016T193418_4f0bd7",
+  "created_at": "2026-10-16T19:34:18.688183Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/cierretmuxtest/mensaje_test.go",
+  "description": "INTRODUCIDO — internal/cierretmuxtest/mensaje_test.go:77-82 nombra y documenta el contrato como 'uno por regla', pero la API promete 'al menos uno por cada regla' (internal/cierretmuxtest/mensaje.go:94-96) y sus bucles pueden agregar varios incumplimientos de una misma regla cuando el mensaje contiene varias frases coincidentes (internal/cierretmuxtest/mensaje.go:109-117). El nombre y comentario del test crean un contrato más estricto y distinto del real; conviene describir lo que prueba: que el caso contiene las cuatro reglas en el orden documentado.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fe3d9e00cc25b4d",
+  "task": "fixes-cabina-c3"
+}
