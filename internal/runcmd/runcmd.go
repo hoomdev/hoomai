@@ -181,6 +181,20 @@ type run struct {
 	cancel   context.CancelFunc
 	canceled bool // pedido de cancelacion; el estado terminal lo fija settle
 	log      *os.File
+	// normalize is the run's normalizer, made once per run and not per
+	// invocation: a delegation left open at the end of one invocation is
+	// closed by a line that comes when Input continues the session
+	// (finding 3bdc20)
+	normalize func(line string) []Event
+}
+
+// normalizerFor is the normalizer of one run of p: a Correlating provider
+// pairs each delegation with its end, so it remembers this run's lines.
+func normalizerFor(p providers.Provider) func(line string) []Event {
+	if c, ok := p.(providers.Correlating); ok {
+		return c.NewNormalizer()
+	}
+	return p.Normalize
 }
 
 // Manager owns every run of one project. In-memory state, file-backed logs.
@@ -353,12 +367,72 @@ func ReadEvents(root, id string) ([]Event, error) {
 	return evs, err
 }
 
+// ReadDelegations reads only the delegation events of a run (agent and
+// agent_end), line by line: the card's history needs no more, and a log that
+// carries long tool results is never loaded whole (finding d3c75f). A
+// malformed line is skipped, as in ReadEvents.
+func ReadDelegations(root, id string) ([]Event, error) {
+	if !validID(id) {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	f, err := os.Open(filepath.Join(runsDir(root), id+".jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	defer f.Close()
+	var out []Event
+	keep := func(line []byte) {
+		var ev Event
+		if json.Unmarshal(bytes.TrimSpace(line), &ev) == nil && (ev.Kind == "agent" || ev.Kind == "agent_end") {
+			out = append(out, ev)
+		}
+	}
+	br := bufio.NewReaderSize(f, 64<<10)
+	for {
+		frag, err := br.ReadSlice('\n')
+		if err == bufio.ErrBufferFull {
+			// a line longer than the buffer: kind is the second field, so
+			// this first piece says whether the line is a delegation; any
+			// other line is skipped without being kept
+			var whole []byte
+			delegation := bytes.Contains(frag, marcaDelegacion)
+			for err == bufio.ErrBufferFull {
+				if delegation {
+					whole = append(whole, frag...)
+				}
+				frag, err = br.ReadSlice('\n')
+			}
+			if delegation {
+				keep(append(whole, frag...))
+			}
+		} else if bytes.Contains(frag, marcaDelegacion) {
+			keep(frag)
+		}
+		if err == io.EOF {
+			return out, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+}
+
+// marcaDelegacion is how the line of an agent or agent_end event starts its
+// kind in the log.
+var marcaDelegacion = []byte(`"kind":"agent`)
+
 // ReadEventsFrom reads the narration from a byte offset and returns the
 // events plus the offset of the next unread byte. The Studio polls the logs
 // of runs it does not own every second; re-parsing the whole file each time
 // would cost more the longer the run talks. A trailing line that does not
 // parse is left for the next read: a writer may be mid-line.
 func ReadEventsFrom(root, id string, offset int64) ([]Event, int64, error) {
+	// the id is the address, as for a sidecar: a run_id that climbs
+	// (../../other/.hoom/runs/x) never reaches a log outside runs
+	// (finding f47433: the history reads run ids from envelopes)
+	if !validID(id) {
+		return nil, offset, fmt.Errorf("run no encontrado: %s", id)
+	}
 	f, err := os.Open(filepath.Join(runsDir(root), id+".jsonl"))
 	if err != nil {
 		return nil, offset, fmt.Errorf("run no encontrado: %s", id)
@@ -703,7 +777,7 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	}
 	r := &run{
 		info: Run{ID: id, Provider: p.Name(), Task: opts.Task, Status: StatusRunning, ExitCode: -1, CreatedAt: time.Now().UTC()},
-		dir:  dir, provider: p, opts: opts, log: logFile,
+		dir:  dir, provider: p, opts: opts, log: logFile, normalize: normalizerFor(p),
 	}
 	r.meta = Meta{
 		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
@@ -1012,12 +1086,8 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		}()
 	}
 
-	// Un normalizador por run: el que empareja una delegacion con su fin
-	// necesita recordar las lineas anteriores de ESTE run.
-	normalize := r.provider.Normalize
-	if c, ok := r.provider.(providers.Correlating); ok {
-		normalize = c.NewNormalizer()
-	}
+	// the run's normalizer, the same for every invocation of the run
+	normalize := r.normalize
 	var wg sync.WaitGroup
 	scan := func(src interface{ Read([]byte) (int, error) }, isErr bool) {
 		defer wg.Done()
