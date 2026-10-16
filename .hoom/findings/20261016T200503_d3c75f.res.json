@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200503_d3c75f",
+  "as": "corregido",
+  "evidence": "Corregido en 0db6b3e: runcmd.ReadDelegations lee el log linea por linea y decodifica solo agent y agent_end (una linea larga que no es delegacion se salta sin guardarla); la historia lo usa en vez de ReadEvents. Refutador: 105 MiB asignados por un log de 32 MiB. Tests del test-writer (1f93521), que fallan sobre c8ef915 y pasan sobre el arreglo (con -race). TestHallazgo_d3c75f_CA362_LaHistoriaNoCargaElLogEntero (antes crecia 92 MiB, tope 16) y ..._LineaEnormeNoTapaLasDelegaciones.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:51:46.956768Z"
+}

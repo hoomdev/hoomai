@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200503_3bdc20",
+  "as": "corregido",
+  "evidence": "Corregido en 0db6b3e: el normalizador se crea una vez por run (Start, run.normalize) y execute usa ese en cada invocacion; la delegacion que queda abierta al terminar una invocacion se cierra con el resultado que llega al continuar con Input. Refutador (INFORME-refutador-c4-mitad1-resil-read.md): reproducido con un claude falso. Tests del test-writer (1f93521), que fallan sobre c8ef915 y pasan sobre el arreglo (con -race). TestHallazgo_3bdc20_CA374_LaContinuacionCierraLaDelegacion (tool_result y segundo plano).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:51:46.949831Z"
+}

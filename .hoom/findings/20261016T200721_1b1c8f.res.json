@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200721_1b1c8f",
+  "as": "corregido",
+  "evidence": "Corregido en 0db6b3e: fuera la interpolacion muerta ${medidor ? \"\" : \"\"} de tablero.js. Refutador: cierto (con node da '' en los dos casos). Sin test: legibilidad.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:51:46.969296Z"
+}
