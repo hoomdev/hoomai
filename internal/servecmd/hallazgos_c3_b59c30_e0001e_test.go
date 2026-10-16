@@ -1,35 +1,44 @@
 // Tests de los hallazgos b59c30 y e0001e sobre Abrir sesion, de punta a punta
-// (POST /api/board/<slug>/session del Studio y cockpitcmd.Open de la CLI),
-// escritos desde .hoom/specs/acciones-desde-la-tarjeta.md (CA-347, CA-348) y
-// el contrato de los hallazgos:
+// (POST /api/board/<slug>/session del Studio y cockpitcmd.Open de la CLI), con
+// el contrato nuevo de los hallazgos 9c1816, 57bd29 y 03481c (decision de
+// Henry), escritos desde .hoom/specs/acciones-desde-la-tarjeta.md (CA-347,
+// CA-348):
 //
 // Abrir sesion crea la sesion, el pane de vigilancia (split-window) falla y el
-// cierre (`tmux kill-session -t =<sesion>`) TAMBIEN falla: la sesion sigue
-// viva, a medias. Para saber que decir, Abrir sesion sondea con `tmux
-// has-session -t =<sesion>`, y ese sondeo NO puede confirmar nada (estado C):
-// se cuelga hasta el plazo de 5 s que el Studio pone a cada llamada a tmux,
-// sale por una senal, o no arranca porque tmux desaparecio del PATH entre el
-// kill-session y el sondeo. El error NO dice que la sesion ya no existe (eso
-// solo vale cuando tmux lo confirma, con has-session saliendo con codigo 1:
-// estado A, el test de f7efdc en hallazgos_c3_db8541_f7efdc_test.go): muestra
-// el comando de cierre `tmux kill-session -t '=<sesion>'` con comillas, que
-// corre tal cual en sh y en zsh (cierreEjecutable), y dice que no se pudo
-// saber si sigue abierta. El item queda byte a byte igual. Antes del arreglo,
-// cualquier fallo del sondeo daba "ya no existe": con la sesion viva, el error
-// mentia y escondia el comando para cerrarla.
+// cierre (`tmux kill-session -t =<sesion>`) TAMBIEN falla, con codigo 1. tmux
+// sale con codigo 1 tanto si la sesion no esta como si falla su propio
+// cliente (9c1816), asi que ni el kill-session ni un sondeo `tmux has-session`
+// despues prueban si la sesion sigue abierta. El error es UNO SOLO, este la
+// sesion viva, muerta o sin saberse, y responda lo que responda tmux a
+// has-session (o aunque no se le pregunte): cumple ciNoSabeSiSigueAbierta (en
+// tmuxfalso_test.go: no dice que la cerro, no afirma que la sesion ya no
+// existe ni que quedo abierta, dice que no se pudo saber si sigue abierta y
+// muestra `tmux kill-session -t '=<sesion>'` con comillas, que corre tal cual
+// en sh y en zsh: cierreEjecutable). El item queda byte a byte igual.
+//
+// Reemplaza al contrato de tres estados (has-session con codigo 1 => "ya no
+// existe"; sale bien => "quedo abierta"; no confirma nada => "no se sabe"):
+// con el cliente de tmux roto (codigo 1 y la sesion VIVA) decia "ya no
+// existe" de una sesion viva y escondia el comando para cerrarla. No es
+// debilitar: el mensaje nuevo es verdadero en todos los casos, cosa que el de
+// tres estados no lograba.
 //
 // El tmux es el falso con estado de tmuxfalso_test.go (con destinosComoTmux),
-// envuelto por un script que rompe split-window y kill-session y corta el
-// sondeo. Fixtures de acciones_tarjeta_test.go (atPATH, atFalso, atConEspacio,
-// atLineas, atLeerItem), tablero_test.go (tbProyecto), hallazgos_c3_test.go
-// (h3PIDs, h3VivoPID, h3EsperarHasta) y hallazgos_c3_vuelta3_test.go
-// (contieneElAviso). Ni tmux ni el CLI de IA son de verdad.
+// envuelto por un script que rompe split-window y kill-session y cambia lo que
+// responde has-session despues del kill-session. Fixtures de
+// acciones_tarjeta_test.go (atPATH, atFalso, atConEspacio, atLineas,
+// atLeerItem), tablero_test.go (tbProyecto), hallazgos_c3_test.go (h3PIDs,
+// h3VivoPID, h3EsperarHasta), hallazgos_c3_vuelta3_test.go (contieneElAviso) y
+// hallazgos_c3_db8541_f7efdc_test.go (cierreEjecutable). Ni tmux ni el CLI de
+// IA son de verdad.
 package servecmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -38,9 +47,10 @@ import (
 )
 
 // hb5Envoltorio es el tmux que ve Abrir sesion: split-window falla (la sesion
-// queda viva con un solo pane), kill-session falla sin cerrar nada y deja la
-// marca @CERRO@ despues de correr @ALCERRAR@, y desde esa marca has-session
-// (el sondeo) corre @SONDEO@. Lo demas lo atiende el tmux falso con estado
+// queda viva con un solo pane), kill-session corre @ALCERRAR@, deja la marca
+// @CERRO@ y falla con codigo 1 ("lost server") sin cerrar nada, y desde esa
+// marca has-session (un sondeo, si la apertura lo hace) corre @SONDEO@. Lo
+// demas, y lo que @SONDEO@ deja pasar, lo atiende el tmux falso con estado
 // (@BASE@). Lo que atiende el envoltorio lo anota en el mismo log.
 const hb5Envoltorio = `case "$1" in
 split-window)
@@ -62,49 +72,63 @@ esac
 exec /bin/sh '@BASE@' "$@"
 `
 
-// hb5SinTildes pasa msg a minusculas sin tildes, para buscar frases.
-func hb5SinTildes(msg string) string {
-	return strings.NewReplacer("á", "a", "é", "e", "í", "i", "ó", "o", "ú", "u").Replace(strings.ToLower(msg))
+// hb5Comparable es msg sin lo que cambia de un subtest a otro aunque el
+// mensaje sea el mismo: las carpetas temporales del proyecto y del espacio de
+// trabajo (tambien con los enlaces resueltos: en macOS /var es /private/var).
+func hb5Comparable(msg string, carpetas ...string) string {
+	for _, c := range carpetas {
+		if real, err := filepath.EvalSymlinks(c); err == nil {
+			msg = strings.ReplaceAll(msg, real, "<"+filepath.Base(c)+">")
+		}
+		msg = strings.ReplaceAll(msg, c, "<"+filepath.Base(c)+">")
+	}
+	return msg
 }
 
-// hb5Incierto son las maneras de decir que no se pudo saber si la sesion sigue
-// abierta (sobre el mensaje sin tildes, en minusculas).
-var hb5Incierto = []string{
-	"no se pudo saber", "no pude saber", "no se puede saber", "no se sabe", "no se si",
-	"no se pudo confirmar", "no pude confirmar", "no se puede confirmar",
-	"no se pudo comprobar", "no pude comprobar", "no se pudo verificar", "no pude verificar",
-	"puede que siga", "quiza siga", "quizas siga", "tal vez siga", "podria seguir",
-}
-
-// Hallazgos b59c30 y e0001e (CA-347, CA-348), de punta a punta: Abrir sesion
-// de la tarjeta fix crea la sesion, el split-window falla, el kill-session
-// falla y la sesion sigue viva con un solo pane; el sondeo has-session no
-// confirma nada (estado C):
+// Hallazgos b59c30, e0001e y 9c1816 (CA-347, CA-348), de punta a punta: Abrir
+// sesion de la tarjeta fix crea la sesion, el split-window falla y el
+// kill-session falla con codigo 1. Despues, segun el caso:
 //
-//   - vence el plazo de 5 s del Studio: el has-session se cuelga. La respuesta
-//     llega igual (en menos de 15 s) y el tmux colgado no queda vivo. Solo
-//     desde el Studio: la CLI no pone plazo.
-//   - sale por una senal (SIGKILL), desde el Studio y desde la CLI.
-//   - no arranca: el kill-session fallido se lleva el tmux del PATH, desde el
-//     Studio y desde la CLI.
+//   - la sesion sigue viva con un solo pane, y has-session vence el plazo de
+//     5 s del Studio (se cuelga; la respuesta llega igual en menos de 15 s y
+//     el tmux colgado no queda vivo; solo desde el Studio: la CLI no pone
+//     plazo), sale por una senal (SIGKILL), no arranca (el kill-session
+//     fallido se lleva el tmux del PATH), sale bien, o sale con codigo 1
+//     porque falla el cliente (9c1816);
+//   - la sesion murio con el kill-session (el servidor se cayo), y has-session
+//     sale con codigo 1 ("can't find session").
 //
-// La apertura responde un error que NO dice que la sesion ya no existe,
-// muestra `tmux kill-session -t '=<sesion>'` (que corre tal cual en sh y en
-// zsh) y dice que no se pudo saber si sigue abierta; el item de fix queda
-// byte a byte igual.
-func TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNada(t *testing.T) {
+// Desde el Studio y desde la CLI, la apertura responde un error que cumple
+// ciNoSabeSiSigueAbierta, con el comando de cierre que corre tal cual en sh y
+// en zsh, y el item de fix queda byte a byte igual. Y para cada quien, el
+// mensaje es el MISMO en todos los casos: no depende de has-session ni de si
+// la sesion vive.
+//
+// Reemplaza a TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNada:
+// el contrato de tres estados quedo reemplazado por decision de Henry
+// (hallazgos 9c1816, 57bd29 y 03481c). No es debilitar: el mensaje nuevo es
+// verdadero en todos los casos, cosa que el anterior no lograba.
+func TestCA347_CA348_Hallazgo9c1816_AbrirSesionConElCierreFallidoDiceQueNoSabeSiSigueAbierta(t *testing.T) {
+	type visto struct{ caso, msg string }
+	mensajes := map[string][]visto{} // por quien
 	for _, c := range []struct {
 		caso, quien string
-		corte       string // "plazo", "senal" o "sin tmux"
+		corte       string // "plazo", "senal", "sin tmux", "sale bien", "codigo 1" o "murio"
 	}{
 		{"el has-session del Studio vence su plazo de 5 s", "studio", "plazo"},
 		{"el has-session del Studio sale por una senal", "studio", "senal"},
 		{"el has-session de la CLI sale por una senal", "cli", "senal"},
 		{"el has-session del Studio no arranca: tmux ya no esta", "studio", "sin tmux"},
 		{"el has-session de la CLI no arranca: tmux ya no esta", "cli", "sin tmux"},
+		{"el has-session del Studio sale bien: la sesion vive", "studio", "sale bien"},
+		{"el has-session de la CLI sale bien: la sesion vive", "cli", "sale bien"},
+		{"9c1816: el has-session del Studio sale con codigo 1 y la sesion vive", "studio", "codigo 1"},
+		{"9c1816: el has-session de la CLI sale con codigo 1 y la sesion vive", "cli", "codigo 1"},
+		{"la sesion murio con el kill-session y el has-session del Studio sale con codigo 1", "studio", "murio"},
+		{"la sesion murio con el kill-session y el has-session de la CLI sale con codigo 1", "cli", "murio"},
 	} {
 		t.Run(c.caso, func(t *testing.T) {
-			ca := "b59c30/e0001e (CA-347, CA-348): " + c.caso
+			ca := "9c1816, b59c30/e0001e (CA-347, CA-348): " + c.caso
 			f := nuevoTmuxFalso(t)
 			f.destinosComoTmux = true
 			bin := atPATH(t, map[string]string{"claude": "exit 0\n"})
@@ -114,6 +138,7 @@ func TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNa
 				t.Fatal(err)
 			}
 			yo := filepath.Join(bin, "tmux")
+			propia := cockpitcmd.SessionName("demo", "fix")
 			alCerrar, sondeo := ":", ":"
 			switch c.corte {
 			case "plazo":
@@ -122,20 +147,23 @@ func TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNa
 				sondeo = `kill -9 $$`
 			case "sin tmux":
 				alCerrar = `/bin/rm -f '` + yo + `'`
+			case "codigo 1":
+				sondeo = `printf 'lost server\n' >&2; exit 1`
+			case "murio":
+				alCerrar = `: > '` + filepath.Join(f.ses, propia) + `'`
 			}
 			atFalso(t, bin, "tmux", strings.NewReplacer("@LOG@", f.log, "@CERRO@", filepath.Join(m, "cerro"),
 				"@ALCERRAR@", alCerrar, "@SONDEO@", sondeo, "@BASE@", base).Replace(hb5Envoltorio))
 			dir := tbProyecto(t)
 			wtFix := atConEspacio(t, dir, "fix")
 			s := newServer(t, dir)
-			propia := cockpitcmd.SessionName("demo", "fix")
 			_, itemFix := atLeerItem(t, dir, "fix")
 
 			var a apertura
 			select {
 			case a = <-lanzarApertura(s, dir, "fix", c.quien):
 			case <-time.After(15 * time.Second):
-				t.Fatalf("%s: Abrir sesion con el sondeo cortado se quedo colgado mas de 15 s (el plazo de cada llamada a tmux es 5 s):\n%s", ca, strings.Join(atLineas(t, f.log), "\n"))
+				t.Fatalf("%s: Abrir sesion con el cierre roto se quedo colgado mas de 15 s (el plazo de cada llamada a tmux es 5 s):\n%s", ca, strings.Join(atLineas(t, f.log), "\n"))
 			}
 			lineas := atLineas(t, f.log)
 			tmux := strings.Join(lineas, "\n")
@@ -143,7 +171,7 @@ func TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNa
 				t.Fatalf("%s: la apertura entra en panico: %v\ntmux:\n%s", ca, a.panico, tmux)
 			}
 
-			// fixture: creo la sesion, el pane de vigilancia y el cierre fallaron, y la sesion sigue viva a medias
+			// fixture: creo la sesion, el pane de vigilancia y el cierre fallaron
 			nueva := indiceDeTmux(lineas, 0, "new-session", "-s", propia)
 			if nueva < 0 || !strings.Contains(lineas[nueva], wtFix) {
 				t.Fatalf("%s: fixture: la apertura crea la sesion %s (new-session -s %s en %s):\n%s", ca, propia, propia, wtFix, tmux)
@@ -152,18 +180,14 @@ func TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNa
 			if indiceDeTmux(lineas, nueva, "split-window", "-t", "="+propia+":") < 0 || kill < 0 {
 				t.Fatalf("%s: fixture: el split-window fallo y la apertura intento cerrar la sesion con kill-session -t =%s:\n%s", ca, propia, tmux)
 			}
-			if n := f.panes(propia); n != 1 {
-				t.Fatalf("%s: fixture: con kill-session roto la sesion %s sigue viva con un solo pane, y tiene %d:\n%s", ca, propia, n, tmux)
+			quiere := 1 // la sesion sigue viva a medias
+			if c.corte == "murio" {
+				quiere = 0
 			}
-			switch c.corte {
-			case "plazo", "senal":
-				if indiceDeTmux(lineas, kill, "has-session", "-t", "="+propia) < 0 {
-					t.Fatalf("%s: fixture: despues del kill-session fallido, la apertura sondea la sesion con has-session -t =%s:\n%s", ca, propia, tmux)
-				}
-				if c.corte == "plazo" && len(h3PIDs(t, f.pids)) == 0 {
-					t.Fatalf("%s: fixture: el has-session se colgo:\n%s", ca, tmux)
-				}
-			case "sin tmux":
+			if n := f.panes(propia); n != quiere {
+				t.Fatalf("%s: fixture: despues del kill-session fallido la sesion %s tiene %d panes (quiere %d):\n%s", ca, propia, n, quiere, tmux)
+			}
+			if c.corte == "sin tmux" {
 				if _, err := os.Stat(yo); !os.IsNotExist(err) {
 					t.Fatalf("%s: fixture: el kill-session fallido se llevo tmux del PATH (%s): %v", ca, yo, err)
 				}
@@ -173,30 +197,9 @@ func TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNa
 				t.Fatalf("%s: con el pane de vigilancia y el cierre rotos, la apertura responde un error: %v\ntmux:\n%s", ca, a, tmux)
 			}
 			msg := a.mensaje()
-			bajo := hb5SinTildes(msg)
-			var mal []string
-			if strings.Contains(bajo, "ya no existe") {
-				mal = append(mal, "el sondeo no confirmo nada (tmux no salio con codigo 1): no dice que la sesion ya no existe")
-			}
-			aviso := "tmux kill-session -t '=" + propia + "'"
-			if !contieneElAviso(msg, aviso) {
-				mal = append(mal, "muestra como cerrarla a mano, con el destino entre comillas: "+aviso)
-			}
-			incierto := false
-			for _, frase := range hb5Incierto {
-				if strings.Contains(bajo, frase) {
-					incierto = true
-					break
-				}
-			}
-			if !incierto {
-				mal = append(mal, "dice que no se pudo saber si la sesion sigue abierta")
-			}
-			if strings.Contains(bajo, "la cerre") {
-				mal = append(mal, "no dice que la cerro: kill-session fallo")
-			}
-			if len(mal) > 0 {
-				t.Errorf("%s: el error no dice la verdad sobre la sesion:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, tmux)
+			mensajes[c.quien] = append(mensajes[c.quien], visto{c.caso, hb5Comparable(msg, wtFix, dir)})
+			if mal := ciNoSabeSiSigueAbierta(msg, propia); len(mal) > 0 {
+				t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, tmux)
 			}
 			cierreEjecutable(t, ca, msg, propia)
 			if _, raw := atLeerItem(t, dir, "fix"); !bytes.Equal(raw, itemFix) {
@@ -208,5 +211,123 @@ func TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNa
 				}
 			}
 		})
+	}
+
+	// el mensaje no depende de has-session ni de si la sesion vive
+	quienes := make([]string, 0, len(mensajes))
+	for q := range mensajes {
+		quienes = append(quienes, q)
+	}
+	sort.Strings(quienes)
+	for _, q := range quienes {
+		vs := mensajes[q]
+		distintos := map[string]bool{}
+		for _, v := range vs {
+			distintos[v.msg] = true
+		}
+		if len(distintos) > 1 {
+			var b strings.Builder
+			for _, v := range vs {
+				fmt.Fprintf(&b, "\n- %s: %q", v.caso, v.msg)
+			}
+			t.Errorf("CA-347, CA-348: 9c1816: desde %s: con el mismo split-window y el mismo kill-session fallidos, el error es UNO SOLO, responda lo que responda tmux a has-session y este la sesion viva o muerta, y hay %d distintos:%s", q, len(distintos), b.String())
+		}
+	}
+}
+
+// hb5SoloSplitRoto es el tmux que ve Abrir sesion en la guarda de C1:
+// split-window falla y todo lo demas (kill-session tambien, que sale bien) lo
+// atiende el tmux falso con estado (@BASE@).
+const hb5SoloSplitRoto = `case "$1" in
+split-window)
+  printf '%s\n' "$*" >> '@LOG@'
+  printf 'create pane failed: pane too small\n' >&2
+  exit 1 ;;
+esac
+exec /bin/sh '@BASE@' "$@"
+`
+
+// GUARDA del contrato de C1 (hallazgos c1a9da y 363285), que el contrato
+// nuevo no cambia, de punta a punta: con el split-window roto y kill-session
+// SANO, Abrir sesion (desde el Studio y desde la CLI) cierra la sesion que
+// acaba de crear y responde un error que dice que la cerro, para que el
+// proximo intento la arme entera, y no dice que no se pudo saber si sigue
+// abierta. El item de fix queda byte a byte igual.
+func TestCA347_CA348_Hallazgo9c1816_GuardaAbrirSesionConElCierreSanoDiceQueLaCerro(t *testing.T) {
+	for _, quien := range []string{"studio", "cli"} {
+		t.Run(quien, func(t *testing.T) {
+			ca := "CA-347, CA-348: guarda de C1 (kill-session sano), desde " + quien
+			f := nuevoTmuxFalso(t)
+			f.destinosComoTmux = true
+			bin := atPATH(t, map[string]string{"claude": "exit 0\n"})
+			base := filepath.Join(t.TempDir(), "tmux-base")
+			if err := os.WriteFile(base, []byte("#!/bin/sh\n"+f.script()), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			atFalso(t, bin, "tmux", strings.NewReplacer("@LOG@", f.log, "@BASE@", base).Replace(hb5SoloSplitRoto))
+			dir := tbProyecto(t)
+			atConEspacio(t, dir, "fix")
+			s := newServer(t, dir)
+			propia := cockpitcmd.SessionName("demo", "fix")
+			_, itemFix := atLeerItem(t, dir, "fix")
+
+			a := abrirSesion(s, dir, "fix", quien)
+			tmux := strings.Join(atLineas(t, f.log), "\n")
+			if a.panico != nil {
+				t.Fatalf("%s: la apertura entra en panico: %v\ntmux:\n%s", ca, a.panico, tmux)
+			}
+			if len(f.cerradas(t, propia)) == 0 || f.viva(propia) {
+				t.Fatalf("%s: fixture: la apertura creo la sesion %s y la cerro con kill-session:\n%s", ca, propia, tmux)
+			}
+			if !a.fallo() {
+				t.Fatalf("%s: con el split-window roto la apertura responde un error: %v\ntmux:\n%s", ca, a, tmux)
+			}
+			msg := a.mensaje()
+			if !ciDiceQueLaCerro(msg) {
+				t.Errorf("%s: kill-session salio bien: el error dice que cerro la sesion, para que el proximo intento la arme entera: %q", ca, msg)
+			}
+			if ciIncierta(ciSinTildes(msg)) {
+				t.Errorf("%s: kill-session salio bien: el error no dice que no se pudo saber si la sesion sigue abierta: %q", ca, msg)
+			}
+			if _, raw := atLeerItem(t, dir, "fix"); !bytes.Equal(raw, itemFix) {
+				t.Errorf("%s: el item de fix no declara una sesion que no quedo armada:\n%s", ca, raw)
+			}
+		})
+	}
+}
+
+// Guarda del verificador (9c1816), la copia de servecmd: ciNoSabeSiSigueAbierta
+// acepta mensajes que cumplen el contrato nuevo aunque lo digan con otras
+// palabras y rechaza los del contrato de tres estados y los que no muestran
+// el comando de esta sesion con comillas; ciDiceQueLaCerro reconoce el "la
+// cerre" de C1 y no una negacion.
+func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
+	s := cockpitcmd.SessionName("demo", "fix")
+	cmd := "tmux kill-session -t '=" + s + "'"
+	for _, c := range []struct {
+		msg  string
+		vale bool
+	}{
+		{"exit status 1; no pude cerrar la sesion " + s + " (exit status 1) y no pude saber si sigue abierta: si sigue, cerrala y reintenta: " + cmd, true},
+		{"exit status 1; no pude saber si la sesión " + s + " sigue abierta o ya no existe; si sigue, " + cmd, true},
+		{"exit status 1; la sesion " + s + " ya no existe: reintenta", false},
+		{"exit status 1; la sesion " + s + " quedo abierta y no pude cerrarla (exit status 1): cerrala y reintenta: " + cmd, false},
+		{"exit status 1; no pude saber si sigue abierta: tmux kill-session -t '=" + s + "-login'", false},
+		{"exit status 1; no pude saber si sigue abierta: tmux kill-session -t =" + s, false},
+	} {
+		if mal := ciNoSabeSiSigueAbierta(c.msg, s); (len(mal) == 0) != c.vale {
+			t.Errorf("9c1816: ciNoSabeSiSigueAbierta(%q) = %q, quiere que valga = %v", c.msg, mal, c.vale)
+		}
+	}
+	for _, c := range []struct {
+		msg   string
+		cerro bool
+	}{
+		{"exit status 1; cerré la sesión " + s + " para que el próximo intento la arme entera", true},
+		{"exit status 1; no la cerré: " + cmd, false},
+	} {
+		if got := ciDiceQueLaCerro(c.msg); got != c.cerro {
+			t.Errorf("C1: ciDiceQueLaCerro(%q) = %v, quiere %v", c.msg, got, c.cerro)
+		}
 	}
 }
