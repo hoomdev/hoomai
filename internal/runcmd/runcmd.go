@@ -367,17 +367,33 @@ func ReadEvents(root, id string) ([]Event, error) {
 	return evs, err
 }
 
+// openLog opens the narration of run id in root only when it is a regular
+// file of runs: a valid name that is a symlink would take the reading out of
+// the project (finding 058fb1).
+func openLog(root, id string) (*os.File, error) {
+	if !validID(id) {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	path := filepath.Join(runsDir(root), id+".jsonl")
+	st, err := os.Lstat(path)
+	if err != nil || !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	return f, nil
+}
+
 // ReadDelegations reads only the delegation events of a run (agent and
 // agent_end), line by line: the card's history needs no more, and a log that
 // carries long tool results is never loaded whole (finding d3c75f). A
 // malformed line is skipped, as in ReadEvents.
 func ReadDelegations(root, id string) ([]Event, error) {
-	if !validID(id) {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
-	}
-	f, err := os.Open(filepath.Join(runsDir(root), id+".jsonl"))
+	f, err := openLog(root, id)
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, err
 	}
 	defer f.Close()
 	var out []Event
@@ -428,14 +444,12 @@ var marcaDelegacion = []byte(`"kind":"agent`)
 // parse is left for the next read: a writer may be mid-line.
 func ReadEventsFrom(root, id string, offset int64) ([]Event, int64, error) {
 	// the id is the address, as for a sidecar: a run_id that climbs
-	// (../../other/.hoom/runs/x) never reaches a log outside runs
-	// (finding f47433: the history reads run ids from envelopes)
-	if !validID(id) {
-		return nil, offset, fmt.Errorf("run no encontrado: %s", id)
-	}
-	f, err := os.Open(filepath.Join(runsDir(root), id+".jsonl"))
+	// (../../other/.hoom/runs/x) never reaches a log outside runs, nor does
+	// a symlink (findings f47433, 058fb1: the history reads run ids from
+	// envelopes)
+	f, err := openLog(root, id)
 	if err != nil {
-		return nil, offset, fmt.Errorf("run no encontrado: %s", id)
+		return nil, offset, err
 	}
 	defer f.Close()
 	if offset > 0 {

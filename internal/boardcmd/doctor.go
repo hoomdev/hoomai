@@ -150,27 +150,32 @@ func DoctorOf(ev Evidence, c Card) []Problem {
 // can resume it, the review again, or the role again from scratch.
 func orphanAction(c Card, in *Interrupted, spec string) string {
 	// the role and the session id come from local telemetry: they go into a
-	// command only when they are hoom's (finding f34bc3)
-	if _, err := agents.Lookup(in.Role); err != nil {
+	// command only when they are hoom's (finding f34bc3), and the role as
+	// hoom writes it, not as the record does: Lookup forgives spaces around
+	// it, and a newline would split the command in two (finding fffe28)
+	r, err := agents.Lookup(in.Role)
+	if err != nil {
 		return fmt.Sprintf("el sobre dice un rol que no es de hoom (%q): relanza el trabajo desde la tarjeta", in.Role)
 	}
+	role := r.Slug
 	withSpec := ""
-	if !WritesSpecs(in.Role) {
+	if !WritesSpecs(role) {
 		withSpec = " --spec " + spec
 	}
 	for _, a := range c.Actions {
-		if a.ID == ActReanudar && a.Enabled && sesionSegura.MatchString(a.ResumeID) {
+		if a.ID == ActReanudar && a.Enabled && sesionSegura.MatchString(a.ResumeID) && sesionSegura.MatchString(in.Provider) {
 			return fmt.Sprintf("hoom agent --role %s --task %s%s --provider %s --resume %s %s",
-				in.Role, c.Slug, withSpec, in.Provider, a.ResumeID, pedidoHint)
+				role, c.Slug, withSpec, in.Provider, a.ResumeID, pedidoHint)
 		}
 	}
-	if in.Role == "reviewer" {
+	if role == "reviewer" {
 		return "hoom review --task " + c.Slug + " --spec " + spec
 	}
-	return fmt.Sprintf("hoom agent --role %s --task %s%s %s", in.Role, c.Slug, withSpec, pedidoHint)
+	return fmt.Sprintf("hoom agent --role %s --task %s%s %s", role, c.Slug, withSpec, pedidoHint)
 }
 
-// sesionSegura is a session id that can go into a command as is.
+// sesionSegura is a session id (or a provider name) that can go into a
+// command as is.
 var sesionSegura = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // Doctor builds the board and lists the problems of every card, in board
