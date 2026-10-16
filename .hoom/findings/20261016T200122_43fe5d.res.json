@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200122_43fe5d",
+  "as": "refutado",
+  "evidence": "Cubierto por la enmienda 2 de .hoom/specs/historia-doctor-y-cinta.md, aprobada por Henry (sha256 a4f23049d20b..., .hoom/approvals/historia-doctor-y-cinta_a4f23049.json, 2026-10-16T21:06:26Z, commit 1aa772b; shasum del spec en HEAD = a4f23049). Decisiones, 'Los artefactos de la tarjeta se leen como estan hoy' (spec:656-662): que archivos de evidencia son de la tarjeta (cubre la reasignacion) y que dice cada veredicto, hallazgo, resolucion o registro de review salen de esos archivos tal como estan hoy; uno editado o borrado a mano no se reconstruye desde git: su historia se pierde (cubre el borrado) o muestra lo de hoy (cubre la edicion y el color, gates y lentes del replay). Encabezado spec:3-8 (ENMIENDA 2) cita 43fe5d. El mecanismo es el que describe el hallazgo: timeline.go:205-219 arma los pathspecs desde h.t.allVerdicts(), h.t.allFindings(h.base) y h.ev.Reviews, y :339-363 usa verdicts/findings/resolutions/reviews[f.path] de hoy. Lo reproduje en a73c5da y 6a68392 (review con 1 lente editada a mano a 4: la entrada A dice 4 lentes y review=hecho; hallazgo borrado con git rm: sin entradas hallazgo). Con hoom no se alcanza: reviewcmd.WriteRecord usa O_EXCL, finding.Register crea siempre un id nuevo, finding.Resolve no permite una segunda transicion y el id del veredicto lleva el hash de su contenido.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-16T21:07:19.19741Z"
+}
