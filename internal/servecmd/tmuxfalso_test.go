@@ -1,8 +1,9 @@
 // El tmux falso con estado y las aperturas de sesion (del Studio y de la CLI)
 // que usan los tests de Abrir sesion y Ver terminal de
 // .hoom/specs/acciones-desde-la-tarjeta.md (CA-347, CA-348, CA-350) en
-// hallazgos_c3_vuelta3_test.go, hallazgos_c3_vuelta4_test.go y
-// hallazgos_c3_vuelta5_test.go. Aca no hay tests: solo el doble de tmux y como
+// hallazgos_c3_vuelta3_test.go, hallazgos_c3_vuelta4_test.go,
+// hallazgos_c3_vuelta5_test.go y hallazgos_c3_337b23_test.go (este, con los
+// destinos de tmux de verdad: tmuxFalso.real). Aca no hay tests: solo el doble de tmux y como
 // se abre una sesion contra el.
 //
 // Usa fixtures de acciones_tarjeta_test.go (atLineas, atSesion) y
@@ -42,7 +43,24 @@ import (
 //   - destinos: `-t =N` es exacto; `-t N` busca N exacta y, si no esta, la
 //     UNICA sesion cuyo nombre empieza con N (lo que hace tmux con un destino
 //     de sesion); `-t %<id>` es la sesion de ese pane. Lo que sigue a `:` o
-//     `.` en el destino no cuenta.
+//     `.` en el destino no cuenta. Con real, los destinos se resuelven como
+//     tmux de verdad (ver real).
+//   - real: con true, cada verbo resuelve su destino como tmux 3.x (visto con
+//     tmux 3.6b, enmienda 5 de la spec, hallazgo 337b23), segun la clase de
+//     destino del verbo. De sesion (has-session, kill-session): `=N` y `=N:`
+//     son exactos; `N` y `N:` son N exacta o el UNICO prefijo. De ventana
+//     (list-panes) y de pane (split-window, select-pane, kill-pane,
+//     capture-pane, display-message): `=N:` (con lo que siga) es exacto y,
+//     si N no vive, "can't find session: N"; `N` y `N:` son N exacta o el
+//     UNICO prefijo; `=N` SIN los dos puntos NO es exacto en list-panes (N o
+//     el prefijo, como un nombre suelto) y en los de pane falla siempre ("can't
+//     find pane: =N"). Sin -t, la unica sesion viva. display-message con un
+//     destino que no se resuelve imprime el formato vacio y sale con 0 (tmux
+//     lo deja fallar), y capture-pane imprime "pantalla de [<sesion>] <pane>"
+//     (sin real, una pantalla fija).
+//   - morir: si ese archivo existe y nombra la sesion N, new-session -s N la
+//     crea (con su pane, y -P -F lo imprime), sale con 0 y la sesion muere
+//     enseguida: la CLI de la IA salio al arrancar (337b23).
 //   - log: cada invocacion (sus argumentos), una linea, al empezar.
 //   - matadas: cada sesion viva que un kill-session o un kill-pane cerro, una
 //     linea "<sesion> <verbo>".
@@ -58,8 +76,9 @@ import (
 // Solo builtins de sh (kill tambien) y /bin/sleep (sleep con fraccion: GNU y
 // macOS).
 type tmuxFalso struct {
-	log, ses, pids, colgar, crearYFallar, matadas string
-	ret                                           retencion
+	log, ses, pids, colgar, crearYFallar, matadas, morir string
+	real                                                 bool
+	ret                                                  retencion
 }
 
 // retencion es la UNICA llamada que el tmux falso retiene: la primera, de la
@@ -88,15 +107,17 @@ type retencion struct {
 }
 
 // nuevoTmuxFalso arma los archivos del tmux falso en un TempDir: log, la
-// carpeta de sesiones, pids, matadas, las marcas colgar y crearYFallar (que no
-// existen hasta que se creen) y las de la retencion (que no retiene nada hasta
-// que se le ponga donde). Al terminar el test suelta la llamada retenida y mata
-// lo que el tmux falso haya dejado colgado.
+// carpeta de sesiones, pids, matadas, las marcas colgar, crearYFallar y morir
+// (que no existen hasta que se creen) y las de la retencion (que no retiene
+// nada hasta que se le ponga donde). real empieza en false: los destinos de
+// siempre. Al terminar el test suelta la llamada retenida y mata lo que el
+// tmux falso haya dejado colgado.
 func nuevoTmuxFalso(t *testing.T) *tmuxFalso {
 	t.Helper()
 	m := t.TempDir()
 	f := &tmuxFalso{log: filepath.Join(m, "tmux.log"), ses: filepath.Join(m, "sesiones"), pids: filepath.Join(m, "pids"),
 		colgar: filepath.Join(m, "colgar"), crearYFallar: filepath.Join(m, "crear-y-fallar"), matadas: filepath.Join(m, "matadas"),
+		morir: filepath.Join(m, "morir"),
 		ret: retencion{unaVez: filepath.Join(m, "una-vez"), esperando: filepath.Join(m, "esperando"),
 			seguir: filepath.Join(m, "seguir"), fallo: filepath.Join(m, "fallo")}}
 	if err := os.Mkdir(f.ses, 0o755); err != nil {
@@ -115,8 +136,13 @@ func nuevoTmuxFalso(t *testing.T) *tmuxFalso {
 
 // script es el cuerpo del tmux falso (sin el #!/bin/sh, que pone atFalso).
 func (f *tmuxFalso) script() string {
+	real := "no"
+	if f.real {
+		real = "si"
+	}
 	return strings.NewReplacer("@LOG@", f.log, "@SES@", f.ses, "@PIDS@", f.pids, "@COLGAR@", f.colgar,
-		"@CREARYFALLAR@", f.crearYFallar, "@MATADAS@", f.matadas, "@RNOMBRE@", f.ret.nombre, "@RDONDE@", f.ret.donde,
+		"@CREARYFALLAR@", f.crearYFallar, "@MATADAS@", f.matadas, "@MORIR@", f.morir, "@REAL@", real,
+		"@RNOMBRE@", f.ret.nombre, "@RDONDE@", f.ret.donde,
 		"@RLUEGO@", f.ret.luego, "@RSALIDA@", fmt.Sprint(f.ret.salida), "@RMENSAJE@", f.ret.mensaje,
 		"@RUNAVEZ@", f.ret.unaVez, "@RESPERANDO@", f.ret.esperando, "@RSEGUIR@", f.ret.seguir,
 		"@RFALLO@", f.ret.fallo).Replace(programaTmuxFalso)
@@ -186,6 +212,81 @@ buscar() {
   done
   [ "$b_n" -eq 1 ] && { hallada="$b_u"; return 0; }
   return 1
+}
+
+# suelta resuelve el nombre $1 como tmux resuelve un nombre de sesion suelto:
+# la sesion viva con ese nombre exacto o, si no esta, la UNICA cuyo nombre
+# empieza con el
+suelta() {
+  u_d="$1"
+  [ -n "$u_d" ] || return 1
+  [ -s '@SES@'/"$u_d" ] && { hallada="$u_d"; return 0; }
+  u_n=0; u_u=""
+  for u_f in '@SES@'/"$u_d"*; do
+    [ -s "$u_f" ] || continue
+    u_u="${u_f##*/}"; u_n=$((u_n+1))
+  done
+  [ "$u_n" -eq 1 ] && { hallada="$u_u"; return 0; }
+  return 1
+}
+
+# buscarReal resuelve el destino $1 de un verbo con destino de clase $2
+# (sesion, ventana o pane) como tmux 3.x (con real); si no puede, deja en
+# motivo el error que da tmux
+motivo=""
+buscarReal() {
+  hallada=""; panel=""; motivo=""
+  r_t="$1"; r_c="$2"
+  case "$r_t" in
+  '')
+    r_n=0; r_u=""
+    for r_f in '@SES@'/*; do
+      [ -s "$r_f" ] || continue
+      r_u="${r_f##*/}"; r_n=$((r_n+1))
+    done
+    [ "$r_n" -eq 1 ] && { hallada="$r_u"; return 0; }
+    motivo="no current session"; return 1 ;;
+  %*)
+    buscar "$r_t" && return 0
+    motivo="can't find pane: $r_t"; return 1 ;;
+  esac
+  case "$r_t" in
+  *:*) r_s="${r_t%%:*}"; r_dos=si ;;
+  *) r_s="${r_t%%.*}"; r_dos=no ;;
+  esac
+  case "$r_s" in
+  =*)
+    r_s="${r_s#=}"
+    if [ "$r_c" = sesion ] || [ "$r_dos" = si ]; then
+      [ -n "$r_s" ] && [ -s '@SES@'/"$r_s" ] && { hallada="$r_s"; return 0; }
+      motivo="can't find session: $r_s"; return 1
+    fi
+    if [ "$r_c" = pane ]; then
+      motivo="can't find pane: $r_t"; return 1
+    fi
+    suelta "$r_s" && return 0
+    motivo="can't find window: $r_t"; return 1 ;;
+  esac
+  suelta "$r_s" && return 0
+  if [ "$r_c" = sesion ] || [ "$r_dos" = si ]; then
+    motivo="can't find session: $r_s"
+  elif [ "$r_c" = pane ]; then
+    motivo="can't find pane: $r_t"
+  else
+    motivo="can't find window: $r_t"
+  fi
+  return 1
+}
+
+# resolver resuelve el destino $1 de un verbo de clase $2: con real, como tmux
+# (buscarReal); si no, como siempre (buscar), con el error $3
+resolver() {
+  if [ '@REAL@' = si ]; then
+    buscarReal "$1" "$2"
+    return $?
+  fi
+  motivo="$3"
+  buscar "$1"
 }
 
 # expandir imprime el formato $1 para el pane $2 (indice $3 de $4) de la sesion $5 con comando $6
@@ -259,7 +360,19 @@ esperar() {
 }
 
 sondear() {
-  buscar "$t" || { printf "can't find session: %s\n" "$t" >&2; return 1; }
+  case "$verbo" in
+  has-session) s_cl=sesion ;;
+  list-panes) s_cl=ventana ;;
+  *) s_cl=pane ;;
+  esac
+  if ! resolver "$t" "$s_cl" "can't find session: $t"; then
+    if [ '@REAL@' = si ] && [ "$verbo" = display-message ]; then
+      [ "$p" = si ] && [ -n "$cmd" ] && expandir "$cmd" "" "" "" "" ""
+      return 0
+    fi
+    printf '%s\n' "$motivo" >&2
+    return 1
+  fi
   case "$verbo" in
   list-panes) listar "$hallada" "$F" "" ;;
   display-message)
@@ -308,9 +421,14 @@ new-session)
     [ -n "$F" ] || F='#{session_name}:'
     expandir "$F" "%$$" 0 1 "$s" "$cmd"
   fi
+  if [ -f '@MORIR@' ]; then
+    m_n=""
+    IFS= read -r m_n < '@MORIR@'
+    [ "$m_n" = "$s" ] && : > '@SES@'/"$s"
+  fi
   exit 0 ;;
 split-window)
-  buscar "$t" || { printf "can't find pane: %s\n" "$t" >&2; exit 1; }
+  resolver "$t" pane "can't find pane: $t" || { printf '%s\n' "$motivo" >&2; exit 1; }
   printf '%%%s %s\n' "$$" "$cmd" >> '@SES@'/"$hallada"
   if [ "$P" = si ]; then
     [ -n "$F" ] || F='#{session_name}:#{window_index}.#{pane_index}'
@@ -318,12 +436,12 @@ split-window)
   fi
   exit 0 ;;
 kill-session)
-  buscar "$t" || { printf "can't find session: %s\n" "$t" >&2; exit 1; }
+  resolver "$t" sesion "can't find session: $t" || { printf '%s\n' "$motivo" >&2; exit 1; }
   printf '%s kill-session\n' "$hallada" >> '@MATADAS@'
   : > '@SES@'/"$hallada"
   exit 0 ;;
 kill-pane)
-  buscar "$t" || { printf "can't find pane: %s\n" "$t" >&2; exit 1; }
+  resolver "$t" pane "can't find pane: $t" || { printf '%s\n' "$motivo" >&2; exit 1; }
   k_quitar="$panel"
   if [ -z "$k_quitar" ]; then
     IFS= read -r k_l < '@SES@'/"$hallada"
@@ -340,7 +458,22 @@ kill-pane)
   [ -s '@SES@'/"$hallada" ] || printf '%s kill-pane\n' "$hallada" >> '@MATADAS@'
   exit 0 ;;
 capture-pane)
+  if [ '@REAL@' = si ]; then
+    buscarReal "$t" pane || { printf '%s\n' "$motivo" >&2; exit 1; }
+    c_p="$panel"
+    if [ -z "$c_p" ]; then
+      IFS= read -r c_l < '@SES@'/"$hallada"
+      c_p="${c_l%% *}"
+    fi
+    printf 'pantalla de [%s] %s\n' "$hallada" "$c_p"
+    exit 0
+  fi
   printf 'pantalla de %s\n' 'otra tarjeta'
+  exit 0 ;;
+select-pane)
+  if [ '@REAL@' = si ]; then
+    buscarReal "$t" pane || { printf '%s\n' "$motivo" >&2; exit 1; }
+  fi
   exit 0 ;;
 esac
 exit 0

@@ -17,7 +17,9 @@
 //     enmienda 3 lo cambio a completarla en el reintento, y la enmienda 4, que
 //     reemplazo a la 3, a dejarla como esta. Las dos las decidio Henry.)
 //   - fa374d (CA-348 y CA-350): tmux resuelve `-t <nombre>` tambien por
-//     PREFIJO (solo `-t =<nombre>` es exacto). Con la sesion de la tarjeta
+//     PREFIJO (`-t =<nombre>` es exacto en has-session y kill-session; en
+//     list-panes y split-window solo `-t =<nombre>:` lo es, enmienda 5 y
+//     hallazgo 337b23 en hallazgos_c3_337b23_test.go). Con la sesion de la tarjeta
 //     fix-login abierta, Abrir sesion en la tarjeta fix crea SU sesion, y Ver
 //     terminal de fix no muestra la pantalla de fix-login.
 //

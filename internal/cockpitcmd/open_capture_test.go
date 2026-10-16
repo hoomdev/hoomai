@@ -390,7 +390,11 @@ func TestCA348_RunConTmuxRegistraYConZellijNo(t *testing.T) {
 
 // CA-350: Capture lee el primer pane que lista tmux (el de la IA) y devuelve
 // lo que tmux ya pinto, con sus secuencias de color, sin crear nada ni
-// mandar teclas.
+// mandar teclas. El listado es `tmux list-panes -t '=<session>:' -F
+// '#{pane_id}'`: el destino con los dos puntos es el contrato de la ENMIENDA 5
+// (n) de la spec (hallazgo 337b23), porque `=<session>` sin ellos no es exacto
+// en list-panes. Antes este test fijaba `-t =<session>`; cambiarlo no lo
+// debilita: es el comando que la spec fija ahora.
 func TestCA350_CaptureLeeElPrimerPane(t *testing.T) {
 	root, _ := cbProyecto(t, true)
 	antes := cbArbol(t, root)
@@ -408,14 +412,14 @@ func TestCA350_CaptureLeeElPrimerPane(t *testing.T) {
 	lista, captura := -1, -1
 	for i, o := range g.outputs {
 		switch {
-		case reflect.DeepEqual(o, []string{"tmux", "list-panes", "-t", "=hoom-demo-facturas", "-F", "#{pane_id}"}):
+		case reflect.DeepEqual(o, []string{"tmux", "list-panes", "-t", "=hoom-demo-facturas:", "-F", "#{pane_id}"}): // enmienda 5
 			lista = i
 		case reflect.DeepEqual(o, []string{"tmux", "capture-pane", "-p", "-e", "-t", "%3"}):
 			captura = i
 		}
 	}
 	if lista < 0 || captura < 0 || lista > captura {
-		t.Fatalf("CA-350: primero `tmux list-panes -t =<sesion> -F #{pane_id}` y despues `tmux capture-pane -p -e -t <pane>`: %v", g.outputs)
+		t.Fatalf("CA-350 (enmienda 5): primero `tmux list-panes -t =<sesion>: -F #{pane_id}` y despues `tmux capture-pane -p -e -t <pane>`: %v", g.outputs)
 	}
 	if v := cbProhibido(g, "send-keys", "new-session", "split-window", "kill-session", "attach-session", "switch-client"); v != "" {
 		t.Fatalf("CA-350: Capture es una lectura: nunca %q", v)
