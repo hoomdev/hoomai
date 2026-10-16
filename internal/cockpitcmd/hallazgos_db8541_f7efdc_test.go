@@ -188,8 +188,13 @@ func TestCA347_HallazgoDb8541_ElExtractorDelComandoDeCierre(t *testing.T) {
 // cuando Open le agrega el pane de vigilancia (la CLI de la IA salio al
 // arrancar): split-window se registra, la sesion deja de existir y devuelve
 // el error de tmux sin la sesion ("can't find session: <sesion>"). Como en
-// tmux, kill-session de una sesion que no vive falla con ese mismo error (y
-// has-session, list-panes y el resto los atiende h3Tmux).
+// tmux, kill-session de una sesion que no vive falla con ese mismo error, y
+// has-session de una sesion que no vive responde como tmux de verdad: sale con
+// codigo 1 (un *exec.ExitError con ExitCode() == 1, de tmuxSinSesion en
+// hallazgos_b59c30_e0001e_test.go), no con un error de Go. Hallazgos b59c30 y
+// e0001e (CA-347, CA-348): solo el codigo 1 confirma que la sesion no esta;
+// cualquier otro fallo del sondeo no confirma nada. list-panes y el resto los
+// atiende h3Tmux.
 type hf7Tmux struct {
 	*h3Tmux
 }
@@ -197,6 +202,13 @@ type hf7Tmux struct {
 func (f *hf7Tmux) atender(name string, args []string) ([]byte, error) {
 	if name == "tmux" && len(args) > 0 {
 		switch args[0] {
+		case "has-session":
+			if d := h3Destino(args, "-t"); !f.viva(d) {
+				f.mu.Lock()
+				f.llamadas = append(f.llamadas, name+" "+strings.Join(args, " "))
+				f.mu.Unlock()
+				return nil, tmuxSinSesion(d)
+			}
 		case "split-window":
 			f.mu.Lock()
 			f.llamadas = append(f.llamadas, name+" "+strings.Join(args, " "))
@@ -231,14 +243,17 @@ func (f *hf7Tmux) deps() Deps {
 
 // Hallazgo f7efdc (CA-347, CA-348). Open crea la sesion (new-session
 // funciona), el split-window falla porque la sesion murio, y cerrarla falla
-// porque ya no hay sesion. El error conserva el del split-window, NO dice que
+// porque ya no hay sesion; tmux CONFIRMA que no esta (has-session sale con
+// codigo 1, como tmux de verdad: estado A de b59c30 y e0001e). El error
+// conserva el del split-window, NO dice que
 // la sesion quedo abierta ni pide cerrarla a mano (ningun `kill-session -t`
 // propuesto, nada "a mano"): dice que ya no existe y que se puede reintentar.
 // El item no declara nada, y el reintento con tmux sano crea la sesion
 // (created: true) y la registra.
 //
-// Contraste (363285 con la enmienda 5): con el split-window roto, la sesion
-// todavia viva y kill-session roto, el error sigue diciendo que quedo abierta
+// Contraste (363285 con la enmienda 5; estado B de b59c30 y e0001e): con el
+// split-window roto, la sesion todavia viva (has-session sale bien) y
+// kill-session roto, el error sigue diciendo que quedo abierta
 // y como cerrarla con `tmux kill-session -t '=<sesion>'` (ejecutable en sh y
 // zsh), y no dice que ya no existe.
 func TestCA347_CA348_HallazgoF7efdc_SiLaSesionMurioElErrorNoPideCerrarlaAMano(t *testing.T) {
