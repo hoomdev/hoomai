@@ -28,9 +28,10 @@
 // responde has-session despues del kill-session. Fixtures de
 // acciones_tarjeta_test.go (atPATH, atFalso, atConEspacio, atLineas,
 // atLeerItem), tablero_test.go (tbProyecto), hallazgos_c3_test.go (h3PIDs,
-// h3VivoPID, h3EsperarHasta), hallazgos_c3_vuelta3_test.go (contieneElAviso) y
-// hallazgos_c3_db8541_f7efdc_test.go (cierreEjecutable). Ni tmux ni el CLI de
-// IA son de verdad.
+// h3VivoPID, h3EsperarHasta), hallazgos_c3_vuelta3_test.go (contieneElAviso),
+// hallazgos_c3_db8541_f7efdc_test.go (cierreEjecutable) y el verificador
+// compartido internal/cierretmuxtest (DiceQueLaCerro, DiceQueNoSabe; hallazgo
+// 9accd8). Ni tmux ni el CLI de IA son de verdad.
 package servecmd
 
 import (
@@ -43,15 +44,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/cierretmuxtest"
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 )
 
 // hb5Envoltorio es el tmux que ve Abrir sesion: split-window falla (la sesion
 // queda viva con un solo pane), kill-session corre @ALCERRAR@, deja la marca
 // @CERRO@ y falla con codigo 1 ("lost server") sin cerrar nada, y desde esa
-// marca has-session (un sondeo, si la apertura lo hace) corre @SONDEO@. Lo
-// demas, y lo que @SONDEO@ deja pasar, lo atiende el tmux falso con estado
-// (@BASE@). Lo que atiende el envoltorio lo anota en el mismo log.
+// marca has-session (un sondeo, si la apertura lo hace; no debe: e5f706) corre
+// @SONDEO@. Lo demas, y lo que @SONDEO@ deja pasar, lo atiende el tmux falso
+// con estado (@BASE@). Lo que atiende el envoltorio lo anota en el mismo log,
+// antes de correr nada.
 const hb5Envoltorio = `case "$1" in
 split-window)
   printf '%s\n' "$*" >> '@LOG@'
@@ -72,6 +75,16 @@ esac
 exec /bin/sh '@BASE@' "$@"
 `
 
+// hb5Limite es cuanto espera el test la respuesta de una apertura: la CLI no
+// le pone plazo a tmux, asi que con un tmux colgado solo este limite externo
+// la corta (e5f706).
+const hb5Limite = 10 * time.Second
+
+// hb5PlazoDeTmux es el plazo de cada llamada a tmux del Studio (enmienda 1,
+// (k)). Con has-session colgado para siempre, una respuesta que tarda eso o
+// mas es la de una apertura que espero a has-session (e5f706).
+const hb5PlazoDeTmux = 5 * time.Second
+
 // hb5Comparable es msg sin lo que cambia de un subtest a otro aunque el
 // mensaje sea el mismo: las carpetas temporales del proyecto y del espacio de
 // trabajo (tambien con los enlaces resueltos: en macOS /var es /private/var).
@@ -89,10 +102,8 @@ func hb5Comparable(msg string, carpetas ...string) string {
 // sesion de la tarjeta fix crea la sesion, el split-window falla y el
 // kill-session falla con codigo 1. Despues, segun el caso:
 //
-//   - la sesion sigue viva con un solo pane, y has-session vence el plazo de
-//     5 s del Studio (se cuelga; la respuesta llega igual en menos de 15 s y
-//     el tmux colgado no queda vivo; solo desde el Studio: la CLI no pone
-//     plazo), sale por una senal (SIGKILL), no arranca (el kill-session
+//   - la sesion sigue viva con un solo pane, y has-session se cuelga para
+//     siempre, sale por una senal (SIGKILL), no arranca (el kill-session
 //     fallido se lleva el tmux del PATH), sale bien, o sale con codigo 1
 //     porque falla el cliente (9c1816);
 //   - la sesion murio con el kill-session (el servidor se cayo), y has-session
@@ -104,6 +115,19 @@ func hb5Comparable(msg string, carpetas ...string) string {
 // mensaje es el MISMO en todos los casos: no depende de has-session ni de si
 // la sesion vive.
 //
+// Hallazgo e5f706 (CA-347, CA-348): en todas las filas, despues del
+// kill-session fallido el log del tmux falso no tiene ningun has-session ni
+// ninguna otra llamada (un tmux que no pudo cerrar la sesion puede estar
+// degradado). En la fila "sin tmux" un sondeo no dejaria rastro en el log
+// (tmux ya no esta en el PATH); las demas lo ven. Y con has-session colgado
+// para siempre, desde el Studio y desde la CLI: la respuesta llega antes de
+// hb5Limite (10 s; la CLI no pone plazo, asi que un sondeo la colgaria) y
+// antes del plazo de 5 s de cada llamada a tmux del Studio (no espero a
+// has-session), ningun has-session llego a colgarse (no anoto su PID) y no
+// queda ningun tmux colgado. La fila colgada reemplaza a la de "el has-session
+// del Studio vence su plazo de 5 s", que toleraba 15 s y solo miraba el
+// colgado si habia dejado un PID.
+//
 // Reemplaza a TestCA347_CA348_HallazgosB59c30E0001e_AbrirSesionConUnSondeoQueNoConfirmaNada:
 // el contrato de tres estados quedo reemplazado por decision de Henry
 // (hallazgos 9c1816, 57bd29 y 03481c). No es debilitar: el mensaje nuevo es
@@ -113,9 +137,10 @@ func TestCA347_CA348_Hallazgo9c1816_AbrirSesionConElCierreFallidoDiceQueNoSabeSi
 	mensajes := map[string][]visto{} // por quien
 	for _, c := range []struct {
 		caso, quien string
-		corte       string // "plazo", "senal", "sin tmux", "sale bien", "codigo 1" o "murio"
+		corte       string // "cuelga", "senal", "sin tmux", "sale bien", "codigo 1" o "murio"
 	}{
-		{"el has-session del Studio vence su plazo de 5 s", "studio", "plazo"},
+		{"e5f706: el has-session del Studio se cuelga para siempre", "studio", "cuelga"},
+		{"e5f706: el has-session de la CLI se cuelga para siempre", "cli", "cuelga"},
 		{"el has-session del Studio sale por una senal", "studio", "senal"},
 		{"el has-session de la CLI sale por una senal", "cli", "senal"},
 		{"el has-session del Studio no arranca: tmux ya no esta", "studio", "sin tmux"},
@@ -141,8 +166,8 @@ func TestCA347_CA348_Hallazgo9c1816_AbrirSesionConElCierreFallidoDiceQueNoSabeSi
 			propia := cockpitcmd.SessionName("demo", "fix")
 			alCerrar, sondeo := ":", ":"
 			switch c.corte {
-			case "plazo":
-				sondeo = `printf '%s\n' "$$" >> '` + f.pids + `'; exec /bin/sleep 60`
+			case "cuelga":
+				sondeo = `printf '%s\n' "$$" >> '` + f.pids + `'; exec /bin/sleep 3600`
 			case "senal":
 				sondeo = `kill -9 $$`
 			case "sin tmux":
@@ -160,11 +185,13 @@ func TestCA347_CA348_Hallazgo9c1816_AbrirSesionConElCierreFallidoDiceQueNoSabeSi
 			_, itemFix := atLeerItem(t, dir, "fix")
 
 			var a apertura
+			inicio := time.Now()
 			select {
 			case a = <-lanzarApertura(s, dir, "fix", c.quien):
-			case <-time.After(15 * time.Second):
-				t.Fatalf("%s: Abrir sesion con el cierre roto se quedo colgado mas de 15 s (el plazo de cada llamada a tmux es 5 s):\n%s", ca, strings.Join(atLineas(t, f.log), "\n"))
+			case <-time.After(hb5Limite):
+				t.Fatalf("%s: e5f706: Abrir sesion con el cierre roto se quedo colgado mas de %v (la CLI no le pone plazo a tmux: no puede volver a llamarlo despues del kill-session fallido):\n%s", ca, hb5Limite, strings.Join(atLineas(t, f.log), "\n"))
 			}
+			tardo := time.Since(inicio)
 			lineas := atLineas(t, f.log)
 			tmux := strings.Join(lineas, "\n")
 			if a.panico != nil {
@@ -186,6 +213,29 @@ func TestCA347_CA348_Hallazgo9c1816_AbrirSesionConElCierreFallidoDiceQueNoSabeSi
 			}
 			if n := f.panes(propia); n != quiere {
 				t.Fatalf("%s: fixture: despues del kill-session fallido la sesion %s tiene %d panes (quiere %d):\n%s", ca, propia, n, quiere, tmux)
+			}
+
+			// e5f706: despues del kill-session fallido, ni un sondeo ni otra
+			// llamada a tmux
+			var hs []string
+			for _, l := range lineas[kill+1:] {
+				if campos := strings.Fields(l); len(campos) > 0 && campos[0] == "has-session" {
+					hs = append(hs, l)
+				}
+			}
+			if len(hs) > 0 {
+				t.Errorf("%s: e5f706: despues del kill-session fallido la apertura no llama a has-session (el resultado no prueba nada y tmux puede estar colgado), y hubo %d: %q\ntmux:\n%s", ca, len(hs), hs, tmux)
+			}
+			if tras := lineas[kill+1:]; len(tras) > 0 {
+				t.Errorf("%s: e5f706: despues del kill-session fallido la apertura no le vuelve a hablar a tmux, y le hizo %d llamadas: %q\ntmux:\n%s", ca, len(tras), tras, tmux)
+			}
+			if c.corte == "cuelga" {
+				if tardo >= hb5PlazoDeTmux {
+					t.Errorf("%s: e5f706: con has-session colgado, %s responde sin esperarlo: tardo %v (el plazo de una llamada a tmux del Studio es %v)", ca, a.quien, tardo, hb5PlazoDeTmux)
+				}
+				if pids := h3PIDs(t, f.pids); len(pids) > 0 {
+					t.Errorf("%s: e5f706: ningun has-session llega a colgarse, y se colgaron %d (pids %v)", ca, len(pids), pids)
+				}
 			}
 			if c.corte == "sin tmux" {
 				if _, err := os.Stat(yo); !os.IsNotExist(err) {
@@ -283,10 +333,10 @@ func TestCA347_CA348_Hallazgo9c1816_GuardaAbrirSesionConElCierreSanoDiceQueLaCer
 				t.Fatalf("%s: con el split-window roto la apertura responde un error: %v\ntmux:\n%s", ca, a, tmux)
 			}
 			msg := a.mensaje()
-			if !ciDiceQueLaCerro(msg) {
+			if !cierretmuxtest.DiceQueLaCerro(msg) {
 				t.Errorf("%s: kill-session salio bien: el error dice que cerro la sesion, para que el proximo intento la arme entera: %q", ca, msg)
 			}
-			if ciIncierta(ciSinTildes(msg)) {
+			if cierretmuxtest.DiceQueNoSabe(msg) {
 				t.Errorf("%s: kill-session salio bien: el error no dice que no se pudo saber si la sesion sigue abierta: %q", ca, msg)
 			}
 			if _, raw := atLeerItem(t, dir, "fix"); !bytes.Equal(raw, itemFix) {
@@ -299,7 +349,7 @@ func TestCA347_CA348_Hallazgo9c1816_GuardaAbrirSesionConElCierreSanoDiceQueLaCer
 // Guarda del verificador (9c1816), la copia de servecmd: ciNoSabeSiSigueAbierta
 // acepta mensajes que cumplen el contrato nuevo aunque lo digan con otras
 // palabras y rechaza los del contrato de tres estados y los que no muestran
-// el comando de esta sesion con comillas; ciDiceQueLaCerro reconoce el "la
+// el comando de esta sesion con comillas; DiceQueLaCerro reconoce el "la
 // cerre" de C1 y no una negacion.
 func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
 	s := cockpitcmd.SessionName("demo", "fix")
@@ -326,8 +376,8 @@ func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
 		{"exit status 1; cerré la sesión " + s + " para que el próximo intento la arme entera", true},
 		{"exit status 1; no la cerré: " + cmd, false},
 	} {
-		if got := ciDiceQueLaCerro(c.msg); got != c.cerro {
-			t.Errorf("C1: ciDiceQueLaCerro(%q) = %v, quiere %v", c.msg, got, c.cerro)
+		if got := cierretmuxtest.DiceQueLaCerro(c.msg); got != c.cerro {
+			t.Errorf("C1: DiceQueLaCerro(%q) = %v, quiere %v", c.msg, got, c.cerro)
 		}
 	}
 }

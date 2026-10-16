@@ -21,6 +21,10 @@
 // Y no depende de ningun sondeo: con el mismo paso fallido y el mismo error
 // del kill-session, el mensaje es EL MISMO responda lo que responda tmux a
 // has-session (o aunque no se le pregunte), y este la sesion viva o muerta.
+// Y no se le pregunta (hallazgo e5f706): despues del kill-session fallido Open
+// no llama a has-session (cero sondeos) ni a ningun otro verbo de tmux, porque
+// un tmux que no pudo cerrar la sesion puede estar degradado y una segunda
+// llamada puede no volver nunca (la CLI no le pone plazo).
 //
 // Reemplaza al contrato de tres estados (A: has-session con codigo 1 => "ya
 // no existe"; B: has-session sale bien => "quedo abierta"; C: el sondeo no
@@ -36,8 +40,9 @@
 // (cbProyecto, cbLeerItem), hallazgos_c1_test.go (h3Tmux, h3Sesion,
 // h3ErrPaso, h3SinHuerfana), hallazgos_c1c_test.go (hc3Tmux, hc3Llamada,
 // hc3ItemSoloLectura), hallazgos_db8541_f7efdc_test.go (cierreEjecutable) y
-// tmuxdoble_test.go (tmuxSinSesion, tmuxClienteRoto, ciNoSabeSiSigueAbierta,
-// ciDiceQueLaCerro, ciSinTildes, ciIncierta). Ningun tmux real.
+// tmuxdoble_test.go (tmuxSinSesion, tmuxClienteRoto, ciNoSabeSiSigueAbierta),
+// y el verificador compartido internal/cierretmuxtest (DiceQueLaCerro,
+// DiceQueNoSabe; hallazgo 9accd8). Ningun tmux real.
 package cockpitcmd
 
 import (
@@ -53,6 +58,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/cierretmuxtest"
 )
 
 var hb5ErrKill = errors.New("tmux falso: kill-session fallo a proposito (hb5)")
@@ -66,9 +73,11 @@ var hb5ErrKill = errors.New("tmux falso: kill-session fallo a proposito (hb5)")
 //     el servidor de tmux se cayo); con sigueViva, sigue viva.
 //   - has-session DESPUES del kill-session (un sondeo, si Open lo hace) se
 //     registra, se cuenta en sondeos y responde sondeo, sin mirar el estado.
+//     Open no debe hacerlo (e5f706): sondeo es la trampa, y sondeos y
+//     trasElCierre lo que el test mira.
 //
 // El verbo en h3Tmux.fallar falla como siempre. Atiende igual por RunCmd,
-// QuietCmd y Output.
+// QuietCmd y Output, y todas las llamadas quedan en h3Tmux.llamadas.
 type hb5Tmux struct {
 	*h3Tmux
 	sigueViva bool
@@ -110,6 +119,25 @@ func (f *hb5Tmux) atender(name string, args []string) ([]byte, error) {
 		}
 	}
 	return f.h3Tmux.atender(name, args)
+}
+
+// trasElCierre son las llamadas a tmux despues del primer kill-session, en
+// orden (nil si no hubo kill-session).
+func (f *hb5Tmux) trasElCierre() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, l := range f.llamadas {
+		if strings.HasPrefix(l, "tmux kill-session") {
+			var out []string
+			for _, d := range f.llamadas[i+1:] {
+				if strings.HasPrefix(d, "tmux ") {
+					out = append(out, d)
+				}
+			}
+			return out
+		}
+	}
+	return nil
 }
 
 func (f *hb5Tmux) deps() Deps {
@@ -264,6 +292,12 @@ func TestCA347_HallazgosB59c30E0001e_ElDobleRespondeComoTmux(t *testing.T) {
 // mismo error del kill-session, el mensaje es identico en todos los casos:
 // no depende de has-session ni de si la sesion vive.
 //
+// Hallazgo e5f706 (CA-347, CA-348): en todas las filas, despues del
+// kill-session fallido no hay ningun has-session (sondeos == 0, y ninguno en
+// las llamadas) ni ninguna otra llamada a tmux. Las respuestas de has-session
+// de la matriz son trampas: sin esta guarda, una regresion que volviera a
+// sondear y descartara el resultado dejaria el mismo mensaje y pasaria.
+//
 // Reemplaza a TestCA347_CA348_HallazgosB59c30E0001e_ElErrorDiceLaVerdadSobreLaSesion,
 // que exigia tres estados segun el sondeo: el contrato de tres estados quedo
 // reemplazado por decision de Henry (hallazgos 9c1816, 57bd29 y 03481c). No es
@@ -304,6 +338,24 @@ func TestCA347_CA348_Hallazgo9c1816_SiElCierreFallaElErrorEsUnoSoloYNoSabeSiLaSe
 				}
 				if err == nil {
 					t.Fatalf("%s: Open devuelve el error del paso que fallo:\n%s", ca, f.todas())
+				}
+				// e5f706: despues del kill-session fallido, ni un sondeo ni otra
+				// llamada a tmux
+				tras := f.trasElCierre()
+				f.mu.Lock()
+				sondeos := f.sondeos
+				f.mu.Unlock()
+				var hs []string
+				for _, l := range tras {
+					if strings.HasPrefix(l, "tmux has-session") {
+						hs = append(hs, l)
+					}
+				}
+				if sondeos != 0 || len(hs) > 0 {
+					t.Errorf("%s: e5f706: despues del kill-session fallido Open no llama a has-session (el resultado no prueba nada y tmux puede estar colgado), y hubo %d sondeos: %q\ntmux:\n%s", ca, sondeos, hs, f.todas())
+				}
+				if len(tras) > 0 {
+					t.Errorf("%s: e5f706: despues del kill-session fallido Open no le vuelve a hablar a tmux, y le hizo %d llamadas: %q\ntmux:\n%s", ca, len(tras), tras, f.todas())
 				}
 				msg := err.Error()
 				clave := paso.caso + " / " + c.kill.nombre
@@ -374,10 +426,10 @@ func TestCA347_CA348_Hallazgo9c1816_GuardaConElCierreSanoElErrorDiceQueLaCerro(t
 			if !strings.Contains(msg, paso.original) {
 				t.Errorf("%s: el error conserva el del paso que fallo (%q): %q", ca, paso.original, msg)
 			}
-			if !ciDiceQueLaCerro(msg) {
+			if !cierretmuxtest.DiceQueLaCerro(msg) {
 				t.Errorf("%s: kill-session salio bien: el error dice que cerro la sesion, para que el proximo intento la arme entera: %q", ca, msg)
 			}
-			if ciIncierta(ciSinTildes(msg)) {
+			if cierretmuxtest.DiceQueNoSabe(msg) {
 				t.Errorf("%s: kill-session salio bien: el error no dice que no se pudo saber si la sesion sigue abierta: %q", ca, msg)
 			}
 		})
@@ -388,7 +440,7 @@ func TestCA347_CA348_Hallazgo9c1816_GuardaConElCierreSanoElErrorDiceQueLaCerro(t
 // cumplen el contrato nuevo aunque lo digan con otras palabras (un
 // condicional, una disyuncion, con o sin tildes) y rechaza los del contrato
 // de tres estados y los que no muestran el comando con comillas; y
-// ciDiceQueLaCerro reconoce el "la cerre" de C1 y no una negacion. Sin esto,
+// DiceQueLaCerro reconoce el "la cerre" de C1 y no una negacion. Sin esto,
 // los tests de arriba podrian pasar o fallar por el verificador y no por el
 // mensaje.
 func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
@@ -423,8 +475,8 @@ func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
 		{orig + "; no la cerré: " + cmd, false},
 		{orig + "; no pude cerrar la sesion " + s, false},
 	} {
-		if got := ciDiceQueLaCerro(c.msg); got != c.cerro {
-			t.Errorf("C1: ciDiceQueLaCerro(%q) = %v, quiere %v", c.msg, got, c.cerro)
+		if got := cierretmuxtest.DiceQueLaCerro(c.msg); got != c.cerro {
+			t.Errorf("C1: DiceQueLaCerro(%q) = %v, quiere %v", c.msg, got, c.cerro)
 		}
 	}
 }
