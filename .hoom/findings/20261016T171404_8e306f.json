@@ -1,0 +1,11 @@
+{
+  "id": "20261016T171404_8e306f",
+  "created_at": "2026-10-16T17:14:04.938665Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "PRE-EXISTENTE / follow-up (de main b7e0480:322; lo encontro el refutador de la delta 6 de fixes-cabina-c3 con tmux 3.6b real; lo registra el writer): Capture (Ver terminal, CA-350) responde available=false con la nota 'no hay una sesion abierta para esta tarjeta' ante CUALQUIER fallo de 'tmux has-session -t =\u003csesion\u003e', y tmux sale con 1 tambien por fallos de su propio cliente (socket sin permiso, directorio inseguro, socket movido). Con el socket en 000 dio esa nota y, al restaurarlo, has-session dio rc=0: la sesion estaba viva. Es de solo lectura (no cierra ni registra nada), pero la nota afirma algo que no se sabe. Correccion posible: una nota que no afirme ('no pude leer la sesion de esta tarjeta') cuando tmux no confirma; pide decidir el texto de la nota del contrato de CA-350.",
+  "author": "writer@claude",
+  "fingerprint": "36ba0c7679af7e3a",
+  "task": "fixes-cabina-c3"
+}
