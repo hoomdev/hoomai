@@ -10,7 +10,6 @@ package cockpitcmd
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -249,27 +248,16 @@ func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 
 // killSession closes exactly session (= : no prefix match on another one)
 // after cause went wrong, and returns cause saying what happened to the
-// session, one of three: closed, so the next try starts over; gone already,
-// when tmux itself says it is not there; or possibly still open, with the
-// command that closes it (a promise it cannot keep would hide a cockpit the
-// next try never completes). Only tmux answering "no session" (exit 1) proves
-// it is gone: a probe that ran out of time or did not start proves nothing,
-// and then the error keeps the command (findings f7efdc, b59c30, e0001e,
-// 6708b3).
+// session: closed, so the next try starts over; or not closed, and then the
+// error does not claim whether it is still open (tmux exits with 1 both when
+// the session is gone and when its own client fails, so its exit status
+// cannot prove either): it says how to close it if it still is (findings
+// f7efdc, b59c30, e0001e, 9c1816, 57bd29, 03481c).
 func killSession(dir, session string, deps Deps, cause error) error {
-	err := deps.QuietCmd(dir, "tmux", "kill-session", "-t", "="+session)
-	if err == nil {
-		return fmt.Errorf("%w; cerre la sesion %s para que el proximo intento la arme entera", cause, session)
+	if err := deps.QuietCmd(dir, "tmux", "kill-session", "-t", "="+session); err != nil {
+		return fmt.Errorf("%w; no pude cerrar la sesion %s (%v) y no pude saber si sigue abierta: si sigue, cerrala y reintenta: %s", cause, session, err, comandoCierre(session))
 	}
-	sondeo := deps.QuietCmd(dir, "tmux", "has-session", "-t", "="+session)
-	var salio *exec.ExitError
-	if errors.As(sondeo, &salio) && salio.ExitCode() == 1 {
-		return fmt.Errorf("%w; la sesion %s ya no existe: reintenta", cause, session)
-	}
-	if sondeo == nil {
-		return fmt.Errorf("%w; la sesion %s quedo abierta y no pude cerrarla (%v): cerrala y reintenta: %s", cause, session, err, comandoCierre(session))
-	}
-	return fmt.Errorf("%w; no pude cerrar la sesion %s (%v) y no pude saber si sigue abierta (%v): si sigue, cerrala y reintenta: %s", cause, session, err, sondeo, comandoCierre(session))
+	return fmt.Errorf("%w; cerre la sesion %s para que el proximo intento la arme entera", cause, session)
 }
 
 // comandoCierre is the command that closes exactly session, written to be
