@@ -1,0 +1,11 @@
+{
+  "id": "20261016T170120_9c1816",
+  "created_at": "2026-10-16T17:01:20.572421Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:266 clasifica cualquier *exec.ExitError con ExitCode()==1 como prueba de que la sesion ya no existe. Un fallo real del cliente tmux (por ejemplo conexion/permisos/lost server) tambien se materializa como *exec.ExitError de codigo 1; QuietCmd descarta stderr, asi que esta rama no distingue la causa. Si la sesion sigue viva, el error omite el comando de cierre y el reintento la toma como existente, dejando un cockpit a medias/proceso de IA sin declarar. internal/cockpitcmd/hallazgos_b59c30_e0001e_test.go:172 no cubre esto porque modela lost server con errors.New, no con la salida de un proceso. Mantener esos exit 1 no confirmados en estado incierto o preservar evidencia verificable del diagnostico de tmux. Patron candidato a regla Semgrep custom: inferir existencia de recursos solo por ExitCode sin validar la causa.",
+  "author": "reviewer@codex",
+  "fingerprint": "88dc38ed4f114b30",
+  "task": "fixes-cabina-c3"
+}

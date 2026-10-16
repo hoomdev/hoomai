@@ -1,0 +1,11 @@
+{
+  "id": "20261016T170547_03481c",
+  "created_at": "2026-10-16T17:05:47.341406Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:266 trata cualquier *exec.ExitError con codigo 1 como prueba de que la sesion desaparecio. tmux tambien sale con 1 ante fallos del cliente previos a resolver el target (por ejemplo, no poder crear o acceder al socket), y QuietCmd descarta stderr, por lo que este branch no puede distinguirlos. Si kill-session fallo mientras la sesion a medias sigue viva, se informa 'ya no existe' y se omite el comando de cierre; al reintentar composeTmux puede encontrar esa sesion incompleta y no reconstruirla. Capturar y clasificar el diagnostico especifico de sesion inexistente, y cubrir un ExitError(1) operacional.",
+  "author": "reviewer@codex",
+  "fingerprint": "88dc38ed4f114b30",
+  "task": "fixes-cabina-c3"
+}
