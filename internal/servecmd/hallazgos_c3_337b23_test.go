@@ -16,9 +16,10 @@
 //     listado de sus panes, con fix-login abierta. Ver terminal de fix no
 //     muestra la pantalla de fix-login: responde available false con la nota.
 //
-// El tmux falso corre en modo real (tmuxFalso.real, en tmuxfalso_test.go):
-// resuelve cada destino como tmux 3.x (visto con tmux 3.6b): un nombre suelto
-// es la sesion exacta o la UNICA con ese prefijo, `=N` es exacto en
+// El tmux falso corre con tmuxFalso.destinosComoTmux (en tmuxfalso_test.go,
+// que dice todo lo que cambia ese modo; hasta el hallazgo 5cee1e se llamaba
+// real): resuelve cada destino como tmux 3.x (visto con tmux 3.6b): un nombre
+// suelto es la sesion exacta o la UNICA con ese prefijo, `=N` es exacto en
 // has-session y kill-session pero en list-panes no, y `=N:` es exacto en
 // todos y falla con "can't find session" si N no vive. Fixtures de
 // acciones_tarjeta_test.go (atPATH, atConEspacio, atOK, atLineas, atConVerbo,
@@ -59,13 +60,13 @@ func (f *tmuxFalso) idsDePanes(nombre string) []string {
 	return out
 }
 
-// Guarda del tmux falso en modo real (337b23; lo usan los tests de CA-347,
-// CA-348 y CA-350 de abajo): resuelve los destinos como tmux 3.6b, que es lo
+// Guarda del tmux falso con destinosComoTmux (337b23; lo usan los tests de
+// CA-347, CA-348 y CA-350 de abajo): resuelve los destinos como tmux 3.6b, que es lo
 // que hace que el destino de antes de la enmienda 5 caiga en otra sesion. Si
 // el doble dejara de emularlo, los tests de 337b23 pasarian sin probar nada.
 func TestHallazgo_337b23_CA350_ElTmuxFalsoResuelveLosDestinosComoTmux(t *testing.T) {
 	f := nuevoTmuxFalso(t)
-	f.real = true
+	f.destinosComoTmux = true
 	bin := atPATH(t, map[string]string{"tmux": f.script()})
 	login := cockpitcmd.SessionName("demo", "fix-login")
 	propia := cockpitcmd.SessionName("demo", "fix")
@@ -156,7 +157,7 @@ func TestHallazgo_337b23_CA347_CA348_UnaSesionQueMuereAlCrearseNoCaeEnLaDeOtraTa
 		t.Run(quien, func(t *testing.T) {
 			ca := "337b23 (CA-347, CA-348, enmienda 5), desde " + quien
 			f := nuevoTmuxFalso(t)
-			f.real = true
+			f.destinosComoTmux = true
 			atPATH(t, map[string]string{"tmux": f.script(), "claude": "exit 0\n"})
 			dir := tbProyecto(t)
 			atConEspacio(t, dir, "fix-login")
@@ -242,7 +243,7 @@ func TestHallazgo_337b23_CA350_VerTerminalNoMuestraOtraTarjetaSiLaSesionSeCierra
 	login := cockpitcmd.SessionName("demo", "fix-login")
 	propia := cockpitcmd.SessionName("demo", "fix")
 	f := nuevoTmuxFalso(t)
-	f.real = true
+	f.destinosComoTmux = true
 	f.ret.nombre, f.ret.donde = propia, "sondeo"
 	atPATH(t, map[string]string{"tmux": f.script(), "claude": "exit 0\n"})
 	dir := tbProyecto(t)

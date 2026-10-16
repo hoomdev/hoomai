@@ -10,8 +10,9 @@
 //     sesion y despues se cuelga hasta el plazo (o falla) deja la sesion a
 //     medias (un solo pane, el de la IA). La apertura responde el error, que
 //     nombra la sesion y dice que se cierra con `tmux kill-session -t
-//     =<session>`, y no la toca: ni la cierra ni la completa. El reintento, con
-//     tmux sano, la ve existente: created false, sin new-session ni
+//     '=<session>'` (con el destino entre comillas desde la enmienda 5,
+//     hallazgo db8541), y no la toca: ni la cierra ni la completa. El
+//     reintento, con tmux sano, la ve existente: created false, sin new-session ni
 //     split-window, y no registra nada en el item. (En la vuelta 3 el contrato
 //     era el de la enmienda 1 (k): cerrar la sesion a medias y rearmarla; la
 //     enmienda 3 lo cambio a completarla en el reintento, y la enmienda 4, que
@@ -109,7 +110,9 @@ func TestHallazgo_1b1fc7_ElStudioEnLocalhostConPuntoAtiendeASuNavegador(t *testi
 // spec: "si tmux new-session falla o vence su plazo, Open devuelve el error y
 // no toca la sesion: ni la cierra ni la completa"; "el error nombra la sesion
 // y dice que, si quedo a medias (sin el pane de vigilancia), se cierra con
-// `tmux kill-session -t =<session>` antes de reintentar"; "una sesion a medias
+// `tmux kill-session -t '=<session>'` antes de reintentar" (las comillas son
+// de la ENMIENDA 5, hallazgo db8541: zsh expande una palabra que empieza con
+// `=` como la ruta de un comando); "una sesion a medias
 // cuenta como existente: el reintento responde created: false y no registra
 // nada". Y su caso limite: "Abrir sesion con un tmux new-session que crea la
 // sesion y vence su plazo: la apertura responde el error, que dice como cerrar
@@ -125,7 +128,9 @@ func TestHallazgo_1b1fc7_ElStudioEnLocalhostConPuntoAtiendeASuNavegador(t *testi
 // Con un tmux cuyo new-session CREA la sesion (un pane, el de la IA) y despues
 // se cuelga hasta el plazo, o sale con un error, la apertura responde un error
 // en menos de 8 s (el plazo del Studio es 5 s) que contiene `tmux kill-session
-// -t =<sesion>` con el nombre exacto de la sesion; no hay kill-session,
+// -t '=<sesion>'` con el nombre exacto de la sesion, y ese comando, copiado tal
+// cual, le pasa a tmux `-t =<sesion>` en sh y en zsh (cierreEjecutable, en
+// hallazgos_c3_db8541_f7efdc_test.go); no hay kill-session,
 // kill-pane ni split-window, y la sesion sigue viva con un solo pane; el item
 // no declara nada, y el tmux colgado no queda vivo. Despues, con tmux sano, el
 // reintento responde created false con esa sesion (no un error), sin
@@ -180,10 +185,13 @@ func TestHallazgo_0fc76d_AbrirSesionAMediasQuedaComoEstaYElErrorDiceComoCerrarla
 			if !a.fallo() {
 				t.Fatalf("%s: con new-session cortado, Abrir sesion responde un error: %v\ntmux:\n%s", ca, a, tmux)
 			}
-			aviso := "tmux kill-session -t =" + nombre
+			// hallazgo db8541 (enmienda 5): el destino del comando propuesto va
+			// entre comillas, y el comando corre tal cual en sh y en zsh
+			aviso := "tmux kill-session -t '=" + nombre + "'"
 			if !contieneElAviso(a.mensaje(), aviso) {
-				t.Errorf("%s: el error nombra la sesion y dice que, si quedo a medias, se cierra con `%s` antes de reintentar: %q", ca, aviso, a.mensaje())
+				t.Errorf("%s: el error nombra la sesion y dice que, si quedo a medias, se cierra con `%s` antes de reintentar (db8541, enmienda 5: con el destino entre comillas): %q", ca, aviso, a.mensaje())
 			}
+			cierreEjecutable(t, ca, a.mensaje(), nombre)
 
 			// no se toca la sesion: ni se cierra ni se completa
 			if k := f.cierres(t, nombre); len(k) > 0 {
@@ -236,10 +244,11 @@ func TestHallazgo_0fc76d_AbrirSesionAMediasQuedaComoEstaYElErrorDiceComoCerrarla
 	}
 }
 
-// contieneElAviso dice si msg trae aviso (`tmux kill-session -t =<sesion>`)
-// con el nombre exacto: lo que le sigue no puede continuar el nombre de una
-// sesion (letra, digito, - o _), para que el de otra sesion cuyo nombre empieza
-// igual no cuente.
+// contieneElAviso dice si msg trae aviso (`tmux kill-session -t
+// '=<sesion>'`) con el nombre exacto: lo que le sigue no puede continuar el
+// nombre de una sesion (letra, digito, - o _), para que el de otra sesion cuyo
+// nombre empieza igual no cuente (con el destino entre comillas de la
+// enmienda 5, la comilla de cierre ya lo delimita).
 func contieneElAviso(msg, aviso string) bool {
 	for i := 0; ; {
 		j := strings.Index(msg[i:], aviso)

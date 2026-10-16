@@ -5,12 +5,16 @@
 // Open cierra la sesion tmux que acaba de crear cuando un paso posterior
 // falla (split-window) o cuando no puede registrarla en el item (hallazgo
 // 20260924T200412_c1a9da, hallazgos_c1_test.go). Si ESE cierre
-// (`tmux kill-session -t =<sesion>`) tambien falla, la sesion sigue viva y
-// a medio armar: Open devuelve un error que conserva el error original del
-// paso que fallo, NO afirma que la cerro (sin "la cerre"), y dice como
-// cerrarla a mano nombrando `tmux kill-session -t =<sesion>`. Con
-// kill-session sano, lo de siempre: la cierra, y el reintento la crea y la
-// registra. Todo contra el tmux falso con estado h3Tmux: ningun tmux real.
+// (tmux con los argumentos `kill-session -t =<sesion>`) tambien falla, la
+// sesion sigue viva y a medio armar: Open devuelve un error que conserva el
+// error original del paso que fallo, NO afirma que la cerro (sin "la cerre"),
+// y dice como cerrarla a mano nombrando `tmux kill-session -t '=<sesion>'`,
+// con el destino entre comillas: ese contrato viene de la ENMIENDA 5
+// (hallazgo db8541), porque zsh expande una palabra que empieza con `=` como
+// la ruta de un comando, y ademas el comando propuesto tiene que correr tal
+// cual en sh y en zsh (cierreEjecutable, en hallazgos_db8541_f7efdc_test.go).
+// Con kill-session sano, lo de siempre: la cierra, y el reintento la crea y
+// la registra. Todo contra el tmux falso con estado h3Tmux: ningun tmux real.
 package cockpitcmd
 
 import (
@@ -26,8 +30,15 @@ import (
 
 var hc3ErrKill = errors.New("tmux falso: kill-session fallo a proposito (hc3)")
 
-// hc3Manual es el comando con el que una persona cierra la sesion a mano.
-const hc3Manual = "tmux kill-session -t =" + h3Sesion
+// hc3Manual es el comando con el que una persona cierra la sesion a mano, el
+// que propone el error. Hallazgo db8541 (enmienda 5): el destino va entre
+// comillas, `'=<sesion>'`; sin ellas, zsh toma `=<sesion>` como la ruta del
+// comando <sesion> y el comando ni llega a tmux.
+const hc3Manual = "tmux kill-session -t '=" + h3Sesion + "'"
+
+// hc3Llamada es como queda en el registro del tmux falso el cierre que intenta
+// Open: los argumentos de exec, sin shell de por medio y sin comillas.
+const hc3Llamada = "tmux kill-session -t =" + h3Sesion
 
 // hc3Tmux reutiliza el tmux falso con estado h3Tmux y ademas puede romper
 // kill-session: la llamada se registra, la sesion SIGUE viva y devuelve
@@ -81,15 +92,16 @@ func hc3ItemSoloLectura(t *testing.T, root string) func() {
 // hc3SinCierreFalso exige el contrato de 363285 cuando kill-session falla:
 // Open creo la sesion e intento cerrarla, la sesion sigue viva (fixture), y
 // el error conserva el original, no dice que la cerro y dice como cerrarla a
-// mano.
+// mano con `tmux kill-session -t '=<sesion>'`, que corre tal cual en sh y en
+// zsh (db8541, enmienda 5).
 func hc3SinCierreFalso(t *testing.T, ca, caso string, f *hc3Tmux, err error, original string) {
 	t.Helper()
 	if err == nil {
 		t.Fatalf("%s: hallazgo 363285: %s: Open devuelve el error del paso que fallo:\n%s", ca, caso, f.todas())
 	}
 	nueva := f.indice("tmux new-session", 0)
-	if nueva < 0 || f.indice(hc3Manual, nueva) < 0 {
-		t.Fatalf("%s: hallazgo 363285: %s: Open creo la sesion e intento cerrarla con `%s`:\n%s", ca, caso, hc3Manual, f.todas())
+	if nueva < 0 || f.indice(hc3Llamada, nueva) < 0 {
+		t.Fatalf("%s: hallazgo 363285: %s: Open creo la sesion e intento cerrarla con `%s`:\n%s", ca, caso, hc3Llamada, f.todas())
 	}
 	if !f.viva(h3Sesion) {
 		t.Fatalf("%s: fixture: %s: con kill-session roto la sesion %s sigue viva:\n%s", ca, caso, h3Sesion, f.todas())
@@ -103,8 +115,9 @@ func hc3SinCierreFalso(t *testing.T, ca, caso string, f *hc3Tmux, err error, ori
 		t.Errorf("%s: hallazgo 363285: %s: kill-session fallo y la sesion sigue viva: el error no puede decir que la cerro: %q", ca, caso, msg)
 	}
 	if !strings.Contains(msg, hc3Manual) {
-		t.Errorf("%s: hallazgo 363285: %s: el error dice como cerrarla a mano nombrando `%s`: %q", ca, caso, hc3Manual, msg)
+		t.Errorf("%s: hallazgos 363285 y db8541 (enmienda 5): %s: el error dice como cerrarla a mano nombrando `%s`, con el destino entre comillas: %q", ca, caso, hc3Manual, msg)
 	}
+	cierreEjecutable(t, ca+": "+caso, msg, h3Sesion)
 }
 
 // Hallazgo 20260925T052348_363285 (resilience). CA-347: new-session funciona,
@@ -150,7 +163,7 @@ func TestCA348_HC3Hallazgo363285_KillSessionRotoTrasNoPoderRegistrar(t *testing.
 // GUARDA (verde en la base). Hallazgo 20260925T052348_363285, CA-347 y
 // CA-348: con kill-session sano, el comportamiento de c1a9da se mantiene en
 // los dos caminos (a traves del mismo falso hc3Tmux): Open devuelve el error
-// original, cierra la sesion con `tmux kill-session -t =<sesion>` y el
+// original, cierra la sesion (tmux con `kill-session -t =<sesion>`) y el
 // reintento la crea (created: true) y la registra en el item.
 func TestCA347_HC3Hallazgo363285_GuardaKillSessionSano(t *testing.T) {
 	t.Run("split-window", func(t *testing.T) {
