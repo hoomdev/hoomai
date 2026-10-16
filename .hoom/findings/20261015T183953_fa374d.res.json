@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T183953_fa374d",
+  "as": "corregido",
+  "evidence": "Corregido en 1647c34: composeTmux pregunta has-session -t =\u003csesion\u003e (exacto), como killSession y la lectura de la terminal. Test del test-writer (0639223): TestHallazgo_fa374d_AbrirSesionNoConfundeLaSesionDeOtraTarjeta (con hoom-demo-fix-login abierta, abrir fix crea la suya); falla sobre 7565283; mas la guarda ..._VerTerminalNoMuestraLaSesionDeOtraTarjeta.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.951274Z"
+}

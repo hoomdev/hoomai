@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -29,6 +30,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -222,6 +224,26 @@ type Meta struct {
 	// PID is the process that owns the run while it runs: the only way another
 	// process can tell a live run from one whose owner died.
 	PID int `json:"pid,omitempty"`
+	// ChildPID is the provider's own process. If the owner dies without
+	// killing it (hoom serve killed with SIGKILL), the run is still at work
+	// while it lives, and nothing may act on its tree (finding b5e187).
+	ChildPID int `json:"child_pid,omitempty"`
+	// ChildStartedAt is when the provider started: a ChildPID that another
+	// process reused started at another time (finding cea64f).
+	ChildStartedAt time.Time `json:"child_started_at,omitempty"`
+}
+
+// vivo says whether the run of meta still has someone working: its owner, or
+// the provider its owner left behind while its PID is still that provider
+// (not another process that reused it: finding cea64f).
+func vivo(meta Meta) bool {
+	return meta.PID == 0 || alive(meta.PID) || provider(meta)
+}
+
+// provider says whether the provider of meta is still alive and still the
+// same process.
+func provider(meta Meta) bool {
+	return meta.ChildPID > 0 && alive(meta.ChildPID) && procesos.MismoProceso(meta.ChildPID, meta.ChildStartedAt)
 }
 
 // idRe is what an id may look like: one file name, no separators, no dots
@@ -251,17 +273,22 @@ func validStatus(s string) bool {
 
 func metaPath(root, id string) string { return filepath.Join(runsDir(root), id+".meta.json") }
 
-// writeMeta records a run's identity. Best-effort by contract: telemetry that
-// cannot be written never breaks the run it describes.
-func writeMeta(root string, meta Meta) {
+// writeMeta records a run's identity and says whether it could. Opening a run
+// (Start, Input) and naming its provider (execute) need the record: without
+// it another process would not see the run working on its tree, so they fail
+// (findings da369a, 1da9c4). Closing records (settle, settleMeta) are
+// best-effort: the run is already over, and a close that could not be
+// written leaves the sidecar saying "running", the safe side: the tree looks
+// busy until markOrphans settles it (finding 989bfd).
+func writeMeta(root string, meta Meta) error {
 	if !validID(meta.ID) {
-		return // the id is the address: content never chooses the path
+		return fmt.Errorf("id de run invalido %q", meta.ID) // the id is the address: content never chooses the path
 	}
 	raw, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
-		return
+		return err
 	}
-	hoomfs.AtomicWrite(metaPath(root, meta.ID), append(raw, '\n'), 0o644)
+	return hoomfs.AtomicWrite(metaPath(root, meta.ID), append(raw, '\n'), 0o644)
 }
 
 // readMeta loads one sidecar by id and refuses one that lies about its
@@ -425,7 +452,7 @@ func (m *Manager) settleMeta(id string) {
 		return
 	}
 	meta.Status, meta.ExitCode, meta.EndedAt = StatusError, -1, time.Now().UTC()
-	writeMeta(m.root, meta)
+	_ = writeMeta(m.root, meta) // best-effort: a close (see writeMeta)
 }
 
 // liveElsewhere reports whether a run still in "running" belongs to a process
@@ -438,8 +465,14 @@ func (m *Manager) liveElsewhere(id string, lastTS time.Time) bool {
 	if !ok || meta.PID == 0 || meta.Status != StatusRunning {
 		return false
 	}
+	// the provider its owner left behind is still at work, as long as it
+	// lives and is the same process: no narration speaks for it, nobody is
+	// left to write it (findings b5e187 and cea64f)
+	if provider(meta) {
+		return true
+	}
 	if !lastTS.IsZero() && time.Since(lastTS) > m.Timeout+5*time.Minute {
-		return false
+		return false // too old: a live PID may be another process by now
 	}
 	return alive(meta.PID)
 }
@@ -527,9 +560,85 @@ func (m *Manager) Busy(dir string) (string, bool) {
 	if ok {
 		return id, true
 	}
-	for _, meta := range Metas(m.root) {
-		if meta.Status == StatusRunning && meta.Dir == dir && (meta.PID == 0 || alive(meta.PID)) {
-			return meta.ID, true
+	return Active(m.root, dir)
+}
+
+// Check is Start's translation of opts without starting anything: the
+// provider exists and takes every option asked for (Strict refuses what it
+// does not). A caller that must decide before writing anything asks here.
+func Check(opts StartOptions) error {
+	p, err := providers.Lookup(opts.Provider)
+	if err != nil {
+		return err
+	}
+	_, err = p.Command(opts.request(opts.Prompt, opts.ResumeID, false))
+	return err
+}
+
+// EsperaArbol is how long a discard or a save waits for a run that is being
+// registered on the same tree.
+const EsperaArbol = 2 * time.Second
+
+// esperaRegistro is how long registering a run waits for a discard or a save
+// of its tree to finish.
+const esperaRegistro = 30 * time.Second
+
+// LockArbol takes the lock of the working tree dir. Registering a run on it
+// (Start, Input) and checking-then-acting on it (Discard, Save) take it, so
+// no run starts between a "no run is active" check and the action that
+// relies on it (findings b6e55b and ac2feb); a run does not hold it while it
+// works. It lives in the repository's common git dir, keyed by the tree's
+// real path: the CLI in the project, the CLI in a task worktree and the
+// Studio find the same one, and nothing is written inside the tree (a blind
+// tree stays as it is). A dir outside any git repository has nothing a
+// discard or a save could race with: the lock is then a no-op. Any other
+// failure of git (missing, unsafe directory, no permission) is an error:
+// two processes that disagree on where the lock is would not exclude each
+// other (finding 7a04de).
+func LockArbol(dir string, wait time.Duration) (func(), error) {
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command("git", "-C", real, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANGUAGE=C") // the message is read: untranslated
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if strings.Contains(stderr.String(), "not a git repository") {
+			return func() {}, nil
+		}
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("no pude ubicar el candado del arbol %s: git rev-parse: %s", real, msg)
+	}
+	sum := sha256.Sum256([]byte(real))
+	path := filepath.Join(strings.TrimSpace(string(out)), "hoom-locks", hex.EncodeToString(sum[:8])+".lock")
+	return hoomfs.Lock(path, wait)
+}
+
+// lockRegistro is LockArbol for registering a run: it waits longer, and says
+// what it waited for.
+func lockRegistro(dir string) (func(), error) {
+	unlock, err := LockArbol(dir, esperaRegistro)
+	if errors.Is(err, hoomfs.ErrLocked) {
+		return nil, fmt.Errorf("se esta guardando o descartando el trabajo de %s: el run no arranco. Accion: vuelve a lanzarlo cuando termine", dir)
+	}
+	return unlock, err
+}
+
+// Active is the live run whose tree is dir, from its sidecar: in root's runs
+// and in dir's own, where a run started from inside a task's worktree keeps
+// it (finding f237b9).
+func Active(root, dir string) (string, bool) {
+	for _, base := range []string{root, dir} {
+		for _, meta := range Metas(base) {
+			if meta.Status == StatusRunning && meta.Dir == dir && vivo(meta) {
+				return meta.ID, true
+			}
 		}
 	}
 	return "", false
@@ -563,6 +672,19 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	if err != nil {
 		return Run{}, err
 	}
+	// the run is registered under its tree's lock: a discard or a save that
+	// checked "no run is active" has finished acting when it gets it
+	unlock, err := lockRegistro(dir)
+	if err != nil {
+		return Run{}, err
+	}
+	defer unlock()
+	// a run another process registered on the tree counts too: under the
+	// lock, nobody registers one between this check and ours (finding
+	// 57eff9)
+	if id, ok := Active(m.root, dir); ok {
+		return Run{}, ErrBusy{RunID: id}
+	}
 
 	m.mu.Lock()
 	if active, ok := m.byDir[dir]; ok {
@@ -588,7 +710,14 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1, PID: os.Getpid(),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
-	writeMeta(m.root, r.meta)
+	// the sidecar is how another process sees this run: without it the run
+	// would not exclude anybody, so it does not start (finding da369a)
+	if err := writeMeta(m.root, r.meta); err != nil {
+		m.mu.Unlock()
+		logFile.Close()
+		os.Remove(filepath.Join(runsDir(m.root), id+".jsonl"))
+		return Run{}, fmt.Errorf("no se pudo registrar el run: %v", err)
+	}
 	m.runs[id] = r
 	m.byDir[dir] = id
 	m.mu.Unlock()
@@ -617,10 +746,21 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	}
 	m.mu.Lock()
 	r, ok := m.runs[id]
+	m.mu.Unlock()
 	if !ok {
-		m.mu.Unlock()
 		return Run{}, fmt.Errorf("run no encontrado: %s", id)
 	}
+	// like Start: the run goes back to running under its tree's lock, and
+	// not while another process's run works on the tree
+	unlock, err := lockRegistro(r.dir)
+	if err != nil {
+		return Run{}, err
+	}
+	defer unlock()
+	if active, ok := Active(m.root, r.dir); ok && active != id {
+		return Run{}, ErrBusy{RunID: active}
+	}
+	m.mu.Lock()
 	if r.info.Status == StatusRunning {
 		m.mu.Unlock()
 		return Run{}, ErrBusy{RunID: id}
@@ -650,14 +790,21 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 		}
 		return Run{}, err
 	}
+	// like Start: the sidecar is how another process sees the run working
+	// again, so without it the run does not continue, and the refusal leaves
+	// it exactly as it was (finding 1da9c4)
+	meta := r.meta
+	meta.Status, meta.ExitCode = StatusRunning, -1
+	if err := writeMeta(m.root, meta); err != nil {
+		m.mu.Unlock()
+		return Run{}, fmt.Errorf("no se pudo registrar la continuacion del run: %v", err)
+	}
 	r.info.Status = StatusRunning
 	r.info.ExitCode = -1
 	r.canceled = false
-	r.meta.Status, r.meta.ExitCode = StatusRunning, -1
-	meta := r.meta
+	r.meta = meta
 	m.byDir[r.dir] = id
 	m.mu.Unlock()
-	writeMeta(m.root, meta)
 
 	// una sola linea sobre la sesion perdida, y que dice lo que importa: no
 	// que se ignoro un campo, sino que el contexto anterior no viaja
@@ -824,11 +971,22 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipes")
 		return
 	}
-	if err := cmd.Start(); err != nil {
+	if err := arrancar(cmd); err != nil {
 		// the cause matters: a missing binary and an argv too large (E2BIG
 		// with a huge --system-prompt) look the same otherwise
 		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), err))
 		return
+	}
+	defer soltarGrupo(cmd.Process.Pid)
+	// the provider's PID keeps the run alive for other processes if this
+	// one dies: without it on disk the run is not protected, so it does not
+	// go on (finding da369a)
+	m.mu.Lock()
+	r.meta.ChildPID, r.meta.ChildStartedAt = cmd.Process.Pid, time.Now().UTC()
+	errPID := writeMeta(m.root, r.meta)
+	m.mu.Unlock()
+	if errPID != nil {
+		procesos.MatarGrupo(cmd.Process.Pid)
 	}
 	// Si un hijo huerfano del provider retiene los pipes tras el kill,
 	// los cerramos por la fuerza pasada una gracia: cancelar (o el timeout)
@@ -903,6 +1061,10 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		status = StatusError
 		detail = fmt.Sprintf("el provider termino con exit %d", exit)
 	}
+	if errPID != nil {
+		status, exit = StatusError, -1
+		detail = fmt.Sprintf("no se pudo registrar el PID del provider (%v): el run se corto", errPID)
+	}
 	if escrito != nil {
 		// Wait ya cerro el pipe: la escritura termino, bien o mal
 		if werr := <-escrito; werr != nil && status == StatusDone {
@@ -937,7 +1099,7 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	// el meta se escribe ANTES de soltar el lock, como en Start: quien ve el
 	// run cerrado (Get, Wait, Events) ya puede leer su meta cerrado, y ningun
 	// archivo aparece despues de que el run dejo de estar en curso.
-	writeMeta(m.root, r.meta)
+	_ = writeMeta(m.root, r.meta) // best-effort: a close (see writeMeta)
 	m.mu.Unlock()
 }
 

@@ -1,0 +1,11 @@
+{
+  "id": "20261014T180435_a8025f",
+  "created_at": "2026-10-14T18:04:35.968815Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/servecmd/servecmd.go",
+  "description": "INTRODUCIDO — internal/servecmd/servecmd.go:262-294 mantiene el tablero explícitamente de solo lectura y registra únicamente GET /api/board; tampoco se carga acciones.js en internal/servecmd/ui/index.html:1205. No existen /launch, /save, /discard, /session ni /terminal, por lo que las acciones que ahora emite Derive no se pueden ejecutar desde la tarjeta y el objetivo principal de C3 queda inoperante.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

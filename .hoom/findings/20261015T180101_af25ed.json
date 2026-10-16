@@ -1,0 +1,11 @@
+{
+  "id": "20261015T180101_af25ed",
+  "created_at": "2026-10-15T18:01:01.468295Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "INTRODUCIDO — internal/taskcmd/taskcmd.go:471 agrega origins al git restore, pero el preflight de objetos faltantes de internal/taskcmd/taskcmd.go:436-459 solo incluye los blobs de local/restore. Si falta en el object store el blob HEAD del origen de un rename y el mismo descarte incluye otro archivo modificado, git restore puede restaurar ese otro archivo antes de fallar por el origen; Discard devuelve error pero ya descarto trabajo. Reproduccion: HEAD con a y b, git mv a a2, modificar b, retirar el blob HEAD:a y restaurar b a: b vuelve a HEAD, a sigue ausente y git sale 255. Viola CA-346, que exige negarse sin tocar nada cuando falta contenido de HEAD.",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}

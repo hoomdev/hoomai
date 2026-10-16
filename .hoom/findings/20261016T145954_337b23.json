@@ -1,0 +1,11 @@
+{
+  "id": "20261016T145954_337b23",
+  "created_at": "2026-10-16T14:59:54.597029Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "PRE-EXISTENTE (de main b7e0480:192/198 y :326; lo encontro el refutador de la delta 3 de fixes-cabina-c3 con tmux 3.6b real; lo registra el writer): composeTmux agrega el pane de vigilancia con 'split-window -t \u003csesion\u003e' y 'select-pane -t \u003csesion\u003e', y Capture lista los panes con 'list-panes -t =\u003csesion\u003e'; ninguno de los tres es exacto: tmux busca primero una ventana y despues resuelve la sesion por prefijo. Si la sesion recien creada muere antes del split (la CLI de IA sale al arrancar) y existe hoom-\u003cp\u003e-\u003ctarea\u003e-login, el pane cae en esa sesion ajena y Open responde created=true y registra en el item una sesion que no existe; si la sesion se cierra entre has-session y list-panes, Ver terminal muestra la pantalla de otra tarjeta. Carrera estrecha (0 de 20 sin forzarla). Correccion verificada con tmux real: destino '=\u003csesion\u003e:' (con dos puntos; '=\u003csesion\u003e' solo falla siempre en split-window).",
+  "author": "writer@claude",
+  "fingerprint": "5dfdf577400e206a",
+  "task": "fixes-cabina-c3"
+}

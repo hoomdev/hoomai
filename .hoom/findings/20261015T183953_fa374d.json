@@ -1,0 +1,11 @@
+{
+  "id": "20261015T183953_fa374d",
+  "created_at": "2026-10-15T18:39:53.494094Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "PRE-EXISTENTE (lo encontro el refutador de la delta 1 de fixes-cabina-c3; lo registra el writer): internal/cockpitcmd/cockpitcmd.go:221 (main:186) pregunta 'tmux has-session -t \u003csesion\u003e' sin '=', y tmux resuelve el nombre tambien por prefijo. Con la sesion de la tarjeta fix-login viva, Abrir sesion en la tarjeta fix la 'encuentra', responde created=false y no crea nada ni registra la sesion en el item (CA-348). Correccion: has-session -t =\u003csesion\u003e, como ya hacen killSession y la lectura de la terminal.",
+  "author": "writer@claude",
+  "fingerprint": "55b599d3a99e250d",
+  "task": "fixes-cabina-c3"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261015T204235_878cbd",
+  "created_at": "2026-10-15T20:42:35.0338Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:231-234 clasifica todo *exec.ExitError con ExitCode \u003e= 0 como una respuesta normal de tmux y omite la limpieza. En Windows, una cancelacion por plazo termina procesos con un codigo numerico (TerminateJobObject usa 1 en internal/procesos/procesos_windows.go:126-130; el fallback forzado tambien), no con el ExitCode -1 de una señal Unix. Por eso un new-session que crea la sesion y luego vence el plazo entra en esta rama, deja el cockpit a medias y el reintento lo acepta como existente. El criterio debe distinguir el vencimiento del contexto, no inferirlo del exit code.",
+  "author": "reviewer@codex",
+  "fingerprint": "463286818ffca327",
+  "task": "fixes-cabina-c3"
+}

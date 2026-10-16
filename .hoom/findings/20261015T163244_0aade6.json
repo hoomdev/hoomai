@@ -1,0 +1,11 @@
+{
+  "id": "20261015T163244_0aade6",
+  "created_at": "2026-10-15T16:32:44.540703Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO EN EL CUMPLIMIENTO FAIL-CLOSED. internal/reviewcmd/reviewcmd.go:1038-1040 usa os.IsNotExist sobre el error de os.ReadFile para decidir que no hay item. Un item que es un symlink colgante si existe como entrada pero ReadFile devuelve ENOENT, por lo que se toma como sin sesiones en vez de ilegible; asi se puede ocultar la declaracion del provider interactivo y permitir una review no cruzada. Debe distinguir ausencia real de la ruta del item de una entrada existente que no puede leerse, con regresion para symlink colgante.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

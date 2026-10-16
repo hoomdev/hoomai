@@ -9,6 +9,7 @@ package servecmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
@@ -59,7 +62,9 @@ func decodeStrict(r *http.Request, v any) (present bool, err error) {
 	if err := dec.Decode(v); err != nil {
 		return true, fmt.Errorf("cuerpo JSON invalido: %w", err)
 	}
-	if dec.More() {
+	// nothing may follow the object, not even a closing bracket: More only
+	// looks inside the current value (finding 78f960)
+	if _, err := dec.Token(); err != io.EOF {
 		return true, fmt.Errorf("cuerpo JSON invalido: sobra contenido despues del objeto")
 	}
 	return true, nil
@@ -130,7 +135,7 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 				boardcmd.ActPedirReviewer, boardcmd.ActReanudar, boardcmd.ActRelanzar}, ", ")))
 		return
 	}
-	resp, code, err := s.start(slug, launchReq{Action: body.Action, Provider: body.Provider, Model: body.Model,
+	resp, code, err := s.start(r.Context(), slug, launchReq{Action: body.Action, Provider: body.Provider, Model: body.Model,
 		BudgetUSD: body.BudgetUSD, Pedido: body.Pedido, Effort: body.Effort})
 	if err != nil {
 		writeError(w, code, err.Error())
@@ -154,14 +159,17 @@ type launchReq struct {
 
 // start is the ONE way the Studio launches a role: the endpoint and the belt
 // go through the same checks, in the contract's order. It answers when the
-// envelope's first record is on disk (or with the HTTP code of why not).
-func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
+// envelope's first record is on disk (or with the HTTP code of why not), or
+// when whoever asked (ctx) is gone: the job then goes on by itself.
+func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchResp, int, error) {
 	fail := func(code int, format string, args ...any) (launchResp, int, error) {
 		return launchResp{}, code, fmt.Errorf(format, args...)
 	}
 	// Un lanzamiento por tarjeta a la vez. El candado se toma ANTES de derivar
-	// la tarjeta y se suelta cuando el sobre ya escribio su registro: el
-	// segundo pedido o encuentra el candado, o encuentra la tarjeta en curso.
+	// la tarjeta y lo suelta el trabajo cuando su sobre ya escribio el
+	// registro, o cuando termina sin escribirlo: el segundo pedido o encuentra
+	// el candado, o encuentra la tarjeta en curso. No lo suelta el handler:
+	// el pedido se puede cancelar antes (hallazgo 0cf41f).
 	s.launchMu.Lock()
 	if s.launching[slug] {
 		s.launchMu.Unlock()
@@ -169,10 +177,17 @@ func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
 	}
 	s.launching[slug] = true
 	s.launchMu.Unlock()
-	defer func() {
+	t := &trabajo{soltar: func() {
 		s.launchMu.Lock()
 		delete(s.launching, slug)
 		s.launchMu.Unlock()
+	}, listo: make(chan struct{}, 1), fin: make(chan finDeTrabajo, 1)}
+	// hasta que el trabajo arranca, el candado es de este handler: cualquier
+	// salida antes lo suelta
+	defer func() {
+		if !t.enMarcha {
+			t.soltarCandado()
+		}
 	}()
 	c, err := boardcmd.CardFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug, time.Now().UTC())
 	if err != nil {
@@ -222,45 +237,47 @@ func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
 		}
 	}
 
-	started := false
-	if c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog {
-		if err := taskcmd.Start(s.m.Dir, slug, s.m.BaseBranch); err != nil {
-			return fail(http.StatusConflict, "%s", err.Error())
-		}
-		started = true
-	}
-
+	// the log first: a launch that cannot write it fails before creating
+	// anything (finding dda1cc)
 	id := envelope.NewID()
 	logPath := filepath.Join(s.m.Dir, ".hoom", envelope.DirName, id+".log")
 	logFile, err := openLog(s.m.Dir, logPath)
 	if err != nil {
 		return fail(http.StatusInternalServerError, "%s", err.Error())
 	}
-	early := &tail{}
-	out := io.MultiWriter(logFile, early)
-	ready := make(chan struct{}, 1)
-	onStart := func() { ready <- struct{}{} }
-	type fin struct {
-		err  error
-		line string
-	}
-	done := make(chan fin, 1)
+	// a card in Backlog without a workspace gets its task first: inside the
+	// job, so a request canceled meanwhile does not wait for git (finding
+	// 0cf41f)
+	crearTarea := c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog
+	var tareaCreada atomic.Bool
+
 	spec := ".hoom/specs/" + slug + ".md"
 
+	t.enMarcha = true
 	s.launches.Add(1)
 	go func() {
 		defer s.launches.Done()
 		defer logFile.Close()
-		var f fin
-		if review {
-			_, f.err = reviewcmd.Run(s.m.Dir, s.m.BaseBranch, reviewcmd.Options{
+		var f finDeTrabajo
+		if crearTarea {
+			if f.err = taskcmd.Start(s.m.Dir, slug, s.m.BaseBranch); f.err == nil {
+				tareaCreada.Store(true)
+			}
+		}
+		switch {
+		case f.err != nil:
+			// la tarea no se pudo crear: no corre nada, y el 409 lo dice
+		case review:
+			var res reviewcmd.Result
+			res, f.err = reviewcmd.Run(s.m.Dir, s.m.BaseBranch, reviewcmd.Options{
 				Provider: opt.Name, Task: slug, Spec: spec, Model: req.Model, Effort: req.Effort, BudgetUSD: budget,
-				EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
-			}, out)
-		} else {
+				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
+			}, logFile)
+			f.nota = res.Nota
+		default:
 			o := agentcmd.Options{
 				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: req.Model,
-				BudgetUSD: budget, EnvelopeID: id, Started: onStart, Pilot: req.Pilot,
+				BudgetUSD: budget, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec
@@ -268,22 +285,36 @@ func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
 			if a.ID == boardcmd.ActReanudar {
 				o.ResumeID = a.ResumeID
 			}
-			_, f.err = agentcmd.Run(s.m.Dir, s.m.BaseBranch, o, out)
+			_, f.err = agentcmd.Run(s.m.Dir, s.m.BaseBranch, o, logFile)
 		}
-		f.line = lastLine(early.String())
-		done <- f
+		if !t.arranco.Load() {
+			// termino antes de su primer registro: no corrio nada, y no
+			// queda nada (tampoco su log)
+			logFile.Close()
+			os.Remove(logPath)
+		}
+		t.termino(f)
 		// la cinta: despues de un trabajo que lanzo el Studio, y solo si
 		// ese trabajo llego a dejar su registro
 		s.belt(slug, c, id, logFile)
 	}()
 
+	ok202 := func() (launchResp, int, error) {
+		return launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: tareaCreada.Load()}, 0, nil
+	}
 	select {
-	case <-ready:
-		return launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: started}, 0, nil
-	case f := <-done:
-		// termino antes de su primer registro: no corrio nada, y no queda nada
-		os.Remove(logPath)
-		msg := f.line
+	case <-t.listo:
+		return ok202()
+	case f := <-t.fin:
+		if f.arranco {
+			// llego a su primer registro y termino antes de esta respuesta:
+			// corrio, y su registro dice como (hallazgo 17225a)
+			return ok202()
+		}
+		// el error, o la nota de una review que se decidio sin pasadas: lo
+		// que el resultado dice, no la ultima linea de su texto (hallazgo
+		// fdccff)
+		msg := f.nota
 		if f.err != nil {
 			msg = f.err.Error()
 		}
@@ -291,7 +322,50 @@ func (s *Server) start(slug string, req launchReq) (launchResp, int, error) {
 			msg = "el trabajo no arranco"
 		}
 		return fail(http.StatusConflict, "%s", msg)
+	case <-ctx.Done():
+		// quien pidio ya no espera: el trabajo sigue (o termina) solo, y la
+		// tarjeta lo muestra (hallazgo 0cf41f)
+		return fail(http.StatusRequestTimeout, "el pedido se cancelo antes de que el trabajo arrancara; la tarjeta muestra como sigue")
 	}
+}
+
+// trabajo is one launch's job as the handler sees it (finding a46d0c). Until
+// it is enMarcha the card's launch lock belongs to the handler, which
+// releases it on any early exit; from then on the job releases it, once,
+// when its envelope writes the first record (empezo) or when it ends without
+// writing it (termino). listo and fin tell the handler which of the two
+// happened; fin also says whether the first record came before the end.
+type trabajo struct {
+	soltar   func() // releases the card's launch lock
+	soltado  sync.Once
+	enMarcha bool
+	arranco  atomic.Bool
+	listo    chan struct{}
+	fin      chan finDeTrabajo
+}
+
+// finDeTrabajo is how a job ended: its error, or the note of a review
+// decided without passes, and whether it reached its first record.
+type finDeTrabajo struct {
+	err     error
+	nota    string
+	arranco bool
+}
+
+func (t *trabajo) soltarCandado() { t.soltado.Do(t.soltar) }
+
+// empezo is the envelope's Started: its first record is on disk.
+func (t *trabajo) empezo() {
+	t.arranco.Store(true)
+	t.soltarCandado()
+	t.listo <- struct{}{}
+}
+
+// termino closes the job with how it ended.
+func (t *trabajo) termino(f finDeTrabajo) {
+	f.arranco = t.arranco.Load()
+	t.soltarCandado()
+	t.fin <- f
 }
 
 // belt is the autopilot of a card with `auto: hasta-humano`: a conveyor
@@ -325,7 +399,7 @@ func (s *Server) belt(slug string, before boardcmd.Card, envelopeID string, log 
 		return
 	}
 	budget := d.BudgetUSD
-	resp, _, err := s.start(slug, launchReq{Action: d.Action, Provider: d.Provider, BudgetUSD: &budget,
+	resp, _, err := s.start(context.Background(), slug, launchReq{Action: d.Action, Provider: d.Provider, BudgetUSD: &budget,
 		Pedido: d.Pedido, Pilot: true})
 	if err != nil {
 		fmt.Fprintf(log, "piloto automatico: no pudo lanzar al %s: %s\n", d.Role, err)
@@ -389,25 +463,6 @@ func openLog(root, path string) (*os.File, error) {
 	}
 	hoomfs.EnsureIgnored(root, envelope.DirName)
 	return os.Create(path)
-}
-
-// tail keeps only the end of what the envelope says: its last line is the
-// answer when it stops before its first record.
-type tail struct{ b []byte }
-
-func (t *tail) Write(p []byte) (int, error) {
-	t.b = append(t.b, p...)
-	if n := len(t.b); n > 8<<10 {
-		t.b = append([]byte{}, t.b[n-(4<<10):]...)
-	}
-	return len(p), nil
-}
-
-func (t *tail) String() string { return string(t.b) }
-
-func lastLine(s string) string {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	return strings.TrimSpace(lines[len(lines)-1])
 }
 
 // approveCard is "Aprobar spec" from the card: `hoom spec approve` run in

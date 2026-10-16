@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T204421_0cf41f",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e y e7ad7c5: el candado de lanzamiento de la tarjeta lo suelta el trabajo (al escribir su primer registro o al terminar), el handler vuelve si el pedido se cancela, y la tarea de una tarjeta en Backlog se crea dentro del trabajo (el test-writer mostro que, creada en el handler, un pedido cancelado igual esperaba a git). Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_0cf41f_CancelarElLaunchNoDejaLaTarjetaTomada.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.581621Z"
+}

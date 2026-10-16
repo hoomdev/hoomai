@@ -1,0 +1,11 @@
+{
+  "id": "20261015T165851_1ceba2",
+  "created_at": "2026-10-15T16:58:51.265089Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO por la correccion de 0f7f5c (lo encontro el refutador en la review de las correcciones de C3, fuera de la lista; lo registra el writer): cockpitcmd.DepsConPlazo solo reemplaza QuietCmd y Output, pero Abrir sesion (POST /api/board/{slug}/session) llama a tmux new-session y split-window por deps.RunCmd, que no tiene plazo y conecta la entrada y salida de hoom serve a tmux. Con un tmux colgado 8 s en new-session, el POST tardo 8,4 s: incumple la enmienda 1 (k), 'cada llamada a tmux del Studio tiene un plazo'. Correccion: que DepsConPlazo reemplace tambien RunCmd, con plazo y sin heredar la entrada y salida del Studio.",
+  "author": "refutador@claude",
+  "fingerprint": "96c580d393e16404",
+  "task": "fixes-cabina-c3"
+}

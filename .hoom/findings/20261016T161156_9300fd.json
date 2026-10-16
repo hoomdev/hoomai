@@ -1,0 +1,11 @@
+{
+  "id": "20261016T161156_9300fd",
+  "created_at": "2026-10-16T16:11:56.316458Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "FOLLOW-UP (resto de borde de la correccion de f7efdc en 731c108; lo encontro el refutador de la delta 4, informe INFORME-refutador-c3-delta4.md; lo registra el writer): killSession toma cualquier fallo de 'tmux has-session -t =\u003csesion\u003e' como 'la sesion ya no existe', sin separar el exit 1 de tmux (no la encuentra) de un plazo vencido o de un exec que no arranco. Con fork/exec EAGAIN y la sesion viva, el error dice 'ya no existe: reintenta' y el reintento la acepta a medias (en 738e4bb el mensaje era correcto); con el servidor tmux detenido (SIGSTOP) tambien lo dice, igual que antes. Correccion probada y descartada por ahora: exigir *exec.ExitError con ExitCode()==1; rompe el doble de cockpitcmd (hf7Tmux devuelve un error de Go, no un codigo de salida) y pide cambiar el doble en otra vuelta sobre el mismo punto. Severidad baja: hace falta un fork fallido justo en esa sonda.",
+  "author": "writer@claude",
+  "fingerprint": "dc805ee78f9bd505",
+  "task": "fixes-cabina-c3"
+}

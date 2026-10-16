@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203055_6d1d10",
+  "as": "corregido",
+  "evidence": "Ya corregido despues de C3 por 5b292f6 (fixes de C1, PR 34; hallazgo 4c8572): checkSlug en task discard. El refutador de C3 lo reprodujo con el binario de ece9882 ('hoom task discard ../.. --yes' restauro app.go del raiz y borro nuevo.txt) y con el de 985f9f2 ('slug invalido', no toca nada); lo fijan TestCA346_H1Hallazgo201550_* y TestCA289_H1Hallazgo201550_*.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T20:57:08.247209Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T163243_d24626",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: paquete internal/procesos. En Windows cada provider entra a un Job Object con KILL_ON_JOB_CLOSE (kernel32: CreateJobObjectW, SetInformationJobObject, AssignProcessToJobObject, TerminateJobObject); Cancel/timeout y el fin del run terminan el job entero, con taskkill /T /F de respaldo. Test del test-writer (20d2edd): procesos_windows_test.go, TestHallazgo_d24626_MatarGrupoMataAlNieto. LIMITE: compilado con GOOS=windows (go build y go test -c), NO ejecutado: no hay Windows aqui y el CI corre solo en Linux.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.708557Z"
+}

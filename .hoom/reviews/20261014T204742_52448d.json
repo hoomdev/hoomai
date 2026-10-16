@@ -1,0 +1,81 @@
+{
+  "id": "20261014T204742_52448d",
+  "created_at": "2026-10-14T20:47:42.10296Z",
+  "task": "acciones-desde-la-tarjeta",
+  "spec": ".hoom/specs/acciones-desde-la-tarjeta.md",
+  "fingerprint": "86354f7f7056dbed",
+  "verdict_id": "2026-09-23T20-19-26Z_12bf1a3c",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261014T203055_2c5073",
+    "20261014T203055_3362b6",
+    "20261014T203055_6d1d10",
+    "20261014T203056_9e2b00",
+    "20261014T203135_57eff9",
+    "20261014T203136_ead726",
+    "20261014T203642_17225a",
+    "20261014T203647_593009",
+    "20261014T203733_48feb7",
+    "20261014T203738_933c74",
+    "20261014T203801_78f960",
+    "20261014T203819_ccf0ab",
+    "20261014T203828_5d64ca",
+    "20261014T203912_dda1cc",
+    "20261014T204357_de4843",
+    "20261014T204421_0cf41f",
+    "20261014T204428_0f7f5c",
+    "20261014T204543_b5e187",
+    "20261014T204734_fb6ea8",
+    "20261014T204734_fdccff"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 313638,
+  "evidence_sha256": "814f79b5491adc01b2306797ee705c19646d4b2c3d5a652108185e0ab9bbca98",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 2721774,
+      "cached_input_tokens": 2553088,
+      "output_tokens": 18972,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 3798080,
+      "cached_input_tokens": 3620224,
+      "output_tokens": 20886,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 3784684,
+      "cached_input_tokens": 3597696,
+      "output_tokens": 19799,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 799540,
+      "cached_input_tokens": 655488,
+      "output_tokens": 4618,
+      "turns": 1
+    }
+  ],
+  "desde": "4abccc9d4baf3c68fc9a9345144b6174227c95e2",
+  "hasta": "ff9428fd85337669d7181acdce2835f45bf8ecc9",
+  "cobertura": "delta",
+  "desde_review": "20261014T181149_3f8974",
+  "base": "645e832"
+}

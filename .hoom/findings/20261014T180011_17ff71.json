@@ -1,0 +1,11 @@
+{
+  "id": "20261014T180011_17ff71",
+  "created_at": "2026-10-14T18:00:11.358139Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:280: Open arranca primero la CLI de IA dentro de tmux y solo despues intenta persistir la declaracion del writer en el item. Si split-window falla o AddSession falla, retorna error pero deja la sesion activa y sin declarar, como reconoce el mensaje de la linea 289; esa sesion puede modificar codigo sin entrar en la exclusion de providers de una review. La declaracion debe quedar durable antes de habilitar el writer o la sesion debe cerrarse al fallar.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

@@ -107,7 +107,7 @@ func New(dir string) (*Server, error) {
 		return nil, err
 	}
 	return &Server{m: m, token: hex.EncodeToString(raw), runs: runcmd.NewManager(m.Dir), logs: map[string]*foreignLog{},
-		cockpit: cockpitcmd.DefaultDeps(), launching: map[string]bool{}}, nil
+		cockpit: cockpitcmd.DepsConPlazo(cockpitPlazo), launching: map[string]bool{}}, nil
 }
 
 // Token returns the per-session action token. It is printed exactly once at
@@ -883,14 +883,64 @@ func Run(dir, addr string) error {
 	}
 	fmt.Printf("hoom serve: HoomAI Studio para %s en http://%s/ (Ctrl-C para salir)\n", s.m.Project, addr)
 	fmt.Printf("hoom serve: token de acciones (header %s, se muestra SOLO ahora): %s\n", TokenHeader, s.token)
-	if err := http.ListenAndServe(addr, s.Handler()); err != nil {
+	if err := http.ListenAndServe(addr, SoloLocal(s.Handler(), addr)); err != nil {
 		return fmt.Errorf("no se pudo escuchar en %s: %w (elegi otro puerto con --addr host:puerto)", addr, err)
 	}
 	return nil
 }
 
+// cockpitPlazo bounds each tmux probe the Studio runs inside a request.
+const cockpitPlazo = 5 * time.Second
+
+// SoloLocal guards the Studio served at addr. On a loopback addr it answers
+// only requests whose Host is a loopback with addr's port: 127.0.0.1,
+// localhost, [::1], or addr's own host, the one the URL it prints names
+// (localhost., 127.0.0.2: finding 1b1fc7). A page of another site that
+// rebinds its name to 127.0.0.1 (DNS rebinding) sends its own Host, and gets
+// 421 instead of the board or the terminal mirror, which need no token
+// because no other page could read them (finding 3362b6). A non-loopback addr is already exposed,
+// and warned about: it is served as is.
+func SoloLocal(h http.Handler, addr string) http.Handler {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil || !isLoopback(host) {
+		return h
+	}
+	validos := map[string]bool{
+		net.JoinHostPort("127.0.0.1", port): true,
+		net.JoinHostPort("localhost", port): true,
+		net.JoinHostPort("::1", port):       true,
+	}
+	nombres := "127.0.0.1, localhost o [::1]"
+	if propio := hostNormal(net.JoinHostPort(host, port)); !validos[propio] {
+		validos[propio] = true
+		nombres = "127.0.0.1, localhost, [::1] o " + host
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !validos[hostNormal(r.Host)] {
+			writeError(w, http.StatusMisdirectedRequest, fmt.Sprintf("el Studio solo atiende pedidos a %s en el puerto %s: el Host %q es de otra pagina", nombres, port, r.Host))
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+// hostNormal normalizes a "host:port" the way SoloLocal lists the valid
+// ones: a name is case-insensitive and may end in a dot, so LOCALHOST:4666
+// and localhost.:4666 are localhost:4666, the same as for isLoopback
+// (findings c9a60f, 1b1fc7, f21e0e).
+func hostNormal(h string) string {
+	h = strings.ToLower(h)
+	host, port, err := net.SplitHostPort(h)
+	if err != nil {
+		return h
+	}
+	return net.JoinHostPort(strings.TrimSuffix(host, "."), port)
+}
+
 func isLoopback(host string) bool {
-	if host == "localhost" {
+	// a name is case-insensitive, and may end in a dot: LOCALHOST and
+	// localhost. are localhost too (finding c9a60f)
+	if strings.EqualFold(strings.TrimSuffix(host, "."), "localhost") {
 		return true
 	}
 	ip := net.ParseIP(host)

@@ -1,0 +1,11 @@
+{
+  "id": "20261016T162940_e0001e",
+  "created_at": "2026-10-16T16:29:40.843856Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:258: tras fallar kill-session, cualquier error de has-session se interpreta como que la sesión ya no existe. QuietCmd también devuelve error si tmux vence el plazo, no arranca o su servidor/socket falla; en esos casos la sesión a medio armar puede seguir viva, pero Open informa que es seguro reintentar y omite el comando de cierre, dejando el reintento atascado en esa sesión incompleta. Hay que distinguir de forma verificable 'no existe' de un sondeo indeterminado, y conservar el diagnóstico conservador cuando no se pueda confirmar la ausencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "dc805ee78f9bd505",
+  "task": "fixes-cabina-c3"
+}

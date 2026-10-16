@@ -1,0 +1,86 @@
+{
+  "id": "20261014T181149_3f8974",
+  "created_at": "2026-10-14T18:11:49.406384Z",
+  "task": "acciones-desde-la-tarjeta",
+  "spec": ".hoom/specs/acciones-desde-la-tarjeta.md",
+  "fingerprint": "325e2c3b81d70975",
+  "verdict_id": "2026-09-23T16-57-36Z_e5451878",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261014T180010_3113eb",
+    "20261014T180011_17ff71",
+    "20261014T180011_ac5919",
+    "20261014T180011_de2a0a",
+    "20261014T180034_3b2ad2",
+    "20261014T180435_a8025f",
+    "20261014T180436_0eb3b0",
+    "20261014T180436_db973e",
+    "20261014T180436_e71268",
+    "20261014T180436_f237b9",
+    "20261014T180437_081b21",
+    "20261014T180437_42fa10",
+    "20261014T180437_78a674",
+    "20261014T180437_c3c8ed",
+    "20261014T180517_a26f9d",
+    "20261014T180752_646e6f",
+    "20261014T180752_b1b1bc",
+    "20261014T180753_e6ae08",
+    "20261014T180753_f2a6d3",
+    "20261014T180847_f67591",
+    "20261014T180914_b6e55b",
+    "20261014T180925_ac2feb",
+    "20261014T181127_e208a6",
+    "20261014T181132_4ecf93",
+    "20261014T181136_285834",
+    "20261014T181139_4cff9f"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 277737,
+  "evidence_sha256": "cff8c4901e071fcf36b2035eceed3fcd812deeae26bf4db37e68a4d342ce1bac",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 3818881,
+      "cached_input_tokens": 3666048,
+      "output_tokens": 19372,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 2224440,
+      "cached_input_tokens": 2040192,
+      "output_tokens": 13123,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1584065,
+      "cached_input_tokens": 1341056,
+      "output_tokens": 12613,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 1466790,
+      "cached_input_tokens": 1322240,
+      "output_tokens": 6934,
+      "turns": 1
+    }
+  ],
+  "desde": "645e832361bb97bc19372b06e717f883daa6c309",
+  "hasta": "4abccc9d4baf3c68fc9a9345144b6174227c95e2",
+  "cobertura": "completa",
+  "base": "645e832"
+}

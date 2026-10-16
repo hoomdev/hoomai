@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T164404_f8d179",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: cockpitcmd.DepsConPlazo pone a cada comando un grupo de procesos (procesos.EnGrupo, que al cancelar mata el grupo) y WaitDelay de 1 s, asi un proceso de fondo que hereda la salida no cuelga Output. Test del test-writer (b578143): TestHallazgo_f8d179_VerTerminalConUnProcesoDeFondoQueHeredaLaSalida (responde en menos de 8 s y el proceso muere); falla sobre e8babf9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.748798Z"
+}

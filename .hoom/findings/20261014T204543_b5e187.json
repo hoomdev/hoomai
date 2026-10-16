@@ -1,0 +1,11 @@
+{
+  "id": "20261014T204543_b5e187",
+  "created_at": "2026-10-14T20:45:43.28141Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO: internal/servecmd/acciones.go:225-249 lanza agentcmd/reviewcmd dentro de una goroutine de hoom serve, pero el provider real es un proceso hijo creado con exec.CommandContext y sin process-group/Pdeathsig (internal/runcmd/runcmd.go:773-799). El contexto y su cancelacion viven solo en el padre: si serve crashea o recibe SIGKILL, el CLI puede quedar huerfano y seguir escribiendo. A la vez, tanto el sidecar como el sobre guardan PID=os.Getpid(), es decir el PID muerto de serve, por lo que el siguiente Studio los trata como interrumpidos/no busy y permite relanzar o descartar mientras el huerfano aun modifica el arbol. Esto contradice que al caer Studio el sobre muere con el y puede producir escritores concurrentes/perdida de trabajo; hace falta supervision externa o terminacion del grupo de procesos verificable antes de liberar la tarjeta.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

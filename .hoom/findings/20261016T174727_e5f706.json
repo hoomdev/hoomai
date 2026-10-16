@@ -1,0 +1,11 @@
+{
+  "id": "20261016T174727_e5f706",
+  "created_at": "2026-10-16T17:47:27.814982Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/hallazgos_b59c30_e0001e_test.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/hallazgos_b59c30_e0001e_test.go:294-315 prepara una respuesta distinta de has-session para cada fila y el doble incrementa sondeos en :98, pero ninguna asercion vuelve a leer ese contador ni exige cero sondeos despues del kill-session fallido. Como killSession ya no llama has-session, esas respuestas son inertes; una regresion que vuelva a sondear y descarte el resultado conservaria el mismo mensaje y pasaria la matriz. La cobertura E2E repite el hueco en internal/servecmd/hallazgos_c3_b59c30_e0001e_test.go:142-166,208-211: el caso colgado solo se observa si produjo un PID, el Studio permite hasta 15 s aunque su sondeo tarde 5 s, y no hay caso colgado para la CLI, cuyo DefaultDeps no tiene plazo. Queda sin guarda la propiedad de resiliencia central del arreglo: no hacer una segunda llamada a un tmux degradado, que puede dejar la CLI bloqueada indefinidamente. Exigir que no haya has-session despues del kill fallido (unidad y E2E), o cubrir el cuelgue de CLI con un limite externo.",
+  "author": "reviewer@codex",
+  "fingerprint": "9cbc0d802f2656cb",
+  "task": "fixes-cabina-c3"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203642_17225a",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: si el trabajo llego a su primer registro (Started) y termino antes de que el handler respondiera, la respuesta es 202, nunca 409 (fin.arranco). La carrera dura microsegundos y no se puede forzar desde afuera: el test del test-writer (TestHallazgo_17225a_UnTrabajoQueTerminaEnseguidaEs202, 100 lanzamientos con un CLI instantaneo) es una guarda que pasa con y sin el arreglo; el refutador mostro la carrera con un modelo del mismo select (5091 de 10.000 elegian done).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.543939Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T203754_6a6780",
+  "as": "corregido",
+  "evidence": "Corregido por cambio de diseno en c3c99e0: composeTmux ya no cierra ninguna sesion despues de que tmux new-session falla o vence su plazo (no hay has-session+kill por nombre); una sesion con un solo pane se completa en la proxima apertura. Enmienda 3 de acciones-desde-la-tarjeta aprobada por Henry (sha256 dc7cbfe1, 2026-10-15 21:00 UTC; eligio completar en vez de cerrar). Refutador (INFORME-refutador-c3-delta2-completa.md): cierto sobre b7f8302, reproducido con tmux real. Test del test-writer: TestHallazgo_6a6780_d8d246_UnNewSessionCortadoNoCierraLaSesionDeOtraApertura (plazo, Studio y CLI); falla sobre 0ab5ba0 y pasa sobre 7ed9d86.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:19:12.188707Z"
+}

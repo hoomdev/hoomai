@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203801_78f960",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: decodeStrict exige que despues del objeto no venga nada (dec.Token debe dar io.EOF), tampoco un cierre. Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_78f960_CuerpoConAlgoDespuesDelObjetoEs400 (save, discard y launch: 400 sin efectos; espacios despues siguen valiendo).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.562918Z"
+}

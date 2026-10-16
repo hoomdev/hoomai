@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T214317_050429",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 6: el tmux falso y las aperturas viven en internal/servecmd/tmuxfalso_test.go con nombres por funcion (tmuxFalso, retencion, nuevoTmuxFalso, abrirSesion, lanzarApertura, esperarApertura...) y los archivos de vueltas solo tienen tests; los de 46e17e y fa374d fallan sobre 3a8fe19 y 7565283 con los mismos mensajes que antes (diff 0 de logs normalizados). Refutador: cierto.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.531854Z"
+}

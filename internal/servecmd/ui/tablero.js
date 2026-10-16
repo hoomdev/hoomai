@@ -121,6 +121,8 @@ document.addEventListener("visibilitychange", () => {
   if (tb.on) arrancarTablero();
   if (tb.open) pedirDetalle(++tb.genD);
   if (tb.vivo.run) seguirVivo(++tb.vivo.gen);
+  // el espejo de la terminal tambien: oculta, la pagina lo dejo de pedir
+  if (tb.open && $("tb-terminal").open) pedirTerminal(++tb.term.gen);
 });
 
 /* ---------- el tablero ---------- */

@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203055_6d1d10",
+  "created_at": "2026-10-14T20:30:55.075038Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "INTRODUCIDO — internal/taskcmd/taskcmd.go:368 no valida slug antes de pasarlo a worktreeDir. Desde la CLI, hoom task discard ../.. --yes resuelve el supuesto worktree al arbol raiz; discardable acepta ese directorio Git y Discard restaura los tracked y borra los untracked fuera de .hoom, causando perdida masiva de cambios del proyecto. Validar item.ValidSlug o el slugRe antes de cualquier join destructivo. Patronizable: regla Semgrep para funciones destructivas que unan root con un slug no validado.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

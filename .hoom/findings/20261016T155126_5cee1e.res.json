@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T155126_5cee1e",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 8: el booleano real del tmux falso pasa a destinosComoTmux (buscarComoTmux, @COMOTMUX@) y su documentacion dice las cuatro cosas que cambia; el script generado es identico salvo comentarios y los 11 tests que lo usan dan el mismo resultado. Refutador: cierto en los hechos.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T16:12:13.43257Z"
+}

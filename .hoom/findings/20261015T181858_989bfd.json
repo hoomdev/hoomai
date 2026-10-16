@@ -1,0 +1,11 @@
+{
+  "id": "20261015T181858_989bfd",
+  "created_at": "2026-10-15T18:18:58.387863Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:276: el comentario de writeMeta todavía lo define como telemetría best-effort, pero el cambio hizo que devuelva error y que Start/execute lo traten como requisito de identidad, mientras settleMeta, Continue y settle descartan ese mismo error en internal/runcmd/runcmd.go:450, :795 y :1090. La API mezcla dos políticas incompatibles sin nombres ni comentarios que indiquen cuál corresponde en cada transición; actualizar el contrato y separar o explicitar las variantes obligatoria/best-effort evitaría que futuros llamadores elijan por accidente.",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}

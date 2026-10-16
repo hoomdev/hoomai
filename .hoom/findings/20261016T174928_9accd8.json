@@ -1,0 +1,11 @@
+{
+  "id": "20261016T174928_9accd8",
+  "created_at": "2026-10-16T17:49:28.89121Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/tmuxfalso_test.go",
+  "description": "INTRODUCIDO — internal/servecmd/tmuxfalso_test.go:728-833 copia casi completo el verificador de mensajes agregado en internal/cockpitcmd/tmuxdoble_test.go:51-162 (normalizacion, lista de frases, dos regex, ciAfirma, ciHechos, ciCerro y los chequeos finales). Las copias ya difieren en la firma y en como localizan el comando/original, de modo que cambiar el contrato o aceptar una redaccion nueva exige descubrir y sincronizar dos analizadores de lenguaje natural de unas cien lineas; extraer la parte comun a un soporte de tests compartido dejaria visibles solo las diferencias de cada paquete.",
+  "author": "reviewer@codex",
+  "fingerprint": "9cbc0d802f2656cb",
+  "task": "fixes-cabina-c3"
+}

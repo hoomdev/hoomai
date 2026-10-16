@@ -1,0 +1,11 @@
+{
+  "id": "20261015T214142_35a2b4",
+  "created_at": "2026-10-15T21:41:42.419058Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:236 devuelve created=true al completar una sesión de un pane que esta llamada no creó, pero Open conserva el cleanup de internal/cockpitcmd/cockpitcmd.go:375-379 y mata esa sesión si item.AddSession falla. Reproducción: un new-session anterior vence su plazo y deja el pane de IA; el reintento agrega el watch; si el item está inválido, no se puede escribir o falla la escritura atómica, kill-session elimina el CLI y su estado aunque la enmienda 3 exige que después del corte nadie cierre una sesión de propiedad ambigua. Una apertura concurrente puede sufrir la misma pérdida.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

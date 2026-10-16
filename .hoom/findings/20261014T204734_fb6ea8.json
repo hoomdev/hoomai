@@ -1,0 +1,11 @@
+{
+  "id": "20261014T204734_fb6ea8",
+  "created_at": "2026-10-14T20:47:34.269261Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:264-352: Run administra el ciclo de vida persistente del nuevo sobre con la closure cerrar, y cada salida posterior debe acordarse de invocarla manualmente (lineas 307, 320, 332 y 352). La invariante de que todo sobre iniciado termine cerrado queda dispersa dentro de una funcion larga; agregar otro retorno puede dejar un registro eternamente running. Encapsular el sobre en un helper con finalizacion garantizada (por ejemplo, un defer/finalizer con estado explicito) haria el flujo legible y seguro de extender.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

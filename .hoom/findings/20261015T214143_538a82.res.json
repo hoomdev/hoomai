@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T214143_538a82",
+  "as": "corregido",
+  "evidence": "Duplicado de 9054b0. Corregido en 40606e0 al quitar la ruta de completacion. Enmienda 4 de acciones-desde-la-tarjeta (eleccion de Henry tras la delta 3: no tocar y avisar; aprobacion pendiente al registrar este cierre). Refutador (INFORME-refutador-c3-delta3.md): cierto sobre 8918685, reproducido con tmux 3.6b real; deja de aplicar en 40606e0. El residuo pre-existente de main (split-window -t S sin '=') se trata aparte.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.519215Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261015T214142_df7e02",
+  "created_at": "2026-10-15T21:41:42.661787Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:229-236 completa cualquier sesión existente de un pane usando el provider solicitado por el reintento, y internal/cockpitcmd/cockpitcmd.go:374-375 registra ese provider sin comprobar el comando del pane sobreviviente. Si Claude dejó la sesión a medias tras vencer new-session y el reintento pide Codex, sólo se agrega el watch pero el item declara Codex; declaredWriters usa esa declaración para decidir si la review es cruzada, de modo que el recovery puede degradar una barrera de separación. Los tests nuevos sólo reintentan con el mismo provider.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261015T195555_710266",
+  "created_at": "2026-10-15T19:55:55.436535Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/runcmd/grupo.go",
+  "description": "FOLLOW-UP (lo dejo el refutador de 51d2f4 en la delta 2 de fixes-cabina-c3; lo registra el writer): runcmd.soltarGrupo y procesos (registro de grupos, Job Object de Windows) identifican el grupo de un run por el PID de su provider, que cmd.Wait ya libero. Si el SO reusa ese PID para el provider de un run nuevo antes de soltarGrupo, el kill y el borrado del registro caen sobre el grupo nuevo, y en Windows Soltar(pid) cierra su Job Object (KILL_ON_JOB_CLOSE). Nacio en esta rama (d5c2eec, 6babfea), no en main. No alcanzable en macOS (3000 de 3000 PIDs crecientes; dar la vuelta a PID_MAX tarda ~17 h al ritmo normal) ni, por asignacion secuencial, en Linux; en Windows es plausible y no se puede ejecutar aca (enmienda 2). Correccion de fondo: soltar por identidad (el *exec.Cmd o el handle del job que devuelve Adoptar) y no por PID; agrega codigo de Windows que el CI no ejecuta.",
+  "author": "writer@claude",
+  "fingerprint": "e608a01c41435f3a",
+  "task": "fixes-cabina-c3"
+}

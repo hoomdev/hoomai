@@ -1,0 +1,11 @@
+{
+  "id": "20261015T163651_cea64f",
+  "created_at": "2026-10-15T16:36:51.786017Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO. internal/runcmd/runcmd.go:447-458 declara que la antiguedad de la narracion evita confundir un PID reutilizado con un run vivo, pero el nuevo branch de child_pid en 452-453 retorna true antes de aplicar ese limite. Si el dueno muere con SIGKILL, el provider termina y su PID se reutiliza antes de abrir otro Manager, el sidecar viejo nunca se marca huerfano mientras viva el proceso ajeno; Active (603-607) tambien confia en ese child_pid y bloquea nuevos runs, Guardar y Descartar sobre el arbol. El child_pid necesita la misma comprobacion temporal/identidad que PID.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

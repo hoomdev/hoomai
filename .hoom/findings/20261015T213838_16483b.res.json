@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T213838_16483b",
+  "as": "corregido",
+  "evidence": "Corregido en 40606e0 al quitar la completacion: no hay split-window sobre una sesion ajena; el split ambiguo de una sesion recien creada por esta apertura la cierra (contrato de C1) y el reintento la arma entera. Lo de un new-session cortado que deja la sesion sin registrar es el limite declarado de la enmienda 4 (el error dice como cerrarla). Enmienda 4 de acciones-desde-la-tarjeta (eleccion de Henry tras la delta 3: no tocar y avisar; aprobacion pendiente al registrar este cierre). Refutador (INFORME-refutador-c3-delta3.md): cierto sobre 8918685, reproducido con tmux 3.6b real; deja de aplicar en 40606e0. Tests: ..._AbrirSesionAMediasQuedaComoEstaYElErrorDiceComoCerrarla.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.501049Z"
+}

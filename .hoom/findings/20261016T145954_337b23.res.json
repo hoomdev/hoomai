@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T145954_337b23",
+  "as": "corregido",
+  "evidence": "Corregido en e6b1127: split-window, select-pane (composeTmux) y list-panes (Capture) usan el destino exacto =\u003csesion\u003e: (verificado con tmux 3.6b real por el refutador y el test-writer); has-session y kill-session ya usaban =\u003csesion\u003e, exacto para ellos. Enmienda 5 de acciones-desde-la-tarjeta (ae72f20, precisada en 633d2df; aprobacion pendiente al registrar este cierre). Tests del test-writer (commit de tests de 337b23): TestHallazgo_337b23_CA347_CA348_UnaSesionQueMuereAlCrearseNoCaeEnLaDeOtraTarjeta (Studio y CLI), TestHallazgo_337b23_CA350_VerTerminalNoMuestraOtraTarjetaSiLaSesionSeCierraAlLeerla y la guarda TestCA347_CA350_Hallazgo337b23_LosComandosALaSesionUsanElDestinoExacto; fallan sobre ae72f20 y pasan sobre e6b1127.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T15:27:37.545597Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261016T155126_5cee1e",
+  "created_at": "2026-10-16T15:51:26.06743Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/tmuxfalso_test.go",
+  "description": "INTRODUCIDO — internal/servecmd/tmuxfalso_test.go:48: el booleano `real` es un nombre engañoso para un doble que nunca ejecuta tmux real y, al activarse, cambia a la vez la resolución de destinos, los errores de display/select y la salida de capture-pane (véanse también :80, :140 y hallazgos_c3_337b23_test.go:68). La asignación `f.real = true` no deja saber qué semántica necesita el test; un nombre de capacidad o un constructor de modo haría explícito el contrato y evitaría que futuros tests elijan el modo incorrecto.",
+  "author": "reviewer@codex",
+  "fingerprint": "2a1cc513218bcfe1",
+  "task": "fixes-cabina-c3"
+}

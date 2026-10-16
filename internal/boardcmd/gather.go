@@ -1,12 +1,10 @@
 package boardcmd
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -567,24 +565,18 @@ func specMatches(vspec, dir, want string) bool {
 }
 
 // porcelain lists every uncommitted path of dir, file by file (untracked
-// directories expanded), with git's own quoting turned off.
+// directories expanded). The origin of a rename is a path of its own: its
+// deletion is part of what saving has to commit (finding 186524).
 func porcelain(dir string) []string {
-	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "-z")
-	cmd.Dir = dir
-	out, err := cmd.Output()
+	cambios, err := gitx.Cambios(dir)
 	if err != nil {
 		return nil
 	}
 	var paths []string
-	fields := bytes.Split(out, []byte{0})
-	for i := 0; i < len(fields); i++ {
-		f := string(fields[i])
-		if len(f) < 4 {
-			continue
-		}
-		paths = append(paths, f[3:])
-		if f[0] == 'R' || f[0] == 'C' {
-			i++ // the origin of a rename travels in the next field
+	for _, c := range cambios {
+		paths = append(paths, c.Ruta)
+		if c.XY[0] == 'R' && c.Origen != "" {
+			paths = append(paths, c.Origen)
 		}
 	}
 	return paths

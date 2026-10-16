@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180437_78a674",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: providers.MinBudgetUSD devuelve 0 para un provider sin la capacidad budget aunque implemente BudgetFloor (spec: 'Un provider sin la capacidad budget declara 0'). Tests del test-writer en arbol limpio (entraron en e5811eb, junto con parte del codigo): fallan sobre 950b79c (el commit sin arreglos, comprobado por el writer) y pasan con el arreglo. TestHallazgo_78a674_SinCapacidadBudgetElMinimoEsCero y la propiedad ..._PropiedadElPisoSoloAplicaConBudget; la guarda ..._GuardaConCapacidadBudgetPublicaSuPiso (0.5) pasa en los dos.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.646902Z"
+}

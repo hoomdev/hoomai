@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T204428_0f7f5c",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: el Studio usa cockpitcmd.DepsConPlazo(5 s): cada llamada a tmux termina a los 5 s y una que no contesta da available false con nota. Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_0f7f5c_VerTerminalConTmuxColgadoNoSeCuelga (capture-pane colgado y todo tmux colgado: responde en menos de 8 s y el tmux colgado ya no vive).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.587587Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180011_de2a0a",
+  "as": "refutado",
+  "evidence": "Efecto del corte de la review en dos mitades: el reviewer leyo el arbol del commit sintetico A (4abccc9), donde internal/reviewcmd estaba como en la base 645e832. En ece9882 (el merge real de C3, arbol identico a B=ff9428f) el codigo esta. reviewcmd.go:196 carga declaredWriters(root, taskOf(opt)) desde las sesiones del item del arbol raiz. pickProvider evita al writer observado y a los declarados. reviewcmd.go:234 (case declarado) da no-cruzada cuando el reviewer es un writer declarado, aunque el observado sea otro, y sin --same-provider la review se niega. Sin writer observado y con declarados es cruzada-declarada, nunca cruzada. Lo fijan TestCA351_ReviewerDeclaradoEsNoCruzada, TestCA351_SinObservadoEsCruzadaDeclarada, TestCA351_WritersDeclaredDistintosOrdenadosYVacios, TestCA351_ElItemQueCuentaEsElDelArbolRaiz y TestCA351_EleccionAutomaticaEvitaObservadoYDeclarados (internal/reviewcmd/writer_declarado_test.go), que pasan en ece9882. Sigue igual en main a9a3eeb (reviewcmd.go:732, CrossDeclared) y en hoom/fixes-cabina-c2 e17c4a6 (reviewcmd.go:738).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-14T19:34:11.078796Z"
+}

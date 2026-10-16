@@ -1,0 +1,11 @@
+{
+  "id": "20261016T170320_57bd29",
+  "created_at": "2026-10-16T17:03:20.796281Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:266 toma cualquier *exec.ExitError con ExitCode()==1 como prueba de que la sesion ya no existe, aunque un fallo real del cliente tmux (conexion, permisos o lost server) tambien puede salir con codigo 1. Como QuietCmd descarta stderr, esta rama no puede distinguir ese fallo de \"can\\x27t find session\"; si la sesion sigue viva, el error omite el comando de cierre y el reintento encuentra el cockpit incompleto como existente. internal/cockpitcmd/hallazgos_b59c30_e0001e_test.go:172 no cubre el caso: representa lost server con errors.New, no con el *exec.ExitError codigo 1 que devuelve un proceso real. Mantener los exit 1 no confirmados como estado incierto o conservar/verificar el diagnostico de tmux.",
+  "author": "reviewer@codex",
+  "fingerprint": "88dc38ed4f114b30",
+  "task": "fixes-cabina-c3"
+}

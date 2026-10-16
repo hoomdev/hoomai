@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T204734_fb6ea8",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: reviewcmd.Run cierra el registro del sobre con un respaldo diferido: si alguna salida no lo cerro, queda no-entregable con nota, nunca 'en curso'. Sin cambio de comportamiento hoy (todas las salidas cierran): pasan los tests de sobre de reviewcmd (TestCA334/CA335) y la suite entera.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.599725Z"
+}

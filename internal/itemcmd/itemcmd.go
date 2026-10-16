@@ -6,10 +6,12 @@ package itemcmd
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -18,7 +20,9 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
 // Subcommands.
@@ -271,6 +275,23 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 	if err != nil {
 		return SaveResult{}, err
 	}
+	// from the check of the card to the last commit, under the lock of each
+	// tree it commits in: a run that starts meanwhile waits until it is over
+	// (finding ac2feb). The card is derived again under them.
+	unlock, err := lockArboles(root, c)
+	if err != nil {
+		return SaveResult{}, err
+	}
+	defer unlock()
+	tomados := arbolesDe(root, c)
+	if c, err = boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC()); err != nil {
+		return SaveResult{}, err
+	}
+	// the trees committed are the ones locked: a workspace that appeared
+	// between the two derivations has no lock taken (finding ebae2a)
+	if !sameSet(tomados, arbolesDe(root, c)) {
+		return SaveResult{}, fmt.Errorf("%s", ErrChanged)
+	}
 	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
 	if r := c.Running; r != nil {
 		quien := "el agente"
@@ -317,6 +338,15 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 		}
 		sha, err := commitPaths(dir, res.Message, local)
 		if err != nil {
+			if len(res.Commits) > 0 {
+				// the workspace is already saved: say so, with its commit
+				// (finding 42fa10)
+				var hechos []string
+				for _, c := range res.Commits {
+					hechos = append(hechos, fmt.Sprintf("%s en %s", short(c.SHA), c.Dir))
+				}
+				err = fmt.Errorf("%v (ya quedo guardado %s; lo que falta se guarda de nuevo desde la tarjeta)", err, strings.Join(hechos, ", "))
+			}
 			return res, err
 		}
 		res.Commits = append(res.Commits, SaveCommit{Dir: tr.rel, SHA: sha, Paths: tr.paths})
@@ -324,13 +354,69 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 	return res, nil
 }
 
+// arbolesDe are the trees saving card c commits in: its workspace (when it
+// has one) and the project, in that order.
+func arbolesDe(root string, c boardcmd.Card) []string {
+	dirs := []string{}
+	if c.Evidence.Source == boardcmd.SourceWorktree {
+		dirs = append(dirs, filepath.Join(root, filepath.FromSlash(c.Evidence.Dir)))
+	}
+	return append(dirs, root)
+}
+
+// lockArboles takes the lock of each tree of arbolesDe, in order, and returns
+// what releases them.
+func lockArboles(root string, c boardcmd.Card) (func(), error) {
+	dirs := arbolesDe(root, c)
+	var unlocks []func()
+	release := func() {
+		for i := len(unlocks) - 1; i >= 0; i-- {
+			unlocks[i]()
+		}
+	}
+	for _, d := range dirs {
+		u, err := runcmd.LockArbol(d, runcmd.EsperaArbol)
+		if err != nil {
+			release()
+			if errors.Is(err, hoomfs.ErrLocked) {
+				return nil, fmt.Errorf("un agente esta arrancando en la tarjeta %s: guardar ahora commitearia su trabajo a medias. Accion: espera a que termine", c.Slug)
+			}
+			return nil, err
+		}
+		unlocks = append(unlocks, u)
+	}
+	return release, nil
+}
+
 // commitPaths stages exactly paths and commits only them: whatever else sits
 // in the index stays there, uncommitted. The repository's hooks run.
 func commitPaths(dir, msg string, paths []string) (string, error) {
-	if out, err := git(dir, append([]string{"add", "-A", "--"}, paths...)...); err != nil {
-		return "", fmt.Errorf("git add fallo: %s", out)
+	// what is on disk is added; what is not (a deletion, also one a git rm
+	// or a git mv already staged) leaves the index: git add stops at a name
+	// that is in neither (finding 186524). The paths are names, never
+	// patterns (finding a26f9d).
+	var presentes, ausentes []string
+	for _, p := range paths {
+		if _, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(p))); os.IsNotExist(err) {
+			ausentes = append(ausentes, p)
+		} else {
+			presentes = append(presentes, p)
+		}
 	}
-	if out, err := git(dir, append([]string{"commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
+	if len(presentes) > 0 {
+		if out, err := git(dir, append([]string{"--literal-pathspecs", "add", "-A", "--"}, presentes...)...); err != nil {
+			return "", fmt.Errorf("git add fallo: %s", out)
+		}
+	}
+	if len(ausentes) > 0 {
+		cmd := exec.Command("git", "update-index", "--remove", "-z", "--stdin")
+		cmd.Dir = dir
+		cmd.Stdin = strings.NewReader(strings.Join(ausentes, "\x00") + "\x00")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git update-index fallo: %s", strings.TrimSpace(string(out)))
+		}
+	}
+	if out, err := git(dir, append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
 		return "", fmt.Errorf("git commit fallo: %s", out)
 	}
 	sha, err := git(dir, "rev-parse", "HEAD")

@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203912_dda1cc",
+  "created_at": "2026-10-14T20:39:12.64126Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO: internal/servecmd/acciones.go:198-212 crea la tarea de una tarjeta Backlog antes de abrir el log, pero si openLog falla responde 500 inmediatamente. La tarea ya quedo creada y el contrato del caso limite exige que todo fallo anterior al primer registro deje esa tarea pero responda 409 explicando que el trabajo no arranco. Es reproducible si .hoom/envelopes no puede crearse (por ejemplo existe como archivo): el estado cambia pese a una respuesta 500. Ese fallo debe pasar por el mismo cierre previo a Started/409.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

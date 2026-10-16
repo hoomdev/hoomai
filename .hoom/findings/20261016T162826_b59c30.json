@@ -1,0 +1,11 @@
+{
+  "id": "20261016T162826_b59c30",
+  "created_at": "2026-10-16T16:28:26.369726Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO: internal/cockpitcmd/cockpitcmd.go:258 toma cualquier error de tmux has-session como prueba de que la sesion ya no existe. QuietCmd tambien devuelve errores de arranque, conexion y timeout (cockpitcmd.go:63-67,94-98); si kill-session falla y este segundo sondeo falla transitoriamente mientras la sesion de un solo pane sigue viva, Open responde 'ya no existe: reintenta', pero el reintento puede encontrarla como existente, devolver created:false y dejarla sin pane de vigilancia ni registro. Los tests nuevos solo cubren ausencia real y sesion viva con has-session exitoso, no un fallo independiente del sondeo.",
+  "author": "reviewer@codex",
+  "fingerprint": "dc805ee78f9bd505",
+  "task": "fixes-cabina-c3"
+}

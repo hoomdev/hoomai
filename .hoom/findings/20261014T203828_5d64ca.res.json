@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203828_5d64ca",
+  "as": "corregido",
+  "evidence": "Es el mismo defecto que 9e2b00 (lo dijo el refutador de C3): corregido en 484ffcf con el mismo arreglo y los mismos tests (TestHallazgo_9e2b00_5d64ca_*). Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.530393Z"
+}

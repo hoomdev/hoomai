@@ -1,0 +1,11 @@
+{
+  "id": "20261015T204919_99f4f3",
+  "created_at": "2026-10-15T20:49:19.774043Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/hallazgos_c3_vuelta4_test.go",
+  "description": "INTRODUCIDO: internal/servecmd/hallazgos_c3_vuelta4_test.go:63-117 implementa v4Tmux concatenando un interceptor shell con el programa textual devuelto por v3Tmux. Para entenderlo hay que seguir estado y control implicitos entre dos scripts (los mismos argumentos, fallthrough para new-session, exits tempranos y logging repartido), y un cambio local en v3Tmux puede alterar los escenarios v4 sin que la dependencia sea visible en tipos. Un unico fake parametrizado o una interfaz de hooks explicita concentraria esa maquina de estados y haria los casos concurrentes mantenibles.",
+  "author": "reviewer@codex",
+  "fingerprint": "463286818ffca327",
+  "task": "fixes-cabina-c3"
+}

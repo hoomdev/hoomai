@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T164404_da369a",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: writeMeta devuelve error; Start falla si no pudo escribir el registro inicial y execute mata el grupo y cierra el run con error si no pudo registrar el PID del provider. Test del test-writer (20d2edd): TestHallazgo_da369a_SinRegistroDelRunNoHayRun; falla sobre e8babf9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.755528Z"
+}

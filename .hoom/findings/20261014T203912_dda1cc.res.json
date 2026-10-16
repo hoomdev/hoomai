@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203912_dda1cc",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e y e7ad7c5: el log del sobre se abre antes de crear la tarea, y la tarea se crea dentro del trabajo; si el log no se puede abrir, 500 sin crear nada (no 'tarea creada y 500'). Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_dda1cc_SinDondeEscribirElSobreNoCreaLaTarea.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.575282Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261015T164404_da369a",
+  "created_at": "2026-10-15T16:44:04.428304Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO EN LAS GARANTIAS NUEVAS. internal/runcmd/runcmd.go:265-275 define writeMeta como best-effort y descarta todo error, pero Start depende de esa escritura en 675-683 para que otro proceso detecte el run mediante Active (603-607), y execute vuelve a ignorarla al persistir child_pid en 936-939. Si el sidecar inicial o su actualizacion falla por disco lleno, permisos o E/S, el provider sigue corriendo y Start devuelve exito; otro Manager puede registrar un segundo run, o tras morir el dueno puede habilitar Guardar/Descartar mientras el provider huerfano sigue escribiendo. La identidad usada para exclusion y recovery debe persistirse de forma comprobable/fail-closed; ya no es telemetria inocua.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

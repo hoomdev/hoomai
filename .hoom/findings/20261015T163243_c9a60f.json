@@ -1,0 +1,11 @@
+{
+  "id": "20261015T163243_c9a60f",
+  "created_at": "2026-10-15T16:32:43.274624Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/servecmd/servecmd.go",
+  "description": "INTRODUCIDO. internal/servecmd/servecmd.go:903-905 solo instala la defensa anti-DNS-rebinding si isLoopback reconoce el host, pero internal/servecmd/servecmd.go:921-926 compara localhost con mayusculas/minusculas exactas. Un addr como LOCALHOST:4666 es un hostname DNS de loopback valido pero deja SoloLocal desactivado; un dominio atacante que rebindea a 127.0.0.1 conserva su Host y puede leer los GET sin token del tablero y del espejo de terminal. La deteccion del addr debe normalizar las formas equivalentes de loopback y tener una regresion para ellas.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

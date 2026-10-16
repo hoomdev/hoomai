@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T213837_48d269",
+  "as": "corregido",
+  "evidence": "Corregido en 40606e0 al quitar la completacion: ya no se cuentan panes ni se decide que el sobreviviente es la IA; una sesion de un pane (sea cual sea) es existente y no se toca. Enmienda 4 de acciones-desde-la-tarjeta (eleccion de Henry tras la delta 3: no tocar y avisar; aprobacion pendiente al registrar este cierre). Refutador (INFORME-refutador-c3-delta3.md): cierto sobre 8918685, reproducido con tmux 3.6b real; deja de aplicar en 40606e0. Tests: TestHallazgo_0fc76d_CA348_UnaSesionConUnSoloPaneCuentaComoExistente.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.488553Z"
+}

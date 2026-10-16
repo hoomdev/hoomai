@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180436_0eb3b0",
+  "as": "refutado",
+  "evidence": "Efecto del corte de la review en dos mitades: el reviewer leyo el arbol del commit sintetico A (4abccc9), donde internal/agentcmd estaba como en la base 645e832. En ece9882 (el merge real de C3, arbol identico a B=ff9428f) el codigo esta. agentcmd.Options gana EnvelopeID y Started. Run usa opt.EnvelopeID cuando viene (si no, envelope.NewID). El primer registro lleva PID: os.Getpid() (agentcmd.go:141). Started se llama una sola vez, despues de advance('spec', 1), con el registro ya en disco. Con PID, Gather resuelve la vida por el proceso (boardcmd/gather.go, envelopeAlive: PID \u003e 0 =\u003e runcmd.Alive), asi que la rama de PID si aplica a los sobres reales de hoom agent. Lo fijan TestCA335_AgentUsaElEnvelopeIDPreasignado, TestCA335_AgentStartedUnaVezConElRegistroEnDisco, TestCA335_AgentErrorAntesDelRegistroNoLlamaStarted, TestCA334_ElSobreDelAgenteLlevaSuPID (internal/agentcmd/started_pid_test.go) y TestCA333_RegistroTraePID, TestCA333_PIDDelDuenoDecideLaVida y TestCA333_RelevoDeUnSobreMuerto (internal/boardcmd/relevo_pid_test.go), que pasan en ece9882. Sigue igual en main a9a3eeb y en hoom/fixes-cabina-c2 e17c4a6 (agentcmd.go:145).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-14T19:34:22.31641Z"
+}

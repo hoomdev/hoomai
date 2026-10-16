@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T162826_b59c30",
+  "as": "corregido",
+  "evidence": "Corregido en c0179f2 (y la redaccion en el commit siguiente): killSession, tras un kill-session fallido, dice 'ya no existe' solo si tmux has-session sale con codigo 1 (*exec.ExitError); si el sondeo sale bien, 'quedo abierta' con el comando de cierre; si el sondeo vence, no arranca o sale por senal, 'no pude saber si sigue abierta' con el comando. Refutador (INFORME-refutador-c3-delta4.md): el borde reproducido con EAGAIN y SIGSTOP. Tests del test-writer (commit de tests de b59c30/e0001e): TestCA347_CA348_HallazgosB59c30E0001e_ElErrorDiceLaVerdadSobreLaSesion (12 variantes del estado C, cockpitcmd) y ..._AbrirSesionConUnSondeoQueNoConfirmaNada (5, servecmd); fallan sobre d207ade y pasan sobre el arreglo.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T16:46:02.264366Z"
+}

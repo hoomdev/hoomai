@@ -1,0 +1,11 @@
+{
+  "id": "20261014T203055_3362b6",
+  "created_at": "2026-10-14T20:30:55.56037Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/servecmd/servecmd.go",
+  "description": "INTRODUCIDO — internal/servecmd/servecmd.go:326 registra GET /api/board/{slug}/terminal sin authed y internal/servecmd/acciones.go:479 devuelve el contenido capturado del pane. El servidor tampoco valida Host u Origin, por lo que una pagina puede usar DNS rebinding contra el listener loopback; con --addr no-loopback cualquier cliente de red puede leerlo directamente. Esto expone prompts, codigo y posibles secretos de la terminal sin conocer el token. Exigir autenticacion de lectura o una defensa estricta de Host/Origin. Patronizable: regla Semgrep que marque rutas terminal/capture registradas fuera de authed.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

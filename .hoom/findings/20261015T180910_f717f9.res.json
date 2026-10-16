@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T180910_f717f9",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en 933f318: TestHallazgo_ebae2a ya no duerme 500 ms; un intento solo cuenta si se vio a Guardar esperando en runcmd.LockArbol antes de crear el espacio de trabajo y sigue esperando al soltar la raiz, si no se repite (hasta 6) y falla diciendolo. Refutador B: cierto en la causa (podia pasar en vacio), no en el timeout. Falla sobre e8babf9 en el primer intento; 10 de 10 verde sobre el arreglo, con -race 5 de 5 y GOMAXPROCS=1 5 de 5.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.923143Z"
+}

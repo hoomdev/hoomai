@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T213400_c8227b",
+  "as": "corregido",
+  "evidence": "Corregido en 40606e0 al quitar la completacion de la vuelta 5: Open solo cuenta como creada (y solo entonces registra o cierra por fallo de AddSession) una sesion que su propio new-session creo; una sesion preexistente da created=false y no se toca. Enmienda 4 de acciones-desde-la-tarjeta (eleccion de Henry tras la delta 3: no tocar y avisar; aprobacion pendiente al registrar este cierre). Refutador (INFORME-refutador-c3-delta3.md): cierto sobre 8918685, reproducido con tmux 3.6b real; deja de aplicar en 40606e0. Tests: TestHallazgo_0fc76d_CA348_UnaSesionConUnSoloPaneCuentaComoExistente y ..._AbrirSesionAMediasQuedaComoEstaYElErrorDiceComoCerrarla (commit de tests de la vuelta 6), rojos sobre 894c67e y verdes sobre 40606e0.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.456812Z"
+}

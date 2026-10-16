@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180010_3113eb",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: taskcmd.Discard corre git restore y git rm con --literal-pathspecs, asi que un archivo llamado ':(glob)**', ':!app.go', ':(top)x' o '*.go' es un nombre, nunca un patron, y nada mas del indice ni de .hoom/ cambia (CA-346). Tests del test-writer en arbol limpio (entraron en e5811eb, junto con parte del codigo): fallan sobre 950b79c (el commit sin arreglos, comprobado por el writer) y pasan con el arreglo. TestHallazgo_3113eb_CA346_NombreLiteralNuevoSinRastrear, ..._NombreLiteralNuevoEnElIndice y ..._NombreLiteralEnHEADModificado, con los cuatro nombres.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.604637Z"
+}

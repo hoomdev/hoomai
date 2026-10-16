@@ -1,0 +1,11 @@
+{
+  "id": "20261014T180436_db973e",
+  "created_at": "2026-10-14T18:04:36.435741Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:9-11 conserva la review fuera de un sobre y internal/reviewcmd/reviewcmd.go:235-272 ejecuta las lentes sin crear ni actualizar envelope.Record. Una review nunca produce ghost ni estado interrupted, no puede reanudarse o relanzarse como tarjeta y su caída no queda representada por el ciclo de sobre exigido por C3.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

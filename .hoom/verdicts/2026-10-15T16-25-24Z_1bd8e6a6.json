@@ -1,0 +1,133 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-15T16-25-24Z_1bd8e6a6",
+  "created_at": "2026-10-15T16:25:24.294653Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "c804546aa21e",
+    "branch": "hoom/fixes-cabina-c3",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/acciones-desde-la-tarjeta_bbc78a95.json",
+      ".hoom/specs/acciones-desde-la-tarjeta.md",
+      "internal/agentcmd/agentcmd.go",
+      "internal/boardcmd/acciones.go",
+      "internal/boardcmd/gather.go",
+      "internal/boardcmd/hallazgos_c3_test.go",
+      "internal/cockpitcmd/cockpitcmd.go",
+      "internal/gitx/diff.go",
+      "internal/itemcmd/hallazgos_c3_test.go",
+      "internal/itemcmd/hallazgos_candado_test.go",
+      "internal/itemcmd/itemcmd.go",
+      "internal/providers/hallazgos_c3_test.go",
+      "internal/providers/providers.go",
+      "internal/reviewcmd/hallazgos_c3_mitad2_test.go",
+      "internal/reviewcmd/reviewcmd.go",
+      "internal/runcmd/grupo_unix.go",
+      "internal/runcmd/grupo_windows.go",
+      "internal/runcmd/hallazgos_c3_mitad2_test.go",
+      "internal/runcmd/hallazgos_c3_mitad2_unix_test.go",
+      "internal/runcmd/hallazgos_candado_test.go",
+      "internal/runcmd/runcmd.go",
+      "internal/servecmd/acciones.go",
+      "internal/servecmd/hallazgos_c3_test.go",
+      "internal/servecmd/hallazgos_c3_ui_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/servecmd/ui/acciones.js",
+      "internal/servecmd/ui/tablero.js",
+      "internal/taskcmd/hallazgos_c3_test.go",
+      "internal/taskcmd/taskcmd.go"
+    ],
+    "change_fingerprint": "356d653f54478c3f",
+    "insertions": 5115,
+    "deletions": 189
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 17,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 9 medium, 2 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 2242
+    },
+    {
+      "name": "lint",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: golangci-lint run (requiere instalarlo; config .golangci.yml)."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 419
+    },
+    {
+      "name": "security",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits (pip install semgrep). Diff: agrega --baseline-commit {base}. Reglas propias del proyecto: agrega --config .hoom/semgrep/. En proyectos con auth/pagos/DTE: required: true."
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race ./internal/agentcmd ./internal/boardcmd ./internal/cockpitcmd ./internal/gitx ./internal/itemcmd ./internal/providers ./internal/reviewcmd ./internal/runcmd ./internal/servecmd ./internal/taskcmd",
+      "exit_code": 0,
+      "duration_ms": 588581,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t340.484s\nok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t217.189s\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t6.740s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t16.163s\nok  \tgithub.com/hoomdev/hoomai/internal/itemcmd\t55.608s\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t1.342s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t581.231s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t18.324s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t180.483s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t61.372s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 4,
+    "fail": 0,
+    "error": 0,
+    "absent": 4,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

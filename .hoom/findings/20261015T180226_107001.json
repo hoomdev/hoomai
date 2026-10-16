@@ -1,0 +1,11 @@
+{
+  "id": "20261015T180226_107001",
+  "created_at": "2026-10-15T18:02:26.850703Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/runcmd/grupo.go",
+  "description": "PRE-EXISTENTE / follow-up — internal/runcmd/grupo.go:49-53 llama cmd.Start antes de procesos.Adoptar. En Windows el provider corre desde que Start retorna, por lo que puede crear un hijo antes de AssignProcessToJobObject (internal/procesos/procesos_windows.go:78-103); los hijos ya creados no se incorporan retroactivamente al Job Object. Como MatarGrupo usa solo el job cuando existe, ese hijo temprano puede sobrevivir al cierre o cancelacion del run y seguir escribiendo en un arbol ya considerado libre. El test de internal/procesos/procesos_windows_test.go bloquea al hijo por stdin hasta despues de Adoptar y no cubre la ventana. La fuga de descendientes ya existia en la implementacion Windows anterior, asi que es seguimiento y no bloqueo de este delta.",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}

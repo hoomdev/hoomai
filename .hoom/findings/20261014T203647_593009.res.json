@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203647_593009",
+  "as": "corregido",
+  "evidence": "Ya corregido despues de C3 por 5b292f6 (fixes de C1, PR 34; hallazgo 151300): Started solo despues de que el primer registro del sobre quedo en disco. El refutador de C3: TestHallazgo_151300_AgentConStartedNoArrancaSinPrimerRegistro falla copiado contra ece9882; los 4 TestHallazgo_151300_* de agentcmd y reviewcmd pasan en a9a3eeb y 985f9f2.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T20:57:08.253076Z"
+}

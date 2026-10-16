@@ -1,0 +1,11 @@
+{
+  "id": "20261014T180437_42fa10",
+  "created_at": "2026-10-14T18:04:37.326251Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:295-315 commitea primero el worktree y después el árbol raíz, retornando error inmediatamente si falla el segundo commit. Un hook o fallo del commit raíz deja el worktree ya guardado aunque la operación se reporta fallida; las rutas ya no quedan todas en el índice como promete el caso de error y el reintento observa un conjunto distinto.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

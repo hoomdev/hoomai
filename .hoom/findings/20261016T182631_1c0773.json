@@ -1,0 +1,11 @@
+{
+  "id": "20261016T182631_1c0773",
+  "created_at": "2026-10-16T18:26:31.162377Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/cierretmuxtest/mensaje.go",
+  "description": "INTRODUCIDO — internal/cierretmuxtest/mensaje.go:102: la logica comun se extrajo a un paquete sin tests propios, mientras las matrices que definen sus frases aceptadas quedaron duplicadas y parcialmente distintas en internal/cockpitcmd/hallazgos_b59c30_e0001e_test.go:446 e internal/servecmd/hallazgos_c3_b59c30_e0001e_test.go:354; esta ultima aun se describe como «la copia de servecmd» en :349. La especificacion del parser queda dispersa entre consumidores y exige reconciliar ambos al cambiarla; el paquete comun deberia poseer la matriz comun y cada consumidor probar solo su busqueda especifica.",
+  "author": "reviewer@codex",
+  "fingerprint": "a3c8702621c7683b",
+  "task": "fixes-cabina-c3"
+}

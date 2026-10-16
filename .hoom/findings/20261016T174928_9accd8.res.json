@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T174928_9accd8",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 11: la parte comun del verificador del mensaje vive en internal/cierretmuxtest (solo para tests, fuera del binario segun go list -deps ./cmd/...); cada paquete conserva lo propio; prueba diferencial de 300.000 mensajes contra las copias viejas sin diferencias. Refutador: cierto (65 de 66 lineas identicas).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T18:06:48.81416Z"
+}

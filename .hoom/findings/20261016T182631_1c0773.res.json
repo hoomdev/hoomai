@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T182631_1c0773",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 12: internal/cierretmuxtest/mensaje_test.go tiene la matriz comun (12 casos del verificador y 4 de DiceQueLaCerro, con los mismos resultados) mas el contrato de retorno; cada consumidor conserva solo su caso propio; sin el comentario de 'copia'. Refutador: cierto (sin tests propios; 14 casos distintos repartidos entre dos matrices).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T19:16:57.134268Z"
+}

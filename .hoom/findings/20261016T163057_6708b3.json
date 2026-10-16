@@ -1,0 +1,11 @@
+{
+  "id": "20261016T163057_6708b3",
+  "created_at": "2026-10-16T16:30:57.784745Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:249: el comentario de killSession afirma que el error solo distingue entre una sesión cerrada y una que sigue abierta, pero este cambio añade un tercer retorno en la línea 259 para una sesión que ya desapareció. La documentación del helper queda incompleta y puede inducir a futuros cambios a omitir ese estado; enumera también el caso 'ya no existe'.",
+  "author": "reviewer@codex",
+  "fingerprint": "dc805ee78f9bd505",
+  "task": "fixes-cabina-c3"
+}

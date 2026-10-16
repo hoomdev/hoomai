@@ -1,0 +1,11 @@
+{
+  "id": "20261014T204734_fdccff",
+  "created_at": "2026-10-14T20:47:34.045688Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO — internal/servecmd/acciones.go:214-267: el endpoint decide el error HTTP de un trabajo que termina antes de Started tomando la ultima linea del texto humano escrito por agentcmd/reviewcmd (tail + lastLine). Esto acopla la API al formato de salida de los comandos y deja oculto el contrato entre la goroutine y el handler: un cambio inocente de mensajes puede cambiar la respuesta del endpoint. Conviene devolver por el canal un resultado estructurado (estado/nota/error) en vez de raspar la presentacion CLI.",
+  "author": "reviewer@codex",
+  "fingerprint": "86354f7f7056dbed",
+  "task": "acciones-desde-la-tarjeta"
+}

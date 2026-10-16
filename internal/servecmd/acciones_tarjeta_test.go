@@ -826,8 +826,9 @@ type atTerminal struct {
 }
 
 // CA-350: GET /api/board/{slug}/terminal, sin token, responde el text de
-// tmux capture-pane -p -e del PRIMER pane que lista list-panes -t =<sesion>
-// (%3), con sus secuencias de color, cortado en 256 KiB. Sin sesion o sin
+// tmux capture-pane -p -e del PRIMER pane que lista list-panes -t =<sesion>:
+// (%3; el destino con los dos puntos es el de la ENMIENDA 5 (n), hallazgo
+// 337b23), con sus secuencias de color, cortado en 256 KiB. Sin sesion o sin
 // tmux responde 200 con available false y la nota del contrato. Otro metodo
 // es 405, un slug invalido 400, una tarjeta inexistente 404, y leer deja el
 // repo y .hoom/ byte a byte iguales.
@@ -858,9 +859,11 @@ func TestCA350_VerTerminalEsUnaLectura(t *testing.T) {
 		t.Fatalf("CA-350: text es la pantalla con sus secuencias de color: %q", term.Text)
 	}
 	lineas := atLineas(t, log)
+	// el destino exacto `=<session>:` es el contrato de la enmienda 5 (antes
+	// este test solo pedia que contuviera `=<session>`)
 	panes := atConVerbo(lineas, "list-panes")
-	if len(panes) == 0 || !strings.Contains(panes[0], "="+nombre) {
-		t.Fatalf("CA-350: el pane sale de tmux list-panes -t =%s: %q", nombre, lineas)
+	if len(panes) == 0 || flagDeTmux(panes[0], "-t") != "="+nombre+":" {
+		t.Fatalf("CA-350 (enmienda 5): el pane sale de tmux list-panes -t =%s: (con los dos puntos): %q", nombre, lineas)
 	}
 	capturas := atConVerbo(lineas, "capture-pane")
 	if len(capturas) == 0 {

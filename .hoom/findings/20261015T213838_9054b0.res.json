@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T213838_9054b0",
+  "as": "corregido",
+  "evidence": "Corregido en 40606e0 en la forma descrita: la ruta de completacion (list-panes y luego split-window sobre una sesion preexistente) ya no existe. Enmienda 4 de acciones-desde-la-tarjeta (eleccion de Henry tras la delta 3: no tocar y avisar; aprobacion pendiente al registrar este cierre). Refutador (INFORME-refutador-c3-delta3.md): cierto sobre 8918685, reproducido con tmux 3.6b real; deja de aplicar en 40606e0. El split-window por prefijo de una sesion recien creada que muere antes del split viene de main (b7e0480:192/198) y el refutador lo registra aparte (decision pendiente: follow-up o '=S:').",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.513207Z"
+}

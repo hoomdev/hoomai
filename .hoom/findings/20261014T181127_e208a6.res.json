@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T181127_e208a6",
+  "as": "corregido",
+  "evidence": "Corregido en e5811eb: gitx.Cambios es el unico lector de 'git status --porcelain -z' (con el origen de renames y copias); lo usan boardcmd (gather), taskcmd (Discard) y agentcmd (el sobre), que antes tenian tres parsers propios. Sin cambio de comportamiento salvo el de 186524: pasan enteros gitx, taskcmd, boardcmd, agentcmd e itemcmd.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.664513Z"
+}

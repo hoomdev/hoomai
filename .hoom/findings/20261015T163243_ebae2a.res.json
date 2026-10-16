@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T163243_ebae2a",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: itemcmd.Save toma los candados de los arboles de la primera tarjeta, la vuelve a derivar bajo ellos y si los arboles cambiaron se niega con ErrChanged sin commitear. Test del test-writer (20d2edd): TestHallazgo_ebae2a_CA344_GuardarNoCommiteaUnArbolCuyoCandadoNoTomo; falla sobre e8babf9.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.701636Z"
+}

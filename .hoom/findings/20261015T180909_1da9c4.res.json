@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T180909_1da9c4",
+  "as": "corregido",
+  "evidence": "Corregido en 1647c34: Input escribe el registro del run antes de tocar el estado en memoria; si no puede, devuelve error y deja el run como estaba (terminal, arbol libre). Refutador: cierto (reproducido con un fallo transitorio, 15 de 15). Tests del test-writer (933f318): TestHallazgo_1da9c4_CA346_InputSinRegistroNoContinua (.hoom/runs 0555; variante chflags solo macOS) y la guarda ..._GuardaInputConRegistroContinua; falla sobre 7565283 (Input devolvia nil).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.910038Z"
+}

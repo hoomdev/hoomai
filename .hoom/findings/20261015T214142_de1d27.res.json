@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T214142_de1d27",
+  "as": "corregido",
+  "evidence": "Duplicado de 48d269. Corregido en 40606e0 al quitar la completacion. Enmienda 4 de acciones-desde-la-tarjeta (eleccion de Henry tras la delta 3: no tocar y avisar; aprobacion pendiente al registrar este cierre). Refutador (INFORME-refutador-c3-delta3.md): cierto sobre 8918685, reproducido con tmux 3.6b real; deja de aplicar en 40606e0. Tests: los de 48d269.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.494972Z"
+}

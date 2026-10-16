@@ -1,0 +1,11 @@
+{
+  "id": "20261014T180925_ac2feb",
+  "created_at": "2026-10-14T18:09:25.837147Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:262 deriva la tarjeta y comprueba Running una sola vez (linea 267), pero no reserva ninguno de los arboles antes de ejecutar git add/commit en la linea 310. Un run de otra terminal puede empezar despues del chequeo; Save puede entonces commitear un estado a medio escribir y mover HEAD mientras el agente sigue trabajando, pese a que el contrato exige negarse con la tarjeta en curso. Se necesita exclusion compartida que abarque la validacion y ambos commits.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

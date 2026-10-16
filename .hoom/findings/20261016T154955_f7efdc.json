@@ -1,0 +1,11 @@
+{
+  "id": "20261016T154955_f7efdc",
+  "created_at": "2026-10-16T15:49:55.092101Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "PRE-EXISTENTE, follow-up no bloqueante: internal/cockpitcmd/cockpitcmd.go:255-256 trata cualquier fallo de kill-session como prueba de que la sesion quedo abierta. Cuando el split-window de destino exacto falla porque la sesion recien creada ya murio (escenario ejercitado en internal/servecmd/hallazgos_c3_337b23_test.go:175-197), kill-session responde que no encuentra la sesion y Open informa falsamente que sigue abierta y exige cerrarla a mano, aunque el reintento ya es seguro. Distinguir una sesion ausente de un cierre realmente fallido para que la recuperacion no mande ejecutar un comando innecesario que tambien fallara.",
+  "author": "reviewer@codex",
+  "fingerprint": "2a1cc513218bcfe1",
+  "task": "fixes-cabina-c3"
+}

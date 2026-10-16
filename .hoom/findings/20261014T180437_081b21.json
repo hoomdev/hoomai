@@ -1,0 +1,11 @@
+{
+  "id": "20261014T180437_081b21",
+  "created_at": "2026-10-14T18:04:37.10526Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "cmd/hoom/main.go",
+  "description": "INTRODUCIDO — cmd/hoom/main.go:898-928 solo despacha start, list y done; nunca invoca taskcmd.RunDiscard. Aunque la rama implementa hoom task discard en taskcmd, el binario responde subcomando desconocido, así que el verbo requerido y su confirmación --yes son inaccesibles.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

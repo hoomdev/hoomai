@@ -1,0 +1,11 @@
+{
+  "id": "20261015T214143_a84409",
+  "created_at": "2026-10-15T21:41:43.141458Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:233-235 devuelve error si split-window falla al completar una sesión preexistente, pero el cliente tmux puede haber creado el watch antes de colgarse, perder la respuesta o vencer su plazo. Open no ejecuta AddSession y deja dos panes; el siguiente intento cae por internal/cockpitcmd/cockpitcmd.go:230-231 como sesión ya completa, devuelve created=false y nunca registra al writer. El recovery queda permanentemente desincronizado entre tmux y el item.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

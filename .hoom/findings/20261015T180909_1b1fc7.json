@@ -1,0 +1,11 @@
+{
+  "id": "20261015T180909_1b1fc7",
+  "created_at": "2026-10-15T18:09:09.80388Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/servecmd/servecmd.go",
+  "description": "INTRODUCIDO — internal/servecmd/servecmd.go:903-914 ahora clasifica localhost.:4666 como bind loopback mediante isLoopback, pero la lista de Host admitidos solo contiene localhost:4666. Run imprime y sirve http://localhost.:4666/ (:884-886); un navegador que abre esa URL envia Host localhost.:4666 y recibe 421 en cada pedido. El test nuevo evita el caso real porque para addr localhost.:4666 fuerza Host localhost:4666 (internal/servecmd/hallazgos_c3_test.go:613-626).",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}

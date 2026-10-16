@@ -9,6 +9,7 @@ package cockpitcmd
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -71,6 +73,39 @@ func DefaultDeps() Deps {
 		Getenv:  os.Getenv,
 		HoomBin: bin,
 	}
+}
+
+// DepsConPlazo is DefaultDeps whose probes end after plazo. The Studio calls
+// tmux inside an HTTP request (Abrir sesion, Ver terminal): a tmux that hangs
+// must not hold the request, nor the goroutine behind it, for ever (finding
+// 0f7f5c). A probe cut by its plazo fails like one that did not answer, and
+// takes with it what it launched: it runs in a group of its own, and its
+// output is not awaited past a second more (finding f8d179).
+func DepsConPlazo(plazo time.Duration) Deps {
+	d := DefaultDeps()
+	conPlazo := func(dir, name string, args ...string) (*exec.Cmd, context.CancelFunc) {
+		ctx, cancel := context.WithTimeout(context.Background(), plazo)
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Dir = dir
+		procesos.EnGrupo(cmd)
+		cmd.WaitDelay = time.Second
+		return cmd, cancel
+	}
+	d.QuietCmd = func(dir, name string, args ...string) error {
+		cmd, cancel := conPlazo(dir, name, args...)
+		defer cancel()
+		return cmd.Run()
+	}
+	// the Studio's steps (new-session, split-window) too, without the
+	// server's own terminal: nobody is there to type into them (finding
+	// 1ceba2)
+	d.RunCmd = d.QuietCmd
+	d.Output = func(dir, name string, args ...string) ([]byte, error) {
+		cmd, cancel := conPlazo(dir, name, args...)
+		defer cancel()
+		return cmd.Output()
+	}
+	return d
 }
 
 var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
@@ -182,33 +217,54 @@ func resolveProvider(name string, deps Deps) (string, string, error) {
 // composeTmux composes the tmux session if it does not exist yet: AI pane
 // ~70%, watch pane beside it, both rooted at dir. Idempotent by session name;
 // it reports whether it created the session. It never attaches.
+//
+// After new-session fails or runs out of time it leaves the session as it
+// is, neither closed nor completed: it cannot tell whether it created it or
+// another opening of the same card did, nor which provider runs in its pane.
+// The error says how to close a half-built one by hand, and until then it
+// counts as existing (enmienda 4).
 func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
-	if deps.QuietCmd(dir, "tmux", "has-session", "-t", session) == nil {
+	// exactly this session (=): tmux matches a prefix too, and with fix-login
+	// open the card fix would find it and build nothing (finding fa374d)
+	if deps.QuietCmd(dir, "tmux", "has-session", "-t", "="+session) == nil {
 		return false, nil
 	}
 	if err := deps.RunCmd(dir, "tmux", "new-session", "-d", "-s", session, "-c", dir, aiBin); err != nil {
-		return false, err
+		return false, fmt.Errorf("%w; si la sesion %s quedo a medias (sin el pane de vigilancia), cerrala y reintenta: %s", err, session, comandoCierre(session))
 	}
-	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", session, "-c", dir, watchCommand(deps)); err != nil {
-		// a half-built cockpit would be "found" by the next try and never
-		// completed: it goes, and the next try builds it whole
+	// =<session>: is exactly this session's window: a bare name is looked up
+	// as a window first and then as a session prefix, and the watch pane
+	// would land in another card's session if this one already died
+	// (finding 337b23)
+	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", "="+session+":", "-c", dir, watchCommand(deps)); err != nil {
+		// this opening just created the session: a half-built cockpit of its
+		// own goes, and the next try builds it whole
 		return false, killSession(dir, session, deps, err)
 	}
 	// foco inicial en el pane de la IA; cosmetico, jamas fatal
-	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", session, "-L")
+	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", "="+session+":", "-L")
 	return true, nil
 }
 
 // killSession closes exactly session (= : no prefix match on another one)
 // after cause went wrong, and returns cause saying what happened to the
-// session: closed, so the next try starts over, or still open, with the
-// command that closes it (a promise it cannot keep would hide a cockpit the
-// next try never completes).
+// session: closed, so the next try starts over; or not closed, and then the
+// error does not claim whether it is still open (tmux exits with 1 both when
+// the session is gone and when its own client fails, so its exit status
+// cannot prove either): it says how to close it if it still is (findings
+// f7efdc, b59c30, e0001e, 9c1816, 57bd29, 03481c).
 func killSession(dir, session string, deps Deps, cause error) error {
 	if err := deps.QuietCmd(dir, "tmux", "kill-session", "-t", "="+session); err != nil {
-		return fmt.Errorf("%w; la sesion %s quedo abierta y no pude cerrarla (%v): cerrala con 'tmux kill-session -t =%s' y reintenta", cause, session, err, session)
+		return fmt.Errorf("%w; no pude cerrar la sesion %s (%v) y no pude saber si sigue abierta: si sigue, cerrala y reintenta: %s", cause, session, err, comandoCierre(session))
 	}
 	return fmt.Errorf("%w; cerre la sesion %s para que el proximo intento la arme entera", cause, session)
+}
+
+// comandoCierre is the command that closes exactly session, written to be
+// pasted in a shell: the target goes quoted, since zsh expands a word that
+// starts with = as the path of a command (finding db8541).
+func comandoCierre(session string) string {
+	return "tmux kill-session -t '=" + session + "'"
 }
 
 // runZellij writes the KDL layout under .hoom/cache/ (the only place the
@@ -323,7 +379,10 @@ func Capture(root, project, slug string, deps Deps) (Terminal, error) {
 		t.Note = "no hay una sesion abierta para esta tarjeta"
 		return t, nil
 	}
-	out, err := deps.Output(root, "tmux", "list-panes", "-t", "="+t.Session, "-F", "#{pane_id}")
+	// =<session>: is exact; =<session> alone is not for list-panes, and a
+	// session closed after has-session would list another card's panes
+	// (finding 337b23)
+	out, err := deps.Output(root, "tmux", "list-panes", "-t", "="+t.Session+":", "-F", "#{pane_id}")
 	if err != nil {
 		t.Note = "no hay una sesion abierta para esta tarjeta"
 		return t, nil

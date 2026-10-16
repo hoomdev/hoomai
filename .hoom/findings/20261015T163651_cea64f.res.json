@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T163651_cea64f",
+  "as": "corregido",
+  "evidence": "Corregido en 95310f3: el child_pid solo cuenta como vivo si procesos.MismoProceso confirma que es el mismo proceso (hora de arranque con ps -o lstart, +-3 s, contra child_started_at); un PID reusado no mantiene el run activo. Sin cota de tiempo, por la letra de la enmienda 1. Tests del test-writer (20d2edd): TestHallazgo_cea64f_ChildPIDReusadoNoCuentaComoActivo (falla sobre e8babf9) y la guarda TestHallazgo_cea64f_GuardaElMismoProviderSiCuenta.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T17:36:49.742295Z"
+}

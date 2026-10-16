@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T181642_0fc76d",
+  "as": "corregido",
+  "evidence": "Corregido en 1647c34: si tmux new-session falla y has-session -t =\u003csesion\u003e la encuentra, la sesion a medias se cierra con killSession y el proximo intento la arma entera. Refutador B: cierto, reproducido con tmux 3.6b real; el fix probado con tmux real. Test del test-writer (0639223): TestHallazgo_0fc76d_AbrirSesionAMediasNoQuedaYElReintentoLaArma; falla sobre 7565283.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T19:07:10.936779Z"
+}

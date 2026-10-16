@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T213427_7fe8f0",
+  "as": "corregido",
+  "evidence": "Corregido en 40606e0 al quitar la completacion: solo se registra en el item la sesion que esta apertura lanzo con su propio provider (new-session con su aiBin); una sesion preexistente no se registra, asi que no se declara un provider que no es el del pane. Enmienda 4 de acciones-desde-la-tarjeta (eleccion de Henry tras la delta 3: no tocar y avisar; aprobacion pendiente al registrar este cierre). Refutador (INFORME-refutador-c3-delta3.md): cierto sobre 8918685, reproducido con tmux 3.6b real; deja de aplicar en 40606e0. (con codex pedido sobre un pane de claude: sesiones=[] en 40606e0). Tests: TestHallazgo_0fc76d_CA348_UnaSesionConUnSoloPaneCuentaComoExistente (item sin entradas).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:59:27.475863Z"
+}

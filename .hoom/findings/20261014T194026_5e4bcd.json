@@ -1,0 +1,11 @@
+{
+  "id": "20261014T194026_5e4bcd",
+  "created_at": "2026-10-14T19:40:26.941791Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "INTRODUCIDO por C3 (lo encontro el refutador de la review de C3, mitad 1, fuera de la lista; lo registra el writer): Descartar con un repo anidado sin seguimiento ('?? anidado/') restaura los demas archivos y despues falla con 'no pude borrar anidado/: directory not empty', porque os.Remove no borra un directorio con contenido. Queda un estado a medias, el 409 del Studio descarta el resultado parcial y la tarjeta ofrece Descartar para siempre. Pasa igual en main. Correccion minima: decidir antes de tocar nada si alguna ruta a borrar es un directorio no vacio (o un repo anidado) y negarse con un mensaje, o borrarla entera si eso es lo que pide CA-346.",
+  "author": "refutador@claude",
+  "fingerprint": "120cc17251989a0c",
+  "task": "fixes-cabina-c3"
+}

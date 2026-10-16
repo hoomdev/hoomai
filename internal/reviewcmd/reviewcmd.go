@@ -45,6 +45,13 @@ import (
 // the highest findings has already run; reliability keeps the second place.
 var Lentes = []string{"risk", "reliability", "resilience", "readability"}
 
+// CantidadDeLentes is len(Lentes) as an untyped constant, so a budget in USD
+// splits by it: whoever splits a review among its passes counts here, never
+// with a 4 of its own (finding 285834). Go cannot take the length of a slice
+// as a constant: the guard of that finding checks that the two agree, and
+// the one of 9a93be that no lens is empty or repeated.
+const CantidadDeLentes = 4
+
 // LenteDominante is the lens of a standard change. It is FIXED instead of
 // guessed from the content: guessing would be the model's judgement wearing a
 // deterministic costume. Whoever knows their change is of another nature says
@@ -623,7 +630,11 @@ type Result struct {
 	Passes          []Pass   `json:"passes"`
 	Findings        []string `json:"findings"` // union of the passes
 	Status          string   `json:"status"`   // revisado | sin-revisar | no-entregable
-	ExitCode        int      `json:"exit_code"`
+	// Nota is why a review was not reviewed or not deliverable: what its
+	// last line says. The Studio answers with it (finding fdccff); the JSON
+	// already carries the same through status and exit_code.
+	Nota     string `json:"-"`
+	ExitCode int    `json:"exit_code"`
 	// RecordID names the review record written in .hoom/reviews/ when the
 	// review ended revisado; empty otherwise.
 	RecordID string `json:"record_id,omitempty"`
@@ -734,8 +745,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// what was reviewed, and it never continues a chain
 		rng.cobertura, rng.desdeReview = CoberturaParcial, ""
 	}
+	declarados, err := declaredWriters(root, taskOf(opt))
+	if err != nil {
+		return Result{}, err
+	}
 	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{},
-		WritersDeclared: declaredWriters(root, taskOf(opt))}
+		WritersDeclared: declarados}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
 	res.Base = rng.baseNombre
 	var notas []string
@@ -814,10 +829,27 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "  aviso: no pude resolver este binario (%v): el reviewer usara el hoom de su PATH\n", err)
 	}
 
+	comun := pedidoComun(rng.baseNombre, git, rng, opt.Spec, v, ev)
+	opcionesDe := func(lens string) runcmd.StartOptions {
+		return runcmd.StartOptions{
+			Provider: prov.Name(), Prompt: pedido(comun, lens, role, prov.Name(), bin),
+			Task: opt.Task, FindingTask: findingTask(opt), Role: role.Slug, SystemPrompt: contract,
+			Model: opt.Model, Effort: opt.Effort, Isolated: isolated, PromptStdin: true, ReadOnly: readOnly, Exec: exec,
+			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
+		}
+	}
+	// a provider that does not take what the review asks for (a cap of
+	// turns, a budget) is decided before the first pass, like one that is
+	// not installed: no record (finding ccf0ab)
+	if err := runcmd.Check(opcionesDe(lentes[0])); err != nil {
+		return res, err
+	}
+
 	// El registro del sobre de la review: lo mismo que deja `hoom agent`, asi
 	// el tablero ve la review en curso, cortada o fallida como a cualquier
 	// rol. Nace ANTES de la primera pasada: lo que se decidio antes (sin
-	// lentes, no cruzada) no corrio nada y no deja registro.
+	// lentes, no cruzada, un provider que no toma lo pedido) no corrio nada y
+	// no deja registro.
 	id := strings.TrimSpace(opt.EnvelopeID)
 	if id == "" {
 		id = envelope.NewID()
@@ -838,7 +870,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// cerrarSobre settles the envelope record; terminar is the one terminal
 	// transition of a review that ends in a Result: the Result (finish) and
 	// the record move together, so they never tell two stories.
+	cerrado := false
 	cerrarSobre := func(stage string, code int, note string) {
+		cerrado = true
 		rec.Stage, rec.ExitCode, rec.Note = stage, code, note
 		rec.Status = envelope.StatusDeliverable
 		if code != 0 {
@@ -852,8 +886,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		cerrarSobre(stage, code, note)
 		return res
 	}
-
-	comun := pedidoComun(rng.baseNombre, git, rng, opt.Spec, v, ev)
+	// every exit closes the record by its own call; a future one that
+	// forgets does not leave the review "en curso" forever (finding fb6ea8)
+	defer func() {
+		if !cerrado {
+			cerrarSobre(rec.Stage, 1, "la review termino sin cerrar su sobre")
+		}
+	}()
 	var usos []LensUsage
 	var total providers.Usage
 	for i, lens := range lentes {
@@ -864,14 +903,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		rec.Stage, rec.Step, rec.RunID = "run", i+1, ""
 		_ = envelope.Write(root, rec) // best-effort (CA-202)
 
-		info, err := mgr.Start(runcmd.StartOptions{
-			Provider: prov.Name(), Prompt: pedido(comun, lens, role, prov.Name(), bin),
-			Task: opt.Task, FindingTask: findingTask(opt), Role: role.Slug, SystemPrompt: contract,
-			Model: opt.Model, Effort: opt.Effort, Isolated: isolated, PromptStdin: true, ReadOnly: readOnly, Exec: exec,
-			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
-		})
+		info, err := mgr.Start(opcionesDe(lens))
 		if err != nil {
-			cerrarSobre("run", 1, err.Error())
+			// the contract's note; the error says the why (finding ccf0ab)
+			cerrarSobre("run", 1, "el run del reviewer fallo")
 			return res, err
 		}
 		pass.RunID = info.ID
@@ -990,16 +1025,23 @@ func elegirReviewer(w io.Writer, res *Result, root, dir, provider string) (provi
 }
 
 // declaredWriters are the providers of the interactive sessions the task's
-// item declares in root: distinct and sorted. A missing or unreadable item
-// declares none.
-func declaredWriters(root, task string) []string {
+// item declares in root: distinct and sorted. A missing item declares none;
+// one that exists and cannot be read is an error, never "no sessions": it
+// could declare the very writer the review must not be (findings 9e2b00 and
+// 5d64ca).
+func declaredWriters(root, task string) ([]string, error) {
 	out := []string{}
 	if strings.TrimSpace(task) == "" || !item.ValidSlug(task) {
-		return out
+		return out, nil
+	}
+	// "no item" is a path with nothing on it; a symlink that leads nowhere
+	// is an item that cannot be read (finding 0aade6)
+	if _, err := os.Lstat(item.Path(root, task)); os.IsNotExist(err) {
+		return out, nil
 	}
 	it, err := item.Load(root, task)
 	if err != nil {
-		return out
+		return nil, fmt.Errorf("el item de la tarea %q no se puede leer (%v): sin el, no se sabe quien escribio. Accion: arreglalo y vuelve a revisar", task, err)
 	}
 	seen := map[string]bool{}
 	for _, s := range it.Sesiones {
@@ -1009,7 +1051,7 @@ func declaredWriters(root, task string) []string {
 		}
 	}
 	sort.Strings(out)
-	return out
+	return out, nil
 }
 
 // taskOf is the task a review belongs to: --task, or the task of its spec.
@@ -1341,7 +1383,7 @@ func printFindings(w io.Writer, ids []string) {
 }
 
 func finish(w io.Writer, res Result, status string, code int, note string) Result {
-	res.Status, res.ExitCode = status, code
+	res.Status, res.ExitCode, res.Nota = status, code, note
 	switch {
 	case code != 0:
 		line := "hoom review: NO ENTREGABLE"

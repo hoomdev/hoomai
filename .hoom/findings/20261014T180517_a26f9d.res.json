@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180517_a26f9d",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: itemcmd.commitPaths corre git add y git commit con --literal-pathspecs. Tests del test-writer en arbol limpio (entraron en e5811eb): TestHallazgo_a26f9d_GuardarTomaCadaNombreLiteral (':nuevo.go', ':nuevo.go' con 'nuevo.go', ':!app.go' con app.go modificado, ':(foo)x') y ..._GuardarNombresRarosJuntoAArchivosNormales (CA-344); fallan sobre 950b79c (comprobado por el writer) y pasan con el arreglo.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:40.452694Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261015T163642_0c71ae",
+  "created_at": "2026-10-15T16:36:42.187202Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO. internal/boardcmd/gather.go:576-580 agrega a Evidence.Uncommitted tanto el destino como el origen de un rename, y boardcmd.discardable los publica a la accion Descartar; pero internal/taskcmd/taskcmd.go:406-419 compara el expect del Studio solo contra local (c.Ruta), dejando origins fuera. Ante un git mv, POST /discard envia ambas rutas y Discard responde ErrChanged aunque el arbol no haya cambiado, por lo que Descartar deja de funcionar desde la tarjeta para renames (la CLI con expect nil no lo detecta).",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

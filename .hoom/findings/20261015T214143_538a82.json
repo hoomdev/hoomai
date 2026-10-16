@@ -1,0 +1,11 @@
+{
+  "id": "20261015T214143_538a82",
+  "created_at": "2026-10-15T21:41:43.378049Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — la ruta nueva de recuperación comprueba la sesión exacta en internal/cockpitcmd/cockpitcmd.go:229 y :255, pero internal/cockpitcmd/cockpitcmd.go:265 ejecuta split-window con -t session sin el prefijo exacto. Si el único pane termina y la sesión desaparece entre list-panes y split-window, mientras existe otra sesión cuyo nombre empieza igual, tmux puede resolver el prefijo y agregar el watch a la tarjeta ajena; Open responde created=true y registra una sesión propia que ya no existe. Esto reabre durante el recovery el fallo de prefijos de fa374d.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

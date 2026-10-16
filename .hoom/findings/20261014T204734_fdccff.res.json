@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T204734_fdccff",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: el 409 de un lanzamiento que no llego a su primer registro sale del error o de la nota del resultado (reviewcmd.Result.Nota, que no viaja en el JSON), como dice la spec, y no de la ultima linea del texto de la CLI; se van tail y lastLine. Sin cambio de comportamiento observable: pasan servecmd y reviewcmd enteros.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.593723Z"
+}

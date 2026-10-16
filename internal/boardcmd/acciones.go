@@ -8,6 +8,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/reviewcmd"
 )
 
 // C3: what a person can do with the card. Everything here is part of Derive
@@ -24,33 +25,34 @@ var stationRoles = map[string][]string{
 	ColReview:     {"reviewer", "writer"},
 }
 
-// actionLabels are the binary's labels (no accents; the page has its own).
-var actionLabels = map[string]string{
-	ActPedirArquitecto: "Pedir al arquitecto",
-	ActPedirTestWriter: "Pedir al test-writer",
-	ActPedirWriter:     "Pedir al writer",
-	ActPedirReviewer:   "Pedir al reviewer",
-	ActAprobar:         "Aprobar spec",
-	ActIntegrar:        "Integrar",
-	ActReanudar:        "Reanudar",
-	ActRelanzar:        "Volver a lanzar",
-	ActDescartar:       "Descartar cambios",
-	ActGuardar:         "Guardar",
-	ActSesion:          "Abrir sesion",
-	ActTerminal:        "Ver terminal",
+// accion is what the binary knows of an action id: its label (no accents;
+// the page has its own), the role a "pedir" action launches, and whether only
+// the expert mode shows it. Each action is defined here, once (finding
+// 4ecf93); what depends on the card is decided in buildAction.
+type accion struct {
+	label  string
+	role   string
+	expert bool
 }
 
-// pedirRole is the role each "pedir" action launches.
-var pedirRole = map[string]string{
-	ActPedirArquitecto: "arquitecto",
-	ActPedirTestWriter: "test-writer",
-	ActPedirWriter:     "writer",
-	ActPedirReviewer:   "reviewer",
+var acciones = map[string]accion{
+	ActPedirArquitecto: {label: "Pedir al arquitecto", role: "arquitecto"},
+	ActPedirTestWriter: {label: "Pedir al test-writer", role: "test-writer"},
+	ActPedirWriter:     {label: "Pedir al writer", role: "writer"},
+	ActPedirReviewer:   {label: "Pedir al reviewer", role: "reviewer"},
+	ActAprobar:         {label: "Aprobar spec"},
+	ActIntegrar:        {label: "Integrar"},
+	ActReanudar:        {label: "Reanudar"},
+	ActRelanzar:        {label: "Volver a lanzar"},
+	ActDescartar:       {label: "Descartar cambios", expert: true},
+	ActGuardar:         {label: "Guardar"},
+	ActSesion:          {label: "Abrir sesion", expert: true},
+	ActTerminal:        {label: "Ver terminal", expert: true},
 }
 
 // ReviewLenses is how many passes the budget of a review is split among: the
-// worst case, a review that demands the four lenses.
-const ReviewLenses = 4
+// worst case, a review that runs every lens hoom review has (finding 285834).
+const ReviewLenses = reviewcmd.CantidadDeLentes
 
 // Why sentences of the actions, in the normal mode's words.
 const (
@@ -74,8 +76,7 @@ func (c Card) Action(id string) (Action, bool) {
 
 // IsRoleAction reports whether an action launches a role.
 func IsRoleAction(id string) bool {
-	_, pedir := pedirRole[id]
-	return pedir || id == ActReanudar || id == ActRelanzar
+	return acciones[id].role != "" || id == ActReanudar || id == ActRelanzar
 }
 
 // columnActions are the actions of the card's column, the primary first.
@@ -128,11 +129,8 @@ func actionsOf(ev Evidence, c Card) []Action {
 }
 
 func buildAction(ev Evidence, c Card, id string) Action {
-	a := Action{ID: id, Label: actionLabels[id], Enabled: true, Providers: []ProviderOption{}, Paths: []string{}}
-	switch id {
-	case ActDescartar, ActSesion, ActTerminal:
-		a.Expert = true
-	}
+	def := acciones[id]
+	a := Action{ID: id, Label: def.label, Expert: def.expert, Enabled: true, Providers: []ProviderOption{}, Paths: []string{}}
 	switch id {
 	case ActGuardar:
 		a.Paths = sortedCopy(c.Unsynced)
@@ -176,7 +174,7 @@ func roleAction(ev Evidence, c Card, a *Action) {
 			a.Role = intr.Role
 		}
 	default:
-		a.Role = pedirRole[a.ID]
+		a.Role = acciones[a.ID].role
 	}
 	switch a.ID {
 	case ActReanudar:

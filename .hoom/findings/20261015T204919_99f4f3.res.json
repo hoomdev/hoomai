@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T204919_99f4f3",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 5: un unico tmux falso con estado en archivos (v3Tmux) y la retencion como estructura con nombre (v3Retencion: donde retiene y que hace despues) en vez de concatenar dos scripts; los tests de 46e17e y fa374d siguen fallando sobre 3a8fe19 y 7565283 por las mismas aserciones y pasan sobre el arreglo. Refutador: cierto.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:19:12.212999Z"
+}

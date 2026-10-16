@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203819_ccf0ab",
+  "as": "corregido",
+  "evidence": "Corregido en 92b283e: reviewcmd decide con runcmd.Check, antes del registro del sobre, si el provider toma lo pedido (como pide la spec: lo que se decide antes de la primera pasada no escribe registro); y si el run no arranca, el sobre cierra con la nota del contrato ('el run del reviewer fallo'). Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_ccf0ab_CA334_ProviderQueNoTomaLoPedidoNoDejaRegistro (codex con tope de turnos o presupuesto: en 8ebb532 Started se llamaba y quedaba registro); guarda sin esos campos.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.569134Z"
+}

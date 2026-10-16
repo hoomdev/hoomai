@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T204919_f21e0e",
+  "as": "corregido",
+  "evidence": "Corregido en c3c99e0 y 7ed9d86: el comentario y el 421 de SoloLocal nombran tambien el host propio (solo si no es uno de los tres fijos, detalle que vio el refutador) y hostNormal se documenta como normalizador. Refutador: cierto, y la correccion lo resuelve (tests 3362b6, 1b1fc7 y c9a60f verdes). Sin test nuevo: legibilidad.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:19:12.224794Z"
+}

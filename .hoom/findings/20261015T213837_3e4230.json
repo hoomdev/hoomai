@@ -1,0 +1,11 @@
+{
+  "id": "20261015T213837_3e4230",
+  "created_at": "2026-10-15T21:38:37.962316Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:236 hace que completar una sesión preexistente de un pane devuelva created=true, y internal/cockpitcmd/cockpitcmd.go:375-379 aplica entonces el cleanup histórico de sesiones recién creadas si item.AddSession falla. Esa apertura no creó ni posee el pane de IA: puede ser la sesión que dejó otro new-session cortado o que todavía usa otra apertura. Un item inválido, permisos o un fallo de escritura terminan ejecutando kill-session y matando la CLI ajena, contradiciendo la garantía nueva de no cerrar una sesión de propiedad ambigua.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

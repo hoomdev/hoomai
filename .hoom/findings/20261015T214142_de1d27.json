@@ -1,0 +1,11 @@
+{
+  "id": "20261015T214142_de1d27",
+  "created_at": "2026-10-15T21:41:42.909521Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:230 y :255 reducen una sesión de un pane al conteo de pane_id y siempre suponen que el sobreviviente es la IA. Si la CLI termina o su pane se cierra en una sesión completa, tmux conserva el pane de hoom status --watch; la próxima apertura interpreta ese watch como una sesión a medias, agrega un segundo watch, responde created=true y registra la sesión aunque ya no haya CLI de IA. La enmienda 3 limita la recuperación al caso cuyo único pane es el de la IA.",
+  "author": "reviewer@codex",
+  "fingerprint": "7fccb607a5faaf33",
+  "task": "fixes-cabina-c3"
+}

@@ -468,7 +468,8 @@ type Info struct {
 	Bin          string       `json:"bin,omitempty"`
 	Capabilities Capabilities `json:"capabilities"`
 	// MinBudgetUSD is the least budget a run of this provider can do useful
-	// work with (0 = no minimum: the provider takes no cap).
+	// work with. 0 = no minimum: the provider takes no cap, or takes one and
+	// declares no floor (finding 4cff9f).
 	MinBudgetUSD float64 `json:"min_budget_usd"`
 }
 
@@ -479,8 +480,13 @@ type BudgetFloor interface {
 	MinBudgetUSD() float64
 }
 
-// MinBudgetUSD is p's declared minimum budget, or 0 when it declares none.
+// MinBudgetUSD is p's declared minimum budget, or 0 when it declares none or
+// takes no cap at all: without a cap there is no minimum to meet (finding
+// 78a674).
 func MinBudgetUSD(p Provider) float64 {
+	if !p.Capabilities().Budget {
+		return 0
+	}
 	if f, ok := p.(BudgetFloor); ok {
 		return f.MinBudgetUSD()
 	}

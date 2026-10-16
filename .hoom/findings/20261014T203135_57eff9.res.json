@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T203135_57eff9",
+  "as": "corregido",
+  "evidence": "Corregido en dos partes: Descartar y Guardar contra el registro de un run, en 0903afb (candado por arbol, ver b6e55b y ac2feb); lo que quedaba, en 484ffcf: Manager.Start e Input, bajo el candado del arbol, miran tambien runcmd.Active, asi un run que otro proceso registro en el arbol frena el nuevo con ErrBusy. Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests del test-writer en arbol limpio; fallan sobre 8ebb532 (sin los arreglos) y pasan con ellos, comprobado tambien por el writer. TestHallazgo_57eff9_OtroManagerSobreElMismoArbolRecibeErrBusy.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.537127Z"
+}

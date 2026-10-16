@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T181132_4ecf93",
+  "as": "corregido",
+  "evidence": "Corregido en e5811eb: cada accion de la tarjeta se define una vez, en la tabla boardcmd.acciones (etiqueta, rol del 'pedir' y modo experto); se van actionLabels, pedirRole y el switch del modo experto. Sin cambio de comportamiento: pasan enteros boardcmd y servecmd, incluidos acBienFormada y TestCA325_IdsDeLasAcciones.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.670355Z"
+}

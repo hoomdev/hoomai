@@ -1,0 +1,11 @@
+{
+  "id": "20261014T181139_4cff9f",
+  "created_at": "2026-10-14T18:11:39.661069Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/providers.go",
+  "description": "[INTRODUCIDO] internal/providers/providers.go:406: el comentario publico de Info.MinBudgetUSD afirma que 0 significa que el provider no acepta tope, pero BudgetFloor es opcional y un provider puede tener Capabilities.Budget=true sin implementarla, obteniendo igualmente 0. El comentario mezcla dos propiedades independientes; documentar 0 como ausencia de piso declarado y remitir la aceptacion del tope a Capabilities.Budget.",
+  "author": "reviewer@codex",
+  "fingerprint": "325e2c3b81d70975",
+  "task": "acciones-desde-la-tarjeta"
+}

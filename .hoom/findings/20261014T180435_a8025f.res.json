@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180435_a8025f",
+  "as": "refutado",
+  "evidence": "Efecto del corte de la review en dos mitades: el reviewer leyo el arbol del commit sintetico A (4abccc9), donde internal/servecmd y su UI estaban como en la base 645e832. En ece9882 (el merge real de C3, arbol identico a B=ff9428f) el codigo esta. servecmd.go:322-326 registra POST /api/board/{slug}/launch, /save, /discard y /session (con token) y GET /api/board/{slug}/terminal, con sus handlers en internal/servecmd/acciones.go. index.html:1262-1263 carga tablero.js y despues acciones.js. Lo fijan TestCA336_PedirAlArquitectoDesdeBacklog (lanzar desde la tarjeta), TestCA352_RutasSinColumna, TestCA352_NingunStructRecibeUnaColumna, TestCA352_UnPostConColumnaNoMueveLaTarjeta, TestCA319_PestanasYTableroJSEmbebido, TestCA319_SinAssetsDeRed y TestCA319_TableroPintaDelJSONYReusaElEscenario, que pasan en ece9882. Sigue igual en main a9a3eeb y en hoom/fixes-cabina-c2 e17c4a6 (servecmd.go:345 registra launch; index.html carga acciones.js).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-14T19:34:22.308505Z"
+}

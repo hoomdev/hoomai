@@ -1,0 +1,11 @@
+{
+  "id": "20261015T163243_ebae2a",
+  "created_at": "2026-10-15T16:32:43.572509Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO. internal/itemcmd/itemcmd.go:274-286 elige los arboles a bloquear con la primera Card y luego vuelve a derivarla, pero internal/itemcmd/itemcmd.go:308-333 commitea los arboles de la segunda Card. Si taskcmd.Start crea el worktree entre ambas derivaciones, lockArboles en internal/itemcmd/itemcmd.go:353-358 solo tomo el candado de la raiz y Save puede terminar commiteando ese worktree sin su candado; un run puede registrarse despues del chequeo de Running y su trabajo parcial quedar staged/commiteado. El conjunto de arboles bloqueados debe corresponder a la Card que efectivamente se guarda, o la operacion debe reintentarse si cambia.",
+  "author": "reviewer@codex",
+  "fingerprint": "356d653f54478c3f",
+  "task": "fixes-cabina-c3"
+}

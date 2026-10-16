@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T192914_46e17e",
+  "as": "corregido",
+  "evidence": "Corregido en ff3a52c: si tmux new-session falla con una salida propia (exit \u003e= 0, p. ej. duplicate session porque otra apertura llego primero) no creo nada y la sesion es de otro: no se cierra; solo se cierra la sesion a medias cuando new-session murio por senal (el corte por plazo de 0fc76d). Vale para el Studio y la CLI (composeTmux es comun). Refutador (INFORME-refutador-c3-delta2.md): cierto, introducido por 1647c34, reproducido con tmux real (40 de 40 sin cockpit); con el parche 0 de 40. Test del test-writer (c5a87a3 o siguiente): TestHallazgo_46e17e_DosAperturasALaVezNoDejanLaTarjetaSinCockpit, 4 casos, fallan sobre 3a8fe19 y pasan con el arreglo (5 de 5 con -race). Queda sin cubrir, por improbable: que el new-session tardio tambien venza su plazo de 5 s con la sesion ajena ya creada.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T20:04:42.36284Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180914_b6e55b",
+  "as": "corregido",
+  "evidence": "Corregido en 0903afb: runcmd.LockArbol, un candado por arbol (flock en el directorio comun de git, con la ruta real del arbol como clave); Manager.Start e Input registran el run bajo el y Descartar lo toma desde el chequeo de runs hasta el ultimo borrado (espera hasta 2 s y si no, se niega sin tocar nada). Decision de Henry (candado con enmienda). Enmienda 1 de acciones-desde-la-tarjeta aprobada por Henry (sha256 bbc78a95, 2026-10-15). Tests (8ebb532): TestHallazgo_b6e55b_CA346_CandadoTomadoDescartarSeNiega (worktree y symlink), ..._CandadoSueltoDescartarEsperaYActua, ..._CandadoDeOtroProcesoFrenaDescartar, y en runcmd ..._StartEsperaElCandadoDelArbol e ..._InputEsperaElCandadoDelArbol; en e55749b no compilan y con un LockArbol que no hace nada fallan (writer y test-writer); guardas de otro arbol y fuera de un repo.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T16:15:23.498281Z"
+}

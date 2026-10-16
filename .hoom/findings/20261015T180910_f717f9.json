@@ -1,0 +1,11 @@
+{
+  "id": "20261015T180910_f717f9",
+  "created_at": "2026-10-15T18:09:10.214906Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/itemcmd/hallazgos_c3_correcciones_test.go",
+  "description": "INTRODUCIDO — internal/itemcmd/hallazgos_c3_correcciones_test.go:45-60 da por probado, solo tras dormir 500 ms, que la goroutine de Save ya derivo la tarjeta sin workspace y esta esperando el candado raiz. Si la goroutine se agenda despues, ve el workspace creado en :67, intenta tomar su candado de :74 y el test espera su resultado antes de soltarlo (:78-82), produciendo un falso timeout de 30 s bajo carga. Falta una sincronizacion observable del punto alcanzado en vez del sleep.",
+  "author": "reviewer@codex",
+  "fingerprint": "d22cf9e09bb57261",
+  "task": "fixes-cabina-c3"
+}

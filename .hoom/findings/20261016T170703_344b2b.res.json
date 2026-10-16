@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T170703_344b2b",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en el commit de tests de la vuelta 10: tmuxSinSesion (con tmuxClienteRoto y el verificador del mensaje) vive en internal/cockpitcmd/tmuxdoble_test.go, un soporte estable; en servecmd el verificador vive en tmuxfalso_test.go. Refutador: cierto.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T17:29:30.279391Z"
+}

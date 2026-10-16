@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T194026_5e4bcd",
+  "as": "corregido",
+  "evidence": "Corregido en e5811eb: si una de las rutas a borrar es un directorio (un repositorio anidado, que git status lista como '?? x/'), Discard se niega antes de tocar nada y nombra esa ruta, en vez de restaurar y borrar la mitad y fallar despues. Test del test-writer (e55749b): TestHallazgo_5e4bcd_CA346_RepoAnidadoSeNiegaSinTocarNada (en la raiz y en un subdirectorio, por la CLI y por el camino del Studio) falla sobre 950b79c y pasa con el arreglo; la guarda ..._GuardaSinRepoAnidadoDescarta pasa en los dos. La enmienda de C3 va a nombrar esta excepcion a 'borra las que no' de CA-346.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T20:21:43.159812Z"
+}

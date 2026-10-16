@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T180436_f237b9",
+  "as": "corregido",
+  "evidence": "Corregido en 33b0463: runcmd.Active busca el run en curso tanto en los sidecars de la raiz como en los del arbol (donde guarda el suyo un run lanzado desde adentro del worktree); lo usan Discard y Manager.Busy (el launch del Studio). Tests del test-writer en arbol limpio (entraron en e5811eb, junto con parte del codigo): fallan sobre 950b79c (el commit sin arreglos, comprobado por el writer) y pasan con el arreglo. TestHallazgo_f237b9_CA346_RunActivoDesdeElWorktreeSeNiega (con y sin task); la guarda ..._GuardaRunActivoEnLaRaiz pasa en los dos.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-14T19:50:32.623214Z"
+}

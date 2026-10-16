@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261015T204709_afecb4",
+  "as": "corregido",
+  "evidence": "Corregido por cambio de diseno en c3c99e0 (ver 878cbd): sin clasificacion por exit code, un new-session cortado en Windows deja la sesion a medias y la proxima apertura la completa. Enmienda 3 de acciones-desde-la-tarjeta aprobada por Henry (sha256 dc7cbfe1, 2026-10-15 21:00 UTC; eligio completar en vez de cerrar). Refutador: mecanismo cierto, no alcanzable segun la spec. Test de la ruta comun: TestHallazgo_0fc76d_AbrirSesionAMediasSeCompletaEnElReintento y TestHallazgo_0fc76d_CA348_LaProximaAperturaCompletaUnaSesionConUnSoloPane (fallan sobre 0ab5ba0, pasan sobre 7ed9d86).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-15T21:19:12.206958Z"
+}

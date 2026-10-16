@@ -1,0 +1,11 @@
+{
+  "id": "20261015T192914_51d2f4",
+  "created_at": "2026-10-15T19:29:14.878565Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/runcmd/grupo.go",
+  "description": "INTRODUCIDO: internal/runcmd/grupo.go:67-71 permite arrancar y registrar otros providers entre MatarGrupo(pid) y delete(grupos.pids, pid). El proceso anterior ya fue esperado, por lo que el SO puede reutilizar su PID; si un run nuevo recibe ese PID, el delete tardio elimina el registro del grupo nuevo y una señal posterior deja su provider huerfano escribiendo en el arbol. En Windows, Soltar(pid) tambien puede cerrar el Job Object del run nuevo. El comentario de doble kill inocuo no cubre reutilizacion de PID.",
+  "author": "reviewer@codex",
+  "fingerprint": "c8f85edae5a6e5f8",
+  "task": "fixes-cabina-c3"
+}
