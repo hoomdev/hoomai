@@ -1,7 +1,8 @@
 // Tests de regresion de la tercera vuelta de la review de la cabina C4 sobre
 // .hoom/specs/historia-doctor-y-cinta.md, en runcmd. Escritos desde el spec
 // y la descripcion del hallazgo, sin leer la implementacion. Los helpers de
-// este archivo llevan el prefijo c4v3.
+// este archivo llevan el prefijo c4v3; los que comparte con
+// hallazgos_c4_vuelta2_test.go estan en runs_enlazados_test.go.
 //
 //   - 20261016T213325_058fb1 (risk), caso que la vuelta 2 no cubria: el
 //     .jsonl del run es un archivo REGULAR, pero el directorio que lo
@@ -46,69 +47,6 @@ func c4v3EnlaceDir(t *testing.T, destino, enlace string) {
 	}
 }
 
-// c4v3Ajenos es la narracion del proyecto vecino: delegaciones de verdad.
-func c4v3Ajenos(t0 time.Time) []Event {
-	return []Event{
-		{TS: t0, Kind: "start", Detail: "init"},
-		{TS: t0.Add(time.Minute), Kind: "agent", Agent: "espia-ajeno", ToolID: "toolu_AJ", Detail: "Agent: secreto del otro proyecto"},
-		{TS: t0.Add(2 * time.Minute), Kind: "agent_end", Agent: "espia-ajeno", ToolID: "toolu_AJ", Detail: "espia-ajeno termino"},
-		{TS: t0.Add(3 * time.Minute), Kind: "agent", Agent: "otro-espia", ToolID: "toolu_AJ2", Detail: "Agent: mas secretos"},
-	}
-}
-
-// c4v3SeLee exige que el id se lea entero por los tres caminos: ReadEvents
-// (todos los eventos), ReadEventsFrom desde 0 (todos, y el offset al final
-// del archivo) y ReadDelegations (solo agent y agent_end).
-func c4v3SeLee(t *testing.T, ca, root, id string, eventos, delegaciones int) {
-	t.Helper()
-	evs, err := ReadEvents(root, id)
-	if err != nil || len(evs) != eventos {
-		t.Fatalf("%s: ReadEvents(%q, %q) lee los %d eventos: err=%v, %d eventos %+v", ca, root, id, eventos, err, len(evs), evs)
-	}
-	fi, err := os.Stat(filepath.Join(root, ".hoom", "runs", id+".jsonl"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	evs, next, err := ReadEventsFrom(root, id, 0)
-	if err != nil || len(evs) != eventos || next != fi.Size() {
-		t.Fatalf("%s: ReadEventsFrom(%q, %q, 0) lee los %d eventos y deja el offset en %d: err=%v, %d eventos, offset %d",
-			ca, root, id, eventos, fi.Size(), err, len(evs), next)
-	}
-	ds, err := ReadDelegations(root, id)
-	if err != nil || len(ds) != delegaciones {
-		t.Fatalf("%s: ReadDelegations(%q, %q) lee las %d delegaciones: err=%v, %d %+v", ca, root, id, delegaciones, err, len(ds), ds)
-	}
-	for _, d := range ds {
-		if d.Kind != "agent" && d.Kind != "agent_end" {
-			t.Fatalf("%s: ReadDelegations(%q) trae solo agent y agent_end: %+v", ca, id, d)
-		}
-	}
-}
-
-// c4v3NoSeLee exige que el id no se lea por ningun camino: ReadEvents y
-// ReadDelegations devuelven un error y nada, y ReadEventsFrom (desde 0 y
-// desde mas adelante) un error, nada, y el offset donde estaba.
-func c4v3NoSeLee(t *testing.T, ca, root, id, como string) {
-	t.Helper()
-	evs, err := ReadEvents(root, id)
-	if err == nil || len(evs) != 0 {
-		t.Errorf("%s: ReadEvents(%q), con %s, es un error y no lee nada; fue err=%v y %d eventos: %+v",
-			ca, id, como, err, len(evs), evs)
-	}
-	for _, desde := range []int64{0, 10} {
-		evs, next, err := ReadEventsFrom(root, id, desde)
-		if err == nil || len(evs) != 0 || next != desde {
-			t.Errorf("%s: ReadEventsFrom(%q, %d), con %s, es un error, no lee nada y no avanza el offset; fue err=%v, %d eventos, offset %d",
-				ca, id, desde, como, err, len(evs), next)
-		}
-	}
-	ds, err := ReadDelegations(root, id)
-	if err == nil || len(ds) != 0 {
-		t.Errorf("%s: ReadDelegations(%q), con %s, es un error y no trae delegaciones; fue err=%v y %d: %+v",
-			ca, id, como, err, len(ds), ds)
-	}
-}
-
 // CA-361, CA-362 (hallazgo 058fb1): la narracion de un run es
 // .hoom/runs/<id>.jsonl de la raiz. Si .hoom/runs entero es un enlace
 // simbolico al .hoom/runs del proyecto vecino (por ruta absoluta, por ruta
@@ -137,11 +75,11 @@ func TestHallazgo_058fb1_CA361_CA362_RunsEnlazadoAlVecinoNoSeLee(t *testing.T) {
 			root := filepath.Join(base, "proyecto")
 			runs := filepath.Join(root, ".hoom", "runs")
 			vecinoRuns := filepath.Join(base, "otro", ".hoom", "runs")
-			c4Narracion(t, filepath.Join(vecinoRuns, id+".jsonl"), c4v3Ajenos(t0)...)
+			c4Narracion(t, filepath.Join(vecinoRuns, id+".jsonl"), narracionDeOtroArbol(t0)...)
 
 			// guarda: .hoom/runs real con una copia regular del mismo .jsonl
-			c4Narracion(t, filepath.Join(runs, id+".jsonl"), c4v3Ajenos(t0)...)
-			c4v3SeLee(t, "CA-362 (hallazgo 058fb1, guarda: .hoom/runs es un directorio real)", root, id, 4, 3)
+			c4Narracion(t, filepath.Join(runs, id+".jsonl"), narracionDeOtroArbol(t0)...)
+			exigirQueSeLeaEntero(t, "CA-362 (hallazgo 058fb1, guarda: .hoom/runs es un directorio real)", root, id, 4, 3)
 			if err := os.RemoveAll(runs); err != nil {
 				t.Fatal(err)
 			}
@@ -160,7 +98,7 @@ func TestHallazgo_058fb1_CA361_CA362_RunsEnlazadoAlVecinoNoSeLee(t *testing.T) {
 				t.Fatalf("fixture: a traves del enlace, %s.jsonl es un archivo regular del vecino: %v %v", id, fi, err)
 			}
 
-			c4v3NoSeLee(t, "CA-362 (hallazgo 058fb1)", root, id, ".hoom/runs como enlace a "+destino)
+			exigirQueNoSeLea(t, "CA-362 (hallazgo 058fb1)", root, id, ".hoom/runs como enlace a "+destino)
 		})
 	}
 }
@@ -186,11 +124,11 @@ func TestHallazgo_058fb1_CA361_CA362_HoomEnlazadoAlVecinoNoSeLee(t *testing.T) {
 			root := filepath.Join(base, "proyecto")
 			hoom := filepath.Join(root, ".hoom")
 			vecinoHoom := filepath.Join(base, "otro", ".hoom")
-			c4Narracion(t, filepath.Join(vecinoHoom, "runs", id+".jsonl"), c4v3Ajenos(t0)...)
+			c4Narracion(t, filepath.Join(vecinoHoom, "runs", id+".jsonl"), narracionDeOtroArbol(t0)...)
 
 			// guarda: .hoom real con una copia regular del mismo .jsonl
-			c4Narracion(t, filepath.Join(hoom, "runs", id+".jsonl"), c4v3Ajenos(t0)...)
-			c4v3SeLee(t, "CA-362 (hallazgo 058fb1, guarda: .hoom es un directorio real)", root, id, 4, 3)
+			c4Narracion(t, filepath.Join(hoom, "runs", id+".jsonl"), narracionDeOtroArbol(t0)...)
+			exigirQueSeLeaEntero(t, "CA-362 (hallazgo 058fb1, guarda: .hoom es un directorio real)", root, id, 4, 3)
 			if err := os.RemoveAll(hoom); err != nil {
 				t.Fatal(err)
 			}
@@ -207,7 +145,7 @@ func TestHallazgo_058fb1_CA361_CA362_HoomEnlazadoAlVecinoNoSeLee(t *testing.T) {
 				t.Fatalf("fixture: a traves del enlace, %s.jsonl es un archivo regular del vecino: %v %v", id, fi, err)
 			}
 
-			c4v3NoSeLee(t, "CA-362 (hallazgo 058fb1)", root, id, ".hoom como enlace a "+destino)
+			exigirQueNoSeLea(t, "CA-362 (hallazgo 058fb1)", root, id, ".hoom como enlace a "+destino)
 		})
 	}
 }
@@ -232,14 +170,14 @@ func TestHallazgo_058fb1_CA361_CA362_Guarda_RaizPorEnlaceSigueLeyendo(t *testing
 		Event{TS: t0.Add(2 * time.Minute), Kind: "agent_end", Agent: "hoom-scout", ToolID: "toolu_ok", Detail: "hoom-scout termino"},
 		Event{TS: t0.Add(3 * time.Minute), Kind: "end", Detail: "listo"})
 
-	c4v3SeLee(t, "CA-362 (hallazgo 058fb1, guarda: raiz como la da t.TempDir)", filepath.Join(crudo, "proyecto"), id, 4, 2)
-	c4v3SeLee(t, "CA-362 (hallazgo 058fb1, guarda: raiz por su ruta real)", filepath.Join(real, "proyecto"), id, 4, 2)
+	exigirQueSeLeaEntero(t, "CA-362 (hallazgo 058fb1, guarda: raiz como la da t.TempDir)", filepath.Join(crudo, "proyecto"), id, 4, 2)
+	exigirQueSeLeaEntero(t, "CA-362 (hallazgo 058fb1, guarda: raiz por su ruta real)", filepath.Join(real, "proyecto"), id, 4, 2)
 
 	aRaiz := filepath.Join(real, "enlace-al-proyecto")
 	c4v3EnlaceDir(t, filepath.Join(real, "proyecto"), aRaiz)
-	c4v3SeLee(t, "CA-362 (hallazgo 058fb1, guarda: raiz por un enlace a ella)", aRaiz, id, 4, 2)
+	exigirQueSeLeaEntero(t, "CA-362 (hallazgo 058fb1, guarda: raiz por un enlace a ella)", aRaiz, id, 4, 2)
 
 	aArriba := filepath.Join(real, "enlace-arriba")
 	c4v3EnlaceDir(t, real, aArriba)
-	c4v3SeLee(t, "CA-362 (hallazgo 058fb1, guarda: un enlace por encima de la raiz)", filepath.Join(aArriba, "proyecto"), id, 4, 2)
+	exigirQueSeLeaEntero(t, "CA-362 (hallazgo 058fb1, guarda: un enlace por encima de la raiz)", filepath.Join(aArriba, "proyecto"), id, 4, 2)
 }
