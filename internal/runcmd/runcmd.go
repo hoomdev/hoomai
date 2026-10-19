@@ -28,7 +28,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/procesos"
@@ -413,10 +412,8 @@ func ReadDelegations(root, id string) ([]Event, error) {
 		if err == bufio.ErrBufferFull {
 			// a line longer than the buffer is kept whole up to maxDelegacion
 			// (its \n aside), whatever its first piece says: kind decides
-			// when it is decoded. A longer one is not a delegation as hoom
-			// writes it (it cuts their detail when writing: enmienda 4 of
-			// historia-doctor-y-cinta) and is drained without keeping it, so
-			// memory stays bounded (finding 2628ba)
+			// when it is decoded. A longer one is drained without keeping it,
+			// so memory stays bounded (finding 2628ba)
 			larga = append(larga[:0], linea...)
 			entra := true
 			for err == bufio.ErrBufferFull {
@@ -444,37 +441,13 @@ func ReadDelegations(root, id string) ([]Event, error) {
 	}
 }
 
-// maxDelegacion bounds the line of one delegation (its \n aside): hoom
-// writes none longer (acotarDelegacion) and ReadDelegations keeps none
-// longer. An agent or agent_end event says who and when, a few hundred bytes.
+// maxDelegacion bounds the line of one delegation (its \n aside) that
+// ReadDelegations keeps. The normalizer builds its detail from the agent and
+// texts it clips to 300 bytes, so it is a few hundred bytes plus the agent
+// and the tool_id; a longer one only comes from an agent, a tool_id or a
+// status of hundreds of KiB, and is out of the contract (enmienda 5 of
+// historia-doctor-y-cinta).
 const maxDelegacion = 1 << 20
-
-// detalleRecortado is what is left of the detail of a delegation whose line
-// would pass maxDelegacion: even escaped as \u00XX, six bytes each, it fits.
-const detalleRecortado = 128 << 10
-
-// acotarDelegacion is the event a run keeps and writes for ev: a delegation
-// (agent, agent_end) whose line would pass maxDelegacion keeps the first
-// detalleRecortado bytes of its detail, without splitting a character, and
-// says it was cut and how long it was; its ts, agent and tool_id stay whole,
-// since the history pairs by them (enmienda 4 of historia-doctor-y-cinta).
-// One that does not fit even so is out of that contract and stays as is.
-func acotarDelegacion(ev Event) Event {
-	if (ev.Kind != "agent" && ev.Kind != "agent_end") || len(ev.Detail) <= detalleRecortado {
-		return ev
-	}
-	if enc, err := json.Marshal(ev); err != nil || len(enc) <= maxDelegacion {
-		return ev
-	}
-	// a character is at most utf8.UTFMax bytes: its start is that close
-	n := detalleRecortado
-	for i := 1; i < utf8.UTFMax && !utf8.RuneStart(ev.Detail[n]); i++ {
-		n--
-	}
-	ev.Detail = ev.Detail[:n] +
-		fmt.Sprintf(" [...] (detalle recortado al escribir la narracion: tenia %d bytes)", len(ev.Detail))
-	return ev
-}
 
 // marcaDelegacion is a cheap first look at a line: every agent or agent_end
 // event has it however its JSON is spaced ("kind":"agent" or "kind": "agent"),
@@ -1232,11 +1205,9 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	m.mu.Unlock()
 }
 
-// append records one event in memory and in the append-only jsonl log, a
-// delegation within the line the history reads (acotarDelegacion).
+// append records one event in memory and in the append-only jsonl log.
 // A session id reported by the provider becomes the run's handle.
 func (m *Manager) append(r *run, ev Event) {
-	ev = acotarDelegacion(ev)
 	m.mu.Lock()
 	r.events = append(r.events, ev)
 	r.info.NumEvents = len(r.events)
