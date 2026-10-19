@@ -1,0 +1,11 @@
+{
+  "id": "20261019T192116_9b4faa",
+  "created_at": "2026-10-19T19:21:16.650648Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:411: ReadDelegations concentra en su bucle principal la lectura incremental, el limite de 1 MiB, la deteccion de candidatas, la ventana cabeza/cola y el despacho final mediante nueve variables de estado (frag, err, candidata, cabeza, whole, prev, cur, dentroDelTope y size). Las invariantes de memoria y de composicion de la cola quedan repartidas entre condiciones anidadas de las lineas 411-457; extraer el consumo de una linea larga a un helper con un resultado nombrado haria el flujo principal y esas invariantes verificables por separado.",
+  "author": "reviewer@codex",
+  "fingerprint": "82318c120245c3b3",
+  "task": "fixes-cabina-c4"
+}
