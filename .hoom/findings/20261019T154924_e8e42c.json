@@ -1,0 +1,11 @@
+{
+  "id": "20261019T154924_e8e42c",
+  "created_at": "2026-10-19T15:49:24.458628Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este cambio) — internal/runcmd/runcmd.go:1110-1128 limita cada linea de stdout/stderr del provider a 4 MiB y termina el bucle sin consultar sc.Err. Una linea stream-json mayor a ese limite hace que la goroutine deje de drenar stdout; si al hijo le queda mas salida que la capacidad del pipe, se bloquea y el run espera hasta el timeout global de 30 minutos, y si logra salir la linea se pierde silenciosamente. Debe manejar ErrTooLong sin abandonar el drenaje y convertir el error en estado explicito o procesar lineas grandes de forma acotada.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

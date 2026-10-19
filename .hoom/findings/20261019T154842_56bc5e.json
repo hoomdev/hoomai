@@ -1,0 +1,11 @@
+{
+  "id": "20261019T154842_56bc5e",
+  "created_at": "2026-10-19T15:48:42.581732Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este cambio) — internal/boardcmd/timeline.go:387 y :414 siguen usando gitOK, que reduce tanto un resultado negativo esperado como cualquier fallo de Git al mismo false. Si merge-base --is-ancestor falla pero los git posteriores funcionan, la tarjeta integrada se procesa con el rango base..commit_final; si rev-parse --verify falla, se agrega NoteSinEspacio y se devuelve exito. En ambos casos pueden quedar entradas parciales o una nota semantica falsa en vez de sin historial de git, pese a que esta rama ya propaga los fallos de rev-list en :393-405 y el spec exige todo-o-nada ante cualquier fallo. Es necesario distinguir exit 1 de error operativo y propagar este ultimo.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

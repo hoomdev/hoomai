@@ -1,0 +1,11 @@
+{
+  "id": "20261019T153725_305cbc",
+  "created_at": "2026-10-19T15:37:25.682828Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este cambio) — internal/runcmd/runcmd.go:342-352 sigue leyendo .hoom/runs y cada sidecar por nombre, aunque openLog ahora rechace que .hoom o runs sean symlinks. Si .hoom/runs apunta al de otro proyecto, Metas importa sus *.meta.json validos; Gather los publica como runs de una tarjeta con el mismo slug y usa su PID/usage para liveness y presupuesto. Los tests nuevos de runs enlazado solo prohiben subagente/subagente-fin y no detectan esa fila run ajena. Aplicar la misma contencion por descriptores/no-follow a sidecars y al listado. Patronizable con una regla Semgrep custom para ReadDir/ReadFile de directorios de telemetria sin apertura contenida.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

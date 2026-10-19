@@ -1,0 +1,11 @@
+{
+  "id": "20261019T155147_c26bb0",
+  "created_at": "2026-10-19T15:51:47.688025Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/doctor.go",
+  "description": "INTRODUCIDO — internal/boardcmd/doctor.go:88: DoctorOf reemplaza el helper local de construccion por seis append con literales Problem que repiten ID, Slug y el mismo armazon hasta la linea 143. La duplicacion entierra las reglas entre mecanica repetida y obliga a mantener los campos invariantes en seis sitios; conserva un helper o constructor pequeno para que las condiciones y sus diferencias sean escaneables.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}
