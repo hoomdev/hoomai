@@ -474,9 +474,9 @@ const maxDelegacion = 1 << 20
 
 var (
 	campoKind   = regexp.MustCompile(`"kind"\s*:\s*"([a-z_]+)"`)
-	campoTS     = regexp.MustCompile(`"ts"\s*:\s*"([^"\\]+)"`)
-	campoAgent  = regexp.MustCompile(`"agent"\s*:\s*"([^"\\]*)"`)
-	campoToolID = regexp.MustCompile(`"tool_id"\s*:\s*"([^"\\]*)"`)
+	campoTS     = regexp.MustCompile(`"ts"\s*:\s*"((?:[^"\\]|\\.)*)"`)
+	campoAgent  = regexp.MustCompile(`"agent"\s*:\s*"((?:[^"\\]|\\.)*)"`)
+	campoToolID = regexp.MustCompile(`"tool_id"\s*:\s*"((?:[^"\\]|\\.)*)"`)
 	campoDetail = regexp.MustCompile(`"detail"\s*:\s*"`)
 )
 
@@ -497,14 +497,19 @@ func delegacionRecortada(cabeza, cola []byte, size int) (Event, bool) {
 	if k == nil || (string(k[1]) != "agent" && string(k[1]) != "agent_end") {
 		return Event{}, false
 	}
+	// a value is a JSON string, escapes and all: it is decoded as one
 	campo := func(re *regexp.Regexp) string {
+		var raw []byte
 		if m := re.FindSubmatch(antes); m != nil {
-			return string(m[1])
+			raw = m[1]
+		} else if all := re.FindAllSubmatch(cola, -1); len(all) > 0 {
+			raw = all[len(all)-1][1]
 		}
-		if all := re.FindAllSubmatch(cola, -1); len(all) > 0 {
-			return string(all[len(all)-1][1])
+		var v string
+		if raw == nil || json.Unmarshal(append(append([]byte{'"'}, raw...), '"'), &v) != nil {
+			return ""
 		}
-		return ""
+		return v
 	}
 	ev := Event{Kind: string(k[1]), Agent: campo(campoAgent), ToolID: campo(campoToolID)}
 	ev.TS, _ = time.Parse(time.RFC3339Nano, campo(campoTS))
