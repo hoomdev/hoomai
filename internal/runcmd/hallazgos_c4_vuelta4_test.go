@@ -13,6 +13,12 @@
 //     otro kind sale como delegacion, y lo que ReadDelegations asigna no
 //     crece con el tamano de la linea enorme. Una delegacion de tamano normal
 //     (unos cientos de bytes) siempre se lee entera.
+//
+//     Caso encontrado al escribir estos tests (caja negra): una delegacion
+//     valida escrita con espacios o tabuladores entre las claves y los
+//     valores ({"ts": "...", "kind": "agent", ...}) la lee ReadEvents y
+//     ReadDelegations no. ReadDelegations es ReadEvents filtrado por agent y
+//     agent_end, con cualquier JSON valido de una linea.
 package runcmd
 
 import (
@@ -472,5 +478,78 @@ func TestHallazgo_2628ba_CA362_Guarda_DelegacionNormalSiempreSeLee(t *testing.T)
 	}
 	if err := quick.Check(prop, &quick.Config{MaxCount: 150, Rand: rand.New(rand.NewSource(2628))}); err != nil {
 		t.Fatalf("CA-362 (hallazgo 2628ba, guarda): %v", err)
+	}
+}
+
+// CA-362 (hallazgo 2628ba, JSON espaciado): ReadDelegations trae exactamente
+// lo mismo que ReadEvents filtrado por agent y agent_end, en orden, aunque las
+// lineas del log sean JSON valido escrito de otra forma que la de
+// json.Marshal: con espacios despues de los dos puntos y las comas, con
+// espacios antes de los dos puntos, con un espacio al principio del objeto, y
+// con retornos de carro (\r) y tabuladores entre las claves dentro de la
+// linea. Mezcladas con delegaciones compactas, con lineas text que nombran
+// "agent" y "kind":"agent" en el detail, y con una text espaciada que lleva
+// "kind": "agent" en un campo extra (no es una delegacion).
+func TestHallazgo_2628ba_CA362_ReadDelegationsEsReadEventsFiltradoConJSONEspaciado(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t0 := time.Date(2026, 10, 19, 18, 0, 0, 0, time.UTC)
+	m := func(k int) time.Time { return t0.Add(time.Duration(k) * time.Minute) }
+	crudo := func(s string) c4v4Linea { return c4v4Linea{cabeza: s} }
+	const id = "20261019T180000_espaci"
+	c4v4Log(t, root, id,
+		c4v4Ev(Event{TS: m(0), Kind: "start", Detail: "init"}),
+		crudo(`{"ts": "`+c4v4TS(m(1))+`", "kind": "agent", "agent": "Espaciado", "detail": "Agent: con espacios entre las claves", "tool_id": "toolu_S1"}`),
+		c4v4Ev(Event{TS: m(2), Kind: "text", Detail: `el agent Espaciado dijo "kind":"agent" en su texto`}),
+		crudo(`{"ts": "`+c4v4TS(m(3))+`", "kind": "text", "detail": "un agent con \"kind\": \"agent\" en el texto"}`),
+		crudo(`{ "kind" : "agent_end" , "ts" : "`+c4v4TS(m(4))+`" , "agent" : "Espaciado" , "tool_id" : "toolu_S1" , "detail" : "Espaciado termino" }`),
+		c4v4Ev(Event{TS: m(5), Kind: "agent", Agent: "Plan", ToolID: "toolu_2", Detail: "Agent: compacta"}),
+		crudo("{\r\"ts\":\""+c4v4TS(m(6))+"\",\r\t\"kind\":\t\"agent\",\r\t\"agent\":\"Retorno\",\r\t\"tool_id\":\"toolu_R\"\r}"),
+		c4v4Ev(Event{TS: m(7), Kind: "agent_end", Agent: "Plan", ToolID: "toolu_2", Detail: "Plan termino"}),
+		crudo(`{"ts": "`+c4v4TS(m(8))+`", "kind": "text", "extra": {"kind": "agent", "agent": "Fantasma", "tool_id": "toolu_F"}, "detail": "no soy una delegacion"}`),
+		crudo(`{"ts":"`+c4v4TS(m(9))+`","kind" :"agent_end","agent":"Retorno","tool_id":"toolu_R","detail":"Retorno fallo: se corto"}`),
+		c4v4Ev(Event{TS: m(10), Kind: "end", Detail: "listo"}),
+	)
+	want := []Event{
+		{TS: m(1), Kind: "agent", Agent: "Espaciado", ToolID: "toolu_S1", Detail: "Agent: con espacios entre las claves"},
+		{TS: m(4), Kind: "agent_end", Agent: "Espaciado", ToolID: "toolu_S1", Detail: "Espaciado termino"},
+		{TS: m(5), Kind: "agent", Agent: "Plan", ToolID: "toolu_2", Detail: "Agent: compacta"},
+		{TS: m(6), Kind: "agent", Agent: "Retorno", ToolID: "toolu_R"},
+		{TS: m(7), Kind: "agent_end", Agent: "Plan", ToolID: "toolu_2", Detail: "Plan termino"},
+		{TS: m(9), Kind: "agent_end", Agent: "Retorno", ToolID: "toolu_R", Detail: "Retorno fallo: se corto"},
+	}
+	mismas := func(a, b []Event) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for i := range a {
+			if !c4v4MismoEvento(a[i], b[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	evs, err := ReadEvents(root, id)
+	if err != nil {
+		t.Fatalf("fixture: ReadEvents lee el log: %v", err)
+	}
+	var filtradas []Event
+	for _, e := range evs {
+		if e.Kind == "agent" || e.Kind == "agent_end" {
+			filtradas = append(filtradas, e)
+		}
+	}
+	if !mismas(filtradas, want) {
+		t.Fatalf("fixture: ReadEvents entiende las %d delegaciones del log, compactas y espaciadas:\n%squiere:\n%s",
+			len(want), c4v4Listado(filtradas), c4v4Listado(want))
+	}
+
+	ds, err := ReadDelegations(root, id)
+	if err != nil || !mismas(ds, filtradas) {
+		t.Errorf("CA-362 (hallazgo 2628ba): ReadDelegations trae exactamente ReadEvents filtrado por agent y agent_end, en orden, tambien con JSON espaciado; err=%v, trajo %d:\n%sReadEvents filtrado (%d):\n%s",
+			err, len(ds), c4v4Listado(ds), len(filtradas), c4v4Listado(filtradas))
 	}
 }
