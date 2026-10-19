@@ -312,8 +312,16 @@ func TestHallazgo_2628ba_CA362_Fixture_LasLineasEnormesSonValidas(t *testing.T) 
 // tamano con la marca "kind":"agent" en un campo extra, intercaladas con
 // delegaciones de unos cientos de bytes: ReadDelegations trae todas las
 // delegaciones normales, en orden y con sus campos exactos; la linea text no
-// sale como delegacion; y la delegacion enorme, si sale, sale una vez, con su
-// kind, su agente, su tool_id y su ts, y sin guardar su detail entero.
+// sale como delegacion; y la delegacion enorme sale una vez, con su kind, su
+// agente, su tool_id y su ts, y sin guardar su detail entero.
+//
+// El contrato cambio por los hallazgos 0ebb3f y 34a37c (CA-362, enmienda 3
+// del spec, decision de Henry): antes este test aceptaba que la delegacion
+// enorme no saliera; ahora el agent y el agent_end enormes (escritos como
+// los escribe hoom, kind antes que detail) salen, cada uno exactamente una
+// vez, recortados: a lo sumo c4v4TopeDetalle de detail, empezando con el
+// comienzo del original. Es mas estricto, no mas debil: todo lo que se
+// exigia antes se sigue exigiendo.
 func TestHallazgo_2628ba_CA362_DelegacionEnormeNoTapaLasNormales(t *testing.T) {
 	for _, n := range []int{4 * c4v4MiB, 32 * c4v4MiB} {
 		t.Run(fmt.Sprintf("lineas de %d MiB", n/c4v4MiB), func(t *testing.T) {
@@ -328,6 +336,26 @@ func TestHallazgo_2628ba_CA362_DelegacionEnormeNoTapaLasNormales(t *testing.T) {
 				t.Fatalf("CA-362 (hallazgo 2628ba): ReadDelegations lee un log con lineas de %d MiB sin error: %v", n/c4v4MiB, err)
 			}
 			c4v4ExigirDelegaciones(t, fmt.Sprintf("CA-362 (hallazgo 2628ba, lineas de %d MiB)", n/c4v4MiB), ds)
+			// CA-362 (hallazgos 0ebb3f y 34a37c, enmienda 3): la delegacion
+			// enorme ya no puede faltar: su agent y su agent_end salen, una vez
+			// cada uno, recortados, con el comienzo del detail original
+			// (c4v4ExigirDelegaciones ya exige su ts, su tool_id y el tope).
+			cuantas := map[string]int{}
+			for _, d := range ds {
+				if d.Agent != "Enorme" {
+					continue
+				}
+				cuantas[d.Kind]++
+				comienzo := map[string]string{"agent": "Agent: relleno relleno", "agent_end": "Enorme fallo: relleno relleno"}[d.Kind]
+				if len(d.Detail) >= n || comienzo == "" || !strings.HasPrefix(d.Detail, comienzo) {
+					t.Errorf("CA-362 (hallazgos 0ebb3f y 34a37c, lineas de %d MiB): la delegacion enorme %s sale recortada: empieza con el comienzo de su detail (%q) y no entera; trajo %d bytes: %.80q",
+						n/c4v4MiB, d.Kind, comienzo, len(d.Detail), d.Detail)
+				}
+			}
+			if cuantas["agent"] != 1 || cuantas["agent_end"] != 1 {
+				t.Errorf("CA-362 (hallazgos 0ebb3f y 34a37c, lineas de %d MiB): el agent y el agent_end enormes salen, recortados, exactamente una vez cada uno; salieron %d y %d:\n%s",
+					n/c4v4MiB, cuantas["agent"], cuantas["agent_end"], c4v4Listado(ds))
+			}
 		})
 	}
 }
