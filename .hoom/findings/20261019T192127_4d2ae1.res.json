@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T192127_4d2ae1",
+  "as": "corregido",
+  "evidence": "e44f0f4 (test-writer): la tabla de variantes de internal/runcmd/hallazgos_c4_vuelta5_test.go usa campos nombrados y el enum c4v5Escenario (:292-299) en vez de dos booleanos posicionales; las filas son autocontenidas.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T21:08:54.734466Z"
+}

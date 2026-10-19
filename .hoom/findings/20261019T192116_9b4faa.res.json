@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T192116_9b4faa",
+  "as": "corregido",
+  "evidence": "e6993df, enmienda 4 de historia-doctor-y-cinta aprobada (4d7c0580, 01e8480): el recorte paso a la escritura (runcmd.go:462 acotarDelegacion, llamado en m.append :1239) y ReadDelegations (:396) lee entera una linea de hasta 1 MiB y salta una mas larga. El bucle de la linea larga (runcmd.go:410-431) quedo con tres variables (larga, reusada; entra; frag) y sin cabeza, ventana ni despacho final; delegacionRecortada y comienzoDecodificado se borraron. El limite de memoria lo sigue exigiendo TestHallazgo_2628ba_CA362_ReadDelegationsNoCargaLaLineaEntera, verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T21:08:54.720179Z"
+}

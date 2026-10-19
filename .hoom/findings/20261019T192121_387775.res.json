@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T192121_387775",
+  "as": "corregido",
+  "evidence": "e6993df, enmienda 4 de historia-doctor-y-cinta aprobada (4d7c0580, 01e8480): el recorte paso a la escritura (runcmd.go:462 acotarDelegacion, llamado en m.append :1239) y ReadDelegations (:396) lee entera una linea de hasta 1 MiB y salta una mas larga. comienzoDecodificado y su cota 12 se borraron con el recorte al leer. Las cotas que quedan tienen nombre y derivacion en su comentario: maxDelegacion (runcmd.go:450) y detalleRecortado (:454, 128 KiB que escapados como \\u00XX, seis bytes cada uno, entran en 1 MiB).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T21:08:54.727581Z"
+}

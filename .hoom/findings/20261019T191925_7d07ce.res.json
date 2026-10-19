@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T191925_7d07ce",
+  "as": "corregido",
+  "evidence": "e6993df, enmienda 4 de historia-doctor-y-cinta aprobada (4d7c0580, 01e8480): el recorte paso a la escritura (runcmd.go:462 acotarDelegacion, llamado en m.append :1239) y ReadDelegations (:396) lee entera una linea de hasta 1 MiB y salta una mas larga. Ya no se sintetiza un evento desde el comienzo de una linea: una de mas de 1 MiB, completa o a medio escribir, se salta, y una mas corta a medio escribir no decodifica y se salta, como en ReadEvents. Test e44f0f4: TestHallazgo_7d07ce_CA362_LineaAMedioEscribirNoSale (agent y agent_end cortados sin salto, por encima y por debajo de 1 MiB, con delegaciones anteriores que salen todas): falla en 38b54b5 y pasa en e44f0f4.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T21:08:54.713465Z"
+}

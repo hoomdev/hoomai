@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T191412_550f79",
+  "as": "corregido",
+  "evidence": "e6993df, enmienda 4 de historia-doctor-y-cinta aprobada (4d7c0580, 01e8480): el recorte paso a la escritura (runcmd.go:462 acotarDelegacion, llamado en m.append :1239) y ReadDelegations (:396) lee entera una linea de hasta 1 MiB y salta una mas larga. El tope se compara con el contenido sin el salto (bytes.TrimSuffix en :421-427) y la lectura ya no informa tamano. Tests e44f0f4 (internal/runcmd/hallazgos_c4_vuelta6_test.go): TestHallazgo_550f79_dae2e8_CA362_LineaDeHastaUnMiBSeLeeEntera (1 MiB exacto y 1 MiB-1, dos kinds, dos ordenes), _LineaDeMasDeUnMiBSeSalta y _VentanaAlrededorDeUnMiB (1 MiB-16 a 1 MiB+64): fallan en 38b54b5 y pasan en e44f0f4; suite go test ./... verde (c4-suite-5.log).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T21:08:54.698888Z"
+}
