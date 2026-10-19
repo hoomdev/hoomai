@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
@@ -373,7 +374,7 @@ func liveness(ev Evidence) (*Running, *Interrupted) {
 			continue
 		}
 		if e.Alive {
-			cand := &Running{EnvelopeID: rec.ID, RunID: rec.RunID, Role: rec.Role, Provider: rec.Provider,
+			cand := &Running{EnvelopeID: rec.ID, RunID: rec.RunID, Role: rolDeHoom(rec.Role), Provider: rec.Provider,
 				Stage: rec.Stage, Step: rec.Step, Steps: rec.Steps, StartedAt: rec.StartedAt}
 			if run == nil || cand.StartedAt.After(run.StartedAt) {
 				run = cand
@@ -384,7 +385,7 @@ func liveness(ev Evidence) (*Running, *Interrupted) {
 			continue // otro sobre de la tarjeta empezo despues: la persona ya decidio
 		}
 		if intr == nil || rec.UpdatedAt.After(intr.UpdatedAt) {
-			intr = &Interrupted{EnvelopeID: rec.ID, RunID: rec.RunID, Role: rec.Role, Provider: rec.Provider,
+			intr = &Interrupted{EnvelopeID: rec.ID, RunID: rec.RunID, Role: rolDeHoom(rec.Role), Provider: rec.Provider,
 				Stage: rec.Stage, Step: rec.Step, Steps: rec.Steps, UpdatedAt: rec.UpdatedAt}
 		}
 	}
@@ -399,7 +400,7 @@ func liveness(ev Evidence) (*Running, *Interrupted) {
 		if m.Status != runcmd.StatusRunning || !r.Alive || own[m.ID] {
 			continue
 		}
-		cand := &Running{RunID: m.ID, Role: m.Role, Provider: m.Provider, Stage: "run", StartedAt: m.CreatedAt}
+		cand := &Running{RunID: m.ID, Role: rolDeHoom(m.Role), Provider: m.Provider, Stage: "run", StartedAt: m.CreatedAt}
 		if run == nil || cand.StartedAt.After(run.StartedAt) {
 			run = cand
 		}
@@ -570,4 +571,17 @@ func sortedCopy(in []string) []string {
 	out := nonNil(in)
 	sort.Strings(out)
 	return out
+}
+
+// rolDeHoom is a role from local telemetry as hoom writes it: Lookup's slug,
+// which forgives spaces around it, or "" when it is not one of hoom's. The
+// card's actions and the doctor's commands only ever see this one, never the
+// raw value: a newline in it would split a command, and " reviewer" would
+// pass for a role that resumes (finding fffe28).
+func rolDeHoom(role string) string {
+	r, err := agents.Lookup(role)
+	if err != nil {
+		return ""
+	}
+	return r.Slug
 }

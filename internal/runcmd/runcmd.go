@@ -368,18 +368,20 @@ func ReadEvents(root, id string) ([]Event, error) {
 }
 
 // openLog opens the narration of run id in root only when it is a regular
-// file of runs: a valid name that is a symlink would take the reading out of
-// the project (finding 058fb1).
+// file of root's own runs: a valid name that is a symlink, or a .hoom or a
+// runs that is one, would take the reading to another project (finding
+// 058fb1). The file is opened without following a symlink (and without
+// blocking on a FIFO), so what is read is what was checked.
 func openLog(root, id string) (*os.File, error) {
 	if !validID(id) {
 		return nil, fmt.Errorf("run no encontrado: %s", id)
 	}
-	path := filepath.Join(runsDir(root), id+".jsonl")
-	st, err := os.Lstat(path)
-	if err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+	for _, d := range []string{filepath.Join(root, ".hoom"), runsDir(root)} {
+		if st, err := os.Lstat(d); err != nil || !st.IsDir() {
+			return nil, fmt.Errorf("run no encontrado: %s", id)
+		}
 	}
-	f, err := os.Open(path)
+	f, err := hoomfs.AbrirRegular(filepath.Join(runsDir(root), id+".jsonl"))
 	if err != nil {
 		return nil, fmt.Errorf("run no encontrado: %s", id)
 	}
