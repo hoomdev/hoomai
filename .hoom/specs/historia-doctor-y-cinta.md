@@ -1,16 +1,22 @@
 # Spec: historia, doctor y cinta de la tarjeta (cabina visual, C4)
 
-Estado: ENMIENDA 4 — pendiente de re-aprobación humana. La enmienda 4 es
-una sola y reemplaza a la 3: una delegación cuya línea pasaría de 1 MiB se
-recorta al escribirla, no al leerla. hoom escribe cada evento `agent` y
-`agent_end` de un run en una línea de hasta 1 MiB, con el comienzo de su
-`detail` y el aviso de que se recortó si no entraba entero; su `ts`, su
-agente y su `tool_id` quedan enteros. La historia lee entera cada línea de
-delegación de hasta 1 MiB y salta una más larga, que no es como la escribe
-hoom (hallazgos 550f79, dae2e8, 7d07ce, 9b4faa, 387775 y 4d2ae1 de la delta
-2 de C4: el recorte al leer era un parser a mano de cabeza y cola que cada
-review abría por otro borde; Henry eligió recortar al escribir). Está en la
-fuente `telemetria`; no agrega ni cambia criterios.
+Estado: ENMIENDA 5 — pendiente de re-aprobación humana. La enmienda 5 es
+una sola y reemplaza a la 4: hoom no recorta las delegaciones. El
+normalizador ya arma el `detail` de un `agent` o un `agent_end` con el
+agente y textos que recorta a 300 bytes (la descripción de la delegación y
+el texto del fallo), así que una línea de delegación pasa de 1 MiB solo si
+el provider manda un agente, un `tool_id` o un estado de cientos de KiB. Esa
+delegación, en un log nuevo o en uno escrito por un hoom anterior, queda
+fuera de contrato, y la historia salta su línea. Las de hasta 1 MiB se leen
+enteras, como en la 4 (hallazgos
+b8d4a1, 733ac3, de5a5a y 3cb898 de la delta 3 de C4: el recorte de la 4
+cortaba el `detail` cuando lo que crecía era el agente, y borraba la marca
+del fallo; Henry eligió quitarlo). Está en la fuente `telemetria`; no
+agrega ni cambia criterios.
+
+Enmienda 4 (aprobada el 2026-10-19, sha256 4d7c0580), reemplazada por la 5:
+hoom recortaba al escribirlo el `detail` de una delegación cuya línea
+pasaba de 1 MiB.
 
 Enmienda 3 (aprobada el 2026-10-19, sha256 77623973), reemplazada por la 4:
 la historia recortaba al leerla una delegación cuya línea pasaba de 1 MiB,
@@ -34,7 +40,8 @@ cambia criterios.
 Historia: aprobada el 2026-09-23 (sha256 e6b0ca14); enmienda 1 aprobada el
 2026-10-14 (sha256 a34e2cec); enmienda 2 aprobada el 2026-10-16 (sha256
 a4f23049); enmienda 3 aprobada el 2026-10-19 (sha256 77623973), reemplazada
-por la 4.
+por la 4; enmienda 4 aprobada el 2026-10-19 (sha256 4d7c0580), reemplazada
+por la 5.
 Depende de: `acciones-desde-la-tarjeta.md` (C3) integrada (PR #25).
 Tarea sugerida: `hoom task start historia-doctor-y-cinta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 4 de 4, "C4 — Timeline,
@@ -230,18 +237,17 @@ espacio de trabajo), con la misma regla de gasto que el detalle de C2
 | `subagente-fin` | cada evento `agent_end` emparejado | su `ts` / null | `<agente> (<provider>)` | `<agente> termino su parte`; con error: `<agente> fallo` |
 
 Las delegaciones se leen de la narración tal como la escribe hoom: un evento
-JSON por línea. hoom escribe cada evento `agent` y `agent_end` de un run en
-una línea de hasta 1 MiB, sin contar el salto: si con su `detail` entero
-pasaría, el `detail` se queda con sus primeros 128 KiB, sin partir un
-carácter, seguidos de ` [...] (detalle recortado al escribir la narracion:
-tenia <n> bytes)`, con `<n>` los bytes del `detail` original; su `ts`, su
-agente y su `tool_id` quedan enteros, y el run guarda en memoria el mismo
-evento que escribe. Así, para no cargar en memoria un log que puede ser muy
-grande, la historia lee entera, en cualquier orden de claves, cada línea de
-delegación de hasta 1 MiB, y salta una más larga, como salta una línea mal
-formada o a medio escribir. Una delegación cuyo agente o `tool_id` hacen
-pasar la línea de 1 MiB aun con el `detail` recortado no es como la escribe
-hoom y queda fuera de este contrato. (Enmienda 4, que reemplaza a la 3.)
+JSON por línea. El `detail` de un `agent` o un `agent_end` lo arma el
+normalizador con el agente y textos que recorta a 300 bytes (la descripción
+de la delegación y el texto del fallo), así que la línea de una delegación
+mide unos cientos de bytes más su agente, su `tool_id` y, en un fallo por
+estado, ese estado. Para no cargar en memoria un log que puede ser muy
+grande, la historia lee entera, en cualquier orden de claves, cada línea de delegación
+de hasta 1 MiB sin contar el salto, y salta una más larga, como salta una
+línea mal formada o a medio escribir. Una delegación de más de 1 MiB solo
+sale de un agente, un `tool_id` o un estado de cientos de KiB que mandó el
+provider: en un log nuevo o en uno escrito por un hoom anterior, queda fuera
+de este contrato. (Enmienda 5, que reemplaza a la 4.)
 
 `artifact` es la ruta del registro del sobre o del `.jsonl` del run. El
 costo de un sobre es el `usage` del sidecar de su run (o el suyo si el run no
