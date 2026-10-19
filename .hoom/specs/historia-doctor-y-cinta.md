@@ -1,7 +1,15 @@
 # Spec: historia, doctor y cinta de la tarjeta (cabina visual, C4)
 
-Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 2 es
-una sola: la historia lee los veredictos, hallazgos, resoluciones y registros
+Estado: ENMIENDA 3 — pendiente de re-aprobación humana. La enmienda 3 es
+una sola: la historia lee la narración de los runs como la escribe hoom (un
+evento JSON por línea, con `kind` antes que `detail`), y una delegación cuya
+línea pasa de 1 MiB vuelve recortada: con su `ts`, su agente y su `tool_id`,
+y un `detail` con el comienzo del original y el aviso de que se recortó
+(hallazgos 0ebb3f y 34a37c de la delta 1 de C4: antes desaparecía; Henry
+eligió este contrato acotado en vez de igualar a `ReadEvents` en cualquier
+línea). Está en la fuente `telemetria`; no agrega ni cambia criterios.
+
+Enmienda 2 (aprobada el 2026-10-16, sha256 a4f23049), una sola: la historia lee los veredictos, hallazgos, resoluciones y registros
 de review de la tarjeta como están hoy, y uno editado o borrado a mano no se
 reconstruye desde git (hallazgo 43fe5d de la review de 4 lentes de C4: con
 hoom no se alcanza, porque esos archivos se escriben una sola vez; Henry
@@ -16,7 +24,8 @@ en el contrato de la historia, en su decisión y en su riesgo; no agrega ni
 cambia criterios.
 
 Historia: aprobada el 2026-09-23 (sha256 e6b0ca14); enmienda 1 aprobada el
-2026-10-14 (sha256 a34e2cec).
+2026-10-14 (sha256 a34e2cec); enmienda 2 aprobada el 2026-10-16 (sha256
+a4f23049).
 Depende de: `acciones-desde-la-tarjeta.md` (C3) integrada (PR #25).
 Tarea sugerida: `hoom task start historia-doctor-y-cinta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 4 de 4, "C4 — Timeline,
@@ -210,6 +219,16 @@ espacio de trabajo), con la misma regla de gasto que el detalle de C2
 | `run` | cada run que ningún sobre referencia | `created_at` / `ended_at` | `<rol> (<provider>)`, o el provider solo | `trabajo el <rol o provider>`; con estado `error`: `el trabajo del <rol o provider> fallo` |
 | `subagente` | cada evento `agent` de los runs de la tarjeta (`.hoom/runs/<id>.jsonl`) | su `ts` / el `ts` de su `agent_end` (null si no llegó) | `<agente> (<provider>)` | `el <rol del run> le paso trabajo a <agente>` |
 | `subagente-fin` | cada evento `agent_end` emparejado | su `ts` / null | `<agente> (<provider>)` | `<agente> termino su parte`; con error: `<agente> fallo` |
+
+Las delegaciones se leen de la narración tal como la escribe hoom: un evento
+JSON por línea, con `kind` antes que `detail`. Para no cargar en memoria un
+log que puede ser muy grande, una línea de delegación de hasta 1 MiB se lee
+entera, y una más larga vuelve recortada: su `ts`, su `kind`, su agente y su
+`tool_id` son los del evento, y su `detail` es el comienzo del original
+(decodificado) seguido del aviso de que se recortó y de cuántos bytes tenía.
+Una línea de más de 1 MiB que no sea JSON válido más allá de su comienzo, o
+que escriba `kind` después de `detail`, no es como la escribe hoom y queda
+fuera de este contrato. (Enmienda 3.)
 
 `artifact` es la ruta del registro del sobre o del `.jsonl` del run. El
 costo de un sobre es el `usage` del sidecar de su run (o el suyo si el run no
