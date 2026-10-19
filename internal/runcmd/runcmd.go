@@ -446,9 +446,11 @@ func ReadDelegations(root, id string) ([]Event, error) {
 // and a longer one is not read at all.
 const maxDelegacion = 1 << 20
 
-// marcaDelegacion is how the line of an agent or agent_end event starts its
-// kind in the log.
-var marcaDelegacion = []byte(`"kind":"agent`)
+// marcaDelegacion is a cheap first look at a line: every agent or agent_end
+// event has it however its JSON is spaced ("kind":"agent" or "kind": "agent"),
+// and only lines that have it are decoded; decoding decides by kind, so a
+// line that merely mentions it is decoded and dropped.
+var marcaDelegacion = []byte(`"agent`)
 
 // ReadEventsFrom reads the narration from a byte offset and returns the
 // events plus the offset of the next unread byte. The Studio polls the logs
