@@ -1,0 +1,11 @@
+{
+  "id": "20261019T213022_b8d4a1",
+  "created_at": "2026-10-19T21:30:22.687254Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:474 recorta agent_end a los primeros 128 KiB, pero internal/boardcmd/timeline.go:559-561 decide si el subagente fallo buscando la cadena ' fallo' dentro de ese detail. El caso nuevo de internal/runcmd/hallazgos_c4_vuelta6_test.go:515-538 usa un agente fallido de mas de 128 KiB cuyo detail es '\u003cagente\u003e fallo: ...'; el recorte elimina la marca de fallo y la historia lo publica como '\u003cagente\u003e termino su parte'. Se pierde la integridad de la bitacora operativa y un fallo real queda representado como exito.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4c9d8bbc783ca4a",
+  "task": "fixes-cabina-c4"
+}

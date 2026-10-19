@@ -1,0 +1,11 @@
+{
+  "id": "20261019T214031_3cb898",
+  "created_at": "2026-10-19T21:40:31.747188Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:447 afirma que hoom no escribe delegaciones de más de 1 MiB y :461 dice que una que no entra aun recortada queda intacta, pero acotarDelegacion retorna sin medir cuando el detail no supera 128 KiB (:463-464) y, cuando sí recorta, no vuelve a medir antes de devolver (:470-476). El caso fuera de contrato puede quedar mayor de 1 MiB y el comentario describe a la vez dos garantías incompatibles; alinear el comentario con el tratamiento real evitaría que un mantenedor infiera un invariante inexistente.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4c9d8bbc783ca4a",
+  "task": "fixes-cabina-c4"
+}

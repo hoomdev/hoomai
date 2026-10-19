@@ -1,0 +1,11 @@
+{
+  "id": "20261019T213041_de5a5a",
+  "created_at": "2026-10-19T21:30:41.1333Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:416-432 ahora descarta toda linea historica de delegacion de mas de 1 MiB. Antes de este cambio, Manager.append escribia el Event completo y ReadDelegations tenia una ruta explicita para recuperar recortadas esas lineas, por lo que instalaciones existentes pueden tener .hoom/runs/*.jsonl validos generados por hoom con ese formato. Tras actualizar, sus agent/agent_end desaparecen (o quedan abiertos) de la historia sin migracion ni fallback: los datos siguen en disco pero la bitacora deja de representarlos. Los tests reclasifican esas lineas como 'escritas a mano' y no cubren compatibilidad con narraciones persistidas de la version anterior.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4c9d8bbc783ca4a",
+  "task": "fixes-cabina-c4"
+}

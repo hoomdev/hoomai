@@ -1,0 +1,11 @@
+{
+  "id": "20261019T213853_186b1a",
+  "created_at": "2026-10-19T21:38:53.479309Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE / follow-up — internal/runcmd/runcmd.go:1240-1255: append publica el evento en r.events y NumEvents antes de persistirlo, y luego ignora tanto un error de json.Marshal como (n, err) de log.Write. Ante ENOSPC, descriptor cerrado o un write corto, Events puede exponer la delegacion acotada y el run cerrar done aunque el .jsonl no la tenga o termine con una linea parcial; si una escritura posterior vuelve a funcionar, sus bytes se concatenan a esa linea sin salto y ReadDelegations pierde tambien el evento posterior. Los tests nuevos de igualdad memoria/disco solo cubren escritura exitosa. El defecto ya existia antes de este rango, asi que es follow-up y no bloquea esta delta, pero contradice la invariante ahora explicitada de que el run guarda en memoria el mismo evento que escribe.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4c9d8bbc783ca4a",
+  "task": "fixes-cabina-c4"
+}

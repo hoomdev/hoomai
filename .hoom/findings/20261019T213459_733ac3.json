@@ -1,0 +1,11 @@
+{
+  "id": "20261019T213459_733ac3",
+  "created_at": "2026-10-19T21:34:59.489754Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:474 y :1239 recortan el detail de agent_end a sus primeros 128 KiB antes de guardarlo en memoria y disco. El normalizador de Claude forma un fallo como '\u003cagente\u003e fallo: ...', y el caso agregado en internal/runcmd/hallazgos_c4_vuelta6_test.go:515-538 usa un agente fallido cuyo nombre supera 128 KiB; por eso el evento escrito conserva solo un prefijo del nombre y pierde la cadena ' fallo'. internal/boardcmd/timeline.go:559-561 usa precisamente esa cadena para decidir entre fallo y exito, de modo que la historia publica '\u003cagente\u003e termino su parte' para un fallo real. La linea recortada queda debajo de 1 MiB y conserva agent/tool_id, asi que el caso esta dentro del contrato de la enmienda 4.",
+  "author": "reviewer@codex",
+  "fingerprint": "c4c9d8bbc783ca4a",
+  "task": "fixes-cabina-c4"
+}
