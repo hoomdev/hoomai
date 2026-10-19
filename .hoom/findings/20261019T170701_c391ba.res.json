@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T170701_c391ba",
+  "as": "corregido",
+  "evidence": "Corregido en 0d0e349 y 243c31e: el booleano se separa en candidata (el primer pedazo menciona una delegacion) y dentroDelTope (la linea no paso de 1 MiB), y el comentario dice lo que pasa con cada caso. Sin test: legibilidad.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T18:46:28.067841Z"
+}
