@@ -81,45 +81,51 @@ func DoctorOf(ev Evidence, c Card) []Problem {
 		cd = "cd " + ev.Dir + " && "
 	}
 	at := func(parts ...string) string { return path.Join(append([]string{ev.Dir}, parts...)...) }
+	// problema fills in what every problem of the card shares; each rule
+	// below says only its own fields, by name (findings 1bbb70, c26bb0)
+	problema := func(id string, p Problem) Problem {
+		p.ID, p.Slug = id, s
+		return p
+	}
 	hecho := c.Column == ColHecho
 	v := ev.Verdict
 	green := v != nil && v.Verdict == "green"
 
 	if !hecho && ev.Approval == approval.StatusInvalidated {
-		out = append(out, Problem{ID: ProbSpecEditado, Slug: s,
+		out = append(out, problema(ProbSpecEditado, Problem{
 			What:   "el spec cambio despues de su aprobacion: revisalo y aprobalo de nuevo",
 			Plain:  "el spec cambio despues de tu aprobacion",
 			Action: cd + "hoom spec approve " + spec,
-			Ref:    at(spec)})
+			Ref:    at(spec)}))
 	}
 	if !hecho && ev.Worktree && len(ev.TreeChanges) > 0 && !ev.Certified && !green {
 		action := cd + "hoom verify"
 		if ev.SpecExists {
 			action += " --spec " + spec
 		}
-		out = append(out, Problem{ID: ProbSinVeredicto, Slug: s,
+		out = append(out, problema(ProbSinVeredicto, Problem{
 			What:   fmt.Sprintf("el espacio de trabajo tiene cambios que ningun veredicto certifica (huella %s)", ev.TreeFingerprint),
 			Plain:  "hay cambios sin verificar",
 			Action: action,
-			Ref:    ev.Dir})
+			Ref:    ev.Dir}))
 	}
 	if !hecho && green && ev.TreeFingerprint != "" && v.Git.ChangeFingerprint != ev.TreeFingerprint {
-		out = append(out, Problem{ID: ProbVerdeVencido, Slug: s,
+		out = append(out, problema(ProbVerdeVencido, Problem{
 			What:   fmt.Sprintf("el veredicto verde %s certifica la huella %s y el arbol tiene %s", v.ID, v.Git.ChangeFingerprint, ev.TreeFingerprint),
 			Plain:  "el codigo cambio despues del ultimo verde",
 			Action: cd + "hoom verify --spec " + spec,
-			Ref:    at(".hoom", "verdicts", v.ID+".json")})
+			Ref:    at(".hoom", "verdicts", v.ID+".json")}))
 	}
 	if !hecho && c.Column == ColTuAceptacion {
 		for _, f := range ev.Findings {
 			if f.Status != finding.StatusOpen || f.Task != s || f.Severity != "high" {
 				continue
 			}
-			out = append(out, Problem{ID: ProbBugDerivacion, Slug: s,
+			out = append(out, problema(ProbBugDerivacion, Problem{
 				What:   fmt.Sprintf("bug de hoom: la tarjeta esta en Tu aceptacion con el hallazgo high abierto %s, y la derivacion nunca deberia permitirlo", f.ID),
 				Plain:  "hay un error de hoom en esta tarjeta: no la integres",
 				Action: "reporta este bug de hoom con la salida de 'hoom board doctor --json' y no integres la tarjeta hasta entonces",
-				Ref:    at(".hoom", "findings", f.ID+".json")})
+				Ref:    at(".hoom", "findings", f.ID+".json")}))
 		}
 	}
 	if in := c.Interrupted; in != nil {
@@ -127,20 +133,20 @@ func DoctorOf(ev Evidence, c Card) []Problem {
 		if role == "" {
 			role = "rol"
 		}
-		out = append(out, Problem{ID: ProbSobreHuerfano, Slug: s,
+		out = append(out, problema(ProbSobreHuerfano, Problem{
 			What:   fmt.Sprintf("el sobre %s del %s quedo abierto en el paso %d de %d (%s) y su proceso ya no vive", in.EnvelopeID, role, in.Step, in.Steps, in.Stage),
 			Plain:  "el trabajo del " + role + " quedo interrumpido",
 			Action: orphanAction(c, in, spec),
-			Ref:    ".hoom/" + envelope.DirName + "/" + in.EnvelopeID + ".json"})
+			Ref:    ".hoom/" + envelope.DirName + "/" + in.EnvelopeID + ".json"}))
 	}
 	if !hecho && !ev.SpecExists && !ev.Item.CreadoEn.IsZero() {
 		if age := ev.Now.Sub(ev.Item.CreadoEn); age > DoctorSinSpecDias*24*time.Hour {
 			d := int(age / (24 * time.Hour))
-			out = append(out, Problem{ID: ProbSinSpec, Slug: s,
+			out = append(out, problema(ProbSinSpec, Problem{
 				What:   fmt.Sprintf("el item lleva %d dias sin spec (creado el %s)", d, ev.Item.CreadoEn.UTC().Format("2006-01-02")),
 				Plain:  fmt.Sprintf("lleva %d dias esperando su spec", d),
 				Action: c.Next,
-				Ref:    item.RelPath(s)})
+				Ref:    item.RelPath(s)}))
 		}
 	}
 	return out
@@ -236,6 +242,11 @@ func taskWorktrees(root string) ([]string, error) {
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
+			continue
+		}
+		// a name that is not a slug is not a task's, and never goes into
+		// the command the doctor proposes (finding 7913f8)
+		if !item.ValidSlug(e.Name()) {
 			continue
 		}
 		if _, err := runcmd.TaskDir(root, e.Name()); err == nil {

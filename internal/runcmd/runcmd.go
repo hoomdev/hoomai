@@ -411,16 +411,22 @@ func ReadDelegations(root, id string) ([]Event, error) {
 		if err == bufio.ErrBufferFull {
 			// a line longer than the buffer: kind is the second field, so
 			// this first piece says whether the line is a delegation; any
-			// other line is skipped without being kept
+			// other line is skipped without being kept, and so is a
+			// delegation longer than maxDelegacion: what is kept is bounded,
+			// never the size of the line (finding 2628ba)
 			var whole []byte
 			delegation := bytes.Contains(frag, marcaDelegacion)
 			for err == bufio.ErrBufferFull {
 				if delegation {
-					whole = append(whole, frag...)
+					if len(whole)+len(frag) > maxDelegacion {
+						delegation, whole = false, nil
+					} else {
+						whole = append(whole, frag...)
+					}
 				}
 				frag, err = br.ReadSlice('\n')
 			}
-			if delegation {
+			if delegation && len(whole)+len(frag) <= maxDelegacion {
 				keep(append(whole, frag...))
 			}
 		} else if bytes.Contains(frag, marcaDelegacion) {
@@ -434,6 +440,11 @@ func ReadDelegations(root, id string) ([]Event, error) {
 		}
 	}
 }
+
+// maxDelegacion bounds the line of one delegation that ReadDelegations
+// keeps: an agent or agent_end event says who and when, a few hundred bytes,
+// and a longer one is not read at all.
+const maxDelegacion = 1 << 20
 
 // marcaDelegacion is how the line of an agent or agent_end event starts its
 // kind in the log.

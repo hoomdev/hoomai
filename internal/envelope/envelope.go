@@ -86,12 +86,12 @@ type Record struct {
 // trust an old UpdatedAt, and hoom never closes what it did not see close.
 func (r Record) Done() bool { return r.Status != "" && r.Status != StatusRunning }
 
-// NewID mints a record id with the same shape as a run's: sortable by name
-// and unique per invocation.
 // idRe is the shape of an envelope id: one file name, no separators, no
 // dots that climb, nothing a shell would read.
 var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
+// NewID mints a record id with the same shape as a run's: sortable by name
+// and unique per invocation.
 func NewID() string {
 	raw := make([]byte, 3)
 	rand.Read(raw)
