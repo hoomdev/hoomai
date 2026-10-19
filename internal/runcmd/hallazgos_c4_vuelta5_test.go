@@ -9,22 +9,24 @@
 //     una linea de delegacion de mas de 1 MiB, y la delegacion desaparece de
 //     la historia o queda abierta.
 //
-//     El contrato es el de la enmienda 3 del spec (seccion "Fuente
-//     telemetria", decision de Henry): la narracion se lee como la escribe
-//     hoom, un evento JSON por linea con kind antes que detail. Una linea de
-//     delegacion de hasta 1 MiB se lee entera, en cualquier orden de claves.
-//     Una de mas de 1 MiB vuelve recortada: su ts, su kind, su agente y su
-//     tool_id son los del evento (los de ReadEvents), y su detail es el
-//     comienzo del original decodificado seguido del aviso de que se recorto
-//     (a lo sumo 1 MiB en total). Lo que asigna ReadDelegations sigue acotado
+//     El contrato es el de la enmienda 4 del spec (seccion "Fuente
+//     telemetria", decision de Henry, que reemplaza a la 3): hoom escribe
+//     cada delegacion en una linea de hasta 1 MiB (si con su detail entero
+//     pasaria, recorta el detail AL ESCRIBIRLO: sus primeros 128 KiB y un
+//     aviso). La historia lee entera, en cualquier orden de claves, cada linea
+//     de delegacion de hasta 1 MiB, y salta una mas larga, como salta una mal
+//     formada o a medio escribir. Lo que asigna ReadDelegations sigue acotado
 //     (el test de memoria de 2628ba, sin cambios). Una linea de otro kind que
 //     solo menciona "kind":"agent" (en un campo extra o en su detail) no sale.
 //
-//     Fuera del contrato (enmienda 3): una linea de mas de 1 MiB que no es
-//     JSON valido mas alla de su comienzo, o que escribe kind despues de
-//     detail. Estos tests no le exigen nada a esas lineas mas que no tapar a
-//     las delegaciones validas de alrededor. No es debilitar: hoom no las
-//     produce (escribe cada evento con json.Marshal, kind antes que detail).
+//     Con la enmienda 3 estos tests exigian que una linea de mas de 1 MiB
+//     volviera recortada AL LEERLA. Con la enmienda 4 esas lineas, escritas a
+//     mano, ya no son como las escribe hoom: se exige que se salten, en
+//     cualquier orden de claves y tambien las que no son JSON valido, sin
+//     tapar a las vecinas. No es debilitar: el recorte se movio a la
+//     escritura y ahi se exige (hallazgos_c4_vuelta6_test.go, sobre un run de
+//     verdad), y una delegacion larga escrita como hoom (detail recortado,
+//     linea de hasta 1 MiB) se exige entera aca.
 //
 //     Caso encontrado al escribir estos tests (caja negra): una delegacion
 //     valida con el detail antes de "kind" se pierde en ReadDelegations
@@ -32,9 +34,10 @@
 //     ReadEvents la lea. Dentro del contrato (hasta 1 MiB, cualquier orden de
 //     claves) sale entera.
 //
-//     "Recortada" se lee asi: el detail empieza con el principio del detail
-//     original ya decodificado (sin escapes JSON crudos, UTF-8 valido) y
-//     sigue con el aviso (no es solo un prefijo del original).
+//   - 4d2ae1 (legibilidad): la tabla de variantes de
+//     DelegacionEnormeEscritaAManoSeSalta nombra cada escenario con un enum y
+//     sus campos por nombre, en vez de literales posicionales con dos
+//     booleanos.
 package runcmd
 
 import (
@@ -49,13 +52,9 @@ import (
 	"testing"
 	"testing/quick"
 	"time"
-	"unicode/utf8"
 )
 
 const c4v5MiB = 1 << 20
-
-// c4v5Tope es lo mas que puede traer el detail de una delegacion recortada.
-const c4v5Tope = c4v5MiB
 
 // c4v5BloqueCrudo es el relleno de los details enormes tal como va en la
 // linea (JSON escapado: comillas, barras, \u00e9, \t, runas de 2, 3 y 4
@@ -135,7 +134,7 @@ func c4v5Largo(l c4v5Linea) int {
 const (
 	c4v5Compacto  = iota // como json.Marshal: ts, kind, agent, detail, tool_id
 	c4v5Espaciado        // las mismas claves con espacios despues de : y ,
-	c4v5OtroOrden        // detail primero; kind, agent, tool_id y ts despues (enmienda 3: solo hasta 1 MiB)
+	c4v5OtroOrden        // detail primero; kind, agent, tool_id y ts despues
 )
 
 var c4v5Estilos = map[int]string{c4v5Compacto: "compacto", c4v5Espaciado: "espaciado", c4v5OtroOrden: "otro orden"}
@@ -239,74 +238,37 @@ func c4v5Filtradas(t *testing.T, root, id string) []Event {
 	return out
 }
 
-// c4v5Cabeza es el principio de s, a lo sumo n bytes, sin partir una runa.
-func c4v5Cabeza(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	for n > 0 && !utf8.RuneStart(s[n]) {
-		n--
-	}
-	return s[:n]
-}
-
-// c4v5ExigirRecortada exige el detail de una delegacion recortada (enmienda
-// 3): a lo sumo 1 MiB, distinto del original y no solo un prefijo suyo (trae
-// el aviso del recorte), UTF-8 valido, sin escapes JSON crudos, y empezando
-// con el comienzo del detail original decodificado.
-func c4v5ExigirRecortada(t *testing.T, ca string, got, orig Event) {
-	t.Helper()
-	d := got.Detail
-	switch {
-	case len(d) > c4v5Tope:
-		t.Errorf("%s: el detail recortado de %s es de a lo sumo %d bytes; trajo %d", ca, c4v5Resumen(orig), c4v5Tope, len(d))
-	case d == orig.Detail:
-		t.Errorf("%s: el detail de %s se recorta (el original pesa %d bytes)", ca, c4v5Resumen(orig), len(orig.Detail))
-	case strings.HasPrefix(orig.Detail, d):
-		t.Errorf("%s: el detail recortado de %s dice que se recorto: no es solo un prefijo del original (%d de %d bytes)",
-			ca, c4v5Resumen(orig), len(d), len(orig.Detail))
-	case !utf8.ValidString(d):
-		t.Errorf("%s: el detail recortado de %s es UTF-8 valido (el corte no parte una runa)", ca, c4v5Resumen(orig))
-	case strings.Contains(d, `\"`) || strings.Contains(d, `\\`) || strings.Contains(d, `\u00e9`):
-		t.Errorf("%s: el detail recortado de %s es texto decodificado, como el de ReadEvents, sin escapes JSON crudos: %.120q",
-			ca, c4v5Resumen(orig), d)
-	case !strings.HasPrefix(d, c4v5Cabeza(orig.Detail, 160)):
-		t.Errorf("%s: el detail recortado de %s empieza con el comienzo del original %.160q; trajo %.200q",
-			ca, c4v5Resumen(orig), orig.Detail, d)
-	}
-}
-
 // c4v5Comparar exige que ReadDelegations traiga exactamente las delegaciones
-// de ref (ReadEvents filtrado), cada una una vez y en orden, con ts, kind,
-// agent y tool_id iguales. El detail: recortado si el de ref pasa de 1 MiB;
-// igual si la linea no pasa de 1 MiB; y si la linea pasa de 1 MiB pero el
-// detail decodificado no, entero o recortado. larga dice si la linea de la
-// delegacion i pasa de 1 MiB (nil: ninguna linea con un detail de a lo sumo
-// 1 MiB pasa de 1 MiB).
+// de ref (ReadEvents filtrado) cuya linea es de hasta 1 MiB, cada una una vez
+// y en orden, enteras: ts, kind, agent, tool_id y detail iguales. Las de mas
+// de 1 MiB no salen (enmienda 4). larga dice si la linea de la delegacion i
+// pasa de 1 MiB (nil: ninguna pasa).
+//
+// Enmienda 4 (decision de Henry): con la 3 una linea de mas de 1 MiB salia
+// recortada al leerla; ahora se salta, porque hoom la recorta al escribirla
+// (y ahi se exige, en hallazgos_c4_vuelta6_test.go). No es debilitar: cada
+// delegacion que ReadDelegations trae se exige entera.
 func c4v5Comparar(t *testing.T, ca string, ds, ref []Event, larga func(i int) bool) {
 	t.Helper()
-	if len(ds) != len(ref) {
-		t.Errorf("%s: ReadDelegations trae cada agent y cada agent_end del log exactamente una vez: %d, trajo %d:\n%squiere (ReadEvents filtrado):\n%s",
-			ca, len(ref), len(ds), c4v5Listado(ds), c4v5Listado(ref))
-		return
-	}
-	for i := range ref {
-		g, w := ds[i], ref[i]
-		if !g.TS.Equal(w.TS) || g.Kind != w.Kind || g.Agent != w.Agent || g.ToolID != w.ToolID || g.SessionID != w.SessionID {
-			t.Errorf("%s: la delegacion %d sale con el ts, el kind, el agent y el tool_id de ReadEvents: quiere %s, salio %s\n%s",
-				ca, i, c4v5Resumen(w), c4v5Resumen(g), c4v5Listado(ds))
+	var want []Event
+	for i, e := range ref {
+		if larga != nil && larga(i) {
 			continue
 		}
-		switch {
-		case len(w.Detail) > c4v5Tope:
-			c4v5ExigirRecortada(t, ca, g, w)
-		case g.Detail == w.Detail:
-		case larga != nil && larga(i):
-			c4v5ExigirRecortada(t, ca, g, w)
-		default:
-			t.Errorf("%s: la delegacion %d (%s) tiene una linea de a lo sumo 1 MiB: sale con su detail entero, trajo %s",
-				ca, i, c4v5Resumen(w), c4v5Resumen(g))
+		if len(e.Detail) > c4v5MiB {
+			t.Fatalf("fixture: %s: la delegacion %d (%s) trae mas de 1 MiB de detail: su linea pasa de 1 MiB", ca, i, c4v5Resumen(e))
 		}
+		want = append(want, e)
+	}
+	ok := len(ds) == len(want)
+	for i := 0; ok && i < len(want); i++ {
+		g, w := ds[i], want[i]
+		ok = g.TS.Equal(w.TS) && g.Kind == w.Kind && g.Agent == w.Agent && g.ToolID == w.ToolID && g.SessionID == w.SessionID &&
+			g.Detail == w.Detail
+	}
+	if !ok {
+		t.Errorf("%s: ReadDelegations trae entera, una vez y en orden, cada delegacion de hasta 1 MiB del log (%d), y salta las de mas de 1 MiB (%d); trajo %d:\n%squiere (ReadEvents filtrado, sin las de mas de 1 MiB):\n%s",
+			ca, len(want), len(ref)-len(want), len(ds), c4v5Listado(ds), c4v5Listado(want))
 	}
 }
 
@@ -327,65 +289,109 @@ type c4v5Clave struct {
 	kind, agent, toolID string
 }
 
-// CA-362 (hallazgos 0ebb3f y 34a37c): un log como lo escribe hoom (y la
-// misma linea espaciada, con kind antes que detail) con delegaciones de
-// tamano normal, un agent enorme (detail de 4 MiB y de 32 MiB) con su
-// agent_end emparejado (de tamano normal, y enorme en otra variante; y un
-// agent normal con solo su agent_end enorme), y dos
-// lineas text enormes que solo mencionan "kind":"agent" (en un campo extra y
-// en su detail): ReadDelegations trae cada agent y cada agent_end
-// exactamente una vez, en orden, con ts, kind, agent y tool_id iguales a los
-// de ReadEvents; las normales enteras y las enormes con su detail recortado
-// a lo sumo 1 MiB, distinto del original y diciendo que se recorto. Nada de
-// las lineas text sale.
+// c4v5Escenario dice como esta escrita la delegacion a Enorme (su agent y su
+// agent_end) en el log de DelegacionEnormeEscritaAManoSeSalta.
+type c4v5Escenario int
+
+const (
+	// el agent con un detail enorme (linea de mas de 1 MiB) y su agent_end
+	// de tamano normal
+	c4v5SoloAgentEnorme c4v5Escenario = iota
+	// el agent y el agent_end con un detail enorme
+	c4v5AgentYAgentEndEnormes
+	// el agent de tamano normal y su agent_end con un detail enorme
+	c4v5SoloAgentEndEnorme
+	// el agent y el agent_end como los escribe hoom: el detail enorme
+	// recortado al escribirlo (los primeros 128 KiB y el aviso), en lineas de
+	// hasta 1 MiB
+	c4v5EscritaComoHoom
+)
+
+func (e c4v5Escenario) String() string {
+	return map[c4v5Escenario]string{
+		c4v5SoloAgentEnorme:       "agent enorme y agent_end normal",
+		c4v5AgentYAgentEndEnormes: "agent y agent_end enormes",
+		c4v5SoloAgentEndEnorme:    "agent normal y agent_end enorme",
+		c4v5EscritaComoHoom:       "agent y agent_end escritos como hoom, recortados",
+	}[e]
+}
+
+// agentEnorme y agentEndEnorme dicen si esa linea pasa de 1 MiB.
+func (e c4v5Escenario) agentEnorme() bool {
+	return e == c4v5SoloAgentEnorme || e == c4v5AgentYAgentEndEnormes
+}
+func (e c4v5Escenario) agentEndEnorme() bool {
+	return e == c4v5SoloAgentEndEnorme || e == c4v5AgentYAgentEndEnormes
+}
+
+// CA-362 (hallazgos 0ebb3f y 34a37c; enmienda 4; 4d2ae1): un log con
+// delegaciones de tamano normal, una delegacion a Enorme y dos lineas text
+// enormes que solo mencionan "kind":"agent" (en un campo extra y en su
+// detail). La delegacion a Enorme, segun el escenario: su agent, su
+// agent_end o los dos escritos a mano con un detail de 4 MiB o de 32 MiB
+// (lineas de mas de 1 MiB, en los tres estilos: compacto, espaciado y con
+// las claves en otro orden), o los dos escritos como hoom, con el detail
+// recortado al escribirlo. ReadDelegations trae cada delegacion de hasta
+// 1 MiB entera, una vez y en orden, con ts, kind, agent, tool_id y detail
+// iguales a los de ReadEvents (la escrita como hoom, entera con su aviso), y
+// salta cada linea de mas de 1 MiB sin tapar a las vecinas. Nada de las
+// lineas text sale.
 //
-// Enmienda 3 (decision de Henry): las lineas de mas de 1 MiB van solo en los
-// estilos compacto y espaciado; la variante con las claves en otro orden
-// (detail antes que kind) se saco porque esa linea queda fuera del contrato.
-// No es debilitar: hoom no escribe esas lineas, y las delegaciones en otro
-// orden de hasta 1 MiB se siguen exigiendo enteras (KindDespuesDelDetail y la
-// propiedad AlrededorDeUnMiB).
-func TestHallazgo_0ebb3f_34a37c_CA362_DelegacionEnormeSaleRecortada(t *testing.T) {
+// Antes se llamaba DelegacionEnormeSaleRecortada y exigia el recorte AL LEER
+// (enmienda 3). El contrato viene ahora de la enmienda 4 (decision de
+// Henry): las lineas enormes escritas a mano no son como las escribe hoom y
+// se saltan. No es debilitar: el recorte se movio a la escritura y ahi se
+// exige (hallazgos_c4_vuelta6_test.go); lo que hoom escribe de una
+// delegacion enorme (el escenario c4v5EscritaComoHoom) se exige entero; y
+// las lineas de mas de 1 MiB con las claves en otro orden, que la enmienda 3
+// dejaba fuera, vuelven a la tabla: tambien se saltan.
+func TestHallazgo_0ebb3f_34a37c_CA362_DelegacionEnormeEscritaAManoSeSalta(t *testing.T) {
 	type variante struct {
-		estilo, n                   int
-		agentEndEnorme, agentNormal bool
+		estilo    int // como van escritas las lineas enormes
+		n         int // bytes del detail enorme
+		escenario c4v5Escenario
 	}
 	var vs []variante
 	for _, n := range []int{4 * c4v5MiB, 32 * c4v5MiB} {
-		for _, fin := range []bool{false, true} {
-			vs = append(vs, variante{c4v5Compacto, n, fin, false})
+		for _, esc := range []c4v5Escenario{c4v5SoloAgentEnorme, c4v5AgentYAgentEndEnormes, c4v5SoloAgentEndEnorme, c4v5EscritaComoHoom} {
+			vs = append(vs, variante{estilo: c4v5Compacto, n: n, escenario: esc})
 		}
 	}
-	vs = append(vs, variante{c4v5Espaciado, 4 * c4v5MiB, false, false}, variante{c4v5Espaciado, 4 * c4v5MiB, true, false},
-		// el agent de tamano normal y solo su agent_end enorme: la delegacion
-		// no queda abierta
-		variante{c4v5Compacto, 4 * c4v5MiB, true, true}, variante{c4v5Compacto, 32 * c4v5MiB, true, true})
+	for _, estilo := range []int{c4v5Espaciado, c4v5OtroOrden} {
+		for _, esc := range []c4v5Escenario{c4v5SoloAgentEnorme, c4v5AgentYAgentEndEnormes, c4v5SoloAgentEndEnorme} {
+			vs = append(vs, variante{estilo: estilo, n: 4 * c4v5MiB, escenario: esc})
+		}
+	}
 	for _, v := range vs {
-		cierre := "agent_end normal"
-		if v.agentEndEnorme {
-			cierre = "agent_end enorme"
-		}
-		agent := fmt.Sprintf("agent de %d MiB", v.n/c4v5MiB)
-		if v.agentNormal {
-			agent = "agent normal"
-			cierre = fmt.Sprintf("agent_end de %d MiB", v.n/c4v5MiB)
-		}
-		nombre := fmt.Sprintf("%s, %s, %s", c4v5Estilos[v.estilo], agent, cierre)
+		nombre := fmt.Sprintf("%s, detail de %d MiB, %s", c4v5Estilos[v.estilo], v.n/c4v5MiB, v.escenario)
 		t.Run(nombre, func(t *testing.T) {
-			ca := "CA-362 (hallazgos 0ebb3f y 34a37c, " + nombre + ")"
+			ca := "CA-362 (hallazgos 0ebb3f y 34a37c, enmienda 4, " + nombre + ")"
 			root, err := filepath.EvalSymlinks(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
 			t0 := time.Date(2026, 10, 19, 20, 0, 0, 0, time.UTC)
 			m := func(k int) time.Time { return t0.Add(time.Duration(k) * time.Minute) }
+			// el detail enorme decodificado, para la delegacion escrita como hoom
+			enorme := strings.Repeat(c4v5BloqueTexto, c4v5Bloques(v.n))
+			agentEnorme := c4v5Ev(Event{TS: m(2), Kind: "agent", Agent: "Enorme", ToolID: "toolu_ENORME", Detail: "Agent: leer el catalogo"})
 			fin := c4v5Ev(Event{TS: m(7), Kind: "agent_end", Agent: "Enorme", ToolID: "toolu_ENORME", Detail: "Enorme termino"})
-			if v.agentEndEnorme {
-				fin = c4v5Delegacion(v.estilo, m(7), "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: ", v.n)
-			}
-			agentEnorme := c4v5Delegacion(v.estilo, m(2), "agent", "Enorme", "toolu_ENORME", "Agent: ", v.n)
-			if v.agentNormal {
-				agentEnorme = c4v5Ev(Event{TS: m(2), Kind: "agent", Agent: "Enorme", ToolID: "toolu_ENORME", Detail: "Agent: leer el catalogo"})
+			switch {
+			case v.escenario == c4v5EscritaComoHoom:
+				agentEnorme = c4v5Ev(Event{TS: m(2), Kind: "agent", Agent: "Enorme", ToolID: "toolu_ENORME", Detail: c4v6Recortado("Agent: " + enorme)})
+				fin = c4v5Ev(Event{TS: m(7), Kind: "agent_end", Agent: "Enorme", ToolID: "toolu_ENORME", Detail: c4v6Recortado("Enorme fallo: " + enorme)})
+				for _, l := range []c4v5Linea{agentEnorme, fin} {
+					if raw, _ := json.Marshal(l.ev); len(raw) > c4v5MiB {
+						t.Fatalf("fixture: la delegacion escrita como hoom va en una linea de hasta 1 MiB: %d bytes", len(raw))
+					}
+				}
+			default:
+				if v.escenario.agentEnorme() {
+					agentEnorme = c4v5Delegacion(v.estilo, m(2), "agent", "Enorme", "toolu_ENORME", "Agent: ", v.n)
+				}
+				if v.escenario.agentEndEnorme() {
+					fin = c4v5Delegacion(v.estilo, m(7), "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: ", v.n)
+				}
 			}
 			const id = "20261019T200000_enorme"
 			c4v5Log(t, root, id,
@@ -420,7 +426,7 @@ func TestHallazgo_0ebb3f_34a37c_CA362_DelegacionEnormeSaleRecortada(t *testing.T
 			if !ok {
 				t.Fatalf("fixture: ReadEvents entiende las %d delegaciones del log:\n%s", len(want), c4v5Listado(ref))
 			}
-			if d := ref[1].Detail; !v.agentNormal && (len(d) < v.n*len(c4v5BloqueTexto)/len(c4v5BloqueCrudo) || !strings.HasPrefix(d, "Agent: "+c4v5BloqueTexto)) {
+			if d := ref[1].Detail; v.escenario.agentEnorme() && (len(d) < v.n*len(c4v5BloqueTexto)/len(c4v5BloqueCrudo) || !strings.HasPrefix(d, "Agent: "+c4v5BloqueTexto)) {
 				t.Fatalf("fixture: ReadEvents da el detail enorme decodificado (%d bytes): %.120q", len(d), d)
 			}
 
@@ -429,24 +435,28 @@ func TestHallazgo_0ebb3f_34a37c_CA362_DelegacionEnormeSaleRecortada(t *testing.T
 				t.Fatalf("%s: ReadDelegations lee el log sin error: %v", ca, err)
 			}
 			c4v5Fantasmas(t, ca, ds)
-			c4v5Comparar(t, ca, ds, ref, nil)
+			// el agent de Enorme es la delegacion 1 de ref y su agent_end la 4
+			c4v5Comparar(t, ca, ds, ref, func(i int) bool {
+				return (i == 1 && v.escenario.agentEnorme()) || (i == 4 && v.escenario.agentEndEnorme())
+			})
 		})
 	}
 }
 
-// CA-362 (hallazgos 0ebb3f y 34a37c): lineas enormes que parecen una
-// delegacion pero no son JSON valido despues del primer MiB (un escape
-// invalido, un tabulador crudo dentro del string, una linea que termina sin
-// cerrar el detail y una con basura despues del objeto) no tapan a las
-// delegaciones validas de alrededor: salen todas, en orden y con sus campos
-// (una enorme valida entre ellas, recortada), y nada sale con un kind que no
-// sea agent o agent_end.
+// CA-362 (hallazgos 0ebb3f y 34a37c; enmienda 4): lineas enormes (4 MiB)
+// que parecen una delegacion pero no son JSON valido despues del primer MiB
+// (un escape invalido, un tabulador crudo dentro del string, una linea que
+// termina sin cerrar el detail y una con basura despues del objeto), y una
+// delegacion enorme valida entre ellas, se saltan todas: no sale nada de
+// ninguna, y las delegaciones de tamano normal de alrededor salen enteras,
+// en orden y con sus campos.
 //
-// Enmienda 3 (decision de Henry): esas lineas invalidas quedan fuera del
-// contrato, asi que este test ya no exige que se salten (antes se llamaba
-// LineaEnormeInvalidaSeSalta): pueden salir o no. No es debilitar: hoom no
-// escribe lineas invalidas (cada evento es un json.Marshal), y lo que si
-// produce hoom (las delegaciones validas de alrededor) se sigue exigiendo.
+// El contrato viene de la enmienda 4 (decision de Henry): toda linea de
+// delegacion de mas de 1 MiB se salta, valida o no. Con la enmienda 3 este
+// test dejaba que las invalidas salieran o no y exigia la valida recortada
+// al leerla; ahora exige que no salga ninguna. No es debilitar: es mas
+// estricto con las invalidas, y el recorte de la valida se movio a la
+// escritura, donde se exige (hallazgos_c4_vuelta6_test.go).
 func TestHallazgo_0ebb3f_34a37c_CA362_LineaEnormeInvalidaNoTapaLasValidas(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -489,34 +499,33 @@ func TestHallazgo_0ebb3f_34a37c_CA362_LineaEnormeInvalidaNoTapaLasValidas(t *tes
 	if err != nil {
 		t.Fatalf("CA-362 (hallazgos 0ebb3f y 34a37c): ReadDelegations lee el log sin error: %v", err)
 	}
-	var validas []Event // sin las lineas invalidas, que pueden salir o no
 	for _, d := range ds {
-		if d.Kind != "agent" && d.Kind != "agent_end" {
-			t.Errorf("CA-362 (hallazgos 0ebb3f y 34a37c): ReadDelegations solo trae agent y agent_end, tambien con lineas invalidas en el log; salio %s\n%s",
+		if d.Agent == "Rota" {
+			t.Errorf("CA-362 (hallazgos 0ebb3f y 34a37c, enmienda 4): una linea de delegacion de mas de 1 MiB que no es JSON valido se salta; salio %s\n%s",
 				c4v5Resumen(d), c4v5Listado(ds))
 		}
-		if d.Agent != "Rota" {
-			validas = append(validas, d)
-		}
 	}
-	c4v5Comparar(t, "CA-362 (hallazgos 0ebb3f y 34a37c, lineas invalidas alrededor)", validas, ref, nil)
+	// la delegacion enorme valida es la 1 de ref: su linea de 4 MiB se salta
+	c4v5Comparar(t, "CA-362 (hallazgos 0ebb3f y 34a37c, enmienda 4, lineas invalidas alrededor)", ds, ref,
+		func(i int) bool { return i == 1 })
 }
 
-// CA-362 (hallazgos 0ebb3f y 34a37c, por propiedad): para logs al azar con
-// delegaciones cuyo detail anda alrededor de 1 MiB (de 1 MiB - 8 KiB a
-// 3 MiB, con agentes y tool_id con acentos, comillas, barras y emojis, y con
-// la marca "kind":"agent" en lineas text cercanas; las lineas de hasta 1 MiB
-// en los tres estilos y las de mas de 1 MiB, por la enmienda 3, solo en
-// compacto y espaciado),
-// ReadDelegations trae lo mismo que ReadEvents filtrado: cada delegacion una
-// vez, en orden, con ts, kind, agent y tool_id iguales; entera si su detail
-// no pasa de 1 MiB y si su linea no pasa de 1 MiB, y recortada a lo sumo a
-// 1 MiB si su detail pasa.
+// CA-362 (hallazgos 0ebb3f y 34a37c; enmienda 4; por propiedad): para logs
+// al azar con delegaciones cuyo detail anda alrededor de 1 MiB (de
+// 1 MiB - 8 KiB a 3 MiB, con agentes y tool_id con acentos, comillas, barras
+// y emojis, en los tres estilos, y con la marca "kind":"agent" en lineas
+// text cercanas), ReadDelegations trae lo mismo que ReadEvents filtrado sin
+// las delegaciones cuya linea pasa de 1 MiB: cada una una vez, en orden y
+// entera (ts, kind, agent, tool_id y detail iguales); las de mas de 1 MiB no
+// salen.
 //
-// Enmienda 3 (decision de Henry): una linea de mas de 1 MiB con kind despues
-// de detail queda fuera del contrato, asi que la propiedad ya no las genera.
-// No es debilitar: hoom no las escribe, y el otro orden de claves se sigue
-// exigiendo en las lineas de hasta 1 MiB.
+// El contrato viene de la enmienda 4 (decision de Henry): con la enmienda 3
+// una linea de mas de 1 MiB salia recortada al leerla y las de otro orden de
+// claves quedaban fuera; ahora toda linea de delegacion de mas de 1 MiB se
+// salta, en cualquier orden de claves, asi que la propiedad vuelve a
+// generarlas en los tres estilos. No es debilitar: el recorte se movio a la
+// escritura, donde se exige (hallazgos_c4_vuelta6_test.go), y cada linea de
+// hasta 1 MiB se sigue exigiendo entera.
 func TestHallazgo_0ebb3f_34a37c_CA362_AlrededorDeUnMiB(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -549,19 +558,11 @@ func TestHallazgo_0ebb3f_34a37c_CA362_AlrededorDeUnMiB(t *testing.T) {
 				n = r.Intn(4 << 10)
 			}
 			l := c4v5Delegacion(r.Intn(3), ts, kind, agente, tool, "Agent: ", n)
-			if c4v5Largo(l) > c4v5MiB { // enmienda 3: kind antes que detail
-				l = c4v5Delegacion(r.Intn(2), ts, kind, agente, tool, "Agent: ", n)
-			}
 			larga = append(larga, c4v5Largo(l) > c4v5MiB)
 			k++
 			ls = append(ls, l)
 			if r.Intn(3) == 0 {
-				nt := r.Intn(2 * c4v5MiB)
-				tx := c4v5TextoMarcaExtra(r.Intn(3), ts.Add(time.Second), nt)
-				if c4v5Largo(tx) > c4v5MiB { // enmienda 3: kind antes que detail
-					tx = c4v5TextoMarcaExtra(r.Intn(2), ts.Add(time.Second), nt)
-				}
-				ls = append(ls, tx)
+				ls = append(ls, c4v5TextoMarcaExtra(r.Intn(3), ts.Add(time.Second), r.Intn(2*c4v5MiB)))
 			}
 		}
 		c4v5Log(t, root, id, ls...)
@@ -592,12 +593,12 @@ func TestHallazgo_0ebb3f_34a37c_CA362_AlrededorDeUnMiB(t *testing.T) {
 // ts, su kind, su agent y su tool_id (un detail de 64 KiB, de 512 KiB y de
 // casi 1 MiB); su agent_end emparejado, despues, tambien sale.
 //
-// Enmienda 3 (decision de Henry): una linea de hasta 1 MiB se lee entera en
-// cualquier orden de claves; una de mas de 1 MiB con kind despues de detail
-// queda fuera del contrato, asi que se saco el caso de 4 MiB. No es
-// debilitar: hoom no escribe esa linea (kind va antes que detail).
+// Enmienda 4 (decision de Henry, reemplaza a la 3): una linea de hasta 1 MiB
+// se lee entera en cualquier orden de claves y una de mas de 1 MiB se salta
+// en cualquier orden de claves, asi que vuelve el caso de 4 MiB (que la
+// enmienda 3 dejaba fuera): su agent no sale y su agent_end, normal, si.
 func TestHallazgo_0ebb3f_34a37c_CA362_KindDespuesDelDetail(t *testing.T) {
-	for _, n := range []int{64 << 10, 512 << 10, c4v5MiB - 4<<10} {
+	for _, n := range []int{64 << 10, 512 << 10, c4v5MiB - 4<<10, 4 * c4v5MiB} {
 		t.Run(fmt.Sprintf("detail de %d KiB", n>>10), func(t *testing.T) {
 			ca := fmt.Sprintf("CA-362 (hallazgos 0ebb3f y 34a37c, kind despues de un detail de %d KiB)", n>>10)
 			root, err := filepath.EvalSymlinks(t.TempDir())
@@ -618,14 +619,14 @@ func TestHallazgo_0ebb3f_34a37c_CA362_KindDespuesDelDetail(t *testing.T) {
 			if len(ref) != 2 || ref[0].Kind != "agent" || ref[0].ToolID != "toolu_ORDEN" || ref[1].Kind != "agent_end" {
 				t.Fatalf("fixture: ReadEvents lee la delegacion con las claves en otro orden y su cierre:\n%s", c4v5Listado(ref))
 			}
-			if c4v5Largo(l) > c4v5MiB {
-				t.Fatalf("fixture: la linea con las claves en otro orden es de hasta 1 MiB (enmienda 3): %d bytes", c4v5Largo(l))
+			if (c4v5Largo(l) > c4v5MiB) != (n > c4v5MiB) {
+				t.Fatalf("fixture: la linea con las claves en otro orden pasa de 1 MiB solo con el detail de 4 MiB: %d bytes", c4v5Largo(l))
 			}
 			ds, err := ReadDelegations(root, id)
 			if err != nil {
 				t.Fatalf("%s: ReadDelegations lee el log sin error: %v", ca, err)
 			}
-			c4v5Comparar(t, ca, ds, ref, nil)
+			c4v5Comparar(t, ca, ds, ref, func(i int) bool { return i == 0 && c4v5Largo(l) > c4v5MiB })
 		})
 	}
 }

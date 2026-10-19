@@ -8,13 +8,20 @@
 //
 //   - 0ebb3f y 34a37c: la historia trae una entrada subagente por cada
 //     evento agent de los runs de la tarjeta, y cada agent_end emparejado por
-//     tool_id la cierra (ended_at) con su subagente-fin. Una delegacion cuya
-//     linea pasa de 1 MiB (un agent con un detail enorme, y su agent_end,
-//     tambien enorme en otra variante) desaparece de la historia o queda
-//     abierta. Con una delegacion enorme la historia es la misma que con una
-//     de tamano normal, y lo que asigna leerla no crece con la linea. Las
-//     lineas enormes van escritas como las escribe hoom (kind antes que
-//     detail), dentro del contrato de la enmienda 3 del spec.
+//     tool_id la cierra (ended_at) con su subagente-fin. Lo que asigna leerla
+//     no crece con el tamano de una linea enorme.
+//
+//     El contrato es el de la enmienda 4 del spec (decision de Henry, que
+//     reemplaza a la 3): hoom escribe cada delegacion en una linea de hasta
+//     1 MiB, con el detail recortado AL ESCRIBIRLO si no entraba (sus primeros
+//     128 KiB y el aviso), y la historia salta una linea de delegacion de mas
+//     de 1 MiB. Con la enmienda 3 este test exigia que una delegacion enorme
+//     escrita a mano saliera igual que una normal (recortada al leerla); ahora
+//     esa linea no es como la escribe hoom y se salta sin tapar a las vecinas,
+//     y una delegacion enorme escrita como hoom (la linea que deja la regla de
+//     escritura, armada aca a mano) da su entrada cerrada y su subagente-fin.
+//     No es debilitar: el recorte se movio a la escritura y ahi se exige
+//     (internal/runcmd/hallazgos_c4_vuelta6_test.go, sobre un run de verdad).
 package boardcmd
 
 import (
@@ -28,6 +35,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/runcmd"
@@ -45,13 +53,29 @@ type c4v5Linea struct {
 
 func c4v5Ev(e providers.Event) c4v5Linea { return c4v5Linea{ev: &e} }
 
-// c4v5Delegacion es una delegacion escrita como la escribe hoom (ts, kind,
-// agent, detail, tool_id al final). Con n > 0 el detail es prefijo + n bytes
-// de relleno; con n == 0 es prefijo + cola, de tamano normal.
-func c4v5Delegacion(minuto int, kind, agente, tool, prefijo, colaNormal string, n int) c4v5Linea {
-	if n == 0 {
-		return c4v5Ev(hiEv(minuto, kind, agente, tool, prefijo+colaNormal))
+// c4v5Relleno es el relleno de n bytes de las lineas enormes.
+func c4v5Relleno(n int) string { return strings.Repeat("relleno ", n/8+1)[:n] }
+
+// c4v5Recortado es el detail como lo escribe hoom cuando la linea de la
+// delegacion con su detail entero pasaria de 1 MiB (enmienda 4): sus
+// primeros 128 KiB sin partir un caracter, seguidos del aviso con los bytes
+// del original.
+func c4v5Recortado(orig string) string {
+	n := 128 << 10
+	if len(orig) > n {
+		for n > 0 && !utf8.RuneStart(orig[n]) {
+			n--
+		}
+	} else {
+		n = len(orig)
 	}
+	return orig[:n] + fmt.Sprintf(" [...] (detalle recortado al escribir la narracion: tenia %d bytes)", len(orig))
+}
+
+// c4v5Delegacion es una delegacion escrita a mano como la escribe hoom (ts,
+// kind, agent, detail, tool_id al final) con un detail enorme: prefijo + n
+// bytes de relleno, en una linea de mas de 1 MiB.
+func c4v5Delegacion(minuto int, kind, agente, tool, prefijo string, n int) c4v5Linea {
 	ts := hiMin(minuto).UTC().Format(time.RFC3339Nano)
 	return c4v5Linea{
 		cabeza: `{"ts":"` + ts + `","kind":"` + kind + `","agent":"` + agente + `","detail":"` + prefijo,
@@ -102,58 +126,116 @@ func c4v5Log(t *testing.T, root, id string, ls ...c4v5Linea) string {
 	return p
 }
 
+// c4v5Forma dice como esta escrita en la narracion una linea (el agent o el
+// agent_end) de la delegacion a Enorme.
+type c4v5Forma int
+
+const (
+	c4v5Normal   c4v5Forma = iota // de tamano normal
+	c4v5AMano                     // escrita a mano con un detail enorme: la linea pasa de 1 MiB
+	c4v5ComoHoom                  // el detail enorme recortado como lo escribe hoom: linea de hasta 1 MiB
+)
+
+// c4v5Delegaciones es como esta escrita la delegacion a Enorme de la tarjeta.
+type c4v5Delegaciones struct {
+	agent, fin c4v5Forma
+	finFallo   bool // el agent_end normal dice que fallo (el enorme siempre falla)
+	n          int  // bytes del detail enorme
+}
+
 // c4v5Tarjeta arma la tarjeta "precios" con un run suyo (sidecar con la
 // tarea) cuya narracion tiene: una delegacion normal a Explore que cierra,
-// la delegacion a Enorme (su agent con un detail de n bytes; su agent_end
-// con "Enorme termino" o, si finFallo, "Enorme fallo: " y m bytes) y una
-// delegacion normal a general-purpose que no cierra. n y m en 0: la
-// delegacion a Enorme es de tamano normal.
-func c4v5Tarjeta(t *testing.T, n int, finFallo bool, m int) string {
+// la delegacion a Enorme escrita segun d (agent en el minuto 12, agent_end
+// en el 14) y una delegacion normal a general-purpose que no cierra.
+func c4v5Tarjeta(t *testing.T, d c4v5Delegaciones) string {
 	t.Helper()
 	root := bdRepo(t, "")
 	bdItemArchivo(t, root, bdSlug, "Precios", "")
 	hiCommit(t, root, "alta del item", hiTelD0.Add(-24*time.Hour), "")
 	bdRunDisco(t, root, runcmd.Meta{ID: hiR1, Provider: "claude", Role: "writer", Task: bdSlug, Dir: root,
 		CreatedAt: hiMin(10), EndedAt: hiMin(30), Status: runcmd.StatusDone})
-	fin := c4v5Ev(hiEv(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme termino"))
-	if finFallo {
-		fin = c4v5Delegacion(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: ", "se corto", m)
+	var agent, fin c4v5Linea
+	switch d.agent {
+	case c4v5AMano:
+		agent = c4v5Delegacion(12, "agent", "Enorme", "toolu_ENORME", "Agent: ", d.n)
+	case c4v5ComoHoom:
+		agent = c4v5Ev(hiEv(12, "agent", "Enorme", "toolu_ENORME", c4v5Recortado("Agent: "+c4v5Relleno(d.n))))
+	default:
+		agent = c4v5Ev(hiEv(12, "agent", "Enorme", "toolu_ENORME", "Agent: leer el catalogo"))
+	}
+	switch {
+	case d.fin == c4v5AMano:
+		fin = c4v5Delegacion(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: ", d.n)
+	case d.fin == c4v5ComoHoom:
+		fin = c4v5Ev(hiEv(14, "agent_end", "Enorme", "toolu_ENORME", c4v5Recortado("Enorme fallo: "+c4v5Relleno(d.n))))
+	case d.finFallo:
+		fin = c4v5Ev(hiEv(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: se corto"))
+	default:
+		fin = c4v5Ev(hiEv(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme termino"))
+	}
+	for _, l := range []c4v5Linea{agent, fin} {
+		if l.ev == nil {
+			continue
+		}
+		if raw, _ := json.Marshal(l.ev); len(raw) > c4v5MiB {
+			t.Fatalf("fixture: la delegacion escrita como hoom va en una linea de hasta 1 MiB: %d bytes", len(raw))
+		}
 	}
 	p := c4v5Log(t, root, hiR1,
 		c4v5Ev(hiEv(10, "start", "", "", "init")),
 		c4v5Ev(hiEv(11, "agent", "Explore", "toolu_1", "Agent: buscar precios")),
-		c4v5Delegacion(12, "agent", "Enorme", "toolu_ENORME", "Agent: ", "leer el catalogo", n),
+		agent,
 		c4v5Ev(hiEv(13, "agent_end", "Explore", "toolu_1", "Explore termino")),
 		fin,
 		c4v5Ev(hiEv(15, "agent", "general-purpose", "toolu_3", "Agent: sin cierre")),
 		c4v5Ev(hiEv(29, "end", "", "", "listo")),
 	)
-	if fi, err := os.Stat(p); err != nil || fi.Size() < int64(n+m) {
-		t.Fatalf("fixture: la narracion del run pesa al menos %d bytes: %v %v", n+m, fi, err)
+	enormes := 0
+	for _, f := range []c4v5Forma{d.agent, d.fin} {
+		if f == c4v5AMano {
+			enormes += d.n
+		}
+	}
+	if fi, err := os.Stat(p); err != nil || fi.Size() < int64(enormes) {
+		t.Fatalf("fixture: la narracion del run pesa al menos %d bytes: %v %v", enormes, fi, err)
 	}
 	return root
 }
 
-// c4v5Exigir exige las delegaciones de la historia de c4v5Tarjeta: las tres
-// entradas subagente, en orden, con su ended_at (el ts de su agent_end, o
-// null la que no cerro), y las dos subagente-fin, con el plain de CA-362
-// (con error: "<agente> fallo").
-func c4v5Exigir(t *testing.T, ca string, tl Timeline, finFallo bool) {
+// c4v5Exigir exige las delegaciones de la historia de c4v5Tarjeta(d): las
+// entradas subagente de Explore, de Enorme si su agent no esta en una linea
+// de mas de 1 MiB, y de general-purpose, en orden, con su ended_at (el ts de
+// su agent_end, o null si no cerro: la de general-purpose, y la de Enorme si
+// su agent_end esta en una linea de mas de 1 MiB); y las subagente-fin de
+// Explore y, si su agent y su agent_end se leyeron, de Enorme, con el plain
+// de CA-362 (con error: "<agente> fallo"). Una linea de delegacion de mas de
+// 1 MiB se salta (enmienda 4): ni abre ni cierra, y no tapa a las vecinas.
+func c4v5Exigir(t *testing.T, ca string, tl Timeline, d c4v5Delegaciones) {
 	t.Helper()
 	artefacto := ".hoom/runs/" + hiR1 + ".jsonl"
 	fin := func(n int) *time.Time { x := hiMin(n); return &x }
-	sub := hiDeKind(tl, KindSubagente)
-	want := []struct {
+	type subagente struct {
 		at      int
 		agente  string
 		termino *time.Time
-	}{
-		{11, "Explore", fin(13)},
-		{12, "Enorme", fin(14)},
-		{15, "general-purpose", nil},
+	}
+	want := []subagente{{11, "Explore", fin(13)}}
+	if d.agent != c4v5AMano {
+		cierre := fin(14)
+		if d.fin == c4v5AMano {
+			cierre = nil
+		}
+		want = append(want, subagente{12, "Enorme", cierre})
+	}
+	want = append(want, subagente{15, "general-purpose", nil})
+	sub := hiDeKind(tl, KindSubagente)
+	var nombres []string
+	for _, w := range want {
+		nombres = append(nombres, w.agente)
 	}
 	if len(sub) != len(want) {
-		t.Fatalf("%s: cada agent del run da una entrada subagente (Explore, Enorme, general-purpose); hubo %d:\n%s", ca, len(sub), hiListado(tl))
+		t.Fatalf("%s: cada agent de hasta 1 MiB da una entrada subagente (%s); el de mas de 1 MiB se salta; hubo %d:\n%s",
+			ca, strings.Join(nombres, ", "), len(sub), hiListado(tl))
 	}
 	for i, w := range want {
 		e := sub[i]
@@ -164,63 +246,99 @@ func c4v5Exigir(t *testing.T, ca string, tl Timeline, finFallo bool) {
 		}
 		switch {
 		case w.termino == nil && e.EndedAt != nil:
-			t.Fatalf("%s: la delegacion a %s no cerro: ended_at null, fue %s", ca, w.agente, e.EndedAt.Format(time.RFC3339))
+			t.Fatalf("%s: la delegacion a %s no cerro (o su agent_end esta en una linea de mas de 1 MiB, que se salta): ended_at null, fue %s\n%s",
+				ca, w.agente, e.EndedAt.Format(time.RFC3339), hiListado(tl))
 		case w.termino != nil && (e.EndedAt == nil || !e.EndedAt.Equal(*w.termino)):
 			t.Fatalf("%s: la delegacion a %s queda cerrada: su ended_at es el ts de su agent_end (%s), fue %v\n%s",
 				ca, w.agente, w.termino.Format(time.RFC3339), e.EndedAt, hiListado(tl))
 		}
 	}
-	plainEnorme := "Enorme termino su parte"
-	if finFallo {
-		plainEnorme = "Enorme fallo"
+	type finEsp struct {
+		at          int
+		agente, txt string
 	}
-	fins := hiDeKind(tl, KindSubagenteFin)
-	if len(fins) != 2 || !fins[0].At.Equal(hiMin(13)) || fins[0].Plain != "Explore termino su parte" || fins[0].Who != "Explore (claude)" ||
-		!fins[1].At.Equal(hiMin(14)) || fins[1].Plain != plainEnorme || fins[1].Who != "Enorme (claude)" {
-		t.Fatalf("%s: cada agent_end emparejado da su subagente-fin (Explore termino su parte, %s), en orden:\n%s", ca, plainEnorme, hiListado(tl))
+	fins := []finEsp{{13, "Explore", "Explore termino su parte"}}
+	if d.agent != c4v5AMano && d.fin != c4v5AMano {
+		txt := "Enorme termino su parte"
+		if d.finFallo || d.fin != c4v5Normal {
+			txt = "Enorme fallo"
+		}
+		fins = append(fins, finEsp{14, "Enorme", txt})
 	}
-	for _, e := range fins {
+	got := hiDeKind(tl, KindSubagenteFin)
+	ok := len(got) == len(fins)
+	for i := 0; ok && i < len(fins); i++ {
+		ok = got[i].At.Equal(hiMin(fins[i].at)) && got[i].Plain == fins[i].txt && got[i].Who == fins[i].agente+" (claude)"
+	}
+	if !ok {
+		t.Fatalf("%s: cada agent_end emparejado da su subagente-fin, en orden (%v); uno en una linea de mas de 1 MiB, o sin su agent, no da ninguna:\n%s",
+			ca, fins, hiListado(tl))
+	}
+	for _, e := range got {
 		if e.Source != SourceTelemetria || e.Artifact != artefacto || e.CostUSD != nil || e.EndedAt != nil {
 			t.Fatalf("%s: la subagente-fin de %s sale del run, sin costo y con ended_at null: %+v", ca, e.Who, e)
 		}
 	}
 }
 
-// CA-362 (hallazgos 0ebb3f y 34a37c): con una delegacion cuyo agent trae un
-// detail enorme (4 MiB y 32 MiB), cuyo agent_end es enorme (un fallo con un
-// mensaje de 4 MiB y de 32 MiB), o las dos cosas, la historia de la tarjeta
-// trae la entrada subagente de esa delegacion, cerrada (ended_at = el ts de
-// su agent_end), y su subagente-fin, igual que con una delegacion de tamano
-// normal; las delegaciones normales de alrededor no cambian. Las guardas
-// (tamano normal) pasan con y sin el arreglo.
+func (f c4v5Forma) nombre(kind string, n int) string {
+	switch f {
+	case c4v5AMano:
+		return fmt.Sprintf("%s de %d MiB escrito a mano", kind, n/c4v5MiB)
+	case c4v5ComoHoom:
+		return fmt.Sprintf("%s de %d MiB escrito como hoom", kind, n/c4v5MiB)
+	}
+	return kind + " normal"
+}
+
+// CA-362 (hallazgos 0ebb3f y 34a37c; enmienda 4): la delegacion a Enorme de
+// la tarjeta, con su agent, su agent_end o los dos escritos a mano con un
+// detail de 4 MiB y de 32 MiB (lineas de mas de 1 MiB), o escritos como hoom
+// (el detail enorme recortado al escribirlo, linea de hasta 1 MiB):
+//   - una linea de mas de 1 MiB se salta sin tapar a las vecinas: con el
+//     agent escrito a mano no hay entrada subagente de Enorme (ni
+//     subagente-fin, porque su agent_end queda sin su agent), y con el
+//     agent_end escrito a mano la delegacion queda abierta;
+//   - escritos como hoom, la historia es la misma que con una delegacion de
+//     tamano normal: la entrada subagente de Enorme cerrada (ended_at = el ts
+//     de su agent_end) y su subagente-fin "Enorme fallo";
+//   - las delegaciones normales de alrededor no cambian.
+//
+// Las guardas (tamano normal) pasan con y sin el arreglo.
+//
+// El contrato viene de la enmienda 4 (decision de Henry): con la enmienda 3
+// este test exigia que la delegacion escrita a mano saliera recortada al
+// leerla; ahora se salta, porque hoom no escribe esa linea. No es debilitar:
+// el recorte se movio a la escritura (exigido en
+// internal/runcmd/hallazgos_c4_vuelta6_test.go), y la linea que deja esa
+// regla, armada aca a mano, se exige leida y cerrada con su subagente-fin.
 func TestHallazgo_0ebb3f_34a37c_CA362_HistoriaConDelegacionEnorme(t *testing.T) {
-	for _, cs := range []struct {
-		n, m     int // bytes de relleno del agent y del agent_end de Enorme (0: tamano normal)
-		finFallo bool
-	}{
-		{0, 0, false}, {0, 0, true}, // guardas: la delegacion a Enorme es de tamano normal
-		{4 * c4v5MiB, 0, false}, {32 * c4v5MiB, 0, false}, // el agent enorme desaparece de la historia
-		{0, 4 * c4v5MiB, true}, {0, 32 * c4v5MiB, true}, // el agent_end enorme deja la delegacion abierta
-		{4 * c4v5MiB, 4 * c4v5MiB, true}, {32 * c4v5MiB, 32 * c4v5MiB, true}, // los dos enormes
-	} {
-		agent, fin := "agent normal", "agent_end normal (termino)"
-		if cs.n > 0 {
-			agent = fmt.Sprintf("agent de %d MiB", cs.n/c4v5MiB)
+	var cs []c4v5Delegaciones
+	cs = append(cs, c4v5Delegaciones{agent: c4v5Normal, fin: c4v5Normal}, c4v5Delegaciones{agent: c4v5Normal, fin: c4v5Normal, finFallo: true})
+	for _, n := range []int{4 * c4v5MiB, 32 * c4v5MiB} {
+		cs = append(cs,
+			c4v5Delegaciones{agent: c4v5AMano, fin: c4v5Normal, n: n},
+			c4v5Delegaciones{agent: c4v5Normal, fin: c4v5AMano, n: n},
+			c4v5Delegaciones{agent: c4v5AMano, fin: c4v5AMano, n: n},
+			c4v5Delegaciones{agent: c4v5ComoHoom, fin: c4v5ComoHoom, n: n},
+		)
+	}
+	cs = append(cs,
+		c4v5Delegaciones{agent: c4v5ComoHoom, fin: c4v5Normal, n: 4 * c4v5MiB},
+		c4v5Delegaciones{agent: c4v5Normal, fin: c4v5ComoHoom, n: 4 * c4v5MiB},
+	)
+	for _, d := range cs {
+		nombre := d.agent.nombre("agent", d.n) + ", " + d.fin.nombre("agent_end", d.n)
+		if d.fin == c4v5Normal {
+			nombre += map[bool]string{false: " (termino)", true: " (fallo)"}[d.finFallo]
 		}
-		if cs.finFallo {
-			fin = "agent_end normal (fallo)"
-		}
-		if cs.m > 0 {
-			fin = fmt.Sprintf("agent_end de %d MiB (fallo)", cs.m/c4v5MiB)
-		}
-		nombre := agent + ", " + fin
-		if cs.n == 0 && cs.m == 0 {
+		if d.agent == c4v5Normal && d.fin == c4v5Normal {
 			nombre += " (guarda)"
 		}
 		t.Run(nombre, func(t *testing.T) {
-			ca := "CA-362 (hallazgos 0ebb3f y 34a37c, " + nombre + ")"
-			root := c4v5Tarjeta(t, cs.n, cs.finFallo, cs.m)
-			c4v5Exigir(t, ca, hiTimeline(t, "CA-362", root), cs.finFallo)
+			ca := "CA-362 (hallazgos 0ebb3f y 34a37c, enmienda 4, " + nombre + ")"
+			root := c4v5Tarjeta(t, d)
+			c4v5Exigir(t, ca, hiTimeline(t, "CA-362", root), d)
 		})
 	}
 }
@@ -247,14 +365,15 @@ func c4v5Asigna(t *testing.T, root string) uint64 {
 	return mejor
 }
 
-// CA-362 (hallazgos 0ebb3f y 34a37c, guarda de memoria): que la delegacion
-// enorme salga no hace que la historia cargue su linea entera. Con la misma
+// CA-362 (hallazgos 0ebb3f y 34a37c, guarda de memoria; enmienda 4): saltar
+// la linea de una delegacion enorme no hace que la historia la cargue
+// entera (la memoria sigue acotada). Con la misma
 // tarjeta salvo el tamano del agent y del agent_end enormes (4 MiB contra
 // 32 MiB cada uno), lo que asigna leer la historia crece menos de 16 MiB;
 // cargar las dos lineas enteras asigna al menos los 56 MiB de diferencia.
 func TestHallazgo_0ebb3f_34a37c_CA362_HistoriaNoCargaLaDelegacionEntera(t *testing.T) {
-	chico := c4v5Tarjeta(t, 4*c4v5MiB, true, 4*c4v5MiB)
-	grande := c4v5Tarjeta(t, 32*c4v5MiB, true, 32*c4v5MiB)
+	chico := c4v5Tarjeta(t, c4v5Delegaciones{agent: c4v5AMano, fin: c4v5AMano, n: 4 * c4v5MiB})
+	grande := c4v5Tarjeta(t, c4v5Delegaciones{agent: c4v5AMano, fin: c4v5AMano, n: 32 * c4v5MiB})
 	a4 := c4v5Asigna(t, chico)
 	a32 := c4v5Asigna(t, grande)
 	const tope = 16 * c4v5MiB
