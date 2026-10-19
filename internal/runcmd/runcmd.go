@@ -409,25 +409,47 @@ func ReadDelegations(root, id string) ([]Event, error) {
 	for {
 		frag, err := br.ReadSlice('\n')
 		if err == bufio.ErrBufferFull {
-			// a line longer than the buffer: kind is the second field, so
-			// this first piece says whether the line is a delegation; any
-			// other line is skipped without being kept, and so is a
-			// delegation longer than maxDelegacion: what is kept is bounded,
-			// never the size of the line (finding 2628ba)
-			var whole []byte
-			delegation := bytes.Contains(frag, marcaDelegacion)
+			// a line longer than the buffer. Its first piece says whether it
+			// is a candidate (kind is near the start); any other line is
+			// consumed without being kept. A candidate is kept whole up to
+			// maxDelegacion and decoded as usual; past that, only its head
+			// (ts, kind, agent) and its last two pieces (tool_id) are kept, and it comes
+			// back with its detail cut: memory stays bounded and the
+			// delegation is still in the history (findings 2628ba, 0ebb3f,
+			// 34a37c, c391ba)
+			candidata := bytes.Contains(frag, marcaDelegacion)
+			var cabeza, whole, prev, cur []byte
+			if candidata {
+				cabeza = append([]byte(nil), frag...)
+			}
+			dentroDelTope, size := true, 0
 			for err == bufio.ErrBufferFull {
-				if delegation {
+				size += len(frag)
+				if candidata && dentroDelTope {
 					if len(whole)+len(frag) > maxDelegacion {
-						delegation, whole = false, nil
+						dentroDelTope, whole = false, nil
 					} else {
 						whole = append(whole, frag...)
 					}
 				}
+				if candidata && !dentroDelTope {
+					// the last two pieces, in two buffers that are reused:
+					// reading a longer line allocates nothing more
+					prev, cur = cur, prev
+					cur = append(cur[:0], frag...)
+				}
 				frag, err = br.ReadSlice('\n')
 			}
-			if delegation && len(whole)+len(frag) <= maxDelegacion {
+			size += len(frag)
+			switch {
+			case !candidata:
+			case dentroDelTope && len(whole)+len(frag) <= maxDelegacion:
 				keep(append(whole, frag...))
+			default:
+				cola := append(append(append([]byte(nil), prev...), cur...), frag...)
+				if ev, ok := delegacionRecortada(cabeza, cola, size); ok {
+					out = append(out, ev)
+				}
 			}
 		} else if bytes.Contains(frag, marcaDelegacion) {
 			keep(frag)
@@ -441,10 +463,41 @@ func ReadDelegations(root, id string) ([]Event, error) {
 	}
 }
 
-// maxDelegacion bounds the line of one delegation that ReadDelegations
-// keeps: an agent or agent_end event says who and when, a few hundred bytes,
-// and a longer one is not read at all.
+// maxDelegacion bounds the line of one delegation that ReadDelegations keeps
+// whole: an agent or agent_end event says who and when, a few hundred bytes.
+// A longer one comes back with its detail cut (delegacionRecortada).
 const maxDelegacion = 1 << 20
+
+var (
+	campoKind   = regexp.MustCompile(`"kind"\s*:\s*"([a-z_]+)"`)
+	campoTS     = regexp.MustCompile(`"ts"\s*:\s*"([^"\\]+)"`)
+	campoAgent  = regexp.MustCompile(`"agent"\s*:\s*"([^"\\]*)"`)
+	campoToolID = regexp.MustCompile(`"tool_id"\s*:\s*"([^"\\]*)"`)
+)
+
+// delegacionRecortada is the event of a delegation line too long to keep:
+// its kind, ts and agent from the head of the line, its tool_id from the
+// tail, and a detail that says it was cut. The top-level kind is the first
+// one in the line (an event writes it before its detail), so a text event
+// that only mentions "agent" in its detail is not one.
+func delegacionRecortada(cabeza, cola []byte, size int) (Event, bool) {
+	k := campoKind.FindSubmatch(cabeza)
+	if k == nil || (string(k[1]) != "agent" && string(k[1]) != "agent_end") {
+		return Event{}, false
+	}
+	ev := Event{Kind: string(k[1]),
+		Detail: fmt.Sprintf("(detalle de %d bytes, recortado al leer la historia)", size)}
+	if m := campoTS.FindSubmatch(cabeza); m != nil {
+		ev.TS, _ = time.Parse(time.RFC3339Nano, string(m[1]))
+	}
+	if m := campoAgent.FindSubmatch(cabeza); m != nil {
+		ev.Agent = string(m[1])
+	}
+	if all := campoToolID.FindAllSubmatch(cola, -1); len(all) > 0 {
+		ev.ToolID = string(all[len(all)-1][1])
+	}
+	return ev, true
+}
 
 // marcaDelegacion is a cheap first look at a line: every agent or agent_end
 // event has it however its JSON is spaced ("kind":"agent" or "kind": "agent"),
