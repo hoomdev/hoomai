@@ -407,56 +407,33 @@ func ReadDelegations(root, id string) ([]Event, error) {
 		}
 	}
 	br := bufio.NewReaderSize(f, 64<<10)
+	var larga []byte // reused: long lines allocate once per log, not per line
 	for {
-		frag, err := br.ReadSlice('\n')
+		linea, err := br.ReadSlice('\n')
 		if err == bufio.ErrBufferFull {
-			// a line longer than the buffer. Up to maxDelegacion it is kept
-			// whole, whatever its first piece says (a delegation may write
-			// kind after a long detail), and decoded at the end, where kind
-			// decides. Past that, only a line whose head already says it is
-			// a delegation (kind before detail, as hoom writes it) is kept,
-			// as its head (ts, kind, agent) and its last two pieces (tool_id),
-			// and it comes back with its detail cut; memory stays bounded and
-			// the delegation is still in the history (enmienda 3 of
-			// historia-doctor-y-cinta; findings 2628ba, 0ebb3f, 34a37c,
-			// c391ba)
-			candidata := bytes.Contains(frag, marcaDelegacion)
-			var cabeza, whole, prev, cur []byte
-			if candidata {
-				cabeza = append([]byte(nil), frag...)
-			}
-			dentroDelTope, size := true, 0
+			// a line longer than the buffer is kept whole up to maxDelegacion
+			// (its \n aside), whatever its first piece says: kind decides
+			// when it is decoded. A longer one is not a delegation as hoom
+			// writes it (it cuts their detail when writing: enmienda 4 of
+			// historia-doctor-y-cinta) and is drained without keeping it, so
+			// memory stays bounded (finding 2628ba)
+			larga = append(larga[:0], linea...)
+			entra := true
 			for err == bufio.ErrBufferFull {
-				size += len(frag)
-				if dentroDelTope {
-					if len(whole)+len(frag) > maxDelegacion {
-						dentroDelTope, whole = false, nil
-					} else {
-						whole = append(whole, frag...)
-					}
-				}
-				if candidata && !dentroDelTope {
-					// the last two pieces, in two buffers that are reused:
-					// reading a longer line allocates nothing more
-					prev, cur = cur, prev
-					cur = append(cur[:0], frag...)
-				}
+				var frag []byte
 				frag, err = br.ReadSlice('\n')
-			}
-			size += len(frag)
-			switch {
-			case dentroDelTope && len(whole)+len(frag) <= maxDelegacion:
-				if linea := append(whole, frag...); bytes.Contains(linea, marcaDelegacion) {
-					keep(linea)
-				}
-			case candidata:
-				cola := append(append(append([]byte(nil), prev...), cur...), frag...)
-				if ev, ok := delegacionRecortada(cabeza, cola, size); ok {
-					out = append(out, ev)
+				entra = entra && len(larga)+len(bytes.TrimSuffix(frag, []byte{'\n'})) <= maxDelegacion
+				if entra {
+					larga = append(larga, frag...)
 				}
 			}
-		} else if bytes.Contains(frag, marcaDelegacion) {
-			keep(frag)
+			linea = nil
+			if entra {
+				linea = larga
+			}
+		}
+		if bytes.Contains(linea, marcaDelegacion) {
+			keep(linea)
 		}
 		if err == io.EOF {
 			return out, nil
@@ -467,86 +444,36 @@ func ReadDelegations(root, id string) ([]Event, error) {
 	}
 }
 
-// maxDelegacion bounds the line of one delegation that ReadDelegations keeps
-// whole: an agent or agent_end event says who and when, a few hundred bytes.
-// A longer one comes back with its detail cut (delegacionRecortada).
+// maxDelegacion bounds the line of one delegation (its \n aside): hoom
+// writes none longer (acotarDelegacion) and ReadDelegations keeps none
+// longer. An agent or agent_end event says who and when, a few hundred bytes.
 const maxDelegacion = 1 << 20
 
-var (
-	campoKind   = regexp.MustCompile(`"kind"\s*:\s*"([a-z_]+)"`)
-	campoTS     = regexp.MustCompile(`"ts"\s*:\s*"((?:[^"\\]|\\.)*)"`)
-	campoAgent  = regexp.MustCompile(`"agent"\s*:\s*"((?:[^"\\]|\\.)*)"`)
-	campoToolID = regexp.MustCompile(`"tool_id"\s*:\s*"((?:[^"\\]|\\.)*)"`)
-	campoDetail = regexp.MustCompile(`"detail"\s*:\s*"`)
-)
+// detalleRecortado is what is left of the detail of a delegation whose line
+// would pass maxDelegacion: even escaped as \u00XX, six bytes each, it fits.
+const detalleRecortado = 128 << 10
 
-// delegacionRecortada is the event of a delegation line too long to keep, as
-// hoom writes it (kind before detail: enmienda 3 of historia-doctor-y-cinta):
-// its kind from the head of the line, before the detail; ts, agent and
-// tool_id from there or, when they come after the detail, from the tail
-// (the last match: the detail ends before them); and a detail that is the
-// beginning of the original, decoded, plus a note that it was cut. A text
-// event that only mentions "agent" in its detail is not one: its own kind
-// comes first.
-func delegacionRecortada(cabeza, cola []byte, size int) (Event, bool) {
-	antes, despues := cabeza, []byte(nil)
-	if loc := campoDetail.FindIndex(cabeza); loc != nil {
-		antes, despues = cabeza[:loc[0]], cabeza[loc[1]:]
+// acotarDelegacion is the event a run keeps and writes for ev: a delegation
+// (agent, agent_end) whose line would pass maxDelegacion keeps the first
+// detalleRecortado bytes of its detail, without splitting a character, and
+// says it was cut and how long it was; its ts, agent and tool_id stay whole,
+// since the history pairs by them (enmienda 4 of historia-doctor-y-cinta).
+// One that does not fit even so is out of that contract and stays as is.
+func acotarDelegacion(ev Event) Event {
+	if (ev.Kind != "agent" && ev.Kind != "agent_end") || len(ev.Detail) <= detalleRecortado {
+		return ev
 	}
-	k := campoKind.FindSubmatch(antes)
-	if k == nil || (string(k[1]) != "agent" && string(k[1]) != "agent_end") {
-		return Event{}, false
+	if enc, err := json.Marshal(ev); err != nil || len(enc) <= maxDelegacion {
+		return ev
 	}
-	// a value is a JSON string, escapes and all: it is decoded as one
-	campo := func(re *regexp.Regexp) string {
-		var raw []byte
-		if m := re.FindSubmatch(antes); m != nil {
-			raw = m[1]
-		} else if all := re.FindAllSubmatch(cola, -1); len(all) > 0 {
-			raw = all[len(all)-1][1]
-		}
-		var v string
-		if raw == nil || json.Unmarshal(append(append([]byte{'"'}, raw...), '"'), &v) != nil {
-			return ""
-		}
-		return v
+	// a character is at most utf8.UTFMax bytes: its start is that close
+	n := detalleRecortado
+	for i := 1; i < utf8.UTFMax && !utf8.RuneStart(ev.Detail[n]); i++ {
+		n--
 	}
-	ev := Event{Kind: string(k[1]), Agent: campo(campoAgent), ToolID: campo(campoToolID)}
-	ev.TS, _ = time.Parse(time.RFC3339Nano, campo(campoTS))
-	ev.Detail = comienzoDecodificado(despues) +
-		fmt.Sprintf(" [...] (detalle recortado al leer la historia: la linea tenia %d bytes)", size)
-	return ev, true
-}
-
-// comienzoDecodificado is the start of a JSON string whose opening quote was
-// already consumed, decoded: it stops at the closing quote or at the end of
-// raw, drops an escape or a UTF-8 sequence cut in half, and never fails.
-func comienzoDecodificado(raw []byte) string {
-	fin := len(raw)
-	for i := 0; i < len(raw); i++ {
-		if raw[i] == '\\' {
-			i++
-			continue
-		}
-		if raw[i] == '"' {
-			fin = i
-			break
-		}
-	}
-	raw = raw[:fin]
-	// a UTF-8 sequence cut by the end of the head would decode as U+FFFD:
-	// it goes, so the result is a prefix of the original
-	for i := 0; i < utf8.UTFMax && len(raw) > 0 && !utf8.Valid(raw); i++ {
-		raw = raw[:len(raw)-1]
-	}
-	for recorte := 0; recorte <= 12 && len(raw) > 0; recorte++ {
-		var out string
-		if json.Unmarshal(append(append([]byte{'"'}, raw...), '"'), &out) == nil {
-			return out
-		}
-		raw = raw[:len(raw)-1]
-	}
-	return ""
+	ev.Detail = ev.Detail[:n] +
+		fmt.Sprintf(" [...] (detalle recortado al escribir la narracion: tenia %d bytes)", len(ev.Detail))
+	return ev
 }
 
 // marcaDelegacion is a cheap first look at a line: every agent or agent_end
@@ -1305,9 +1232,11 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	m.mu.Unlock()
 }
 
-// append records one event in memory and in the append-only jsonl log.
+// append records one event in memory and in the append-only jsonl log, a
+// delegation within the line the history reads (acotarDelegacion).
 // A session id reported by the provider becomes the run's handle.
 func (m *Manager) append(r *run, ev Event) {
+	ev = acotarDelegacion(ev)
 	m.mu.Lock()
 	r.events = append(r.events, ev)
 	r.info.NumEvents = len(r.events)
