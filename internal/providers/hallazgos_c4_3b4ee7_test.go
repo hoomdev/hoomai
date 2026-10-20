@@ -1,17 +1,17 @@
 // Tests de regresion del hallazgo 20261020T151253_3b4ee7 (review de la cabina
 // C4, lente resilience) sobre .hoom/specs/historia-doctor-y-cinta.md: CA-373
-// y la enmienda 5 ("#### Fuente telemetria"). Escritos desde el spec, la
-// descripcion del hallazgo y los tests existentes, sin leer la
-// implementacion. Los helpers de este archivo llevan el prefijo h3b4.
+// y la enmienda 6, que precisa la 5 ("#### Fuente telemetria"). Escritos
+// desde el spec, la descripcion del hallazgo y los tests existentes, sin leer
+// la implementacion. Los helpers de este archivo llevan el prefijo h3b4.
 //
 // El normalizador con memoria de Claude (Correlating) cierra una delegacion
 // con una task_notification cuyo status no es completed y emite un agent_end
 // con detail "<agente> fallo (<status>)". La enmienda 5 dice que el detail de
 // un agent_end lo arma el normalizador "con el agente y textos que recorta a
-// 300 bytes (la descripcion de la delegacion y el texto del fallo)": el
-// status es el texto de ESE fallo, y se recorta con la misma regla que el
-// texto de un tool_result con is_error ("<agente> fallo: <texto
-// recortado>"). Hoy el status va entero: uno de 2 MiB (la linea del provider
+// 300 bytes (la descripcion de la delegacion y el texto del fallo)", y la
+// enmienda 6 la precisa: el status es el texto de ESE fallo, y se recorta con
+// la misma regla que el texto de un tool_result con is_error ("<agente>
+// fallo: <texto recortado>"). Hoy el status va entero: uno de 2 MiB (la linea del provider
 // admite hasta 4 MiB) queda en el detail entero.
 package providers
 
@@ -23,7 +23,9 @@ import (
 	"testing/quick"
 )
 
-const h3b4Limite = 300 // bytes del texto del fallo que el normalizador conserva (enmienda 5)
+// h3b4Limite son los bytes del status de un fallo que el normalizador
+// conserva, como del texto del fallo (enmienda 6).
+const h3b4Limite = 300
 
 // h3b4Marca es la marca de recorte mas larga que se le tolera al texto de un
 // fallo recortado (la que pone hoy el recorte de un tool_result es "…", 3
@@ -33,8 +35,8 @@ const h3b4Marca = 8
 // h3b4RecorteDeToolResult es como el normalizador recorta el texto de un
 // fallo en un tool_result con is_error: el detail "<agente> fallo: <texto
 // recortado>" de una delegacion normal, sin el "<agente> fallo: ". Es la
-// regla que la enmienda 5 aplica al texto de cualquier fallo, y la referencia
-// del status recortado.
+// regla que la enmienda 6 aplica al status de un fallo por estado, y la
+// referencia del status recortado.
 func h3b4RecorteDeToolResult(t *testing.T, texto string) string {
 	t.Helper()
 	const agente = "hoom-referencia"
@@ -114,7 +116,7 @@ func h3b4ExigirRecortado(t *testing.T, ca, agente string, s h3b4Status, detail s
 	t.Helper()
 	ref := h3b4RecorteDeToolResult(t, s.status)
 	if want := agente + " fallo (" + ref + ")"; detail != want {
-		t.Errorf("%s: %s: el agent_end es \"<agente> fallo (<status recortado>)\", con el status recortado como el texto de un tool_result con is_error (enmienda 5: el normalizador recorta a 300 bytes el texto del fallo):\n  quiere %s\n  fue    %s",
+		t.Errorf("%s: %s: el agent_end es \"<agente> fallo (<status recortado>)\", con el status recortado como el texto de un tool_result con is_error (enmienda 6: el normalizador recorta a 300 bytes el status del fallo, como el texto de un tool_result fallido):\n  quiere %s\n  fue    %s",
 			ca, s.nombre, h3b4Resumen(want), h3b4Resumen(detail))
 	}
 	pre, suf := agente+" fallo (", ")"
@@ -140,7 +142,7 @@ func h3b4ExigirRecortado(t *testing.T, ca, agente string, s h3b4Status, detail s
 	}
 }
 
-// CA-373 (hallazgo 3b4ee7, enmienda 5): una delegacion en segundo plano
+// CA-373 (hallazgo 3b4ee7, enmienda 6): una delegacion en segundo plano
 // (run_in_background: true) que cierra con una task_notification de status
 // largo (2 MiB en ASCII y con unicode, 301 bytes, 301 con el corte en medio
 // de un caracter) da su system y despues UN agent_end "<agente> fallo
@@ -174,7 +176,7 @@ func TestHallazgo_3b4ee7_CA373_SegundoPlanoConStatusLargoSaleRecortado(t *testin
 	}
 }
 
-// CA-373 (hallazgo 3b4ee7, enmienda 5): una delegacion normal que cierra con
+// CA-373 (hallazgo 3b4ee7, enmienda 6): una delegacion normal que cierra con
 // una task_notification de status largo antes de su tool_result tambien da
 // "<agente> fallo (<status recortado>)", con la misma regla.
 func TestHallazgo_3b4ee7_CA373_DelegacionNormalConStatusLargoSaleRecortado(t *testing.T) {
@@ -199,7 +201,7 @@ func TestHallazgo_3b4ee7_CA373_DelegacionNormalConStatusLargoSaleRecortado(t *te
 	}
 }
 
-// CA-373 (hallazgo 3b4ee7, enmienda 5), con las lineas REALES de Claude Code
+// CA-373 (hallazgo 3b4ee7, enmienda 6), con las lineas REALES de Claude Code
 // 2.1.281: el tool_use real en segundo plano y la task_notification real con
 // un status de 2 MiB en lugar de "completed" cierran con "general-purpose
 // fallo (<status recortado>)".
@@ -257,7 +259,7 @@ func TestHallazgo_3b4ee7_CA373_StatusCortoEnteroYCompletedTermina(t *testing.T) 
 	}
 }
 
-// CA-373 (hallazgo 3b4ee7, enmienda 5), como propiedad: para cualquier status
+// CA-373 (hallazgo 3b4ee7, enmienda 6), como propiedad: para cualquier status
 // no completed armado con ASCII, comillas, barras y caracteres de 2, 3 y 4
 // bytes (de 1 byte a unos KiB, alrededor del borde de 300), la delegacion en
 // segundo plano cierra con "<agente> fallo (<status recortado>)", recortado

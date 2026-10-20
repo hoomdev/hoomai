@@ -1,8 +1,9 @@
 // Tests de regresion de la octava vuelta de la review de la cabina C4 sobre
 // .hoom/specs/historia-doctor-y-cinta.md, en runcmd: el hallazgo
 // 20261020T151253_3b4ee7 (lente resilience). Escritos desde el spec (CA-362,
-// CA-373, CA-374 y la enmienda 5, "#### Fuente telemetria"), la descripcion
-// del hallazgo y los tests existentes, sin leer la implementacion. Los
+// CA-373, CA-374 y las enmiendas 5 y 6, "#### Fuente telemetria"), la
+// descripcion del hallazgo y los tests existentes, sin leer la
+// implementacion. Los
 // helpers de este archivo llevan el prefijo c4v8; los compartidos (prefijo
 // dlg) estan en delegaciones_helpers_test.go.
 //
@@ -13,10 +14,11 @@
 // MiB deja un agent_end de varios MiB en memoria y en el disco.
 //
 // El contrato que exigen estos tests: el normalizador arma el detail de un
-// agent_end con el agente y el texto del fallo recortado a 300 bytes
-// (enmienda 5), y el status de una task_notification no completed es el
-// texto de ese fallo: el detail es "<agente> fallo (<status recortado>)",
-// con el status recortado igual que el texto de un tool_result con is_error.
+// agent_end con el agente y el texto del fallo recortado a 300 bytes, y el
+// status de una task_notification no completed es el texto de ese fallo y se
+// recorta igual (enmienda 6): el detail es "<agente> fallo (<status
+// recortado>)", con el status recortado igual que el texto de un tool_result
+// con is_error.
 // Entonces la linea de ese agent_end mide unos cientos de bytes, lo que el
 // run tiene en memoria es lo que escribio, y la historia (ReadDelegations) lo
 // lee como un fallo.
@@ -131,7 +133,7 @@ func c4v8Salida(fs []c4v8Fondo) []byte {
 	return dlgClaudeSalida(lineas...)
 }
 
-// CA-362 y CA-373 (hallazgo 3b4ee7, enmienda 5), con el claude falso de
+// CA-362 y CA-373 (hallazgo 3b4ee7, enmienda 6), con el claude falso de
 // CA-374: un run de Claude con delegaciones en segundo plano que cierran con
 // una task_notification de status de 2 MiB. El agent_end de cada una se
 // escribe con "<agente> fallo (<status recortado>)" en una linea de unos
@@ -140,7 +142,7 @@ func c4v8Salida(fs []c4v8Fondo) []byte {
 // lo devuelve como un fallo, con su marca, entre sus vecinas. Un status corto
 // sale entero: "<agente> fallo (failed)".
 func TestHallazgo_3b4ee7_CA362_CA373_StatusDe2MiBEnSegundoPlanoSeEscribeRecortado(t *testing.T) {
-	const ca = "CA-362/CA-373 (hallazgo 3b4ee7, enmienda 5)"
+	const ca = "CA-362/CA-373 (hallazgo 3b4ee7, enmienda 6)"
 	fs := c4v8Fondos(t)
 	salida := c4v8Salida(fs)
 	root, id, mem := dlgCorrerSalida(t, "claude", salida)
