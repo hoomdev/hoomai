@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T213459_733ac3",
+  "as": "corregido",
+  "evidence": "Mismo defecto que b8d4a1. enmienda 5 de historia-doctor-y-cinta aprobada (f54e1d10, 4c70618) y arreglo 8f4a48b: hoom ya no recorta las delegaciones (se borraron acotarDelegacion y detalleRecortado); el evento se escribe como lo arma el normalizador, que ya recorta a 300 bytes los textos del detail: el detail del agent_end ya no se recorta y la marca ' fallo' no se pierde. Tests 518f38d: TestHallazgo_b8d4a1_733ac3_CA362_ElFalloDeUnSubagenteDeNombreLargoSeEscribeTalCual y _LaHistoriaNuncaPublicaUnFalloComoExito: fallan en 1eee1de y pasan en 518f38d.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T14:45:19.18622Z"
+}

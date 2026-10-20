@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T214031_3cb898",
+  "as": "corregido",
+  "evidence": "8f4a48b: se borraron acotarDelegacion y su comentario; el de maxDelegacion (internal/runcmd/runcmd.go) dice solo lo que hace: es el tope de la linea que ReadDelegations guarda, y una mas larga solo sale de un agente, tool_id o estado enormes del provider y esta fuera de contrato (enmienda 5). Ya no promete que hoom no escriba lineas de mas de 1 MiB.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T14:45:19.20725Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T213041_de5a5a",
+  "as": "corregido",
+  "evidence": "enmienda 5 de historia-doctor-y-cinta aprobada (f54e1d10, 4c70618) y arreglo 8f4a48b: hoom ya no recorta las delegaciones (se borraron acotarDelegacion y detalleRecortado); el evento se escribe como lo arma el normalizador, que ya recorta a 300 bytes los textos del detail. La enmienda 5 declara el limite: una delegacion de mas de 1 MiB solo sale de un agente, tool_id o estado de cientos de KiB del provider y, en un log nuevo o escrito por un hoom anterior, queda fuera de contrato y la historia salta su linea. El refutador (INFORME-refutador-c4-delta3.md) mostro que ningun provider real la produce (solo claude.go emite agent/agent_end; 0 delegaciones en 261 narraciones locales). Test 518f38d: el subtest de log viejo de TestHallazgo_b8d4a1_733ac3_CA362_LaHistoriaNuncaPublicaUnFalloComoExito (eventos enteros de un hoom anterior: la historia salta la linea y nunca publica exito).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T14:45:19.19694Z"
+}

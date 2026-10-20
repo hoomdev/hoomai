@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T213022_b8d4a1",
+  "as": "corregido",
+  "evidence": "enmienda 5 de historia-doctor-y-cinta aprobada (f54e1d10, 4c70618) y arreglo 8f4a48b: hoom ya no recorta las delegaciones (se borraron acotarDelegacion y detalleRecortado); el evento se escribe como lo arma el normalizador, que ya recorta a 300 bytes los textos del detail, asi que el agent_end de un fallo conserva '\u003cagente\u003e fallo'. Si su linea pasa de 1 MiB (agente de cientos de KiB, fuera de contrato) la historia la salta y la delegacion queda abierta, nunca como exito. Tests 518f38d: TestHallazgo_b8d4a1_733ac3_CA362_ElFalloDeUnSubagenteDeNombreLargoSeEscribeTalCual (runcmd, agentes de 200/600/1100 KiB, is_error y task_notification failed) y TestHallazgo_b8d4a1_733ac3_CA362_LaHistoriaNuncaPublicaUnFalloComoExito (boardcmd TimelineFor con run de verdad): fallan en 1eee1de y pasan en 518f38d.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T14:45:19.177122Z"
+}
