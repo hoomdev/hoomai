@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202726_6b3eb7",
+  "as": "corregido",
+  "evidence": "eb9c819: finding.ListConIlegibles devuelve los hallazgos ilegibles como dato aparte (List la envuelve para los avisos) y boardcmd/gather los toma de ahi; ya no los saca del texto del aviso con CutPrefix (UnreadablePrefix desaparece). TestCA275_H2_HallazgoIlegibleNoPasaDeReview (4 casos) sigue verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:41.000423Z"
+}

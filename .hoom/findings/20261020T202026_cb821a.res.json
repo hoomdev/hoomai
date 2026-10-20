@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202026_cb821a",
+  "as": "corregido",
+  "evidence": "eb9c819: claudeTaskStatus devuelve (status, ok): un status presente que no es string (numero, objeto, booleano, null) da ok false y correlate no emite agent_end ni marca la delegacion; una task_notification posterior legible la cierra (failed -\u003e '\u003cagente\u003e fallo (failed)'). Status ausente sigue como antes. Tests ceef349 internal/providers/hallazgos_c1b_status_no_string_test.go (11 valores, segundo plano y normal; guardas) (clon limpio del test-writer; fallan en b540de9 y pasan con el arreglo; refutadores: INFORME-refutador-c1b-*.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:40.960269Z"
+}
