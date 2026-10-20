@@ -237,13 +237,17 @@ func Add(root string, d Draft) (Item, error) {
 	if werr != nil {
 		return Item{}, werr
 	}
-	if err := os.Link(tmp.Name(), Path(root, it.Slug)); errors.Is(err, os.ErrExist) {
+	if err := enlazar(tmp.Name(), Path(root, it.Slug)); errors.Is(err, os.ErrExist) {
 		return Item{}, fmt.Errorf("%w: %s; elegi otro titulo o fija el slug con --slug", ErrExists, RelPath(it.Slug))
 	} else if err != nil {
 		return Item{}, err
 	}
 	return it, nil
 }
+
+// enlazar publishes the item Add wrote to a temp file; a test replaces it to
+// stand for a filesystem without hard links (finding d2c506).
+var enlazar = os.Link
 
 // finitePositive is a budget: a number above 0 that YAML's .inf is not.
 func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
