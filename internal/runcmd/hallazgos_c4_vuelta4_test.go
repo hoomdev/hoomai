@@ -1,7 +1,8 @@
 // Tests de regresion de la cuarta vuelta de la review de la cabina C4 sobre
 // .hoom/specs/historia-doctor-y-cinta.md, en runcmd. Escritos desde el spec
 // y la descripcion del hallazgo, sin leer la implementacion. Los helpers de
-// este archivo llevan el prefijo c4v4.
+// este archivo llevan el prefijo c4v4; los compartidos con las otras vueltas
+// (prefijo dlg) estan en delegaciones_helpers_test.go.
 //
 //   - 20261019T154837_2628ba (resilience): ReadDelegations lee el log linea
 //     por linea para no cargarlo entero (d3c75f), pero una linea enorme que
@@ -20,13 +21,14 @@
 //     ReadDelegations no. ReadDelegations es ReadEvents filtrado por agent y
 //     agent_end, con cualquier JSON valido de una linea.
 //
-//     Enmienda 4 del spec (decision de Henry, reemplaza a la 3): hoom escribe
-//     cada delegacion en una linea de hasta 1 MiB, con el detail recortado al
-//     escribirla si no entraba, y la historia salta una linea de delegacion
-//     de mas de 1 MiB. Las lineas enormes de estos tests, escritas a mano, ya
-//     no son como las escribe hoom: se exige que se salten sin tapar a las
-//     normales y con la memoria acotada, y que una delegacion larga escrita
-//     como hoom (detail recortado, linea de hasta 1 MiB) salga entera.
+//     Enmienda 5 del spec (decision de Henry, reemplaza a la 4, que reemplazo
+//     a la 3): hoom no recorta las delegaciones, y la historia lee entera cada
+//     linea de delegacion de hasta 1 MiB y salta una mas larga. Una
+//     delegacion de mas de 1 MiB (de un log nuevo o de uno escrito por un
+//     hoom anterior) queda fuera de contrato: de las lineas enormes de estos
+//     tests, escritas a mano, se exige que se salten sin tapar a las normales
+//     y con la memoria acotada; y una delegacion larga escrita como hoom (una
+//     linea de hasta 1 MiB, aca de casi 1 MiB) sale entera.
 package runcmd
 
 import (
@@ -39,7 +41,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -154,22 +155,20 @@ func c4v4Detalle(prefijo string, n int) string {
 	return b.String()
 }
 
-// c4v4Normales son las delegaciones que hoom escribe del log, en el orden del
-// log: una que abre antes de las lineas enormes y cierra entre ellas, una
-// larga escrita como hoom (su detail de 3 MiB recortado al escribirlo: los
-// primeros 128 KiB y el aviso, en una linea de hasta 1 MiB) que abre y
-// cierra entre ellas, una de tamano normal que abre y cierra entre ellas, y
-// una que abre al final y no cierra.
+// c4v4Normales son las delegaciones del log que la historia lee, en el orden
+// del log: una que abre antes de las lineas enormes y cierra entre ellas, una
+// larga escrita como hoom (su agent y su agent_end en lineas de casi 1 MiB,
+// sin pasarse) que abre y cierra entre ellas, una de tamano normal que abre y
+// cierra entre ellas, y una que abre al final y no cierra.
 func c4v4Normales(t0 time.Time) []Event {
 	m := func(n int) time.Time { return t0.Add(time.Duration(n) * time.Minute) }
 	medio := func(n int) time.Time { return m(n).Add(30 * time.Second) }
-	larga := c4v6Mezcla(3 * c4v4MiB)
 	return []Event{
 		{TS: m(1), Kind: "agent", Agent: "Explore", ToolID: "toolu_1", Detail: c4v4Detalle("Agent: antes de las lineas enormes; ", 300)},
 		{TS: m(3), Kind: "agent_end", Agent: "Explore", ToolID: "toolu_1", Detail: c4v4Detalle("Explore termino: ", 400)},
-		{TS: medio(3), Kind: "agent", Agent: "Larga", ToolID: "toolu_LARGA", Detail: c4v6Recortado("Agent: " + larga)},
+		dlgDeLinea(Event{TS: medio(3), Kind: "agent", Agent: "Larga", ToolID: "toolu_LARGA", Detail: "Agent: "}, c4v4MiB),
 		{TS: m(5), Kind: "agent", Agent: "Plan", ToolID: "toolu_2", Detail: c4v4Detalle("Agent: entre las lineas enormes; ", 600)},
-		{TS: medio(6), Kind: "agent_end", Agent: "Larga", ToolID: "toolu_LARGA", Detail: c4v6Recortado("Larga fallo: " + larga)},
+		dlgDeLinea(Event{TS: medio(6), Kind: "agent_end", Agent: "Larga", ToolID: "toolu_LARGA", Detail: "Larga fallo: "}, c4v4MiB),
 		{TS: m(7), Kind: "agent_end", Agent: "Plan", ToolID: "toolu_2", Detail: c4v4Detalle("Plan fallo: ", 250)},
 		{TS: m(8), Kind: "agent", Agent: "general-purpose", ToolID: "toolu_3", Detail: c4v4Detalle("Agent: despues de las lineas enormes; ", 900)},
 	}
@@ -213,12 +212,6 @@ func c4v4LogConLineasEnormes(t *testing.T, root, id string, n int, cuales c4v4En
 	}
 }
 
-// c4v4MismoEvento compara los campos de un evento de la narracion.
-func c4v4MismoEvento(a, b Event) bool {
-	return a.TS.Equal(b.TS) && a.Kind == b.Kind && a.Agent == b.Agent && a.ToolID == b.ToolID &&
-		a.Detail == b.Detail && a.SessionID == b.SessionID && reflect.DeepEqual(a.Usage, b.Usage)
-}
-
 // c4v4Resumen describe un evento sin volcar un detail enorme.
 func c4v4Resumen(e Event) string {
 	d := e.Detail
@@ -237,17 +230,20 @@ func c4v4Listado(ds []Event) string {
 }
 
 // c4v4ExigirDelegaciones exige lo que ReadDelegations trae de un log de
-// c4v4LogConLineasEnormes: las delegaciones que hoom escribe (las de tamano
-// normal y la larga recortada al escribirla), todas, en orden y con sus
-// campos exactos; nada de la linea text con la marca; y nada de las dos
+// c4v4LogConLineasEnormes: las delegaciones de lineas de hasta 1 MiB (las de
+// tamano normal y la larga de casi 1 MiB), todas, en orden y con sus campos
+// exactos; nada de la linea text con la marca; y nada de las dos
 // delegaciones enormes escritas a mano, cuya linea pasa de 1 MiB.
 //
-// Enmienda 4 (decision de Henry): antes la delegacion enorme podia salir (y
-// con la enmienda 3 tenia que salir recortada al leerla); ahora su linea de
-// mas de 1 MiB no es como la escribe hoom y se salta, como una mal formada.
-// No es debilitar: el recorte se movio a la escritura, y ahi se exige (los
-// tests de escritura de hallazgos_c4_vuelta6_test.go); y lo que hoom escribe
-// de una delegacion larga (la Larga de c4v4Normales) se exige entero aca.
+// Antes la delegacion enorme podia salir; con la enmienda 3 tenia que salir
+// recortada al leerla, y con la 4 se saltaba porque hoom la recortaba al
+// escribirla. Con la enmienda 5 (decision de Henry) hoom no recorta nada, y
+// una delegacion de mas de 1 MiB queda fuera de contrato: la historia salta
+// su linea, como una mal formada, sin tapar a las demas. No es debilitar: lo
+// que hoom escribe se exige tal cual en los tests de escritura de
+// hallazgos_c4_vuelta6_test.go y hallazgos_c4_vuelta7_test.go, y una
+// delegacion larga de hasta 1 MiB (la Larga de c4v4Normales) se exige entera
+// aca.
 func c4v4ExigirDelegaciones(t *testing.T, ca string, ds []Event) {
 	t.Helper()
 	t0 := time.Date(2026, 10, 19, 16, 0, 0, 0, time.UTC)
@@ -259,9 +255,9 @@ func c4v4ExigirDelegaciones(t *testing.T, ca string, ds []Event) {
 			t.Errorf("%s: la linea text con la marca \"kind\":\"agent\" en un campo extra no es una delegacion; salio %s\n%s",
 				ca, c4v4Resumen(d), c4v4Listado(ds))
 		case d.Agent == "Enorme" || d.ToolID == "toolu_ENORME":
-			t.Errorf("%s: la linea de la delegacion enorme pasa de 1 MiB: no es como la escribe hoom y se salta, ni entera ni recortada (enmienda 4); salio %s\n%s",
+			t.Errorf("%s: la linea de la delegacion enorme pasa de 1 MiB: la historia la salta, ni entera ni recortada (enmienda 5); salio %s\n%s",
 				ca, c4v4Resumen(d), c4v4Listado(ds))
-		case sig < len(normales) && c4v4MismoEvento(d, normales[sig]):
+		case sig < len(normales) && dlgMismoEvento(d, normales[sig]):
 			sig++
 		default:
 			t.Errorf("%s: ReadDelegations trae las delegaciones normales en orden y con sus campos exactos; la siguiente era %s y salio %s\n%s",
@@ -269,7 +265,7 @@ func c4v4ExigirDelegaciones(t *testing.T, ca string, ds []Event) {
 		}
 	}
 	if sig != len(normales) {
-		t.Errorf("%s: las %d delegaciones que escribe hoom (antes, entre y despues de las lineas enormes, y la larga recortada al escribirla) salen todas; salieron %d:\n%s",
+		t.Errorf("%s: las %d delegaciones de lineas de hasta 1 MiB (antes, entre y despues de las lineas enormes, y la larga de casi 1 MiB) salen todas; salieron %d:\n%s",
 			ca, len(normales), sig, c4v4Listado(ds))
 	}
 }
@@ -316,23 +312,24 @@ func TestHallazgo_2628ba_CA362_Fixture_LasLineasEnormesSonValidas(t *testing.T) 
 // CA-362 (hallazgo 2628ba): un log con una delegacion enorme escrita a mano
 // (un agent y un agent_end con un detail de 4 MiB y de 32 MiB) y una linea
 // text de ese tamano con la marca "kind":"agent" en un campo extra,
-// intercaladas con las delegaciones que escribe hoom (de unos cientos de
-// bytes, y una larga con su detail recortado al escribirla, en una linea de
-// hasta 1 MiB): ReadDelegations trae todas las que escribe hoom, en orden y
-// con sus campos exactos (la larga entera, con su aviso); la linea text no
-// sale como delegacion; y la delegacion enorme, cuya linea pasa de 1 MiB, no
-// sale (se salta sin tapar a las demas). La memoria acotada la exige
+// intercaladas con las delegaciones escritas como hoom (de unos cientos de
+// bytes, y una larga en lineas de casi 1 MiB): ReadDelegations las trae
+// todas, en orden y con sus campos exactos (la larga entera); la linea text
+// no sale como delegacion; y la delegacion enorme, cuya linea pasa de 1 MiB,
+// no sale (se salta sin tapar a las demas). La memoria acotada la exige
 // ReadDelegationsNoCargaLaLineaEntera, sin cambios.
 //
-// El contrato cambio dos veces. Con la enmienda 3 (hallazgos 0ebb3f y
+// El contrato cambio tres veces. Con la enmienda 3 (hallazgos 0ebb3f y
 // 34a37c) la delegacion enorme tenia que salir una vez, recortada al leerla.
-// Con la enmienda 4 (decision de Henry, hallazgos 550f79, dae2e8 y 7d07ce de
-// la delta 2) el recorte se movio a la escritura: hoom nunca escribe una
-// linea de delegacion de mas de 1 MiB, y la historia salta la que encuentra.
-// No es debilitar: lo que hoom escribe de una delegacion larga (la Larga,
-// recortada como la recorta hoom) se exige entero aca, y el recorte mismo se
-// exige donde ahora ocurre (TestHallazgo_550f79_dae2e8_7d07ce_CA362_* en
-// hallazgos_c4_vuelta6_test.go, sobre un run de verdad).
+// Con la enmienda 4 (hallazgos 550f79, dae2e8 y 7d07ce de la delta 2) hoom la
+// recortaba al escribirla. Con la enmienda 5 (decision de Henry, hallazgos
+// b8d4a1, 733ac3 y de5a5a de la delta 3) hoom no recorta nada: una
+// delegacion de mas de 1 MiB, en un log nuevo o en uno de un hoom anterior,
+// queda fuera de contrato, y la historia salta su linea sin tapar a las
+// demas. No es debilitar: cada linea de hasta 1 MiB (la Larga, de casi
+// 1 MiB) se exige entera aca, y lo que hoom escribe se exige tal cual sobre
+// un run de verdad (hallazgos_c4_vuelta6_test.go y
+// hallazgos_c4_vuelta7_test.go).
 func TestHallazgo_2628ba_CA362_DelegacionEnormeNoTapaLasNormales(t *testing.T) {
 	for _, n := range []int{4 * c4v4MiB, 32 * c4v4MiB} {
 		t.Run(fmt.Sprintf("lineas de %d MiB", n/c4v4MiB), func(t *testing.T) {
@@ -342,18 +339,19 @@ func TestHallazgo_2628ba_CA362_DelegacionEnormeNoTapaLasNormales(t *testing.T) {
 			}
 			const id = "20261019T160000_enorme"
 			c4v4LogConLineasEnormes(t, root, id, n, c4v4Enormes{agent: true, agentEnd: true, textoConMarca: true})
-			// la larga esta escrita como hoom: su linea entra en 1 MiB y
-			// ReadEvents la lee con su detail recortado
+			// la larga esta escrita como hoom: sus lineas miden casi 1 MiB,
+			// sin pasarse
 			for _, d := range c4v4Normales(time.Date(2026, 10, 19, 16, 0, 0, 0, time.UTC)) {
-				if raw, _ := json.Marshal(d); len(raw) > c4v4MiB {
-					t.Fatalf("fixture: la delegacion %s esta escrita como hoom, en una linea de hasta 1 MiB: %d bytes", c4v4Resumen(d), len(raw))
+				raw, _ := json.Marshal(d)
+				if len(raw) > c4v4MiB || (d.Agent == "Larga" && len(raw) < c4v4MiB-3) {
+					t.Fatalf("fixture: la delegacion %s esta escrita como hoom, en una linea de hasta 1 MiB (la Larga, de casi 1 MiB): %d bytes", c4v4Resumen(d), len(raw))
 				}
 			}
 			ds, err := ReadDelegations(root, id)
 			if err != nil {
 				t.Fatalf("CA-362 (hallazgo 2628ba): ReadDelegations lee un log con lineas de %d MiB sin error: %v", n/c4v4MiB, err)
 			}
-			c4v4ExigirDelegaciones(t, fmt.Sprintf("CA-362 (hallazgo 2628ba y enmienda 4, lineas de %d MiB)", n/c4v4MiB), ds)
+			c4v4ExigirDelegaciones(t, fmt.Sprintf("CA-362 (hallazgo 2628ba y enmienda 5, lineas de %d MiB)", n/c4v4MiB), ds)
 		})
 	}
 }
@@ -473,7 +471,7 @@ func TestHallazgo_2628ba_CA362_Guarda_DelegacionNormalSiempreSeLee(t *testing.T)
 		ds, err := ReadDelegations(root, id)
 		ok := err == nil && len(ds) == len(want)
 		for i := 0; ok && i < len(want); i++ {
-			ok = c4v4MismoEvento(ds[i], want[i])
+			ok = dlgMismoEvento(ds[i], want[i])
 		}
 		if !ok {
 			t.Errorf("CA-362 (hallazgo 2628ba, guarda): con la semilla %d ReadDelegations trae las %d delegaciones de tamano normal del log, exactas y en orden; err=%v, trajo %d:\n%s\nquiere:\n%s",
@@ -493,7 +491,7 @@ func TestHallazgo_2628ba_CA362_Guarda_DelegacionNormalSiempreSeLee(t *testing.T)
 		}
 		ok = len(filtradas) == len(ds)
 		for i := 0; ok && i < len(ds); i++ {
-			ok = c4v4MismoEvento(ds[i], filtradas[i])
+			ok = dlgMismoEvento(ds[i], filtradas[i])
 		}
 		if !ok {
 			t.Errorf("CA-362 (hallazgo 2628ba, guarda): con la semilla %d ReadDelegations es ReadEvents filtrado por agent y agent_end:\n%s\nReadEvents filtrado:\n%s",
@@ -551,7 +549,7 @@ func TestHallazgo_2628ba_CA362_ReadDelegationsEsReadEventsFiltradoConJSONEspacia
 			return false
 		}
 		for i := range a {
-			if !c4v4MismoEvento(a[i], b[i]) {
+			if !dlgMismoEvento(a[i], b[i]) {
 				return false
 			}
 		}

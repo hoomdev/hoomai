@@ -11,17 +11,22 @@
 //     tool_id la cierra (ended_at) con su subagente-fin. Lo que asigna leerla
 //     no crece con el tamano de una linea enorme.
 //
-//     El contrato es el de la enmienda 4 del spec (decision de Henry, que
-//     reemplaza a la 3): hoom escribe cada delegacion en una linea de hasta
-//     1 MiB, con el detail recortado AL ESCRIBIRLO si no entraba (sus primeros
-//     128 KiB y el aviso), y la historia salta una linea de delegacion de mas
-//     de 1 MiB. Con la enmienda 3 este test exigia que una delegacion enorme
-//     escrita a mano saliera igual que una normal (recortada al leerla); ahora
-//     esa linea no es como la escribe hoom y se salta sin tapar a las vecinas,
-//     y una delegacion enorme escrita como hoom (la linea que deja la regla de
-//     escritura, armada aca a mano) da su entrada cerrada y su subagente-fin.
-//     No es debilitar: el recorte se movio a la escritura y ahi se exige
-//     (internal/runcmd/hallazgos_c4_vuelta6_test.go, sobre un run de verdad).
+//     El contrato es el de la enmienda 5 del spec (decision de Henry, que
+//     reemplaza a la 4): hoom no recorta las delegaciones, escribe cada una
+//     tal como la arma el normalizador, y la historia lee entera cada linea de
+//     delegacion de hasta 1 MiB y salta una mas larga. Una delegacion de mas
+//     de 1 MiB, en un log nuevo o en uno de un hoom anterior, queda fuera de
+//     contrato: se le exige que no tape a sus vecinas, que la memoria quede
+//     acotada y que nunca se publique distinta de lo que fue. Con la enmienda
+//     3 este test exigia que una delegacion enorme escrita a mano saliera
+//     igual que una normal (recortada al leerla); con la 4, la escrita como
+//     hoom traia el detail recortado al escribirlo. Ahora la linea de mas de
+//     1 MiB se salta sin tapar a las vecinas, y una delegacion escrita como
+//     hoom (una linea de hasta 1 MiB, aca de exactamente 1 MiB) da su entrada
+//     cerrada y su subagente-fin. No es debilitar: lo que hoom escribe se
+//     exige tal cual sobre un run de verdad
+//     (internal/runcmd/hallazgos_c4_vuelta6_test.go y _vuelta7_test.go, y
+//     hallazgos_c4_vuelta7_test.go de este paquete).
 package boardcmd
 
 import (
@@ -35,7 +40,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/runcmd"
@@ -56,20 +60,21 @@ func c4v5Ev(e providers.Event) c4v5Linea { return c4v5Linea{ev: &e} }
 // c4v5Relleno es el relleno de n bytes de las lineas enormes.
 func c4v5Relleno(n int) string { return strings.Repeat("relleno ", n/8+1)[:n] }
 
-// c4v5Recortado es el detail como lo escribe hoom cuando la linea de la
-// delegacion con su detail entero pasaria de 1 MiB (enmienda 4): sus
-// primeros 128 KiB sin partir un caracter, seguidos del aviso con los bytes
-// del original.
-func c4v5Recortado(orig string) string {
-	n := 128 << 10
-	if len(orig) > n {
-		for n > 0 && !utf8.RuneStart(orig[n]) {
-			n--
-		}
-	} else {
-		n = len(orig)
+// c4v5DeUnMiB es la delegacion e con su detail alargado con c4v5Relleno
+// (ASCII sin escapes) para que su linea, como la escribe json.Marshal, mida
+// exactamente 1 MiB: una delegacion larga escrita como hoom, en el borde de
+// lo que la historia lee entero.
+func c4v5DeUnMiB(t *testing.T, e providers.Event) providers.Event {
+	t.Helper()
+	raw, err := json.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return orig[:n] + fmt.Sprintf(" [...] (detalle recortado al escribir la narracion: tenia %d bytes)", len(orig))
+	e.Detail += c4v5Relleno(c4v5MiB - len(raw))
+	if raw, _ := json.Marshal(e); len(raw) != c4v5MiB {
+		t.Fatalf("fixture: la delegacion escrita como hoom mide exactamente 1 MiB: %d bytes", len(raw))
+	}
+	return e
 }
 
 // c4v5Delegacion es una delegacion escrita a mano como la escribe hoom (ts,
@@ -133,7 +138,7 @@ type c4v5Forma int
 const (
 	c4v5Normal   c4v5Forma = iota // de tamano normal
 	c4v5AMano                     // escrita a mano con un detail enorme: la linea pasa de 1 MiB
-	c4v5ComoHoom                  // el detail enorme recortado como lo escribe hoom: linea de hasta 1 MiB
+	c4v5ComoHoom                  // escrita como hoom: una linea de hasta 1 MiB (aca de exactamente 1 MiB)
 )
 
 // c4v5Delegaciones es como esta escrita la delegacion a Enorme de la tarjeta.
@@ -159,7 +164,7 @@ func c4v5Tarjeta(t *testing.T, d c4v5Delegaciones) string {
 	case c4v5AMano:
 		agent = c4v5Delegacion(12, "agent", "Enorme", "toolu_ENORME", "Agent: ", d.n)
 	case c4v5ComoHoom:
-		agent = c4v5Ev(hiEv(12, "agent", "Enorme", "toolu_ENORME", c4v5Recortado("Agent: "+c4v5Relleno(d.n))))
+		agent = c4v5Ev(c4v5DeUnMiB(t, hiEv(12, "agent", "Enorme", "toolu_ENORME", "Agent: ")))
 	default:
 		agent = c4v5Ev(hiEv(12, "agent", "Enorme", "toolu_ENORME", "Agent: leer el catalogo"))
 	}
@@ -167,7 +172,7 @@ func c4v5Tarjeta(t *testing.T, d c4v5Delegaciones) string {
 	case d.fin == c4v5AMano:
 		fin = c4v5Delegacion(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: ", d.n)
 	case d.fin == c4v5ComoHoom:
-		fin = c4v5Ev(hiEv(14, "agent_end", "Enorme", "toolu_ENORME", c4v5Recortado("Enorme fallo: "+c4v5Relleno(d.n))))
+		fin = c4v5Ev(c4v5DeUnMiB(t, hiEv(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: ")))
 	case d.finFallo:
 		fin = c4v5Ev(hiEv(14, "agent_end", "Enorme", "toolu_ENORME", "Enorme fallo: se corto"))
 	default:
@@ -209,7 +214,7 @@ func c4v5Tarjeta(t *testing.T, d c4v5Delegaciones) string {
 // su agent_end esta en una linea de mas de 1 MiB); y las subagente-fin de
 // Explore y, si su agent y su agent_end se leyeron, de Enorme, con el plain
 // de CA-362 (con error: "<agente> fallo"). Una linea de delegacion de mas de
-// 1 MiB se salta (enmienda 4): ni abre ni cierra, y no tapa a las vecinas.
+// 1 MiB se salta (enmienda 5): ni abre ni cierra, y no tapa a las vecinas.
 func c4v5Exigir(t *testing.T, ca string, tl Timeline, d c4v5Delegaciones) {
 	t.Helper()
 	artefacto := ".hoom/runs/" + hiR1 + ".jsonl"
@@ -286,15 +291,16 @@ func (f c4v5Forma) nombre(kind string, n int) string {
 	case c4v5AMano:
 		return fmt.Sprintf("%s de %d MiB escrito a mano", kind, n/c4v5MiB)
 	case c4v5ComoHoom:
-		return fmt.Sprintf("%s de %d MiB escrito como hoom", kind, n/c4v5MiB)
+		return kind + " de 1 MiB escrito como hoom"
 	}
 	return kind + " normal"
 }
 
-// CA-362 (hallazgos 0ebb3f y 34a37c; enmienda 4): la delegacion a Enorme de
+// CA-362 (hallazgos 0ebb3f y 34a37c; enmienda 5): la delegacion a Enorme de
 // la tarjeta, con su agent, su agent_end o los dos escritos a mano con un
-// detail de 4 MiB y de 32 MiB (lineas de mas de 1 MiB), o escritos como hoom
-// (el detail enorme recortado al escribirlo, linea de hasta 1 MiB):
+// detail de 4 MiB y de 32 MiB (lineas de mas de 1 MiB, como las de un hoom
+// anterior o las de un provider que manda un agente enorme), o escritos como
+// hoom (lineas de exactamente 1 MiB):
 //   - una linea de mas de 1 MiB se salta sin tapar a las vecinas: con el
 //     agent escrito a mano no hay entrada subagente de Enorme (ni
 //     subagente-fin, porque su agent_end queda sin su agent), y con el
@@ -306,12 +312,16 @@ func (f c4v5Forma) nombre(kind string, n int) string {
 //
 // Las guardas (tamano normal) pasan con y sin el arreglo.
 //
-// El contrato viene de la enmienda 4 (decision de Henry): con la enmienda 3
-// este test exigia que la delegacion escrita a mano saliera recortada al
-// leerla; ahora se salta, porque hoom no escribe esa linea. No es debilitar:
-// el recorte se movio a la escritura (exigido en
-// internal/runcmd/hallazgos_c4_vuelta6_test.go), y la linea que deja esa
-// regla, armada aca a mano, se exige leida y cerrada con su subagente-fin.
+// El contrato viene de la enmienda 5 (decision de Henry, reemplaza a la 4):
+// con la enmienda 3 este test exigia que la delegacion escrita a mano saliera
+// recortada al leerla, y con la 4 la escrita como hoom traia el detail
+// recortado al escribirlo. Ahora hoom no recorta: una linea de mas de 1 MiB
+// queda fuera de contrato y se salta sin tapar a las vecinas, y una de hasta
+// 1 MiB se lee entera. No es debilitar: lo que hoom escribe se exige tal cual
+// sobre un run de verdad (internal/runcmd/hallazgos_c4_vuelta6_test.go y
+// _vuelta7_test.go, y hallazgos_c4_vuelta7_test.go de este paquete, donde
+// ademas se exige que un fallo nunca se publique como exito), y la linea de
+// exactamente 1 MiB se exige leida y cerrada con su subagente-fin.
 func TestHallazgo_0ebb3f_34a37c_CA362_HistoriaConDelegacionEnorme(t *testing.T) {
 	var cs []c4v5Delegaciones
 	cs = append(cs, c4v5Delegaciones{agent: c4v5Normal, fin: c4v5Normal}, c4v5Delegaciones{agent: c4v5Normal, fin: c4v5Normal, finFallo: true})
@@ -320,12 +330,13 @@ func TestHallazgo_0ebb3f_34a37c_CA362_HistoriaConDelegacionEnorme(t *testing.T) 
 			c4v5Delegaciones{agent: c4v5AMano, fin: c4v5Normal, n: n},
 			c4v5Delegaciones{agent: c4v5Normal, fin: c4v5AMano, n: n},
 			c4v5Delegaciones{agent: c4v5AMano, fin: c4v5AMano, n: n},
-			c4v5Delegaciones{agent: c4v5ComoHoom, fin: c4v5ComoHoom, n: n},
 		)
 	}
+	// escritas como hoom, de exactamente 1 MiB: el tamano no depende de n
 	cs = append(cs,
-		c4v5Delegaciones{agent: c4v5ComoHoom, fin: c4v5Normal, n: 4 * c4v5MiB},
-		c4v5Delegaciones{agent: c4v5Normal, fin: c4v5ComoHoom, n: 4 * c4v5MiB},
+		c4v5Delegaciones{agent: c4v5ComoHoom, fin: c4v5ComoHoom},
+		c4v5Delegaciones{agent: c4v5ComoHoom, fin: c4v5Normal},
+		c4v5Delegaciones{agent: c4v5Normal, fin: c4v5ComoHoom},
 	)
 	for _, d := range cs {
 		nombre := d.agent.nombre("agent", d.n) + ", " + d.fin.nombre("agent_end", d.n)
@@ -336,7 +347,7 @@ func TestHallazgo_0ebb3f_34a37c_CA362_HistoriaConDelegacionEnorme(t *testing.T) 
 			nombre += " (guarda)"
 		}
 		t.Run(nombre, func(t *testing.T) {
-			ca := "CA-362 (hallazgos 0ebb3f y 34a37c, enmienda 4, " + nombre + ")"
+			ca := "CA-362 (hallazgos 0ebb3f y 34a37c, enmienda 5, " + nombre + ")"
 			root := c4v5Tarjeta(t, d)
 			c4v5Exigir(t, ca, hiTimeline(t, "CA-362", root), d)
 		})
@@ -365,7 +376,7 @@ func c4v5Asigna(t *testing.T, root string) uint64 {
 	return mejor
 }
 
-// CA-362 (hallazgos 0ebb3f y 34a37c, guarda de memoria; enmienda 4): saltar
+// CA-362 (hallazgos 0ebb3f y 34a37c, guarda de memoria; enmienda 5): saltar
 // la linea de una delegacion enorme no hace que la historia la cargue
 // entera (la memoria sigue acotada). Con la misma
 // tarjeta salvo el tamano del agent y del agent_end enormes (4 MiB contra
