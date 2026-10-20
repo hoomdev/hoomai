@@ -3,10 +3,21 @@
 // funciona y algo posterior falla (un paso del plan de tmux, o registrar la
 // sesion en el item), Open dejaba viva una sesion a medio armar. El reintento
 // la encontraba "existente" (created: false, CA-347) y ya no la registraba
-// en el item (CA-348): el writer declarado se perdia para siempre. Ahora
-// Open cierra la sesion que acaba de crear (`tmux kill-session -t =<sesion>`)
-// y devuelve el error, y el reintento la crea y la registra. Todo contra un
-// tmux falso con estado: ningun tmux real.
+// en el item (CA-348). El arreglo de C1 fue cerrar la sesion que acababa de
+// crear (`tmux kill-session -t =<sesion>`).
+//
+// La ENMIENDA 6 de .hoom/specs/acciones-desde-la-tarjeta.md (decision de
+// Henry, hallazgo bde7e4) cambio ese contrato: cerrar la sesion por su nombre
+// no prueba que sea la que creo esta apertura (pudo morir y otra apertura
+// crear una con el mismo nombre). Ahora Open NO la cierra: devuelve el error,
+// que dice como cerrarla a mano con `tmux kill-session -t '=<sesion>'`, y la
+// sesion cuenta como existente: el reintento responde created false y no
+// registra nada, y el writer queda sin declarar hasta que alguien la cierra a
+// mano y la vuelve a abrir (riesgo "Una sesion a medias queda como esta").
+// Los tests de c1a9da exigen eso; las piezas de la enmienda 6 (h6NoLaCerro,
+// h6ReintentoLaVeExistente, h6CerrarAMano) estan en
+// hallazgos_c1b_bde7e4_test.go. Todo contra un tmux falso con estado: ningun
+// tmux real.
 package cockpitcmd
 
 import (
@@ -121,20 +132,6 @@ func (f *h3Tmux) todas() string {
 	return strings.Join(f.llamadas, "\n")
 }
 
-// h3SinHuerfana exige que un Open fallido no deje la sesion viva: si la
-// creo (new-session), la cerro despues con kill-session -t =<sesion>.
-func h3SinHuerfana(t *testing.T, caso string, f *h3Tmux, desde int) {
-	t.Helper()
-	if f.viva(h3Sesion) {
-		t.Fatalf("CA-347: hallazgo c1a9da: %s: Open fallo y dejo viva la sesion %s a medio armar:\n%s", caso, h3Sesion, f.todas())
-	}
-	if nueva := f.indice("tmux new-session", desde); nueva >= 0 {
-		if kill := f.indice("tmux kill-session -t ="+h3Sesion, nueva); kill < 0 {
-			t.Fatalf("CA-347: hallazgo c1a9da: %s: Open cierra la sesion que acaba de crear con `tmux kill-session -t =%s`:\n%s", caso, h3Sesion, f.todas())
-		}
-	}
-}
-
 // h3Reintento: con tmux sano, Open crea la sesion de nuevo y la registra en
 // el item: UNA entrada en sesiones, la de este provider.
 func h3Reintento(t *testing.T, caso, root string, f *h3Tmux) {
@@ -160,40 +157,59 @@ func h3Reintento(t *testing.T, caso, root string, f *h3Tmux) {
 	}
 }
 
-// Hallazgo 20260924T200412_c1a9da (CA-347, CA-348): new-session funciona y
-// split-window falla. Open devuelve el error, cierra la sesion que acaba de
-// crear (`tmux kill-session -t =<sesion>`) y no declara nada en el item; el
-// reintento con tmux sano crea la sesion (created: true) y la registra.
-func TestHallazgo_c1a9da_OpenCierraLaSesionSiFallaUnPasoDelPlan(t *testing.T) {
+// Hallazgo 20260924T200412_c1a9da (CA-347, CA-348), con la ENMIENDA 6:
+// new-session funciona y split-window falla. Open devuelve el error, NO
+// cierra la sesion que acaba de crear (ningun kill-session ni kill-pane: la
+// sesion sigue viva, a medias) y dice como cerrarla a mano con `tmux
+// kill-session -t '=<sesion>'`; no declara nada en el item. El reintento con
+// tmux sano la ve existente: created false, sin tocarla ni registrar nada. Y
+// cuando una persona la cierra a mano con ese comando, el siguiente intento
+// la crea (created: true) y la registra.
+//
+// Reemplaza a TestHallazgo_c1a9da_OpenCierraLaSesionSiFallaUnPasoDelPlan,
+// que exigia cerrarla y que el reintento la creara y la registrara: el
+// contrato cambio por la enmienda 6 (decision de Henry, hallazgo bde7e4). No
+// es debilitar: ahora se exige no tocar una sesion que Open no puede probar
+// suya, y lo que el reintento hace con ella.
+func TestCA347_CA348_HallazgoC1a9da_Enmienda6_SiFallaUnPasoDelPlanNoCierraLaSesion(t *testing.T) {
+	const ca = "CA-347, CA-348: c1a9da (enmienda 6): split-window roto"
 	root, _ := cbProyecto(t, true)
 	crudo := cbLeerItem(t, root)
 	f := &h3Tmux{fallar: "split-window"}
 
 	_, err := Open(root, "demo", Options{Provider: "claude", Task: "facturas"}, f.deps())
-	if err == nil {
-		t.Fatalf("CA-347: con split-window roto Open devuelve el error:\n%s", f.todas())
-	}
-	if !strings.Contains(err.Error(), h3ErrPaso.Error()) {
-		t.Fatalf("CA-347: Open devuelve el error del paso que fallo: %v", err)
-	}
 	if f.indice("tmux new-session", 0) < 0 || f.indice("tmux split-window", 0) < 0 {
-		t.Fatalf("CA-347: fixture: new-session funciono y despues fallo split-window:\n%s", f.todas())
+		t.Fatalf("%s: fixture: new-session funciono y despues fallo split-window:\n%s", ca, f.todas())
 	}
-	h3SinHuerfana(t, "split-window roto", f, 0)
+	h6NoLaCerro(t, ca, f, err, h3ErrPaso.Error())
+	if !f.viva(h3Sesion) {
+		t.Errorf("%s: Open no toca la sesion que creo: %s sigue viva, a medias:\n%s", ca, h3Sesion, f.todas())
+	}
 	if ahora := cbLeerItem(t, root); !bytes.Equal(ahora, crudo) {
-		t.Fatalf("CA-348: una sesion que no quedo abierta no se declara en el item:\n%s", ahora)
+		t.Fatalf("CA-348: una sesion que no quedo armada no se declara en el item:\n%s", ahora)
 	}
-	h3Reintento(t, "split-window roto", root, f)
+	h6ReintentoLaVeExistente(t, ca, root, f, crudo)
+	h6CerrarAMano(t, ca, f)
+	h3Reintento(t, "c1a9da (enmienda 6): split-window roto, cerrada a mano", root, f)
 }
 
-// Hallazgo 20260924T200412_c1a9da (CA-347, CA-348): el plan de tmux sale
-// bien pero registrar la sesion en el item falla (item y .hoom/items/ de solo
-// lectura). Open devuelve error y cierra la sesion, asi el reintento (con el
-// item escribible) la crea y la registra.
-func TestHallazgo_c1a9da_OpenCierraLaSesionSiNoPuedeRegistrarla(t *testing.T) {
+// Hallazgo 20260924T200412_c1a9da (CA-347, CA-348), con la ENMIENDA 6: el
+// plan de tmux sale bien pero registrar la sesion en el item falla (item y
+// .hoom/items/ de solo lectura). Open devuelve el error de la escritura, NO
+// cierra la sesion (ningun kill-session ni kill-pane: sigue viva) y dice como
+// cerrarla a mano. El reintento, con el item escribible, la ve existente:
+// created false y no registra nada. Cerrada a mano, el siguiente intento la
+// crea y la registra.
+//
+// Reemplaza a TestHallazgo_c1a9da_OpenCierraLaSesionSiNoPuedeRegistrarla,
+// que exigia cerrarla: el contrato cambio por la enmienda 6 (decision de
+// Henry, hallazgo bde7e4). No es debilitar: ahora se exige no tocar una
+// sesion que Open no puede probar suya.
+func TestCA347_CA348_HallazgoC1a9da_Enmienda6_SiNoPuedeRegistrarlaNoCierraLaSesion(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("CA-348: corriendo como root los permisos no frenan la escritura del item")
 	}
+	const ca = "CA-347, CA-348: c1a9da (enmienda 6): item no escribible"
 	root, _ := cbProyecto(t, true)
 	p := item.Path(root, "facturas")
 	dir := filepath.Dir(p)
@@ -209,16 +225,21 @@ func TestHallazgo_c1a9da_OpenCierraLaSesionSiNoPuedeRegistrarla(t *testing.T) {
 	f := &h3Tmux{}
 
 	_, err := Open(root, "demo", Options{Provider: "claude", Task: "facturas"}, f.deps())
-	if err == nil {
-		t.Fatalf("CA-348: hallazgo c1a9da: si no puede registrar la sesion en el item, Open devuelve error:\n%s", f.todas())
+	if f.indice("tmux new-session", 0) < 0 {
+		t.Fatalf("%s: fixture: Open creo la sesion:\n%s", ca, f.todas())
 	}
-	h3SinHuerfana(t, "item no escribible", f, 0)
+	h6NoLaCerro(t, ca, f, err, "permission denied")
+	if !f.viva(h3Sesion) {
+		t.Errorf("%s: Open no toca la sesion que creo: %s sigue viva:\n%s", ca, h3Sesion, f.todas())
+	}
 	if ahora := cbLeerItem(t, root); !bytes.Equal(ahora, crudo) {
 		t.Fatalf("CA-348: fixture: el item de solo lectura quedo igual:\n%s", ahora)
 	}
 
 	restaurar()
-	h3Reintento(t, "item no escribible", root, f)
+	h6ReintentoLaVeExistente(t, ca, root, f, crudo)
+	h6CerrarAMano(t, ca, f)
+	h3Reintento(t, "c1a9da (enmienda 6): item no escribible, cerrada a mano", root, f)
 }
 
 // Hallazgo 20260924T200412_c1a9da (CA-347, CA-348), GUARDA: con la sesion

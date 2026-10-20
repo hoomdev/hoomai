@@ -13,19 +13,17 @@
 //     hallazgos_c3_vuelta3_test.go. Es la misma comprobacion que la de
 //     internal/cockpitcmd/hallazgos_db8541_f7efdc_test.go: los helpers de test
 //     no se comparten entre paquetes.
-//   - f7efdc (CA-347, CA-348), con el contrato nuevo de los hallazgos 9c1816,
-//     57bd29 y 03481c (decision de Henry): la sesion que Abrir sesion acaba de
-//     crear muere antes del pane de vigilancia (la CLI de la IA sale al
-//     arrancar), el split-window falla y cerrarla tambien, y tmux lo dice con
-//     codigo 1 ("can't find session"). Ese codigo 1 no prueba que la sesion no
-//     este (el cliente de tmux sale igual cuando falla el), asi que el error
-//     no afirma que la sesion ya no existe ni que quedo abierta: dice que no
-//     se pudo saber si sigue abierta y muestra el comando de cierre con
+//   - f7efdc (CA-347, CA-348), con la ENMIENDA 6 (decision de Henry,
+//     hallazgo bde7e4): la sesion que Abrir sesion acaba de crear muere antes
+//     del pane de vigilancia (la CLI de la IA sale al arrancar) y el
+//     split-window falla. La apertura no intenta cerrarla (ningun
+//     kill-session: cerrarla por su nombre no prueba que sea la suya), y su
+//     error no dice que la cerro y muestra el comando de cierre con
 //     comillas. El reintento la crea entera y la registra.
 //
 // El tmux falso (tmuxFalso, con destinosComoTmux y la marca morir), las
 // aperturas (abrirSesion) y el contrato del error (lo verifica
-// incumplimientosDelCierreFallido) estan en tmuxfalso_test.go. Fixtures de
+// incumplimientosEnmienda6) estan en tmuxfalso_test.go. Fixtures de
 // acciones_tarjeta_test.go (atPATH, atConEspacio, atLineas, atLeerItem) y
 // tablero_test.go (tbProyecto). tmux y el CLI de IA son falsos.
 package servecmd
@@ -169,31 +167,28 @@ func cierreEjecutable(t *testing.T, ca, msg, sesion string) {
 	}
 }
 
-// Hallazgo f7efdc (CA-347, CA-348), de punta a punta, con el contrato nuevo.
-// Con el tmux falso en destinosComoTmux y la marca morir, la sesion de la
-// tarjeta fix que Abrir sesion acaba de crear muere enseguida: el pane de
-// vigilancia (split-window -t =<sesion>:) falla con "can't find session" y
-// cerrarla (kill-session) falla igual, con codigo 1. Desde el Studio y desde
-// la CLI (cockpitcmd.Open): la apertura responde un error sin incumplimientos
-// para incumplimientosDelCierreFallido (no dice que la cerro, no afirma que
-// la sesion ya no existe ni que quedo abierta, dice que no se pudo saber si
-// sigue abierta y muestra `tmux kill-session -t '=<sesion>'`), cuyo comando
-// de cierre corre tal cual en sh y en zsh (cierreEjecutable); el item queda
-// byte a byte igual. El reintento con tmux sano crea la sesion (created true,
-// dos panes) y la declara en el item.
+// Hallazgo f7efdc (CA-347, CA-348), de punta a punta, con la ENMIENDA 6. Con
+// el tmux falso en destinosComoTmux y la marca morir, la sesion de la tarjeta
+// fix que Abrir sesion acaba de crear muere enseguida: el pane de vigilancia
+// (split-window -t =<sesion>:) falla con "can't find session". Desde el
+// Studio y desde la CLI (cockpitcmd.Open): la apertura no corre ningun
+// kill-session ni kill-pane sobre la sesion (ni siquiera lo intenta: el log
+// no tiene ninguno), y responde un error sin incumplimientos para
+// incumplimientosEnmienda6 (no dice que la cerro y muestra `tmux
+// kill-session -t '=<sesion>'` con el nombre exacto), cuyo comando de cierre
+// corre tal cual en sh y en zsh (cierreEjecutable); el item queda byte a byte
+// igual. El reintento con tmux sano crea la sesion (created true, dos panes)
+// y la declara en el item.
 //
-// Reemplaza a TestCA347_CA348_HallazgoF7efdc_AbrirSesionQueMurioNoPideCerrarlaAMano,
-// que exigia "ya no existe" sin el comando de cierre: el contrato de tres
-// estados (ya no existe / quedo abierta / no se sabe, segun el sondeo
-// has-session) quedo reemplazado por decision de Henry tras los hallazgos
-// 9c1816, 57bd29 y 03481c, porque tmux sale con codigo 1 tanto si la sesion no
-// esta como si falla su propio cliente. No es debilitar: el mensaje nuevo es
-// verdadero en todos los casos, cosa que el anterior no lograba (decia "ya no
-// existe" de una sesion viva cuando el que fallaba era el cliente).
-func TestCA347_CA348_HallazgoF7efdc_AbrirSesionQueMurioDiceQueNoSabeSiSigueAbierta(t *testing.T) {
+// Reemplaza a TestCA347_CA348_HallazgoF7efdc_AbrirSesionQueMurioDiceQueNoSabeSiSigueAbierta,
+// que exigia el error de un kill-session fallido ("no se pudo saber si sigue
+// abierta"): con la enmienda 6 (decision de Henry, hallazgo bde7e4) la
+// apertura no intenta cerrarla. No es debilitar: ahora se exige no tocar una
+// sesion que la apertura no puede probar suya.
+func TestCA347_CA348_HallazgoF7efdc_Enmienda6_AbrirSesionQueMurioNoIntentaCerrarla(t *testing.T) {
 	for _, quien := range []string{"studio", "cli"} {
 		t.Run(quien, func(t *testing.T) {
-			ca := "f7efdc (CA-347, CA-348), desde " + quien
+			ca := "f7efdc (CA-347, CA-348, enmienda 6), desde " + quien
 			f := nuevoTmuxFalso(t)
 			f.destinosComoTmux = true
 			atPATH(t, map[string]string{"tmux": f.script(), "claude": "exit 0\n"})
@@ -220,15 +215,18 @@ func TestCA347_CA348_HallazgoF7efdc_AbrirSesionQueMurioDiceQueNoSabeSiSigueAbier
 			if f.viva(propia) {
 				t.Fatalf("%s: fixture: la sesion %s murio al crearse:\ntmux:\n%s", ca, propia, tmux)
 			}
-			if indiceDeTmux(lineas, nueva, "kill-session", "-t", "="+propia) < 0 {
-				t.Fatalf("%s: fixture: la apertura intento cerrar la sesion con kill-session -t =%s:\n%s", ca, propia, tmux)
+			if indiceDeTmux(lineas, nueva, "split-window", "-t", "="+propia+":") < 0 {
+				t.Fatalf("%s: fixture: la apertura llego al split-window -t =%s: que fallo:\n%s", ca, propia, tmux)
+			}
+			if k := f.cierres(t, propia); len(k) > 0 {
+				t.Errorf("%s: enmienda 6 (bde7e4): la apertura no intenta cerrar la sesion que creo (cerrarla por su nombre puede matar otra con el mismo nombre), y hubo:\n%s\ntmux:\n%s", ca, strings.Join(k, "\n"), tmux)
 			}
 			if !a.fallo() {
 				t.Fatalf("%s: la sesion de fix no quedo armada: la apertura responde un error: %v\ntmux:\n%s", ca, a, tmux)
 			}
 			msg := a.mensaje()
-			if mal := incumplimientosDelCierreFallido(msg, propia); len(mal) > 0 {
-				t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, tmux)
+			if mal := incumplimientosEnmienda6(msg, propia); len(mal) > 0 {
+				t.Errorf("%s: enmienda 6: el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, tmux)
 			}
 			cierreEjecutable(t, ca, msg, propia)
 			if _, raw := atLeerItem(t, dir, "fix"); !bytes.Equal(raw, itemFix) {

@@ -1,23 +1,23 @@
-// Soporte compartido de los tests de Abrir sesion cuando el cierre falla
-// (CA-347, CA-348), escrito desde .hoom/specs/acciones-desde-la-tarjeta.md y
-// el contrato de los hallazgos 9c1816, 57bd29 y 03481c (decision de Henry).
-// Aca no hay tests: lo usan hallazgos_db8541_f7efdc_test.go (hf7Tmux y el test
-// de f7efdc) y hallazgos_b59c30_e0001e_test.go (hb5Tmux y el test de la
-// matriz). Antes tmuxSinSesion vivia en hallazgos_b59c30_e0001e_test.go y lo
-// usaba el doble de hallazgos_db8541_f7efdc_test.go (hallazgo 344b2b, de
-// legibilidad): lo compartido vive aca.
+// Soporte compartido de los tests de Abrir sesion cuando algo falla despues
+// de crear la sesion (CA-347, CA-348), escrito desde
+// .hoom/specs/acciones-desde-la-tarjeta.md. Aca no hay tests: lo usan
+// hallazgos_db8541_f7efdc_test.go (hf7Tmux) y hallazgos_b59c30_e0001e_test.go
+// (hb5Tmux, la matriz y la guarda del verificador). Antes tmuxSinSesion vivia
+// en hallazgos_b59c30_e0001e_test.go y lo usaba el doble de
+// hallazgos_db8541_f7efdc_test.go (hallazgo 344b2b, de legibilidad): lo
+// compartido vive aca.
 //
 //   - Las respuestas de tmux de verdad que dan los dobles: tmuxSinSesion (la
 //     sesion no esta) y tmuxClienteRoto (falla el propio cliente de tmux).
 //     Las dos salen con codigo 1: por eso el codigo de salida no prueba nada
 //     (9c1816).
-//   - incumplimientosDelCierreFallido: en que incumple el contrato el error
-//     de Open cuando creo la sesion, algo fallo despues y el cierre `tmux
-//     kill-session -t =<sesion>` TAMBIEN fallo. Un solo mensaje para todos
-//     los casos, este la sesion viva, muerta o sin saberse. Lo comun con
-//     servecmd (y lo de la guarda de C1, con kill-session sano:
-//     DiceQueLaCerro) vive en internal/cierretmuxtest (hallazgo 9accd8); aca
-//     queda lo propio de Open.
+//   - incumplimientosDelCierreFallido: el contrato de los hallazgos 9c1816,
+//     57bd29 y 03481c para el error de Open cuando el cierre `tmux
+//     kill-session -t =<sesion>` TAMBIEN fallaba. Con la ENMIENDA 6 (hallazgo
+//     bde7e4) Open ya no corre ese cierre, y el contrato de su error lo
+//     verifica incumplimientosEnmienda6 (hallazgos_c1b_bde7e4_test.go); este
+//     queda solo con la guarda de su verificador. Lo comun con servecmd vive
+//     en internal/cierretmuxtest (hallazgo 9accd8).
 package cockpitcmd
 
 import (
