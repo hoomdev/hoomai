@@ -181,6 +181,20 @@ type run struct {
 	cancel   context.CancelFunc
 	canceled bool // pedido de cancelacion; el estado terminal lo fija settle
 	log      *os.File
+	// normalize is the run's normalizer, made once per run and not per
+	// invocation: a delegation left open at the end of one invocation is
+	// closed by a line that comes when Input continues the session
+	// (finding 3bdc20)
+	normalize func(line string) []Event
+}
+
+// normalizerFor is the normalizer of one run of p: a Correlating provider
+// pairs each delegation with its end, so it remembers this run's lines.
+func normalizerFor(p providers.Provider) func(line string) []Event {
+	if c, ok := p.(providers.Correlating); ok {
+		return c.NewNormalizer()
+	}
+	return p.Normalize
 }
 
 // Manager owns every run of one project. In-memory state, file-backed logs.
@@ -353,15 +367,107 @@ func ReadEvents(root, id string) ([]Event, error) {
 	return evs, err
 }
 
+// openLog opens the narration of run id in root only when it is a regular
+// file of root's own runs: a valid name that is a symlink, or a .hoom or a
+// runs that is one, would take the reading to another project (finding
+// 058fb1). The file is opened without following a symlink (and without
+// blocking on a FIFO), so what is read is what was checked.
+func openLog(root, id string) (*os.File, error) {
+	if !validID(id) {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	for _, d := range []string{filepath.Join(root, ".hoom"), runsDir(root)} {
+		if st, err := os.Lstat(d); err != nil || !st.IsDir() {
+			return nil, fmt.Errorf("run no encontrado: %s", id)
+		}
+	}
+	f, err := hoomfs.AbrirRegular(filepath.Join(runsDir(root), id+".jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	return f, nil
+}
+
+// ReadDelegations reads only the delegation events of a run (agent and
+// agent_end), line by line: the card's history needs no more, and a log that
+// carries long tool results is never loaded whole (finding d3c75f). A
+// malformed line is skipped, as in ReadEvents.
+func ReadDelegations(root, id string) ([]Event, error) {
+	f, err := openLog(root, id)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var out []Event
+	keep := func(line []byte) {
+		var ev Event
+		if json.Unmarshal(bytes.TrimSpace(line), &ev) == nil && (ev.Kind == "agent" || ev.Kind == "agent_end") {
+			out = append(out, ev)
+		}
+	}
+	br := bufio.NewReaderSize(f, 64<<10)
+	var larga []byte // reused: long lines allocate once per log, not per line
+	for {
+		linea, err := br.ReadSlice('\n')
+		if err == bufio.ErrBufferFull {
+			// a line longer than the buffer is kept whole up to maxDelegacion
+			// (its \n aside), whatever its first piece says: kind decides
+			// when it is decoded. A longer one is drained without keeping it,
+			// so memory stays bounded (finding 2628ba)
+			larga = append(larga[:0], linea...)
+			entra := true
+			for err == bufio.ErrBufferFull {
+				var frag []byte
+				frag, err = br.ReadSlice('\n')
+				entra = entra && len(larga)+len(bytes.TrimSuffix(frag, []byte{'\n'})) <= maxDelegacion
+				if entra {
+					larga = append(larga, frag...)
+				}
+			}
+			linea = nil
+			if entra {
+				linea = larga
+			}
+		}
+		if bytes.Contains(linea, marcaDelegacion) {
+			keep(linea)
+		}
+		if err == io.EOF {
+			return out, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+}
+
+// maxDelegacion bounds the line of one delegation (its \n aside) that
+// ReadDelegations keeps; a longer one is skipped. It bounds the reading, not
+// the writing: today only Claude's normalizer emits agent and agent_end, and
+// it clips their texts to 300 bytes, so its delegations are a few hundred
+// bytes plus the agent and the tool_id. A delegation longer than this is out
+// of the contract (enmienda 5 of historia-doctor-y-cinta).
+const maxDelegacion = 1 << 20
+
+// marcaDelegacion is a cheap first look at a line: every agent or agent_end
+// event has it however its JSON is spaced ("kind":"agent" or "kind": "agent"),
+// and only lines that have it are decoded; decoding decides by kind, so a
+// line that merely mentions it is decoded and dropped.
+var marcaDelegacion = []byte(`"agent`)
+
 // ReadEventsFrom reads the narration from a byte offset and returns the
 // events plus the offset of the next unread byte. The Studio polls the logs
 // of runs it does not own every second; re-parsing the whole file each time
 // would cost more the longer the run talks. A trailing line that does not
 // parse is left for the next read: a writer may be mid-line.
 func ReadEventsFrom(root, id string, offset int64) ([]Event, int64, error) {
-	f, err := os.Open(filepath.Join(runsDir(root), id+".jsonl"))
+	// the id is the address, as for a sidecar: a run_id that climbs
+	// (../../other/.hoom/runs/x) never reaches a log outside runs, nor does
+	// a symlink (findings f47433, 058fb1: the history reads run ids from
+	// envelopes)
+	f, err := openLog(root, id)
 	if err != nil {
-		return nil, offset, fmt.Errorf("run no encontrado: %s", id)
+		return nil, offset, err
 	}
 	defer f.Close()
 	if offset > 0 {
@@ -703,7 +809,7 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	}
 	r := &run{
 		info: Run{ID: id, Provider: p.Name(), Task: opts.Task, Status: StatusRunning, ExitCode: -1, CreatedAt: time.Now().UTC()},
-		dir:  dir, provider: p, opts: opts, log: logFile,
+		dir:  dir, provider: p, opts: opts, log: logFile, normalize: normalizerFor(p),
 	}
 	r.meta = Meta{
 		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
@@ -1012,12 +1118,8 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		}()
 	}
 
-	// Un normalizador por run: el que empareja una delegacion con su fin
-	// necesita recordar las lineas anteriores de ESTE run.
-	normalize := r.provider.Normalize
-	if c, ok := r.provider.(providers.Correlating); ok {
-		normalize = c.NewNormalizer()
-	}
+	// the run's normalizer, the same for every invocation of the run
+	normalize := r.normalize
 	var wg sync.WaitGroup
 	scan := func(src interface{ Read([]byte) (int, error) }, isErr bool) {
 		defer wg.Done()

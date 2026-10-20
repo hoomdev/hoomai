@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200721_58f3c9",
+  "as": "corregido",
+  "evidence": "Corregido en 0db6b3e: Ratchet es la unica implementacion (ratchetView se renombro) y BuildFor la llama; el comentario dice que es la fuente de hoom status y de GET /api/ratchet. Refutador: cierto. Sin test nuevo: legibilidad; los del trinquete siguen verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:51:46.975543Z"
+}

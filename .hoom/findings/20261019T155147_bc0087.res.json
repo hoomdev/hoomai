@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T155147_bc0087",
+  "as": "corregido",
+  "evidence": "Corregido por el test-writer en e021628: narracionDeOtroArbol, exigirQueSeLeaEntero y exigirQueNoSeLea viven en internal/runcmd/runs_enlazados_test.go y los usan los tests de las vueltas 2 y 3; los de 058fb1 dan el mismo resultado. Refutador (INFORME-refutador-c4-review1.md): cierto sobre de9ba23; 10771da lo resuelve.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T16:14:26.344859Z"
+}

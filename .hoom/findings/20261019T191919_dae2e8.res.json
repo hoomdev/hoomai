@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T191919_dae2e8",
+  "as": "corregido",
+  "evidence": "e6993df, enmienda 4 de historia-doctor-y-cinta aprobada (4d7c0580, 01e8480): el recorte paso a la escritura (runcmd.go:462 acotarDelegacion, llamado en m.append :1239) y ReadDelegations (:396) lee entera una linea de hasta 1 MiB y salta una mas larga. Una linea de contenido exacto 1 MiB se lee entera con su tool_id (el tope no cuenta el salto) y ya no existe la ruta que armaba una delegacion con cola parcial, asi que ninguna sale sin tool_id (tambien el borde 1 MiB+k que vio el refutador). Tests e44f0f4: TestHallazgo_550f79_dae2e8_CA362_LineaDeHastaUnMiBSeLeeEntera y _VentanaAlrededorDeUnMiB (de +0 a +21 salia sin tool_id, de +24 a +64 recortada; ahora entera hasta 1 MiB y saltada despues): fallan en 38b54b5 y pasan en e44f0f4.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T21:08:54.705993Z"
+}

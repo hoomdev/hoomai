@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T213329_fffe28",
+  "as": "corregido",
+  "evidence": "Corregido en 8d1737e y 9b72e8f: el doctor arma el comando con el slug de agents.Lookup y un provider de forma segura, y derive.go normaliza el rol de sobres y runs (rolDeHoom) para que el tablero, Reanudar y el doctor vean el mismo; con \"\\nreviewer\" el doctor propone hoom review. Refutador: cierto y PRE-EXISTENTE (main ya interpolaba el rol sin validar; el mensaje de 8d1737e que lo atribuye a f34bc3 no es exacto, corregido en 9b72e8f). Tests del test-writer (42614b6): TestCA367_fffe28_RolYProviderConEspaciosNoPartenLaAccion y TestCA369_fffe28_SobreEnDiscoConRolRodeado, con guardas; fallan sobre 1350976 y pasan sobre 9b72e8f.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T15:05:24.01125Z"
+}

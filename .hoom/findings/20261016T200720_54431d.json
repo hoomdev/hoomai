@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200720_54431d",
+  "created_at": "2026-10-16T20:07:20.677667Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:159: la entrada publica y sus metadatos de replay se guardan en estructuras paralelas (entries y extra map[int]*entryData), y ordered debe ordenar indices para volver a unirlas. Esa invariante posicional queda implicita y hace fragil cualquier insercion, filtrado o reordenamiento futuro. Mantener un slice de una estructura interna que contenga TimelineEntry y entryData, ordenarlo directamente y proyectar el JSON al final elimina el acoplamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

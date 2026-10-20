@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T202145_e5d1e4",
+  "as": "corregido",
+  "evidence": "Corregido en 0b3977e: itemFiles y taskWorktrees devuelven error si no pueden leer .hoom/items o .hoom/worktrees (solo la inexistencia es 'nada') y Doctor lo propaga, asi hoom board doctor no dice 'sin problemas de coherencia' sin haber mirado. Refutador (INFORME-refutador-c4-mitad2-resil-read.md): con .hoom/worktrees en 0300/0000 daba 0 problemas en a73c5da y en main. Test del test-writer (commit de tests del doctor de C4), que falla sobre 34af093 y pasa sobre 0b3977e (con -race). TestCA369_e5d1e4_DirectorioIlegibleEsUnError y la guarda ..._DirectorioQueNoExisteEsNada.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T21:03:50.082628Z"
+}

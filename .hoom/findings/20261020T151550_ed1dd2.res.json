@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T151550_ed1dd2",
+  "as": "corregido",
+  "evidence": "32de3ee: el comentario de maxDelegacion (internal/runcmd/runcmd.go) dice que acota la lectura y no la escritura, y atribuye la cota de 300 bytes al normalizador de Claude, el unico que hoy emite agent y agent_end; ya no la presenta como invariante de runcmd. El refutador (INFORME-refutador-c4-delta4.md) propuso exactamente nombrar a Claude.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T15:28:21.361569Z"
+}

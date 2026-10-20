@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200128_6e9731",
+  "as": "corregido",
+  "evidence": "Ya corregido en main antes de esta review (la mitad 1 juzga a40406e, el codigo de a73c5da): c01b44b (hallazgo cc4f5b de C2) deja que un fallo de git en la historia descarte las entradas git, y 3fb66a4 (hallazgo 0ce3dc) hace atomico gitEntries con defer. Refutador (INFORME-refutador-c4-mitad1-risk-relia.md): con base inexistente y con commit_final ausente, en a73c5da salen 2 entradas git junto a la nota 'sin historial de git'; el mismo test falla en c01b44b^ y pasa desde c01b44b y en main 6a68392. Duplicado de cc4f5b/0ce3dc.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:17:28.632209Z"
+}

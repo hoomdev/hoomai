@@ -1,0 +1,11 @@
+{
+  "id": "20261019T153725_3826b3",
+  "created_at": "2026-10-19T15:37:25.892969Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este cambio) — internal/envelope/envelope.go:132-153 valida ahora que Record.ID coincida con el nombre, pero os.ReadFile de la linea 141 sigue un symlink. Un enlace .hoom/envelopes/\u003cid\u003e.json a un sobre del mismo nombre en otro proyecto pasa la nueva validacion y hace que tablero/historia publiquen su task, provider, Note y Usage y deriven estado local de telemetria ajena. Abrir solo un archivo regular sin seguir enlaces y contener tambien .hoom/envelopes por descriptores. Patronizable con una regla Semgrep custom para ReadDir seguido de ReadFile(filepath.Join(dir, entry.Name())) en telemetria.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

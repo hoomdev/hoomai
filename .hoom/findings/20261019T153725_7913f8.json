@@ -1,0 +1,11 @@
+{
+  "id": "20261019T153725_7913f8",
+  "created_at": "2026-10-19T15:37:25.26621Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/doctor.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este cambio) — internal/boardcmd/doctor.go:237-243 acepta como supuesto slug cualquier nombre de directorio bajo .hoom/worktrees porque runcmd.TaskDir solo hace Stat; internal/boardcmd/doctor.go:334-338 concatena luego ese nombre sin quoting en la accion cd \u003cdir\u003e \u0026\u0026 hoom verify. Un worktree con nombre x; touch PWNED; # y cambios produce una accion que, al pegarse como manda el contrato del doctor, ejecuta el comando inyectado. Validar e.Name() con item.ValidSlug antes de agregarlo (y mantener argumentos de shell escapados). Patronizable con una regla Semgrep custom que marque DirEntry.Name propagado a Problem.Action/comandos sin validacion de slug.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

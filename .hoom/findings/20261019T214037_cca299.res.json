@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T214037_cca299",
+  "as": "corregido",
+  "evidence": "518f38d (test-writer): los helpers compartidos pasaron a internal/runcmd/delegaciones_helpers_test.go (prefijo dlg) y cada archivo de vuelta (4, 5, 6, 7) usa solo los suyos; se borraron c4v4MismoEvento, c4v6Recortado, c4v6Aviso y c4v6ExigirDetalle. go vet y go test ./internal/runcmd verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T14:45:19.218092Z"
+}

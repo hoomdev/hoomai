@@ -2,16 +2,20 @@ package boardcmd
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/envelope"
@@ -77,38 +81,51 @@ func DoctorOf(ev Evidence, c Card) []Problem {
 		cd = "cd " + ev.Dir + " && "
 	}
 	at := func(parts ...string) string { return path.Join(append([]string{ev.Dir}, parts...)...) }
-	add := func(id, what, plain, action, ref string) {
-		out = append(out, Problem{ID: id, Slug: s, What: what, Plain: plain, Action: action, Ref: ref})
+	// problema fills in what every problem of the card shares; each rule
+	// below says only its own fields, by name (findings 1bbb70, c26bb0)
+	problema := func(id string, p Problem) Problem {
+		p.ID, p.Slug = id, s
+		return p
 	}
 	hecho := c.Column == ColHecho
 	v := ev.Verdict
 	green := v != nil && v.Verdict == "green"
 
 	if !hecho && ev.Approval == approval.StatusInvalidated {
-		add(ProbSpecEditado, "el spec cambio despues de su aprobacion: revisalo y aprobalo de nuevo",
-			"el spec cambio despues de tu aprobacion", cd+"hoom spec approve "+spec, at(spec))
+		out = append(out, problema(ProbSpecEditado, Problem{
+			What:   "el spec cambio despues de su aprobacion: revisalo y aprobalo de nuevo",
+			Plain:  "el spec cambio despues de tu aprobacion",
+			Action: cd + "hoom spec approve " + spec,
+			Ref:    at(spec)}))
 	}
 	if !hecho && ev.Worktree && len(ev.TreeChanges) > 0 && !ev.Certified && !green {
 		action := cd + "hoom verify"
 		if ev.SpecExists {
 			action += " --spec " + spec
 		}
-		add(ProbSinVeredicto, fmt.Sprintf("el espacio de trabajo tiene cambios que ningun veredicto certifica (huella %s)", ev.TreeFingerprint),
-			"hay cambios sin verificar", action, ev.Dir)
+		out = append(out, problema(ProbSinVeredicto, Problem{
+			What:   fmt.Sprintf("el espacio de trabajo tiene cambios que ningun veredicto certifica (huella %s)", ev.TreeFingerprint),
+			Plain:  "hay cambios sin verificar",
+			Action: action,
+			Ref:    ev.Dir}))
 	}
 	if !hecho && green && ev.TreeFingerprint != "" && v.Git.ChangeFingerprint != ev.TreeFingerprint {
-		add(ProbVerdeVencido, fmt.Sprintf("el veredicto verde %s certifica la huella %s y el arbol tiene %s", v.ID, v.Git.ChangeFingerprint, ev.TreeFingerprint),
-			"el codigo cambio despues del ultimo verde", cd+"hoom verify --spec "+spec, at(".hoom", "verdicts", v.ID+".json"))
+		out = append(out, problema(ProbVerdeVencido, Problem{
+			What:   fmt.Sprintf("el veredicto verde %s certifica la huella %s y el arbol tiene %s", v.ID, v.Git.ChangeFingerprint, ev.TreeFingerprint),
+			Plain:  "el codigo cambio despues del ultimo verde",
+			Action: cd + "hoom verify --spec " + spec,
+			Ref:    at(".hoom", "verdicts", v.ID+".json")}))
 	}
 	if !hecho && c.Column == ColTuAceptacion {
 		for _, f := range ev.Findings {
 			if f.Status != finding.StatusOpen || f.Task != s || f.Severity != "high" {
 				continue
 			}
-			add(ProbBugDerivacion, fmt.Sprintf("bug de hoom: la tarjeta esta en Tu aceptacion con el hallazgo high abierto %s, y la derivacion nunca deberia permitirlo", f.ID),
-				"hay un error de hoom en esta tarjeta: no la integres",
-				"reporta este bug de hoom con la salida de 'hoom board doctor --json' y no integres la tarjeta hasta entonces",
-				at(".hoom", "findings", f.ID+".json"))
+			out = append(out, problema(ProbBugDerivacion, Problem{
+				What:   fmt.Sprintf("bug de hoom: la tarjeta esta en Tu aceptacion con el hallazgo high abierto %s, y la derivacion nunca deberia permitirlo", f.ID),
+				Plain:  "hay un error de hoom en esta tarjeta: no la integres",
+				Action: "reporta este bug de hoom con la salida de 'hoom board doctor --json' y no integres la tarjeta hasta entonces",
+				Ref:    at(".hoom", "findings", f.ID+".json")}))
 		}
 	}
 	if in := c.Interrupted; in != nil {
@@ -116,15 +133,20 @@ func DoctorOf(ev Evidence, c Card) []Problem {
 		if role == "" {
 			role = "rol"
 		}
-		add(ProbSobreHuerfano, fmt.Sprintf("el sobre %s del %s quedo abierto en el paso %d de %d (%s) y su proceso ya no vive", in.EnvelopeID, role, in.Step, in.Steps, in.Stage),
-			"el trabajo del "+role+" quedo interrumpido", orphanAction(c, in, spec),
-			".hoom/"+envelope.DirName+"/"+in.EnvelopeID+".json")
+		out = append(out, problema(ProbSobreHuerfano, Problem{
+			What:   fmt.Sprintf("el sobre %s del %s quedo abierto en el paso %d de %d (%s) y su proceso ya no vive", in.EnvelopeID, role, in.Step, in.Steps, in.Stage),
+			Plain:  "el trabajo del " + role + " quedo interrumpido",
+			Action: orphanAction(c, in, spec),
+			Ref:    ".hoom/" + envelope.DirName + "/" + in.EnvelopeID + ".json"}))
 	}
 	if !hecho && !ev.SpecExists && !ev.Item.CreadoEn.IsZero() {
 		if age := ev.Now.Sub(ev.Item.CreadoEn); age > DoctorSinSpecDias*24*time.Hour {
 			d := int(age / (24 * time.Hour))
-			add(ProbSinSpec, fmt.Sprintf("el item lleva %d dias sin spec (creado el %s)", d, ev.Item.CreadoEn.UTC().Format("2006-01-02")),
-				fmt.Sprintf("lleva %d dias esperando su spec", d), c.Next, item.RelPath(s))
+			out = append(out, problema(ProbSinSpec, Problem{
+				What:   fmt.Sprintf("el item lleva %d dias sin spec (creado el %s)", d, ev.Item.CreadoEn.UTC().Format("2006-01-02")),
+				Plain:  fmt.Sprintf("lleva %d dias esperando su spec", d),
+				Action: c.Next,
+				Ref:    item.RelPath(s)}))
 		}
 	}
 	return out
@@ -133,21 +155,34 @@ func DoctorOf(ev Evidence, c Card) []Problem {
 // orphanAction is how the interrupted work goes on: resumed when the card
 // can resume it, the review again, or the role again from scratch.
 func orphanAction(c Card, in *Interrupted, spec string) string {
+	// the role and the session id come from local telemetry: they go into a
+	// command only when they are hoom's (finding f34bc3), and the role as
+	// hoom writes it, not as the record does: Lookup forgives spaces around
+	// it, and a newline would split the command in two (finding fffe28)
+	r, err := agents.Lookup(in.Role)
+	if err != nil {
+		return fmt.Sprintf("el sobre dice un rol que no es de hoom (%q): relanza el trabajo desde la tarjeta", in.Role)
+	}
+	role := r.Slug
 	withSpec := ""
-	if !WritesSpecs(in.Role) {
+	if !WritesSpecs(role) {
 		withSpec = " --spec " + spec
 	}
 	for _, a := range c.Actions {
-		if a.ID == ActReanudar && a.Enabled && a.ResumeID != "" {
+		if a.ID == ActReanudar && a.Enabled && sesionSegura.MatchString(a.ResumeID) && sesionSegura.MatchString(in.Provider) {
 			return fmt.Sprintf("hoom agent --role %s --task %s%s --provider %s --resume %s %s",
-				in.Role, c.Slug, withSpec, in.Provider, a.ResumeID, pedidoHint)
+				role, c.Slug, withSpec, in.Provider, a.ResumeID, pedidoHint)
 		}
 	}
-	if in.Role == "reviewer" {
+	if role == "reviewer" {
 		return "hoom review --task " + c.Slug + " --spec " + spec
 	}
-	return fmt.Sprintf("hoom agent --role %s --task %s%s %s", in.Role, c.Slug, withSpec, pedidoHint)
+	return fmt.Sprintf("hoom agent --role %s --task %s%s %s", role, c.Slug, withSpec, pedidoHint)
 }
+
+// sesionSegura is a session id (or a provider name) that can go into a
+// command as is.
+var sesionSegura = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // Doctor builds the board and lists the problems of every card, in board
 // order, followed by the project's own. Read-only.
@@ -163,8 +198,16 @@ func Doctor(root, base, blockOn string, now time.Time) (DoctorReport, error) {
 		}
 	}
 	g := newGatherer(root, base, blockOn, now)
-	items := itemFiles(root)
-	worktrees := taskWorktrees(root)
+	// a directory it cannot read is an error, never "no problems": the
+	// doctor would vouch for what it did not look at (finding e5d1e4)
+	items, err := itemFiles(root)
+	if err != nil {
+		return DoctorReport{}, err
+	}
+	worktrees, err := taskWorktrees(root)
+	if err != nil {
+		return DoctorReport{}, err
+	}
 	r.Problems = append(r.Problems, orphanEnvelopes(g, items, worktrees)...)
 	r.Problems = append(r.Problems, unverifiedWorktrees(g, items, worktrees)...)
 	r.Problems = append(r.Problems, evidenceWithoutItem(g, items, worktrees)...)
@@ -172,24 +215,38 @@ func Doctor(root, base, blockOn string, now time.Time) (DoctorReport, error) {
 }
 
 // itemFiles is every item file of root, valid or not: an invalid one is
-// still an item (the board warns about it).
-func itemFiles(root string) map[string]bool {
+// still an item (the board warns about it). No items directory is no items;
+// one it cannot read is an error.
+func itemFiles(root string) (map[string]bool, error) {
 	out := map[string]bool{}
-	entries, _ := os.ReadDir(item.Dir(root))
+	entries, err := os.ReadDir(item.Dir(root))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("no pude leer %s: %w", item.Dir(root), err)
+	}
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".yaml") {
 			out[strings.TrimSuffix(e.Name(), ".yaml")] = true
 		}
 	}
-	return out
+	return out, nil
 }
 
-// taskWorktrees lists the task worktrees of root by slug, sorted.
-func taskWorktrees(root string) []string {
+// taskWorktrees lists the task worktrees of root by slug, sorted. No
+// worktrees directory is no worktrees; one it cannot read is an error.
+func taskWorktrees(root string) ([]string, error) {
 	var out []string
-	entries, _ := os.ReadDir(filepath.Join(root, ".hoom", "worktrees"))
+	dir := filepath.Join(root, ".hoom", "worktrees")
+	entries, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("no pude leer %s: %w", dir, err)
+	}
 	for _, e := range entries {
 		if !e.IsDir() {
+			continue
+		}
+		// a name that is not a slug is not a task's, and never goes into
+		// the command the doctor proposes (finding 7913f8)
+		if !item.ValidSlug(e.Name()) {
 			continue
 		}
 		if _, err := runcmd.TaskDir(root, e.Name()); err == nil {
@@ -197,7 +254,7 @@ func taskWorktrees(root string) []string {
 		}
 	}
 	sort.Strings(out)
-	return out
+	return out, nil
 }
 
 // place is one tree the doctor reads telemetry or evidence from.
@@ -316,7 +373,9 @@ func evidenceWithoutItem(g *gatherer, items map[string]bool, worktrees []string)
 			}
 		}
 		for _, f := range t.allFindings(g.base) {
-			if f.Task != "" {
+			// a task that is not a slug is not a card's, and never goes
+			// into the command the doctor proposes (finding 5435b7)
+			if item.ValidSlug(f.Task) {
 				note(findings, f.Task, f.ID)
 			}
 		}

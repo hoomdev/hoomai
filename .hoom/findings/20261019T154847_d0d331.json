@@ -1,0 +1,11 @@
+{
+  "id": "20261019T154847_d0d331",
+  "created_at": "2026-10-19T15:48:47.892084Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/doctor.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este cambio) — internal/boardcmd/doctor.go:194-207 solo hace fallar Doctor cuando no puede listar .hoom/items o .hoom/worktrees. Las otras fuentes que certifica siguen degradando a vacio: envelope.List devuelve nil ante cualquier error de ReadDir (internal/envelope/envelope.go:132-135) y tree.allVerdicts descarta el error de LoadAllWithWarnings (internal/boardcmd/gather.go:154-156). Con .hoom/envelopes ilegible, por ejemplo, un sobre huerfano desaparece y Doctor todavia puede devolver cero problemas, de modo que la CLI afirma sin problemas de coherencia sin haber inspeccionado toda la evidencia. Debe propagar o representar tambien los fallos de descubrimiento de sobres, veredictos y demas fuentes usadas por el doctor.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

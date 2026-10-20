@@ -1,0 +1,11 @@
+{
+  "id": "20261020T184551_f94377",
+  "created_at": "2026-10-20T18:45:51.822276Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/providers/claude.go",
+  "description": "[INTRODUCIDO] internal/providers/claude.go:325 aplica clip(st), que corta por bytes en internal/providers/claude.go:566. Un status UTF-8 valido de 301 bytes como \"a\" + 150 veces \"ñ\" queda con una secuencia UTF-8 truncada en Manager.Events; json.Marshal sustituye luego ese byte por U+FFFD al escribir el JSONL, por lo que memoria y disco divergen y la telemetria pierde datos. El caso nuevo de 301 bytes no lo detecta porque deriva su esperado llamando al mismo clip mediante h3b4RecorteDeToolResult.",
+  "author": "reviewer@codex",
+  "fingerprint": "f72c7380a06f8a31",
+  "task": "fixes-cabina-c4"
+}

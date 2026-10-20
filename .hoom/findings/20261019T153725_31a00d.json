@@ -1,0 +1,11 @@
+{
+  "id": "20261019T153725_31a00d",
+  "created_at": "2026-10-19T15:37:25.468522Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE (follow-up; la rama reduce el ataque estatico pero no cierra la carrera) — internal/runcmd/runcmd.go:379-384 comprueba .hoom y .hoom/runs con Lstat y despues abre el descendiente por ruta completa. Un proceso concurrente puede sustituir cualquiera de esos directorios por un symlink entre la comprobacion y AbrirRegular; O_NOFOLLOW solo protege el componente final, por lo que ReadEventsFrom/ReadDelegations aun pueden leer \u003cid\u003e.jsonl de otro arbol. Abrir la raiz y bajar componente por componente con descriptores (AbrirDirEn/AbrirRegularEn), verificando el mismo objeto, cierra la ventana. Patronizable con una regla Semgrep custom para Lstat de un directorio seguido de open de un descendiente por nombre.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

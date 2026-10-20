@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200503_c7ac1e",
+  "as": "corregido",
+  "evidence": "Duplicado de b8f216 (y de d4d677 del ciclo de C2 por cmd.Wait) y ya corregido en main: 4d97d8b y c01b44b (lectura con gitx.OutPrefix, sin limite por linea, y error si git falla a mitad). Refutador: en a73c5da una linea de 5 MiB o un blob faltante pierden CA-1 sin nota; en main 6a68392 el CA-1 aparece y el blob faltante devuelve error.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:20:36.424215Z"
+}

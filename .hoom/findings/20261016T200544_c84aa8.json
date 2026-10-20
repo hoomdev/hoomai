@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200544_c84aa8",
+  "created_at": "2026-10-16T20:05:44.447266Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:294-315 descarta los errores de git cat-file y deja hashes vacios, mientras internal/boardcmd/timeline.go:368-378 convierte errores de git rev-list en la nota normal de integracion fast-forward e incluso ignora por completo el segundo error. En un clon parcial sin acceso al promisor, ante objetos corruptos o ante un fallo transitorio de Git, la historia sigue con un medidor falso u omite los commits de la tarea sin la nota sin historial de git. Estos errores deben propagarse al fallback de Git, no reinterpretarse como datos validos.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

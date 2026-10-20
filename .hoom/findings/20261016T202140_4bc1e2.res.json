@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T202140_4bc1e2",
+  "as": "corregido",
+  "evidence": "Duplicado de 030d5d/1f8d09 (y del 17225a de C3) y ya corregido en main antes de esta review: 92b283e (fixes de C3) borra el log solo si el trabajo no arranco (t.arranco), fin lleva arranco y el handler responde 202, y sin registro del sobre la cinta sale. Refutador (INFORME-refutador-c4-mitad2-resil-read.md): con un modelo del handshake, a73c5da da 5036 de 10.000 con 409 y log borrado; main 6a68392, 0 de 10.000. La carrera era pre-existente (c693050); C4 solo agrego la cinta.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:34:25.519605Z"
+}

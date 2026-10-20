@@ -1,0 +1,11 @@
+{
+  "id": "20261019T165404_0ebb3f",
+  "created_at": "2026-10-19T16:54:04.980121Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO: internal/runcmd/runcmd.go:421-430 descarta silenciosamente todo evento agent/agent_end cuya linea excede maxDelegacion (1 MiB), aunque sea JSON valido. CA-362 exige que cada agent produzca una entrada y que cada agent_end emparejado cierre la delegacion; TimelineFor consume exclusivamente ReadDelegations (internal/boardcmd/timeline.go:541-566,576-581). Por eso un detail sobredimensionado borra del historial de auditoria la delegacion completa o su cierre y puede mostrar falsamente que nunca existio o que sigue abierta. La cota debe preservar al menos ts, kind, agent y tool_id en vez de omitir el evento.",
+  "author": "reviewer@codex",
+  "fingerprint": "b21e140d7fe19cfe",
+  "task": "fixes-cabina-c4"
+}

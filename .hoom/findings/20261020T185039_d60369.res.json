@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T185039_d60369",
+  "as": "corregido",
+  "evidence": "f791954: clip (internal/providers/claude.go) corta en el ultimo comienzo de caracter antes de los 300 bytes (a lo sumo tres atras), asi el recorte es UTF-8 valido y el run guarda en memoria lo mismo que escribe; vale para el status y para todo texto que pasa por clip. Tests 98f0b9a (test-writer, oraculo propio, no el mismo clip): providers TestHallazgos_aa41d6_d60369_f94377_CA373_RecorteSinPartirCaracter (8 canales, 52 textos de 2/3/4 bytes con el corte en cada posicion), _PropiedadRecorteEnUTF8Valido (testing/quick), _NingunEventoDelCaminoSaleConUTF8Invalido, y runcmd TestHallazgos_aa41d6_d60369_f94377_CA362_CA373_RecorteUTF8MemoriaIgualADisco (status y tool_result 'a'+150 enies: memoria = .jsonl = ReadDelegations): fallan en a5fbae5 y pasan en 98f0b9a. El refutador (INFORME-refutador-c4-delta5.md) confirmo el arreglo con 1220 cortes exhaustivos y 20.000 al azar.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T19:11:01.941274Z"
+}

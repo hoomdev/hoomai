@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200122_43fe5d",
+  "created_at": "2026-10-16T20:01:22.022294Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:193: gitEntries arma los pathspecs y los datos de veredictos, hallazgos y reviews solo desde los artefactos que existen y pertenecen hoy a la tarjeta. Si uno fue borrado o reasignado, desaparecen también sus commits históricos; si fue editado, todas sus entradas usan el contenido actual en :316-344. La historia deja de cumplir una entrada por (commit, archivo) y puede reescribir retrospectivamente el color/gates/lentes del replay.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

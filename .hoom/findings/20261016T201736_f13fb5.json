@@ -1,0 +1,11 @@
+{
+  "id": "20261016T201736_f13fb5",
+  "created_at": "2026-10-16T20:17:36.930812Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/pilot.go",
+  "description": "INTRODUCIDO — internal/boardcmd/pilot.go:73: Pilot solo comprueba que la primera accion coincida con PilotTable. En una tarjeta que avanza de Writer a Review y queda a la vez con review de 4 lentes pendiente y hallazgos bloqueantes, columnActions conserva pedir-reviewer como primera accion; por eso la cinta lanza y gasta una review aunque el contrato exige que corregir hallazgos quede en manos de una persona. Los fixtures separan review-exigida y review-hallazgos y no cubren esta combinacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "420d1ec7373ab320",
+  "task": "historia-doctor-y-cinta"
+}

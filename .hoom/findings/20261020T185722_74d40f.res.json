@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T185722_74d40f",
+  "as": "corregido",
+  "evidence": "98f0b9a (test-writer): internal/providers/hallazgos_c4_3b4ee7_test.go cita la enmienda 6 para el recorte del status (encabezado, h3b4Limite, h3b4RecorteDeToolResult y mensajes de las lineas 117, 143, 177, 202 y 260); deja 'La enmienda 5 dice...' solo donde cita su texto. Sin cambiar exigencias.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T19:11:01.976352Z"
+}

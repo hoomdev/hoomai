@@ -1,0 +1,11 @@
+{
+  "id": "20261016T202406_1bbb70",
+  "created_at": "2026-10-16T20:24:06.545496Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/doctor.go",
+  "description": "INTRODUCIDO — internal/boardcmd/doctor.go:80: el helper local add(id, what, plain, action, ref string) construye el modelo central con cinco strings posicionales y las ramas le pasan textos contractuales largos repartidos en varias lineas; intercambiar what/plain/action/ref compila y el significado solo se recupera contando argumentos. Literales Problem con campos nombrados o builders tipados por problema harian cada diagnostico legible y mas seguro de mantener.",
+  "author": "reviewer@codex",
+  "fingerprint": "420d1ec7373ab320",
+  "task": "historia-doctor-y-cinta"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261019T192127_4d2ae1",
+  "created_at": "2026-10-19T19:21:27.486136Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/hallazgos_c4_vuelta5_test.go",
+  "description": "INTRODUCIDO — internal/runcmd/hallazgos_c4_vuelta5_test.go:349: la tabla de variantes modela el escenario con dos booleanos (agentEndEnorme y agentNormal), pero todos los casos se construyen con literales posicionales como variante{c4v5Compacto, n, fin, false} en las lineas 356-362. Para entender cada fila hay que memorizar el orden de los booleanos y luego seguir la logica que reinterpreta cierre y agent en 364-388; campos nombrados o un unico enum de escenario harian cada caso autocontenido y evitarian combinaciones contradictorias.",
+  "author": "reviewer@codex",
+  "fingerprint": "82318c120245c3b3",
+  "task": "fixes-cabina-c4"
+}

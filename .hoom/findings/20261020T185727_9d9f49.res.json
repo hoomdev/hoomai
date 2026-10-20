@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T185727_9d9f49",
+  "as": "corregido",
+  "evidence": "98f0b9a (test-writer): internal/runcmd/hallazgos_c4_vuelta8_test.go atribuye el recorte del status a la enmienda 6 (cabecera 'enmiendas 5 y 6', contrato, comentario y const ca) y deja la enmienda 5 para 'hoom no recorta las delegaciones'. Sin cambiar exigencias.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T19:11:01.986152Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200721_1b1c8f",
+  "created_at": "2026-10-16T20:07:21.355819Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/ui/tablero.js",
+  "description": "INTRODUCIDO — internal/servecmd/ui/tablero.js:712: el template de hoy contiene la condicion muerta ${medidor ? \"\" : \"\"}; ambas ramas son iguales y el resultado siempre es vacio. Esto parece un resto de una decision de render y obliga a quien lea a comprobar si falta una rama. Eliminar la interpolacion deja explicito que el cuadro final solo usa medidorTarjeta.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

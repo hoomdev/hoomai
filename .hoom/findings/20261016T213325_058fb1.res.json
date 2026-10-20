@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T213325_058fb1",
+  "as": "corregido",
+  "evidence": "Corregido en 8d1737e y 9b72e8f: runcmd.openLog (ReadEventsFrom y ReadDelegations) valida el id, exige que .hoom y .hoom/runs sean directorios reales y abre el .jsonl con hoomfs.AbrirRegular (sin seguir un symlink ni bloquearse en un FIFO). Refutador (INFORME-refutador-c4-review1-cortada.md): cierto y pre-existente (main igual); 8d1737e solo cerraba el archivo, no un .hoom/runs enlazado. Tests del test-writer: 42614b6 (cuatro enlaces desde el .jsonl, por runcmd y por la historia, fallan sobre 1350976) y el commit de tests de .hoom/runs y .hoom enlazados (fallan sobre 8d1737e); pasan sobre 9b72e8f, con guardas de raiz nombrada por enlaces.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T15:05:24.003489Z"
+}

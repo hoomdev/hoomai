@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200112_85de4a",
+  "as": "refutado",
+  "evidence": "FALSO POR EL CORTE: la mitad 1 (a40406e) no trae doctor.go, pero en a73c5da (C4 integrado) existe: Card.Doctor []Problem json:doctor (internal/boardcmd/boardcmd.go:161), Derive lo calcula (derive.go:52 c.Doctor = DoctorOf(ev, c); doctor.go:71), el verbo se despacha en cmd/hoom/main.go:797 (args[0]==doctor -\u003e cmdBoardDoctor, :832 ParseDoctorArgs, :844 boardcmd.Doctor, :856 RenderDoctor) y tablero.js pinta la insignia (insignia(c) en internal/servecmd/ui/tablero.js:190, usada en :174). En a73c5da 'go test ./internal/boardcmd/ ./internal/servecmd/ -run TestCA36[789]|TestCA37[01]' pasa: TestCA367_* (13), TestCA368_*, TestCA369_*, TestCA370_E2EBoardDoctor, TestCA371_InsigniasDelDoctor. Sigue igual en main 6a68392.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-16T20:11:07.751194Z"
+}

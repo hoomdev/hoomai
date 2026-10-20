@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // claude drives Claude Code headless (`claude -p`). Verified against Claude
@@ -319,7 +320,11 @@ func (r *claudeRun) correlate(msg claudeMsg, now time.Time) []Event {
 		}
 		detail := d.agent + " termino"
 		if st != "" && st != "completed" {
-			detail = d.agent + " fallo (" + st + ")"
+			// the status is text of the failure, of any size: it is
+			// clipped like the text of a failed tool_result, or one of MiB
+			// would be kept and written whole (finding 3b4ee7, enmienda 6 of
+			// historia-doctor-y-cinta)
+			detail = d.agent + " fallo (" + clip(st) + ")"
 		}
 		end(msg.ToolUseID, detail)
 	}
@@ -560,10 +565,19 @@ func toolDetail(tool string, input map[string]any) string {
 	return ""
 }
 
+// clip keeps the first 300 bytes of s, trimmed, without splitting a
+// character: a cut rune would be invalid UTF-8 in memory and U+FFFD once
+// written as JSON, and the run would keep one text and write another
+// (findings aa41d6, d60369, f94377).
 func clip(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) > 300 {
-		return s[:300] + "…"
+		n := 300
+		// a rune is at most utf8.UTFMax bytes: its start is that close
+		for i := 1; i < utf8.UTFMax && !utf8.RuneStart(s[n]); i++ {
+			n--
+		}
+		return s[:n] + "…"
 	}
 	return s
 }

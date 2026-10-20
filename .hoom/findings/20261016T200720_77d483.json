@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200720_77d483",
+  "created_at": "2026-10-16T20:07:20.90626Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO — internal/providers/claude.go:202: NewNormalizer procesa cada linea dos veces (Normalize/parseClaudeLine y claudeRun.correlate) mediante dos modelos JSON solapados, claudeMsg y claudeLink. La forma wire de message.content queda duplicada y un cambio de Claude exige mantener ambos esquemas sincronizados. Decodificar una vez a un tipo compartido y pasar ese valor a la normalizacion estateless y a la correlacion deja una sola representacion del protocolo.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

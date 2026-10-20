@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200140_b8f216",
+  "as": "corregido",
+  "evidence": "Ya corregido en main antes de esta review: 4d97d8b (hallazgo d4d677 de C2) y c01b44b, que cambia la lectura por gitx.OutPrefix sin limite por linea. Refutador: en a73c5da una linea de 5 MiB en un commit posterior apaga CA-1 sin nota de corte; el test falla en 4d97d8b^ y pasa desde 4d97d8b y en main 6a68392. Duplicado de d4d677.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:17:28.638572Z"
+}

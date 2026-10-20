@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200544_c84aa8",
+  "as": "corregido",
+  "evidence": "Corregido en 0db6b3e: un spec o una aprobacion que git no puede leer en su commit, y un rev-list que falla, son error de la historia git (que es atomica: sale 'sin historial de git'), nunca un medidor sin hash ni la nota de fast-forward. Refutador (INFORME-refutador-c4-mitad1-resil-read.md): cierto en a73c5da y main. Tests del test-writer (1f93521), que fallan sobre c8ef915 y pasan sobre el arreglo: TestHallazgo_c84aa8_CA359_SinElContenidoEnSuCommitNoHayHistoriaAMedias y ..._CA360_RevListQueFallaNoEsFastForward.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:52:02.357621Z"
+}

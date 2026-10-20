@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T201736_f13fb5",
+  "as": "refutado",
+  "evidence": "FALSO como defecto: el contrato manda lanzar la review en esa combinacion y la cinta nunca corrige hallazgos. (1) acciones-desde-la-tarjeta.md:144 fija en Review pedir-reviewer como accion PRINCIPAL si la review de 4 lentes es exigida, y pedir-writer despues si hay hallazgos que bloquean; historia-doctor-y-cinta.md:483 (caso 7) compara solo la accion principal y :579-581 pide al reviewer cuando el writer pasa a Review con la review exigida; pilot.go:73-75 es literal. (2) 'no corrige hallazgos por su cuenta' (:81-82, 'Corregir es de una persona' :583-584) se cumple. Test temporal TestZZR_PilotReviewConHallazgos (Pilot puro sobre Derive, igual en a73c5da y 6a68392): writer-\u003eReview con review exigida + hallazgo high da acciones [pedir-reviewer pedir-writer ...] y lanza pedir-reviewer (rol reviewer); cuando la review cierra, se detiene en el caso 6 'la tarjeta no avanzo (sigue en Review)'; con solo hallazgos se detiene en el caso 7 'le toca a una persona'. La cinta nunca lanza pedir-writer en Review. (3) La combinacion casi no se alcanza: el verde del writer exige findings_open en pass sobre el mismo conjunto (finding/gate.go:68-85 vs boardcmd/derive.go:209-224); solo aparece si alguien registra un hallazgo entre el verify del writer y la derivacion de la cinta, o si block_on difiere entre la raiz y el worktree. Detenerse ante hallazgos abiertos seria una regla nueva de spec, no un bug.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-16T20:36:57.272377Z"
+}

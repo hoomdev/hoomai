@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T153725_7913f8",
+  "as": "corregido",
+  "evidence": "Corregido en 10771da: taskWorktrees solo cuenta directorios de .hoom/worktrees cuyo nombre es un slug valido (item.ValidSlug), lo que corta las dos acciones del doctor que lo usaban (cd \u003cdir\u003e \u0026\u0026 hoom verify, y rm de un sobre adentro). Refutador (INFORME-refutador-c4-review1.md): cierto sobre de9ba23; 10771da lo resuelve. Era PRE-EXISTENTE (main igual); Henry lo incluyo en esta tarea. Test del test-writer (e021628): TestCA369_CA370_7913f8_EspacioQueNoEsSlugNoLlegaAlDoctor (13 nombres) y su guarda; falla sobre de9ba23 y pasa sobre el arreglo.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T16:14:26.326905Z"
+}

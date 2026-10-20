@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T154837_2628ba",
+  "as": "corregido",
+  "evidence": "Corregido en 10771da: ReadDelegations no guarda mas de maxDelegacion (1 MiB) de una linea de delegacion; una mas larga no se lee. Y 14b43e3: la marca es \"agent, asi una delegacion con JSON espaciado tambien se lee (lo vio el test-writer). Refutador (INFORME-refutador-c4-review1.md): cierto sobre de9ba23; 10771da lo resuelve. (antes 429,7 MiB por una linea de 64 MiB, despues 4,5 MiB). Tests del test-writer (e021628 y fae193b), que fallan sobre de9ba23 y pasan sobre el arreglo: TestHallazgo_2628ba_CA362_DelegacionEnormeNoTapaLasNormales, ..._ReadDelegationsNoCargaLaLineaEntera, ..._ReadDelegationsEsReadEventsFiltradoConJSONEspaciado y la guarda por propiedad.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T16:14:26.320196Z"
+}

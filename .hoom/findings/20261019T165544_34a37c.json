@@ -1,0 +1,11 @@
+{
+  "id": "20261019T165544_34a37c",
+  "created_at": "2026-10-19T16:55:44.882204Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO: internal/runcmd/runcmd.go:421-430 descarta por completo cualquier evento agent/agent_end cuya linea exceda maxDelegacion (1 MiB). Eso rompe CA-362, que exige una entrada por cada agent y cada agent_end: una delegacion grande desaparece de la historia (o su cierre se pierde y queda abierta) aunque el JSON sea valido. Los tests nuevos no lo detectan porque c4v4ExigirDelegaciones acepta que las delegaciones enormes no salgan. Acotar memoria no debe eliminar kind/ts/agent/tool_id; hay que conservar el evento con detail truncado o degradado de forma explicita.",
+  "author": "reviewer@codex",
+  "fingerprint": "b21e140d7fe19cfe",
+  "task": "fixes-cabina-c4"
+}

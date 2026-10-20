@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200128_6e9731",
+  "created_at": "2026-10-16T20:01:28.583241Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:130: gitEntries muta h.entries antes de llamar taskCommits; si ese último git falla (por ejemplo commit_final o base inexistente), :131 solo agrega la nota y :139 devuelve las entradas ya acumuladas. El contrato exige que ante un fallo de git falten todas las entradas git, pero la API entrega una historia parcial presentada como evidencia válida.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T165544_34a37c",
+  "as": "corregido",
+  "evidence": "Duplicado de 0ebb3f. Corregido en 0d0e349, 243c31e y el commit de escapes siguiente: ReadDelegations ya no descarta una delegacion de mas de 1 MiB; vuelve recortada con ts, kind, agent y tool_id del evento y un detail con el comienzo del original decodificado y el aviso del recorte, con memoria acotada (cabeza y dos ultimos pedazos en buffers reutilizados); una linea de hasta 1 MiB se lee entera en cualquier orden. Enmienda 3 de historia-doctor-y-cinta aprobada por Henry (77623973). El refutador de la review completa ya lo habia visto (INFORME-refutador-c4-review1.md: 'una delegacion de mas de 1 MiB desaparece de la historia sin aviso'). Tests del test-writer (commit de tests de la enmienda 3), que fallan sobre b7d9948 y pasan sobre el arreglo: TestHallazgo_0ebb3f_34a37c_CA362_DelegacionEnormeSaleRecortada, ..._AlrededorDeUnMiB, ..._KindDespuesDelDetail, ..._HistoriaConDelegacionEnorme y la guarda de memoria.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T18:46:28.061504Z"
+}

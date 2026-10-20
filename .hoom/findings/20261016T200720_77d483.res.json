@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200720_77d483",
+  "as": "corregido",
+  "evidence": "Ya corregido en main antes de esta review: 5b292f6 (PR 34, hallazgo 49d337 de C1) agrego decodeClaude, que decodifica cada linea una sola vez para la normalizacion y la correlacion. Refutador: cierto en a73c5da, corregido en main 6a68392.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:20:36.437266Z"
+}

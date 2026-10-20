@@ -770,7 +770,7 @@ function pintarHistoria() {
   </div>`;
   const notas = d.notes.length ? `<div class="hnotes">${d.notes.map(esc).join("<br>")}</div>` : "";
   const medidor = hist.paso >= 0 && !fin ? `<div class="hmeter">${medidorReplay(d)}</div>` : "";
-  const hoy = fin || !hay ? `<div class="hoy"><h3 class="dsub" style="margin-top:0">${esc(NORMAL.hoy)}</h3>${medidor ? "" : ""}${medidorTarjeta(d.card)}<div class="why">${esc(d.card.plain)}</div></div>` : "";
+  const hoy = fin || !hay ? `<div class="hoy"><h3 class="dsub" style="margin-top:0">${esc(NORMAL.hoy)}</h3>${medidorTarjeta(d.card)}<div class="why">${esc(d.card.plain)}</div></div>` : "";
   box.innerHTML = `${barra}${notas}${medidor}${hoy}
     ${hay ? `<div class="hlist">${d.entries.map(filaHistoria).join("")}</div>` : `<div class="empty">${esc(NORMAL.sinHistoria)}</div>`}`;
   const cur = box.querySelector(".hrow.cur");

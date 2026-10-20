@@ -1,0 +1,11 @@
+{
+  "id": "20261016T201046_5435b7",
+  "created_at": "2026-10-16T20:10:46.95185Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/doctor.go",
+  "description": "INTRODUCIDO — internal/boardcmd/doctor.go:318-349 confía en Finding.Task leído desde archivos versionados y lo concatena sin comillas en la acción . Aunque finding.Register valida el slug al escribir, finding.scan no revalida los JSON recibidos por Git; un hallazgo artesanal con task que contenga metacaracteres hace que el doctor recomiende una orden con inyección de shell. Revalidar con item.ValidSlug al consumir la evidencia y escapar el argumento antes de presentarlo como comando.",
+  "author": "reviewer@codex",
+  "fingerprint": "420d1ec7373ab320",
+  "task": "historia-doctor-y-cinta"
+}

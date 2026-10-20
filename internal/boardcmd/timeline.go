@@ -248,7 +248,9 @@ func (h *history) gitEntries() (err error) {
 			return err
 		}
 		for _, c := range itemCommits {
-			h.fileEntries(c, "", func(string) string { return KindItem }, byVerdict, findings, resolutions, reviews)
+			if err := h.fileEntries(c, "", func(string) string { return KindItem }, byVerdict, findings, resolutions, reviews); err != nil {
+				return err
+			}
 		}
 	}
 	kindOf := func(p string) string {
@@ -275,14 +277,19 @@ func (h *history) gitEntries() (err error) {
 		return ""
 	}
 	for _, c := range commits {
-		h.fileEntries(c, h.ev.Dir, kindOf, byVerdict, findings, resolutions, reviews)
+		if err := h.fileEntries(c, h.ev.Dir, kindOf, byVerdict, findings, resolutions, reviews); err != nil {
+			return err
+		}
 	}
 	return h.taskCommits()
 }
 
-// fileEntries turns one commit into one entry per card file it touched.
+// fileEntries turns one commit into one entry per card file it touched. A
+// spec or an approval git cannot read at its commit is an error, never an
+// entry without its hash: the replay's meter would be lit from nothing
+// (finding c84aa8).
 func (h *history) fileEntries(c gitCommit, prefix string, kindOf func(string) string,
-	verdicts map[string]*verdict.Verdict, findings, resolutions map[string]finding.Item, reviews map[string]reviewcmd.Record) {
+	verdicts map[string]*verdict.Verdict, findings, resolutions map[string]finding.Item, reviews map[string]reviewcmd.Record) error {
 	gitDir := h.dir
 	if prefix == "" && filepath.Clean(h.dir) != filepath.Clean(h.root) {
 		gitDir = h.root
@@ -303,10 +310,12 @@ func (h *history) fileEntries(c gitCommit, prefix string, kindOf func(string) st
 		case KindSpec:
 			e.Plain = pick(f.letter, "se escribio el spec", "cambio el spec", "se borro el spec")
 			if !deleted {
-				if raw, err := blob(gitDir, c.sha, f.path); err == nil {
-					sum := sha256.Sum256(raw)
-					d.specHash = hex.EncodeToString(sum[:])
+				raw, err := blob(gitDir, c.sha, f.path)
+				if err != nil {
+					return fmt.Errorf("git cat-file %s:%s: %w", short(c.sha), f.path, err)
 				}
+				sum := sha256.Sum256(raw)
+				d.specHash = hex.EncodeToString(sum[:])
 			}
 		case KindAprobacion:
 			e.Plain = "se aprobo el spec"
@@ -314,14 +323,16 @@ func (h *history) fileEntries(c gitCommit, prefix string, kindOf func(string) st
 				e.Plain = "se borro una aprobacion del spec"
 				break
 			}
-			if raw, err := blob(gitDir, c.sha, f.path); err == nil {
-				var rec approval.Record
-				if json.Unmarshal(raw, &rec) == nil && rec.SHA256 != "" {
-					d.approvalHash = rec.SHA256
-					h.approvalsAt[c.sha] = append(h.approvalsAt[c.sha], rec.SHA256)
-					if rec.ApprovedBy != "" {
-						e.Summary += " (firmada por " + rec.ApprovedBy + ")"
-					}
+			raw, err := blob(gitDir, c.sha, f.path)
+			if err != nil {
+				return fmt.Errorf("git cat-file %s:%s: %w", short(c.sha), f.path, err)
+			}
+			var rec approval.Record
+			if json.Unmarshal(raw, &rec) == nil && rec.SHA256 != "" {
+				d.approvalHash = rec.SHA256
+				h.approvalsAt[c.sha] = append(h.approvalsAt[c.sha], rec.SHA256)
+				if rec.ApprovedBy != "" {
+					e.Summary += " (firmada por " + rec.ApprovedBy + ")"
 				}
 			}
 		case KindVeredicto:
@@ -362,6 +373,7 @@ func (h *history) fileEntries(c gitCommit, prefix string, kindOf func(string) st
 		}
 		h.add(e, d)
 	}
+	return nil
 }
 
 // taskCommits adds the commits of the card's task, in the range the spec
@@ -376,14 +388,22 @@ func (h *history) taskCommits() error {
 			rng = h.base + ".." + cf
 			break
 		}
+		// a git that fails is "no git history", never the fast-forward note
+		// (finding c84aa8)
 		out, err := gitRun(h.root, "rev-list", "--first-parent", "--ancestry-path", gitx.EndOfOptions, cf+".."+h.base)
+		if err != nil {
+			return err
+		}
 		lines := strings.Fields(out)
-		if err != nil || len(lines) == 0 {
+		if len(lines) == 0 {
 			h.notes = append(h.notes, NoteFastForward)
 			return nil
 		}
 		m := lines[len(lines)-1]
-		parents, _ := gitRun(h.root, "rev-list", "--parents", "-n", "1", m)
+		parents, err := gitRun(h.root, "rev-list", "--parents", "-n", "1", m)
+		if err != nil {
+			return err
+		}
 		if len(strings.Fields(parents)) < 3 {
 			h.notes = append(h.notes, NoteFastForward)
 			return nil
@@ -549,14 +569,15 @@ func (h *history) delegations() {
 	}
 }
 
-// runEvents reads a run's narration where it ran: the root, or the card's
-// worktree.
+// runEvents reads the delegations of a run where it ran: the root, or the
+// card's worktree. Only those, streamed: a long log is never loaded whole
+// (finding d3c75f).
 func (h *history) runEvents(id string) ([]runcmd.Event, string) {
-	if evs, err := runcmd.ReadEvents(h.root, id); err == nil {
+	if evs, err := runcmd.ReadDelegations(h.root, id); err == nil {
 		return evs, ".hoom/runs/" + id + ".jsonl"
 	}
 	if h.dir != h.root {
-		if evs, err := runcmd.ReadEvents(h.dir, id); err == nil {
+		if evs, err := runcmd.ReadDelegations(h.dir, id); err == nil {
 			return evs, h.rel(".hoom/runs/" + id + ".jsonl")
 		}
 	}

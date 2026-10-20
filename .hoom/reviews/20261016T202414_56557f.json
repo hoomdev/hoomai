@@ -1,0 +1,71 @@
+{
+  "id": "20261016T202414_56557f",
+  "created_at": "2026-10-16T20:24:14.653633Z",
+  "task": "historia-doctor-y-cinta",
+  "spec": ".hoom/specs/historia-doctor-y-cinta.md",
+  "fingerprint": "420d1ec7373ab320",
+  "verdict_id": "2026-09-23T21-55-52Z_eeddc2bc",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261016T201007_030d5d",
+    "20261016T201007_f34bc3",
+    "20261016T201046_5435b7",
+    "20261016T201736_f13fb5",
+    "20261016T201737_1f8d09",
+    "20261016T202140_4bc1e2",
+    "20261016T202145_e5d1e4",
+    "20261016T202406_1bbb70",
+    "20261016T202406_3dfcf2",
+    "20261016T202406_ad71de"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 246663,
+  "evidence_sha256": "c1d2b3ad125c7393fb5be7f60dae5b91488edaf333c45e88e82eb58db481b50f",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1134198,
+      "cached_input_tokens": 1014528,
+      "output_tokens": 11044,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 4465295,
+      "cached_input_tokens": 4282624,
+      "output_tokens": 20157,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 2300795,
+      "cached_input_tokens": 2179840,
+      "output_tokens": 12608,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 807757,
+      "cached_input_tokens": 691200,
+      "output_tokens": 7482,
+      "turns": 1
+    }
+  ],
+  "desde": "a40406e570f19db3039b8389344afaaebc0ae0af",
+  "hasta": "2c4ca55e9a818da2ba30ae90907d5d0bc516c6c4",
+  "cobertura": "delta",
+  "desde_review": "20261016T200731_ccda1d",
+  "base": "c693050"
+}

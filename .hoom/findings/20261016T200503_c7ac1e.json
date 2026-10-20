@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200503_c7ac1e",
+  "created_at": "2026-10-16T20:05:03.5343Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/timeline.go",
+  "description": "INTRODUCIDO — internal/boardcmd/timeline.go:775-804 limita bufio.Scanner a 4 MiB aunque TimelinePatchMax permite 8 MiB, y despues ignora tanto Scanner.Err como cmd.Wait. Una sola linea agregada de test mayor a 4 MiB, o un fallo de git a mitad del stream, corta el escaneo, drena el resto y devuelve truncated=false con criterios omitidos silenciosamente. Debe poder consumir el limite completo y convertir cualquier error de escaneo o del proceso en error o en la nota de corte.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

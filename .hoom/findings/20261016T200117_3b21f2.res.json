@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T200117_3b21f2",
+  "as": "refutado",
+  "evidence": "FALSO POR EL CORTE: la mitad 1 (a40406e) no trae pilot.go ni auto en item.go, pero en a73c5da (C4 integrado) existen: item.AutoHastaHumano y Autos (internal/item/item.go:44,47), Item.Auto yaml:auto (:77), Draft.Auto validado (:183-185), 'auto' en la lista estricta de claves (:242) y validado en Parse (:282); boardcmd.Pilot puro (internal/boardcmd/pilot.go:35); el launch del Studio encadena la cinta: belt en internal/servecmd/acciones.go:293-330 deriva after con CardFor (:314), exige Auto==hasta-humano (:315), llama boardcmd.Pilot(before, after, closed) (:318) y relanza con Pilot:true (:325); el registro lleva Pilot (:150,:254,:259). En a73c5da pasan TestCA378_* (9, item/itemcmd), TestCA379_*, TestCA380_* (boardcmd), TestCA381_* (6, servecmd), TestCA382_* (agentcmd/reviewcmd), TestCA383_ChipYAvisoDelPilotoAutomatico. Sigue igual en main 6a68392.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-10-16T20:11:13.853925Z"
+}

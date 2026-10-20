@@ -1,0 +1,11 @@
+{
+  "id": "20261016T202406_3dfcf2",
+  "created_at": "2026-10-16T20:24:06.05646Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/pilot.go",
+  "description": "INTRODUCIDO — internal/boardcmd/pilot.go:10: PilotTable representa una politica que el contrato y el comentario declaran fija, pero se expone como un map mutable; cualquier consumidor interno puede cambiar el comportamiento global de Pilot y la relacion columna-accion queda como otra fuente de verdad aparte de columnActions. Encapsularla en una funcion o representacion privada inmutable y exponer solo una consulta/copia haria explicito el invariante y evitaria deriva.",
+  "author": "reviewer@codex",
+  "fingerprint": "420d1ec7373ab320",
+  "task": "historia-doctor-y-cinta"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T201007_030d5d",
+  "as": "corregido",
+  "evidence": "Ya corregido en main antes de esta review: 92b283e (fixes de C3, hallazgo 17225a) borra el log solo si el trabajo no arranco (t.arranco), fin lleva arranco y el handler responde 202, y sin registro del sobre la cinta sale. Refutador (INFORME-refutador-c4-mitad2-risk-relia.md): en a73c5da 5082 de 10.000 elegian done; en main TestHallazgo_17225a pasa. La carrera era pre-existente (c693050); C4 solo agrego la cinta.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:51:46.982012Z"
+}

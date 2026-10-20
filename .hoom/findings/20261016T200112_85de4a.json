@@ -1,0 +1,11 @@
+{
+  "id": "20261016T200112_85de4a",
+  "created_at": "2026-10-16T20:01:12.858076Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/boardcmd/boardcmd.go",
+  "description": "INTRODUCIDO — internal/boardcmd/boardcmd.go:125: Card no tiene el campo doctor ni Derive calcula los seis problemas; ParseArgs en :338 tampoco despacha board doctor y tablero.js solo declara estilos/textos sin pintar insignias. Por eso CA-367..CA-371 y el verbo hoom board doctor faltan por completo aunque esta rama pretende implementar la spec C4.",
+  "author": "reviewer@codex",
+  "fingerprint": "3f1b7fd2fd96730a",
+  "task": "historia-doctor-y-cinta"
+}

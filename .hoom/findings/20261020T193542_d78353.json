@@ -1,0 +1,11 @@
+{
+  "id": "20261020T193542_d78353",
+  "created_at": "2026-10-20T19:35:42.537651Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/hallazgos_c4_vuelta9_test.go",
+  "description": "INTRODUCIDO — internal/runcmd/hallazgos_c4_vuelta9_test.go:116: la tabla c4v9Fallos no declara el tipo de escenario; c4v9Salida lo infiere comparando f.tool con los IDs mágicos toolu_V9_RESULT y toolu_V9_KANJI (líneas 136-145), y la validación de la marca supone además que fallos[0] es el caso ASCII (líneas 195-213). Renombrar o reordenar un caso puede cambiar silenciosamente el protocolo que genera la fixture. Conviene representar modo/background/esMarca como campos explícitos del caso para que la matriz sea auditable y mantenible.",
+  "author": "reviewer@codex",
+  "fingerprint": "84e72b7ad25965d3",
+  "task": "fixes-cabina-c4"
+}

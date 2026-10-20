@@ -179,17 +179,15 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 		}
 	}
 
-	s.Ratchet = ratchetView(root)
+	s.Ratchet = Ratchet(root)
 	return s, nil
 }
 
 // Ratchet is the quality baseline as status shows it: the single source of
-// `hoom status` and the Studio's GET /api/ratchet.
-func Ratchet(root string) RatchetView { return ratchetView(root) }
-
-// ratchetView reads the baseline file — and ONLY reads it: measuring is
+// `hoom status` (BuildFor) and the Studio's GET /api/ratchet (finding
+// 58f3c9). It reads the baseline file — and ONLY reads it: measuring is
 // verify --full's job. An unreadable file is labeled, never fatal.
-func ratchetView(root string) RatchetView {
+func Ratchet(root string) RatchetView {
 	view := RatchetView{Metrics: []RatchetMetric{}}
 	f, err := ratchet.Load(root)
 	if err != nil {

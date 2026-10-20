@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261016T195646_f47433",
+  "as": "corregido",
+  "evidence": "Corregido en 0db6b3e: runcmd.ReadEventsFrom valida el id como un sidecar (validID) antes de abrir el log; un run_id con ../ que la historia toma de un sobre no alcanza un .jsonl fuera de .hoom/runs. Refutador (INFORME-refutador-c4-mitad1-risk-relia.md): cierto en a73c5da y en main. Tests del test-writer (1f93521), que fallan sobre c8ef915 y pasan sobre el arreglo (con -race). TestHallazgo_f47433_CA362_RunIDQueSubeNoTraeSubagentesAjenos (boardcmd) y ..._ReadEventsNoSaleDeRuns (runcmd).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-16T20:51:46.942504Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T155147_bddb90",
+  "as": "corregido",
+  "evidence": "Corregido en 10771da: idRe va antes del comentario de NewID; go doc NewID vuelve a mostrar su descripcion. Refutador (INFORME-refutador-c4-review1.md): cierto sobre de9ba23; 10771da lo resuelve. Sin test: legibilidad.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T16:14:26.333003Z"
+}

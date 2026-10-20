@@ -1,0 +1,11 @@
+{
+  "id": "20261019T155147_bddb90",
+  "created_at": "2026-10-19T15:51:47.474828Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:89: la nueva variable idRe se inserto entre el comentario exportado de NewID y la funcion. El grupo de comentario ahora documenta idRe y go doc muestra NewID sin descripcion; mueve la declaracion antes del comentario o reubica el comentario inmediatamente sobre func NewID.",
+  "author": "reviewer@codex",
+  "fingerprint": "8c4f92e69d343e9b",
+  "task": "fixes-cabina-c4"
+}

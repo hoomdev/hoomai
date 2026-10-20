@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T155147_c26bb0",
+  "as": "corregido",
+  "evidence": "Corregido en 10771da: DoctorOf usa un constructor chico problema(id, Problem{campos nombrados}) que pone ID y Slug en un solo lugar; el unico argumento posicional es el id, asi que tampoco vuelve 1bbb70. Refutador (INFORME-refutador-c4-review1.md): cierto sobre de9ba23; 10771da lo resuelve. Sin test nuevo: legibilidad; los de CA-367..370 siguen verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-19T16:14:26.338935Z"
+}
