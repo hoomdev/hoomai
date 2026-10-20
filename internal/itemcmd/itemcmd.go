@@ -271,6 +271,15 @@ const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: rev
 // Save commits exactly the card's unsynced paths, one commit per tree. A
 // non-nil expect must equal them as a set.
 func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error) {
+	// something under the card's workspace name that is not its worktree (a
+	// symlink, a plain folder, another clone) is not "no workspace": saving
+	// would commit the card without the work it claims to have, so it
+	// stops, like every task command at the same gate (finding 28c350)
+	if _, err := os.Lstat(filepath.Join(root, ".hoom", "worktrees", slug)); err == nil && item.ValidSlug(slug) {
+		if _, err := runcmd.TaskDir(root, slug); err != nil {
+			return SaveResult{}, err
+		}
+	}
 	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
 	if err != nil {
 		return SaveResult{}, err
