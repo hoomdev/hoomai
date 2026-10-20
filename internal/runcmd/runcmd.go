@@ -442,11 +442,11 @@ func ReadDelegations(root, id string) ([]Event, error) {
 }
 
 // maxDelegacion bounds the line of one delegation (its \n aside) that
-// ReadDelegations keeps. The normalizer builds its detail from the agent and
-// texts it clips to 300 bytes, so it is a few hundred bytes plus the agent
-// and the tool_id; a longer one only comes from an agent, a tool_id or a
-// status of hundreds of KiB, and is out of the contract (enmienda 5 of
-// historia-doctor-y-cinta).
+// ReadDelegations keeps; a longer one is skipped. It bounds the reading, not
+// the writing: today only Claude's normalizer emits agent and agent_end, and
+// it clips their texts to 300 bytes, so its delegations are a few hundred
+// bytes plus the agent and the tool_id. A delegation longer than this is out
+// of the contract (enmienda 5 of historia-doctor-y-cinta).
 const maxDelegacion = 1 << 20
 
 // marcaDelegacion is a cheap first look at a line: every agent or agent_end

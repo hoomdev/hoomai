@@ -319,7 +319,10 @@ func (r *claudeRun) correlate(msg claudeMsg, now time.Time) []Event {
 		}
 		detail := d.agent + " termino"
 		if st != "" && st != "completed" {
-			detail = d.agent + " fallo (" + st + ")"
+			// clipped like the text of a failed tool_result: a status is a
+			// word, and one of MiB would be kept and written whole (finding
+			// 3b4ee7)
+			detail = d.agent + " fallo (" + clip(st) + ")"
 		}
 		end(msg.ToolUseID, detail)
 	}
