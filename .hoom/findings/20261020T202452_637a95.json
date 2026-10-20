@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202452_637a95",
+  "created_at": "2026-10-20T20:24:52.7969Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo) — internal/cockpitcmd/cockpitcmd.go:186 consulta tmux has-session -t nombre sin el prefijo de coincidencia exacta = que el propio cambio sí usa al cerrar en :208. tmux acepta prefijos: si existe hoom-demo-facturas pero no hoom-demo, abrir el cockpit del proyecto puede dar la sesión corta por existente, omitir su construcción y adjuntarse a la tarea equivocada. Los nombres generados hacen esta colisión natural.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

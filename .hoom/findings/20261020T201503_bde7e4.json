@@ -1,0 +1,11 @@
+{
+  "id": "20261020T201503_bde7e4",
+  "created_at": "2026-10-20T20:15:03.218743Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO — internal/cockpitcmd/cockpitcmd.go:207-211 destruye la sesión de cleanup usando solo su nombre reutilizable. Entre el fallo posterior a new-session y tmux kill-session -t =\u003cnombre\u003e, la sesión original puede terminar o ser eliminada y otro Open o usuario puede crear una sustituta con el mismo nombre; el cleanup tardío mata esa sesión nueva, incluido su proceso de IA y trabajo interactivo. El prefijo = evita coincidencias parciales, pero no prueba identidad. Debe conservarse y comprobarse la identidad de la sesión creada antes de destruirla.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202439_5d4361",
+  "created_at": "2026-10-20T20:24:39.695801Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo) — internal/cockpitcmd/cockpitcmd.go:189-195 y :303-309 solo compensan errores devueltos. Si el proceso muere después de  y antes de  o de , la sesión queda parcial o sin registrar; el siguiente Open la considera existente en :186, devuelve created=false y nunca completa el pane faltante ni registra la sesión. El estado parcial sobrevive indefinidamente al reinicio, justo el escenario de recovery que este cambio intenta cerrar.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

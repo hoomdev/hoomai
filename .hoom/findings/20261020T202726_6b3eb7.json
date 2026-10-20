@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202726_6b3eb7",
+  "created_at": "2026-10-20T20:27:26.197548Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO. internal/boardcmd/gather.go:167-170 decide si una tarjeta bloquea interpretando warnings humanos con strings.CutPrefix y finding.UnreadablePrefix. El estado fail-closed queda acoplado al texto de presentacion de finding.List: renombrar o reformatear el aviso puede dejar de poblar UnreadableFindings sin error de compilacion. Devuelve el diagnostico ilegible como dato estructurado desde finding (o encapsula alli la clasificacion) y deja los strings solo para mostrar.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202026_c6ddec",
+  "created_at": "2026-10-20T20:20:26.227415Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:379-382 interpreta cualquier error de WriteRecord como si no existiera registro, pero internal/reviewcmd/record.go:72-80 abre directamente el nombre final y no lo borra si Write o Close fallan. Un fallo tardio de disco/NFS puede dejar un JSON completo que Records acepta: Run devuelve no-entregable y record_id vacio, mientras el tablero ve la review como cumplida; si queda parcial, deja un artefacto corrupto permanente. La publicacion debe ser atomica y retirar cualquier archivo final cuando devuelve error.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}
