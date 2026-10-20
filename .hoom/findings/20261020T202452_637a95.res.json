@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202452_637a95",
+  "as": "corregido",
+  "evidence": "Ya corregido en main por 1647c34 (C3, hallazgo fa374d, entro con el PR #47): cockpitcmd consulta has-session -t '='+session (internal/cockpitcmd/cockpitcmd.go:229). El refutador (INFORME-refutador-c1b-resil-read.md) lo reprodujo en 765193b (solo hoom-demo-facturas: Open del proyecto daba created=false) y en main 7bd1d11 la misma prueba da created=true y crea hoom-demo. attach-session y switch-client siguen sin '=' a proposito (enmienda 5 de acciones-desde-la-tarjeta, CA-84).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T20:41:39.404477Z"
+}
