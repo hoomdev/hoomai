@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -227,14 +228,18 @@ func decodeClaude(line string) (claudeMsg, bool) {
 	return msg, json.Unmarshal([]byte(strings.TrimSpace(line)), &msg) == nil
 }
 
-// claudeTaskStatus is a task_notification's status, or "" when it is not a
-// string.
-func claudeTaskStatus(raw json.RawMessage) string {
-	var st string
-	if json.Unmarshal(raw, &st) != nil {
-		return ""
+// claudeTaskStatus is a task_notification's status: "" when the line has
+// none, and ok false when it has one that is not a string (a number, an
+// object, null): then nobody can say how the task ended, and its delegation
+// stays open for a later notification that can (findings cb821a, 1b69ad).
+func claudeTaskStatus(raw json.RawMessage) (status string, ok bool) {
+	if len(raw) == 0 {
+		return "", true
 	}
-	return strings.TrimSpace(st)
+	if json.Unmarshal(raw, &status) != nil || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return "", false
+	}
+	return strings.TrimSpace(status), true
 }
 
 // NewNormalizer returns a normalizer with memory of ONE run: it pairs each
@@ -314,8 +319,8 @@ func (r *claudeRun) correlate(msg claudeMsg, now time.Time) []Event {
 		}
 	case "system":
 		d, ok := r.delegations[msg.ToolUseID]
-		st := claudeTaskStatus(msg.Status)
-		if msg.Subtype != "task_notification" || !ok || d.done || !claudeTaskEnded(st) {
+		st, legible := claudeTaskStatus(msg.Status)
+		if msg.Subtype != "task_notification" || !ok || d.done || !legible || !claudeTaskEnded(st) {
 			return nil
 		}
 		detail := d.agent + " termino"

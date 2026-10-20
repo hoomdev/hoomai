@@ -218,26 +218,10 @@ func Add(root string, d Draft) (Item, error) {
 	if err := os.MkdirAll(Dir(root), 0o755); err != nil {
 		return Item{}, err
 	}
-	// Whole or not at all: the content goes to a hidden temp file first
-	// (List skips it), and Link, unlike Rename, never replaces: two `item
-	// add` of the same slug at once cannot both win, and the loser never
-	// touches the winner's file.
-	tmp, err := os.CreateTemp(Dir(root), "."+it.Slug+".yaml.tmp-*")
-	if err != nil {
-		return Item{}, err
-	}
-	defer os.Remove(tmp.Name())
-	_, werr := tmp.Write(raw)
-	if cerr := tmp.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr == nil {
-		werr = os.Chmod(tmp.Name(), 0o644)
-	}
-	if werr != nil {
-		return Item{}, werr
-	}
-	if err := enlazar(tmp.Name(), Path(root, it.Slug)); errors.Is(err, os.ErrExist) {
+	// Whole or not at all, and never over another: two `item add` of the
+	// same slug at once cannot both win, and the loser never touches the
+	// winner's file (the temp file on the way is one List skips).
+	if err := hoomfs.PublicarNuevo(Path(root, it.Slug), raw, 0o644, enlazar); errors.Is(err, os.ErrExist) {
 		return Item{}, fmt.Errorf("%w: %s; elegi otro titulo o fija el slug con --slug", ErrExists, RelPath(it.Slug))
 	} else if err != nil {
 		return Item{}, err
@@ -245,8 +229,8 @@ func Add(root string, d Draft) (Item, error) {
 	return it, nil
 }
 
-// enlazar publishes the item Add wrote to a temp file; a test replaces it to
-// stand for a filesystem without hard links (finding d2c506).
+// enlazar is how Add publishes the item (hoomfs.PublicarNuevo); a test
+// replaces it to stand for a filesystem without hard links (finding d2c506).
 var enlazar = os.Link
 
 // finitePositive is a budget: a number above 0 that YAML's .inf is not.
@@ -340,8 +324,10 @@ func List(root string) ([]Item, []string, error) {
 			continue
 		}
 		name := e.Name()
-		if strings.HasPrefix(name, ".") && strings.Contains(name, ".yaml.tmp-") {
-			continue // hoom's own write in progress (Add, AtomicWrite); anything else warns (CA-266)
+		if base, ok := hoomfs.TemporalDe(name); ok {
+			if slug, ok := strings.CutSuffix(base, ".yaml"); ok && ValidSlug(slug) {
+				continue // hoom's own write in progress (Add, AtomicWrite); anything else warns (CA-266)
+			}
 		}
 		rel := ".hoom/" + DirName + "/" + name
 		slug, ok := strings.CutSuffix(name, ".yaml")

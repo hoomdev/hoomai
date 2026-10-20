@@ -500,6 +500,23 @@ func runUsages(ev Evidence) []runUsage {
 			out = append(out, runUsage{envelope: -1, run: j, usage: countedUsage(r.Meta.Usage)})
 		}
 	}
+	// a cost that would take the sum past what a float holds is a sidecar
+	// someone edited too: it counts as no cost, here, so the card's spend
+	// and its rows still add up and the board's JSON never carries an
+	// infinity (findings 0dc2de, 4cab20)
+	var total float64
+	for i, c := range out {
+		if c.usage == nil || c.usage.CostUSD == nil {
+			continue
+		}
+		if math.IsInf(total+*c.usage.CostUSD, 0) {
+			sin := *c.usage
+			sin.CostUSD = nil
+			out[i].usage = &sin
+			continue
+		}
+		total += *c.usage.CostUSD
+	}
 	return out
 }
 

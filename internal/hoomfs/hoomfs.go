@@ -77,13 +77,37 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	return added, AtomicWrite(gi, []byte(content), 0o644)
 }
 
+// crearTemporal creates, next to path, the hidden temp file a whole write
+// goes through: "." + the name of path + ".tmp-" + the digits os.CreateTemp
+// puts in place of *, the one form TemporalDe recognizes (finding 6b1f72).
+// It never ends in the target's extension, so listings that filter by
+// suffix never pick it up.
+func crearTemporal(path string) (*os.File, error) {
+	return os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+}
+
+// TemporalDe says whether name is a temp file of AtomicWrite or
+// PublicarNuevo, exactly as they write it, and the name of the file it will
+// become. Anything else is not one of hoom's writes in progress.
+func TemporalDe(name string) (base string, ok bool) {
+	rest, ok := strings.CutPrefix(name, ".")
+	i := strings.LastIndex(rest, ".tmp-")
+	if !ok || i <= 0 {
+		return "", false
+	}
+	digitos := rest[i+len(".tmp-"):]
+	if digitos == "" || strings.Trim(digitos, "0123456789") != "" {
+		return "", false
+	}
+	return rest[:i], true
+}
+
 // AtomicWrite writes data to path through a temp file in the same directory
 // and a rename: a concurrent reader sees the previous complete file or the
 // new complete file, never a truncated one, and a crash mid-write leaves the
-// previous content in place. The temp name never ends in the target's
-// extension, so listings that filter by suffix never pick it up.
+// previous content in place.
 func AtomicWrite(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+	tmp, err := crearTemporal(path)
 	if err != nil {
 		return err
 	}
@@ -107,6 +131,46 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	return nil
+}
+
+// PublicarNuevo creates path with data, whole or not at all, and never
+// replaces a file already there: then it fails with an error that is
+// os.ErrExist. The data goes to a temp file that is closed and then linked
+// to path, so path appears complete; on a filesystem without hard links
+// (exFAT, some network mounts) path is created with O_EXCL instead and
+// removed again if the write fails (findings c6ddec, d2c506). enlazar is
+// os.Link, or a test's stand-in.
+func PublicarNuevo(path string, data []byte, mode os.FileMode, enlazar func(oldname, newname string) error) error {
+	tmp, err := crearTemporal(path)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp.Name(), mode)
+	}
+	if err != nil {
+		return err
+	}
+	if err := enlazar(tmp.Name(), path); err == nil || errors.Is(err, os.ErrExist) {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(path)
+	}
+	return err
 }
 
 // ErrLocked: another process holds the lock and did not let go in time.

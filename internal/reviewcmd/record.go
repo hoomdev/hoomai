@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
 // RecordsDir is where the review records live, under .hoom/.
@@ -70,8 +72,9 @@ type LensUsage struct {
 
 func recordsDir(dir string) string { return filepath.Join(dir, ".hoom", RecordsDir) }
 
-// WriteRecord persists r under dir/.hoom/reviews/<id>.json, stamping ID and
-// CreatedAt when empty. It never overwrites an existing record.
+// WriteRecord persists r under dir/.hoom/reviews/<id>.json, whole or not at
+// all, stamping ID and CreatedAt when empty. It never overwrites an existing
+// record.
 func WriteRecord(dir string, r Record) (Record, error) {
 	if r.CreatedAt.IsZero() {
 		r.CreatedAt = time.Now().UTC()
@@ -100,16 +103,13 @@ func WriteRecord(dir string, r Record) (Record, error) {
 	if err := os.MkdirAll(recordsDir(dir), 0o755); err != nil {
 		return Record{}, err
 	}
-	// append-only: O_EXCL, a record is never rewritten
-	f, err := os.OpenFile(filepath.Join(recordsDir(dir), r.ID+".json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
+	// append-only and whole: a record is never rewritten, and an error
+	// leaves no file under its name, so Run's no-entregable is never
+	// contradicted by a record the board reads (finding c6ddec)
+	if err := hoomfs.PublicarNuevo(filepath.Join(recordsDir(dir), r.ID+".json"), append(raw, '\n'), 0o644, os.Link); err != nil {
 		return Record{}, err
 	}
-	if _, err := f.Write(append(raw, '\n')); err != nil {
-		f.Close()
-		return Record{}, err
-	}
-	return r, f.Close()
+	return r, nil
 }
 
 // Records reads every review record of dir, oldest first, plus one warning

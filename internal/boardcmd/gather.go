@@ -158,16 +158,11 @@ func (t *tree) allVerdicts() []*verdict.Verdict {
 
 func (t *tree) allFindings(base string) []finding.Item {
 	t.once("findings", func() {
-		items, warnings, err := finding.List(t.dir, base, false)
-		t.findings, t.findingWarnings = items, warnings
+		items, ilegibles, warnings, err := finding.ListConIlegibles(t.dir, base, false)
+		t.findings, t.findingWarnings, t.unreadable = items, warnings, ilegibles
 		if err != nil {
 			t.findingWarnings = append(t.findingWarnings, "no se pudieron leer los hallazgos: "+err.Error())
 			t.unreadable = append(t.unreadable, err.Error())
-		}
-		for _, w := range warnings {
-			if rest, ok := strings.CutPrefix(w, finding.UnreadablePrefix); ok {
-				t.unreadable = append(t.unreadable, rest)
-			}
 		}
 	})
 	return t.findings
