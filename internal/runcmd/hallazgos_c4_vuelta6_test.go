@@ -17,9 +17,9 @@
 //     linea de delegacion de hasta 1 MiB, sin contar el salto, y salta una
 //     mas larga, como salta una mal formada o a medio escribir.
 //   - Fuera del contrato: una delegacion de mas de 1 MiB (solo sale de un
-//     agente, un tool_id o un estado enormes del provider), en un log nuevo o
-//     viejo. A su linea estos tests solo le exigen que se salte sin tapar a
-//     sus vecinas.
+//     agente o un tool_id enormes del provider; con la enmienda 6 el estado
+//     de un fallo se recorta a 300 bytes), en un log nuevo o viejo. A su
+//     linea estos tests solo le exigen que se salte sin tapar a sus vecinas.
 //
 // Una delegacion "escrita como hoom" es, en estos tests, una linea de hasta
 // 1 MiB.
@@ -495,9 +495,10 @@ func TestHallazgo_550f79_dae2e8_CA362_LineaDeHastaUnMiBSeLeeEntera(t *testing.T)
 // historia lee: ReadDelegations la salta entera, sin sacar nada de ella (ni
 // recortada ni sin tool_id), y trae sus vecinas exactas y en orden. ReadEvents
 // si la entiende: es JSON valido, la salta solo la historia. Con la enmienda 5
-// hoom puede escribir una linea asi (un agente, un tool_id o un estado
-// enormes del provider): esa delegacion queda fuera de contrato, y lo que se
-// le exige es que no tape a sus vecinas.
+// hoom puede escribir una linea asi (un agente o un tool_id enormes del
+// provider; con la enmienda 6 el estado de un fallo se recorta a 300 bytes):
+// esa delegacion queda fuera de contrato, y lo que se le exige es que no tape
+// a sus vecinas.
 func TestHallazgo_550f79_dae2e8_CA362_LineaDeMasDeUnMiBSeSalta(t *testing.T) {
 	ts := time.Date(2026, 10, 19, 22, 2, 0, 0, time.UTC)
 	for _, largo := range []int{dlgMiB + 1, dlgMiB + 2, 3 * dlgMiB} {
