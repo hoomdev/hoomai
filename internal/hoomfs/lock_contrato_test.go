@@ -208,23 +208,28 @@ func TestLcExclusionEntreGoroutines(t *testing.T) {
 // quien lo tomo. Llamar la funcion dos veces, o tarde (con otro ya adentro),
 // no deja entrar a un tercero mientras el dueno actual lo tiene.
 func TestLcSoltarTardeODosVecesNoDejaEntrarATercero(t *testing.T) {
+	// Hallazgo 20261020T202736_a4af26: lo que exigia lock_test.go ademas,
+	// que tras el unlock repetido o tardio de A el de B sigue soltando: B
+	// suelta y el siguiente entra.
 	t.Run("dos veces antes de que otro entre", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "item.lock")
 		relA := lcTomar(t, path)
 		relA()
 		relA()
 		relB := lcTomar(t, path)
-		defer relB()
 		lcNoEntra(t, path, "A solto dos veces y B entro despues")
+		relB()
+		lcTomar(t, path)() // B solto: entra el siguiente
 	})
 	t.Run("tarde con otro adentro", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "item.lock")
 		relA := lcTomar(t, path)
 		relA()
 		relB := lcTomar(t, path)
-		defer relB()
 		relA() // A suelta tarde: B es el dueno
 		lcNoEntra(t, path, "A solto tarde con B adentro")
+		relB()
+		lcTomar(t, path)() // B solto: entra el siguiente
 	})
 	t.Run("tarde con otro proceso adentro", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "item.lock")
@@ -292,6 +297,9 @@ func TestLcExclusionEntreProcesos(t *testing.T) {
 // Hallazgo 20260925T041933_51d902, CA-349: un dueno que muere sin soltar no
 // deja el candado tomado. El siguiente lo consigue dentro de wait, sin
 // depender de la antiguedad del archivo (el archivo queda recien tocado).
+// Hallazgo 20261020T202736_a4af26: la exigencia que antes vivia sola en
+// lock_test.go pasa aca: el archivo del candado sigue en su lugar cuando el
+// dueno muere (soltar es del kernel, no de borrar el archivo).
 func TestLcDuenoQueMuereNoDejaElCandado(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "item.lock")
 	d := lcLanzar(t, "muere", path)
@@ -301,12 +309,17 @@ func TestLcDuenoQueMuereNoDejaElCandado(t *testing.T) {
 	if !errors.As(err, &ee) || ee.ExitCode() != 3 {
 		t.Fatalf("el subproceso debia morir con codigo 3 sin soltar: %v\n%s", err, d.out.String())
 	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("a4af26: el dueno murio sin soltar y su archivo de candado no siguio en su lugar: %v", err)
+	}
 	ahora := time.Now()
-	_ = os.Chtimes(path, ahora, ahora) // si el archivo quedo, es reciente
+	if err := os.Chtimes(path, ahora, ahora); err != nil { // el archivo quedo: que sea reciente
+		t.Fatalf("a4af26: no se pudo tocar el archivo del candado del dueno muerto: %v", err)
+	}
 	inicio := time.Now()
-	rel, err := Lock(path, 2*time.Second)
+	rel, err := Lock(path, time.Second) // el plazo que exigia lock_test.go (a4af26)
 	if err != nil {
-		t.Fatalf("un dueno muerto dejo el candado tomado: Lock(path, 2s) = %v tras %v", err, time.Since(inicio))
+		t.Fatalf("un dueno muerto dejo el candado tomado: Lock(path, 1s) = %v tras %v", err, time.Since(inicio))
 	}
 	rel()
 }
