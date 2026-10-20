@@ -1,14 +1,14 @@
 # Spec: acciones desde la tarjeta (cabina visual, C3)
 
 Estado: ENMIENDA 6 — pendiente de re-aprobación humana. La enmienda 6 es
-una sola: (o) si el `split-window` falla justo después de que Abrir sesión
-creó la sesión, tampoco la cierra: devuelve el error, que dice cómo cerrarla
-a mano, y la sesión a medias cuenta como existente, como después de un fallo
-de `new-session`. Cerrarla por su nombre no prueba que sea la que esta
-apertura creó: si murió y otra apertura de la misma tarjeta creó una con el
-mismo nombre, se mataría esa, con su CLI adentro (hallazgo bde7e4 de la
-review de los fixes de C1; Henry eligió no tocar y avisar). Precisa CA-347;
-no agrega criterios.
+una sola: (o) si después de crear la sesión falla el `split-window` o el
+registro de la sesión en el item, Abrir sesión tampoco la cierra: devuelve
+el error, que dice cómo cerrarla a mano, y la sesión cuenta como existente,
+como después de un fallo de `new-session`. Cerrarla por su nombre no prueba
+que sea la que esta apertura creó: si murió y otra apertura de la misma
+tarjeta creó una con el mismo nombre, se mataría esa, con su CLI adentro
+(hallazgo bde7e4 de la review de los fixes de C1; Henry eligió no tocar y
+avisar). Precisa CA-347 y CA-348; no agrega criterios.
 
 Enmienda 5 (aprobada el 2026-10-16, sha256 4e1232b9), una sola: (n) al armar la sesión de la tarjeta y al leer su pantalla, los
 comandos de tmux `split-window`, `select-pane` y `list-panes` usan el
@@ -589,11 +589,12 @@ registra entre el "no hay run activo" de Guardar o Descartar y su acción.
   del pane. El error nombra la sesión y dice que, si quedó a medias (sin el
   pane de vigilancia), se cierra con `tmux kill-session -t '=<session>'` antes
   de reintentar. Una sesión a medias cuenta como existente: el reintento
-  responde `created: false` y no registra nada. Si el que falla es el
-  `split-window` justo después de que esta apertura creó la sesión, tampoco
-  la cierra y devuelve el mismo error: entre la creación y el cierre la
-  sesión pudo morir y otra apertura crear una con el mismo nombre, y
-  cerrarla por nombre mataría esa. (Enmiendas 4 y 6.)
+  responde `created: false` y no registra nada. Si lo que falla es el
+  `split-window` o el registro en el item, después de que esta apertura
+  creó la sesión, tampoco la cierra y devuelve el error con el mismo comando
+  de cierre: entre la creación y el cierre la sesión pudo morir y otra
+  apertura crear una con el mismo nombre, y cerrarla por nombre mataría esa.
+  (Enmiendas 4 y 6.)
 - `POST /api/board/{slug}/session` con `{"provider": "<p>"}` (obligatorio:
   desde el Studio no se autodetecta) exige `sesion` en la tarjeta y responde
   `{"session", "created", "provider", "dir", "attach": "tmux attach -t
@@ -805,9 +806,10 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   existente, responde `created: false` y no registra nada (enmienda 4).
 - Dos aperturas a la vez de la misma tarjeta: una crea la sesión y la otra
   recibe `duplicate session` y responde el error sin tocarla (enmienda 4).
-- Abrir sesión con un `tmux split-window` que falla después de crear la
-  sesión: la apertura responde el error, que dice cómo cerrar la sesión a
-  mano, y no la cierra; el reintento la ve existente (enmienda 6).
+- Abrir sesión con un `tmux split-window`, o un registro en el item, que
+  falla después de crear la sesión: la apertura responde el error, que dice
+  cómo cerrar la sesión a mano, y no la cierra; el reintento la ve
+  existente y no registra nada (enmienda 6).
 - Ver terminal sin sesión o sin tmux: `available: false` con la nota. La
   sección lo dice y sigue sondeando mientras está abierta.
 - Un item escrito por esta versión con `sesiones`, leído por un `hoom` viejo:
@@ -967,8 +969,8 @@ escribe igual que hoy. El piso del sobre ya prohíbe que un rol toque
   `verify` y `check` al cerrar, pero una escritura fuera de territorio de un
   run muerto no se registra como hallazgo.
 - **Una sesión a medias queda como está** (enmiendas 4 y 6). Después de un
-  corte de `tmux new-session`, o de un `split-window` que falla tras
-  crearla, no se puede saber de quién es la sesión ni qué provider corre en
+  corte de `tmux new-session`, o de un `split-window` o un registro en el
+  item que fallan tras crearla, no se puede saber de quién es la sesión ni qué provider corre en
   ella, así que nadie la cierra ni la completa: la próxima apertura la ve
   existente y no la registra en el item, y el writer queda sin declarar
   hasta que alguien la cierra a mano (el error dice cómo) y la vuelve a
