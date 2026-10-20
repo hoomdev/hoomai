@@ -222,7 +222,9 @@ func resolveProvider(name string, deps Deps) (string, string, error) {
 // is, neither closed nor completed: it cannot tell whether it created it or
 // another opening of the same card did, nor which provider runs in its pane.
 // The error says how to close a half-built one by hand, and until then it
-// counts as existing (enmienda 4).
+// counts as existing (enmienda 4). A split-window that fails after creating
+// it leaves it the same way: by its name it cannot prove the session is
+// still the one it created (enmienda 6, finding bde7e4).
 func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 	// exactly this session (=): tmux matches a prefix too, and with fix-login
 	// open the card fix would find it and build nothing (finding fa374d)
@@ -237,27 +239,11 @@ func composeTmux(dir, session, aiBin string, deps Deps) (bool, error) {
 	// would land in another card's session if this one already died
 	// (finding 337b23)
 	if err := deps.RunCmd(dir, "tmux", "split-window", "-h", "-l", "30%", "-t", "="+session+":", "-c", dir, watchCommand(deps)); err != nil {
-		// this opening just created the session: a half-built cockpit of its
-		// own goes, and the next try builds it whole
-		return false, killSession(dir, session, deps, err)
+		return false, fmt.Errorf("%w; si la sesion %s quedo a medias (sin el pane de vigilancia), cerrala y reintenta: %s", err, session, comandoCierre(session))
 	}
 	// foco inicial en el pane de la IA; cosmetico, jamas fatal
 	_ = deps.QuietCmd(dir, "tmux", "select-pane", "-t", "="+session+":", "-L")
 	return true, nil
-}
-
-// killSession closes exactly session (= : no prefix match on another one)
-// after cause went wrong, and returns cause saying what happened to the
-// session: closed, so the next try starts over; or not closed, and then the
-// error does not claim whether it is still open (tmux exits with 1 both when
-// the session is gone and when its own client fails, so its exit status
-// cannot prove either): it says how to close it if it still is (findings
-// f7efdc, b59c30, e0001e, 9c1816, 57bd29, 03481c).
-func killSession(dir, session string, deps Deps, cause error) error {
-	if err := deps.QuietCmd(dir, "tmux", "kill-session", "-t", "="+session); err != nil {
-		return fmt.Errorf("%w; no pude cerrar la sesion %s (%v) y no pude saber si sigue abierta: si sigue, cerrala y reintenta: %s", cause, session, err, comandoCierre(session))
-	}
-	return fmt.Errorf("%w; cerre la sesion %s para que el proximo intento la arme entera", cause, session)
 }
 
 // comandoCierre is the command that closes exactly session, written to be
@@ -358,10 +344,12 @@ func Open(root, project string, opt Options, deps Deps) (Session, error) {
 	// deja dicho en su item. Solo al crearla: reabrir no es otra sesion.
 	if created && opt.Task != "" {
 		if _, err := item.AddSession(root, opt.Task, name, time.Now()); err != nil {
-			// a session nobody declared would be "found" by the next try,
-			// which never registers it: it goes, and the next try does both
-			return Session{Name: session, Provider: name, Dir: rel}, killSession(dir, session, deps,
-				fmt.Errorf("no pude registrar la sesion %s en %s: %v", session, item.RelPath(opt.Task), err))
+			// the session stays as it is, like a half-built one: by its name
+			// it cannot be proven to be the one this opening created
+			// (enmienda 6, finding bde7e4); the next try finds it and does
+			// not register it, so the error says how to close it
+			return Session{Name: session, Provider: name, Dir: rel},
+				fmt.Errorf("no pude registrar la sesion %s en %s: %v; la sesion quedo sin registrar: si sigue abierta, cerrala y reintenta: %s", session, item.RelPath(opt.Task), err, comandoCierre(session))
 		}
 	}
 	return s, nil
