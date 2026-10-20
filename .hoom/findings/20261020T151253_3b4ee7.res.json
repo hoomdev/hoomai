@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T151253_3b4ee7",
+  "as": "corregido",
+  "evidence": "32de3ee: el normalizador de Claude arma '\u003cagente\u003e fallo (' + clip(status) + ')', con el status recortado a 300 bytes como el texto de un tool_result fallido; enmienda 6 de historia-doctor-y-cinta aprobada (aedc107c) lo fija y precisa CA-373. Un status de MiB ya no se guarda en memoria ni se escribe entero; solo el agente y el tool_id quedan sin acotar (fuera de contrato si pasan 1 MiB, enmienda 5). Tests cc1a039: providers TestHallazgo_3b4ee7_CA373_* (status de 2 MiB, 301 bytes, lineas reales de Claude Code 2.1.281, propiedad) y runcmd TestHallazgo_3b4ee7_CA362_CA373_StatusDe2MiBEnSegundoPlanoSeEscribeRecortado (agent_end de pocos KiB, memoria igual a disco, ReadDelegations lo da como fallo): fallan en 15f74aa y pasan en cc1a039. El refutador (INFORME-refutador-c4-delta4.md) confirmo que el clip cierra lo que el hallazgo atribuye a la delta.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T18:21:55.051599Z"
+}
