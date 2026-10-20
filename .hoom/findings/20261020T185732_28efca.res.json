@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T185732_28efca",
+  "as": "corregido",
+  "evidence": "f791954: el comentario de claude.go junto a clip(st) dice que el status es texto del fallo, de cualquier tamano, y cita la enmienda 6; el refutador lo confirmo.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T19:11:01.964787Z"
+}
