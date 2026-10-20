@@ -1,18 +1,26 @@
 # Spec: historia, doctor y cinta de la tarjeta (cabina visual, C4)
 
-Estado: ENMIENDA 5 — pendiente de re-aprobación humana. La enmienda 5 es
-una sola y reemplaza a la 4: hoom no recorta las delegaciones. El
-normalizador ya arma el `detail` de un `agent` o un `agent_end` con el
-agente y textos que recorta a 300 bytes (la descripción de la delegación y
-el texto del fallo), así que una línea de delegación pasa de 1 MiB solo si
-el provider manda un agente, un `tool_id` o un estado de cientos de KiB. Esa
-delegación, en un log nuevo o en uno escrito por un hoom anterior, queda
-fuera de contrato, y la historia salta su línea. Las de hasta 1 MiB se leen
-enteras, como en la 4 (hallazgos
-b8d4a1, 733ac3, de5a5a y 3cb898 de la delta 3 de C4: el recorte de la 4
-cortaba el `detail` cuando lo que crecía era el agente, y borraba la marca
-del fallo; Henry eligió quitarlo). Está en la fuente `telemetria`; no
-agrega ni cambia criterios.
+Estado: ENMIENDA 6 — pendiente de re-aprobación humana. La enmienda 6 es
+una sola y precisa la 5: el `status` de una `task_notification` que cierra
+una delegación con un fallo es un texto del fallo y el normalizador lo
+recorta a 300 bytes, como el texto de un `tool_result` fallido, así que el
+`detail` de una delegación tiene acotados todos sus textos y solo su agente
+y su `tool_id`, que son identificadores, no lo están (hallazgo 3b4ee7 de la
+delta 4 de C4: sin el recorte de la 4, un `status` de MiB se guardaba en
+memoria y se escribía entero). Precisa CA-373; no agrega criterios.
+
+Enmienda 5 (aprobada el 2026-10-19, sha256 f54e1d10), una sola, que
+reemplaza a la 4: hoom no recorta las delegaciones. El normalizador ya
+arma el `detail` de un `agent` o un `agent_end` con el agente y textos que
+recorta a 300 bytes (la descripción de la delegación y el texto del fallo),
+así que una línea de delegación pasa de 1 MiB solo si el provider manda un
+agente o un `tool_id` de cientos de KiB (la enmienda 6 sacó de esta lista
+al estado). Esa delegación, en un log nuevo o en uno escrito por un hoom
+anterior, queda fuera de contrato, y la historia salta su línea. Las de
+hasta 1 MiB se leen enteras, como en la 4 (hallazgos b8d4a1, 733ac3, de5a5a
+y 3cb898 de la delta 3 de C4: el recorte de la 4 cortaba el `detail` cuando
+lo que crecía era el agente, y borraba la marca del fallo; Henry eligió
+quitarlo). Está en la fuente `telemetria`; no agrega ni cambia criterios.
 
 Enmienda 4 (aprobada el 2026-10-19, sha256 4d7c0580), reemplazada por la 5:
 hoom recortaba al escribirlo el `detail` de una delegación cuya línea
@@ -41,7 +49,7 @@ Historia: aprobada el 2026-09-23 (sha256 e6b0ca14); enmienda 1 aprobada el
 2026-10-14 (sha256 a34e2cec); enmienda 2 aprobada el 2026-10-16 (sha256
 a4f23049); enmienda 3 aprobada el 2026-10-19 (sha256 77623973), reemplazada
 por la 4; enmienda 4 aprobada el 2026-10-19 (sha256 4d7c0580), reemplazada
-por la 5.
+por la 5; enmienda 5 aprobada el 2026-10-19 (sha256 f54e1d10).
 Depende de: `acciones-desde-la-tarjeta.md` (C3) integrada (PR #25).
 Tarea sugerida: `hoom task start historia-doctor-y-cinta`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 4 de 4, "C4 — Timeline,
@@ -239,15 +247,15 @@ espacio de trabajo), con la misma regla de gasto que el detalle de C2
 Las delegaciones se leen de la narración tal como la escribe hoom: un evento
 JSON por línea. El `detail` de un `agent` o un `agent_end` lo arma el
 normalizador con el agente y textos que recorta a 300 bytes (la descripción
-de la delegación y el texto del fallo), así que la línea de una delegación
-mide unos cientos de bytes más su agente, su `tool_id` y, en un fallo por
-estado, ese estado. Para no cargar en memoria un log que puede ser muy
-grande, la historia lee entera, en cualquier orden de claves, cada línea de delegación
-de hasta 1 MiB sin contar el salto, y salta una más larga, como salta una
-línea mal formada o a medio escribir. Una delegación de más de 1 MiB solo
-sale de un agente, un `tool_id` o un estado de cientos de KiB que mandó el
+de la delegación, el texto del fallo y el `status` de un fallo por estado),
+así que la línea de una delegación mide unos cientos de bytes más su agente
+y su `tool_id`. Para no cargar en memoria un log que puede ser muy grande,
+la historia lee entera, en cualquier orden de claves, cada línea de
+delegación de hasta 1 MiB sin contar el salto, y salta una más larga, como
+salta una línea mal formada o a medio escribir. Una delegación de más de
+1 MiB solo sale de un agente o un `tool_id` de cientos de KiB que mandó el
 provider: en un log nuevo o en uno escrito por un hoom anterior, queda fuera
-de este contrato. (Enmienda 5, que reemplaza a la 4.)
+de este contrato. (Enmienda 5, que reemplaza a la 4, y enmienda 6.)
 
 `artifact` es la ruta del registro del sobre o del `.jsonl` del run. El
 costo de un sobre es el `usage` del sidecar de su run (o el suyo si el run no
@@ -439,7 +447,9 @@ true` si falló), y además Claude escribe líneas `system` `task_started`,
   `agent` (el mismo `subagent_type`), `tool_id` y `detail`: `<agente>
   termino`, o `<agente> fallo: <texto recortado>` si el resultado trae
   `is_error: true` o si `task_notification` trae un `status` distinto de
-  `completed` (sin texto: `<agente> fallo (<status>)`).
+  `completed` (sin texto: `<agente> fallo (<status>)`). El texto y el
+  `status` van recortados a 300 bytes, el `status` igual que el texto
+  (enmienda 6).
 - **El emparejamiento necesita memoria del run.** `providers` gana la
   interfaz opcional `Correlating { NewNormalizer() func(line string) []Event
   }`. Claude la implementa: su normalizador recuerda los `id` de sus
@@ -669,7 +679,7 @@ reviewer, en ese orden. La cinta siempre termina.
 - CA-370: `hoom board doctor` imprime el texto del contrato (cabecera con `1 problema` o `<n> problemas`, o `sin problemas de coherencia`; por problema su `id`, el slug o `-`, `what` y `Accion: <action>`), `--json` emite `{"problems": [...]}` y los dos salen con 0. `ParseDoctorArgs` rechaza un argumento o flag desconocido con `*cliargs.UsageError` que lleva su bloque de uso y da `ErrHelp` con `-h`, y los tests de CA-288 pasan sin cambios.
 - CA-371: `tablero.js` pinta la insignia `.tdoc` con la cantidad de `doctor` en cada tarjeta que tiene problemas, con los `plain` como título en modo normal y `what` y `Accion` en experto, y la pestaña Qué lista los problemas de la tarjeta.
 - CA-372: el `Normalize` de Claude reconoce la delegación con `name` `Agent` y con `Task`, y su evento `agent` lleva `tool_id` cuando el `tool_use` trae `id`. Nunca emite `agent_end`. Los tests de providers que ya existen pasan sin cambios.
-- CA-373: el normalizador de `Correlating` de Claude emite un solo `agent_end` por delegación, con `agent`, `tool_id` y `detail` `<agente> termino`, o `<agente> fallo: ...` con `is_error: true` o `<agente> fallo (<status>)` con una `task_notification` no `completed`: una delegación normal cierra con el primero de su `tool_result` o su `task_notification`, y una en segundo plano solo con su `task_notification`. Un `tool_result` de otra herramienta o de un id desconocido no emite nada nuevo, y la `task_notification` sigue emitiendo su `system`. Un fixture con las líneas reales de Claude Code 2.1.281 (tool_use `Agent`, `task_started`, `task_notification`, `tool_result`) da `agent` y después un único `agent_end` con el mismo `tool_id`.
+- CA-373: el normalizador de `Correlating` de Claude emite un solo `agent_end` por delegación, con `agent`, `tool_id` y `detail` `<agente> termino`, o `<agente> fallo: ...` con `is_error: true` o `<agente> fallo (<status>)` con una `task_notification` no `completed` (el texto y el `status` recortados a 300 bytes, enmienda 6): una delegación normal cierra con el primero de su `tool_result` o su `task_notification`, y una en segundo plano solo con su `task_notification`. Un `tool_result` de otra herramienta o de un id desconocido no emite nada nuevo, y la `task_notification` sigue emitiendo su `system`. Un fixture con las líneas reales de Claude Code 2.1.281 (tool_use `Agent`, `task_started`, `task_notification`, `tool_result`) da `agent` y después un único `agent_end` con el mismo `tool_id`.
 - CA-374: `runcmd` usa un normalizador de `NewNormalizer` por run cuando el provider implementa `Correlating`, y `Normalize` si no: el `.jsonl` de un run de Claude con una delegación trae su `agent_end`.
 - CA-375: `runcmd.Stage` da a cada actor `open` = sus delegaciones con `tool_id` sin `agent_end`; con el run en curso un subagente está activo si y solo si `open > 0` y el orquestador siempre; sin ningún `tool_id` en el run rige la regla del último delegado; `agent_end` no suma actos ni cambia `last_detail`, y uno sin su `agent` se ignora. Con el run terminado nadie está activo. Los tests de CA-32 a CA-38 pasan sin cambios.
 - CA-376: `statuscmd.Ratchet` trae en cada métrica `history` con sus movimientos del más viejo al más nuevo (lista nunca `null`), `hoom status --json` lo emite y el texto de `hoom status` no cambia. `GET /api/ratchet` responde el mismo `RatchetView`: con línea base, sus métricas y movimientos; sin ella, `declared: false` y `metrics: []`; ilegible, `declared: true` y `error`. No pide token, `POST` es 405 y no modifica nada.
