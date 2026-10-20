@@ -1,0 +1,11 @@
+{
+  "id": "20261020T185727_9d9f49",
+  "created_at": "2026-10-20T18:57:27.987263Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/hallazgos_c4_vuelta8_test.go",
+  "description": "INTRODUCIDO. internal/runcmd/hallazgos_c4_vuelta8_test.go:17 atribuye a la enmienda 5 que el status de task_notification se recorte a 300 bytes, pero .hoom/specs/historia-doctor-y-cinta.md:3-10 y :682 dicen que esa precisión es la enmienda 6. La misma referencia obsoleta aparece en las líneas 4, 134 y 143; esto mezcla la regla correcta de la enmienda 5 (no recortar delegaciones, línea 10) con la corrección posterior del status y vuelve ambigua la trazabilidad del test.",
+  "author": "reviewer@codex",
+  "fingerprint": "f72c7380a06f8a31",
+  "task": "fixes-cabina-c4"
+}

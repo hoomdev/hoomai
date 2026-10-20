@@ -1,0 +1,11 @@
+{
+  "id": "20261020T185722_74d40f",
+  "created_at": "2026-10-20T18:57:22.775504Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/hallazgos_c4_3b4ee7_test.go",
+  "description": "INTRODUCIDO. internal/providers/hallazgos_c4_3b4ee7_test.go:3 atribuye a la enmienda 5 el recorte del status, aunque .hoom/specs/historia-doctor-y-cinta.md:3-10 y :682 lo asignan explícitamente a la enmienda 6. La atribución errónea se repite en las líneas 9, 26, 36, 143 y 177, por lo que la documentación del test apunta a una versión equivocada del contrato y dificulta rastrear por qué existe la regresión; las referencias específicas al recorte de status deben identificar la enmienda 6.",
+  "author": "reviewer@codex",
+  "fingerprint": "f72c7380a06f8a31",
+  "task": "fixes-cabina-c4"
+}

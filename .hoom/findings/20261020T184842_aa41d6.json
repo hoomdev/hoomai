@@ -1,0 +1,11 @@
+{
+  "id": "20261020T184842_aa41d6",
+  "created_at": "2026-10-20T18:48:42.415146Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO — internal/providers/claude.go:325 aplica clip(st), y clip en internal/providers/claude.go:566-570 corta con s[:300] sin respetar límites UTF-8. Para el status válido de 301 bytes que el propio cambio agrega en internal/providers/hallazgos_c4_3b4ee7_test.go:102 (\"a\" + 150 \"ñ\"), el byte 300 parte una ñ y el Detail del agent_end queda UTF-8 inválido. Al escribirlo, internal/runcmd/runcmd.go:1224 usa json.Marshal, que sustituye el byte inválido por U+FFFD; por eso el evento en memoria difiere del persistido y ReadDelegations devuelve texto alterado. El test unitario no lo detecta porque h3b4RecorteDeToolResult usa el mismo clip como oráculo, y la integración solo comprueba utf8.ValidString con datos cuyo corte a 300 coincide con un borde de carácter.",
+  "author": "reviewer@codex",
+  "fingerprint": "f72c7380a06f8a31",
+  "task": "fixes-cabina-c4"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261020T185039_d60369",
+  "created_at": "2026-10-20T18:50:39.444811Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO — internal/providers/claude.go:325 aplica clip(st) a status arbitrarios, pero clip en internal/providers/claude.go:566 corta con s[:300] y puede partir un rune UTF-8. El caso agregado de 301 bytes \"a\"+150 veces \"ñ\" deja un byte inválido en Event.Detail; Manager.append conserva ese valor en memoria y json.Marshal lo reemplaza al escribir (internal/runcmd/runcmd.go:1214-1225), de modo que memoria, .jsonl y ReadDelegations divergen y el texto queda corrupto. internal/providers/hallazgos_c4_3b4ee7_test.go:102 compara contra el mismo clip y no exige utf8.ValidString, por lo que no cubre la falla.",
+  "author": "reviewer@codex",
+  "fingerprint": "f72c7380a06f8a31",
+  "task": "fixes-cabina-c4"
+}

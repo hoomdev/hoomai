@@ -1,0 +1,11 @@
+{
+  "id": "20261020T185732_28efca",
+  "created_at": "2026-10-20T18:57:32.675943Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO. internal/providers/claude.go:322-324 justifica el recorte diciendo que un status «is a word», aunque el contrato en .hoom/specs/historia-doctor-y-cinta.md:4-6 lo define como texto del fallo y los tests nuevos ejercitan comillas, barras, Unicode y tamaños de MiB. El comentario contradice el modelo de datos que explica la propia corrección y hace confuso por qué clip(st) es necesario; debería describir el status como texto arbitrario que puede ser grande.",
+  "author": "reviewer@codex",
+  "fingerprint": "f72c7380a06f8a31",
+  "task": "fixes-cabina-c4"
+}
