@@ -209,9 +209,11 @@ func Done(root, slug, base string, force bool) error {
 		return err
 	}
 	defer unlock()
-	wt := worktreeDir(root, slug)
-	if _, err := os.Stat(wt); err != nil {
-		return fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
+	// the gate: a symlink or a folder that is not this repository's
+	// worktree is not the task, and --force never closes it (finding 28c350)
+	wt, err := runcmd.TaskDir(root, slug)
+	if err != nil {
+		return err
 	}
 	branch := "hoom/" + slug
 	if !force {
@@ -295,9 +297,9 @@ func short(sha string) string {
 // one is green and its fingerprint matches — with the same messages. nil
 // means task done would close it.
 func Ready(root, slug, base string) error {
-	wt := worktreeDir(root, slug)
-	if _, err := os.Stat(wt); err != nil {
-		return notReady(ReadySinTarea, "la tarea %q no existe (mira 'hoom task list')", slug)
+	wt, err := runcmd.TaskDir(root, slug)
+	if err != nil {
+		return notReady(ReadySinTarea, "%v", err)
 	}
 	if st, _ := run(wt, "status", "--porcelain"); st != "" {
 		return notReady(ReadySinGuardar, "la tarea %q tiene cambios sin commitear (incluidos posibles veredictos).\n  Accion: commitea todo dentro de %s y repite 'hoom task done %s'", slug, wt, slug)
@@ -364,9 +366,9 @@ func discardable(root, slug string) ([]string, []string, error) {
 	if err := checkSlug(slug); err != nil {
 		return nil, nil, err
 	}
-	wt := worktreeDir(root, slug)
-	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
-		return nil, nil, fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
+	wt, err := runcmd.TaskDir(root, slug)
+	if err != nil {
+		return nil, nil, err
 	}
 	cambios, err := gitx.Cambios(wt)
 	if err != nil {
@@ -401,9 +403,9 @@ func Discard(root, slug string, expect []string) (DiscardResult, error) {
 	if err := checkSlug(slug); err != nil {
 		return res, err
 	}
-	wt := worktreeDir(root, slug)
-	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
-		return res, fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", slug)
+	wt, err := runcmd.TaskDir(root, slug)
+	if err != nil {
+		return res, err
 	}
 	// from the check of runs to the last deletion, under the tree's lock: a
 	// run that starts meanwhile waits until it is over (finding b6e55b)

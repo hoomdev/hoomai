@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -583,3 +584,36 @@ func OutPrefix(dir string, max int, args ...string) (out string, truncated bool,
 type errorString string
 
 func (e errorString) Error() string { return string(e) }
+
+// WorktreeDe says whether dir is the top of a work tree of root's own
+// repository: root itself or one of its worktrees. A plain folder inside
+// root answers root's top, and a clone or another repository's worktree
+// answers another common git dir, so neither is (finding 28c350).
+func WorktreeDe(root, dir string) bool {
+	out, err := gitOut(dir, "rev-parse", "--show-toplevel", "--git-common-dir")
+	lineas := strings.Split(strings.TrimSpace(out), "\n")
+	if err != nil || len(lineas) != 2 {
+		return false
+	}
+	comun, err := gitOut(root, "rev-parse", "--git-common-dir")
+	if err != nil {
+		return false
+	}
+	return mismaRuta(dir, rutaDeGit(dir, lineas[0])) &&
+		mismaRuta(rutaDeGit(root, strings.TrimSpace(comun)), rutaDeGit(dir, lineas[1]))
+}
+
+// rutaDeGit is a path git printed in dir: relative to dir unless absolute.
+func rutaDeGit(dir, p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(dir, p)
+}
+
+// mismaRuta says whether a and b name the same place, symlinks resolved.
+func mismaRuta(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && ra == rb
+}

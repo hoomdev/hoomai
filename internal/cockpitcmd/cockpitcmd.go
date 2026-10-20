@@ -22,6 +22,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
 // Options mirror the cockpit verb's flags.
@@ -153,8 +154,14 @@ func Run(root, project string, opt Options, deps Deps) error {
 func placeOf(root, project, task string) (dir, session, rel string, err error) {
 	dir, rel = root, "."
 	if task != "" {
-		wt := filepath.Join(root, ".hoom", "worktrees", task)
-		if st, err := os.Stat(wt); err != nil || !st.IsDir() {
+		// the same gate as every task command: a symlink, a slug that
+		// climbs or a folder that is not a worktree never hosts the AI
+		// (finding 28c350)
+		wt, err := runcmd.TaskDir(root, task)
+		if err != nil && !item.ValidSlug(task) {
+			return "", "", "", err
+		}
+		if err != nil {
 			return "", "", "", fmt.Errorf("la tarea %q no existe. Accion: crea su worktree con 'hoom task start %s'", task, task)
 		}
 		dir, rel = wt, ".hoom/worktrees/"+task
