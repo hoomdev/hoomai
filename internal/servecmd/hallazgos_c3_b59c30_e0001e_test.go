@@ -394,9 +394,11 @@ func TestCA347_CA348_Hallazgo9c1816_Enmienda6_GuardaAbrirSesionConElCierreSanoTa
 // comando `tmux kill-session -t '=<sesion>'` con el nombre exacto (con o sin
 // negar que la cerro, como el de un new-session fallido), y rechaza, cada uno
 // por su regla, el que dice que la cerro, el que trae el comando sin
-// comillas y el de otra sesion cuyo nombre empieza igual. Sin esto, los tests
-// de la enmienda 6 podrian pasar o fallar por el verificador y no por el
-// mensaje.
+// comillas y el de otra sesion cuyo nombre empieza igual, tambien cuando el
+// shell junta `'=<sesion>'-login` en `=<sesion>-login` (contieneElAviso; lo
+// heredo de la guarda del verificador del cierre fallido, que se borro). Sin
+// esto, los tests de la enmienda 6 podrian pasar o fallar por el verificador
+// y no por el mensaje.
 func TestCA347_CA348_HallazgoBde7e4_ElVerificadorDeLaEnmienda6(t *testing.T) {
 	s := cockpitcmd.SessionName("demo", "fix")
 	cmd := "tmux kill-session -t '=" + s + "'"
@@ -409,6 +411,9 @@ func TestCA347_CA348_HallazgoBde7e4_ElVerificadorDeLaEnmienda6(t *testing.T) {
 		{"exit status 1; cerre la sesion " + s + " para que el proximo intento la arme entera: " + cmd, "dice que la cerro", "la cerro"},
 		{"exit status 1; si quedo a medias, cerrala: tmux kill-session -t =" + s, "el comando sin comillas", cmd},
 		{"exit status 1; si quedo a medias, cerrala: tmux kill-session -t '=" + s + "-login'", "el comando de otra sesion cuyo nombre empieza igual", cmd},
+		// El shell junta '=<s>'-login en =<s>-login: strings.Contains
+		// encontraria el comando de esta sesion, contieneElAviso no.
+		{"exit status 1; si quedo a medias, cerrala: " + cmd + "-login", "el destino '=" + s + "'-login, que el shell junta en " + s + "-login", cmd},
 	} {
 		mal := incumplimientosEnmienda6(c.msg, s)
 		if c.regla == "" {
@@ -419,36 +424,6 @@ func TestCA347_CA348_HallazgoBde7e4_ElVerificadorDeLaEnmienda6(t *testing.T) {
 		}
 		if len(mal) != 1 || !strings.Contains(mal[0], c.regla) {
 			t.Errorf("bde7e4 (%s): incumplimientosEnmienda6(%q) = %q, quiere un solo incumplimiento, el de %q", c.porque, c.msg, mal, c.regla)
-		}
-	}
-}
-
-// Guarda del verificador (9c1816), lo propio de servecmd: el envoltorio
-// incumplimientosDelCierreFallido busca el comando de cierre con el nombre
-// exacto de la sesion (contieneElAviso), asi que el de otra sesion cuyo
-// nombre empieza igual no cuenta. La matriz comun de frases que acepta y
-// rechaza el verificador (y la de DiceQueLaCerro) vive en el test del
-// paquete compartido, internal/cierretmuxtest/mensaje_test.go (hallazgo
-// 1c0773).
-func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
-	s := cockpitcmd.SessionName("demo", "fix")
-	cmd := "tmux kill-session -t '=" + s + "'"
-	const pre = "exit status 1; no pude saber si sigue abierta: "
-	// Con el comando de esta sesion, vale.
-	if msg := pre + cmd; len(incumplimientosDelCierreFallido(msg, s)) != 0 {
-		t.Errorf("9c1816: incumplimientosDelCierreFallido(%q) = %q, quiere que valga", msg, incumplimientosDelCierreFallido(msg, s))
-	}
-	// Con el comando de otra sesion cuyo nombre empieza igual no vale, y solo
-	// por el comando.
-	for _, c := range []struct{ msg, porque string }{
-		{pre + "tmux kill-session -t '=" + s + "-login'", "el destino entre comillas es " + s + "-login"},
-		// El shell junta '=<s>'-login en =<s>-login: strings.Contains
-		// encontraria el comando de esta sesion, contieneElAviso no.
-		{pre + cmd + "-login", "el destino '=" + s + "'-login es " + s + "-login"},
-	} {
-		mal := incumplimientosDelCierreFallido(c.msg, s)
-		if len(mal) != 1 || !strings.Contains(mal[0], cmd) {
-			t.Errorf("9c1816 (%s): incumplimientosDelCierreFallido(%q) = %q, quiere un solo incumplimiento: que muestre %s", c.porque, c.msg, mal, cmd)
 		}
 	}
 }

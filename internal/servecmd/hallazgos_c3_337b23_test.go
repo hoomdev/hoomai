@@ -139,8 +139,9 @@ func TestHallazgo_337b23_CA350_ElTmuxFalsoResuelveLosDestinosComoTmux(t *testing
 
 // Hallazgo 337b23 (a), CA-347 y CA-348 con la ENMIENDA 5 (n): "el pane de
 // vigilancia se agrega con ese mismo destino" (`=<session>:`), y la enmienda
-// 4: "si el que falla es el split-window justo despues de que esta apertura
-// creo la sesion, la cierra como hasta ahora". CA-348: "cuando Open crea la
+// 6: si lo que falla es el split-window despues de que esta apertura creo la
+// sesion, tampoco la cierra y devuelve el error (antes, la enmienda 4 decia
+// que la cerraba "como hasta ahora"). CA-348: "cuando Open crea la
 // sesion de una tarea con item, el item del arbol raiz gana una entrada en
 // sesiones"; una sesion que no existe no es una sesion creada.
 //

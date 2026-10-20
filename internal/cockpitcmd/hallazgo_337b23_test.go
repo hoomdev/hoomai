@@ -22,10 +22,12 @@ import (
 )
 
 // Hallazgo 337b23 (CA-347, CA-350, enmienda 5): cada comando de tmux de Open
-// (al crear la sesion de la tarea facturas, y al cerrarla cuando el
-// split-window falla) y de Capture que apunta a la sesion de la tarjeta usa un
-// destino exacto: `=hoom-demo-facturas:` (con lo que siga) en todos, y en
-// has-session y kill-session tambien vale `=hoom-demo-facturas`. Nunca el
+// (al crear la sesion de la tarea facturas, y cuando el split-window falla:
+// con la enmienda 6 Open ya no la cierra, y si corriera un kill-session
+// tambien tendria que usar el destino exacto) y de Capture que apunta a la
+// sesion de la tarjeta usa un destino exacto: `=hoom-demo-facturas:` (con lo
+// que siga) en todos, y en has-session y kill-session tambien vale
+// `=hoom-demo-facturas`. Nunca el
 // nombre suelto ni `=hoom-demo-facturas` en list-panes, split-window o
 // select-pane. El pane de vigilancia (split-window) siempre lleva `-t` con ese
 // destino, y Capture lista los panes con el. Un destino `%<id>` es un pane, no
@@ -57,7 +59,8 @@ func TestCA347_CA350_Hallazgo337b23_LosComandosALaSesionUsanElDestinoExacto(t *t
 	agregar(g.calls, g.outputs)
 	desdeOpen := len(llamadas)
 
-	// Open con el split-window roto: cierra la sesion que acaba de crear
+	// Open con el split-window roto: con la enmienda 6 no cierra la sesion que
+	// acaba de crear; los comandos que si corre tambien van al destino exacto
 	f := &h3Tmux{fallar: "split-window"}
 	root2, _ := cbProyecto(t, true)
 	if _, err := Open(root2, "demo", Options{Provider: "claude", Task: "facturas"}, f.deps()); err == nil {

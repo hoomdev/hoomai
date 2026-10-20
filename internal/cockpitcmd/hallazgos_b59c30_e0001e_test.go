@@ -39,8 +39,7 @@
 // hallazgos_c1b_bde7e4_test.go (h6NoLaCerro, h6Cierres,
 // h6ReintentoLaVeExistente, incumplimientosEnmienda6),
 // hallazgos_db8541_f7efdc_test.go (cierreEjecutable) y tmuxdoble_test.go
-// (tmuxSinSesion, tmuxClienteRoto, incumplimientosDelCierreFallido). Ningun
-// tmux real.
+// (tmuxSinSesion, tmuxClienteRoto). Ningun tmux real.
 package cockpitcmd
 
 import (
@@ -440,30 +439,5 @@ func TestCA347_CA348_Hallazgo9c1816_Enmienda6_GuardaConElCierreSanoTampocoLaCier
 			restaurar()
 			h6ReintentoLaVeExistente(t, ca, root, f.h3Tmux, crudo)
 		})
-	}
-}
-
-// Guarda del verificador (9c1816), lo propio de cockpitcmd: el envoltorio
-// incumplimientosDelCierreFallido de Open exige ademas que el error conserve
-// el del paso que fallo, y busca el comando de cierre tal cual
-// (strings.Contains). La matriz comun de frases que acepta y rechaza el
-// verificador (y la de DiceQueLaCerro) vive en el test del paquete
-// compartido, internal/cierretmuxtest/mensaje_test.go (hallazgo 1c0773). Sin
-// esto, los tests de arriba podrian pasar o fallar por el verificador y no
-// por el mensaje.
-func TestCA347_Hallazgo9c1816_ElVerificadorDelMensaje(t *testing.T) {
-	const s, orig = h3Sesion, "split-window: fallo"
-	cmd := "tmux kill-session -t '=" + s + "'"
-	resto := "; no pude saber si sigue abierta: " + cmd
-	// Con el error del paso que fallo y el comando tal cual, vale.
-	if msg := orig + resto; len(incumplimientosDelCierreFallido(msg, orig, s)) != 0 {
-		t.Errorf("9c1816: incumplimientosDelCierreFallido(%q) = %q, quiere que valga", msg, incumplimientosDelCierreFallido(msg, orig, s))
-	}
-	// El mismo mensaje con otro error en vez del original no vale, y solo por
-	// eso.
-	msg := "otro error" + resto
-	mal := incumplimientosDelCierreFallido(msg, orig, s)
-	if len(mal) != 1 || !strings.Contains(mal[0], orig) {
-		t.Errorf("9c1816: incumplimientosDelCierreFallido(%q) = %q, quiere un solo incumplimiento: que conserve el error del paso que fallo (%s)", msg, mal, orig)
 	}
 }
