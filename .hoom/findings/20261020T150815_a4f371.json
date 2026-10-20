@@ -1,0 +1,11 @@
+{
+  "id": "20261020T150815_a4f371",
+  "created_at": "2026-10-20T15:08:15.521532Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE / follow-up — internal/runcmd/runcmd.go:1124-1142 ejecuta los scanners de stdout y stderr en goroutines y ambos llaman append, pero internal/runcmd/runcmd.go:1210-1226 fija el orden en r.events bajo m.mu, suelta el lock y solo despues serializa y escribe. Si el evento A tarda mas en json.Marshal (por ejemplo una delegacion grande), B puede quedar despues de A en Events pero escribirse antes en el .jsonl; tras reiniciar, consumidores sensibles al orden como Stage pueden derivar otro LastDetail que durante el run. Los tests nuevos de igualdad memoria/disco usan un solo productor con salida y no cubren esta intercalacion. El defecto ya existia antes de 79fe107f913c, asi que no bloquea esta delta.",
+  "author": "reviewer@codex",
+  "fingerprint": "0f0752c724d91ed2",
+  "task": "fixes-cabina-c4"
+}
