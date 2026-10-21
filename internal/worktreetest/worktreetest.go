@@ -8,12 +8,13 @@
 // gitdir>/gitdir nombra exactamente <la carpeta>/.git, git responde desde
 // ahi esa carpeta como top y el common-dir de la raiz, su HEAD esta en
 // refs/heads/hoom/<slug>, y ninguna variable GIT_* del entorno cambia la
-// respuesta. Casos son carpetas que fallan alguna de esas reglas; Armar las
-// crea, Proyecto arma el proyecto con la tarea legit de verdad, y Foto junta
-// lo que un verbo rechazado no puede tocar. RegistrosAjenos (hallazgo
-// 880f0a: el registro nombra otro archivo que existe) y RamasAjenas
-// (hallazgos 966474 y c284d0: el worktree registrado fuera de su rama) son
-// las variantes de la delta 1 sobre un worktree registrado de verdad.
+// respuesta. Casos son carpetas que fallan alguna de esas reglas, cada una
+// con su armador; Armar crea la de un slug, Proyecto arma el proyecto con la
+// tarea legit de verdad, y Foto junta lo que un verbo rechazado no puede
+// tocar. RegistrosAjenos (hallazgo 880f0a: el registro nombra otro archivo
+// que existe) y RamasAjenas (hallazgos 966474 y c284d0: el worktree
+// registrado fuera de su rama) son las variantes de la delta 1 sobre un
+// worktree registrado de verdad.
 //
 // Existe solo para tests, como net/http/httptest: ningun codigo de
 // produccion lo importa. Es un paquete y no un _test.go porque la misma
@@ -39,26 +40,103 @@ import (
 )
 
 // Caso es una carpeta .hoom/worktrees/<Slug> que NO es la tarea <Slug>; Que
-// dice por que.
-type Caso struct{ Slug, Que string }
+// dice por que y armar la crea (lo corre Armar, por el Slug).
+type Caso struct {
+	Slug, Que string
+	armar     armador
+}
+
+// armador crea en l.dir la carpeta de un caso y devuelve el arbol que copia
+// para quedar limpia, o "" si no copia ninguno (Armar decide si lo copia).
+type armador func(t testing.TB, l lugar) (origen string)
+
+// lugar: las rutas que usa un armador. dir es .hoom/worktrees/<slug> de
+// root, wts su carpeta, legit la carpeta de la tarea legit y gitdirLegit su
+// gitdir en la raiz.
+type lugar struct{ root, wts, dir, legit, gitdirLegit string }
+
+// gitArchivo deja en l.dir un archivo .git que dice "gitdir: destino".
+func (l lugar) gitArchivo(t testing.TB, destino string) {
+	t.Helper()
+	Escribir(t, l.dir, ".git", "gitdir: "+destino+"\n")
+}
 
 // Casos: carpetas en .hoom/worktrees/<slug> que NO son la tarea <slug>.
 // Cada una falla alguna regla de la puerta: .git archivo regular hacia
 // <common-dir>/worktrees/<id>, backpointer <gitdir>/gitdir = <carpeta>/.git,
 // top y common-dir de la raiz desde adentro, y HEAD en refs/heads/hoom/<slug>.
+//
+// Es la unica lista de variantes (hallazgo 20261021T193200_0c9353): cada
+// fila lleva su armador, y una variante nueva se agrega aca, en una fila,
+// y entra sola en todas las matrices y en Armar. La fila no compila sin su
+// armador.
 var Casos = []Caso{
-	{"evil", "carpeta comun con un archivo .git hacia el gitdir de legit"},
-	{"evil-rel", "carpeta comun con un archivo .git hacia el gitdir de legit por ruta relativa"},
-	{"evil-inexistente", "carpeta comun con un archivo .git hacia un gitdir que no existe"},
-	{"evil-raiz", "carpeta comun con un archivo .git hacia el gitdir de la raiz"},
-	{"reg", "worktree registrado cuyo .git se edito para apuntar al gitdir de legit"},
-	{"copia", "cp -R del worktree de legit"},
-	{"copia-rama", "cp -R de un worktree registrado en otra ruta, con la rama hoom/copia-rama"},
-	{"movido", "worktree de la rama hoom/movido movido con mv, sin git worktree move"},
-	{"dirgit", ".git directorio con commondir hacia la raiz y HEAD en hoom/dirgit"},
-	{"gitlink", ".git symlink al archivo .git de legit"},
-	{"gitlink-dir", ".git symlink al gitdir de legit"},
-	{"otro", "worktree registrado con git checkout --ignore-other-worktrees hoom/legit"},
+	{"evil", "carpeta comun con un archivo .git hacia el gitdir de legit", func(t testing.TB, l lugar) string {
+		l.gitArchivo(t, l.gitdirLegit)
+		return l.legit
+	}},
+	{"evil-rel", "carpeta comun con un archivo .git hacia el gitdir de legit por ruta relativa", func(t testing.TB, l lugar) string {
+		l.gitArchivo(t, "../../../.git/worktrees/legit")
+		return l.legit
+	}},
+	{"evil-inexistente", "carpeta comun con un archivo .git hacia un gitdir que no existe", func(t testing.TB, l lugar) string {
+		l.gitArchivo(t, filepath.Join(l.root, ".git", "worktrees", "no-existe"))
+		return ""
+	}},
+	{"evil-raiz", "carpeta comun con un archivo .git hacia el gitdir de la raiz", func(t testing.TB, l lugar) string {
+		l.gitArchivo(t, filepath.Join(l.root, ".git"))
+		return l.root
+	}},
+	{"reg", "worktree registrado cuyo .git se edito para apuntar al gitdir de legit", func(t testing.TB, l lugar) string {
+		Git(t, l.root, "worktree", "add", "-q", "-b", "hoom/reg", l.dir, "main")
+		l.gitArchivo(t, l.gitdirLegit)
+		return l.legit
+	}},
+	{"copia", "cp -R del worktree de legit", func(t testing.TB, l lugar) string {
+		CpR(t, l.legit, l.dir)
+		return ""
+	}},
+	{"copia-rama", "cp -R de un worktree registrado en otra ruta, con la rama hoom/copia-rama", func(t testing.TB, l lugar) string {
+		fuente := filepath.Join(filepath.Dir(l.root), "fuente-copia-rama")
+		Git(t, l.root, "worktree", "add", "-q", "-b", "hoom/copia-rama", fuente, "main")
+		CpR(t, fuente, l.dir)
+		return ""
+	}},
+	{"movido", "worktree de la rama hoom/movido movido con mv, sin git worktree move", func(t testing.TB, l lugar) string {
+		antes := filepath.Join(l.wts, "antes-de-mover")
+		Git(t, l.root, "worktree", "add", "-q", "-b", "hoom/movido", antes, "main")
+		if err := os.Rename(antes, l.dir); err != nil {
+			t.Fatal(err)
+		}
+		return ""
+	}},
+	{"dirgit", ".git directorio con commondir hacia la raiz y HEAD en hoom/dirgit", func(t testing.TB, l lugar) string {
+		Git(t, l.root, "branch", "hoom/dirgit", "main")
+		Escribir(t, l.dir, ".git/commondir", filepath.Join(l.root, ".git")+"\n")
+		Escribir(t, l.dir, ".git/HEAD", "ref: refs/heads/hoom/dirgit\n")
+		Escribir(t, l.dir, ".git/gitdir", filepath.Join(l.dir, ".git")+"\n")
+		Git(t, l.dir, "reset", "-q", "--hard")
+		if top := Git(t, l.dir, "rev-parse", "--show-toplevel"); top != l.dir {
+			t.Fatalf("fixture: desde dirgit git responde dirgit como top, responde %s", top)
+		}
+		if c := Git(t, l.dir, "rev-parse", "--path-format=absolute", "--git-common-dir"); c != filepath.Join(l.root, ".git") {
+			t.Fatalf("fixture: desde dirgit git responde el common-dir de la raiz, responde %s", c)
+		}
+		return ""
+	}},
+	{"gitlink", ".git symlink al archivo .git de legit", func(t testing.TB, l lugar) string {
+		Symlink(t, filepath.Join(l.legit, ".git"), filepath.Join(l.dir, ".git"))
+		return l.legit
+	}},
+	{"gitlink-dir", ".git symlink al gitdir de legit", func(t testing.TB, l lugar) string {
+		Symlink(t, l.gitdirLegit, filepath.Join(l.dir, ".git"))
+		return l.legit
+	}},
+	{"otro", "worktree registrado con git checkout --ignore-other-worktrees hoom/legit", func(t testing.TB, l lugar) string {
+		Git(t, l.root, "worktree", "add", "-q", "-b", "hoom/otro", l.dir, "main")
+		Git(t, l.dir, "checkout", "-q", "--ignore-other-worktrees", "hoom/legit")
+		return ""
+	}},
 }
 
 // SlugsConPlana: los slugs de Casos y, al final, "plana" (la carpeta de
@@ -161,75 +239,37 @@ func Proyecto(t testing.TB, start Start) (root, legit string) {
 	return root, legit
 }
 
-// Armar crea en root la carpeta del caso slug. conTrabajo le deja cambios
-// propios sin commitear (app.go distinto y <slug>.go nuevo); sin trabajo
-// queda LIMPIA vista por git desde adentro (una copia del arbol al que
-// apunta), para que nada que no sea la puerta la proteja.
+// Armar crea en root la carpeta del caso slug con el armador de su fila en
+// Casos; un slug que no esta en Casos corta el test. conTrabajo le deja
+// cambios propios sin commitear (app.go distinto y <slug>.go nuevo); sin
+// trabajo queda LIMPIA vista por git desde adentro (una copia del arbol al
+// que apunta), para que nada que no sea la puerta la proteja.
 func Armar(t testing.TB, root, slug string, conTrabajo bool) {
 	t.Helper()
-	wts := filepath.Join(root, ".hoom", "worktrees")
-	dir := filepath.Join(wts, slug)
-	legit := filepath.Join(wts, "legit")
-	gitdirLegit := filepath.Join(root, ".git", "worktrees", "legit")
-	gitArchivo := func(destino string) { Escribir(t, dir, ".git", "gitdir: "+destino+"\n") }
-	origen := "" // el arbol que la carpeta copia para quedar limpia
-	switch slug {
-	case "evil":
-		gitArchivo(gitdirLegit)
-		origen = legit
-	case "evil-rel":
-		gitArchivo("../../../.git/worktrees/legit")
-		origen = legit
-	case "evil-inexistente":
-		gitArchivo(filepath.Join(root, ".git", "worktrees", "no-existe"))
-	case "evil-raiz":
-		gitArchivo(filepath.Join(root, ".git"))
-		origen = root
-	case "reg":
-		Git(t, root, "worktree", "add", "-q", "-b", "hoom/reg", dir, "main")
-		gitArchivo(gitdirLegit)
-		origen = legit
-	case "copia":
-		CpR(t, legit, dir)
-	case "copia-rama":
-		fuente := filepath.Join(filepath.Dir(root), "fuente-copia-rama")
-		Git(t, root, "worktree", "add", "-q", "-b", "hoom/copia-rama", fuente, "main")
-		CpR(t, fuente, dir)
-	case "movido":
-		antes := filepath.Join(wts, "antes-de-mover")
-		Git(t, root, "worktree", "add", "-q", "-b", "hoom/movido", antes, "main")
-		if err := os.Rename(antes, dir); err != nil {
-			t.Fatal(err)
+	var armar armador
+	for _, c := range Casos {
+		if c.Slug == slug {
+			armar = c.armar
+			break
 		}
-	case "dirgit":
-		Git(t, root, "branch", "hoom/dirgit", "main")
-		Escribir(t, dir, ".git/commondir", filepath.Join(root, ".git")+"\n")
-		Escribir(t, dir, ".git/HEAD", "ref: refs/heads/hoom/dirgit\n")
-		Escribir(t, dir, ".git/gitdir", filepath.Join(dir, ".git")+"\n")
-		Git(t, dir, "reset", "-q", "--hard")
-		if top := Git(t, dir, "rev-parse", "--show-toplevel"); top != dir {
-			t.Fatalf("fixture: desde dirgit git responde dirgit como top, responde %s", top)
-		}
-		if c := Git(t, dir, "rev-parse", "--path-format=absolute", "--git-common-dir"); c != filepath.Join(root, ".git") {
-			t.Fatalf("fixture: desde dirgit git responde el common-dir de la raiz, responde %s", c)
-		}
-	case "gitlink":
-		Symlink(t, filepath.Join(legit, ".git"), filepath.Join(dir, ".git"))
-		origen = legit
-	case "gitlink-dir":
-		Symlink(t, gitdirLegit, filepath.Join(dir, ".git"))
-		origen = legit
-	case "otro":
-		Git(t, root, "worktree", "add", "-q", "-b", "hoom/otro", dir, "main")
-		Git(t, dir, "checkout", "-q", "--ignore-other-worktrees", "hoom/legit")
-	default:
+	}
+	if armar == nil {
 		t.Fatalf("fixture: caso desconocido %q", slug)
 	}
+	wts := filepath.Join(root, ".hoom", "worktrees")
+	l := lugar{
+		root:        root,
+		wts:         wts,
+		dir:         filepath.Join(wts, slug),
+		legit:       filepath.Join(wts, "legit"),
+		gitdirLegit: filepath.Join(root, ".git", "worktrees", "legit"),
+	}
+	origen := armar(t, l)
 	if conTrabajo {
-		Escribir(t, dir, "app.go", "package app\n\n// escrito desde "+slug+"\n")
-		Escribir(t, dir, slug+".go", "package app\n\n// archivo de "+slug+"\n")
+		Escribir(t, l.dir, "app.go", "package app\n\n// escrito desde "+slug+"\n")
+		Escribir(t, l.dir, slug+".go", "package app\n\n// archivo de "+slug+"\n")
 	} else if origen != "" {
-		Copiar(t, origen, dir)
+		Copiar(t, origen, l.dir)
 	}
 }
 
