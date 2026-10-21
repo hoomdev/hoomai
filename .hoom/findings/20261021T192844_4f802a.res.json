@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T192844_4f802a",
+  "as": "corregido",
+  "evidence": "17dcce2, enmienda 2 de items-y-columna-derivada aprobada (481d181e, decision de Henry): se va el respaldo O_EXCL de PublicarNuevo; con hard links el temporal se enlaza al final bajo el candado y sin ellos devuelve hoomfs.ErrSinEnlaces sin escribir nada. Tests 0dcc796 internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go (con enlazar simulando ENOTSUP, EOPNOTSUPP y EPERM: ErrSinEnlaces, ni final ni temporales, nombre ocupado intacto, el escritor ajeno siempre gana, el nombre nunca aparece, ninguna goroutine gana). El refutador lo probo en exFAT real: item add y hoom review dan el error claro y no dejan nada (INFORME-refutador-c1b-delta2.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T20:11:02.456444Z"
+}
