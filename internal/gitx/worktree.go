@@ -72,9 +72,10 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 	if err != nil {
 		return sinComprobar(gitdir, err)
 	}
-	// the registry names dir/.git itself, not any file of dir (finding
+	// the registry names dir/.git itself, resolved: not any other file of
+	// dir, nor a path that reaches it through a symlink and .. (finding
 	// 880f0a)
-	if p := rutaDeGit(gitdir, strings.TrimSpace(string(back))); filepath.Base(p) != ".git" || !mismaRuta(dir, filepath.Dir(p)) {
+	if !mismaRuta(filepath.Join(dir, ".git"), rutaDeGit(gitdir, strings.TrimSpace(string(back)))) {
 		return "", false, nil
 	}
 	// registered and pointed back: from here a failure of git is git's

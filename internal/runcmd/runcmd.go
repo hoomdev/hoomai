@@ -666,7 +666,12 @@ func TaskDir(root, task string) (string, error) {
 	}
 	wt := filepath.Join(root, ".hoom", "worktrees", task)
 	for _, d := range []string{filepath.Join(root, ".hoom"), filepath.Dir(wt), wt} {
-		if st, err := os.Lstat(d); err != nil || !st.IsDir() {
+		st, err := os.Lstat(d)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			// one that cannot be read is not a "no" (finding 48eeed)
+			return "", fmt.Errorf("no pude comprobar la tarea %q: %w en %s: %v", task, gitx.ErrSinComprobar, d, err)
+		}
+		if err != nil || !st.IsDir() {
 			return "", fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", task)
 		}
 	}

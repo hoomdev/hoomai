@@ -251,9 +251,10 @@ func taskWorktrees(root string) ([]string, error) {
 			continue
 		}
 		_, err := runcmd.TaskDir(root, e.Name())
-		if errors.Is(err, gitx.ErrSinComprobar) {
-			// git that cannot answer is not "no task": the doctor fails
-			// instead of leaving it out of its report (finding 6aeb17)
+		if errors.Is(err, gitx.ErrSinComprobar) || errors.Is(err, runcmd.ErrOtraRama) {
+			// git that cannot answer, or a worktree off its branch, is not
+			// "no task": the doctor fails with the reason instead of
+			// leaving it out of its report (findings 6aeb17, 966474)
 			return nil, err
 		}
 		if err == nil {
