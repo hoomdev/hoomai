@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T174707_91195c",
+  "as": "corregido",
+  "evidence": "8d27d30 (test-writer): los comentarios de internal/item/hallazgos_c1b_enlace_y_temporales_test.go y de internal/hoomfs/hallazgos_c1b_05d98a_test.go (encabezado y RespetaElCandado) describen la estrategia de la enmienda 1: enlace bajo el candado primero y, solo sin hard links, O_EXCL. Solo comentarios.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T18:39:39.848296Z"
+}
