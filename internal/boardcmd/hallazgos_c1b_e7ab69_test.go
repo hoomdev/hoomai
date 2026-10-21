@@ -2,8 +2,14 @@
 // 1 de fixes-cabina-c1b, sobre las acciones de la tarjeta
 // (.hoom/specs/acciones-desde-la-tarjeta.md, CA-325 a CA-346) cuando su
 // espacio de trabajo no se pudo comprobar (hallazgo 6aeb17: git no pudo decir
-// si la carpeta de la tarea es su worktree, Evidence.WorktreeSinComprobar).
+// si la carpeta de la tarea es su worktree, Evidence.WorktreeInusable).
 // Escritos desde el contrato, nunca desde la implementacion:
+//
+// El campo se llamaba WorktreeSinComprobar y paso a llamarse WorktreeInusable
+// (hallazgo 20261021T193156_7adf64: tambien guarda un worktree que esta pero
+// fuera de su rama, que si se comprobo). Guarda el motivo en palabras de la
+// puerta (runcmd.TaskDir), y la tarjeta lo muestra como "el espacio de trabajo
+// de la tarjeta no se puede usar: <ese motivo>". Las exigencias no cambian.
 //
 // Una tarjeta cuyo espacio de trabajo no se pudo comprobar no ofrece ninguna
 // accion, ni habilitada ni deshabilitada: card.actions es la lista vacia
@@ -29,9 +35,10 @@ import (
 	"testing"
 )
 
-// e7SinComprobar es el motivo con que Gather marca la tarjeta cuando git no
-// pudo comprobar su espacio de trabajo.
-const e7SinComprobar = "no se pudo comprobar el espacio de trabajo de la tarea: git no respondio"
+// e7SinComprobar es el motivo con que Gather marca la tarjeta
+// (Evidence.WorktreeInusable) cuando git no pudo comprobar su espacio de
+// trabajo: el error de la puerta, que envuelve gitx.ErrSinComprobar.
+const e7SinComprobar = "no se pudo comprobar el worktree: git no respondio"
 
 // e7TodasLasAcciones son los ids de todas las acciones del contrato.
 var e7TodasLasAcciones = []string{ActPedirArquitecto, ActPedirTestWriter, ActPedirWriter, ActPedirReviewer,
@@ -126,7 +133,7 @@ func e7Describir(as []Action) string {
 // Hallazgo 20261021T163600_e7ab69. CA-325 y CA-326, en memoria (Derive): en
 // todas las columnas, con y sin espacio propio, interrumpida, con cambios sin
 // guardar, en curso y con el presupuesto agotado, una tarjeta con
-// WorktreeSinComprobar no ofrece ninguna accion. Guarda: sin la marca, la
+// WorktreeInusable no ofrece ninguna accion. Guarda: sin la marca, la
 // misma tarjeta ofrece sus acciones de siempre (las de la tabla, o al menos
 // una).
 func TestCA325_Hallazgoe7ab69_SinComprobarElEspacioNoHayAcciones(t *testing.T) {
@@ -141,12 +148,12 @@ func TestCA325_Hallazgoe7ab69_SinComprobarElEspacioNoHayAcciones(t *testing.T) {
 		}
 
 		ev := f.ev
-		ev.WorktreeSinComprobar = e7SinComprobar
+		ev.WorktreeInusable = e7SinComprobar
 		e7SinAcciones(t, f.nombre, Derive(ev))
 
 		// como la deja Gather: la evidencia se lee del arbol raiz
 		ev = bdArbol(f.ev)
-		ev.WorktreeSinComprobar = e7SinComprobar
+		ev.WorktreeInusable = e7SinComprobar
 		e7SinAcciones(t, f.nombre+", leida del arbol raiz", Derive(ev))
 	}
 }

@@ -1,39 +1,53 @@
 //go:build !windows
 
-// Tests de los hallazgos 20261021T174339_cbbc8c (high, resilience) y
-// 20261021T173339_434aec (medium, risk) de la delta 1 de fixes-cabina-c1b,
-// sobre hoomfs.PublicarNuevo, con que se publican los items
-// (.hoom/specs/items-y-columna-derivada.md, CA-263 y CA-265) y los registros
-// de review, que son append-only (CA-293). Escritos desde la enmienda 1 de la
-// spec y la decision de Henry, nunca desde la implementacion.
+// Tests de hoomfs.PublicarNuevo en un volumen SIN hard links, con que se
+// publican los items (.hoom/specs/items-y-columna-derivada.md, CA-263 y
+// CA-265) y los registros de review, que son append-only (CA-293). Escritos
+// desde la spec, nunca desde la implementacion. Cubren los hallazgos
+// 20261021T174339_cbbc8c (high, resilience) y 20261021T173339_434aec (medium,
+// risk) de la delta 1 de fixes-cabina-c1b, y 20261021T191854_589ad5 (high,
+// risk), 20261021T192837_25172f (high, resilience), 20261021T192448_8c594b
+// (medium, reliability) y 20261021T192844_4f802a (medium, resilience) de la
+// delta 2.
 //
-// El defecto: en un volumen sin hard links, PublicarNuevo comprobaba que el
-// nombre final no existiera y despues renombraba el temporal encima. Entre
-// las dos llamadas un escritor que no toma el candado (otra version de hoom,
-// git, cualquier otro programa) puede crear el nombre, y el renombre lo pisa:
-// PublicarNuevo dice que publico y el archivo del otro se perdio.
+// EL CONTRATO CAMBIO: enmienda 2 de la spec, que reemplaza a la 1 por
+// decision de Henry. La version anterior de este archivo exigia la enmienda
+// 1: sin hard links, PublicarNuevo creaba el nombre final con O_EXCL y lo
+// escribia (visible a medias), y si la escritura fallaba lo borraba. La delta
+// 2 mostro que ese respaldo abria otros bordes: el borrado por nombre tras un
+// fallo podia borrar el archivo de otro escritor (589ad5, 25172f), el
+// temporal y el final necesitaban el doble de espacio (8c594b) y un item
+// cortado justo despues de su ultimo campo obligatorio parseaba valido
+// (4f802a). Henry eligio quitar el respaldo. Por eso se sacaron de aca las
+// exigencias de publicar por O_EXCL (publica entero sin hard links, el
+// fallo de escritura borra lo que creo, en el limite de RLIMIT_FSIZE
+// publica, de N publicaciones gana una). NO es debilitar los tests: ahora se
+// exige algo mas fuerte, que sin hard links no se escriba NADA, y con eso
+// los cuatro hallazgos de la delta 2 quedan sin objeto.
 //
-// El contrato (enmienda 1): PublicarNuevo publica con un enlace (hard link)
-// bajo el candado: entero y sin pisar. Si el enlace falla con "no soportado"
-// (ENOTSUP, EOPNOTSUPP o EPERM: exFAT, FAT, algunos mounts de red), crea el
-// nombre final con O_EXCL y escribe:
+// El contrato (enmienda 2): PublicarNuevo publica con un enlace (hard link)
+// bajo el candado: atomico, entero y sin pisar. Si el enlace falla con "no
+// soportado" (ENOTSUP, EOPNOTSUPP o EPERM: exFAT, FAT):
 //
-//   - publica entero (cuando termina, el archivo tiene todos los bytes) y no
-//     deja temporales;
-//   - NUNCA pisa a otro escritor: si el nombre existe o aparece (archivo,
-//     symlink, aunque apunte a la nada, directorio, FIFO) devuelve un error
-//     que es os.ErrExist y no toca ese archivo;
-//   - mientras escribe se puede ver a medias: es un limite declarado y aca no
-//     se exige lo contrario;
-//   - si la escritura falla, borra el archivo que el mismo creo: no queda ni
-//     el final ni un temporal, y el nombre queda libre;
-//   - un error de enlace que no es "no soportado" (EACCES, EIO, ...) se
-//     devuelve tal cual: no se cae al camino de O_EXCL.
+//   - devuelve un error que envuelve hoomfs.ErrSinEnlaces (y que lo dice:
+//     .hoom necesita un sistema de archivos con hard links);
+//   - no escribe nada: no deja el nombre final (ni por un instante), ni
+//     temporales, y no toca un nombre que ya estaba (archivo, symlink, aunque
+//     apunte a la nada, directorio, FIFO);
+//   - un escritor ajeno que crea el nombre con O_EXCL al mismo tiempo gana
+//     siempre: PublicarNuevo nunca gana ni toca su archivo;
+//   - suelta el candado y deja el nombre libre: con hard links, despues, se
+//     publica entero.
+//
+// Un error de enlace que no es "no soportado" (EACCES, EIO, ENOSPC, EROFS)
+// se devuelve tal cual: no es ErrSinEnlaces ni os.ErrExist.
 //
 // Un volumen sin hard links se simula reemplazando la variable de paquete
 // enlazar (os.Link) por un enlace que falla como os.Link (un *os.LinkError)
-// con ENOTSUP, EOPNOTSUPP o EPERM. En 37b6ecb enlazar no existe y este
-// archivo no compila: es lo esperado hasta el arreglo.
+// con ENOTSUP, EOPNOTSUPP o EPERM. ErrSinEnlaces se usa a traves de
+// slErrSinEnlaces (hallazgos_c1b_cbbc8c_434aec_sinenlaces_test.go): en
+// 903c6d8 no existe y ese archivo no compila, es lo esperado hasta el
+// arreglo.
 //
 // HOOMFS_C1B_CBBC8C_RONDAS cambia las rondas de la carrera con el escritor
 // ajeno (por defecto 6000, 400 con -short) y HOOMFS_C1B_CBBC8C_SEGUNDOS su
@@ -42,17 +56,13 @@ package hoomfs
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
 	"os"
-	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -63,8 +73,8 @@ import (
 )
 
 // slNoSoportado son los errores con que falla un enlace en un volumen sin hard
-// links: los unicos que llevan al camino de O_EXCL (enmienda 1). En Linux
-// ENOTSUP y EOPNOTSUPP son el mismo numero; en macOS no.
+// links: los unicos que llevan a ErrSinEnlaces (enmienda 2). En Linux ENOTSUP
+// y EOPNOTSUPP son el mismo numero; en macOS no.
 var slNoSoportado = []struct {
 	nombre string
 	errno  syscall.Errno
@@ -72,6 +82,15 @@ var slNoSoportado = []struct {
 	{"ENOTSUP", syscall.ENOTSUP},
 	{"EOPNOTSUPP", syscall.EOPNOTSUPP},
 	{"EPERM", syscall.EPERM},
+}
+
+// slTodosNoSoportado son los errnos de slNoSoportado, para rotarlos.
+func slTodosNoSoportado() []syscall.Errno {
+	errnos := make([]syscall.Errno, 0, len(slNoSoportado))
+	for _, e := range slNoSoportado {
+		errnos = append(errnos, e.errno)
+	}
+	return errnos
 }
 
 // slEnlaceQueFalla es un enlace como os.Link en un volumen sin hard links: no
@@ -84,17 +103,19 @@ func slEnlaceQueFalla(llamadas *atomic.Int64, errnos ...syscall.Errno) func(viej
 	}
 }
 
-// slSinHardLinks reemplaza enlazar, mientras dure el test, por un enlace que
-// falla con errnos (rotando), y devuelve el contador de llamadas. Ningun test
-// de este archivo es paralelo: nadie mas publica mientras enlazar esta
-// reemplazado.
-func slSinHardLinks(t *testing.T, errnos ...syscall.Errno) *atomic.Int64 {
+// slSinHardLinks reemplaza enlazar por un enlace que falla con errnos
+// (rotando) hasta que se llama a restaurar o termina el test, y devuelve el
+// contador de llamadas. Ningun test de este archivo es paralelo: nadie mas
+// publica mientras enlazar esta reemplazado.
+func slSinHardLinks(t *testing.T, errnos ...syscall.Errno) (llamadas *atomic.Int64, restaurar func()) {
 	t.Helper()
-	var llamadas atomic.Int64
+	llamadas = new(atomic.Int64)
 	previo := enlazar
-	enlazar = slEnlaceQueFalla(&llamadas, errnos...)
-	t.Cleanup(func() { enlazar = previo })
-	return &llamadas
+	enlazar = slEnlaceQueFalla(llamadas, errnos...)
+	var una sync.Once
+	restaurar = func() { una.Do(func() { enlazar = previo }) }
+	t.Cleanup(restaurar)
+	return llamadas, restaurar
 }
 
 // slSeLlamo exige que PublicarNuevo haya intentado el enlace (si no, el
@@ -103,6 +124,36 @@ func slSeLlamo(t *testing.T, llamadas *atomic.Int64) {
 	t.Helper()
 	if llamadas.Load() == 0 {
 		t.Fatalf("fixture: PublicarNuevo nunca llamo a enlazar: el volumen sin hard links no se simulo")
+	}
+}
+
+// slEsSinEnlaces explica por que err no es el error de un volumen sin hard
+// links sobre un nombre libre, o "" si lo es: no nil, envuelve ErrSinEnlaces,
+// lo dice en su texto, y no es os.ErrExist (el nombre estaba libre).
+func slEsSinEnlaces(err error) string {
+	switch {
+	case err == nil:
+		return "devolvio nil (publico)"
+	case !errors.Is(err, slErrSinEnlaces):
+		return fmt.Sprintf("no envuelve hoomfs.ErrSinEnlaces: %v", err)
+	case errors.Is(err, os.ErrExist):
+		return fmt.Sprintf("es os.ErrExist con el nombre libre: %v", err)
+	case !strings.Contains(err.Error(), slErrSinEnlaces.Error()):
+		return fmt.Sprintf("no dice que .hoom necesita hard links (%q): %v", slErrSinEnlaces.Error(), err)
+	}
+	return ""
+}
+
+// slNoEsta exige que el nombre final no exista (Lstat: ni archivo, ni
+// symlink, ni nada).
+func slNoEsta(t *testing.T, ca, final string) {
+	t.Helper()
+	if info, err := os.Lstat(final); !errors.Is(err, os.ErrNotExist) {
+		sz := int64(-1)
+		if err == nil {
+			sz = info.Size()
+		}
+		t.Fatalf("%s: el nombre final %s no existe; Lstat = %v (%d bytes)", ca, final, err, sz)
 	}
 }
 
@@ -123,17 +174,20 @@ func slEsperar(t *testing.T, hecho <-chan error, final, que string) error {
 		}
 		f.Close()
 	}
-	t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, PublicarNuevo %s no termina en 30 s", que)
+	t.Fatalf("CA-265: sin hard links, PublicarNuevo %s no termina en 30 s", que)
 	return nil
 }
 
-// Hallazgos 20261021T174339_cbbc8c y 20261021T173339_434aec. CA-263 y
-// CA-265: sin hard links (el enlace falla con ENOTSUP, EOPNOTSUPP o EPERM),
-// PublicarNuevo publica igual: el archivo entero (vacio, de un byte, unicode,
-// binario, grande), regular, con a lo sumo los permisos pedidos, sin
-// temporales. Una segunda publicacion del mismo nombre falla con os.ErrExist
-// y no lo toca: mismo archivo, mismo contenido, mismos permisos.
-func TestCA263_HallazgoCbbc8c_SinHardLinksPublicaEntero(t *testing.T) {
+// Hallazgos 20261021T191854_589ad5, 20261021T192837_25172f,
+// 20261021T192448_8c594b y 20261021T192844_4f802a (enmienda 2). CA-263 y
+// CA-293: sin hard links (el enlace falla con ENOTSUP, EOPNOTSUPP o EPERM),
+// PublicarNuevo sobre un nombre libre devuelve un error que envuelve
+// ErrSinEnlaces y no escribe nada: ni el nombre final (entero, parcial o
+// vacio), ni temporales, para datos vacios, de un byte, unicode, binarios y
+// grandes. Intentarlo otra vez da lo mismo y no acumula nada. Guarda: el
+// candado quedo suelto y el nombre libre, asi que con hard links, despues, se
+// publica entero.
+func TestCA263_Hallazgos589ad5_25172f_8c594b_4f802a_SinHardLinksNoEscribeNada(t *testing.T) {
 	casos := []struct {
 		nombre string
 		datos  []byte
@@ -148,55 +202,44 @@ func TestCA263_HallazgoCbbc8c_SinHardLinksPublicaEntero(t *testing.T) {
 	for _, e := range slNoSoportado {
 		for _, c := range casos {
 			t.Run(e.nombre+"/"+c.nombre, func(t *testing.T) {
-				llamadas := slSinHardLinks(t, e.errno)
+				llamadas, restaurar := slSinHardLinks(t, e.errno)
 				dir, candado := pnRaiz(t)
 				final := filepath.Join(dir, "precios.yaml")
-				if err := PublicarNuevo(final, c.datos, c.modo, candado); err != nil {
-					t.Fatalf("CA-263: hallazgo cbbc8c: sin hard links (%s), PublicarNuevo sobre un nombre libre publica con O_EXCL: %v", e.nombre, err)
+				for intento := 1; intento <= 3; intento++ {
+					err := PublicarNuevo(final, c.datos, c.modo, candado)
+					slSeLlamo(t, llamadas)
+					if por := slEsSinEnlaces(err); por != "" {
+						t.Fatalf("CA-263: enmienda 2, hallazgos 589ad5/25172f: sin hard links (%s), intento %d, PublicarNuevo sobre un nombre libre falla con ErrSinEnlaces y no publica por otro camino: %s",
+							e.nombre, intento, por)
+					}
+					slNoEsta(t, fmt.Sprintf("CA-263: enmienda 2, hallazgos 589ad5/4f802a: sin hard links (%s), intento %d, no se escribe nada", e.nombre, intento), final)
+					if got := pnEntradas(t, dir); len(got) != 0 {
+						t.Fatalf("CA-263: enmienda 2, hallazgo 8c594b: sin hard links (%s), intento %d, no quedan temporales ni parciales en %s: %q",
+							e.nombre, intento, dir, got)
+					}
 				}
-				slSeLlamo(t, llamadas)
-				pnIgual(t, "CA-263: hallazgo cbbc8c: sin hard links", final, c.datos)
-				info, err := os.Lstat(final)
-				if err != nil {
-					t.Fatal(err)
-				}
-				perm := info.Mode().Perm()
-				if !info.Mode().IsRegular() || perm&^c.modo != 0 || perm&0o600 != 0o600 {
-					t.Fatalf("CA-263: hallazgo cbbc8c: sin hard links, el publicado es un archivo regular con a lo sumo los permisos %v (y el dueno lee y escribe): %v", c.modo, info.Mode())
-				}
-				pnSolo(t, "CA-263: hallazgo cbbc8c: sin hard links no quedan temporales", dir, "precios.yaml")
 
-				for _, otro := range []struct {
-					que   string
-					datos []byte
-				}{
-					{"con otros datos", pnDatos(len(c.datos)+17, 19)},
-					{"con los mismos datos", c.datos},
-					{"vacio", nil},
-				} {
-					err := PublicarNuevo(final, otro.datos, 0o600, candado)
-					if !errors.Is(err, os.ErrExist) {
-						t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, publicar %s sobre un nombre que ya existe falla con os.ErrExist, fue %v", otro.que, err)
-					}
-					pnIgual(t, "CA-265: hallazgo cbbc8c: sin hard links, el que ya estaba queda byte a byte igual", final, c.datos)
-					despues, err := os.Lstat(final)
-					if err != nil || !os.SameFile(info, despues) || despues.Mode() != info.Mode() {
-						t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, publicar %s no reemplaza el archivo que ya estaba (mismo archivo, mismos permisos): %v %v", otro.que, despues, err)
-					}
-					pnSolo(t, "CA-265: hallazgo cbbc8c: sin hard links, el intento fallido no deja temporales", dir, "precios.yaml")
+				// guarda: el candado quedo suelto y el nombre libre
+				restaurar()
+				if err := PublicarNuevo(final, c.datos, c.modo, candado); err != nil {
+					t.Fatalf("CA-263: guarda: tras fallar sin hard links el candado se suelta y el nombre queda libre: con hard links se publica: %v", err)
 				}
+				pnIgual(t, "CA-263: guarda: con hard links", final, c.datos)
+				pnSolo(t, "CA-263: guarda: con hard links", dir, "precios.yaml")
 			})
 		}
 	}
 }
 
-// Hallazgos 20261021T174339_cbbc8c y 20261021T173339_434aec. CA-265: sin hard
-// links, si el nombre final ya esta tomado (un archivo de otro, un symlink a
-// un archivo, un symlink que no apunta a nada, un directorio, un FIFO),
-// PublicarNuevo falla con os.ErrExist y no lo toca: no lo trunca ni lo
-// reemplaza, no escribe a traves del symlink (ni crea su destino), no se
-// bloquea en el FIFO y no deja temporales.
-func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
+// Hallazgos 20261021T174339_cbbc8c, 20261021T191854_589ad5 y
+// 20261021T192837_25172f (enmienda 2). CA-265 y CA-293: sin hard links, si el
+// nombre final ya esta tomado (un archivo de otro, un archivo vacio, un
+// symlink a un archivo, un symlink que no apunta a nada, un directorio vacio
+// o con algo adentro, un FIFO), PublicarNuevo falla (con ErrSinEnlaces u
+// os.ErrExist) y no lo toca: no lo trunca, no lo reemplaza ni lo borra, no
+// escribe a traves del symlink (ni crea su destino), no se bloquea en el FIFO
+// y no deja temporales.
+func TestCA265_Hallazgos589ad5_25172f_SinHardLinksNombreOcupadoQuedaIntacto(t *testing.T) {
 	casos := []struct {
 		nombre string
 		armar  func(t *testing.T, final, afuera string)
@@ -207,14 +250,14 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, func(t *testing.T, final, _ string) {
-			pnIgual(t, "CA-265: hallazgo cbbc8c: el archivo del otro escritor", final, []byte("titulo: del otro escritor\n"))
+			pnIgual(t, "CA-265: hallazgo 589ad5: el archivo del otro escritor", final, []byte("titulo: del otro escritor\n"))
 		}},
 		{"archivo vacio de otro escritor", func(t *testing.T, final, _ string) {
 			if err := os.WriteFile(final, nil, 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}, func(t *testing.T, final, _ string) {
-			pnIgual(t, "CA-265: hallazgo cbbc8c: el archivo vacio del otro escritor sigue vacio", final, []byte{})
+			pnIgual(t, "CA-265: hallazgo 589ad5: el archivo vacio del otro escritor sigue vacio", final, []byte{})
 		}},
 		{"symlink a un archivo", func(t *testing.T, final, afuera string) {
 			if err := os.WriteFile(afuera, []byte("el destino"), 0o644); err != nil {
@@ -225,9 +268,9 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
 			}
 		}, func(t *testing.T, final, afuera string) {
 			if dest, err := os.Readlink(final); err != nil || dest != afuera {
-				t.Fatalf("CA-265: hallazgo cbbc8c: el symlink sigue apuntando a %s: %q %v", afuera, dest, err)
+				t.Fatalf("CA-265: hallazgo 589ad5: el symlink sigue apuntando a %s: %q %v", afuera, dest, err)
 			}
-			pnIgual(t, "CA-265: hallazgo cbbc8c: no escribe a traves del symlink: su destino", afuera, []byte("el destino"))
+			pnIgual(t, "CA-265: hallazgo 589ad5: no escribe a traves del symlink: su destino", afuera, []byte("el destino"))
 		}},
 		{"symlink que no apunta a nada", func(t *testing.T, final, afuera string) {
 			if err := os.Symlink(afuera, final); err != nil {
@@ -235,10 +278,10 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
 			}
 		}, func(t *testing.T, final, afuera string) {
 			if dest, err := os.Readlink(final); err != nil || dest != afuera {
-				t.Fatalf("CA-265: hallazgo cbbc8c: el symlink sigue apuntando a %s: %q %v", afuera, dest, err)
+				t.Fatalf("CA-265: hallazgo 589ad5: el symlink sigue apuntando a %s: %q %v", afuera, dest, err)
 			}
 			if _, err := os.Lstat(afuera); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("CA-265: hallazgo cbbc8c: PublicarNuevo no crea el destino del symlink %s, Lstat = %v", afuera, err)
+				t.Fatalf("CA-265: hallazgo 589ad5: PublicarNuevo no crea el destino del symlink %s, Lstat = %v", afuera, err)
 			}
 		}},
 		{"directorio vacio", func(t *testing.T, final, _ string) {
@@ -247,7 +290,7 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
 			}
 		}, func(t *testing.T, final, _ string) {
 			if es, err := os.ReadDir(final); err != nil || len(es) != 0 {
-				t.Fatalf("CA-265: hallazgo cbbc8c: el directorio sigue ahi y vacio: %v %v", es, err)
+				t.Fatalf("CA-265: hallazgo 589ad5: el directorio sigue ahi y vacio: %v %v", es, err)
 			}
 		}},
 		{"directorio con un archivo", func(t *testing.T, final, _ string) {
@@ -258,7 +301,10 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, func(t *testing.T, final, _ string) {
-			pnIgual(t, "CA-265: hallazgo cbbc8c: lo de adentro del directorio", filepath.Join(final, "adentro"), []byte("intacto"))
+			if es, err := os.ReadDir(final); err != nil || len(es) != 1 {
+				t.Fatalf("CA-265: hallazgo 589ad5: el directorio sigue con lo suyo y nada mas: %v %v", es, err)
+			}
+			pnIgual(t, "CA-265: hallazgo 589ad5: lo de adentro del directorio", filepath.Join(final, "adentro"), []byte("intacto"))
 		}},
 		{"FIFO", func(t *testing.T, final, _ string) {
 			if err := syscall.Mkfifo(final, 0o644); err != nil {
@@ -266,14 +312,14 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
 			}
 		}, func(t *testing.T, final, _ string) {
 			if info, err := os.Lstat(final); err != nil || info.Mode()&os.ModeNamedPipe == 0 {
-				t.Fatalf("CA-265: hallazgo cbbc8c: el FIFO sigue ahi: %v %v", info, err)
+				t.Fatalf("CA-265: hallazgo 589ad5: el FIFO sigue ahi: %v %v", info, err)
 			}
 		}},
 	}
 	for _, e := range slNoSoportado {
 		for _, c := range casos {
 			t.Run(e.nombre+"/"+c.nombre, func(t *testing.T) {
-				llamadas := slSinHardLinks(t, e.errno)
+				llamadas, _ := slSinHardLinks(t, e.errno)
 				dir, candado := pnRaiz(t)
 				final := filepath.Join(dir, "precios.yaml")
 				afuera := filepath.Join(filepath.Dir(filepath.Dir(dir)), "afuera.txt")
@@ -285,41 +331,42 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksNombreOcupadoNoSePisa(t *testing.T) {
 				hecho := make(chan error, 1)
 				go func() { hecho <- PublicarNuevo(final, pnDatos(4096, 15), 0o644, candado) }()
 				err = slEsperar(t, hecho, final, "sobre un nombre tomado por un "+c.nombre)
-				slSeLlamo(t, llamadas)
-				if !errors.Is(err, os.ErrExist) {
-					t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links (%s), el nombre final esta tomado por un %s: PublicarNuevo falla con os.ErrExist, fue %v", e.nombre, c.nombre, err)
+				if err == nil {
+					t.Fatalf("CA-265: enmienda 2: sin hard links (%s), con el nombre tomado por un %s PublicarNuevo falla, devolvio nil", e.nombre, c.nombre)
 				}
+				if !errors.Is(err, slErrSinEnlaces) && !errors.Is(err, os.ErrExist) {
+					t.Fatalf("CA-265: enmienda 2: sin hard links (%s), con el nombre tomado por un %s el error es ErrSinEnlaces u os.ErrExist, fue %v", e.nombre, c.nombre, err)
+				}
+				t.Logf("enlazar llamado %d veces; error: %v", llamadas.Load(), err)
 				despues, err := os.Lstat(final)
-				if err != nil || !os.SameFile(antes, despues) || despues.Mode() != antes.Mode() {
-					t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, el %s que ocupaba el nombre no se reemplaza: %v %v", c.nombre, despues, err)
+				if err != nil || !os.SameFile(antes, despues) || despues.Mode() != antes.Mode() || despues.Size() != antes.Size() {
+					t.Fatalf("CA-265: hallazgos 589ad5/25172f: sin hard links, el %s que ocupaba el nombre no se reemplaza, ni se borra, ni cambia: %v %v", c.nombre, despues, err)
 				}
 				c.sigue(t, final, afuera)
-				pnSolo(t, "CA-265: hallazgo cbbc8c: sin hard links, el intento fallido no deja temporales", dir, "precios.yaml")
+				pnSolo(t, "CA-265: hallazgo 8c594b: sin hard links, el intento fallido no deja temporales", dir, "precios.yaml")
 			})
 		}
 	}
 }
 
-// Hallazgos 20261021T174339_cbbc8c y 20261021T173339_434aec. CA-265 y
+// Hallazgos 20261021T174339_cbbc8c, 20261021T173339_434aec,
+// 20261021T191854_589ad5 y 20261021T192837_25172f (enmienda 2). CA-265 y
 // CA-293: sin hard links, en cada ronda un escritor ajeno, sin candado, crea
 // el nombre final con O_CREATE|O_EXCL y lo escribe al mismo tiempo que
-// PublicarNuevo lo publica. Gana uno solo: si gana el ajeno, PublicarNuevo
-// devuelve os.ErrExist y el archivo es entero el del ajeno (no lo pisa ni lo
-// borra); si gana PublicarNuevo, el ajeno recibe EEXIST y el archivo es entero
-// el publicado. Nunca dos ganadores, y al final solo quedan los nombres
-// finales. El momento en que crea el ajeno se ajusta solo, ronda a ronda,
-// hacia el punto en que cada uno gana la mitad de las veces: ahi es donde
-// PublicarNuevo decide si el nombre esta libre y lo ocupa.
-func TestCA265_HallazgoCbbc8c_434aec_SinHardLinksEscritorAjenoNoEsPisado(t *testing.T) {
+// PublicarNuevo intenta publicarlo. El ajeno gana SIEMPRE: su O_EXCL nunca
+// encuentra el nombre tomado (PublicarNuevo no lo crea ni por un instante),
+// PublicarNuevo nunca devuelve nil (falla con ErrSinEnlaces u os.ErrExist) y
+// el archivo queda entero el del ajeno (no lo pisa, no lo trunca, no lo
+// borra). Al final solo quedan los nombres del ajeno, sin temporales. El
+// momento en que crea el ajeno se reparte al azar a lo largo de lo que tarda
+// un intento de PublicarNuevo, y se exige que las dos cosas se hayan
+// solapado en el tiempo (si no, la carrera no se dio).
+func TestCA265_Hallazgos589ad5_25172f_434aec_SinHardLinksElAjenoSiempreGana(t *testing.T) {
 	if prev := runtime.GOMAXPROCS(0); prev < 2 {
 		runtime.GOMAXPROCS(2)
 		defer runtime.GOMAXPROCS(prev)
 	}
-	errnos := make([]syscall.Errno, 0, len(slNoSoportado))
-	for _, e := range slNoSoportado {
-		errnos = append(errnos, e.errno)
-	}
-	llamadas := slSinHardLinks(t, errnos...)
+	llamadas, _ := slSinHardLinks(t, slTodosNoSoportado()...)
 	dir, candado := pnRaiz(t)
 
 	rondas := 6000
@@ -329,160 +376,196 @@ func TestCA265_HallazgoCbbc8c_434aec_SinHardLinksEscritorAjenoNoEsPisado(t *test
 	rondas = ajEntero(t, "HOOMFS_C1B_CBBC8C_RONDAS", rondas)
 	tope := time.Duration(ajEntero(t, "HOOMFS_C1B_CBBC8C_SEGUNDOS", 90)) * time.Second
 
-	// Calibracion: cuanto tarda una publicacion sin hard links y sin
-	// competencia.
+	// Calibracion: cuanto tarda un intento sin hard links y sin competencia.
+	// Cada uno falla con ErrSinEnlaces y no deja nada.
 	var muestras []time.Duration
 	for i := 0; i < 40; i++ {
 		p := filepath.Join(dir, fmt.Sprintf("calibracion-%02d.yaml", i))
 		t0 := time.Now()
-		if err := PublicarNuevo(p, ajDatos("calibracion", i), 0o644, candado); err != nil {
-			t.Fatalf("CA-263: hallazgo cbbc8c: sin hard links, PublicarNuevo sobre un nombre libre publica: %v", err)
-		}
+		err := PublicarNuevo(p, ajDatos("calibracion", i), 0o644, candado)
 		muestras = append(muestras, time.Since(t0))
-		if err := os.Remove(p); err != nil {
-			t.Fatal(err)
+		if por := slEsSinEnlaces(err); por != "" {
+			t.Fatalf("CA-263: enmienda 2: sin hard links, PublicarNuevo sobre un nombre libre falla con ErrSinEnlaces: %s", por)
+		}
+		if got := pnEntradas(t, dir); len(got) != 0 {
+			t.Fatalf("CA-263: enmienda 2: sin hard links no queda nada en %s: %q", dir, got)
 		}
 	}
 	slSeLlamo(t, llamadas)
 	sort.Slice(muestras, func(i, j int) bool { return muestras[i] < muestras[j] })
 	mediana := muestras[len(muestras)/2]
 
-	rnd := rand.New(rand.NewSource(0xcbbc8c))
-	centro := float64(mediana)
-	ancho := float64(mediana) / 2
+	rnd := rand.New(rand.NewSource(0x589ad5))
 	var (
-		hechas, ganaAjeno, ganaPublicar, dobles, otros int
-		nombres                                        []string
-		primerDoble                                    string
+		hechas, solapadas, publico, ocupado, pisado, otros int
+		nombres                                            []string
+		primera                                            string
 	)
+	falla := func(format string, args ...any) {
+		otros++
+		if primera == "" {
+			primera = fmt.Sprintf(format, args...)
+		}
+		t.Errorf(format, args...)
+	}
 	inicio := time.Now()
 	for ronda := 0; ronda < rondas && time.Since(inicio) < tope; ronda++ {
 		nombre := fmt.Sprintf("r%05d.yaml", ronda)
 		final := filepath.Join(dir, nombre)
 		nombres = append(nombres, nombre)
 		datosPub, datosAj := ajDatos("publicar", ronda), ajDatos("ajeno", ronda)
-		d := time.Duration(centro + (rnd.Float64()-0.5)*ancho)
-		if d < 0 {
-			d = 0
+		var d time.Duration
+		if rnd.Intn(10) != 0 {
+			d = time.Duration(rnd.Float64() * 1.5 * float64(mediana))
 		}
 
 		largada := make(chan struct{})
 		var t0 time.Time
-		errPub := make(chan error, 1)
-		type resAj struct{ crear, escribir error }
-		errAj := make(chan resAj, 1)
+		type resPub struct {
+			err    error
+			p0, p1 time.Time
+		}
+		type resAj struct {
+			crear, escribir error
+			a0, a1          time.Time
+		}
+		chPub := make(chan resPub, 1)
+		chAj := make(chan resAj, 1)
 		listos := make(chan struct{}, 2)
 		go func() {
 			listos <- struct{}{}
 			<-largada
-			errPub <- PublicarNuevo(final, datosPub, 0o644, candado)
+			p0 := time.Now()
+			err := PublicarNuevo(final, datosPub, 0o644, candado)
+			chPub <- resPub{err, p0, time.Now()}
 		}()
 		go func() {
 			listos <- struct{}{}
 			<-largada
 			ajEspera(t0, d)
+			a0 := time.Now()
 			c, w := ajAjeno(final, datosAj)
-			errAj <- resAj{c, w}
+			chAj <- resAj{c, w, a0, time.Now()}
 		}()
 		<-listos
 		<-listos
 		t0 = time.Now()
 		close(largada)
-		ep, ea := <-errPub, <-errAj
+		rp, ra := <-chPub, <-chAj
 		hechas++
-
-		if ea.escribir != nil {
-			t.Fatalf("ronda %d: el ajeno creo %s pero no pudo escribirlo: %v", ronda, nombre, ea.escribir)
+		if ra.a0.Before(rp.p1) && ra.a1.After(rp.p0) {
+			solapadas++
 		}
-		got, rerr := os.ReadFile(final)
-		switch {
-		case ep == nil && ea.crear == nil:
-			dobles++
-			if primerDoble == "" {
-				que := "ni el publicado ni el del ajeno"
-				switch {
-				case rerr != nil:
-					que = "ilegible: " + rerr.Error()
-				case bytes.Equal(got, datosPub):
-					que = "el publicado (el ajeno perdio lo que escribio)"
-				case bytes.Equal(got, datosAj):
-					que = "el del ajeno (lo publicado se perdio)"
-				}
-				primerDoble = fmt.Sprintf("ronda %d (%s, el ajeno creo a los %v de la largada): PublicarNuevo devolvio nil y el ajeno creo el archivo con O_EXCL: dos ganadores; el archivo es %s",
-					ronda, nombre, d, que)
-			}
-		case ep == nil:
-			ganaPublicar++
-			if !errors.Is(ea.crear, os.ErrExist) {
-				otros++
-				t.Errorf("CA-265: hallazgo cbbc8c: sin hard links, ronda %d: gano PublicarNuevo: el ajeno recibe EEXIST, recibio %v", ronda, ea.crear)
-			}
-			if rerr != nil || !bytes.Equal(got, datosPub) {
-				otros++
-				t.Errorf("CA-265: hallazgo cbbc8c: sin hard links, ronda %d: gano PublicarNuevo: %s es entero lo publicado (err %v, %d bytes)", ronda, nombre, rerr, len(got))
-			}
-		case ea.crear == nil:
-			ganaAjeno++
-			if !errors.Is(ep, os.ErrExist) {
-				otros++
-				t.Errorf("CA-265: hallazgo cbbc8c: sin hard links, ronda %d: gano el ajeno: PublicarNuevo devuelve un error que es os.ErrExist, devolvio %v", ronda, ep)
-			}
-			if rerr != nil || !bytes.Equal(got, datosAj) {
-				otros++
-				t.Errorf("CA-293: hallazgo 434aec: sin hard links, ronda %d: gano el ajeno: %s sigue siendo entero el del ajeno, PublicarNuevo no lo pisa ni lo borra (err %v, %d bytes)", ronda, nombre, rerr, len(got))
-			}
-		default:
-			otros++
-			t.Errorf("CA-265: hallazgo cbbc8c: sin hard links, ronda %d: alguno de los dos gana: PublicarNuevo %v, ajeno %v", ronda, ep, ea.crear)
+
+		if ra.escribir != nil {
+			t.Fatalf("ronda %d: el ajeno creo %s pero no pudo escribirlo: %v", ronda, nombre, ra.escribir)
+		}
+		if rp.err == nil {
+			publico++
+			falla("CA-265: enmienda 2, hallazgos 589ad5/25172f: sin hard links, ronda %d: PublicarNuevo devolvio nil (publico) con el ajeno creando %s a los %v de la largada; nunca gana",
+				ronda, nombre, d)
+		} else if !errors.Is(rp.err, slErrSinEnlaces) && !errors.Is(rp.err, os.ErrExist) {
+			falla("CA-265: enmienda 2: sin hard links, ronda %d: PublicarNuevo falla con ErrSinEnlaces u os.ErrExist, fallo con %v", ronda, rp.err)
+		}
+		if ra.crear != nil {
+			ocupado++
+			falla("CA-265: enmienda 2, hallazgos 589ad5/25172f: sin hard links, ronda %d: el ajeno no pudo crear %s con O_EXCL (a los %v de la largada): PublicarNuevo ocupo el nombre: %v",
+				ronda, nombre, d, ra.crear)
+		} else if got, err := os.ReadFile(final); err != nil || !bytes.Equal(got, datosAj) {
+			pisado++
+			falla("CA-293: hallazgos 434aec/589ad5/25172f: sin hard links, ronda %d: %s es entero el del ajeno, PublicarNuevo no lo pisa, no lo trunca ni lo borra (err %v, %d bytes, publicado=%v)",
+				ronda, nombre, err, len(got), bytes.Equal(got, datosPub))
 		}
 		if otros > 20 {
-			t.Fatalf("demasiados errores; corto en la ronda %d", ronda)
-		}
-
-		switch {
-		case ea.crear == nil && ep != nil:
-			centro += float64(mediana) / 20
-		case ep == nil && ea.crear != nil:
-			centro -= float64(mediana) / 20
-		}
-		if centro < 0 {
-			centro = 0
-		}
-		if centro > 4*float64(mediana) {
-			centro = 4 * float64(mediana)
+			t.Fatalf("demasiados errores; corto en la ronda %d; el primero: %s", ronda, primera)
 		}
 	}
 
-	t.Logf("hallazgos cbbc8c/434aec: sin hard links, %d rondas en %v (mediana de una publicacion sola %v): gano PublicarNuevo %d, gano el ajeno %d, dos ganadores %d",
-		hechas, time.Since(inicio).Round(time.Millisecond), mediana, ganaPublicar, ganaAjeno, dobles)
-	if hechas >= 100 && (ganaPublicar == 0 || ganaAjeno == 0) && dobles == 0 {
-		t.Fatalf("fixture: la carrera no se dio: en %d rondas gano siempre el mismo (PublicarNuevo %d, ajeno %d)", hechas, ganaPublicar, ganaAjeno)
+	t.Logf("enmienda 2: sin hard links, %d rondas en %v (mediana de un intento solo %v): solapadas %d; PublicarNuevo publico %d, ocupo el nombre %d, el del ajeno no quedo entero %d",
+		hechas, time.Since(inicio).Round(time.Millisecond), mediana, solapadas, publico, ocupado, pisado)
+	if hechas >= 100 && solapadas == 0 {
+		t.Fatalf("fixture: la carrera no se dio: en %d rondas el ajeno nunca creo el nombre mientras PublicarNuevo corria", hechas)
 	}
-	if dobles > 0 {
-		t.Errorf("CA-265 y CA-293: hallazgos cbbc8c/434aec: sin hard links, PublicarNuevo reemplazo el archivo que un escritor ajeno (sin candado) creo con O_EXCL en %d de %d rondas; la primera: %s",
-			dobles, hechas, primerDoble)
-	}
-	pnSolo(t, "CA-265: hallazgos cbbc8c/434aec: sin hard links, solo los nombres finales, sin temporales", dir, nombres...)
+	pnSolo(t, "CA-265: hallazgo 8c594b: sin hard links, solo los nombres del ajeno, sin temporales", dir, nombres...)
 }
 
-// Hallazgo 20261021T174339_cbbc8c. CA-265: sin hard links, N publicaciones
-// simultaneas del mismo nombre desde goroutines: gana exactamente una, las
-// demas reciben os.ErrExist, y cuando todas terminaron el archivo es ENTERO
-// el del ganador (nunca pisado por otro ni una mezcla). Sin temporales.
-func TestCA265_HallazgoCbbc8c_SinHardLinksCarreraEntreGoroutinesGanaUna(t *testing.T) {
-	errnos := make([]syscall.Errno, 0, len(slNoSoportado))
-	for _, e := range slNoSoportado {
-		errnos = append(errnos, e.errno)
+// Hallazgos 20261021T191854_589ad5 y 20261021T192844_4f802a (enmienda 2).
+// CA-263: sin hard links, el nombre final nunca aparece, ni por un instante:
+// un observador que mira el nombre sin parar mientras PublicarNuevo intenta
+// publicar 1 MiB no lo ve nunca (ni vacio, ni a medias, ni entero). Sin
+// enlace no hay publicacion a medias que un lector pueda tomar por un item.
+func TestCA263_Hallazgos589ad5_4f802a_SinHardLinksElNombreNuncaAparece(t *testing.T) {
+	if prev := runtime.GOMAXPROCS(0); prev < 2 {
+		runtime.GOMAXPROCS(2)
+		defer runtime.GOMAXPROCS(prev)
 	}
-	llamadas := slSinHardLinks(t, errnos...)
+	llamadas, _ := slSinHardLinks(t, slTodosNoSoportado()...)
+	dir, candado := pnRaiz(t)
+	rondas := 120
+	if testing.Short() {
+		rondas = 30
+	}
+	var vistas, miradas int64
+	var primera string
+	for ronda := 0; ronda < rondas; ronda++ {
+		final := filepath.Join(dir, fmt.Sprintf("%02d-precios.yaml", ronda))
+		datos := pnDatos(1<<20, 600+ronda)
+		var parar atomic.Bool
+		var wg sync.WaitGroup
+		var visto atomic.Int64
+		var miro atomic.Int64
+		var tam atomic.Int64
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for !parar.Load() {
+				miro.Add(1)
+				if info, err := os.Lstat(final); err == nil {
+					if visto.Add(1) == 1 {
+						tam.Store(info.Size())
+					}
+				}
+			}
+		}()
+		err := PublicarNuevo(final, datos, 0o644, candado)
+		parar.Store(true)
+		wg.Wait()
+		vistas += visto.Load()
+		miradas += miro.Load()
+		if visto.Load() > 0 && primera == "" {
+			primera = fmt.Sprintf("ronda %d: %s se vio %d veces (la primera con %d de %d bytes; PublicarNuevo devolvio %v)",
+				ronda, filepath.Base(final), visto.Load(), tam.Load(), len(datos), err)
+		}
+		if vistas > 0 {
+			t.Fatalf("CA-263: enmienda 2, hallazgos 589ad5/4f802a: sin hard links el nombre final no aparece nunca, ni por un instante; aparecio: %s", primera)
+		}
+		if por := slEsSinEnlaces(err); por != "" {
+			t.Fatalf("CA-263: enmienda 2: sin hard links, ronda %d, PublicarNuevo falla con ErrSinEnlaces: %s", ronda, por)
+		}
+		slNoEsta(t, fmt.Sprintf("CA-263: enmienda 2: sin hard links, ronda %d", ronda), final)
+	}
+	slSeLlamo(t, llamadas)
+	t.Logf("enmienda 2: sin hard links, %d rondas, %d miradas al nombre final, ninguna lo vio", rondas, miradas)
+	if miradas < int64(rondas) {
+		t.Fatalf("fixture: el observador casi no miro (%d miradas en %d rondas): el test no prueba nada", miradas, rondas)
+	}
+	if got := pnEntradas(t, dir); len(got) != 0 {
+		t.Fatalf("CA-263: enmienda 2, hallazgo 8c594b: sin hard links no queda nada en %s: %q", dir, got)
+	}
+}
+
+// Hallazgos 20261021T174339_cbbc8c y 20261021T191854_589ad5 (enmienda 2).
+// CA-265: sin hard links, N publicaciones simultaneas del mismo nombre desde
+// goroutines: ninguna gana, todas fallan con ErrSinEnlaces (nadie creo el
+// nombre, asi que ninguna es os.ErrExist), y cuando todas terminaron no hay
+// nada: ni el nombre ni temporales.
+func TestCA265_Hallazgos589ad5_8c594b_SinHardLinksCarreraEntreGoroutinesNingunaGana(t *testing.T) {
+	llamadas, _ := slSinHardLinks(t, slTodosNoSoportado()...)
 	dir, candado := pnRaiz(t)
 	const rondas, competidores = 20, 8
 	datosDe := func(ronda, i int) []byte { return pnDatos(256<<10+4096*i, 300*ronda+i) }
-	var nombres []string
 	for ronda := 0; ronda < rondas; ronda++ {
-		nombre := fmt.Sprintf("mismo-%02d.yaml", ronda)
-		nombres = append(nombres, nombre)
-		final := filepath.Join(dir, nombre)
+		final := filepath.Join(dir, fmt.Sprintf("mismo-%02d.yaml", ronda))
 		var wg sync.WaitGroup
 		largada := make(chan struct{})
 		errs := make([]error, competidores)
@@ -496,200 +579,24 @@ func TestCA265_HallazgoCbbc8c_SinHardLinksCarreraEntreGoroutinesGanaUna(t *testi
 		}
 		close(largada)
 		wg.Wait()
-		ganador := -1
 		for i, err := range errs {
-			switch {
-			case err == nil && ganador == -1:
-				ganador = i
-			case err == nil:
-				t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, dos publicaciones de %s ganaron a la vez (%d y %d)", nombre, ganador, i)
-			case !errors.Is(err, os.ErrExist):
-				t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, el perdedor %d de %s recibe os.ErrExist, fue %v", i, nombre, err)
+			if por := slEsSinEnlaces(err); por != "" {
+				t.Fatalf("CA-265: enmienda 2: sin hard links, la publicacion %d de %s falla con ErrSinEnlaces: %s", i, filepath.Base(final), por)
 			}
 		}
-		if ganador == -1 {
-			t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, una de las %d publicaciones de %s gana: %v", competidores, nombre, errs)
+		slNoEsta(t, fmt.Sprintf("CA-265: enmienda 2: sin hard links, ronda %d", ronda), final)
+		if got := pnEntradas(t, dir); len(got) != 0 {
+			t.Fatalf("CA-265: enmienda 2, hallazgo 8c594b: sin hard links, ronda %d, no queda nada en %s: %q", ronda, dir, got)
 		}
-		pnIgual(t, fmt.Sprintf("CA-265: hallazgo cbbc8c: sin hard links, %s es entero el del ganador %d", nombre, ganador), final, datosDe(ronda, ganador))
 	}
 	slSeLlamo(t, llamadas)
-	pnSolo(t, "CA-265: hallazgo cbbc8c: sin hard links", dir, nombres...)
 }
 
-const (
-	slEnvModo    = "HOOMFS_C1B_CBBC8C_MODO" // "publicar"
-	slEnvPath    = "HOOMFS_C1B_CBBC8C_PATH"
-	slEnvCandado = "HOOMFS_C1B_CBBC8C_CANDADO"
-	slEnvTam     = "HOOMFS_C1B_CBBC8C_TAM"
-	slEnvSemilla = "HOOMFS_C1B_CBBC8C_SEMILLA"
-	slEnvLimite  = "HOOMFS_C1B_CBBC8C_LIMITE" // RLIMIT_FSIZE que se pone al fallar el enlace; -1 = ninguno
-	slEnvErrno   = "HOOMFS_C1B_CBBC8C_ERRNO"  // con que falla el enlace
-)
-
-// slResultado es lo que informa el subproceso por stdout (un pipe: el limite
-// de tamano no lo alcanza).
-type slResultado struct {
-	Err       string `json:"err"`
-	Existe    bool   `json:"existe"`
-	Enlazados int64  `json:"enlazados"`
-}
-
-// TestHallazgoCbbc8cSubproceso no es un test: es el subproceso de los tests
-// del hallazgo 20261021T174339_cbbc8c (CA-293). Sin la variable de entorno no
-// hace nada. Reemplaza enlazar por un enlace que falla con el errno pedido y
-// que, la primera vez que se lo llama (el temporal ya esta escrito y
-// cerrado), baja RLIMIT_FSIZE con SIGXFSZ ignorada: asi la escritura del
-// nombre final con O_EXCL pasa del limite y devuelve EFBIG. Publica una vez.
-func TestHallazgoCbbc8cSubproceso(t *testing.T) {
-	if os.Getenv(slEnvModo) != "publicar" {
-		return
-	}
-	salir := func(format string, args ...any) {
-		fmt.Fprintf(os.Stderr, "subproceso: "+format+"\n", args...)
-		os.Exit(2)
-	}
-	path, candado := os.Getenv(slEnvPath), os.Getenv(slEnvCandado)
-	tam, err1 := strconv.Atoi(os.Getenv(slEnvTam))
-	semilla, err2 := strconv.Atoi(os.Getenv(slEnvSemilla))
-	limite, err3 := strconv.ParseInt(os.Getenv(slEnvLimite), 10, 64)
-	errno, err4 := strconv.Atoi(os.Getenv(slEnvErrno))
-	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
-		salir("tam/semilla/limite/errno: %v %v %v %v", err1, err2, err3, err4)
-	}
-	var lim syscall.Rlimit
-	if limite >= 0 {
-		signal.Ignore(syscall.SIGXFSZ)
-		if err := syscall.Getrlimit(syscall.RLIMIT_FSIZE, &lim); err != nil {
-			salir("getrlimit: %v", err)
-		}
-		lim.Cur = uint64(limite)
-	}
-	var llamadas atomic.Int64
-	falla := slEnlaceQueFalla(&llamadas, syscall.Errno(errno))
-	enlazar = func(viejo, nuevo string) error {
-		if llamadas.Load() == 0 && limite >= 0 {
-			if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &lim); err != nil {
-				salir("setrlimit: %v", err)
-			}
-		}
-		return falla(viejo, nuevo)
-	}
-	var r slResultado
-	if err := PublicarNuevo(path, pnDatos(tam, semilla), 0o644, candado); err != nil {
-		r.Err, r.Existe = err.Error(), errors.Is(err, os.ErrExist)
-	}
-	r.Enlazados = llamadas.Load()
-	raw, _ := json.Marshal(r)
-	os.Stdout.Write(append([]byte("SL-SALIDA "), append(raw, '\n')...))
-	os.Exit(0)
-}
-
-// slPublicarEnSubproceso publica tam bytes en path desde un subproceso sin
-// hard links (el enlace falla con errno) y, si limite >= 0, con RLIMIT_FSIZE =
-// limite desde que falla el enlace.
-func slPublicarEnSubproceso(t *testing.T, path, candado string, tam, semilla int, limite int64, errno syscall.Errno) slResultado {
-	t.Helper()
-	cmd := exec.Command(os.Args[0], "-test.run=^TestHallazgoCbbc8cSubproceso$", "-test.count=1", "-test.timeout=240s")
-	cmd.Env = append(os.Environ(), slEnvModo+"=publicar", slEnvPath+"="+path, slEnvCandado+"="+candado,
-		slEnvTam+"="+strconv.Itoa(tam), slEnvSemilla+"="+strconv.Itoa(semilla),
-		slEnvLimite+"="+strconv.FormatInt(limite, 10), slEnvErrno+"="+strconv.Itoa(int(errno)))
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("el subproceso fallo: %v\nstdout: %s\nstderr: %s", err, stdout.String(), stderr.String())
-	}
-	for _, l := range strings.Split(stdout.String(), "\n") {
-		if rest, ok := strings.CutPrefix(l, "SL-SALIDA "); ok {
-			var r slResultado
-			if err := json.Unmarshal([]byte(rest), &r); err != nil {
-				t.Fatalf("la salida del subproceso no es JSON: %v\n%s", err, rest)
-			}
-			if r.Enlazados == 0 {
-				t.Fatalf("fixture: en el subproceso PublicarNuevo nunca llamo a enlazar: el volumen sin hard links no se simulo (%+v)", r)
-			}
-			return r
-		}
-	}
-	t.Fatalf("el subproceso no informo nada:\nstdout: %s\nstderr: %s", stdout.String(), stderr.String())
-	return slResultado{}
-}
-
-// Hallazgo 20261021T174339_cbbc8c. CA-293 y CA-265: sin hard links,
-// PublicarNuevo crea el nombre final con O_EXCL y escribe; si esa escritura
-// falla (a la mitad, en el ultimo byte, en el primero), devuelve el error
-// (que no es os.ErrExist: el nombre estaba libre) y borra el archivo que el
-// mismo creo: no queda ni el final, ni parcial ni entero, ni un temporal. El
-// nombre queda libre: despues se publica entero.
-func TestCA293_HallazgoCbbc8c_SinHardLinksFalloDeEscrituraNoDejaNada(t *testing.T) {
-	const tam = 1 << 20
-	for _, e := range slNoSoportado {
-		for k, c := range []struct {
-			nombre string
-			limite int64
-		}{
-			{"falla a la mitad", tam / 2},
-			{"falla en el ultimo byte", tam - 1},
-			{"falla en el primer byte", 0},
-		} {
-			t.Run(e.nombre+"/"+c.nombre, func(t *testing.T) {
-				semilla := 20 + k
-				dir, candado := pnRaiz(t)
-				final := filepath.Join(dir, "20261021T174339_c1b003.json")
-				r := slPublicarEnSubproceso(t, final, candado, tam, semilla, c.limite, e.errno)
-				if r.Err == "" {
-					t.Fatalf("CA-293: enmienda 1: sin hard links (%s) PublicarNuevo crea el final con O_EXCL y lo escribe; con RLIMIT_FSIZE=%d (< %d bytes) desde que fallo el enlace, esa escritura falla y PublicarNuevo tiene que devolver el error, devolvio nil",
-						e.nombre, c.limite, tam)
-				}
-				if r.Existe {
-					t.Errorf("CA-293: hallazgo cbbc8c: un fallo de escritura no es os.ErrExist (el nombre estaba libre): %s", r.Err)
-				}
-				if info, err := os.Lstat(final); !errors.Is(err, os.ErrNotExist) {
-					sz := int64(-1)
-					if err == nil {
-						sz = info.Size()
-					}
-					t.Fatalf("CA-293: hallazgo cbbc8c: sin hard links, %s (%s) y quedo un archivo con el nombre final (%d bytes, Lstat = %v): PublicarNuevo borra el archivo que el mismo creo",
-						c.nombre, r.Err, sz, err)
-				}
-				if got := pnEntradas(t, dir); len(got) != 0 {
-					t.Fatalf("CA-293: hallazgo cbbc8c: sin hard links, %s y en %s quedaron temporales o parciales: %q", c.nombre, dir, got)
-				}
-				llamadas := slSinHardLinks(t, e.errno)
-				if err := PublicarNuevo(final, pnDatos(tam, semilla), 0o644, candado); err != nil {
-					t.Fatalf("CA-293: hallazgo cbbc8c: tras el fallo el nombre no quedo tomado: sin hard links se publica entero sin limite: %v", err)
-				}
-				slSeLlamo(t, llamadas)
-				pnIgual(t, "CA-293: hallazgo cbbc8c: sin hard links", final, pnDatos(tam, semilla))
-				pnSolo(t, "CA-293: hallazgo cbbc8c: sin hard links", dir, filepath.Base(final))
-			})
-		}
-	}
-}
-
-// GUARDA. Hallazgo 20261021T174339_cbbc8c. CA-293: sin hard links y con
-// RLIMIT_FSIZE exactamente igual al tamano desde que falla el enlace, la
-// escritura entra y el archivo queda publicado entero, sin temporales.
-func TestCA293_HallazgoCbbc8c_SinHardLinksJustoEnElLimitePublica(t *testing.T) {
-	const tam = 1 << 20
-	for k, e := range slNoSoportado {
-		t.Run(e.nombre, func(t *testing.T) {
-			semilla := 30 + k
-			dir, candado := pnRaiz(t)
-			final := filepath.Join(dir, "20261021T174339_c1b004.json")
-			if r := slPublicarEnSubproceso(t, final, candado, tam, semilla, tam, e.errno); r.Err != "" {
-				t.Fatalf("CA-293: hallazgo cbbc8c: sin hard links (%s), con RLIMIT_FSIZE igual al tamano (%d) el archivo entra: %s", e.nombre, tam, r.Err)
-			}
-			pnIgual(t, "CA-293: hallazgo cbbc8c: sin hard links", final, pnDatos(tam, semilla))
-			pnSolo(t, "CA-293: hallazgo cbbc8c: sin hard links", dir, filepath.Base(final))
-		})
-	}
-}
-
-// GUARDA. Hallazgo 20261021T174339_cbbc8c. CA-265 y CA-293: solo "no
-// soportado" (ENOTSUP, EOPNOTSUPP, EPERM) lleva al camino de O_EXCL. Si el
-// enlace falla con cualquier otro error (EACCES, EIO, ENOSPC, EROFS),
-// PublicarNuevo devuelve ese error (no os.ErrExist), no crea el nombre final
-// por otro camino y no deja temporales.
+// GUARDA. Hallazgo 20261021T174339_cbbc8c (enmienda 2). CA-265 y CA-293: solo
+// "no soportado" (ENOTSUP, EOPNOTSUPP, EPERM) es ErrSinEnlaces. Si el enlace
+// falla con cualquier otro error (EACCES, EIO, ENOSPC, EROFS), PublicarNuevo
+// devuelve ese error tal cual (errors.Is), que no es ErrSinEnlaces ni
+// os.ErrExist, no crea el nombre final por otro camino y no deja temporales.
 func TestCA265_HallazgoCbbc8c_GuardaOtroErrorDeEnlaceSeDevuelve(t *testing.T) {
 	for _, e := range []struct {
 		nombre string
@@ -701,23 +608,24 @@ func TestCA265_HallazgoCbbc8c_GuardaOtroErrorDeEnlaceSeDevuelve(t *testing.T) {
 		{"EROFS", syscall.EROFS},
 	} {
 		t.Run(e.nombre, func(t *testing.T) {
-			llamadas := slSinHardLinks(t, e.errno)
+			llamadas, _ := slSinHardLinks(t, e.errno)
 			dir, candado := pnRaiz(t)
 			final := filepath.Join(dir, "precios.yaml")
 			err := PublicarNuevo(final, pnDatos(4096, 40), 0o644, candado)
 			slSeLlamo(t, llamadas)
 			if err == nil {
-				t.Fatalf("CA-265: hallazgo cbbc8c: el enlace fallo con %s (no es \"no soportado\"): PublicarNuevo devuelve ese error y no publica por O_EXCL, devolvio nil", e.nombre)
+				t.Fatalf("CA-265: hallazgo cbbc8c: el enlace fallo con %s (no es \"no soportado\"): PublicarNuevo devuelve ese error y no publica por otro camino, devolvio nil", e.nombre)
 			}
 			if !errors.Is(err, e.errno) {
-				t.Fatalf("CA-265: hallazgo cbbc8c: el enlace fallo con %s: PublicarNuevo devuelve ese error (errors.Is), devolvio %v", e.nombre, err)
+				t.Fatalf("CA-265: hallazgo cbbc8c: el enlace fallo con %s: PublicarNuevo devuelve ese error tal cual (errors.Is), devolvio %v", e.nombre, err)
+			}
+			if errors.Is(err, slErrSinEnlaces) {
+				t.Fatalf("CA-265: enmienda 2: el enlace fallo con %s, que no es \"no soportado\": el error no es ErrSinEnlaces (no dice que faltan hard links): %v", e.nombre, err)
 			}
 			if errors.Is(err, os.ErrExist) {
 				t.Fatalf("CA-265: hallazgo cbbc8c: el enlace fallo con %s y el nombre estaba libre: el error no es os.ErrExist: %v", e.nombre, err)
 			}
-			if _, lerr := os.Lstat(final); !errors.Is(lerr, os.ErrNotExist) {
-				t.Fatalf("CA-293: hallazgo cbbc8c: el enlace fallo con %s: PublicarNuevo no cae al camino de O_EXCL, el nombre final no existe (Lstat = %v)", e.nombre, lerr)
-			}
+			slNoEsta(t, fmt.Sprintf("CA-293: hallazgo cbbc8c: el enlace fallo con %s: PublicarNuevo no publica por otro camino", e.nombre), final)
 			if got := pnEntradas(t, dir); len(got) != 0 {
 				t.Fatalf("CA-293: hallazgo cbbc8c: el enlace fallo con %s y en %s quedaron temporales: %q", e.nombre, dir, got)
 			}
@@ -725,60 +633,74 @@ func TestCA265_HallazgoCbbc8c_GuardaOtroErrorDeEnlaceSeDevuelve(t *testing.T) {
 	}
 }
 
-// Hallazgo 20261021T174339_cbbc8c. CA-265, como propiedad: sin hard links
-// (el enlace falla rotando ENOTSUP, EOPNOTSUPP y EPERM), para cualquier
-// secuencia de publicaciones sobre unos pocos nombres, la primera de cada
-// nombre publica sus datos enteros, todas las siguientes fallan con
-// os.ErrExist sin tocarlo, y en el directorio no hay nada mas que los nombres
-// publicados.
-func TestCA265_HallazgoCbbc8c_SinHardLinksPropiedadLaPrimeraGana(t *testing.T) {
-	errnos := make([]syscall.Errno, 0, len(slNoSoportado))
-	for _, e := range slNoSoportado {
-		errnos = append(errnos, e.errno)
-	}
-	llamadas := slSinHardLinks(t, errnos...)
+// Hallazgos 20261021T174339_cbbc8c, 20261021T191854_589ad5 y
+// 20261021T192837_25172f (enmienda 2). CA-265 y CA-293, como propiedad: sin
+// hard links (el enlace falla rotando ENOTSUP, EOPNOTSUPP y EPERM), para
+// cualquier secuencia de operaciones sobre unos pocos nombres, donde cada
+// una es o un escritor ajeno que crea el nombre (si esta libre) o
+// PublicarNuevo: PublicarNuevo nunca publica (sobre un nombre libre falla
+// con ErrSinEnlaces; sobre uno tomado, con ErrSinEnlaces u os.ErrExist), los
+// archivos del ajeno quedan byte a byte como los dejo, y en el directorio no
+// hay nada mas que lo que creo el ajeno.
+func TestCA265_Hallazgos589ad5_25172f_SinHardLinksPropiedadNoEscribeNada(t *testing.T) {
+	llamadas, _ := slSinHardLinks(t, slTodosNoSoportado()...)
 	var fallas []string
 	prop := func(ops []uint16) bool {
 		dir, candado := pnRaiz(t)
-		modelo := map[string][]byte{}
+		ajeno := map[string][]byte{}
 		for k, op := range ops {
 			nombre := fmt.Sprintf("n%d.yaml", op%4)
-			datos := pnDatos(int(op>>2)%5000, 500+k)
-			err := PublicarNuevo(filepath.Join(dir, nombre), datos, 0o644, candado)
-			if previo, ok := modelo[nombre]; ok {
-				if !errors.Is(err, os.ErrExist) {
-					fallas = append(fallas, fmt.Sprintf("op %d: %s ya existia: os.ErrExist, fue %v", k, nombre, err))
+			p := filepath.Join(dir, nombre)
+			datos := pnDatos(int(op>>3)%5000, 500+k)
+			if op&4 != 0 {
+				if _, ok := ajeno[nombre]; ok {
+					continue
+				}
+				if c, w := ajAjeno(p, datos); c != nil || w != nil {
+					fallas = append(fallas, fmt.Sprintf("op %d: el ajeno no pudo crear %s, que estaba libre: PublicarNuevo lo ocupo (%v %v)", k, nombre, c, w))
 					return false
 				}
-				if got, _ := os.ReadFile(filepath.Join(dir, nombre)); !bytes.Equal(got, previo) {
-					fallas = append(fallas, fmt.Sprintf("op %d: %s se piso", k, nombre))
+				ajeno[nombre] = datos
+				continue
+			}
+			err := PublicarNuevo(p, datos, 0o644, candado)
+			if previo, ok := ajeno[nombre]; ok {
+				if err == nil || (!errors.Is(err, slErrSinEnlaces) && !errors.Is(err, os.ErrExist)) {
+					fallas = append(fallas, fmt.Sprintf("op %d: %s era del ajeno: ErrSinEnlaces u os.ErrExist, fue %v", k, nombre, err))
+					return false
+				}
+				if got, _ := os.ReadFile(p); !bytes.Equal(got, previo) {
+					fallas = append(fallas, fmt.Sprintf("op %d: %s del ajeno se toco: %d de %d bytes", k, nombre, len(got), len(previo)))
 					return false
 				}
 				continue
 			}
-			if err != nil {
-				fallas = append(fallas, fmt.Sprintf("op %d: %s estaba libre y no se publico: %v", k, nombre, err))
+			if por := slEsSinEnlaces(err); por != "" {
+				fallas = append(fallas, fmt.Sprintf("op %d: %s estaba libre: %s", k, nombre, por))
 				return false
 			}
-			modelo[nombre] = datos
+			if _, err := os.Lstat(p); !errors.Is(err, os.ErrNotExist) {
+				fallas = append(fallas, fmt.Sprintf("op %d: %s estaba libre y quedo algo con ese nombre (Lstat = %v)", k, nombre, err))
+				return false
+			}
 		}
 		var want []string
-		for n, d := range modelo {
+		for n, d := range ajeno {
 			want = append(want, n)
 			if got, _ := os.ReadFile(filepath.Join(dir, n)); !bytes.Equal(got, d) {
-				fallas = append(fallas, fmt.Sprintf("%s no quedo entero: %d de %d bytes", n, len(got), len(d)))
+				fallas = append(fallas, fmt.Sprintf("%s del ajeno no quedo entero: %d de %d bytes", n, len(got), len(d)))
 				return false
 			}
 		}
 		sort.Strings(want)
 		if got := pnEntradas(t, dir); strings.Join(got, "|") != strings.Join(want, "|") {
-			fallas = append(fallas, fmt.Sprintf("en el directorio quedan %q, esperaba %q", got, want))
+			fallas = append(fallas, fmt.Sprintf("en el directorio quedan %q, esperaba solo lo del ajeno %q", got, want))
 			return false
 		}
 		return true
 	}
 	if err := quick.Check(prop, &quick.Config{MaxCount: 40}); err != nil {
-		t.Fatalf("CA-265: hallazgo cbbc8c: sin hard links, la primera publicacion de cada nombre gana y nada mas queda: %q (%v)", fallas, err)
+		t.Fatalf("CA-265: enmienda 2, hallazgos 589ad5/25172f: sin hard links PublicarNuevo no escribe nada y no toca lo ajeno: %q (%v)", fallas, err)
 	}
 	slSeLlamo(t, llamadas)
 }

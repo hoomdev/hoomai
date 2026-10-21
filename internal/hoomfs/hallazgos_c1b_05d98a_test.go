@@ -13,9 +13,9 @@
 // (enmienda 1 de la spec): PublicarNuevo(path, data, mode, candado) escribe
 // data a un temporal, lo cierra y, bajo hoomfs.Lock(candado) (por ejemplo
 // LockPath(root, "items")), lo enlaza (hard link) al nombre final: una sola
-// operacion que nunca reemplaza. Solo en un volumen sin hard links (el enlace
-// falla con ENOTSUP, EOPNOTSUPP o EPERM) crea el nombre final con O_EXCL y
-// escribe: tampoco pisa, pero mientras escribe se puede ver a medias; ese
+// operacion que nunca reemplaza. En un volumen sin hard links (el enlace
+// falla con ENOTSUP, EOPNOTSUPP o EPERM) falla con hoomfs.ErrSinEnlaces y no
+// escribe nada (enmienda 2, que reemplazo a la 1 y su camino de O_EXCL); ese
 // camino lo cubre hallazgos_c1b_cbbc8c_434aec_test.go. Si path ya existe
 // (archivo, directorio, symlink, aunque apunte a la nada) falla con un error
 // que es os.ErrExist y no lo toca. Estos tests corren en el filesystem
