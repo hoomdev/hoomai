@@ -1,0 +1,11 @@
+{
+  "id": "20261021T174140_c284d0",
+  "created_at": "2026-10-21T17:41:40.667371Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/cockpitcmd/cockpitcmd.go",
+  "description": "INTRODUCIDO: internal/cockpitcmd/cockpitcmd.go:162-168 descarta el nuevo error especifico de TaskDir para un worktree con HEAD separado o en otra rama y lo reemplaza por 'la tarea no existe; crea su worktree'. Ese directorio ya existe, por lo que 'hoom task start' tambien falla; cockpit oculta la instruccion util de volver a hoom/\u003cslug\u003e y deja sesion/terminal en un callejon sin salida.",
+  "author": "reviewer@codex",
+  "fingerprint": "773614c4e817c148",
+  "task": "fixes-cabina-c1b"
+}

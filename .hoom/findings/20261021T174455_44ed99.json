@@ -1,0 +1,11 @@
+{
+  "id": "20261021T174455_44ed99",
+  "created_at": "2026-10-21T17:44:55.284546Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/worktree.go",
+  "description": "PRE-EXISTENTE (follow-up): internal/gitx/worktree.go:44-46 agrupa cualquier error de os.Lstat(dir/.git) con el caso valido de que .git no exista o no sea regular y devuelve (ok=false, err=nil). Ante EACCES, EIO u otro fallo transitorio, TaskDir afirma que la tarea no existe; el tablero cae al arbol raiz y el doctor omite el workspace en vez de propagar gitx.ErrSinComprobar. El rango mejora otros fallos de Git/registro, pero conserva esta clasificacion anterior y deja incompleta la recuperacion ante un .git inaccesible.",
+  "author": "reviewer@codex",
+  "fingerprint": "773614c4e817c148",
+  "task": "fixes-cabina-c1b"
+}

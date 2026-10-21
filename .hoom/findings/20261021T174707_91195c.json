@@ -1,0 +1,11 @@
+{
+  "id": "20261021T174707_91195c",
+  "created_at": "2026-10-21T17:47:07.612175Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/item/hallazgos_c1b_enlace_y_temporales_test.go",
+  "description": "INTRODUCIDO — internal/item/hallazgos_c1b_enlace_y_temporales_test.go:12: el comentario afirma que PublicarNuevo ya no usa hard links y que esa dependencia desaparecio; sin embargo internal/hoomfs/hoomfs.go:169 intenta os.Link como camino principal y solo usa Lstat+Rename cuando sinEnlaces reconoce el error. La misma afirmacion aparece en internal/hoomfs/hallazgos_c1b_05d98a_test.go:13. Esta explicacion contradictoria hace que quien mantenga las pruebas entienda al reves la estrategia que se esta verificando; debe describir el camino link-first y su fallback.",
+  "author": "reviewer@codex",
+  "fingerprint": "773614c4e817c148",
+  "task": "fixes-cabina-c1b"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261021T174140_966474",
+  "created_at": "2026-10-21T17:41:40.454043Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO: internal/boardcmd/gather.go:328-333 solo conserva errores de TaskDir que envuelven ErrSinComprobar. Con la nueva validacion de internal/runcmd/runcmd.go:679-684, un worktree registrado que quedo con HEAD separado o en otra rama cae por este camino: Gather lee la evidencia de la raiz como si el espacio no existiera y Derive propone 'hoom task start \u003cslug\u003e', pero taskcmd.Start falla porque .hoom/worktrees/\u003cslug\u003e ya existe. La tarjeta queda con evidencia equivocada y una accion imposible en vez de mostrar el error reparable de rama.",
+  "author": "reviewer@codex",
+  "fingerprint": "773614c4e817c148",
+  "task": "fixes-cabina-c1b"
+}

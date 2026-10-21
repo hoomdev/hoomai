@@ -1,0 +1,11 @@
+{
+  "id": "20261021T173339_434aec",
+  "created_at": "2026-10-21T17:33:39.704267Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:173-178: en el fallback para filesystems sin hard links, PublicarNuevo comprueba con Lstat que el destino no exista y despues usa os.Rename, que reemplaza cualquier destino creado entre ambas llamadas. Un escritor que no comparte el candado (otra version de hoom, git u otro proceso) puede crear primero un item o registro de review y aun asi ser sobrescrito, rompiendo la garantia append-only/nunca pisa; los tests adversariales al escritor ajeno solo ejercitan el camino os.Link del filesystem actual. Hace falta una operacion no-replace atomica tambien en el fallback. Patronizable: regla Semgrep custom para Lstat/Stat seguido de os.Rename al mismo destino como sustituto de create-if-absent.",
+  "author": "reviewer@codex",
+  "fingerprint": "773614c4e817c148",
+  "task": "fixes-cabina-c1b"
+}
