@@ -1,0 +1,11 @@
+{
+  "id": "20261021T150831_69b029",
+  "created_at": "2026-10-21T15:08:31.37084Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/hallazgos_c1b_status_no_string_test.go",
+  "description": "INTRODUCIDO — internal/providers/hallazgos_c1b_status_no_string_test.go:177-181: la guarda dice que prueba completed y failed tambien con escapes JSON, pero la tabla repite dos veces exactamente `\"completed\"` y dos veces exactamente `\"failed\"`; ademas, al no tener un nombre por caso, la salida no permite distinguir las filas duplicadas. La suite comunica cuatro representaciones cuando solo ejercita dos. Usa spellings JSON realmente escapados y nombres de caso para que la intencion y la cobertura queden visibles.",
+  "author": "reviewer@codex",
+  "fingerprint": "7ce7987a0a894059",
+  "task": "fixes-cabina-c1b"
+}

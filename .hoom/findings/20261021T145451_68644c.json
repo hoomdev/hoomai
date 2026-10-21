@@ -1,0 +1,11 @@
+{
+  "id": "20261021T145451_68644c",
+  "created_at": "2026-10-21T14:54:51.559666Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:592-603: WorktreeDe no verifica que dir sea la entrada registrada de git worktree ni que su .git apunte de vuelta a ese directorio y a la rama hoom/\u003cslug\u003e; solo compara el top-level calculado por Git y el common-dir. Una carpeta comun .hoom/worktrees/evil con un archivo .git que diga gitdir: \u003croot\u003e/.git/worktrees/legit produce show-toplevel=evil y common-dir=\u003croot\u003e/.git, asi que runcmd.TaskDir la acepta. En una reproduccion, git add/commit desde evil avanzo HEAD de hoom/legit al blob de evil y dejo el worktree legit desalineado. Por tanto item save, agentes/review y comandos destructivos pueden operar sobre la rama/indice de otra tarea pese a la nueva puerta. Hay que atar ruta registrada, backpointer e identidad de rama al slug.",
+  "author": "reviewer@codex",
+  "fingerprint": "7ce7987a0a894059",
+  "task": "fixes-cabina-c1b"
+}

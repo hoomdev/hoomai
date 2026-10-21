@@ -1,0 +1,11 @@
+{
+  "id": "20261021T150458_6aeb17",
+  "created_at": "2026-10-21T15:04:58.399588Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:593-600 reduce cualquier fallo operativo de los dos git rev-parse (git ausente, .git/objeto inaccesible, E/S transitoria) al mismo false que significa ‘no es un worktree’. runcmd.TaskDir lo convierte en ‘la tarea no existe’ (internal/runcmd/runcmd.go:666-667), y consumidores de lectura descartan ese error: gatherIn cae silenciosamente al árbol raíz (internal/boardcmd/gather.go:328-331) y taskWorktrees omite la tarea del doctor (internal/boardcmd/doctor.go:252-254). Así una dependencia Git degradada se presenta como ausencia legítima: el tablero puede ocultar el trabajo/evidencia del worktree y el doctor devolver un informe parcial sin aviso. WorktreeDe debe distinguir ‘no pertenece’ de ‘no pude comprobarlo’ y esos lectores deben propagar/mostrar el fallo.",
+  "author": "reviewer@codex",
+  "fingerprint": "7ce7987a0a894059",
+  "task": "fixes-cabina-c1b"
+}
