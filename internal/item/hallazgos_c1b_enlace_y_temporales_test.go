@@ -1,30 +1,31 @@
-//go:build !windows
-
 // Tests de regresion de la review de los fixes de C1 sobre el item
 // (.hoom/specs/items-y-columna-derivada.md):
 //
 //   - 20261020T202439_d2c506 (medium, resilience; CA-263 y CA-265): item.Add
-//     publica el item con la variable de paquete enlazar (os.Link). En un
-//     volumen que permite crear y renombrar archivos pero no hard links
-//     (exFAT, vfat, ciertos mounts de red) el enlace falla con "no
-//     soportado" (ENOTSUP/EOPNOTSUPP; en linux, link(2) devuelve EPERM
-//     cuando el filesystem no admite hard links) y hoy Add devuelve ese
-//     error: ningun item se puede crear. Add tiene que crear igual el item,
-//     completo y legible por List, sin dejar temporales. Y con el enlace no
-//     soportado sigue valiendo CA-265: si el item ya existe, ErrExists y el
-//     archivo queda byte a byte igual; dos Add del mismo slug a la vez: uno
-//     gana, el otro recibe ErrExists, y el archivo es el del ganador entero.
+//     publicaba el item con un hard link (os.Link), y en un volumen sin hard
+//     links (exFAT, vfat, ciertos mounts de red) ningun item se podia crear.
+//     La vuelta anterior lo simulaba reemplazando la variable de paquete
+//     enlazar por un enlace que fallaba.
+//
+//   - 20261021T145451_05d98a (medium, risk): el arreglo de d2c506 dejaba, si
+//     el enlace fallaba, el item visible a medio escribir. El contrato nuevo
+//     de hoomfs.PublicarNuevo ya no usa hard links: escribe un temporal, lo
+//     cierra y, bajo un candado, comprueba que el final no exista y renombra.
+//     La dependencia de hard links desaparecio (05d98a), item.enlazar ya no
+//     existe, y por eso ya no hay nada que simular: estos tests corren con el
+//     filesystem normal. Sigue valiendo todo lo demas de CA-263 y CA-265: Add
+//     crea el item entero, legible por Load y List; con el item ya creado
+//     devuelve ErrExists y el archivo queda byte a byte igual (y es el mismo
+//     archivo: no se reemplaza); varios Add del mismo slug a la vez: uno gana,
+//     los demas reciben ErrExists, y el archivo es el del ganador entero; y
+//     nunca quedan temporales.
 //
 //   - 20261020T202732_6b1f72 (low, readability; CA-266): los temporales de
 //     hoom en .hoom/items/ tienen la forma EXACTA "." + slug valido +
 //     ".yaml.tmp-" + uno o mas digitos (asi los escriben item.Add y
 //     hoomfs.AtomicWrite). List calla solo esos; cualquier otro archivo que
 //     empiece con punto y contenga ".yaml.tmp-" avisa, como cualquier
-//     archivo que no es un item. Hoy List calla todo lo que empieza con "."
-//     y contiene ".yaml.tmp-".
-//
-// Estos tests cambian la variable de paquete enlazar: ninguno corre en
-// paralelo.
+//     archivo que no es un item.
 package item
 
 import (
@@ -35,39 +36,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"testing/quick"
 )
-
-// c1bNoSoportados son los errores con que link(2) dice que el filesystem no
-// admite hard links.
-var c1bNoSoportados = []struct {
-	nombre string
-	errno  syscall.Errno
-}{
-	{"ENOTSUP", syscall.ENOTSUP},
-	{"EOPNOTSUPP", syscall.EOPNOTSUPP},
-	{"EPERM (linux: el filesystem no admite hard links)", syscall.EPERM},
-}
-
-// c1bSinEnlaces reemplaza enlazar por uno que falla como en un volumen sin
-// hard links, y lo restaura al terminar el test. Devuelve cuantas veces se
-// llamo.
-func c1bSinEnlaces(t *testing.T, errno syscall.Errno) *int {
-	t.Helper()
-	orig := enlazar
-	t.Cleanup(func() { enlazar = orig })
-	var mu sync.Mutex
-	llamadas := new(int)
-	enlazar = func(viejo, nuevo string) error {
-		mu.Lock()
-		*llamadas++
-		mu.Unlock()
-		return &os.LinkError{Op: "link", Old: viejo, New: nuevo, Err: errno}
-	}
-	return llamadas
-}
 
 // c1bEntradas lista TODO lo que hay en .hoom/items/ (ocultos incluidos),
 // ordenado.
@@ -102,136 +73,112 @@ func c1bSoloItems(t *testing.T, ca, root string, slugs ...string) {
 	}
 }
 
-// Hallazgo 20261020T202439_d2c506. CA-263 y CA-264: con un enlace que el
-// filesystem no soporta, Add crea igual el item: completo (con un pedido
-// grande), legible por Load y por List sin avisos, y sin temporales.
-func TestCA263_HallazgoD2c506_AddSinHardLinksCreaElItem(t *testing.T) {
+// Hallazgos 20261020T202439_d2c506 y 20261021T145451_05d98a. CA-263 y
+// CA-264: Add crea el item completo (con un pedido grande), legible por Load
+// y por List sin avisos, y sin temporales.
+func TestCA263_Hallazgo05d98a_AddCreaElItemEntero(t *testing.T) {
 	// ~200 KB con saltos de linea adentro y sin espacios en los bordes: Add
 	// recorta los bordes del pedido por cualquier camino (regla vieja del
 	// item), y aca se exige que llegue entero, byte a byte.
 	pedido := strings.Repeat("que el catalogo muestre precios por region y moneda\n", 4000) + "fin del pedido"
 	presupuesto := 7.5
-	for _, c := range c1bNoSoportados {
-		t.Run(c.nombre, func(t *testing.T) {
-			root := itRepo(t)
-			c1bSinEnlaces(t, c.errno)
-			d := Draft{Titulo: "Precios por region", Tipo: "bug", Prioridad: "alta", Pedido: pedido, PresupuestoUSD: &presupuesto}
-			it, err := Add(root, d)
-			if err != nil {
-				t.Fatalf("CA-263: hallazgo d2c506: en un volumen sin hard links (%s) Add crea igual el item: %v", c.nombre, err)
-			}
-			if it.Slug != "precios-por-region" {
-				t.Fatalf("CA-263: el slug sale del titulo: %q", it.Slug)
-			}
-			got, err := Load(root, it.Slug)
-			if err != nil {
-				t.Fatalf("CA-263: hallazgo d2c506: el item creado sin hard links se lee: %v", err)
-			}
-			if got.Titulo != d.Titulo || got.Tipo != "bug" || got.Prioridad != "alta" || got.Pedido != pedido ||
-				got.PresupuestoUSD == nil || *got.PresupuestoUSD != presupuesto || got.CreadoPor == "" || got.CreadoEn.IsZero() {
-				t.Fatalf("CA-264: hallazgo d2c506: el item queda completo: titulo %q tipo %q prioridad %q pedido %d/%d bytes presupuesto %v creado %q %v",
-					got.Titulo, got.Tipo, got.Prioridad, len(got.Pedido), len(pedido), got.PresupuestoUSD, got.CreadoPor, got.CreadoEn)
-			}
-			items, warns, err := List(root)
-			if err != nil || len(warns) != 0 || len(items) != 1 || items[0].Slug != it.Slug || items[0].Pedido != pedido {
-				t.Fatalf("CA-266: hallazgo d2c506: List lee el item sin avisos: %d items, avisos %q, err %v", len(items), warns, err)
-			}
-			c1bSoloItems(t, "CA-263: hallazgo d2c506", root, it.Slug)
-		})
+	root := itRepo(t)
+	d := Draft{Titulo: "Precios por region", Tipo: "bug", Prioridad: "alta", Pedido: pedido, PresupuestoUSD: &presupuesto}
+	it, err := Add(root, d)
+	if err != nil {
+		t.Fatalf("CA-263: hallazgo 05d98a: Add crea el item: %v", err)
 	}
+	if it.Slug != "precios-por-region" {
+		t.Fatalf("CA-263: el slug sale del titulo: %q", it.Slug)
+	}
+	got, err := Load(root, it.Slug)
+	if err != nil {
+		t.Fatalf("CA-263: hallazgo 05d98a: el item creado se lee: %v", err)
+	}
+	if got.Titulo != d.Titulo || got.Tipo != "bug" || got.Prioridad != "alta" || got.Pedido != pedido ||
+		got.PresupuestoUSD == nil || *got.PresupuestoUSD != presupuesto || got.CreadoPor == "" || got.CreadoEn.IsZero() {
+		t.Fatalf("CA-264: hallazgo 05d98a: el item queda completo: titulo %q tipo %q prioridad %q pedido %d/%d bytes presupuesto %v creado %q %v",
+			got.Titulo, got.Tipo, got.Prioridad, len(got.Pedido), len(pedido), got.PresupuestoUSD, got.CreadoPor, got.CreadoEn)
+	}
+	items, warns, err := List(root)
+	if err != nil || len(warns) != 0 || len(items) != 1 || items[0].Slug != it.Slug || items[0].Pedido != pedido {
+		t.Fatalf("CA-266: hallazgo 05d98a: List lee el item sin avisos: %d items, avisos %q, err %v", len(items), warns, err)
+	}
+	c1bSoloItems(t, "CA-263: hallazgo 05d98a", root, it.Slug)
 }
 
-// GUARDA (verde en la base). Hallazgo 20261020T202439_d2c506. CA-265: con el
-// item ya creado, Add devuelve ErrExists por el camino normal (hard links
-// soportados), el archivo queda byte a byte igual y no quedan temporales.
-func TestCA265_HallazgoD2c506_AddExistenteConEnlaceNormal(t *testing.T) {
+// GUARDA (verde en la base). Hallazgos 20261020T202439_d2c506 y
+// 20261021T145451_05d98a. CA-265: con el item ya creado, Add devuelve
+// ErrExists, el archivo queda byte a byte igual, es el MISMO archivo (no se
+// reemplazo por una copia igual) y no quedan temporales.
+func TestCA265_Hallazgo05d98a_AddExistenteDaErrExists(t *testing.T) {
 	root := itRepo(t)
 	path := itEscribir(t, root, ".hoom/items/precios.yaml", itItemValido("Precios", "2026-09-22T15:04:05Z", "pedido: el original\n"))
 	antes, _ := os.ReadFile(path)
-	_, err := Add(root, Draft{Titulo: "Otro", Slug: "precios", Pedido: "el nuevo"})
+	infoAntes, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Add(root, Draft{Titulo: "Otro", Slug: "precios", Pedido: "el nuevo"})
 	if !errors.Is(err, ErrExists) {
 		t.Fatalf("CA-265: el item ya existe: Add envuelve ErrExists, fue %v", err)
 	}
 	if raw, _ := os.ReadFile(path); !bytes.Equal(raw, antes) {
 		t.Fatalf("CA-265: el item existente queda byte a byte igual:\n%s", raw)
 	}
+	if infoDespues, err := os.Lstat(path); err != nil || !os.SameFile(infoAntes, infoDespues) {
+		t.Fatalf("CA-265: hallazgo 05d98a: el item existente no se reemplaza (sigue siendo el mismo archivo): %v", err)
+	}
 	c1bSoloItems(t, "CA-265", root, "precios")
 }
 
-// Hallazgo 20261020T202439_d2c506. CA-265: con el enlace no soportado, un
-// Add sobre un item que ya existe tambien devuelve ErrExists (no el error
-// del enlace), deja el archivo byte a byte igual y no deja temporales.
-func TestCA265_HallazgoD2c506_AddExistenteSinHardLinks(t *testing.T) {
-	for _, c := range c1bNoSoportados {
-		t.Run(c.nombre, func(t *testing.T) {
-			root := itRepo(t)
-			path := itEscribir(t, root, ".hoom/items/precios.yaml", itItemValido("Precios", "2026-09-22T15:04:05Z", "pedido: el original\n"))
-			antes, _ := os.ReadFile(path)
-			c1bSinEnlaces(t, c.errno)
-			_, err := Add(root, Draft{Titulo: "Otro", Slug: "precios", Pedido: "el nuevo"})
-			if !errors.Is(err, ErrExists) {
-				t.Fatalf("CA-265: hallazgo d2c506: sin hard links (%s), el item ya existe: Add envuelve ErrExists, fue %v", c.nombre, err)
+// Hallazgos 20261020T202439_d2c506 y 20261021T145451_05d98a. CA-265 y
+// CA-263: varios Add del mismo slug a la vez: exactamente uno crea el item,
+// los demas reciben ErrExists, y el archivo es el item COMPLETO del ganador
+// (nunca uno pisado por otro ni una mezcla). Sin temporales al final.
+func TestCA265_Hallazgo05d98a_VariosAddALaVezGanaUno(t *testing.T) {
+	root := itRepo(t)
+	const rondas, competidores = 30, 4
+	pedidoDe := func(i int) string { return strings.Repeat(string(rune('a'+i)), 64<<10*(i+1)) }
+	var slugs []string
+	for ronda := 0; ronda < rondas; ronda++ {
+		slug := fmt.Sprintf("mismo-%02d", ronda)
+		slugs = append(slugs, slug)
+		var wg sync.WaitGroup
+		largada := make(chan struct{})
+		errs := make([]error, competidores)
+		for i := 0; i < competidores; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				<-largada
+				_, errs[i] = Add(root, Draft{Titulo: fmt.Sprintf("Titulo %d", i), Slug: slug, Pedido: pedidoDe(i)})
+			}(i)
+		}
+		close(largada)
+		wg.Wait()
+		ganador := -1
+		for i, err := range errs {
+			switch {
+			case err == nil && ganador == -1:
+				ganador = i
+			case err == nil:
+				t.Fatalf("CA-265: hallazgo 05d98a: dos Add con el slug %q crearon el item a la vez (%d y %d)", slug, ganador, i)
+			case !errors.Is(err, ErrExists):
+				t.Fatalf("CA-265: hallazgo 05d98a: el perdedor %d recibe ErrExists, fue %v", i, err)
 			}
-			if raw, _ := os.ReadFile(path); !bytes.Equal(raw, antes) {
-				t.Fatalf("CA-265: hallazgo d2c506: el item existente queda byte a byte igual:\n%s", raw)
-			}
-			c1bSoloItems(t, "CA-265: hallazgo d2c506", root, "precios")
-		})
+		}
+		if ganador == -1 {
+			t.Fatalf("CA-265: hallazgo 05d98a: uno de los Add con el slug %q crea el item: %v", slug, errs)
+		}
+		it, err := Load(root, slug)
+		want := pedidoDe(ganador)
+		if err != nil || it.Titulo != fmt.Sprintf("Titulo %d", ganador) || it.Pedido != want {
+			t.Fatalf("CA-265: hallazgo 05d98a: el archivo es el item entero del ganador %d: titulo %q, pedido %d bytes (esperaba %d), err %v",
+				ganador, it.Titulo, len(it.Pedido), len(want), err)
+		}
 	}
-}
-
-// Hallazgo 20261020T202439_d2c506. CA-265 y CA-263: con el enlace no
-// soportado, dos Add del mismo slug a la vez: exactamente uno crea el item,
-// el otro recibe ErrExists, y el archivo es el item COMPLETO del ganador
-// (nunca uno pisado por el otro ni una mezcla). Sin temporales al final.
-func TestCA265_HallazgoD2c506_DosAddALaVezSinHardLinks(t *testing.T) {
-	for _, c := range c1bNoSoportados {
-		t.Run(c.nombre, func(t *testing.T) {
-			root := itRepo(t)
-			c1bSinEnlaces(t, c.errno)
-			const rondas = 25
-			var slugs []string
-			for ronda := 0; ronda < rondas; ronda++ {
-				slug := fmt.Sprintf("mismo-%02d", ronda)
-				slugs = append(slugs, slug)
-				var wg sync.WaitGroup
-				largada := make(chan struct{})
-				errs := make([]error, 2)
-				for i := 0; i < 2; i++ {
-					wg.Add(1)
-					go func(i int) {
-						defer wg.Done()
-						<-largada
-						_, errs[i] = Add(root, Draft{Titulo: fmt.Sprintf("Titulo %d", i), Slug: slug,
-							Pedido: strings.Repeat(string(rune('a'+i)), 64<<10*(i+1))})
-					}(i)
-				}
-				close(largada)
-				wg.Wait()
-				ganador := -1
-				for i, err := range errs {
-					switch {
-					case err == nil && ganador == -1:
-						ganador = i
-					case err == nil:
-						t.Fatalf("CA-265: hallazgo d2c506: sin hard links, dos Add con el slug %q crearon el item a la vez", slug)
-					case !errors.Is(err, ErrExists):
-						t.Fatalf("CA-265: hallazgo d2c506: sin hard links, el perdedor recibe ErrExists, fue %v", err)
-					}
-				}
-				if ganador == -1 {
-					t.Fatalf("CA-265: hallazgo d2c506: sin hard links, uno de los dos Add con el slug %q crea el item: %v", slug, errs)
-				}
-				it, err := Load(root, slug)
-				want := strings.Repeat(string(rune('a'+ganador)), 64<<10*(ganador+1))
-				if err != nil || it.Titulo != fmt.Sprintf("Titulo %d", ganador) || it.Pedido != want {
-					t.Fatalf("CA-265: hallazgo d2c506: el archivo es el item entero del ganador %d: titulo %q, pedido %d bytes (esperaba %d), err %v",
-						ganador, it.Titulo, len(it.Pedido), len(want), err)
-				}
-			}
-			c1bSoloItems(t, "CA-263: hallazgo d2c506", root, slugs...)
-		})
-	}
+	c1bSoloItems(t, "CA-263: hallazgo 05d98a", root, slugs...)
 }
 
 // c1bAvisa dice si algun aviso nombra EXACTAMENTE el archivo nombre de

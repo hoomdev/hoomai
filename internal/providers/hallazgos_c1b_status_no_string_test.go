@@ -21,6 +21,8 @@
 package providers
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -170,30 +172,85 @@ func TestCA373_HallazgoCb821a_StatusAusenteSigueComoHoy(t *testing.T) {
 	}
 }
 
+// c1bEscapado devuelve el string JSON de s con las letras de las posiciones
+// pos escritas como escape \uXXXX (hex en mayuscula si mayus). La barra se
+// arma con su codigo (92) para que ningun editor la confunda con un escape.
+func c1bEscapado(s string, mayus bool, pos ...int) string {
+	escapar := map[int]bool{}
+	for _, p := range pos {
+		escapar[p] = true
+	}
+	formato := "%cu%04x"
+	if mayus {
+		formato = "%cu%04X"
+	}
+	var b strings.Builder
+	b.WriteByte('"')
+	for i, r := range s {
+		if escapar[i] {
+			fmt.Fprintf(&b, formato, rune(92), r)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
 // GUARDA (verde en la base). Hallazgos cb821a y 1b69ad. CA-373: "completed" y
 // "failed" como string siguen como hoy, tambien escritos con escapes JSON
-// (siguen siendo un string).
+// (\uXXXX, con hex en minuscula o en mayuscula): siguen siendo el mismo
+// string. Hallazgo 20261021T150831_69b029: antes la tabla repetia los
+// spellings literales sin ningun escape; ahora cada fila es un spelling
+// distinto, con su nombre en la salida, y el fixture comprueba que las filas
+// escapadas traen de verdad un escape y decodifican al mismo string.
 func TestCA373_HallazgoCb821a_StatusStringSigueComoHoy(t *testing.T) {
-	casos := []struct{ raw, detail string }{
-		{`"completed"`, "general-purpose termino"},
-		{`"completed"`, "general-purpose termino"},
-		{`"failed"`, "general-purpose fallo (failed)"},
-		{`"failed"`, "general-purpose fallo (failed)"},
+	todas := func(s string) []int {
+		var out []int
+		for i := range s {
+			out = append(out, i)
+		}
+		return out
+	}
+	casos := []struct{ nombre, status, raw, detail string }{
+		{"completed literal", "completed", `"completed"`, "general-purpose termino"},
+		{"completed con la c escapada", "completed", c1bEscapado("completed", false, 0), "general-purpose termino"},
+		{"completed escapado entero", "completed", c1bEscapado("completed", false, todas("completed")...), "general-purpose termino"},
+		{"failed literal", "failed", `"failed"`, "general-purpose fallo (failed)"},
+		{"failed con la f escapada", "failed", c1bEscapado("failed", false, 0), "general-purpose fallo (failed)"},
+		{"failed con la l escapada en hex mayuscula", "failed", c1bEscapado("failed", true, 3), "general-purpose fallo (failed)"},
+	}
+	vistos := map[string]bool{}
+	for _, c := range casos {
+		if vistos[c.raw] {
+			t.Fatalf("fixture: el spelling %s esta repetido en la tabla", c.raw)
+		}
+		vistos[c.raw] = true
+		var dec string
+		if err := json.Unmarshal([]byte(c.raw), &dec); err != nil || dec != c.status {
+			t.Fatalf("fixture: %q (%s) es el string JSON %q: decodifica a %q, %v", c.nombre, c.raw, c.status, dec, err)
+		}
+		escapado := strings.ContainsRune(c.raw, rune(92))
+		if literal := strings.HasSuffix(c.nombre, " literal"); literal == escapado {
+			t.Fatalf("fixture: %q trae un escape JSON solo si no es el literal: %s", c.nombre, c.raw)
+		}
 	}
 	for _, c := range casos {
-		for _, segundoPlano := range []bool{true, false} {
-			n := coNorm(t)
-			uso := coRealToolUse
-			if segundoPlano {
-				uso = hcToolUseRealSegundoPlano(t)
+		t.Run(c.nombre, func(t *testing.T) {
+			for _, segundoPlano := range []bool{true, false} {
+				n := coNorm(t)
+				uso := coRealToolUse
+				if segundoPlano {
+					uso = hcToolUseRealSegundoPlano(t)
+				}
+				evUso := n(uso)
+				evFin := n(c1bNotifRaw(t, c.raw))
+				c1bCierre(t, c.nombre+" (status "+c.raw+")", evFin, c.detail)
+				evRes := n(coRealToolResult)
+				if total := hcContarEnds(evUso, evFin, evRes); total != 1 {
+					t.Fatalf("CA-373: %s (status %s, segundo plano %v): un solo agent_end por delegacion, hubo %d", c.nombre, c.raw, segundoPlano, total)
+				}
 			}
-			evUso := n(uso)
-			evFin := n(c1bNotifRaw(t, c.raw))
-			c1bCierre(t, "status "+c.raw, evFin, c.detail)
-			evRes := n(coRealToolResult)
-			if total := hcContarEnds(evUso, evFin, evRes); total != 1 {
-				t.Fatalf("CA-373: status %s (segundo plano %v): un solo agent_end por delegacion, hubo %d", c.raw, segundoPlano, total)
-			}
-		}
+		})
 	}
 }
