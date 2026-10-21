@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T145451_68644c",
+  "as": "corregido",
+  "evidence": "35b6b75: gitx.WorktreeDe lee el registro desde Go (dir/.git archivo regular con gitdir bajo \u003ccommon\u003e/worktrees; ese registro nombra de vuelta dir/.git; desde dir git responde dir y el common de root), corre git sin las GIT_* que exporta un hook, y runcmd.TaskDir ata la rama refs/heads/hoom/\u003cslug\u003e. Tests 86c6084 en runcmd, taskcmd, itemcmd, agentcmd y reviewcmd: evil (.git hacia legit, relativo, inexistente, raiz), reg (.git editado), copia, movido, otro (rama forzada), dirgit, .git symlink y carpeta plana con GIT_DIR se rechazan sin tocar ramas, registro, HEAD, indice ni archivos (test-writer en clon limpio en b72de8f; fallan ahi y pasan con el arreglo; refutador: INFORME-refutador-c1b-review1.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T15:56:49.178632Z"
+}

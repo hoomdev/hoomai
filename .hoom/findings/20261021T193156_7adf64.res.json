@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T193156_7adf64",
+  "as": "corregido",
+  "evidence": "17dcce2: Evidence.WorktreeSinComprobar pasa a WorktreeInusable, que guarda el motivo de runcmd.TaskDir (no se pudo comprobar, o fuera de su rama), y la tarjeta dice 'el espacio de trabajo de la tarjeta no se puede usar: \u003cmotivo\u003e'; ya no presenta una rama incorrecta como una comprobacion imposible. El test de e7ab69 usa el nombre nuevo; 6aeb17, 966474 y e7ab69 verdes.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T19:48:08.389302Z"
+}

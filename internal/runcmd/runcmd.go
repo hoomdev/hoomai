@@ -29,7 +29,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
@@ -641,16 +643,55 @@ func CurrentTask(flag string) string {
 	return strings.TrimSpace(os.Getenv(EnvTask))
 }
 
+// ErrOtraRama: the task's worktree is there but not on its branch
+// hoom/<slug>. It is a worktree to fix, not a task to start: the readers
+// that show a card say so (findings 966474, c284d0).
+var ErrOtraRama = errors.New("worktree fuera de su rama")
+
 // TaskDir resolves where work for a task happens: its isolated worktree, or
-// the project root when no task is given. The envelope needs the same answer
-// the run uses, so both ask here.
+// the project root when no task is given. It is the one gate from a task's
+// slug to a folder: every command that runs, saves, discards or closes in a
+// task asks here (finding 28c350). The slug must be one, no step of
+// .hoom/worktrees/<slug> may be a symlink (a tracked one would take the
+// task to another repository), and the folder must be a worktree root's
+// repository registered at that path and on its branch hoom/<slug>, not a
+// plain folder, a copy or a folder that points at another task's worktree
+// (findings 28c350, 68644c).
 func TaskDir(root, task string) (string, error) {
 	if task == "" {
 		return root, nil
 	}
+	if !item.ValidSlug(task) {
+		return "", fmt.Errorf("tarea invalida %q: un slug usa minusculas, numeros y guiones (mira 'hoom task list')", task)
+	}
 	wt := filepath.Join(root, ".hoom", "worktrees", task)
-	if st, err := os.Stat(wt); err != nil || !st.IsDir() {
-		return "", fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", task)
+	for _, d := range []string{filepath.Join(root, ".hoom"), filepath.Dir(wt), wt} {
+		st, err := os.Lstat(d)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			// one that cannot be read is not a "no" (finding 48eeed)
+			return "", fmt.Errorf("no pude comprobar la tarea %q: %w en %s: %v", task, gitx.ErrSinComprobar, d, err)
+		}
+		if err != nil || !st.IsDir() {
+			return "", fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", task)
+		}
+	}
+	// git that cannot answer is not a "no": the error says so, and wraps
+	// gitx.ErrSinComprobar for the readers that would hide the task
+	rama, ok, err := gitx.WorktreeDe(root, wt)
+	if err != nil {
+		return "", fmt.Errorf("no pude comprobar la tarea %q: %w", task, err)
+	}
+	if !ok {
+		return "", fmt.Errorf("la tarea %q no existe: %s no es un worktree de este repositorio (mira 'hoom task list')", task, filepath.Join(".hoom", "worktrees", task))
+	}
+	// its branch is hoom/<slug>, the one task done closes: on another
+	// branch its commits would land on another task (finding 68644c)
+	if want := "refs/heads/hoom/" + task; rama != want {
+		en := "con HEAD separado"
+		if rama != "" {
+			en = "en la rama " + strings.TrimPrefix(rama, "refs/heads/")
+		}
+		return "", fmt.Errorf("%w: la tarea %q esta %s y no en hoom/%s: volve a su rama en %s", ErrOtraRama, task, en, task, filepath.Join(".hoom", "worktrees", task))
 	}
 	return wt, nil
 }

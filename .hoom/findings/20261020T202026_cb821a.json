@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202026_cb821a",
+  "created_at": "2026-10-20T20:20:26.471667Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO — internal/providers/claude.go:217-223 convierte un status no string de task_notification en \"\", y :300-310/:319-324 interpreta ese vacio como terminal exitoso. Ante status numerico u objeto, NewNormalizer emite un agent_end \"termino\" falso y marca la delegacion done, por lo que la notificacion terminal real posterior ya no puede corregirla; antes el decoder tipado descartaba esa correlacion. Hay que distinguir string vacio/ausente de tipo invalido y no cerrar la delegacion cuando el status no se pudo decodificar.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

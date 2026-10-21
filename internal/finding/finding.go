@@ -347,31 +347,35 @@ func scan(root string) (scanned, error) {
 	return out, nil
 }
 
-// UnreadablePrefix starts the List warning of a finding file that could not
-// be read: its state is unknown, and the board blocks on it
-// (boardcmd.Evidence.UnreadableFindings) the way the gate fails closed.
-const UnreadablePrefix = "hallazgo ilegible "
-
 // List derives the current state of every finding, oldest first. Corrupt
 // files are skipped and reported as warnings — never fatal, like verdicts.
 // A resolution that closes nothing (unreadable, no evidence, unknown state)
 // leaves its finding OPEN and says so in a warning.
 func List(root, base string, openOnly bool) ([]Item, []string, error) {
+	items, _, warnings, err := ListConIlegibles(root, base, openOnly)
+	return items, warnings, err
+}
+
+// ListConIlegibles is List that also gives, apart, the finding files that
+// could not be read: their state is unknown, and the board blocks on them
+// (boardcmd.Evidence.UnreadableFindings) the way the gate fails closed. The
+// warnings name them too, but only to be shown (finding 6b3eb7).
+func ListConIlegibles(root, base string, openOnly bool) (items []Item, ilegibles, warnings []string, err error) {
 	sc, err := scan(root)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	var warnings []string
+	ilegibles = append([]string{}, sc.broken...)
 	for _, b := range sc.broken {
-		warnings = append(warnings, UnreadablePrefix+b)
+		warnings = append(warnings, "hallazgo ilegible "+b)
 	}
 	warnings = append(warnings, sc.warnings...)
 	if len(sc.items) == 0 {
-		return []Item{}, warnings, nil
+		return []Item{}, ilegibles, warnings, nil
 	}
 
 	current := gitx.Snapshot(root, base).ChangeFingerprint
-	items := []Item{}
+	items = []Item{}
 	for _, it := range sc.items {
 		if it.Fingerprint != "" && current != "" && it.Fingerprint != current {
 			it.CodeChanged = true // a re-verificar, no a asumir
@@ -381,7 +385,7 @@ func List(root, base string, openOnly bool) ([]Item, []string, error) {
 		}
 		items = append(items, it)
 	}
-	return items, warnings, nil
+	return items, ilegibles, warnings, nil
 }
 
 // ListJSON renders exactly what both the CLI and the Studio emit.

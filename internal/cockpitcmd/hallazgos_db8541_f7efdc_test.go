@@ -10,20 +10,20 @@
 //     y con zsh -c contra un tmux falso que anota sus argumentos: tmux tiene
 //     que recibir `-t` con exactamente `=<session>`. Lo usan los tests de
 //     363285 en hallazgos_c1c_test.go y los de abajo.
-//   - f7efdc, con el contrato nuevo de los hallazgos 9c1816, 57bd29 y 03481c
-//     (decision de Henry): Open crea la sesion, el split-window falla y
-//     cerrarla tambien falla. Este la sesion muerta (la CLI de la IA salio y
-//     tmux dice "can't find session", con codigo 1) o viva (kill-session
-//     roto, el caso de 363285), el error es UNO SOLO: conserva el del
-//     split-window, no afirma que la sesion ya no existe ni que quedo
-//     abierta, dice que no se pudo saber si sigue abierta y muestra el
-//     comando de cierre `tmux kill-session -t '=<sesion>'` entre comillas.
-//     Con la sesion muerta, el reintento la crea y la registra.
+//   - f7efdc, con la ENMIENDA 6 (decision de Henry, hallazgo bde7e4): Open
+//     crea la sesion y el split-window falla, este la sesion muerta (la CLI
+//     de la IA salio y tmux dice "can't find session", con codigo 1) o viva.
+//     Open no la cierra: no corre ningun kill-session (cerrarla por su
+//     nombre no prueba que sea la suya), devuelve el error, que conserva el
+//     del split-window, no dice que la cerro y muestra el comando de cierre
+//     `tmux kill-session -t '=<sesion>'` entre comillas. Con la sesion
+//     muerta, el reintento la crea y la registra; con la sesion viva, la ve
+//     existente (created false) y no registra nada.
 //
 // Fixtures de open_capture_test.go (cbProyecto, cbLeerItem),
 // hallazgos_c1_test.go (h3Tmux, h3Sesion, h3Reintento), hallazgos_c1c_test.go
-// (hc3Tmux) y tmuxdoble_test.go (tmuxSinSesion,
-// incumplimientosDelCierreFallido).
+// (hc3Tmux), hallazgos_c1b_bde7e4_test.go (h6NoLaCerro,
+// h6ReintentoLaVeExistente) y tmuxdoble_test.go (tmuxSinSesion).
 // Ningun tmux real.
 package cockpitcmd
 
@@ -242,35 +242,31 @@ func (f *hf7Tmux) deps() Deps {
 	return d
 }
 
-// Hallazgo f7efdc (CA-347, CA-348), con el contrato nuevo. Open crea la sesion
-// (new-session funciona), el split-window falla y el cierre (`tmux
-// kill-session -t =<sesion>`) TAMBIEN falla:
+// Hallazgo f7efdc (CA-347, CA-348), con la ENMIENDA 6. Open crea la sesion
+// (new-session funciona) y el split-window falla:
 //
 //   - la sesion murio: el split-window falla porque la sesion ya no esta, y
-//     kill-session y has-session salen con codigo 1, como tmux de verdad
-//     ("can't find session").
+//     un kill-session (o has-session) saldria con codigo 1, como tmux de
+//     verdad ("can't find session").
 //   - la sesion sigue viva: el split-window falla y kill-session esta roto
-//     (el caso de 363285).
+//     (el escenario de 363285).
 //
-// En los dos el error cumple el mismo contrato (lo verifica
-// incumplimientosDelCierreFallido): conserva el del split-window, no afirma
-// que la sesion ya no existe ni que quedo abierta, dice que no se pudo saber
-// si sigue abierta y muestra `tmux kill-session -t '=<sesion>'`, que corre
-// tal cual en sh y en zsh (cierreEjecutable). El item no declara nada, y con
-// la sesion muerta el reintento con tmux sano la crea (created: true) y la
-// registra.
+// En los dos Open no corre ningun kill-session ni kill-pane, y el error
+// cumple la enmienda 6 (h6NoLaCerro): conserva el del split-window, no dice
+// que la cerro y muestra `tmux kill-session -t '=<sesion>'`, que corre tal
+// cual en sh y en zsh (cierreEjecutable). El item no declara nada. Con la
+// sesion muerta, el reintento con tmux sano la crea (created: true) y la
+// registra; con la sesion viva, la ve existente (created false), no la toca
+// y no registra nada.
 //
-// El contrato de tres estados (A: "ya no existe" si has-session salia con
-// codigo 1; B: "quedo abierta" si salia bien; C: "no se sabe" si no
-// confirmaba nada) quedo REEMPLAZADO por decision de Henry tras los hallazgos
-// 9c1816, 57bd29 y 03481c: tmux sale con codigo 1 tanto si la sesion no esta
-// como si falla su propio cliente, asi que el codigo de salida no prueba nada.
-// No es debilitar el test: el mensaje nuevo es verdadero en todos los casos,
-// cosa que el de tres estados no lograba (decia "ya no existe" con la sesion
-// viva).
-func TestCA347_CA348_HallazgoF7efdc_SiNoPudoCerrarlaElErrorNoSabeSiLaSesionSigueAbierta(t *testing.T) {
+// Reemplaza a TestCA347_CA348_HallazgoF7efdc_SiNoPudoCerrarlaElErrorNoSabeSiLaSesionSigueAbierta,
+// que exigia el error de un kill-session fallido ("no se pudo saber si sigue
+// abierta"): con la enmienda 6 (decision de Henry, hallazgo bde7e4) Open no
+// intenta cerrarla. No es debilitar: ahora se exige no tocar una sesion que
+// Open no puede probar suya.
+func TestCA347_CA348_HallazgoF7efdc_Enmienda6_SiElSplitWindowFallaNoLaCierraYDiceComoCerrarla(t *testing.T) {
 	t.Run("la sesion murio", func(t *testing.T) {
-		const ca = "f7efdc (CA-347, CA-348): la sesion murio"
+		const ca = "f7efdc (CA-347, CA-348, enmienda 6): la sesion murio"
 		root, _ := cbProyecto(t, true)
 		crudo := cbLeerItem(t, root)
 		f := &hf7Tmux{h3Tmux: &h3Tmux{}}
@@ -282,40 +278,27 @@ func TestCA347_CA348_HallazgoF7efdc_SiNoPudoCerrarlaElErrorNoSabeSiLaSesionSigue
 		if f.viva(h3Sesion) {
 			t.Fatalf("%s: fixture: la sesion %s murio en el split-window:\n%s", ca, h3Sesion, f.todas())
 		}
-		if err == nil {
-			t.Fatalf("%s: con el split-window roto Open devuelve el error:\n%s", ca, f.todas())
-		}
-		msg := err.Error()
-		if mal := incumplimientosDelCierreFallido(msg, "can't find session: "+h3Sesion, h3Sesion); len(mal) > 0 {
-			t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, f.todas())
-		}
-		cierreEjecutable(t, ca, msg, h3Sesion)
+		h6NoLaCerro(t, ca, f.h3Tmux, err, "can't find session: "+h3Sesion)
 		if ahora := cbLeerItem(t, root); !bytes.Equal(ahora, crudo) {
 			t.Fatalf("CA-348: f7efdc: una sesion que no quedo armada no se declara en el item:\n%s", ahora)
 		}
-		h3Reintento(t, "f7efdc: la sesion murio", root, f.h3Tmux)
+		h3Reintento(t, "f7efdc (enmienda 6): la sesion murio", root, f.h3Tmux)
 	})
 
-	t.Run("la sesion sigue viva y kill-session falla", func(t *testing.T) {
-		const ca = "f7efdc (CA-347, CA-348): la sesion sigue viva (363285)"
+	t.Run("la sesion sigue viva y kill-session esta roto", func(t *testing.T) {
+		const ca = "f7efdc (CA-347, CA-348, enmienda 6): la sesion sigue viva (363285)"
 		root, _ := cbProyecto(t, true)
 		crudo := cbLeerItem(t, root)
 		f := &hc3Tmux{h3Tmux: &h3Tmux{fallar: "split-window"}, killRoto: true}
 
 		_, err := Open(root, "demo", Options{Provider: "claude", Task: "facturas"}, f.deps())
+		h6NoLaCerro(t, ca, f.h3Tmux, err, h3ErrPaso.Error())
 		if !f.viva(h3Sesion) {
-			t.Fatalf("%s: fixture: con kill-session roto la sesion %s sigue viva:\n%s", ca, h3Sesion, f.todas())
+			t.Errorf("%s: la sesion %s sigue viva: Open no la toca:\n%s", ca, h3Sesion, f.todas())
 		}
-		if err == nil {
-			t.Fatalf("%s: con el split-window roto Open devuelve el error:\n%s", ca, f.todas())
-		}
-		msg := err.Error()
-		if mal := incumplimientosDelCierreFallido(msg, h3ErrPaso.Error(), h3Sesion); len(mal) > 0 {
-			t.Errorf("%s: el cierre fallo y tmux no prueba si la sesion sigue abierta; el error:\n- %s\nerror: %q\ntmux:\n%s", ca, strings.Join(mal, "\n- "), msg, f.todas())
-		}
-		cierreEjecutable(t, ca, msg, h3Sesion)
 		if ahora := cbLeerItem(t, root); !bytes.Equal(ahora, crudo) {
 			t.Fatalf("CA-348: f7efdc: una sesion que no quedo armada no se declara en el item:\n%s", ahora)
 		}
+		h6ReintentoLaVeExistente(t, ca, root, f.h3Tmux, crudo)
 	})
 }

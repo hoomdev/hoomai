@@ -1,0 +1,11 @@
+{
+  "id": "20261021T150011_3229f3",
+  "created_at": "2026-10-21T15:00:11.901979Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/derive.go",
+  "description": "INTRODUCIDO — internal/boardcmd/derive.go:507-518 filtra el overflow de manera voraz en el orden de runUsages: conserva cada costo mientras total+c sea finito y convierte en null el primero que ya no entra. Por eso el mismo multiconjunto de costos finitos produce gastos distintos segun el orden: [1e308, 8e307, 7e307] deja 1.7e308 (descarta 8e307), mientras [8e307, 7e307, 1e308] deja 1.5e308 (descarta 1e308). Gather ordena por fechas y runUsages antepone runs referenciados por sobres, de modo que cambiar timestamps o agregar un sobre puede alterar card.spend y que fila de work queda sin costo aunque ningun usage cambie. Los casos nuevos solo permutan costos iguales/simetricos y no detectan esta dependencia. La politica de sanitizacion debe dar el mismo total y las mismas decisiones para el mismo conjunto de usages, independiente del orden de evidencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "7ce7987a0a894059",
+  "task": "fixes-cabina-c1b"
+}

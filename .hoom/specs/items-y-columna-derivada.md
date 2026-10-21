@@ -1,6 +1,23 @@
 # Spec: items y columna derivada (cabina visual, C1)
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 2 es
+una sola y reemplaza a la 1: `item.Add` y el registro de review publican el
+archivo nuevo entero y sin pisar uno que ya esté (`hoomfs.PublicarNuevo`:
+un temporal que se enlaza al nombre final), y en un volumen sin hard links
+(exFAT, FAT) fallan con un error que dice que `.hoom` necesita un sistema de
+archivos con hard links, sin escribir nada. Es un límite declarado: ahí no
+hay una operación portátil que publique entero y sin pisar a la vez, y cada
+respaldo probado abría otro borde (hallazgos 589ad5, 25172f, 8c594b,
+4f802a, 610d87 y 31ba62 de la delta 2 de los fixes de C1, sobre el `O_EXCL`
+de la enmienda 1; Henry eligió quitar el respaldo). No agrega ni cambia
+criterios.
+
+Enmienda 1 (aprobada el 2026-10-21, sha256 b6ea4d3b), reemplazada por la 2:
+sin hard links, creaba el archivo con `O_EXCL` y lo escribía, visible a
+medias.
+
+Historia: aprobada el 2026-09-23 (sha256 436e0967); enmienda 1 aprobada el
+2026-10-21 (sha256 b6ea4d3b), reemplazada por la 2.
 Tarea sugerida: `hoom task start items-y-columna-derivada`.
 Origen: `.hoom/intake/rfc-cabina-visual-v2.md` (spec 1 de 4, "C1 — Items y
 columna derivada") y el pedido de Henry del 2026-09-22, que fija la tabla de
@@ -117,7 +134,10 @@ commit_final: 3f2a...          # sha completo de la punta de hoom/<slug> al cerr
   `Add(root string, d Draft) (Item, error)`, `Load(root, slug string) (Item,
   error)`, `List(root string) ([]Item, []string, error)` (items válidos +
   avisos) y `MarkDone(root, slug, commit string, at time.Time) (bool, error)`.
-  Todas las escrituras son atómicas (`hoomfs.AtomicWrite`).
+  Todas las escrituras son atómicas (`hoomfs.AtomicWrite`). `Add` publica
+  el item nuevo entero y sin pisar uno que ya esté (`hoomfs.PublicarNuevo`);
+  en un volumen sin hard links falla con un error que lo dice y no escribe
+  nada (enmienda 2).
 - `Slugify`: minúsculas, sin acentos (á→a, ñ→n), cada tramo que no sea
   `[a-z0-9]` pasa a un solo `-`, sin `-` al principio ni al final, recortado a
   64 caracteres sin `-` final. "Precios por región (v2)!" →
@@ -399,6 +419,9 @@ Uso: hoom board [--json]
    "findings": ["<ids que hoom vio aparecer>"]}
   ```
 
+- Se publica entero y sin pisar uno que ya esté (`hoomfs.PublicarNuevo`);
+  en un volumen sin hard links la review falla con un error que lo dice y no
+  deja registro (enmienda 2).
 - `task` es `--task`, y si no hay, la tarea del `--spec`
   (`finding.TaskOfSpec`). Sin ninguno de los dos queda vacío.
 - `sin-revisar` y `no-entregable` no escriben registro. `reviewcmd.Result`
@@ -817,6 +840,11 @@ Uso: hoom roles [--role r] [--provider p] [--json]
   la tercera copia.
 
 ## Riesgos y deuda aceptada
+
+- **Sin hard links no hay items nuevos ni registros de review** (enmienda
+  2). En exFAT o FAT no hay enlace ni rename sin reemplazo, así que
+  `hoom item add` y `hoom review` fallan con un error que lo dice. Un
+  proyecto en esos volúmenes no puede usar esas dos operaciones.
 
 - **El sobre del test-writer sigue cerrando rojo** (brecha 1). La tarjeta pasa
   a Writer por `spec_trace`, pero `red` muestra el sobre fallido hasta el

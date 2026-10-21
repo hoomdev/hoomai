@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202026_c6ddec",
+  "as": "corregido",
+  "evidence": "eb9c819: reviewcmd.WriteRecord publica con hoomfs.PublicarNuevo (temporal cerrado y enlazado al nombre final; sin hard links, O_EXCL y borrado si falla): un error no deja archivo con el nombre del registro, asi Run no dice no-entregable con un registro que el tablero lee. Tests ceef349 TestHallazgoC6ddec_* con RLIMIT_FSIZE en un subproceso (falla a la mitad y en el ultimo byte; Run sin parcial) (clon limpio del test-writer; fallan en b540de9 y pasan con el arreglo; refutadores: INFORME-refutador-c1b-*.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:40.9545Z"
+}

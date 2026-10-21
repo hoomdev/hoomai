@@ -70,6 +70,13 @@ func column(ev Evidence) (string, []string, string, string) {
 	if ev.Item.HechoEn != nil {
 		return ColHecho, []string{}, "", "terminada: su cierre quedo registrado"
 	}
+	// with a workspace it cannot use, nothing else about the card can be
+	// read: it stops here and says why, never as a card with no workspace
+	// (findings 6aeb17, 966474)
+	if ev.WorktreeInusable != "" {
+		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + ev.WorktreeInusable}, "hoom task list",
+			"el espacio de trabajo de la tarjeta no se puede usar"
+	}
 	arquitecto := "hoom agent --role arquitecto" + task + " " + pedidoHint
 	if !ev.SpecExists {
 		next := "hoom task start " + s
@@ -500,6 +507,42 @@ func runUsages(ev Evidence) []runUsage {
 			out = append(out, runUsage{envelope: -1, run: j, usage: countedUsage(r.Meta.Usage)})
 		}
 	}
+	// a cost that would take the sum past what a float holds is a sidecar
+	// someone edited: it counts as no cost, so the card's spend and its rows
+	// still add up and the board's JSON never carries an infinity (findings
+	// 0dc2de, 4cab20). The costs add up from the smallest, ties by run id,
+	// so the same costs give the same spend and the same rows whatever the
+	// order of the runs and envelopes (finding 3229f3); costs are never
+	// negative (countedUsage), so once one does not fit no larger one does.
+	var conCosto []int
+	for i, c := range out {
+		if c.usage != nil && c.usage.CostUSD != nil {
+			conCosto = append(conCosto, i)
+		}
+	}
+	runID := func(c runUsage) string {
+		if c.run >= 0 {
+			return ev.Runs[c.run].Meta.ID
+		}
+		return ev.Envelopes[c.envelope].Record.RunID
+	}
+	sort.Slice(conCosto, func(a, b int) bool {
+		ca, cb := out[conCosto[a]], out[conCosto[b]]
+		if *ca.usage.CostUSD != *cb.usage.CostUSD {
+			return *ca.usage.CostUSD < *cb.usage.CostUSD
+		}
+		return runID(ca) < runID(cb)
+	})
+	var total float64
+	for _, i := range conCosto {
+		if c := *out[i].usage.CostUSD; !math.IsInf(total+c, 0) {
+			total += c
+			continue
+		}
+		sin := *out[i].usage
+		sin.CostUSD = nil
+		out[i].usage = &sin
+	}
 	return out
 }
 
@@ -522,21 +565,28 @@ func countedUsage(u *providers.Usage) *providers.Usage {
 // once, so nothing is counted twice). A cost nobody reported stays nil.
 func spend(ev Evidence) Spend {
 	s := Spend{BudgetUSD: ev.Item.PresupuestoUSD}
-	var total float64
-	reported := false
+	var costos []float64
 	for _, c := range runUsages(ev) {
 		s.Runs++
 		if c.usage == nil || c.usage.CostUSD == nil {
 			s.RunsWithoutCost++
 		} else {
-			total += *c.usage.CostUSD
-			reported = true
+			costos = append(costos, *c.usage.CostUSD)
 		}
 		if c.usage != nil {
 			s.InputTokens += c.usage.InputTokens
 			s.OutputTokens += c.usage.OutputTokens
 		}
 	}
+	// added up from the smallest, like runUsages decides what fits: float
+	// sums depend on their order, and the same costs give the same total
+	// whatever the order of the runs (finding 1ab3b0)
+	sort.Float64s(costos)
+	var total float64
+	for _, c := range costos {
+		total += c
+	}
+	reported := len(costos) > 0
 	if reported {
 		s.CostUSD = &total
 	}

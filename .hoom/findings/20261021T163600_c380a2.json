@@ -1,0 +1,11 @@
+{
+  "id": "20261021T163600_c380a2",
+  "created_at": "2026-10-21T16:36:00.701535Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO: PublicarNuevo promete no reemplazar un nombre existente, pero internal/hoomfs/hoomfs.go:165-170 implementa un check-then-rename. El candado solo coordina procesos que usan exactamente ese candado; si otro creador (otra version de hoom, git checkout o cualquier escritor) materializa path despues de Lstat y antes de os.Rename, Rename lo reemplaza y ambos pueden creer que publicaron. La implementacion anterior usaba Link/O_EXCL y no tenia esta ventana. Para preservar el contrato append-only hace falta una operacion atomica no-replace o una estrategia equivalente que no dependa de cooperacion externa.",
+  "author": "reviewer@codex",
+  "fingerprint": "b94a49b365bc0422",
+  "task": "fixes-cabina-c1b"
+}

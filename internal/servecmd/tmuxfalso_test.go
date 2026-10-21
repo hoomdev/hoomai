@@ -6,10 +6,11 @@
 // hallazgos_c3_db8541_f7efdc_test.go (estos dos, con el modo
 // tmuxFalso.destinosComoTmux) y hallazgos_c3_b59c30_e0001e_test.go. Aca no hay
 // tests: solo el doble de tmux, como se abre una sesion contra el, y que dice
-// el error de una apertura cuando el cierre falla (lo verifica
-// incumplimientosDelCierreFallido, que comparten los tests de f7efdc y de
-// b59c30/e0001e/9c1816; lo comun con cockpitcmd vive en
-// internal/cierretmuxtest, hallazgo 9accd8).
+// el error de una apertura que creo la sesion y fallo despues: con la
+// ENMIENDA 6 (hallazgo bde7e4) la apertura no la cierra, y su error lo
+// verifica incumplimientosEnmienda6, que comparten los tests de f7efdc y de
+// b59c30/e0001e/9c1816 (el analizador DiceQueLaCerro es comun con cockpitcmd
+// y vive en internal/cierretmuxtest, hallazgo 9accd8).
 //
 // Usa fixtures de acciones_tarjeta_test.go (atLineas, atSesion),
 // hallazgos_c3_test.go (h3PIDs, h3VivoPID) y hallazgos_c3_vuelta3_test.go
@@ -725,24 +726,28 @@ func esperarApertura(t *testing.T, ca string, f *tmuxFalso, ch <-chan apertura, 
 }
 
 // ---------------------------------------------------------------------------
-// El error cuando el cierre falla
+// El error cuando algo falla despues de crear la sesion
 
-// incumplimientosDelCierreFallido devuelve en que incumple msg el contrato
-// nuevo (hallazgos 9c1816, 57bd29 y 03481c, decision de Henry): msg es el
-// error de una apertura que creo la sesion sesion, fallo despues y no pudo
-// cerrarla con `tmux kill-session -t =<sesion>`: tmux sale con codigo 1
-// tanto si la sesion no esta como si falla su propio cliente, asi que nada de
-// lo que responda prueba si la sesion sigue abierta. Lo comun con cockpitcmd
-// vive en internal/cierretmuxtest (hallazgo 9accd8: no dice que la cerro, no
-// afirma como hecho que la sesion ya no existe ni que quedo abierta, dice que
-// no se pudo saber si sigue abierta y muestra el comando de cierre con el
-// destino entre comillas). Lo propio de servecmd: el comando `tmux
-// kill-session -t '=<sesion>'` se busca con el nombre exacto
-// (contieneElAviso), para que el de otra sesion cuyo nombre empieza igual no
-// cuente; que corra tal cual en sh y en zsh lo exige aparte
-// cierreEjecutable. Que conserve el error original lo exigen los tests de
-// internal/cockpitcmd. No es un predicado: devuelve la lista de
+// incumplimientosEnmienda6 devuelve en que incumple msg el contrato de la
+// ENMIENDA 6 (hallazgo bde7e4): msg es el error de una apertura que creo la
+// sesion sesion y despues fallo el split-window o el registro en el item. La
+// apertura no la cierra (cerrarla por su nombre no prueba que sea la suya),
+// asi que el error no dice que la cerro, y dice como cerrarla a mano con
+// `tmux kill-session -t '=<sesion>'`, con el destino entre comillas (enmienda
+// 5, hallazgo db8541) y el nombre exacto de la sesion (contieneElAviso: el de
+// otra sesion cuyo nombre empieza igual no cuenta). Que el comando corra tal
+// cual en sh y en zsh lo exige aparte cierreEjecutable; que conserve el error
+// original lo exigen los tests de internal/cockpitcmd. No exige que diga "no
+// se si sigue abierta": eso era del contrato del cierre fallido, que la
+// enmienda 6 elimino. No es un predicado: devuelve la lista de
 // incumplimientos, vacia si msg cumple todo.
-func incumplimientosDelCierreFallido(msg, sesion string) []string {
-	return cierretmuxtest.IncumplimientosDelCierreFallido(msg, sesion, contieneElAviso)
+func incumplimientosEnmienda6(msg, sesion string) []string {
+	var mal []string
+	if cierretmuxtest.DiceQueLaCerro(msg) {
+		mal = append(mal, "no dice que la cerro: con la enmienda 6 Abrir sesion no la cierra")
+	}
+	if aviso := "tmux kill-session -t '=" + sesion + "'"; !contieneElAviso(msg, aviso) {
+		mal = append(mal, "dice como cerrarla a mano con el comando exacto `"+aviso+"`, con el nombre de la sesion")
+	}
+	return mal
 }

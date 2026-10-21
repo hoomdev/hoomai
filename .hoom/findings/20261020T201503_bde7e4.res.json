@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T201503_bde7e4",
+  "as": "corregido",
+  "evidence": "f0edc4b: se borro killSession; si despues de crear la sesion falla el split-window o el registro en el item, Open no la cierra (cerrarla por su nombre podia matar una sustituta con su CLI), devuelve el error con el comando de cierre exacto y la sesion cuenta como existente; enmienda 6 de acciones-desde-la-tarjeta aprobada (c94f0a37, decision de Henry: no tocar y avisar), precisa CA-347 y CA-348. Tests 0d730b1 (test-writer, clon limpio en 793e310): los 11 que exigian el cierre (c1a9da, 363285, 9c1816, f7efdc en cockpitcmd y servecmd) pasan a la enmienda 6, y hallazgos_c1b_bde7e4_test.go exige que una sustituta del mismo nombre sobreviva en las dos ramas; fallan en 793e310 y pasan con f0edc4b. Limpieza 0f1d3d1. El refutador (INFORME-refutador-c1b-risk-relia.md) reprodujo el defecto con tmux real.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T14:22:02.702574Z"
+}

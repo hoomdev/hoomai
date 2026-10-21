@@ -1,0 +1,11 @@
+{
+  "id": "20261021T174702_00e2fc",
+  "created_at": "2026-10-21T17:47:02.231479Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/agentcmd/hallazgos_c1b_68644c_test.go",
+  "description": "INTRODUCIDO — internal/agentcmd/hallazgos_c1b_68644c_test.go:112: el bloque comun t68Casos/t68Git/t68Proyecto/t68Armar/t68Foto/t68ConEntorno/t68Plana se copia casi linea por linea tambien en itemcmd:152, reviewcmd:111, runcmd:265 y taskcmd:193 (aprox. 300 lineas por paquete). La matriz adversarial y su armado tienen ahora cinco fuentes de verdad: agregar/corregir un caso obliga a mantenerlas sincronizadas y una divergencia puede dejar un consumidor con menor cobertura. Extraer el fixture comun parametrizando la operacion package-specific reduciria sustancialmente el costo de lectura y mantenimiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "773614c4e817c148",
+  "task": "fixes-cabina-c1b"
+}

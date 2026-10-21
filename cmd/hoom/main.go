@@ -203,6 +203,9 @@ solo cuenta la evidencia. Gates ausentes se declaran en amarillo, jamas se ocult
 `
 
 func main() {
+	// git must answer for the directory hoom names, never for the one a
+	// hook or a shell points it at (finding 1e4b3e)
+	gitx.LimpiarEntorno()
 	if len(os.Args) < 2 {
 		fmt.Printf(usage, version)
 		os.Exit(2)

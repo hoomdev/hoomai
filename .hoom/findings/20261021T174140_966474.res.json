@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T174140_966474",
+  "as": "corregido",
+  "evidence": "f12cbb0 + 09478f1: el error de rama de TaskDir envuelve runcmd.ErrOtraRama; gather lo pone en la tarjeta (bloqueada con el motivo que nombra la rama, siguiente paso hoom task list, sin acciones) en vez de proponer hoom task start, y el doctor falla con el motivo en vez de omitir el espacio. Tests (runcmd y boardcmd hallazgos_c1b_966474*_test.go): HEAD separado, otra rama, main y hoom/\u003cslug\u003e-viejo (test-writer en clon limpio; fallan antes del arreglo y pasan despues; refutador: INFORME-refutador-c1b-delta1-entera.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T18:44:48.572789Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261021T163600_e7ab69",
+  "created_at": "2026-10-21T16:36:00.498745Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/acciones.go",
+  "description": "INTRODUCIDO: cuando gather marca WorktreeSinComprobar, column bloquea la tarjeta en Backlog (internal/boardcmd/derive.go:76-79), pero actionsOf/buildAction no consultan ese estado. En internal/boardcmd/acciones.go:82-86 se agrega pedir-arquitecto y la excepcion de Backlog en internal/boardcmd/acciones.go:203-205 evita deshabilitarla aunque hasTask sea falso; con un provider disponible la tarjeta que dice no poder comprobar su espacio ofrece una accion habilitada que intenta crear/lanzar trabajo sobre ese estado desconocido. Guardar tambien puede agregarse desde evidencia leida por error en la raiz. El nuevo estado debe bloquear las acciones mutantes, no solo cambiar Missing/Next.",
+  "author": "reviewer@codex",
+  "fingerprint": "b94a49b365bc0422",
+  "task": "fixes-cabina-c1b"
+}

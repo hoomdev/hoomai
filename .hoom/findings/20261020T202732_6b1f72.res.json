@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202732_6b1f72",
+  "as": "corregido",
+  "evidence": "eb9c819: un solo protocolo de temporales en hoomfs: crearTemporal (que usan AtomicWrite y PublicarNuevo) y TemporalDe, que reconoce solo '.'+nombre+'.tmp-'+digitos; item.List calla solo esos cuando el nombre es \u003cslug valido\u003e.yaml y avisa por todo lo demas (CA-266). Tests ceef349 TestCA266_Hallazgo6b1f72_* (16 nombres parecidos avisan, el temporal exacto se calla, propiedad con quick) (clon limpio del test-writer; fallan en b540de9 y pasan con el arreglo; refutadores: INFORME-refutador-c1b-*.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:40.988836Z"
+}

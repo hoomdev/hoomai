@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -77,13 +78,37 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	return added, AtomicWrite(gi, []byte(content), 0o644)
 }
 
+// crearTemporal creates, next to path, the hidden temp file a whole write
+// goes through: "." + the name of path + ".tmp-" + the digits os.CreateTemp
+// puts in place of *, the one form TemporalDe recognizes (finding 6b1f72).
+// It never ends in the target's extension, so listings that filter by
+// suffix never pick it up.
+func crearTemporal(path string) (*os.File, error) {
+	return os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+}
+
+// TemporalDe says whether name is a temp file of AtomicWrite or
+// PublicarNuevo, exactly as they write it, and the name of the file it will
+// become. Anything else is not one of hoom's writes in progress.
+func TemporalDe(name string) (base string, ok bool) {
+	rest, ok := strings.CutPrefix(name, ".")
+	i := strings.LastIndex(rest, ".tmp-")
+	if !ok || i <= 0 {
+		return "", false
+	}
+	digitos := rest[i+len(".tmp-"):]
+	if digitos == "" || strings.Trim(digitos, "0123456789") != "" {
+		return "", false
+	}
+	return rest[:i], true
+}
+
 // AtomicWrite writes data to path through a temp file in the same directory
 // and a rename: a concurrent reader sees the previous complete file or the
 // new complete file, never a truncated one, and a crash mid-write leaves the
-// previous content in place. The temp name never ends in the target's
-// extension, so listings that filter by suffix never pick it up.
+// previous content in place.
 func AtomicWrite(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+	tmp, err := crearTemporal(path)
 	if err != nil {
 		return err
 	}
@@ -108,6 +133,67 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 	}
 	return nil
 }
+
+// PublicarNuevo creates path with data, whole or not at all, and never
+// replaces a file already there: then it fails with an error that is
+// os.ErrExist. The data goes to a temp file that is closed first and then,
+// under candado, linked to path: one operation that never replaces,
+// whoever else writes there, so a reader sees nothing or all of it and a
+// crash leaves at most the temp file (TemporalDe names it). A filesystem
+// without hard links (exFAT, FAT) has no portable operation that is whole
+// and never replaces at once: there it fails with ErrSinEnlaces and writes
+// nothing (enmienda 2 of items-y-columna-derivada; findings c6ddec, d2c506,
+// 9e2e0d, c380a2, 589ad5, 25172f). candado serializes the hoom publishers
+// of a directory.
+func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) error {
+	tmp, err := crearTemporal(path)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp.Name(), mode)
+	}
+	if err != nil {
+		return err
+	}
+	unlock, err := Lock(candado, esperaPublicar)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	switch err := enlazar(tmp.Name(), path); {
+	case err == nil:
+		return nil
+	case sinEnlaces(err):
+		return fmt.Errorf("%w: %s (%v)", ErrSinEnlaces, filepath.Dir(path), err)
+	default:
+		return err
+	}
+}
+
+// ErrSinEnlaces: the filesystem of .hoom has no hard links, and a new item
+// or review record cannot be published whole and without replacing.
+var ErrSinEnlaces = errors.New(".hoom necesita un sistema de archivos con hard links (exFAT y FAT no los tienen)")
+
+// enlazar is os.Link; a test of this package replaces it to stand for a
+// filesystem without hard links, where PublicarNuevo fails.
+var enlazar = os.Link
+
+// sinEnlaces says that a link failed because the filesystem has no hard
+// links: macOS answers ENOTSUP on exFAT and FAT, Linux EPERM on vfat. Any
+// other failure, an existing path among them, is the publication's answer.
+func sinEnlaces(err error) bool {
+	return err != nil && (errors.Is(err, errors.ErrUnsupported) || errors.Is(err, syscall.EPERM))
+}
+
+// esperaPublicar is how long PublicarNuevo waits for another publisher of
+// the same directory: a link, never a long hold.
+const esperaPublicar = 10 * time.Second
 
 // ErrLocked: another process holds the lock and did not let go in time.
 var ErrLocked = errors.New("otro proceso tiene tomado")

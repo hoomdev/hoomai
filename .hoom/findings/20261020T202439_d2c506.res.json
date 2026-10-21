@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202439_d2c506",
+  "as": "corregido",
+  "evidence": "eb9c819: item.Add publica con hoomfs.PublicarNuevo a traves de item.enlazar; si el enlace falla con algo que no es ErrExist (ENOTSUP, EOPNOTSUPP, EPERM: volumen sin hard links) crea el item con O_EXCL y lo borra si la escritura falla, asi sigue sin pisar uno existente. Tests ceef349 internal/item/hallazgos_c1b_enlace_y_temporales_test.go: con los tres errores Add crea el item entero (pedido de ~200 KB byte a byte), ErrExists si ya existe y en carrera gana uno solo, sin temporales (clon limpio del test-writer; fallan en b540de9 y pasan con el arreglo; refutadores: INFORME-refutador-c1b-*.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:40.9713Z"
+}

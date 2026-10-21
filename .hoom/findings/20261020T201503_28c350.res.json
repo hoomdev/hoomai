@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T201503_28c350",
+  "as": "corregido",
+  "evidence": "9bc85f4 + abb639f, puerta completa (decision de Henry): runcmd.TaskDir exige item.ValidSlug, que .hoom, .hoom/worktrees y .hoom/worktrees/\u003cslug\u003e no sean symlinks (Lstat) y que la carpeta sea un worktree del mismo repo (gitx.WorktreeDe: rev-parse --show-toplevel igual a la carpeta y --git-common-dir igual al de root). taskcmd.Done (con y sin --force), Ready, Discard, cockpitcmd.placeOf e itemcmd.Save pasan por ella; run, agent, review, /api/runs, acciones del Studio, gather y doctor ya la usaban. Tests 9a3640d en runcmd, taskcmd, itemcmd, agentcmd, reviewcmd, cockpitcmd y servecmd: slug invalido, symlinks (a otro repo, a la raiz, a otra tarea, .hoom y .hoom/worktrees) y carpetas que no son worktree (comun, clon, repo nuevo, worktree ajeno) se rechazan sin tocar ni lanzar nada; el worktree real sigue andando (clon limpio del test-writer; fallan en b540de9 y pasan con el arreglo; refutadores: INFORME-refutador-c1b-*.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:40.947954Z"
+}

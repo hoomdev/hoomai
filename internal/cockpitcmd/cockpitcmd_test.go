@@ -141,18 +141,26 @@ func TestCA84_SesionEstable(t *testing.T) {
 
 // CA-85: --task monta el cockpit en el worktree y nombra la sesion con el
 // slug; tarea inexistente = error que nombra hoom task start.
+//
+// El fixture es un repo git con un commit y la tarea es un worktree real
+// (cbWorktreeReal), no una carpeta hecha con mkdir: la puerta del hallazgo
+// 28c350 ya no acepta una carpeta comun como tarea.
 func TestCA85_TaskWorktree(t *testing.T) {
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "init", "-b", "main")
+	gitRun(t, root, "config", "user.email", "test@hoom.dev")
+	gitRun(t, root, "config", "user.name", "hoom test")
+	gitRun(t, root, "commit", "--allow-empty", "-q", "-m", "inicial")
 	_, deps := recorder(false, nil)
-	err := Run(root, "demo", Options{Provider: "claude", Task: "facturas"}, deps)
+	err = Run(root, "demo", Options{Provider: "claude", Task: "facturas"}, deps)
 	if err == nil || !strings.Contains(err.Error(), "hoom task start facturas") {
 		t.Fatalf("CA-85: tarea inexistente debe nombrar la accion: %v", err)
 	}
 
-	wt := filepath.Join(root, ".hoom", "worktrees", "facturas")
-	if err := os.MkdirAll(wt, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	wt := cbWorktreeReal(t, root, "facturas")
 	calls, deps := recorder(false, nil)
 	if err := Run(root, "demo", Options{Provider: "claude", Task: "facturas"}, deps); err != nil {
 		t.Fatal(err)

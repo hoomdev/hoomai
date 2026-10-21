@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202026_0dc2de",
+  "as": "corregido",
+  "evidence": "eb9c819: boardcmd.runUsages (la regla unica que usan spend y workOf, CA-314) cuenta como sin costo un run cuyo cost_usd haria pasar la suma a infinito; el JSON del tablero no lleva +Inf. Tests ceef349 internal/boardcmd/hallazgos_c1b_costo_desborda_test.go: dos runs con 1e308, con y sin sobre: JSONBytes, el detalle y hoom board --json andan, el total es finito y las filas suman el gasto (clon limpio del test-writer; fallan en b540de9 y pasan con el arreglo; refutadores: INFORME-refutador-c1b-*.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:40.97762Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T150831_69b029",
+  "as": "corregido",
+  "evidence": "a68216b (test-writer): la tabla de guardas de internal/providers/hallazgos_c1b_status_no_string_test.go tiene un nombre por caso (t.Run) y 4 filas con escapes \\\\uXXXX reales (hex minuscula y mayuscula) ademas de los 2 literales; la tabla comprueba sola que no haya filas repetidas y que cada fila escapada decodifique a completed o failed. go test ./internal/providers verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T15:57:07.888268Z"
+}

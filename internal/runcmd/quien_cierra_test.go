@@ -100,9 +100,8 @@ func TestCA435_LaCorridaConRolLeDaSuRolSuIDYSuProvider(t *testing.T) {
 	log := qcFakeClaude(t)
 	qcPadreAjeno(t)
 	root := initRepo(t)
-	if err := os.MkdirAll(filepath.Join(root, ".hoom", "worktrees", "cabina-visual"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	// worktree real: la puerta de 28c350 ya no acepta una carpeta comun
+	htWorktree(t, root, "cabina-visual")
 
 	m := NewManager(root)
 	run, err := m.Start(StartOptions{Provider: "claude", Prompt: "revisa", Role: "reviewer", Task: "cabina-visual"})

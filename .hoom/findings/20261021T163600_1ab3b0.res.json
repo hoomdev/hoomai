@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T163600_1ab3b0",
+  "as": "corregido",
+  "evidence": "a086604: boardcmd.spend junta los costos y los suma de menor a mayor (sort.Float64s), como runUsages decide que entra: el mismo conjunto da el mismo cost_usd y remaining_usd en cualquier orden de runs y sobres. Tests 952ce2f internal/boardcmd/hallazgos_c1b_1ab3b0_test.go: [1e16,1,1], [0.1,0.2,0.3] y 150 casos al azar, iguales bit a bit en toda permutacion, en memoria y en disco (test-writer en clon limpio en af1c3ed; fallan ahi y pasan con a086604; refutador: INFORME-refutador-c1b-delta1.md, que confirmo que el arreglo lo cierra).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T16:59:58.545148Z"
+}

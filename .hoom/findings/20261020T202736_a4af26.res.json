@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T202736_a4af26",
+  "as": "corregido",
+  "evidence": "ceef349 (test-writer): internal/hoomfs/lock_test.go deja solo TestLock_LockPathEnCache; sus tres exigencias propias (el archivo del candado sigue al morir el dueno, el siguiente entra en 1 s, y tras unlock repetido o tardio B suelta y el siguiente entra) pasan a lock_contrato_test.go, sin debilitar nada; go test ./internal/hoomfs verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-20T21:39:40.994418Z"
+}

@@ -42,9 +42,8 @@ func TestCA243_ElProviderRecibeLaTareaDelRun(t *testing.T) {
 	salida := abEntorno(t)
 	t.Setenv("HOOM_TASK", "ajena") // el humano la tenia exportada
 	root := initRepo(t)
-	if err := os.MkdirAll(filepath.Join(root, ".hoom", "worktrees", "cabina-visual"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	// worktree real: la puerta de 28c350 ya no acepta una carpeta comun
+	htWorktree(t, root, "cabina-visual")
 
 	m := NewManager(root)
 	run, err := m.Start(StartOptions{Provider: "claude", Prompt: "hola", Task: "cabina-visual"})

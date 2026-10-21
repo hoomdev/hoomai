@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T150011_3229f3",
+  "as": "corregido",
+  "evidence": "35b6b75: boardcmd.runUsages suma los costos de menor a mayor con empate por id del run, y queda sin costo el que haria pasar la suma a infinito; el mismo conjunto da el mismo gasto y las mismas filas sin costo en cualquier orden de runs y sobres, y los tests de 0dc2de y 4cab20 pasan sin cambios. Tests a68216b internal/boardcmd/hallazgos_c1b_3229f3_test.go: permutaciones de [1e308, 8e307, 7e307] con y sin sobres, en disco y en Derive, y empate de dos 1e308 (test-writer en clon limpio en b72de8f; fallan ahi y pasan con el arreglo; refutador: INFORME-refutador-c1b-review1.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T15:57:07.882131Z"
+}

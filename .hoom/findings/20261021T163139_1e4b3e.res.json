@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T163139_1e4b3e",
+  "as": "corregido",
+  "evidence": "a086604: gitx.LimpiarEntorno quita GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES y GIT_NAMESPACE del proceso y cmd/hoom (el unico main: CLI, Studio, runs y providers) la llama primero; gitLimpio sigue limpiandolas para quien llama a los paquetes sin pasar por main. Tests 952ce2f: con GIT_WORK_TREE, GIT_DIR o las siete, el binario hoom task discard solo toca la tarea y hoom run no se las pasa al provider; gitx LimpiarEntorno las quita (test-writer en clon limpio en af1c3ed; fallan ahi y pasan con a086604; refutador: INFORME-refutador-c1b-delta1.md, que confirmo que el arreglo lo cierra).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T16:59:58.526315Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T193200_0c9353",
+  "as": "corregido",
+  "evidence": "Commit 'tests: worktreetest con una sola tabla de casos' (test-writer): Casos es la unica fuente de verdad y cada fila lleva su armador (Caso{Slug, Que, armar}); el switch que repetia el catalogo desaparecio, y una fila sin armador no compila. 237 PASS antes y despues en los 7 paquetes que lo usan, con nombres y resultados identicos (diff vacio).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T19:45:40.644961Z"
+}

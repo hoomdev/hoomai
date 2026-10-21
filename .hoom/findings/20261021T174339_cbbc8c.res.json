@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T174339_cbbc8c",
+  "as": "corregido",
+  "evidence": "f12cbb0, enmienda 1 de items-y-columna-derivada aprobada (b6ea4d3b, decision de Henry): sin hard links PublicarNuevo ya no comprueba y renombra; crea el final con O_EXCL y escribe, asi nunca pisa a otro escritor (el limite declarado es que puede verse a medias), y si la escritura falla borra su propio parcial. Con hard links sigue el enlace atomico bajo el candado. Tests 8d27d30 internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go (con hoomfs.enlazar simulando ENOTSUP, EOPNOTSUPP y EPERM: entero, nombre ocupado no se pisa, escritor ajeno con O_EXCL nunca da dos ganadores en 6000 rondas, RLIMIT no deja final ni temporales, otro error de enlace se devuelve). El refutador midio en exFAT real: 0 de 2000 pisados con f12cbb0 (INFORME-refutador-c1b-delta1-entera.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T18:39:39.829991Z"
+}

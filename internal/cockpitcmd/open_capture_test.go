@@ -86,8 +86,11 @@ func cbProhibido(g *cbGrabadora, verbos ...string) string {
 	return ""
 }
 
-// cbProyecto arma un proyecto git (identidad configurada) con el worktree de
-// la tarea facturas y, si conItem, su item en el arbol raiz.
+// cbProyecto arma un proyecto git (identidad configurada, con un commit) con
+// el worktree de la tarea facturas y, si conItem, su item en el arbol raiz.
+// El worktree es uno real del repo (cbWorktreeReal), no una carpeta hecha con
+// mkdir: la puerta del hallazgo 28c350 ya no acepta una carpeta comun como
+// tarea.
 func cbProyecto(t *testing.T, conItem bool) (root, wt string) {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -97,10 +100,8 @@ func cbProyecto(t *testing.T, conItem bool) (root, wt string) {
 	gitRun(t, root, "init", "-b", "main")
 	gitRun(t, root, "config", "user.email", "test@hoom.dev")
 	gitRun(t, root, "config", "user.name", "hoom test")
-	wt = filepath.Join(root, ".hoom", "worktrees", "facturas")
-	if err := os.MkdirAll(wt, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	gitRun(t, root, "commit", "--allow-empty", "-q", "-m", "inicial")
+	wt = cbWorktreeReal(t, root, "facturas")
 	if conItem {
 		p := item.Path(root, "facturas")
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -115,6 +116,17 @@ func cbProyecto(t *testing.T, conItem bool) (root, wt string) {
 	return root, wt
 }
 
+// cbWorktreeReal agrega al repo root (con al menos un commit) el worktree
+// real de la tarea slug, .hoom/worktrees/<slug> en la rama hoom/<slug>, como
+// lo deja hoom task start, y devuelve su ruta. Es un worktree real porque la
+// puerta del hallazgo 28c350 ya no acepta una carpeta comun como tarea.
+func cbWorktreeReal(t *testing.T, root, slug string) string {
+	t.Helper()
+	wt := filepath.Join(root, ".hoom", "worktrees", slug)
+	gitRun(t, root, "worktree", "add", "-q", "-b", "hoom/"+slug, wt)
+	return wt
+}
+
 func cbLeerItem(t *testing.T, root string) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(item.Path(root, "facturas"))
@@ -124,7 +136,10 @@ func cbLeerItem(t *testing.T, root string) []byte {
 	return raw
 }
 
-// cbArbol fotografia todos los archivos bajo root (fuera de .git).
+// cbArbol fotografia todos los archivos bajo root (fuera de .git). En un
+// worktree real (cbWorktreeReal) .git es un archivo: se deja afuera sin
+// saltear el resto de su carpeta (SkipDir sobre un archivo saltearia sus
+// hermanos).
 func cbArbol(t *testing.T, root string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -133,7 +148,10 @@ func cbArbol(t *testing.T, root string) map[string]string {
 			return err
 		}
 		if d.Name() == ".git" {
-			return filepath.SkipDir
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if !d.IsDir() {
 			raw, _ := os.ReadFile(p)

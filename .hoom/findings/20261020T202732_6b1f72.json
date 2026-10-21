@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202732_6b1f72",
+  "created_at": "2026-10-20T20:27:32.045519Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO. internal/item/item.go:339-340 vuelve a describir con un strings.HasPrefix/Contains el formato privado de temporales que producen item.Add (linea 225) y hoomfs.AtomicWrite (internal/hoomfs/hoomfs.go:86). Hay tres definiciones del mismo protocolo de nombres, incluida la copia de los tests, y Contains ni siquiera expresa la forma completa; cualquier cambio futuro del escritor y del filtro puede divergir. Centraliza la construccion y el reconocimiento del nombre temporal en una sola abstraccion reutilizable.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

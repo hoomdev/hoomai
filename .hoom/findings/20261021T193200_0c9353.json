@@ -1,0 +1,11 @@
+{
+  "id": "20261021T193200_0c9353",
+  "created_at": "2026-10-21T19:32:00.49049Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/worktreetest/worktreetest.go",
+  "description": "INTRODUCIDO. internal/worktreetest/worktreetest.go:49 declara el catalogo de slugs de Casos, mientras internal/worktreetest/worktreetest.go:176 vuelve a codificar el mismo catalogo en un switch hasta la linea 225. Agregar o renombrar una variante exige cambios coordinados, y una variante agregada solo al switch ni siquiera entra en las matrices. La extraccion elimina cinco copias entre paquetes pero conserva dos fuentes de verdad internas; asociar el armador a Caso o derivar ambos de una sola tabla evitaria esa deriva.",
+  "author": "reviewer@codex",
+  "fingerprint": "8e9aaabaf27f1034",
+  "task": "fixes-cabina-c1b"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261021T145451_05d98a",
+  "created_at": "2026-10-21T14:54:51.559666Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:159-172: si os.Link falla por cualquier causa, PublicarNuevo abandona el temporal cerrado y crea el nombre final con O_EXCL para escribir los bytes directamente. En los filesystems sin hard links que este cambio pretende soportar, el item o registro de review queda visible mientras esta incompleto y un SIGKILL/crash deja ese parcial de forma permanente; si ya se escribio el JSON completo antes de morir, reviewcmd.Records (internal/reviewcmd/record.go:129-139) lo acepta aunque WriteRecord/Run nunca hayan completado, pudiendo satisfacer la evidencia de review contra el contrato whole-or-not-at-all. Ademas se ignora el error al retirar el final tras un fallo. El fallback debe conservar publicacion atomica/no-replace y limitarse a errores de enlace realmente soportados.",
+  "author": "reviewer@codex",
+  "fingerprint": "7ce7987a0a894059",
+  "task": "fixes-cabina-c1b"
+}

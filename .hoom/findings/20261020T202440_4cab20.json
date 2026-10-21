@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202440_4cab20",
+  "created_at": "2026-10-20T20:24:40.038048Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/derive.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo) — internal/boardcmd/derive.go:401 valida que cada cost_usd sea finito, pero :404 suma sin comprobar overflow. Dos sidecars legibles con costos finitos grandes (por ejemplo 1e308) producen total +Inf y remaining_usd -Inf en :424-428; json.Marshal rechaza esos valores y un único item derriba /la API completa. La nueva defensa contra NaN/Inf plantados no cubre el fallo equivalente producido durante la agregación.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

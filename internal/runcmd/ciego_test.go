@@ -24,11 +24,9 @@ func TestCA178_DirYSidecarDelRunCiego(t *testing.T) {
 	gitRun(t, root, "add", "-A")
 	gitRun(t, root, "commit", "-m", "inicial")
 
-	// una tarea, para probar que Dir le gana
-	wt := filepath.Join(root, ".hoom", "worktrees", "tarea")
-	if err := os.MkdirAll(wt, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	// una tarea, para probar que Dir le gana (worktree real: la puerta de
+	// 28c350 ya no acepta una carpeta comun)
+	wt := htWorktree(t, root, "tarea")
 	ciego := filepath.Join(root, ".hoom", "isolated", "test-writer_x")
 	gitRun(t, root, "worktree", "add", "--detach", ciego, "HEAD")
 

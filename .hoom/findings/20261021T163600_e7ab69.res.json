@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T163600_e7ab69",
+  "as": "corregido",
+  "evidence": "a086604: actionsOf devuelve ninguna accion cuando la tarjeta tiene WorktreeSinComprobar; la tarjeta dice por que (no se pudo comprobar su espacio de trabajo) y no ofrece pedir-arquitecto, guardar, sesion ni terminal. Tests 952ce2f internal/boardcmd/hallazgos_c1b_e7ab69_test.go: en todas las columnas y en disco sin git, card.actions vacio; con git sano la misma tarjeta ofrece las suyas (test-writer en clon limpio en af1c3ed; fallan ahi y pasan con a086604; refutador: INFORME-refutador-c1b-delta1.md, que confirmo que el arreglo lo cierra).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T16:59:58.551056Z"
+}

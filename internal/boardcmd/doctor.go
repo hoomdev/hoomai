@@ -20,6 +20,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -249,7 +250,14 @@ func taskWorktrees(root string) ([]string, error) {
 		if !item.ValidSlug(e.Name()) {
 			continue
 		}
-		if _, err := runcmd.TaskDir(root, e.Name()); err == nil {
+		_, err := runcmd.TaskDir(root, e.Name())
+		if errors.Is(err, gitx.ErrSinComprobar) || errors.Is(err, runcmd.ErrOtraRama) {
+			// git that cannot answer, or a worktree off its branch, is not
+			// "no task": the doctor fails with the reason instead of
+			// leaving it out of its report (findings 6aeb17, 966474)
+			return nil, err
+		}
+		if err == nil {
 			out = append(out, e.Name())
 		}
 	}

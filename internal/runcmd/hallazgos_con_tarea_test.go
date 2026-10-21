@@ -59,13 +59,14 @@ func htReal(t *testing.T, dir string) string {
 	return r
 }
 
-// htWorktree simula el worktree de una tarea como lo hace CA-243.
+// htWorktree arma el worktree de una tarea en root (un repo git con un
+// commit): un worktree REAL (git worktree add, rama hoom/<task>), porque la
+// puerta del hallazgo 28c350 (runcmd.TaskDir) ya no acepta una carpeta comun
+// en .hoom/worktrees/<task>.
 func htWorktree(t *testing.T, root, task string) string {
 	t.Helper()
 	dir := filepath.Join(root, ".hoom", "worktrees", task)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	git(t, root, "worktree", "add", "-q", "-b", "hoom/"+task, dir)
 	return dir
 }
 

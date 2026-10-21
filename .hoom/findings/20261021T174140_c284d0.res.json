@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T174140_c284d0",
+  "as": "corregido",
+  "evidence": "f12cbb0: cockpitcmd.placeOf devuelve tal cual el error de TaskDir cuando envuelve runcmd.ErrOtraRama (o ErrSinComprobar), en vez de 'la tarea no existe; crea su worktree'. Tests 462859a internal/cockpitcmd/hallazgos_c1b_c284d0*_test.go: Open, Run con tmux y con zellij devuelven el error de la rama en las 4 variantes (test-writer en clon limpio; fallan antes del arreglo y pasan despues; refutador: INFORME-refutador-c1b-delta1-entera.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T18:44:48.578883Z"
+}

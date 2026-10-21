@@ -1,0 +1,11 @@
+{
+  "id": "20261021T173532_880f0a",
+  "created_at": "2026-10-21T17:35:32.24721Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/worktree.go",
+  "description": "INTRODUCIDO EN EL ARREGLO — internal/gitx/worktree.go:73: WorktreeDe no comprueba que \u003cgitdir\u003e/gitdir nombre exactamente \u003cdir\u003e/.git; aplica filepath.Dir al backpointer y solo compara ese padre con dir. Un backpointer a \u003cdir\u003e/no-es-dot-git pasa si ese archivo existe. Reproduccion: tras cambiar .git/worktrees/demo/gitdir de \u003cdir\u003e/.git a \u003cdir\u003e/no-es-dot-git, git worktree list registra \u003cdir\u003e/no-es-dot-git, pero las restantes condiciones de WorktreeDe siguen dando top=\u003cdir\u003e, common de la raiz y refs/heads/hoom/demo, por lo que TaskDir acepta una carpeta que no es la entrada registrada. Reutilizando un gitdir desde otra ubicacion, run/save/discard pueden operar sobre su rama e indice y desalinear o perder trabajo. Los tests de 68644c no cubren un backpointer con padre correcto y basename distinto. Debe compararse el backpointer completo con filepath.Join(dir, \".git\"). Patronizable: regla Semgrep custom que impida validar un backpointer de git mediante filepath.Dir antes de comparar.",
+  "author": "reviewer@codex",
+  "fingerprint": "773614c4e817c148",
+  "task": "fixes-cabina-c1b"
+}

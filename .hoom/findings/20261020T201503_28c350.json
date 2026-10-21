@@ -1,0 +1,11 @@
+{
+  "id": "20261020T201503_28c350",
+  "created_at": "2026-10-20T20:15:03.214549Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este cambio) — internal/taskcmd/taskcmd.go:355-360 valida la forma del slug pero acepta el directorio con os.Stat, que sigue symlinks; después :425-436 ejecuta git restore y os.Remove dentro de ese destino. Un .hoom/worktrees/foo simbólico a otro repo hace que hoom task discard foo --yes restaure y borre trabajo ajeno. La misma frontera sigue abierta en internal/runcmd/runcmd.go:495-503: TaskDir no valida el slug ni confina la ruta, por lo que hoom run --task ../../../victim puede lanzar el provider fuera del proyecto. La corrección léxica de ../ no exige que el destino real sea un worktree registrado y contenido; esa verificación debe centralizarse antes de cualquier ejecución o borrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

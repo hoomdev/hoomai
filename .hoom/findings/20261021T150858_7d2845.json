@@ -1,0 +1,11 @@
+{
+  "id": "20261021T150858_7d2845",
+  "created_at": "2026-10-21T15:08:58.873631Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:588-619: WorktreeDe y sus helpers rutaDeGit/mismaRuta implementan identidad y pertenencia de worktrees, no produccion ni parseo de diffs, pero quedaron anexados al final de un diff.go de mas de 600 lineas. runcmd.TaskDir depende ahora de esta primitiva central y su ubicacion en un modulo no relacionado vuelve dificil descubrir su dueño y ubicar pruebas directas. Separarlos en un worktree.go enfocado haria explicita la responsabilidad sin cambiar comportamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "7ce7987a0a894059",
+  "task": "fixes-cabina-c1b"
+}

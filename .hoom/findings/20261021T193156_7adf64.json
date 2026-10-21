@@ -1,0 +1,11 @@
+{
+  "id": "20261021T193156_7adf64",
+  "created_at": "2026-10-21T19:31:56.988468Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO. internal/boardcmd/gather.go:331 guarda runcmd.ErrOtraRama, un estado comprobado, en Evidence.WorktreeSinComprobar. El nombre del campo en internal/boardcmd/boardcmd.go:120 y sus consumidores en internal/boardcmd/derive.go:73 e internal/boardcmd/acciones.go:111 siguen expresando que no se pudo comprobar donde esta el trabajo; incluso el mensaje al usuario dice eso. El modelo confunde una rama incorrecta conocida con una comprobacion imposible. Un estado o nombre neutral, o causas separadas, haria explicito el motivo real.",
+  "author": "reviewer@codex",
+  "fingerprint": "8e9aaabaf27f1034",
+  "task": "fixes-cabina-c1b"
+}

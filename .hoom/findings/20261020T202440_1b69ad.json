@@ -1,0 +1,11 @@
+{
+  "id": "20261020T202440_1b69ad",
+  "created_at": "2026-10-20T20:24:40.298733Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/providers/claude.go",
+  "description": "INTRODUCIDO — internal/providers/claude.go:217-222 convierte cualquier status no string de una task_notification en \"\", y :302-310 lo considera terminal y exitoso (). Ante schema drift o una línea degradada como status:null/objeto, una delegación abierta se cierra falsamente como éxito y ya no puede cerrarse con su resultado real porque queda done. La línea debe conservarse como system sin inventar un agent_end exitoso cuando el status no se pudo interpretar.",
+  "author": "reviewer@codex",
+  "fingerprint": "f13eff2dd289d435",
+  "task": "items-y-columna-derivada"
+}

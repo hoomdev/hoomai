@@ -108,6 +108,11 @@ func columnActions(c Card) []string {
 // actionsOf is the card's action list: its column's, then the ones any card
 // may have.
 func actionsOf(ev Evidence, c Card) []Action {
+	// without knowing where the card's work is, no action can act on it:
+	// the card says why and offers none (finding e7ab69)
+	if ev.WorktreeInusable != "" {
+		return []Action{}
+	}
 	ids := columnActions(c)
 	if c.Interrupted != nil {
 		ids = append(ids, ActReanudar, ActRelanzar)

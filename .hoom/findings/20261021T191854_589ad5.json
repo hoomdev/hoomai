@@ -1,0 +1,11 @@
+{
+  "id": "20261021T191854_589ad5",
+  "created_at": "2026-10-21T19:18:54.885996Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:181-184: en el fallback sin hard links, O_EXCL demuestra que esta llamada creó el inode abierto, pero tras Write/Close fallido el cleanup hace os.Remove(path) por nombre. Como el final es visible mientras se escribe, otro proceso puede retirar ese parcial (la propia spec prevé que alguien borre los inválidos) y publicar un item o registro de review nuevo antes del Remove; entonces PublicarNuevo borra el archivo ajeno y devuelve el error original. Esto reintroduce pérdida de datos/evidencia append-only frente a escritores que no comparten el candado. El cleanup debe quedar ligado de forma segura a la identidad creada o conservar el parcial cuando ya no puede demostrarla. Patronizable: regla Semgrep custom para OpenFile(...O_EXCL...) seguido, en una rama de error, por Remove del mismo path sin una garantía de identidad.",
+  "author": "reviewer@codex",
+  "fingerprint": "8e9aaabaf27f1034",
+  "task": "fixes-cabina-c1b"
+}

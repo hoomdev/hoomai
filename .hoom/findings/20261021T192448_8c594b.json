@@ -1,0 +1,11 @@
+{
+  "id": "20261021T192448_8c594b",
+  "created_at": "2026-10-21T19:24:48.375773Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:154-177: en el fallback para un filesystem sin hard links, PublicarNuevo mantiene vivo el temporal que ya contiene data completa (se elimina solo con el defer) y, despues de que enlazar falla, crea el nombre final y vuelve a escribir data entera. Por eso la publicacion necesita simultaneamente espacio para dos copias: en exFAT/FAT con espacio libre suficiente para el archivo final pero menor que aproximadamente el doble, la primera escritura al temporal consume ese espacio y la segunda falla con ENOSPC; Add/WriteRecord devuelven error aunque el volumen podia alojar el artefacto publicado. El rango introduce esta regresion frente al fallback anterior, que renombraba el temporal y no duplicaba bloques. Tras reconocer sinEnlaces, liberar el temporal antes del camino O_EXCL evita el fallo autoinducido.",
+  "author": "reviewer@codex",
+  "fingerprint": "8e9aaabaf27f1034",
+  "task": "fixes-cabina-c1b"
+}

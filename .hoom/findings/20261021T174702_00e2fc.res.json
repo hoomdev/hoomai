@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T174702_00e2fc",
+  "as": "corregido",
+  "evidence": "462859a (test-writer): el armado de los casos de 68644c (casos, git, proyecto, armar, foto, entorno, plana) pasa a internal/worktreetest, un paquete solo para tests como internal/cierretmuxtest; agentcmd, itemcmd, reviewcmd, runcmd y taskcmd conservan solo su operacion. 99 PASS de 68644c+6aeb17 antes y despues, con nombres y resultados identicos.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T18:39:39.842408Z"
+}
