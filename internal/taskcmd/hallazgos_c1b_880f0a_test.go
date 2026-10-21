@@ -7,9 +7,10 @@
 // El registro del worktree (<common-dir>/worktrees/<id>/gitdir) tiene que
 // nombrar EXACTAMENTE <la carpeta>/.git. Con el registro de la tarea demo
 // editado para nombrar otro archivo que existe (otro nombre en la misma
-// carpeta, el .git de una subcarpeta, o .GIT), Discardable, RunDiscard (con y
-// sin --yes) y Discard fallan y no tocan nada: ni demo (su trabajo sin
-// commitear), ni legit, ni la raiz. Guarda: con el registro sin editar, y con
+// carpeta, el .git de una subcarpeta, .GIT, o <carpeta>/s/../.git con s un
+// symlink hacia afuera), Discardable, RunDiscard (con y sin --yes) y
+// Discard fallan y no tocan nada: ni demo (su trabajo sin commitear), ni
+// legit, ni la raiz. Guarda: con el registro sin editar, y con
 // el original devuelto, Discardable de demo lista su trabajo.
 //
 // Usa internal/worktreetest y t68Descartar del archivo de 68644c (sus

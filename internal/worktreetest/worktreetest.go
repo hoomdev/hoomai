@@ -385,9 +385,10 @@ type RegistroAjeno struct {
 }
 
 // RegistrosAjenos: otro nombre en la misma carpeta, el .git de una
-// subcarpeta y .GIT. Cada archivo lleva el mismo contenido que el .git de la
-// carpeta. En un disco que no distingue mayusculas (macOS), .GIT ya existe:
-// es el mismo .git, y aun asi no es el nombre que el registro debe tener.
+// subcarpeta, .GIT y <carpeta>/s/../.git con s un symlink hacia afuera.
+// Cada archivo lleva el mismo contenido que el .git de la carpeta. En un
+// disco que no distingue mayusculas (macOS), .GIT ya existe: es el mismo
+// .git, y aun asi no es el nombre que el registro debe tener.
 var RegistrosAjenos = []RegistroAjeno{
 	{"otro nombre en la carpeta", func(t testing.TB, dir string) string {
 		return copiaDelGit(t, dir, "no-es-dot-git")
@@ -398,6 +399,7 @@ var RegistrosAjenos = []RegistroAjeno{
 	{".GIT", func(t testing.TB, dir string) string {
 		return copiaDelGit(t, dir, ".GIT")
 	}},
+	{"un registro que sube por un symlink hacia afuera", registroPorSymlink},
 }
 
 // copiaDelGit deja dir/rel con el contenido del .git de dir (si rel ya
@@ -448,4 +450,64 @@ var RamasAjenas = []RamaAjena{
 func VolverASuRama(t testing.TB, dir, slug string) {
 	t.Helper()
 	Git(t, dir, "checkout", "-q", "--ignore-other-worktrees", "hoom/"+slug)
+}
+
+// registroPorSymlink deja en dir el symlink s hacia afuera/dentro, con
+// afuera/.git (copia del .git de dir) al lado, y devuelve <dir>/s/../.git
+// tal cual, sin limpiar: como texto, filepath.Clean lo vuelve <dir>/.git;
+// en el disco, s/.. es afuera y el archivo es afuera/.git (hallazgo
+// 880f0a, el camino que vio el refutador en f12cbb0).
+func registroPorSymlink(t testing.TB, dir string) string {
+	t.Helper()
+	afuera, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(afuera, "dentro"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, ".git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	Escribir(t, afuera, ".git", string(raw))
+	Symlink(t, filepath.Join(afuera, "dentro"), filepath.Join(dir, "s"))
+	sep := string(filepath.Separator)
+	p := dir + sep + "s" + sep + ".." + sep + ".git"
+	if filepath.Clean(p) != filepath.Join(dir, ".git") {
+		t.Fatalf("fixture: como texto %s es %s", p, filepath.Join(dir, ".git"))
+	}
+	if real, err := filepath.EvalSymlinks(p); err != nil || real != filepath.Join(afuera, ".git") {
+		t.Fatalf("fixture: en el disco %s es %s, resolvio %q (%v)", p, filepath.Join(afuera, ".git"), real, err)
+	}
+	return p
+}
+
+// ModosCerrados: los permisos con que se cierra una carpeta para que no se
+// pueda entrar a lo que tiene. 0600 deja listar los nombres pero no
+// alcanzarlos (sin permiso de busqueda); 0000 no deja ni listarlos.
+var ModosCerrados = []os.FileMode{0o600, 0o000}
+
+// Cerrar deja dir con modo y devuelve con que abrirla otra vez (0755); al
+// terminar el test se abre sola. Saltea si corre como root o si el sistema
+// deja alcanzar dir/hijo igual: el test no probaria nada (hallazgos 48eeed
+// y 44ed99).
+func Cerrar(t testing.TB, dir, hijo string, modo os.FileMode) (abrir func()) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("corre como root: un chmod no le quita el acceso, el test no probaria nada")
+	}
+	if err := os.Chmod(dir, modo); err != nil {
+		t.Fatal(err)
+	}
+	abrir = func() {
+		if err := os.Chmod(dir, 0o755); err != nil {
+			t.Errorf("no se pudo abrir %s otra vez: %v", dir, err)
+		}
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	if _, err := os.Lstat(filepath.Join(dir, hijo)); err == nil {
+		t.Skip("este sistema deja alcanzar lo que hay en una carpeta sin permiso de busqueda")
+	}
+	return abrir
 }

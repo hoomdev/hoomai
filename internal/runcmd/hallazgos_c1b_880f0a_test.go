@@ -5,10 +5,12 @@
 //
 // El registro del worktree (<common-dir>/worktrees/<id>/gitdir) tiene que
 // nombrar EXACTAMENTE <la carpeta>/.git. Un registro que nombra otro archivo
-// que existe (otro nombre en la misma carpeta, el .git de una subcarpeta, o
-// .GIT) no es el de esa carpeta: runcmd.TaskDir falla, sin tocar nada, y es
-// un "no" con git sano (no ErrSinComprobar). Guarda: antes de editarlo y con
-// el registro original devuelto, la carpeta es su tarea.
+// que existe (otro nombre en la misma carpeta, el .git de una subcarpeta,
+// .GIT, o <carpeta>/s/../.git con s un symlink hacia afuera: como texto se
+// limpia a <carpeta>/.git, en el disco es otro archivo) no es el de esa
+// carpeta: runcmd.TaskDir falla, sin tocar nada, y es un "no" con git sano
+// (no ErrSinComprobar). Guarda: antes de editarlo y con el registro
+// original devuelto, la carpeta es su tarea.
 //
 // Usa internal/worktreetest y t68Acepta del archivo de 68644c.
 package runcmd_test

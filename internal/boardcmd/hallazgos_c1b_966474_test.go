@@ -12,15 +12,24 @@
 // (que fallaria: la carpeta ya existe). Guarda: de vuelta en su rama, la
 // tarjeta lee su worktree sin ese motivo.
 //
-// Reusa b6Tarjeta de hallazgos_c1b_6aeb17_test.go, las utilidades bd* de
-// gather_test.go y worktreetest.RamasAjenas.
+// En el doctor (.hoom/specs/historia-doctor-y-cinta.md, CA-369; el camino que
+// vio el refutador en f12cbb0): un worktree registrado SIN item que quedo
+// fuera de su rama no desaparece del doctor: Doctor devuelve un error que
+// envuelve runcmd.ErrOtraRama, en vez de un reporte que lo omite. Guarda: de
+// vuelta en su rama, el doctor lo ve como espacio suelto, sin error.
+//
+// Reusa b6Tarjeta y b6TieneSlug de hallazgos_c1b_6aeb17_test.go, las
+// utilidades bd* de gather_test.go, hdEspacioSuelto del doctor y
+// worktreetest.RamasAjenas.
 package boardcmd
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/worktreetest"
 )
 
@@ -80,6 +89,35 @@ func TestHallazgo966474_CA280_TableroConElWorktreeFueraDeSuRama(t *testing.T) {
 			if err != nil || c.Evidence.Source != SourceWorktree || b96MotivoDeRama(c) != "" {
 				t.Errorf("CA-280: guarda 966474 (%s): de vuelta en su rama la tarjeta lee su worktree sin motivo de rama: err=%v source=%s missing=%q",
 					v.Nombre, err, c.Evidence.Source, c.Missing)
+			}
+		})
+	}
+}
+
+// Hallazgo 966474. CA-369: con .hoom/worktrees/suelto (un worktree
+// registrado sin item, con cambios) fuera de su rama hoom/suelto, el doctor
+// devuelve un error que envuelve runcmd.ErrOtraRama: no lo omite.
+func TestHallazgo966474_CA369_DoctorConUnEspacioSinItemFueraDeSuRama(t *testing.T) {
+	for _, v := range worktreetest.RamasAjenas {
+		v := v
+		t.Run(v.Nombre, func(t *testing.T) {
+			root := bdRepo(t, "findings:\n  block_on: high\n")
+			hdEspacioSuelto(t, root)
+			wt := filepath.Join(root, ".hoom", "worktrees", "suelto")
+			if r, err := Doctor(root, "main", "high", b6Now); err != nil || !b6TieneSlug(r, "suelto") {
+				t.Fatalf("precondicion en su rama: el doctor ve el espacio suelto: err=%v problemas=%v", err, drIDs(r.Problems))
+			}
+
+			v.Armar(t, wt, "suelto")
+			r, err := Doctor(root, "main", "high", b6Now)
+			if !errors.Is(err, runcmd.ErrOtraRama) {
+				t.Errorf("CA-369: hallazgo 966474 (%s): el doctor no omite el espacio suelto fuera de su rama: devuelve un error que envuelve runcmd.ErrOtraRama; err=%v, %d problemas %v",
+					v.Nombre, err, len(r.Problems), drIDs(r.Problems))
+			}
+
+			worktreetest.VolverASuRama(t, wt, "suelto")
+			if r, err := Doctor(root, "main", "high", b6Now); err != nil || !b6TieneSlug(r, "suelto") {
+				t.Errorf("CA-369: guarda 966474 (%s): de vuelta en su rama el doctor ve el espacio suelto sin error: err=%v problemas=%v", v.Nombre, err, drIDs(r.Problems))
 			}
 		})
 	}

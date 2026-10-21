@@ -11,14 +11,22 @@
 // le borro el .git) sigue dando "no existe" sin ErrSinComprobar, y con los
 // permisos devueltos legit vuelve a ser su tarea.
 //
-// Usa t6Proyecto, t6SinPermisos, t6SinComprobar y t6NoEsSinComprobar del
+// Lo mismo un nivel mas arriba (el camino que vio el refutador en f12cbb0):
+// con .hoom/worktrees cerrada (0600: se listan los nombres pero no se
+// alcanzan; o 0000), TaskDir de legit y de una carpeta comun da
+// ErrSinComprobar y no "no existe".
+//
+// Usa internal/worktreetest (Cerrar, ModosCerrados), t6Proyecto, t6SinPermisos, t6SinComprobar y t6NoEsSinComprobar del
 // archivo de 6aeb17, y t68Acepta del de 68644c.
 package runcmd_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/hoomdev/hoomai/internal/worktreetest"
 )
 
 // t48SinLectura deja el archivo p en 000 y lo devuelve a 0644 al terminar.
@@ -78,4 +86,22 @@ func TestHallazgo48eeed_CA280_GuardaSinGitSigueDiciendoNoExiste(t *testing.T) {
 		t.Fatal(err)
 	}
 	t6NoEsSinComprobar(t, "worktree registrado sin su .git", root, "legit", true)
+}
+
+// Hallazgos 48eeed y 44ed99. CA-280: con .hoom/worktrees cerrada (0600 y
+// 0000), la puerta no puede leer el .git de ninguna carpeta: TaskDir de legit
+// y de comun da ErrSinComprobar, no "no existe". Abierta otra vez, legit
+// vuelve a ser su tarea.
+func TestHallazgo48eeed_CA280_TaskDirConWorktreesCerradaEsSinComprobar(t *testing.T) {
+	for _, modo := range worktreetest.ModosCerrados {
+		modo := modo
+		t.Run(fmt.Sprintf("%04o", modo), func(t *testing.T) {
+			root, legit := t6Proyecto(t)
+			abrir := worktreetest.Cerrar(t, filepath.Join(root, ".hoom", "worktrees"), "legit", modo)
+			t6SinComprobar(t, fmt.Sprintf(".hoom/worktrees en %04o, legit", modo), root, "legit")
+			t6SinComprobar(t, fmt.Sprintf(".hoom/worktrees en %04o, carpeta comun", modo), root, "comun")
+			abrir()
+			t68Acepta(t, ".hoom/worktrees abierta otra vez", root, "legit", legit)
+		})
+	}
 }
