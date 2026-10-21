@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T193152_31ba62",
+  "as": "corregido",
+  "evidence": "17dcce2: el resultado del enlace se decide en un switch explicito: err == nil publica, sinEnlaces(err) devuelve ErrSinEnlaces, y cualquier otro error se devuelve tal cual; ya no hay una condicion negativa que mezcle los tres.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T19:48:08.382598Z"
+}

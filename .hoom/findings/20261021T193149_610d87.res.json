@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T193149_610d87",
+  "as": "corregido",
+  "evidence": "17dcce2: el comentario de PublicarNuevo describe solo el camino que queda (temporal enlazado bajo el candado, entero o nada; sin hard links ErrSinEnlaces sin escribir nada, enmienda 2) y el de esperaPublicar dice 'a link'; ya no menciona comprobar y renombrar ni O_EXCL.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T19:48:08.374774Z"
+}
