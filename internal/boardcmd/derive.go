@@ -70,6 +70,13 @@ func column(ev Evidence) (string, []string, string, string) {
 	if ev.Item.HechoEn != nil {
 		return ColHecho, []string{}, "", "terminada: su cierre quedo registrado"
 	}
+	// without knowing whether its workspace is its worktree, nothing else
+	// about the card can be read: it stops here and says so, never as a
+	// card with no workspace (finding 6aeb17)
+	if ev.WorktreeSinComprobar != "" {
+		return ColBacklog, []string{"no se pudo comprobar el espacio de trabajo de la tarjeta: " + ev.WorktreeSinComprobar}, "hoom task list",
+			"no se pudo comprobar el espacio de trabajo de la tarjeta"
+	}
 	arquitecto := "hoom agent --role arquitecto" + task + " " + pedidoHint
 	if !ev.SpecExists {
 		next := "hoom task start " + s
@@ -143,9 +150,6 @@ func column(ev Evidence) (string, []string, string, string) {
 	if len(ev.UnreadableFindings) > 0 {
 		fail("hallazgos que no se pueden leer (su tarea y severidad son desconocidas): "+strings.Join(ev.UnreadableFindings, "; "),
 			"hay hallazgos que no se pueden leer", "hoom finding list")
-	}
-	if ev.WorktreeSinComprobar != "" {
-		fail(ev.WorktreeSinComprobar, "no se pudo comprobar el espacio de trabajo de la tarjeta", "hoom task list")
 	}
 	if gateStatus(v, "spec_approved") != verdict.StatusPass {
 		fail("el veredicto no trae spec_approved en pass",
