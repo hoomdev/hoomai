@@ -106,7 +106,7 @@ func WriteRecord(dir string, r Record) (Record, error) {
 	// append-only and whole: a record is never rewritten, and an error
 	// leaves no file under its name, so Run's no-entregable is never
 	// contradicted by a record the board reads (finding c6ddec)
-	if err := hoomfs.PublicarNuevo(filepath.Join(recordsDir(dir), r.ID+".json"), append(raw, '\n'), 0o644, os.Link); err != nil {
+	if err := hoomfs.PublicarNuevo(filepath.Join(recordsDir(dir), r.ID+".json"), append(raw, '\n'), 0o644, hoomfs.LockPath(dir, "reviews")); err != nil {
 		return Record{}, err
 	}
 	return r, nil

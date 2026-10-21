@@ -135,12 +135,13 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 
 // PublicarNuevo creates path with data, whole or not at all, and never
 // replaces a file already there: then it fails with an error that is
-// os.ErrExist. The data goes to a temp file that is closed and then linked
-// to path, so path appears complete; on a filesystem without hard links
-// (exFAT, some network mounts) path is created with O_EXCL instead and
-// removed again if the write fails (findings c6ddec, d2c506). enlazar is
-// os.Link, or a test's stand-in.
-func PublicarNuevo(path string, data []byte, mode os.FileMode, enlazar func(oldname, newname string) error) error {
+// os.ErrExist. The data goes to a temp file that is closed and renamed to
+// path, so a reader sees nothing or all of it and a crash leaves at most the
+// temp file (TemporalDe names it). A rename replaces, so the check that
+// path is not there yet and the rename go under candado, the lock every
+// publisher of that directory takes: it needs no hard links, which exFAT and
+// some network mounts lack (findings c6ddec, d2c506, 05d98a).
+func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) error {
 	tmp, err := crearTemporal(path)
 	if err != nil {
 		return err
@@ -156,22 +157,22 @@ func PublicarNuevo(path string, data []byte, mode os.FileMode, enlazar func(oldn
 	if err != nil {
 		return err
 	}
-	if err := enlazar(tmp.Name(), path); err == nil || errors.Is(err, os.ErrExist) {
-		return err
-	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	unlock, err := Lock(candado, esperaPublicar)
 	if err != nil {
 		return err
 	}
-	_, err = f.Write(data)
-	if cerr := f.Close(); err == nil {
-		err = cerr
+	defer unlock()
+	if _, err := os.Lstat(path); err == nil {
+		return &os.PathError{Op: "publicar", Path: path, Err: os.ErrExist}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
-	if err != nil {
-		os.Remove(path)
-	}
-	return err
+	return os.Rename(tmp.Name(), path)
 }
+
+// esperaPublicar is how long PublicarNuevo waits for another publisher of
+// the same directory: a check and a rename, never a long hold.
+const esperaPublicar = 10 * time.Second
 
 // ErrLocked: another process holds the lock and did not let go in time.
 var ErrLocked = errors.New("otro proceso tiene tomado")

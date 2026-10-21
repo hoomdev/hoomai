@@ -648,8 +648,9 @@ func CurrentTask(flag string) string {
 // slug to a folder: every command that runs, saves, discards or closes in a
 // task asks here (finding 28c350). The slug must be one, no step of
 // .hoom/worktrees/<slug> may be a symlink (a tracked one would take the
-// task to another repository), and the folder must be a worktree of root's
-// own repository, not a plain folder or another clone.
+// task to another repository), and the folder must be a worktree root's
+// repository registered at that path, not a plain folder, another clone or
+// a folder that points at another task's worktree (findings 28c350, 68644c).
 func TaskDir(root, task string) (string, error) {
 	if task == "" {
 		return root, nil
@@ -663,7 +664,13 @@ func TaskDir(root, task string) (string, error) {
 			return "", fmt.Errorf("la tarea %q no existe (mira 'hoom task list')", task)
 		}
 	}
-	if !gitx.WorktreeDe(root, wt) {
+	// git that cannot answer is not a "no": the error says so, and wraps
+	// gitx.ErrSinComprobar for the readers that would hide the task
+	ok, err := gitx.WorktreeDe(root, wt)
+	if err != nil {
+		return "", fmt.Errorf("no pude comprobar la tarea %q: %w", task, err)
+	}
+	if !ok {
 		return "", fmt.Errorf("la tarea %q no existe: %s no es un worktree de este repositorio (mira 'hoom task list')", task, filepath.Join(".hoom", "worktrees", task))
 	}
 	return wt, nil

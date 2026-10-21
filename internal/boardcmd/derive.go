@@ -144,6 +144,9 @@ func column(ev Evidence) (string, []string, string, string) {
 		fail("hallazgos que no se pueden leer (su tarea y severidad son desconocidas): "+strings.Join(ev.UnreadableFindings, "; "),
 			"hay hallazgos que no se pueden leer", "hoom finding list")
 	}
+	if ev.WorktreeSinComprobar != "" {
+		fail(ev.WorktreeSinComprobar, "no se pudo comprobar el espacio de trabajo de la tarjeta", "hoom task list")
+	}
 	if gateStatus(v, "spec_approved") != verdict.StatusPass {
 		fail("el veredicto no trae spec_approved en pass",
 			"hay que verificar de nuevo: el ultimo verde no incluye la aprobacion del spec",
@@ -500,22 +503,24 @@ func runUsages(ev Evidence) []runUsage {
 			out = append(out, runUsage{envelope: -1, run: j, usage: countedUsage(r.Meta.Usage)})
 		}
 	}
-	// a cost that would take the sum past what a float holds is a sidecar
-	// someone edited too: it counts as no cost, here, so the card's spend
-	// and its rows still add up and the board's JSON never carries an
-	// infinity (findings 0dc2de, 4cab20)
+	// costs whose sum a float cannot hold are sidecars someone edited: then
+	// none of the card's costs counts, whatever the order of its runs, so
+	// the card's spend and its rows still add up and the board's JSON never
+	// carries an infinity (findings 0dc2de, 4cab20, 3229f3)
 	var total float64
-	for i, c := range out {
-		if c.usage == nil || c.usage.CostUSD == nil {
-			continue
+	for _, c := range out {
+		if c.usage != nil && c.usage.CostUSD != nil {
+			total += *c.usage.CostUSD
 		}
-		if math.IsInf(total+*c.usage.CostUSD, 0) {
-			sin := *c.usage
-			sin.CostUSD = nil
-			out[i].usage = &sin
-			continue
+	}
+	if math.IsInf(total, 0) {
+		for i, c := range out {
+			if c.usage != nil && c.usage.CostUSD != nil {
+				sin := *c.usage
+				sin.CostUSD = nil
+				out[i].usage = &sin
+			}
 		}
-		total += *c.usage.CostUSD
 	}
 	return out
 }

@@ -221,17 +221,13 @@ func Add(root string, d Draft) (Item, error) {
 	// Whole or not at all, and never over another: two `item add` of the
 	// same slug at once cannot both win, and the loser never touches the
 	// winner's file (the temp file on the way is one List skips).
-	if err := hoomfs.PublicarNuevo(Path(root, it.Slug), raw, 0o644, enlazar); errors.Is(err, os.ErrExist) {
+	if err := hoomfs.PublicarNuevo(Path(root, it.Slug), raw, 0o644, hoomfs.LockPath(root, "items")); errors.Is(err, os.ErrExist) {
 		return Item{}, fmt.Errorf("%w: %s; elegi otro titulo o fija el slug con --slug", ErrExists, RelPath(it.Slug))
 	} else if err != nil {
 		return Item{}, err
 	}
 	return it, nil
 }
-
-// enlazar is how Add publishes the item (hoomfs.PublicarNuevo); a test
-// replaces it to stand for a filesystem without hard links (finding d2c506).
-var enlazar = os.Link
 
 // finitePositive is a budget: a number above 0 that YAML's .inf is not.
 func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }

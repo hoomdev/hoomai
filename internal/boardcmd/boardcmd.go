@@ -117,10 +117,15 @@ type Evidence struct {
 	UnreadableFindings []string
 	BlockOn            string // effective threshold: the project's block_on, or "high"
 
-	ReadyErr    string   // taskcmd.Ready error message; "" = task done would close it
-	ReadyKind   string   // taskcmd.ReadyError kind of ReadyErr ("" when unknown)
-	Worktree    bool     // the task worktree exists
-	Uncommitted []string // uncommitted evidence paths (see the spec)
+	// WorktreeSinComprobar: git could not say whether the card's task
+	// folder is its worktree (gitx.ErrSinComprobar). The card is then read
+	// from the root, and this blocks it: its work may be elsewhere (finding
+	// 6aeb17).
+	WorktreeSinComprobar string
+	ReadyErr             string   // taskcmd.Ready error message; "" = task done would close it
+	ReadyKind            string   // taskcmd.ReadyError kind of ReadyErr ("" when unknown)
+	Worktree             bool     // the task worktree exists
+	Uncommitted          []string // uncommitted evidence paths (see the spec)
 
 	Envelopes []EnvelopeState // envelope records with task == slug, newest first
 	Runs      []RunState      // run sidecars with task == slug, newest first

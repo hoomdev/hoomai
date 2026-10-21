@@ -10,6 +10,7 @@ package cockpitcmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +20,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -158,7 +160,7 @@ func placeOf(root, project, task string) (dir, session, rel string, err error) {
 		// climbs or a folder that is not a worktree never hosts the AI
 		// (finding 28c350)
 		wt, err := runcmd.TaskDir(root, task)
-		if err != nil && !item.ValidSlug(task) {
+		if err != nil && (!item.ValidSlug(task) || errors.Is(err, gitx.ErrSinComprobar)) {
 			return "", "", "", err
 		}
 		if err != nil {
