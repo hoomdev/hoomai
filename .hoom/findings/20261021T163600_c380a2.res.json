@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T163600_c380a2",
+  "as": "corregido",
+  "evidence": "a086604: hoomfs.PublicarNuevo vuelve a publicar con os.Link (una operacion que no pisa, frente a cualquier escritor) bajo el candado; comprobar y renombrar queda solo cuando el enlace no se soporta (ErrUnsupported: macOS en exFAT/FAT; EPERM: Linux en vfat/exfat), donde solo se excluye a otro hoom con el mismo candado, como dice el comentario. Tests 952ce2f internal/hoomfs/hallazgos_c1b_9e2e0d_c380a2_test.go: escritor ajeno con O_EXCL contra PublicarNuevo en 6000 rondas, nunca dos ganadores (antes ~2500); los de 05d98a siguen verdes (test-writer en clon limpio en af1c3ed; fallan ahi y pasan con a086604; refutador: INFORME-refutador-c1b-delta1.md, que confirmo que el arreglo lo cierra).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T16:59:58.539356Z"
+}
