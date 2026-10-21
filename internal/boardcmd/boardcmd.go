@@ -117,17 +117,17 @@ type Evidence struct {
 	UnreadableFindings []string
 	BlockOn            string // effective threshold: the project's block_on, or "high"
 
-	// WorktreeSinComprobar: the card's task folder could not be confirmed
-	// as its usable worktree: git could not say (gitx.ErrSinComprobar) or
-	// it is not on its branch (runcmd.ErrOtraRama). The card is then read
-	// from the root, and this blocks it with the reason: its work may be
-	// elsewhere, and starting the task again would fail (findings 6aeb17,
-	// 966474).
-	WorktreeSinComprobar string
-	ReadyErr             string   // taskcmd.Ready error message; "" = task done would close it
-	ReadyKind            string   // taskcmd.ReadyError kind of ReadyErr ("" when unknown)
-	Worktree             bool     // the task worktree exists
-	Uncommitted          []string // uncommitted evidence paths (see the spec)
+	// WorktreeInusable: why the card's task folder is there but cannot be
+	// used as its worktree: git could not say (gitx.ErrSinComprobar) or it
+	// is not on its branch (runcmd.ErrOtraRama), in the words of
+	// runcmd.TaskDir. The card is then read from the root, and this blocks
+	// it with that reason: its work may be elsewhere, and starting the task
+	// again would fail (findings 6aeb17, 966474, 7adf64).
+	WorktreeInusable string
+	ReadyErr         string   // taskcmd.Ready error message; "" = task done would close it
+	ReadyKind        string   // taskcmd.ReadyError kind of ReadyErr ("" when unknown)
+	Worktree         bool     // the task worktree exists
+	Uncommitted      []string // uncommitted evidence paths (see the spec)
 
 	Envelopes []EnvelopeState // envelope records with task == slug, newest first
 	Runs      []RunState      // run sidecars with task == slug, newest first

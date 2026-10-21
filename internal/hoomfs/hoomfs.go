@@ -136,16 +136,15 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 
 // PublicarNuevo creates path with data, whole or not at all, and never
 // replaces a file already there: then it fails with an error that is
-// os.ErrExist. The data goes to a temp file that is closed first, so a
-// reader sees nothing or all of it and a crash leaves at most the temp file
-// (TemporalDe names it). Under candado, the lock every hoom publisher of
-// that directory takes, the temp file is linked to path: one operation that
-// never replaces, whoever else writes there (findings c6ddec, 9e2e0d,
-// c380a2). A filesystem without hard links (exFAT, FAT) has no portable
-// operation that is whole and never replaces at once: there path is
-// created with O_EXCL and written, so it still never replaces, but a reader
-// may see it half written and a crash leaves it so (enmienda 1 of
-// items-y-columna-derivada; findings d2c506, 05d98a, cbbc8c, 434aec).
+// os.ErrExist. The data goes to a temp file that is closed first and then,
+// under candado, linked to path: one operation that never replaces,
+// whoever else writes there, so a reader sees nothing or all of it and a
+// crash leaves at most the temp file (TemporalDe names it). A filesystem
+// without hard links (exFAT, FAT) has no portable operation that is whole
+// and never replaces at once: there it fails with ErrSinEnlaces and writes
+// nothing (enmienda 2 of items-y-columna-derivada; findings c6ddec, d2c506,
+// 9e2e0d, c380a2, 589ad5, 25172f). candado serializes the hoom publishers
+// of a directory.
 func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) error {
 	tmp, err := crearTemporal(path)
 	if err != nil {
@@ -167,28 +166,22 @@ func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) e
 		return err
 	}
 	defer unlock()
-	if err := enlazar(tmp.Name(), path); !sinEnlaces(err) {
+	switch err := enlazar(tmp.Name(), path); {
+	case err == nil:
+		return nil
+	case sinEnlaces(err):
+		return fmt.Errorf("%w: %s (%v)", ErrSinEnlaces, filepath.Dir(path), err)
+	default:
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
-	if err != nil {
-		return err
-	}
-	_, err = f.Write(data)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		// it is this call's own file: what failed to be written goes
-		if rerr := os.Remove(path); rerr != nil {
-			return fmt.Errorf("%w; y no pude borrar el parcial %s: %v", err, path, rerr)
-		}
-	}
-	return err
 }
 
+// ErrSinEnlaces: the filesystem of .hoom has no hard links, and a new item
+// or review record cannot be published whole and without replacing.
+var ErrSinEnlaces = errors.New(".hoom necesita un sistema de archivos con hard links (exFAT y FAT no los tienen)")
+
 // enlazar is os.Link; a test of this package replaces it to stand for a
-// filesystem without hard links, where PublicarNuevo takes its O_EXCL path.
+// filesystem without hard links, where PublicarNuevo fails.
 var enlazar = os.Link
 
 // sinEnlaces says that a link failed because the filesystem has no hard
@@ -199,7 +192,7 @@ func sinEnlaces(err error) bool {
 }
 
 // esperaPublicar is how long PublicarNuevo waits for another publisher of
-// the same directory: a check and a rename, never a long hold.
+// the same directory: a link, never a long hold.
 const esperaPublicar = 10 * time.Second
 
 // ErrLocked: another process holds the lock and did not let go in time.

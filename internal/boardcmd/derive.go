@@ -70,12 +70,12 @@ func column(ev Evidence) (string, []string, string, string) {
 	if ev.Item.HechoEn != nil {
 		return ColHecho, []string{}, "", "terminada: su cierre quedo registrado"
 	}
-	// without knowing whether its workspace is its worktree, nothing else
-	// about the card can be read: it stops here and says so, never as a
-	// card with no workspace (finding 6aeb17)
-	if ev.WorktreeSinComprobar != "" {
-		return ColBacklog, []string{"no se pudo comprobar el espacio de trabajo de la tarjeta: " + ev.WorktreeSinComprobar}, "hoom task list",
-			"no se pudo comprobar el espacio de trabajo de la tarjeta"
+	// with a workspace it cannot use, nothing else about the card can be
+	// read: it stops here and says why, never as a card with no workspace
+	// (findings 6aeb17, 966474)
+	if ev.WorktreeInusable != "" {
+		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + ev.WorktreeInusable}, "hoom task list",
+			"el espacio de trabajo de la tarjeta no se puede usar"
 	}
 	arquitecto := "hoom agent --role arquitecto" + task + " " + pedidoHint
 	if !ev.SpecExists {

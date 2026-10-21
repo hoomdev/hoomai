@@ -329,7 +329,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 		dir, ev.Source, ev.Worktree = wt, SourceWorktree, true
 		ev.Dir = ".hoom/worktrees/" + s
 	} else if errors.Is(err, gitx.ErrSinComprobar) || errors.Is(err, runcmd.ErrOtraRama) {
-		ev.WorktreeSinComprobar = err.Error()
+		ev.WorktreeInusable = err.Error()
 	}
 	t := g.tree(dir)
 	specAbs := filepath.Join(dir, filepath.FromSlash(ev.SpecPath))

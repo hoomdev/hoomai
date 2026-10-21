@@ -110,7 +110,7 @@ func columnActions(c Card) []string {
 func actionsOf(ev Evidence, c Card) []Action {
 	// without knowing where the card's work is, no action can act on it:
 	// the card says why and offers none (finding e7ab69)
-	if ev.WorktreeSinComprobar != "" {
+	if ev.WorktreeInusable != "" {
 		return []Action{}
 	}
 	ids := columnActions(c)
