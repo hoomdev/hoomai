@@ -9,12 +9,17 @@
 // con O_EXCL y escribia ahi directo, asi el archivo quedaba visible a medio
 // escribir (y un crash lo dejaba parcial para siempre).
 //
-// El contrato nuevo, escrito desde el pedido y no desde la implementacion:
-// PublicarNuevo(path, data, mode, candado) ya no usa hard links. Escribe data
-// a un temporal, lo cierra y, bajo hoomfs.Lock(candado) (por ejemplo
-// LockPath(root, "items")), comprueba que path no exista y renombra. Si path
-// ya existe (archivo, directorio, symlink, aunque apunte a la nada) falla
-// con un error que es os.ErrExist y no lo toca. Asi:
+// El contrato nuevo, escrito desde el pedido y no desde la implementacion
+// (enmienda 1 de la spec): PublicarNuevo(path, data, mode, candado) escribe
+// data a un temporal, lo cierra y, bajo hoomfs.Lock(candado) (por ejemplo
+// LockPath(root, "items")), lo enlaza (hard link) al nombre final: una sola
+// operacion que nunca reemplaza. Solo en un volumen sin hard links (el enlace
+// falla con ENOTSUP, EOPNOTSUPP o EPERM) crea el nombre final con O_EXCL y
+// escribe: tampoco pisa, pero mientras escribe se puede ver a medias; ese
+// camino lo cubre hallazgos_c1b_cbbc8c_434aec_test.go. Si path ya existe
+// (archivo, directorio, symlink, aunque apunte a la nada) falla con un error
+// que es os.ErrExist y no lo toca. Estos tests corren en el filesystem
+// normal, con hard links, es decir por el camino del enlace. Asi:
 //
 //   - publica entero y nunca pisa;
 //   - de N publicaciones simultaneas del mismo nombre (goroutines o procesos)
@@ -639,7 +644,7 @@ func TestCA263_Hallazgo05d98a_LectorNuncaVeParcial(t *testing.T) {
 	pnSolo(t, "CA-263: hallazgo 05d98a", dir, todos...)
 }
 
-// Hallazgo 20261021T145451_05d98a. CA-265: la comprobacion y el renombre van
+// Hallazgo 20261021T145451_05d98a. CA-265: el enlace al nombre final va
 // bajo el candado que PublicarNuevo recibe. Mientras otro lo tiene, el nombre
 // final no aparece; al soltarlo, la publicacion termina entera, o fallo sin
 // dejar nada (si se canso de esperar). Nunca quedan temporales.

@@ -8,13 +8,17 @@
 //     enlazar por un enlace que fallaba.
 //
 //   - 20261021T145451_05d98a (medium, risk): el arreglo de d2c506 dejaba, si
-//     el enlace fallaba, el item visible a medio escribir. El contrato nuevo
-//     de hoomfs.PublicarNuevo ya no usa hard links: escribe un temporal, lo
-//     cierra y, bajo un candado, comprueba que el final no exista y renombra.
-//     La dependencia de hard links desaparecio (05d98a), item.enlazar ya no
-//     existe, y por eso ya no hay nada que simular: estos tests corren con el
-//     filesystem normal. Sigue valiendo todo lo demas de CA-263 y CA-265: Add
-//     crea el item entero, legible por Load y List; con el item ya creado
+//     el enlace fallaba, el item visible a medio escribir. El contrato de
+//     hoomfs.PublicarNuevo (enmienda 1 de la spec): escribe un temporal, lo
+//     cierra y, bajo un candado, lo enlaza (hard link) al nombre final, una
+//     sola operacion que nunca pisa; solo en un volumen sin hard links (el
+//     enlace falla con ENOTSUP, EOPNOTSUPP o EPERM) crea el final con O_EXCL
+//     y lo escribe: tampoco pisa, pero mientras escribe se puede ver a
+//     medias. item.enlazar ya no existe: el volumen sin hard links se simula
+//     en hoomfs (hallazgos_c1b_cbbc8c_434aec_test.go), y estos tests corren
+//     con el filesystem normal, por el camino del enlace. Sigue valiendo todo
+//     lo demas de CA-263 y CA-265: Add crea el item entero, legible por Load
+//     y List; con el item ya creado
 //     devuelve ErrExists y el archivo queda byte a byte igual (y es el mismo
 //     archivo: no se reemplaza); varios Add del mismo slug a la vez: uno gana,
 //     los demas reciben ErrExists, y el archivo es el del ganador entero; y
