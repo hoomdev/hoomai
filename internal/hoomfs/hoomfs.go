@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -135,12 +136,15 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 
 // PublicarNuevo creates path with data, whole or not at all, and never
 // replaces a file already there: then it fails with an error that is
-// os.ErrExist. The data goes to a temp file that is closed and renamed to
-// path, so a reader sees nothing or all of it and a crash leaves at most the
-// temp file (TemporalDe names it). A rename replaces, so the check that
-// path is not there yet and the rename go under candado, the lock every
-// publisher of that directory takes: it needs no hard links, which exFAT and
-// some network mounts lack (findings c6ddec, d2c506, 05d98a).
+// os.ErrExist. The data goes to a temp file that is closed first, so a
+// reader sees nothing or all of it and a crash leaves at most the temp file
+// (TemporalDe names it). Under candado, the lock every hoom publisher of
+// that directory takes, the temp file is linked to path: one operation that
+// never replaces, whoever else writes there (findings c6ddec, 9e2e0d,
+// c380a2). A filesystem without hard links (exFAT, FAT, some network
+// mounts) gets a check that path is not there and a rename instead, also
+// whole: there only another hoom, taking the same lock, is kept from
+// replacing (findings d2c506, 05d98a).
 func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) error {
 	tmp, err := crearTemporal(path)
 	if err != nil {
@@ -162,12 +166,23 @@ func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) e
 		return err
 	}
 	defer unlock()
+	err = os.Link(tmp.Name(), path)
+	if !sinEnlaces(err) {
+		return err
+	}
 	if _, err := os.Lstat(path); err == nil {
 		return &os.PathError{Op: "publicar", Path: path, Err: os.ErrExist}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// sinEnlaces says that a link failed because the filesystem has no hard
+// links: macOS answers ENOTSUP on exFAT and FAT, Linux EPERM on vfat. Any
+// other failure, an existing path among them, is the publication's answer.
+func sinEnlaces(err error) bool {
+	return err != nil && (errors.Is(err, errors.ErrUnsupported) || errors.Is(err, syscall.EPERM))
 }
 
 // esperaPublicar is how long PublicarNuevo waits for another publisher of

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -86,17 +87,30 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 	return rama, true, nil
 }
 
-// gitLimpio is gitOut, trimmed, without the variables that make git answer
-// for a repository other than dir's: a hook exports GIT_DIR, and with it a
-// plain folder would pass for a worktree.
+// variablesDeOtroRepo make git answer for a repository or work tree other
+// than the one of its working directory: a hook exports GIT_DIR.
+var variablesDeOtroRepo = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR",
+	"GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE"}
+
+// LimpiarEntorno removes variablesDeOtroRepo from this process. hoom always
+// says where git works (its Dir), and every git and every provider it
+// launches inherits this process's environment: with GIT_WORK_TREE on the
+// root, a task command the gate let through would act on the root (finding
+// 1e4b3e). cmd/hoom calls it before anything else.
+func LimpiarEntorno() {
+	for _, k := range variablesDeOtroRepo {
+		os.Unsetenv(k)
+	}
+}
+
+// gitLimpio is gitOut, trimmed, without variablesDeOtroRepo: with GIT_DIR a
+// plain folder would pass for a worktree. LimpiarEntorno already removed
+// them from hoom; this holds for a caller that did not run through it.
 func gitLimpio(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	for _, kv := range os.Environ() {
-		switch k, _, _ := strings.Cut(kv, "="); k {
-		case "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
-			"GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE":
-		default:
+		if k, _, _ := strings.Cut(kv, "="); !slices.Contains(variablesDeOtroRepo, k) {
 			cmd.Env = append(cmd.Env, kv)
 		}
 	}

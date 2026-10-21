@@ -565,21 +565,28 @@ func countedUsage(u *providers.Usage) *providers.Usage {
 // once, so nothing is counted twice). A cost nobody reported stays nil.
 func spend(ev Evidence) Spend {
 	s := Spend{BudgetUSD: ev.Item.PresupuestoUSD}
-	var total float64
-	reported := false
+	var costos []float64
 	for _, c := range runUsages(ev) {
 		s.Runs++
 		if c.usage == nil || c.usage.CostUSD == nil {
 			s.RunsWithoutCost++
 		} else {
-			total += *c.usage.CostUSD
-			reported = true
+			costos = append(costos, *c.usage.CostUSD)
 		}
 		if c.usage != nil {
 			s.InputTokens += c.usage.InputTokens
 			s.OutputTokens += c.usage.OutputTokens
 		}
 	}
+	// added up from the smallest, like runUsages decides what fits: float
+	// sums depend on their order, and the same costs give the same total
+	// whatever the order of the runs (finding 1ab3b0)
+	sort.Float64s(costos)
+	var total float64
+	for _, c := range costos {
+		total += c
+	}
+	reported := len(costos) > 0
 	if reported {
 		s.CostUSD = &total
 	}
