@@ -1,0 +1,11 @@
+{
+  "id": "20261021T192844_4f802a",
+  "created_at": "2026-10-21T19:28:44.733527Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:173-179 publica el nombre final mientras escribe los bytes en el fallback sin hard links. La deuda declarada dice que un corte deja un parcial que List avisa, pero el YAML de item pone los campos opcionales presupuesto_usd/sesiones/auto después de creado_en y internal/item/item.go:266-281 considera válido un documento que termine justo tras ese último campo obligatorio. Un corte o short write en ese límite deja una tarjeta aceptada silenciosamente con presupuesto, auto o sesiones perdidos, en vez de un item inválido advertido. Hace falta una marca de completitud que Parse exija (o un formato de publicación que permita distinguir cualquier prefijo incompleto).",
+  "author": "reviewer@codex",
+  "fingerprint": "8e9aaabaf27f1034",
+  "task": "fixes-cabina-c1b"
+}
