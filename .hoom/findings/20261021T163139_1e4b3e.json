@@ -1,0 +1,11 @@
+{
+  "id": "20261021T163139_1e4b3e",
+  "created_at": "2026-10-21T16:31:39.560702Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/worktree.go",
+  "description": "INTRODUCIDO — internal/gitx/worktree.go:95 limpia GIT_DIR/GIT_WORK_TREE solo para las consultas de WorktreeDe, de modo que TaskDir ahora acepta un worktree legitimo bajo un entorno envenenado, pero los verbos autorizados siguen lanzando git y el provider con os.Environ sin limpiar (por ejemplo internal/taskcmd/taskcmd.go:373,434,482 e internal/runcmd/runcmd.go:1089). Con GIT_WORK_TREE apuntando a la raiz, la puerta valida hoom/\u003cslug\u003e usando el worktree real y luego task discard --yes compara/restaura la raiz con el indice/HEAD de la tarea; puede borrar trabajo no guardado del arbol principal mientras informa rutas de la tarea. El mismo desacople permite que item save o un provider stageen/commiteen otro arbol. La base fallaba cerrada porque WorktreeDe heredaba GIT_WORK_TREE y rechazaba ese top distinto; este rango abre el camino. La sanitizacion debe abarcar toda operacion autorizada y el proceso lanzado, o la puerta debe rechazar el entorno. Patronizable: prohibir exec.Command(\"git\")/os.Environ crudos en mutaciones task-scoped y exigir el helper de entorno limpio.",
+  "author": "reviewer@codex",
+  "fingerprint": "b94a49b365bc0422",
+  "task": "fixes-cabina-c1b"
+}

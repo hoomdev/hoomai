@@ -1,0 +1,11 @@
+{
+  "id": "20261021T163600_1ab3b0",
+  "created_at": "2026-10-21T16:36:00.28853Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/derive.go",
+  "description": "INTRODUCIDO: internal/boardcmd/derive.go:529-545 ordena los costos solo para decidir cuales anular por desborde, pero spend los vuelve a sumar en el orden original en internal/boardcmd/derive.go:570-575. Por la no asociatividad de float64, los mismos costos siguen dando totales y remaining_usd distintos segun el orden (por ejemplo, 1e16+1+1 da 1e16, mientras 1+1+1e16 da 10000000000000002), aunque ninguno desborde; esto incumple la determinacion que el cambio pretende garantizar y los tests nuevos solo usan sumas exactas o desbordes.",
+  "author": "reviewer@codex",
+  "fingerprint": "b94a49b365bc0422",
+  "task": "fixes-cabina-c1b"
+}
