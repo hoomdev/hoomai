@@ -503,24 +503,41 @@ func runUsages(ev Evidence) []runUsage {
 			out = append(out, runUsage{envelope: -1, run: j, usage: countedUsage(r.Meta.Usage)})
 		}
 	}
-	// costs whose sum a float cannot hold are sidecars someone edited: then
-	// none of the card's costs counts, whatever the order of its runs, so
-	// the card's spend and its rows still add up and the board's JSON never
-	// carries an infinity (findings 0dc2de, 4cab20, 3229f3)
-	var total float64
-	for _, c := range out {
+	// a cost that would take the sum past what a float holds is a sidecar
+	// someone edited: it counts as no cost, so the card's spend and its rows
+	// still add up and the board's JSON never carries an infinity (findings
+	// 0dc2de, 4cab20). The costs add up from the smallest, ties by run id,
+	// so the same costs give the same spend and the same rows whatever the
+	// order of the runs and envelopes (finding 3229f3); costs are never
+	// negative (countedUsage), so once one does not fit no larger one does.
+	var conCosto []int
+	for i, c := range out {
 		if c.usage != nil && c.usage.CostUSD != nil {
-			total += *c.usage.CostUSD
+			conCosto = append(conCosto, i)
 		}
 	}
-	if math.IsInf(total, 0) {
-		for i, c := range out {
-			if c.usage != nil && c.usage.CostUSD != nil {
-				sin := *c.usage
-				sin.CostUSD = nil
-				out[i].usage = &sin
-			}
+	runID := func(c runUsage) string {
+		if c.run >= 0 {
+			return ev.Runs[c.run].Meta.ID
 		}
+		return ev.Envelopes[c.envelope].Record.RunID
+	}
+	sort.Slice(conCosto, func(a, b int) bool {
+		ca, cb := out[conCosto[a]], out[conCosto[b]]
+		if *ca.usage.CostUSD != *cb.usage.CostUSD {
+			return *ca.usage.CostUSD < *cb.usage.CostUSD
+		}
+		return runID(ca) < runID(cb)
+	})
+	var total float64
+	for _, i := range conCosto {
+		if c := *out[i].usage.CostUSD; !math.IsInf(total+c, 0) {
+			total += c
+			continue
+		}
+		sin := *out[i].usage
+		sin.CostUSD = nil
+		out[i].usage = &sin
 	}
 	return out
 }
