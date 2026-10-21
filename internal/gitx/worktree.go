@@ -22,7 +22,7 @@ var ErrSinComprobar = errors.New("no se pudo comprobar el worktree")
 // ref, "" when detached). It holds when:
 //
 //   - dir/.git is a regular file whose gitdir is <root's common dir>/worktrees/<id>;
-//   - that registry's gitdir file names dir/.git back;
+//   - that registry's gitdir file names dir/.git back, exactly;
 //   - from dir, git answers dir as its top and root's common dir as its own.
 //
 // A plain folder, a copy or a moved worktree, a .git that is a directory or
@@ -41,8 +41,16 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 	}
 	comun = rutaDeGit(root, comun)
 	// the registry, read here: git worktree list skips one it cannot read
+	// only a .git that is not there is a "no": one that cannot be read
+	// is git's registry unreadable (findings 48eeed, 44ed99)
 	st, err := os.Lstat(filepath.Join(dir, ".git"))
-	if err != nil || !st.Mode().IsRegular() {
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return sinComprobar(dir, err)
+	}
+	if !st.Mode().IsRegular() {
 		return "", false, nil
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, ".git"))
@@ -64,7 +72,9 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 	if err != nil {
 		return sinComprobar(gitdir, err)
 	}
-	if !mismaRuta(dir, filepath.Dir(rutaDeGit(gitdir, strings.TrimSpace(string(back))))) {
+	// the registry names dir/.git itself, not any file of dir (finding
+	// 880f0a)
+	if p := rutaDeGit(gitdir, strings.TrimSpace(string(back))); filepath.Base(p) != ".git" || !mismaRuta(dir, filepath.Dir(p)) {
 		return "", false, nil
 	}
 	// registered and pointed back: from here a failure of git is git's

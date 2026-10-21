@@ -160,7 +160,7 @@ func placeOf(root, project, task string) (dir, session, rel string, err error) {
 		// climbs or a folder that is not a worktree never hosts the AI
 		// (finding 28c350)
 		wt, err := runcmd.TaskDir(root, task)
-		if err != nil && (!item.ValidSlug(task) || errors.Is(err, gitx.ErrSinComprobar)) {
+		if err != nil && (!item.ValidSlug(task) || errors.Is(err, gitx.ErrSinComprobar) || errors.Is(err, runcmd.ErrOtraRama)) {
 			return "", "", "", err
 		}
 		if err != nil {

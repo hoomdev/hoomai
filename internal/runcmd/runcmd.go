@@ -643,6 +643,11 @@ func CurrentTask(flag string) string {
 	return strings.TrimSpace(os.Getenv(EnvTask))
 }
 
+// ErrOtraRama: the task's worktree is there but not on its branch
+// hoom/<slug>. It is a worktree to fix, not a task to start: the readers
+// that show a card say so (findings 966474, c284d0).
+var ErrOtraRama = errors.New("worktree fuera de su rama")
+
 // TaskDir resolves where work for a task happens: its isolated worktree, or
 // the project root when no task is given. It is the one gate from a task's
 // slug to a folder: every command that runs, saves, discards or closes in a
@@ -681,7 +686,7 @@ func TaskDir(root, task string) (string, error) {
 		if rama != "" {
 			en = "en la rama " + strings.TrimPrefix(rama, "refs/heads/")
 		}
-		return "", fmt.Errorf("la tarea %q esta %s y no en hoom/%s: volve a su rama en %s", task, en, task, filepath.Join(".hoom", "worktrees", task))
+		return "", fmt.Errorf("%w: la tarea %q esta %s y no en hoom/%s: volve a su rama en %s", ErrOtraRama, task, en, task, filepath.Join(".hoom", "worktrees", task))
 	}
 	return wt, nil
 }

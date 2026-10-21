@@ -328,7 +328,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	if wt, err := runcmd.TaskDir(g.root, s); err == nil && s != "" {
 		dir, ev.Source, ev.Worktree = wt, SourceWorktree, true
 		ev.Dir = ".hoom/worktrees/" + s
-	} else if errors.Is(err, gitx.ErrSinComprobar) {
+	} else if errors.Is(err, gitx.ErrSinComprobar) || errors.Is(err, runcmd.ErrOtraRama) {
 		ev.WorktreeSinComprobar = err.Error()
 	}
 	t := g.tree(dir)

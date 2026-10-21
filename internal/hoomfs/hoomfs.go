@@ -141,10 +141,11 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 // (TemporalDe names it). Under candado, the lock every hoom publisher of
 // that directory takes, the temp file is linked to path: one operation that
 // never replaces, whoever else writes there (findings c6ddec, 9e2e0d,
-// c380a2). A filesystem without hard links (exFAT, FAT, some network
-// mounts) gets a check that path is not there and a rename instead, also
-// whole: there only another hoom, taking the same lock, is kept from
-// replacing (findings d2c506, 05d98a).
+// c380a2). A filesystem without hard links (exFAT, FAT) has no portable
+// operation that is whole and never replaces at once: there path is
+// created with O_EXCL and written, so it still never replaces, but a reader
+// may see it half written and a crash leaves it so (enmienda 1 of
+// items-y-columna-derivada; findings d2c506, 05d98a, cbbc8c, 434aec).
 func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) error {
 	tmp, err := crearTemporal(path)
 	if err != nil {
@@ -166,17 +167,29 @@ func PublicarNuevo(path string, data []byte, mode os.FileMode, candado string) e
 		return err
 	}
 	defer unlock()
-	err = os.Link(tmp.Name(), path)
-	if !sinEnlaces(err) {
+	if err := enlazar(tmp.Name(), path); !sinEnlaces(err) {
 		return err
 	}
-	if _, err := os.Lstat(path); err == nil {
-		return &os.PathError{Op: "publicar", Path: path, Err: os.ErrExist}
-	} else if !errors.Is(err, os.ErrNotExist) {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), path)
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		// it is this call's own file: what failed to be written goes
+		if rerr := os.Remove(path); rerr != nil {
+			return fmt.Errorf("%w; y no pude borrar el parcial %s: %v", err, path, rerr)
+		}
+	}
+	return err
 }
+
+// enlazar is os.Link; a test of this package replaces it to stand for a
+// filesystem without hard links, where PublicarNuevo takes its O_EXCL path.
+var enlazar = os.Link
 
 // sinEnlaces says that a link failed because the filesystem has no hard
 // links: macOS answers ENOTSUP on exFAT and FAT, Linux EPERM on vfat. Any
