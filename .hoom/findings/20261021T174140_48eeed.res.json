@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T174140_48eeed",
+  "as": "corregido",
+  "evidence": "f12cbb0 + 09478f1: solo una entrada que no existe es un 'no': un Lstat de .hoom, .hoom/worktrees, la carpeta o su .git que falla por otra causa es gitx.ErrSinComprobar en TaskDir, e itemcmd.Save consulta la puerta tambien cuando no puede leer la entrada. Tests (runcmd, boardcmd, cockpitcmd e itemcmd hallazgos_c1b_48eeed_test.go): con la carpeta, su .git o .hoom/worktrees ilegibles TaskDir da ErrSinComprobar, el tablero bloquea la tarjeta, el doctor falla, el cockpit devuelve ese error y Save no commitea (test-writer en clon limpio; fallan antes del arreglo y pasan despues; refutador: INFORME-refutador-c1b-delta1-entera.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T18:44:48.560835Z"
+}

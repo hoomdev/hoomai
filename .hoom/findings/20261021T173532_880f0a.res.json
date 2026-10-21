@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T173532_880f0a",
+  "as": "corregido",
+  "evidence": "f12cbb0 + 09478f1: gitx.WorktreeDe compara el registro resuelto con \u003ccarpeta\u003e/.git (mismaRuta): otro archivo de la carpeta, .GIT o un camino que llega por un symlink y .. no pasan. Tests 462859a y el commit de los tres caminos (internal/runcmd y internal/taskcmd hallazgos_c1b_880f0a_test.go): TaskDir los rechaza y discard no toca nada (antes borraba el trabajo) (test-writer en clon limpio; fallan antes del arreglo y pasan despues; refutador: INFORME-refutador-c1b-delta1-entera.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T18:44:48.553862Z"
+}
