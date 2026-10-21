@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T150858_7d2845",
+  "as": "corregido",
+  "evidence": "d996957 y 35b6b75: WorktreeDe, ErrSinComprobar y sus helpers (rutaDeGit, mismaRuta, gitLimpio) viven en internal/gitx/worktree.go, separados de diff.go; sus pruebas van por runcmd.TaskDir y los comandos (86c6084).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T15:57:07.89406Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T145451_05d98a",
+  "as": "corregido",
+  "evidence": "d996957: hoomfs.PublicarNuevo ya no usa hard links ni escribe al nombre final: temporal cerrado, candado del directorio (hoomfs.LockPath), Lstat de que el final no existe y Rename; entero o nada, sin pisar entre publicadores de hoom y sin depender del filesystem (el refutador midio el prototipo en exFAT real: 8 publicadores, 1 gana, un SIGKILL no deja final). Tests 1dcb...: ver commit de tests de 05d98a (hoomfs/hallazgos_c1b_05d98a_test.go) (test-writer en clon limpio en b72de8f; fallan ahi y pasan con el arreglo; refutador: INFORME-refutador-c1b-review1.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T15:56:49.191969Z"
+}

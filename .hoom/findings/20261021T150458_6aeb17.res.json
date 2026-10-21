@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261021T150458_6aeb17",
+  "as": "corregido",
+  "evidence": "d996957 + 35b6b75 + 922ff6c: WorktreeDe devuelve un error que envuelve gitx.ErrSinComprobar cuando git no responde sobre root, cuando el registro no se puede leer (leido en Go: git worktree list lo omitia) o cuando git falla en un worktree registrado; TaskDir dice 'no pude comprobar' y no 'no existe'; gather lo pone en Evidence.WorktreeSinComprobar y Derive detiene la tarjeta con ese motivo (siguiente paso hoom task list), el cockpit lo devuelve y el doctor falla. Tests 86c6084 (runcmd y boardcmd: sin git, .git movido, raiz no repo, registros en chmod 000) (test-writer en clon limpio en b72de8f; fallan ahi y pasan con el arreglo; refutador: INFORME-refutador-c1b-review1.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-21T15:56:49.185905Z"
+}
