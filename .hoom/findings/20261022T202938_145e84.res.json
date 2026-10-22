@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T202938_145e84",
+  "as": "corregido",
+  "evidence": "d84d08e: el CI corre semgrep desde la imagen oficial semgrep/semgrep:1.175.0 fijada por digest sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796 (manifiesto multi-arquitectura de Docker Hub), que fija el motor y su grafo de dependencias; el wrapper /usr/local/bin/semgrep la ejecuta sobre el checkout. pipx install ya no se usa.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:37:08.798504Z"
+}
