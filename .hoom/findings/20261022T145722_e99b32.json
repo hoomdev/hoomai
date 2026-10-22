@@ -1,0 +1,11 @@
+{
+  "id": "20261022T145722_e99b32",
+  "created_at": "2026-10-22T14:57:22.262242Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go:399-410 declara el contador otros, pero la función falla lo incrementa para todos los fallos, incluidos los que además cuentan como publico, ocupado o pisado; lines 479-480 lo usan como total para cortar la prueba. El nombre sugiere una categoría residual aunque representa el total de fallos, lo que vuelve engañosa la contabilidad del test de carrera; debería llamarse fallas o totalFallas.",
+  "author": "reviewer@codex",
+  "fingerprint": "b50126af14ff1a47",
+  "task": "fixes-cabina-c1b"
+}
