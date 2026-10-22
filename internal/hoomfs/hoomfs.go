@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -136,7 +135,11 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 
 // PublicarNuevo creates path with data, whole or not at all, and never
 // replaces a file already there: then it fails with an error that is
-// os.ErrExist. The data goes to a temp file that is closed first and then,
+// os.ErrExist. On a filesystem without hard links it fails with
+// ErrSinEnlaces; with path already taken it may fail with os.ErrExist
+// first, since macOS and Linux answer that before the missing link, so a
+// caller treats both (finding e581eb). The data goes to a temp file that
+// is closed first and then,
 // under candado, linked to path: one operation that never replaces,
 // whoever else writes there, so a reader sees nothing or all of it and a
 // crash leaves at most the temp file (TemporalDe names it). A filesystem
@@ -185,10 +188,10 @@ var ErrSinEnlaces = errors.New(".hoom necesita un sistema de archivos con hard l
 var enlazar = os.Link
 
 // sinEnlaces says that a link failed because the filesystem has no hard
-// links: macOS answers ENOTSUP on exFAT and FAT, Linux EPERM on vfat. Any
-// other failure, an existing path among them, is the publication's answer.
+// links, in each system's words (sinEnlacesSO). Any other failure, an
+// existing path among them, is the publication's answer.
 func sinEnlaces(err error) bool {
-	return err != nil && (errors.Is(err, errors.ErrUnsupported) || errors.Is(err, syscall.EPERM))
+	return err != nil && (errors.Is(err, errors.ErrUnsupported) || sinEnlacesSO(err))
 }
 
 // esperaPublicar is how long PublicarNuevo waits for another publisher of

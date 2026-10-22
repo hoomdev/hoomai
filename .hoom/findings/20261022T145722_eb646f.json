@@ -1,0 +1,11 @@
+{
+  "id": "20261022T145722_eb646f",
+  "created_at": "2026-10-22T14:57:22.067897Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go:151-156 entra al fallo precisamente cuando el nombre final sí existe o Lstat devuelve otro error, pero el mensaje dice que el nombre no existe. Ante una regresión produciría mensajes contradictorios como Lstat igual a nil junto a no existe, dificultando diagnosticar el test; el texto debe expresar que el nombre debía no existir.",
+  "author": "reviewer@codex",
+  "fingerprint": "b50126af14ff1a47",
+  "task": "fixes-cabina-c1b"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261022T145721_e581eb",
+  "created_at": "2026-10-22T14:57:21.838853Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:137-145 afirma que, si el destino ya existe, PublicarNuevo falla con os.ErrExist; pero para un volumen sin hard links la clasificación de lines 169-175 puede devolver ErrSinEnlaces, y el propio contrato de prueba en internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go:234-241 admite cualquiera de los dos errores con el nombre ocupado. La documentación exportada promete una forma de error más estricta que la implementación y deja ambiguo qué debe manejar un llamador; conviene explicitar la excepción del volumen sin enlaces.",
+  "author": "reviewer@codex",
+  "fingerprint": "b50126af14ff1a47",
+  "task": "fixes-cabina-c1b"
+}

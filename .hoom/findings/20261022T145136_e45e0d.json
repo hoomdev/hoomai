@@ -1,0 +1,11 @@
+{
+  "id": "20261022T145136_e45e0d",
+  "created_at": "2026-10-22T14:51:36.696398Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO: internal/hoomfs/hoomfs.go:172-175 agrega el contrato de devolver ErrSinEnlaces cuando el volumen no soporta hard links, pero sinEnlaces en internal/hoomfs/hoomfs.go:190-191 no reconoce ERROR_INVALID_FUNCTION (WinError 1), que CreateHardLinkW devuelve en exFAT/FAT de Windows; syscall.EPERM en Windows es un valor inventado distinto. En esos volúmenes PublicarNuevo devuelve el LinkError crudo en vez de envolver ErrSinEnlaces y explicar que .hoom necesita hard links. La regresión queda invisible porque los tests nuevos de este caso tienen //go:build !windows en internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go:1. Clasificar el error Windows real y cubrirlo en Windows.",
+  "author": "reviewer@codex",
+  "fingerprint": "b50126af14ff1a47",
+  "task": "fixes-cabina-c1b"
+}

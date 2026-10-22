@@ -1,0 +1,11 @@
+{
+  "id": "20261022T153704_75d394",
+  "created_at": "2026-10-22T15:37:04.273691Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/hoomfs/hallazgos_c1b_e45e0d_windows_test.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hallazgos_c1b_e45e0d_windows_test.go:227: la guarda restaura os.Link y exige que PublicarNuevo tenga exito sobre el mismo t.TempDir, pero no comprueba que el volumen real admita hard links. En Windows con TMP/TEMP sobre FAT o exFAT —precisamente el entorno degradado cubierto— os.Link seguira devolviendo ErrSinEnlaces y estos subtests fallaran aunque el manejo del error sea correcto, por lo que la suite no es robusta en esos volumenes.",
+  "author": "reviewer@codex",
+  "fingerprint": "0680c6bf9c1f492a",
+  "task": "fixes-cabina-c1b"
+}
