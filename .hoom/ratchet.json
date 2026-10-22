@@ -1,20 +1,46 @@
 {
   "schema": "hoom.ratchet/v1",
   "metrics": {
+    "avisos_errcheck": {
+      "cmd": "golangci-lint run --default=none --enable=errcheck --tests=false ./... 2\u003e/dev/null | grep -cE '^[^ ].*[.]go:[0-9]+:[0-9]+:' || true",
+      "direction": "down",
+      "value": 50,
+      "updated_at": "2026-10-22T19:51:53Z"
+    },
     "ca_con_test": {
       "cmd": "grep -rhoE 'CA-[0-9]+' --include='*_test.go' internal cmd | sort -u | wc -l",
       "direction": "up",
-      "tolerance": 0
+      "value": 428,
+      "updated_at": "2026-10-22T19:51:53Z"
     },
     "paquetes_sin_tests": {
       "cmd": "go list -f '{{if and (not .TestGoFiles) (not .XTestGoFiles)}}{{.ImportPath}}{{end}}' ./... | grep -c . || true",
       "direction": "down",
-      "tolerance": 0
-    },
-    "avisos_errcheck": {
-      "cmd": "golangci-lint run --default=none --enable=errcheck --tests=false ./... 2>/dev/null | grep -cE '^[^ ].*[.]go:[0-9]+:[0-9]+:' || true",
-      "direction": "down",
-      "tolerance": 0
+      "value": 3,
+      "updated_at": "2026-10-22T19:51:53Z"
     }
-  }
+  },
+  "history": [
+    {
+      "ts": "2026-10-22T19:51:53.097112Z",
+      "metric": "avisos_errcheck",
+      "to": 50,
+      "kind": "frozen",
+      "reason": "primer verify --full: linea base congelada"
+    },
+    {
+      "ts": "2026-10-22T19:51:53.144894Z",
+      "metric": "ca_con_test",
+      "to": 428,
+      "kind": "frozen",
+      "reason": "primer verify --full: linea base congelada"
+    },
+    {
+      "ts": "2026-10-22T19:51:53.41054Z",
+      "metric": "paquetes_sin_tests",
+      "to": 3,
+      "kind": "frozen",
+      "reason": "primer verify --full: linea base congelada"
+    }
+  ]
 }
