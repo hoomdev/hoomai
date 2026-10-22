@@ -145,7 +145,8 @@ func slEsSinEnlaces(err error) string {
 }
 
 // slNoEsta exige que el nombre final no exista (Lstat: ni archivo, ni
-// symlink, ni nada).
+// symlink, ni nada). Si existe, o Lstat falla por otra cosa, lo dice y
+// muestra lo que dio Lstat.
 func slNoEsta(t *testing.T, ca, final string) {
 	t.Helper()
 	if info, err := os.Lstat(final); !errors.Is(err, os.ErrNotExist) {
@@ -153,7 +154,7 @@ func slNoEsta(t *testing.T, ca, final string) {
 		if err == nil {
 			sz = info.Size()
 		}
-		t.Fatalf("%s: el nombre final %s no existe; Lstat = %v (%d bytes)", ca, final, err, sz)
+		t.Fatalf("%s: el nombre final %s debia no existir; Lstat = %v (%d bytes)", ca, final, err, sz)
 	}
 }
 
@@ -397,12 +398,14 @@ func TestCA265_Hallazgos589ad5_25172f_434aec_SinHardLinksElAjenoSiempreGana(t *t
 
 	rnd := rand.New(rand.NewSource(0x589ad5))
 	var (
-		hechas, solapadas, publico, ocupado, pisado, otros int
-		nombres                                            []string
-		primera                                            string
+		hechas, solapadas, publico, ocupado, pisado, fallas int
+		nombres                                             []string
+		primera                                             string
 	)
+	// fallas cuenta TODAS las fallas (las de publico, ocupado y pisado
+	// incluidas): es el total con que se corta la prueba.
 	falla := func(format string, args ...any) {
-		otros++
+		fallas++
 		if primera == "" {
 			primera = fmt.Sprintf(format, args...)
 		}
@@ -476,7 +479,7 @@ func TestCA265_Hallazgos589ad5_25172f_434aec_SinHardLinksElAjenoSiempreGana(t *t
 			falla("CA-293: hallazgos 434aec/589ad5/25172f: sin hard links, ronda %d: %s es entero el del ajeno, PublicarNuevo no lo pisa, no lo trunca ni lo borra (err %v, %d bytes, publicado=%v)",
 				ronda, nombre, err, len(got), bytes.Equal(got, datosPub))
 		}
-		if otros > 20 {
+		if fallas > 20 {
 			t.Fatalf("demasiados errores; corto en la ronda %d; el primero: %s", ronda, primera)
 		}
 	}
