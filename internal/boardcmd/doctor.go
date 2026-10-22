@@ -188,7 +188,8 @@ var sesionSegura = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 // Doctor builds the board and lists the problems of every card, in board
 // order, followed by the project's own. Read-only.
 func Doctor(root, base, blockOn string, now time.Time) (DoctorReport, error) {
-	b, err := Build(root, base, blockOn, now)
+	g := newGatherer(root, base, blockOn, now)
+	b, err := build(g)
 	if err != nil {
 		return DoctorReport{}, err
 	}
@@ -198,7 +199,6 @@ func Doctor(root, base, blockOn string, now time.Time) (DoctorReport, error) {
 			r.Problems = append(r.Problems, c.Doctor...)
 		}
 	}
-	g := newGatherer(root, base, blockOn, now)
 	// a directory it cannot read is an error, never "no problems": the
 	// doctor would vouch for what it did not look at (finding e5d1e4)
 	items, err := itemFiles(root)
@@ -212,6 +212,12 @@ func Doctor(root, base, blockOn string, now time.Time) (DoctorReport, error) {
 	r.Problems = append(r.Problems, orphanEnvelopes(g, items, worktrees)...)
 	r.Problems = append(r.Problems, unverifiedWorktrees(g, items, worktrees)...)
 	r.Problems = append(r.Problems, evidenceWithoutItem(g, items, worktrees)...)
+	// the same for every other source it read: envelopes, runs, verdicts,
+	// findings, reviews (finding d0d331)
+	g.recogerFallas()
+	if len(g.fallas) > 0 {
+		return DoctorReport{}, fmt.Errorf("el doctor no pudo leer toda la evidencia y no certifica nada: %s", strings.Join(g.fallas, "; "))
+	}
 	return r, nil
 }
 

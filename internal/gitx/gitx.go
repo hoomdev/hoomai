@@ -5,8 +5,10 @@ package gitx
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"io"
@@ -15,6 +17,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Info is the Git snapshot bound to a verdict.
@@ -248,9 +251,27 @@ func GoPackages(changed []string) []string {
 // content hash (git's own blob hasher, so committed and working-tree copies
 // of the same bytes share an identity); "-" means the path is gone.
 func Touched(dir, base string) map[string]string {
+	out, _ := TouchedErr(dir, base)
+	return out
+}
+
+// TopeListado bounds each git that Touched runs. Listing what changed reads
+// every .gitignore of the tree, and one that is a FIFO blocks git forever:
+// the scope gate's photograph would never finish, and with it the envelope
+// (finding 5c5342).
+var TopeListado = 2 * time.Minute
+
+// TouchedErr is Touched that says when it could not list: a git that does
+// not answer within TopeListado is an error, never a shorter list. A git
+// that refuses (outside a repo, a base that does not exist) is what Touched
+// always did: that listing contributes nothing.
+func TouchedErr(dir, base string) (map[string]string, error) {
 	out := map[string]string{}
-	if _, err := run(dir, "rev-parse", "--is-inside-work-tree"); err != nil {
-		return out
+	if _, err := runTope(dir, TopeListado, "rev-parse", "--is-inside-work-tree"); err != nil {
+		if errors.Is(err, errSinRespuesta) {
+			return out, err
+		}
+		return out, nil
 	}
 	set := map[string]bool{}
 	// No --diff-filter here: a path DELETED in the branch is a change too.
@@ -259,7 +280,10 @@ func Touched(dir, base string) map[string]string {
 		{"diff", "--name-only", "HEAD"},
 		{"ls-files", "--others", "--exclude-standard"},
 	} {
-		o, err := run(dir, args...)
+		o, err := runTope(dir, TopeListado, args...)
+		if errors.Is(err, errSinRespuesta) {
+			return out, err
+		}
 		if err != nil {
 			continue
 		}
@@ -277,7 +301,25 @@ func Touched(dir, base string) map[string]string {
 		}
 		out[f] = h
 	}
-	return out
+	return out, nil
+}
+
+// errSinRespuesta is a git that did not answer within its bound.
+var errSinRespuesta = errors.New("git no respondio")
+
+// runTope is run with a bound: past tope the git is killed and the error
+// wraps errSinRespuesta.
+func runTope(dir string, tope time.Duration, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), tope)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	cmd.WaitDelay = 5 * time.Second
+	out, err := cmd.Output()
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("%w en %s: git %s", errSinRespuesta, tope, strings.Join(args, " "))
+	}
+	return strings.TrimSpace(string(out)), err
 }
 
 // contentHash hashes a file's bytes. Deliberately NOT git hash-object: this

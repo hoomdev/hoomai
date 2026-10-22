@@ -117,10 +117,21 @@ func WriteRecord(dir string, r Record) (Record, error) {
 // whose id does not match its name, or is not a plain id, is not trusted —
 // ids reach the reviewer's pedido and the board's reasons.
 func Records(dir string) ([]Record, []string) {
+	out, warnings, _ := RecordsErr(dir)
+	return out, warnings
+}
+
+// RecordsErr is Records for whoever must not take "unreadable" for "none"
+// (the doctor, finding d0d331): a records directory that exists and cannot
+// be listed is an error; one that does not exist yet is no records.
+func RecordsErr(dir string) ([]Record, []string, error) {
 	out, warnings := []Record{}, []string{}
 	entries, err := os.ReadDir(recordsDir(dir))
+	if os.IsNotExist(err) {
+		return out, warnings, nil
+	}
 	if err != nil {
-		return out, warnings
+		return out, warnings, err
 	}
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
@@ -139,7 +150,7 @@ func Records(dir string) ([]Record, []string) {
 		out = append(out, r)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
-	return out, warnings
+	return out, warnings, nil
 }
 
 // validRecordID is the shape WriteRecord gives an id: 20060102T150405_

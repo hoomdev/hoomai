@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -384,7 +385,13 @@ func (h *history) taskCommits() error {
 	switch {
 	case h.ev.Item.CommitFinal != "":
 		cf := h.ev.Item.CommitFinal
-		if !gitOK(h.root, "merge-base", "--is-ancestor", gitx.EndOfOptions, cf, h.base) {
+		// "not an ancestor" is an answer; a git that fails is not one, and
+		// it is "no git history" like every other failure (finding 56bc5e)
+		ancestro, err := gitCheck(h.root, "merge-base", "--is-ancestor", gitx.EndOfOptions, cf, h.base)
+		if err != nil {
+			return err
+		}
+		if !ancestro {
 			rng = h.base + ".." + cf
 			break
 		}
@@ -411,11 +418,18 @@ func (h *history) taskCommits() error {
 		rng = m + "^1.." + cf
 	case h.ev.Worktree:
 		gitDir, rng = h.dir, h.base+"..HEAD"
-	case gitOK(h.root, "rev-parse", "--verify", "--quiet", "refs/heads/hoom/"+s):
-		rng = h.base + "..hoom/" + s
 	default:
-		h.notes = append(h.notes, NoteSinEspacio)
-		return nil
+		// the task branch that does not exist is the note; a git that
+		// cannot say is no git history, never that note (finding 56bc5e)
+		rama, err := gitCheck(h.root, "rev-parse", "--verify", "--quiet", "refs/heads/hoom/"+s)
+		if err != nil {
+			return err
+		}
+		if !rama {
+			h.notes = append(h.notes, NoteSinEspacio)
+			return nil
+		}
+		rng = h.base + "..hoom/" + s
 	}
 	commits, err := logNames(gitDir, rng)
 	if err != nil {
@@ -731,10 +745,27 @@ func gitRun(dir string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-func gitOK(dir string, args ...string) bool {
+// gitCheck runs a git that answers yes or no with its exit code: 0 is yes
+// and 1 is no; anything else (128 for an error, a git that cannot run) is a
+// failure, never a "no" (finding 56bc5e).
+func gitCheck(dir string, args ...string) (bool, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	return cmd.Run() == nil
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.ExitCode() == 1 {
+		return false, nil
+	}
+	msg := strings.TrimSpace(stderr.String())
+	if msg == "" {
+		msg = err.Error()
+	}
+	return false, fmt.Errorf("git %s: %s", args[0], msg)
 }
 
 // logFiles is `git log --name-status` over pathspecs: one commit per record.

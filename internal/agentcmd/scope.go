@@ -141,6 +141,10 @@ type Snapshot struct {
 	Directorios map[string]bool
 	Manifest    string        // hash of hoom.yaml ("" = unreadable)
 	Ratchet     *ratchet.File // nil = no baseline declared
+	// Listado is why git could not list what changed ("" = it could): a
+	// photograph without that list cannot say what the role touched, so the
+	// gate cuts on it (finding 5c5342).
+	Listado string
 }
 
 // Take photographs the tree: two of these bracket the run, and the
@@ -148,17 +152,24 @@ type Snapshot struct {
 // in the evidence, read whole to hash it.
 func Take(root, base string) Snapshot {
 	s := Snapshot{Touched: map[string]string{}, Evidence: map[string]bool{}, Huellas: map[string]string{}, Directorios: map[string]bool{}}
-	for p, h := range gitx.Touched(root, base) {
-		if !hoomOwn(p) {
-			s.Touched[p] = h
-		}
-	}
+	// the disk first: it is read by descriptors and never blocks, while git
+	// reads every .gitignore, and one that is a FIFO would hang it before
+	// the floor was ever photographed (finding 5c5342)
 	switch r, err := os.OpenRoot(root); {
 	case err == nil:
 		s.fotoEvidencia(r)
 		r.Close()
 	case !errors.Is(err, fs.ErrNotExist):
 		s.sinEvidenciaLegible()
+	}
+	touched, err := gitx.TouchedErr(root, base)
+	if err != nil {
+		s.Listado = err.Error()
+	}
+	for p, h := range touched {
+		if !hoomOwn(p) {
+			s.Touched[p] = h
+		}
 	}
 	if raw, err := os.ReadFile(filepath.Join(root, manifest.FileName)); err == nil {
 		sum := sha256.Sum256(raw)
@@ -402,11 +413,32 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 		sc = sinCierres(sc, role, arboles...)
 	}
 	sc = pisoEnDisco(sc, arboles...)
+	sc = sinListado(sc, arboles...)
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
 			Description: desc, Author: "hoom gate de scope", Task: task}); err == nil {
 			sc.Violations[i].FindingID = f.ID
+		}
+	}
+	return sc
+}
+
+// sinListado cuts a run whose photographs could not list what changed: the
+// gate cannot say what the role touched, and what hoom cannot see it cannot
+// vouch for (finding 5c5342). One violation per tree and moment.
+func sinListado(sc ScopeResult, arboles ...Fotos) ScopeResult {
+	for _, f := range arboles {
+		for _, foto := range []struct {
+			cuando  string
+			listado string
+		}{{"antes", f.Antes.Listado}, {"despues", f.Despues.Listado}} {
+			if foto.listado == "" {
+				continue
+			}
+			sc.Violations = append(sc.Violations, Violation{Path: ".", Rule: RuleTampering,
+				Detail: "hoom no pudo listar lo que cambio en el arbol (" + foto.cuando + " del run): " + foto.listado})
+			sc.Tampering, sc.OK = true, false
 		}
 	}
 	return sc

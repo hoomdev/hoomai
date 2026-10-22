@@ -34,6 +34,13 @@ func Gather(root, base, blockOn string, it item.Item, now time.Time) Evidence {
 // Build derives the card of every valid item of root: the eight columns
 // always, in order, and the warnings of the items that could not be read.
 func Build(root, base, blockOn string, now time.Time) (Board, error) {
+	return build(newGatherer(root, base, blockOn, now))
+}
+
+// build is Build over a gatherer the caller keeps: the doctor reads what
+// the board read, and what it could not.
+func build(g *gatherer) (Board, error) {
+	root := g.root
 	items, warnings, err := item.List(root)
 	if err != nil {
 		return Board{}, err
@@ -42,7 +49,6 @@ func Build(root, base, blockOn string, now time.Time) (Board, error) {
 	for _, col := range Columns {
 		b.Columns = append(b.Columns, BoardColumn{ID: col.ID, Name: col.Name, Human: col.Human, Cards: []Card{}})
 	}
-	g := newGatherer(root, base, blockOn, now)
 	for _, it := range items {
 		c := Derive(g.gather(it))
 		for i := range b.Columns {
@@ -65,6 +71,13 @@ func Build(root, base, blockOn string, now time.Time) (Board, error) {
 		}
 		for _, w := range g.trees[d].findingWarnings {
 			b.Warnings = append(b.Warnings, prefix+w)
+		}
+	}
+	// the sources it could not list, findings aside (already said above)
+	g.recogerFallas()
+	for _, f := range g.fallas {
+		if !strings.Contains(f, "no se pudieron leer los hallazgos") {
+			b.Warnings = append(b.Warnings, f)
 		}
 	}
 	return b, nil
@@ -108,6 +121,46 @@ type gatherer struct {
 	metas               map[string][]runcmd.Meta
 	providers           []providers.Info // detected once per Build
 	detected            bool
+	// fallas: the sources it could not read (a directory of envelopes,
+	// runs, verdicts, findings or reviews that exists and could not be
+	// listed), each one once. The board shows them; the doctor fails on
+	// them, since it would vouch for what it did not look at (finding
+	// d0d331).
+	fallas []string
+}
+
+// fallar records a source the gatherer could not read, once.
+func (g *gatherer) fallar(msg string) {
+	for _, f := range g.fallas {
+		if f == msg {
+			return
+		}
+	}
+	g.fallas = append(g.fallas, msg)
+}
+
+// prefijo names an evidence tree in a message: nothing for the project, its
+// relative path for a task's worktree.
+func (g *gatherer) prefijo(dir string) string {
+	if rel, err := filepath.Rel(g.root, dir); err == nil && rel != "." {
+		return filepath.ToSlash(rel) + ": "
+	}
+	return ""
+}
+
+// recogerFallas takes the failures the trees read so far recorded: listing
+// their verdicts, findings or reviews.
+func (g *gatherer) recogerFallas() {
+	dirs := make([]string, 0, len(g.trees))
+	for d := range g.trees {
+		dirs = append(dirs, d)
+	}
+	sort.Strings(dirs)
+	for _, d := range dirs {
+		for _, f := range g.trees[d].fallas {
+			g.fallar(g.prefijo(d) + f)
+		}
+	}
 }
 
 // tree is what one evidence directory holds, read lazily.
@@ -128,6 +181,8 @@ type tree struct {
 	tokensErr       error
 	signer          string
 	read            map[string]bool
+	// fallas: the sources of this tree that could not be listed
+	fallas []string
 }
 
 func newGatherer(root, base, blockOn string, now time.Time) *gatherer {
@@ -152,7 +207,13 @@ func (t *tree) once(what string, f func()) {
 }
 
 func (t *tree) allVerdicts() []*verdict.Verdict {
-	t.once("verdicts", func() { t.verdicts, _, _ = verdict.LoadAllWithWarnings(t.dir) })
+	t.once("verdicts", func() {
+		var err error
+		t.verdicts, _, err = verdict.LoadAllWithWarnings(t.dir)
+		if err != nil {
+			t.fallas = append(t.fallas, "no se pudieron leer los veredictos: "+err.Error())
+		}
+	})
 	return t.verdicts
 }
 
@@ -163,13 +224,20 @@ func (t *tree) allFindings(base string) []finding.Item {
 		if err != nil {
 			t.findingWarnings = append(t.findingWarnings, "no se pudieron leer los hallazgos: "+err.Error())
 			t.unreadable = append(t.unreadable, err.Error())
+			t.fallas = append(t.fallas, "no se pudieron leer los hallazgos: "+err.Error())
 		}
 	})
 	return t.findings
 }
 
 func (t *tree) allReviews() []reviewcmd.Record {
-	t.once("reviews", func() { t.reviews, _ = reviewcmd.Records(t.dir) })
+	t.once("reviews", func() {
+		var err error
+		t.reviews, _, err = reviewcmd.RecordsErr(t.dir)
+		if err != nil {
+			t.fallas = append(t.fallas, "no se pudieron leer las reviews: "+err.Error())
+		}
+	})
 	return t.reviews
 }
 
@@ -532,14 +600,22 @@ func (g *gatherer) envelopeAlive(rec envelope.Record, metas map[string]runcmd.Me
 
 func (g *gatherer) envelopesOf(dir string) []envelope.Record {
 	if _, ok := g.envelopes[dir]; !ok {
-		g.envelopes[dir] = envelope.List(dir)
+		recs, err := envelope.ListErr(dir)
+		if err != nil {
+			g.fallar(g.prefijo(dir) + "no se pudieron leer los sobres: " + err.Error())
+		}
+		g.envelopes[dir] = recs
 	}
 	return g.envelopes[dir]
 }
 
 func (g *gatherer) metasOf(dir string) []runcmd.Meta {
 	if _, ok := g.metas[dir]; !ok {
-		g.metas[dir] = runcmd.Metas(dir)
+		metas, err := runcmd.MetasErr(dir)
+		if err != nil {
+			g.fallar(g.prefijo(dir) + "no se pudieron leer los runs: " + err.Error())
+		}
+		g.metas[dir] = metas
 	}
 	return g.metas[dir]
 }

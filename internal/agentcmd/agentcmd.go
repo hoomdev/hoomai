@@ -355,7 +355,7 @@ func sinEntrega(w io.Writer, root string, rec *envelope.Record, res Result, role
 func registrar(root string, rec *envelope.Record, res Result, note string) Result {
 	rec.Stage, rec.Status, rec.ExitCode, rec.Note = res.Stage, res.Status, res.ExitCode, note
 	rec.EndedAt = time.Now().UTC()
-	_ = envelope.Write(root, *rec) // best-effort (CA-202)
+	_ = envelope.Cerrar(root, *rec) // best-effort (CA-202), retried until it lands (finding de4843)
 	return res
 }
 
@@ -366,7 +366,7 @@ func registrar(root string, rec *envelope.Record, res Result, note string) Resul
 func roto(root string, rec *envelope.Record, err error) error {
 	rec.Status, rec.ExitCode, rec.Note = envelope.StatusNotDeliverable, 1, err.Error()
 	rec.EndedAt = time.Now().UTC()
-	_ = envelope.Write(root, *rec) // best-effort (CA-202)
+	_ = envelope.Cerrar(root, *rec) // best-effort (CA-202), retried until it lands (finding de4843)
 	return err
 }
 
