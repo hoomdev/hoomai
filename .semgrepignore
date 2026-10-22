@@ -1,0 +1,18 @@
+# Lo que semgrep ignora por defecto, mas lo propio de hoomai.
+# Crear este archivo reemplaza la lista por defecto: por eso se repite aca.
+node_modules/
+build/
+dist/
+vendor/
+.env/
+.venv/
+*.min.js
+
+# Tests: el gate mira el codigo que se entrega
+test/
+tests/
+*_test.go
+
+# Reglas propias (se cargan con --config .hoom/semgrep/, no se escanean)
+.semgrep
+.hoom/semgrep/

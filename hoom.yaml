@@ -10,8 +10,16 @@ gates:
     cmd: ""
     # Gremlins se corre manualmente por ahora; se activara cuando haya suite de tests.
   lint:
-    required: false
-    cmd: ""
+    # golangci-lint con .golangci.yml: govet, ineffassign, staticcheck y
+    # unused sobre el codigo que se entrega (los tests no)
+    required: true
+    cmd: "golangci-lint run ./..."
+  security:
+    # semgrep con las reglas de la comunidad mas las propias de .hoom/semgrep/;
+    # .semgrepignore deja fuera vendor y los tests. Cada excepcion vive en el
+    # codigo como nosemgrep con su razon.
+    required: true
+    cmd: "semgrep scan --error --quiet --config p/default --config p/trailofbits --config .hoom/semgrep/ ."
   arch:
     required: false
     cmd: ""

@@ -883,6 +883,7 @@ func Run(dir, addr string) error {
 	}
 	fmt.Printf("hoom serve: HoomAI Studio para %s en http://%s/ (Ctrl-C para salir)\n", s.m.Project, addr)
 	fmt.Printf("hoom serve: token de acciones (header %s, se muestra SOLO ahora): %s\n", TokenHeader, s.token)
+	// nosemgrep: go.lang.security.audit.net.use-tls.use-tls -- el Studio escucha solo en loopback (SoloLocal) y cada accion exige el token de la sesion
 	if err := http.ListenAndServe(addr, SoloLocal(s.Handler(), addr)); err != nil {
 		return fmt.Errorf("no se pudo escuchar en %s: %w (elegi otro puerto con --addr host:puerto)", addr, err)
 	}
@@ -984,7 +985,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 func writeRaw(w http.ResponseWriter, raw []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Write(raw)
+	w.Write(raw) // nosemgrep: go.lang.security.audit.xss.no-direct-write-to-responsewriter.no-direct-write-to-responsewriter -- JSON ya serializado, con Content-Type application/json
 }
 
 func writeError(w http.ResponseWriter, code int, msg string) {
@@ -999,6 +1000,3 @@ func Routes() []string {
 	_, routes := (&Server{launching: map[string]bool{}}).handler()
 	return routes
 }
-
-// waitLaunches blocks until every role this Studio launched has finished.
-func (s *Server) waitLaunches() { s.launches.Wait() }

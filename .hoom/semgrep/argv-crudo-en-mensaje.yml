@@ -1,0 +1,42 @@
+rules:
+  - id: hoom-argv-crudo-en-mensaje
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Un token de argv entra crudo a un mensaje: un salto de linea o una
+      secuencia ANSI en el argumento falsifica la salida que lee una persona o
+      un CI. Citalo con %q o con strconv.Quote (seguimiento del hallazgo
+      20260907T064538_12fe7a).
+    mode: taint
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              func $F(..., $ARGS []string, ...) { ... }
+          - pattern: $ARGS
+          - metavariable-regex:
+              metavariable: $ARGS
+              regex: ^(args|argv|rest|tokens)$
+      - patterns:
+          - pattern-inside: |
+              func $F(..., $ARGS []string, ...) ($...R) { ... }
+          - pattern: $ARGS
+          - metavariable-regex:
+              metavariable: $ARGS
+              regex: ^(args|argv|rest|tokens)$
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fmt.Errorf($FMT, ...)
+              - pattern: fmt.Sprintf($FMT, ...)
+              - pattern: fmt.Fprintf($W, $FMT, ...)
+              - pattern: errors.New(...)
+          - pattern-not: fmt.Errorf("=~/^[^%]*(%q[^%]*)*$/", ...)
+          - pattern-not: fmt.Sprintf("=~/^[^%]*(%q[^%]*)*$/", ...)
+          - pattern-not: fmt.Fprintf($W, "=~/^[^%]*(%q[^%]*)*$/", ...)
+    pattern-sanitizers:
+      - pattern: strconv.Quote(...)
+      # un conteo no es un token
+      - pattern: len(...)
+    paths:
+      exclude:
+        - "*_test.go"

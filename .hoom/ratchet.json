@@ -1,0 +1,20 @@
+{
+  "schema": "hoom.ratchet/v1",
+  "metrics": {
+    "ca_con_test": {
+      "cmd": "grep -rhoE 'CA-[0-9]+' --include='*_test.go' internal cmd | sort -u | wc -l",
+      "direction": "up",
+      "tolerance": 0
+    },
+    "paquetes_sin_tests": {
+      "cmd": "go list -f '{{if and (not .TestGoFiles) (not .XTestGoFiles)}}{{.ImportPath}}{{end}}' ./... | grep -c . || true",
+      "direction": "down",
+      "tolerance": 0
+    },
+    "avisos_errcheck": {
+      "cmd": "golangci-lint run --default=none --enable=errcheck --tests=false ./... 2>/dev/null | grep -cE '^[^ ].*[.]go:[0-9]+:[0-9]+:' || true",
+      "direction": "down",
+      "tolerance": 0
+    }
+  }
+}

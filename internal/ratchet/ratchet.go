@@ -247,7 +247,7 @@ func num(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
 func measure(root, cmdStr string) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
+	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- la metrica es el comando que el proyecto declara en .hoom/ratchet.json
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {

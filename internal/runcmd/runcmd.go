@@ -1086,7 +1086,7 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	m.mu.Unlock()
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, inv.Bin, inv.Args...)
+	cmd := exec.CommandContext(ctx, inv.Bin, inv.Args...) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el binario sale del registro de providers y los argumentos los arma su adapter
 	cmd.Dir = r.dir
 	// The run tells whatever it launches which task it belongs to, which
 	// role it embodies, its id and its provider — always, empty without a
