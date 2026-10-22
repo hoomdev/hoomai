@@ -64,7 +64,6 @@ func Snapshot(dir, base string) Info {
 	}
 
 	set := map[string]bool{}
-	local := map[string]bool{} // worktree divergence vs HEAD: uncommitted + untracked + deleted
 	if out, err := run(dir, "diff", "--name-only", "--diff-filter=ACMR", EndOfOptions, base+"...HEAD"); err == nil {
 		for _, f := range strings.Split(out, "\n") {
 			if f != "" {
@@ -72,21 +71,11 @@ func Snapshot(dir, base string) Info {
 			}
 		}
 	}
-	if out, err := run(dir, "diff", "--name-only", "HEAD"); err == nil {
-		for _, f := range strings.Split(out, "\n") {
-			if f != "" {
-				set[f] = true
-				local[f] = true
-			}
-		}
-	}
-	if out, err := run(dir, "ls-files", "--others", "--exclude-standard"); err == nil {
-		for _, f := range strings.Split(out, "\n") {
-			if f != "" {
-				set[f] = true
-				local[f] = true
-			}
-		}
+	// worktree divergence vs HEAD: uncommitted + untracked + deleted. A
+	// listing that fails contributes nothing, as it always did here.
+	local, _ := locales(func(args ...string) (string, error) { return run(dir, args...) })
+	for f := range local {
+		set[f] = true
 	}
 	for f := range set {
 		// Generated artifacts are never part of the change candidate: the act
@@ -191,16 +180,32 @@ func HuellaConTope(dir string, tope time.Duration) (string, error) {
 		}
 		return "", nil
 	}
+	// the same divergence Snapshot finds, from the same function: only a git
+	// that did not answer stops it
+	local, err := locales(rn)
+	if errors.Is(err, errSinRespuesta) {
+		return "", err
+	}
+	return fingerprintCon(dir, local, rn)
+}
+
+// locales is what diverges from HEAD in the working tree — uncommitted,
+// untracked (not ignored) and deleted paths — the half of the candidate the
+// fingerprint hashes from disk. It runs both listings even if one fails and
+// returns the paths they gave, with the first error: Snapshot keeps the
+// paths, and a bounded caller stops on a git that did not answer.
+func locales(rn func(args ...string) (string, error)) (map[string]bool, error) {
 	local := map[string]bool{}
+	var primero error
 	for _, args := range [][]string{
 		{"diff", "--name-only", "HEAD"},
 		{"ls-files", "--others", "--exclude-standard"},
 	} {
 		out, err := rn(args...)
-		if errors.Is(err, errSinRespuesta) {
-			return "", err
-		}
 		if err != nil {
+			if primero == nil {
+				primero = err
+			}
 			continue
 		}
 		for _, f := range strings.Split(out, "\n") {
@@ -209,7 +214,7 @@ func HuellaConTope(dir string, tope time.Duration) (string, error) {
 			}
 		}
 	}
-	return fingerprintCon(dir, local, rn)
+	return local, primero
 }
 
 // excludedFromCandidate: generated artifacts are never part of the candidate;
@@ -310,10 +315,10 @@ func Touched(dir, base string) map[string]string {
 // (finding 5c5342).
 var TopeListado = 2 * time.Minute
 
-// TouchedErr is Touched that says when it could not list: a git that does
-// not answer within TopeListado is an error, never a shorter list. A git
-// that refuses (outside a repo, a base that does not exist) is what Touched
-// always did: that listing contributes nothing.
+// TouchedErr is Touched that says when it could not list: a git that fails
+// or does not answer within TopeListado is an error, never a shorter list —
+// the scope gate fails closed on it (findings 5c5342 and 6d4918). Outside a
+// repo there is nothing to list and no error, as in Touched.
 func TouchedErr(dir, base string) (map[string]string, error) {
 	out := map[string]string{}
 	if _, err := runTope(dir, TopeListado, "rev-parse", "--is-inside-work-tree"); err != nil {
@@ -330,11 +335,8 @@ func TouchedErr(dir, base string) (map[string]string, error) {
 		{"ls-files", "--others", "--exclude-standard"},
 	} {
 		o, err := runTope(dir, TopeListado, args...)
-		if errors.Is(err, errSinRespuesta) {
-			return out, err
-		}
 		if err != nil {
-			continue
+			return out, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 		}
 		for _, f := range strings.Split(o, "\n") {
 			if f != "" {

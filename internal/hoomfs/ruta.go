@@ -1,6 +1,7 @@
 package hoomfs
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -89,4 +90,44 @@ func AnexarRegularEn(r *os.Root, name string, antes fs.FileInfo) (*os.File, erro
 		return nil, err
 	}
 	return f, nil
+}
+
+// Entrada is one file of a directory read with LeerDirectorio: its name and
+// either its content or why it could not be read.
+type Entrada struct {
+	Nombre    string
+	Contenido []byte
+	Err       error
+}
+
+// LeerDirectorio reads the directory root/partes... the way hoom reads its
+// evidence and its telemetry: down by descriptors (AbrirRuta), and every
+// entry that is not a directory and whose name passes quiere read as a
+// regular file of at most max bytes, never following a symlink nor
+// blocking on a FIFO (LeerRegularEn). A directory that does not exist is no
+// entries and no error; one that cannot be opened or listed is an error. A
+// file that cannot be read comes back with its Err: whether that is a
+// warning or a failure is the caller's to say.
+func LeerDirectorio(root string, partes []string, quiere func(nombre string) bool, max int64) ([]Entrada, error) {
+	r, err := AbrirRuta(root, partes...)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	entries, err := ListarEn(r)
+	if err != nil {
+		return nil, err
+	}
+	var out []Entrada
+	for _, e := range entries {
+		if e.IsDir() || !quiere(e.Name()) {
+			continue
+		}
+		raw, err := LeerRegularEn(r, e.Name(), max)
+		out = append(out, Entrada{Nombre: e.Name(), Contenido: raw, Err: err})
+	}
+	return out, nil
 }

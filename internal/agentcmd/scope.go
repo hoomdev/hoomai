@@ -414,10 +414,17 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	}
 	sc = pisoEnDisco(sc, arboles...)
 	sc = sinListado(sc, arboles...)
+	// one fingerprint dates every finding of the gate: computed once, and
+	// not even tried when git already did not answer the photographs
+	// (finding f472ee)
+	var huella string
+	if len(sc.Violations) > 0 && before.Listado == "" && after.Listado == "" {
+		huella, _ = gitx.HuellaConTope(dir, gitx.TopeListado)
+	}
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
-			Description: desc, Author: "hoom gate de scope", Task: task}); err == nil {
+			Description: desc, Author: "hoom gate de scope", Task: task, Huella: &huella}); err == nil {
 			sc.Violations[i].FindingID = f.ID
 		}
 	}

@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +29,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
@@ -353,6 +353,16 @@ func readMetaEn(r *os.Root, id string) (Meta, bool) {
 	if err != nil {
 		return Meta{}, false
 	}
+	return parseMeta(id, raw)
+}
+
+// parseMeta is the sidecar of run id from its bytes, with readMeta's
+// refusals: another shape, an id that is not its file's, a status hoom does
+// not write.
+func parseMeta(id string, raw []byte) (Meta, bool) {
+	if !validID(id) {
+		return Meta{}, false
+	}
 	var meta Meta
 	if json.Unmarshal(raw, &meta) != nil || meta.ID != id || !validStatus(meta.Status) {
 		return Meta{}, false
@@ -380,33 +390,33 @@ func Metas(root string) []Meta {
 
 // MetasErr is Metas for whoever must not take "unreadable" for "none": a
 // runs directory that exists and cannot be listed (or is a symlink, or not a
-// directory) is an error; one that does not exist yet is no runs. A sidecar
-// that cannot be read is still skipped, as in Metas (finding d0d331).
+// directory) is an error, and so is a sidecar it could not open or read
+// (findings d0d331 and a2b180) — the sidecars it could read still come back.
+// One that does not exist yet is no runs. A sidecar of another shape is
+// skipped, as in Metas.
 func MetasErr(root string) ([]Meta, error) {
-	r, err := abrirRuns(root)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
+	entries, err := hoomfs.LeerDirectorio(root, []string{".hoom", "runs"},
+		func(n string) bool { return strings.HasSuffix(n, ".meta.json") }, maxMeta)
 	if err != nil {
-		return nil, fmt.Errorf("no se pudo abrir .hoom/runs: %v", err)
-	}
-	defer r.Close()
-	entries, err := hoomfs.ListarEn(r)
-	if err != nil {
-		return nil, fmt.Errorf("no se pudo listar .hoom/runs: %v", err)
+		return nil, fmt.Errorf("no se pudo leer .hoom/runs: %v", err)
 	}
 	var out []Meta
+	var sinLeer []string
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".meta.json") {
+		if e.Err != nil {
+			sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
 			continue
 		}
-		meta, ok := readMetaEn(r, strings.TrimSuffix(e.Name(), ".meta.json"))
+		meta, ok := parseMeta(strings.TrimSuffix(e.Nombre, ".meta.json"), e.Contenido)
 		if !ok {
 			continue
 		}
 		out = append(out, meta)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	if len(sinLeer) > 0 {
+		return out, fmt.Errorf("no se pudieron leer %d sidecar(s) de .hoom/runs: %s", len(sinLeer), strings.Join(sinLeer, "; "))
+	}
 	return out, nil
 }
 
@@ -1363,6 +1373,9 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 // to say why (finding 186b1a). It reports whether ev was published.
 func (m *Manager) append(r *run, ev Event) bool {
 	enc, merr := json.Marshal(ev)
+	if merr == nil {
+		ev = canonico(ev, enc)
+	}
 	r.logMu.Lock()
 	defer r.logMu.Unlock()
 	if r.log != nil {
@@ -1414,6 +1427,22 @@ func (m *Manager) publicar(r *run, ev Event) {
 	m.mu.Unlock()
 }
 
+// canonico is the event exactly as its line enc reads back: JSON turns every
+// byte of invalid UTF-8 into U+FFFD, so an event with such bytes is published
+// as written, and the memory still equals the log after a restart (finding
+// b7aba5). A valid event is returned as is, without decoding its line.
+func canonico(ev Event, enc []byte) Event {
+	if utf8.ValidString(ev.Kind) && utf8.ValidString(ev.Agent) && utf8.ValidString(ev.Detail) &&
+		utf8.ValidString(ev.SessionID) && utf8.ValidString(ev.ToolID) {
+		return ev
+	}
+	var leido Event
+	if json.Unmarshal(enc, &leido) != nil {
+		return ev
+	}
+	return leido
+}
+
 // logBroken is the first failure writing the run's narration, or nil.
 func (r *run) logBroken() error {
 	r.logMu.Lock()
@@ -1449,9 +1478,10 @@ const MaxLinea = 4 << 20
 // \r before it are dropped; a last line without \n counts) and hands each
 // one to linea, holding at most about max bytes of a line: one longer is read
 // to its end, never kept, and larga gets its size without the \n. It drains
-// src to EOF or to its first read error, which it returns (nil at EOF): a
-// line too long is never a reason to stop reading.
-func lineas(src io.Reader, max int, linea func(string), larga func(int)) error {
+// src until EOF or a read error, and either ends the reading: the only error
+// a provider's pipe gives is being closed, at a cancel or a timeout, and the
+// run's close already says that. A line too long is never a reason to stop.
+func lineas(src io.Reader, max int, linea func(string), larga func(int)) {
 	br := bufio.NewReaderSize(src, 64<<10)
 	var buf []byte
 	size, over := 0, false
@@ -1482,10 +1512,7 @@ func lineas(src io.Reader, max int, linea func(string), larga func(int)) error {
 		}
 		buf, size, over = buf[:0], 0, false
 		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return err
+			return
 		}
 	}
 }

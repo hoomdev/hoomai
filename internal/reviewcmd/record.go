@@ -72,6 +72,11 @@ type LensUsage struct {
 
 func recordsDir(dir string) string { return filepath.Join(dir, ".hoom", RecordsDir) }
 
+// maxRecord caps one review record. It is evidence, read whole, so the cap
+// only stops a file no hoom would write from filling the memory; one past it
+// is unreadable and comes back as a warning.
+const maxRecord = 256 << 20
+
 // WriteRecord persists r under dir/.hoom/reviews/<id>.json, whole or not at
 // all, stamping ID and CreatedAt when empty. It never overwrites an existing
 // record.
@@ -126,25 +131,21 @@ func Records(dir string) ([]Record, []string) {
 // be listed is an error; one that does not exist yet is no records.
 func RecordsErr(dir string) ([]Record, []string, error) {
 	out, warnings := []Record{}, []string{}
-	entries, err := os.ReadDir(recordsDir(dir))
-	if os.IsNotExist(err) {
-		return out, warnings, nil
-	}
+	// down by descriptors and as regular files: a record that is a FIFO or
+	// a symlink to another project is not read (finding 53c2af)
+	entries, err := hoomfs.LeerDirectorio(dir, []string{".hoom", RecordsDir},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord)
 	if err != nil {
 		return out, warnings, err
 	}
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(recordsDir(dir), e.Name()))
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s: %v", e.Name(), err))
+		if e.Err != nil {
+			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s: %v", e.Nombre, e.Err))
 			continue
 		}
 		var r Record
-		if err := json.Unmarshal(raw, &r); err != nil || r.ID != strings.TrimSuffix(e.Name(), ".json") || !validRecordID(r.ID) {
-			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Name()))
+		if err := json.Unmarshal(e.Contenido, &r); err != nil || r.ID != strings.TrimSuffix(e.Nombre, ".json") || !validRecordID(r.ID) {
+			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Nombre))
 			continue
 		}
 		out = append(out, r)

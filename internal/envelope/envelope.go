@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
@@ -141,86 +142,151 @@ const maxRecord = 1 << 20
 
 // ListErr is List for whoever must not take "unreadable" for "none" (the
 // doctor, finding d0d331): an envelopes directory that exists and cannot be
-// listed, or that is a symlink or not a directory, is an error; one that
-// does not exist yet is no envelopes. The directory and every record are
-// read by descriptors, never following a symlink: a record linked to one of
-// another project would publish that project's telemetry as this one's
-// (finding 3826b3). A record that cannot be read is still skipped.
+// listed, or that is a symlink or not a directory, is an error, and so is a
+// record it could not open or read (findings 9e7983 and a2b180) — the records
+// it could read still come back. One that does not exist yet is no envelopes.
+// The directory and every record are read by descriptors, never following a
+// symlink: a record linked to one of another project would publish that
+// project's telemetry as this one's (finding 3826b3). A record of another
+// shape is not hoom's and is skipped.
 func ListErr(root string) ([]Record, error) {
-	r, err := hoomfs.AbrirRuta(root, ".hoom", DirName)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
+	entries, err := hoomfs.LeerDirectorio(root, []string{".hoom", DirName},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord)
 	if err != nil {
-		return nil, fmt.Errorf("no se pudo abrir .hoom/%s: %v", DirName, err)
-	}
-	defer r.Close()
-	entries, err := hoomfs.ListarEn(r)
-	if err != nil {
-		return nil, fmt.Errorf("no se pudo listar .hoom/%s: %v", DirName, err)
+		return nil, fmt.Errorf("no se pudo leer .hoom/%s: %v", DirName, err)
 	}
 	var out []Record
+	var sinLeer []string
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		raw, err := hoomfs.LeerRegularEn(r, e.Name(), maxRecord)
-		if err != nil {
+		if e.Err != nil {
+			sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
 			continue
 		}
 		var rec Record
-		if json.Unmarshal(raw, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
+		if json.Unmarshal(e.Contenido, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
 			continue
 		}
 		// the file name is the address and the content only describes it: a
 		// record whose id is not its file's name, or is not an id at all, is
 		// not hoom's and never reaches a command the doctor proposes
 		// (finding f34bc3)
-		if rec.ID+".json" != e.Name() || !idRe.MatchString(rec.ID) {
+		if rec.ID+".json" != e.Nombre || !idRe.MatchString(rec.ID) {
 			continue
 		}
 		out = append(out, rec)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
+	if len(sinLeer) > 0 {
+		return out, fmt.Errorf("no se pudieron leer %d registro(s) de .hoom/%s: %s", len(sinLeer), DirName, strings.Join(sinLeer, "; "))
+	}
 	return out, nil
 }
 
-// esperasCierre is how long a close that did not reach the disk waits before
-// each new try; past the last one it keeps trying at that pace.
+// esperasCierre is how long the closes that did not reach the disk wait
+// before each new try; past the last one they keep trying at that pace.
 var esperasCierre = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 15 * time.Second, 30 * time.Second}
 
 // Cerrar writes the closing record of an envelope. Its owner's PID keeps an
 // open record alive (CA-333): a close that never reaches the disk would leave
 // the envelope "en curso" for as long as that process lives, which for one
 // the Studio launched is the whole life of the server (finding de4843). So a
-// close that fails is not dropped: it is tried again in the background, at
-// the pace of esperasCierre, until it lands or the process ends — and then
-// the dead PID is what says the envelope stopped. Cerrar returns the first
-// try's error; the record stays best-effort for the envelope (CA-202).
+// close that fails is not dropped: it joins the pending closes that one
+// worker of the process retries at the pace of esperasCierre, until each
+// lands, its record is gone or is no longer a regular file, or the process
+// ends — and then the dead PID is what says the envelope stopped. Cerrar
+// returns the first try's error; the record stays best-effort for the
+// envelope (CA-202).
 func Cerrar(root string, rec Record) error {
 	err := Write(root, rec)
 	if err != nil && strings.TrimSpace(rec.ID) != "" {
-		go reintentarCierre(root, rec)
+		pendientes.agregar(filepath.Join(dir(root), rec.ID+".json"), root, rec)
 	}
 	return err
 }
 
-func reintentarCierre(root string, rec Record) {
-	path := filepath.Join(dir(root), rec.ID+".json")
+// cierres is the set of closes still to write, one per record file, and the
+// one worker that retries them: a disk that never recovers costs one
+// goroutine and one write per pending record per try, never one goroutine
+// per failure (findings 94636a and 30eb68).
+type cierres struct {
+	mu         sync.Mutex
+	porArchivo map[string]cierre
+	trabajando bool
+	seq        uint64
+}
+
+// cierre is one pending close; seq tells a newer close of the same record
+// from the one a try just wrote.
+type cierre struct {
+	root string
+	rec  Record
+	seq  uint64
+}
+
+var pendientes = &cierres{porArchivo: map[string]cierre{}}
+
+// agregar records the close of the record at path, replacing an older one of
+// the same record, and starts the worker if none is running.
+func (c *cierres) agregar(path, root string, rec Record) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.seq++
+	c.porArchivo[path] = cierre{root: root, rec: rec, seq: c.seq}
+	if !c.trabajando {
+		c.trabajando = true
+		go c.reintentar()
+	}
+}
+
+// reintentar retries every pending close until none is left.
+func (c *cierres) reintentar() {
 	for i := 0; ; i++ {
 		espera := esperasCierre[len(esperasCierre)-1]
 		if i < len(esperasCierre) {
 			espera = esperasCierre[i]
 		}
 		time.Sleep(espera)
-		// a record that is gone has nothing left to close, and a retry never
-		// creates the directories back: a project removed under it stays
-		// removed
-		if _, err := os.Lstat(path); err != nil {
+		c.mu.Lock()
+		lote := make(map[string]cierre, len(c.porArchivo))
+		for path, ci := range c.porArchivo {
+			lote[path] = ci
+		}
+		c.mu.Unlock()
+		for path, ci := range lote {
+			if hecho(path, ci) {
+				c.mu.Lock()
+				// a newer close of the same record keeps its place
+				if actual, ok := c.porArchivo[path]; ok && actual.seq == ci.seq {
+					delete(c.porArchivo, path)
+				}
+				c.mu.Unlock()
+			}
+		}
+		c.mu.Lock()
+		if len(c.porArchivo) == 0 {
+			c.trabajando = false
+			c.mu.Unlock()
 			return
 		}
-		if Write(root, rec) == nil {
-			return
-		}
+		c.mu.Unlock()
 	}
+}
+
+// hecho tries one pending close and says whether it is settled: written, or
+// nothing left to close — the record is gone, or something else took its
+// name (a directory, a symlink: not this close's to overwrite). A failure to
+// look at it is not settled: storage that fails once may come back (finding
+// be5b7a). A retry never creates the directories back: a project removed
+// under it stays removed.
+func hecho(path string, ci cierre) bool {
+	st, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return true
+	case err != nil:
+		return false
+	case !st.Mode().IsRegular():
+		return true
+	}
+	return Write(ci.root, ci.rec) == nil
 }

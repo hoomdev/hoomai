@@ -212,9 +212,12 @@ func Doctor(root, base, blockOn string, now time.Time) (DoctorReport, error) {
 	r.Problems = append(r.Problems, orphanEnvelopes(g, items, worktrees)...)
 	r.Problems = append(r.Problems, unverifiedWorktrees(g, items, worktrees)...)
 	r.Problems = append(r.Problems, evidenceWithoutItem(g, items, worktrees)...)
-	// the same for every other source it read: envelopes, runs, verdicts,
-	// findings, reviews (finding d0d331)
-	g.recogerFallas()
+	// the same for every other source of every tree it looked at:
+	// envelopes, runs, verdicts, findings, reviews (findings d0d331,
+	// d69d7e)
+	for _, p := range places(root, worktrees) {
+		g.sondearFuentes(p.dir)
+	}
 	if len(g.fallas) > 0 {
 		return DoctorReport{}, fmt.Errorf("el doctor no pudo leer toda la evidencia y no certifica nada: %s", strings.Join(g.fallas, "; "))
 	}

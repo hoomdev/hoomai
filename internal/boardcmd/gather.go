@@ -69,17 +69,12 @@ func build(g *gatherer) (Board, error) {
 	}
 	sort.Strings(dirs)
 	for _, d := range dirs {
-		prefix := ""
-		if rel, err := filepath.Rel(root, d); err == nil && rel != "." {
-			prefix = filepath.ToSlash(rel) + ": "
-		}
 		for _, w := range g.trees[d].findingWarnings {
-			b.Warnings = append(b.Warnings, prefix+w)
+			b.Warnings = append(b.Warnings, g.prefijo(d)+w)
 		}
 	}
-	// the sources it could not list, once: an unreadable findings
+	// the sources it could not read, once: an unreadable findings
 	// directory is already among the findings' warnings above
-	g.recogerFallas()
 	for _, f := range g.fallas {
 		if !slices.Contains(b.Warnings, f) {
 			b.Warnings = append(b.Warnings, f)
@@ -126,11 +121,13 @@ type gatherer struct {
 	metas               map[string][]runcmd.Meta
 	providers           []providers.Info // detected once per Build
 	detected            bool
-	// fallas: the sources it could not read (a directory of envelopes,
-	// runs, verdicts, findings or reviews that exists and could not be
-	// listed), each one once. The board shows them; the doctor fails on
-	// them, since it would vouch for what it did not look at (finding
-	// d0d331).
+	// fallas: what it could not read, each one once — a directory of
+	// envelopes, runs, verdicts, findings or reviews that could not be
+	// listed, a file in it that could not be read, or a piece of evidence
+	// that is not a valid record. The board shows them; the doctor fails on
+	// them, since it would vouch for what it did not look at (findings
+	// d0d331, a2b180). The one place they are kept: every tree reports into
+	// it (tree.informar).
 	fallas []string
 }
 
@@ -165,21 +162,6 @@ func (g *gatherer) sondearFuentes(dir string) {
 	t.allReviews()
 }
 
-// recogerFallas takes the failures the trees read so far recorded: listing
-// their verdicts, findings or reviews.
-func (g *gatherer) recogerFallas() {
-	dirs := make([]string, 0, len(g.trees))
-	for d := range g.trees {
-		dirs = append(dirs, d)
-	}
-	sort.Strings(dirs)
-	for _, d := range dirs {
-		for _, f := range g.trees[d].fallas {
-			g.fallar(g.prefijo(d) + f)
-		}
-	}
-}
-
 // tree is what one evidence directory holds, read lazily.
 type tree struct {
 	dir      string
@@ -198,8 +180,9 @@ type tree struct {
 	tokensErr       error
 	signer          string
 	read            map[string]bool
-	// fallas: the sources of this tree that could not be listed
-	fallas []string
+	// informar reports what this tree could not read to its gatherer, named
+	// with the tree's prefix
+	informar func(string)
 }
 
 func newGatherer(root, base, blockOn string, now time.Time) *gatherer {
@@ -211,6 +194,7 @@ func (g *gatherer) tree(dir string) *tree {
 	t, ok := g.trees[dir]
 	if !ok {
 		t = &tree{dir: dir, read: map[string]bool{}}
+		t.informar = func(msg string) { g.fallar(g.prefijo(dir) + msg) }
 		g.trees[dir] = t
 	}
 	return t
@@ -225,10 +209,16 @@ func (t *tree) once(what string, f func()) {
 
 func (t *tree) allVerdicts() []*verdict.Verdict {
 	t.once("verdicts", func() {
+		var warnings []string
 		var err error
-		t.verdicts, _, err = verdict.LoadAllWithWarnings(t.dir)
+		t.verdicts, warnings, err = verdict.LoadAllWithWarnings(t.dir)
 		if err != nil {
-			t.fallas = append(t.fallas, "no se pudieron leer los veredictos: "+err.Error())
+			t.informar("no se pudieron leer los veredictos: " + err.Error())
+		}
+		// a verdict is evidence: one it could not read or parse is one it
+		// cannot vouch for
+		for _, w := range warnings {
+			t.informar(w)
 		}
 	})
 	return t.verdicts
@@ -241,7 +231,10 @@ func (t *tree) allFindings(base string) []finding.Item {
 		if err != nil {
 			t.findingWarnings = append(t.findingWarnings, "no se pudieron leer los hallazgos: "+err.Error())
 			t.unreadable = append(t.unreadable, err.Error())
-			t.fallas = append(t.fallas, "no se pudieron leer los hallazgos: "+err.Error())
+			t.informar("no se pudieron leer los hallazgos: " + err.Error())
+		}
+		for _, b := range ilegibles {
+			t.informar("hallazgo ilegible " + b)
 		}
 	})
 	return t.findings
@@ -249,10 +242,14 @@ func (t *tree) allFindings(base string) []finding.Item {
 
 func (t *tree) allReviews() []reviewcmd.Record {
 	t.once("reviews", func() {
+		var warnings []string
 		var err error
-		t.reviews, _, err = reviewcmd.RecordsErr(t.dir)
+		t.reviews, warnings, err = reviewcmd.RecordsErr(t.dir)
 		if err != nil {
-			t.fallas = append(t.fallas, "no se pudieron leer las reviews: "+err.Error())
+			t.informar("no se pudieron leer las reviews: " + err.Error())
+		}
+		for _, w := range warnings {
+			t.informar(w)
 		}
 	})
 	return t.reviews
