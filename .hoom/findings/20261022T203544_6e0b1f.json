@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203544_6e0b1f",
+  "created_at": "2026-10-22T20:35:44.838032Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:1253: lineas declara y documenta que devuelve el primer error de lectura (internal/runcmd/runcmd.go:1452), pero execute descarta el retorno sin nombrarlo. La interfaz comunica una responsabilidad que el llamador no cumple, por lo que no queda claro si el silencio es deliberado. Manejar o nombrar el error, o volver la helper sin retorno y documentar el descarte.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

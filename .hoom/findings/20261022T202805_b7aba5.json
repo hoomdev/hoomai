@@ -1,0 +1,11 @@
+{
+  "id": "20261022T202805_b7aba5",
+  "created_at": "2026-10-22T20:28:05.647975Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE (follow-up; la correccion a4f371 deja incompleto el invariante): internal/runcmd/runcmd.go:1365 serializa ev para el .jsonl, pero internal/runcmd/runcmd.go:1396 publica en memoria el Event original. lineas convierte bytes arbitrarios del provider a string en internal/runcmd/runcmd.go:1480; si stdout/stderr contiene UTF-8 invalido, encoding/json lo reemplaza por U+FFFD al escribir, mientras Manager.Events conserva los bytes invalidos. Tras releer el .jsonl, el Detail ya no es igual al visto en vivo, pese al nuevo contrato de que memoria y disco contienen exactamente los mismos eventos. Conviene publicar la representacion canonica que efectivamente se escribio o normalizar UTF-8 antes de ambas salidas, y cubrirlo con una linea binaria.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

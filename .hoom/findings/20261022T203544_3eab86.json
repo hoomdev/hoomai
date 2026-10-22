@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203544_3eab86",
+  "created_at": "2026-10-22T20:35:44.446554Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO — internal/boardcmd/gather.go:129: la nueva canalizacion reparte las fallas de lectura entre gatherer.fallas y tree.fallas y exige copiarlas manualmente con recogerFallas (llamado tanto en build como en Doctor); ademas el prefijo se calcula otra vez en internal/boardcmd/gather.go:72 aunque ya existe prefijo en internal/boardcmd/gather.go:149. Este estado basado en strings y en dos etapas hace opaco cuando una falla ya es visible y facilita que una fuente nueva quede fuera. Mantener una sola coleccion o consulta de fallas y reutilizar prefijo.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

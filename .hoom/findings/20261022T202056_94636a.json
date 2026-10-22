@@ -1,0 +1,11 @@
+{
+  "id": "20261022T202056_94636a",
+  "created_at": "2026-10-22T20:20:56.481351Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO: internal/envelope/envelope.go:202-224 crea un goroutine sin cancelacion ni limite por cada cierre fallido y solo abandona si Lstat deja de encontrar la ruta. Un rol puede reemplazar su .hoom/envelopes/\u003cid\u003e.json por un directorio existente: AtomicWrite falla siempre al renombrar sobre el directorio, Lstat siempre tiene exito y el Studio conserva para siempre un reintento cada 30 s. Repitiendolo por corrida acumula goroutines y actividad de disco en el proceso de larga vida; hace falta un limite/cancelacion o validar un registro regular con identidad estable.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

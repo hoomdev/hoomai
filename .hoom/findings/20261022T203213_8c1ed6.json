@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203213_8c1ed6",
+  "created_at": "2026-10-22T20:32:13.623537Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO — internal/boardcmd/gather.go:61-63 y internal/boardcmd/doctor.go:382-395: build solo sondea las cinco fuentes del arbol raiz. Para un worktree sin item, Doctor lee runs/sobres/veredictos/hallazgos por sus chequeos posteriores, pero nunca llama allReviews; por eso un .hoom/worktrees/\u003ctarea\u003e/.hoom/reviews existente e ilegible no entra en fallas y Doctor puede devolver exito certificando evidencia que no pudo listar (Build tampoco muestra el warning).",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}
