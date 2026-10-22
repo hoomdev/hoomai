@@ -151,6 +151,11 @@ func Register(root, base string, d Draft) (Finding, error) {
 	if strings.TrimSpace(author) == "" {
 		author = gitx.Identity(root)
 	}
+	// the tree's fingerprint dates the finding; it is not what the finding
+	// says. A git that does not answer leaves it without one instead of
+	// hanging whoever registers it — the scope gate, among others (finding
+	// 5c5342)
+	huella, _ := gitx.HuellaConTope(root, gitx.TopeListado)
 	f := Finding{
 		ID:          newID(),
 		CreatedAt:   time.Now().UTC(),
@@ -159,7 +164,7 @@ func Register(root, base string, d Draft) (Finding, error) {
 		File:        strings.TrimSpace(file),
 		Description: strings.TrimSpace(description),
 		Author:      author,
-		Fingerprint: gitx.Snapshot(root, base).ChangeFingerprint,
+		Fingerprint: huella,
 		Task:        task,
 	}
 	if err := os.MkdirAll(dir(root), 0o755); err != nil {

@@ -57,6 +57,9 @@ func build(g *gatherer) (Board, error) {
 			}
 		}
 	}
+	// every source of the project is read even without cards: a board that
+	// never looked cannot say it could not (finding d0d331)
+	g.sondearFuentes(root)
 	// what the board could not read goes where a person sees it, like the
 	// items it could not read
 	dirs := make([]string, 0, len(g.trees))
@@ -146,6 +149,18 @@ func (g *gatherer) prefijo(dir string) string {
 		return filepath.ToSlash(rel) + ": "
 	}
 	return ""
+}
+
+// sondearFuentes reads every evidence source of dir once (envelopes, runs,
+// verdicts, findings, reviews), so a source that cannot be listed is known
+// whether or not a card needed it.
+func (g *gatherer) sondearFuentes(dir string) {
+	g.envelopesOf(dir)
+	g.metasOf(dir)
+	t := g.tree(dir)
+	t.allVerdicts()
+	t.allFindings(g.base)
+	t.allReviews()
 }
 
 // recogerFallas takes the failures the trees read so far recorded: listing

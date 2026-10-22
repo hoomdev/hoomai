@@ -1326,7 +1326,19 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	if status != StatusDone {
 		kind = "error"
 	}
-	m.append(r, Event{TS: time.Now().UTC(), Kind: kind, Detail: detail})
+	ev := Event{TS: time.Now().UTC(), Kind: kind, Detail: detail}
+	if !m.append(r, ev) {
+		// the log could not take the close: the run ends cut by it, and the
+		// close is published in memory alone — the one event the log lacks,
+		// since it is the one that says why (finding 186b1a)
+		if err := r.logBroken(); err != nil {
+			status, exit = StatusError, -1
+			ev = Event{TS: ev.TS, Kind: "error", Detail: detalleLogRoto(r.info.ID, err)}
+		}
+		r.logMu.Lock()
+		m.publicar(r, ev)
+		r.logMu.Unlock()
+	}
 	m.mu.Lock()
 	r.info.Status = status
 	r.info.ExitCode = exit
@@ -1347,15 +1359,15 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 // in that order and under the run's logMu: what the run shows is what it
 // wrote, in the order it wrote it. An event the log could not take whole is
 // not published, and neither is anything after it: the first failure cuts
-// the run, whose close says why (finding 186b1a). A session id reported by
-// the provider becomes the run's handle.
-func (m *Manager) append(r *run, ev Event) {
+// the run, whose close (settle) is the one event published without the log,
+// to say why (finding 186b1a). It reports whether ev was published.
+func (m *Manager) append(r *run, ev Event) bool {
 	enc, merr := json.Marshal(ev)
 	r.logMu.Lock()
 	defer r.logMu.Unlock()
 	if r.log != nil {
 		if r.logErr != nil {
-			return
+			return false
 		}
 		if merr != nil {
 			r.logErr = fmt.Errorf("un evento no se pudo serializar: %v", merr)
@@ -1378,9 +1390,17 @@ func (m *Manager) append(r *run, ev Event) {
 			if cancel != nil {
 				cancel()
 			}
-			return
+			return false
 		}
 	}
+	m.publicar(r, ev)
+	return true
+}
+
+// publicar puts ev in the run's memory. The caller holds r.logMu, so the
+// order in memory is the order of the log. A session id reported by the
+// provider becomes the run's handle.
+func (m *Manager) publicar(r *run, ev Event) {
 	m.mu.Lock()
 	r.events = append(r.events, ev)
 	r.info.NumEvents = len(r.events)
