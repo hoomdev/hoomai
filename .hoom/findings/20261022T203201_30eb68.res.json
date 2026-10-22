@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203201_30eb68",
+  "as": "corregido",
+  "evidence": "d76d197: un solo trabajador por proceso para todos los cierres pendientes, sin duplicar por registro. Test de envelope/hallazgos_endurecimiento1b: 10 cierres fallidos creaban 10 goroutines en e08650d; ahora a lo sumo una.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.414566Z"
+}

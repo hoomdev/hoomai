@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203213_8c1ed6",
+  "as": "corregido",
+  "evidence": "Mismo defecto que 20261022T202657_d69d7e, corregido en d76d197 (Doctor sondea cada place) y cubierto por el mismo test.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.25896Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T202805_b7aba5",
+  "as": "corregido",
+  "evidence": "d76d197: un evento con UTF-8 invalido se publica en memoria tal como quedo escrito (runcmd.canonico). Test de runcmd/hallazgos_endurecimiento1b: memoria y .jsonl diferian en e08650d (\\\\xff\\\\xfe contra U+FFFD) por stdout y stderr; ahora son iguales.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.504866Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203201_f472ee",
+  "as": "corregido",
+  "evidence": "d76d197: el gate calcula la huella de sus hallazgos una vez (finding.Draft.Huella) y no la intenta si la foto ya dijo que git no respondio. Test de agentcmd/hallazgos_endurecimiento1b: 22 violaciones con TopeListado de 2 s tardaban 44,97 s en e08650d; ahora menos de 15 s.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.444444Z"
+}
