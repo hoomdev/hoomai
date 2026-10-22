@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T200325_1b6d67",
+  "as": "corregido",
+  "evidence": "2158adb: la excepcion de use-tls en servecmd.Run ya no afirma 'solo loopback'; dice que HTTP sin TLS es una decision declarada: loopback por defecto con SoloLocal, y una direccion no loopback elegida con --addr que Run advierte (token en claro), para usar detras de un tunel SSH o VPN. Servir TLS en ese modo queda para el plan remoto.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:15:31.722502Z"
+}
