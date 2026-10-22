@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T145721_e581eb",
+  "as": "corregido",
+  "evidence": "Commit 'hoomfs: la doc de PublicarNuevo dice lo que pasa de verdad sin hard links': la doc dice que sin hard links falla con ErrSinEnlaces y que con el nombre ya tomado puede fallar antes con os.ErrExist (macOS y Linux responden EEXIST primero), asi que el llamador trata los dos; corrige la frase de 635c5cb que el refutador mostro falsa en exFAT y FAT32 reales (refutador: INFORME-refutador-c1b-delta3.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-22T15:06:42.374344Z"
+}

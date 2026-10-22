@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T145136_e45e0d",
+  "as": "corregido",
+  "evidence": "635c5cb + el commit siguiente de la doc: sinEnlacesSO va por plataforma; en Windows reconoce ERROR_INVALID_FUNCTION (1), lo que CreateHardLinkW da en exFAT y FAT (el 50, ERROR_NOT_SUPPORTED, ya es errors.ErrUnsupported; syscall.EPERM ahi es inventado); en Unix, EPERM. Test 2b848e2 internal/hoomfs/hallazgos_c1b_e45e0d_windows_test.go (Errno 1 y 50 dan ErrSinEnlaces sin escribir nada; 5, 19 y 112 se devuelven tal cual): compila para Windows (vet y test -c) pero NO se ejecuto, no hay Windows aca y el CI corre en Linux; el refutador lo confirmo con la fuente de Go (refutador: INFORME-refutador-c1b-delta3.md).",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-22T15:06:42.368018Z"
+}

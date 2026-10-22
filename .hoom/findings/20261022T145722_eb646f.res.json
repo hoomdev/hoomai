@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T145722_eb646f",
+  "as": "corregido",
+  "evidence": "2b848e2 (test-writer): slNoEsta dice 'el nombre final %s debia no existir; Lstat = %v (%d bytes)'; sin cambiar exigencias.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-22T15:06:42.385519Z"
+}

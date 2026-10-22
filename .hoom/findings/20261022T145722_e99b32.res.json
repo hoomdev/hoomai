@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T145722_e99b32",
+  "as": "corregido",
+  "evidence": "2b848e2 (test-writer): el contador 'otros' de internal/hoomfs/hallazgos_c1b_cbbc8c_434aec_test.go pasa a 'fallas', con un comentario de que cuenta todas las fallas; sin cambiar exigencias.",
+  "author": "writer@claude",
+  "resolved_at": "2026-10-22T15:06:42.379849Z"
+}
