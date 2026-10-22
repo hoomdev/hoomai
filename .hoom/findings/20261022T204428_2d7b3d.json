@@ -1,0 +1,11 @@
+{
+  "id": "20261022T204428_2d7b3d",
+  "created_at": "2026-10-22T20:44:28.889412Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": ".github/workflows/ci.yml",
+  "description": "INTRODUCIDO — .github/workflows/ci.yml:28 redirige el wrapper a /usr/local/bin/semgrep sin sudo ni un directorio escribible del runner. Los jobs de GitHub-hosted ubuntu-latest ejecutan los pasos como runner y /usr/local/bin vuelve a ser root-owned; la redireccion falla con Permission denied antes de chmod, la restauracion de cache y hoom verify, dejando CI rojo en todos los runs. Instalar con sudo o escribir bajo RUNNER_TEMP y agregarlo a GITHUB_PATH.",
+  "author": "reviewer@codex",
+  "fingerprint": "778c4715e0502443",
+  "task": "gates-dogfood"
+}

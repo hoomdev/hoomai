@@ -22,12 +22,15 @@ jobs:
       # sobre el checkout. La version tiene que coincidir con
       # .hoom/semgrep/paquetes.lock.
       - name: semgrep
+        env:
+          SEMGREP_IMAGEN: semgrep/semgrep:1.175.0@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796
         run: |
-          imagen=semgrep/semgrep:1.175.0@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796
-          docker pull "$imagen"
-          printf '#!/bin/sh\nexec docker run --rm -v "$PWD:$PWD" -w "$PWD" %s semgrep "$@"\n' "$imagen" > /usr/local/bin/semgrep
-          chmod +x /usr/local/bin/semgrep
-          semgrep --version
+          docker pull "$SEMGREP_IMAGEN"
+          echo "SEMGREP_IMAGEN=$SEMGREP_IMAGEN" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 755 .github/semgrep-en-docker.sh "$RUNNER_TEMP/bin/semgrep"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/semgrep" --version
       # los paquetes de reglas ya bajados y comprobados por hash: un runner
       # nuevo no depende del registro mientras el lock no cambie
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0

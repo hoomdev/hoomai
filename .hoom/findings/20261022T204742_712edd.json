@@ -1,0 +1,11 @@
+{
+  "id": "20261022T204742_712edd",
+  "created_at": "2026-10-22T20:47:42.035544Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": ".github/workflows/ci.yml",
+  "description": "INTRODUCIDO — .github/workflows/ci.yml:28: la generación del wrapper de Semgrep concentra en un solo printf largo el script embebido, el montaje/workdir de Docker, la interpolación de la imagen y el reenvío de argumentos. Los dos momentos de expansión del shell quedan implícitos y hacen que esta línea sea difícil de leer y modificar con seguridad; conviene expresar el wrapper de forma multilínea o extraerlo a un script legible.",
+  "author": "reviewer@codex",
+  "fingerprint": "778c4715e0502443",
+  "task": "gates-dogfood"
+}
