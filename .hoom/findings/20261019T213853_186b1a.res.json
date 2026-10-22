@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T213853_186b1a",
+  "as": "corregido",
+  "evidence": "66ba531/2df7808: el evento va al .jsonl y despues a memoria bajo run.logMu; la primera escritura que falla corta el run, no se publica ni escribe nada mas, y el cierre se publica en memoria con 'la narracion del run no se pudo escribir' y status error tambien en el sidecar. Test TestHallazgo_186b1a_CA362_NarracionQueNoSePuedeEscribir (RLIMIT_FSIZE en un proceso ayudante; falla en 33c2136, pasa con la correccion).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.171371Z"
+}

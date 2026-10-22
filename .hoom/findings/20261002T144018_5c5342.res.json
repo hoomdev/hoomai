@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261002T144018_5c5342",
+  "as": "corregido",
+  "evidence": "66ba531/2df7808/d76d197: Take fotografia el disco antes que git; cada git del listado lleva el tope gitx.TopeListado y un listado que falla o no responde deja Snapshot.Listado y corta el gate (sinListado); el gate calcula la huella de sus hallazgos una sola vez y no la intenta si git no respondio. Test TestHallazgo_5c5342_CA442_FIFOEnElGitignoreDeFindingsNoCuelgaLaFoto (Take no volvia en 30 s en 33c2136; Take y Gate vuelven con la correccion).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.471801Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T153725_3826b3",
+  "as": "corregido",
+  "evidence": "66ba531/d76d197: envelope.List/ListErr leen .hoom/envelopes y cada registro por descriptores y como archivo regular. Tests TestHallazgo_3826b3_CA202_RegistroEnlazadoNoSeLista, ..._DirectorioEnlazadoNoSeLista y ..._ListErrDistingueNadaDeIlegible.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.324438Z"
+}

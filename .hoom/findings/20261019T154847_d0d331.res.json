@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T154847_d0d331",
+  "as": "corregido",
+  "evidence": "66ba531/2df7808/d76d197: el doctor falla si no pudo leer sobres, runs, veredictos, hallazgos o reviews de cualquier arbol que recorre, y el tablero lo lleva en Warnings (lee todas las fuentes aunque no haya tarjetas). Tests TestHallazgo_d0d331_CA369_FuenteDeEvidenciaIlegibleEsUnErrorDelDoctor y ..._Guarda_FuentesQueNoExistenSonNada.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.400481Z"
+}
