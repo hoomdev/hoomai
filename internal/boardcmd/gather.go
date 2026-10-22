@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -76,10 +77,11 @@ func build(g *gatherer) (Board, error) {
 			b.Warnings = append(b.Warnings, prefix+w)
 		}
 	}
-	// the sources it could not list, findings aside (already said above)
+	// the sources it could not list, once: an unreadable findings
+	// directory is already among the findings' warnings above
 	g.recogerFallas()
 	for _, f := range g.fallas {
-		if !strings.Contains(f, "no se pudieron leer los hallazgos") {
+		if !slices.Contains(b.Warnings, f) {
 			b.Warnings = append(b.Warnings, f)
 		}
 	}
