@@ -135,9 +135,11 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 
 // PublicarNuevo creates path with data, whole or not at all, and never
 // replaces a file already there: then it fails with an error that is
-// os.ErrExist, except on a filesystem without hard links, where every call
-// fails with ErrSinEnlaces first, path taken or not (finding e581eb). The
-// data goes to a temp file that is closed first and then,
+// os.ErrExist. On a filesystem without hard links it fails with
+// ErrSinEnlaces; with path already taken it may fail with os.ErrExist
+// first, since macOS and Linux answer that before the missing link, so a
+// caller treats both (finding e581eb). The data goes to a temp file that
+// is closed first and then,
 // under candado, linked to path: one operation that never replaces,
 // whoever else writes there, so a reader sees nothing or all of it and a
 // crash leaves at most the temp file (TemporalDe names it). A filesystem
