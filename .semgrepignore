@@ -16,3 +16,9 @@ tests/
 # Reglas propias (se cargan con --config .hoom/semgrep/, no se escanean)
 .semgrep
 .hoom/semgrep/
+
+# lo que hoom guarda y regenera (cache de reglas, runs, worktrees): nunca es
+# codigo del proyecto, y en el contenedor del CI git puede no aplicar el
+# .gitignore
+.hoom/cache/
+.hoom/worktrees/

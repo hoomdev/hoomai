@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203437_b6899d",
+  "created_at": "2026-10-22T20:34:37.633509Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "hoom.yaml",
+  "description": "INTRODUCIDO — hoom.yaml:30 activa .hoom/semgrep/gate.sh como gate; .hoom/semgrep/gate.sh:31-44 usa para cada paquete un temporal compartido y de nombre fijo ($archivo.tmp), sin lock. Dos hoom verify simultáneos sobre el mismo árbol y con el cache vacío escriben, hashean y mueven el mismo archivo: cuando uno hace mv, el otro puede fallar en sha o mv y producir un rojo espurio. El temporal debe ser exclusivo por ejecución o la población del cache debe serializarse.",
+  "author": "reviewer@codex",
+  "fingerprint": "b2f7590e9e8710a0",
+  "task": "gates-dogfood"
+}
