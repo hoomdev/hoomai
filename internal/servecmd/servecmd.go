@@ -883,7 +883,12 @@ func Run(dir, addr string) error {
 	}
 	fmt.Printf("hoom serve: HoomAI Studio para %s en http://%s/ (Ctrl-C para salir)\n", s.m.Project, addr)
 	fmt.Printf("hoom serve: token de acciones (header %s, se muestra SOLO ahora): %s\n", TokenHeader, s.token)
-	// nosemgrep: go.lang.security.audit.net.use-tls.use-tls -- el Studio escucha solo en loopback (SoloLocal) y cada accion exige el token de la sesion
+	// HTTP sin TLS es una decision declarada: por defecto el Studio escucha en
+	// loopback, donde SoloLocal rechaza otro Host; una direccion que no es
+	// loopback la elige el operador con --addr y Run la advierte arriba (el
+	// token viaja en claro), para usarla detras de un tunel SSH o una VPN que
+	// cifran el canal. Servir TLS en ese modo es trabajo del plan remoto.
+	// nosemgrep: go.lang.security.audit.net.use-tls.use-tls -- ver arriba
 	if err := http.ListenAndServe(addr, SoloLocal(s.Handler(), addr)); err != nil {
 		return fmt.Errorf("no se pudo escuchar en %s: %w (elegi otro puerto con --addr host:puerto)", addr, err)
 	}

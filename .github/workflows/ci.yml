@@ -11,6 +11,14 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.25"
+      # las herramientas de los gates lint y security, en las versiones que
+      # fija el repo (.golangci.yml y .hoom/semgrep/paquetes.lock)
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          install-only: true
+      - name: semgrep
+        run: pipx install semgrep==1.175.0
       - name: build
         run: go build -mod=vendor ./...
       - name: vet
@@ -21,7 +29,7 @@ jobs:
       - name: hoom verify (dogfood)
         run: |
           go build -mod=vendor -o /usr/local/bin/hoom ./cmd/hoom
-          hoom verify --gate build,static,test || {
+          hoom verify --gate build,static,test,lint,security || {
             # el reporte muestra solo las ultimas lineas de cada gate: aca va
             # lo que el veredicto guardo del que fallo, para ver que paquete fue
             jq -r '.gates[] | select(.status == "fail" or .status == "error") | "--- gate \(.name): salida guardada\n\(.output_tail)"' "$(ls -t .hoom/verdicts/*.json | head -1)"
