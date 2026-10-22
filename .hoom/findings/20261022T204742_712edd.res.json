@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T204742_712edd",
+  "as": "corregido",
+  "evidence": "a88136e: el wrapper es .github/semgrep-en-docker.sh, multilinea, con la imagen en SEMGREP_IMAGEN y el reenvio de argumentos explicito; el workflow solo lo instala.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:48:38.101138Z"
+}

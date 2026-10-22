@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T204428_2d7b3d",
+  "as": "corregido",
+  "evidence": "a88136e: el wrapper de semgrep se instala con install -m 755 en $RUNNER_TEMP/bin y ese directorio se agrega a GITHUB_PATH; no se escribe en /usr/local/bin. El CI del PR lo ejecuta.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:48:38.050705Z"
+}
