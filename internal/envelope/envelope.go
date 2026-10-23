@@ -175,7 +175,9 @@ func ListErr(root string) ([]Record, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no se pudo leer .hoom/%s: %v", DirName, err)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
+	// stable: records of the same instant keep the name order they were
+	// read in (finding 3cb01b)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
 	if len(sinLeer) > 0 {
 		return out, fmt.Errorf("no se pudieron leer %d registro(s) de .hoom/%s: %s", len(sinLeer), DirName, strings.Join(sinLeer, "; "))
 	}
@@ -203,16 +205,18 @@ func esperaCierre(n int) time.Duration {
 // longer a regular file, or the process ends — and then the dead PID is what
 // says the envelope stopped. A close that lands takes an older pending close
 // of the same record out of the queue, so a retry never writes back a stale
-// state (finding b7417b). Cerrar returns its own try's error; the record
-// stays best-effort for the envelope (CA-202).
+// state (finding b7417b). The write and what it does to the queue happen
+// under the record's lock, so two Cerrar of one record settle the queue in
+// the order they wrote (findings 4647ba, 22806c). Cerrar returns its own
+// try's error; the record stays best-effort for the envelope (CA-202).
 func Cerrar(root string, rec Record) error {
 	if strings.TrimSpace(rec.ID) == "" {
 		return Write(root, rec)
 	}
 	path := filepath.Join(dir(root), rec.ID+".json")
 	unlock := pendientes.escritura(path)
+	defer unlock()
 	err := Write(root, rec)
-	unlock()
 	if err != nil {
 		pendientes.agregar(path, root, rec)
 	} else {
@@ -227,14 +231,30 @@ func Cerrar(root string, rec Record) error {
 // others (finding 1e0674); the worker itself only sleeps until the next one
 // is due or a new close arrives (finding eafa2d). Writes of one record file
 // go one at a time (escritura), so a try still in flight can never land
-// after a newer close.
+// after a newer close. At most maxEnVuelo tries are in flight at once: the
+// rest wait for one to end (finding da912f).
 type cierres struct {
 	mu         sync.Mutex
 	porArchivo map[string]*cierre
-	candados   map[string]*sync.Mutex
+	candados   map[string]*candado
+	enVuelo    int // tries in flight
 	trabajando bool
 	despertar  chan struct{}
 	seq        uint64
+}
+
+// maxEnVuelo bounds the tries in flight: a file system that leaves writes
+// hanging holds at most this many goroutines, and only once that many hang
+// at once does a try wait for a slot.
+const maxEnVuelo = 16
+
+// candado is the write lock of one record file, with how many hold it or
+// wait for it: the last one out takes it out of the map, so the map is the
+// size of the writes going on, not of every record ever closed (findings
+// 92fa84, 8bc636).
+type candado struct {
+	mu   sync.Mutex
+	usos int
 }
 
 // cierre is one pending close.
@@ -247,20 +267,29 @@ type cierre struct {
 	enVuelo bool
 }
 
-var pendientes = &cierres{porArchivo: map[string]*cierre{}, candados: map[string]*sync.Mutex{}, despertar: make(chan struct{}, 1)}
+var pendientes = &cierres{porArchivo: map[string]*cierre{}, candados: map[string]*candado{}, despertar: make(chan struct{}, 1)}
 
 // escritura takes the write lock of the record at path and returns its
-// release.
+// release. Lock order: a record's lock before c.mu, never the other way.
 func (c *cierres) escritura(path string) func() {
 	c.mu.Lock()
-	m, ok := c.candados[path]
+	k, ok := c.candados[path]
 	if !ok {
-		m = &sync.Mutex{}
-		c.candados[path] = m
+		k = &candado{}
+		c.candados[path] = k
 	}
+	k.usos++
 	c.mu.Unlock()
-	m.Lock()
-	return m.Unlock
+	k.mu.Lock()
+	return func() {
+		k.mu.Unlock()
+		c.mu.Lock()
+		k.usos--
+		if k.usos == 0 {
+			delete(c.candados, path)
+		}
+		c.mu.Unlock()
+	}
 }
 
 // agregar queues the close of the record at path, replacing an older one of
@@ -306,11 +335,15 @@ func (c *cierres) trabajar() {
 		ahora := time.Now()
 		siguiente := ahora.Add(esperaCierre(len(esperasCierre)))
 		for path, ci := range c.porArchivo {
+			vencido := !ci.proximo.After(ahora)
 			switch {
 			case ci.enVuelo:
-			case !ci.proximo.After(ahora):
+			case vencido && c.enVuelo < maxEnVuelo:
 				ci.enVuelo = true
+				c.enVuelo++
 				go c.intentar(path, ci.seq)
+			case vencido:
+				// no slot: the try that ends wakes the worker
 			case ci.proximo.Before(siguiente):
 				siguiente = ci.proximo
 			}
@@ -340,6 +373,7 @@ func (c *cierres) intentar(path string, seq uint64) {
 	unlock()
 
 	c.mu.Lock()
+	c.enVuelo--
 	if ci, ok := c.porArchivo[path]; ok && ci.seq == seq {
 		if listo {
 			delete(c.porArchivo, path)

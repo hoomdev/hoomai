@@ -230,6 +230,7 @@ func LoadAllWithWarnings(projectDir string) ([]*Verdict, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	// stable: ties keep the name order they were read in (finding 3cb01b)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out, warnings, nil
 }

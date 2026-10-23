@@ -101,15 +101,15 @@ func TestHallazgo_1e0674_CA333_UnaEscrituraBloqueadaNoFrenaLosCierresDeOtrosRegi
 	// esperar a que el reintento de A se cuelgue en el FIFO (a ~1 s con un
 	// backoff por cierre; si un worker de otro test esta en un tramo largo,
 	// hasta 40 s); recien entonces vuelve la escritura de B
-	e1bEsperar(40*time.Second, func() bool {
+	// sin la escritura de A colgada el caso no se inyecto, y que B llegue
+	// no probaria nada (hallazgo e4f7e0)
+	if !e1bEsperar(40*time.Second, func() bool {
 		sostener = e1cHayLector(gi)
 		return sostener != nil
-	})
-	if sostener != nil {
-		t.Logf("%s: %s despues de Cerrar(A), la escritura de A esta colgada leyendo el FIFO %s", ca, time.Since(t0).Round(100*time.Millisecond), gi)
-	} else {
-		t.Logf("%s: en 40 s nadie leyo el FIFO: la escritura de A no quedo colgada en el (el caso no se inyecto; B igual tiene que llegar)", ca)
+	}) {
+		t.Fatalf("%s: fixture: en 40 s nadie leyo el FIFO %s: la escritura de A no quedo colgada y el caso no se inyecto", ca, gi)
 	}
+	t.Logf("%s: %s despues de Cerrar(A), la escritura de A esta colgada leyendo el FIFO %s", ca, time.Since(t0).Round(100*time.Millisecond), gi)
 	if r, ok := e1EnDisco(otro, b.ID); !ok || r.Status != StatusRunning {
 		t.Fatalf("%s: fixture: sin escritura, B sigue abierto en disco: %q %v", ca, r.Status, ok)
 	}

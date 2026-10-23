@@ -410,7 +410,8 @@ func MetasErr(root string) ([]Meta, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no se pudo leer .hoom/runs: %v", err)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	// stable: ties keep the name order they were read in (finding 3cb01b)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	if len(sinLeer) > 0 {
 		return out, fmt.Errorf("no se pudieron leer %d sidecar(s) de .hoom/runs: %s", len(sinLeer), strings.Join(sinLeer, "; "))
 	}

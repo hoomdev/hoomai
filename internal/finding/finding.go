@@ -361,7 +361,8 @@ func scan(root string) (scanned, error) {
 		}
 		out.items = append(out.items, it)
 	}
-	sort.Slice(out.items, func(i, j int) bool { return out.items[i].CreatedAt.Before(out.items[j].CreatedAt) })
+	// stable: ties keep the name order they were read in (finding 3cb01b)
+	sort.SliceStable(out.items, func(i, j int) bool { return out.items[i].CreatedAt.Before(out.items[j].CreatedAt) })
 	return out, nil
 }
 
