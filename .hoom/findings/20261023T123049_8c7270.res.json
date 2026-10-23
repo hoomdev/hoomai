@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T123049_8c7270",
+  "as": "corregido",
+  "evidence": "8d5a55a: mismo arreglo que c85840 (RecorrerDirectorio entrega de a uno). Tests 7a2c5a6: TestHallazgo_c85840_8c7270_b7bb41_CA442_* (memoria viva acotada en los cinco lectores).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.247383Z"
+}

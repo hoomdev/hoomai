@@ -1,0 +1,11 @@
+{
+  "id": "20261023T133347_e4f7e0",
+  "created_at": "2026-10-23T13:33:47.737316Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/envelope/hallazgos_endurecimiento1c_unix_test.go",
+  "description": "INTRODUCIDO — internal/envelope/hallazgos_endurecimiento1c_unix_test.go:94-108 ignora el resultado de e1bEsperar y, si nadie abrio el FIFO para leer en 40 s, solo hace Logf y continua. Desde ahi restaura la escritura de B y el test aprueba con que B cierre, aunque A nunca haya estado bloqueado; por tanto puede quedar verde sin ejecutar la condicion que pretende proteger (que un Write colgado no frene otros cierres). La falta de inyeccion debe invalidar o saltar el caso, no convertirlo en una prueba mas debil.",
+  "author": "reviewer@codex",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}

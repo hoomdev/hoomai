@@ -1,0 +1,11 @@
+{
+  "id": "20261022T202657_d69d7e",
+  "created_at": "2026-10-22T20:26:57.547398Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "PRE-EXISTENTE (follow-up; la correccion d0d331 queda incompleta): internal/boardcmd/gather.go:63 solo llama sondearFuentes(root). En Doctor, los worktrees sin item se recorren despues por internal/boardcmd/doctor.go:212-214: envelopes/runs en orphanEnvelopes y verdicts/findings en evidenceWithoutItem, pero nadie llama allReviews/sondearFuentes para esos worktrees. Resultado reproducido: un worktree huerfano valido con .hoom/reviews existente e ilegible (000) hace que 'hoom board doctor' salga 0 y diga 'sin problemas de coherencia', aunque el nuevo contrato dice que una fuente de reviews no leida impide certificar. Debe sondearse cada place descubierto antes de recogerFallas.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

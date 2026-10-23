@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T202657_d69d7e",
+  "as": "corregido",
+  "evidence": "d76d197: Doctor sondea las cinco fuentes de cada arbol que recorre (places), worktrees sin item incluidos. Test de boardcmd/hallazgos_endurecimiento1b: con .hoom/reviews en 000 en un worktree sin item, Doctor daba 0 problemas en e08650d y ahora da error.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.226826Z"
+}

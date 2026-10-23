@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123041_eafa2d",
+  "created_at": "2026-10-23T12:30:41.374473Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO: internal/envelope/envelope.go:242-274. El indice i y su backoff pertenecen al worker global, no a cada cierre: agregar tampoco lo despierta ni reinicia el plazo. Si un registro viejo mantiene vivo al worker hasta el tramo de 30 s, cualquier cierre nuevo agregado durante ese sleep espera hasta 30 s antes de su primer intento, en vez del primer reintento de 1 s prometido por esperasCierre. La latencia y la posibilidad de dejar telemetria abierta pasan a depender de fallos no relacionados de otros sobres y proyectos del mismo proceso.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

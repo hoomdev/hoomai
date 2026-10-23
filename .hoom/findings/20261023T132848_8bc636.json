@@ -1,0 +1,11 @@
+{
+  "id": "20261023T132848_8bc636",
+  "created_at": "2026-10-23T13:28:48.498906Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:259: escritura inserta un *sync.Mutex en candados por cada ruta de sobre, pero ninguna ruta elimina esa entrada cuando el cierre termina. Como cada corrida usa un ID nuevo y el Studio vive durante muchas corridas, el mapa crece para siempre incluso con escrituras exitosas; uso prolongado o solicitudes repetidas producen consumo de memoria no acotado.",
+  "author": "reviewer@codex",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}

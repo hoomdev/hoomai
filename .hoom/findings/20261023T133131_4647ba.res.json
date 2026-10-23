@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T133131_4647ba",
+  "as": "corregido",
+  "evidence": "0013fd4: Cerrar agrega o quita el pendiente sin soltar el candado del registro. Tests 64b1211 (fallan sobre 269f3e3, pasan con d45eef7): TestHallazgo_4647ba_22806c_CA333_ElExitoDeUnCierreNoBorraElPendienteDelQueEscribioDespues y ..._UnPendienteAnteriorNoPisaAlQueEscribioDespues (intercalado forzado en un subproceso con GOMAXPROCS(1), RLIMIT_FSIZE y un FIFO; 12 de 12 fallos sobre 269f3e3).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T15:08:35.528694Z"
+}

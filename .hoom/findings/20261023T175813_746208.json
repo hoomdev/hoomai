@@ -1,0 +1,11 @@
+{
+  "id": "20261023T175813_746208",
+  "created_at": "2026-10-23T17:58:13.420836Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/envelope/hallazgos_endurecimiento1c_test.go",
+  "description": "INTRODUCIDO — internal/envelope/hallazgos_endurecimiento1c_test.go:77-199 copia el armazon generico e1cPicoVivo/e1cPicoMinimo/e1cPicoMaximo/e1cGuardaMedidor que tambien se agrega en internal/finding/hallazgos_endurecimiento1c_test.go:66-190, internal/reviewcmd/hallazgos_endurecimiento1c_test.go:65-189, internal/runcmd/hallazgos_endurecimiento1c_test.go:67-191 e internal/verdict/hallazgos_endurecimiento1c_test.go:97-220. Son cinco fuentes para el mismo algoritmo de GC, muestreo, calibracion y umbrales; cualquier correccion de ruido o portabilidad debe repetirse y puede dejar suites midiendo con criterios distintos. Extraer el medidor generico a un fixture compartido dejaria en cada paquete solo la construccion de sus archivos y sus aserciones.",
+  "author": "reviewer@codex",
+  "fingerprint": "7449d94fa7eb782b",
+  "task": "endurecimiento-1"
+}

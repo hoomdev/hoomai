@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T123036_b7417b",
+  "as": "corregido",
+  "evidence": "8d5a55a: un Cerrar que llega saca al cierre pendiente viejo del mismo registro y las escrituras de un registro van en serie (escritura(path)); el reintento de A ya no pisa a B. Test 7a2c5a6: TestHallazgo_b7417b_CA333_UnCierrePendienteNoPisaElCierreQueSeEscribioDespues (sobre 51d6c22 A pisaba a B a 1,02 s).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.340975Z"
+}

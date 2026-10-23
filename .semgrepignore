@@ -13,9 +13,12 @@ test/
 tests/
 *_test.go
 
-# Reglas propias (se cargan con --config .hoom/semgrep/, no se escanean)
+# Reglas propias (se cargan con --config, no se escanean) y el lock, que es
+# un dato: sus sha256 parecen tokens a las reglas de secretos. gate.sh y
+# fijar.sh si se escanean: son el codigo que corre el gate (hallazgo c3f45c)
 .semgrep
-.hoom/semgrep/
+.hoom/semgrep/reglas/
+.hoom/semgrep/paquetes.lock
 
 # lo que hoom guarda y regenera (cache de reglas, runs, worktrees): nunca es
 # codigo del proyecto, y en el contenedor del CI git puede no aplicar el

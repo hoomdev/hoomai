@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -183,6 +184,13 @@ type run struct {
 	cancel   context.CancelFunc
 	canceled bool // pedido de cancelacion; el estado terminal lo fija settle
 	log      *os.File
+	// logMu orders the narration: an event goes to the .jsonl and then into
+	// memory under it, so two producers (stdout and stderr) cannot leave one
+	// order in memory and another on disk (finding a4f371). logErr is the
+	// first failure writing the log: from then on nothing more is written or
+	// published, and the run is cut (finding 186b1a).
+	logMu  sync.Mutex
+	logErr error
 	// normalize is the run's normalizer, made once per run and not per
 	// invocation: a delegation left open at the end of one invocation is
 	// closed by a line that comes when Input continues the session
@@ -316,8 +324,42 @@ func readMeta(root, id string) (Meta, bool) {
 	if !validID(id) {
 		return Meta{}, false
 	}
-	raw, err := os.ReadFile(metaPath(root, id))
+	r, err := abrirRuns(root)
 	if err != nil {
+		return Meta{}, false
+	}
+	defer r.Close()
+	return readMetaEn(r, id)
+}
+
+// abrirRuns opens .hoom/runs of root by descriptors: neither .hoom nor runs
+// may be a symlink, which would take the reading to another project
+// (findings 305cbc and 31a00d). fs.ErrNotExist when there are no runs yet.
+func abrirRuns(root string) (*os.Root, error) {
+	return hoomfs.AbrirRuta(root, ".hoom", "runs")
+}
+
+// maxMeta caps one sidecar: hoom writes a few hundred bytes.
+const maxMeta = 1 << 20
+
+// readMetaEn reads the sidecar of run id from the runs directory r, as a
+// regular file that is not a symlink, with readMeta's refusals.
+func readMetaEn(r *os.Root, id string) (Meta, bool) {
+	if !validID(id) {
+		return Meta{}, false
+	}
+	raw, err := hoomfs.LeerRegularEn(r, id+".meta.json", maxMeta)
+	if err != nil {
+		return Meta{}, false
+	}
+	return parseMeta(id, raw)
+}
+
+// parseMeta is the sidecar of run id from its bytes, with readMeta's
+// refusals: another shape, an id that is not its file's, a status hoom does
+// not write.
+func parseMeta(id string, raw []byte) (Meta, bool) {
+	if !validID(id) {
 		return Meta{}, false
 	}
 	var meta Meta
@@ -341,23 +383,39 @@ func ReadMeta(root, id string) (Meta, bool) { return readMeta(root, id) }
 // unreadable, of another shape or without an id is skipped: broken telemetry
 // never breaks a command.
 func Metas(root string) []Meta {
-	entries, err := os.ReadDir(runsDir(root))
-	if err != nil {
-		return nil
-	}
-	var out []Meta
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".meta.json") {
-			continue
-		}
-		meta, ok := readMeta(root, strings.TrimSuffix(e.Name(), ".meta.json"))
-		if !ok {
-			continue
-		}
-		out = append(out, meta)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	out, _ := MetasErr(root)
 	return out
+}
+
+// MetasErr is Metas for whoever must not take "unreadable" for "none": a
+// runs directory that exists and cannot be listed (or is a symlink, or not a
+// directory) is an error, and so is a sidecar it could not open or read
+// (findings d0d331 and a2b180) — the sidecars it could read still come back.
+// One that does not exist yet is no runs. A sidecar of another shape is
+// skipped, as in Metas.
+func MetasErr(root string) ([]Meta, error) {
+	var out []Meta
+	var sinLeer []string
+	err := hoomfs.RecorrerDirectorio(root, []string{".hoom", "runs"},
+		func(n string) bool { return strings.HasSuffix(n, ".meta.json") }, maxMeta,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
+				return
+			}
+			if meta, ok := parseMeta(strings.TrimSuffix(e.Nombre, ".meta.json"), e.Contenido); ok {
+				out = append(out, meta)
+			}
+		})
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo leer .hoom/runs: %v", err)
+	}
+	// stable: ties keep the name order they were read in (finding 3cb01b)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	if len(sinLeer) > 0 {
+		return out, fmt.Errorf("no se pudieron leer %d sidecar(s) de .hoom/runs: %s", len(sinLeer), strings.Join(sinLeer, "; "))
+	}
+	return out, nil
 }
 
 // ReadEvents reads a run's narration from disk. The Studio needs it for runs
@@ -378,12 +436,19 @@ func openLog(root, id string) (*os.File, error) {
 	if !validID(id) {
 		return nil, fmt.Errorf("run no encontrado: %s", id)
 	}
-	for _, d := range []string{filepath.Join(root, ".hoom"), runsDir(root)} {
-		if st, err := os.Lstat(d); err != nil || !st.IsDir() {
-			return nil, fmt.Errorf("run no encontrado: %s", id)
-		}
+	// down from root by descriptors: a .hoom or a runs swapped for a symlink
+	// between a look and an open would still be followed by a path
+	// (finding 31a00d)
+	r, err := abrirRuns(root)
+	if err != nil {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
 	}
-	f, err := hoomfs.AbrirRegular(filepath.Join(runsDir(root), id+".jsonl"))
+	defer r.Close()
+	fi, err := r.Lstat(id + ".jsonl")
+	if err != nil {
+		return nil, fmt.Errorf("run no encontrado: %s", id)
+	}
+	f, err := hoomfs.AbrirRegularEn(r, id+".jsonl", fi)
 	if err != nil {
 		return nil, fmt.Errorf("run no encontrado: %s", id)
 	}
@@ -517,7 +582,14 @@ func NewManager(root string) *Manager {
 }
 
 func (m *Manager) markOrphans() {
-	entries, err := os.ReadDir(runsDir(m.root))
+	// by descriptors, like every reading of the telemetry: an orphan of
+	// another project, reached through a symlink, is not this one's to close
+	r, err := abrirRuns(m.root)
+	if err != nil {
+		return
+	}
+	defer r.Close()
+	entries, err := hoomfs.ListarEn(r)
 	if err != nil {
 		return
 	}
@@ -525,8 +597,16 @@ func (m *Manager) markOrphans() {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
 			continue
 		}
-		path := filepath.Join(runsDir(m.root), e.Name())
-		raw, err := os.ReadFile(path)
+		fi, err := r.Lstat(e.Name())
+		if err != nil {
+			continue
+		}
+		f, err := hoomfs.AbrirRegularEn(r, e.Name(), fi)
+		if err != nil {
+			continue
+		}
+		raw, err := io.ReadAll(f)
+		f.Close()
 		if err != nil {
 			continue
 		}
@@ -542,7 +622,7 @@ func (m *Manager) markOrphans() {
 			continue // its owner is alive and talking: a neighbor, not an orphan
 		}
 		orphan := Event{TS: time.Now().UTC(), Kind: "error", Detail: "run huerfano: hoom serve termino mientras corria"}
-		if f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
+		if f, err := hoomfs.AnexarRegularEn(r, e.Name(), fi); err == nil {
 			enc, _ := json.Marshal(orphan)
 			f.Write(append(enc, '\n'))
 			f.Close()
@@ -1085,6 +1165,12 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	r.cancel = cancel
 	m.mu.Unlock()
 	defer cancel()
+	// a narration that already broke (the start line, or an earlier
+	// invocation of the run) launches nothing more
+	if err := r.logBroken(); err != nil {
+		m.settle(r, StatusError, -1, detalleLogRoto(r.info.ID, err))
+		return
+	}
 
 	cmd := exec.CommandContext(ctx, inv.Bin, inv.Args...) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el binario sale del registro de providers y los argumentos los arma su adapter
 	cmd.Dir = r.dir
@@ -1162,22 +1248,31 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	// the run's normalizer, the same for every invocation of the run
 	normalize := r.normalize
 	var wg sync.WaitGroup
-	scan := func(src interface{ Read([]byte) (int, error) }, isErr bool) {
+	var descartadas atomic.Int64
+	scan := func(src io.Reader, isErr bool) {
 		defer wg.Done()
-		sc := bufio.NewScanner(src)
-		sc.Buffer(make([]byte, 0, 64*1024), 4<<20) // stream-json lines can be huge
-		for sc.Scan() {
-			line := sc.Text()
+		fuente := "stdout"
+		if isErr {
+			fuente = "stderr"
+		}
+		// a line over the cap is read to its end and dropped, and the
+		// reading goes on: a provider is never left blocked on a pipe
+		// nobody drains, and the drop is said (finding e8e42c)
+		lineas(src, MaxLinea, func(line string) {
 			if isErr {
 				if strings.TrimSpace(line) != "" {
 					m.append(r, Event{TS: time.Now().UTC(), Kind: "text", Detail: "stderr: " + line})
 				}
-				continue
+				return
 			}
 			for _, ev := range normalize(line) {
 				m.append(r, ev)
 			}
-		}
+		}, func(n int) {
+			descartadas.Add(1)
+			m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
+				Detail: fmt.Sprintf("aviso: hoom descarto una linea de %s de %d bytes del provider: supera el tope de %d bytes por linea", fuente, n, MaxLinea)})
+		})
 	}
 	wg.Add(2)
 	go scan(stdout, false)
@@ -1215,6 +1310,16 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 			detail = fmt.Sprintf("el provider no leyo el pedido entero por stdin (%d bytes): %v", len(inv.Stdin), werr)
 		}
 	}
+	if n := descartadas.Load(); n > 0 && status == StatusDone {
+		// the close says it too: a dropped line can be the one that carried
+		// the result
+		detail = fmt.Sprintf("%s; hoom descarto %d linea(s) del provider de mas de %d bytes", detail, n, MaxLinea)
+	}
+	if lerr := r.logBroken(); lerr != nil {
+		// the cut is the log's, whatever the provider did after it
+		status, exit = StatusError, -1
+		detail = detalleLogRoto(r.info.ID, lerr)
+	}
 	m.settle(r, status, exit, detail)
 }
 
@@ -1229,7 +1334,19 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	if status != StatusDone {
 		kind = "error"
 	}
-	m.append(r, Event{TS: time.Now().UTC(), Kind: kind, Detail: detail})
+	ev := Event{TS: time.Now().UTC(), Kind: kind, Detail: detail}
+	if !m.append(r, ev) {
+		// the log could not take the close: the run ends cut by it, and the
+		// close is published in memory alone — the one event the log lacks,
+		// since it is the one that says why (finding 186b1a)
+		if err := r.logBroken(); err != nil {
+			status, exit = StatusError, -1
+			ev = Event{TS: ev.TS, Kind: "error", Detail: detalleLogRoto(r.info.ID, err)}
+		}
+		r.logMu.Lock()
+		m.publicar(r, ev)
+		r.logMu.Unlock()
+	}
 	m.mu.Lock()
 	r.info.Status = status
 	r.info.ExitCode = exit
@@ -1246,9 +1363,55 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	m.mu.Unlock()
 }
 
-// append records one event in memory and in the append-only jsonl log.
-// A session id reported by the provider becomes the run's handle.
-func (m *Manager) append(r *run, ev Event) {
+// append records one event in the append-only jsonl log and then in memory,
+// in that order and under the run's logMu: what the run shows is what it
+// wrote, in the order it wrote it. An event the log could not take whole is
+// not published, and neither is anything after it: the first failure cuts
+// the run, whose close (settle) is the one event published without the log,
+// to say why (finding 186b1a). It reports whether ev was published.
+func (m *Manager) append(r *run, ev Event) bool {
+	enc, merr := json.Marshal(ev)
+	if merr == nil {
+		ev = canonico(ev, enc)
+	}
+	r.logMu.Lock()
+	defer r.logMu.Unlock()
+	if r.log != nil {
+		if r.logErr != nil {
+			return false
+		}
+		if merr != nil {
+			r.logErr = fmt.Errorf("un evento no se pudo serializar: %v", merr)
+		} else {
+			line := append(enc, '\n')
+			n, err := r.log.Write(line)
+			if err == nil && n != len(line) {
+				err = io.ErrShortWrite
+			}
+			if err != nil {
+				r.logErr = err
+			}
+		}
+		if r.logErr != nil {
+			// a half-written line is never followed by another one: the log
+			// keeps what it had, and the provider stops here
+			m.mu.Lock()
+			cancel := r.cancel
+			m.mu.Unlock()
+			if cancel != nil {
+				cancel()
+			}
+			return false
+		}
+	}
+	m.publicar(r, ev)
+	return true
+}
+
+// publicar puts ev in the run's memory. The caller holds r.logMu, so the
+// order in memory is the order of the log. A session id reported by the
+// provider becomes the run's handle.
+func (m *Manager) publicar(r *run, ev Event) {
 	m.mu.Lock()
 	r.events = append(r.events, ev)
 	r.info.NumEvents = len(r.events)
@@ -1259,13 +1422,37 @@ func (m *Manager) append(r *run, ev Event) {
 		r.info.Usage = accumulate(r.info.Usage, ev.Usage)
 		r.meta.Usage = r.info.Usage
 	}
-	log := r.log
 	m.mu.Unlock()
-	if log != nil {
-		if enc, err := json.Marshal(ev); err == nil {
-			log.Write(append(enc, '\n'))
-		}
+}
+
+// canonico is the event exactly as its line enc reads back: JSON writes every
+// byte of invalid UTF-8 as U+FFFD (the rune itself, or its escape with older
+// encoders), so an event with such bytes is published as written, and the
+// memory still equals the log after a restart (finding b7aba5). The test is
+// on the line itself, not on a list of the event's fields, so a field added
+// later is covered too (finding e3bd76). A line with a legitimate U+FFFD is
+// decoded to the same event: harmless.
+func canonico(ev Event, enc []byte) Event {
+	if !bytes.Contains(enc, []byte("\uFFFD")) && !bytes.Contains(enc, []byte(`\ufffd`)) {
+		return ev
 	}
+	var leido Event
+	if json.Unmarshal(enc, &leido) != nil {
+		return ev
+	}
+	return leido
+}
+
+// logBroken is the first failure writing the run's narration, or nil.
+func (r *run) logBroken() error {
+	r.logMu.Lock()
+	defer r.logMu.Unlock()
+	return r.logErr
+}
+
+// detalleLogRoto is the close of a run whose narration could not be written.
+func detalleLogRoto(id string, err error) string {
+	return fmt.Sprintf("la narracion del run no se pudo escribir en .hoom/runs/%s.jsonl (%v): el run se corto", id, err)
 }
 
 func displayDir(opts StartOptions, blind bool) string {
@@ -1281,3 +1468,51 @@ func displayDir(opts StartOptions, blind bool) string {
 // Alive reports whether a process with this pid exists: how another process
 // tells a live run from one whose owner died.
 func Alive(pid int) bool { return alive(pid) }
+
+// MaxLinea caps one line of the provider's stdout or stderr. stream-json
+// lines can be huge; one past this is read to its end and dropped, never
+// held whole (finding e8e42c).
+const MaxLinea = 4 << 20
+
+// lineas reads src line by line the way bufio.ScanLines does (the \n and a
+// \r before it are dropped; a last line without \n counts) and hands each
+// one to linea, holding at most about max bytes of a line: one longer is read
+// to its end, never kept, and larga gets its size without the \n. It drains
+// src until EOF or a read error, and either ends the reading: the only error
+// a provider's pipe gives is being closed, at a cancel or a timeout, and the
+// run's close already says that. A line too long is never a reason to stop.
+func lineas(src io.Reader, max int, linea func(string), larga func(int)) {
+	br := bufio.NewReaderSize(src, 64<<10)
+	var buf []byte
+	size, over := 0, false
+	for {
+		frag, err := br.ReadSlice('\n')
+		size += len(frag)
+		if !over {
+			buf = append(buf, frag...)
+			// a \r\n end is not content: the cap leaves room for both
+			if len(buf) > max+2 {
+				over, buf = true, nil
+			}
+		}
+		if err == bufio.ErrBufferFull {
+			continue // the same line goes on
+		}
+		if size > 0 {
+			largo := size
+			if err == nil {
+				largo-- // the \n
+			}
+			content := bytes.TrimSuffix(bytes.TrimSuffix(buf, []byte{'\n'}), []byte{'\r'})
+			if over || len(content) > max {
+				larga(largo)
+			} else {
+				linea(string(content))
+			}
+		}
+		buf, size, over = buf[:0], 0, false
+		if err != nil {
+			return
+		}
+	}
+}

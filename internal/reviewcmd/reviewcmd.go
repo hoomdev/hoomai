@@ -879,7 +879,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			rec.Status = envelope.StatusNotDeliverable
 		}
 		rec.EndedAt = time.Now().UTC()
-		_ = envelope.Write(root, rec) // best-effort (CA-202)
+		_ = envelope.Cerrar(root, rec) // best-effort (CA-202), retried until it lands (finding de4843)
 	}
 	terminar := func(status string, code int, stage, note string) Result {
 		res = finish(w, res, status, code, note)

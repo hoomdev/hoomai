@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T123057_b36303",
+  "as": "corregido",
+  "evidence": "8d5a55a: RecorrerDirectorio ordena las entradas por nombre antes de recorrerlas, como os.ReadDir. Tests 7a2c5a6: TestHallazgo_b36303_CA442_RecorrerDirectorioEntregaEnOrdenDeNombre (300 nombres al azar) y ..._{LoadAll,List,RecordsErr,MetasErr,ListErr}ConEmpatesEnOrdenDeNombre (sobre 51d6c22 salian en orden de directorio de APFS).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.309371Z"
+}

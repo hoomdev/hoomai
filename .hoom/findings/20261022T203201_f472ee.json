@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203201_f472ee",
+  "created_at": "2026-10-22T20:32:01.295857Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/finding/finding.go",
+  "description": "INTRODUCIDO — internal/finding/finding.go:158 (llamado desde internal/agentcmd/scope.go:417-420): el gate calcula HuellaConTope de nuevo por cada violacion. Si ls-files se bloquea, cada finding consume el TopeListado completo (2 min por defecto); como CheckScope genera una violacion por ruta, un rol puede dejar muchas rutas fuera de scope y convertir el supuesto limite en N×2 min, manteniendo el gate y su sobre bloqueados durante horas.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

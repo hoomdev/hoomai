@@ -72,6 +72,11 @@ type LensUsage struct {
 
 func recordsDir(dir string) string { return filepath.Join(dir, ".hoom", RecordsDir) }
 
+// maxRecord caps one review record. It is evidence, read whole, so the cap
+// only stops a file no hoom would write from filling the memory; one past it
+// is unreadable and comes back as a warning.
+const maxRecord = 256 << 20
+
 // WriteRecord persists r under dir/.hoom/reviews/<id>.json, whole or not at
 // all, stamping ID and CreatedAt when empty. It never overwrites an existing
 // record.
@@ -117,29 +122,36 @@ func WriteRecord(dir string, r Record) (Record, error) {
 // whose id does not match its name, or is not a plain id, is not trusted —
 // ids reach the reviewer's pedido and the board's reasons.
 func Records(dir string) ([]Record, []string) {
+	out, warnings, _ := RecordsErr(dir)
+	return out, warnings
+}
+
+// RecordsErr is Records for whoever must not take "unreadable" for "none"
+// (the doctor, finding d0d331): a records directory that exists and cannot
+// be listed is an error; one that does not exist yet is no records.
+func RecordsErr(dir string) ([]Record, []string, error) {
 	out, warnings := []Record{}, []string{}
-	entries, err := os.ReadDir(recordsDir(dir))
+	// down by descriptors and as regular files: a record that is a FIFO or
+	// a symlink to another project is not read (finding 53c2af)
+	err := hoomfs.RecorrerDirectorio(dir, []string{".hoom", RecordsDir},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s: %v", e.Nombre, e.Err))
+				return
+			}
+			var r Record
+			if err := json.Unmarshal(e.Contenido, &r); err != nil || r.ID != strings.TrimSuffix(e.Nombre, ".json") || !validRecordID(r.ID) {
+				warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Nombre))
+				return
+			}
+			out = append(out, r)
+		})
 	if err != nil {
-		return out, warnings
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(recordsDir(dir), e.Name()))
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s: %v", e.Name(), err))
-			continue
-		}
-		var r Record
-		if err := json.Unmarshal(raw, &r); err != nil || r.ID != strings.TrimSuffix(e.Name(), ".json") || !validRecordID(r.ID) {
-			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Name()))
-			continue
-		}
-		out = append(out, r)
+		return out, warnings, err
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
-	return out, warnings
+	return out, warnings, nil
 }
 
 // validRecordID is the shape WriteRecord gives an id: 20060102T150405_

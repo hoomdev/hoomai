@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T174640_c3f45c",
+  "as": "corregido",
+  "evidence": "b992ef8: .semgrepignore excluye .hoom/semgrep/reglas/ y .hoom/semgrep/paquetes.lock (un dato; sus sha256 dan 4 falsos positivos de secretos), no toda .hoom/semgrep/: gate.sh y fijar.sh son targets (semgrep --verbose los lista). El gate da exit 0 sobre el arbol. Limite del motor, no del ignore: el parser de bash de semgrep 1.175.0 se saltea ~96% de gate.sh, asi que la cobertura real del script es la review independiente (9-\u003e7-\u003e3-\u003e0).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:05:02.812777Z"
+}

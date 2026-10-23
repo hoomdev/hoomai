@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123756_e3bd76",
+  "created_at": "2026-10-23T12:37:56.368812Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:1435: canonico enumera a mano los cinco campos string actuales de providers.Event antes de decidir no decodificar el JSON. Como runcmd.Event es un alias de un struct definido en otro paquete, agregar alli otro campo string compila sin obligar a actualizar esta lista y puede reintroducir silenciosamente la divergencia memoria/disco para UTF-8 invalido. Conviene ligar la canonicalizacion al propio esquema del evento (o decodificar siempre enc) para que la invariante no dependa de una lista duplicada.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

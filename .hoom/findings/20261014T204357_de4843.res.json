@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261014T204357_de4843",
+  "as": "corregido",
+  "evidence": "66ba531/d76d197: envelope.Cerrar reintenta el cierre en segundo plano (un trabajador por proceso) hasta que queda en disco, el registro desaparece o deja de ser un archivo regular, o termina el proceso; respeta CA-333 (vive mientras vive su PID). Tests TestHallazgo_de4843_CA333_CerrarReintentaHastaQueElCierreQuedaEnDisco y ..._ElReintentoNoRecreaLoQueSeBorro.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.365487Z"
+}

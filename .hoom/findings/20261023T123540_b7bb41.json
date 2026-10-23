@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123540_b7bb41",
+  "created_at": "2026-10-23T12:35:40.045486Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "INTRODUCIDO: internal/hoomfs/ruta.go:124-130 acumula en []Entrada el contenido completo de todos los JSON antes de que el caller procese ninguno. Con topes por archivo de 256 MiB en findings, reviews y verdicts, varios registros bajo el limite hacen que Build, Doctor o verify retengan gigabytes y puedan caer por OOM; falta un limite agregado o consumo incremental.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

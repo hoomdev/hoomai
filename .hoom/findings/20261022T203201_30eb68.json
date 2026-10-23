@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203201_30eb68",
+  "created_at": "2026-10-22T20:32:01.099579Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:202-225: cada cierre fallido crea una goroutine independiente que, si el registro sigue legible pero no escribible, reintenta para siempre cada 30 s sin deduplicacion ni cancelacion. En un servidor longevo con una falla persistente de escritura, cada nuevo run agrega otro bucle permanente y produce crecimiento sin limite de goroutines y trafico al almacenamiento degradado.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

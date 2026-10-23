@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
 const SchemaID = "hoom.verdict/v1"
@@ -199,36 +200,37 @@ func LoadAll(projectDir string) ([]*Verdict, error) {
 	return out, err
 }
 
+// maxVerdict caps one verdict file. It is evidence, read whole, so the cap
+// only stops a file no hoom would write from filling the memory; one past it
+// is unreadable and comes back as a warning.
+const maxVerdict = 256 << 20
+
 // LoadAllWithWarnings is LoadAll with the skipped-file diagnostics returned
 // in-band instead of printed, so callers with a UI (hoom serve) can surface
 // them without touching stderr.
 func LoadAllWithWarnings(projectDir string) ([]*Verdict, []string, error) {
-	dir := filepath.Join(projectDir, ".hoom", "verdicts")
-	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return nil, nil, nil
-	}
+	// down by descriptors and as regular files: a verdict that is a FIFO or
+	// a symlink to another project is not read (finding 53c2af)
+	var out []*Verdict
+	var warnings []string
+	err := hoomfs.RecorrerDirectorio(projectDir, []string{".hoom", "verdicts"},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxVerdict,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Nombre, e.Err))
+				return
+			}
+			var v Verdict
+			if err := json.Unmarshal(e.Contenido, &v); err != nil {
+				warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Nombre, err))
+				return
+			}
+			out = append(out, &v)
+		})
 	if err != nil {
 		return nil, nil, err
 	}
-	var out []*Verdict
-	var warnings []string
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Name(), err))
-			continue
-		}
-		var v Verdict
-		if err := json.Unmarshal(raw, &v); err != nil {
-			warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Name(), err))
-			continue
-		}
-		out = append(out, &v)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	// stable: ties keep the name order they were read in (finding 3cb01b)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out, warnings, nil
 }

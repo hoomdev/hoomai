@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T202055_53c2af",
+  "as": "corregido",
+  "evidence": "d76d197: veredictos, hallazgos y reviews se leen con hoomfs.LeerDirectorio (descriptores, solo archivos regulares, tope de 256 MiB); un FIFO o un enlace a otro proyecto ya no cuelga ni contamina el tablero, el doctor ni verify. Tests de hallazgos_endurecimiento1b (boardcmd y verifycmd): Build no volvia en 10 s con un FIFO en e08650d; con la correccion vuelve y Doctor da error.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.195104Z"
+}

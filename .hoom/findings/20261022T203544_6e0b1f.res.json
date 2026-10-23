@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203544_6e0b1f",
+  "as": "corregido",
+  "evidence": "d76d197: lineas ya no devuelve un error; su doc dice que la lectura termina en EOF o en un error del pipe (cerrado por cancel o timeout), y que el cierre del run ya lo dice.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.568393Z"
+}

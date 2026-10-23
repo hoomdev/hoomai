@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203544_ed8ed4",
+  "created_at": "2026-10-22T20:35:44.645444Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gitx/gitx.go",
+  "description": "INTRODUCIDO — internal/gitx/gitx.go:186: HuellaConTope promete producir el ChangeFingerprint de Snapshot, pero vuelve a implementar en internal/gitx/gitx.go:194 el descubrimiento de archivos locales que Snapshot ya hace en internal/gitx/gitx.go:75; fingerprintCon solo comparte la mitad del algoritmo. Un cambio futuro en que cuenta como divergencia puede separar ambas huellas. Extraer la obtencion del conjunto local parametrizada por runner y compartirla.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

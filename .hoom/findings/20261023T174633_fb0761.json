@@ -1,0 +1,11 @@
+{
+  "id": "20261023T174633_fb0761",
+  "created_at": "2026-10-23T17:46:33.603284Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": ".github/semgrep-en-docker.sh",
+  "description": "INTRODUCIDO — .github/semgrep-en-docker.sh:8-11 monta todo $PWD, incluida .git, en modo lectura-escritura dentro de la imagen de Semgrep y no desactiva la red. .github/workflows/ci.yml:10 usa actions/checkout v4 sin persist-credentials:false; esa version conserva github.token en la configuracion Git local hasta el post-job, por lo que el scanner de terceros puede leer una credencial del checkout y tiene salida para exfiltrarla, y tambien puede alterar los bytes que luego compilan y prueban. Fijar la imagen por digest evita cambios del tag, pero no contiene una vulnerabilidad del parser ni limita el impacto de esa dependencia. El checkout no necesita credenciales despues de bajar el repo: usar persist-credentials:false, permissions minimos, mount :ro y --network=none para las invocaciones del contenedor. Patronizable con una regla Semgrep generic para docker run del workspace en CI sin :ro/--network=none junto a checkout que persiste credenciales.",
+  "author": "reviewer@codex",
+  "fingerprint": "7449d94fa7eb782b",
+  "task": "endurecimiento-1"
+}

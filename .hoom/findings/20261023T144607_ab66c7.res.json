@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T144607_ab66c7",
+  "as": "corregido",
+  "evidence": "d45eef7: el tope de intentos en vuelo es por proyecto: un proyecto con escrituras colgadas no frena el cierre de otro. Tests 64b1211: TestHallazgo_ab66c7_CA333_ProyectosColgadosNoFrenanElCierreDeUnProyectoSano (20 proyectos con 2 cierres colgados cada uno; con 0013fd4 el sano sigue en curso a los 8 s, con d45eef7 llega en 1 s).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T15:08:35.733516Z"
+}
