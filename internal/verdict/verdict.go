@@ -211,24 +211,24 @@ const maxVerdict = 256 << 20
 func LoadAllWithWarnings(projectDir string) ([]*Verdict, []string, error) {
 	// down by descriptors and as regular files: a verdict that is a FIFO or
 	// a symlink to another project is not read (finding 53c2af)
-	entries, err := hoomfs.LeerDirectorio(projectDir, []string{".hoom", "verdicts"},
-		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxVerdict)
-	if err != nil {
-		return nil, nil, err
-	}
 	var out []*Verdict
 	var warnings []string
-	for _, e := range entries {
-		if e.Err != nil {
-			warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Nombre, e.Err))
-			continue
-		}
-		var v Verdict
-		if err := json.Unmarshal(e.Contenido, &v); err != nil {
-			warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Nombre, err))
-			continue
-		}
-		out = append(out, &v)
+	err := hoomfs.RecorrerDirectorio(projectDir, []string{".hoom", "verdicts"},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxVerdict,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Nombre, e.Err))
+				return
+			}
+			var v Verdict
+			if err := json.Unmarshal(e.Contenido, &v); err != nil {
+				warnings = append(warnings, fmt.Sprintf("veredicto ilegible %s: %v", e.Nombre, err))
+				return
+			}
+			out = append(out, &v)
+		})
+	if err != nil {
+		return nil, nil, err
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out, warnings, nil

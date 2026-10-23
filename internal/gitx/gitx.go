@@ -192,19 +192,21 @@ func HuellaConTope(dir string, tope time.Duration) (string, error) {
 // locales is what diverges from HEAD in the working tree — uncommitted,
 // untracked (not ignored) and deleted paths — the half of the candidate the
 // fingerprint hashes from disk. It runs both listings even if one fails and
-// returns the paths they gave, with the first error: Snapshot keeps the
-// paths, and a bounded caller stops on a git that did not answer.
+// returns the paths they gave, with an error: a git that did not answer
+// wins over any other failure, whichever came first, so a bounded caller
+// never takes a partial listing for a whole one (findings cb8107, b6d4ca);
+// Snapshot keeps the paths either way.
 func locales(rn func(args ...string) (string, error)) (map[string]bool, error) {
 	local := map[string]bool{}
-	var primero error
+	var falla error
 	for _, args := range [][]string{
 		{"diff", "--name-only", "HEAD"},
 		{"ls-files", "--others", "--exclude-standard"},
 	} {
 		out, err := rn(args...)
 		if err != nil {
-			if primero == nil {
-				primero = err
+			if falla == nil || (errors.Is(err, errSinRespuesta) && !errors.Is(falla, errSinRespuesta)) {
+				falla = err
 			}
 			continue
 		}
@@ -214,7 +216,7 @@ func locales(rn func(args ...string) (string, error)) (map[string]bool, error) {
 			}
 		}
 	}
-	return local, primero
+	return local, falla
 }
 
 // excludedFromCandidate: generated artifacts are never part of the candidate;

@@ -150,30 +150,30 @@ const maxRecord = 1 << 20
 // project's telemetry as this one's (finding 3826b3). A record of another
 // shape is not hoom's and is skipped.
 func ListErr(root string) ([]Record, error) {
-	entries, err := hoomfs.LeerDirectorio(root, []string{".hoom", DirName},
-		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord)
-	if err != nil {
-		return nil, fmt.Errorf("no se pudo leer .hoom/%s: %v", DirName, err)
-	}
 	var out []Record
 	var sinLeer []string
-	for _, e := range entries {
-		if e.Err != nil {
-			sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
-			continue
-		}
-		var rec Record
-		if json.Unmarshal(e.Contenido, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
-			continue
-		}
-		// the file name is the address and the content only describes it: a
-		// record whose id is not its file's name, or is not an id at all, is
-		// not hoom's and never reaches a command the doctor proposes
-		// (finding f34bc3)
-		if rec.ID+".json" != e.Nombre || !idRe.MatchString(rec.ID) {
-			continue
-		}
-		out = append(out, rec)
+	err := hoomfs.RecorrerDirectorio(root, []string{".hoom", DirName},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
+				return
+			}
+			var rec Record
+			if json.Unmarshal(e.Contenido, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
+				return
+			}
+			// the file name is the address and the content only describes
+			// it: a record whose id is not its file's name, or is not an id
+			// at all, is not hoom's and never reaches a command the doctor
+			// proposes (finding f34bc3)
+			if rec.ID+".json" != e.Nombre || !idRe.MatchString(rec.ID) {
+				return
+			}
+			out = append(out, rec)
+		})
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo leer .hoom/%s: %v", DirName, err)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
 	if len(sinLeer) > 0 {
@@ -182,94 +182,175 @@ func ListErr(root string) ([]Record, error) {
 	return out, nil
 }
 
-// esperasCierre is how long the closes that did not reach the disk wait
-// before each new try; past the last one they keep trying at that pace.
+// esperasCierre is how long a close that did not reach the disk waits before
+// each new try of its own; past the last one it keeps trying at that pace.
 var esperasCierre = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 15 * time.Second, 30 * time.Second}
+
+// esperaCierre is the wait before try n+1 of one close.
+func esperaCierre(n int) time.Duration {
+	if n < len(esperasCierre) {
+		return esperasCierre[n]
+	}
+	return esperasCierre[len(esperasCierre)-1]
+}
 
 // Cerrar writes the closing record of an envelope. Its owner's PID keeps an
 // open record alive (CA-333): a close that never reaches the disk would leave
 // the envelope "en curso" for as long as that process lives, which for one
 // the Studio launched is the whole life of the server (finding de4843). So a
-// close that fails is not dropped: it joins the pending closes that one
-// worker of the process retries at the pace of esperasCierre, until each
-// lands, its record is gone or is no longer a regular file, or the process
-// ends — and then the dead PID is what says the envelope stopped. Cerrar
-// returns the first try's error; the record stays best-effort for the
-// envelope (CA-202).
+// close that fails is not dropped: it joins the pending closes, each retried
+// at its own pace (esperasCierre) until it lands, its record is gone or is no
+// longer a regular file, or the process ends — and then the dead PID is what
+// says the envelope stopped. A close that lands takes an older pending close
+// of the same record out of the queue, so a retry never writes back a stale
+// state (finding b7417b). Cerrar returns its own try's error; the record
+// stays best-effort for the envelope (CA-202).
 func Cerrar(root string, rec Record) error {
+	if strings.TrimSpace(rec.ID) == "" {
+		return Write(root, rec)
+	}
+	path := filepath.Join(dir(root), rec.ID+".json")
+	unlock := pendientes.escritura(path)
 	err := Write(root, rec)
-	if err != nil && strings.TrimSpace(rec.ID) != "" {
-		pendientes.agregar(filepath.Join(dir(root), rec.ID+".json"), root, rec)
+	unlock()
+	if err != nil {
+		pendientes.agregar(path, root, rec)
+	} else {
+		pendientes.quitar(path)
 	}
 	return err
 }
 
 // cierres is the set of closes still to write, one per record file, and the
-// one worker that retries them: a disk that never recovers costs one
-// goroutine and one write per pending record per try, never one goroutine
-// per failure (findings 94636a and 30eb68).
+// worker that schedules them. Each try runs on its own goroutine, so a write
+// the file system leaves hanging holds back only its own record, never the
+// others (finding 1e0674); the worker itself only sleeps until the next one
+// is due or a new close arrives (finding eafa2d). Writes of one record file
+// go one at a time (escritura), so a try still in flight can never land
+// after a newer close.
 type cierres struct {
 	mu         sync.Mutex
-	porArchivo map[string]cierre
+	porArchivo map[string]*cierre
+	candados   map[string]*sync.Mutex
 	trabajando bool
+	despertar  chan struct{}
 	seq        uint64
 }
 
-// cierre is one pending close; seq tells a newer close of the same record
-// from the one a try just wrote.
+// cierre is one pending close.
 type cierre struct {
-	root string
-	rec  Record
-	seq  uint64
+	root    string
+	rec     Record
+	seq     uint64 // tells this close from a newer one of the same record
+	intento int    // tries already made
+	proximo time.Time
+	enVuelo bool
 }
 
-var pendientes = &cierres{porArchivo: map[string]cierre{}}
+var pendientes = &cierres{porArchivo: map[string]*cierre{}, candados: map[string]*sync.Mutex{}, despertar: make(chan struct{}, 1)}
 
-// agregar records the close of the record at path, replacing an older one of
-// the same record, and starts the worker if none is running.
+// escritura takes the write lock of the record at path and returns its
+// release.
+func (c *cierres) escritura(path string) func() {
+	c.mu.Lock()
+	m, ok := c.candados[path]
+	if !ok {
+		m = &sync.Mutex{}
+		c.candados[path] = m
+	}
+	c.mu.Unlock()
+	m.Lock()
+	return m.Unlock
+}
+
+// agregar queues the close of the record at path, replacing an older one of
+// the same record, and makes sure the worker sees it.
 func (c *cierres) agregar(path, root string, rec Record) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.seq++
-	c.porArchivo[path] = cierre{root: root, rec: rec, seq: c.seq}
+	c.porArchivo[path] = &cierre{root: root, rec: rec, seq: c.seq, proximo: time.Now().Add(esperaCierre(0))}
 	if !c.trabajando {
 		c.trabajando = true
-		go c.reintentar()
+		go c.trabajar()
+	}
+	c.mu.Unlock()
+	c.avisar()
+}
+
+// quitar drops the pending close of the record at path: a newer close
+// landed.
+func (c *cierres) quitar(path string) {
+	c.mu.Lock()
+	delete(c.porArchivo, path)
+	c.mu.Unlock()
+}
+
+// avisar wakes the worker without ever blocking.
+func (c *cierres) avisar() {
+	select {
+	case c.despertar <- struct{}{}:
+	default:
 	}
 }
 
-// reintentar retries every pending close until none is left.
-func (c *cierres) reintentar() {
-	for i := 0; ; i++ {
-		espera := esperasCierre[len(esperasCierre)-1]
-		if i < len(esperasCierre) {
-			espera = esperasCierre[i]
-		}
-		time.Sleep(espera)
-		c.mu.Lock()
-		lote := make(map[string]cierre, len(c.porArchivo))
-		for path, ci := range c.porArchivo {
-			lote[path] = ci
-		}
-		c.mu.Unlock()
-		for path, ci := range lote {
-			if hecho(path, ci) {
-				c.mu.Lock()
-				// a newer close of the same record keeps its place
-				if actual, ok := c.porArchivo[path]; ok && actual.seq == ci.seq {
-					delete(c.porArchivo, path)
-				}
-				c.mu.Unlock()
-			}
-		}
+// trabajar launches every close that is due and sleeps until the next one,
+// until none is left.
+func (c *cierres) trabajar() {
+	for {
 		c.mu.Lock()
 		if len(c.porArchivo) == 0 {
 			c.trabajando = false
 			c.mu.Unlock()
 			return
 		}
+		ahora := time.Now()
+		siguiente := ahora.Add(esperaCierre(len(esperasCierre)))
+		for path, ci := range c.porArchivo {
+			switch {
+			case ci.enVuelo:
+			case !ci.proximo.After(ahora):
+				ci.enVuelo = true
+				go c.intentar(path, ci.seq)
+			case ci.proximo.Before(siguiente):
+				siguiente = ci.proximo
+			}
+		}
 		c.mu.Unlock()
+		select {
+		case <-time.After(time.Until(siguiente)):
+		case <-c.despertar:
+		}
 	}
+}
+
+// intentar makes one try of the close seq of the record at path, and settles
+// it or schedules its next try.
+func (c *cierres) intentar(path string, seq uint64) {
+	unlock := c.escritura(path)
+	c.mu.Lock()
+	ci, ok := c.porArchivo[path]
+	vigente := ok && ci.seq == seq
+	var root string
+	var rec Record
+	if vigente {
+		root, rec = ci.root, ci.rec
+	}
+	c.mu.Unlock()
+	listo := !vigente || hecho(path, root, rec)
+	unlock()
+
+	c.mu.Lock()
+	if ci, ok := c.porArchivo[path]; ok && ci.seq == seq {
+		if listo {
+			delete(c.porArchivo, path)
+		} else {
+			ci.enVuelo = false
+			ci.intento++
+			ci.proximo = time.Now().Add(esperaCierre(ci.intento))
+		}
+	}
+	c.mu.Unlock()
+	c.avisar()
 }
 
 // hecho tries one pending close and says whether it is settled: written, or
@@ -278,7 +359,7 @@ func (c *cierres) reintentar() {
 // look at it is not settled: storage that fails once may come back (finding
 // be5b7a). A retry never creates the directories back: a project removed
 // under it stays removed.
-func hecho(path string, ci cierre) bool {
+func hecho(path, root string, rec Record) bool {
 	st, err := os.Lstat(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -288,5 +369,5 @@ func hecho(path string, ci cierre) bool {
 	case !st.Mode().IsRegular():
 		return true
 	}
-	return Write(ci.root, ci.rec) == nil
+	return Write(root, rec) == nil
 }

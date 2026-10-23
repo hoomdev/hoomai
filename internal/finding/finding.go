@@ -312,50 +312,48 @@ type scanned struct {
 
 func scan(root string) (scanned, error) {
 	var out scanned
-	// down by descriptors and as regular files: a finding or a resolution
-	// that is a FIFO or a symlink to another project is not read (finding
-	// 53c2af)
-	entries, err := hoomfs.LeerDirectorio(root, []string{".hoom", "findings"},
-		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxArchivo)
+	// down by descriptors and as regular files (a finding or a resolution
+	// that is a FIFO or a symlink to another project is not read, finding
+	// 53c2af), one file at a time: resolutions and findings are parsed as
+	// they come and joined after the walk (finding c85840)
+	resolutions := map[string]*Resolution{}
+	var findings []Finding
+	err := hoomfs.RecorrerDirectorio(root, []string{".hoom", "findings"},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxArchivo,
+		func(e hoomfs.Entrada) {
+			if strings.HasSuffix(e.Nombre, ".res.json") {
+				if e.Err != nil {
+					out.warnings = append(out.warnings, fmt.Sprintf("resolucion ilegible %s: %v", e.Nombre, e.Err))
+					return
+				}
+				r, motivo := parseResolution(e.Contenido)
+				switch {
+				case motivo == "ilegible":
+					out.warnings = append(out.warnings, "resolucion ilegible "+e.Nombre)
+				case motivo != "":
+					out.warnings = append(out.warnings, fmt.Sprintf("resolucion invalida %s: %s; el hallazgo %s sigue abierto",
+						e.Nombre, motivo, r.FindingID))
+				default:
+					res := r
+					resolutions[r.FindingID] = &res
+				}
+				return
+			}
+			if e.Err != nil {
+				out.broken = append(out.broken, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
+				return
+			}
+			var f Finding
+			if json.Unmarshal(e.Contenido, &f) != nil || f.ID == "" {
+				out.broken = append(out.broken, e.Nombre+": JSON ilegible o sin id")
+				return
+			}
+			findings = append(findings, f)
+		})
 	if err != nil {
 		return out, err
 	}
-
-	resolutions := map[string]*Resolution{}
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Nombre, ".res.json") {
-			continue
-		}
-		if e.Err != nil {
-			out.warnings = append(out.warnings, fmt.Sprintf("resolucion ilegible %s: %v", e.Nombre, e.Err))
-			continue
-		}
-		r, motivo := parseResolution(e.Contenido)
-		switch {
-		case motivo == "ilegible":
-			out.warnings = append(out.warnings, "resolucion ilegible "+e.Nombre)
-		case motivo != "":
-			out.warnings = append(out.warnings, fmt.Sprintf("resolucion invalida %s: %s; el hallazgo %s sigue abierto",
-				e.Nombre, motivo, r.FindingID))
-		default:
-			res := r
-			resolutions[r.FindingID] = &res
-		}
-	}
-
-	for _, e := range entries {
-		if strings.HasSuffix(e.Nombre, ".res.json") {
-			continue
-		}
-		if e.Err != nil {
-			out.broken = append(out.broken, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
-			continue
-		}
-		var f Finding
-		if json.Unmarshal(e.Contenido, &f) != nil || f.ID == "" {
-			out.broken = append(out.broken, e.Nombre+": JSON ilegible o sin id")
-			continue
-		}
+	for _, f := range findings {
 		it := Item{Finding: f, Status: StatusOpen}
 		if r := resolutions[f.ID]; r != nil {
 			it.Status = r.As

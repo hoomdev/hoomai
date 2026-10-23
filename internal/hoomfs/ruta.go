@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"sort"
 )
 
 // AbrirRuta opens the directory root/partes... for reading, walking from
@@ -92,42 +93,47 @@ func AnexarRegularEn(r *os.Root, name string, antes fs.FileInfo) (*os.File, erro
 	return f, nil
 }
 
-// Entrada is one file of a directory read with LeerDirectorio: its name and
-// either its content or why it could not be read.
+// Entrada is one file of a directory walked with RecorrerDirectorio: its
+// name and either its content or why it could not be read. Contenido is only
+// valid during the call that receives it: whoever keeps something copies it.
 type Entrada struct {
 	Nombre    string
 	Contenido []byte
 	Err       error
 }
 
-// LeerDirectorio reads the directory root/partes... the way hoom reads its
-// evidence and its telemetry: down by descriptors (AbrirRuta), and every
-// entry that is not a directory and whose name passes quiere read as a
-// regular file of at most max bytes, never following a symlink nor
-// blocking on a FIFO (LeerRegularEn). A directory that does not exist is no
-// entries and no error; one that cannot be opened or listed is an error. A
-// file that cannot be read comes back with its Err: whether that is a
-// warning or a failure is the caller's to say.
-func LeerDirectorio(root string, partes []string, quiere func(nombre string) bool, max int64) ([]Entrada, error) {
+// RecorrerDirectorio walks the directory root/partes... the way hoom reads
+// its evidence and its telemetry: down by descriptors (AbrirRuta), in name
+// order (a listing in directory order would make equal evidence come out in
+// another order on another file system, finding b36303), and every entry
+// that is not a directory and whose name passes quiere read as a regular file
+// of at most max bytes, never following a symlink nor blocking on a FIFO
+// (LeerRegularEn), and handed to cada ONE AT A TIME: a directory of many
+// files under the cap never sits whole in memory (findings c85840, 8c7270,
+// b7bb41). A directory that does not exist is no entries and no error; one
+// that cannot be opened or listed is an error. A file that cannot be read
+// comes with its Err: whether that is a warning or a failure is cada's to
+// say.
+func RecorrerDirectorio(root string, partes []string, quiere func(nombre string) bool, max int64, cada func(Entrada)) error {
 	r, err := AbrirRuta(root, partes...)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return nil
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer r.Close()
 	entries, err := ListarEn(r)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var out []Entrada
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	for _, e := range entries {
 		if e.IsDir() || !quiere(e.Name()) {
 			continue
 		}
 		raw, err := LeerRegularEn(r, e.Name(), max)
-		out = append(out, Entrada{Nombre: e.Name(), Contenido: raw, Err: err})
+		cada(Entrada{Nombre: e.Name(), Contenido: raw, Err: err})
 	}
-	return out, nil
+	return nil
 }

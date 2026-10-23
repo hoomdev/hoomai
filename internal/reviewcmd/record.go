@@ -133,22 +133,22 @@ func RecordsErr(dir string) ([]Record, []string, error) {
 	out, warnings := []Record{}, []string{}
 	// down by descriptors and as regular files: a record that is a FIFO or
 	// a symlink to another project is not read (finding 53c2af)
-	entries, err := hoomfs.LeerDirectorio(dir, []string{".hoom", RecordsDir},
-		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord)
+	err := hoomfs.RecorrerDirectorio(dir, []string{".hoom", RecordsDir},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s: %v", e.Nombre, e.Err))
+				return
+			}
+			var r Record
+			if err := json.Unmarshal(e.Contenido, &r); err != nil || r.ID != strings.TrimSuffix(e.Nombre, ".json") || !validRecordID(r.ID) {
+				warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Nombre))
+				return
+			}
+			out = append(out, r)
+		})
 	if err != nil {
 		return out, warnings, err
-	}
-	for _, e := range entries {
-		if e.Err != nil {
-			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s: %v", e.Nombre, e.Err))
-			continue
-		}
-		var r Record
-		if err := json.Unmarshal(e.Contenido, &r); err != nil || r.ID != strings.TrimSuffix(e.Nombre, ".json") || !validRecordID(r.ID) {
-			warnings = append(warnings, fmt.Sprintf("registro de review ilegible %s", e.Nombre))
-			continue
-		}
-		out = append(out, r)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out, warnings, nil
