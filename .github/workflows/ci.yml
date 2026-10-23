@@ -3,11 +3,19 @@ on:
   push:
     branches: [main]
   pull_request:
+# el job solo lee el repo: el token no puede escribir nada
+permissions:
+  contents: read
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
+      # sin persist-credentials el token no queda en .git/config, donde lo
+      # leeria cualquier paso posterior, el contenedor de semgrep incluido
+      # (hallazgo fb0761)
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.25"

@@ -1,0 +1,11 @@
+{
+  "id": "20261023T180502_547228",
+  "created_at": "2026-10-23T18:05:02.522476Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "PRE-EXISTENTE (diseno de review-por-diferencia; follow-up, pide decision) — la delta de hoom review revisa el rango desde..hasta de la rama: si entre dos reviews la rama integra la base (git merge main), el rango incluye todo lo que trajo ese merge y el reviewer lo marca como INTRODUCIDO por la tarea. En la delta 2 de endurecimiento-1 (registro 20261023T175836_773030, 4676 lineas 'sobre el rango') fb0761, c3f45c y af0383 son de archivos que vinieron de main (#53 gates-dogfood, #54 lock-semgrep). Opcion: que la delta compare las diferencias de la rama contra su merge-base en cada punta (range-diff), no el rango crudo, o que avise cuando el rango contiene un merge de la base.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "a7da8747aee45810",
+  "task": "endurecimiento-1"
+}
