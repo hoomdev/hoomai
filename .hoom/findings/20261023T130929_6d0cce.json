@@ -1,0 +1,11 @@
+{
+  "id": "20261023T130929_6d0cce",
+  "created_at": "2026-10-23T13:09:29.353682Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/boardcmd/historia.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historia.go:206-213 considera sostenido historico=hallazgos cuando ev.Findings no contiene bloqueantes, pero internal/boardcmd/gather.go:409-416 llena esa lista solo con abiertos del arbol elegido y no conserva la existencia de hallazgos cerrados. Con un worktree, un high abierto para la misma tarea en root queda invisible; si se borran todos los hallazgos, la lista tambien queda vacia. En ambos casos HistoricaSostenida pasa a true y la tarjeta permanece en Hecho sin que la evidencia la sostenga. Debe verificarse al menos un hallazgo de la tarea y los bloqueantes de root y worktree.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

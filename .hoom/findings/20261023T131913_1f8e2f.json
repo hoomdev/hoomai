@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131913_1f8e2f",
+  "created_at": "2026-10-23T13:19:13.127823Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:1 documenta que el paquete implementa solo `hoom item add | list | show | save`, pero este cambio agrega y expone `backfill` (SubBackfill, Parse y Execute). La documentacion de entrada queda obsoleta y hace que el nuevo verbo no sea descubrible al navegar el paquete; actualizala para incluir `backfill`.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

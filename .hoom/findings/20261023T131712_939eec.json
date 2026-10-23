@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131712_939eec",
+  "created_at": "2026-10-23T13:17:12.54791Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/boardcmd/historia.go",
+  "description": "INTRODUCIDO — internal/boardcmd/historia.go:71: Candidatas solo busca el spec en root y trata cualquier error de os.Stat como ausencia. Una tarea activa cuyo spec existe solo en .hoom/worktrees/\u003cslug\u003e (estado normal antes de integrar), o cuyo stat falla transitoriamente, cae por la rama «sin spec»; si sus hallazgos están cerrados o por debajo del umbral, backfill crea historico: hallazgos y el tablero la pone en Hecho sin ningún veredicto verde. Debe consultar el árbol de evidencia propio de la tarea y propagar errores distintos de IsNotExist antes de clasificarla.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

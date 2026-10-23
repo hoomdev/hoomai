@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131256_d03734",
+  "created_at": "2026-10-23T13:12:56.768874Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:100-123 escribe cada candidato inmediatamente y, si item.Add falla en uno posterior, retorna el error sin revertir los items creados antes. Un ENOSPC/EIO o cambio de permisos despues de la primera alta deja un backfill parcial aunque el comando termina en error, contradiciendo el caso limite 'error, nada a medias'. El test nuevo solo vuelve no escribible todo el directorio antes del primer Add, por lo que no cubre un fallo tardio. La operacion necesita preparar/publicar el lote atomicamente o limpiar con seguridad sus propias altas ante error, con una prueba que falle en el segundo item.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131737_3098f2",
+  "created_at": "2026-10-23T13:17:37.200048Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/boardcmd/historia.go",
+  "description": "INTRODUCIDO — internal/boardcmd/historia.go:130: porQueNoSostiene distingue un fallo de git al comprobar ancestros (líneas 156-159), pero veredictoQueSostiene descarta ese motivo igual que una no-integración normal y Candidatas termina devolviendo el motivo genérico «sin veredicto verde aprobado en la base» con exit 0. Si git/base está temporalmente indisponible, backfill aparenta una decisión de negocio válida en vez de un fallo operativo recuperable. Los errores de EsAncestro deben propagarse para abortar sin clasificar.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}
