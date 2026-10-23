@@ -1,0 +1,11 @@
+{
+  "id": "20261023T143400_b14100",
+  "created_at": "2026-10-23T14:34:00.201097Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 1 de la review independiente; resto de a32752) — gate.sh:69-73 acepta una ruta cuyo nombre es solo la extension (.yaml, x/.yml): pasa la validacion y el sha256 pero semgrep no la carga (para pathlib es un archivo oculto sin sufijo). Reproducido: el lock fija 'fake .yaml' (fijar.sh le calcula el hash) y el gate da exit 0 aunque esa regla marca el exec.Command plantado.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "9638609cd4d884a0",
+  "task": "lock-semgrep"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140132_9ea31f",
+  "as": "corregido",
+  "evidence": "38cae3f: un clon que falta, sin el commit, a medias o que no cuadra se reemplaza por uno propio de la corrida (mktemp + init + fetch) que despues se publica como el del cache. Probado en un repo de prueba con el gate y el lock de 38cae3f y un exec.Command(os.Args[1]) plantado (exit 1 esperado): con un shallow.lock colgado en el clon el gate da exit 1.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:15.997178Z"
+}

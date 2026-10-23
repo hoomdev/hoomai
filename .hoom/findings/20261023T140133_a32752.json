@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140133_a32752",
+  "created_at": "2026-10-23T14:01:33.293417Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO — validacion del lock: (a) una ultima linea sin salto la saltan los while read pero la lee el awk de la linea 95, y esa ruta llega a git archive sin validar (reproducido: un directorio sin .yaml extrajo el directorio entero); (b) se aceptan rutas que semgrep no carga como reglas (*.test.yaml, *.test.yml, .fixed): el lock fijaria una regla que nunca corre, con el gate verde (reproducido con 1.175.0); (c) no se valida que la carpeta de cada repo sea unica: dos reglas en el mismo lugar se pisan en silencio. Correccion: rechazar el lock sin salto final, esos nombres y las carpetas repetidas.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

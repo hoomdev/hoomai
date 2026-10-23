@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T143401_404f93",
+  "as": "corregido",
+  "evidence": "6a19bda: sha -- en los dos scripts, una ruta que empieza con - es invalida en el gate (exit 2), y fijar.sh exige solo archivos regulares y la cantidad exacta. Probado en el repo de prueba con el gate y el lock de 6a19bda (exec.Command plantado): '-x.yaml' da exit 2 en el gate y error en fijar.sh. fijar.sh sobre el lock real reproduce los 429 sha256 sin diff.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:37:46.512098Z"
+}

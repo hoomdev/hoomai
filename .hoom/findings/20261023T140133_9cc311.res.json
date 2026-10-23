@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140133_9cc311",
+  "as": "corregido",
+  "evidence": "38cae3f: gate.sh y el encabezado del lock dicen que el id de cada regla termina en el del registro y que los nosemgrep se comparan por ese final.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:16.148546Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140132_9ea31f",
+  "created_at": "2026-10-23T14:01:32.452354Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO — gate.sh:82-91: un fetch que muere (SIGKILL, OOM, corte) deja shallow.lock en el clon del cache sin el commit; desde ahi cada corrida hace 5 intentos que fallan con 'Unable to create shallow.lock: File exists' y sale con exit 2 para siempre, hasta borrarlo a mano. Reproducido con un fetch real a GitHub matado con SIGKILL. Correccion: bajar a un clon temporal propio y publicarlo despues; si falla, borrarlo.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

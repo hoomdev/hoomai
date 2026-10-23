@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T133452_1eed1d",
+  "as": "corregido",
+  "evidence": "e69deda: el comentario de ci.yml dice ahora que con la entrada en el cache el gate no vuelve a bajar los clones, y que sin ella (lock nuevo o entrada expirada) gate.sh los baja de GitHub en el commit que fija el lock.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:39:32.606316Z"
+}

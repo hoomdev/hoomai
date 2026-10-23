@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140133_862449",
+  "created_at": "2026-10-23T14:01:33.938078Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gates/runner.go",
+  "description": "PRE-EXISTENTE (follow-up; lo vio la review independiente de gate.sh) — internal/gates/runner.go:85 corre cada gate con exec.CommandContext(ctx, \"sh\", \"-c\", cmd) sin grupo de procesos ni WaitDelay: cuando vence el timeout del gate, hoom mata solo el sh y un hijo (git, semgrep, go test) queda huerfano con el pipe de CombinedOutput abierto, asi que verify no vuelve hasta que el hijo termina. Un programa con el mismo patron vuelve a los 2,0 s con exec y a los 12,0 s sin exec, esperando al huerfano. Correccion: procesos.EnGrupo + WaitDelay, como runcmd.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

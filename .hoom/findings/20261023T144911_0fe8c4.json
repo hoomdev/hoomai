@@ -1,0 +1,11 @@
+{
+  "id": "20261023T144911_0fe8c4",
+  "created_at": "2026-10-23T14:49:11.202909Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 2) — gate.sh:77-79: la validacion '.*' y su mensaje 'semgrep no carga un nombre oculto' son falsos: semgrep si carga .foo.yaml (su sufijo es .yaml); solo no carga los que se llaman exactamente .yaml o .yml. Rechaza de mas con una razon equivocada. Reproducido con semgrep 1.175.0.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "48db9d024d6b7e3c",
+  "task": "lock-semgrep"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140132_25bb92",
+  "created_at": "2026-10-23T14:01:32.278794Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (review independiente de gate.sh; la review de hoom no ve .hoom/, hallazgo 8fe5a6) — gate.sh:82 confia en el clon de .hoom/cache/semgrep/\u003cnombre\u003e.git si ya tiene el objeto del commit y nunca comprueba lo que entrega git archive: git sigue aplicando replace refs, config local (filtros smudge), info/attributes, alternates y objetos sueltos del clon; gitp solo apaga la config global y la del sistema. El clon esta ignorado por git, asi que tocarlo no aparece en el diff. Reproducido: 'git --git-dir=.hoom/cache/semgrep/semgrep-rules.git replace \u003ccommit\u003e \u003ccommit con la regla vaciada\u003e' o un filtro smudge en el config del clon pasan un hallazgo plantado de exit 1 a exit 0. Regresion frente a main, que comprobaba el sha256 del paquete en cada corrida. Correccion: fijar el sha256 de cada archivo en el lock y comprobarlo sobre lo extraido en cada corrida.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

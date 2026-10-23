@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140132_25bb92",
+  "as": "corregido",
+  "evidence": "38cae3f: el lock fija el sha256 de cada archivo y gate.sh (extraer) compara lo extraido con el lock en cada corrida (solo archivos regulares, la cantidad exacta, cada sha256); si el clon del cache no cuadra baja uno propio. Probado en un repo de prueba con el gate y el lock de 38cae3f y un exec.Command(os.Args[1]) plantado (exit 1 esperado): con el clon envenenado por 'git replace' del commit (regla vaciada a rules: []) da exit 1; con un filtro smudge en info/attributes + config del clon da exit 1 y el clon envenenado queda reemplazado. fijar.sh, desde una segunda bajada independiente, reproduce los 429 sha256.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:15.966169Z"
+}
