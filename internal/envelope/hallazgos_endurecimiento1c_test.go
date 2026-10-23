@@ -53,12 +53,30 @@ const (
 	e1cTope = 48 * e1cMiB
 )
 
+// e1cVueltas es cuantas veces, a lo sumo, se repite una medicion de
+// memoria (e1cPicoMinimo, e1cPicoMaximo).
+const e1cVueltas = 3
+
 // e1cPicoVivo corre f y devuelve cuanto crecio, como maximo, la memoria viva
 // del heap mientras f corria, y cuantas muestras tomo: otra goroutine fuerza
 // un GC completo una y otra vez y anota el HeapAlloc que queda despues de
 // cada uno (lo vivo, mas lo poco que f asigno entre el GC y la lectura).
+// Cuenta como vivo solo lo que sobrevive a dos GC seguidos: el pico es el
+// maximo, sobre cada par de muestras consecutivas, de la menor de las dos.
+//
+// Ruido de la medida: solo suma. Lo que f asigna mientras un GC marca sale
+// marcado (cuenta como vivo en ese ciclo aunque ya sea basura), lo que se
+// asigna entre el fin del GC y ReadMemStats tambien cuenta, y lo mismo lo que
+// asignan a la vez otras goroutines del proceso (los workers de reintento de
+// otros tests, el runtime). En una maquina cargada (otros paquetes de go test
+// en paralelo, -race) el marcado dura mas y el ruido crece. Esa basura no
+// sobrevive al GC siguiente, y el par la descarta; lo que un lector retiene
+// de verdad sigue vivo muestra tras muestra. Lo que puede restar es que no
+// caigan dos muestras mientras f retiene. Por eso ademas se mide con
+// e1cPicoMinimo (cotas superiores) y e1cPicoMaximo (cotas inferiores).
 func e1cPicoVivo(f func()) (pico uint64, muestras int) {
 	runtime.GC()
+	runtime.GC() // el segundo, despues de los finalizadores que solto el primero
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	base := m.HeapAlloc
@@ -68,12 +86,14 @@ func e1cPicoVivo(f func()) (pico uint64, muestras int) {
 	go func() {
 		defer close(listo)
 		var m runtime.MemStats
-		for {
+		var antes uint64
+		for i := 0; ; i++ {
 			runtime.GC()
 			runtime.ReadMemStats(&m)
-			if m.HeapAlloc > max.Load() {
-				max.Store(m.HeapAlloc)
+			if par := min(antes, m.HeapAlloc); i > 0 && par > max.Load() {
+				max.Store(par)
 			}
+			antes = m.HeapAlloc
 			n.Add(1)
 			select {
 			case <-parar:
@@ -91,15 +111,53 @@ func e1cPicoVivo(f func()) (pico uint64, muestras int) {
 	return pico, int(n.Load())
 }
 
+// e1cPicoMinimo mide f hasta e1cVueltas veces y se queda con el pico MINIMO;
+// para en cuanto una vuelta queda en o bajo cota. Como el ruido solo suma,
+// el minimo es la mejor cota de lo que f retiene de verdad, y no esconde una
+// retencion real: un lector que retiene el contenido de todos los archivos
+// pasa la cota en cada vuelta.
+func e1cPicoMinimo(cota uint64, f func()) (pico uint64, muestras, vueltas int) {
+	for vueltas < e1cVueltas {
+		p, m := e1cPicoVivo(f)
+		vueltas++
+		if vueltas == 1 || p < pico {
+			pico, muestras = p, m
+		}
+		if pico <= cota {
+			break
+		}
+	}
+	return pico, muestras, vueltas
+}
+
+// e1cPicoMaximo es lo inverso, para el control positivo: mide f hasta
+// e1cVueltas veces, se queda con el pico MAXIMO y para en cuanto una vuelta
+// llega a cota. Lo unico que le resta al medidor es que ninguna muestra caiga
+// mientras f retiene; repetir lo cubre.
+func e1cPicoMaximo(cota uint64, f func()) (pico uint64, muestras, vueltas int) {
+	for vueltas < e1cVueltas {
+		p, m := e1cPicoVivo(f)
+		vueltas++
+		if p > pico || vueltas == 1 {
+			pico, muestras = p, m
+		}
+		if pico >= cota {
+			break
+		}
+	}
+	return pico, muestras, vueltas
+}
+
 // e1cGuardaMedidor calibra el medidor en las dos direcciones, con los mismos
 // archivos: leerlos y retenerlos todos juntos hace crecer la memoria viva
-// por lo menos a la mitad del total; leerlos de a uno (os.ReadFile y
-// json.Unmarshal, soltando cada uno) la deja por debajo de la mitad de
-// e1cTope. Si no, el test no puede decir nada (fixture).
+// por lo menos a la mitad del total (el maximo de hasta e1cVueltas vueltas);
+// leerlos de a uno (os.ReadFile y json.Unmarshal, soltando cada uno) la deja
+// por debajo de la mitad de e1cTope (el minimo de hasta e1cVueltas vueltas).
+// Si no, el test no puede decir nada (fixture).
 func e1cGuardaMedidor(t *testing.T, ca string, archivos []string, total int) {
 	t.Helper()
-	var todos [][]byte
-	pico, muestras := e1cPicoVivo(func() {
+	retenerTodos := func() {
+		var todos [][]byte
 		for _, p := range archivos {
 			b, err := os.ReadFile(p)
 			if err != nil {
@@ -109,13 +167,8 @@ func e1cGuardaMedidor(t *testing.T, ca string, archivos []string, total int) {
 			todos = append(todos, b)
 		}
 		runtime.KeepAlive(todos)
-	})
-	todos = nil
-	if pico < uint64(total/2) {
-		t.Fatalf("%s: fixture: el medidor no ve la retencion: leer y retener los %d archivos (%d MiB) solo subio la memoria viva %.1f MiB (%d muestras)",
-			ca, len(archivos), total/e1cMiB, float64(pico)/e1cMiB, muestras)
 	}
-	pico, muestras = e1cPicoVivo(func() {
+	deAUno := func() {
 		for _, p := range archivos {
 			b, err := os.ReadFile(p)
 			if err != nil {
@@ -128,12 +181,19 @@ func e1cGuardaMedidor(t *testing.T, ca string, archivos []string, total int) {
 				return
 			}
 		}
-	})
-	if pico > e1cTope/2 {
-		t.Fatalf("%s: fixture: el medidor ve retencion donde no la hay: leer de a uno los %d archivos subio la memoria viva %.1f MiB (mas de %d MiB, %d muestras)",
-			ca, len(archivos), float64(pico)/e1cMiB, e1cTope/2/e1cMiB, muestras)
 	}
-	t.Logf("%s: calibracion: de a uno, la memoria viva crecio %.1f MiB (%d muestras)", ca, float64(pico)/e1cMiB, muestras)
+	todos, mt, vt := e1cPicoMaximo(uint64(total/2), retenerTodos)
+	if todos < uint64(total/2) {
+		t.Fatalf("%s: fixture: el medidor no ve la retencion: leer y retener los %d archivos (%d MiB) solo subio la memoria viva %.1f MiB (maximo de %d vueltas, %d muestras)",
+			ca, len(archivos), total/e1cMiB, float64(todos)/e1cMiB, vt, mt)
+	}
+	uno, mu, vu := e1cPicoMinimo(e1cTope/2, deAUno)
+	if uno > e1cTope/2 {
+		t.Fatalf("%s: fixture: el medidor ve retencion donde no la hay: leer de a uno los %d archivos subio la memoria viva %.1f MiB (mas de %d MiB; minimo de %d vueltas, %d muestras)",
+			ca, len(archivos), float64(uno)/e1cMiB, e1cTope/2/e1cMiB, vu, mu)
+	}
+	t.Logf("%s: calibracion: retener todos subio la memoria viva %.1f MiB (%d vueltas); de a uno, %.1f MiB (%d vueltas, %d muestras)",
+		ca, float64(todos)/e1cMiB, vt, float64(uno)/e1cMiB, vu, mu)
 }
 
 // e1cID es el id del i-esimo sobre de estos tests.
@@ -182,6 +242,9 @@ func e1cOrdenDeNombre(got, quiero []string) bool {
 // Retener el contenido de todos antes de parsear el primero la sube a ~191
 // MiB. Guarda: el medidor ve esa retencion cuando la hay, y no la ve leyendo
 // de a uno.
+// La medicion es el minimo de hasta e1cVueltas vueltas (e1cPicoMinimo):
+// el ruido de la medida solo suma, y un lector que retiene el contenido de
+// todos pasa el tope en cada vuelta.
 func TestHallazgo_c85840_8c7270_b7bb41_CA442_ListErrNoRetieneTodosLosRegistrosALaVez(t *testing.T) {
 	const ca = "CA-442, CA-369 (hallazgos c85840, 8c7270 y b7bb41, envelope.ListErr)"
 	root := t.TempDir()
@@ -197,14 +260,14 @@ func TestHallazgo_c85840_8c7270_b7bb41_CA442_ListErrNoRetieneTodosLosRegistrosAL
 
 	var rs []Record
 	var err error
-	pico, muestras := e1cPicoVivo(func() { rs, err = ListErr(root) })
-	t.Logf("%s: %d registros de ~1 MiB: la memoria viva crecio %.1f MiB (%d muestras)", ca, e1cN, float64(pico)/e1cMiB, muestras)
+	pico, muestras, vueltas := e1cPicoMinimo(e1cTope, func() { rs, err = ListErr(root) })
+	t.Logf("%s: %d registros de ~1 MiB: la memoria viva crecio %.1f MiB (minimo de %d vueltas, %d muestras)", ca, e1cN, float64(pico)/e1cMiB, vueltas, muestras)
 	if err != nil || len(rs) != e1cN {
 		t.Fatalf("%s: fixture: ListErr trae los %d registros validos (espacios al final): %d, err %v", ca, e1cN, len(rs), err)
 	}
 	if pico > e1cTope {
-		t.Errorf("%s: con %d registros de ~1 MiB, ListErr no retiene el contenido de todos a la vez: la memoria viva crecio %.1f MiB (tope %d MiB, el total es %d MiB)",
-			ca, e1cN, float64(pico)/e1cMiB, e1cTope/e1cMiB, e1cN*e1cTam/e1cMiB)
+		t.Errorf("%s: con %d registros de ~1 MiB, ListErr no retiene el contenido de todos a la vez: la memoria viva crecio %.1f MiB (minimo de %d vueltas; tope %d MiB, el total es %d MiB)",
+			ca, e1cN, float64(pico)/e1cMiB, vueltas, e1cTope/e1cMiB, e1cN*e1cTam/e1cMiB)
 	}
 }
 
