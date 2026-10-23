@@ -2,459 +2,464 @@
 # mismo veredicto (hallazgo 20261022T200644_60cd29).
 #
 # Las reglas salen de los repos publicos de semgrep y de Trail of Bits, en un
-# commit fijo: git comprueba el contenido por el commit, asi que el mismo lock
-# trae siempre los mismos bytes. El registro (semgrep.dev/c/p/...) no sirve
-# para esto: su CDN entrega versiones distintas del mismo paquete segun la
-# region, y el paquete cambia casi a diario.
+# commit fijo, y cada archivo con su sha256: .hoom/semgrep/gate.sh comprueba en
+# cada corrida que lo que va a correr es exactamente lo que fija este lock,
+# venga de un clon del cache o de una bajada nueva. El registro
+# (semgrep.dev/c/p/...) no sirve para esto: su CDN entrega versiones distintas
+# del mismo paquete segun la region, y el paquete cambia casi a diario.
 #
 # semgrep <version>
 #   La version del motor; otra version es un error del gate.
 # repo <nombre> <carpeta> <url> <commit>
-#   Un repo de reglas. .hoom/semgrep/gate.sh lo baja a .hoom/cache/semgrep/
-#   (las reglas no se copian al repo: su licencia no lo permite) y arma cada
-#   archivo en <carpeta>/<ruta sin extension>/<archivo>: asi semgrep nombra
-#   cada regla igual que el registro (go.lang..., trailofbits.go...) y los
-#   nosemgrep del codigo siguen valiendo.
-# <nombre> <ruta>
-#   Un archivo de reglas de ese repo, en ese commit.
+#   Un repo de reglas, declarado antes que sus archivos. gate.sh lo baja a
+#   .hoom/cache/semgrep/ (las reglas no se copian al repo: su licencia no lo
+#   permite) y arma cada archivo en <carpeta>/<ruta sin extension>/<archivo>:
+#   asi el id de cada regla termina en el del registro (go.lang...,
+#   trailofbits.go...) y los nosemgrep del codigo, que se comparan por ese
+#   final, siguen valiendo.
+# <nombre> <ruta> <sha256>
+#   Un archivo de reglas de ese repo en ese commit, con el sha256 de su
+#   contenido.
 #
-# La lista son las reglas de p/default y p/trailofbits (registro, 2026-10-23)
-# cuyo lenguaje tiene archivos en hoomai: go, javascript, html, json, yaml,
-# generic, regex y bash. Sobre el arbol de main corren las mismas 395 reglas
-# que corria el registro, con los mismos 0 hallazgos.
+# La lista son los archivos de las reglas de p/default y p/trailofbits
+# (registro, 2026-10-23) cuyo lenguaje tiene archivos en hoomai: go,
+# javascript, html, json, yaml, generic, regex y bash. Son 440 reglas (429
+# archivos); sobre el arbol de main semgrep corre 395 de ellas (las demas no
+# tienen archivos de su lenguaje), las mismas 395 que corria con los paquetes
+# del registro, con los mismos 0 hallazgos.
 #
-# Actualizar (cambiar un commit, sumar o quitar archivos) es un acto
-# deliberado: revisar el diff de las reglas entre los dos commits. Una ruta que
-# ya no existe en el commit es un error del gate.
+# Actualizar es un acto deliberado: cambiar el commit o la lista, correr
+# `sh .hoom/semgrep/fijar.sh` (rehace los sha256 desde una bajada nueva) y
+# revisar el diff de las reglas entre los dos commits.
 semgrep 1.175.0
 repo semgrep-rules . https://github.com/semgrep/semgrep-rules 16b9e6d45f10649f6a531ec4838ed9924372c3bc
 repo trailofbits trailofbits https://github.com/trailofbits/semgrep-rules 31390b3a99c04c81522d1b37c8d1900aa2dd4094
-semgrep-rules bash/curl/security/curl-eval.yaml
-semgrep-rules bash/curl/security/curl-pipe-bash.yaml
-semgrep-rules bash/lang/security/ifs-tampering.yaml
-semgrep-rules csharp/dotnet/security/net-webconfig-debug.yaml
-semgrep-rules csharp/dotnet/security/net-webconfig-trace-enabled.yaml
-semgrep-rules csharp/dotnet/security/web-config-insecure-cookie-settings.yaml
-semgrep-rules dockerfile/security/dockerd-socket-mount.yaml
-semgrep-rules generic/ci/security/bash-reverse-shell.yaml
-semgrep-rules generic/nginx/security/alias-path-traversal.yaml
-semgrep-rules generic/nginx/security/dynamic-proxy-host.yaml
-semgrep-rules generic/nginx/security/dynamic-proxy-scheme.yaml
-semgrep-rules generic/nginx/security/header-injection.yaml
-semgrep-rules generic/nginx/security/header-redefinition.yaml
-semgrep-rules generic/nginx/security/insecure-redirect.yaml
-semgrep-rules generic/nginx/security/insecure-ssl-version.yaml
-semgrep-rules generic/nginx/security/missing-internal.yaml
-semgrep-rules generic/nginx/security/missing-ssl-version.yaml
-semgrep-rules generic/nginx/security/possible-h2c-smuggling.yaml
-semgrep-rules generic/secrets/security/detected-amazon-mws-auth-token.yaml
-semgrep-rules generic/secrets/security/detected-artifactory-password.yaml
-semgrep-rules generic/secrets/security/detected-artifactory-token.yaml
-semgrep-rules generic/secrets/security/detected-aws-access-key-id-value.yaml
-semgrep-rules generic/secrets/security/detected-aws-appsync-graphql-key.yaml
-semgrep-rules generic/secrets/security/detected-aws-secret-access-key.yaml
-semgrep-rules generic/secrets/security/detected-aws-session-token.yaml
-semgrep-rules generic/secrets/security/detected-bcrypt-hash.yaml
-semgrep-rules generic/secrets/security/detected-codeclimate.yaml
-semgrep-rules generic/secrets/security/detected-etc-shadow.yaml
-semgrep-rules generic/secrets/security/detected-facebook-access-token.yaml
-semgrep-rules generic/secrets/security/detected-facebook-oauth.yaml
-semgrep-rules generic/secrets/security/detected-generic-api-key.yaml
-semgrep-rules generic/secrets/security/detected-generic-secret.yaml
-semgrep-rules generic/secrets/security/detected-github-token.yaml
-semgrep-rules generic/secrets/security/detected-google-oauth-access-token.yaml
-semgrep-rules generic/secrets/security/detected-heroku-api-key.yaml
-semgrep-rules generic/secrets/security/detected-hockeyapp.yaml
-semgrep-rules generic/secrets/security/detected-jwt-token.yaml
-semgrep-rules generic/secrets/security/detected-kolide-api-key.yaml
-semgrep-rules generic/secrets/security/detected-mailchimp-api-key.yaml
-semgrep-rules generic/secrets/security/detected-mailgun-api-key.yaml
-semgrep-rules generic/secrets/security/detected-npm-registry-auth-token.yaml
-semgrep-rules generic/secrets/security/detected-onfido-live-api-token.yaml
-semgrep-rules generic/secrets/security/detected-outlook-team.yaml
-semgrep-rules generic/secrets/security/detected-paypal-braintree-access-token.yaml
-semgrep-rules generic/secrets/security/detected-pgp-private-key-block.yaml
-semgrep-rules generic/secrets/security/detected-picatic-api-key.yaml
-semgrep-rules generic/secrets/security/detected-private-key.yaml
-semgrep-rules generic/secrets/security/detected-sauce-token.yaml
-semgrep-rules generic/secrets/security/detected-sendgrid-api-key.yaml
-semgrep-rules generic/secrets/security/detected-slack-token.yaml
-semgrep-rules generic/secrets/security/detected-slack-webhook.yaml
-semgrep-rules generic/secrets/security/detected-snyk-api-key.yaml
-semgrep-rules generic/secrets/security/detected-softlayer-api-key.yaml
-semgrep-rules generic/secrets/security/detected-sonarqube-docs-api-key.yaml
-semgrep-rules generic/secrets/security/detected-square-access-token.yaml
-semgrep-rules generic/secrets/security/detected-square-oauth-secret.yaml
-semgrep-rules generic/secrets/security/detected-ssh-password.yaml
-semgrep-rules generic/secrets/security/detected-stripe-api-key.yaml
-semgrep-rules generic/secrets/security/detected-stripe-restricted-api-key.yaml
-semgrep-rules generic/secrets/security/detected-telegram-bot-api-key.yaml
-semgrep-rules generic/secrets/security/detected-twilio-api-key.yaml
-semgrep-rules generic/secrets/security/google-maps-apikeyleak.yaml
-semgrep-rules generic/unicode/security/bidi.yml
-semgrep-rules generic/visualforce/security/ncino/html/UseSRIForCDNs.yaml
-semgrep-rules generic/visualforce/security/ncino/vf/XSSFromUnescapedURLParam.yaml
-semgrep-rules generic/visualforce/security/ncino/xml/CSPHeaderAttribute.yaml
-semgrep-rules generic/visualforce/security/ncino/xml/VisualForceAPIVersion.yaml
-semgrep-rules go/aws-lambda/security/database-sqli.yaml
-semgrep-rules go/aws-lambda/security/tainted-sql-string.yaml
-semgrep-rules go/gorilla/security/audit/session-cookie-missing-httponly.yaml
-semgrep-rules go/gorilla/security/audit/session-cookie-missing-secure.yaml
-semgrep-rules go/gorilla/security/audit/session-cookie-samesitenone.yaml
-semgrep-rules go/gorilla/security/audit/websocket-missing-origin-check.yaml
-semgrep-rules go/grpc/security/grpc-client-insecure-connection.yaml
-semgrep-rules go/grpc/security/grpc-server-insecure-connection.yaml
-semgrep-rules go/jwt-go/security/audit/jwt-parse-unverified.yaml
-semgrep-rules go/jwt-go/security/jwt-none-alg.yaml
-semgrep-rules go/jwt-go/security/jwt.yaml
-semgrep-rules go/lang/security/audit/crypto/bad_imports.yaml
-semgrep-rules go/lang/security/audit/crypto/insecure_ssh.yaml
-semgrep-rules go/lang/security/audit/crypto/math_random.yaml
-semgrep-rules go/lang/security/audit/crypto/missing-ssl-minversion.yaml
-semgrep-rules go/lang/security/audit/crypto/sha224-hash.yaml
-semgrep-rules go/lang/security/audit/crypto/ssl.yaml
-semgrep-rules go/lang/security/audit/crypto/tls.yaml
-semgrep-rules go/lang/security/audit/crypto/use_of_weak_crypto.yaml
-semgrep-rules go/lang/security/audit/crypto/use_of_weak_rsa_key.yaml
-semgrep-rules go/lang/security/audit/dangerous-command-write.yaml
-semgrep-rules go/lang/security/audit/dangerous-exec-cmd.yaml
-semgrep-rules go/lang/security/audit/dangerous-exec-command.yaml
-semgrep-rules go/lang/security/audit/dangerous-syscall-exec.yaml
-semgrep-rules go/lang/security/audit/database/string-formatted-query.yaml
-semgrep-rules go/lang/security/audit/md5-used-as-password.yaml
-semgrep-rules go/lang/security/audit/net/bind_all.yaml
-semgrep-rules go/lang/security/audit/net/cookie-missing-httponly.yaml
-semgrep-rules go/lang/security/audit/net/cookie-missing-secure.yaml
-semgrep-rules go/lang/security/audit/net/dynamic-httptrace-clienttrace.yaml
-semgrep-rules go/lang/security/audit/net/formatted-template-string.yaml
-semgrep-rules go/lang/security/audit/net/pprof.yaml
-semgrep-rules go/lang/security/audit/net/unescaped-data-in-htmlattr.yaml
-semgrep-rules go/lang/security/audit/net/unescaped-data-in-js.yaml
-semgrep-rules go/lang/security/audit/net/unescaped-data-in-url.yaml
-semgrep-rules go/lang/security/audit/net/use-tls.yaml
-semgrep-rules go/lang/security/audit/net/wip-xss-using-responsewriter-and-printf.yaml
-semgrep-rules go/lang/security/audit/reflect-makefunc.yaml
-semgrep-rules go/lang/security/audit/sqli/gosql-sqli.yaml
-semgrep-rules go/lang/security/audit/sqli/pg-orm-sqli.yaml
-semgrep-rules go/lang/security/audit/sqli/pg-sqli.yaml
-semgrep-rules go/lang/security/audit/sqli/pgx-sqli.yaml
-semgrep-rules go/lang/security/audit/unsafe-reflect-by-name.yaml
-semgrep-rules go/lang/security/audit/xss/import-text-template.yaml
-semgrep-rules go/lang/security/audit/xss/no-direct-write-to-responsewriter.yaml
-semgrep-rules go/lang/security/audit/xss/no-fprintf-to-responsewriter.yaml
-semgrep-rules go/lang/security/audit/xss/no-interpolation-in-tag.yaml
-semgrep-rules go/lang/security/audit/xss/no-interpolation-js-template-string.yaml
-semgrep-rules go/lang/security/audit/xss/no-io-writestring-to-responsewriter.yaml
-semgrep-rules go/lang/security/audit/xss/no-printf-in-responsewriter.yaml
-semgrep-rules go/lang/security/audit/xss/template-html-does-not-escape.yaml
-semgrep-rules go/lang/security/bad_tmp.yaml
-semgrep-rules go/lang/security/decompression_bomb.yaml
-semgrep-rules go/lang/security/deserialization/unsafe-deserialization-interface.yaml
-semgrep-rules go/lang/security/filepath-clean-misuse.yaml
-semgrep-rules go/lang/security/injection/open-redirect.yaml
-semgrep-rules go/lang/security/injection/raw-html-format.yaml
-semgrep-rules go/lang/security/injection/tainted-sql-string.yaml
-semgrep-rules go/lang/security/injection/tainted-url-host.yaml
-semgrep-rules go/lang/security/reverseproxy-director.yaml
-semgrep-rules go/lang/security/zip.yaml
-semgrep-rules go/otto/security/audit/dangerous-execution.yaml
-semgrep-rules html/security/audit/missing-integrity.yaml
-semgrep-rules html/security/plaintext-http-link.yaml
-semgrep-rules java/android/security/exported_activity.yaml
-semgrep-rules java/lang/security/audit/xss/jsf/autoescape-disabled.yaml
-semgrep-rules java/spring/security/audit/spring-actuator-fully-enabled.yaml
-semgrep-rules java/spring/security/audit/spring-jsp-eval.yaml
-semgrep-rules javascript/ajv/security/audit/ajv-allerrors-true.yaml
-semgrep-rules javascript/angular/security/detect-angular-element-methods.yaml
-semgrep-rules javascript/angular/security/detect-angular-element-taint.yaml
-semgrep-rules javascript/angular/security/detect-angular-resource-loading.yaml
-semgrep-rules javascript/angular/security/detect-angular-sce-disabled.yaml
-semgrep-rules javascript/angular/security/detect-angular-trust-as-css.yaml
-semgrep-rules javascript/angular/security/detect-angular-trust-as-html-method.yaml
-semgrep-rules javascript/angular/security/detect-angular-trust-as-js-method.yaml
-semgrep-rules javascript/angular/security/detect-angular-trust-as-method.yaml
-semgrep-rules javascript/angular/security/detect-angular-trust-as-resourceurl-method.yaml
-semgrep-rules javascript/angular/security/detect-angular-trust-as-url-method.yaml
-semgrep-rules javascript/angular/security/detect-third-party-angular-translate.yaml
-semgrep-rules javascript/apollo/security/apollo-axios-ssrf.yaml
-semgrep-rules javascript/argon2/security/unsafe-argon2-config.yaml
-semgrep-rules javascript/audit/detect-replaceall-sanitization.yaml
-semgrep-rules javascript/aws-lambda/security/detect-child-process.yaml
-semgrep-rules javascript/aws-lambda/security/dynamodb-request-object.yaml
-semgrep-rules javascript/aws-lambda/security/knex-sqli.yaml
-semgrep-rules javascript/aws-lambda/security/mysql-sqli.yaml
-semgrep-rules javascript/aws-lambda/security/pg-sqli.yaml
-semgrep-rules javascript/aws-lambda/security/sequelize-sqli.yaml
-semgrep-rules javascript/aws-lambda/security/tainted-eval.yaml
-semgrep-rules javascript/aws-lambda/security/tainted-html-response.yaml
-semgrep-rules javascript/aws-lambda/security/tainted-html-string.yaml
-semgrep-rules javascript/aws-lambda/security/vm-runincontext-injection.yaml
-semgrep-rules javascript/bluebird/security/audit/tofastproperties-code-execution.yaml
-semgrep-rules javascript/browser/security/eval-detected.yaml
-semgrep-rules javascript/browser/security/insufficient-postmessage-origin-validation.yaml
-semgrep-rules javascript/browser/security/open-redirect.yaml
-semgrep-rules javascript/browser/security/raw-html-concat.yaml
-semgrep-rules javascript/browser/security/wildcard-postmessage-configuration.yaml
-semgrep-rules javascript/chrome-remote-interface/security/audit/chrome-remote-interface-compilescript-injection.yaml
-semgrep-rules javascript/deno/security/audit/deno-dangerous-run.yaml
-semgrep-rules javascript/express/security/audit/express-check-csurf-middleware-usage.yaml
-semgrep-rules javascript/express/security/audit/express-check-directory-listing.yaml
-semgrep-rules javascript/express/security/audit/express-cookie-settings.yaml
-semgrep-rules javascript/express/security/audit/express-detect-notevil-usage.yaml
-semgrep-rules javascript/express/security/audit/express-jwt-not-revoked.yaml
-semgrep-rules javascript/express/security/audit/express-libxml-noent.yaml
-semgrep-rules javascript/express/security/audit/express-libxml-vm-noent.yaml
-semgrep-rules javascript/express/security/audit/express-open-redirect.yaml
-semgrep-rules javascript/express/security/audit/express-path-join-resolve-traversal.yaml
-semgrep-rules javascript/express/security/audit/express-res-sendfile.yaml
-semgrep-rules javascript/express/security/audit/express-session-hardcoded-secret.yaml
-semgrep-rules javascript/express/security/audit/express-ssrf.yaml
-semgrep-rules javascript/express/security/audit/express-third-party-object-deserialization.yaml
-semgrep-rules javascript/express/security/audit/express-xml2json-xxe-event.yaml
-semgrep-rules javascript/express/security/audit/remote-property-injection.yaml
-semgrep-rules javascript/express/security/audit/res-render-injection.yaml
-semgrep-rules javascript/express/security/audit/xss/direct-response-write.yaml
-semgrep-rules javascript/express/security/audit/xss/ejs/explicit-unescape.yaml
-semgrep-rules javascript/express/security/audit/xss/ejs/var-in-script-src.yaml
-semgrep-rules javascript/express/security/audit/xss/ejs/var-in-script-tag.yaml
-semgrep-rules javascript/express/security/audit/xss/mustache/escape-function-overwrite.yaml
-semgrep-rules javascript/express/security/audit/xss/mustache/explicit-unescape.yaml
-semgrep-rules javascript/express/security/audit/xss/pug/and-attributes.yaml
-semgrep-rules javascript/express/security/audit/xss/pug/explicit-unescape.yaml
-semgrep-rules javascript/express/security/audit/xss/pug/var-in-href.yaml
-semgrep-rules javascript/express/security/audit/xss/pug/var-in-script-tag.yaml
-semgrep-rules javascript/express/security/cors-misconfiguration.yaml
-semgrep-rules javascript/express/security/express-data-exfiltration.yaml
-semgrep-rules javascript/express/security/express-expat-xxe.yaml
-semgrep-rules javascript/express/security/express-insecure-template-usage.yaml
-semgrep-rules javascript/express/security/express-jwt-hardcoded-secret.yaml
-semgrep-rules javascript/express/security/express-phantom-injection.yaml
-semgrep-rules javascript/express/security/express-puppeteer-injection.yaml
-semgrep-rules javascript/express/security/express-sandbox-injection.yaml
-semgrep-rules javascript/express/security/express-vm-injection.yaml
-semgrep-rules javascript/express/security/express-vm2-injection.yaml
-semgrep-rules javascript/express/security/express-wkhtml-injection.yaml
-semgrep-rules javascript/express/security/express-xml2json-xxe.yaml
-semgrep-rules javascript/express/security/injection/raw-html-format.yaml
-semgrep-rules javascript/express/security/require-request.yaml
-semgrep-rules javascript/express/security/x-frame-options-misconfiguration.yaml
-semgrep-rules javascript/fbjs/security/audit/insecure-createnodesfrommarkup.yaml
-semgrep-rules javascript/grpc/security/grpc-nodejs-insecure-connection.yaml
-semgrep-rules javascript/intercom/security/audit/intercom-settings-user-identifier-without-user-hash.yaml
-semgrep-rules javascript/jose/security/audit/jose-exposed-data.yaml
-semgrep-rules javascript/jose/security/jwt-hardcode.yaml
-semgrep-rules javascript/jose/security/jwt-none-alg.yaml
-semgrep-rules javascript/jsonwebtoken/security/audit/jwt-decode-without-verify.yaml
-semgrep-rules javascript/jsonwebtoken/security/audit/jwt-exposed-data.yaml
-semgrep-rules javascript/jsonwebtoken/security/jwt-hardcode.yaml
-semgrep-rules javascript/jsonwebtoken/security/jwt-none-alg.yaml
-semgrep-rules javascript/jwt-simple/security/jwt-simple-noverify.yaml
-semgrep-rules javascript/lang/security/audit/code-string-concat.yaml
-semgrep-rules javascript/lang/security/audit/dangerous-spawn-shell.yaml
-semgrep-rules javascript/lang/security/audit/detect-non-literal-regexp.yaml
-semgrep-rules javascript/lang/security/audit/hardcoded-hmac-key.yaml
-semgrep-rules javascript/lang/security/audit/incomplete-sanitization.yaml
-semgrep-rules javascript/lang/security/audit/md5-used-as-password.yaml
-semgrep-rules javascript/lang/security/audit/path-traversal/path-join-resolve-traversal.yaml
-semgrep-rules javascript/lang/security/audit/prototype-pollution/prototype-pollution-loop.yaml
-semgrep-rules javascript/lang/security/audit/spawn-shell-true.yaml
-semgrep-rules javascript/lang/security/audit/sqli/node-knex-sqli.yaml
-semgrep-rules javascript/lang/security/audit/sqli/node-mssql-sqli.yaml
-semgrep-rules javascript/lang/security/audit/sqli/node-mysql-sqli.yaml
-semgrep-rules javascript/lang/security/audit/sqli/node-postgres-sqli.yaml
-semgrep-rules javascript/lang/security/audit/unknown-value-with-script-tag.yaml
-semgrep-rules javascript/lang/security/audit/unsafe-formatstring.yaml
-semgrep-rules javascript/lang/security/detect-buffer-noassert.yaml
-semgrep-rules javascript/lang/security/detect-child-process.yaml
-semgrep-rules javascript/lang/security/detect-disable-mustache-escape.yaml
-semgrep-rules javascript/lang/security/detect-eval-with-expression.yaml
-semgrep-rules javascript/lang/security/detect-insecure-websocket.yaml
-semgrep-rules javascript/lang/security/detect-no-csrf-before-method-override.yaml
-semgrep-rules javascript/lang/security/detect-pseudoRandomBytes.yaml
-semgrep-rules javascript/lang/security/insecure-object-assign.yaml
-semgrep-rules javascript/lang/security/spawn-git-clone.yaml
-semgrep-rules javascript/monaco-editor/security/audit/monaco-hover-htmlsupport.yaml
-semgrep-rules javascript/node-crypto/security/aead-no-final.yaml
-semgrep-rules javascript/node-crypto/security/create-de-cipher-no-iv.yaml
-semgrep-rules javascript/node-crypto/security/gcm-no-tag-length.yaml
-semgrep-rules javascript/node-expat/security/audit/expat-xxe.yaml
-semgrep-rules javascript/passport-jwt/security/passport-hardcode.yaml
-semgrep-rules javascript/phantom/security/audit/phantom-injection.yaml
-semgrep-rules javascript/playwright/security/audit/playwright-addinitscript-code-injection.yaml
-semgrep-rules javascript/playwright/security/audit/playwright-evaluate-arg-injection.yaml
-semgrep-rules javascript/playwright/security/audit/playwright-evaluate-code-injection.yaml
-semgrep-rules javascript/playwright/security/audit/playwright-exposed-chrome-devtools.yaml
-semgrep-rules javascript/playwright/security/audit/playwright-goto-injection.yaml
-semgrep-rules javascript/playwright/security/audit/playwright-setcontent-injection.yaml
-semgrep-rules javascript/puppeteer/security/audit/puppeteer-evaluate-arg-injection.yaml
-semgrep-rules javascript/puppeteer/security/audit/puppeteer-evaluate-code-injection.yaml
-semgrep-rules javascript/puppeteer/security/audit/puppeteer-exposed-chrome-devtools.yaml
-semgrep-rules javascript/puppeteer/security/audit/puppeteer-goto-injection.yaml
-semgrep-rules javascript/puppeteer/security/audit/puppeteer-setcontent-injection.yaml
-semgrep-rules javascript/sandbox/security/audit/sandbox-code-injection.yaml
-semgrep-rules javascript/sax/security/audit/sax-xxe.yaml
-semgrep-rules javascript/sequelize/security/audit/sequelize-enforce-tls.yaml
-semgrep-rules javascript/sequelize/security/audit/sequelize-injection-express.yaml
-semgrep-rules javascript/sequelize/security/audit/sequelize-tls-disabled-cert-validation.yaml
-semgrep-rules javascript/sequelize/security/audit/sequelize-weak-tls-version.yaml
-semgrep-rules javascript/serialize-javascript/security/audit/unsafe-serialize-javascript.yaml
-semgrep-rules javascript/shelljs/security/shelljs-exec-injection.yaml
-semgrep-rules javascript/thenify/security/audit/multiargs-code-execution.yaml
-semgrep-rules javascript/vm2/security/audit/vm2-code-injection.yaml
-semgrep-rules javascript/vm2/security/audit/vm2-context-injection.yaml
-semgrep-rules javascript/vue/security/audit/xss/templates/avoid-v-html.yaml
-semgrep-rules javascript/wkhtmltoimage/security/audit/wkhtmltoimage-injection.yaml
-semgrep-rules javascript/wkhtmltopdf/security/audit/wkhtmltopdf-injection.yaml
-semgrep-rules javascript/xml2json/security/audit/xml2json-xxe.yaml
-semgrep-rules json/aws/security/public-s3-bucket.yaml
-semgrep-rules json/aws/security/public-s3-policy-statement.yaml
-semgrep-rules json/aws/security/wildcard-assume-role.yaml
-semgrep-rules package_managers/bun/bun-missing-minimum-release-age.yaml
-semgrep-rules package_managers/dependabot/dependabot-missing-cooldown.yaml
-semgrep-rules package_managers/npm/npm-missing-minimum-release-age.yaml
-semgrep-rules package_managers/pnpm/pnpm-block-exotic-sub-dependencies.yaml
-semgrep-rules package_managers/pnpm/pnpm-missing-minimum-release-age.yaml
-semgrep-rules package_managers/pnpm/pnpm-trust-policy.yaml
-semgrep-rules package_managers/poetry/poetry-missing-solver-min-release-age.yaml
-semgrep-rules package_managers/renovate/renovate-missing-minimum-release-age.yaml
-semgrep-rules package_managers/uv/uv-missing-dependency-cooldown.yaml
-semgrep-rules package_managers/yarn/yarn-missing-minimal-age-gate.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/bypass-tls-verification.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/disallow-old-tls-versions.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/ftp-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/gorequest-http-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/grequests-http-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/http-customized-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/http-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/sling-http-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/go-stdlib/telnet-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/bypass-tls-verification.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/disallow-old-tls-versions1.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/disallow-old-tls-versions2.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/ftp-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/http-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/rest-http-client-support.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/telnet-request.yaml
-semgrep-rules problem-based-packs/insecure-transport/js-node/using-http-server.yaml
-semgrep-rules python/django/security/audit/templates/debug-template-tag.yaml
-semgrep-rules python/django/security/audit/xss/template-autoescape-off.yaml
-semgrep-rules python/django/security/audit/xss/template-blocktranslate-no-escape.yaml
-semgrep-rules python/django/security/audit/xss/template-translate-as-no-escape.yaml
-semgrep-rules python/django/security/audit/xss/template-var-unescaped-with-safeseq.yaml
-semgrep-rules python/django/security/django-no-csrf-token.yaml
-semgrep-rules python/flask/security/xss/audit/template-autoescape-off.yaml
-semgrep-rules ruby/rails/security/audit/xss/templates/alias-for-html-safe.yaml
-semgrep-rules ruby/rails/security/audit/xss/templates/avoid-content-tag.yaml
-semgrep-rules ruby/rails/security/audit/xss/templates/avoid-html-safe.yaml
-semgrep-rules ruby/rails/security/audit/xss/templates/avoid-raw.yaml
-semgrep-rules ruby/rails/security/audit/xss/templates/unquoted-attribute.yaml
-semgrep-rules ruby/rails/security/audit/xss/templates/var-in-href.yaml
-semgrep-rules ruby/rails/security/audit/xss/templates/var-in-script-tag.yaml
-semgrep-rules scala/lang/security/audit/scalac-debug.yaml
-semgrep-rules scala/play/security/conf-insecure-cookie-settings.yaml
-semgrep-rules typescript/react/security/audit/react-dangerouslysetinnerhtml.yaml
-semgrep-rules typescript/react/security/audit/react-jwt-decoded-property.yaml
-semgrep-rules typescript/react/security/audit/react-jwt-in-localstorage.yaml
-semgrep-rules typescript/react/security/audit/react-unsanitized-method.yaml
-semgrep-rules typescript/react/security/react-insecure-request.yaml
-semgrep-rules typescript/react/security/react-markdown-insecure-html.yaml
-semgrep-rules yaml/argo/security/argo-workflow-parameter-command-injection.yaml
-semgrep-rules yaml/docker-compose/security/exposing-docker-socket-volume.yaml
-semgrep-rules yaml/docker-compose/security/no-new-privileges.yaml
-semgrep-rules yaml/docker-compose/security/privileged-service.yaml
-semgrep-rules yaml/docker-compose/security/seccomp-confinement-disabled.yaml
-semgrep-rules yaml/docker-compose/security/selinux-separation-disabled.yaml
-semgrep-rules yaml/docker-compose/security/writable-filesystem-service.yaml
-semgrep-rules yaml/github-actions/security/allowed-unsecure-commands.yaml
-semgrep-rules yaml/github-actions/security/curl-eval.yaml
-semgrep-rules yaml/github-actions/security/detect-shai-hulud-backdoor.yaml
-semgrep-rules yaml/github-actions/security/gha-curl-pipe-shell.yaml
-semgrep-rules yaml/github-actions/security/gha-workflow-env-secret.yaml
-semgrep-rules yaml/github-actions/security/github-actions-mutable-action-tag.yaml
-semgrep-rules yaml/github-actions/security/github-script-injection.yaml
-semgrep-rules yaml/github-actions/security/pull-request-target-code-checkout.yaml
-semgrep-rules yaml/github-actions/security/run-shell-injection.yaml
-semgrep-rules yaml/github-actions/security/secrets-inherit.yaml
-semgrep-rules yaml/github-actions/security/workflow-run-target-code-checkout.yaml
-semgrep-rules yaml/kubernetes/security/allow-privilege-escalation-no-securitycontext.yaml
-semgrep-rules yaml/kubernetes/security/allow-privilege-escalation-true.yaml
-semgrep-rules yaml/kubernetes/security/allow-privilege-escalation.yaml
-semgrep-rules yaml/kubernetes/security/env/flask-debugging-enabled.yaml
-semgrep-rules yaml/kubernetes/security/exposing-docker-socket-hostpath.yaml
-semgrep-rules yaml/kubernetes/security/hostipc-pod.yaml
-semgrep-rules yaml/kubernetes/security/hostnetwork-pod.yaml
-semgrep-rules yaml/kubernetes/security/hostpid-pod.yaml
-semgrep-rules yaml/kubernetes/security/legacy-api-clusterrole-excessive-permissions.yaml
-semgrep-rules yaml/kubernetes/security/privileged-container.yaml
-semgrep-rules yaml/kubernetes/security/run-as-non-root.yaml
-semgrep-rules yaml/kubernetes/security/seccomp-confinement-disabled.yaml
-semgrep-rules yaml/kubernetes/security/skip-tls-verify-cluster.yaml
-semgrep-rules yaml/kubernetes/security/skip-tls-verify-service.yaml
-semgrep-rules yaml/openapi/security/openai-consequential-action-false.yaml
-semgrep-rules yaml/openapi/security/use-of-basic-authentication.yaml
-trailofbits generic/amqp-unencrypted-transport.yaml
-trailofbits generic/container-privileged.yaml
-trailofbits generic/container-user-root.yaml
-trailofbits generic/curl-insecure.yaml
-trailofbits generic/curl-unencrypted-url.yaml
-trailofbits generic/gpg-insecure-flags.yaml
-trailofbits generic/installer-allow-untrusted.yaml
-trailofbits generic/mongodb-insecure-transport.yaml
-trailofbits generic/mysql-insecure-sslmode.yaml
-trailofbits generic/node-disable-certificate-validation.yaml
-trailofbits generic/openssl-insecure-flags.yaml
-trailofbits generic/postgres-insecure-sslmode.yaml
-trailofbits generic/redis-unencrypted-transport.yaml
-trailofbits generic/ssh-disable-host-key-checking.yaml
-trailofbits generic/tar-insecure-flags.yaml
-trailofbits generic/wget-no-check-certificate.yaml
-trailofbits generic/wget-unencrypted-url.yaml
-trailofbits go/eth-rpc-tracetransaction.yaml
-trailofbits go/eth-txreceipt-status.yaml
-trailofbits go/hanging-goroutine.yaml
-trailofbits go/invalid-usage-of-modified-variable.yaml
-trailofbits go/iterate-over-empty-map.yaml
-trailofbits go/missing-runlock-on-rwmutex.yaml
-trailofbits go/missing-unlock-before-return.yaml
-trailofbits go/nil-check-after-call.yaml
-trailofbits go/racy-append-to-slice.yaml
-trailofbits go/racy-write-to-map.yaml
-trailofbits go/servercodec-readrequestbody-unhandled-nil.yaml
-trailofbits go/string-to-int-signedness-cast.yaml
-trailofbits go/sync-mutex-value-copied.yaml
-trailofbits go/unmarshal_tag_is_dash.yaml
-trailofbits go/unmarshal_tag_is_omitempty.yaml
-trailofbits go/unsafe-dll-loading.yaml
-trailofbits go/waitgroup-add-called-inside-goroutine.yaml
-trailofbits go/waitgroup-wait-inside-loop.yaml
-trailofbits javascript/apollo-graphql/schema-directives.yaml
-trailofbits javascript/apollo-graphql/use-of-graphql-upload.yaml
-trailofbits javascript/apollo-graphql/v3-cors-audit.yaml
-trailofbits javascript/apollo-graphql/v3-cors-express.yaml
-trailofbits javascript/apollo-graphql/v3-cors.yaml
-trailofbits javascript/apollo-graphql/v3-csrf-prevention.yaml
-trailofbits javascript/apollo-graphql/v4-csrf-prevention.yaml
-trailofbits yaml/ansible/apt-key-unencrypted-url.yaml
-trailofbits yaml/ansible/apt-key-validate-certs-disabled.yaml
-trailofbits yaml/ansible/apt-unencrypted-url.yaml
-trailofbits yaml/ansible/dnf-unencrypted-url.yaml
-trailofbits yaml/ansible/dnf-validate-certs-disabled.yaml
-trailofbits yaml/ansible/get-url-unencrypted-url.yaml
-trailofbits yaml/ansible/get-url-validate-certs-disabled.yaml
-trailofbits yaml/ansible/rpm-key-unencrypted-url.yaml
-trailofbits yaml/ansible/rpm-key-validate-certs-disabled.yaml
-trailofbits yaml/ansible/unarchive-unencrypted-url.yaml
-trailofbits yaml/ansible/unarchive-validate-certs-disabled.yaml
-trailofbits yaml/ansible/wrm-cert-validation-ignore.yaml
-trailofbits yaml/ansible/yum-unencrypted-url.yaml
-trailofbits yaml/ansible/yum-validate-certs-disabled.yaml
-trailofbits yaml/ansible/zypper-repository-unencrypted-url.yaml
-trailofbits yaml/ansible/zypper-unencrypted-url.yaml
-trailofbits yaml/docker-compose/port-all-interfaces.yaml
-trailofbits yaml/github-actions/aws-secret-key.yaml
-trailofbits yaml/github-actions/azure-principal-secret.yaml
-trailofbits yaml/github-actions/gcp-credentials-json.yaml
-trailofbits yaml/github-actions/jfrog-hardcoded-credential.yaml
-trailofbits yaml/github-actions/pypi-publish-password.yaml
-trailofbits yaml/github-actions/rubygems-publish-key.yaml
-trailofbits yaml/github-actions/vault-token.yaml
+semgrep-rules bash/curl/security/curl-eval.yaml 272c915c85dd50f2b39de59baf85f2267aaa42fe81a82e24638f5bd3aac174bb
+semgrep-rules bash/curl/security/curl-pipe-bash.yaml 32cb175d48ed3e33ab1ccb86934cd54ea50a62d679a40117b29d9997001a81af
+semgrep-rules bash/lang/security/ifs-tampering.yaml d00263a09f6d055c2324812b758883ba8c664ba11e244e24a37de824a61040b7
+semgrep-rules csharp/dotnet/security/net-webconfig-debug.yaml ab3a616b573655331118bc78bc5569745e919639903e36a8da4335795a14bd9a
+semgrep-rules csharp/dotnet/security/net-webconfig-trace-enabled.yaml 0577a288e9591ff3cbb897aa71506558ac5871f5a185ae5f031c2f6fe4653980
+semgrep-rules csharp/dotnet/security/web-config-insecure-cookie-settings.yaml 4c90efb8e266e4f45c6e38d820682d35f9097430cddddbf2eb19ba394c26bc89
+semgrep-rules dockerfile/security/dockerd-socket-mount.yaml b09780dba60b64d3d5740efe051de712bee20f6dabbfb774b27f3aa1ae8b42e8
+semgrep-rules generic/ci/security/bash-reverse-shell.yaml 3fd766862d0c5162c0386e31b2cc81653f81be5a1f0fb4811100259a079119e9
+semgrep-rules generic/nginx/security/alias-path-traversal.yaml faacd814d788d259614559d063be265dda8b356cf987753a73986c671b29268c
+semgrep-rules generic/nginx/security/dynamic-proxy-host.yaml bcfb72d859427cb5117a90127d318cc1d19897df00a4bb81ed5d4a836990f193
+semgrep-rules generic/nginx/security/dynamic-proxy-scheme.yaml 98b27f4865f251cde6e28a9bf554d779bad945da132a1eab5518ba3486c1f890
+semgrep-rules generic/nginx/security/header-injection.yaml 1506e5722a64f972e8add104f057ce1c4d9a85ee9019cd1599bce738963c27db
+semgrep-rules generic/nginx/security/header-redefinition.yaml 76126a1127481b2ab9fc2fe59058314ce7569cb7952b48f84eaf5d165ea84229
+semgrep-rules generic/nginx/security/insecure-redirect.yaml 6819affade6b715a507e61834ecf90bfb4d3fbf83a1bb83d81e89b4e9ef60409
+semgrep-rules generic/nginx/security/insecure-ssl-version.yaml ee215fff9fc5c2a92754e4c4e8c328af1cd6709183bb57cf8acd8a72e4b550a3
+semgrep-rules generic/nginx/security/missing-internal.yaml 1f4a2b765cc6c2a7a22179c72593941fafcaa0ac1a44f57d75e585b3f0c81744
+semgrep-rules generic/nginx/security/missing-ssl-version.yaml 8cccfb3291a7de736731b7a4a10e4f3483fb7b574742f03c8cc37486d92b00cc
+semgrep-rules generic/nginx/security/possible-h2c-smuggling.yaml 47313cc0c40db8626e6200587875d416ff7c0b95ded89017f8ff0bf7fee529a3
+semgrep-rules generic/secrets/security/detected-amazon-mws-auth-token.yaml 56a340746d63ded93d438edab368dd5877be7f0237fadd9541102c4f74d0c985
+semgrep-rules generic/secrets/security/detected-artifactory-password.yaml 444a32362c34dac19b465ad735a7c3170251b4e1b7f7aeeb63ac935f16b9289c
+semgrep-rules generic/secrets/security/detected-artifactory-token.yaml a33ccb7d0c5bf90107666c189b3475d381e5ba43f48b446d9bcbabbde5c890e2
+semgrep-rules generic/secrets/security/detected-aws-access-key-id-value.yaml 9a262ef0b568a6b3e8c6156c0e6b1054ddd57ac0abea71bf9cff8d8c09a5e2f4
+semgrep-rules generic/secrets/security/detected-aws-appsync-graphql-key.yaml 855a5f4a558d5a1252fd10853fc6d9a420f05c881a9c2383ddbd34db0c9083bf
+semgrep-rules generic/secrets/security/detected-aws-secret-access-key.yaml df81ed5cfd91a507210b5fbf7de7c0a51cfc346e316d844a4343ca85fadb1565
+semgrep-rules generic/secrets/security/detected-aws-session-token.yaml 54953f5edc16892d95e370efe665926870e4a9feac76a3e1620cf15c85a94a6b
+semgrep-rules generic/secrets/security/detected-bcrypt-hash.yaml 1821c74a756ead47963979ca642b58a87838e91ffaa317578ceeeb65ce083c94
+semgrep-rules generic/secrets/security/detected-codeclimate.yaml 3043c4365cc3fbc58275cdbe67cedfac4d04c721442932e7c1b097509df9f4ca
+semgrep-rules generic/secrets/security/detected-etc-shadow.yaml 7971d3d27737b71072f67e331d8b6609706cf070a1facb507d1d4862b14d5f2c
+semgrep-rules generic/secrets/security/detected-facebook-access-token.yaml 0a10bc67765362c4ea2c3fab3722b1e3e5eb3a5119509ac87ba1b897b4e426e7
+semgrep-rules generic/secrets/security/detected-facebook-oauth.yaml 8ea274424fdf8207d8e5b8cd2e76de2d5fe7d083e880bf0d539eeb9ec6b660c4
+semgrep-rules generic/secrets/security/detected-generic-api-key.yaml 1b0d6a626bb080b90c98f54c633f05764e063f018cabfd83072d083efb64ea2d
+semgrep-rules generic/secrets/security/detected-generic-secret.yaml 0d8c82a7f4677538c8a6efb30c928eef96b27a6ef94e3f1816ad5f2afb0a19eb
+semgrep-rules generic/secrets/security/detected-github-token.yaml bef555ff86d17f214fb5668bb696a86fce4db35d83851045d556f1c62680a534
+semgrep-rules generic/secrets/security/detected-google-oauth-access-token.yaml 5480fa3a56bd05aa3e253ee95a371949ddd2918486015901db6f35ea65043d44
+semgrep-rules generic/secrets/security/detected-heroku-api-key.yaml 72190178d3cd925848fab02088a79397839727cee8e03b53f18bfeee08e1b473
+semgrep-rules generic/secrets/security/detected-hockeyapp.yaml 08c7daad9df4880a62a76d4ae4910a2966fa0f96b7ec7a4f7d9484858d7f2984
+semgrep-rules generic/secrets/security/detected-jwt-token.yaml b9a973904ff960b491268b8ada6044d359023a27cd8bafd3f2ed49669c8971db
+semgrep-rules generic/secrets/security/detected-kolide-api-key.yaml a519449b20ef1f59ea934df07f51ef847bb98eaa599b78adb3c93b03c7549299
+semgrep-rules generic/secrets/security/detected-mailchimp-api-key.yaml 9aab3f2376c024b45a4291457351e98d09140c3eac4dae55606cbd53761cf404
+semgrep-rules generic/secrets/security/detected-mailgun-api-key.yaml bb3d6a1540ab9234ab5b17dd9e474c583e5ef179391fb7ccdda319382485ad2c
+semgrep-rules generic/secrets/security/detected-npm-registry-auth-token.yaml aaeb51128c4f2562f2964d635bf458cc744bc4c323e3728086ede63db742f1cd
+semgrep-rules generic/secrets/security/detected-onfido-live-api-token.yaml 34b896758fec8f010f1be0fa153d62a5f893e3b5eb3c912517eea78eb98c4761
+semgrep-rules generic/secrets/security/detected-outlook-team.yaml 914fc09acc545aae40e2be825304cb4652c819f30ee6ec92144bb900bfb8e8be
+semgrep-rules generic/secrets/security/detected-paypal-braintree-access-token.yaml 83719df88e12e9d1dc7be5aac9246f427c6d8483ac7ba20734d6ea0a2035d74c
+semgrep-rules generic/secrets/security/detected-pgp-private-key-block.yaml 5ac78105860b834733331fb75d52400c73306ad8b52c8684fb97e5fdd7346c2f
+semgrep-rules generic/secrets/security/detected-picatic-api-key.yaml 7c103cfb972e8b2257def4a185fcc3378ae758d45ebf38398cbfcc75f7127d11
+semgrep-rules generic/secrets/security/detected-private-key.yaml 2a383aee580eea3d200345007789c836daf1a48ff2676748d79a369bfc1e5c21
+semgrep-rules generic/secrets/security/detected-sauce-token.yaml 8d0d6466122cf879aeba96eee2979cb137f596b836708656dddd9831a0945164
+semgrep-rules generic/secrets/security/detected-sendgrid-api-key.yaml 60e6e8611cc997a172c9a8e076620c4a2c2a6e8dc492131f977550ddb2d98742
+semgrep-rules generic/secrets/security/detected-slack-token.yaml bc1ca0a2e934d1f362630e7d621900f0178360a798e263e53ab71287104e4485
+semgrep-rules generic/secrets/security/detected-slack-webhook.yaml 1e94be1f4762a24e44810ce85dcaad12f2c160581531f5deba73f31ca5aa90d8
+semgrep-rules generic/secrets/security/detected-snyk-api-key.yaml d34f4efd90a565fa3809cf612d170c25944eb03e438fd7e65a7e7e3e468c0433
+semgrep-rules generic/secrets/security/detected-softlayer-api-key.yaml 81e361e71856b128eb670abef9891c50b63849e214d6aaf1731c190872e27a8d
+semgrep-rules generic/secrets/security/detected-sonarqube-docs-api-key.yaml 4d91f82dbe173edd2ee6ffacb9cfdb615b1f645da2ebaf1e2e8edc12108ec4f6
+semgrep-rules generic/secrets/security/detected-square-access-token.yaml 30ad352ccb791f9fb04f1fa7325256c6e285d8bd11b71f861f15d966e7826e94
+semgrep-rules generic/secrets/security/detected-square-oauth-secret.yaml 229055c018e59b2ca862920658260323167fafe336f3958b6f21f4a665c964f7
+semgrep-rules generic/secrets/security/detected-ssh-password.yaml 6c38bc42d98e26a5da47afeb55f8fdbe4e5a76ddd440ca2094c8d6b5ff109128
+semgrep-rules generic/secrets/security/detected-stripe-api-key.yaml 8121963d60eb0bc6eb5a8602d844545c80a1a02106be80622e9fb4380a2ea35a
+semgrep-rules generic/secrets/security/detected-stripe-restricted-api-key.yaml 31e351a997b30941bf9f8ac12241e51d15ca5b63e5d2d0d84e4a6e74712dcc7f
+semgrep-rules generic/secrets/security/detected-telegram-bot-api-key.yaml 4745f520f844733704e4f3ea7c63a48940ba04d8c475abe9a0e6a47f7bcb05f0
+semgrep-rules generic/secrets/security/detected-twilio-api-key.yaml b8d9967078d52c1d46b204204f5f6d2b882d2e7471876c4dd032c564af3349e7
+semgrep-rules generic/secrets/security/google-maps-apikeyleak.yaml 982364cf6bbf156bf20d03e3496039a0a5c15ee39b587086559874103f9b92b9
+semgrep-rules generic/unicode/security/bidi.yml efe77a207c694cc3effd72afe71ccf74151ba592bd29273aac99dedd5be764d2
+semgrep-rules generic/visualforce/security/ncino/html/UseSRIForCDNs.yaml 18f3181e0cac490aef78a4499a5e40c9e6a283b928d37f41663edf40c3938f90
+semgrep-rules generic/visualforce/security/ncino/vf/XSSFromUnescapedURLParam.yaml c01d2983414ac4657fd8e8261dcace3563d97af52e823f25cd2259fb2c272864
+semgrep-rules generic/visualforce/security/ncino/xml/CSPHeaderAttribute.yaml 88b40c34ed65fdcb0993c2afe9cbb92205c16ae5afc0d86720fffe240b616a13
+semgrep-rules generic/visualforce/security/ncino/xml/VisualForceAPIVersion.yaml d0ee5887d31b81dae462324b62f7326702efcd9945b7ec4615f988668c08704a
+semgrep-rules go/aws-lambda/security/database-sqli.yaml 51bf848a6bea30d68197461c583361052d3159f54cc3d1c0efc2fe4ce8dae9b9
+semgrep-rules go/aws-lambda/security/tainted-sql-string.yaml 1a7a0375eab3169b51c69ad5efa4c075167dea7c80d1ecf30c8548c04aaa6303
+semgrep-rules go/gorilla/security/audit/session-cookie-missing-httponly.yaml ffa275df264f7215e807d798f0f1e61c5bfd0a0e6a486fc0711f6a79219921f0
+semgrep-rules go/gorilla/security/audit/session-cookie-missing-secure.yaml 79986323da2ca1a023a4bc0106037edc40c1a6153abf591a9cebb3bd1999fc58
+semgrep-rules go/gorilla/security/audit/session-cookie-samesitenone.yaml 939855f0d0f8d24daf7dfea2782fb91a94e9af02647287cd2f4d5f2b61233c6b
+semgrep-rules go/gorilla/security/audit/websocket-missing-origin-check.yaml 382236f3a1263037931c936c382fb4be1e39280ea15d7cb7a6e9df3f5b7051c9
+semgrep-rules go/grpc/security/grpc-client-insecure-connection.yaml 1b0e2ec6a828692b7797cc89b711cb1531c2144a623c1bd5fbd9738bff5719d2
+semgrep-rules go/grpc/security/grpc-server-insecure-connection.yaml 03eabccf9ea55d2387a07cb152c0da02fbd9e89edb286f1ca99c5dec9c504519
+semgrep-rules go/jwt-go/security/audit/jwt-parse-unverified.yaml d441afc42304d23c4e80dab2a0eac67e5458780c1964def9fa3d2cebc229902e
+semgrep-rules go/jwt-go/security/jwt-none-alg.yaml 99b25776a485ba7290b12d5d8ecce94c4c2384941f5c1ceb9b8c09853b6d596a
+semgrep-rules go/jwt-go/security/jwt.yaml 0c939ac28be183fb1bfcd85dfd29c71a17bf06b01396c679a45ecffa34b85b03
+semgrep-rules go/lang/security/audit/crypto/bad_imports.yaml d4c626d204271f4d79772645261a82cfc628d8397c89919dffdd0de7bd6a3e9f
+semgrep-rules go/lang/security/audit/crypto/insecure_ssh.yaml fb1a787ba8f3865141eac49ac8a311f0558275a9479f3cd84ae5102efd2d4a58
+semgrep-rules go/lang/security/audit/crypto/math_random.yaml 897361e03410697e14c410bec02f3947a9e8dc3b8cac73aacb260e0a3e0249c7
+semgrep-rules go/lang/security/audit/crypto/missing-ssl-minversion.yaml 65f6bb9d61851d8e9cb402b7d8566a2e350322092a9511dbc0a1f6ca0bc2be40
+semgrep-rules go/lang/security/audit/crypto/sha224-hash.yaml 1521c278aaefd70bd6f8c7c8e2dcc4af1f919e16cdf2062354897727bafefa95
+semgrep-rules go/lang/security/audit/crypto/ssl.yaml b873dfa99d77b1d788082debfe3a4f8d614043269d77564908934d504eccb664
+semgrep-rules go/lang/security/audit/crypto/tls.yaml 473804728d7b03c5011c1535ec42b1c879931b5de4b3b168d37074d5c83199e0
+semgrep-rules go/lang/security/audit/crypto/use_of_weak_crypto.yaml cc86af55aa9354cf08c8acadb9b09ebd6f2c3f30ce2c20f1423b1641999752e8
+semgrep-rules go/lang/security/audit/crypto/use_of_weak_rsa_key.yaml f106708de5a938ed5ac541fec0b440d6622433bd27821fe52640fe72b2b34669
+semgrep-rules go/lang/security/audit/dangerous-command-write.yaml 367e9cbee481219dc860cfb5520354a21019afb64d774291bc4937cd14e51d51
+semgrep-rules go/lang/security/audit/dangerous-exec-cmd.yaml 30e0551e87654d5365e6f886d69f866bf526b1b018e509e1c4bfde8802c71bfb
+semgrep-rules go/lang/security/audit/dangerous-exec-command.yaml b6a8f7e4c80d8565e01bfe9566bcf0a611008075fbdbd965933bd657c5a65fb9
+semgrep-rules go/lang/security/audit/dangerous-syscall-exec.yaml 917ad53b3f09d314f489d5efd8c3c7ca3af75f53c235c742e2fa0bbea6e069d4
+semgrep-rules go/lang/security/audit/database/string-formatted-query.yaml d631e16ff17e9900bcdc18f3176b17e8a9cda415f9674b875b5739c5df12bb5f
+semgrep-rules go/lang/security/audit/md5-used-as-password.yaml 0429f6df72c5aca2ccf6996d1276b35924a57035be04757abc79bc9760327961
+semgrep-rules go/lang/security/audit/net/bind_all.yaml da11467b6bb3a8886c4b42f6f14c2d636d328f0ef9eea8fdc7f486088d3f2e53
+semgrep-rules go/lang/security/audit/net/cookie-missing-httponly.yaml 21b1062cdedd555693d70998ba896220e1416b33398ead4ea2768025c2335a30
+semgrep-rules go/lang/security/audit/net/cookie-missing-secure.yaml 1b94d28f69c35ef81b92b0a8a845dbb8c26cd1174ab627d8abcd7e292a5d4d0e
+semgrep-rules go/lang/security/audit/net/dynamic-httptrace-clienttrace.yaml 9ce5ef514a958df6c6cc088f1c4b3c7500228dd19bfbd4aa026a126fb1e408bb
+semgrep-rules go/lang/security/audit/net/formatted-template-string.yaml 6565614e63f830159c3bdd858e17778389dbdf6724b7efc394d2fe9859dcbb74
+semgrep-rules go/lang/security/audit/net/pprof.yaml 5c908a2b0c1ff0a730f41eb4ec815273632f22c9a4910ae9108da3c597097fd8
+semgrep-rules go/lang/security/audit/net/unescaped-data-in-htmlattr.yaml 1d7d891688fdc72975680494109f2d7e508202e61d1e29113d98e4707620f4a2
+semgrep-rules go/lang/security/audit/net/unescaped-data-in-js.yaml f0d181e34301450f9b55bb4dfc9a46358d83bad9f645c4691e4f3d1937e23aa8
+semgrep-rules go/lang/security/audit/net/unescaped-data-in-url.yaml 446470c0994b2d5db01fdf55111f3acba7f6c0e16ca8ff9d3b4904c7031cab2b
+semgrep-rules go/lang/security/audit/net/use-tls.yaml b808cb196205d28f146cb6892fb2b287534097b89bf7d58a55ed3004f4dee14f
+semgrep-rules go/lang/security/audit/net/wip-xss-using-responsewriter-and-printf.yaml dec2a99394f906676e93f192f1b1e0d5840b8929677ffd8e106cec25c0ee1407
+semgrep-rules go/lang/security/audit/reflect-makefunc.yaml 123707c7409a66e06a0a96533075c66da481bb625ce8ecfc37ba22d29fc6db4f
+semgrep-rules go/lang/security/audit/sqli/gosql-sqli.yaml 349a10ac8c44a85d7684c7c70e787898874c77f2c353f74784348459c87c9822
+semgrep-rules go/lang/security/audit/sqli/pg-orm-sqli.yaml 6cd6aa898557b7040e59c08f25b6ca99b44044a2101ef54e91ae494fdd51d9d9
+semgrep-rules go/lang/security/audit/sqli/pg-sqli.yaml 7b27bcabf89f1bcede2ec5fe8fcb295251845a92e90b6b7e4bf83f19b309e7c7
+semgrep-rules go/lang/security/audit/sqli/pgx-sqli.yaml 8101fdc66fd53af2e66d53ec049eeb8007d57864ffefb28aa34fec3d51c72897
+semgrep-rules go/lang/security/audit/unsafe-reflect-by-name.yaml 48718c15ee9085eede289e5a328936dc565db68f51844111254a589eab83e290
+semgrep-rules go/lang/security/audit/xss/import-text-template.yaml c433e1327c02d25defac5d13f5a8bfe878dffe80e7fc150d1d6bae3b82f3075d
+semgrep-rules go/lang/security/audit/xss/no-direct-write-to-responsewriter.yaml ab01f9b4f527d78198a1d1e117cf1b0f77a15a3fb20b33e584396075bc8aa2a2
+semgrep-rules go/lang/security/audit/xss/no-fprintf-to-responsewriter.yaml 8d8e095d1d25bfcb9d44daba3d36afc17b489d43cbb55ae73fd3dc2e624b141c
+semgrep-rules go/lang/security/audit/xss/no-interpolation-in-tag.yaml a7ab0c327052ff363646d82f6a91410c77e1eddd6c809328223604e4227e5a49
+semgrep-rules go/lang/security/audit/xss/no-interpolation-js-template-string.yaml 6b0849988358cef2961e1366f9b7b0bc22a0902b353c4791b6f5aa4cafcda2e4
+semgrep-rules go/lang/security/audit/xss/no-io-writestring-to-responsewriter.yaml cbaaacf04c72b967f665c7daac9080301633b0d5eb72f0febc9fe9ab9274ba41
+semgrep-rules go/lang/security/audit/xss/no-printf-in-responsewriter.yaml 4fef7bed12202e7d3bf398dd08fd558514362430ac5e7356bddce074ee7fc573
+semgrep-rules go/lang/security/audit/xss/template-html-does-not-escape.yaml 76ecd1a306e5c73690ea95b8910a0e5f3f27a7a5c81e208b0284b6624e531496
+semgrep-rules go/lang/security/bad_tmp.yaml a8d998c73e097b39d2424ae68df16690643c53d13ea37472c25659ef1ad35d31
+semgrep-rules go/lang/security/decompression_bomb.yaml 9c45d9ca144aca25aeba1fd41d23cee10cdc79f455fe7ce5f96dc5c3f5a6a5ef
+semgrep-rules go/lang/security/deserialization/unsafe-deserialization-interface.yaml a3483810485a7046b401bacc90149773d2ab6a91ce7da771f63cdd44b48ac136
+semgrep-rules go/lang/security/filepath-clean-misuse.yaml 465d65cd5aee62fd226c005485f7de8ae85349fc45ef5ef397b1769e3a1ee5a7
+semgrep-rules go/lang/security/injection/open-redirect.yaml ba7e36674682ebba3e085557280c7204f01ae55971f512aed0171bb6c0b89a2e
+semgrep-rules go/lang/security/injection/raw-html-format.yaml 6e6654e0885aa2296f2d33ce5bc895ca947af75a999204f7d3333f4ffe22a9fb
+semgrep-rules go/lang/security/injection/tainted-sql-string.yaml 20c16479184a078e4208c20cee27b364e34cd0949e85d9dfd63e0732f0934053
+semgrep-rules go/lang/security/injection/tainted-url-host.yaml 481f38df51f4ad8f2438aa47f502572cf933cc54ce28a34ae56f539c27a80774
+semgrep-rules go/lang/security/reverseproxy-director.yaml 29612864d63d06dd79122cf3637c602a843f70616f97a0940ffc21664d1f949f
+semgrep-rules go/lang/security/zip.yaml f8778412982aafc14e97599a77c341e6931c6b995e604b0fa19db45f95045f46
+semgrep-rules go/otto/security/audit/dangerous-execution.yaml bf8701ed2f0ca17f0e22b8c7cba0c69f4e5466112034cd9d5ec98d64d7793af4
+semgrep-rules html/security/audit/missing-integrity.yaml cd8a70868692904b74930dbb732021d629485d635f502306e9a37e42d96ae1d3
+semgrep-rules html/security/plaintext-http-link.yaml 068c613e1eb8fd511be960f0e09bd7977f43235e736e9015b012e13807fb0050
+semgrep-rules java/android/security/exported_activity.yaml 8eed6a7e67138738a74382028a23a05201cf616c969ccf1c1901281e72c2989b
+semgrep-rules java/lang/security/audit/xss/jsf/autoescape-disabled.yaml 596be892262a1ad8c59692517a9899ce9715992c4ef05b5f4b214803bc8a00cc
+semgrep-rules java/spring/security/audit/spring-actuator-fully-enabled.yaml 7f681d6e601fde44571ad86971c73f11ffb0c6c28d44437c495fac489b5d8b15
+semgrep-rules java/spring/security/audit/spring-jsp-eval.yaml 518c80963c9a4c6a2ea63d918e6d9046268a5cdec4c38e94f7d6d1cc0cc6f6e8
+semgrep-rules javascript/ajv/security/audit/ajv-allerrors-true.yaml 6ca5fea0744a265e8625a59031acda251386341382947e1a3d1551699d2b5276
+semgrep-rules javascript/angular/security/detect-angular-element-methods.yaml 53ed0a99d9e4656c218a130c7457f25b24308ecbf014af556d7fcb7b62b097da
+semgrep-rules javascript/angular/security/detect-angular-element-taint.yaml 23328bbbcb5d616583589cc3bceca7bef696a69f346691e8c208ad588862346c
+semgrep-rules javascript/angular/security/detect-angular-resource-loading.yaml 56ac5e35640bb870ad6aa5f4507d6905ff0cc1f45072ba781476989c4272d324
+semgrep-rules javascript/angular/security/detect-angular-sce-disabled.yaml 60146159f1d2450dd28a4ab32b825b54b6d22720556ea61903fa08adfcef80fd
+semgrep-rules javascript/angular/security/detect-angular-trust-as-css.yaml 74b296e8e806034f616893136c16a174303f9c556cca8d3b93f755a6127126e7
+semgrep-rules javascript/angular/security/detect-angular-trust-as-html-method.yaml 31185bca9e3d04444467bf5de6285b0cb1fb4538b96d70bf4378862ef9d07baa
+semgrep-rules javascript/angular/security/detect-angular-trust-as-js-method.yaml bc0fedd40efd649153c4135192ae0a867d7810246db3a11a151bd08b7b42aa03
+semgrep-rules javascript/angular/security/detect-angular-trust-as-method.yaml 98471a1374782cd2eaca97da3ebbd3a4ce05c18c7bc006a9329ad4fe61142a9f
+semgrep-rules javascript/angular/security/detect-angular-trust-as-resourceurl-method.yaml 933e25b0d8ec6e0914823144de0561485ba49fb2fd7731d1aba68bed7310fb8b
+semgrep-rules javascript/angular/security/detect-angular-trust-as-url-method.yaml d379e93983bf77fb8be0f2684e096944bae15c1a16878e1c873486213c367085
+semgrep-rules javascript/angular/security/detect-third-party-angular-translate.yaml 16909dd65be9567bceafcd92f8f084af78e3eb6a3061aabe88540ae23b7d3968
+semgrep-rules javascript/apollo/security/apollo-axios-ssrf.yaml f93e9aa4ce5336b7000b3692e99abf271886bfff15f775dee09c8e8878050a4a
+semgrep-rules javascript/argon2/security/unsafe-argon2-config.yaml 694bf4a2db7b031f8e886a87eca661a7604d48047341cf06d45897e460d12fd5
+semgrep-rules javascript/audit/detect-replaceall-sanitization.yaml 7c592493239a7878a8ba0fea2d383684af311064980962ca3afe25fba228df39
+semgrep-rules javascript/aws-lambda/security/detect-child-process.yaml 4dc9a8a72a6af4d2f6cb772420f6d6085f382db135105dcc2aff34b4fd22f349
+semgrep-rules javascript/aws-lambda/security/dynamodb-request-object.yaml 70d379a513be39d3153671da9fa92dc6f279d8004bc1f4c8aa970333fa08fa80
+semgrep-rules javascript/aws-lambda/security/knex-sqli.yaml caf1c5f56055363af67ead62f248df123c44ef46d3b2e9d8bbd32f8179d296ba
+semgrep-rules javascript/aws-lambda/security/mysql-sqli.yaml d5fa1549406aab261b6e95b82bf4ab238e55f924100e487a2967e965f1fc408e
+semgrep-rules javascript/aws-lambda/security/pg-sqli.yaml 267e1dea6127d5f6b311a048c8a9de8c7a88e756a90a31c5c2bd737715c919e8
+semgrep-rules javascript/aws-lambda/security/sequelize-sqli.yaml f2389a77852e1f2fa95ad9cc41cc05da6b533351ac13ba50a350732efa3f0603
+semgrep-rules javascript/aws-lambda/security/tainted-eval.yaml 4f8fddb06773facb40bee50b0d31a7f32c560b42f39a609e2397c504d9ed68b1
+semgrep-rules javascript/aws-lambda/security/tainted-html-response.yaml 75f8a5a377edc368e8c0f4ae9d5c0c52c473993288317565220da538fe279a19
+semgrep-rules javascript/aws-lambda/security/tainted-html-string.yaml fb000ca9211864a4f3320b399ef91df627dd1c168443c9e450c218f6e5ccd6b5
+semgrep-rules javascript/aws-lambda/security/vm-runincontext-injection.yaml 094f5d3607833b965208747263fa85b2b67f87e4b794b268993e25a02093730a
+semgrep-rules javascript/bluebird/security/audit/tofastproperties-code-execution.yaml 10b077b1232e52b830a373f9beb4cc2c6b3ff2f2362f4991fee07cb85db1cd98
+semgrep-rules javascript/browser/security/eval-detected.yaml 356589363d16cda8bd2ca1d296ce2b6953105ee4c751ddbbc9bcde5849341811
+semgrep-rules javascript/browser/security/insufficient-postmessage-origin-validation.yaml 72e69717624b282e678e03aeab8416c883a9d0c286f0496af406a80fd4dcc2bf
+semgrep-rules javascript/browser/security/open-redirect.yaml 896332cf7d17f4ccea855006baebfddd83ccf90e07315958bb62bbc2916950f4
+semgrep-rules javascript/browser/security/raw-html-concat.yaml 39c8c842711e452c1b4b0b03bc526652d69c887b6ac790215604ec4cde80a403
+semgrep-rules javascript/browser/security/wildcard-postmessage-configuration.yaml 4bb9d0a44a38c433ebe1b3df30895576a056262c3e12da57cee9c6be9fc0d813
+semgrep-rules javascript/chrome-remote-interface/security/audit/chrome-remote-interface-compilescript-injection.yaml 9558ad0de583611929d44b1521cb8aa22241d02741172b2f9c20ee418437e9f2
+semgrep-rules javascript/deno/security/audit/deno-dangerous-run.yaml a0c95810bafdec79d969995a808549b9846b7d50e993c97450d0cf57d3c1cae1
+semgrep-rules javascript/express/security/audit/express-check-csurf-middleware-usage.yaml 6b86b942f4560327a225f65d3b8b4ffabae108e05c3ad786b453c070c8e626fb
+semgrep-rules javascript/express/security/audit/express-check-directory-listing.yaml 1e74ace508017ac44d8fb8d54981f7fd5d446825f5352e00e726fbec51ccee9e
+semgrep-rules javascript/express/security/audit/express-cookie-settings.yaml 5454f228b1d91b93c47576d16017e15e332e5ffd13549d0bff8a3745926c0f3e
+semgrep-rules javascript/express/security/audit/express-detect-notevil-usage.yaml 62dc9b6b97ee580b3b6ad18ae7bb8ef9d79570fea089611cb90d8945783643d4
+semgrep-rules javascript/express/security/audit/express-jwt-not-revoked.yaml a8c3d45fbcd35eab0443e98e6770dfd74642a1f6841dac59ca3617bb0042039b
+semgrep-rules javascript/express/security/audit/express-libxml-noent.yaml b6ab5be236a46d39966f743dd96d184959eb121925fa201f7def860425893dcd
+semgrep-rules javascript/express/security/audit/express-libxml-vm-noent.yaml 71ee7954ddb00d72371d4a70cdf087df817f7e2bbba48b68ff84a1a820b58a5b
+semgrep-rules javascript/express/security/audit/express-open-redirect.yaml 64f0f94744db113fe0c5faceefaef5bbdbf98f93cfcbb3c6467d8db4b2c266f0
+semgrep-rules javascript/express/security/audit/express-path-join-resolve-traversal.yaml eb0c16f2414023ecc43de3a47ccba2f242fc136d1aa8b25bdce3b73276fca6d9
+semgrep-rules javascript/express/security/audit/express-res-sendfile.yaml 96d3af39aa5066b659e813e8703584ce839f2d74df69b1b243001f82c00bfe26
+semgrep-rules javascript/express/security/audit/express-session-hardcoded-secret.yaml 7d9bb3877803e9becb87adebfeb703a251d3ef9e4175edcb1538821660c36289
+semgrep-rules javascript/express/security/audit/express-ssrf.yaml 110d6fc1493f2a7220d89969f48d495135cb786c49082977c2850ee986209f36
+semgrep-rules javascript/express/security/audit/express-third-party-object-deserialization.yaml 766fb8851d34792ff58b64e26a12ee2597b909c89915d7088a07faabae0b988c
+semgrep-rules javascript/express/security/audit/express-xml2json-xxe-event.yaml 573c948baf8093b8f2c6b8ebd930beb55a4258c0d08d2733478c8a90d70f4eea
+semgrep-rules javascript/express/security/audit/remote-property-injection.yaml 193d6a1eb76496758ebdaf9f7c55e916976686cbd97d690198e54f58bd785855
+semgrep-rules javascript/express/security/audit/res-render-injection.yaml 63ebc257f5f3bbfb2543b3c25b5e2bf8d155408d61f2c577b3d099ded5b1a516
+semgrep-rules javascript/express/security/audit/xss/direct-response-write.yaml e73a91ed72b1f2f7fb8bfb975f98cc809001d5af06c7b9a877678d49a0b87a08
+semgrep-rules javascript/express/security/audit/xss/ejs/explicit-unescape.yaml 2081cbffbfad1683ee35ea8b95b624715cf1783a39e06912385a9d3f07d2983f
+semgrep-rules javascript/express/security/audit/xss/ejs/var-in-script-src.yaml 2451e4ac509cfb006a027dfc4730e42f24de9334ac0c721c6e3eee9484ab3ace
+semgrep-rules javascript/express/security/audit/xss/ejs/var-in-script-tag.yaml a0e19236741f7be66bfc7f9825810acfe33004743483bcb8c325094fca5c08c9
+semgrep-rules javascript/express/security/audit/xss/mustache/escape-function-overwrite.yaml cb045648e431bba77190b9bafb5dab4882789fe056ce0ba3199b32338459b347
+semgrep-rules javascript/express/security/audit/xss/mustache/explicit-unescape.yaml 5e11ef9298cd7353f268581058caa76fd5d63977a73d5069bd0f9ce68b439628
+semgrep-rules javascript/express/security/audit/xss/pug/and-attributes.yaml 41757422fc08d88350c07de76b5230e80a91ce94f0ea2dc5e542a40f023bd997
+semgrep-rules javascript/express/security/audit/xss/pug/explicit-unescape.yaml 8d0f075b9ee003d4742d1d54e44bda3d9b77fcc97f28eaa42157562f691f5cf7
+semgrep-rules javascript/express/security/audit/xss/pug/var-in-href.yaml 5a23c06f82aea2d2f24395decb064491a2b9c371ce1c7cce083c877e3a9a43c0
+semgrep-rules javascript/express/security/audit/xss/pug/var-in-script-tag.yaml 745eb96f363eaac1cb3671a5668d9a6aa0eb9144086d09c682a845eeab98e32f
+semgrep-rules javascript/express/security/cors-misconfiguration.yaml 97453880350c250408af9d7ce0c8ff177acf1f4419ca3f75a9c2583e1748e180
+semgrep-rules javascript/express/security/express-data-exfiltration.yaml 990263632cc239dcec752f396492a77be0784d2cc9e882f1f1453321e302c82d
+semgrep-rules javascript/express/security/express-expat-xxe.yaml f03645ff22d02ed58fffcb6647009168359a5b4854e46f2e021a4eaa132fa591
+semgrep-rules javascript/express/security/express-insecure-template-usage.yaml 9d7b08fd25478ca520eb0835f8aa3b39f252731df15018c226eef9695819bbc1
+semgrep-rules javascript/express/security/express-jwt-hardcoded-secret.yaml 873fb9a36319838d0d70cb6bc01279814b1c2e3e28dd3cd8e21c1ee9f0ae25ff
+semgrep-rules javascript/express/security/express-phantom-injection.yaml ed0d30cbb9e0d2be43a991a4788845f14a5bb25ff2829c41355e11bc7ae8f841
+semgrep-rules javascript/express/security/express-puppeteer-injection.yaml c3e4dc920e40889f2ac6f151c0fa73f4460b5af6f555996dc7c1e16efd7f9a3f
+semgrep-rules javascript/express/security/express-sandbox-injection.yaml 40fbb1a8b591cf543a0814c7d8848bf9297093fd78061efb6d62270ba115de38
+semgrep-rules javascript/express/security/express-vm-injection.yaml ae73d6c55ba88fb5d13110fba82f33d7c152c6f6ce13f86df9dc2c9edb3f368b
+semgrep-rules javascript/express/security/express-vm2-injection.yaml 1a97256d1e9ef8a7ca583eea8ae5d55e3d39184aa8bc77db69b5f51ed69f4370
+semgrep-rules javascript/express/security/express-wkhtml-injection.yaml 5bbfcf24aead0373e0cf75aff64006c3f37e920d1a2e36a0a70c76d3c4814cb4
+semgrep-rules javascript/express/security/express-xml2json-xxe.yaml ffd2410ced3c3e111cfb9dddf680d16fc49f456cab32cb559270bcd117606a83
+semgrep-rules javascript/express/security/injection/raw-html-format.yaml d00b6ba1fe8476e9fe29c9e9e9e1b631bd67c466d94087d0e0834f5036fcc6af
+semgrep-rules javascript/express/security/require-request.yaml d62c5837e4ff26b67ff6df494ba8cf135ae902309273875480c6560c3af3ef79
+semgrep-rules javascript/express/security/x-frame-options-misconfiguration.yaml 04de6503bb2f93da5abf75fa6f4535681ff3eda05597c8ae1d708df898197ed1
+semgrep-rules javascript/fbjs/security/audit/insecure-createnodesfrommarkup.yaml 9b9fc4b8bfd37054c8e6f17a9e194037b1dfc3c6f97d3cda69de8b8e9466544c
+semgrep-rules javascript/grpc/security/grpc-nodejs-insecure-connection.yaml dea1767cf8e6179b159fe1b3ac3d3eb0abe23072c4bf6a79edfd71db658f4528
+semgrep-rules javascript/intercom/security/audit/intercom-settings-user-identifier-without-user-hash.yaml 68495a5578d32f9b532daee5497c53104414847ca0bb4127f6af82064309ebc3
+semgrep-rules javascript/jose/security/audit/jose-exposed-data.yaml 9530a8421db6cb2342336442ed4bda2d94ce46c432cb8559fae0027608058652
+semgrep-rules javascript/jose/security/jwt-hardcode.yaml 7e31bdbca8407e577e9917f0c48dbb845a1873d42c7eb0b26f54903ef3fefaa4
+semgrep-rules javascript/jose/security/jwt-none-alg.yaml 01506ef4f6a16636863369425d853bf751bea29791a15e2037fa25cc098d2a30
+semgrep-rules javascript/jsonwebtoken/security/audit/jwt-decode-without-verify.yaml 7b02fe998a434f6a7df5976848c1ea5d3ca3eae8cb299c2631c69d6cb239ea32
+semgrep-rules javascript/jsonwebtoken/security/audit/jwt-exposed-data.yaml aad1ab235fb6c710eca4d30f918a5bab11cbd7c56eb9066ee53bf512ee3e3ab5
+semgrep-rules javascript/jsonwebtoken/security/jwt-hardcode.yaml 987a43509b40e20dbd032f11c0adf04b21a163b5684e41e1bb48ad41bfe11e4d
+semgrep-rules javascript/jsonwebtoken/security/jwt-none-alg.yaml 61cd42e96ebbb3b88e8dec1fc5096378467a8a15636104c2385348776c80d3f4
+semgrep-rules javascript/jwt-simple/security/jwt-simple-noverify.yaml acc82f3ead23d5ec166bb17e1c8925346198872306488fdf8a3032543db78031
+semgrep-rules javascript/lang/security/audit/code-string-concat.yaml 6a1d29327dd908382bdf9109e223f6ed4ca6167ae2be6617b59191c892e3c0cc
+semgrep-rules javascript/lang/security/audit/dangerous-spawn-shell.yaml 1a81f91e9ad9ea4c62a9b0bda4dcf3cf2fc1bb6f2d9e2580ea3effa6bfe9ba74
+semgrep-rules javascript/lang/security/audit/detect-non-literal-regexp.yaml cc2b78967131265c24e9700f36195ef1f3ba11f651598ee8a583e900c60e03fc
+semgrep-rules javascript/lang/security/audit/hardcoded-hmac-key.yaml fdca07b8fc42fa0d1e24be2a372e719f21b09c060f09716ee7008a1df1dfd52a
+semgrep-rules javascript/lang/security/audit/incomplete-sanitization.yaml 54b042cc05900fd624852cac1bb4962c2d33a0674d468b4a61a6fae8d2a64250
+semgrep-rules javascript/lang/security/audit/md5-used-as-password.yaml 95f8166a5066f012641c89fbc59e9ee98299f886cb70d2057b1e6cc741561b33
+semgrep-rules javascript/lang/security/audit/path-traversal/path-join-resolve-traversal.yaml d9a1c9b559fee5b993bb9150fead40a48570a58f08762d7b6674125f6e0784bc
+semgrep-rules javascript/lang/security/audit/prototype-pollution/prototype-pollution-loop.yaml f781360a7d929bea0dacf339e30060e441f9e738aee0d1b6481219fea49126c5
+semgrep-rules javascript/lang/security/audit/spawn-shell-true.yaml 452fb593301edca721a151ed3c051f428ca1df1fc1af613380d58b076601b5ba
+semgrep-rules javascript/lang/security/audit/sqli/node-knex-sqli.yaml 074be35c73756917896e051a8d77a8a705c7ef54d4846d7a93c829e4d68aabd2
+semgrep-rules javascript/lang/security/audit/sqli/node-mssql-sqli.yaml a3c995249bdd6ffbf3d36ba42cdd1f1c04798bb0e41765bd396a218516e59ee9
+semgrep-rules javascript/lang/security/audit/sqli/node-mysql-sqli.yaml 152d5848cbcb5bdd3555507eb4a55b5ee2cd7276effbd5975a7da97d82bba0d0
+semgrep-rules javascript/lang/security/audit/sqli/node-postgres-sqli.yaml 23709e35b9ce213d8306c793a3174320dcf3141043e31297fcdec48735c1bbd8
+semgrep-rules javascript/lang/security/audit/unknown-value-with-script-tag.yaml c22e6be10888c9c457ddfb8d75dd70e812d0c9667e9b3bd910e3f3bc504d8892
+semgrep-rules javascript/lang/security/audit/unsafe-formatstring.yaml 6e0f93aaccf1eb08bd02bd160768d41dda2a3b5de2a26d55e18f417ee0ff408c
+semgrep-rules javascript/lang/security/detect-buffer-noassert.yaml e6566d2c7138b038e1c3167f3e9ff98550cf81a2d70caa94a5362a55294077f6
+semgrep-rules javascript/lang/security/detect-child-process.yaml baee696b05b3c38fa5a82435ae458026ec81ce9a6e6a73116d68dc963496296c
+semgrep-rules javascript/lang/security/detect-disable-mustache-escape.yaml 8d6d81249121230be2d11fd7a2cce2ce23837520f8e0fc1df45868ec159edb09
+semgrep-rules javascript/lang/security/detect-eval-with-expression.yaml 3b8fe2524b094c72c34aaa6d21b0408ffdac2471a335125cf726993253777951
+semgrep-rules javascript/lang/security/detect-insecure-websocket.yaml 65935c49d62e264a6b85a496455989137d7e82d4698855d511d173ed08ad3099
+semgrep-rules javascript/lang/security/detect-no-csrf-before-method-override.yaml d361537a89c773a4940f107a2e787c6309d121e965a88f471b55d0db15ccb859
+semgrep-rules javascript/lang/security/detect-pseudoRandomBytes.yaml d3c2b2168e6b1efdfc305a783387634e3ead8e0db6d4bdd3417381e177da4058
+semgrep-rules javascript/lang/security/insecure-object-assign.yaml bc5a5fdef1a8a4889f1d3efebdd3cb1f1e58f5261418928ae6c765eb7f1b2397
+semgrep-rules javascript/lang/security/spawn-git-clone.yaml d87fdf812e1a61f137bde701d75415525ea66c45c593374a6f9ec2081609539f
+semgrep-rules javascript/monaco-editor/security/audit/monaco-hover-htmlsupport.yaml 26a148440d4405fb236e029dde7a2ecd1542766effad12630132890dbfef20b5
+semgrep-rules javascript/node-crypto/security/aead-no-final.yaml 4c993da95b21b43a8a5890dbaf7c9767af846abd2b9fdae36fb46c88ca4aa5f9
+semgrep-rules javascript/node-crypto/security/create-de-cipher-no-iv.yaml 4b922a0df84b85469500b92eb4a8023bf64e0aca889c85ba5fdf3d23ffa2f406
+semgrep-rules javascript/node-crypto/security/gcm-no-tag-length.yaml 1ed0553e584f3a12feba324ed352db660acb177f8f631876747372c27193962e
+semgrep-rules javascript/node-expat/security/audit/expat-xxe.yaml 92751f4813a7563c6d0c1768034564483e8baf09689d687d54e4658fc56c38ca
+semgrep-rules javascript/passport-jwt/security/passport-hardcode.yaml cf0b2b419496884a87bfd9d0bc212e179f7cafb42c4ecd509ab6633af80647ed
+semgrep-rules javascript/phantom/security/audit/phantom-injection.yaml d69ea49d67bdcce17c1a570a52227183d073f78c452bf3e879b105e87994367f
+semgrep-rules javascript/playwright/security/audit/playwright-addinitscript-code-injection.yaml 3042fd8790341877a88a0db0915d98a6175dab7f17eafe8b91207ce1b840e4f2
+semgrep-rules javascript/playwright/security/audit/playwright-evaluate-arg-injection.yaml 7e9f4eb8a9755376ffe281b4ee73b404cff8b99737eaa6c09a60da921c54c654
+semgrep-rules javascript/playwright/security/audit/playwright-evaluate-code-injection.yaml bc910ef671626206fa889de9d8b53141e3783218a56faa8af5e35fd19822067d
+semgrep-rules javascript/playwright/security/audit/playwright-exposed-chrome-devtools.yaml af09f9d838cdc99a5d6704ff3a2458db1808b40aec70c010488f844758c3b64d
+semgrep-rules javascript/playwright/security/audit/playwright-goto-injection.yaml e508af0b9136740db3fc375c8a2ee244d2e83631ee302960ae91b6926aa82991
+semgrep-rules javascript/playwright/security/audit/playwright-setcontent-injection.yaml 6934a12e560fc76e45e7d7f103f16d8fab1b8ed879162ab56255bb36e91c30ea
+semgrep-rules javascript/puppeteer/security/audit/puppeteer-evaluate-arg-injection.yaml 38d2f72ceb9b3ee0e62963f27efcac2121eecaece9a719067b1d6b00f2773fbe
+semgrep-rules javascript/puppeteer/security/audit/puppeteer-evaluate-code-injection.yaml d6afb98f25e49a2ade7c812c440e51ee6d43efa8559a4df1d43c7be18863dd7f
+semgrep-rules javascript/puppeteer/security/audit/puppeteer-exposed-chrome-devtools.yaml 675ce5bb0b1b65bc68cd628217f7c9db96cc50f760cf6601634f27f2934d1967
+semgrep-rules javascript/puppeteer/security/audit/puppeteer-goto-injection.yaml 3163ac2d6c964d9b873f35ce111830d65c52b023a1e96432e8c3640aad7dcdc5
+semgrep-rules javascript/puppeteer/security/audit/puppeteer-setcontent-injection.yaml e849783a3e404faeae5096cc5b123943716a4d6300d8cb4a95e2f616a14ea56d
+semgrep-rules javascript/sandbox/security/audit/sandbox-code-injection.yaml 780663d7e195d684ac3563a9abc95c19b749835423c4393d01cf40b0eb82e2c6
+semgrep-rules javascript/sax/security/audit/sax-xxe.yaml b9afe39dadea5e31365572fa527ee4c4867d40d387fbf2c8c858b7cd8171c7b8
+semgrep-rules javascript/sequelize/security/audit/sequelize-enforce-tls.yaml 59cdb04721b35e398f0f35e73fc68cdc44d4c9ff11ecd8f83c9470cbee1c2440
+semgrep-rules javascript/sequelize/security/audit/sequelize-injection-express.yaml b3b6149dcd1f7611e020aa6c915eabf540a64bdc11626f5003c5d4922d7824a5
+semgrep-rules javascript/sequelize/security/audit/sequelize-tls-disabled-cert-validation.yaml 464e5fc309be5a130455338209a4e2a204a09dd602c8c978968bc0887004062f
+semgrep-rules javascript/sequelize/security/audit/sequelize-weak-tls-version.yaml dca4bc4e602cac974e0d988113b615e7dd5aaa2dc8b15346209f215a8b23c570
+semgrep-rules javascript/serialize-javascript/security/audit/unsafe-serialize-javascript.yaml 136841473fd2bd7187c82e133b7f4e8a265d7a9a8729afbb9fe75b0d9b224f11
+semgrep-rules javascript/shelljs/security/shelljs-exec-injection.yaml adfff907f257d82341c060dca56d2361bc2e750c89243b89b781d0d9678000bb
+semgrep-rules javascript/thenify/security/audit/multiargs-code-execution.yaml 07fd5f32265400a4d94fd5cb3a5ec9aa104f9b50ae3628a6ec9551a0b0afb217
+semgrep-rules javascript/vm2/security/audit/vm2-code-injection.yaml e8414f25da4e766dad6ce570498ddd353a3956e5958bef40a1d3997369b741a3
+semgrep-rules javascript/vm2/security/audit/vm2-context-injection.yaml 1b0b2484884856f55ad0f2f8c8aedb6dff535a05b51d3c6a61818f4d3453d998
+semgrep-rules javascript/vue/security/audit/xss/templates/avoid-v-html.yaml bc439da93c3291d1745b2a9ef8c77d388186284e1a8f7ac28153e3e18757c48e
+semgrep-rules javascript/wkhtmltoimage/security/audit/wkhtmltoimage-injection.yaml b77dd2689fa79391c68af5f8316d6cb10b07959fbc1c8c541d7524350dfc4d33
+semgrep-rules javascript/wkhtmltopdf/security/audit/wkhtmltopdf-injection.yaml 269d9292c144863232890a8234c09425d701c755cbe5655fb09d61b60e62a3b8
+semgrep-rules javascript/xml2json/security/audit/xml2json-xxe.yaml b8810863b7f5d9dc98bcdf13616edf6030e1a84330ba6698235b245423e4d362
+semgrep-rules json/aws/security/public-s3-bucket.yaml 6339a0aa920731440755e58cc673726e46f8ad78d3122b16cd82ded801cb4ca2
+semgrep-rules json/aws/security/public-s3-policy-statement.yaml f4869b2886f0ab32aee6b7ac345965caa99556e3c158802d7ae0fac6195d5a33
+semgrep-rules json/aws/security/wildcard-assume-role.yaml a742a13efbeca8cd5d9ef97dee3ac4448a06a93f6d6370ba5b0f21d7949e9390
+semgrep-rules package_managers/bun/bun-missing-minimum-release-age.yaml d80f5552cff9cdac50a359d7f06b55b54efb355ab6d031a3afac543c792f8dd9
+semgrep-rules package_managers/dependabot/dependabot-missing-cooldown.yaml 2a69b0f74e2b94c275e9ef24d7ef8869d787ea8efc47867f24bd1d8232ce240c
+semgrep-rules package_managers/npm/npm-missing-minimum-release-age.yaml 8f77a2c37b1bd94633ee7b473b0b1fe20441da36881248dab635e0146d79b0ac
+semgrep-rules package_managers/pnpm/pnpm-block-exotic-sub-dependencies.yaml aad3f56e2c685183cfb438fe602ff4eb65cb40c8e8b22868feedd25ddf90abb4
+semgrep-rules package_managers/pnpm/pnpm-missing-minimum-release-age.yaml be512048a5aa24b6c03d7b5a1e3093df63c29becdeca083b5943e255aa40456a
+semgrep-rules package_managers/pnpm/pnpm-trust-policy.yaml e363a447f8ef485f230b38b5125864c4bb43a4af22a25ba8571d8f4d10c841b4
+semgrep-rules package_managers/poetry/poetry-missing-solver-min-release-age.yaml aecf0062b028062934dfc69b6864e6f1897d87b608077a9218364c98b61d4555
+semgrep-rules package_managers/renovate/renovate-missing-minimum-release-age.yaml c2717142e9f2354662e073fba1b0594be97d67fa68c91a20711a3fea466370dc
+semgrep-rules package_managers/uv/uv-missing-dependency-cooldown.yaml 20906e0d6c60826b76b9b3d4e4b777a3c931cc5a4af1bfe9905c9812dd2a712b
+semgrep-rules package_managers/yarn/yarn-missing-minimal-age-gate.yaml 6ef3d15355fd709b441f19a6cc0d56680eb6eaee6dd86b8dc65dea808122ab10
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/bypass-tls-verification.yaml 60ef39fef4e7569c2b8c04d32f2bc8a000925fd4759f5684fc35ffe07cc73eb2
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/disallow-old-tls-versions.yaml 45fa025350f0dd829ab465c428d43996773d5e09e401e6135856e8d6e2062f67
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/ftp-request.yaml 664638690f2b468c82a07974c17e96542928b4f03def55d468f790017a6e85f2
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/gorequest-http-request.yaml 30dbcef486479a7c0f448a2a06ed21c6843a63db6d6dafa10231ac7499d8e4a1
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/grequests-http-request.yaml e95c93ba9151a698253a9f5f567d77627482e01319da96e00e42dee5e2ff05a3
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/http-customized-request.yaml 3d4ba7b21487d3a6f9ef21f9f9c651cd532abf7777a08f0deced172c0bf387da
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/http-request.yaml 26889e41caabc9886638572851efd12288140a33b896ea345193bfbf2be49c8b
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/sling-http-request.yaml 9e8498c2c674b0a4fd37274681acc6d6f5d5e688c09ee61f01ba682a7606e4d2
+semgrep-rules problem-based-packs/insecure-transport/go-stdlib/telnet-request.yaml 0d91a101036868adcedb2b4125e07360b56d52346811e9f86d03e0890074d6f9
+semgrep-rules problem-based-packs/insecure-transport/js-node/bypass-tls-verification.yaml e8d786626fb286aecbd7065ca1ab935bb608f5b4ee0668931ff64df58bdfcf45
+semgrep-rules problem-based-packs/insecure-transport/js-node/disallow-old-tls-versions1.yaml a1764504eb59b4e3fea8f7181d86759c5641baab52156ad46c35d07e43ce5261
+semgrep-rules problem-based-packs/insecure-transport/js-node/disallow-old-tls-versions2.yaml 7fd1771a933b8a9d76f03e31eb24423658d43063b67e49fde0c7bcb8a8379239
+semgrep-rules problem-based-packs/insecure-transport/js-node/ftp-request.yaml 15a542b9a3383fa891d8e7b067ed5bf28cafe7c5072f70185322db263bb14d4c
+semgrep-rules problem-based-packs/insecure-transport/js-node/http-request.yaml f0cda8165e88ae669e4fb4cb9c462111b90fe524fd4c4ddc81e89dd89b752dde
+semgrep-rules problem-based-packs/insecure-transport/js-node/rest-http-client-support.yaml 7fdc514f74b6683cea1816482452408bc528b23b673663def65c7cf4cd11d79f
+semgrep-rules problem-based-packs/insecure-transport/js-node/telnet-request.yaml 23eb3f3fc1ec4ab1dc40fb41a085b695c6b3a34b30fb862dddcfe976f7805ea7
+semgrep-rules problem-based-packs/insecure-transport/js-node/using-http-server.yaml b0806d95a2cffa5f339f47da38a6e129bdc920ba5c25f38291db2dfa0c1002fa
+semgrep-rules python/django/security/audit/templates/debug-template-tag.yaml d260201145515bd39489acc2d4f11356fcd585803b1b40379bed523eb794f422
+semgrep-rules python/django/security/audit/xss/template-autoescape-off.yaml 53b06ddbc2b30b6f25e7e54470bedd56f38aafece9c2dff5e37480736ec01d04
+semgrep-rules python/django/security/audit/xss/template-blocktranslate-no-escape.yaml a111af4f317d25ea6534e0c903f54b43fbbcfb711ca45405ef1edcfe2b7564ae
+semgrep-rules python/django/security/audit/xss/template-translate-as-no-escape.yaml 91e0608b7e47b6cf2a099d695b1769c295fbd9fe497d73e53eae6dd171450cf5
+semgrep-rules python/django/security/audit/xss/template-var-unescaped-with-safeseq.yaml 96ec796d23994f85b65f7a90b92ecb60f0709083b7175022114c59ccb4726ac4
+semgrep-rules python/django/security/django-no-csrf-token.yaml 868cb317e55896b4b24b033873a8531eb56cc0afda5c776aeefd50622176ad05
+semgrep-rules python/flask/security/xss/audit/template-autoescape-off.yaml 088424b42cca78a77ae60f67c4747f72e581b3d4548573b84796c4656387ccf5
+semgrep-rules ruby/rails/security/audit/xss/templates/alias-for-html-safe.yaml c08cd01983280f65b3c3b234ed13fad333a9feca10d64a76c6a51ed9df641617
+semgrep-rules ruby/rails/security/audit/xss/templates/avoid-content-tag.yaml 2430a8f23e64b6d31d96810bddb1bb653c5ec5d821a760c082fdf0d775247635
+semgrep-rules ruby/rails/security/audit/xss/templates/avoid-html-safe.yaml 66b24e63f170480b28812c66996f936d1654de1ef1a17cd19891fa503dbd3efc
+semgrep-rules ruby/rails/security/audit/xss/templates/avoid-raw.yaml 321ad3dcc7779a0c46e403c7d5ff117f8a815683d044e33d3e0f50dbc0abe12e
+semgrep-rules ruby/rails/security/audit/xss/templates/unquoted-attribute.yaml 3adc6bd1906fadb0bd14df1616c3bc5d1423add887b68fb83bb762510293ea0c
+semgrep-rules ruby/rails/security/audit/xss/templates/var-in-href.yaml 87a4cec220a34e893cf0b4637f3f2d1519958f8c6212c388ba0b9e9f7f1fd512
+semgrep-rules ruby/rails/security/audit/xss/templates/var-in-script-tag.yaml 5c54482b4de5a54ed344470506b58dd51b89dae34122b427349e823a219fbe78
+semgrep-rules scala/lang/security/audit/scalac-debug.yaml 19ad784ce7a1c775c9c98c6cd21176e979f286d43c8404e62c0cdda1e4fcf474
+semgrep-rules scala/play/security/conf-insecure-cookie-settings.yaml 066ee20368e8b959396c634b085a4c400f9cb85acef45f46c1994fdf7afeec41
+semgrep-rules typescript/react/security/audit/react-dangerouslysetinnerhtml.yaml 794094512be7f7dcaa49a4b1edf621dbdf1f984b4f29ab09a23538c0e59c2136
+semgrep-rules typescript/react/security/audit/react-jwt-decoded-property.yaml 5e4ca6b6fa672c29cfbf78993f8b3b5724d77fd99da251de7b108835705fec15
+semgrep-rules typescript/react/security/audit/react-jwt-in-localstorage.yaml 8850734261ecbb6eee29707a683acc5d177b2d785cec00ef4788eb6193b5ba05
+semgrep-rules typescript/react/security/audit/react-unsanitized-method.yaml c774bae09d1b0d8c4c12c32436f4dad6d93a590f9cfbd159bc2ab2416054d273
+semgrep-rules typescript/react/security/react-insecure-request.yaml 4869905cc60559b8ca0ed0ac62c5abe9a26b2ee0e3bbdc0d1baf47271ee70376
+semgrep-rules typescript/react/security/react-markdown-insecure-html.yaml e464c0f72c8a89ae325524b738c7c2024be1258e7a060a6365b487a0aa284434
+semgrep-rules yaml/argo/security/argo-workflow-parameter-command-injection.yaml 430f35f3dff3517677ac45c8b66ef7d21f9bd07f127accf0dda69e0f8e478d1b
+semgrep-rules yaml/docker-compose/security/exposing-docker-socket-volume.yaml 6d7b0b28c128b478f339dd0ab0f6d2a15c8862ca1ae3d0923c77b280b0324f26
+semgrep-rules yaml/docker-compose/security/no-new-privileges.yaml 20ab6cdb185ece5b73bcd9f37f209a408b19f2149a2c91b88036508f92af9758
+semgrep-rules yaml/docker-compose/security/privileged-service.yaml edc059befeae0a155ddeca2b04be58d4f2685f0b1ee25211e24f243cd1b27db0
+semgrep-rules yaml/docker-compose/security/seccomp-confinement-disabled.yaml 1edefabe15dafe113d4c2eb291ea11e1f38e26eeaded17bb5696ccd3bff1a99e
+semgrep-rules yaml/docker-compose/security/selinux-separation-disabled.yaml f554b0ef813948977c5ff8ab256056360c07eee12ed11095717575f593077960
+semgrep-rules yaml/docker-compose/security/writable-filesystem-service.yaml 1748cb20e7da80a306aad8eb0438c2dd89ee0e06036a54f2f9fc60d82bf3945d
+semgrep-rules yaml/github-actions/security/allowed-unsecure-commands.yaml 6baffe319c712fbb396db968b427757a1d72c8021c5a3616fb8ee8ece03e8948
+semgrep-rules yaml/github-actions/security/curl-eval.yaml 3c82a821fa5810033e0874dcae1f8b76e82190091e1ddf8585c468456183379b
+semgrep-rules yaml/github-actions/security/detect-shai-hulud-backdoor.yaml f116a65b1ea970a9044f6efff9a28bdf45aae7e1ca8f80df00423b9bd8a90113
+semgrep-rules yaml/github-actions/security/gha-curl-pipe-shell.yaml c87c0c230ef605fb86fe26e8da00d51bbc0a57d12aedeca2bcde7a24a6539fa7
+semgrep-rules yaml/github-actions/security/gha-workflow-env-secret.yaml 13391cba15bfea0679d3bc173991106c6f891bdcb3218b8a4c202d5710f0339a
+semgrep-rules yaml/github-actions/security/github-actions-mutable-action-tag.yaml 62388a265c3474244b68158523916164660719185c3c50129665ab2a548f0d33
+semgrep-rules yaml/github-actions/security/github-script-injection.yaml 16a0f04eed20dfcf0689328bd7c714640d6a0b0b946095aafc419950cd5bbe3b
+semgrep-rules yaml/github-actions/security/pull-request-target-code-checkout.yaml 64c8c419726b8ed1854c75de04b7e8fb944e86d54990b65a98bca9c216b65ceb
+semgrep-rules yaml/github-actions/security/run-shell-injection.yaml 156d9ce4dad539528d9e54a2acc88fa1d7e68b70bd6f3e8db37c826fc3d4941c
+semgrep-rules yaml/github-actions/security/secrets-inherit.yaml 13a0d89aa8f525dd07282c7267eea9dd3bea0b1dc8c20de9dc585a67c7ba169b
+semgrep-rules yaml/github-actions/security/workflow-run-target-code-checkout.yaml cc5f28c85f8b3ccc85bf0c60e64eea74116d0bb358275c0192a3c0da68e78aa1
+semgrep-rules yaml/kubernetes/security/allow-privilege-escalation-no-securitycontext.yaml 6cf4de11da7b003369e024e64d769a42f53362cc0adcfa9a9e78f1af692f26d6
+semgrep-rules yaml/kubernetes/security/allow-privilege-escalation-true.yaml 32203b83f26375e0953d28aa2ea226c1afa1fb147196a9331830c035a107971a
+semgrep-rules yaml/kubernetes/security/allow-privilege-escalation.yaml 1aede8ae29f6967698df6b9260fa8a6981452286cb9edcb6c8fb1af1404f1600
+semgrep-rules yaml/kubernetes/security/env/flask-debugging-enabled.yaml baa759c58ae3dcd9a9220c152df48c4fc13121a19df71b8f7aa23e34ac2e9a71
+semgrep-rules yaml/kubernetes/security/exposing-docker-socket-hostpath.yaml 59619b7dc2b5a8ef6320af5763324ec128699ed3c11e4b0cdfd5d26f9aca5c38
+semgrep-rules yaml/kubernetes/security/hostipc-pod.yaml 430ac13040a762a246d35d6df436ef19f78504efac755046e10f87cda83fbc14
+semgrep-rules yaml/kubernetes/security/hostnetwork-pod.yaml 7dad4804335c8d672d1e11be204a46373484f58a6e3e371410c4293e2f82c3fa
+semgrep-rules yaml/kubernetes/security/hostpid-pod.yaml 5e2711f9c53d3d22d5873fa08cd11bfa89d499ca2ee2b0db487f320e748f5d37
+semgrep-rules yaml/kubernetes/security/legacy-api-clusterrole-excessive-permissions.yaml e8a9e64081ae003bc064bcf3143692fd394497218dbb3bce4e17432713ffe4bf
+semgrep-rules yaml/kubernetes/security/privileged-container.yaml f7f6f8e1df344a22ca15789861aaa696c40db630c89d2de08c41fc5311b2c89b
+semgrep-rules yaml/kubernetes/security/run-as-non-root.yaml 5cbeac6e554ad434ee3255db21b46f4e60bedf4fbf2395bfcc24bbc709e8c768
+semgrep-rules yaml/kubernetes/security/seccomp-confinement-disabled.yaml 20c4e0df057ab9f4a981d87e7b981d377d0b0d0686792c19d9ae0274bd5a8ced
+semgrep-rules yaml/kubernetes/security/skip-tls-verify-cluster.yaml 7da35939b64ef9bd8376d7ef4bbb8efa82b1f686c20e95418a1dd55909d758ba
+semgrep-rules yaml/kubernetes/security/skip-tls-verify-service.yaml aec958d477f66ea37a4642a56b3cf2c7d64d0fd454fd64a025ab20f804ae2128
+semgrep-rules yaml/openapi/security/openai-consequential-action-false.yaml a6ad4a22b6b39ad8a042371641b8292d082e05085061c58273cac6e81d6447a9
+semgrep-rules yaml/openapi/security/use-of-basic-authentication.yaml c7266e739bbc67ae83670bd6d236eee2ca02a30ef6ccbc081862e9352897059d
+trailofbits generic/amqp-unencrypted-transport.yaml c62b9c722754fd42c6ad2de07f8ef958b19a45c6848f9b71285440852f25f667
+trailofbits generic/container-privileged.yaml 683c5d5ec061374bc4df1a4a0b30d42f339b35efc5ec48c065123b048dd4f4ef
+trailofbits generic/container-user-root.yaml 180ef0015e201056593eb3f6047482e7387666b93fc71a1570553c3305c4e29d
+trailofbits generic/curl-insecure.yaml be37640275e107311722dbf676f9815d23a992ecd43e3e567d5bad7dfaf4488a
+trailofbits generic/curl-unencrypted-url.yaml f402ddf9b92e8f1391e9affbef47cf6887045037d5c895b918f9d9ff6ed2f715
+trailofbits generic/gpg-insecure-flags.yaml 9e8114c430257c5aae9c7b03a6f193502991128aaaf826459d103e25bd1fd228
+trailofbits generic/installer-allow-untrusted.yaml bb06762a7f2599f05f9538dca9c534342757ecc48a7f64d0c19ea6a1e84bbf2f
+trailofbits generic/mongodb-insecure-transport.yaml 3d30363eaefa514b9ef8a9a75cc9e6e13e86ffb5250c8c0f659c28e39cdb16d8
+trailofbits generic/mysql-insecure-sslmode.yaml fbf16304f7b20fb7a2e37a1c22732921b38c85a8936a77f7d9524d2ddca774af
+trailofbits generic/node-disable-certificate-validation.yaml ddc04dfa0408e48e56dd17d528c94302ae0d124e827f5311bae3a6da1150a29d
+trailofbits generic/openssl-insecure-flags.yaml 55874ad76895b4f677b2cbdbc8668fcd1a9ade3cb4075f6d62e886db6366102b
+trailofbits generic/postgres-insecure-sslmode.yaml 9af5fb3db83314e06895b68f05ad8d9ea5332a2c52fb1910b77d390d25e8752b
+trailofbits generic/redis-unencrypted-transport.yaml 447a02aea9b6409f357b2d9d18e49065a4f3031f91212780ff2e4869cb280043
+trailofbits generic/ssh-disable-host-key-checking.yaml 711f593c36f9dc451ce3ee995e8ce2277ff4044c0a08a58fb8bab93455fb42aa
+trailofbits generic/tar-insecure-flags.yaml da0f5de37ec66b31bdd4cab275c10b51adaae1f445178e9babe776781a2b38fe
+trailofbits generic/wget-no-check-certificate.yaml 206d63ba50e0f712480bf2d44ab00dd24a97f6e770f423ea4acf6d5900d060e8
+trailofbits generic/wget-unencrypted-url.yaml 6a8250ea2f3d4c14576db688cc7e6812e0d7f90939bd67d766bf364c585542a8
+trailofbits go/eth-rpc-tracetransaction.yaml 1a46a1515b14dc091e69ba81f2baa037b263529791cbd392cb85a285c9e274db
+trailofbits go/eth-txreceipt-status.yaml aac033c66f63878ff1bed5348f62bba7ed0085714db7d0e27fae7cb3af745223
+trailofbits go/hanging-goroutine.yaml 71dfc612070ad33cae42d0bf43616b63e1f2734da958d9a41b076c87586096b8
+trailofbits go/invalid-usage-of-modified-variable.yaml 689a317dfb6b895922d3fc78925c93a169d7bf869200618e0de395cad70048c9
+trailofbits go/iterate-over-empty-map.yaml ebbefced6ae163de05fbf949d574e5028f0a4b826df0c37c10dbaa539bb1a4a1
+trailofbits go/missing-runlock-on-rwmutex.yaml 5e7a2feddb63906b185c9c4c93b67ecc4d4bf26ee934c6596469f4663eda4166
+trailofbits go/missing-unlock-before-return.yaml 6c4dd97e8724d9354ec6229d9117b960f81e8cdf868e13ecde88133485238afb
+trailofbits go/nil-check-after-call.yaml 4a7bb93baebf1adadc63ed38f20361e5bc94d55e0304f1dbed72db31b13e83d0
+trailofbits go/racy-append-to-slice.yaml d23a6739bb58bf8bfa66904232fdd25af922d12fce8ad4f1dedff8919b38aefb
+trailofbits go/racy-write-to-map.yaml 19e7689879010cd94cc083741f1fa18fecee87f07ffc2622b90754a89eae531b
+trailofbits go/servercodec-readrequestbody-unhandled-nil.yaml 20eeb3ad90ffb4a1dd953f9c4c3f3a8013fddfd3d361be1f03456badf8133dcf
+trailofbits go/string-to-int-signedness-cast.yaml 3277fa287edb997e0bdfcab8ccb04f973fbc26a136d087cc32fa5009a16fc9f0
+trailofbits go/sync-mutex-value-copied.yaml 4e237f89c9d27b773b02e49759104e78e219ee16b9f2f5906272822231ee5256
+trailofbits go/unmarshal_tag_is_dash.yaml f34f75ef47337c6a724da0f84e60ef78ce99020150052c7ca85181caad02fb0c
+trailofbits go/unmarshal_tag_is_omitempty.yaml d577618995b8e8cc92d02f738872bbfebb5a2ff9bde28248bbacaf9ed018ff17
+trailofbits go/unsafe-dll-loading.yaml d4899c23e2cd719413d4e50d04fa6659f397192261f346883c80df3c63c5132d
+trailofbits go/waitgroup-add-called-inside-goroutine.yaml 487851dfa9cb5375eecf7aa50d5fb6b08caea9d1160e0c2b6848dd15aa93914c
+trailofbits go/waitgroup-wait-inside-loop.yaml 0a8c860c2f59a003abb2bcbf5d1fde56339dcf28ee7d44bbcdd4889e42324af0
+trailofbits javascript/apollo-graphql/schema-directives.yaml c24c9ebe75fcb707f289740b11e7992a4dc7d8696fe64ae4fab8ecfdb2b39e98
+trailofbits javascript/apollo-graphql/use-of-graphql-upload.yaml f942ee39229ff59464c28951be08f1076625251f42cb88946db9b878d26678fb
+trailofbits javascript/apollo-graphql/v3-cors-audit.yaml 870184cbafb8688b47572229a9b1c6429948fe06efc110a707895347b56caa4d
+trailofbits javascript/apollo-graphql/v3-cors-express.yaml b091aef587ea503585b48965d8c7c6ccfabc1079eda5ca86525e90ed47637228
+trailofbits javascript/apollo-graphql/v3-cors.yaml d4bcd49a9c2b96cc813a51ac0241b5188f87a151bbe6f47dab81ba565b78c35b
+trailofbits javascript/apollo-graphql/v3-csrf-prevention.yaml bdfb98bb9e14c94aa39c81ed2b825b6454b711e8b60a2623aff8ae91f7243115
+trailofbits javascript/apollo-graphql/v4-csrf-prevention.yaml 786f58142c2d3d9952785829e2773d2ba3e181762cc8fe798efc452c105a88c4
+trailofbits yaml/ansible/apt-key-unencrypted-url.yaml 729a07102517a20f6f0ac54a0b2870a010c67e3f6aaecf94038a646756b0aa34
+trailofbits yaml/ansible/apt-key-validate-certs-disabled.yaml 77f8f4be6f60ec2d1bf757d9af13af3bf8a96c4fea37a982c097eaa7119fb871
+trailofbits yaml/ansible/apt-unencrypted-url.yaml 269dfca5dc564c60cd04c71eff2a120463e6348282442098120f23463ec15c10
+trailofbits yaml/ansible/dnf-unencrypted-url.yaml 53435522efdc093d19a94b77f246a174890e621b7170185851abdb3ad4d1c319
+trailofbits yaml/ansible/dnf-validate-certs-disabled.yaml 7f0bc79725b9b755f1c58755ab7a56877724b3ef6ae6340669fc374ba4450a46
+trailofbits yaml/ansible/get-url-unencrypted-url.yaml 7d8376e6c1ab1480e335a8bf415827707a1fc9b7e7b115b3d54771f906313394
+trailofbits yaml/ansible/get-url-validate-certs-disabled.yaml 45b4c7c03e5a28ec78330370146a9ed713d01b5d502ee45b423e57407a344cb2
+trailofbits yaml/ansible/rpm-key-unencrypted-url.yaml 2dbcbaf39ef5370149e67a3bb5ce9cd94acb22e47ef6e3407d55cdd0cb1a6973
+trailofbits yaml/ansible/rpm-key-validate-certs-disabled.yaml 1df65af29660ac1305ff4a1961db527e8257d266d8ad14e0c0343dff387e1d27
+trailofbits yaml/ansible/unarchive-unencrypted-url.yaml df343cb2160607aabf466e72fe2a980bd33d53a3d3fd30c52254a5ec17bd4f2b
+trailofbits yaml/ansible/unarchive-validate-certs-disabled.yaml 445ee55ee4b8076f2cd7c3ecda52ce57232c52653f17ac3ba94fbfa113bc7f72
+trailofbits yaml/ansible/wrm-cert-validation-ignore.yaml 440b72666de801d4e00e66546ce58cd3f9660d670574ab7d31778563684516e6
+trailofbits yaml/ansible/yum-unencrypted-url.yaml 39e8406e728c55d7b0cbfcb25fb4c233e52e303b5b02c317ebb15051203eee79
+trailofbits yaml/ansible/yum-validate-certs-disabled.yaml 74da2ed2682029830e02c24e8a46177c219c62fd167b86a64d7bbd133bce7a92
+trailofbits yaml/ansible/zypper-repository-unencrypted-url.yaml 9b8e8fd3582192bb26a162a206070dca2cfa527644d753fe71759ea3091bf7a7
+trailofbits yaml/ansible/zypper-unencrypted-url.yaml 716f47be796eedb4953cd3e2a9643687c3083ed2da824288891c29b2fa20eda3
+trailofbits yaml/docker-compose/port-all-interfaces.yaml 2c9f16741ab8c1e6626d863c5a5014a2c5449c234df4331e41834b096c653ac9
+trailofbits yaml/github-actions/aws-secret-key.yaml 3bd934f966c8445aff0601ae7861875684afd2505d5e577d4d40de5ec39333ee
+trailofbits yaml/github-actions/azure-principal-secret.yaml dc538ca25f10bfd23e0f5c8781c21e93972adcc36e16495590fc8501f90d7da8
+trailofbits yaml/github-actions/gcp-credentials-json.yaml 3d740e82e2abaf60d4b090c9ad1f8818bded962987d5661bedd29a26484a62e6
+trailofbits yaml/github-actions/jfrog-hardcoded-credential.yaml bb2821ed60670a3f16cdf003c730f44460771485d3cf656864746bb62df22e59
+trailofbits yaml/github-actions/pypi-publish-password.yaml 5b9fa89ab9d5b01c5c4ac1c02740142812676103a5693825bb2ea46d5df3fe37
+trailofbits yaml/github-actions/rubygems-publish-key.yaml 47de59c946ae20f266b7121a77736cef40ffffd44d94893b591d6a56cd7c49a5
+trailofbits yaml/github-actions/vault-token.yaml 9610ebfd2f4202cab4446e729f5991c84ce3b8f2cdfda5e715195edcf31f68ef
