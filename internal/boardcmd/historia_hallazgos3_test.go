@@ -12,6 +12,7 @@
 package boardcmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -79,10 +80,12 @@ func h3ProblemaSinCrudos(t *testing.T, ca string, p Problem) {
 // CA-450, CA-452, hallazgos 763d5f y feeb49: un hallazgo abierto de la tarea
 // con una severidad que trae ESC/OSC, \r y \n, o un archivo de hallazgo
 // ilegible cuyo nombre trae ESC o \n. El fail-closed se conserva (la tarea
-// no califica; la historica existente no se sostiene), pero ni el motivo de
-// Candidatas, ni el motivo de Gather, ni el problema del doctor traen esos
-// caracteres crudos: no pueden emitir secuencias de terminal ni falsificar
-// lineas.
+// no califica; la historica existente no se sostiene; con los ilegibles, el
+// doctor del proyecto falla cerrado y su error los nombra), pero ninguna
+// salida trae esos caracteres crudos: ni el motivo de Candidatas, ni el de
+// Gather, ni el doctor y el texto de la tarjeta, ni el doctor del proyecto
+// (su reporte y su texto, o su error). No pueden emitir secuencias de
+// terminal ni falsificar lineas.
 func TestCA450_Hallazgo763d5f_ValoresNoConfiablesSinCrudos(t *testing.T) {
 	t.Run("763d5f severidad hostil", func(t *testing.T) {
 		root := bdRepo(t, htBlockOn)
@@ -108,13 +111,19 @@ func TestCA450_Hallazgo763d5f_ValoresNoConfiablesSinCrudos(t *testing.T) {
 		for _, n := range h3NombresHostiles {
 			bdEscribir(t, root, filepath.Join(".hoom", "findings", n), "{esto no es un hallazgo")
 		}
-		h3Comprobar(t, "feeb49", root)
+		h3Comprobar(t, "feeb49", root, "20261023T000000_a", "20261023T000000_b")
 	})
 }
 
 // h3Comprobar: "nueva" (sin item) no califica y su motivo no trae crudos; la
-// historica "hist" no se sostiene, y ni Gather ni el doctor traen crudos.
-func h3Comprobar(t *testing.T, id, root string) {
+// historica "hist" no se sostiene, y ni Gather, ni el doctor de la tarjeta,
+// ni el texto de la tarjeta traen crudos. El doctor del proyecto: con
+// archivos ilegibles (ilegibles, las piezas de sus nombres que el error tiene
+// que nombrar) falla cerrado (endurecimiento-1, hallazgo d0d331) y su error,
+// que tambien es salida humana, no trae crudos; sin ellos da su reporte, con
+// UN historica-sin-sosten de hist, y ni sus problemas ni su texto traen
+// crudos.
+func h3Comprobar(t *testing.T, id, root string, ilegibles ...string) {
 	t.Helper()
 	ca := "CA-450 (" + id + ")"
 	c := htCand(t, ca, htCandidatas(t, ca, root, "high"), "nueva")
@@ -124,13 +133,42 @@ func h3Comprobar(t *testing.T, id, root string) {
 	h3SinCrudos(t, ca, "el motivo de nueva", c.Motivo)
 
 	ca = "CA-452 (" + id + ")"
-	h1NoSeSostiene(t, ca, root, "hist", "")
-	b, r := h1Build(t, ca, root)
-	card := bdCard(t, b, "hist")
+	var problemas []Problem
+	var buf bytes.Buffer
+	if len(ilegibles) > 0 {
+		msg := h1DoctorFallaCerrado(t, ca, root, ilegibles...)
+		h3SinCrudos(t, ca, "el error del doctor del proyecto", msg)
+	} else {
+		h1NoSeSostiene(t, ca, root, "hist", "")
+		r, err := Doctor(root, "main", "high", htAhora)
+		if err != nil {
+			t.Fatalf("%s: Doctor: %v", ca, err)
+		}
+		problemas = append(problemas, r.Problems...)
+		RenderDoctor(&buf, r)
+		h3TextoLimpio(t, ca, "el texto de 'hoom board doctor'", buf.String())
+	}
+	card := h1NoSeSostieneEnLaTarjeta(t, ca, root, "hist", "")
 	ev := Gather(root, "main", "high", card.Item, htAhora)
 	h3SinCrudos(t, ca, "el motivo de Gather de hist", ev.HistoricaMotivo)
-	for _, p := range append(append([]Problem{}, card.Doctor...), r.Problems...) {
+	buf.Reset()
+	RenderCard(&buf, card)
+	h3TextoLimpio(t, ca, "el texto de la tarjeta hist ('hoom item show')", buf.String())
+	for _, p := range append(problemas, card.Doctor...) {
 		h3ProblemaSinCrudos(t, ca, p)
+	}
+}
+
+// h3TextoLimpio exige que ninguna linea de un texto de varias lineas traiga
+// un caracter crudo (\t se permite).
+func h3TextoLimpio(t *testing.T, ca, que, texto string) {
+	t.Helper()
+	for _, l := range strings.Split(texto, "\n") {
+		for _, r := range l {
+			if r != '\t' && h3EsCrudo(r) {
+				t.Fatalf("%s: %s no trae caracteres de control crudos (U+%04X) en %+q", ca, que, r, l)
+			}
+		}
 	}
 }
 

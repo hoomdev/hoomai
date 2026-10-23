@@ -59,33 +59,15 @@ func h1SeSostiene(t *testing.T, ca, root, slug string) {
 	}
 }
 
-// h1NoSeSostiene exige que la historica slug NO se sostenga (CA-452): Gather
-// lo lee con su motivo, la tarjeta no esta en Hecho ni lleva la marca, y el
-// doctor de la tarjeta y el del proyecto dan UN historica-sin-sosten con su
-// accion; si ref no es "", el problema nombra esa evidencia.
+// h1NoSeSostiene exige que la historica slug NO se sostenga (CA-452): por su
+// tarjeta (h1NoSeSostieneEnLaTarjeta) y por el doctor del proyecto, que da UN
+// historica-sin-sosten con su accion.
 func h1NoSeSostiene(t *testing.T, ca, root, slug, ref string) {
 	t.Helper()
-	b, r := h1Build(t, ca, root)
-	c := bdCard(t, b, slug)
-	ev := Gather(root, "main", "high", c.Item, htAhora)
-	if ev.HistoricaSostenida || ev.HistoricaMotivo == "" {
-		t.Fatalf("%s: la evidencia de %s (%s) ya no la sostiene, y Gather dice por que: sostenida=%v motivo=%q",
-			ca, slug, c.Item.Historico, ev.HistoricaSostenida, ev.HistoricaMotivo)
-	}
-	if c.Column == ColHecho || c.Historica {
-		t.Fatalf("%s: la historica %s que no se sostiene deja Hecho y la marca; fue %s historica=%v", ca, slug, c.Column, c.Historica)
-	}
-	var enTarjeta *Problem
-	for i := range c.Doctor {
-		if c.Doctor[i].ID == ProbHistoricaSinSosten {
-			enTarjeta = &c.Doctor[i]
-		}
-	}
-	if enTarjeta == nil || enTarjeta.Action == "" || enTarjeta.What == "" || enTarjeta.Slug != slug {
-		t.Fatalf("%s: la tarjeta %s trae historica-sin-sosten con su accion: %s", ca, slug, drFmt(c.Doctor))
-	}
-	if ref != "" {
-		htMenciona(t, ca, *enTarjeta, ref)
+	h1NoSeSostieneEnLaTarjeta(t, ca, root, slug, ref)
+	r, err := Doctor(root, "main", "high", htAhora)
+	if err != nil {
+		t.Fatalf("%s: Doctor: %v", ca, err)
 	}
 	n := 0
 	for _, p := range r.Problems {
@@ -99,6 +81,60 @@ func h1NoSeSostiene(t *testing.T, ca, root, slug, ref string) {
 	if n != 1 {
 		t.Fatalf("%s: el doctor del proyecto da UN historica-sin-sosten de %s, dio %d:\n%s", ca, slug, n, drFmt(r.Problems))
 	}
+}
+
+// h1NoSeSostieneEnLaTarjeta exige que la historica slug NO se sostenga,
+// mirada por su tarjeta (Build): Gather lo lee con su motivo, la tarjeta no
+// esta en Hecho ni lleva la marca, y el doctor de la tarjeta da UN
+// historica-sin-sosten con su accion; si ref no es "", el problema nombra esa
+// evidencia. Es la forma de mirarla cuando el doctor del proyecto no da un
+// reporte: con evidencia que no pudo leer falla cerrado (endurecimiento-1,
+// hallazgo d0d331). Devuelve la tarjeta.
+func h1NoSeSostieneEnLaTarjeta(t *testing.T, ca, root, slug, ref string) Card {
+	t.Helper()
+	c := bdCard(t, h1Tablero(t, root), slug)
+	ev := Gather(root, "main", "high", c.Item, htAhora)
+	if ev.HistoricaSostenida || ev.HistoricaMotivo == "" {
+		t.Fatalf("%s: la evidencia de %s (%s) ya no la sostiene, y Gather dice por que: sostenida=%v motivo=%q",
+			ca, slug, c.Item.Historico, ev.HistoricaSostenida, ev.HistoricaMotivo)
+	}
+	if c.Column == ColHecho || c.Historica {
+		t.Fatalf("%s: la historica %s que no se sostiene deja Hecho y la marca; fue %s historica=%v", ca, slug, c.Column, c.Historica)
+	}
+	var enTarjeta *Problem
+	n := 0
+	for i := range c.Doctor {
+		if c.Doctor[i].ID == ProbHistoricaSinSosten {
+			enTarjeta = &c.Doctor[i]
+			n++
+		}
+	}
+	if n != 1 || enTarjeta.Action == "" || enTarjeta.What == "" || enTarjeta.Slug != slug {
+		t.Fatalf("%s: la tarjeta %s trae UN historica-sin-sosten con su accion: %s", ca, slug, drFmt(c.Doctor))
+	}
+	if ref != "" {
+		htMenciona(t, ca, *enTarjeta, ref)
+	}
+	return c
+}
+
+// h1DoctorFallaCerrado exige que el doctor del proyecto, sobre un arbol con
+// evidencia que no pudo leer, falle cerrado (endurecimiento-1, hallazgo
+// d0d331): un error y ningun reporte que certifique algo, y que el error
+// nombre cada pieza de nombra. Devuelve el texto del error.
+func h1DoctorFallaCerrado(t *testing.T, ca, root string, nombra ...string) string {
+	t.Helper()
+	r, err := Doctor(root, "main", "high", htAhora)
+	if err == nil {
+		t.Fatalf("%s: con evidencia ilegible el doctor del proyecto falla cerrado (un error), no da un reporte de %d problemas:\n%s",
+			ca, len(r.Problems), drFmt(r.Problems))
+	}
+	for _, n := range nombra {
+		if !strings.Contains(err.Error(), n) {
+			t.Fatalf("%s: el error del doctor del proyecto nombra la evidencia ilegible (%q): %+q", ca, n, err.Error())
+		}
+	}
+	return err.Error()
 }
 
 // h1Severidad reescribe a mano la severidad del hallazgo id en el JSON de
@@ -274,8 +310,10 @@ func TestCA452_Hallazgo6d0cce_HallazgosDeRootYDelEspacio(t *testing.T) {
 // arbol (su tarea y su severidad son desconocidas, y el gate findings_open
 // falla cerrado ante el), la historica "hallazgos" no puede demostrar que sus
 // bloqueantes estan cerrados: aunque su unico hallazgo legible este cerrado,
-// no se sostiene, y el doctor nombra el archivo ilegible. Candidatas tampoco
-// la hace calificar, y su motivo nombra el archivo.
+// no se sostiene, y el doctor nombra el archivo ilegible: el de la tarjeta,
+// con historica-sin-sosten; el del proyecto, que con evidencia ilegible falla
+// cerrado (endurecimiento-1, hallazgo d0d331), en su error. Candidatas
+// tampoco la hace calificar, y su motivo nombra el archivo.
 func TestCA452_Hallazgo1d6b30_HallazgoIlegibleNoSostiene(t *testing.T) {
 	root := bdRepo(t, htBlockOn)
 	htCerrar(t, root, htHallazgo(t, root, "corr", "high"), finding.StatusCorrected)
@@ -292,7 +330,8 @@ func TestCA452_Hallazgo1d6b30_HallazgoIlegibleNoSostiene(t *testing.T) {
 	}
 
 	t.Run("CA-452 la historica existente no se sostiene", func(t *testing.T) {
-		h1NoSeSostiene(t, "CA-452 (1d6b30)", root, "corr", h1Ilegible)
+		h1NoSeSostieneEnLaTarjeta(t, "CA-452 (1d6b30)", root, "corr", h1Ilegible)
+		h1DoctorFallaCerrado(t, "CA-452 (1d6b30)", root, h1Ilegible)
 	})
 	t.Run("CA-450 Candidatas no la hace calificar", func(t *testing.T) {
 		htNoCalifica(t, "CA-450 (1d6b30)", htCandidatas(t, "CA-450", root, "high"), "nueva", h1Ilegible)

@@ -70,7 +70,7 @@ func build(g *gatherer) (Board, error) {
 	sort.Strings(dirs)
 	for _, d := range dirs {
 		for _, w := range g.trees[d].findingWarnings {
-			b.Warnings = append(b.Warnings, g.prefijo(d)+w)
+			b.Warnings = append(b.Warnings, g.prefijo(d)+texto(w))
 		}
 	}
 	// the sources it could not read, once: an unreadable findings
@@ -131,8 +131,12 @@ type gatherer struct {
 	fallas []string
 }
 
-// fallar records a source the gatherer could not read, once.
+// fallar records a source the gatherer could not read, once. The message
+// names files of the evidence, which git lets carry control and direction
+// characters: it is kept escaped (texto), as the board and the doctor print
+// it (finding feeb49).
 func (g *gatherer) fallar(msg string) {
+	msg = texto(msg)
 	for _, f := range g.fallas {
 		if f == msg {
 			return
