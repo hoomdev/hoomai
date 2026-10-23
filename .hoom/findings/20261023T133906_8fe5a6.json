@@ -1,0 +1,11 @@
+{
+  "id": "20261023T133906_8fe5a6",
+  "created_at": "2026-10-23T13:39:06.35429Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gitx/diff.go",
+  "description": "PRE-EXISTENTE (diseno; follow-up, pide decision/spec) — la evidencia de hoom review es todo lo que esta fuera de .hoom/ mas .hoom/agents/ (internal/gitx/diff.go:134 evidencePaths, y CambioSinCommitear :284). .hoom/semgrep/ guarda codigo que el gate security EJECUTA (gate.sh, las reglas propias, el lock que fija que reglas corren) y queda fuera: la review de lock-semgrep (registro 20261023T133540_f0e5f1) recibio 1352 bytes (solo los comentarios de ci.yml y hoom.yaml), dos lentes respondieron 'los cambios son unicamente comentarios', y el registro dice cobertura: completa. Lo mismo paso con gate.sh en gates-dogfood. El harness declara mas de lo que reviso. Opciones: sumar .hoom/semgrep/ (o todo lo que un gate de hoom.yaml ejecute bajo .hoom/) a evidencePaths como .hoom/agents/, o que la review avise/baje la cobertura cuando el cambio toca .hoom/ fuera de la evidencia. Toca el contrato de review-aislada/review-por-diferencia.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}
