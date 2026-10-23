@@ -1,5 +1,6 @@
-// Package itemcmd implements `hoom item add | list | show | save`: the verbs
-// of the card as a file. Parsing is pure and strict from day one (cliargs), so a
+// Package itemcmd implements `hoom item add | list | show | save | backfill`:
+// the verbs of the card as a file (backfill gives an item to the tasks from
+// before the cabin that the evidence holds). Parsing is pure and strict from day one (cliargs), so a
 // request hoom does not understand is answered before the project is read,
 // and it never leaves a half-written item behind.
 package itemcmd
@@ -10,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"os/exec"
@@ -90,7 +92,8 @@ type BackfillResult struct {
 
 // Backfill creates an item with historico for every task with evidence and
 // no item that qualifies, and lists the rest with why. dryRun writes
-// nothing.
+// nothing. On an error nothing is left half done: the items this run
+// already created are taken back (findings d03734, a5e1d2).
 func Backfill(root, base, blockOn string, dryRun bool, now time.Time) (BackfillResult, error) {
 	res := BackfillResult{DryRun: dryRun, Creados: []boardcmd.Candidata{}, NoCalifican: []boardcmd.Candidata{}, ConItem: []string{}}
 	cands, err := boardcmd.Candidatas(root, base, blockOn, now)
@@ -114,13 +117,35 @@ func Backfill(root, base, blockOn string, dryRun bool, now time.Time) (BackfillR
 				// as it is
 				res.ConItem = append(res.ConItem, c.Slug)
 			case err != nil:
-				return res, fmt.Errorf("no se pudo crear el item de %s: %w", c.Slug, err)
+				err = fmt.Errorf("no se pudo crear el item de %s: %w", c.Slug, err)
+				err = retirar(root, res.Creados, err)
+				res.Creados = []boardcmd.Candidata{}
+				return res, err
 			default:
 				res.Creados = append(res.Creados, c)
 			}
 		}
 	}
 	return res, nil
+}
+
+// retirar takes back the items of creados, which this run wrote moments
+// ago, after the error causa: it returns causa saying what was taken back,
+// and naming whatever could not be.
+func retirar(root string, creados []boardcmd.Candidata, causa error) error {
+	if len(creados) == 0 {
+		return causa
+	}
+	var quedan []string
+	for _, c := range creados {
+		if err := os.Remove(item.Path(root, c.Slug)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			quedan = append(quedan, fmt.Sprintf("%s (%v)", item.RelPath(c.Slug), err))
+		}
+	}
+	if len(quedan) > 0 {
+		return fmt.Errorf("%w; no se pudieron retirar los items que esta corrida ya habia creado: %s", causa, strings.Join(quedan, ", "))
+	}
+	return fmt.Errorf("%w; se retiraron los %d items que esta corrida ya habia creado", causa, len(creados))
 }
 
 // Parse is the syntactic AND vocabulary stage, pure: no disk, no

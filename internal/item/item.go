@@ -6,6 +6,11 @@
 // move the card: its column is a function of the evidence (see boardcmd), so
 // a key like `columna:` makes the file invalid instead of being obeyed.
 //
+// One key is not a person's: `historico`, which only `hoom item backfill`
+// writes, on a card from before the cabin. It does not move the card
+// either: it says which evidence to look at (a verdict, or the task's
+// findings), and the card is in Hecho only while that evidence holds it.
+//
 // The slug is the file name and the card's only identity for its whole life:
 // it is also the spec's name (.hoom/specs/<slug>.md) and the task's
 // (`hoom task start <slug>`).

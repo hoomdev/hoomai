@@ -417,7 +417,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 	ev.UnreadableFindings = t.unreadable
 	// a card from before the cabin: whether its historico still holds it
-	g.sostenHistorica(&ev, t)
+	g.sostenHistorica(&ev, dir)
 
 	if ev.Worktree {
 		if err := taskcmd.Ready(g.root, s, g.base); err != nil {
