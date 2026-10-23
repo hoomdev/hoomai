@@ -7,6 +7,9 @@
 # motor, red, git o disco). Cualquier otro codigo es de semgrep (7: config
 # invalida) o, en el CI, de docker (125).
 set -eu
+# un cd a una ruta relativa no consulta CDPATH (con '.' adentro imprimiria el
+# directorio y lo mezclaria con los sha256, hallazgo fb59c4)
+unset CDPATH
 lock=.hoom/semgrep/paquetes.lock
 cache=.hoom/cache/semgrep
 
@@ -71,6 +74,10 @@ while read -r a b c d e f; do
 		# semgrep no carga como reglas los tests ni los .fixed: el lock fijaria
 		# una regla que nunca corre
 		case "$b" in *.test.yaml | *.test.yml | *.fixed.*) mal "$a $b (semgrep no lo carga como reglas)" ;; esac
+		# ni un nombre oculto, ni uno que es solo la extension (.yaml): semgrep
+		# no lo carga (hallazgo b14100); ni uno que sha tomaria por opcion
+		case "${b##*/}" in .*) mal "$a $b (semgrep no carga un nombre oculto)" ;; esac
+		case "${b##*/}" in -*) mal "$a $b (un nombre que empieza con -)" ;; esac
 		case "$c" in *[!0-9a-f]*) mal "$a $b: sha256 $c" ;; esac
 		[ "${#c}" -eq 64 ] || mal "$a $b: sha256 $c"
 		;;
@@ -91,7 +98,9 @@ tiene=$(semgrep --version 2>/dev/null | tail -n 1)
 # bien queda y se borra una hora despues, como lo que dejo una corrida que
 # murio a medias.
 mkdir -p "$cache" || falla "no se pudo crear $cache"
-find "$cache" -maxdepth 1 \( -name 'corrida.*' -o -name 'clon.*' -o -name '*.viejo.*' \) -mmin +60 \
+# los nombres exactos de mktemp: un repo llamado clon o corrida publica
+# clon.git o corrida.git, que no es basura (hallazgo ccf771)
+find "$cache" -maxdepth 1 \( -name 'corrida.??????' -o -name 'clon.??????' -o -name '*.git.viejo.*' \) -mmin +60 \
 	-exec rm -rf {} + 2>/dev/null || true
 corrida=$(mktemp -d "$cache/corrida.XXXXXX") || falla "no se pudo crear la carpeta de la corrida"
 trap 'rm -rf "$corrida"' EXIT
@@ -109,7 +118,7 @@ extraer() {
 	[ -z "$(find "$plano" ! -type f ! -type d)" ] || return 1
 	[ "$(find "$plano" -type f | wc -l | tr -d ' ')" = "$cuantas" ] || return 1
 	# shellcheck disable=SC2086
-	(cd "$plano" && sha $rutas) | LC_ALL=C sort >"$corrida/$nombre.tiene" || return 1
+	(cd "$plano" && sha -- $rutas) | LC_ALL=C sort >"$corrida/$nombre.tiene" || return 1
 	cmp -s "$corrida/$nombre.quiere" "$corrida/$nombre.tiene"
 }
 
@@ -127,10 +136,13 @@ while read -r a b c d e f; do
 	# sin rutas, git archive entregaria el repo entero
 	[ -n "$rutas" ] || falla "el repo $nombre no tiene archivos en $lock"
 	cuantas=$(printf '%s\n' "$rutas" | wc -l | tr -d ' ')
-	awk -v n="$nombre" '$1 == n { print $3 "  " $2 }' "$lock" | LC_ALL=C sort >"$corrida/$nombre.quiere"
+	awk -v n="$nombre" '$1 == n { print $3 "  " $2 }' "$lock" | LC_ALL=C sort >"$corrida/$nombre.quiere" ||
+		falla "no se pudo escribir en $corrida"
 	plano="$corrida/plano/$nombre"
 	clon="$cache/$nombre.git"
-	if [ -d "$clon" ] && extraer "$clon"; then
+	# el clon que esta corrida miro: el que se reemplaza si no cuadra
+	visto=$(ls -di "$clon" 2>/dev/null | awk '{ print $1 }') || visto=""
+	if [ -n "$visto" ] && [ -d "$clon" ] && extraer "$clon"; then
 		:
 	else
 		nuevo=$(mktemp -d "$cache/clon.XXXXXX") || falla "no se pudo crear un clon para $nombre"
@@ -152,15 +164,19 @@ while read -r a b c d e f; do
 			rm -rf "$nuevo"
 			falla "el commit $commit de $url no entrega los archivos que fija $lock (falta una ruta o cambio un sha256)"
 		fi
-		# queda como el clon del cache para la proxima corrida; si otra lo
-		# publico antes, se descarta este
-		if [ -e "$clon" ]; then
+		# queda como el clon del cache para la proxima corrida, en lugar del
+		# que esta corrida vio y no cuadro; si mientras tanto otra corrida
+		# publico el suyo, queda ese y este se descarta (hallazgo 7418b6)
+		ahora=$(ls -di "$clon" 2>/dev/null | awk '{ print $1 }') || ahora=""
+		if [ -n "$ahora" ] && [ "$ahora" = "$visto" ]; then
 			mv "$clon" "$clon.viejo.$$" 2>/dev/null || true
 			rm -rf "$clon.viejo.$$"
 		fi
 		if [ -e "$clon" ] || ! mv "$nuevo" "$clon" 2>/dev/null; then
 			rm -rf "$nuevo"
 		fi
+		# si otra corrida publico entre el [ -e ] y el mv, mv lo metio adentro
+		rm -rf "$clon/${nuevo##*/}"
 	fi
 	for ruta in $rutas; do
 		destino="$corrida/reglas/$carpeta/${ruta%.*}"
