@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T134734_752455",
+  "as": "corregido",
+  "evidence": "a92f1d6: Candidatas no hace calificar una tarea cuyo .hoom/items/\u003cslug\u003e.yaml esta ocupado por algo que no es un item (motivo 'en .hoom/items/\u003cslug\u003e.yaml hay algo que no es un item'), asi --dry-run y la corrida real dicen lo mismo y nada dice 'ya tiene item'. Tests 6a84273 (fallan sobre 65e4498): TestCA453_Hallazgo752455_DirectorioEnLugarDelItemNoCalifica y TestCA446_Hallazgo752455_BackfillDirectorioEnLugarDelItem.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:14:47.225783Z"
+}
