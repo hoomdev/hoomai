@@ -35,6 +35,9 @@ const (
 	ProbSobreHuerfano    = "sobre-huerfano"
 	ProbSinSpec          = "sin-spec"
 	ProbEvidenciaSinItem = "evidencia-sin-item"
+	// ProbHistoricaSinSosten: an item with historico whose evidence no
+	// longer holds it (historia-en-el-tablero).
+	ProbHistoricaSinSosten = "historica-sin-sosten"
 )
 
 // DoctorSinSpecDias: an item older than this without a spec is a problem.

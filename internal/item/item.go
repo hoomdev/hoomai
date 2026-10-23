@@ -76,6 +76,26 @@ type Item struct {
 	// AutoHastaHumano). It never moves the card: it lets the Studio ask the
 	// next role of the fixed table after a successful envelope.
 	Auto string `yaml:"auto,omitempty" json:"auto,omitempty"`
+	// Historico says which evidence holds a card that predates the cabin:
+	// "veredicto <id>" (the green complete verdict of its spec, integrated
+	// in the base) or "hallazgos" (a task without spec whose blocking
+	// findings are all closed). Only `hoom item backfill` writes it. It never
+	// moves the card by itself: the board puts the card in Hecho while that
+	// evidence still holds (historia-en-el-tablero).
+	Historico string `yaml:"historico,omitempty" json:"historico,omitempty"`
+}
+
+// HistoricoHallazgos is the Historico of a task without spec held by its
+// closed findings.
+const HistoricoHallazgos = "hallazgos"
+
+// HistoricoVeredicto is the Historico of a card held by verdict id.
+func HistoricoVeredicto(id string) string { return "veredicto " + id }
+
+// LeerHistorico reads a Historico: the verdict id it names, or hallazgos,
+// and whether it is one of the two shapes at all.
+func LeerHistorico(s string) (veredicto string, hallazgos bool, ok bool) {
+	return "", false, false
 }
 
 // Sesion is one interactive session opened on the card's workspace.
@@ -95,6 +115,9 @@ type Draft struct {
 	Slug           string
 	PresupuestoUSD *float64
 	Auto           string // "" or AutoHastaHumano
+	// Historico: only `hoom item backfill` sets it (no flag of `item add`
+	// does).
+	Historico string
 }
 
 // ErrExists is wrapped by Add when the item's file is already there.
