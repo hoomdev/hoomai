@@ -1,0 +1,11 @@
+{
+  "id": "20261023T141352_ec7678",
+  "created_at": "2026-10-23T14:13:52.494922Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/boardcmd/render.go",
+  "description": "PRE-EXISTENTE (follow-up; lo verifico el test-writer de la ronda 2 con una sonda) — hoom board imprime crudos los titulos con ESC, NUL, \\r o U+202E, y hoom item add los sigue aceptando (item.Validate no los rechaza). Backfill ya no los copia de un spec (1499b7), pero un item escrito a mano o que llega por git con esos caracteres manda secuencias al terminal de quien mira el tablero. Correccion: que item.Validate rechace caracteres de control y de direccion en titulo y demas textos, o escapar los textos de evidencia al imprimirlos en terminal.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "7630099f08054ba9",
+  "task": "historia-en-el-tablero"
+}
