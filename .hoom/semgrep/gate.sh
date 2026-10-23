@@ -74,9 +74,9 @@ while read -r a b c d e f; do
 		# semgrep no carga como reglas los tests ni los .fixed: el lock fijaria
 		# una regla que nunca corre
 		case "$b" in *.test.yaml | *.test.yml | *.fixed.*) mal "$a $b (semgrep no lo carga como reglas)" ;; esac
-		# ni un nombre oculto, ni uno que es solo la extension (.yaml): semgrep
-		# no lo carga (hallazgo b14100); ni uno que sha tomaria por opcion
-		case "${b##*/}" in .*) mal "$a $b (semgrep no carga un nombre oculto)" ;; esac
+		# ni un archivo que se llama solo .yaml o .yml: semgrep no lo carga
+		# (hallazgos b14100, 0fe8c4); ni uno que sha tomaria por opcion
+		case "${b##*/}" in .yaml | .yml) mal "$a $b (semgrep no carga un archivo que se llama solo ${b##*/})" ;; esac
 		case "${b##*/}" in -*) mal "$a $b (un nombre que empieza con -)" ;; esac
 		case "$c" in *[!0-9a-f]*) mal "$a $b: sha256 $c" ;; esac
 		[ "${#c}" -eq 64 ] || mal "$a $b: sha256 $c"
@@ -85,7 +85,9 @@ while read -r a b c d e f; do
 done <"$lock"
 [ -n "$version" ] || falla "$lock no fija la version de semgrep"
 [ "$repos" != " " ] || falla "$lock no declara ningun repo de reglas"
-if [ -n "$(awk '!/^(#|$)/ { print $1, $2 }' "$lock" | sort | uniq -d)" ]; then
+# las lineas que read saltea (en blanco, o un comentario con espacios antes)
+# no cuentan (hallazgo 16261b)
+if [ -n "$(awk '!/^[[:space:]]*(#|$)/ { print $1, $2 }' "$lock" | sort | uniq -d)" ]; then
 	falla "$lock tiene lineas repetidas"
 fi
 
@@ -155,28 +157,30 @@ while read -r a b c d e f; do
 			fetch -q --depth 1 "$url" "$commit"; do
 			intentos=$((intentos + 1))
 			if [ "$intentos" -ge 3 ]; then
-				rm -rf "$nuevo"
+				rm -rf "$nuevo" 2>/dev/null || true
 				falla "no se pudo bajar el commit $commit de $url"
 			fi
 			sleep 3
 		done
 		if ! extraer "$nuevo"; then
-			rm -rf "$nuevo"
+			rm -rf "$nuevo" 2>/dev/null || true
 			falla "el commit $commit de $url no entrega los archivos que fija $lock (falta una ruta o cambio un sha256)"
 		fi
 		# queda como el clon del cache para la proxima corrida, en lugar del
 		# que esta corrida vio y no cuadro; si mientras tanto otra corrida
-		# publico el suyo, queda ese y este se descarta (hallazgo 7418b6)
+		# publico el suyo, queda ese y este se descarta (hallazgo 7418b6). La
+		# limpieza puede fallar: lo que quede lo borra una corrida posterior
+		# (hallazgo 2b2506)
 		ahora=$(ls -di "$clon" 2>/dev/null | awk '{ print $1 }') || ahora=""
 		if [ -n "$ahora" ] && [ "$ahora" = "$visto" ]; then
 			mv "$clon" "$clon.viejo.$$" 2>/dev/null || true
-			rm -rf "$clon.viejo.$$"
+			rm -rf "$clon.viejo.$$" 2>/dev/null || true
 		fi
 		if [ -e "$clon" ] || ! mv "$nuevo" "$clon" 2>/dev/null; then
-			rm -rf "$nuevo"
+			rm -rf "$nuevo" 2>/dev/null || true
 		fi
 		# si otra corrida publico entre el [ -e ] y el mv, mv lo metio adentro
-		rm -rf "$clon/${nuevo##*/}"
+		rm -rf "$clon/${nuevo##*/}" 2>/dev/null || true
 	fi
 	for ruta in $rutas; do
 		destino="$corrida/reglas/$carpeta/${ruta%.*}"

@@ -51,11 +51,11 @@ done <"$lock"
 set +f
 
 # un sha256 por archivo del lock, o nada se toca (hallazgo acaf6e)
-[ "$(wc -l <"$tmp/hashes" | tr -d ' ')" = "$(awk '!/^(#|$)/ && $1 != "semgrep" && $1 != "repo"' "$lock" | wc -l | tr -d ' ')" ] ||
+[ "$(wc -l <"$tmp/hashes" | tr -d ' ')" = "$(awk '!/^[[:space:]]*(#|$)/ && $1 != "semgrep" && $1 != "repo"' "$lock" | wc -l | tr -d ' ')" ] ||
 	falla "no salio un sha256 por cada archivo del lock"
 # cada linea de archivo con su sha256 nuevo; el resto del lock queda igual
 awk 'FILENAME == ARGV[1] { h[$1 " " $2] = $3; next }
-	/^(#|$)/ || $1 == "semgrep" || $1 == "repo" { print; next }
+	/^[[:space:]]*(#|$)/ || $1 == "semgrep" || $1 == "repo" { print; next }
 	{ k = $1 " " $2; if (!(k in h)) { print "fijar: sin sha256 para " k > "/dev/stderr"; exit 2 }; print $1, $2, h[k] }' \
 	"$tmp/hashes" "$lock" >"$tmp/lock"
 cp "$tmp/lock" "$lock"
