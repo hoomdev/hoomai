@@ -602,6 +602,7 @@ func (s *Server) terminal(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.cardOf(w, slug); !ok {
 		return
 	}
+	// nosemgrep: trailofbits.go.invalid-usage-of-modified-variable.invalid-usage-of-modified-variable -- con error, Capture igual devuelve la sesion que miro, y la respuesta la conserva
 	t, err := cockpitcmd.Capture(s.m.Dir, s.m.Project, slug, s.cockpit)
 	if err != nil {
 		t.Available, t.Text, t.Note = false, "", err.Error()

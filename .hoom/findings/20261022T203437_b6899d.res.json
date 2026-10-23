@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203437_b6899d",
+  "as": "corregido",
+  "evidence": "d84d08e: gate.sh baja cada paquete a un temporal propio de la corrida (mktemp \"$archivo.XXXXXX\") y solo hace mv al nombre final despues de comprobar el hash; dos verify simultaneos ya no comparten temporal.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:37:08.862156Z"
+}

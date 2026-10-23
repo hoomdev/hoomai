@@ -5,13 +5,29 @@ profile: go
 base_branch: main
 policy: strict
 gates:
+  test:
+    # el mismo comando del perfil con un tope propio: sin -timeout, go test
+    # corta cada paquete a los 10 minutos, y reviewcmd con -race ya tarda
+    # ~550 s en una Mac; con la maquina ocupada daba rojo por tiempo sin
+    # ningun defecto (hallazgo 20261007T145523_e3a958)
+    cmd: "go test -race -timeout 20m ./..."
+    diff_cmd: "go test -race -timeout 20m {packages}"
   mutation:
     required: false
     cmd: ""
     # Gremlins se corre manualmente por ahora; se activara cuando haya suite de tests.
   lint:
-    required: false
-    cmd: ""
+    # golangci-lint con .golangci.yml: govet, ineffassign, staticcheck y
+    # unused sobre el codigo que se entrega (los tests no)
+    required: true
+    cmd: "golangci-lint run ./..."
+  security:
+    # semgrep con reglas fijadas: los paquetes de la comunidad por sha256 y la
+    # version del motor en .hoom/semgrep/paquetes.lock, mas las propias de
+    # .hoom/semgrep/reglas/. .semgrepignore deja fuera vendor y los tests.
+    # Cada excepcion vive en el codigo como nosemgrep con su razon.
+    required: true
+    cmd: "sh .hoom/semgrep/gate.sh"
   arch:
     required: false
     cmd: ""

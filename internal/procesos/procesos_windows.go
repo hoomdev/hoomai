@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	kernel32                     = syscall.NewLazyDLL("kernel32.dll")
+	kernel32                     = syscall.NewLazyDLL("kernel32.dll") // nosemgrep: trailofbits.go.unsafe-dll-loading.unsafe-dll-loading -- kernel32.dll esta en KnownDLLs: Windows siempre la carga de System32
 	procCreateJobObjectW         = kernel32.NewProc("CreateJobObjectW")
 	procSetInformationJobObject  = kernel32.NewProc("SetInformationJobObject")
 	procAssignProcessToJobObject = kernel32.NewProc("AssignProcessToJobObject")

@@ -58,18 +58,18 @@ func DefaultDeps() Deps {
 	return Deps{
 		LookPath: exec.LookPath,
 		RunCmd: func(dir, name string, args ...string) error {
-			cmd := exec.Command(name, args...)
+			cmd := exec.Command(name, args...) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- tmux/zellij por nombre fijo; los argumentos los arma hoom
 			cmd.Dir = dir
 			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 			return cmd.Run()
 		},
 		QuietCmd: func(dir, name string, args ...string) error {
-			cmd := exec.Command(name, args...)
+			cmd := exec.Command(name, args...) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- tmux/zellij por nombre fijo; los argumentos los arma hoom
 			cmd.Dir = dir
 			return cmd.Run()
 		},
 		Output: func(dir, name string, args ...string) ([]byte, error) {
-			cmd := exec.Command(name, args...)
+			cmd := exec.Command(name, args...) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- tmux/zellij por nombre fijo; los argumentos los arma hoom
 			cmd.Dir = dir
 			return cmd.Output()
 		},
@@ -88,7 +88,7 @@ func DepsConPlazo(plazo time.Duration) Deps {
 	d := DefaultDeps()
 	conPlazo := func(dir, name string, args ...string) (*exec.Cmd, context.CancelFunc) {
 		ctx, cancel := context.WithTimeout(context.Background(), plazo)
-		cmd := exec.CommandContext(ctx, name, args...)
+		cmd := exec.CommandContext(ctx, name, args...) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- tmux por nombre fijo, con plazo
 		cmd.Dir = dir
 		procesos.EnGrupo(cmd)
 		cmd.WaitDelay = time.Second

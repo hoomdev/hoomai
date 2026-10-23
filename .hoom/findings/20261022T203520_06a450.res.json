@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203520_06a450",
+  "as": "corregido",
+  "evidence": "d84d08e: el comentario del CI dice que la version de golangci-lint (v2.15.0) se fija en el workflow y que .golangci.yml solo configura los linters.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:37:08.893245Z"
+}

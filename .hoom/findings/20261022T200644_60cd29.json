@@ -1,0 +1,11 @@
+{
+  "id": "20261022T200644_60cd29",
+  "created_at": "2026-10-22T20:06:44.566616Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "hoom.yaml",
+  "description": "INTRODUCIDO — hoom.yaml:22 hace obligatorio un gate que resuelve en cada corrida los alias remotos y mutables p/default y p/trailofbits, pero el repositorio no congela las reglas resueltas ni la version de Semgrep. Esos rulesets se actualizan en el Registry, asi que el mismo arbol y la misma huella pueden pasar hoy y adquirir hallazgos mañana sin cambio de codigo; el veredicto tampoco conserva que revision de reglas produjo el verde. Para que el gate sea reproducible, debe ejecutarse contra reglas/version de herramienta fijadas o versionadas.",
+  "author": "reviewer@codex",
+  "fingerprint": "fec46bb22adf615f",
+  "task": "gates-dogfood"
+}

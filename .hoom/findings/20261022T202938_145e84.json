@@ -1,0 +1,11 @@
+{
+  "id": "20261022T202938_145e84",
+  "created_at": "2026-10-22T20:29:38.74023Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": ".github/workflows/ci.yml",
+  "description": "INTRODUCIDO — .github/workflows/ci.yml:21 instala y luego ejecuta Semgrep con 'pipx install semgrep==1.175.0'. Esa igualdad fija solo la distribucion directa: no hay hashes de wheels/sdists ni lock del grafo transitivo, y Semgrep 1.175.0 declara varias dependencias por rangos abiertos; por eso dos runners limpios pueden descargar y ejecutar bytes distintos. Como ese codigo produce el resultado del gate security, una dependencia comprometida puede falsear el control. .hoom/semgrep/paquetes.lock:11-13 solo fija la cadena de version del motor y los hashes de los YAML de reglas, no la integridad del motor ni sus dependencias. Conviene instalar desde un lock con hashes o una imagen/artefacto por digest; el patron de pip/pipx sin require-hashes en workflows es candidato a regla Semgrep custom.",
+  "author": "reviewer@codex",
+  "fingerprint": "b2f7590e9e8710a0",
+  "task": "gates-dogfood"
+}

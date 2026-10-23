@@ -7,10 +7,36 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.25"
+      # herramientas de los gates lint y security. golangci-lint: la version se
+      # fija aca (v2.15.0); .golangci.yml solo configura los linters.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          install-only: true
+      # semgrep: la imagen oficial 1.175.0 fijada por digest, que cubre el
+      # motor y todas sus dependencias; el comando semgrep del PATH la corre
+      # sobre el checkout. La version tiene que coincidir con
+      # .hoom/semgrep/paquetes.lock.
+      - name: semgrep
+        env:
+          SEMGREP_IMAGEN: semgrep/semgrep:1.175.0@sha256:b94b53d02fd4a022f9eac4e2af1380f5c3c4c21400e79d3336bdff1d1db5e796
+        run: |
+          docker pull "$SEMGREP_IMAGEN"
+          echo "SEMGREP_IMAGEN=$SEMGREP_IMAGEN" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 755 .github/semgrep-en-docker.sh "$RUNNER_TEMP/bin/semgrep"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/semgrep" --version
+      # los paquetes de reglas ya bajados y comprobados por hash: un runner
+      # nuevo no depende del registro mientras el lock no cambie
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .hoom/cache/semgrep
+          key: semgrep-reglas-${{ hashFiles('.hoom/semgrep/paquetes.lock') }}
       - name: build
         run: go build -mod=vendor ./...
       - name: vet
@@ -21,7 +47,7 @@ jobs:
       - name: hoom verify (dogfood)
         run: |
           go build -mod=vendor -o /usr/local/bin/hoom ./cmd/hoom
-          hoom verify --gate build,static,test || {
+          hoom verify --gate build,static,test,lint,security || {
             # el reporte muestra solo las ultimas lineas de cada gate: aca va
             # lo que el veredicto guardo del que fallo, para ver que paquete fue
             jq -r '.gates[] | select(.status == "fail" or .status == "error") | "--- gate \(.name): salida guardada\n\(.output_tail)"' "$(ls -t .hoom/verdicts/*.json | head -1)"

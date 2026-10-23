@@ -366,6 +366,7 @@ func unverifiedWorktrees(g *gatherer, items map[string]bool, worktrees []string)
 // evidenceWithoutItem: tasks with verdicts or findings and no item file, one
 // problem per task. A verdict or finding seen in several trees counts once.
 func evidenceWithoutItem(g *gatherer, items map[string]bool, worktrees []string) []Problem {
+	// nosemgrep: trailofbits.go.iterate-over-empty-map.iterate-over-empty-map -- los llena note antes de recorrerlos
 	verdicts, findings := map[string]map[string]bool{}, map[string]map[string]bool{}
 	note := func(m map[string]map[string]bool, task, id string) {
 		if m[task] == nil {

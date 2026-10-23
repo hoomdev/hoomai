@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203520_06a450",
+  "created_at": "2026-10-22T20:35:20.56288Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": ".github/workflows/ci.yml",
+  "description": "INTRODUCIDO — .github/workflows/ci.yml:14-18: el comentario afirma que la versión de golangci-lint está fijada en .golangci.yml, pero ese archivo solo declara el esquema/configuración (version: \"2\"); la versión ejecutable v2.15.0 se fija en este mismo workflow. La referencia equivocada hace más difícil localizar y mantener el pin.",
+  "author": "reviewer@codex",
+  "fingerprint": "b2f7590e9e8710a0",
+  "task": "gates-dogfood"
+}

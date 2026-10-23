@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203433_18bc22",
+  "as": "corregido",
+  "evidence": "d84d08e: actions/cache (fijada por SHA, v5.1.0) restaura .hoom/cache/semgrep con llave semgrep-reglas-\u003chash del lock\u003e; gate.sh reintenta la descarga con curl --retry 4 --retry-all-errors y el hash se comprueba igual. Probado localmente con la cache vacia: gate exit 0.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:37:08.831557Z"
+}

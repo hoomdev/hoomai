@@ -189,8 +189,8 @@ func Select(opt Options) ([]agents.Role, []providers.Provider, error) {
 		r, err := agents.Lookup(want)
 		if err != nil {
 			var slugs []string
-			for _, r := range roles {
-				slugs = append(slugs, r.Slug)
+			for _, rol := range roles {
+				slugs = append(slugs, rol.Slug)
 			}
 			return nil, nil, cliargs.NewUsageError("roles", fmt.Sprintf("rol desconocido %q (validos: %s)", want, strings.Join(slugs, ", ")), UsageText)
 		}
@@ -200,8 +200,8 @@ func Select(opt Options) ([]agents.Role, []providers.Provider, error) {
 		p, err := providers.Lookup(want)
 		if err != nil {
 			var names []string
-			for _, p := range provs {
-				names = append(names, p.Name())
+			for _, prov := range provs {
+				names = append(names, prov.Name())
 			}
 			return nil, nil, cliargs.NewUsageError("roles", fmt.Sprintf("provider desconocido %q (validos: %s)", want, strings.Join(names, ", ")), UsageText)
 		}

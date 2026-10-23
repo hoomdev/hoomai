@@ -1,0 +1,13 @@
+# Reglas que corre el gate security, fijadas para que el mismo arbol de el
+# mismo veredicto (hallazgo 20261022T200644_60cd29).
+#
+# semgrep <version>: la version del motor; otra version es un error del gate.
+# <paquete> <sha256>: un paquete del registro, por el sha256 exacto del YAML
+#   que entrega https://semgrep.dev/c/<paquete>. Las reglas no se copian al
+#   repo (su licencia no lo permite): .hoom/semgrep/gate.sh las baja a
+#   .hoom/cache/semgrep/ y solo las usa si el hash coincide. Si el registro
+#   cambio el paquete, el gate falla y lo dice: actualizar este archivo es un
+#   acto deliberado, revisando las reglas nuevas.
+semgrep 1.175.0
+p/default 99fecfb388687fe4b079edae4657891bc1fed672a0cc33e095d848f2d300a02e
+p/trailofbits 3b7a9cf2b0f24affc26615a7b9382d4ac52eaf58c38025f016b8d6323f5067ab

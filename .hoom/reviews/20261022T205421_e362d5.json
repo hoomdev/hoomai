@@ -1,0 +1,60 @@
+{
+  "id": "20261022T205421_e362d5",
+  "created_at": "2026-10-22T20:54:21.261857Z",
+  "task": "gates-dogfood",
+  "spec": "",
+  "fingerprint": "d9e3657389df537f",
+  "verdict_id": "2026-10-22T20-50-41Z_64a6f704",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 1986,
+  "evidence_sha256": "4fea5f733980232452b6bae115248a385b98985cf99b1c75185bddaa13dba7b0",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 116983,
+      "cached_input_tokens": 106368,
+      "output_tokens": 4242,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 67303,
+      "cached_input_tokens": 59776,
+      "output_tokens": 2288,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 88002,
+      "cached_input_tokens": 80896,
+      "output_tokens": 2360,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 41604,
+      "cached_input_tokens": 37120,
+      "output_tokens": 815,
+      "turns": 1
+    }
+  ],
+  "desde": "12da27b2921f170673fd1ad93c0cb7005f73bbc7",
+  "hasta": "9dcba11a87c67aca07521c088818b0418c4f285f",
+  "cobertura": "delta",
+  "desde_review": "20261022T204749_43e80e",
+  "base": "main"
+}
