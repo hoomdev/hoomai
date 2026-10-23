@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"math"
 	"os"
 	"os/exec"
@@ -88,12 +87,18 @@ type BackfillResult struct {
 	Creados     []boardcmd.Candidata `json:"creados"`      // created (or that it would create)
 	NoCalifican []boardcmd.Candidata `json:"no_califican"` // with their Motivo
 	ConItem     []string             `json:"con_item"`     // tasks that already have an item: untouched
+	// Error is why the run stopped halfway, with Creados the items it did
+	// create, which stay; "" when it did not stop.
+	Error string `json:"error,omitempty"`
 }
 
 // Backfill creates an item with historico for every task with evidence and
 // no item that qualifies, and lists the rest with why. dryRun writes
-// nothing. On an error nothing is left half done: the items this run
-// already created are taken back (findings d03734, a5e1d2).
+// nothing. It never removes an item: on an error halfway (a full disk) the
+// items this run created stay, each one whole and valid, and res lists them;
+// running it again completes the rest, since it skips the tasks with an item
+// (enmienda 1: a rollback by path could take somebody else's item, findings
+// 1e8b0c, 039b75, a7d0b1).
 func Backfill(root, base, blockOn string, dryRun bool, now time.Time) (BackfillResult, error) {
 	res := BackfillResult{DryRun: dryRun, Creados: []boardcmd.Candidata{}, NoCalifican: []boardcmd.Candidata{}, ConItem: []string{}}
 	cands, err := boardcmd.Candidatas(root, base, blockOn, now)
@@ -117,9 +122,8 @@ func Backfill(root, base, blockOn string, dryRun bool, now time.Time) (BackfillR
 				// as it is
 				res.ConItem = append(res.ConItem, c.Slug)
 			case err != nil:
-				err = fmt.Errorf("no se pudo crear el item de %s: %w", c.Slug, err)
-				err = retirar(root, res.Creados, err)
-				res.Creados = []boardcmd.Candidata{}
+				err = fmt.Errorf("no se pudo crear el item de %s: %w; %s", c.Slug, err, quedan(len(res.Creados)))
+				res.Error = err.Error()
 				return res, err
 			default:
 				res.Creados = append(res.Creados, c)
@@ -129,23 +133,12 @@ func Backfill(root, base, blockOn string, dryRun bool, now time.Time) (BackfillR
 	return res, nil
 }
 
-// retirar takes back the items of creados, which this run wrote moments
-// ago, after the error causa: it returns causa saying what was taken back,
-// and naming whatever could not be.
-func retirar(root string, creados []boardcmd.Candidata, causa error) error {
-	if len(creados) == 0 {
-		return causa
+// quedan says what an error halfway leaves of a run that created n items.
+func quedan(n int) string {
+	if n == 0 {
+		return "no se creo ningun item"
 	}
-	var quedan []string
-	for _, c := range creados {
-		if err := os.Remove(item.Path(root, c.Slug)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			quedan = append(quedan, fmt.Sprintf("%s (%v)", item.RelPath(c.Slug), err))
-		}
-	}
-	if len(quedan) > 0 {
-		return fmt.Errorf("%w; no se pudieron retirar los items que esta corrida ya habia creado: %s", causa, strings.Join(quedan, ", "))
-	}
-	return fmt.Errorf("%w; se retiraron los %d items que esta corrida ya habia creado", causa, len(creados))
+	return fmt.Sprintf("los %d items que esta corrida ya creo quedan; correr backfill de nuevo completa el resto", n)
 }
 
 // Parse is the syntactic AND vocabulary stage, pure: no disk, no
@@ -324,14 +317,18 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 		return nil
 	case SubBackfill:
 		res, err := Backfill(root, base, blockOn, req.DryRun, now)
-		if err != nil {
+		if err != nil && len(res.Creados) == 0 {
 			return err
 		}
+		// stopped halfway: what it did create stays, and it is said
 		if req.JSON {
-			return emit(stdout, res)
+			if eerr := emit(stdout, res); eerr != nil {
+				return eerr
+			}
+		} else {
+			renderBackfill(stdout, res)
 		}
-		renderBackfill(stdout, res)
-		return nil
+		return err
 	}
 	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|backfill)", req.Sub))
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -57,12 +58,15 @@ func Candidatas(root, base, blockOn string, now time.Time) ([]Candidata, error) 
 	for _, p := range places(root, worktrees)[1:] {
 		propio[strings.TrimPrefix(p.rel, ".hoom/worktrees/")] = p.dir
 	}
-	verdicts, findings := tareasConEvidencia(g, worktrees)
+	// vistos: the verdicts bound to each task's spec on ANY tree. They only
+	// say the task has a spec; the verdict that qualifies it is looked for
+	// again on its own trees (veredictoQueSostiene, finding 552a4e)
+	vistos, conHallazgos := tareasConEvidencia(g, worktrees)
 	tareas := map[string]bool{}
-	for t := range verdicts {
+	for t := range vistos {
 		tareas[t] = true
 	}
-	for t := range findings {
+	for t := range conHallazgos {
 		tareas[t] = true
 	}
 	slugs := make([]string, 0, len(tareas))
@@ -81,6 +85,17 @@ func Candidatas(root, base, blockOn string, now time.Time) ([]Candidata, error) 
 		if wt, ok := propio[s]; ok {
 			dirs = append(dirs, wt)
 		}
+		// what takes the item's place without being one (a directory: the
+		// doctor does not count it as an item) is not "already has an item":
+		// backfill could not write there either (finding 752455). It is
+		// looked at before the spec: it already decides (finding b3c417)
+		if fi, err := os.Lstat(item.Path(root, s)); err == nil {
+			out = append(out, Candidata{Slug: s, Titulo: s, Tipo: "feature",
+				Motivo: fmt.Sprintf("en %s hay algo que no es un item (%s)", item.RelPath(s), fi.Mode().Type())})
+			continue
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("no se pudo mirar %s: %w", item.RelPath(s), err)
+		}
 		spec, err := specDe(s, dirs)
 		if err != nil {
 			return nil, err
@@ -90,16 +105,6 @@ func Candidatas(root, base, blockOn string, now time.Time) ([]Candidata, error) 
 			return nil, err
 		}
 		c := Candidata{Slug: s, Titulo: titulo, Tipo: "feature"}
-		// what takes the item's place without being one (a directory: the
-		// doctor does not count it as an item) is not "already has an item":
-		// backfill could not write there either (finding 752455)
-		if fi, err := os.Lstat(item.Path(root, s)); err == nil {
-			c.Motivo = fmt.Sprintf("en %s hay algo que no es un item (%s)", item.RelPath(s), fi.Mode().Type())
-			out = append(out, c)
-			continue
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("no se pudo mirar %s: %w", item.RelPath(s), err)
-		}
 		// a title nobody typed (it comes from the spec, through git) never
 		// carries what a terminal would obey (finding 1499b7)
 		if conControl(titulo) {
@@ -110,7 +115,7 @@ func Candidatas(root, base, blockOn string, now time.Time) ([]Candidata, error) 
 		// a task with verdicts of its spec, or a spec on its trees, is a task
 		// with spec: only a verdict qualifies it, never its findings (a
 		// spec that only lives in the worktree too, finding 939eec)
-		if len(verdicts[s]) > 0 || spec != "" {
+		if len(vistos[s]) > 0 || spec.dir != "" {
 			v, err := g.veredictoQueSostiene(s, dirs)
 			if err != nil {
 				return nil, err
@@ -164,22 +169,54 @@ func tareasConEvidencia(g *gatherer, worktrees []string) (verdicts, findings map
 	return verdicts, findings
 }
 
+// specEn is where a task's spec is: the tree and the path inside it; the
+// zero value is "no spec".
+type specEn struct{ dir, rel string }
+
 // specDe is the spec of task s on its trees dirs (the first one that has
-// it), or "" when none does. An entry that is there counts whatever it is:
-// a directory in its place still makes it a task with spec, the stricter
-// side. Anything but "not there" is an error.
-func specDe(s string, dirs []string) (string, error) {
+// it), looked at inside each tree without leaving it (lstatEn). An entry that
+// is there counts whatever it is: a directory in its place still makes it a
+// task with spec, the stricter side. Anything but "not there" is an error.
+func specDe(s string, dirs []string) (specEn, error) {
+	rel := filepath.Join(".hoom", "specs", s+".md")
 	for _, d := range dirs {
-		p := filepath.Join(d, ".hoom", "specs", s+".md")
-		_, err := os.Lstat(p)
+		_, err := lstatEn(d, rel)
 		switch {
 		case err == nil:
-			return p, nil
+			return specEn{dir: d, rel: rel}, nil
 		case !errors.Is(err, fs.ErrNotExist):
-			return "", fmt.Errorf("no se pudo mirar el spec de %s: %w", s, err)
+			return specEn{}, fmt.Errorf("no se pudo mirar el spec de %s: %w", s, err)
 		}
 	}
-	return "", nil
+	return specEn{}, nil
+}
+
+// lstatEn looks at rel inside the tree dir without leaving it: every
+// directory on the way has to be one, never a symlink, so a .hoom/specs
+// that points somewhere else is an error and not another tree's spec
+// (finding e8b795).
+func lstatEn(dir, rel string) (fs.FileInfo, error) {
+	r, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return lstatEnRoot(r, rel)
+}
+
+func lstatEnRoot(r *os.Root, rel string) (fs.FileInfo, error) {
+	camino := ""
+	for _, p := range strings.Split(filepath.Dir(rel), string(filepath.Separator)) {
+		camino = filepath.Join(camino, p)
+		fi, err := r.Lstat(camino)
+		if err != nil {
+			return nil, err
+		}
+		if !fi.IsDir() {
+			return nil, fmt.Errorf("%s no es un directorio (%s)", filepath.ToSlash(camino), fi.Mode().Type())
+		}
+	}
+	return r.Lstat(rel)
 }
 
 // veredictoQueSostiene is the newest verdict of task s on its trees dirs
@@ -214,31 +251,31 @@ func (g *gatherer) veredictoQueSostiene(s string, dirs []string) (*verdict.Verdi
 func (g *gatherer) porQueNoSostiene(v *verdict.Verdict) (string, error) {
 	switch {
 	case v.IsPartial():
-		return fmt.Sprintf("el veredicto %s es parcial", v.ID), nil
+		return fmt.Sprintf("el veredicto %s es parcial", texto(v.ID)), nil
 	case v.Verdict != "green":
-		return fmt.Sprintf("el veredicto %s no es verde", v.ID), nil
+		return fmt.Sprintf("el veredicto %s no es verde", texto(v.ID)), nil
 	case !specAprobado(v):
-		return fmt.Sprintf("el veredicto %s no tiene spec_approved en pass", v.ID), nil
+		return fmt.Sprintf("el veredicto %s no tiene spec_approved en pass", texto(v.ID)), nil
 	}
 	// the commit comes from a file: only hex reaches git, never an option
 	if v.Git.Commit == "" || strings.Trim(strings.ToLower(v.Git.Commit), "0123456789abcdef") != "" {
-		return fmt.Sprintf("el veredicto %s no dice un commit valido", v.ID), nil
+		return fmt.Sprintf("el veredicto %s no dice un commit valido", texto(v.ID)), nil
 	}
 	// a commit this repository does not have is not in its base: that is an
 	// answer, not git failing (a branch that was never pushed, a rebase)
 	_, existe, err := gitx.ResolverCommit(g.root, v.Git.Commit)
 	switch {
 	case err != nil:
-		return "", fmt.Errorf("git no pudo resolver el commit %s del veredicto %s: %w", v.Git.Commit, v.ID, err)
+		return "", fmt.Errorf("git no pudo resolver el commit %s del veredicto %s: %w", v.Git.Commit, texto(v.ID), err)
 	case !existe:
-		return fmt.Sprintf("el commit %s del veredicto %s no esta en este repositorio", v.Git.Commit, v.ID), nil
+		return fmt.Sprintf("el commit %s del veredicto %s no esta en este repositorio", v.Git.Commit, texto(v.ID)), nil
 	}
 	en, err := gitx.EsAncestro(g.root, v.Git.Commit, g.base)
 	switch {
 	case err != nil:
-		return "", fmt.Errorf("git no pudo decir si el commit %s del veredicto %s esta en %s: %w", v.Git.Commit, v.ID, g.base, err)
+		return "", fmt.Errorf("git no pudo decir si el commit %s del veredicto %s esta en %s: %w", v.Git.Commit, texto(v.ID), g.base, err)
 	case !en:
-		return fmt.Sprintf("el commit %s del veredicto %s no esta integrado en %s", v.Git.Commit, v.ID, g.base), nil
+		return fmt.Sprintf("el commit %s del veredicto %s no esta integrado en %s", v.Git.Commit, texto(v.ID), g.base), nil
 	}
 	return "", nil
 }
@@ -270,7 +307,11 @@ func (g *gatherer) porQueNoSostienenHallazgos(s string, dirs []string) string {
 		t := g.tree(d)
 		items := t.allFindings(g.base)
 		if len(t.unreadable) > 0 {
-			return fmt.Sprintf("hay hallazgos ilegibles en %s: %s", relDe(g.root, d), strings.Join(t.unreadable, "; "))
+			ilegibles := make([]string, len(t.unreadable))
+			for i, u := range t.unreadable {
+				ilegibles[i] = texto(u)
+			}
+			return fmt.Sprintf("hay hallazgos ilegibles en %s: %s", texto(relDe(g.root, d)), strings.Join(ilegibles, "; "))
 		}
 		for _, f := range items {
 			if f.Task != s {
@@ -278,7 +319,7 @@ func (g *gatherer) porQueNoSostienenHallazgos(s string, dirs []string) string {
 			}
 			testigo = true
 			if f.Status == finding.StatusOpen && bloquea(f.Severity, umbral) {
-				return fmt.Sprintf("el hallazgo %s (%s) sigue abierto", f.ID, f.Severity)
+				return fmt.Sprintf("el hallazgo %s (%s) sigue abierto", texto(f.ID), texto(f.Severity))
 			}
 		}
 	}
@@ -316,6 +357,12 @@ func (g *gatherer) sostenHistorica(ev *Evidence, dir string) {
 	dirs := []string{g.root}
 	if dir != g.root {
 		dirs = append(dirs, dir)
+	}
+	// a worktree git could not check may hold an open blocker or the
+	// verdict: without reading it, the card is not held (finding f448aa)
+	if ev.WorktreeInusable != "" {
+		ev.HistoricaMotivo = "no se pudo leer el worktree de la tarea: " + texto(ev.WorktreeInusable)
+		return
 	}
 	s := ev.Item.Slug
 	id, hallazgos, ok := item.LeerHistorico(h)
@@ -355,7 +402,7 @@ func (g *gatherer) sostenHistorica(ev *Evidence, dir string) {
 		}
 		motivo, err := g.porQueNoSostiene(v)
 		if err != nil {
-			motivo = err.Error()
+			motivo = texto(err.Error())
 		}
 		if motivo != "" {
 			ev.HistoricaMotivo = motivo
@@ -374,16 +421,25 @@ func conControl(s string) bool {
 }
 
 // tituloDeSpec is the title of task s's card: the first heading of its spec
-// at path without "Spec: ", or the slug when there is no spec (path "") or
-// no heading. A spec that is there and cannot be read is an error, never a
-// title degraded to the slug that no later backfill would fix (finding
-// b16c61); it is read the way hoom reads what it does not own, never
-// following a symlink nor blocking on a FIFO.
-func tituloDeSpec(path, s string) (string, error) {
-	if path == "" {
+// sp without "Spec: ", or the slug when there is no spec or no heading. A
+// spec that is there and cannot be read is an error, never a title degraded
+// to the slug that no later backfill would fix (finding b16c61); it is read
+// inside its tree (lstatEn), never following a symlink nor blocking on a
+// FIFO.
+func tituloDeSpec(sp specEn, s string) (string, error) {
+	if sp.dir == "" {
 		return s, nil
 	}
-	f, err := hoomfs.AbrirRegular(path)
+	r, err := os.OpenRoot(sp.dir)
+	if err != nil {
+		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
+	}
+	defer r.Close()
+	fi, err := lstatEnRoot(r, sp.rel)
+	if err != nil {
+		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
+	}
+	f, err := hoomfs.AbrirRegularEn(r, sp.rel, fi)
 	if err != nil {
 		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
 	}
@@ -402,4 +458,15 @@ func tituloDeSpec(path, s string) (string, error) {
 		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
 	}
 	return s, nil
+}
+
+// texto is a value from the evidence (a severity, an id, a file name, git's
+// stderr) as it goes into a reason a terminal prints: as it is when it is
+// plain text, quoted with its control and direction characters escaped
+// when it is not (findings 763d5f, feeb49).
+func texto(s string) string {
+	if conControl(s) {
+		return strconv.Quote(s)
+	}
+	return s
 }
