@@ -92,7 +92,35 @@ type BackfillResult struct {
 // no item that qualifies, and lists the rest with why. dryRun writes
 // nothing.
 func Backfill(root, base, blockOn string, dryRun bool, now time.Time) (BackfillResult, error) {
-	return BackfillResult{DryRun: dryRun}, nil
+	res := BackfillResult{DryRun: dryRun, Creados: []boardcmd.Candidata{}, NoCalifican: []boardcmd.Candidata{}, ConItem: []string{}}
+	cands, err := boardcmd.Candidatas(root, base, blockOn, now)
+	if err != nil {
+		return res, err
+	}
+	for _, c := range cands {
+		switch {
+		case c.ConItem:
+			res.ConItem = append(res.ConItem, c.Slug)
+		case c.Historico == "":
+			res.NoCalifican = append(res.NoCalifican, c)
+		case dryRun:
+			res.Creados = append(res.Creados, c)
+		default:
+			_, err := item.Add(root, item.Draft{Titulo: c.Titulo, Tipo: c.Tipo, Prioridad: "media",
+				Slug: c.Slug, Historico: c.Historico})
+			switch {
+			case errors.Is(err, item.ErrExists):
+				// it appeared since the list: it is somebody's, and stays
+				// as it is
+				res.ConItem = append(res.ConItem, c.Slug)
+			case err != nil:
+				return res, fmt.Errorf("no se pudo crear el item de %s: %w", c.Slug, err)
+			default:
+				res.Creados = append(res.Creados, c)
+			}
+		}
+	}
+	return res, nil
 }
 
 // Parse is the syntactic AND vocabulary stage, pure: no disk, no
@@ -513,12 +541,12 @@ func short(sha string) string {
 // ("crearia" with --dry-run), then the ones that do not qualify with their
 // motivo, then the ones that already have an item.
 func renderBackfill(w io.Writer, res BackfillResult) {
-	verbo := "creado"
+	verbo, resumen := "creado", "creado(s)"
 	if res.DryRun {
-		verbo = "crearia"
+		verbo, resumen = "crearia", "crearia(n)"
 	}
 	fmt.Fprintf(w, "hoom item backfill: %d %s, %d no califican, %d ya tienen item\n",
-		len(res.Creados), map[bool]string{true: "crearia(n)", false: "creado(s)"}[res.DryRun], len(res.NoCalifican), len(res.ConItem))
+		len(res.Creados), resumen, len(res.NoCalifican), len(res.ConItem))
 	for _, c := range res.Creados {
 		fmt.Fprintf(w, "  %-9s %-36s historico: %s\n", verbo, c.Slug, c.Historico)
 	}

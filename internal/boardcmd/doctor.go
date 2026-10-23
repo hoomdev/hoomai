@@ -95,6 +95,16 @@ func DoctorOf(ev Evidence, c Card) []Problem {
 	v := ev.Verdict
 	green := v != nil && v.Verdict == "green"
 
+	// a historical card whose evidence no longer holds it: it left Hecho,
+	// and this says why and what to do (historia-en-el-tablero)
+	if ev.Item.HechoEn == nil && ev.Item.Historico != "" && !ev.HistoricaSostenida {
+		out = append(out, problema(ProbHistoricaSinSosten, Problem{
+			What:   fmt.Sprintf("la tarjeta historica dejo de sostenerse (%s): %s", ev.Item.Historico, ev.HistoricaMotivo),
+			Plain:  "la evidencia que la daba por terminada ya no la sostiene",
+			Action: "restaura esa evidencia desde git (o cierra el hallazgo que la tumba), o trabaja la tarjeta desde su columna: hoom item show " + s,
+			Ref:    item.RelPath(s)}))
+	}
+
 	if !hecho && ev.Approval == approval.StatusInvalidated {
 		out = append(out, problema(ProbSpecEditado, Problem{
 			What:   "el spec cambio despues de su aprobacion: revisalo y aprobalo de nuevo",
@@ -369,29 +379,7 @@ func unverifiedWorktrees(g *gatherer, items map[string]bool, worktrees []string)
 // evidenceWithoutItem: tasks with verdicts or findings and no item file, one
 // problem per task. A verdict or finding seen in several trees counts once.
 func evidenceWithoutItem(g *gatherer, items map[string]bool, worktrees []string) []Problem {
-	// nosemgrep: trailofbits.go.iterate-over-empty-map.iterate-over-empty-map -- los llena note antes de recorrerlos
-	verdicts, findings := map[string]map[string]bool{}, map[string]map[string]bool{}
-	note := func(m map[string]map[string]bool, task, id string) {
-		if m[task] == nil {
-			m[task] = map[string]bool{}
-		}
-		m[task][id] = true
-	}
-	for _, p := range places(g.root, worktrees) {
-		t := g.tree(p.dir)
-		for _, v := range t.allVerdicts() {
-			if task := specTask(v, p.dir); task != "" {
-				note(verdicts, task, v.ID)
-			}
-		}
-		for _, f := range t.allFindings(g.base) {
-			// a task that is not a slug is not a card's, and never goes
-			// into the command the doctor proposes (finding 5435b7)
-			if item.ValidSlug(f.Task) {
-				note(findings, f.Task, f.ID)
-			}
-		}
-	}
+	verdicts, findings := tareasConEvidencia(g, worktrees)
 	tasks := map[string]bool{}
 	for t := range verdicts {
 		tasks[t] = true

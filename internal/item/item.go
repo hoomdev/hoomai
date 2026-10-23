@@ -25,6 +25,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/verdict"
 	"gopkg.in/yaml.v3"
 )
 
@@ -95,7 +96,14 @@ func HistoricoVeredicto(id string) string { return "veredicto " + id }
 // LeerHistorico reads a Historico: the verdict id it names, or hallazgos,
 // and whether it is one of the two shapes at all.
 func LeerHistorico(s string) (veredicto string, hallazgos bool, ok bool) {
-	return "", false, false
+	if s == HistoricoHallazgos {
+		return "", true, true
+	}
+	id, es := strings.CutPrefix(s, "veredicto ")
+	if !es || !verdict.EsNombre(id+".json") {
+		return "", false, false
+	}
+	return id, false, true
 }
 
 // Sesion is one interactive session opened on the card's workspace.
@@ -218,7 +226,16 @@ func Validate(d Draft) (Draft, error) {
 	if !ValidSlug(d.Slug) {
 		return d, fmt.Errorf("slug invalido %q: minusculas, numeros y guiones, hasta %d caracteres (ej: precios-por-region)", d.Slug, MaxSlug)
 	}
+	if d.Historico != "" && !historicoValido(d.Historico) {
+		return d, fmt.Errorf("historico %q no es 'veredicto <id>' ni '%s'", d.Historico, HistoricoHallazgos)
+	}
 	return d, nil
+}
+
+// historicoValido says whether s is one of the two shapes of Historico.
+func historicoValido(s string) bool {
+	_, _, ok := LeerHistorico(s)
+	return ok
 }
 
 // Add creates the item's file. It fails, wrapping ErrExists, when the file is
@@ -232,7 +249,7 @@ func Add(root string, d Draft) (Item, error) {
 		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad,
 		Pedido: strings.TrimSpace(d.Pedido), CreadoPor: gitx.Identity(root),
 		CreadoEn: time.Now().UTC().Truncate(time.Second), PresupuestoUSD: d.PresupuestoUSD,
-		Auto: d.Auto,
+		Auto: d.Auto, Historico: d.Historico,
 	}
 	raw, err := encode(it)
 	if err != nil {
@@ -257,7 +274,7 @@ func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 
 // claves are the only keys an item may carry, in the order hoom writes them.
 var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "creado_en",
-	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto"}
+	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
 // field or a value outside its vocabulary is an error.
@@ -299,6 +316,8 @@ func Parse(slug string, raw []byte) (Item, error) {
 		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser un numero mayor que 0")
 	case it.Auto != "" && !contains(Autos, it.Auto):
 		return Item{}, fmt.Errorf("auto %q fuera del vocabulario (%s)", it.Auto, strings.Join(Autos, ", "))
+	case it.Historico != "" && !historicoValido(it.Historico):
+		return Item{}, fmt.Errorf("historico %q no es 'veredicto <id>' ni '%s'", it.Historico, HistoricoHallazgos)
 	}
 	for i, s := range it.Sesiones {
 		switch {
