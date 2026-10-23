@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T122536_c85840",
+  "as": "corregido",
+  "evidence": "8d5a55a: hoomfs.RecorrerDirectorio reemplaza a LeerDirectorio y entrega cada archivo a cada() de a uno; veredictos, hallazgos, reviews, sobres y sidecars procesan cada archivo al recibirlo, asi un directorio de muchos archivos bajo el tope nunca queda entero en memoria. Tests 7a2c5a6: TestHallazgo_c85840_8c7270_b7bb41_CA442_RecorrerDirectorioEntregaDeAUna y ..._{LoadAll,List,RecordsErr,MetasErr,ListErr}NoRetiene... (192 MiB de registros: la memoria viva subia 193-201 MiB sobre 51d6c22; con la correccion 2-8 MiB, tope 48 MiB).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.213195Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T123540_1e0674",
+  "as": "corregido",
+  "evidence": "8d5a55a: cada intento de cierre corre en su propia goroutine (intentar, enVuelo): una escritura colgada solo frena a su registro. Test 7a2c5a6: TestHallazgo_1e0674_CA333_UnaEscrituraBloqueadaNoFrenaLosCierresDeOtrosRegistros (con la escritura de A colgada en un FIFO, el cierre de B no llegaba en 10 s sobre 51d6c22; con la correccion llega en 2 s).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.403497Z"
+}
