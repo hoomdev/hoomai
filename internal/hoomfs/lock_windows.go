@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-var procLockFileEx = syscall.NewLazyDLL("kernel32.dll").NewProc("LockFileEx")
+var procLockFileEx = syscall.NewLazyDLL("kernel32.dll").NewProc("LockFileEx") // nosemgrep: trailofbits.go.unsafe-dll-loading.unsafe-dll-loading -- kernel32.dll esta en KnownDLLs: Windows siempre la carga de System32
 
 const (
 	lockfileFailImmediately = 0x1

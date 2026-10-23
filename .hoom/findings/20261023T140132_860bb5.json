@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140132_860bb5",
+  "created_at": "2026-10-23T14:01:32.922065Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO — gate.sh:87 y 113: git fetch sin tope (un host mudo espera el connect timeout de libcurl ~300 s por intento, y uno colgado a mitad de la transferencia espera sin limite: no hay http.lowSpeedLimit), y semgrep ya no se lanza con exec: cuando vence el timeout del gate, internal/gates/runner.go mata solo el sh (CommandContext sin grupo ni WaitDelay) y el hijo huerfano mantiene abierto el pipe de CombinedOutput. Con el exec de main el timeout mataba a semgrep. Correccion: -c http.lowSpeedLimit/lowSpeedTime en el fetch, menos reintentos, y volver al exec.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

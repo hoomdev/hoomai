@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T143400_fb59c4",
+  "as": "corregido",
+  "evidence": "6a19bda: unset CDPATH al inicio de gate.sh y fijar.sh. Probado: CDPATH=.:/tmp sh .hoom/semgrep/gate.sh en el worktree da exit 0.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:37:46.426007Z"
+}

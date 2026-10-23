@@ -1,0 +1,133 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-22T19-51-53Z_95524851",
+  "created_at": "2026-10-22T19:51:53.411404Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "862c8b925ec8",
+    "branch": "hoom/gates-dogfood",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/release.yml",
+      ".golangci.yml",
+      ".hoom/semgrep/argv-crudo-en-mensaje.yml",
+      ".semgrepignore",
+      "hoom.yaml",
+      "internal/boardcmd/doctor.go",
+      "internal/cockpitcmd/cockpitcmd.go",
+      "internal/gates/runner.go",
+      "internal/hoomfs/lock_windows.go",
+      "internal/procesos/procesos_windows.go",
+      "internal/ratchet/ratchet.go",
+      "internal/rolescmd/rolescmd.go",
+      "internal/runcmd/runcmd.go",
+      "internal/servecmd/acciones.go",
+      "internal/servecmd/espera_lanzamientos_test.go",
+      "internal/servecmd/servecmd.go",
+      "internal/spec/spec.go"
+    ],
+    "change_fingerprint": "fec46bb22adf615f",
+    "insertions": 148,
+    "deletions": 44
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 155,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 18 medium, 9 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 479
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 1155,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 646
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "semgrep scan --error --quiet --config p/default --config p/trailofbits --config .hoom/semgrep/ .",
+      "exit_code": 0,
+      "duration_ms": 9517
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "fail",
+      "scope": "full",
+      "command": "go test -race ./...",
+      "exit_code": 1,
+      "duration_ms": 758013,
+      "output_tail": "...[truncado]...\nwin_arm64.go:320 +0x44\nsyscall.SetNonblock(0x6, 0x1)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/syscall/exec_unix.go:106 +0x38\nos.newFile(0x6, {0x1048fe001, 0x2}, 0x2, 0x0)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/file_unix.go:204 +0x238\nos.Pipe()\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/pipe_unix.go:27 +0x164\nos/exec.(*Cmd).writerDescriptor(0xc00028ed00, {0x104c5f2b0, 0xc0001a9080})\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:605 +0x68\nos/exec.(*Cmd).childStdout(...)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:577\nos/exec.(*Cmd).Start(0xc00028ed00)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:727 +0x3d0\nos/exec.(*Cmd).Run(0xc00028ed00)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:640 +0x2c\nos/exec.(*Cmd).Output(0xc00028ed00)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:1040 +0x1f4\ngithub.com/hoomdev/hoomai/internal/gitx.run({0xc00015e120, 0x87}, {0xc00029dce8, 0x4, 0x4})\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/gitx/gitx.go:44 +0x98\ngithub.com/hoomdev/hoomai/internal/gitx.diffStats({0xc00015e120, 0x87}, {0xc00069e330, 0x28}, {0x104c26e18?, 0xffffffffffffffff?, 0x0?})\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/gitx/gitx.go:184 +0xc0\ngithub.com/hoomdev/hoomai/internal/gitx.Snapshot({0xc00015e120, 0x87}, {0xc00069e330, 0x28})\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/gitx/gitx.go:98 +0x950\ngithub.com/hoomdev/hoomai/internal/reviewcmd.prepararRevision({_, _}, {_, _}, {{0x1048fe751, 0x5}, {0x0, 0x0}, {0x0, 0x0}, ...})\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/reviewcmd/reviewcmd.go:361 +0x424\ngithub.com/hoomdev/hoomai/internal/reviewcmd.Run({_, _}, {_, _}, {{0x1048fe751, 0x5}, {0x0, 0x0}, {0x0, 0x0}, ...}, ...)\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/reviewcmd/reviewcmd.go:735 +0x180\ngithub.com/hoomdev/hoomai/internal/reviewcmd.raRunConReloj.func1()\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/reviewcmd/review_aislada_helpers_test.go:314 +0x13c\ncreated by github.com/hoomdev/hoomai/internal/reviewcmd.raRunConReloj in goroutine 38770\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/reviewcmd/review_aislada_helpers_test.go:312 +0x1c0\n\ngoroutine 38651 [sleep]:\ntime.Sleep(0xb2d05e00)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/runtime/time.go:368 +0x150\ngithub.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute.func1()\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/runcmd/runcmd.go:1143 +0x74\ncreated by github.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute in goroutine 38623\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/runcmd/runcmd.go:1141 +0x8f4\n\ngoroutine 38700 [sleep]:\ntime.Sleep(0xb2d05e00)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/runtime/time.go:368 +0x150\ngithub.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute.func1()\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/runcmd/runcmd.go:1143 +0x74\ncreated by github.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute in goroutine 38747\n\t/Users/hoommac/Documents/proyects/hoomai/.hoom/worktrees/gates-dogfood/internal/runcmd/runcmd.go:1141 +0x8f4\nFAIL\tgithub.com/hoomdev/hoomai/internal/reviewcmd\t600.215s\nok  \tgithub.com/hoomdev/hoomai/internal/rolescmd\t3.447s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t239.345s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t337.603s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t2.503s\nok  \tgithub.com/hoomdev/hoomai/internal/statuscmd\t35.969s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t246.357s\nok  \tgithub.com/hoomdev/hoomai/internal/verdict\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t61.658s\n?   \tgithub.com/hoomdev/hoomai/internal/worktreetest\t[no test files]\nFAIL"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    },
+    {
+      "name": "ratchet",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 1032,
+      "output_tail": "avisos_errcheck: linea base congelada en 50\nca_con_test: linea base congelada en 428\npaquetes_sin_tests: linea base congelada en 3",
+      "notes": "3 metrica(s): 0 ok, 3 congeladas, 0 apretadas, 0 regresiones, 0 rotas"
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 1,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "red"
+}

@@ -1,0 +1,29 @@
+# golangci-lint del dogfood de hoomai (gate lint de hoom.yaml).
+# Lo minimo que encuentra defectos, sin pelear con decisiones del repo.
+version: "2"
+run:
+  timeout: 8m
+  # el gate mira el codigo que se entrega, como semgrep (.semgrepignore)
+  tests: false
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  # errcheck queda afuera por ahora: marca 50 llamadas, la mayoria escrituras
+  # best-effort declaradas en las specs (telemetria, CA-202). Activarlo pide
+  # revisarlas una por una en su propia tarea.
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -ST1000 # comentario de paquete
+        - -ST1003 # nombres: el repo usa identificadores en espanol a proposito
+        - -ST1008 # error al final: helpers de tests que devuelven (x, error, extra)
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -QF* # sugerencias de reescritura, no defectos

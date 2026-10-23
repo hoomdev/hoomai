@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140133_a32752",
+  "as": "corregido",
+  "evidence": "38cae3f: el gate rechaza (exit 2) un lock sin salto final, rutas *.test.yaml/*.test.yml/*.fixed.*, una carpeta ya usada por otro repo y dos reglas en el mismo lugar. Probado en un repo de prueba con el gate y el lock de 38cae3f y un exec.Command(os.Args[1]) plantado (exit 1 esperado): los cuatro primeros casos dan exit 2 con su mensaje.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:16.120169Z"
+}

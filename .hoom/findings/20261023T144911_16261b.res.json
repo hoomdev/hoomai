@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T144911_16261b",
+  "as": "corregido",
+  "evidence": "cc176f1: los awk de duplicados (gate.sh) y de conteo y mezcla (fijar.sh) usan /^[[:space:]]*(#|$)/, las mismas lineas que saltea read. Probado en el repo de prueba con el gate y el lock de cc176f1 (exec.Command plantado): un lock con lineas de espacios y un comentario indentado da exit 1 en el gate y fijar.sh fija los 429.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:50:10.183713Z"
+}

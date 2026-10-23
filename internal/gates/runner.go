@@ -82,7 +82,7 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
 	start := time.Now()
-	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
+	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el gate es el comando que el proyecto declara en hoom.yaml: ejecutarlo es el trabajo de verify
 	cmd.Dir = m.Dir
 	out, err := cmd.CombinedOutput()
 	res.DurationMS = time.Since(start).Milliseconds()

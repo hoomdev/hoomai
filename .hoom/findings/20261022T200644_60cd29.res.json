@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T200644_60cd29",
+  "as": "corregido",
+  "evidence": "2158adb: .hoom/semgrep/paquetes.lock fija la version del motor (semgrep 1.175.0) y el sha256 del YAML de p/default y p/trailofbits; .hoom/semgrep/gate.sh solo usa paquetes cuyo hash coincide y falla con exit 2 si el registro los cambio o si el motor es otro. Probado: sha256 estable entre dos descargas; con el hash alterado sale 2 con 'el registro cambio p/trailofbits'; con la version alterada sale 2 con 'semgrep 1.175.0 instalado y el lock fija 1.174.0'; con el lock correcto sale 0.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:15:31.689643Z"
+}

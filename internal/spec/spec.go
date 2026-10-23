@@ -174,7 +174,7 @@ func Trace(root string, ids []string, cmds map[string][]string) (TraceResult, er
 func runVerifCmd(root, id, c string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "sh", "-c", c)
+	cmd := exec.CommandContext(ctx, "sh", "-c", c) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el marcador [verifica:] del spec aprobado por el humano
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if err == nil {
@@ -203,25 +203,6 @@ func lastNonEmptyLine(s string) string {
 	}
 	return ""
 }
-
-// containsToken matches the ID as a whole token so CA-1 does not match CA-12.
-func containsToken(s, id string) bool {
-	idx := 0
-	for {
-		i := strings.Index(s[idx:], id)
-		if i < 0 {
-			return false
-		}
-		pos := idx + i
-		end := pos + len(id)
-		if end >= len(s) || !isDigit(s[end]) {
-			return true
-		}
-		idx = end
-	}
-}
-
-func isDigit(b byte) bool { return b >= '0' && b <= '9' }
 
 // Gates runs lint + trace for a spec and returns them as synthetic gate
 // results to embed in the verdict. Both are required: binding a spec to a
@@ -289,6 +270,7 @@ func Tokens(root string, ids []string) (missing []string, scanned int, err error
 	if len(ids) == 0 {
 		return nil, 0, nil
 	}
+	// nosemgrep: trailofbits.go.invalid-usage-of-modified-variable.invalid-usage-of-modified-variable -- con error, IndexTokens igual cuenta los archivos que alcanzo a leer
 	idx, err := IndexTokens(root)
 	if err != nil {
 		return nil, idx.Scanned, err

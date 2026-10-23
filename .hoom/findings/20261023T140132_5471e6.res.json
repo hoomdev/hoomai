@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140132_5471e6",
+  "as": "corregido",
+  "evidence": "38cae3f: cada corrida en frio baja a su propio clon temporal (sin init compartido) y lo publica si nadie lo hizo antes. Probado en un repo de prueba con el gate y el lock de 38cae3f y un exec.Command(os.Args[1]) plantado (exit 1 esperado): dos corridas en frio a la vez dan exit 1 las dos.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:16.029282Z"
+}

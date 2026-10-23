@@ -1,0 +1,11 @@
+{
+  "id": "20261023T133452_1eed1d",
+  "created_at": "2026-10-23T13:34:52.955885Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": ".github/workflows/ci.yml",
+  "description": "INTRODUCIDO — .github/workflows/ci.yml:34-35 afirma que un runner nuevo no vuelve a bajar los repos mientras el lock no cambie, pero actions/cache solo evita el fetch si la entrada aun existe; ante cache miss o eviction, .hoom/semgrep/gate.sh:82-91 ejecuta git fetch desde GitHub. El comentario sobrestima la independencia de red y puede inducir un diagnostico operativo incorrecto.",
+  "author": "reviewer@codex",
+  "fingerprint": "a69464e4c0b14860",
+  "task": "lock-semgrep"
+}

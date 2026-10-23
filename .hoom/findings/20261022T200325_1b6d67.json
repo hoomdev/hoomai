@@ -1,0 +1,11 @@
+{
+  "id": "20261022T200325_1b6d67",
+  "created_at": "2026-10-22T20:03:25.173442Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/servecmd/servecmd.go",
+  "description": "INTRODUCIDO (la exposicion HTTP subyacente es pre-existente) — internal/servecmd/servecmd.go:886 silencia la regla use-tls afirmando que Studio escucha solo en loopback, pero :881-887 acepta direcciones no-loopback y SoloLocal devuelve el handler sin proteccion en :904-907; :874-875 reconoce que en ese modo el token de acciones viaja en claro. La nueva excepcion oculta al gate un riesgo real de captura del token por un atacante en ruta cuando se usa el modo remoto admitido, en vez de limitar la supresion al caso loopback.",
+  "author": "reviewer@codex",
+  "fingerprint": "fec46bb22adf615f",
+  "task": "gates-dogfood"
+}

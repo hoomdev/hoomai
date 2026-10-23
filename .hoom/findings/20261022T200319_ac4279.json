@@ -1,0 +1,11 @@
+{
+  "id": "20261022T200319_ac4279",
+  "created_at": "2026-10-22T20:03:19.752874Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": ".github/workflows/ci.yml",
+  "description": "INTRODUCIDO — .github/workflows/ci.yml:24 ejecuta 'hoom verify --gate build,static,test', por lo que deja skipped los nuevos gates requeridos lint y security de hoom.yaml:15-22; --gate produce deliberadamente un veredicto parcial y el job solo comprueba su exit code. En consecuencia, un PR con hallazgos de Semgrep o fallos del linter puede pasar el unico CI de la rama y llegar a main sin los controles que este cambio declara obligatorios.",
+  "author": "reviewer@codex",
+  "fingerprint": "fec46bb22adf615f",
+  "task": "gates-dogfood"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261023T144911_2b2506",
+  "created_at": "2026-10-23T14:49:11.050394Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 2 de la review independiente; resto de 59f783/4c85df) — gate.sh:173, 176 y 179: los rm -rf de limpieza no tienen guarda; con set -e una falla (un clon que no cuadra con una subcarpeta sin permiso de escritura) sale con el 1 de rm, que el gate usa para 'hallazgos', y corta la publicacion. Reproducido con chmod 555 en hooks/ y el pack borrado: exit 1.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "48db9d024d6b7e3c",
+  "task": "lock-semgrep"
+}

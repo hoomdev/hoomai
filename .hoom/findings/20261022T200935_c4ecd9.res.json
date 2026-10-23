@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T200935_c4ecd9",
+  "as": "corregido",
+  "evidence": "CI corre ahora 'hoom verify --gate build,static,test,lint,security' e instala golangci-lint v2.15.0 (golangci-lint-action fijada por SHA, install-only) y semgrep 1.175.0 (pipx) antes: .github/workflows/ci.yml en 2158adb. El CI del PR lo ejecuta. Si el registro de semgrep falla o cambia, el gate falla con exit 2 y el motivo exacto (.hoom/semgrep/gate.sh).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:15:31.657473Z"
+}

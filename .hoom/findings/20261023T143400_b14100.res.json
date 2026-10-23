@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T143400_b14100",
+  "as": "corregido",
+  "evidence": "6a19bda: gate.sh rechaza (exit 2) una ruta cuyo nombre es oculto o solo la extension. Probado en el repo de prueba con el gate y el lock de 6a19bda (exec.Command plantado): una linea 'trailofbits go/.yaml \u003csha\u003e' da exit 2 'semgrep no carga un nombre oculto'.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:37:46.368543Z"
+}

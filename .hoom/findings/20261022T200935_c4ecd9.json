@@ -1,0 +1,11 @@
+{
+  "id": "20261022T200935_c4ecd9",
+  "created_at": "2026-10-22T20:09:35.810561Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "hoom.yaml",
+  "description": "INTRODUCIDO: hoom.yaml:15-22 vuelve obligatorios lint y security, pero .github/workflows/ci.yml:21-24 no instala golangci-lint/semgrep y ejecuta hoom verify solo con build,static,test. El entorno limpio automatizado queda verde aunque los gates nuevos no puedan arrancar; ademas security obtiene p/default y p/trailofbits de un registro remoto en cada verificacion, de modo que una dependencia ausente o una caida del registro bloquea el verify requerido sin que CI valide ningun camino de recuperacion. El veredicto verde solo demuestra disponibilidad en este entorno concreto.",
+  "author": "reviewer@codex",
+  "fingerprint": "fec46bb22adf615f",
+  "task": "gates-dogfood"
+}

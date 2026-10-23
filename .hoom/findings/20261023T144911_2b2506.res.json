@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T144911_2b2506",
+  "as": "corregido",
+  "evidence": "cc176f1: los rm -rf de limpieza llevan 2\u003e/dev/null || true. Probado en el repo de prueba con el gate y el lock de cc176f1 (exec.Command plantado): con un clon que no cuadra y una subcarpeta en 555, el gate publica el clon nuevo y da exit 1 (el hallazgo plantado); el .viejo queda para la limpieza por edad.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:50:10.125958Z"
+}

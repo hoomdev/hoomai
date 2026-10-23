@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140133_59f783",
+  "created_at": "2026-10-23T14:01:33.125524Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO — gate.sh:99 mkdir -p \"$plano\" es la unica escritura sin guarda: con set -e una falla sale con 1, que el gate usa para 'hallazgos'. Y con sh = zsh en modo sh, sin lock legible el gate sale con 1 (bash y dash con 2). Correccion: guarda en el mkdir y [ -r \"$lock\" ] || falla al inicio.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}
