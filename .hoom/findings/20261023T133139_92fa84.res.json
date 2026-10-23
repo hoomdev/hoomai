@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T133139_92fa84",
+  "as": "corregido",
+  "evidence": "0013fd4: el candado de cada registro cuenta sus usos y el ultimo lo saca del mapa. Tests 64b1211 (fallan sobre 269f3e3, pasan con d45eef7): TestHallazgo_92fa84_8bc636_CA333_LosCierresExitososNoDejanEstadoQueCrece (10000 cierres: +2.36 MB sobre 269f3e3, +48 KB con la correccion; tope ~590 KB).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T15:08:35.589966Z"
+}

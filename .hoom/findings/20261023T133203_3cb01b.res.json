@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T133203_3cb01b",
+  "as": "corregido",
+  "evidence": "0013fd4: sort.SliceStable al ordenar por fecha en sobres, hallazgos, sidecars y veredictos. Tests 64b1211 (fallan sobre 269f3e3, pasan con d45eef7): TestHallazgo_3cb01b_CA442_{ListErr,List,MetasErr,LoadAll}ConFechasMezcladasDesempataPorNombre (64 elementos, 8 fechas mezcladas; sobre 269f3e3 difieren 57 a 61 posiciones).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T15:08:35.676345Z"
+}
