@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131214_9ca0a5",
+  "as": "refutado",
+  "evidence": "La ruta 'con spec' para una tarea con veredictos atados a .hoom/specs/\u003cslug\u003e.md es la estricta: solo la califica un veredicto completo, verde, con spec_approved y su commit en la base. Mandarla por la ruta de hallazgos si el spec se borro la dejaria calificar sin ningun veredicto, que es mas debil. El contrato dice 'con spec: el veredicto ... atado a .hoom/specs/\u003cslug\u003e.md' y el veredicto sigue atado a ese spec (es la foto de cuando se integro, igual que el caso limite de spec editado). Un directorio en lugar del spec tambien cuenta como con spec (specDe), el lado estricto. Evidencia: TestCA449_Hallazgo9ca0a5_SpecBorradoConVeredictoSigueConSpec (65e4498): con spec borrado y veredicto no integrado no califica aunque tenga hallazgos cerrados.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:32.190861Z"
+}

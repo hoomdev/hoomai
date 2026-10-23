@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T132020_312530",
+  "as": "corregido",
+  "evidence": "311d192: internal/boardcmd/historia.go pasa a historicas.go (la historia de la tarjeta sigue siendo timeline.go).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:32.163379Z"
+}

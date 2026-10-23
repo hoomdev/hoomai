@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131731_b16c61",
+  "as": "corregido",
+  "evidence": "311d192: tituloDeSpec lee con hoomfs.AbrirRegular y propaga los errores de apertura y del Scanner; un spec que esta y no se puede leer es un error de backfill, no un titulo degradado. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA447_Hallazgob16c61_SpecIlegibleNoDegradaElTitulo (permisos 000 y linea de mas de 64 KiB).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:32.05497Z"
+}

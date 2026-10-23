@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131913_1f8e2f",
+  "as": "corregido",
+  "evidence": "311d192: la documentacion del paquete itemcmd nombra add | list | show | save | backfill y dice que hace backfill.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:32.109008Z"
+}

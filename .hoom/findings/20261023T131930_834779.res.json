@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131930_834779",
+  "as": "corregido",
+  "evidence": "311d192: la documentacion del paquete item dice que historico es la unica clave que no escribe una persona (la escribe hoom item backfill) y que no mueve la tarjeta: dice que evidencia mirar.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:32.136168Z"
+}

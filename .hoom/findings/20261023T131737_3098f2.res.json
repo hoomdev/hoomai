@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131737_3098f2",
+  "as": "corregido",
+  "evidence": "311d192: porQueNoSostiene devuelve error cuando git no puede resolver el commit o decir si es ancestro (base inexistente, git que falla); Candidatas lo propaga y backfill termina con error sin escribir. Un commit que el repo no tiene es 'no esta en este repositorio' (gitx.ResolverCommit). Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA449_Hallazgo3098f2_GitSinRespuestaEsError.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:32.082391Z"
+}
