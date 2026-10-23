@@ -1,0 +1,11 @@
+{
+  "id": "20261023T134734_1499b7",
+  "created_at": "2026-10-23T13:47:34.229672Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO, amplia un PRE-EXISTENTE (lo vio el test-writer de la ronda 1; no verificado en la salida) — item.Validate acepta titulos con caracteres de control (NUL, ESC, \\r) o de direccion (U+202E), y ningun render del tablero en terminal los escapa. Hasta ahora el titulo lo tipeaba una persona en hoom item add; con backfill sale del primer encabezado de un spec que llega por git (tituloDeSpec), sin que nadie lo tipee. Un encabezado con secuencias ESC se imprimiria tal cual en hoom board. Correccion posible: que tituloDeSpec no acepte un encabezado con caracteres de control (motivo, no titulo degradado) y, en general, escapar los textos de evidencia al imprimirlos en terminal.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "57fd293fe5b94c74",
+  "task": "historia-en-el-tablero"
+}

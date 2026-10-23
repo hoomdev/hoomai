@@ -1,0 +1,11 @@
+{
+  "id": "20261023T134734_752455",
+  "created_at": "2026-10-23T13:47:34.014177Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO (lo encontro el test-writer de la ronda 1) — si .hoom/items/\u003cslug\u003e.yaml es un directorio (o algo que no es un item), Candidatas no lo cuenta como item (itemFiles), item.Add responde ErrExists y Backfill lista la tarea como 'ya tiene item, intacto' con exit 0, mientras hoom board doctor sigue dando evidencia-sin-item para esa tarea. La salida afirma algo que no es: deberia listarla como que no califica, con un motivo que diga que en el lugar del item hay otra cosa.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "57fd293fe5b94c74",
+  "task": "historia-en-el-tablero"
+}

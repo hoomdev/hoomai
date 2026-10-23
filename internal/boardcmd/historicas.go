@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -89,6 +90,23 @@ func Candidatas(root, base, blockOn string, now time.Time) ([]Candidata, error) 
 			return nil, err
 		}
 		c := Candidata{Slug: s, Titulo: titulo, Tipo: "feature"}
+		// what takes the item's place without being one (a directory: the
+		// doctor does not count it as an item) is not "already has an item":
+		// backfill could not write there either (finding 752455)
+		if fi, err := os.Lstat(item.Path(root, s)); err == nil {
+			c.Motivo = fmt.Sprintf("en %s hay algo que no es un item (%s)", item.RelPath(s), fi.Mode().Type())
+			out = append(out, c)
+			continue
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("no se pudo mirar %s: %w", item.RelPath(s), err)
+		}
+		// a title nobody typed (it comes from the spec, through git) never
+		// carries what a terminal would obey (finding 1499b7)
+		if conControl(titulo) {
+			c.Motivo = fmt.Sprintf("el titulo del spec trae caracteres de control: %q", titulo)
+			out = append(out, c)
+			continue
+		}
 		// a task with verdicts of its spec, or a spec on its trees, is a task
 		// with spec: only a verdict qualifies it, never its findings (a
 		// spec that only lives in the worktree too, finding 939eec)
@@ -345,6 +363,14 @@ func (g *gatherer) sostenHistorica(ev *Evidence, dir string) {
 		}
 		ev.HistoricaSostenida = true
 	}
+}
+
+// conControl says whether s has a control character or one that changes
+// the direction of the text (U+202E and the like).
+func conControl(s string) bool {
+	return strings.IndexFunc(s, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r)
+	}) >= 0
 }
 
 // tituloDeSpec is the title of task s's card: the first heading of its spec
