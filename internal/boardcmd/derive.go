@@ -52,7 +52,7 @@ func Derive(ev Evidence) Card {
 	c.Drops = dropsOf(c)
 	c.Ghost = ghostOf(c)
 	c.Doctor = DoctorOf(ev, c)
-	c.Historica = ev.Item.HechoEn == nil && ev.HistoricaSostenida
+	c.Historica = ev.Item.HechoEn == nil && ev.Item.Historico != "" && ev.HistoricaSostenida
 	return c
 }
 
@@ -74,7 +74,7 @@ func column(ev Evidence) (string, []string, string, string) {
 	// a card from before the cabin is done while the evidence its historico
 	// names still holds it; when it stops holding, the card derives like any
 	// other and the doctor says why (historia-en-el-tablero)
-	if ev.HistoricaSostenida {
+	if ev.Item.Historico != "" && ev.HistoricaSostenida {
 		return ColHecho, []string{}, "", "terminada antes de la cabina: la sostiene " + ev.Item.Historico
 	}
 	// with a workspace it cannot use, nothing else about the card can be

@@ -25,7 +25,6 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
-	"github.com/hoomdev/hoomai/internal/verdict"
 	"gopkg.in/yaml.v3"
 )
 
@@ -100,11 +99,16 @@ func LeerHistorico(s string) (veredicto string, hallazgos bool, ok bool) {
 		return "", true, true
 	}
 	id, es := strings.CutPrefix(s, "veredicto ")
-	if !es || !verdict.EsNombre(id+".json") {
+	if !es || !idHistorico.MatchString(id) {
 		return "", false, false
 	}
 	return id, false, true
 }
+
+// idHistorico is the shape of the id a Historico names: the characters of a
+// verdict id, never a space or a line break that would carry text into a
+// message.
+var idHistorico = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // Sesion is one interactive session opened on the card's workspace.
 type Sesion struct {

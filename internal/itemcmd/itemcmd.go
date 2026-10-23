@@ -556,7 +556,4 @@ func renderBackfill(w io.Writer, res BackfillResult) {
 	for _, s := range res.ConItem {
 		fmt.Fprintf(w, "  %-9s %-36s ya tiene item: no se toca\n", "intacto", s)
 	}
-	if !res.DryRun && len(res.Creados) > 0 {
-		fmt.Fprintln(w, "  commitealos: viajan en git como los hallazgos")
-	}
 }

@@ -36,7 +36,11 @@ func Render(w io.Writer, b Board) {
 		}
 		fmt.Fprintf(w, "\n%s\n", head)
 		for _, c := range col.Cards {
-			fmt.Fprintf(w, "  %-28s %s\n", c.Slug, c.Item.Titulo)
+			titulo := c.Item.Titulo
+			if c.Historica {
+				titulo += " (historica)"
+			}
+			fmt.Fprintf(w, "  %-28s %s\n", c.Slug, titulo)
 			if len(c.Missing) > 0 {
 				fmt.Fprintf(w, "    %s\n", recortar(c.Missing[0]))
 			}
@@ -84,6 +88,9 @@ func RenderCard(w io.Writer, c Card) {
 	}
 	if it.HechoEn != nil {
 		fmt.Fprintf(w, "  hecho: %s · commit_final %s\n", it.HechoEn.Format("2006-01-02 15:04 UTC"), it.CommitFinal)
+	}
+	if c.Historica {
+		fmt.Fprintf(w, "  historica: anterior a la cabina, la sostiene %s\n", it.Historico)
 	}
 	e := c.Evidence
 	fmt.Fprintf(w, "  evidencia: %s (%s)\n", e.Dir, e.Source)
