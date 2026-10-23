@@ -1,0 +1,11 @@
+{
+  "id": "20261023T143400_7418b6",
+  "created_at": "2026-10-23T14:34:00.691522Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 1) — gate.sh:155-163: el comentario dice que si otra corrida publico antes se descarta el clon propio, pero el codigo mueve a .viejo y borra el que publico la otra; y si otra publica entre el [ -e ] y el mv, 'mv $nuevo $clon' lo mete adentro (\u003cnombre\u003e.git/clon.XXXXXX), que la limpieza (-maxdepth 1) no ve: fuga de ~2 MB. No falla abierto (el sha256 protege). Reproducido aislando esas lineas con 6 publicadores: anidado en 35 de 60.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "9638609cd4d884a0",
+  "task": "lock-semgrep"
+}

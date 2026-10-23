@@ -1,0 +1,11 @@
+{
+  "id": "20261023T143400_acaf6e",
+  "created_at": "2026-10-23T14:34:00.84824Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/fijar.sh",
+  "description": "INTRODUCIDO (delta 1) — fijar.sh:41-46: si $tmp/hashes queda vacio, NR == FNR tambien vale para el lock, el awk se lo traga, $tmp/lock queda vacio y cp vacia paquetes.lock; el script dice 'fijar: 0 archivos ... revisa el diff' y sale con 0. Reproducido con una ruta 'fake -x.yaml'. Correccion: FILENAME == ARGV[1] y fallar si hashes no tiene tantas lineas como archivos el lock.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "9638609cd4d884a0",
+  "task": "lock-semgrep"
+}

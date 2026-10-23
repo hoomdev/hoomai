@@ -1,0 +1,11 @@
+{
+  "id": "20261023T143401_ccf771",
+  "created_at": "2026-10-23T14:34:01.163621Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 1) — gate.sh:94: un repo llamado clon o corrida publica clon.git o corrida.git, que coinciden con el patron de limpieza: pasada una hora otra corrida lo borra aunque este en uso y lo vuelve a bajar. Reproducido con touch -t. Correccion: patrones corrida.?????? y clon.??????.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "9638609cd4d884a0",
+  "task": "lock-semgrep"
+}

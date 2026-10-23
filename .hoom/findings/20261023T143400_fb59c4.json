@@ -1,0 +1,11 @@
+{
+  "id": "20261023T143400_fb59c4",
+  "created_at": "2026-10-23T14:34:00.535723Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 1) — gate.sh:112 '(cd \"$plano\" \u0026\u0026 sha $rutas)': una ruta relativa que no empieza con . hace que cd consulte CDPATH; con CDPATH exportado y '.' adentro, cd imprime el directorio, esa linea entra en .tiene y cmp falla siempre: el gate baja el repo de nuevo y sale con 2 con el mensaje enganoso 'no entrega los archivos'. Reproducido: CDPATH=. sh .hoom/semgrep/gate.sh da exit 2 (bash, dash y zsh en modo sh).",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "9638609cd4d884a0",
+  "task": "lock-semgrep"
+}
