@@ -231,22 +231,24 @@ func Cerrar(root string, rec Record) error {
 // others (finding 1e0674); the worker itself only sleeps until the next one
 // is due or a new close arrives (finding eafa2d). Writes of one record file
 // go one at a time (escritura), so a try still in flight can never land
-// after a newer close. At most maxEnVuelo tries are in flight at once: the
-// rest wait for one to end (finding da912f).
+// after a newer close. At most maxEnVuelo tries of one project are in flight
+// at once: the rest of that project wait for one to end (finding da912f),
+// and a project whose writes hang never holds back another's (finding
+// ab66c7).
 type cierres struct {
 	mu         sync.Mutex
 	porArchivo map[string]*cierre
 	candados   map[string]*candado
-	enVuelo    int // tries in flight
+	enVuelo    map[string]int // tries in flight, by project root
 	trabajando bool
 	despertar  chan struct{}
 	seq        uint64
 }
 
-// maxEnVuelo bounds the tries in flight: a file system that leaves writes
-// hanging holds at most this many goroutines, and only once that many hang
-// at once does a try wait for a slot.
-const maxEnVuelo = 16
+// maxEnVuelo bounds the tries in flight of one project. Its writes hang for
+// one cause (its .hoom, its file system), so past this many hanging at once
+// another goroutine would only hang too; other projects keep their own.
+const maxEnVuelo = 4
 
 // candado is the write lock of one record file, with how many hold it or
 // wait for it: the last one out takes it out of the map, so the map is the
@@ -267,7 +269,7 @@ type cierre struct {
 	enVuelo bool
 }
 
-var pendientes = &cierres{porArchivo: map[string]*cierre{}, candados: map[string]*candado{}, despertar: make(chan struct{}, 1)}
+var pendientes = &cierres{porArchivo: map[string]*cierre{}, candados: map[string]*candado{}, enVuelo: map[string]int{}, despertar: make(chan struct{}, 1)}
 
 // escritura takes the write lock of the record at path and returns its
 // release. Lock order: a record's lock before c.mu, never the other way.
@@ -338,10 +340,10 @@ func (c *cierres) trabajar() {
 			vencido := !ci.proximo.After(ahora)
 			switch {
 			case ci.enVuelo:
-			case vencido && c.enVuelo < maxEnVuelo:
+			case vencido && c.enVuelo[ci.root] < maxEnVuelo:
 				ci.enVuelo = true
-				c.enVuelo++
-				go c.intentar(path, ci.seq)
+				c.enVuelo[ci.root]++
+				go c.intentar(path, ci.seq, ci.root)
 			case vencido:
 				// no slot: the try that ends wakes the worker
 			case ci.proximo.Before(siguiente):
@@ -356,9 +358,10 @@ func (c *cierres) trabajar() {
 	}
 }
 
-// intentar makes one try of the close seq of the record at path, and settles
-// it or schedules its next try.
-func (c *cierres) intentar(path string, seq uint64) {
+// intentar makes one try of the close seq of the record at path, settles it
+// or schedules its next try, and frees its slot of proyecto's tries in
+// flight.
+func (c *cierres) intentar(path string, seq uint64, proyecto string) {
 	unlock := c.escritura(path)
 	c.mu.Lock()
 	ci, ok := c.porArchivo[path]
@@ -373,7 +376,9 @@ func (c *cierres) intentar(path string, seq uint64) {
 	unlock()
 
 	c.mu.Lock()
-	c.enVuelo--
+	if c.enVuelo[proyecto]--; c.enVuelo[proyecto] <= 0 {
+		delete(c.enVuelo, proyecto)
+	}
 	if ci, ok := c.porArchivo[path]; ok && ci.seq == seq {
 		if listo {
 			delete(c.porArchivo, path)
