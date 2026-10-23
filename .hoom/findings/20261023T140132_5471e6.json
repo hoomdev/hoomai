@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140132_5471e6",
+  "created_at": "2026-10-23T14:01:32.692018Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO — gate.sh:82-83: dos corridas con el cache frio compiten en git init --bare, que no se reintenta; una sale con exit 2 ('cannot mkdir ... File exists' o 'could not lock config file'), contra el comentario 'dos verify a la vez no se pisan'. Reproducido 2 de 3 veces. Correccion: la del clon temporal propio.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

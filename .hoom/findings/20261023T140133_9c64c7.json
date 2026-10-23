@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140133_9c64c7",
+  "created_at": "2026-10-23T14:01:33.603436Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": ".hoom/semgrep/paquetes.lock",
+  "description": "INTRODUCIDO — paquetes.lock:21-23 dice 'corren las mismas 395 reglas que corria el registro', pero semgrep --time reporta 440 reglas del lock mas 1 propia (429 archivos, 5 con varias reglas). Recontar y decir que se comparo.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

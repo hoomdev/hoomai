@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140133_9cc311",
+  "created_at": "2026-10-23T14:01:33.447814Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO — gate.sh:75-76 y paquetes.lock:14-17 dicen que semgrep nombra cada regla igual que el registro; el id real es hoom.cache.semgrep.corrida.\u003c6 al azar\u003e.reglas.go.lang...: solo el sufijo es el del registro (los nosemgrep andan porque comparan por sufijo) y el id que muestra un hallazgo cambia en cada corrida, asi que copiarlo a un nosemgrep no coincide nunca. Correccion: que el comentario diga que el id termina en el del registro y que el nosemgrep usa ese sufijo.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}
