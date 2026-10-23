@@ -1,0 +1,11 @@
+{
+  "id": "20261023T175813_185e51",
+  "created_at": "2026-10-23T17:58:13.644444Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/envelope/hallazgos_endurecimiento1d_test.go",
+  "description": "INTRODUCIDO — internal/envelope/hallazgos_endurecimiento1d_test.go:149-247 copia el armazon e1dMezcla/e1dAntes/e1dNombres/e1dEsperado/e1dPermutados/e1dGruposFuera que tambien se agrega en internal/finding/hallazgos_endurecimiento1d_test.go:37-138, internal/runcmd/hallazgos_endurecimiento1d_test.go:39-140 e internal/verdict/hallazgos_endurecimiento1d_test.go:41-143. La generacion determinista y el criterio de desempate quedan con cuatro fuentes de verdad; cambiar la forma de probar estabilidad o diagnosticar grupos exige sincronizarlas. Un fixture compartido parametrizado por nombre/fecha conservaria en cada paquete solo el dato de dominio.",
+  "author": "reviewer@codex",
+  "fingerprint": "7449d94fa7eb782b",
+  "task": "endurecimiento-1"
+}

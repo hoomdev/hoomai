@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123540_1e0674",
+  "created_at": "2026-10-23T12:35:40.045473Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO: internal/envelope/envelope.go:242-264 hace todos los reintentos del proceso, incluso de proyectos distintos, en un unico worker y llama secuencialmente a hecho; hecho ejecuta Lstat y Write sin cota en internal/envelope/envelope.go:281-291. Si un filesystem degradado bloquea una sola operacion, el worker entero queda detenido y ningun otro cierre pendiente puede recuperarse.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

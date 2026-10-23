@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123540_b6d4ca",
+  "created_at": "2026-10-23T12:35:40.045473Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/gitx.go",
+  "description": "INTRODUCIDO: internal/gitx/gitx.go:204 conserva solo el primer error mientras ejecuta ambos listados; si git diff HEAD falla rapido y git ls-files agota el tope, locales devuelve el error rapido, HuellaConTope no reconoce errSinRespuesta y devuelve una huella parcial como exito. Una dependencia que no responde queda ocultada y los hallazgos se atan a un arbol incompleto.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

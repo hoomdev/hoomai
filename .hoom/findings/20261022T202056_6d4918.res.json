@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T202056_6d4918",
+  "as": "corregido",
+  "evidence": "d76d197: gitx.TouchedErr devuelve error ante cualquier fallo de los git del listado, no solo un timeout; Take deja Snapshot.Listado y el gate corta. Tests de gitx y agentcmd en hallazgos_endurecimiento1b: con .git/index corrupto el gate daba OK en e08650d; ahora corta.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.474092Z"
+}

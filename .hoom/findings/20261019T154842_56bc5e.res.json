@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T154842_56bc5e",
+  "as": "corregido",
+  "evidence": "66ba531: la historia usa gitCheck: exit 1 es 'no', cualquier otro fallo de git es un error y deja la historia sin historial de git. Tests TestHallazgo_56bc5e_CA360_MergeBaseIsAncestorQueFallaNoEsUnNo y ..._RevParseVerifyDeLaRamaQueFallaNoEsSinEspacio.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.43648Z"
+}

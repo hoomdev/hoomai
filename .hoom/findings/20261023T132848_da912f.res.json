@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T132848_da912f",
+  "as": "corregido",
+  "evidence": "0013fd4 y d45eef7: tope de intentos de cierre en vuelo (por proyecto, 4). Tests 64b1211 (fallan sobre 269f3e3, pasan con d45eef7): TestHallazgo_da912f_CA333_LosCierresColgadosDeUnProyectoNoSumanUnaGoroutinaCadaUno (100 cierres colgados de un proyecto: +51/+101 goroutines sobre 269f3e3, +5/+5 con d45eef7; topes +32 y +8).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T15:08:35.647285Z"
+}

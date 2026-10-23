@@ -1,0 +1,11 @@
+{
+  "id": "20261023T132848_22806c",
+  "created_at": "2026-10-23T13:28:48.022491Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:215: Cerrar libera el candado del archivo antes de agregar o quitar el pendiente (lineas 216-219). Dos Cerrar concurrentes del mismo ID pueden reordenar esas mutaciones: un cierre fallido anterior puede agregarse despues de que uno posterior exitoso hizo quitar y luego reescribir el estado viejo; o un exito anterior puede quitar el cierre fallido posterior y perderlo. El candado serializa Write pero no la decision atomica sobre porArchivo, por lo que se puede corromper o perder el estado terminal.",
+  "author": "reviewer@codex",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}

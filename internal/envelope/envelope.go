@@ -18,14 +18,18 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -129,32 +133,280 @@ func Write(root string, rec Record) error {
 // that never ran an envelope gets an empty list instead of an error: broken
 // telemetry never breaks a command.
 func List(root string) []Record {
-	entries, err := os.ReadDir(dir(root))
-	if err != nil {
-		return nil
-	}
-	var out []Record
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(dir(root), e.Name()))
-		if err != nil {
-			continue
-		}
-		var rec Record
-		if json.Unmarshal(raw, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
-			continue
-		}
-		// the file name is the address and the content only describes it: a
-		// record whose id is not its file's name, or is not an id at all, is
-		// not hoom's and never reaches a command the doctor proposes
-		// (finding f34bc3)
-		if rec.ID+".json" != e.Name() || !idRe.MatchString(rec.ID) {
-			continue
-		}
-		out = append(out, rec)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
+	out, _ := ListErr(root)
 	return out
+}
+
+// maxRecord caps one record file: hoom writes a few hundred bytes.
+const maxRecord = 1 << 20
+
+// ListErr is List for whoever must not take "unreadable" for "none" (the
+// doctor, finding d0d331): an envelopes directory that exists and cannot be
+// listed, or that is a symlink or not a directory, is an error, and so is a
+// record it could not open or read (findings 9e7983 and a2b180) — the records
+// it could read still come back. One that does not exist yet is no envelopes.
+// The directory and every record are read by descriptors, never following a
+// symlink: a record linked to one of another project would publish that
+// project's telemetry as this one's (finding 3826b3). A record of another
+// shape is not hoom's and is skipped.
+func ListErr(root string) ([]Record, error) {
+	var out []Record
+	var sinLeer []string
+	err := hoomfs.RecorrerDirectorio(root, []string{".hoom", DirName},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxRecord,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
+				return
+			}
+			var rec Record
+			if json.Unmarshal(e.Contenido, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
+				return
+			}
+			// the file name is the address and the content only describes
+			// it: a record whose id is not its file's name, or is not an id
+			// at all, is not hoom's and never reaches a command the doctor
+			// proposes (finding f34bc3)
+			if rec.ID+".json" != e.Nombre || !idRe.MatchString(rec.ID) {
+				return
+			}
+			out = append(out, rec)
+		})
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo leer .hoom/%s: %v", DirName, err)
+	}
+	// stable: records of the same instant keep the name order they were
+	// read in (finding 3cb01b)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].StartedAt.After(out[j].StartedAt) })
+	if len(sinLeer) > 0 {
+		return out, fmt.Errorf("no se pudieron leer %d registro(s) de .hoom/%s: %s", len(sinLeer), DirName, strings.Join(sinLeer, "; "))
+	}
+	return out, nil
+}
+
+// esperasCierre is how long a close that did not reach the disk waits before
+// each new try of its own; past the last one it keeps trying at that pace.
+var esperasCierre = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 15 * time.Second, 30 * time.Second}
+
+// esperaCierre is the wait before try n+1 of one close.
+func esperaCierre(n int) time.Duration {
+	if n < len(esperasCierre) {
+		return esperasCierre[n]
+	}
+	return esperasCierre[len(esperasCierre)-1]
+}
+
+// Cerrar writes the closing record of an envelope. Its owner's PID keeps an
+// open record alive (CA-333): a close that never reaches the disk would leave
+// the envelope "en curso" for as long as that process lives, which for one
+// the Studio launched is the whole life of the server (finding de4843). So a
+// close that fails is not dropped: it joins the pending closes, each retried
+// at its own pace (esperasCierre) until it lands, its record is gone or is no
+// longer a regular file, or the process ends — and then the dead PID is what
+// says the envelope stopped. A close that lands takes an older pending close
+// of the same record out of the queue, so a retry never writes back a stale
+// state (finding b7417b). The write and what it does to the queue happen
+// under the record's lock, so two Cerrar of one record settle the queue in
+// the order they wrote (findings 4647ba, 22806c). Cerrar returns its own
+// try's error; the record stays best-effort for the envelope (CA-202).
+func Cerrar(root string, rec Record) error {
+	if strings.TrimSpace(rec.ID) == "" {
+		return Write(root, rec)
+	}
+	path := filepath.Join(dir(root), rec.ID+".json")
+	unlock := pendientes.escritura(path)
+	defer unlock()
+	err := Write(root, rec)
+	if err != nil {
+		pendientes.agregar(path, root, rec)
+	} else {
+		pendientes.quitar(path)
+	}
+	return err
+}
+
+// cierres is the set of closes still to write, one per record file, and the
+// worker that schedules them. Each try runs on its own goroutine, so a write
+// the file system leaves hanging holds back only its own record, never the
+// others (finding 1e0674); the worker itself only sleeps until the next one
+// is due or a new close arrives (finding eafa2d). Writes of one record file
+// go one at a time (escritura), so a try still in flight can never land
+// after a newer close. At most maxEnVuelo tries of one project are in flight
+// at once: the rest of that project wait for one to end (finding da912f),
+// and a project whose writes hang never holds back another's (finding
+// ab66c7).
+type cierres struct {
+	mu         sync.Mutex
+	porArchivo map[string]*cierre
+	candados   map[string]*candado
+	enVuelo    map[string]int // tries in flight, by project root
+	trabajando bool
+	despertar  chan struct{}
+	seq        uint64
+}
+
+// maxEnVuelo bounds the tries in flight of one project. Its writes hang for
+// one cause (its .hoom, its file system), so past this many hanging at once
+// another goroutine would only hang too; other projects keep their own.
+const maxEnVuelo = 4
+
+// candado is the write lock of one record file, with how many hold it or
+// wait for it: the last one out takes it out of the map, so the map is the
+// size of the writes going on, not of every record ever closed (findings
+// 92fa84, 8bc636).
+type candado struct {
+	mu   sync.Mutex
+	usos int
+}
+
+// cierre is one pending close.
+type cierre struct {
+	root    string
+	rec     Record
+	seq     uint64 // tells this close from a newer one of the same record
+	intento int    // tries already made
+	proximo time.Time
+	enVuelo bool
+}
+
+var pendientes = &cierres{porArchivo: map[string]*cierre{}, candados: map[string]*candado{}, enVuelo: map[string]int{}, despertar: make(chan struct{}, 1)}
+
+// escritura takes the write lock of the record at path and returns its
+// release. Lock order: a record's lock before c.mu, never the other way.
+func (c *cierres) escritura(path string) func() {
+	c.mu.Lock()
+	k, ok := c.candados[path]
+	if !ok {
+		k = &candado{}
+		c.candados[path] = k
+	}
+	k.usos++
+	c.mu.Unlock()
+	k.mu.Lock()
+	return func() {
+		k.mu.Unlock()
+		c.mu.Lock()
+		k.usos--
+		if k.usos == 0 {
+			delete(c.candados, path)
+		}
+		c.mu.Unlock()
+	}
+}
+
+// agregar queues the close of the record at path, replacing an older one of
+// the same record, and makes sure the worker sees it.
+func (c *cierres) agregar(path, root string, rec Record) {
+	c.mu.Lock()
+	c.seq++
+	c.porArchivo[path] = &cierre{root: root, rec: rec, seq: c.seq, proximo: time.Now().Add(esperaCierre(0))}
+	if !c.trabajando {
+		c.trabajando = true
+		go c.trabajar()
+	}
+	c.mu.Unlock()
+	c.avisar()
+}
+
+// quitar drops the pending close of the record at path: a newer close
+// landed.
+func (c *cierres) quitar(path string) {
+	c.mu.Lock()
+	delete(c.porArchivo, path)
+	c.mu.Unlock()
+}
+
+// avisar wakes the worker without ever blocking.
+func (c *cierres) avisar() {
+	select {
+	case c.despertar <- struct{}{}:
+	default:
+	}
+}
+
+// trabajar launches every close that is due and sleeps until the next one,
+// until none is left.
+func (c *cierres) trabajar() {
+	for {
+		c.mu.Lock()
+		if len(c.porArchivo) == 0 {
+			c.trabajando = false
+			c.mu.Unlock()
+			return
+		}
+		ahora := time.Now()
+		siguiente := ahora.Add(esperaCierre(len(esperasCierre)))
+		for path, ci := range c.porArchivo {
+			vencido := !ci.proximo.After(ahora)
+			switch {
+			case ci.enVuelo:
+			case vencido && c.enVuelo[ci.root] < maxEnVuelo:
+				ci.enVuelo = true
+				c.enVuelo[ci.root]++
+				go c.intentar(path, ci.seq, ci.root)
+			case vencido:
+				// no slot: the try that ends wakes the worker
+			case ci.proximo.Before(siguiente):
+				siguiente = ci.proximo
+			}
+		}
+		c.mu.Unlock()
+		select {
+		case <-time.After(time.Until(siguiente)):
+		case <-c.despertar:
+		}
+	}
+}
+
+// intentar makes one try of the close seq of the record at path, settles it
+// or schedules its next try, and frees its slot of proyecto's tries in
+// flight.
+func (c *cierres) intentar(path string, seq uint64, proyecto string) {
+	unlock := c.escritura(path)
+	c.mu.Lock()
+	ci, ok := c.porArchivo[path]
+	vigente := ok && ci.seq == seq
+	var root string
+	var rec Record
+	if vigente {
+		root, rec = ci.root, ci.rec
+	}
+	c.mu.Unlock()
+	listo := !vigente || hecho(path, root, rec)
+	unlock()
+
+	c.mu.Lock()
+	if c.enVuelo[proyecto]--; c.enVuelo[proyecto] <= 0 {
+		delete(c.enVuelo, proyecto)
+	}
+	if ci, ok := c.porArchivo[path]; ok && ci.seq == seq {
+		if listo {
+			delete(c.porArchivo, path)
+		} else {
+			ci.enVuelo = false
+			ci.intento++
+			ci.proximo = time.Now().Add(esperaCierre(ci.intento))
+		}
+	}
+	c.mu.Unlock()
+	c.avisar()
+}
+
+// hecho tries one pending close and says whether it is settled: written, or
+// nothing left to close — the record is gone, or something else took its
+// name (a directory, a symlink: not this close's to overwrite). A failure to
+// look at it is not settled: storage that fails once may come back (finding
+// be5b7a). A retry never creates the directories back: a project removed
+// under it stays removed.
+func hecho(path, root string, rec Record) bool {
+	st, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return true
+	case err != nil:
+		return false
+	case !st.Mode().IsRegular():
+		return true
+	}
+	return Write(root, rec) == nil
 }

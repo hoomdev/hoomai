@@ -5,8 +5,10 @@ package gitx
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"io"
@@ -15,6 +17,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Info is the Git snapshot bound to a verdict.
@@ -61,7 +64,6 @@ func Snapshot(dir, base string) Info {
 	}
 
 	set := map[string]bool{}
-	local := map[string]bool{} // worktree divergence vs HEAD: uncommitted + untracked + deleted
 	if out, err := run(dir, "diff", "--name-only", "--diff-filter=ACMR", EndOfOptions, base+"...HEAD"); err == nil {
 		for _, f := range strings.Split(out, "\n") {
 			if f != "" {
@@ -69,21 +71,11 @@ func Snapshot(dir, base string) Info {
 			}
 		}
 	}
-	if out, err := run(dir, "diff", "--name-only", "HEAD"); err == nil {
-		for _, f := range strings.Split(out, "\n") {
-			if f != "" {
-				set[f] = true
-				local[f] = true
-			}
-		}
-	}
-	if out, err := run(dir, "ls-files", "--others", "--exclude-standard"); err == nil {
-		for _, f := range strings.Split(out, "\n") {
-			if f != "" {
-				set[f] = true
-				local[f] = true
-			}
-		}
+	// worktree divergence vs HEAD: uncommitted + untracked + deleted. A
+	// listing that fails contributes nothing, as it always did here.
+	local, _ := locales(func(args ...string) (string, error) { return run(dir, args...) })
+	for f := range local {
+		set[f] = true
 	}
 	for f := range set {
 		// Generated artifacts are never part of the change candidate: the act
@@ -106,8 +98,20 @@ func Snapshot(dir, base string) Info {
 // fingerprint; changing one byte anywhere breaks it. Deterministic, local,
 // zero tokens.
 func fingerprint(dir string, local map[string]bool) string {
+	h, _ := fingerprintCon(dir, local, func(args ...string) (string, error) { return run(dir, args...) })
+	return h
+}
+
+// fingerprintCon is fingerprint with the git runner rn: the only error it
+// returns is a git that did not answer (errSinRespuesta); any other failure
+// is what fingerprint always did with it.
+func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (string, error)) (string, error) {
 	entries := map[string]string{}
-	if out, err := run(dir, "ls-tree", "-r", "HEAD"); err == nil {
+	out, err := rn("ls-tree", "-r", "HEAD")
+	if errors.Is(err, errSinRespuesta) {
+		return "", err
+	}
+	if err == nil {
 		for _, line := range strings.Split(out, "\n") {
 			tab := strings.IndexByte(line, '\t')
 			if tab < 0 {
@@ -136,10 +140,12 @@ func fingerprint(dir string, local map[string]bool) string {
 	}
 	sort.Strings(localPaths)
 	if len(localPaths) > 0 {
-		cmd := exec.Command("git", append([]string{"hash-object", "--"}, localPaths...)...)
-		cmd.Dir = dir
-		if out, err := cmd.Output(); err == nil {
-			hashes := strings.Split(strings.TrimSpace(string(out)), "\n")
+		out, err := rn(append([]string{"hash-object", "--"}, localPaths...)...)
+		if errors.Is(err, errSinRespuesta) {
+			return "", err
+		}
+		if err == nil {
+			hashes := strings.Split(out, "\n")
 			for i, f := range localPaths {
 				if i < len(hashes) && hashes[i] != "" {
 					entries[f] = "g:" + hashes[i]
@@ -157,7 +163,60 @@ func fingerprint(dir string, local map[string]bool) string {
 	for _, p := range paths {
 		io.WriteString(h, p+"\n"+entries[p]+"\n")
 	}
-	return hex.EncodeToString(h.Sum(nil))[:16]
+	return hex.EncodeToString(h.Sum(nil))[:16], nil
+}
+
+// HuellaConTope is Snapshot's ChangeFingerprint with every git bounded by
+// tope: what stamps the moment of a finding needs it, and it must never hang
+// on a git that blocks — a FIFO where git reads a .gitignore hung the scope
+// gate while it registered its findings (finding 5c5342). A git that does
+// not answer is an error and no fingerprint; outside a repo there is none
+// either, as in Snapshot.
+func HuellaConTope(dir string, tope time.Duration) (string, error) {
+	rn := func(args ...string) (string, error) { return runTope(dir, tope, args...) }
+	if _, err := rn("rev-parse", "--is-inside-work-tree"); err != nil {
+		if errors.Is(err, errSinRespuesta) {
+			return "", err
+		}
+		return "", nil
+	}
+	// the same divergence Snapshot finds, from the same function: only a git
+	// that did not answer stops it
+	local, err := locales(rn)
+	if errors.Is(err, errSinRespuesta) {
+		return "", err
+	}
+	return fingerprintCon(dir, local, rn)
+}
+
+// locales is what diverges from HEAD in the working tree — uncommitted,
+// untracked (not ignored) and deleted paths — the half of the candidate the
+// fingerprint hashes from disk. It runs both listings even if one fails and
+// returns the paths they gave, with an error: a git that did not answer
+// wins over any other failure, whichever came first, so a bounded caller
+// never takes a partial listing for a whole one (findings cb8107, b6d4ca);
+// Snapshot keeps the paths either way.
+func locales(rn func(args ...string) (string, error)) (map[string]bool, error) {
+	local := map[string]bool{}
+	var falla error
+	for _, args := range [][]string{
+		{"diff", "--name-only", "HEAD"},
+		{"ls-files", "--others", "--exclude-standard"},
+	} {
+		out, err := rn(args...)
+		if err != nil {
+			if falla == nil || (errors.Is(err, errSinRespuesta) && !errors.Is(falla, errSinRespuesta)) {
+				falla = err
+			}
+			continue
+		}
+		for _, f := range strings.Split(out, "\n") {
+			if f != "" {
+				local[f] = true
+			}
+		}
+	}
+	return local, falla
 }
 
 // excludedFromCandidate: generated artifacts are never part of the candidate;
@@ -248,9 +307,27 @@ func GoPackages(changed []string) []string {
 // content hash (git's own blob hasher, so committed and working-tree copies
 // of the same bytes share an identity); "-" means the path is gone.
 func Touched(dir, base string) map[string]string {
+	out, _ := TouchedErr(dir, base)
+	return out
+}
+
+// TopeListado bounds each git that Touched runs. Listing what changed reads
+// every .gitignore of the tree, and one that is a FIFO blocks git forever:
+// the scope gate's photograph would never finish, and with it the envelope
+// (finding 5c5342).
+var TopeListado = 2 * time.Minute
+
+// TouchedErr is Touched that says when it could not list: a git that fails
+// or does not answer within TopeListado is an error, never a shorter list —
+// the scope gate fails closed on it (findings 5c5342 and 6d4918). Outside a
+// repo there is nothing to list and no error, as in Touched.
+func TouchedErr(dir, base string) (map[string]string, error) {
 	out := map[string]string{}
-	if _, err := run(dir, "rev-parse", "--is-inside-work-tree"); err != nil {
-		return out
+	if _, err := runTope(dir, TopeListado, "rev-parse", "--is-inside-work-tree"); err != nil {
+		if errors.Is(err, errSinRespuesta) {
+			return out, err
+		}
+		return out, nil
 	}
 	set := map[string]bool{}
 	// No --diff-filter here: a path DELETED in the branch is a change too.
@@ -259,9 +336,9 @@ func Touched(dir, base string) map[string]string {
 		{"diff", "--name-only", "HEAD"},
 		{"ls-files", "--others", "--exclude-standard"},
 	} {
-		o, err := run(dir, args...)
+		o, err := runTope(dir, TopeListado, args...)
 		if err != nil {
-			continue
+			return out, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 		}
 		for _, f := range strings.Split(o, "\n") {
 			if f != "" {
@@ -277,7 +354,25 @@ func Touched(dir, base string) map[string]string {
 		}
 		out[f] = h
 	}
-	return out
+	return out, nil
+}
+
+// errSinRespuesta is a git that did not answer within its bound.
+var errSinRespuesta = errors.New("git no respondio")
+
+// runTope is run with a bound: past tope the git is killed and the error
+// wraps errSinRespuesta.
+func runTope(dir string, tope time.Duration, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), tope)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
+	cmd.WaitDelay = 5 * time.Second
+	out, err := cmd.Output()
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("%w en %s: git %s", errSinRespuesta, tope, strings.Join(args, " "))
+	}
+	return strings.TrimSpace(string(out)), err
 }
 
 // contentHash hashes a file's bytes. Deliberately NOT git hash-object: this

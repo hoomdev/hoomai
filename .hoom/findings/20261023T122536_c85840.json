@@ -1,0 +1,11 @@
+{
+  "id": "20261023T122536_c85840",
+  "created_at": "2026-10-23T12:25:36.237769Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "INTRODUCIDO — internal/hoomfs/ruta.go:124-130 acumula en []Entrada el contenido de todos los archivos aceptados antes de devolver; los nuevos llamadores permiten 256 MiB por archivo en findings, reviews y verdicts (internal/finding/finding.go:100-104, internal/reviewcmd/record.go:75-78, internal/verdict/verdict.go:203-206). Por tanto, varios JSON dentro de esos directorios fuerzan memoria N x 256 MiB y pueden tumbar Build, Doctor, verify o Studio; el tope por archivo no acota el directorio. Procesar cada entrada en streaming o imponer un presupuesto agregado. Patronizable: una regla Semgrep puede marcar helpers que anexan contenidos completos leídos dentro de un bucle sin presupuesto total.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

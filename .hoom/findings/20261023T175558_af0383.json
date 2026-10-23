@@ -1,0 +1,11 @@
+{
+  "id": "20261023T175558_af0383",
+  "created_at": "2026-10-23T17:55:58.981362Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": ".github/semgrep-en-docker.sh",
+  "description": "INTRODUCIDO — .github/semgrep-en-docker.sh:8-12 reemplaza semgrep por 'exec docker run --rm'. Cuando vence el timeout de un gate, internal/gates/runner.go:82-87 cancela su proceso directo (el cliente docker), pero el scanner corre en un contenedor administrado por el daemon y no pertenece al arbol de procesos que CommandContext mata; --rm solo lo elimina cuando termine, no lo detiene al desconectarse el cliente. Asi hoom verify puede marcar security por timeout y seguir con los gates posteriores mientras el Semgrep huérfano continúa consumiendo CPU y leyendo el checkout, agravando precisamente la degradacion que disparó el plazo. El wrapper necesita conservar el id del contenedor y detenerlo en una trampa/cancelacion, o usar un mecanismo cuyo timeout alcance tambien al contenedor.",
+  "author": "reviewer@codex",
+  "fingerprint": "7449d94fa7eb782b",
+  "task": "endurecimiento-1"
+}

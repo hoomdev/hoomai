@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203544_3eab86",
+  "as": "corregido",
+  "evidence": "d76d197: una sola coleccion de fallas en el gatherer; cada arbol informa con g.prefijo (tree.informar), sin recogerFallas ni prefijo calculado dos veces.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.536238Z"
+}

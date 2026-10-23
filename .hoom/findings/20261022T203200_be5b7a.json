@@ -1,0 +1,11 @@
+{
+  "id": "20261022T203200_be5b7a",
+  "created_at": "2026-10-22T20:32:00.894159Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:219: reintentarCierre abandona definitivamente ante cualquier error de os.Lstat, no solo fs.ErrNotExist. Una indisponibilidad transitoria del directorio o del almacenamiento (EACCES/EIO) durante un solo intento impide todos los reintentos posteriores aunque el registro siga existiendo y el medio se recupere, dejando el sobre abierto durante toda la vida del proceso.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

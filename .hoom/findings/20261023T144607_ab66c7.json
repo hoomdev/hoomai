@@ -1,0 +1,11 @@
+{
+  "id": "20261023T144607_ab66c7",
+  "created_at": "2026-10-23T14:46:07.509002Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO (correccion de da912f en 0013fd4; lo encontro el test-writer de la ronda 4) — el tope global de 16 intentos de cierre en vuelo vuelve a traer el bloqueo total de 1e0674: con 16 reintentos colgados en 16 proyectos (FIFO en .hoom/.gitignore), el cierre pendiente de un proyecto sano no llego a disco en 20 s. El test de 1e0674 no lo ve porque cuelga una sola escritura.",
+  "author": "test-writer",
+  "fingerprint": "591de6f9c1d8728f",
+  "task": "endurecimiento-1"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T123041_eafa2d",
+  "as": "corregido",
+  "evidence": "8d5a55a: cada cierre pendiente tiene su propio backoff (esperaCierre(n), proximo) y un cierre nuevo despierta al trabajador. Test 7a2c5a6: TestHallazgo_eafa2d_CA333_ElPrimerReintentoDeUnCierreNuevoNoEsperaElBackoffDeOtro (sobre 51d6c22 llegaba a 7,5 s por el tramo de 8 s de otro; con la correccion, 1 s).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.372694Z"
+}

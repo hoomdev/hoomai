@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
 // Severities and terminal states.
@@ -60,6 +61,11 @@ type Finding struct {
 type Draft struct {
 	Severity, Lens, File, Description, Author string
 	Task                                      string // slug de la tarea; "" = sin tarea
+	// Huella is the tree fingerprint already computed by whoever registers
+	// several findings at once (the scope gate), so a git that does not
+	// answer costs one bound and not one per finding (finding f472ee); nil
+	// = Register computes it.
+	Huella *string
 }
 
 // taskRe is the slug shape `hoom task start` accepts. A finding validates the
@@ -90,6 +96,12 @@ type Item struct {
 }
 
 func dir(root string) string { return filepath.Join(root, ".hoom", "findings") }
+
+// maxArchivo caps one finding or resolution file. It is evidence, read
+// whole (CA-440 reads one of more than 16 MiB), so the cap only stops a
+// file no hoom would write from filling the memory; one past it is
+// unreadable, and an unreadable finding keeps findings_open red.
+const maxArchivo = 256 << 20
 
 func findingPath(root, id string) string { return filepath.Join(dir(root), id+".json") }
 func resPath(root, id string) string     { return filepath.Join(dir(root), id+".res.json") }
@@ -151,6 +163,16 @@ func Register(root, base string, d Draft) (Finding, error) {
 	if strings.TrimSpace(author) == "" {
 		author = gitx.Identity(root)
 	}
+	// the tree's fingerprint dates the finding; it is not what the finding
+	// says. A git that does not answer leaves it without one instead of
+	// hanging whoever registers it — the scope gate, among others (finding
+	// 5c5342)
+	var huella string
+	if d.Huella != nil {
+		huella = *d.Huella
+	} else {
+		huella, _ = gitx.HuellaConTope(root, gitx.TopeListado)
+	}
 	f := Finding{
 		ID:          newID(),
 		CreatedAt:   time.Now().UTC(),
@@ -159,7 +181,7 @@ func Register(root, base string, d Draft) (Finding, error) {
 		File:        strings.TrimSpace(file),
 		Description: strings.TrimSpace(description),
 		Author:      author,
-		Fingerprint: gitx.Snapshot(root, base).ChangeFingerprint,
+		Fingerprint: huella,
 		Task:        task,
 	}
 	if err := os.MkdirAll(dir(root), 0o755); err != nil {
@@ -290,52 +312,48 @@ type scanned struct {
 
 func scan(root string) (scanned, error) {
 	var out scanned
-	entries, err := os.ReadDir(dir(root))
-	if os.IsNotExist(err) {
-		return out, nil
-	}
+	// down by descriptors and as regular files (a finding or a resolution
+	// that is a FIFO or a symlink to another project is not read, finding
+	// 53c2af), one file at a time: resolutions and findings are parsed as
+	// they come and joined after the walk (finding c85840)
+	resolutions := map[string]*Resolution{}
+	var findings []Finding
+	err := hoomfs.RecorrerDirectorio(root, []string{".hoom", "findings"},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxArchivo,
+		func(e hoomfs.Entrada) {
+			if strings.HasSuffix(e.Nombre, ".res.json") {
+				if e.Err != nil {
+					out.warnings = append(out.warnings, fmt.Sprintf("resolucion ilegible %s: %v", e.Nombre, e.Err))
+					return
+				}
+				r, motivo := parseResolution(e.Contenido)
+				switch {
+				case motivo == "ilegible":
+					out.warnings = append(out.warnings, "resolucion ilegible "+e.Nombre)
+				case motivo != "":
+					out.warnings = append(out.warnings, fmt.Sprintf("resolucion invalida %s: %s; el hallazgo %s sigue abierto",
+						e.Nombre, motivo, r.FindingID))
+				default:
+					res := r
+					resolutions[r.FindingID] = &res
+				}
+				return
+			}
+			if e.Err != nil {
+				out.broken = append(out.broken, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
+				return
+			}
+			var f Finding
+			if json.Unmarshal(e.Contenido, &f) != nil || f.ID == "" {
+				out.broken = append(out.broken, e.Nombre+": JSON ilegible o sin id")
+				return
+			}
+			findings = append(findings, f)
+		})
 	if err != nil {
 		return out, err
 	}
-
-	resolutions := map[string]*Resolution{}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".res.json") {
-			continue
-		}
-		raw, rerr := os.ReadFile(filepath.Join(dir(root), e.Name()))
-		if rerr != nil {
-			out.warnings = append(out.warnings, fmt.Sprintf("resolucion ilegible %s: %v", e.Name(), rerr))
-			continue
-		}
-		r, motivo := parseResolution(raw)
-		switch {
-		case motivo == "ilegible":
-			out.warnings = append(out.warnings, "resolucion ilegible "+e.Name())
-		case motivo != "":
-			out.warnings = append(out.warnings, fmt.Sprintf("resolucion invalida %s: %s; el hallazgo %s sigue abierto",
-				e.Name(), motivo, r.FindingID))
-		default:
-			res := r
-			resolutions[r.FindingID] = &res
-		}
-	}
-
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".res.json") {
-			continue
-		}
-		raw, rerr := os.ReadFile(filepath.Join(dir(root), name))
-		if rerr != nil {
-			out.broken = append(out.broken, fmt.Sprintf("%s: %v", name, rerr))
-			continue
-		}
-		var f Finding
-		if json.Unmarshal(raw, &f) != nil || f.ID == "" {
-			out.broken = append(out.broken, name+": JSON ilegible o sin id")
-			continue
-		}
+	for _, f := range findings {
 		it := Item{Finding: f, Status: StatusOpen}
 		if r := resolutions[f.ID]; r != nil {
 			it.Status = r.As
@@ -343,7 +361,8 @@ func scan(root string) (scanned, error) {
 		}
 		out.items = append(out.items, it)
 	}
-	sort.Slice(out.items, func(i, j int) bool { return out.items[i].CreatedAt.Before(out.items[j].CreatedAt) })
+	// stable: ties keep the name order they were read in (finding 3cb01b)
+	sort.SliceStable(out.items, func(i, j int) bool { return out.items[i].CreatedAt.Before(out.items[j].CreatedAt) })
 	return out, nil
 }
 

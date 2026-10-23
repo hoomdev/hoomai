@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T133347_e4f7e0",
+  "as": "corregido",
+  "evidence": "0013fd4: el test de 1e0674 falla (t.Fatalf fixture) si en 40 s nadie leyo el FIFO, en vez de aprobar con que B llegue. El test-writer de la ronda 4 no ve otra forma de que ese test apruebe sin inyectar el caso.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T15:08:35.70484Z"
+}

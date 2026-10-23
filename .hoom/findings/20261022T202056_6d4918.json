@@ -1,0 +1,11 @@
+{
+  "id": "20261022T202056_6d4918",
+  "created_at": "2026-10-22T20:20:56.251139Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/gitx.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo): internal/gitx/gitx.go:327-343 solo propaga errSinRespuesta; cualquier fallo rapido de git diff o git ls-files cae en continue y TouchedErr devuelve una lista parcial con error nil. Con un indice Git corrupto/ilegible, base...HEAD aun puede listar un cambio permitido mientras diff HEAD y ls-files fallan, ocultando archivos locales fuera de scope; internal/agentcmd/scope.go:165-168 deja Snapshot.Listado vacio y el gate no corta. La frontera de scope debe fallar cerrada ante cualquier fallo de los comandos necesarios para listar, no solo timeout.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d9ac7053c550ac8",
+  "task": "endurecimiento-1"
+}

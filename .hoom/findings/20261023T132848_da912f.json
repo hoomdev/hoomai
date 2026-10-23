@@ -1,0 +1,11 @@
+{
+  "id": "20261023T132848_da912f",
+  "created_at": "2026-10-23T13:28:48.261989Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:313: trabajar lanza una goroutine por cada cierre vencido sin limite global. Si muchos IDs quedan pendientes y sus Write se bloquean (por ejemplo en un filesystem degradado o en .hoom/.gitignore), todos permanecen enVuelo con una goroutine bloqueada; un proyecto puede agotar goroutines, memoria o descriptores del Studio de larga vida. Aislar un cierre colgado no requiere fan-out ilimitado.",
+  "author": "reviewer@codex",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}

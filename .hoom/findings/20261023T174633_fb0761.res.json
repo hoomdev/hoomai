@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T174633_fb0761",
+  "as": "corregido",
+  "evidence": "b992ef8: ci.yml con permissions: contents: read y checkout con persist-credentials: false; .github/semgrep-en-docker.sh con --network=none, -v $PWD:$PWD:ro y SEMGREP_ENABLE_VERSION_CHECK=0. Probado con el semgrep local sobre un arbol con chmod -R a-w y un proxy roto (sin red): corre y da exit 1 con el hallazgo plantado (no necesita escribir el arbol ni red). Docker no corre en esta maquina: lo confirma el CI del PR.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:05:02.781985Z"
+}

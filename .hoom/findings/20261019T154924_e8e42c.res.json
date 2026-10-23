@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T154924_e8e42c",
+  "as": "corregido",
+  "evidence": "66ba531/d76d197: runcmd lee stdout y stderr del provider con lineas() y MaxLinea (4 MiB): una linea mas larga se lee hasta su fin, se descarta con un aviso que dice su tamano, y la lectura sigue; el cierre lo menciona. Tests TestHallazgo_e8e42c_CA362_LineaDeMasDe4MiBEnStdoutNoFrenaLaLectura y ...EnStderr... (fallan en 33c2136 por timeout de 15 s, pasan con la correccion).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.135301Z"
+}

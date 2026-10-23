@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203544_ed8ed4",
+  "as": "corregido",
+  "evidence": "d76d197: Snapshot y HuellaConTope comparten gitx.locales para lo que diverge de HEAD; HuellaConTope ya no reimplementa el descubrimiento.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.599544Z"
+}

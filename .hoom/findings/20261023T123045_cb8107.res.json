@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T123045_cb8107",
+  "as": "corregido",
+  "evidence": "8d5a55a: gitx.locales guarda las dos fallas y un git que no respondio (errSinRespuesta) le gana a cualquier otra, venga antes o despues; HuellaConTope lo reconoce. Test 7a2c5a6: TestHallazgo_cb8107_b6d4ca_CA442_GitQueNoRespondeDespuesDeUnFalloRapidoEsUnErrorDeHuellaConTope (git falso: diff HEAD falla al instante y ls-files duerme; sobre 51d6c22 devolvia la huella 8886d5ad sin error).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.435386Z"
+}

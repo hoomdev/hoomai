@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T202056_9e7983",
+  "as": "corregido",
+  "evidence": "d76d197: ListErr y MetasErr devuelven error si un registro o sidecar no se pudo leer, con los legibles igual; veredictos, hallazgos y reviews que no son registros validos son fallas del doctor. Tests de envelope, runcmd y boardcmd en hallazgos_endurecimiento1b (fallaban 4 de 4 en e08650d).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.291818Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261020T150815_a4f371",
+  "as": "corregido",
+  "evidence": "66ba531: memoria y .jsonl en el mismo orden bajo run.logMu. Test TestHallazgo_a4f371_CA362_MemoriaYDiscoEnElMismoOrdenConStdoutYStderr (40 delegaciones grandes por stdout y 10000 lineas por stderr; fallo 19 de 19 en 33c2136, pasa con la correccion).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.204688Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T132848_8bc636",
+  "as": "corregido",
+  "evidence": "0013fd4: mismo arreglo que 92fa84. Tests 64b1211 (fallan sobre 269f3e3, pasan con d45eef7): TestHallazgo_92fa84_8bc636_CA333_LosCierresExitososNoDejanEstadoQueCrece.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T15:08:35.61864Z"
+}

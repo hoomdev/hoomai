@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T202056_94636a",
+  "as": "corregido",
+  "evidence": "d76d197: los cierres pendientes los reintenta un solo trabajador; un registro que dejo de ser un archivo regular (un directorio) es un cierre terminado. Test de envelope/hallazgos_endurecimiento1b: en e08650d quedaban 5 goroutines a los 10 s; con la correccion vuelven a la base.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.354434Z"
+}

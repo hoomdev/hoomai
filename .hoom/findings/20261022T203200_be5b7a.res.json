@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261022T203200_be5b7a",
+  "as": "corregido",
+  "evidence": "d76d197: un error al mirar el registro que no es inexistencia no abandona el cierre; se reintenta. Test de envelope/hallazgos_endurecimiento1b: con un EACCES transitorio el cierre no llegaba nunca en e08650d; ahora llega al restaurar el permiso.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T21:16:27.384566Z"
+}

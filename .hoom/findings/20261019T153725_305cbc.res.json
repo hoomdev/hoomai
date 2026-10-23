@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T153725_305cbc",
+  "as": "corregido",
+  "evidence": "66ba531: Metas, MetasErr, ReadMeta y markOrphans leen .hoom/runs por descriptores (hoomfs.AbrirRuta/LeerDirectorio/LeerRegularEn): ni .hoom, ni runs, ni un sidecar pueden ser un enlace a otro proyecto. Tests TestHallazgo_305cbc_31a00d_CA159_RunsDeOtroProyectoNoSeListanNiSeLeen, TestHallazgo_305cbc_CA159_SidecarEnlazadoNoSeLista y ..._MetasErrDistingueNadaDeIlegible.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.237851Z"
+}

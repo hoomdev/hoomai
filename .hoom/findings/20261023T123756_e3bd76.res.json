@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T123756_e3bd76",
+  "as": "corregido",
+  "evidence": "8d5a55a: runcmd.canonico ya no enumera campos de providers.Event: decide por la linea escrita (si trae U+FFFD crudo o su escape \\ufffd la vuelve a decodificar), asi un campo string nuevo queda cubierto sin tocar canonico. Los tests de la ronda 2 TestHallazgo_b7aba5_CA362_UTF8InvalidoEn{Stdout,Stderr}MemoriaYDiscoIguales siguen pasando con la correccion.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:25:55.498955Z"
+}

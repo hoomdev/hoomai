@@ -1,0 +1,11 @@
+{
+  "id": "20261023T132601_c6c300",
+  "created_at": "2026-10-23T13:26:01.996627Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "PRE-EXISTENTE (follow-up para endurecimiento-2; lo encontro el test-writer de la ronda 3 de endurecimiento-1) — internal/hoomfs/hoomfs.go EnsureIgnored lee .hoom/.gitignore con os.ReadFile: sigue un symlink y se bloquea si es un FIFO. envelope.Write llama EnsureIgnored antes de escribir el sobre, asi que un FIFO en .hoom/.gitignore cuelga para siempre cada Write y el primer intento de cada Cerrar (misma clase que 5c5342). Con 8d5a55a el cuelgue ya no frena los cierres de otros registros (1e0674), pero la goroutine de ese registro queda colgada. Correccion: leer con hoomfs.LeerRegularEn (sin seguir symlinks ni bloquear) y devolver error si no es un archivo regular. Ojo: el test TestHallazgo_1e0674_CA333_UnaEscrituraBloqueadaNoFrenaLosCierresDeOtrosRegistros usa ese FIFO para colgar una escritura a proposito; al corregir esto el test-writer tiene que darle otra forma determinista de bloquearla.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}

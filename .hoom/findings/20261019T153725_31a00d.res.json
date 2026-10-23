@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261019T153725_31a00d",
+  "as": "corregido",
+  "evidence": "66ba531: openLog baja de la raiz por descriptores (AbrirRuta + AbrirRegularEn sobre el mismo objeto mirado) en vez de Lstat y despues abrir por ruta. Tests TestHallazgo_305cbc_31a00d_CA159_RunsDeOtroProyectoNoSeListanNiSeLeen (estatico) y TestHallazgo_31a00d_CA362_RunsQueCambiaPorUnEnlaceNoTraeLoAjeno (carrera; la ventana de ReadEvents no es reproducible en macOS y queda como guarda).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-22T20:55:22.273279Z"
+}
