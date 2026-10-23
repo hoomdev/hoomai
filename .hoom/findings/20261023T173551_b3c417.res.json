@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T173551_b3c417",
+  "as": "corregido",
+  "evidence": "6834a13: Candidatas mira el lugar del item antes que el spec. Tests 0d298e8 (fallan sobre 928f510, pasan con 6834a13): el test b3c417 de historia_hallazgos3 (directorio en doble.yaml y spec en 000: exit 0, doble con el motivo del item, control y corr creados).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:27:13.991126Z"
+}

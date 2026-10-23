@@ -1,0 +1,11 @@
+{
+  "id": "20261023T182713_7c40b6",
+  "created_at": "2026-10-23T18:27:13.566477Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO (enmienda 1; lo vio el test-writer de la ronda 3) — cuando backfill se corta a mitad del lote, el texto lista lo creado y el error, pero no las tareas que quedaron pendientes (la que fallo y las que no llego a intentar); quien lo corre no ve que falta sin volver a correr --dry-run.",
+  "author": "test-writer",
+  "fingerprint": "454e2cf051dd032a",
+  "task": "historia-en-el-tablero"
+}

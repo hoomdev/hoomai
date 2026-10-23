@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T175959_142d20",
+  "as": "corregido",
+  "evidence": "6834a13: enmienda 1 del spec; Backfill ya no borra (sin retirar): un error a mitad del lote deja los items ya creados, completos, BackfillResult.Error dice por que, y la salida (texto y --json) los lista; otra corrida completa el resto. Tests 0d298e8 (fallan sobre 928f510, pasan con 6834a13): TestCA447_Hallazgo142d20_FallaElSegundoQuedanLosCreados (subproceso con RLIMIT_FSIZE; sobre 928f510 borra a-uno.yaml).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:27:13.747057Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261023T182713_47ac06",
+  "created_at": "2026-10-23T18:27:13.395903Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "PRE-EXISTENTE (follow-up; lo vio el test-writer de la ronda 3) — un worktree cuyo .git apunta a un gitdir inexistente no se marca WorktreeInusable (runcmd.TaskDir no lo detecta), asi que gatherIn lee solo root y una historica sostenida por root queda en Hecho: el mismo agujero de f448aa por otra puerta.",
+  "author": "test-writer",
+  "fingerprint": "454e2cf051dd032a",
+  "task": "historia-en-el-tablero"
+}

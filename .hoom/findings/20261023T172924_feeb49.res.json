@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T172924_feeb49",
+  "as": "corregido",
+  "evidence": "6834a13: los nombres de hallazgos ilegibles entran al motivo por texto(). Tests 0d298e8 (fallan sobre 928f510, pasan con 6834a13): los tests 763d5f/feeb49 de historia_hallazgos3 (nombres con ESC y \\n; nada crudo).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:27:13.933057Z"
+}
