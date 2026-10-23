@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140133_59f783",
+  "as": "corregido",
+  "evidence": "38cae3f: [ -r \"$lock\" ] || falla al inicio y guarda en el mkdir de cada carpeta (extraer devuelve 1 y el gate falla con 2). Probado en un repo de prueba con el gate y el lock de 38cae3f y un exec.Command(os.Args[1]) plantado (exit 1 esperado): sin lock, con sh y con zsh --emulate sh, exit 2 'no se puede leer'.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:16.091581Z"
+}

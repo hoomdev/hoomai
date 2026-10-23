@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140132_860bb5",
+  "as": "corregido",
+  "evidence": "38cae3f: fetch con -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 y 3 intentos; semgrep vuelve a correr con exec (trap - antes), asi la senal del plazo del gate le llega a semgrep. La parte de runner.go (sin grupo de procesos) es pre-existente y queda en el follow-up 862449.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:16.060431Z"
+}

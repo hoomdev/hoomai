@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140133_9c64c7",
+  "as": "corregido",
+  "evidence": "38cae3f: el encabezado del lock dice 440 reglas en 429 archivos, de las que semgrep corre 395 sobre hoomai (las demas no tienen archivos de su lenguaje), las mismas 395 que con los paquetes del registro.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:16.177722Z"
+}
