@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123045_cb8107",
+  "created_at": "2026-10-23T12:30:45.444865Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gitx/gitx.go",
+  "description": "INTRODUCIDO: internal/gitx/gitx.go:184-217. locales conserva solo el primer error. Si git diff HEAD falla rapido y el ls-files posterior agota el tope, locales devuelve el primer error no temporal; HuellaConTope solo reconoce errSinRespuesta en ese valor y continua con fingerprintCon usando un listado parcial. Asi puede devolver y grabar una huella aunque uno de los git no respondio, contradiciendo el contrato de HuellaConTope. El timeout posterior debe prevalecer sobre errores anteriores.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

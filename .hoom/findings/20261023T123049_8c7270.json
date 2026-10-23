@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123049_8c7270",
+  "created_at": "2026-10-23T12:30:49.091573Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "INTRODUCIDO: internal/hoomfs/ruta.go:112-124. LeerDirectorio acumula Contenido de todas las entradas antes de que el llamador pueda parsear o liberar una. Los nuevos consumidores permiten hasta 256 MiB por archivo en findings, reviews y verdicts, de modo que varios registros dentro del limite quedan retenidos simultaneamente y pueden agotar la memoria de Build, Doctor o verify. Los lectores anteriores procesaban un archivo por iteracion; el tope individual ya no acota el consumo del directorio.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

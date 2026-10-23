@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123036_b7417b",
+  "created_at": "2026-10-23T12:30:36.875896Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO: internal/envelope/envelope.go:198-203 y 242-266. Cerrar solo actualiza pendientes cuando Write falla. Si un cierre A queda encolado y luego un cierre B del mismo ID logra escribirse antes del reintento, B no reemplaza ni cancela la entrada pendiente; el worker vuelve a escribir A y elimina la entrada, revirtiendo en disco el estado terminal mas nuevo. La comparacion seq solo protege otro cierre que tambien haya fallado y entrado al mapa, no un Write posterior exitoso.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}

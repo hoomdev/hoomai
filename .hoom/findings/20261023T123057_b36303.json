@@ -1,0 +1,11 @@
+{
+  "id": "20261023T123057_b36303",
+  "created_at": "2026-10-23T12:30:57.940053Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "INTRODUCIDO: internal/hoomfs/ruta.go:112-119. LeerDirectorio usa File.ReadDir, que entrega orden de directorio, y no ordena antes de devolver; reemplazo a os.ReadDir, que ordenaba por nombre, en findings, reviews y verdicts. Los consumidores solo ordenan por CreatedAt y algunos preservan o seleccionan el ultimo entre empates; scan de findings tambien sobrescribe resoluciones repetidas segun el orden de entrada. Por eso evidencia equivalente puede producir distinto orden o distinto registro elegido entre ejecuciones y sistemas de archivos. El lector comun debe devolver un orden determinista.",
+  "author": "reviewer@codex",
+  "fingerprint": "2af9c0d7c22849a7",
+  "task": "endurecimiento-1"
+}
