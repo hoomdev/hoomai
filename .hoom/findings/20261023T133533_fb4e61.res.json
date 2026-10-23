@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T133533_fb4e61",
+  "as": "corregido",
+  "evidence": "e69deda: el comentario separa los clones que gate.sh baja a .hoom/cache/semgrep, la clave del cache (el lock) y la bajada en frio desde GitHub en el commit fijado.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:39:32.634716Z"
+}

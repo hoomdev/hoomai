@@ -1,0 +1,11 @@
+{
+  "id": "20261023T140133_0422b2",
+  "created_at": "2026-10-23T14:01:33.757625Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO — gate.sh:5-6 dice que exit 2 es 'reglas o motor distintos del lock', pero 2 tambien es red caida, git o disco, y los codigos de semgrep pasan tal cual (7 config invalida, 2 fatal; 125 de docker en el CI). Documentarlo.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "6edbe2efd9d375ca",
+  "task": "lock-semgrep"
+}

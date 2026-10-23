@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140133_0422b2",
+  "as": "corregido",
+  "evidence": "38cae3f: el encabezado de gate.sh documenta 0/1 de semgrep, 2 del gate (lock, version, red, git, disco) y que cualquier otro codigo es de semgrep (7) o de docker en el CI (125).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:07:16.205959Z"
+}

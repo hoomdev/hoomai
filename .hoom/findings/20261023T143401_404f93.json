@@ -1,0 +1,11 @@
+{
+  "id": "20261023T143401_404f93",
+  "created_at": "2026-10-23T14:34:01.003645Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 1) — rutas raras dentro del charset: una ruta que empieza con '-' en la raiz del repo la toma sha como opcion (gate exit 2 siempre con mensaje enganoso; fijar.sh cae en el vacio del lock); un symlink en el commit: fijar.sh fija el sha256 del destino pero el gate rechaza lo que no es regular y da 2 siempre. fijar.sh dice 'extraida igual que la extrae gate.sh' sin hacer los chequeos de tipo y cantidad. Fallan cerrado. Correccion: sha -- $rutas y los mismos chequeos en fijar.sh.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "9638609cd4d884a0",
+  "task": "lock-semgrep"
+}

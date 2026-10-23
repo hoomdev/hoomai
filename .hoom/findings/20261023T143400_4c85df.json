@@ -1,0 +1,11 @@
+{
+  "id": "20261023T143400_4c85df",
+  "created_at": "2026-10-23T14:34:00.379764Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/gate.sh",
+  "description": "INTRODUCIDO (delta 1; resto de 59f783) — gate.sh:130 'awk ... | LC_ALL=C sort \u003e\"$corrida/$nombre.quiere\"' no tiene guarda: con set -e una redireccion que falla (disco lleno) sale con 1 en bash (hallazgos) y con 2 en dash.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "9638609cd4d884a0",
+  "task": "lock-semgrep"
+}

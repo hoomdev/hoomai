@@ -1,0 +1,11 @@
+{
+  "id": "20261023T144911_16261b",
+  "created_at": "2026-10-23T14:49:11.353009Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": ".hoom/semgrep/fijar.sh",
+  "description": "INTRODUCIDO (de 38cae3f, visto en la delta 2) — read salta las lineas de solo espacios y los comentarios indentados, pero los awk de duplicados (gate.sh:88) y de conteo y mezcla (fijar.sh) las toman como lineas de archivo: falla cerrado con mensajes enganosos. Reproducido: dos lineas de espacios dan exit 2 'tiene lineas repetidas' en el gate; una da exit 2 'no salio un sha256 por cada archivo' en fijar.sh.",
+  "author": "reviewer@claude-independiente",
+  "fingerprint": "48db9d024d6b7e3c",
+  "task": "lock-semgrep"
+}

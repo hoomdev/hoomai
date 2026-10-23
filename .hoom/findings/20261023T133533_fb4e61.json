@@ -1,0 +1,11 @@
+{
+  "id": "20261023T133533_fb4e61",
+  "created_at": "2026-10-23T13:35:33.349319Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": ".github/workflows/ci.yml",
+  "description": "INTRODUCIDO — .github/workflows/ci.yml:34: «repos de reglas ya bajados en el commit que fija el lock» hace que «en el commit» parezca indicar cuándo se bajaron los repos, aunque gate.sh los descarga durante la ejecución y el lock solo fija la revisión remota; el comentario no deja clara la relación entre commit fijado, descarga en frío y caché.",
+  "author": "reviewer@codex",
+  "fingerprint": "a69464e4c0b14860",
+  "task": "lock-semgrep"
+}
