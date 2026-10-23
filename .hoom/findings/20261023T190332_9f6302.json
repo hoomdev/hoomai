@@ -1,0 +1,11 @@
+{
+  "id": "20261023T190332_9f6302",
+  "created_at": "2026-10-23T19:03:32.324747Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/doctor.go",
+  "description": "PRE-EXISTENTE (follow-up, mismo vector que 49af1d y ec7678; lo vio el test-writer de la ronda 4) — con un worktree de tarea fuera de su rama, taskWorktrees devuelve un error que envuelve runcmd.ErrOtraRama con el nombre de la rama crudo, y hoom board doctor lo imprime por stderr: una rama con U+202E (git la acepta) falsifica visualmente esa salida. Va con el escape general de textos de evidencia en terminal (ec7678).",
+  "author": "test-writer",
+  "fingerprint": "2dad46b1adba2cca",
+  "task": "historia-en-el-tablero"
+}
