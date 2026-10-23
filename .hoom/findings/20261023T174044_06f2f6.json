@@ -1,0 +1,11 @@
+{
+  "id": "20261023T174044_06f2f6",
+  "created_at": "2026-10-23T17:40:44.992264Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:121: Backfill usa res.Creados a la vez como resultado publico (que tambien representa lo que \"crearia\" en dry-run) y como diario transaccional que retirar recorre para borrar archivos. Esa doble responsabilidad acopla el formato del reporte con la seguridad del rollback: cambiar cuando o que se agrega al resultado puede cambiar silenciosamente que archivos se retiran. Mantener una lista privada de slugs o rutas efectivamente creados y construir el resultado por separado haria explicita la invariante.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

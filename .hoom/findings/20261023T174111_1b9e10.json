@@ -1,0 +1,11 @@
+{
+  "id": "20261023T174111_1b9e10",
+  "created_at": "2026-10-23T17:41:11.044193Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO — internal/boardcmd/historicas.go:60 y internal/boardcmd/historicas.go:113: la variable verdicts contiene evidencia reunida globalmente desde todos los worktrees, pero su longitud solo decide que la tarea sigue la ruta \"con spec\"; la elegibilidad real se vuelve a buscar en los dirs propios en la linea 114. El comportamiento de 552a4e depende de esa diferencia, pero el nombre y el flujo hacen parecer que ambos pasos consultan el mismo conjunto. Nombrar por separado la evidencia global y los veredictos elegibles, o encapsular esa clasificacion, haria visible la invariante y evitaria que una simplificacion futura vuelva a ampliar el alcance.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

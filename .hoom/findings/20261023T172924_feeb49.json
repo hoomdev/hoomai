@@ -1,0 +1,11 @@
+{
+  "id": "20261023T172924_feeb49",
+  "created_at": "2026-10-23T17:29:24.032741Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historicas.go:272-273 incorpora t.unreadable sin escape al motivo de backfill; internal/finding/finding.go:324-337 construye ese valor con el nombre crudo de cada archivo .json ilegible, y internal/itemcmd/itemcmd.go:578-579 lo imprime con %s. Git admite nombres con ESC, saltos de linea y otras secuencias, de modo que un archivo de hallazgo roto y un hallazgo cerrado de la tarea hacen que 'hoom item backfill' emita control de terminal o lineas falsificadas. Escapar/sanitizar cada nombre y error para salida humana antes de formar HistoricaMotivo/Motivo.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

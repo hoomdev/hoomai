@@ -1,0 +1,11 @@
+{
+  "id": "20261023T172731_763d5f",
+  "created_at": "2026-10-23T17:27:31.920672Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historicas.go:280-281 hace bloqueante toda severidad desconocida y la copia sin escape al motivo; internal/finding/finding.go:334-345 acepta del JSON cualquier string en severity, y internal/itemcmd/itemcmd.go:578-579 imprime ese motivo con %s. Un hallazgo versionado con severity que contenga ESC/OSC, saltos de linea u otros controles llega ahora a 'hoom item backfill' (y al What del doctor) como salida de terminal cruda, permitiendo falsificar lineas o emitir secuencias de control. El fail-closed debe conservarse, pero los valores no confiables deben escaparse/sanitizarse antes de construir salida humana.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

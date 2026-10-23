@@ -1,0 +1,11 @@
+{
+  "id": "20261023T172835_e8b795",
+  "created_at": "2026-10-23T17:28:35.889448Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historicas.go:80-89 amplia la lectura del titulo al worktree propio, pero specDe/tituloDeSpec (lineas 171-177 y 386) resuelven una ruta completa con os.Lstat y AbrirRegular. AbrirRegular solo aplica O_NOFOLLOW a la entrada final (internal/hoomfs/regular_unix.go:13-18), por lo que una rama puede reemplazar .hoom/specs por un symlink a un directorio fuera del worktree; backfill seguira ese componente y leera el primer encabezado de \u003cslug\u003e.md externo, devolviendolo en JSON o persistiendo la informacion en el item si la evidencia califica. La lectura del spec del worktree debe caminar desde una raiz abierta y rechazar symlinks en todos los componentes, no solo en el archivo final.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

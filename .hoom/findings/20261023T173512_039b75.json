@@ -1,0 +1,11 @@
+{
+  "id": "20261023T173512_039b75",
+  "created_at": "2026-10-23T17:35:12.63571Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:121 y internal/itemcmd/itemcmd.go:140 revierten el lote fuera del candado de items y borran cada ruta sin comprobar que siga siendo el archivo creado por esta corrida. Con dos backfills concurrentes, A puede crear el item a, B verlo como ConItem y terminar con exito, y luego A fallar en un item posterior y retirar a; B queda habiendo reportado a como intacto aunque ya no existe. El rollback debe serializar el lote o condicionar cada borrado a la identidad/contenido que creo esta corrida.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}
