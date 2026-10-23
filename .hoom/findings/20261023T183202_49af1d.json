@@ -1,0 +1,11 @@
+{
+  "id": "20261023T183202_49af1d",
+  "created_at": "2026-10-23T18:32:02.873063Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historicas.go:363-365 hace que una historica sostenida por root deje Hecho ante WorktreeInusable, pero internal/boardcmd/derive.go:83-85 concatena ese error crudo en Missing y internal/boardcmd/render.go:44-45 lo imprime con %s. runcmd.TaskDir incluye la rama actual sin escape (internal/runcmd/runcmd.go:689-694), y Git acepta controles bidi como U+202E en nombres de rama; por ello poner el worktree historico en una rama hostil permite falsificar visualmente la salida de hoom board/item show. HistoricaMotivo si pasa por texto(), pero la razon principal debe hacerlo tambien sin alterar el fail-closed. Patronizable: una regla Semgrep custom puede prohibir propagar WorktreeInusable a texto humano sin texto().",
+  "author": "reviewer@codex",
+  "fingerprint": "454e2cf051dd032a",
+  "task": "historia-en-el-tablero"
+}
