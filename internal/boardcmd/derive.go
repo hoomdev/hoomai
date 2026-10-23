@@ -79,9 +79,11 @@ func column(ev Evidence) (string, []string, string, string) {
 	}
 	// with a workspace it cannot use, nothing else about the card can be
 	// read: it stops here and says why, never as a card with no workspace
-	// (findings 6aeb17, 966474)
+	// (findings 6aeb17, 966474). The why names the branch, which git lets
+	// carry control and direction characters: it goes escaped (finding
+	// 49af1d)
 	if ev.WorktreeInusable != "" {
-		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + ev.WorktreeInusable}, "hoom task list",
+		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + texto(ev.WorktreeInusable)}, "hoom task list",
 			"el espacio de trabajo de la tarjeta no se puede usar"
 	}
 	arquitecto := "hoom agent --role arquitecto" + task + " " + pedidoHint
