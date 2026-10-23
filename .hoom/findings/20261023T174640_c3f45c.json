@@ -1,0 +1,11 @@
+{
+  "id": "20261023T174640_c3f45c",
+  "created_at": "2026-10-23T17:46:40.36805Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": ".semgrepignore",
+  "description": "INTRODUCIDO — .semgrepignore:16-18 dice excluir las reglas propias, pero el patron .hoom/semgrep/ excluye tambien .hoom/semgrep/gate.sh y fijar.sh. hoom.yaml:30 ejecuta gate.sh como el gate security, y ese shell resuelve, verifica y entrega las reglas al scanner; sin embargo el propio gate nunca lo analiza aunque el lock incluye reglas para Bash. Un cambio vulnerable en ese runner privilegiado puede pasar con security verde, especialmente porque la review congelada tambien omite .hoom/. Restringir la exclusion a .hoom/semgrep/reglas/ (el cache ya se excluye aparte) y mantener los scripts como targets. Patronizable con una regla generic que rechace una exclusion global del directorio que contiene el runner del gate.",
+  "author": "reviewer@codex",
+  "fingerprint": "7449d94fa7eb782b",
+  "task": "endurecimiento-1"
+}
