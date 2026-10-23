@@ -1,0 +1,11 @@
+{
+  "id": "20261023T133203_3cb01b",
+  "created_at": "2026-10-23T13:32:03.658479Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO (correccion incompleta) — internal/envelope/envelope.go:178, internal/finding/finding.go:364, internal/runcmd/runcmd.go:413 e internal/verdict/verdict.go:233 vuelven a ordenar por fecha con sort.Slice, que es inestable, despues de que RecorrerDirectorio entrega nombres ordenados. Con fechas mezcladas, el algoritmo puede permutar los elementos empatados y ya no quedan en orden de nombre; los tests nuevos usan 10 elementos con todas las fechas iguales, caso que no expone esas permutaciones. Por eso ListErr/List/MetasErr/LoadAllWithWarnings aun incumplen el desempate por nombre que este rango dice corregir; reviewcmd si usa SliceStable.",
+  "author": "reviewer@codex",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}

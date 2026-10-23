@@ -1,0 +1,11 @@
+{
+  "id": "20261023T133131_4647ba",
+  "created_at": "2026-10-23T13:31:31.234216Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:213-219 libera el candado por archivo antes de actualizar la cola pendiente. Con dos Cerrar concurrentes del mismo sobre, A puede escribir con exito y soltar; B toma el candado, falla y agrega su cierre mas nuevo; despues A ejecuta quitar y borra B, dejando el estado viejo en disco sin reintento. En el orden inverso, A fallido puede agregarse despues de que B exitoso ya quito la cola y su retry vuelve a pisar B. La escritura y agregar/quitar deben quedar en el mismo orden critico; hoy se puede perder o revertir el estado terminal.",
+  "author": "reviewer@codex",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}

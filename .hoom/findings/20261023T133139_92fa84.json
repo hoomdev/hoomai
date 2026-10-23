@@ -1,0 +1,11 @@
+{
+  "id": "20261023T133139_92fa84",
+  "created_at": "2026-10-23T13:31:39.994022Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:250,254-260 agrega un *sync.Mutex a pendientes.candados para cada path que pasa por Cerrar, incluso cuando Write tiene exito, pero ninguna ruta elimina esas entradas. Como los IDs/rutas de sobres son unicos y pendientes es global durante toda la vida del proceso (incluido Studio), cada cierre exitoso deja estado permanente: la memoria crece con el total historico de sobres, no con cierres pendientes o en vuelo.",
+  "author": "reviewer@codex",
+  "fingerprint": "d281f59ff29b957b",
+  "task": "endurecimiento-1"
+}
