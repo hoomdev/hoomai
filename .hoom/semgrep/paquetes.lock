@@ -9,5 +9,5 @@
 #   cambio el paquete, el gate falla y lo dice: actualizar este archivo es un
 #   acto deliberado, revisando las reglas nuevas.
 semgrep 1.175.0
-p/default 99fecfb388687fe4b079edae4657891bc1fed672a0cc33e095d848f2d300a02e
+p/default 4258608d027bf9959a61427f38aff794abe9902505b98099b47529211d3777f3
 p/trailofbits 3b7a9cf2b0f24affc26615a7b9382d4ac52eaf58c38025f016b8d6323f5067ab
