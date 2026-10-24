@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,17 +167,44 @@ func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (
 	return hex.EncodeToString(h.Sum(nil))[:16], nil
 }
 
+// fueraDeRepo says whether a git that failed in dir did so because dir is
+// in no repository: neither dir nor any directory above it has a .git
+// (directory or file), and GIT_DIR does not point git anywhere. A tree that
+// has one and where git fails is a broken repo, not "outside": the strict
+// listings fail closed on it instead of answering with nothing (findings
+// 9e4f40, e25ad1 -> 9ad39d).
+func fueraDeRepo(dir string) bool {
+	if os.Getenv("GIT_DIR") != "" {
+		return false
+	}
+	d, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	for {
+		if _, err := os.Lstat(filepath.Join(d, ".git")); !errors.Is(err, fs.ErrNotExist) {
+			return false
+		}
+		arriba := filepath.Dir(d)
+		if arriba == d {
+			return true
+		}
+		d = arriba
+	}
+}
+
 // HuellaConTope is Snapshot's ChangeFingerprint with every git bounded by
 // tope: what stamps the moment of a finding needs it, and it must never hang
 // on a git that blocks — a FIFO where git reads a .gitignore hung the scope
 // gate while it registered its findings (finding 5c5342). A git that does
-// not answer is an error and no fingerprint; outside a repo there is none
-// either, as in Snapshot.
+// not answer is an error and no fingerprint, and so is a first git that
+// fails inside a repo (fueraDeRepo); outside a repo there is none and no
+// error, as in Snapshot.
 func HuellaConTope(dir string, tope time.Duration) (string, error) {
 	rn := func(args ...string) (string, error) { return runTope(dir, tope, args...) }
 	if _, err := rn("rev-parse", "--is-inside-work-tree"); err != nil {
-		if errors.Is(err, errSinRespuesta) {
-			return "", err
+		if errors.Is(err, errSinRespuesta) || !fueraDeRepo(dir) {
+			return "", fmt.Errorf("git rev-parse: %w", err)
 		}
 		return "", nil
 	}
@@ -320,12 +348,13 @@ var TopeListado = 2 * time.Minute
 // TouchedErr is Touched that says when it could not list: a git that fails
 // or does not answer within TopeListado is an error, never a shorter list —
 // the scope gate fails closed on it (findings 5c5342 and 6d4918). Outside a
-// repo there is nothing to list and no error, as in Touched.
+// repo there is nothing to list and no error, as in Touched; a first git
+// that fails inside one is an error too (fueraDeRepo).
 func TouchedErr(dir, base string) (map[string]string, error) {
 	out := map[string]string{}
 	if _, err := runTope(dir, TopeListado, "rev-parse", "--is-inside-work-tree"); err != nil {
-		if errors.Is(err, errSinRespuesta) {
-			return out, err
+		if errors.Is(err, errSinRespuesta) || !fueraDeRepo(dir) {
+			return out, fmt.Errorf("git rev-parse: %w", err)
 		}
 		return out, nil
 	}
