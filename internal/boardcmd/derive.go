@@ -83,7 +83,7 @@ func column(ev Evidence) (string, []string, string, string) {
 	// carry control and direction characters: it goes escaped (finding
 	// 49af1d)
 	if ev.WorktreeInusable != "" {
-		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + texto(ev.WorktreeInusable)}, "hoom task list",
+		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + textoSeguro(ev.WorktreeInusable)}, "hoom task list",
 			"el espacio de trabajo de la tarjeta no se puede usar"
 	}
 	arquitecto := "hoom agent --role arquitecto" + task + " " + pedidoHint

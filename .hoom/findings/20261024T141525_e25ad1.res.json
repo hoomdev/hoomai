@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141525_e25ad1",
+  "as": "refutado",
+  "evidence": "NO INTRODUCIDO POR historia-en-el-tablero: el archivo es codigo de endurecimiento-1, que llego a esta rama con el merge de main (#55); la delta 2 reviso el rango con ese merge (hallazgo de diseno 547228). El defecto es REAL y queda abierto en la tarea endurecimiento-2 como 20261024T141938_9ad39d (decision de Henry, 2026-10-24).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T14:19:47.507209Z"
+}

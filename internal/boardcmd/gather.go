@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -70,13 +69,20 @@ func build(g *gatherer) (Board, error) {
 	sort.Strings(dirs)
 	for _, d := range dirs {
 		for _, w := range g.trees[d].findingWarnings {
-			b.Warnings = append(b.Warnings, g.prefijo(d)+texto(w))
+			b.Warnings = append(b.Warnings, g.prefijo(d)+textoSeguro(w))
 		}
 	}
 	// the sources it could not read, once: an unreadable findings
-	// directory is already among the findings' warnings above
+	// directory is already among the findings' warnings above. A set, not
+	// a search per falla: a degraded tree can report thousands (findings
+	// 83b100, 68b1e2)
+	ya := make(map[string]bool, len(b.Warnings))
+	for _, w := range b.Warnings {
+		ya[w] = true
+	}
 	for _, f := range g.fallas {
-		if !slices.Contains(b.Warnings, f) {
+		if !ya[f] {
+			ya[f] = true
 			b.Warnings = append(b.Warnings, f)
 		}
 	}
@@ -129,19 +135,24 @@ type gatherer struct {
 	// d0d331, a2b180). The one place they are kept: every tree reports into
 	// it (tree.informar).
 	fallas []string
+	// vistas: the fallas already kept, so recording one is constant time
+	// however many a degraded tree reports (findings 83b100, 68b1e2)
+	vistas map[string]bool
 }
 
 // fallar records a source the gatherer could not read, once. The message
 // names files of the evidence, which git lets carry control and direction
-// characters: it is kept escaped (texto), as the board and the doctor print
+// characters: it is kept escaped (textoSeguro), as the board and the doctor print
 // it (finding feeb49).
 func (g *gatherer) fallar(msg string) {
-	msg = texto(msg)
-	for _, f := range g.fallas {
-		if f == msg {
-			return
-		}
+	msg = textoSeguro(msg)
+	if g.vistas[msg] {
+		return
 	}
+	if g.vistas == nil {
+		g.vistas = map[string]bool{}
+	}
+	g.vistas[msg] = true
 	g.fallas = append(g.fallas, msg)
 }
 

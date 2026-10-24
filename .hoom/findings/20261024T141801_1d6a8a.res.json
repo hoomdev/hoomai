@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141801_1d6a8a",
+  "as": "refutado",
+  "evidence": "NO INTRODUCIDO POR historia-en-el-tablero: son tests de endurecimiento-1 que llegaron con el merge de main (#55). El defecto ya esta registrado en main como 20261023T175813_185e51 y 20261023T175813_746208 (follow-ups de endurecimiento-1), que pasan a la tarea endurecimiento-2.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T14:19:47.539334Z"
+}
