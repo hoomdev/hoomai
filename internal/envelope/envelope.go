@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
@@ -125,6 +126,7 @@ func Write(root string, rec Record) error {
 	hoomfs.EnsureIgnored(root, DirName)
 	// Atomico: status y el Studio leen este archivo MIENTRAS se escribe, y un
 	// sobre a medias leido como vacio desapareceria de la lista.
+	esperarEscritura(root, rec.ID)
 	return hoomfs.AtomicWrite(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
 }
 
@@ -382,7 +384,7 @@ func (c *cierres) intentar(path string, seq uint64, proyecto string) {
 		root, rec = ci.root, ci.rec
 	}
 	c.mu.Unlock()
-	listo := !vigente || hecho(path, root, rec)
+	listo := !vigente || hecho(root, rec)
 	unlock()
 
 	c.mu.Lock()
@@ -408,15 +410,62 @@ func (c *cierres) intentar(path string, seq uint64, proyecto string) {
 // look at it is not settled: storage that fails once may come back (finding
 // be5b7a). A retry never creates the directories back: a project removed
 // under it stays removed.
-func hecho(path, root string, rec Record) bool {
-	st, err := os.Lstat(path)
+//
+// The retry walks to the record by descriptors and publishes in that very
+// directory (hoomfs.ReemplazarSiSigue): a .hoom or envelopes swapped for a
+// symlink after the first try never takes the write to another project
+// (finding 33f0e0 -> 28f494), and a record deleted after it was looked at is
+// not written back (findings 9e157f, 3fd1d4 -> 332b11). The retry does not
+// touch .hoom/.gitignore: the first try already did.
+func hecho(root string, rec Record) bool {
+	for _, p := range []string{filepath.Join(root, ".hoom"), dir(root)} {
+		st, err := os.Lstat(p)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return true
+		case err != nil:
+			return false
+		case !st.IsDir():
+			return true
+		}
+	}
+	r, err := hoomfs.AbrirRuta(root, ".hoom", DirName)
+	if err != nil {
+		// it changed since the look: the next try sees what it is
+		return false
+	}
+	defer r.Close()
+	name := rec.ID + ".json"
+	antes, err := r.Lstat(name)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return true
 	case err != nil:
 		return false
-	case !st.Mode().IsRegular():
+	case !antes.Mode().IsRegular():
 		return true
 	}
-	return Write(root, rec) == nil
+	rec.UpdatedAt = time.Now().UTC()
+	raw, err := json.MarshalIndent(rec, "", "  ")
+	if err != nil {
+		return true // it never will: not a close to retry
+	}
+	esperarEscritura(root, rec.ID)
+	err = hoomfs.ReemplazarSiSigue(r, name, append(raw, '\n'), 0o644, antes)
+	return err == nil || errors.Is(err, hoomfs.ErrCambio)
+}
+
+// antesDeEscribir, when set, runs right before every write of a record (the
+// first try in Write, every retry in hecho), with its project and id. It
+// exists only for the tests: no write of a record blocks on a FIFO anymore
+// (findings c6c300, 28f494), and what Cerrar and its worker promise about a
+// write that hangs (findings 1e0674, da912f, ab66c7, 4647ba) still needs one
+// to be shown. Atomic, because the worker outlives a test.
+var antesDeEscribir atomic.Pointer[func(root, id string)]
+
+// esperarEscritura runs antesDeEscribir, if set.
+func esperarEscritura(root, id string) {
+	if f := antesDeEscribir.Load(); f != nil {
+		(*f)(root, id)
+	}
 }

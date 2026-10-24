@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math/rand/v2"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 // AbrirRuta opens the directory root/partes... for reading, walking from
@@ -134,6 +137,73 @@ func RecorrerDirectorio(root string, partes []string, quiere func(nombre string)
 		}
 		raw, err := LeerRegularEn(r, e.Name(), max)
 		cada(Entrada{Nombre: e.Name(), Contenido: raw, Err: err})
+	}
+	return nil
+}
+
+// ErrCambio is ReemplazarSiSigue finding that the name it was to replace is
+// no longer the object that was looked at: it is gone, or another object
+// took its place. Nothing was written.
+var ErrCambio = errors.New("cambio entre mirarlo y reemplazarlo")
+
+// ReemplazarSiSigue replaces the regular file name of r, which antes
+// describes, with data: through a temp file in r and a rename within r, so
+// the write never leaves r (no component is followed out of it) and a
+// reader sees the old file or the new one. Right before the rename it checks
+// that name is still that object; gone, or another one in its place, the
+// temp is removed and the result is ErrCambio: it never recreates what was
+// deleted nor overwrites what replaced it. The check and the rename are two
+// steps, and what changes the name between them is not seen: there is no
+// portable compare-and-rename. name is one component of r.
+func ReemplazarSiSigue(r *os.Root, name string, data []byte, mode os.FileMode, antes fs.FileInfo) error {
+	if name == "" || strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("%q no es un nombre dentro del directorio", name)
+	}
+	var tmp string
+	var f *os.File
+	for intento := 0; ; intento++ {
+		// the name AtomicWrite gives its temps (TemporalDe), so a listing
+		// skips it like any other write in progress
+		tmp = "." + name + ".tmp-" + strconv.FormatUint(uint64(rand.Uint32()), 10)
+		var err error
+		f, err = r.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, fs.ErrExist) || intento >= 10 {
+			return err
+		}
+	}
+	fallar := func(err error) error {
+		f.Close()
+		r.Remove(tmp)
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		return fallar(err)
+	}
+	if err := f.Chmod(mode); err != nil {
+		return fallar(err)
+	}
+	if err := f.Sync(); err != nil {
+		return fallar(err)
+	}
+	if err := f.Close(); err != nil {
+		r.Remove(tmp)
+		return err
+	}
+	st, err := r.Lstat(name)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) || (err == nil && !mismo(antes, st)):
+		r.Remove(tmp)
+		return ErrCambio
+	case err != nil:
+		r.Remove(tmp)
+		return err
+	}
+	if err := r.Rename(tmp, name); err != nil {
+		r.Remove(tmp)
+		return err
 	}
 	return nil
 }
