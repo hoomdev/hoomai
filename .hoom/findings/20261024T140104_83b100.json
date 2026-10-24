@@ -1,0 +1,11 @@
+{
+  "id": "20261024T140104_83b100",
+  "created_at": "2026-10-24T14:01:04.339074Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO — internal/boardcmd/gather.go:138-145: fallar deduplica cada diagnostico recorriendo linealmente g.fallas. build y Doctor alimentan esa funcion una vez por cada archivo de evidencia invalido o ilegible de cada arbol (por ejemplo lineas 214-255), de modo que N nombres unicos provocan O(N^2) comparaciones. Un worktree hostil con muchos JSON invalidos puede bloquear hoom board, doctor y el Studio con trabajo desproporcionado. Mantener un map[string]struct{} para la pertenencia y el slice para el orden conserva la salida y hace lineal el costo.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

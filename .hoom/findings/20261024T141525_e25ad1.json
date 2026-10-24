@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141525_e25ad1",
+  "created_at": "2026-10-24T14:15:25.174799Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/gitx/gitx.go",
+  "description": "INTRODUCIDO — internal/gitx/gitx.go:326-330: TouchedErr reduce cualquier fallo rapido del git rev-parse inicial a 'fuera de un repositorio' y devuelve una lista vacia sin error; solo propaga el timeout. Si Git, .git o su configuracion se degradan durante el sobre, agentcmd.Take deja Snapshot.Listado vacio (internal/agentcmd/scope.go:165-168), sinListado no corta y cambios locales fuera de scope pueden desaparecer de la foto. HuellaConTope repite la degradacion en internal/gitx/gitx.go:177-181. La frontera nueva que promete fallar cerrada debe distinguir no-repo de fallo operativo; el wrapper best-effort Touched puede conservar la tolerancia.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261024T140620_0cbf2e",
+  "created_at": "2026-10-24T14:06:20.589101Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "[INTRODUCIDO] internal/envelope/envelope.go:163-171: ListErr descarta sin error un archivo de sobre con nombre valido cuando su JSON esta truncado, no tiene id o el id no coincide. boardcmd confia en el nil de ListErr (internal/boardcmd/gather.go:623-627), de modo que Doctor puede certificar problems: [] aunque no haya leido un sobre que podria ser huerfano. Reproduccion con el binario de esta rama: .hoom/envelopes/20261024T120000_deadbe.json con contenido '{esto no es json' y 'hoom board doctor --json' devolvio exito con problems vacio. ListErr debe reportar como ilegible al menos todo nombre con forma de registro de hoom que no parsea/valida.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}
