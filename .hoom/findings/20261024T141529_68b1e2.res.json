@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141529_68b1e2",
+  "as": "corregido",
+  "evidence": "51391e8: fallar lleva un conjunto de las fallas vistas y Build junta fallas y advertencias con un conjunto (costo lineal). Test 3241ca0: TestCA452_Hallazgo83b100_FallasEnTiempoLineal (CPU de Build y del doctor de 8000 a 64000 ilegibles: x8 con la correccion, x24-x35 sobre f3a79d3; tope x14).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T15:10:45.768426Z"
+}
