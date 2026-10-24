@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141938_9ad39d",
+  "as": "corregido",
+  "evidence": "1bc06fd: TouchedErr y HuellaConTope dan error si el primer rev-parse falla y hay .git en dir o arriba (fueraDeRepo); fuera de un repo, vacio sin error. Tests bde6407 (fallan sobre 34a3542, pasan con bea7ad9): TestHallazgo_9ad39d_CA133_UnRepoRotoEsUnErrorNoUnaListaVacia (HEAD y config corruptos, gitdir inexistente, .git vacio; desde la raiz y un subdirectorio) y ..._FueraDeUnRepoListaVaciaSinError.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T16:06:55.342495Z"
+}

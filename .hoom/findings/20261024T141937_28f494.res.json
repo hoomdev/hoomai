@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141937_28f494",
+  "as": "corregido",
+  "evidence": "bea7ad9: el reintento baja a .hoom/envelopes con AbrirRuta y publica con hoomfs.ReemplazarSiSigue dentro de ese os.Root. Tests bde6407 (fallan sobre 34a3542, pasan con bea7ad9): TestHallazgo_28f494_CA333_ElReintentoNoEscribeFueraDelProyecto (.hoom o envelopes como enlace absoluto o relativo a otro proyecto: sobre 34a3542 el registro ajeno cambia a 1 s; con la correccion queda identico).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T16:06:55.371216Z"
+}
