@@ -1,11 +1,12 @@
 package hoomfs
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"math/rand/v2"
 	"os"
 	"sort"
 	"strconv"
@@ -164,7 +165,9 @@ func ReemplazarSiSigue(r *os.Root, name string, data []byte, mode os.FileMode, a
 	for intento := 0; ; intento++ {
 		// the name AtomicWrite gives its temps (TemporalDe), so a listing
 		// skips it like any other write in progress
-		tmp = "." + name + ".tmp-" + strconv.FormatUint(uint64(rand.Uint32()), 10)
+		var b [4]byte
+		rand.Read(b[:]) // never fails (crypto/rand, Go 1.24+)
+		tmp = "." + name + ".tmp-" + strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[:])), 10)
 		var err error
 		f, err = r.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 		if err == nil {
