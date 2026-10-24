@@ -147,8 +147,14 @@ const maxRecord = 1 << 20
 // it could read still come back. One that does not exist yet is no envelopes.
 // The directory and every record are read by descriptors, never following a
 // symlink: a record linked to one of another project would publish that
-// project's telemetry as this one's (finding 3826b3). A record of another
-// shape is not hoom's and is skipped.
+// project's telemetry as this one's (finding 3826b3). A file whose name is
+// not a record id is not hoom's and is skipped. One whose name IS a record id
+// and that is not a record (not JSON, truncated, without id) is unreadable,
+// never "none": that is what a partial write leaves, and it would hide an
+// orphan envelope from the doctor (findings 0cbf2e, 25ba18 -> 26eef9). A
+// whole record whose id is not its file's name is no write of hoom's (a copy,
+// a planted file): it is skipped, so it can neither reach a command nor stop
+// the doctor (finding f34bc3).
 func ListErr(root string) ([]Record, error) {
 	var out []Record
 	var sinLeer []string
@@ -159,15 +165,19 @@ func ListErr(root string) ([]Record, error) {
 				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
 				return
 			}
+			id := strings.TrimSuffix(e.Nombre, ".json")
+			if !idRe.MatchString(id) {
+				return
+			}
 			var rec Record
 			if json.Unmarshal(e.Contenido, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
+				sinLeer = append(sinLeer, fmt.Sprintf("%s: no es un registro (JSON ilegible o sin id)", e.Nombre))
 				return
 			}
 			// the file name is the address and the content only describes
-			// it: a record whose id is not its file's name, or is not an id
-			// at all, is not hoom's and never reaches a command the doctor
-			// proposes (finding f34bc3)
-			if rec.ID+".json" != e.Nombre || !idRe.MatchString(rec.ID) {
+			// it: a record whose id is not its file's name never reaches a
+			// command the doctor proposes (finding f34bc3)
+			if rec.ID != id {
 				return
 			}
 			out = append(out, rec)
