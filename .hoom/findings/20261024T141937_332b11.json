@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141937_332b11",
+  "created_at": "2026-10-24T14:19:37.919069Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "TRASLADADO de 20261024T140808_9e157f y 20261024T141534_3fd1d4 (delta 2 de historia-en-el-tablero, merge de main con #55). Codigo de endurecimiento-1. [INTRODUCIDO] internal/envelope/envelope.go:401-411: hecho decide que el registro existe con Lstat y despues lo vuelve a escribir por nombre con Write/AtomicWrite. Un borrado concurrente entre ambas operaciones hace que el reintento recree el registro que el operador elimino, contradiciendo el contrato de lineas 395-400. Intercalado determinista: el retry pasa Lstat, se bloquea dentro de Write leyendo un FIFO en .hoom/.gitignore, se borra \u003cid\u003e.json, se libera el FIFO y AtomicWrite publica \u003cid\u003e.json otra vez. El candado agregado es solo intra-proceso y no serializa ese borrado externo; la comprobacion y la publicacion necesitan una primitiva que no recree/reemplace si el nombre cambio.",
+  "author": "reviewer@codex",
+  "fingerprint": "a7da8747aee45810",
+  "task": "endurecimiento-2"
+}
