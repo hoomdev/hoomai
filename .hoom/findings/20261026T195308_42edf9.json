@@ -1,0 +1,11 @@
+{
+  "id": "20261026T195308_42edf9",
+  "created_at": "2026-10-26T19:53:08.944971Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO — internal/boardcmd/historicas.go:172: specEn conserva solo dir, mientras tituloDeSpec recibe por separado s y vuelve a reconstruir s + .md en las lineas 409 y 413. El valor ya no identifica por si mismo el spec que specDe resolvio: obliga a mantener sincronizados dos argumentos independientes y duplica el conocimiento de la ruta entre la busqueda y la lectura. Conservar el nombre o la ruta en specEn haria el contrato autocontenido y menos propenso a deriva.",
+  "author": "reviewer@codex",
+  "fingerprint": "9900461a6ca24ce1",
+  "task": "historia-en-el-tablero"
+}

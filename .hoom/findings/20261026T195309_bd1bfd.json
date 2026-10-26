@@ -1,0 +1,11 @@
+{
+  "id": "20261026T195309_bd1bfd",
+  "created_at": "2026-10-26T19:53:09.195392Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/historia_hallazgos6_test.go",
+  "description": "INTRODUCIDO — internal/boardcmd/historia_hallazgos6_test.go:154: h6Op borra el tipo del resultado mediante any en correr y exigir (lineas 156-157) y depende de assertions no verificadas en las lineas 185 y 190. La correspondencia entre cada operacion y su validador queda implicita, dificulta seguir el test y permite que una futura combinacion incorrecta compile para luego fallar con panic. Un helper tipado o una clausura que encapsule cada pareja mantendria esa relacion explicita.",
+  "author": "reviewer@codex",
+  "fingerprint": "9900461a6ca24ce1",
+  "task": "historia-en-el-tablero"
+}
