@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T202023_90c86c",
+  "as": "corregido",
+  "evidence": "cfc60ef: fueraDeRepo resuelve symlinks (filepath.EvalSymlinks) antes de buscar .git hacia arriba; si no puede resolver, no es 'fuera'. Tests 7e81fbc (fallan sobre 553229a, pasan con cfc60ef): el test de gitx/hallazgos_endurecimiento2b_test.go (alias absoluto y relativo a sub/ de un repo roto con las 4 roturas: sobre 553229a los 8 casos dan vacio sin error; con la correccion, error; alias fuera de todo repo sigue vacio sin error).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T21:28:54.81729Z"
+}

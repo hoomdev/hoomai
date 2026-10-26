@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T202751_73ddca",
+  "as": "corregido",
+  "evidence": "7e81fbc: el encabezado de hallazgos_endurecimiento2_test.go apunta a hallazgos_endurecimiento2_gancho_test.go y nombra los helpers que de verdad usa (e1*, hdPlantar).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T21:28:55.015341Z"
+}

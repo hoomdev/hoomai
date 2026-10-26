@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T202743_20b290",
+  "as": "corregido",
+  "evidence": "cfc60ef: clasificarMeta parsea una sola vez y devuelve meta, ajeno o error; parseMeta y MetasErr la usan. Cubierto por los tests de be6933 y 64323b.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T21:28:54.91639Z"
+}

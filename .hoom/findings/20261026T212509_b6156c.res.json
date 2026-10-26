@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T212509_b6156c",
+  "as": "corregido",
+  "evidence": "8d4d98b: temporalEn ya no hace fsync, igual que AtomicWrite. El paquete envelope pasa de ~190 s a ~77 s (go test -count=1), como antes de cfc60ef.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T21:28:55.04937Z"
+}

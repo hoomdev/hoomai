@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T202024_be6933",
+  "as": "corregido",
+  "evidence": "cfc60ef: MetasErr parsea cada sidecar una vez con clasificarMeta: un campo de otro tipo es error. Tests 7e81fbc (fallan sobre 553229a, pasan con cfc60ef): runcmd/hallazgos_endurecimiento2b_test.go (7 casos: created_at 7 o no fecha, ended_at, exit_code, pid, usage, isolated; un campo desconocido o usage null se leen sin error).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T21:28:54.883848Z"
+}
