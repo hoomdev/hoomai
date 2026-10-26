@@ -1,8 +1,7 @@
 // Tests de regresion de la tarea endurecimiento-2 en envelope. Escritos desde
 // el texto de cada hallazgo y el contrato de la correccion, SIN LEER LA
-// IMPLEMENTACION. Reusan los helpers e1*, e1b* (endurecimiento-1) y hdPlantar
-// y hdIDs (hallazgos_c4_doctor_test.go); los de este archivo llevan el
-// prefijo e2.
+// IMPLEMENTACION. Reusan los helpers e1* (endurecimiento-1) y hdPlantar
+// (hallazgos_c4_doctor_test.go); los de este archivo llevan el prefijo e2.
 //
 //   - 20261024T141937_26eef9 (high, CA-442, d0d331): ListErr descartaba sin
 //     error un archivo con nombre de registro de hoom (<id>.json) que no era
@@ -18,7 +17,7 @@
 //     Ahora el reintento no escribe fuera del proyecto.
 //
 // Los casos de 332b11 (el gancho antesDeEscribir) y de c6c300 (un FIFO) estan
-// en hallazgos_endurecimiento2_gancho_unix_test.go y
+// en hallazgos_endurecimiento2_gancho_test.go y
 // hallazgos_endurecimiento2_unix_test.go.
 package envelope
 
