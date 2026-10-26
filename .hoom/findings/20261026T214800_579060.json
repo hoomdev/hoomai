@@ -1,0 +1,11 @@
+{
+  "id": "20261026T214800_579060",
+  "created_at": "2026-10-26T21:48:00.037102Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "INTRODUCIDO — internal/hoomfs/ruta.go:155: AbrirOCrearRuta copia casi toda la caminata por descriptores de AbrirRuta (Lstat, validacion de directorio, AbrirDirEn, Close y reemplazo de r). Al ser el mismo limite de seguridad mantenido en dos bloques, cualquier ajuste futuro puede quedar aplicado solo a uno y hacer que lectura y escritura diverjan. Extraer una caminata interna comun con una politica explicita de crear-si-falta dejaria la diferencia localizada.",
+  "author": "reviewer@codex",
+  "fingerprint": "fad9155dc3ba2003",
+  "task": "endurecimiento-2"
+}

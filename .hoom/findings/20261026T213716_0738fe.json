@@ -1,0 +1,11 @@
+{
+  "id": "20261026T213716_0738fe",
+  "created_at": "2026-10-26T21:37:16.035186Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/gitx.go",
+  "description": "PRE-EXISTENTE (follow-up; la correccion queda incompleta) — internal/gitx/gitx.go:362 ejecuta git sobre dir y solo despues del fallo :363 llama fueraDeRepo; :181-199 vuelve a resolver ese pathname en una operacion separada. Un proceso concurrente puede hacer que git entre por el alias a un repo roto y, antes de EvalSymlinks, retargetear el alias a un directorio fuera de Git. fueraDeRepo devuelve true y :366 convierte el fallo real en mapa vacio sin error; HuellaConTope repite el mismo patron en :212-216. Asi el gate de scope aun puede fallar abierto bajo una carrera de reemplazo, pese a resolver correctamente un alias estatico. La decision repo roto versus fuera de repo debe quedar ligada al mismo objeto de directorio sobre el que corrio git.",
+  "author": "reviewer@codex",
+  "fingerprint": "fad9155dc3ba2003",
+  "task": "endurecimiento-2"
+}

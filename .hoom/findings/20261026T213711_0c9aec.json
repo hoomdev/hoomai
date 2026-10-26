@@ -1,0 +1,11 @@
+{
+  "id": "20261026T213711_0c9aec",
+  "created_at": "2026-10-26T21:37:11.255046Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "PRE-EXISTENTE (follow-up; la correccion queda incompleta) — internal/envelope/envelope.go:126 abre .hoom/envelopes de forma segura, pero :133 vuelve al pathname con EnsureIgnored antes de publicar. EnsureIgnored lee .hoom por descriptor en internal/hoomfs/hoomfs.go:57 y, despues de cerrar esa lectura, usa os.MkdirAll y AtomicWrite por ruta en :73-81. Si otro proceso renombra .hoom y pone un symlink al .hoom de otro proyecto en esa ventana, AtomicWrite sobrescribe el .gitignore ajeno; PublicarEn escribe por el descriptor en el directorio renombrado y Write incluso puede devolver nil aunque el registro ya no este en la ruta del proyecto. La prueba nueva solo cubre enlaces ya plantados. La proteccion contra salida del proyecto debe abarcar tambien la actualizacion de .gitignore con el mismo recorrido anclado, o evitar esa escritura path-based.",
+  "author": "reviewer@codex",
+  "fingerprint": "fad9155dc3ba2003",
+  "task": "endurecimiento-2"
+}
