@@ -373,8 +373,11 @@ func parseMeta(id string, raw []byte) (Meta, bool) {
 // which is what a partial write leaves and MetasErr reports (findings
 // 64323b, be6933). One parse, one classification (finding 20b290).
 func clasificarMeta(id string, raw []byte) (meta Meta, ajeno bool, err error) {
-	if err := json.Unmarshal(raw, &meta); err != nil {
-		return Meta{}, false, fmt.Errorf("no es un sidecar: %v", err)
+	// the reason never quotes the file: a value planted in a field (up to
+	// the 1 MiB a sidecar may weigh) would be copied into every warning and
+	// the doctor's error (finding 2a04f7)
+	if json.Unmarshal(raw, &meta) != nil {
+		return Meta{}, false, errors.New("no es un sidecar: JSON invalido o un campo de otro tipo")
 	}
 	if strings.TrimSpace(meta.ID) == "" {
 		return Meta{}, false, errors.New("no es un sidecar: no tiene id")

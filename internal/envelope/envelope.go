@@ -134,11 +134,37 @@ func Write(root string, rec Record) error {
 	// Atomico: status y el Studio leen este archivo MIENTRAS se escribe, y un
 	// sobre a medias leido como vacio desapareceria de la lista.
 	esperarEscritura(root, rec.ID)
-	return hoomfs.PublicarEn(r, rec.ID+".json", raw, 0o644)
+	if err := hoomfs.PublicarEn(r, rec.ID+".json", raw, 0o644); err != nil {
+		return err
+	}
+	// el directorio en que se publico tiene que seguir siendo el de
+	// root/.hoom/envelopes: uno que se movio mientras se escribia dejaria el
+	// registro fuera de su lugar y Write diria que esta (hallazgo f89080)
+	return sigueEnSuLugar(root, r)
 }
 
-// registro is rec as hoom writes it, stamped now: the same bytes on the first
-// try (Write) and on every retry (hecho), from one place (finding 812a1b).
+// sigueEnSuLugar says, as an error, whether r is no longer the directory
+// root/.hoom/envelopes leads to. What moves it after this look is the
+// residual window of a concurrent rename, accepted like the one of
+// hoomfs.ReemplazarSiSigue.
+func sigueEnSuLugar(root string, r *os.Root) error {
+	ahora, err := hoomfs.AbrirRuta(root, ".hoom", DirName)
+	if err != nil {
+		return fmt.Errorf("el directorio de sobres cambio mientras se escribia: %w", err)
+	}
+	defer ahora.Close()
+	a, err1 := r.Stat(".")
+	b, err2 := ahora.Stat(".")
+	if err1 != nil || err2 != nil || !os.SameFile(a, b) {
+		return errors.New("el directorio de sobres cambio mientras se escribia")
+	}
+	return nil
+}
+
+// registro is rec as hoom writes it: one format for the first try (Write)
+// and every retry (hecho), from one place (finding 812a1b), stamped with the
+// time of each call, so two tries write the same record with different
+// UpdatedAt (finding a6d413).
 func registro(rec Record) ([]byte, error) {
 	rec.UpdatedAt = time.Now().UTC()
 	raw, err := json.MarshalIndent(rec, "", "  ")

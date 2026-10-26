@@ -22,12 +22,36 @@ import (
 // under it that is a symlink would take the reading to another project
 // (findings 305cbc, 31a00d and 3826b3).
 func AbrirRuta(root string, partes ...string) (*os.Root, error) {
+	return bajar(root, false, partes)
+}
+
+// AbrirOCrearRuta is AbrirRuta that creates the components that are not
+// there yet, one at a time inside the one above: what hoom writes into its
+// own directories (.hoom/envelopes) never goes through a symlink to another
+// tree, nor through anything that is not a directory, whether it was there
+// or not (finding 4f418f).
+func AbrirOCrearRuta(root string, partes ...string) (*os.Root, error) {
+	return bajar(root, true, partes)
+}
+
+// bajar is the one walk by descriptors both share (finding 579060): from
+// root, each component looked at with Lstat, required to be a directory and
+// opened as the object looked at (AbrirDirEn); with crear, a component that
+// is not there is made first.
+func bajar(root string, crear bool, partes []string) (*os.Root, error) {
 	r, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
 	for _, p := range partes {
 		fi, err := r.Lstat(p)
+		if crear && errors.Is(err, fs.ErrNotExist) {
+			if err := r.Mkdir(p, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				r.Close()
+				return nil, err
+			}
+			fi, err = r.Lstat(p)
+		}
 		if err != nil {
 			r.Close()
 			return nil, err
@@ -146,43 +170,6 @@ func RecorrerDirectorio(root string, partes []string, quiere func(nombre string)
 // no longer the object that was looked at: it is gone, or another object
 // took its place. Nothing was written.
 var ErrCambio = errors.New("cambio entre mirarlo y reemplazarlo")
-
-// AbrirOCrearRuta is AbrirRuta that creates the components that are not
-// there yet, one at a time inside the one above: what hoom writes into its
-// own directories (.hoom/envelopes) never goes through a symlink to another
-// tree, nor through anything that is not a directory, whether it was there
-// or not (finding 4f418f).
-func AbrirOCrearRuta(root string, partes ...string) (*os.Root, error) {
-	r, err := os.OpenRoot(root)
-	if err != nil {
-		return nil, err
-	}
-	for _, p := range partes {
-		fi, err := r.Lstat(p)
-		if errors.Is(err, fs.ErrNotExist) {
-			if err := r.Mkdir(p, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-				r.Close()
-				return nil, err
-			}
-			fi, err = r.Lstat(p)
-		}
-		if err != nil {
-			r.Close()
-			return nil, err
-		}
-		if !fi.IsDir() {
-			r.Close()
-			return nil, fmt.Errorf("%s no es un directorio (%s)", p, fi.Mode().Type())
-		}
-		sub, err := AbrirDirEn(r, p, fi)
-		r.Close()
-		if err != nil {
-			return nil, err
-		}
-		r = sub
-	}
-	return r, nil
-}
 
 // PublicarEn writes data as the file name of r, whatever was there before:
 // through a temp file in r and a rename within r, so the write never leaves

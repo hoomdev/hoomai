@@ -167,25 +167,30 @@ func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (
 	return hex.EncodeToString(h.Sum(nil))[:16], nil
 }
 
-// fueraDeRepo says whether a git that failed in dir did so because dir is
-// in no repository: neither dir nor any directory above it has a .git
-// (directory or file), looked at from the real directory (symlinks
-// resolved), and GIT_DIR does not point git anywhere. A tree that
-// has one and where git fails is a broken repo, not "outside": the strict
-// listings fail closed on it instead of answering with nothing (findings
-// 9e4f40, e25ad1 -> 9ad39d).
-func fueraDeRepo(dir string) bool {
-	if os.Getenv("GIT_DIR") != "" {
-		return false
-	}
-	d, err := filepath.Abs(dir)
+// dirReal is dir as git runs in it: every symlink resolved left to right,
+// before any "..", as the kernel does on a chdir (filepath.EvalSymlinks; Abs
+// first would clean alias/.. away before seeing the link, finding 7adfcb),
+// and then absolute. The strict listings resolve it ONCE and both run git in
+// it and look for .git above it: a symlink retargeted between the two
+// changes neither (finding 0738fe), and the parents looked at are the ones
+// git walks up from, not those of a link's name (findings a5cd1a, 90c86c,
+// 6f858b).
+func dirReal(dir string) (string, error) {
+	d, err := filepath.EvalSymlinks(dir)
 	if err != nil {
-		return false
+		return "", err
 	}
-	// the directory git really runs in: the parents of a symlink's name are
-	// not the ones git walks up from looking for .git (findings a5cd1a,
-	// 90c86c, 6f858b). One it cannot resolve is not "outside".
-	if d, err = filepath.EvalSymlinks(d); err != nil {
+	return filepath.Abs(d)
+}
+
+// fueraDeRepo says whether a git that failed in the real directory d
+// (dirReal) did so because d is in no repository: neither d nor any
+// directory above it has a .git (directory or file), and GIT_DIR does not
+// point git anywhere. A tree that has one and where git fails is a broken
+// repo, not "outside": the strict listings fail closed on it instead of
+// answering with nothing (findings 9e4f40, e25ad1 -> 9ad39d).
+func fueraDeRepo(d string) bool {
+	if os.Getenv("GIT_DIR") != "" {
 		return false
 	}
 	for {
@@ -208,6 +213,10 @@ func fueraDeRepo(dir string) bool {
 // fails inside a repo (fueraDeRepo); outside a repo there is none and no
 // error, as in Snapshot.
 func HuellaConTope(dir string, tope time.Duration) (string, error) {
+	dir, err := dirReal(dir)
+	if err != nil {
+		return "", fmt.Errorf("no se pudo resolver el directorio: %w", err)
+	}
 	rn := func(args ...string) (string, error) { return runTope(dir, tope, args...) }
 	if _, err := rn("rev-parse", "--is-inside-work-tree"); err != nil {
 		if errors.Is(err, errSinRespuesta) || !fueraDeRepo(dir) {
@@ -359,6 +368,10 @@ var TopeListado = 2 * time.Minute
 // that fails inside one is an error too (fueraDeRepo).
 func TouchedErr(dir, base string) (map[string]string, error) {
 	out := map[string]string{}
+	dir, err := dirReal(dir)
+	if err != nil {
+		return out, fmt.Errorf("no se pudo resolver el directorio: %w", err)
+	}
 	if _, err := runTope(dir, TopeListado, "rev-parse", "--is-inside-work-tree"); err != nil {
 		if errors.Is(err, errSinRespuesta) || !fueraDeRepo(dir) {
 			return out, fmt.Errorf("git rev-parse: %w", err)

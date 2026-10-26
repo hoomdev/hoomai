@@ -53,9 +53,17 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	if len(names) == 0 {
 		names = Local
 	}
-	gi := filepath.Join(root, ".hoom", ".gitignore")
-	raw, err := leerGitignore(root)
+	// .hoom is walked by descriptors, read AND written in that one directory:
+	// a .hoom swapped for a symlink to another project between the reading
+	// and the writing never gets that project's .gitignore overwritten
+	// (findings c6c300, 0c9aec)
+	r, err := AbrirOCrearRuta(root, ".hoom")
 	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	raw, err := LeerRegularEn(r, ".gitignore", maxGitignore)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 	have := map[string]bool{}
@@ -70,41 +78,16 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	if len(added) == 0 {
 		return nil, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(gi), 0o755); err != nil {
-		return nil, err
-	}
 	content := string(raw)
 	if content != "" && !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
 	content += strings.Join(added, "\n") + "\n"
-	return added, AtomicWrite(gi, []byte(content), 0o644)
+	return added, PublicarEn(r, ".gitignore", []byte(content), 0o644)
 }
 
 // maxGitignore caps .hoom/.gitignore: hoom writes a few lines.
 const maxGitignore = 1 << 20
-
-// leerGitignore reads .hoom/.gitignore the way hoom reads what is not its
-// own: by descriptors, never following a symlink nor blocking on a FIFO. A
-// FIFO there hung every envelope.Write (finding c6c300), and one that is a
-// symlink would be read from another tree and replaced by a regular file. No
-// .hoom, or no .gitignore, is empty; anything that is not a regular file is
-// an error, and nothing is written over it.
-func leerGitignore(root string) ([]byte, error) {
-	r, err := AbrirRuta(root, ".hoom")
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	raw, err := LeerRegularEn(r, ".gitignore", maxGitignore)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	return raw, err
-}
 
 // crearTemporal creates, next to path, the hidden temp file a whole write
 // goes through: "." + the name of path + ".tmp-" + the digits os.CreateTemp
