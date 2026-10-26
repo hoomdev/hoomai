@@ -231,7 +231,7 @@ func ReemplazarSiSigue(r *os.Root, name string, data []byte, mode os.FileMode, a
 	return nil
 }
 
-// temporalEn writes data, synced, to a new temp file next to name in r and
+// temporalEn writes data to a new temp file next to name in r and
 // returns its name: the name AtomicWrite gives its temps (TemporalDe), so a
 // listing skips it like any other write in progress.
 func temporalEn(r *os.Root, name string, data []byte, mode os.FileMode) (string, error) {
@@ -264,9 +264,8 @@ func temporalEn(r *os.Root, name string, data []byte, mode os.FileMode) (string,
 	if err := f.Chmod(mode); err != nil {
 		return fallar(err)
 	}
-	if err := f.Sync(); err != nil {
-		return fallar(err)
-	}
+	// no fsync, as AtomicWrite: hoom's records are telemetry, and a sync on
+	// every update made each one ~25 times slower (finding b6156c)
 	if err := f.Close(); err != nil {
 		r.Remove(tmp)
 		return "", err
