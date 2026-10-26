@@ -167,9 +167,10 @@ func tareasConEvidencia(g *gatherer, worktrees []string) (verdicts, findings map
 	return verdicts, findings
 }
 
-// specEn is the tree whose .hoom/specs has a task's spec; the zero value is
-// "no spec".
-type specEn struct{ dir string }
+// specEn is a task's spec as specDe found it: the tree whose .hoom/specs has
+// it and its file name there, so whoever reads it reads exactly that one
+// (finding 42edf9). The zero value is "no spec".
+type specEn struct{ dir, nombre string }
 
 // specDe is the spec of task s on its trees dirs (the first one that has
 // it), looked at inside each tree by descriptors (hoomfs.AbrirRuta): a
@@ -186,11 +187,12 @@ func specDe(s string, dirs []string) (specEn, error) {
 		if err != nil {
 			return specEn{}, fmt.Errorf("no se pudo mirar el spec de %s: %w", s, err)
 		}
-		_, err = r.Lstat(s + ".md")
+		nombre := s + ".md"
+		_, err = r.Lstat(nombre)
 		r.Close()
 		switch {
 		case err == nil:
-			return specEn{dir: d}, nil
+			return specEn{dir: d, nombre: nombre}, nil
 		case !errors.Is(err, fs.ErrNotExist):
 			return specEn{}, fmt.Errorf("no se pudo mirar el spec de %s: %w", s, err)
 		}
@@ -406,11 +408,11 @@ func tituloDeSpec(sp specEn, s string) (string, error) {
 		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
 	}
 	defer r.Close()
-	fi, err := r.Lstat(s + ".md")
+	fi, err := r.Lstat(sp.nombre)
 	if err != nil {
 		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
 	}
-	f, err := hoomfs.AbrirRegularEn(r, s+".md", fi)
+	f, err := hoomfs.AbrirRegularEn(r, sp.nombre, fi)
 	if err != nil {
 		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
 	}
