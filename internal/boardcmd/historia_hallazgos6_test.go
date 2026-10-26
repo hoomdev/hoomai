@@ -150,14 +150,32 @@ func h6Doctor(t *testing.T, ca string, r DoctorReport, err error, n int) {
 	h6Nombres(t, ca, "el error del doctor", n, err.Error())
 }
 
-// h6Op es Build o el doctor sobre un arbol, con el contrato que exige.
+// h6Op es Build o el doctor sobre un arbol. medir la corre una vez sobre
+// root (con n archivos ilegibles), devuelve su CPU y su reloj y, si
+// conContrato, le exige al resultado el contrato de esa operacion.
 type h6Op struct {
 	que     string
-	correr  func(root string) (any, error)
-	exigir  func(t *testing.T, ca string, res any, err error, n int)
+	medir   func(t *testing.T, ca, root string, n int, conContrato bool) (cpu, reloj time.Duration)
 	chico   time.Duration // el minimo de CPU con h6N
 	grande  time.Duration // el minimo de CPU con h6Factor*h6N
 	relojes []string
+}
+
+// h6NuevaOp ata una operacion a su validador por el tipo de su resultado R:
+// cada pareja queda explicita, y una equivocada (Build con el contrato del
+// doctor) no compila.
+func h6NuevaOp[R any](que string, correr func(root string) (R, error),
+	exigir func(t *testing.T, ca string, res R, err error, n int)) *h6Op {
+	return &h6Op{que: que, medir: func(t *testing.T, ca, root string, n int, conContrato bool) (time.Duration, time.Duration) {
+		t.Helper()
+		var res R
+		var err error
+		cpu, reloj := h6Medir(t, func() { res, err = correr(root) })
+		if conContrato {
+			exigir(t, ca, res, err, n)
+		}
+		return cpu, reloj
+	}}
 }
 
 // CA-452 (y el doctor que falla cerrado), hallazgos 83b100 y 68b1e2: con
@@ -179,16 +197,8 @@ func TestCA452_Hallazgo83b100_FallasEnTiempoLineal(t *testing.T) {
 	rootG := h6Escribir(t, grande)
 
 	ops := []*h6Op{
-		{
-			que:    "Build",
-			correr: func(root string) (any, error) { return Build(root, "main", "high", htAhora) },
-			exigir: func(t *testing.T, ca string, res any, err error, n int) { h6Build(t, ca, res.(Board), err, n) },
-		},
-		{
-			que:    "el doctor del proyecto",
-			correr: func(root string) (any, error) { return Doctor(root, "main", "high", htAhora) },
-			exigir: func(t *testing.T, ca string, res any, err error, n int) { h6Doctor(t, ca, res.(DoctorReport), err, n) },
-		},
+		h6NuevaOp("Build", func(root string) (Board, error) { return Build(root, "main", "high", htAhora) }, h6Build),
+		h6NuevaOp("el doctor del proyecto", func(root string) (DoctorReport, error) { return Doctor(root, "main", "high", htAhora) }, h6Doctor),
 	}
 	for vuelta := 1; vuelta <= h6Vueltas; vuelta++ {
 		for _, op := range ops {
@@ -197,12 +207,7 @@ func TestCA452_Hallazgo83b100_FallasEnTiempoLineal(t *testing.T) {
 				n    int
 				min  *time.Duration
 			}{{rootN, h6N, &op.chico}, {rootG, grande, &op.grande}} {
-				var res any
-				var err error
-				cpu, reloj := h6Medir(t, func() { res, err = op.correr(tam.root) })
-				if vuelta == 1 {
-					op.exigir(t, fmt.Sprintf("%s con %d", ca, tam.n), res, err, tam.n)
-				}
+				cpu, reloj := op.medir(t, fmt.Sprintf("%s con %d", ca, tam.n), tam.root, tam.n, vuelta == 1)
 				if vuelta == 1 || cpu < *tam.min {
 					*tam.min = cpu
 				}
