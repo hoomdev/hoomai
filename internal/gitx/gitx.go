@@ -169,7 +169,8 @@ func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (
 
 // fueraDeRepo says whether a git that failed in dir did so because dir is
 // in no repository: neither dir nor any directory above it has a .git
-// (directory or file), and GIT_DIR does not point git anywhere. A tree that
+// (directory or file), looked at from the real directory (symlinks
+// resolved), and GIT_DIR does not point git anywhere. A tree that
 // has one and where git fails is a broken repo, not "outside": the strict
 // listings fail closed on it instead of answering with nothing (findings
 // 9e4f40, e25ad1 -> 9ad39d).
@@ -179,6 +180,12 @@ func fueraDeRepo(dir string) bool {
 	}
 	d, err := filepath.Abs(dir)
 	if err != nil {
+		return false
+	}
+	// the directory git really runs in: the parents of a symlink's name are
+	// not the ones git walks up from looking for .git (findings a5cd1a,
+	// 90c86c, 6f858b). One it cannot resolve is not "outside".
+	if d, err = filepath.EvalSymlinks(d); err != nil {
 		return false
 	}
 	for {

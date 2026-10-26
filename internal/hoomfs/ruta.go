@@ -147,52 +147,72 @@ func RecorrerDirectorio(root string, partes []string, quiere func(nombre string)
 // took its place. Nothing was written.
 var ErrCambio = errors.New("cambio entre mirarlo y reemplazarlo")
 
-// ReemplazarSiSigue replaces the regular file name of r, which antes
-// describes, with data: through a temp file in r and a rename within r, so
-// the write never leaves r (no component is followed out of it) and a
-// reader sees the old file or the new one. Right before the rename it checks
-// that name is still that object; gone, or another one in its place, the
-// temp is removed and the result is ErrCambio: it never recreates what was
-// deleted nor overwrites what replaced it. The check and the rename are two
-// steps, and what changes the name between them is not seen: there is no
-// portable compare-and-rename. name is one component of r.
-func ReemplazarSiSigue(r *os.Root, name string, data []byte, mode os.FileMode, antes fs.FileInfo) error {
-	if name == "" || strings.ContainsAny(name, `/\`) {
-		return fmt.Errorf("%q no es un nombre dentro del directorio", name)
+// AbrirOCrearRuta is AbrirRuta that creates the components that are not
+// there yet, one at a time inside the one above: what hoom writes into its
+// own directories (.hoom/envelopes) never goes through a symlink to another
+// tree, nor through anything that is not a directory, whether it was there
+// or not (finding 4f418f).
+func AbrirOCrearRuta(root string, partes ...string) (*os.Root, error) {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
 	}
-	var tmp string
-	var f *os.File
-	for intento := 0; ; intento++ {
-		// the name AtomicWrite gives its temps (TemporalDe), so a listing
-		// skips it like any other write in progress
-		var b [4]byte
-		rand.Read(b[:]) // never fails (crypto/rand, Go 1.24+)
-		tmp = "." + name + ".tmp-" + strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[:])), 10)
-		var err error
-		f, err = r.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
-		if err == nil {
-			break
+	for _, p := range partes {
+		fi, err := r.Lstat(p)
+		if errors.Is(err, fs.ErrNotExist) {
+			if err := r.Mkdir(p, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				r.Close()
+				return nil, err
+			}
+			fi, err = r.Lstat(p)
 		}
-		if !errors.Is(err, fs.ErrExist) || intento >= 10 {
-			return err
+		if err != nil {
+			r.Close()
+			return nil, err
 		}
+		if !fi.IsDir() {
+			r.Close()
+			return nil, fmt.Errorf("%s no es un directorio (%s)", p, fi.Mode().Type())
+		}
+		sub, err := AbrirDirEn(r, p, fi)
+		r.Close()
+		if err != nil {
+			return nil, err
+		}
+		r = sub
 	}
-	fallar := func(err error) error {
-		f.Close()
+	return r, nil
+}
+
+// PublicarEn writes data as the file name of r, whatever was there before:
+// through a temp file in r and a rename within r, so the write never leaves
+// r and a reader sees the old file or the new one. name is one component of
+// r.
+func PublicarEn(r *os.Root, name string, data []byte, mode os.FileMode) error {
+	tmp, err := temporalEn(r, name, data, mode)
+	if err != nil {
+		return err
+	}
+	if err := r.Rename(tmp, name); err != nil {
 		r.Remove(tmp)
 		return err
 	}
-	if _, err := f.Write(data); err != nil {
-		return fallar(err)
-	}
-	if err := f.Chmod(mode); err != nil {
-		return fallar(err)
-	}
-	if err := f.Sync(); err != nil {
-		return fallar(err)
-	}
-	if err := f.Close(); err != nil {
-		r.Remove(tmp)
+	return nil
+}
+
+// ReemplazarSiSigue replaces the regular file name of r, which antes
+// describes, with data, the way PublicarEn writes it. Right before the
+// rename it checks that name is still that object; gone, or another one in
+// its place, the temp is removed and the result is ErrCambio: it never
+// recreates what was deleted nor overwrites what replaced it while it wrote.
+// The check and the rename are two steps, with nothing that can block
+// between them, and what changes the name in that window is not seen: there
+// is no portable compare-and-rename. That residual window is accepted
+// (Henry, 2026-10-26; findings 1e984e, d2e5b6, ba78b9). name is one
+// component of r.
+func ReemplazarSiSigue(r *os.Root, name string, data []byte, mode os.FileMode, antes fs.FileInfo) error {
+	tmp, err := temporalEn(r, name, data, mode)
+	if err != nil {
 		return err
 	}
 	st, err := r.Lstat(name)
@@ -209,4 +229,47 @@ func ReemplazarSiSigue(r *os.Root, name string, data []byte, mode os.FileMode, a
 		return err
 	}
 	return nil
+}
+
+// temporalEn writes data, synced, to a new temp file next to name in r and
+// returns its name: the name AtomicWrite gives its temps (TemporalDe), so a
+// listing skips it like any other write in progress.
+func temporalEn(r *os.Root, name string, data []byte, mode os.FileMode) (string, error) {
+	if name == "" || strings.ContainsAny(name, `/\`) {
+		return "", fmt.Errorf("%q no es un nombre dentro del directorio", name)
+	}
+	var tmp string
+	var f *os.File
+	for intento := 0; ; intento++ {
+		var b [4]byte
+		rand.Read(b[:]) // never fails (crypto/rand, Go 1.24+)
+		tmp = "." + name + ".tmp-" + strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[:])), 10)
+		var err error
+		f, err = r.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, fs.ErrExist) || intento >= 10 {
+			return "", err
+		}
+	}
+	fallar := func(err error) (string, error) {
+		f.Close()
+		r.Remove(tmp)
+		return "", err
+	}
+	if _, err := f.Write(data); err != nil {
+		return fallar(err)
+	}
+	if err := f.Chmod(mode); err != nil {
+		return fallar(err)
+	}
+	if err := f.Sync(); err != nil {
+		return fallar(err)
+	}
+	if err := f.Close(); err != nil {
+		r.Remove(tmp)
+		return "", err
+	}
+	return tmp, nil
 }

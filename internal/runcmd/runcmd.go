@@ -362,9 +362,25 @@ func parseMeta(id string, raw []byte) (Meta, bool) {
 	if !validID(id) {
 		return Meta{}, false
 	}
-	var meta Meta
-	if json.Unmarshal(raw, &meta) != nil || meta.ID != id || !validStatus(meta.Status) {
-		return Meta{}, false
+	meta, ajeno, err := clasificarMeta(id, raw)
+	return meta, err == nil && !ajeno
+}
+
+// clasificarMeta reads the sidecar of run id once and says what it is: a meta of
+// that id; ajeno, a whole meta that is no write of hoom's (another id, a
+// status hoom does not write), which is skipped; or an error, when it is not
+// a meta at all (not JSON, truncated, a field of another type, without id),
+// which is what a partial write leaves and MetasErr reports (findings
+// 64323b, be6933). One parse, one classification (finding 20b290).
+func clasificarMeta(id string, raw []byte) (meta Meta, ajeno bool, err error) {
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return Meta{}, false, fmt.Errorf("no es un sidecar: %v", err)
+	}
+	if strings.TrimSpace(meta.ID) == "" {
+		return Meta{}, false, errors.New("no es un sidecar: no tiene id")
+	}
+	if meta.ID != id || !validStatus(meta.Status) {
+		return Meta{}, true, nil
 	}
 	if !slugOK(meta.Role) {
 		meta.Role = ""
@@ -372,7 +388,7 @@ func parseMeta(id string, raw []byte) (Meta, bool) {
 	if !slugOK(meta.Task) {
 		meta.Task = ""
 	}
-	return meta, true
+	return meta, false, nil
 }
 
 // ReadMeta loads one run's sidecar by id, with the same refusals as Metas:
@@ -393,7 +409,8 @@ func Metas(root string) []Meta {
 // (findings d0d331 and a2b180) — the sidecars it could read still come back.
 // One that does not exist yet is no runs. A file whose name is not a run id
 // is not hoom's and is skipped. A sidecar whose name IS a run id and that is
-// not a meta (not JSON, truncated, without id) is unreadable, never "none":
+// not a meta (not JSON, truncated, a field of another type, without id) is
+// unreadable, never "none" (clasificarMeta):
 // that is what a partial write leaves, and it would hide a run from the
 // doctor (findings 095223, 7e32e3 -> 64323b). A whole meta of another id or
 // with a status hoom does not write is no write of hoom's: it is skipped, as
@@ -412,12 +429,11 @@ func MetasErr(root string) ([]Meta, error) {
 			if !validID(id) {
 				return
 			}
-			var cabecera struct{ ID string }
-			if json.Unmarshal(e.Contenido, &cabecera) != nil || strings.TrimSpace(cabecera.ID) == "" {
-				sinLeer = append(sinLeer, fmt.Sprintf("%s: no es un sidecar (JSON ilegible o sin id)", e.Nombre))
-				return
-			}
-			if meta, ok := parseMeta(id, e.Contenido); ok {
+			meta, ajeno, err := clasificarMeta(id, e.Contenido)
+			switch {
+			case err != nil:
+				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, err))
+			case !ajeno:
 				out = append(out, meta)
 			}
 		})

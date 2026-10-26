@@ -113,21 +113,39 @@ func Write(root string, rec Record) error {
 	if strings.TrimSpace(rec.ID) == "" {
 		return nil
 	}
-	rec.UpdatedAt = time.Now().UTC()
-	raw, err := json.MarshalIndent(rec, "", "  ")
+	raw, err := registro(rec)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir(root), 0o755); err != nil {
+	// la raiz del proyecto se crea si falta, como siempre; .hoom y
+	// .hoom/envelopes se crean y se recorren por descriptores: un symlink a
+	// otro proyecto no se sigue, ni en el primer intento (hallazgo 4f418f)
+	if err := os.MkdirAll(root, 0o755); err != nil {
 		return err
 	}
+	r, err := hoomfs.AbrirOCrearRuta(root, ".hoom", DirName)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
 	// La regla queda escrita (CA-202) sin reescribir un archivo completo:
 	// registrar telemetria no mueve el candidato (CA-203).
 	hoomfs.EnsureIgnored(root, DirName)
 	// Atomico: status y el Studio leen este archivo MIENTRAS se escribe, y un
 	// sobre a medias leido como vacio desapareceria de la lista.
 	esperarEscritura(root, rec.ID)
-	return hoomfs.AtomicWrite(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
+	return hoomfs.PublicarEn(r, rec.ID+".json", raw, 0o644)
+}
+
+// registro is rec as hoom writes it, stamped now: the same bytes on the first
+// try (Write) and on every retry (hecho), from one place (finding 812a1b).
+func registro(rec Record) ([]byte, error) {
+	rec.UpdatedAt = time.Now().UTC()
+	raw, err := json.MarshalIndent(rec, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(raw, '\n'), nil
 }
 
 // List returns the project's envelope records, newest first. A file that is
@@ -445,13 +463,12 @@ func hecho(root string, rec Record) bool {
 	case !antes.Mode().IsRegular():
 		return true
 	}
-	rec.UpdatedAt = time.Now().UTC()
-	raw, err := json.MarshalIndent(rec, "", "  ")
+	raw, err := registro(rec)
 	if err != nil {
 		return true // it never will: not a close to retry
 	}
 	esperarEscritura(root, rec.ID)
-	err = hoomfs.ReemplazarSiSigue(r, name, append(raw, '\n'), 0o644, antes)
+	err = hoomfs.ReemplazarSiSigue(r, name, raw, 0o644, antes)
 	return err == nil || errors.Is(err, hoomfs.ErrCambio)
 }
 
