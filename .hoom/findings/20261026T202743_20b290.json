@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202743_20b290",
+  "created_at": "2026-10-26T20:27:43.279797Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:415: MetasErr deserializa el mismo sidecar primero a una cabecera anonima y luego otra vez mediante parseMeta (linea 420). La distincion de contrato entre 'ilegible/sin id = error' y 'id/estado ajeno = omitir' queda repartida entre dos parsers, mientras parseMeta solo devuelve un bool; agregar una validacion futura alli puede cambiar silenciosamente la clasificacion. Conviene parsear una sola vez en un helper que devuelva el Meta y una clasificacion explicita del rechazo.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

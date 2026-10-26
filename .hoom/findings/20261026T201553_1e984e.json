@@ -1,0 +1,11 @@
+{
+  "id": "20261026T201553_1e984e",
+  "created_at": "2026-10-26T20:15:53.914194Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "PRE-EXISTENTE (follow-up; correccion incompleta), internal/hoomfs/ruta.go:198-207: ReemplazarSiSigue comprueba con Lstat y despues hace Rename en otra operacion. Si otro proceso u operador borra o reemplaza name entre ambas, Rename recrea el registro borrado o pisa el reemplazo, contradiciendo el contrato de no resucitar/no sobrescribir; el candado de envelope es solo intraproceso. La ventana es menor que antes, pero el riesgo de perdida de datos sigue presente.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

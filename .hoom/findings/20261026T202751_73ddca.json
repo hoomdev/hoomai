@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202751_73ddca",
+  "created_at": "2026-10-26T20:27:51.840436Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/envelope/hallazgos_endurecimiento2_test.go",
+  "description": "INTRODUCIDO — internal/envelope/hallazgos_endurecimiento2_test.go:20: el encabezado dirige el caso 332b11 a hallazgos_endurecimiento2_gancho_unix_test.go, archivo que no existe; el caso esta en hallazgos_endurecimiento2_gancho_test.go. Ademas, en las lineas 3-4 afirma que este archivo reutiliza hdIDs, pero no lo referencia. Corregir el inventario evita que quien mantenga estas regresiones busque dependencias y casos en lugares equivocados.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

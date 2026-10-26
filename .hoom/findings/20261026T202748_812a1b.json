@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202748_812a1b",
+  "created_at": "2026-10-26T20:27:48.257387Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:448: hecho vuelve a implementar la preparacion que Write ya hace en las lineas 116-130 (UpdatedAt, MarshalIndent, salto final, modo 0644 y gancho antes de publicar). Aunque la persistencia de reintento deba ser distinta, mantener dos copias del formato y de la instrumentacion permite que un cambio futuro afecte solo el primer intento o solo los reintentos. Extraer la preparacion comun del registro haria explicito que ambos caminos escriben los mismos bytes bajo el mismo contrato.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

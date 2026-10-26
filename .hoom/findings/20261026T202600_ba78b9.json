@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202600_ba78b9",
+  "created_at": "2026-10-26T20:26:00.238263Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "PRE-EXISTENTE (follow-up; la correccion queda incompleta) — internal/hoomfs/ruta.go:198-207 comprueba la identidad con Lstat y luego hace Rename en otra operacion. Si otro proceso u operador borra o reemplaza name entre ambas, Rename recrea el registro borrado o pisa el reemplazo; internal/envelope/envelope.go:455 interpreta el exito como cierre asentado. La ventana es menor, pero el reintento aun puede deshacer una recuperacion externa y el gancho nuevo, situado antes de ReemplazarSiSigue, no ejercita esta ventana final.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

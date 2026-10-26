@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202024_be6933",
+  "created_at": "2026-10-26T20:20:24.065279Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE (la correccion queda incompleta) — internal/runcmd/runcmd.go:415: MetasErr solo valida una cabecera con id y, en internal/runcmd/runcmd.go:420, descarta sin error cualquier fallo posterior de parseMeta. Un JSON valido como {\"id\":\"\u003cid-del-archivo\u003e\",\"status\":\"done\",\"created_at\":7} supera la cabecera, falla al decodificar Meta por el tipo de created_at y se omite sin agregarse a sinLeer; el doctor puede certificar sin problemas sin haber leido ese sidecar. La nueva prueba solo cubre sintaxis JSON rota o id ausente, no errores de forma en otros campos.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

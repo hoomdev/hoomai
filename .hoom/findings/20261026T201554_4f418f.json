@@ -1,0 +1,11 @@
+{
+  "id": "20261026T201554_4f418f",
+  "created_at": "2026-10-26T20:15:54.120313Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "PRE-EXISTENTE (follow-up), internal/envelope/envelope.go:121-130: el primer Write (y por tanto el primer intento de Cerrar) usa MkdirAll y AtomicWrite por pathname. Si .hoom o .hoom/envelopes es un symlink a otro proyecto, esas operaciones lo siguen y escriben el registro fuera del proyecto; el error seguro de EnsureIgnored se ignora. Este cambio protege el reintento por descriptores, pero no la primera escritura, que aun puede alterar telemetria ajena.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}
