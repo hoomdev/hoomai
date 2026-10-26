@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T202600_ba78b9",
+  "as": "refutado",
+  "evidence": "RIESGO RESIDUAL ACEPTADO por Henry (2026-10-26), no se corrige: entre la comprobacion de identidad y el Rename de hoomfs.ReemplazarSiSigue queda una ventana sin nada que se bloquee (microsegundos); no hay compare-and-rename portable (renameat2/renameatx_np existen solo en Linux/macOS y suman codigo por plataforma). El caso reproducible (un FIFO sosteniendo la escritura) esta cerrado (332b11, c6c300). cfc60ef documenta la decision en el comentario de ReemplazarSiSigue.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T20:58:58.817242Z"
+}
