@@ -1,0 +1,11 @@
+{
+  "id": "20261027T171318_47764f",
+  "created_at": "2026-10-27T17:13:18.766807Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO: internal/gates/runner.go:140-146 difiere Close antes de Remove, pero los defer se ejecutan en orden inverso; en Windows Remove corre con el archivo aun abierto, falla (su error se descarta) y cada gate deja hoom-gate-*.log persistente. La salida del gate puede contener secretos y además se acumula en disco incluso en corridas normales.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}

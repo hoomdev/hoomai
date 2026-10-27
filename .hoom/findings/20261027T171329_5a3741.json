@@ -1,0 +1,11 @@
+{
+  "id": "20261027T171329_5a3741",
+  "created_at": "2026-10-27T17:13:29.703344Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO: internal/gates/runner.go:136,152-163 redirige toda la salida del gate a un archivo temporal sin limite y solo aplica TailSize despues de io.ReadAll; con el timeout por defecto de 30 minutos (internal/gates/runner.go:41-52), un gate verboso puede llenar el filesystem temporal y afectar o corromper cargas ajenas. En Unix el unlink inmediato oculta el archivo pero no libera su espacio mientras siga abierto.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}

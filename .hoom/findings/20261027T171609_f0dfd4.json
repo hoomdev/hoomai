@@ -1,0 +1,11 @@
+{
+  "id": "20261027T171609_f0dfd4",
+  "created_at": "2026-10-27T17:16:09.632168Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/procesos/procesos_unix.go",
+  "description": "INTRODUCIDO: internal/procesos/procesos_unix.go:84-87 lanza un goroutine que, tras la gracia, hace MatarGrupo(pid) sin comprobar que siga siendo el grupo original ni cancelarlo cuando ese grupo termina. Si el gate obedece SIGTERM, correr puede liberarlo y continuar, pero diez segundos despues el temporizador conserva solo el PGID numerico; si el sistema lo reutilizo, SIGKILL alcanza un gate/proveedor/proceso ajeno nuevo.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}

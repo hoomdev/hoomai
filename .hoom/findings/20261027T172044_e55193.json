@@ -1,0 +1,11 @@
+{
+  "id": "20261027T172044_e55193",
+  "created_at": "2026-10-27T17:20:44.305805Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:140-146: en Windows los defer corren en orden LIFO, por lo que os.Remove se ejecuta antes de salida.Close y falla porque el archivo sigue abierto; además, al recibir una señal, internal/procesos/procesos_windows.go:166 termina con os.Exit y no ejecuta ningún defer. Así, una corrida normal y una interrupción pueden dejar cada hoom-gate-*.log persistente, acumulando disco y reteniendo la salida del gate.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}

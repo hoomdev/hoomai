@@ -1,0 +1,11 @@
+{
+  "id": "20261027T172044_cd9f87",
+  "created_at": "2026-10-27T17:20:44.433399Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/procesos/procesos_unix.go",
+  "description": "INTRODUCIDO — internal/procesos/procesos_unix.go:84-86: TerminarGrupo lanza una goroutine no cancelable que vuelve a enviar SIGKILL al PGID al terminar la gracia aunque el grupo haya salido antes y Liberar ya lo haya quitado del registro (internal/procesos/procesos.go:126-131). Tras Wait el PID/PGID puede reutilizarse durante esos 10 s; el disparo tardío de MatarGrupo(-pid) puede matar el gate siguiente o un grupo ajeno del mismo usuario.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}
