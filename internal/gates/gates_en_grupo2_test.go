@@ -16,43 +16,13 @@ package gates
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/hoomdev/hoomai/internal/gitx"
-	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
-
-// geg2Lanzar es gegLanzar con un plazo propio.
-func geg2Lanzar(t *testing.T, gates map[string]string, plazo time.Duration) *gegCorrida {
-	t.Helper()
-	req := true
-	m := &manifest.Manifest{Dir: t.TempDir(), Gates: map[string]manifest.Gate{}}
-	for nombre, cmd := range gates {
-		m.Gates[nombre] = manifest.Gate{Cmd: strPtr(cmd), Required: &req}
-	}
-	c := &gegCorrida{inicio: time.Now(), fin: make(chan struct{})}
-	go func() {
-		c.res = Run(m, gitx.Info{}, Options{Timeout: plazo, TailSize: 16384})
-		c.dur = time.Since(c.inicio)
-		close(c.fin)
-	}()
-	return c
-}
-
-// geg2Script escribe un script de sh en d/nombre y devuelve su ruta.
-func geg2Script(t *testing.T, d, nombre, cuerpo string) string {
-	t.Helper()
-	ruta := filepath.Join(d, nombre)
-	if err := os.WriteFile(ruta, []byte(cuerpo), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return ruta
-}
 
 // Hallazgo 01d565: vencido el plazo, el lider del gate (un sh sin trap) muere
 // enseguida con la SIGTERM y la salida se cierra; un hijo del grupo que
@@ -63,7 +33,7 @@ func TestHallazgo01d565_HijoQueAtrapaTERMTerminaSuLimpiezaAunqueElLiderMuera(t *
 	d := t.TempDir()
 	marca := filepath.Join(d, "marca_limpieza")
 	// el hijo: sin la salida del gate, limpia en 2 s al recibir TERM
-	hijoSh := geg2Script(t, d, "hijo.sh", "trap 'sleep 2; echo limpio > \""+marca+"\"; exit 0' TERM\n"+
+	hijoSh := gegScript(t, d, "hijo.sh", "trap 'sleep 2; echo limpio > \""+marca+"\"; exit 0' TERM\n"+
 		gegEscribir(d, "hijo.pid", "$$")+
 		"sleep 300 &\nwait\n")
 	c := gegLanzar(t, map[string]string{"test": gegEscribir(d, "lider.pid", "$$") +
@@ -94,7 +64,7 @@ func TestHallazgo01d565_HijoQueAtrapaTERMTerminaSuLimpiezaAunqueElLiderMuera(t *
 // un margen chico.
 func TestHallazgo01d565_LaGraciaNoSeCortaNiSeExcedeConElLiderMuerto(t *testing.T) {
 	d := t.TempDir()
-	hijoSh := geg2Script(t, d, "hijo.sh", "trap '' TERM\n"+gegEscribir(d, "hijo.pid", "$$")+"exec sleep 300\n")
+	hijoSh := gegScript(t, d, "hijo.sh", "trap '' TERM\n"+gegEscribir(d, "hijo.pid", "$$")+"exec sleep 300\n")
 	c := gegLanzar(t, map[string]string{"test": gegEscribir(d, "lider.pid", "$$") +
 		"sh '" + hijoSh + "' >/dev/null 2>&1 &\n" +
 		"sleep 300\n"}) // el lider: muere con la SIGTERM, sin trap
@@ -129,7 +99,7 @@ func TestHallazgo5a05b4_GateConExit0QueDejaUnProcesoConSuSalidaVuelveEnPass(t *t
 	d := t.TempDir()
 	const plazo = 5 * time.Second
 	const enseguida = 3 * time.Second
-	c := geg2Lanzar(t, map[string]string{"test": "sleep 300 &\n" + // hereda la salida
+	c := gegLanzarConPlazo(t, map[string]string{"test": "sleep 300 &\n" + // hereda la salida
 		gegEscribir(d, "hijo.pid", "$!") +
 		"echo uno\necho dos >&2\necho tres\n" +
 		"exit 0\n"}, plazo)
@@ -158,7 +128,7 @@ func TestHallazgo5a05b4_GateConExit0QueDejaUnProcesoConSuSalidaVuelveEnPass(t *t
 // el gate y un hijo suyo esta entero (nada se pisa).
 func TestGatesEnGrupo2_5a05b4_SalidaCombinadaEnOrdenYEntera(t *testing.T) {
 	t.Run("intercalada", func(t *testing.T) {
-		c := geg2Lanzar(t, map[string]string{"test": "i=1; while [ $i -le 100 ]; do echo o$i; echo e$i >&2; i=$((i+1)); done"}, time.Minute)
+		c := gegLanzarConPlazo(t, map[string]string{"test": "i=1; while [ $i -le 100 ]; do echo o$i; echo e$i >&2; i=$((i+1)); done"}, time.Minute)
 		if !c.volvio(gegTope) {
 			t.Fatalf("hallazgo 5a05b4: un gate que sale enseguida vuelve enseguida")
 		}
@@ -175,7 +145,7 @@ func TestGatesEnGrupo2_5a05b4_SalidaCombinadaEnOrdenYEntera(t *testing.T) {
 		}
 	})
 	t.Run("a la vez", func(t *testing.T) {
-		c := geg2Lanzar(t, map[string]string{"test": "(i=1; while [ $i -le 200 ]; do echo b$i; i=$((i+1)); done) &\n" +
+		c := gegLanzarConPlazo(t, map[string]string{"test": "(i=1; while [ $i -le 200 ]; do echo b$i; i=$((i+1)); done) &\n" +
 			"i=1; while [ $i -le 200 ]; do echo a$i >&2; i=$((i+1)); done\n" +
 			"wait\necho FIN\n"}, time.Minute)
 		if !c.volvio(gegTope) {
