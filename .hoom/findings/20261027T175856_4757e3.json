@@ -1,0 +1,11 @@
+{
+  "id": "20261027T175856_4757e3",
+  "created_at": "2026-10-27T17:58:56.203499Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/procesos/procesos_unix.go",
+  "description": "INTRODUCIDO — internal/procesos/procesos_unix.go:70: el contrato de TerminarGrupo queda ambiguo. Primero describe SIGTERM para el grupo y que solo el SIGKILL diferido consulta el registro, pero remata con “Only for a group started with Arrancar or ArrancarConGracia”; a la vez, internal/gates/gates_en_grupo4_test.go:228 usa TerminarGrupo sobre un grupo ajeno y espera que reciba SIGTERM. Conviene decir explícitamente que el SIGTERM inmediato acepta cualquier PGID y que solo el SIGKILL posterior está limitado a grupos registrados, para que un mantenedor no interprete que toda la API exige Arrancar.",
+  "author": "reviewer@codex",
+  "fingerprint": "37a5f70c71fd5b1f",
+  "task": "gates-en-grupo"
+}

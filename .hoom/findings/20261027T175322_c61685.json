@@ -1,0 +1,11 @@
+{
+  "id": "20261027T175322_c61685",
+  "created_at": "2026-10-27T17:53:22.76581Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:91: la salida se acota a TailSize+64 KiB antes de que tail aplique strings.TrimSpace. Si un gate imprime un diagnostico y luego mas de 64 KiB de espacios o lineas vacias, la cola acotada descarta el diagnostico y OutputTail queda solo con la marca de truncado; antes se recortaba whitespace sobre la salida completa y el diagnostico sobrevivía. El margen fijo tampoco cumple el comentario para sufijos arbitrarios y puede ocultar la unica evidencia de un gate fallido.",
+  "author": "reviewer@codex",
+  "fingerprint": "37a5f70c71fd5b1f",
+  "task": "gates-en-grupo"
+}

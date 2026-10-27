@@ -1,0 +1,11 @@
+{
+  "id": "20261027T175652_7ee291",
+  "created_at": "2026-10-27T17:56:52.065712Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:171-183: cuando un proceso que salio del grupo conserva el extremo de escritura, correr cierra pr pero, tras otro finDeLectura, retorna sin haber detenido ni unido la goroutine de io.Copy. El propio comentario en 174-180 admite que en Windows la lectura pendiente puede sobrevivir al Close; esa goroutine (y potencialmente el hilo bloqueado) queda viva hasta que el escritor externo cierre, que puede ser nunca. Como el proceso largo de Studio permite repetir POST /api/verify (internal/servecmd/servecmd.go:459-474), gates que se desprenden y conservan stdout pueden acumular lectores bloqueados hasta agotar recursos.",
+  "author": "reviewer@codex",
+  "fingerprint": "37a5f70c71fd5b1f",
+  "task": "gates-en-grupo"
+}

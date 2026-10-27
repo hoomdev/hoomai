@@ -1,0 +1,11 @@
+{
+  "id": "20261027T175901_d3331e",
+  "created_at": "2026-10-27T17:59:01.213343Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:192: el comentario de colaAcotada afirma que mantiene los últimos limite bytes, pero Write conserva hasta algo más de 2*limite antes de compactar (líneas 205-208) y bytes aplica otro recorte (líneas 216-220). El umbral 2x y las dos etapas no están explicados, por lo que el contrato de memoria se lee distinto de la implementación. Documentar la retención interna amortizada frente al resultado exacto, o nombrar/encapsular esa política, haría explícita la invariante.",
+  "author": "reviewer@codex",
+  "fingerprint": "37a5f70c71fd5b1f",
+  "task": "gates-en-grupo"
+}
