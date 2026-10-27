@@ -115,6 +115,13 @@ func Soltar(pid int) {
 	}
 }
 
+// senalarTerm: Windows has no polite signal for a tree, so there is
+// nothing to send and no gracia to wait for.
+func senalarTerm(pid int) bool { return false }
+
+// grupoVivo: with no gracia on Windows, nobody waits on a tree.
+func grupoVivo(pid int) bool { return false }
+
 // TerminarGrupo ends the tree of pid. Windows has no polite signal for a
 // tree: it is MatarGrupo at once, and gracia does not apply.
 func TerminarGrupo(pid int, gracia time.Duration) error { return MatarGrupo(pid) }

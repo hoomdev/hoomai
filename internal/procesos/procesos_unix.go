@@ -88,6 +88,17 @@ func TerminarGrupo(pid int, gracia time.Duration) error {
 	return err
 }
 
+// senalarTerm sends SIGTERM to the group of pid and says whether it was
+// there to get it.
+func senalarTerm(pid int) bool {
+	return pid > 0 && syscall.Kill(-pid, syscall.SIGTERM) == nil
+}
+
+// grupoVivo says whether anyone is left in the group of pid.
+func grupoVivo(pid int) bool {
+	return pid > 0 && syscall.Kill(-pid, 0) == nil
+}
+
 // Senales are the signals after which this process must not leave its
 // groups behind: a group of its own gets neither the terminal's Ctrl-C nor
 // the hang-up of a closed terminal.
