@@ -86,8 +86,7 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
 	start := time.Now()
-	// more than the tail is read so that trimming the trailing blank lines
-	// still leaves TailSize bytes
+	// a little more than the tail is kept, so the tail tail cuts is full
 	out, cortado, err := correr(ctx, m.Dir, cmdStr, opt.TailSize+margenCola)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.OutputTail = tail(string(out), opt.TailSize)
@@ -190,38 +189,48 @@ func correr(ctx context.Context, dir, cmdStr string, limite int) (out []byte, co
 const finDeLectura = 2 * time.Second
 
 // colaAcotada keeps the end of what is written to it: bytes() gives the
-// last limite bytes, and whether more came before them. To copy less, it
-// lets its buffer grow up to 2*limite before dropping the oldest half, so
-// it holds at most about 2*limite bytes at any time (finding d3331e).
+// last limite bytes of the output without its trailing blanks, and whether
+// more came before them. To copy less, it lets its buffer grow up to
+// 2*limite before dropping the oldest half (finding d3331e).
 //
-// A run of blanks (spaces, tabs, newlines) is kept up to maxBlancos bytes and
-// the rest dropped: tail trims them anyway, and a gate that prints its
-// diagnostic and then 64 KiB of blank lines must not have the diagnostic
-// pushed out of the tail by them (findings c61685, 4a9763).
+// A run of blanks (blancosASCII) is held aside until something that is not
+// a blank follows it, and only then added (its last limite bytes are enough
+// for the tail): blanks in the middle stay exactly where they were (finding
+// 77dc9a), and the run at the end, which tail trims anyway, never pushes the
+// output before it out of the tail — a gate that prints its diagnostic and
+// then 64 KiB of blank lines keeps the diagnostic (findings c61685, 4a9763).
 type colaAcotada struct {
 	mu      sync.Mutex
 	limite  int
 	buf     []byte
-	blancos int // blanks at the end of buf
+	blancos []byte // the run of blanks after buf, not added yet: its end
+	enRacha int    // how long that run really is
 	cortado bool
 }
 
-// maxBlancos is the longest run of blanks colaAcotada keeps.
-const maxBlancos = 4 << 10
+// blancosASCII are the blanks colaAcotada holds aside and tail trims: the
+// same set on both sides (finding 5fc8ff).
+const blancosASCII = " \t\n\r\v\f"
 
 func (c *colaAcotada) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, b := range p {
-		if b == ' ' || b == '\t' || b == '\n' || b == '\r' || b == '\v' || b == '\f' {
-			if c.blancos >= maxBlancos {
-				c.cortado = true
-				continue
+		if strings.IndexByte(blancosASCII, b) >= 0 {
+			c.blancos = append(c.blancos, b)
+			c.enRacha++
+			if c.limite > 0 && len(c.blancos) > 2*c.limite {
+				c.blancos = append(c.blancos[:0], c.blancos[len(c.blancos)-c.limite:]...)
 			}
-			c.blancos++
-		} else {
-			c.blancos = 0
+			continue
 		}
+		// a run that lost its start is a cut only now that output follows
+		// it: a run at the very end is trimmed whole anyway
+		if c.enRacha > len(c.blancos) {
+			c.cortado = true
+		}
+		c.buf = append(c.buf, c.blancos...)
+		c.blancos, c.enRacha = c.blancos[:0], 0
 		c.buf = append(c.buf, b)
 	}
 	if c.limite > 0 && len(c.buf) > 2*c.limite {
@@ -234,7 +243,7 @@ func (c *colaAcotada) Write(p []byte) (int, error) {
 func (c *colaAcotada) bytes() ([]byte, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	b := c.buf
+	b := c.buf // the trailing blanks (c.blancos) are left out: tail trims them
 	cortado := c.cortado
 	if c.limite > 0 && len(b) > c.limite {
 		b, cortado = b[len(b)-c.limite:], true
@@ -277,15 +286,15 @@ func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string)
 	return cmdStr, scope
 }
 
-// margenCola is what correr keeps beyond TailSize, for the trailing blank
-// lines tail trims.
+// margenCola is what correr keeps beyond TailSize: room so that the tail
+// tail cuts is never short.
 const margenCola = 64 << 10
 
 // marcaCorte opens a tail that is not the whole output.
 const marcaCorte = "...[truncado]...\n"
 
 func tail(s string, n int) string {
-	s = strings.TrimSpace(s)
+	s = strings.Trim(s, blancosASCII)
 	if len(s) <= n {
 		return s
 	}

@@ -26,13 +26,17 @@ import (
 // (finding 3f106e). A second signal meanwhile cuts the wait short.
 //
 // A group is only known by its number, which the system hands to a new
-// group once the old one is empty. Each registration is an object of its own
-// (grupo), so a late signal meant for one registration never reaches a new
-// one with the same number (finding bc1864); and a group already killed, or
-// seen empty, is never signalled again (findings 67eb4f, f5984e). What is
-// left — the system reusing a number between a look and the signal, which
-// takes the whole pid range going round in that instant — is accepted
-// (Henry, 2026-10-27; finding 710266, f6709d).
+// group once the old one is empty. Two protections, and one window left:
+//   - the delayed SIGKILL of TerminarGrupo goes only to the registration it
+//     was armed for: each registration is an object of its own (grupo), and
+//     a new group of hoom with the same number is another one (finding
+//     bc1864);
+//   - a group already killed, or seen empty, is never signalled again
+//     (findings 67eb4f, f5984e);
+//   - between looking at a group (does it still have members?) and
+//     signalling it, the system could hand its number to someone else's
+//     group. That takes the whole pid range going round in that instant, and
+//     it is accepted (Henry, 2026-10-27; findings 710266, f6709d, 6d3179).
 var grupos = struct {
 	sync.Mutex
 	pids map[int]*grupo // the leader's pid of each group -> its registration
@@ -76,16 +80,20 @@ func prepararSenales() {
 // terminarConGracia sends SIGTERM to the registered groups of pids and
 // waits until they are gone, their longest gracia passes, or another signal
 // arrives on otra. It returns the ones still there: a group seen empty is
-// dropped and never signalled again. The registry's lock is held.
+// dropped and never signalled again. One that cannot get a SIGTERM (Windows
+// has none for a tree) is killed right there, never left out (findings
+// 01c41b, 648d31). The registry's lock is held.
 func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 	hasta := time.Now()
 	var vivos []int
 	for _, p := range pids {
-		if senalarTerm(p) {
-			vivos = append(vivos, p)
-			if t := time.Now().Add(grupos.pids[p].gracia); t.After(hasta) {
-				hasta = t
-			}
+		if !senalarTerm(p) {
+			matarSiQueda(p)
+			continue
+		}
+		vivos = append(vivos, p)
+		if t := time.Now().Add(grupos.pids[p].gracia); t.After(hasta) {
+			hasta = t
 		}
 	}
 	for len(vivos) > 0 && time.Now().Before(hasta) {
