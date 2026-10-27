@@ -1,0 +1,11 @@
+{
+  "id": "20261027T164705_5a05b4",
+  "created_at": "2026-10-27T16:47:05.270344Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO (ea59bba; test-writer) — un gate que sale con exit 0 pero deja un proceso con su salida abierta tarda WaitDelay (15 s) fijos y queda en error (exec.ErrWaitDelay); con un plazo menor que 15 s la nota dice 'timeout tras 1s' aunque el comando termino en milisegundos.",
+  "author": "test-writer",
+  "fingerprint": "a01918cc4aa0428d",
+  "task": "gates-en-grupo"
+}

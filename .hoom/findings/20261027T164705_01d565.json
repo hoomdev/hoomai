@@ -1,0 +1,11 @@
+{
+  "id": "20261027T164705_01d565",
+  "created_at": "2026-10-27T16:47:05.207645Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO (ea59bba; test-writer) — al vencer el plazo, si el lider del gate muere enseguida con la SIGTERM y la salida se cierra, cmd.Wait vuelve y procesos.Liberar le manda SIGKILL al resto del grupo sin la gracia: en la sonda, la limpieza de 2 s de un hijo que no tenia la salida del gate se corto.",
+  "author": "test-writer",
+  "fingerprint": "a01918cc4aa0428d",
+  "task": "gates-en-grupo"
+}
