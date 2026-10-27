@@ -1,0 +1,11 @@
+{
+  "id": "20261027T183416_5fc8ff",
+  "created_at": "2026-10-27T18:34:16.414942Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/gates/runner.go",
+  "description": "PRE-EXISTENTE, SIGUE ABIERTO COMO FOLLOW-UP — internal/gates/runner.go:215-224 solo acota corridas de los seis whitespaces ASCII, pero internal/gates/runner.go:287-292 elimina con strings.TrimSpace todo el whitespace Unicode. Un gate que imprime un diagnóstico y después más de TailSize+64 KiB de U+00A0, U+2028 u otro espacio Unicode conserva ese sufijo en colaAcotada, pierde el diagnóstico al acotarse y finalmente tail elimina el sufijo; OutputTail vuelve a quedar solo con la marca de truncado. Este rango corrige los casos ASCII cubiertos por gates_en_grupo5_test.go, pero el caso Unicode ya fallaba antes de 995952bc8d5f y queda para seguimiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "89d61da4549d6a05",
+  "task": "gates-en-grupo"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261027T183120_01c41b",
+  "created_at": "2026-10-27T18:31:20.52304Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO — internal/procesos/procesos.go:59-69 ahora mata los grupos con gracia solo si terminarConGracia los devuelve, pero internal/procesos/procesos_windows.go:118-123 define senalarTerm y grupoVivo como siempre false porque Windows no tiene terminacion cortés. Por eso todo gate arrancado con ArrancarConGracia queda fuera del barrido al recibir Ctrl-C/SIGTERM y nunca se invoca MatarGrupo; si Adoptar no pudo crear/asignar un Job Object y dependía del fallback taskkill, el árbol del gate puede seguir vivo después de que hoom sale. El barrido final anterior sí llamaba MatarGrupo para todos los registros.",
+  "author": "reviewer@codex",
+  "fingerprint": "89d61da4549d6a05",
+  "task": "gates-en-grupo"
+}
