@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T213543_2a04f7",
+  "as": "corregido",
+  "evidence": "2c26c5c: clasificarMeta da un error generico ('JSON invalido o un campo de otro tipo') sin citar el archivo. Tests c310fb3 (fallan sobre 2976daf, pasan con 2c26c5c): TestHallazgo_2a04f7_CA442_ElErrorDeMetasErrNoCopiaElValorPlantado y TestHallazgo_2a04f7_CA369_ElDoctorYElTableroNoCopianElValorPlantado (1 y 20 sidecars con ~100 KiB y una marca: sobre 2976daf el error pesa 205 KB y 4 MB con la marca; con la correccion sin marca y \u003c= 1 KiB por sidecar).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.476533Z"
+}

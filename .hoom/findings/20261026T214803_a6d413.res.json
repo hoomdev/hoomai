@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T214803_a6d413",
+  "as": "corregido",
+  "evidence": "2c26c5c: el comentario de registro dice que comparte el formato entre Write y el reintento y sella la hora en cada llamada (dos intentos difieren en UpdatedAt).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.595797Z"
+}

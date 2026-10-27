@@ -1,0 +1,11 @@
+{
+  "id": "20261027T144800_945d47",
+  "created_at": "2026-10-27T14:48:00.601837Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO? (lo vio el test-writer de la ronda 3 con una sonda) — si durante el primer Write otro proceso mueve .hoom/envelopes (el directorio, con su descriptor ya abierto por hoom) al .hoom de otro proyecto, el registro queda publicado en otro/.hoom/envelopes/\u003cid\u003e.json aunque Write devuelva error (f89080).",
+  "author": "test-writer",
+  "fingerprint": "277238192ec2d483",
+  "task": "endurecimiento-2"
+}

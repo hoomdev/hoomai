@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T213711_0c9aec",
+  "as": "corregido",
+  "evidence": "2c26c5c: EnsureIgnored lee y escribe .hoom/.gitignore en el mismo directorio abierto por descriptores (AbrirOCrearRuta + LeerRegularEn + PublicarEn). Tests c310fb3 (fallan sobre 2976daf, pasan con 2c26c5c): TestHallazgo_0c9aec_CA333_EnsureIgnoredEscribeDondeLeyo y ..._WriteNoEscribeElGitignoreDeOtroProyecto (root = \u003cbase\u003e/enlace/../p: sobre 2976daf lee un .gitignore y reescribe el de otro proyecto) y la guarda ..._EnsureIgnoredConHoomEnlazadoNoTocaElAjeno. La carrera literal no se sostiene de forma determinista (1 de 3 corridas de estres); se prueba la misma divergencia sin carrera.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.506396Z"
+}

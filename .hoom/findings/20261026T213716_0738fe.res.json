@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T213716_0738fe",
+  "as": "corregido",
+  "evidence": "2c26c5c: el directorio real se resuelve una vez antes de correr git y la decision 'fuera de un repo' mira ese mismo camino. Tests c310fb3 (fallan sobre 2976daf, pasan con 2c26c5c): TestHallazgo_0738fe_CA133_UnEnlaceCambiadoDespuesDeGitNoConvierteElFalloEnNada (un git falso, en un proceso hijo, cambia el enlace a fuera de todo repo justo despues de fallar: sobre 2976daf vacio sin error, con la correccion error).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.445623Z"
+}

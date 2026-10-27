@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T214657_7adfcb",
+  "as": "corregido",
+  "evidence": "2c26c5c: dirReal resuelve con filepath.EvalSymlinks (enlace antes que ..) y despues Abs; TouchedErr y HuellaConTope corren git y buscan .git sobre ese camino. Tests c310fb3 (fallan sobre 2976daf, pasan con 2c26c5c): TestHallazgo_7adfcb_CA133_UnAliasSeguidoDePuntoPuntoAUnRepoRotoEsUnError (alias/.. a repo/sub de un repo roto, 4 roturas, absoluto y relativo) y ..._FueraDeUnRepoSigueVacio.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.41485Z"
+}
