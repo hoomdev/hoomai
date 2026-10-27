@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T164705_01d565",
+  "as": "corregido",
+  "evidence": "f5d3210: con el plazo vencido, el runner espera el resto de la gracia del grupo (procesos.EsperarGrupo) antes de Liberar. Tests f170ac5 (fallan sobre d1ae903, pasan con f5d3210): gates_en_grupo2_test.go (el lider muere con la SIGTERM y su hijo completa una limpieza de 2 s; un hijo que ignora TERM vive hasta la gracia; sobre d1ae903 el runner volvia a los 23 ms con el hijo muerto).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:05:47.260441Z"
+}
