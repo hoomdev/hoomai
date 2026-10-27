@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202024_d2e5b6",
+  "created_at": "2026-10-26T20:20:24.267883Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "PRE-EXISTENTE (la correccion queda incompleta) — internal/hoomfs/ruta.go:198 y internal/hoomfs/ruta.go:207 separan la comprobacion de identidad del Rename. Si el registro se borra despues del Lstat exitoso y antes del Rename, el rename del temporal vuelve a crear el nombre; internal/envelope/envelope.go:455 toma ese exito como cierre asentado. Por tanto la carrera 332b11 aun puede resucitar un registro en esa ventana; el gancho de la prueba esta en internal/envelope/envelope.go:453, antes de ReemplazarSiSigue y de su comprobacion final, por lo que no cubre esa ventana.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

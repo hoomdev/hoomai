@@ -1,0 +1,118 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-24T16-13-53Z_de943ec0",
+  "created_at": "2026-10-24T16:13:53.262395Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "1eff1f867e8d",
+    "branch": "hoom/endurecimiento-2",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      "internal/envelope/envelope.go",
+      "internal/envelope/hallazgos_endurecimiento1c_unix_test.go",
+      "internal/envelope/hallazgos_endurecimiento1d_unix_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_gancho_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_unix_test.go",
+      "internal/gitx/gitx.go",
+      "internal/gitx/hallazgos_endurecimiento2_test.go",
+      "internal/hoomfs/hallazgos_endurecimiento2_unix_test.go",
+      "internal/hoomfs/hoomfs.go",
+      "internal/hoomfs/ruta.go",
+      "internal/runcmd/hallazgos_endurecimiento2_test.go",
+      "internal/runcmd/runcmd.go"
+    ],
+    "change_fingerprint": "27d07d557dc81440",
+    "insertions": 1629,
+    "deletions": 323
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 33,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 12 medium, 11 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 448
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 660,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 701
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 13796
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./internal/envelope ./internal/gitx ./internal/hoomfs ./internal/runcmd",
+      "exit_code": 0,
+      "duration_ms": 126886,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/envelope\t92.035s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t18.350s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t34.364s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t123.378s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261026T214252_f89080",
+  "created_at": "2026-10-26T21:42:52.422595Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:126-137 abre .hoom/envelopes por descriptor antes de EnsureIgnored y de esperarEscritura, y despues PublicarEn escribe por ese descriptor sin revalidar que el directorio siga siendo el alcanzable por root/.hoom/envelopes. Si otro proceso renombra ese directorio entre la apertura y la publicacion (el gancho de linea 136 permite ensanchar la carrera de forma determinista), os.Root sigue apuntando al directorio movido: Write puede devolver nil y dejar el registro alli, ausente de la ruta canonica. Eso rompe la promesa del primer registro en disco/Started y puede dejar el sobre invisible aunque la apertura se considere exitosa.",
+  "author": "reviewer@codex",
+  "fingerprint": "fad9155dc3ba2003",
+  "task": "endurecimiento-2"
+}

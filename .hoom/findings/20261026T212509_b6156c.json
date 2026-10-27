@@ -1,0 +1,11 @@
+{
+  "id": "20261026T212509_b6156c",
+  "created_at": "2026-10-26T21:25:09.934661Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/hoomfs/ruta.go",
+  "description": "INTRODUCIDO (cfc60ef; lo midio el test-writer de la ronda 2) — temporalEn hace f.Sync() antes del rename, y AtomicWrite (la escritura de antes) no: envelope.Write y Cerrar pasan de ~0.23 ms a ~5.6 ms p50 (x25, fsync en macOS), el test de memoria de 92fa84 de ~3 s a ~78 s y el paquete envelope de ~75 s a 185-200 s. Cada actualizacion de un sobre en curso cuesta mas sin que la telemetria lo necesite: conservar la durabilidad de AtomicWrite.",
+  "author": "test-writer",
+  "fingerprint": "0d306e4a5d225b97",
+  "task": "endurecimiento-2"
+}

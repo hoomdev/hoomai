@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141937_26eef9",
+  "as": "corregido",
+  "evidence": "07c3e1b: ListErr da error por un \u003cid\u003e.json con id valido que no es un registro (no JSON, truncado, sin id); un registro entero de otro id se sigue salteando (f34bc3). Tests bde6407 (fallan sobre 34a3542, pasan con bea7ad9): TestHallazgo_26eef9_CA442_UnArchivoDeHoomQueNoEsUnRegistroEsUnErrorDeListErr y ..._LoQueNoEsDeHoomSeSalteaSinError.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T16:06:55.285148Z"
+}

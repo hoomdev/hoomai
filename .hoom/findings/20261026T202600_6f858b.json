@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202600_6f858b",
+  "created_at": "2026-10-26T20:26:00.007542Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/gitx/gitx.go",
+  "description": "PRE-EXISTENTE (follow-up; la correccion queda incompleta) — internal/gitx/gitx.go:180-193: fueraDeRepo aplica filepath.Abs pero recorre los ancestros lexicos sin resolver el directorio real. Si dir es un symlink hacia un subdirectorio de un repo roto, git entra al destino fisico y falla por el .git de su ancestro real, mientras fueraDeRepo no ve ese .git y devuelve true; TouchedErr y HuellaConTope degradan entonces a mapa o huella vacios sin error, dejando que el gate de scope tome una dependencia rota por nada cambio.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

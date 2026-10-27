@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141938_9ad39d",
+  "created_at": "2026-10-24T14:19:38.078731Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitx/gitx.go",
+  "description": "TRASLADADO de 20261024T140808_9e4f40 y 20261024T141525_e25ad1 (delta 2 de historia-en-el-tablero, merge de main con #55). Codigo de endurecimiento-1. [INTRODUCIDO] internal/gitx/gitx.go:326-330: TouchedErr convierte CUALQUIER fallo rapido del git rev-parse inicial en la respuesta inocua de 'fuera de un repo' y devuelve lista vacia sin error. Si el repositorio o esa invocacion de git esta rota (por ejemplo HEAD/config corrupto), agentcmd.Take deja Snapshot.Listado vacio y el gate de scope no falla cerrado, exactamente el bypass que TouchedErr pretende evitar para los tres git posteriores. HuellaConTope repite la misma degradacion en internal/gitx/gitx.go:177-181. La API estricta debe distinguir no-repo de un fallo de git (o devolver error por todo fallo en el contexto del gate); solo el wrapper best-effort Touched puede seguir tragandolo.",
+  "author": "reviewer@codex",
+  "fingerprint": "a7da8747aee45810",
+  "task": "endurecimiento-2"
+}

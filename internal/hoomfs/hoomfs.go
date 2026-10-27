@@ -9,6 +9,7 @@ package hoomfs
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,8 +53,19 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	if len(names) == 0 {
 		names = Local
 	}
-	gi := filepath.Join(root, ".hoom", ".gitignore")
-	raw, _ := os.ReadFile(gi)
+	// .hoom is walked by descriptors, read AND written in that one directory:
+	// a .hoom swapped for a symlink to another project between the reading
+	// and the writing never gets that project's .gitignore overwritten
+	// (findings c6c300, 0c9aec)
+	r, err := AbrirOCrearRuta(root, ".hoom")
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	raw, err := LeerRegularEn(r, ".gitignore", maxGitignore)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
 	have := map[string]bool{}
 	for _, line := range strings.Split(string(raw), "\n") {
 		have[strings.TrimSpace(line)] = true
@@ -66,16 +78,26 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	if len(added) == 0 {
 		return nil, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(gi), 0o755); err != nil {
-		return nil, err
-	}
 	content := string(raw)
 	if content != "" && !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
 	content += strings.Join(added, "\n") + "\n"
-	return added, AtomicWrite(gi, []byte(content), 0o644)
+	if err := PublicarEn(r, ".gitignore", []byte(content), 0o644); err != nil {
+		return nil, err
+	}
+	// The .hoom just written into has to still be the one root/.hoom leads
+	// to; if another process moved it, this is an error, never "added" for a
+	// .gitignore left in a moved directory (findings 6513a7, 46561c,
+	// f27c7d).
+	if err := SigueEn(root, r, ".hoom"); err != nil {
+		return nil, err
+	}
+	return added, nil
 }
+
+// maxGitignore caps .hoom/.gitignore: hoom writes a few lines.
+const maxGitignore = 1 << 20
 
 // crearTemporal creates, next to path, the hidden temp file a whole write
 // goes through: "." + the name of path + ".tmp-" + the digits os.CreateTemp

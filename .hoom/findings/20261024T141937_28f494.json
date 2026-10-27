@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141937_28f494",
+  "created_at": "2026-10-24T14:19:37.384844Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/envelope/envelope.go",
+  "description": "TRASLADADO de 20261024T140059_33f0e0 (delta 2 de historia-en-el-tablero, que reviso el merge de main con #55). Codigo de endurecimiento-1. INTRODUCIDO — internal/envelope/envelope.go:401-411: el reintento valida con os.Lstat solo la entrada final, por lo que sigue cualquier symlink en root/.hoom/envelopes; luego Write vuelve a resolver la ruta completa. Tras un Cerrar fallido, un actor puede cambiar .hoom o envelopes por un enlace a otro proyecto que tenga un \u003cid\u003e.json regular y el worker reemplazara ese registro ajeno con el cierre pendiente. Esto convierte el reintento asincrono en una escritura fuera del arbol y corrupcion de evidencia. La comprobacion y escritura deben bajar por descriptores desde el root y cancelar si cambia cualquier componente. Patronizable: agregar una regla Semgrep custom que marque reintentos que hacen Lstat(path) y luego una escritura path-based sobre el mismo destino sin anclaje por descriptor.",
+  "author": "reviewer@codex",
+  "fingerprint": "a7da8747aee45810",
+  "task": "endurecimiento-2"
+}

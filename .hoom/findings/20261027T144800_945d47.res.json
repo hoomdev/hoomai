@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T144800_945d47",
+  "as": "refutado",
+  "evidence": "No es una escritura de hoom fuera del proyecto: hoom publica dentro de SU directorio de sobres, abierto por descriptores desde el proyecto; lo que el otro proceso hace es mover ESE directorio (con lo que tenga adentro) a otro lado, y eso es indistinguible de moverlo un instante despues de la escritura: manipulacion posterior a la escritura, no-goal desde la spec evidencia-en-disco. Lo que hoom si debe, y hace desde f89080 (c310fb3), es no decir que el registro esta en su lugar: Write devuelve error.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.790545Z"
+}

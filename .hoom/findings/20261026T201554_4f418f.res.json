@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T201554_4f418f",
+  "as": "corregido",
+  "evidence": "cfc60ef: Write crea y recorre .hoom/envelopes por descriptores (hoomfs.AbrirOCrearRuta) y publica con hoomfs.PublicarEn dentro de ese os.Root. Tests 7e81fbc (fallan sobre 553229a, pasan con cfc60ef): envelope/hallazgos_endurecimiento2b_test.go (16 subtests: primer Write o Cerrar, .hoom o envelopes enlazado, absoluto o relativo, con o sin registro ajeno: el .hoom ajeno queda identico byte a byte y la operacion da error; sobre 553229a fallan los 16).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T21:28:54.949306Z"
+}

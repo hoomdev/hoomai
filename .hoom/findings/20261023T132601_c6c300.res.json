@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T132601_c6c300",
+  "as": "corregido",
+  "evidence": "bea7ad9: EnsureIgnored lee .hoom/.gitignore por descriptores con LeerRegularEn (no sigue symlinks ni se bloquea en un FIFO); lo que no es un archivo regular es un error y no se escribe encima. Tests bde6407 (fallan sobre 34a3542, pasan con bea7ad9): TestHallazgo_c6c300_CA333_UnFIFOEnGitignoreNoCuelgaWriteNiCerrar y TestHallazgo_c6c300_CA333_EnsureIgnoredConUnFIFONoSeCuelga (vuelven en menos de 5 s; sobre 34a3542 se cuelgan).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T16:06:55.427353Z"
+}

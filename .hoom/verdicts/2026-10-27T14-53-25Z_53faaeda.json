@@ -1,0 +1,127 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-27T14-53-25Z_53faaeda",
+  "created_at": "2026-10-27T14:53:25.82126Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "f811a70cceb9",
+    "branch": "hoom/endurecimiento-2",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      "internal/boardcmd/hallazgos_endurecimiento2c_test.go",
+      "internal/envelope/envelope.go",
+      "internal/envelope/hallazgos_endurecimiento1c_unix_test.go",
+      "internal/envelope/hallazgos_endurecimiento1d_unix_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_gancho_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_unix_test.go",
+      "internal/envelope/hallazgos_endurecimiento2b_test.go",
+      "internal/envelope/hallazgos_endurecimiento2c_test.go",
+      "internal/gitx/gitx.go",
+      "internal/gitx/hallazgos_endurecimiento2_test.go",
+      "internal/gitx/hallazgos_endurecimiento2b_test.go",
+      "internal/gitx/hallazgos_endurecimiento2c_test.go",
+      "internal/gitx/hallazgos_endurecimiento2c_unix_test.go",
+      "internal/hoomfs/hallazgos_endurecimiento2_unix_test.go",
+      "internal/hoomfs/hallazgos_endurecimiento2c_test.go",
+      "internal/hoomfs/hoomfs.go",
+      "internal/hoomfs/ruta.go",
+      "internal/runcmd/hallazgos_endurecimiento2_test.go",
+      "internal/runcmd/hallazgos_endurecimiento2b_test.go",
+      "internal/runcmd/hallazgos_endurecimiento2c_test.go",
+      "internal/runcmd/runcmd.go"
+    ],
+    "change_fingerprint": "277238192ec2d483",
+    "insertions": 3727,
+    "deletions": 336
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 83,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 12 medium, 11 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 450
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 847,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 443
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 14530
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./internal/boardcmd ./internal/envelope ./internal/gitx ./internal/hoomfs ./internal/runcmd",
+      "exit_code": 0,
+      "duration_ms": 303913,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t295.369s\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t95.605s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t24.488s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t34.674s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t122.687s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

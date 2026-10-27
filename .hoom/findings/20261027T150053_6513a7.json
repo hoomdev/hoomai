@@ -1,0 +1,11 @@
+{
+  "id": "20261027T150053_6513a7",
+  "created_at": "2026-10-27T15:00:53.750968Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO: internal/hoomfs/hoomfs.go:86 devuelve el resultado de PublicarEn sin comprobar que el descriptor r siga siendo el .hoom alcanzable desde root. Si .hoom se renombra y se crea otro entre AbrirOCrearRuta y la publicacion, la entrada pedida se escribe en el directorio apartado y EnsureIgnored devuelve nil/added aunque root/.hoom/.gitignore siga incompleto; los llamadores pueden continuar con directorios locales sin ignorar. Reabrir root/.hoom tras publicar y comparar identidad, o devolver error si cambio.",
+  "author": "reviewer@codex",
+  "fingerprint": "277238192ec2d483",
+  "task": "endurecimiento-2"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T152143_f27c7d",
+  "as": "corregido",
+  "evidence": "2186790: el comentario dice en una oracion completa que el .hoom en que se escribio tiene que seguir siendo el que lleva root/.hoom, y que si otro proceso lo movio es un error.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T15:22:11.66463Z"
+}

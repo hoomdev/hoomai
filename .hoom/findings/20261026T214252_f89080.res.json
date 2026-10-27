@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T214252_f89080",
+  "as": "corregido",
+  "evidence": "2c26c5c: Write comprueba despues de publicar que el directorio sigue siendo el de root/.hoom/envelopes (sigueEnSuLugar) y da error si se movio. Tests c310fb3 (fallan sobre 2976daf, pasan con 2c26c5c): TestHallazgo_f89080_CA333_SiEnvelopesSeMueveDuranteElPrimerWriteEsUnError (con el gancho sosteniendo el primer Write se mueve .hoom/envelopes o .hoom: sobre 2976daf nil, con la correccion error).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.536004Z"
+}

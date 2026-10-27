@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T150420_0a3ab5",
+  "as": "corregido",
+  "evidence": "6b6c48d: e2cArmar escapa para sh cada ruta que interpola (e2cComillas). El test pasa con TMPDIR con apostrofo y con espacio, y sigue fallando sobre 2976daf por la razon de 0738fe.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T15:11:20.104164Z"
+}

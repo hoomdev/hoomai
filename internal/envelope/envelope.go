@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
@@ -112,20 +113,47 @@ func Write(root string, rec Record) error {
 	if strings.TrimSpace(rec.ID) == "" {
 		return nil
 	}
-	rec.UpdatedAt = time.Now().UTC()
-	raw, err := json.MarshalIndent(rec, "", "  ")
+	raw, err := registro(rec)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir(root), 0o755); err != nil {
+	// la raiz del proyecto se crea si falta, como siempre; .hoom y
+	// .hoom/envelopes se crean y se recorren por descriptores: un symlink a
+	// otro proyecto no se sigue, ni en el primer intento (hallazgo 4f418f)
+	if err := os.MkdirAll(root, 0o755); err != nil {
 		return err
 	}
+	r, err := hoomfs.AbrirOCrearRuta(root, ".hoom", DirName)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
 	// La regla queda escrita (CA-202) sin reescribir un archivo completo:
 	// registrar telemetria no mueve el candidato (CA-203).
 	hoomfs.EnsureIgnored(root, DirName)
 	// Atomico: status y el Studio leen este archivo MIENTRAS se escribe, y un
 	// sobre a medias leido como vacio desapareceria de la lista.
-	return hoomfs.AtomicWrite(filepath.Join(dir(root), rec.ID+".json"), append(raw, '\n'), 0o644)
+	esperarEscritura(root, rec.ID)
+	if err := hoomfs.PublicarEn(r, rec.ID+".json", raw, 0o644); err != nil {
+		return err
+	}
+	// el directorio en que se publico tiene que seguir siendo el de
+	// root/.hoom/envelopes: uno que se movio mientras se escribia dejaria el
+	// registro fuera de su lugar y Write diria que esta (hallazgo f89080)
+	return hoomfs.SigueEn(root, r, ".hoom", DirName)
+}
+
+// registro is rec as hoom writes it: one format for the first try (Write)
+// and every retry (hecho), from one place (finding 812a1b), stamped with the
+// time of each call, so two tries write the same record with different
+// UpdatedAt (finding a6d413).
+func registro(rec Record) ([]byte, error) {
+	rec.UpdatedAt = time.Now().UTC()
+	raw, err := json.MarshalIndent(rec, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(raw, '\n'), nil
 }
 
 // List returns the project's envelope records, newest first. A file that is
@@ -147,8 +175,14 @@ const maxRecord = 1 << 20
 // it could read still come back. One that does not exist yet is no envelopes.
 // The directory and every record are read by descriptors, never following a
 // symlink: a record linked to one of another project would publish that
-// project's telemetry as this one's (finding 3826b3). A record of another
-// shape is not hoom's and is skipped.
+// project's telemetry as this one's (finding 3826b3). A file whose name is
+// not a record id is not hoom's and is skipped. One whose name IS a record id
+// and that is not a record (not JSON, truncated, without id) is unreadable,
+// never "none": that is what a partial write leaves, and it would hide an
+// orphan envelope from the doctor (findings 0cbf2e, 25ba18 -> 26eef9). A
+// whole record whose id is not its file's name is no write of hoom's (a copy,
+// a planted file): it is skipped, so it can neither reach a command nor stop
+// the doctor (finding f34bc3).
 func ListErr(root string) ([]Record, error) {
 	var out []Record
 	var sinLeer []string
@@ -159,15 +193,19 @@ func ListErr(root string) ([]Record, error) {
 				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
 				return
 			}
+			id := strings.TrimSuffix(e.Nombre, ".json")
+			if !idRe.MatchString(id) {
+				return
+			}
 			var rec Record
 			if json.Unmarshal(e.Contenido, &rec) != nil || strings.TrimSpace(rec.ID) == "" {
+				sinLeer = append(sinLeer, fmt.Sprintf("%s: no es un registro (JSON ilegible o sin id)", e.Nombre))
 				return
 			}
 			// the file name is the address and the content only describes
-			// it: a record whose id is not its file's name, or is not an id
-			// at all, is not hoom's and never reaches a command the doctor
-			// proposes (finding f34bc3)
-			if rec.ID+".json" != e.Nombre || !idRe.MatchString(rec.ID) {
+			// it: a record whose id is not its file's name never reaches a
+			// command the doctor proposes (finding f34bc3)
+			if rec.ID != id {
 				return
 			}
 			out = append(out, rec)
@@ -372,7 +410,7 @@ func (c *cierres) intentar(path string, seq uint64, proyecto string) {
 		root, rec = ci.root, ci.rec
 	}
 	c.mu.Unlock()
-	listo := !vigente || hecho(path, root, rec)
+	listo := !vigente || hecho(root, rec)
 	unlock()
 
 	c.mu.Lock()
@@ -398,15 +436,61 @@ func (c *cierres) intentar(path string, seq uint64, proyecto string) {
 // look at it is not settled: storage that fails once may come back (finding
 // be5b7a). A retry never creates the directories back: a project removed
 // under it stays removed.
-func hecho(path, root string, rec Record) bool {
-	st, err := os.Lstat(path)
+//
+// The retry walks to the record by descriptors and publishes in that very
+// directory (hoomfs.ReemplazarSiSigue): a .hoom or envelopes swapped for a
+// symlink after the first try never takes the write to another project
+// (finding 33f0e0 -> 28f494), and a record deleted after it was looked at is
+// not written back (findings 9e157f, 3fd1d4 -> 332b11). The retry does not
+// touch .hoom/.gitignore: the first try already did.
+func hecho(root string, rec Record) bool {
+	for _, p := range []string{filepath.Join(root, ".hoom"), dir(root)} {
+		st, err := os.Lstat(p)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return true
+		case err != nil:
+			return false
+		case !st.IsDir():
+			return true
+		}
+	}
+	r, err := hoomfs.AbrirRuta(root, ".hoom", DirName)
+	if err != nil {
+		// it changed since the look: the next try sees what it is
+		return false
+	}
+	defer r.Close()
+	name := rec.ID + ".json"
+	antes, err := r.Lstat(name)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return true
 	case err != nil:
 		return false
-	case !st.Mode().IsRegular():
+	case !antes.Mode().IsRegular():
 		return true
 	}
-	return Write(root, rec) == nil
+	raw, err := registro(rec)
+	if err != nil {
+		return true // it never will: not a close to retry
+	}
+	esperarEscritura(root, rec.ID)
+	err = hoomfs.ReemplazarSiSigue(r, name, raw, 0o644, antes)
+	return err == nil || errors.Is(err, hoomfs.ErrCambio)
+}
+
+// antesDeEscribir, when set, runs right before every write of a record (the
+// first try in Write, every retry in hecho), with its project and id. It
+// exists only for the tests: no write of a record blocks on a FIFO anymore
+// (findings c6c300, 28f494), and what Cerrar and its worker promise about a
+// write that hangs (findings 1e0674, da912f, ab66c7, 4647ba) still needs one
+// to be shown. Atomic, because the worker outlives a test.
+var antesDeEscribir atomic.Pointer[func(root, id string)]
+
+// esperarEscritura runs antesDeEscribir, if set.
+func esperarEscritura(root, id string) {
+	if f := antesDeEscribir.Load(); f != nil {
+		(*f)(root, id)
+	}
 }

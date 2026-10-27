@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141937_332b11",
+  "as": "corregido",
+  "evidence": "bea7ad9: ReemplazarSiSigue no escribe si el nombre ya no es el objeto que se miro (ErrCambio). Tests bde6407 (fallan sobre 34a3542, pasan con bea7ad9): TestHallazgo_332b11_CA333_ElReintentoNoResucitaUnRegistroBorrado (con el gancho el reintento se sostiene justo antes de publicar y se borra el registro o el directorio: no reaparece). Sobre 34a3542 el test no compila (no hay gancho); el test-writer confirmo el defecto ahi con una sonda que usa el intercalado con FIFO del hallazgo: el registro reaparecio.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T16:06:55.400069Z"
+}

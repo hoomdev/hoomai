@@ -362,9 +362,28 @@ func parseMeta(id string, raw []byte) (Meta, bool) {
 	if !validID(id) {
 		return Meta{}, false
 	}
-	var meta Meta
-	if json.Unmarshal(raw, &meta) != nil || meta.ID != id || !validStatus(meta.Status) {
-		return Meta{}, false
+	meta, ajeno, err := clasificarMeta(id, raw)
+	return meta, err == nil && !ajeno
+}
+
+// clasificarMeta reads the sidecar of run id once and says what it is: a meta of
+// that id; ajeno, a whole meta that is no write of hoom's (another id, a
+// status hoom does not write), which is skipped; or an error, when it is not
+// a meta at all (not JSON, truncated, a field of another type, without id),
+// which is what a partial write leaves and MetasErr reports (findings
+// 64323b, be6933). One parse, one classification (finding 20b290).
+func clasificarMeta(id string, raw []byte) (meta Meta, ajeno bool, err error) {
+	// the reason never quotes the file: a value planted in a field (up to
+	// the 1 MiB a sidecar may weigh) would be copied into every warning and
+	// the doctor's error (finding 2a04f7)
+	if json.Unmarshal(raw, &meta) != nil {
+		return Meta{}, false, errors.New("no es un sidecar: JSON invalido o un campo de otro tipo")
+	}
+	if strings.TrimSpace(meta.ID) == "" {
+		return Meta{}, false, errors.New("no es un sidecar: no tiene id")
+	}
+	if meta.ID != id || !validStatus(meta.Status) {
+		return Meta{}, true, nil
 	}
 	if !slugOK(meta.Role) {
 		meta.Role = ""
@@ -372,7 +391,7 @@ func parseMeta(id string, raw []byte) (Meta, bool) {
 	if !slugOK(meta.Task) {
 		meta.Task = ""
 	}
-	return meta, true
+	return meta, false, nil
 }
 
 // ReadMeta loads one run's sidecar by id, with the same refusals as Metas:
@@ -391,8 +410,14 @@ func Metas(root string) []Meta {
 // runs directory that exists and cannot be listed (or is a symlink, or not a
 // directory) is an error, and so is a sidecar it could not open or read
 // (findings d0d331 and a2b180) — the sidecars it could read still come back.
-// One that does not exist yet is no runs. A sidecar of another shape is
-// skipped, as in Metas.
+// One that does not exist yet is no runs. A file whose name is not a run id
+// is not hoom's and is skipped. A sidecar whose name IS a run id and that is
+// not a meta (not JSON, truncated, a field of another type, without id) is
+// unreadable, never "none" (clasificarMeta):
+// that is what a partial write leaves, and it would hide a run from the
+// doctor (findings 095223, 7e32e3 -> 64323b). A whole meta of another id or
+// with a status hoom does not write is no write of hoom's: it is skipped, as
+// in Metas.
 func MetasErr(root string) ([]Meta, error) {
 	var out []Meta
 	var sinLeer []string
@@ -403,7 +428,15 @@ func MetasErr(root string) ([]Meta, error) {
 				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, e.Err))
 				return
 			}
-			if meta, ok := parseMeta(strings.TrimSuffix(e.Nombre, ".meta.json"), e.Contenido); ok {
+			id := strings.TrimSuffix(e.Nombre, ".meta.json")
+			if !validID(id) {
+				return
+			}
+			meta, ajeno, err := clasificarMeta(id, e.Contenido)
+			switch {
+			case err != nil:
+				sinLeer = append(sinLeer, fmt.Sprintf("%s: %v", e.Nombre, err))
+			case !ajeno:
 				out = append(out, meta)
 			}
 		})

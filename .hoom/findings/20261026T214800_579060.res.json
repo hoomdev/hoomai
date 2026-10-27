@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T214800_579060",
+  "as": "corregido",
+  "evidence": "2c26c5c: AbrirRuta y AbrirOCrearRuta delegan en un solo recorrido por descriptores, bajar(root, crear, partes).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T14:48:00.566971Z"
+}

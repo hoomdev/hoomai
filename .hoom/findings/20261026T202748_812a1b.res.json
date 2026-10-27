@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T202748_812a1b",
+  "as": "corregido",
+  "evidence": "cfc60ef: Write y el reintento (hecho) arman los bytes con registro(rec) (UpdatedAt, MarshalIndent, salto final), desde un solo lugar.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T21:28:54.982781Z"
+}

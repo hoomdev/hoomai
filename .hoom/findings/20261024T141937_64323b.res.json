@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141937_64323b",
+  "as": "corregido",
+  "evidence": "07c3e1b: MetasErr da error por un \u003cid\u003e.meta.json que no es un meta (no JSON, truncado, sin id); un meta entero de otro id o con un estado que hoom no escribe se saltea. Tests bde6407 (fallan sobre 34a3542, pasan con bea7ad9): TestHallazgo_64323b_CA442_UnSidecarDeHoomQueNoEsUnMetaEsUnErrorDeMetasErr y ..._LoQueNoEsDeHoomSeSalteaSinError.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T16:06:55.313623Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261026T202023_90c86c",
+  "created_at": "2026-10-26T20:20:23.828551Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitx/gitx.go",
+  "description": "PRE-EXISTENTE (la correccion queda incompleta) — internal/gitx/gitx.go:180: fueraDeRepo recorre los padres lexicos de filepath.Abs(dir) sin resolver enlaces. Si dir es un symlink a un subdirectorio de un repo, Git descubre el .git del padre fisico y puede fallar por un repo roto, pero este recorrido no ve ese .git y devuelve true; TouchedErr y HuellaConTope convierten entonces el fallo en lista o huella vacia sin error, y el gate de scope vuelve a fallar abierto. Reproduccion: alias -\u003e repo/sub con repo/.git/config corrupto; git -C alias rev-parse falla aunque alias/.git y sus padres lexicos no existan.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

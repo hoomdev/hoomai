@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T150053_6513a7",
+  "as": "corregido",
+  "evidence": "6b6c48d: EnsureIgnored, despues de PublicarEn, llama hoomfs.SigueEn(root, r, \".hoom\") y devuelve error si el .hoom abierto ya no es el de root/.hoom (lo mismo que envelope.Write hace con .hoom/envelopes). La carrera no se puede forzar de forma determinista en EnsureIgnored (no tiene gancho y ya no se bloquea en nada); el comportamiento de SigueEn esta probado por el test de f89080 (Write con el directorio movido da error). Fuera de eso, la clase queda fuera del modelo (decision de Henry, 2026-10-27).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T15:11:20.017989Z"
+}

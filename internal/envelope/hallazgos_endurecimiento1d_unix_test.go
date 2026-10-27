@@ -24,13 +24,18 @@
 //     1e0674 de vuelta). Ningun proyecto frena a otro: con varios proyectos
 //     colgados, el cierre pendiente de un proyecto sano llega a disco.
 //
+// Endurecimiento-2: estos tests colgaban la escritura con un FIFO en
+// .hoom/.gitignore; desde c6c300 ese FIFO ya no cuelga nada, y la escritura
+// se sostiene con el gancho de tests antesDeEscribir (ver
+// hallazgos_endurecimiento2_gancho_test.go), que corre justo antes de cada
+// escritura de un registro, con su candado tomado.
+//
 // Como se fuerza el intercalado de 4647ba/22806c, observado de afuera, sin
 // leer la implementacion:
 //
-//  1. Write de un sobre lee .hoom/.gitignore. Si es un FIFO, la escritura se
-//     cuelga ahi, con el candado del registro tomado, hasta que el test le da
-//     el contenido. Si recibe "envelopes/\n" el FIFO queda en su lugar; si
-//     recibe un EOF vacio, Write lo reemplaza por un archivo comun.
+//  1. El gancho antesDeEscribir sostiene una escritura del registro, con su
+//     candado tomado, hasta que el test la suelta: la primera (H) y la
+//     segunda (X) se sostienen, la tercera (Y) pasa.
 //  2. Un tope al tamano de archivo que el proceso puede escribir
 //     (RLIMIT_FSIZE, 16 KiB) hace fallar la escritura de un registro con una
 //     nota de 64 KiB ("file too large") y no la de uno chico: que cierre
@@ -50,15 +55,15 @@
 //     escritura (~250 us de llamadas al sistema) y se lo da a X: medido, la
 //     carrera se forzaba 1 de cada 30 veces; con ella, 28 a 30 de 30.
 //
-// La goroutine 1 cierra H y enseguida X; la 2 cierra Y. H se cuelga en el
-// FIFO con el candado; Y espera el candado mas de 1 ms; se suelta H, que
+// La goroutine 1 cierra H y enseguida X; la 2 cierra Y. H queda sostenida en
+// el gancho con el candado; Y espera el candado mas de 1 ms; se suelta H, que
 // suelta el candado (Y despierta, pero el procesador sigue siendo de la
 // goroutine 1) y la goroutine 1 cierra X, que toma el candado antes que Y y
-// se cuelga en el FIFO; Y corre, lo encuentra tomado y lo pasa a modo
+// queda sostenida en el gancho; Y corre, lo encuentra tomado y lo pasa a modo
 // inanicion. El test confirma por los stacks que Y espera un candado y X no
-// (el orden de escritura es H, X, Y), cambia el FIFO por un archivo y suelta
-// a X: el Unlock de X le da el candado a Y, que cierra entero antes de que X
-// siga. El intercalado se forzo si Cerrar(Y) volvio antes que Cerrar(X).
+// (el orden de escritura es H, X, Y) y suelta a X: el Unlock de X le da el
+// candado a Y, que cierra entero antes de que X siga. El intercalado se
+// forzo si Cerrar(Y) volvio antes que Cerrar(X).
 //
 // RLIMIT_FSIZE y GOMAXPROCS son de todo el proceso: la carrera se arma en un
 // proceso hijo (este mismo binario de test, re-ejecutado con -test.run y
@@ -90,8 +95,10 @@ const (
 	e1dTopeArchivo = 16 << 10
 	e1dNotaGrande  = 64 << 10
 	// e1dIntentos son las veces que se arma la carrera hasta forzar el
-	// intercalado una vez.
-	e1dIntentos = 5
+	// intercalado una vez. Con el gancho, medido, se fuerza en la mitad de
+	// los intentos o mas: 12 dejan una probabilidad de no forzarlo nunca
+	// menor que 1 en 4000.
+	e1dIntentos = 12
 )
 
 // e1dTopeDeArchivo pone el tope del tamano de archivo que el proceso puede
@@ -177,59 +184,39 @@ func e1dGoroutinaDos(root string, y Record, c *e1dCierres) {
 	c.oy = c.orden.Add(1)
 }
 
-// e1dEsperarLector espera hasta limite a que alguien tenga el FIFO abierto
-// para leer, y devuelve abierto para escribir (sin escribir nada: la lectura
-// sigue colgada mientras este abierto); nil si nadie lo leyo.
-func e1dEsperarLector(fifo string, limite time.Duration, listo func() bool) *os.File {
-	var f *os.File
-	e1bEsperar(limite, func() bool {
-		if listo != nil && !listo() {
-			return false
-		}
-		f = e1cHayLector(fifo)
-		return f != nil
-	})
-	return f
-}
-
 // e1dCarrera arma la carrera de H, X e Y sobre el registro de root (ver el
 // comentario del archivo) y devuelve lo que paso: armado si el orden de
 // escritura quedo H, X, Y; forzado si ademas Cerrar(Y) volvio antes que
-// Cerrar(X). Al volver no queda ninguna escritura colgada, GOMAXPROCS y
-// RLIMIT_FSIZE estan como estaban, y los cierres pendientes pueden llegar.
+// Cerrar(X). H y X se sostienen en el gancho antesDeEscribir (la primera y
+// la segunda escritura del registro, con su candado tomado); Y pasa. Al
+// volver no queda ninguna escritura colgada, el gancho esta en nil, GOMAXPROCS
+// y RLIMIT_FSIZE estan como estaban, y los cierres pendientes pueden llegar.
 func e1dCarrera(t *testing.T, ca, root string, h, x, y Record) *e1dCierres {
 	t.Helper()
-	dirHoom := filepath.Join(root, ".hoom")
-	gi := filepath.Join(dirHoom, ".gitignore")
-	contenido, err := os.ReadFile(gi)
-	if err != nil || len(contenido) == 0 {
-		t.Fatalf("%s: fixture: Write deja .hoom/.gitignore con su contenido: %q %v", ca, contenido, err)
+	if antesDeEscribir.Load() != nil {
+		t.Fatal("fixture: el gancho antesDeEscribir ya esta puesto: otro test no lo devolvio a nil")
 	}
-	if err := os.Remove(gi); err != nil {
-		t.Fatal(err)
-	}
-	if err := syscall.Mkfifo(gi, 0o644); err != nil {
-		t.Skipf("este sistema no deja crear un FIFO: %v", err)
-	}
-	// un segundo nombre del FIFO, fuera de .hoom, para soltar lecturas
-	// colgadas aunque .hoom/.gitignore ya sea un archivo comun
-	enlace := filepath.Join(root, "e1d-fifo")
-	if err := os.Link(gi, enlace); err != nil {
-		t.Fatal(err)
-	}
-	comun := func() { // .hoom/.gitignore vuelve a ser un archivo comun, con su contenido
-		tmp := filepath.Join(dirHoom, ".gitignore.e1d")
-		if err := os.WriteFile(tmp, contenido, 0o644); err != nil {
-			t.Error(err)
+	var escrituras atomic.Int64
+	llegoH, llegoX := make(chan struct{}), make(chan struct{})
+	soltarH, soltarX := make(chan struct{}), make(chan struct{})
+	var unaH, unaX sync.Once
+	sueltaH := func() { unaH.Do(func() { close(soltarH) }) }
+	sueltaX := func() { unaX.Do(func() { close(soltarX) }) }
+	gancho := func(r, id string) {
+		if r != root {
 			return
 		}
-		if err := os.Rename(tmp, gi); err != nil {
-			t.Error(err)
+		switch escrituras.Add(1) {
+		case 1: // H
+			close(llegoH)
+			<-soltarH
+		case 2: // X
+			close(llegoX)
+			<-soltarX
 		}
 	}
 
 	c := &e1dCierres{uno: make(chan struct{}), dos: make(chan struct{})}
-	var tenidos []*os.File
 	var dosLanzada bool
 	devolverTope := e1dTopeDeArchivo(t, e1dTopeArchivo)
 	procs := runtime.GOMAXPROCS(1)
@@ -258,57 +245,49 @@ func e1dCarrera(t *testing.T, ca, root string, h, x, y Record) *e1dCierres {
 		}
 		return true
 	}
+	antesDeEscribir.Store(&gancho)
 	defer func() {
-		// nada queda colgado en el FIFO: archivo comun, se sueltan las
-		// lecturas que se tienen y se tocan las que quedaran (macOS pierde a
-		// veces el EOF de un FIFO)
-		if fi, err := os.Lstat(gi); err == nil && fi.Mode()&os.ModeNamedPipe != 0 {
-			comun()
-		}
-		for _, f := range tenidos {
-			f.Close()
-		}
-		if !e1bEsperar(15*time.Second, func() bool {
-			if f := e1cHayLector(enlace); f != nil {
-				f.Close()
-			}
-			return terminaron()
-		}) {
-			t.Errorf("%s: fixture: 15 s despues de soltar el FIFO, los cierres de la carrera no terminaron", ca)
+		// nada queda colgado en el gancho, y el gancho vuelve a nil
+		antesDeEscribir.Store(nil)
+		sueltaH()
+		sueltaX()
+		if !e1bEsperar(15*time.Second, terminaron) {
+			t.Errorf("%s: fixture: 15 s despues de soltar el gancho, los cierres de la carrera no terminaron", ca)
 		}
 		pararAcaparador.Store(true)
 		<-acaparadorListo
 		devolverTope()
 		runtime.GOMAXPROCS(procs)
 	}()
+	esperar := func(ch chan struct{}, limite time.Duration) bool {
+		select {
+		case <-ch:
+			return true
+		case <-time.After(limite):
+			return false
+		}
+	}
 
 	go e1dGoroutinaUno(root, h, x, c)
-	w1 := e1dEsperarLector(enlace, 10*time.Second, nil)
-	if w1 == nil {
-		t.Fatalf("%s: fixture: en 10 s la escritura de H no se colgo leyendo el FIFO: el caso no se inyecta", ca)
+	if !esperar(llegoH, 10*time.Second) {
+		t.Fatalf("%s: fixture: en 10 s la escritura de H no llego al gancho antesDeEscribir: el caso no se inyecta", ca)
 	}
-	tenidos = append(tenidos, w1)
 	dosLanzada = true
 	go e1dGoroutinaDos(root, y, c)
 	// Y llega al candado y espera mas de 1 ms
 	time.Sleep(50 * time.Millisecond)
 	if p := e1dPila("e1dGoroutinaDos"); !e1dEsperaCandado(p) {
-		t.Logf("%s: con H colgada en el FIFO, Cerrar(Y) no espera un candado; su stack:\n%s", ca, p)
+		t.Logf("%s: con H sostenida en el gancho, Cerrar(Y) no espera un candado; su stack:\n%s", ca, p)
 		return c
 	}
 
-	// se suelta H; la goroutine 1 cierra X, que toma el candado y se cuelga
-	if _, err := w1.Write(contenido); err != nil {
-		t.Fatal(err)
-	}
-	w1.Close()
-	tenidos = tenidos[:0]
-	w2 := e1dEsperarLector(enlace, 10*time.Second, c.hListo.Load)
-	if w2 == nil {
-		t.Logf("%s: en 10 s, despues de volver Cerrar(H), nadie se colgo leyendo el FIFO", ca)
+	// se suelta H; la goroutine 1 cierra X, que toma el candado y queda
+	// sostenida en el gancho
+	sueltaH()
+	if !esperar(llegoX, 10*time.Second) || !c.hListo.Load() {
+		t.Logf("%s: en 10 s, despues de soltar a H, la escritura de X no llego al gancho", ca)
 		return c
 	}
-	tenidos = append(tenidos, w2)
 	// Y despierta, encuentra el candado tomado por X y lo pasa a modo
 	// inanicion
 	time.Sleep(80 * time.Millisecond)
@@ -318,19 +297,9 @@ func e1dCarrera(t *testing.T, ca, root string, h, x, y Record) *e1dCierres {
 		t.Logf("%s: el orden de escritura no quedo H, X, Y: stack de X\n%s\nstack de Y\n%s", ca, c.pilaX, c.pilaY)
 	}
 
-	// se suelta X con .hoom/.gitignore ya comun: Y no se cuelga
-	comun()
-	if _, err := w2.Write(contenido); err != nil {
-		t.Fatal(err)
-	}
-	w2.Close()
-	tenidos = tenidos[:0]
-	if !e1bEsperar(15*time.Second, func() bool {
-		if f := e1cHayLector(enlace); f != nil {
-			f.Close()
-		}
-		return terminaron()
-	}) {
+	// se suelta X: el Unlock de X le da el candado a Y, que pasa el gancho
+	sueltaX()
+	if !e1bEsperar(15*time.Second, terminaron) {
 		t.Fatalf("%s: fixture: 15 s despues de soltar a X, Cerrar(X) y Cerrar(Y) no volvieron", ca)
 	}
 	c.forzado = c.armado && c.oy < c.ox
@@ -403,10 +372,12 @@ func e1dError(err error) string {
 	return err.Error()
 }
 
-// e1dObservar anota, cada 20 ms, que cierre esta en disco cuando cambia. Con
-// Y chico (caso B) observa 4.5 s; con Y grande (caso A), hasta 3 s despues
-// de ver Y, o 10 s si no lo ve.
-func e1dObservar(root, id string, h, x, y Record, yGrande bool) ([]e1dMuestra, int64) {
+// e1dObservar anota, cada 20 ms, que cierre esta en disco cuando cambia. En
+// el intento forzado: con Y chico (caso B) observa 4.5 s; con Y grande (caso
+// A), hasta 3 s despues de ver Y, o 10 s si no lo ve. En uno que no forzo el
+// intercalado (no es la carrera del hallazgo), solo hasta que todo se asiente:
+// caso B, 300 ms; caso A, hasta ver Y (o 10 s).
+func e1dObservar(root, id string, h, x, y Record, yGrande, forzado bool) ([]e1dMuestra, int64) {
 	t0 := time.Now()
 	var ms []e1dMuestra
 	primeraY := time.Duration(-1)
@@ -432,8 +403,13 @@ func e1dObservar(root, id string, h, x, y Record, yGrande bool) ([]e1dMuestra, i
 		if que == "Y" && primeraY < 0 {
 			primeraY = d
 		}
-		if !yGrande && d >= 4500*time.Millisecond ||
-			yGrande && (primeraY >= 0 && d-primeraY >= 3*time.Second || primeraY < 0 && d >= 10*time.Second) {
+		quedarse := 3 * time.Second
+		cuanto := 4500 * time.Millisecond
+		if !forzado {
+			quedarse, cuanto = 0, 300*time.Millisecond
+		}
+		if !yGrande && d >= cuanto ||
+			yGrande && (primeraY >= 0 && d-primeraY >= quedarse || primeraY < 0 && d >= 10*time.Second) {
 			return ms, d.Milliseconds()
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -448,8 +424,27 @@ func e1dObservar(root, id string, h, x, y Record, yGrande bool) ([]e1dMuestra, i
 // ejemplo, no puede crecer con el tope puesto).
 func e1dHijoCarreras(t *testing.T, ca, dir string, xGrande bool) {
 	t.Helper()
-	var inf e1dInforme
+	// calentamiento: una carrera entera que no cuenta, y que su cierre
+	// pendiente llegue. Medido con el gancho: en un proceso recien nacido el
+	// primer intento no forzaba el intercalado nunca (12 de 12, en los dos
+	// casos) y el segundo siempre; despues de una carrera de calentamiento, el
+	// primero que cuenta ya fuerza.
 	grande := strings.Repeat("g", e1dNotaGrande)
+	cal := filepath.Join(dir, "calentamiento", "proyecto")
+	rcal := e1Rec(e1cID(799), "calentamiento")
+	e1Escribir(t, cal, rcal)
+	tc := time.Now().UTC().Truncate(time.Second)
+	e1dCarrera(t, ca, cal, e1dCierre(rcal, StatusDeliverable, "cierre H: calentamiento", tc),
+		e1dCierre(rcal, StatusDeliverable, "cierre X: calentamiento", tc.Add(time.Second)),
+		e1dCierre(rcal, StatusNotDeliverable, "cierre Y: calentamiento "+grande, tc.Add(2*time.Second)))
+	if !e1bEsperar(10*time.Second, func() bool {
+		r, ok := e1EnDisco(cal, rcal.ID)
+		return ok && r.Note != "" && r.Note != "nota de calentamiento" && len(r.Note) > 100
+	}) {
+		t.Logf("%s: calentamiento: el cierre pendiente de la carrera de calentamiento no llego en 10 s", ca)
+	}
+
+	var inf e1dInforme
 	for i := 0; i < e1dIntentos; i++ {
 		root := filepath.Join(dir, fmt.Sprintf("intento%d", i+1), "proyecto")
 		rec := e1Rec(e1cID(800+i), "carrera")
@@ -472,7 +467,7 @@ func e1dHijoCarreras(t *testing.T, ca, dir string, xGrande bool) {
 		}
 		in.GrandeEFBIG = grandeErr != nil && (errors.Is(grandeErr, syscall.EFBIG) || strings.Contains(grandeErr.Error(), "file too large"))
 		if c.armado {
-			in.Muestras, in.ObservadoMs = e1dObservar(root, rec.ID, h, x, y, !xGrande)
+			in.Muestras, in.ObservadoMs = e1dObservar(root, rec.ID, h, x, y, !xGrande, c.forzado)
 		}
 		inf.Intentos = append(inf.Intentos, in)
 		if c.forzado {
@@ -528,6 +523,9 @@ func e1dCarrerasEnHijo(t *testing.T, ca, caso string, xGrande bool) *e1dInforme 
 // informe (Cerrar(H) y el chico dan nil, el grande da el error de la
 // escritura), llama a comprobar con cada intento armado (orden de escritura
 // H, X, Y) y, si ninguno forzo el intercalado, falla: el caso no se inyecto.
+// El hijo observa la ventana entera (3 s con Y en el caso A, 4.5 s en el B)
+// en el intento que forzo el intercalado; en los demas, solo hasta que todo
+// se asienta.
 func e1dComprobarCarreras(t *testing.T, ca string, inf *e1dInforme, xGrande bool, comprobar func(i int, in e1dIntento)) {
 	t.Helper()
 	forzado := false
@@ -611,7 +609,7 @@ func TestHallazgo_4647ba_22806c_CA333_ElExitoDeUnCierreNoBorraElPendienteDelQueE
 				return
 			}
 		}
-		if in.ObservadoMs-in.Muestras[primera].Ms < 3000 {
+		if in.Forzado && in.ObservadoMs-in.Muestras[primera].Ms < 3000 {
 			t.Fatalf("%s: intento %d: fixture: el hijo observo Y solo %d ms", ca, i, in.ObservadoMs-in.Muestras[primera].Ms)
 		}
 	})
@@ -643,7 +641,7 @@ func TestHallazgo_4647ba_22806c_CA333_UnPendienteAnteriorNoPisaAlQueEscribioDesp
 				return
 			}
 		}
-		if in.ObservadoMs < 4500 {
+		if in.Forzado && in.ObservadoMs < 4500 {
 			t.Fatalf("%s: intento %d: fixture: el hijo observo solo %d ms", ca, i, in.ObservadoMs)
 		}
 	})
@@ -663,76 +661,43 @@ const (
 )
 
 // e1dColgado es un proyecto con cierres pendientes cuyos reintentos se
-// cuelgan leyendo .hoom/.gitignore, que es un FIFO (enlace es otro nombre
-// del FIFO, fuera de .hoom).
+// cuelgan en el gancho antesDeEscribir.
 type e1dColgado struct {
-	root, gi, enlace string
-	recs             []Record
-	// tenido es el FIFO abierto para escribir mientras alguna lectura este
-	// colgada: sin escribir nada, todas sus lecturas siguen colgadas.
-	tenido *os.File
+	root string
+	recs []Record
 }
 
-// e1dArmarColgado escribe n sobres abiertos en root, hace fallar sus Cerrar
-// (sin escritura), devuelve la escritura y deja .hoom/.gitignore como un
-// FIFO que nadie escribe: el reintento de cada cierre se cuelga leyendolo.
-// Devuelve el proyecto y el contenido que tenia .hoom/.gitignore.
-func e1dArmarColgado(t *testing.T, ca, root string, desde, n int) (*e1dColgado, []byte) {
+// e1dArmarColgado escribe n sobres abiertos en root (ids e1cID(desde..)), y
+// hace fallar sus Cerrar (sin escritura) antes de devolver la escritura: sus
+// cierres quedan pendientes, y sus reintentos llegan al gancho.
+func e1dArmarColgado(t *testing.T, ca, root string, desde, n int) *e1dColgado {
 	t.Helper()
-	p := &e1dColgado{root: root, gi: filepath.Join(root, ".hoom", ".gitignore"), enlace: filepath.Join(root, "e1d-fifo")}
+	p := &e1dColgado{root: root}
 	for i := desde; i < desde+n; i++ {
 		rec := e1Rec(e1cID(i), "colgado")
 		e1Escribir(t, root, rec)
 		p.recs = append(p.recs, rec)
 	}
-	contenido, err := os.ReadFile(p.gi)
-	if err != nil || len(contenido) == 0 {
-		t.Fatalf("%s: fixture: Write deja .hoom/.gitignore con su contenido: %q %v", ca, contenido, err)
-	}
 	devolver := e1bSinEscritura(t, root, e1bIDsDe(p.recs))
 	e1bCerrarFalla(t, ca, root, p.recs)
 	devolver()
-	if err := os.Remove(p.gi); err != nil {
-		t.Fatal(err)
-	}
-	if err := syscall.Mkfifo(p.gi, 0o644); err != nil {
-		t.Skipf("este sistema no deja crear un FIFO: %v", err)
-	}
-	if err := os.Link(p.gi, p.enlace); err != nil {
-		t.Fatal(err)
-	}
-	return p, contenido
+	return p
 }
 
-// e1dSoltarColgados deja que todos terminen: .hoom/.gitignore vuelve a ser un
-// archivo comun (los reintentos que vengan no se cuelgan), se sueltan las
-// lecturas colgadas (EOF) y se tocan las que quedaran (macOS pierde a veces
-// el EOF de un FIFO), hasta que todos los cierres estan en disco (a lo sumo
-// 60 s).
-func e1dSoltarColgados(t *testing.T, ca string, ps []*e1dColgado, contenido []byte) {
+// e1dSoltarColgados suelta el gancho y espera a que todos los cierres esten
+// en disco (a lo sumo 60 s).
+func e1dSoltarColgados(t *testing.T, ca string, c *e2Colgador, ps []*e1dColgado) {
 	t.Helper()
+	c.Soltar()
 	total := 0
 	for _, p := range ps {
 		total += len(p.recs)
-		if fi, err := os.Lstat(p.gi); err == nil && fi.Mode()&os.ModeNamedPipe != 0 {
-			tmp := p.gi + ".e1d"
-			if err := os.WriteFile(tmp, contenido, 0o644); err == nil {
-				_ = os.Rename(tmp, p.gi)
-			}
-		}
-		if p.tenido != nil {
-			p.tenido.Close()
-			p.tenido = nil
-		}
 	}
 	t0 := time.Now()
 	cerrados := 0
 	ok := e1bEsperar(60*time.Second, func() bool {
 		cerrados = 0
 		for _, p := range ps {
-			if f := e1cHayLector(p.enlace); f != nil {
-				f.Close()
-			}
 			for _, rec := range p.recs {
 				if r, ok := e1EnDisco(p.root, rec.ID); ok && r.Status == StatusDeliverable {
 					cerrados++
@@ -742,25 +707,10 @@ func e1dSoltarColgados(t *testing.T, ca string, ps []*e1dColgado, contenido []by
 		return cerrados == total
 	})
 	if !ok {
-		t.Logf("%s: 60 s despues de soltar los FIFO, %d de %d cierres llegaron a disco", ca, cerrados, total)
+		t.Logf("%s: 60 s despues de soltar el gancho, %d de %d cierres llegaron a disco", ca, cerrados, total)
 		return
 	}
-	t.Logf("%s: al soltar los FIFO, los %d cierres llegaron a disco en %s", ca, total, time.Since(t0).Round(100*time.Millisecond))
-}
-
-// e1dColgados cuenta los proyectos con alguna lectura colgada en su FIFO, y
-// sostiene esas lecturas.
-func e1dColgados(ps []*e1dColgado) int {
-	n := 0
-	for _, p := range ps {
-		if p.tenido == nil {
-			p.tenido = e1cHayLector(p.enlace)
-		}
-		if p.tenido != nil {
-			n++
-		}
-	}
-	return n
+	t.Logf("%s: al soltar el gancho, los %d cierres llegaron a disco en %s", ca, total, time.Since(t0).Round(100*time.Millisecond))
 }
 
 // e1dEstable espera a que venzan los reintentos (~1 s despues de cada
@@ -779,61 +729,51 @@ func e1dEstable(medida func() int) int {
 }
 
 // CA-333 (hallazgo da912f): MUCHOS cierres pendientes de UN proyecto cuyos
-// reintentos se cuelgan en la escritura (su .hoom/.gitignore es un FIFO que
-// nadie escribe; cada Cerrar fallo sin escritura y despues la escritura
-// volvio) no suman una goroutine cada uno: el total tiene un tope que no
-// crece con ellos. Dos tandas de 50 cierres del mismo proyecto: con los 100
-// colgados el proceso no gano mas de 32 goroutines, y la segunda tanda no
-// sumo mas de 8. Con el error, cada cierre vencido lanza su goroutine y se
-// cuelga: +50 y +100. Guarda: alguna escritura se colgo de verdad en el FIFO
-// (si no, el caso no se inyecto). Al final se suelta todo.
+// reintentos se cuelgan en la escritura (el gancho antesDeEscribir los
+// sostiene; cada Cerrar fallo sin escritura y despues la escritura volvio) no
+// suman una goroutine cada uno: el total tiene un tope que no crece con
+// ellos. Dos tandas de 50 cierres del mismo proyecto: con los 100 colgados
+// el proceso no gano mas de 32 goroutines, y la segunda tanda no sumo mas de
+// 8. Con el error, cada cierre vencido lanza su goroutine y se cuelga: +50 y
+// +100. Guarda: alguna escritura se colgo de verdad en el gancho (si no, el
+// caso no se inyecto). Al final se suelta todo.
 func TestHallazgo_da912f_CA333_LosCierresColgadosDeUnProyectoNoSumanUnaGoroutinaCadaUno(t *testing.T) {
 	const ca = "CA-333 (hallazgo da912f, cierres colgados de un proyecto)"
 	root := filepath.Join(t.TempDir(), "proyecto")
+	c := e2Colgar(t, nil)
+	var colgar sync.Map // ids cuyos reintentos se cuelgan
 	var ps []*e1dColgado
-	var contenido []byte
 	// despues de t.TempDir: corre antes de que se borre el proyecto
-	t.Cleanup(func() { e1dSoltarColgados(t, ca, ps, contenido) })
+	t.Cleanup(func() { e1dSoltarColgados(t, ca, c, ps) })
+	c.Elegir(func(r, id string) bool {
+		_, ok := colgar.Load(id)
+		return r == root && ok
+	})
 
 	todas0, paq0 := e1bGoroutinas()
-	p, cont := e1dArmarColgado(t, ca, root, 1000, e1dTanda)
-	ps, contenido = []*e1dColgado{p}, cont
-	if p.tenido = e1dEsperarLector(p.enlace, 10*time.Second, nil); p.tenido == nil {
-		t.Fatalf("%s: fixture: con %d cierres pendientes y .hoom/.gitignore como FIFO, en 10 s ninguna escritura de reintento se colgo leyendolo: el caso no se inyecto", ca, e1dTanda)
+	p := e1dArmarColgado(t, ca, root, 1000, e1dTanda)
+	ps = []*e1dColgado{p}
+	for _, rec := range p.recs {
+		colgar.Store(rec.ID, true)
+	}
+	if !e1bEsperar(10*time.Second, func() bool { return c.Llegaron(root, "") > 0 }) {
+		t.Fatalf("%s: fixture: con %d cierres pendientes, en 10 s ningun reintento llego al gancho antesDeEscribir: el caso no se inyecto", ca, e1dTanda)
 	}
 	todas1 := e1dEstable(runtime.NumGoroutine)
-	paq1 := e1bPaquete()
+	paq1, colg1 := e1bPaquete(), c.Colgadas()
 
-	// segunda tanda en el mismo proyecto: mientras se arma, .hoom/.gitignore
-	// vuelve a ser comun (Write lo lee: si no, el Cerrar que tiene que fallar
-	// se colgaria); las lecturas colgadas siguen en el FIFO (enlace)
-	if err := os.Remove(p.gi); err != nil {
-		t.Fatal(err)
+	// segunda tanda en el mismo proyecto: sus primeros intentos pasan el
+	// gancho (fallan sin escritura); sus reintentos se cuelgan
+	q := e1dArmarColgado(t, ca, root, 1000+e1dTanda, e1dTanda)
+	p.recs = append(p.recs, q.recs...)
+	for _, rec := range q.recs {
+		colgar.Store(rec.ID, true)
 	}
-	if err := os.WriteFile(p.gi, contenido, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var segunda []Record
-	for i := 1000 + e1dTanda; i < 1000+2*e1dTanda; i++ {
-		rec := e1Rec(e1cID(i), "colgado")
-		e1Escribir(t, root, rec)
-		segunda = append(segunda, rec)
-	}
-	devolver := e1bSinEscritura(t, root, e1bIDsDe(segunda))
-	e1bCerrarFalla(t, ca, root, segunda)
-	devolver()
-	if err := os.Remove(p.gi); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Link(p.enlace, p.gi); err != nil {
-		t.Fatal(err)
-	}
-	p.recs = append(p.recs, segunda...)
 	todas2 := e1dEstable(runtime.NumGoroutine)
-	paq2 := e1bPaquete()
+	paq2, colg2 := e1bPaquete(), c.Colgadas()
 
-	t.Logf("%s: goroutines del proceso (del paquete): antes %d (%d); con %d cierres colgados del proyecto, %d (%d); con %d, %d (%d)",
-		ca, todas0, paq0, e1dTanda, todas1, paq1, 2*e1dTanda, todas2, paq2)
+	t.Logf("%s: goroutines del proceso (del paquete; escrituras colgadas en el gancho): antes %d (%d); con %d cierres pendientes del proyecto, %d (%d; %d); con %d, %d (%d; %d)",
+		ca, todas0, paq0, e1dTanda, todas1, paq1, colg1, 2*e1dTanda, todas2, paq2, colg2)
 	if todas2-todas0 > e1dTopeGoroutinas {
 		t.Errorf("%s: con %d cierres de un proyecto cuyas escrituras se cuelgan, la cantidad de goroutines tiene un tope: el proceso paso de %d a %d (+%d, tope +%d)",
 			ca, 2*e1dTanda, todas0, todas2, todas2-todas0, e1dTopeGoroutinas)
@@ -845,31 +785,45 @@ func TestHallazgo_da912f_CA333_LosCierresColgadosDeUnProyectoNoSumanUnaGoroutina
 }
 
 // CA-333 (hallazgo ab66c7): con varios proyectos colgados (20, con 2
-// cierres pendientes cada uno cuyos reintentos se cuelgan en su FIFO), el
-// cierre pendiente de un proyecto sano llega a disco a tiempo: su Cerrar
-// falla sin escritura, la escritura vuelve enseguida y en 8 s (reintentos de
-// 1 s, 3 s y 7 s) el registro esta cerrado. Ningun proyecto frena a otro.
-// Con un tope global de cierres en vuelo menor que los colgados, el cierre
-// sano no llega mientras los otros sigan colgados. Guarda: alguna escritura
-// se colgo de verdad (si no, el caso no se inyecto). Al final se suelta
-// todo.
+// cierres pendientes cada uno cuyos reintentos se cuelgan en el gancho
+// antesDeEscribir), el cierre pendiente de un proyecto sano llega a disco a
+// tiempo: su Cerrar falla sin escritura, la escritura vuelve enseguida y en
+// 8 s (reintentos de 1 s, 3 s y 7 s) el registro esta cerrado. Ningun
+// proyecto frena a otro. Con un tope global de cierres en vuelo menor que
+// los colgados, el cierre sano no llega mientras los otros sigan colgados.
+// Guarda: alguna escritura se colgo de verdad (si no, el caso no se inyecto).
+// Al final se suelta todo.
 func TestHallazgo_ab66c7_CA333_ProyectosColgadosNoFrenanElCierreDeUnProyectoSano(t *testing.T) {
 	const ca = "CA-333 (hallazgo ab66c7, proyectos colgados contra uno sano)"
 	const proyectos, porProyecto = 20, 2
 	base := t.TempDir()
+	c := e2Colgar(t, nil)
+	var colgar sync.Map // proyectos cuyas escrituras se cuelgan
 	var ps []*e1dColgado
-	var contenido []byte
 	// despues de t.TempDir: corre antes de que se borren los proyectos
-	t.Cleanup(func() { e1dSoltarColgados(t, ca, ps, contenido) })
+	t.Cleanup(func() { e1dSoltarColgados(t, ca, c, ps) })
+	c.Elegir(func(r, id string) bool {
+		_, ok := colgar.Load(r)
+		return ok
+	})
 
 	for i := 0; i < proyectos; i++ {
-		p, cont := e1dArmarColgado(t, ca, filepath.Join(base, fmt.Sprintf("colgado%02d", i)), 1200+i*porProyecto, porProyecto)
-		ps, contenido = append(ps, p), cont
+		p := e1dArmarColgado(t, ca, filepath.Join(base, fmt.Sprintf("colgado%02d", i)), 1200+i*porProyecto, porProyecto)
+		ps = append(ps, p)
+		colgar.Store(p.root, true)
 	}
-	n := e1dEstable(func() int { return e1dColgados(ps) })
-	t.Logf("%s: %d de %d proyectos con escrituras colgadas; goroutines del proceso %d", ca, n, proyectos, runtime.NumGoroutine())
+	n := e1dEstable(func() int {
+		k := 0
+		for _, p := range ps {
+			if c.Llegaron(p.root, "") > 0 {
+				k++
+			}
+		}
+		return k
+	})
+	t.Logf("%s: %d de %d proyectos con escrituras colgadas (%d escrituras); goroutines del proceso %d", ca, n, proyectos, c.Colgadas(), runtime.NumGoroutine())
 	if n == 0 {
-		t.Fatalf("%s: fixture: con %d proyectos con cierres pendientes y .hoom/.gitignore como FIFO, ninguna escritura de reintento se colgo: el caso no se inyecto", ca, proyectos)
+		t.Fatalf("%s: fixture: con %d proyectos con cierres pendientes, ningun reintento llego al gancho antesDeEscribir: el caso no se inyecto", ca, proyectos)
 	}
 
 	sano := filepath.Join(base, "sano")

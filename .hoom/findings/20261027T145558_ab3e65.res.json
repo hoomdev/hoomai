@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T145558_ab3e65",
+  "as": "refutado",
+  "evidence": "FUERA DEL MODELO DE AMENAZA por decision de Henry (2026-10-27): mover o renombrar los directorios propios de hoom (.hoom, .hoom/envelopes) mientras hoom opera, como reescribir la evidencia despues de su foto (no-goal de evidencia-en-disco). hoom escribe en SU .hoom, abierto por descriptores; si otro proceso lo mueve bajo otro proyecto, lo que queda alli es el directorio de hoom con su propio .gitignore. Lo barato si se hace (6b6c48d): EnsureIgnored devuelve error si .hoom ya no esta en su lugar (hoomfs.SigueEn).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T15:11:20.075605Z"
+}

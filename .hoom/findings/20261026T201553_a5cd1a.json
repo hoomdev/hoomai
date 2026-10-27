@@ -1,0 +1,11 @@
+{
+  "id": "20261026T201553_a5cd1a",
+  "created_at": "2026-10-26T20:15:53.680942Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/gitx.go",
+  "description": "PRE-EXISTENTE (follow-up), internal/gitx/gitx.go:180: fueraDeRepo usa filepath.Abs pero no resuelve symlinks. Si dir es un alias simbolico hacia el subdirectorio de un repo roto, git ejecuta dentro del destino fisico y falla, mientras fueraDeRepo recorre los ancestros lexicos del alias, no encuentra el .git del destino y devuelve true. TouchedErr queda fail-open con mapa vacio y HuellaConTope sin huella ni error, por lo que el gate de scope puede aceptar 'nada cambio'.",
+  "author": "reviewer@codex",
+  "fingerprint": "27d07d557dc81440",
+  "task": "endurecimiento-2"
+}

@@ -1,0 +1,119 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-24T16-09-29Z_43179ddd",
+  "created_at": "2026-10-24T16:09:29.737287Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "54ad6d433e19",
+    "branch": "hoom/endurecimiento-2",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      "internal/envelope/envelope.go",
+      "internal/envelope/hallazgos_endurecimiento1c_unix_test.go",
+      "internal/envelope/hallazgos_endurecimiento1d_unix_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_gancho_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_test.go",
+      "internal/envelope/hallazgos_endurecimiento2_unix_test.go",
+      "internal/gitx/gitx.go",
+      "internal/gitx/hallazgos_endurecimiento2_test.go",
+      "internal/hoomfs/hallazgos_endurecimiento2_unix_test.go",
+      "internal/hoomfs/hoomfs.go",
+      "internal/hoomfs/ruta.go",
+      "internal/runcmd/hallazgos_endurecimiento2_test.go",
+      "internal/runcmd/runcmd.go"
+    ],
+    "change_fingerprint": "1643b2bc245e123d",
+    "insertions": 1507,
+    "deletions": 323
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 93,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 12 medium, 11 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 444
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 906,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 584
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "fail",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 1,
+      "duration_ms": 16475,
+      "output_tail": "┌────────────────┐\n│ 1 Code Finding │\n└────────────────┘\n                           \n    internal/hoomfs/ruta.go\n    ❯❱ hoom.cache.semgrep.corrida.sZpoGa.reglas.go.lang.security.audit.crypto.math_random.math-random-used\n          ❰❰ Blocking ❱❱\n          Do not use `math/rand`. Use `crypto/rand` instead.\n                                                            \n           ▶▶┆ Autofix ▶ crypto/rand\n            8┆ \"math/rand/v2\""
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./internal/envelope ./internal/gitx ./internal/hoomfs ./internal/runcmd",
+      "exit_code": 0,
+      "duration_ms": 124261,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/envelope\t90.729s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t18.331s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t34.667s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t121.775s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 5,
+    "fail": 1,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "red"
+}
