@@ -106,11 +106,21 @@ func TestHallazgo77dc9a_MarcaDeTruncadoSoloSiSePerdioSalida(t *testing.T) {
 // final real de la salida (esos espacios Unicode, o el diagnostico si se los
 // recorta como blancos).
 func TestHallazgo5fc8ff_EspaciosUnicodeAlFinalNoDejanSoloLaMarca(t *testing.T) {
-	for _, r := range []rune{' ', ' ', '　'} {
+	// escapes explicitos: en el codigo los tres se ven en blanco
+	casos := []struct {
+		codigo string
+		r      rune
+	}{
+		{"U+00A0", '\u00a0'}, // NO-BREAK SPACE
+		{"U+2028", '\u2028'}, // LINE SEPARATOR
+		{"U+3000", '\u3000'}, // IDEOGRAPHIC SPACE
+	}
+	for _, caso := range casos {
+		r := caso.r
 		for _, tam := range []int{200 << 10, 1 << 20} {
-			t.Run(fmt.Sprintf("U+%04X %d KiB", r, tam>>10), func(t *testing.T) {
-				if !unicode.IsSpace(r) {
-					t.Fatalf("fixture: U+%04X es un espacio para strings.TrimSpace", r)
+			t.Run(fmt.Sprintf("%s %d KiB", caso.codigo, tam>>10), func(t *testing.T) {
+				if fmt.Sprintf("U+%04X", r) != caso.codigo || !unicode.IsSpace(r) {
+					t.Fatalf("fixture: %s es U+%04X y un espacio para strings.TrimSpace", caso.codigo, r)
 				}
 				d := t.TempDir()
 				espacios := strings.Repeat(string(r), tam/len(string(r)))
