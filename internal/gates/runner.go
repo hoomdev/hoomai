@@ -5,6 +5,7 @@
 package gates
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -82,9 +84,7 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
 	start := time.Now()
-	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el gate es el comando que el proyecto declara en hoom.yaml: ejecutarlo es el trabajo de verify
-	cmd.Dir = m.Dir
-	out, err := cmd.CombinedOutput()
+	out, err := correr(ctx, m.Dir, cmdStr)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.OutputTail = tail(string(out), opt.TailSize)
 
@@ -108,6 +108,35 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status,
 		DurationMS: res.DurationMS, ExitCode: res.ExitCode})
 	return res
+}
+
+// graciaGate is how long a gate's group has, once its deadline passed,
+// between SIGTERM and SIGKILL: enough for a docker client to stop its
+// container and for a tool to clean up.
+const graciaGate = 10 * time.Second
+
+// correr runs one gate's command in dir and returns its combined output. The
+// gate runs in a process group of its own, registered so that a Ctrl-C to
+// hoom ends it too (procesos.Arrancar): when ctx ends, the WHOLE group gets
+// SIGTERM and, after graciaGate, SIGKILL — not only the sh, which used to
+// leave git, go test or semgrep (or the container a docker client started)
+// running after verify had marked the gate (findings 862449, af0383). Past
+// that, WaitDelay closes the output even if something that left the group
+// still holds it, so verify never waits for an orphan. When the sh ends,
+// whatever it left in its group dies with it (procesos.Liberar).
+func correr(ctx context.Context, dir, cmdStr string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el gate es el comando que el proyecto declara en hoom.yaml: ejecutarlo es el trabajo de verify
+	cmd.Dir = dir
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	cmd.WaitDelay = graciaGate + 5*time.Second
+	if err := procesos.ArrancarConGracia(cmd, graciaGate); err != nil {
+		return nil, err
+	}
+	err := cmd.Wait()
+	procesos.Liberar(cmd.Process.Pid)
+	return out.Bytes(), err
 }
 
 // selectCommand picks diff_cmd when a diff scope exists and --full was not

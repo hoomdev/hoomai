@@ -115,6 +115,10 @@ func Soltar(pid int) {
 	}
 }
 
+// TerminarGrupo ends the tree of pid. Windows has no polite signal for a
+// tree: it is MatarGrupo at once, and gracia does not apply.
+func TerminarGrupo(pid int, gracia time.Duration) error { return MatarGrupo(pid) }
+
 // MatarGrupo kills the tree of pid: its Job Object, else taskkill /T /F.
 func MatarGrupo(pid int) error {
 	if pid <= 0 {
