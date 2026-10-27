@@ -1,0 +1,11 @@
+{
+  "id": "20261027T150420_0a3ab5",
+  "created_at": "2026-10-27T15:04:20.0837Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/gitx/hallazgos_endurecimiento2c_unix_test.go",
+  "description": "INTRODUCIDO — internal/gitx/hallazgos_endurecimiento2c_unix_test.go:71: e2cArmar interpola real, marca, alias y afuera entre comillas simples en un script sh sin escapar apostrofos. Una ruta valida de TMPDIR o del ejecutable git que contenga ' rompe el wrapper y hace fallar la regresion sin inyectar la carrera. Reproduccion: con TMPDIR=/tmp/hoom-review-quote'path, el test TestHallazgo_0738fe_CA133_UnEnlaceCambiadoDespuesDeGitNoConvierteElFalloEnNada falla en la guarda 'el git falso no cambio el enlace'.",
+  "author": "reviewer@codex",
+  "fingerprint": "277238192ec2d483",
+  "task": "endurecimiento-2"
+}
