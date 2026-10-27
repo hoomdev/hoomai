@@ -40,6 +40,14 @@ func prepararSenales() {
 			// was about to start never starts, and the process ends holding
 			// it (finding e30013)
 			grupos.Lock()
+			// the groups without gracia (a run's provider) die at once:
+			// they never wait for a gate that ignores SIGTERM (finding
+			// 1e64a4)
+			for p, g := range grupos.pids {
+				if g <= 0 {
+					MatarGrupo(p)
+				}
+			}
 			terminarConGracia(grupos.pids, ch)
 			for p := range grupos.pids {
 				MatarGrupo(p)
@@ -122,11 +130,29 @@ func arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 // dies too, as in Windows when the Job Object closes, and the group is
 // forgotten. A process left behind would keep working for a command that
 // already looks over, and no signal would reach it any more (finding
-// e30013).
+// e30013). On Unix only a group that still has members gets the signal: an
+// empty one may have handed its number to someone else's group (findings
+// 710266, 2f4af2).
 func Liberar(pid int) {
 	grupos.Lock()
-	MatarGrupo(pid)
+	matarSiQueda(pid)
 	delete(grupos.pids, pid)
 	grupos.Unlock()
 	Soltar(pid)
+}
+
+// matarTrasGracia is the SIGKILL that TerminarGrupo leaves for after gracia:
+// only for a group still registered (Liberar has not forgotten it) and
+// still with members, checked under the registry's lock, so a group that
+// already ended, and whose number another group may have taken, never gets
+// it (findings 2f4af2, f0dfd4, cd9f87).
+func matarTrasGracia(pid int, gracia time.Duration) {
+	go func() {
+		time.Sleep(gracia)
+		grupos.Lock()
+		defer grupos.Unlock()
+		if _, ok := grupos.pids[pid]; ok {
+			matarSiQueda(pid)
+		}
+	}()
 }

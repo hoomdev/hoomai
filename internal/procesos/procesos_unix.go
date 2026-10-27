@@ -72,7 +72,8 @@ func MatarGrupo(pid int) error {
 // container (so a containerized semgrep stops instead of running on, finding
 // af0383) and a tool can catch to clean up; whoever is still in the group
 // after gracia gets SIGKILL (MatarGrupo). It does not wait for the gracia:
-// it is exec's Cancel, which must return at once.
+// it is exec's Cancel, which must return at once. Only for a group started
+// with Arrancar or ArrancarConGracia: the later SIGKILL checks the registry.
 func TerminarGrupo(pid int, gracia time.Duration) error {
 	if pid <= 0 {
 		return nil
@@ -81,11 +82,16 @@ func TerminarGrupo(pid int, gracia time.Duration) error {
 	if err == syscall.ESRCH {
 		return nil // nobody left in the group
 	}
-	go func() {
-		time.Sleep(gracia)
-		MatarGrupo(pid)
-	}()
+	matarTrasGracia(pid, gracia)
 	return err
+}
+
+// matarSiQueda kills the group of pid only if someone is still in it: an
+// empty group's number is free for the system to give to a new group.
+func matarSiQueda(pid int) {
+	if grupoVivo(pid) {
+		MatarGrupo(pid)
+	}
 }
 
 // senalarTerm sends SIGTERM to the group of pid and says whether it was

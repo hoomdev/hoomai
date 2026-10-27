@@ -122,6 +122,10 @@ func senalarTerm(pid int) bool { return false }
 // grupoVivo: with no gracia on Windows, nobody waits on a tree.
 func grupoVivo(pid int) bool { return false }
 
+// matarSiQueda: a Job Object is killed by its handle, which no other tree
+// can inherit, so there is nothing to check first.
+func matarSiQueda(pid int) { MatarGrupo(pid) }
+
 // TerminarGrupo ends the tree of pid. Windows has no polite signal for a
 // tree: it is MatarGrupo at once, and gracia does not apply.
 func TerminarGrupo(pid int, gracia time.Duration) error { return MatarGrupo(pid) }
