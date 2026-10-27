@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141539_25ba18",
+  "created_at": "2026-10-24T14:15:39.002206Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:163-171: ListErr, creado para que Doctor no confunda evidencia degradada con ausencia, descarta sin error un \u003cid\u003e.json que se pudo abrir pero esta truncado, no tiene ID o no coincide con su nombre. gatherer solo registra una falla cuando ListErr devuelve error (internal/boardcmd/gather.go:621-627), de modo que un write parcial/corrupcion del sobre desaparece y Doctor puede certificar sin haber leido la telemetria que determina sobres huerfanos. Los nombres con forma de sobre que no parsean o validan deben entrar en sinLeer; List puede seguir siendo best-effort.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

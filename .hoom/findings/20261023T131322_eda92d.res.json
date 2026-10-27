@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131322_eda92d",
+  "as": "corregido",
+  "evidence": "311d192: bloquea() es finding.Blocks fallando cerrado: una severidad fuera del vocabulario bloquea, como en el gate findings_open. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA452_Hallazgoeda92d_SeveridadDesconocidaBloquea y TestCA450_Hallazgoeda92d_BackfillSeveridadDesconocidaBloquea.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.914901Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T191237_769721",
+  "as": "corregido",
+  "evidence": "53bfb7b: gatherer.fallar guarda texto(msg) y las advertencias de hallazgos van por texto(w). Test 53bfb7b: TestCA450_Hallazgo763d5f_ValoresNoConfiablesSinCrudos (parte feeb49): el error del doctor del proyecto nombra los dos archivos ilegibles sin caracteres crudos; con el gather.go anterior falla por el U+001B del error.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T19:27:35.933926Z"
+}

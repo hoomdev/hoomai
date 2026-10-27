@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141534_3fd1d4",
+  "created_at": "2026-10-24T14:15:34.445984Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/envelope/envelope.go",
+  "description": "INTRODUCIDO — internal/envelope/envelope.go:401-411: el retry comprueba con Lstat que el registro aun existe y luego llama Write por ruta, sin una operacion atomica de comparar-y-reemplazar. Si el registro se elimina entre Lstat y el rename de AtomicWrite, el retry lo recrea aunque el contrato de internal/envelope/envelope.go:395-400 promete abandonar un cierre cuyo registro desaparecio. La ventana se puede sostener bloqueando Write al leer un FIFO en .hoom/.gitignore; al liberar el FIFO, el cierre resucita evidencia que un operador ya retiro. La recuperacion debe publicar solo si la misma entrada regular sigue presente.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

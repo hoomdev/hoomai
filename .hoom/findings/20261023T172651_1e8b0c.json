@@ -1,0 +1,11 @@
+{
+  "id": "20261023T172651_1e8b0c",
+  "created_at": "2026-10-23T17:26:51.427811Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:140-142 revierte cada item con os.Remove(path) sin comprobar que la entrada siga siendo el mismo archivo que esta corrida publico ni mantener el candado de items. Entre un item.Add exitoso y el fallo de una creacion posterior, otro proceso puede editar, borrar y recrear, o reemplazar ese path; retirar borrara entonces el item ajeno y convierte el error de backfill en perdida irreversible de datos. La compensacion debe quedar ligada a la identidad publicada y negarse a borrar si el path cambio (o serializar la transaccion completa).",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

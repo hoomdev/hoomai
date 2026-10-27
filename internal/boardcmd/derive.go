@@ -52,6 +52,7 @@ func Derive(ev Evidence) Card {
 	c.Drops = dropsOf(c)
 	c.Ghost = ghostOf(c)
 	c.Doctor = DoctorOf(ev, c)
+	c.Historica = ev.Item.HechoEn == nil && ev.Item.Historico != "" && ev.HistoricaSostenida
 	return c
 }
 
@@ -70,11 +71,19 @@ func column(ev Evidence) (string, []string, string, string) {
 	if ev.Item.HechoEn != nil {
 		return ColHecho, []string{}, "", "terminada: su cierre quedo registrado"
 	}
+	// a card from before the cabin is done while the evidence its historico
+	// names still holds it; when it stops holding, the card derives like any
+	// other and the doctor says why (historia-en-el-tablero)
+	if ev.Item.Historico != "" && ev.HistoricaSostenida {
+		return ColHecho, []string{}, "", "terminada antes de la cabina: la sostiene " + ev.Item.Historico
+	}
 	// with a workspace it cannot use, nothing else about the card can be
 	// read: it stops here and says why, never as a card with no workspace
-	// (findings 6aeb17, 966474)
+	// (findings 6aeb17, 966474). The why names the branch, which git lets
+	// carry control and direction characters: it goes escaped (finding
+	// 49af1d)
 	if ev.WorktreeInusable != "" {
-		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + ev.WorktreeInusable}, "hoom task list",
+		return ColBacklog, []string{"el espacio de trabajo de la tarjeta no se puede usar: " + textoSeguro(ev.WorktreeInusable)}, "hoom task list",
 			"el espacio de trabajo de la tarjeta no se puede usar"
 	}
 	arquitecto := "hoom agent --role arquitecto" + task + " " + pedidoHint

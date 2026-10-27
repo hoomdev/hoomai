@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131721_552a4e",
+  "as": "corregido",
+  "evidence": "311d192: veredictoQueSostiene mira solo root y el worktree propio, los mismos arboles donde sostenHistorica lo vuelve a buscar. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA447_Hallazgo552a4e_VeredictoEnEspacioAjenoNoSeElige y TestCA452_Hallazgo552a4e_LoQueBackfillEligeSeSostiene.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.971312Z"
+}

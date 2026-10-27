@@ -1,0 +1,11 @@
+{
+  "id": "20261023T191237_769721",
+  "created_at": "2026-10-23T19:12:37.217226Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTEGRACION (aparece al integrar endurecimiento-1, PR #55; lo detecto el test de feeb49 de esta tarea) — gatherer.fallar guarda los mensajes de lo que no pudo leer con el nombre crudo de cada archivo de evidencia (hallazgo ilegible \u003cnombre\u003e), y el doctor los devuelve en su error y el tablero en sus advertencias: un archivo de hallazgo cuyo nombre trae ESC o un salto de linea manda secuencias de control a la terminal de hoom board doctor. Correccion: guardar los mensajes escapados (texto) en fallar y en las advertencias de hallazgos.",
+  "author": "integracion main (#55)",
+  "fingerprint": "5d023d61950accfb",
+  "task": "historia-en-el-tablero"
+}

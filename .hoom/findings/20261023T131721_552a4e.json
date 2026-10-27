@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131721_552a4e",
+  "created_at": "2026-10-23T13:17:21.239088Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/historia.go",
+  "description": "INTRODUCIDO — internal/boardcmd/historia.go:128: veredictoQueSostiene promete mirar root o el worktree de la tarea, pero recorre todos los worktrees. Un veredicto integrado que solo sobrevive en un worktree ajeno y obsoleto puede ser elegido por backfill; el item se crea apuntándolo, pero sostenHistorica luego solo busca en root y en el worktree propio (líneas 215-230), así que la tarjeta nace inmediatamente con historica-sin-sosten. La selección debe usar exactamente los árboles donde la derivación podrá volver a encontrar la evidencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

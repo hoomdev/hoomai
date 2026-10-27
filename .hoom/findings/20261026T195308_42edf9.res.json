@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T195308_42edf9",
+  "as": "corregido",
+  "evidence": "c9d3624: specEn guarda dir y nombre del spec que encontro specDe, y tituloDeSpec lee sp.nombre en vez de reconstruir s+\".md\". Los tests de e8b795, b16c61, 939eec y b3c417 siguen pasando.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T20:00:23.333871Z"
+}

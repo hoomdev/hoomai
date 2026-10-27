@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261026T195309_bd1bfd",
+  "as": "corregido",
+  "evidence": "7381c29: h6NuevaOp[R] ata cada operacion a su validador por el tipo del resultado, sin any ni type assertions (emparejar Build con el validador del doctor no compila). El test sigue pasando (x7.9/x8.1) y fallando sobre f3a79d3 (x26.1/x27.6).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-26T20:00:23.281411Z"
+}

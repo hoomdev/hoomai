@@ -1,0 +1,11 @@
+{
+  "id": "20261023T173830_f448aa",
+  "created_at": "2026-10-23T17:38:30.821928Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea este rango) — internal/boardcmd/historicas.go:316-319, llamado desde internal/boardcmd/gather.go:327-332: cuando runcmd.TaskDir no puede comprobar el worktree, gatherIn conserva dir=root y sostenHistorica inspecciona solo root. Si alli hay un hallazgo cerrado/testigo o el veredicto historico, marca HistoricaSostenida aunque el espacio inaccesible pueda contener un bloqueante abierto; column() prioriza esa marca sobre WorktreeInusable y deja la tarjeta en Hecho. Ante la dependencia Git/worktree degradada debe fallar cerrado o conservar el estado inusable antes de sostener la historica.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

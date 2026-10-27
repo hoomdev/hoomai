@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131725_a5e1d2",
+  "created_at": "2026-10-23T13:17:25.804505Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:100: Backfill publica cada item dentro del bucle y, si una creación posterior falla (ENOSPC, error de I/O o pérdida de permisos), retorna error en la línea 117 sin retirar ni reportar los items ya creados. La invocación termina fallida pero deja un lote parcial, contradiciendo el caso límite «error, nada a medias»; el test de directorio 0555 solo cubre que falle el primer write. Hace falta preflight/transacción recuperable o rollback seguro de los archivos creados por esta corrida.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

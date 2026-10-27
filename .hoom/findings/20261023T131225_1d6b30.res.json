@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131225_1d6b30",
+  "as": "corregido",
+  "evidence": "311d192: un hallazgo ilegible en los arboles de la tarea hace que backfill no la califique y que el tablero no sostenga la historica, con el motivo que nombra el archivo. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA452_Hallazgo1d6b30_HallazgoIlegibleNoSostiene y TestCA450_Hallazgo1d6b30_BackfillNoCreaConUnHallazgoIlegible.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.88614Z"
+}

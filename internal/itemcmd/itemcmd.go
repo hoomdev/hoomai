@@ -1,5 +1,6 @@
-// Package itemcmd implements `hoom item add | list | show | save`: the verbs
-// of the card as a file. Parsing is pure and strict from day one (cliargs), so a
+// Package itemcmd implements `hoom item add | list | show | save | backfill`:
+// the verbs of the card as a file (backfill gives an item to the tasks from
+// before the cabin that the evidence holds). Parsing is pure and strict from day one (cliargs), so a
 // request hoom does not understand is answered before the project is read,
 // and it never leaves a half-written item behind.
 package itemcmd
@@ -31,6 +32,9 @@ const (
 	SubList = "list"
 	SubShow = "show"
 	SubSave = "save"
+	// SubBackfill creates the items of the tasks that predate the cabin
+	// (historia-en-el-tablero).
+	SubBackfill = "backfill"
 )
 
 // UsageText is the exact usage block of `hoom item` and the single source of
@@ -39,6 +43,7 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--p
      hoom item list [--json]
      hoom item show <slug> [--json]
      hoom item save <slug> [--json]
+     hoom item backfill [--dry-run] [--json]
 
   --tipo t             feature|bug|refactor|seguridad|docs|test (default feature)
   --prioridad p        alta|media|baja (default media)
@@ -56,16 +61,84 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--p
 de trabajo, todo; en el proyecto, su evidencia y su item), un commit por
 arbol, con el mensaje fijo "hoom: guardar la tarjeta <slug>".
 
+'hoom item backfill' crea el item de cada tarea con evidencia y sin item que
+califica: con spec, si tiene un veredicto completo verde con spec_approved en
+pass e integrado en la base; sin spec, si ningun hallazgo bloqueante suyo esta
+abierto. El item lleva 'historico' (que evidencia lo sostiene) y nunca
+hecho_en. Lo que no califica sale con su motivo; --dry-run no escribe nada.
+
 El item es un archivo en .hoom/items/<slug>.yaml que viaja en git. Nunca
 guarda una columna: la columna sale de la evidencia ('hoom board').
 Un titulo que empieza con '-' va despues de '--': hoom item add -- "-titulo"`
 
 // Request is one parsed `hoom item` invocation.
 type Request struct {
-	Sub   string     // SubAdd | SubList | SubShow | SubSave
-	Draft item.Draft // add
-	Slug  string     // show, save
-	JSON  bool
+	Sub    string     // SubAdd | SubList | SubShow | SubSave | SubBackfill
+	Draft  item.Draft // add
+	Slug   string     // show, save
+	JSON   bool
+	DryRun bool // backfill
+}
+
+// BackfillResult is what `hoom item backfill` did, or would do with
+// --dry-run.
+type BackfillResult struct {
+	DryRun      bool                 `json:"dry_run"`
+	Creados     []boardcmd.Candidata `json:"creados"`      // created (or that it would create)
+	NoCalifican []boardcmd.Candidata `json:"no_califican"` // with their Motivo
+	ConItem     []string             `json:"con_item"`     // tasks that already have an item: untouched
+	// Error is why the run stopped halfway, with Creados the items it did
+	// create, which stay; "" when it did not stop.
+	Error string `json:"error,omitempty"`
+}
+
+// Backfill creates an item with historico for every task with evidence and
+// no item that qualifies, and lists the rest with why. dryRun writes
+// nothing. It never removes an item: on an error halfway (a full disk) the
+// items this run created stay, each one whole and valid, and res lists them;
+// running it again completes the rest, since it skips the tasks with an item
+// (enmienda 1: a rollback by path could take somebody else's item, findings
+// 1e8b0c, 039b75, a7d0b1).
+func Backfill(root, base, blockOn string, dryRun bool, now time.Time) (BackfillResult, error) {
+	res := BackfillResult{DryRun: dryRun, Creados: []boardcmd.Candidata{}, NoCalifican: []boardcmd.Candidata{}, ConItem: []string{}}
+	cands, err := boardcmd.Candidatas(root, base, blockOn, now)
+	if err != nil {
+		return res, err
+	}
+	for _, c := range cands {
+		switch {
+		case c.ConItem:
+			res.ConItem = append(res.ConItem, c.Slug)
+		case c.Historico == "":
+			res.NoCalifican = append(res.NoCalifican, c)
+		case dryRun:
+			res.Creados = append(res.Creados, c)
+		default:
+			_, err := item.Add(root, item.Draft{Titulo: c.Titulo, Tipo: c.Tipo, Prioridad: "media",
+				Slug: c.Slug, Historico: c.Historico})
+			switch {
+			case errors.Is(err, item.ErrExists):
+				// it appeared since the list: it is somebody's, and stays
+				// as it is
+				res.ConItem = append(res.ConItem, c.Slug)
+			case err != nil:
+				err = fmt.Errorf("no se pudo crear el item de %s: %w; %s", c.Slug, err, quedan(len(res.Creados)))
+				res.Error = err.Error()
+				return res, err
+			default:
+				res.Creados = append(res.Creados, c)
+			}
+		}
+	}
+	return res, nil
+}
+
+// quedan says what an error halfway leaves of a run that created n items.
+func quedan(n int) string {
+	if n == 0 {
+		return "no se creo ningun item"
+	}
+	return fmt.Sprintf("los %d items que esta corrida ya creo quedan; correr backfill de nuevo completa el resto", n)
 }
 
 // Parse is the syntactic AND vocabulary stage, pure: no disk, no
@@ -73,7 +146,7 @@ type Request struct {
 // understand and cliargs.ErrHelp for -h/--help.
 func Parse(args []string) (Request, error) {
 	if len(args) == 0 {
-		return Request{}, uso("item", "falta el subcomando (add|list|show|save)")
+		return Request{}, uso("item", "falta el subcomando (add|list|show|save|backfill)")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -110,8 +183,16 @@ func Parse(args []string) (Request, error) {
 			return Request{}, uso("item save", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
 		}
 		return Request{Sub: SubSave, Slug: ops[0], JSON: *asJSON}, nil
+	case SubBackfill:
+		fs := flag.NewFlagSet("item backfill", flag.ContinueOnError)
+		dryRun := fs.Bool("dry-run", false, "lista lo que crearia sin escribir nada")
+		asJSON := fs.Bool("json", false, "emitir el resultado como JSON")
+		if err := cliargs.Strict(fs, rest, "item backfill", UsageText); err != nil {
+			return Request{}, err
+		}
+		return Request{Sub: SubBackfill, DryRun: *dryRun, JSON: *asJSON}, nil
 	}
-	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save)", sub))
+	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|backfill)", sub))
 }
 
 func parseAdd(args []string) (Request, error) {
@@ -234,8 +315,22 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 			fmt.Fprintf(stdout, "  %s: %s (%s)\n", cm.Dir, short(cm.SHA), n)
 		}
 		return nil
+	case SubBackfill:
+		res, err := Backfill(root, base, blockOn, req.DryRun, now)
+		if err != nil && len(res.Creados) == 0 {
+			return err
+		}
+		// stopped halfway: what it did create stays, and it is said
+		if req.JSON {
+			if eerr := emit(stdout, res); eerr != nil {
+				return eerr
+			}
+		} else {
+			renderBackfill(stdout, res)
+		}
+		return err
 	}
-	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save)", req.Sub))
+	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|backfill)", req.Sub))
 }
 
 func emit(w io.Writer, v any) error {
@@ -462,4 +557,25 @@ func short(sha string) string {
 		return sha[:12]
 	}
 	return sha
+}
+
+// renderBackfill prints what backfill did: one line per task, created first
+// ("crearia" with --dry-run), then the ones that do not qualify with their
+// motivo, then the ones that already have an item.
+func renderBackfill(w io.Writer, res BackfillResult) {
+	verbo, resumen := "creado", "creado(s)"
+	if res.DryRun {
+		verbo, resumen = "crearia", "crearia(n)"
+	}
+	fmt.Fprintf(w, "hoom item backfill: %d %s, %d no califican, %d ya tienen item\n",
+		len(res.Creados), resumen, len(res.NoCalifican), len(res.ConItem))
+	for _, c := range res.Creados {
+		fmt.Fprintf(w, "  %-9s %-36s historico: %s\n", verbo, c.Slug, c.Historico)
+	}
+	for _, c := range res.NoCalifican {
+		fmt.Fprintf(w, "  %-9s %-36s %s\n", "no crea", c.Slug, c.Motivo)
+	}
+	for _, s := range res.ConItem {
+		fmt.Fprintf(w, "  %-9s %-36s ya tiene item: no se toca\n", "intacto", s)
+	}
 }

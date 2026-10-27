@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T183202_49af1d",
+  "as": "corregido",
+  "evidence": "7b11f90: derive pasa WorktreeInusable por texto() antes de ponerlo en Missing. Test 2a2d187: TestCA452_Hallazgo49af1d_RamaHostilSinCrudos (ramas con U+202E, U+009B y U+2067/U+2069; fail-closed conservado; nada crudo en Render, RenderCard, Missing, Plain, Next ni el doctor de la tarjeta). Falla sobre 9e00f00, pasa con 7b11f90.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T19:03:32.318013Z"
+}

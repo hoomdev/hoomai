@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141801_b486cd",
+  "created_at": "2026-10-24T14:18:01.421059Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO. internal/boardcmd/historicas.go:415-471 define conControl/texto como detalle del modulo de historicas, pero el cambio convierte texto en el sanitizador general de salida humana y lo llama desde internal/boardcmd/derive.go:86 e internal/boardcmd/gather.go:73,139. El nombre generico texto no comunica que escapa controles y la ubicacion obliga a conocer historicas.go para entender otros flujos del tablero. Moverlo a un helper de texto/salida del paquete y darle un nombre explicito (por ejemplo textoSeguro) haria visible el contrato en cada llamada.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

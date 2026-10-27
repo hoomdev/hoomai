@@ -6,6 +6,11 @@
 // move the card: its column is a function of the evidence (see boardcmd), so
 // a key like `columna:` makes the file invalid instead of being obeyed.
 //
+// One key is not a person's: `historico`, which only `hoom item backfill`
+// writes, on a card from before the cabin. It does not move the card
+// either: it says which evidence to look at (a verdict, or the task's
+// findings), and the card is in Hecho only while that evidence holds it.
+//
 // The slug is the file name and the card's only identity for its whole life:
 // it is also the spec's name (.hoom/specs/<slug>.md) and the task's
 // (`hoom task start <slug>`).
@@ -76,7 +81,39 @@ type Item struct {
 	// AutoHastaHumano). It never moves the card: it lets the Studio ask the
 	// next role of the fixed table after a successful envelope.
 	Auto string `yaml:"auto,omitempty" json:"auto,omitempty"`
+	// Historico says which evidence holds a card that predates the cabin:
+	// "veredicto <id>" (the green complete verdict of its spec, integrated
+	// in the base) or "hallazgos" (a task without spec whose blocking
+	// findings are all closed). Only `hoom item backfill` writes it. It never
+	// moves the card by itself: the board puts the card in Hecho while that
+	// evidence still holds (historia-en-el-tablero).
+	Historico string `yaml:"historico,omitempty" json:"historico,omitempty"`
 }
+
+// HistoricoHallazgos is the Historico of a task without spec held by its
+// closed findings.
+const HistoricoHallazgos = "hallazgos"
+
+// HistoricoVeredicto is the Historico of a card held by verdict id.
+func HistoricoVeredicto(id string) string { return "veredicto " + id }
+
+// LeerHistorico reads a Historico: the verdict id it names, or hallazgos,
+// and whether it is one of the two shapes at all.
+func LeerHistorico(s string) (veredicto string, hallazgos bool, ok bool) {
+	if s == HistoricoHallazgos {
+		return "", true, true
+	}
+	id, es := strings.CutPrefix(s, "veredicto ")
+	if !es || !idHistorico.MatchString(id) {
+		return "", false, false
+	}
+	return id, false, true
+}
+
+// idHistorico is the shape of the id a Historico names: the characters of a
+// verdict id, never a space or a line break that would carry text into a
+// message.
+var idHistorico = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // Sesion is one interactive session opened on the card's workspace.
 type Sesion struct {
@@ -95,6 +132,9 @@ type Draft struct {
 	Slug           string
 	PresupuestoUSD *float64
 	Auto           string // "" or AutoHastaHumano
+	// Historico: only `hoom item backfill` sets it (no flag of `item add`
+	// does).
+	Historico string
 }
 
 // ErrExists is wrapped by Add when the item's file is already there.
@@ -195,7 +235,16 @@ func Validate(d Draft) (Draft, error) {
 	if !ValidSlug(d.Slug) {
 		return d, fmt.Errorf("slug invalido %q: minusculas, numeros y guiones, hasta %d caracteres (ej: precios-por-region)", d.Slug, MaxSlug)
 	}
+	if d.Historico != "" && !historicoValido(d.Historico) {
+		return d, fmt.Errorf("historico %q no es 'veredicto <id>' ni '%s'", d.Historico, HistoricoHallazgos)
+	}
 	return d, nil
+}
+
+// historicoValido says whether s is one of the two shapes of Historico.
+func historicoValido(s string) bool {
+	_, _, ok := LeerHistorico(s)
+	return ok
 }
 
 // Add creates the item's file. It fails, wrapping ErrExists, when the file is
@@ -209,7 +258,7 @@ func Add(root string, d Draft) (Item, error) {
 		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad,
 		Pedido: strings.TrimSpace(d.Pedido), CreadoPor: gitx.Identity(root),
 		CreadoEn: time.Now().UTC().Truncate(time.Second), PresupuestoUSD: d.PresupuestoUSD,
-		Auto: d.Auto,
+		Auto: d.Auto, Historico: d.Historico,
 	}
 	raw, err := encode(it)
 	if err != nil {
@@ -234,7 +283,7 @@ func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 
 // claves are the only keys an item may carry, in the order hoom writes them.
 var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "creado_en",
-	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto"}
+	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
 // field or a value outside its vocabulary is an error.
@@ -276,6 +325,8 @@ func Parse(slug string, raw []byte) (Item, error) {
 		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser un numero mayor que 0")
 	case it.Auto != "" && !contains(Autos, it.Auto):
 		return Item{}, fmt.Errorf("auto %q fuera del vocabulario (%s)", it.Auto, strings.Join(Autos, ", "))
+	case it.Historico != "" && !historicoValido(it.Historico):
+		return Item{}, fmt.Errorf("historico %q no es 'veredicto <id>' ni '%s'", it.Historico, HistoricoHallazgos)
 	}
 	for i, s := range it.Sesiones {
 		switch {

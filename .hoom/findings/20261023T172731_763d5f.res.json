@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T172731_763d5f",
+  "as": "corregido",
+  "evidence": "6834a13: los valores de la evidencia (severidad, ids, nombres de ilegibles, errores de git) entran al motivo por texto(), que los cita con strconv.Quote si traen caracteres de control o de direccion. Tests 0d298e8 (fallan sobre 928f510, pasan con 6834a13): los tests 763d5f/feeb49 de historia_hallazgos3 (severidad con OSC/BEL/CR/LF; nada crudo en Candidatas, Gather, el doctor ni el texto de backfill).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:27:13.903025Z"
+}

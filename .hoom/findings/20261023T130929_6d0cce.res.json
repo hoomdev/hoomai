@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T130929_6d0cce",
+  "as": "corregido",
+  "evidence": "311d192: backfill y el tablero usan la misma regla, porQueNoSostienenHallazgos, sobre root y el worktree de la tarea: al menos un hallazgo legible de la tarea y ninguno abierto que bloquee en esos arboles. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA452_Hallazgo6d0cce_HallazgosDeRootYDelEspacio y TestCA452_Hallazgoa28967_SinNingunHallazgoNoSeSostiene.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.796508Z"
+}

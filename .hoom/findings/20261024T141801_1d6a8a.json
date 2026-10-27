@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141801_1d6a8a",
+  "created_at": "2026-10-24T14:18:01.189019Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/envelope/hallazgos_endurecimiento1c_test.go",
+  "description": "INTRODUCIDO. internal/envelope/hallazgos_endurecimiento1c_test.go:77-194 copia el arnes completo de medicion de heap que tambien aparece en internal/finding/hallazgos_endurecimiento1c_test.go:66-183, internal/reviewcmd/hallazgos_endurecimiento1c_test.go:65-182, internal/runcmd/hallazgos_endurecimiento1c_test.go:67-184 e internal/verdict/hallazgos_endurecimiento1c_test.go:97-214; ademas, la familia de ordenamiento e1d se repite en cuatro paquetes (por ejemplo internal/envelope/hallazgos_endurecimiento1d_test.go:149-244 e internal/finding/hallazgos_endurecimiento1d_test.go:37-132). Son cientos de lineas de infraestructura identica cuyos umbrales, protocolo de GC y criterio de desempate deben corregirse en varios lugares y pueden divergir. Extraer helpers parametrizados a un paquete interno de soporte de tests dejaria cada archivo enfocado en su caso.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

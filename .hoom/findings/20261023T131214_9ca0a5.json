@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131214_9ca0a5",
+  "created_at": "2026-10-23T13:12:14.499399Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/historia.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historia.go:71-86 clasifica como tarea 'con spec' a cualquier slug que tenga algun veredicto, aunque .hoom/specs/\u003cslug\u003e.md ya no exista (o sea un directorio), porque usa len(verdicts[s]) \u003e 0 || errSpec == nil. Un verde integrado antiguo entonces produce historico: veredicto y backfill crea una feature que queda en Hecho; el contrato exige que solo una tarea con spec use esa ruta y que una tarea sin spec califique por sus hallazgos. Falta comprobar que el spec actual sea un archivo regular y cubrir el caso de spec eliminado.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

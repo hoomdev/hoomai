@@ -1,0 +1,11 @@
+{
+  "id": "20261023T130929_639517",
+  "created_at": "2026-10-23T13:09:29.162785Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/boardcmd/historia.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historia.go:215 busca el veredicto historico solo por ID y luego porQueNoSostiene valida color, gate y commit, pero nunca vuelve a exigir que specTask(v, t.dir) coincida con ev.Item.Slug. Un item historico editado o mal fusionado puede apuntar al verde aprobado de otra tarea y sostenHistorica lo marca sostenido, por lo que Derive lo coloca en Hecho sin evidencia propia. La validacion al sostener debe conservar el vinculo veredicto-tarjeta.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

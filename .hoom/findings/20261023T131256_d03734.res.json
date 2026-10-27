@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131256_d03734",
+  "as": "corregido",
+  "evidence": "311d192: si falla un alta, Backfill retira (retirar) los items que esa corrida ya habia creado y el error lo dice. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA447_Hallazgod03734_FallaElSegundoNadaAMedias (RLIMIT_FSIZE hace fallar el segundo item; sobre 8b6ff05 quedaba a-uno.yaml).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.999849Z"
+}

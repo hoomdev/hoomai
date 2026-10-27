@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131248_a28967",
+  "as": "corregido",
+  "evidence": "311d192: sin ningun hallazgo de la tarea en root ni en su worktree, historico: hallazgos deja de sostenerse ('la tarea ya no tiene ningun hallazgo'). Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA452_Hallazgoa28967_SinNingunHallazgoNoSeSostiene.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.857592Z"
+}

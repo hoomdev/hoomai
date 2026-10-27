@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T172651_1e8b0c",
+  "as": "corregido",
+  "evidence": "6834a13: con la enmienda 1 backfill nunca borra un item (se saco retirar), asi que no hay borrado por ruta que pueda llevarse un item ajeno ni compensacion fuera del candado. Tests 0d298e8 (fallan sobre 928f510, pasan con 6834a13): TestCA447_Hallazgo142d20_FallaElSegundoQuedanLosCreados (los creados quedan; otra corrida completa el resto sin tocarlos).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:27:13.777944Z"
+}

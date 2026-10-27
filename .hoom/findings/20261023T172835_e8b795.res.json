@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T172835_e8b795",
+  "as": "corregido",
+  "evidence": "6834a13: specDe y tituloDeSpec miran y leen el spec dentro de su arbol (os.OpenRoot + lstatEnRoot: cada directorio del camino tiene que ser un directorio, nunca un symlink) y abren con hoomfs.AbrirRegularEn. Tests 0d298e8 (fallan sobre 928f510, pasan con 6834a13): el test e8b795 de historia_hallazgos3 (.hoom/specs symlink afuera: el titulo de afuera no aparece en ninguna salida ni item; hoy backfill da error).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:27:13.962151Z"
+}

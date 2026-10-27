@@ -1,0 +1,11 @@
+{
+  "id": "20261023T131716_6fdcc5",
+  "created_at": "2026-10-23T13:17:16.903887Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/boardcmd/historia.go",
+  "description": "INTRODUCIDO — internal/boardcmd/historia.go:207: sostenHistorica para historico: hallazgos solo recorre ev.Findings (Gather conserva allí únicamente los abiertos) y después fija HistoricaSostenida=true aunque la lista esté vacía. Por eso no comprueba el contrato de que exista al menos un hallazgo: si se borran todos los hallazgos de la tarea, o quedan ilegibles y List los omite, la tarjeta permanece en Hecho sin evidencia; UnreadableFindings también se ignora en esta decisión. Debe exigir un testigo legible de la tarea y fallar cerrado ante evidencia ilegible.",
+  "author": "reviewer@codex",
+  "fingerprint": "261ba95bda0ca5d9",
+  "task": "historia-en-el-tablero"
+}

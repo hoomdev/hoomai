@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T131712_939eec",
+  "as": "corregido",
+  "evidence": "311d192: specDe busca el spec en root y en el worktree de la tarea; con spec, solo un veredicto la califica; un error distinto de 'no esta' es un error. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA447_Hallazgo939eec_SpecSoloEnElEspacioEsConSpec.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.943042Z"
+}

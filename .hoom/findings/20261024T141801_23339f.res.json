@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261024T141801_23339f",
+  "as": "corregido",
+  "evidence": "51391e8: specDe y tituloDeSpec usan hoomfs.AbrirRuta(dir, \".hoom\", \"specs\") y Lstat/AbrirRegularEn sobre ese root; se borraron lstatEn/lstatEnRoot. Los tests de e8b795 (symlink en .hoom/specs) siguen pasando.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-24T14:26:48.789786Z"
+}

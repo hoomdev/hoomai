@@ -1,0 +1,151 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-23T16-16-17Z_208eb7c8",
+  "created_at": "2026-10-23T16:16:17.042992Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "d8221eede0c1",
+    "branch": "hoom/historia-en-el-tablero",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/historia-en-el-tablero_51722711.json",
+      "internal/boardcmd/boardcmd.go",
+      "internal/boardcmd/derive.go",
+      "internal/boardcmd/doctor.go",
+      "internal/boardcmd/gather.go",
+      "internal/boardcmd/historia_en_el_tablero_test.go",
+      "internal/boardcmd/historia_hallazgos1_test.go",
+      "internal/boardcmd/historia_hallazgos2_test.go",
+      "internal/boardcmd/historicas.go",
+      "internal/boardcmd/render.go",
+      "internal/item/historia_en_el_tablero_test.go",
+      "internal/item/item.go",
+      "internal/itemcmd/historia_en_el_tablero_test.go",
+      "internal/itemcmd/historia_hallazgos1_test.go",
+      "internal/itemcmd/historia_hallazgos1_unix_test.go",
+      "internal/itemcmd/historia_hallazgos2_test.go",
+      "internal/itemcmd/itemcmd.go"
+    ],
+    "change_fingerprint": "e99fb2fdc0cad878",
+    "insertions": 4853,
+    "deletions": 35
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "10 criterios (CA-*)"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 24,
+      "notes": "10/10 criterios trazados en 360 archivos de test"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 3,
+      "notes": "aprobado por Henry Orellana \u003chenry.orellana@oceansbits.com\u003e (2026-10-23, sha 51722711)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 112,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea historia-en-el-tablero + sin tarea (25 de otras tareas no cuentan) · no bloquean: 2 medium, 3 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 430
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 716,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 670
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 60315,
+      "output_tail": "error: RPC failed; curl 28 Operation too slow. Less than 1000 bytes/sec transferred the last 30 seconds\nfatal: early EOF\nfatal: fetch-pack: invalid index-pack output"
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./internal/boardcmd ./internal/item ./internal/itemcmd",
+      "exit_code": 0,
+      "duration_ms": 336379,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t312.994s\nok  \tgithub.com/hoomdev/hoomai/internal/item\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/itemcmd\t123.179s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 9,
+    "fail": 0,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/historia-en-el-tablero.md"
+}

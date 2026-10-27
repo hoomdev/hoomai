@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T130929_639517",
+  "as": "corregido",
+  "evidence": "311d192: sostenHistorica busca el veredicto por id en root y en el arbol de la tarjeta y solo lo acepta si specTask(veredicto, arbol) es el slug del item; uno de otro spec deja historica-sin-sosten con el motivo 'no es de esta tarea'. Tests 65e4498 (fallan sobre 8b6ff05, pasan con 311d192): TestCA452_Hallazgo639517_VeredictoDeOtraTareaNoSostiene (veredicto en root, en el worktree, y en root con la tarea en su worktree).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T13:57:31.741183Z"
+}

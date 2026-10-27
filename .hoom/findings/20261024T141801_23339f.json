@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141801_23339f",
+  "created_at": "2026-10-24T14:18:01.632526Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO. internal/boardcmd/historicas.go:194-220 implementa lstatEn/lstatEnRoot para recorrer componentes sin seguir symlinks, mientras el mismo cambio agrega internal/hoomfs/ruta.go:12-43 con AbrirRuta para mantener esa misma invariante mediante descriptores. Tener dos recorridos sensibles con mecanicas distintas (ruta acumulada frente a cambio de os.Root por componente) duplica razonamiento y facilita que sus reglas diverjan. Exponer en hoomfs la operacion de lstat dentro de una ruta y reutilizarla dejaria una sola abstraccion para este contrato.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

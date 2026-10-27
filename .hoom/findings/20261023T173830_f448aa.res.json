@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T173830_f448aa",
+  "as": "corregido",
+  "evidence": "6834a13: sostenHistorica no sostiene la historica si el worktree de la tarea esta inusable (WorktreeInusable). Tests 0d298e8 (fallan sobre 928f510, pasan con 6834a13): el test f448aa de historia_hallazgos3 (worktree en otra rama: hallazgos y veredicto dejan Hecho y la tarjeta da historica-sin-sosten).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T18:27:14.021001Z"
+}

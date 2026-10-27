@@ -1,0 +1,11 @@
+{
+  "id": "20261023T173551_b3c417",
+  "created_at": "2026-10-23T17:35:51.835146Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/boardcmd/historicas.go",
+  "description": "INTRODUCIDO: internal/boardcmd/historicas.go:88 intenta leer el titulo del spec antes de comprobar en internal/boardcmd/historicas.go:96 que .hoom/items/\u003cslug\u003e.yaml esta ocupado por un directorio u otro no-item. Si ambas anomalías coinciden (por ejemplo, spec sin permiso o con una linea mayor al limite y directorio en la ruta del item), Candidatas aborta todo el backfill en vez de listar esa tarea con el motivo de no-item y exit 0; tambien impide crear items de tareas independientes. La comprobacion de una ruta que ya hace imposible crear el item no necesita leer el spec.",
+  "author": "reviewer@codex",
+  "fingerprint": "e99fb2fdc0cad878",
+  "task": "historia-en-el-tablero"
+}

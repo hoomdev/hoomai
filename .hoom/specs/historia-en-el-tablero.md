@@ -1,7 +1,17 @@
 # Spec: la historia del proyecto en el tablero
 
-Estado: BORRADOR — pendiente de aprobación humana.
-Tarea sugerida: `hoom task start historia-en-el-tablero`.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión
+aprobada (sha256 51722711) está implementada. Su review mostró que deshacer
+el lote ante un error obliga a backfill a borrar archivos, y un borrado por
+ruta puede llevarse un item que otro proceso tocó en el medio (hallazgos
+1e8b0c, 039b75, a7d0b1). Henry decidió (2026-10-23) que backfill nunca
+borra: la enmienda 1 dice que "nada a medias" vale por item, que un error a
+mitad del lote deja los items ya creados y los lista, y que volver a correr
+backfill completa el resto. Cambia el caso límite de `.hoom/items/` no
+escribible.
+
+Historia: aprobada el 2026-10-23 (sha256 51722711).
+Tarea: `hoom task start historia-en-el-tablero`.
 Origen: `hoom board doctor` en main (2026-10-22) da 32 problemas, todos
 `evidencia-sin-item`: 25 specs anteriores a la cabina con veredictos y sin
 item, y 7 tareas de corrección sin spec (`estabilizar-ci`,
@@ -79,7 +89,11 @@ tres piezas:
 - Tarea de corrección con follow-ups abiertos de severidad menor que
   `block_on`: califica; los follow-ups siguen abiertos y visibles.
 - Un item que ya existe con ese slug: no se toca ni se reescribe.
-- `.hoom/items/` no escribible: error, nada a medias (como `item add`).
+- `.hoom/items/` no escribible, o un alta que falla a mitad del lote
+  (disco lleno): error. Nada a medias por item: cada item se publica entero,
+  como en `item add`. Los items que esa corrida ya creó quedan, completos y
+  válidos, y la salida los lista; volver a correr backfill completa el resto,
+  porque salta los que ya tienen item. Backfill nunca borra un item.
 - Dos personas corren backfill en dos máquinas: crean el mismo archivo con
   contenido distinto en `creado_por` y `creado_en`; es un conflicto de git
   normal y gana el que se integra primero.

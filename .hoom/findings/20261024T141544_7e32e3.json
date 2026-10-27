@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141544_7e32e3",
+  "created_at": "2026-10-24T14:15:44.579933Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:399-408: MetasErr solo registra fallas de lectura; si un sidecar \u003cid\u003e.meta.json esta truncado o parseMeta rechaza su ID/estado, lo omite y devuelve exito. gatherer interpreta ese nil como evidencia completa (internal/boardcmd/gather.go:632-638), asi que una escritura parcial o corrupcion puede ocultar un run y Doctor certificar sin toda la telemetria. La API estricta debe devolver error por cada sidecar con nombre de hoom que no parsea o valida, conservando los sidecars legibles; Metas puede seguir salteandolos.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

@@ -142,6 +142,11 @@ type Evidence struct {
 	TreeFingerprint string
 	TreeChanges     []string // changed files of E's candidate (only with a task worktree)
 	Certified       bool     // some complete verdict of E has TreeFingerprint
+
+	// historia-en-el-tablero: whether the evidence the item's historico
+	// names still holds it, and why not when it does not.
+	HistoricaSostenida bool
+	HistoricaMotivo    string
 }
 
 // ReviewTail is what changed in the card's tree after a review reached its
@@ -182,6 +187,10 @@ type Card struct {
 	// C4: where the evidence of the card does not add up, with the exact
 	// action (the board's badges).
 	Doctor []Problem `json:"doctor"`
+
+	// Historica: the card is in Hecho because its historico still holds,
+	// not because `task done` closed it (historia-en-el-tablero).
+	Historica bool `json:"historica,omitempty"`
 }
 
 // Action ids.

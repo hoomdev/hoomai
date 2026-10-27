@@ -1,0 +1,11 @@
+{
+  "id": "20261024T141529_68b1e2",
+  "created_at": "2026-10-24T14:15:29.422852Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO — internal/boardcmd/gather.go:138-145: fallar deduplica cada diagnostico recorriendo linealmente todo g.fallas, mientras los lectores nuevos llaman informar una vez por cada registro ilegible o invalido (por ejemplo internal/boardcmd/gather.go:214-257). N fallas unicas producen O(N²) comparaciones antes de que Build o Doctor respondan; un arbol degradado con muchos JSON dañados puede volver impracticables el tablero, el doctor y el Studio precisamente cuando deben diagnosticar la degradacion. Mantener un set para pertenencia y el slice para el orden conserva la salida con costo lineal.",
+  "author": "reviewer@codex",
+  "fingerprint": "0fcea10330fc9f3d",
+  "task": "historia-en-el-tablero"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T134734_1499b7",
+  "as": "corregido",
+  "evidence": "a92f1d6: un encabezado de spec con caracteres de control o de direccion (unicode.IsControl, Bidi_Control) no pasa a titulo: la tarea no califica y el motivo lo dice con el titulo escapado. Tests 6a84273 (fallan sobre 65e4498): TestCA447_Hallazgo1499b7_EncabezadoConControlNoCalifica (72 runas) y TestCA447_Hallazgo1499b7_BackfillEncabezadoConControlNoCrea (7 encabezados, dry-run y real; acentos, emojis, CJK, hebreo y CRLF siguen calificando). La parte general (hoom board imprime crudo, item add acepta) queda en el follow-up ec7678.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-23T14:14:47.289527Z"
+}
