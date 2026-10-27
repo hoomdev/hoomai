@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T175558_af0383",
+  "as": "corregido",
+  "evidence": "ea59bba y f5d3210: cada gate corre en su grupo de procesos (procesos.ArrancarConGracia); al vencer el plazo (y ante Ctrl-C o SIGTERM a hoom) el grupo entero recibe SIGTERM, que el cliente docker pasa a su contenedor, y tras graciaGate (10 s) SIGKILL. Tests 707b629 y f170ac5: el 'cliente tipo docker' de gates_en_grupo_test.go y gates_en_grupo2_senales_test.go hace parar al 'contenedor' fuera del arbol del gate; fallan sobre 8900379.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:05:55.213221Z"
+}
