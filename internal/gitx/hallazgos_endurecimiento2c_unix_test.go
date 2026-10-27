@@ -52,6 +52,14 @@ type e2cInforme struct {
 	Touched, Huella e2cResultado
 }
 
+// e2cComillas es s como una sola palabra de sh, sin que nada se interprete:
+// va entre comillas simples, y cada comilla simple de s se escribe cerrando
+// las comillas, una comilla escapada con barra invertida y reabriendolas.
+// Sirve para cualquier ruta (una ruta no puede tener NUL).
+func e2cComillas(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // e2cArmar arma, en el hijo, un repo con .git/config corrupto, un enlace
 // (fuera de todo repo) a su sub/, un directorio fuera de todo repo, y un git
 // falso que la primera vez que el git de verdad falla cambia el enlace para
@@ -68,12 +76,16 @@ func e2cArmar(t *testing.T, real string) (alias, marca, bin string) {
 		t.Fatal(err)
 	}
 	bin, marca = t.TempDir(), filepath.Join(t.TempDir(), "disparado")
+	if strings.ContainsRune(bin, os.PathListSeparator) {
+		t.Skipf("el directorio temporal %q tiene un %q: el PATH no puede nombrarlo y el git falso no se encontraria", bin, os.PathListSeparator)
+	}
+	q := e2cComillas
 	s := "#!/bin/sh\n" +
-		"'" + real + "' \"$@\"\n" +
+		q(real) + " \"$@\"\n" +
 		"c=$?\n" +
-		"if [ $c -ne 0 ] && [ ! -e '" + marca + "' ]; then\n" +
-		"  : > '" + marca + "'\n" +
-		"  rm -f '" + alias + "' && ln -s '" + afuera + "' '" + alias + "'\n" +
+		"if [ $c -ne 0 ] && [ ! -e " + q(marca) + " ]; then\n" +
+		"  : > " + q(marca) + "\n" +
+		"  rm -f " + q(alias) + " && ln -s " + q(afuera) + " " + q(alias) + "\n" +
 		"fi\n" +
 		"exit $c\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(s), 0o755); err != nil {

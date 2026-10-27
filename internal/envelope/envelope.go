@@ -140,25 +140,7 @@ func Write(root string, rec Record) error {
 	// el directorio en que se publico tiene que seguir siendo el de
 	// root/.hoom/envelopes: uno que se movio mientras se escribia dejaria el
 	// registro fuera de su lugar y Write diria que esta (hallazgo f89080)
-	return sigueEnSuLugar(root, r)
-}
-
-// sigueEnSuLugar says, as an error, whether r is no longer the directory
-// root/.hoom/envelopes leads to. What moves it after this look is the
-// residual window of a concurrent rename, accepted like the one of
-// hoomfs.ReemplazarSiSigue.
-func sigueEnSuLugar(root string, r *os.Root) error {
-	ahora, err := hoomfs.AbrirRuta(root, ".hoom", DirName)
-	if err != nil {
-		return fmt.Errorf("el directorio de sobres cambio mientras se escribia: %w", err)
-	}
-	defer ahora.Close()
-	a, err1 := r.Stat(".")
-	b, err2 := ahora.Stat(".")
-	if err1 != nil || err2 != nil || !os.SameFile(a, b) {
-		return errors.New("el directorio de sobres cambio mientras se escribia")
-	}
-	return nil
+	return hoomfs.SigueEn(root, r, ".hoom", DirName)
 }
 
 // registro is rec as hoom writes it: one format for the first try (Write)

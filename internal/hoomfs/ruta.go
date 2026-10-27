@@ -187,6 +187,31 @@ func PublicarEn(r *os.Root, name string, data []byte, mode os.FileMode) error {
 	return nil
 }
 
+// SigueEn says, as an error, whether r is no longer the directory
+// root/partes... leads to: a directory hoom opened and wrote into that
+// another process moved away (and maybe replaced) in the meantime. A writer
+// asks after publishing, so it never reports as in place what it left in a
+// moved directory (findings f89080, 6513a7, 46561c).
+//
+// Moving or renaming hoom's own directories while hoom works in them is out
+// of hoom's threat model (Henry, 2026-10-27), like rewriting evidence after
+// its photograph (spec evidencia-en-disco): this check is the cheap part,
+// and what moves the directory after it, or where a moved directory ends
+// up, is not hoom's to see.
+func SigueEn(root string, r *os.Root, partes ...string) error {
+	ahora, err := AbrirRuta(root, partes...)
+	if err != nil {
+		return fmt.Errorf("%s cambio mientras se escribia: %w", strings.Join(partes, "/"), err)
+	}
+	defer ahora.Close()
+	a, err1 := r.Stat(".")
+	b, err2 := ahora.Stat(".")
+	if err1 != nil || err2 != nil || !os.SameFile(a, b) {
+		return fmt.Errorf("%s cambio mientras se escribia", strings.Join(partes, "/"))
+	}
+	return nil
+}
+
 // ReemplazarSiSigue replaces the regular file name of r, which antes
 // describes, with data, the way PublicarEn writes it. Right before the
 // rename it checks that name is still that object; gone, or another one in

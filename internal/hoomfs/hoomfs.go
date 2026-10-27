@@ -83,7 +83,16 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 		content += "\n"
 	}
 	content += strings.Join(added, "\n") + "\n"
-	return added, PublicarEn(r, ".gitignore", []byte(content), 0o644)
+	if err := PublicarEn(r, ".gitignore", []byte(content), 0o644); err != nil {
+		return nil, err
+	}
+	// published into the .hoom root/.hoom still is, or an error: never
+	// "added" for a .gitignore left in a moved directory (findings 6513a7,
+	// 46561c)
+	if err := SigueEn(root, r, ".hoom"); err != nil {
+		return nil, err
+	}
+	return added, nil
 }
 
 // maxGitignore caps .hoom/.gitignore: hoom writes a few lines.
