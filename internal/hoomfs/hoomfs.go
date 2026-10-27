@@ -86,9 +86,10 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	if err := PublicarEn(r, ".gitignore", []byte(content), 0o644); err != nil {
 		return nil, err
 	}
-	// published into the .hoom root/.hoom still is, or an error: never
-	// "added" for a .gitignore left in a moved directory (findings 6513a7,
-	// 46561c)
+	// The .hoom just written into has to still be the one root/.hoom leads
+	// to; if another process moved it, this is an error, never "added" for a
+	// .gitignore left in a moved directory (findings 6513a7, 46561c,
+	// f27c7d).
 	if err := SigueEn(root, r, ".hoom"); err != nil {
 		return nil, err
 	}
