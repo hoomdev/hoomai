@@ -1,6 +1,21 @@
 # Spec: la review ve todo lo que no es estado de hoom, y la delta no cuenta lo que trajo la base
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La implementación
+de la versión aprobada (sha256 8e921c8d) mostró tres cosas, y la enmienda
+las fija:
+
+1. Con `--desde` en un árbol cuya base ya contiene `HEAD`, la regla
+   descontaba el rango entero y la review terminaba `SIN REVISAR`. Es el
+   caso de CA-424 de review-por-diferencia: revisar un rango ya integrado.
+   Cuando la base ya contiene `HEAD`, la rama no integró nada, y el rango
+   se revisa como hoy.
+2. CA-487 pedía el árbol de trabajo igual después de un `--delta`, pero
+   toda review escribe su registro y su sobre bajo `.hoom/`. Se precisa.
+3. La suite mostró más criterios anteriores que fijan la regla vieja
+   (CA-413, CA-419, CA-420, CA-421, CA-443). Se suman a la lista de
+   re-expresados.
+
+Historia: aprobada el 2026-10-27 (sha256 8e921c8d).
 Depende de: `review-aislada-y-modelo-elegido.md` (PR #38),
 `review-por-diferencia.md` (PR #39) y `base-de-la-review.md` (PR #40),
 integradas.
@@ -97,6 +112,9 @@ rama cambió desde `D` hasta `H`" con una sola función de `gitx`, así nunca
 dicen cosas distintas. Sea `I` el merge-base de la base de la review con `H`:
 la base que la rama tiene integrada.
 
+- Si `I` es `H`, la base ya contiene `HEAD`: es un rango ya integrado que
+  se revisa desde la base, y la rama no integró nada. Se compara `D` con
+  `H`, como hoy, y CA-424 sigue valiendo.
 - Si `I` es ancestro de `D`, se compara `D` con `H`, como hoy.
 - Si no, la rama integró la base después de `D`. Se arma el merge sintético
   de `D` con `I`, y si sale sin conflicto se compara **su árbol** con `H`.
@@ -175,10 +193,26 @@ re-expresa el test-writer contra esta spec, y no se borra ninguno:
   evidencia se arma como siempre". Ahora: solo en el estado de hoom. Una
   edición sin commitear de `.hoom/agents/` o un `.hoom/notas-locales.txt`
   sin rastrear ahora frenan la review.
+- **review-aislada, CA-419.** Las variantes en que la rama reescribe,
+  borra o agrega el contrato 06 **sin commitear** ahora terminan en la
+  negativa de árbol sucio, sin pasadas. El provider sigue sin recibir ese
+  contrato. Las variantes commiteadas no cambian.
+- **review-aislada, CA-413.** Miles de archivos sin rastrear bajo
+  `.hoom/`, fuera del estado, ahora ensucian el árbol. Que no se lean
+  enteros se prueba con los que están en el estado de hoom, o con la
+  negativa, que lee solo la primera entrada.
 - **review-por-diferencia.** `EvidenceDesde` usaba "las mismas rutas", que
   pasan a ser las de esta spec. El caso límite "un merge de `main` … revisa
   de más" lo reemplaza la delta sin la base. En CA-428, "solo de `.hoom/`"
   pasa a ser "solo del estado de hoom".
+- **review-por-diferencia, CA-420 y CA-421.** En CA-420, un
+  `.hoom/notas.txt` commiteado en la historia ahora va en el diff. En
+  CA-421, un rango que solo toca `.hoom/notas.txt` ahora es solo
+  documentación; "no hay cambios" es un rango que solo toca el estado de
+  hoom.
+- **evidencia-en-disco, CA-443.** El `.hoom/findings/.gitignore` que
+  esconde un hallazgo no es estado: el fixture lo commitea antes de la
+  review, y lo demás no cambia.
 
 ## Casos límite y errores esperados
 
@@ -200,6 +234,8 @@ re-expresa el test-writer contra esta spec, y no se borra ninguno:
   todo el contexto.
 - `--desde <c>` con la base integrada después de `c`: la misma regla, y la
   cobertura sale como hoy (`parcial` o `delta`).
+- `--desde <c>` en un árbol cuya base ya contiene `HEAD` (un rango ya
+  integrado): se revisa `c..HEAD` sin descontar nada, como dice CA-424.
 - `--lens` a mano: vale; la cobertura sale de la regla de hoy.
 - Una ruta conflictiva con caracteres de control: el aviso la escapa.
 
@@ -211,7 +247,7 @@ re-expresa el test-writer contra esta spec, y no se borra ninguno:
 - CA-484: si después de una review la rama commitea X, integra la base sin conflicto (eso trae Y) y commitea Z, `hoom review --delta` revisa X y Z sin Y. La medida y las lentes "sobre el rango" son las de X+Z. El registro, el `Result` y `--json` dicen `cobertura: delta`, `desde` = el `hasta` anterior, su `desde_review` y `base_integrada` = el merge-base de la base con `HEAD` (40 hex). La salida lleva la línea `base` y el pedido la línea de la base integrada. Un cambio hecho en el propio commit de merge, más allá del merge limpio, sí aparece. `--desde <c>` en el mismo caso también deja Y afuera.
 - CA-485: si después de una review la rama solo integró la base sin conflicto, `hoom review --delta` termina `SIN REVISAR - no hay cambios desde <desde12>: no hay nada que revisar`, con exit 0 y sin registro. Con un verde para el `HEAD` nuevo, el tablero no devuelve la tarjeta a Review por ese merge.
 - CA-486: si después de una review la rama integró la base resolviendo un conflicto, `hoom review --delta` hace la review completa: `desde` = el merge-base, `cobertura: completa`, sin `desde_review` ni `base_integrada` y primera línea `contra <base>`. La salida y `notes` llevan el aviso `la rama integro la base (<I12>) despues de <D12> y ese merge no se separa (conflicto en <ruta>): la review es completa`. Para el tablero, el código cambió después de la review. Un git que se anuncia anterior a 2.40 da lo mismo con el motivo `git <version> no arma el merge sintetico, hace falta 2.40`.
-- CA-487: el merge sintético no deja rastro ni corre programas. Después de un `--delta` que separó y de un `hoom board` que evaluó esa tarjeta, el repositorio tiene los mismos objetos, refs, índice y árbol de trabajo que antes. Si la rama declara `* merge=drv` en su `.gitattributes` y la config del repo define `merge.drv.driver` como un programa que escribe una marca, la marca nunca aparece. Una falla de git en el merge sintético que no es un conflicto da un error, sin pasadas ni registro.
+- CA-487: el merge sintético no deja rastro ni corre programas. Después de un `--delta` que separó y de un `hoom board` que evaluó esa tarjeta, el repositorio tiene los mismos objetos, refs e índice que antes, y el árbol de trabajo solo cambia en lo que toda review escribe bajo `.hoom/` (su registro, su sobre, su narración). Si la rama declara `* merge=drv` en su `.gitattributes` y la config del repo define `merge.drv.driver` como un programa que escribe una marca, la marca nunca aparece. Una falla de git en el merge sintético que no es un conflicto da un error, sin pasadas ni registro.
 - CA-488: el README y el contrato 06 (sus dos copias iguales) dicen que la evidencia es todo menos el estado de hoom y que la delta descuenta la base integrada. [verifica: grep -q "base_integrada" README.md && grep -q "estado de hoom" README.md && grep -q "estado de hoom" internal/agents/assets/agents/06-reviewer.md && cmp -s internal/agents/assets/agents/06-reviewer.md .hoom/agents/06-reviewer.md]
 
 ## Decisiones
