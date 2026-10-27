@@ -1,0 +1,11 @@
+{
+  "id": "20261027T185347_176b99",
+  "created_at": "2026-10-27T18:53:47.468293Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gates/gates_en_grupo6_test.go",
+  "description": "INTRODUCIDO — internal/gates/gates_en_grupo6_test.go:109: la tabla de casos incrusta U+00A0, U+2028 y U+3000 como caracteres visualmente en blanco dentro de literales rune. En una revisión o edición no se puede identificar cuál valor ocupa cada posición ni distinguirlo de whitespace accidental; usar escapes Unicode explícitos haría el fixture legible y resistente a normalizaciones del editor.",
+  "author": "reviewer@codex",
+  "fingerprint": "51fdef68d4047bf0",
+  "task": "gates-en-grupo"
+}
