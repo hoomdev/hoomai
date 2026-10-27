@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T175652_7ee291",
+  "as": "refutado",
+  "evidence": "No alcanzable: en Unix pr.Close desbloquea la lectura (el pipe es pollable) y la goroutine termina; en Windows el pipe solo lo heredan los descendientes del gate, y estan en un Job Object sin JOB_OBJECT_LIMIT_BREAKAWAY_OK (internal/procesos/procesos_windows.go: LimitFlags = KILL_ON_JOB_CLOSE), asi que ninguno puede salir del Job: al matar el Job (Liberar) mueren todos los que tienen el extremo de escritura y la lectura recibe EOF. Un proceso que no sea descendiente no hereda el handle.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:25:17.10758Z"
+}

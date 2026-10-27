@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T175549_f5984e",
+  "as": "corregido",
+  "evidence": "8e1ec66: el manejador de senales mata una vez los grupos sin gracia y no los vuelve a senalar; a los gates les manda SIGTERM, deja de mirar los que vio vacios y el SIGKILL final va solo a los que seguian (matarSiQueda). El reuso real del numero no se puede forzar de forma determinista; los tests de senales de las rondas 2 y 4 siguen pasando.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:25:17.019525Z"
+}
