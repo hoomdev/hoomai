@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T183416_5fc8ff",
+  "as": "corregido",
+  "evidence": "e11d753: tail recorta los mismos blancos ASCII que la cola deja aparte (blancosASCII), asi un sufijo de espacios Unicode no deja la cola en la marca sola. Test ad2d75b: gates_en_grupo6_test.go (U+00A0, U+2028, U+3000: la cola es el final real de la salida; sobre 3d6d950 quedaba la marca sola o con un caracter cortado).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:43:54.027777Z"
+}
