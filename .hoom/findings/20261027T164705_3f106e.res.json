@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T164705_3f106e",
+  "as": "corregido",
+  "evidence": "f5d3210: el manejador de senales de procesos manda SIGTERM a los grupos con gracia y espera a que terminen (hasta su gracia; una segunda senal corta la espera) antes del SIGKILL. Tests f170ac5 (fallan sobre d1ae903, pasan con f5d3210): gates_en_grupo2_senales_test.go (SIGINT y SIGTERM al PID y al grupo de hoom: la marca del gate aparece, el 'contenedor' fuera del arbol para, hoom no espera la gracia entera si el grupo termina, y una segunda senal termina hoom en menos de 3 s con el grupo muerto; sobre d1ae903 fallan los 12 subtests).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:05:47.22889Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261027T172229_c7a3ce",
+  "created_at": "2026-10-27T17:22:29.58008Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gates/gates_en_grupo3_test.go",
+  "description": "INTRODUCIDO: internal/gates/gates_en_grupo3_test.go:70 duplica casi por completo geg2Hoom (arranque, log, Wait y Cleanup) y devuelve el tipo historicamente nombrado geg2Proc; junto con los ayudantes geg2* reutilizados entre archivos, los fixtures quedan acoplados a la ronda en que aparecieron en vez de a su funcion. Extraer un ayudante/tipo neutral parametrizado por selector, entorno y etiqueta evitaria que cada nueva ronda copie el ciclo de vida y haria navegables los tests por responsabilidad.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}

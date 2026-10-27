@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T172044_e55193",
+  "as": "corregido",
+  "evidence": "b8099aa: la salida del gate va por un pipe propio y no a un archivo: no se crea nada en TMPDIR en ninguna plataforma (en Windows tampoco queda nada al salir por una senal). Tests 0e1ba3d (fallan sobre bbb56fe, pasan con b8099aa): TestHallazgo47764f_CorridaNormalNoCreaNingunArchivoEnTMPDIR (la fecha del TMPDIR vacio del hoom ayudante delata cualquier creacion aunque dure microsegundos: cambia sobre bbb56fe, no con la correccion). El caso Windows no se puede correr aca; el diseno sin archivo lo cubre.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:45:08.216146Z"
+}

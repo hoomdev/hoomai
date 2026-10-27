@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T175322_c61685",
+  "as": "corregido",
+  "evidence": "8e1ec66: colaAcotada guarda a lo sumo 4 KiB de una corrida de blancos (maxBlancos): los blancos de mas no empujan el diagnostico fuera de la cola. Test 1cce600: gates_en_grupo5_test.go (diagnostico + 100 KiB o 1 MiB de lineas vacias, espacios o tabs: sobre ee279b4 la cola queda solo con la marca de truncado, con la correccion contiene el diagnostico; guardas de blancos en el medio y salida normal).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:25:16.926912Z"
+}

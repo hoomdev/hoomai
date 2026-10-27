@@ -1,0 +1,11 @@
+{
+  "id": "20261027T171326_1e64a4",
+  "created_at": "2026-10-27T17:13:26.370265Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO: internal/procesos/procesos.go:42-45 espera primero hasta la gracia maxima de los grupos con gracia y solo despues mata los grupos sin gracia. Studio permite correr un provider y POST /api/verify concurrentemente (internal/servecmd/servecmd.go:459-474), por lo que un unico SIGTERM/Ctrl-C deja al provider sin senal y capaz de seguir editando archivos o haciendo efectos externos hasta 10 s mientras un gate ignora TERM; antes el handler de runcmd lo mataba de inmediato.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}

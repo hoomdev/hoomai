@@ -1,0 +1,11 @@
+{
+  "id": "20261027T171609_fb2f6d",
+  "created_at": "2026-10-27T17:16:09.503378Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO: internal/gates/runner.go:140-146 registra primero defer salida.Close() y despues defer os.Remove(...); por orden LIFO, en Windows Remove corre mientras el archivo sigue abierto, falla y su error se descarta. Cada gate completado deja hoom-gate-*.log (con toda su salida) en TMPDIR, acumulando archivos/espacio indefinidamente.",
+  "author": "reviewer@codex",
+  "fingerprint": "a328357538a3626a",
+  "task": "gates-en-grupo"
+}

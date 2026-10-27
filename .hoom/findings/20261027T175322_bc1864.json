@@ -1,0 +1,11 @@
+{
+  "id": "20261027T175322_bc1864",
+  "created_at": "2026-10-27T17:53:22.892875Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/procesos/procesos.go",
+  "description": "PRE-EXISTENTE, NO CORREGIDO POR ESTE RANGO — internal/procesos/procesos.go:154: matarTrasGracia identifica al destinatario tardio solo por la presencia del PID/PGID en grupos.pids. Si el grupo original fue liberado y, dentro de la gracia, ese numero se reutiliza para un grupo nuevo arrancado por hoom, la entrada nueva tiene la misma clave y el temporizador viejo ejecuta matarSiQueda sobre el reemplazo. Se necesita identidad/generacion por registro; la prueba nueva reconoce en internal/gates/gates_en_grupo4_test.go:170-172 que no cubre precisamente la reutilizacion del mismo numero.",
+  "author": "reviewer@codex",
+  "fingerprint": "37a5f70c71fd5b1f",
+  "task": "gates-en-grupo"
+}

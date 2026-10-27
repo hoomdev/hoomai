@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T183120_01c41b",
+  "as": "corregido",
+  "evidence": "e11d753: terminarConGracia mata en el acto (matarSiQueda, que en Windows es MatarGrupo sobre el Job Object) a un grupo con gracia que no puede recibir SIGTERM, en vez de dejarlo fuera del barrido. No se puede correr en esta maquina (macOS): compila con GOOS=windows y el camino Unix sigue cubierto por los tests de senales de las rondas 2 y 4.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:43:53.939509Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261027T174956_f6709d",
+  "created_at": "2026-10-27T17:49:56.038845Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/procesos/procesos_unix.go",
+  "description": "PRE-EXISTENTE (follow-up; este rango no lo corrige): internal/procesos/procesos_unix.go:91-94 usa kill(-pid, 0) y despues MatarGrupo(pid), pero ambas operaciones identifican al objetivo solo por el PGID numerico. Si el grupo original desaparece y otro grupo recibe ese numero antes del chequeo —ventana que existe mientras el registro aun conserva la entrada en internal/procesos/procesos.go:144-156— grupoVivo devuelve true para el grupo ajeno y SIGKILL lo mata. El registro y el chequeo de miembros no prueban identidad, por lo que la correccion declarada de la reutilizacion de PGID sigue permitiendo perdida o corrupcion de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "37a5f70c71fd5b1f",
+  "task": "gates-en-grupo"
+}

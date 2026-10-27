@@ -1,0 +1,11 @@
+{
+  "id": "20261027T175556_4a9763",
+  "created_at": "2026-10-27T17:55:56.295671Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:91-95,259-271: correr descarta la salida anterior a TailSize+64 KiB antes de que tail aplique TrimSpace. Si un gate termina con mas de 64 KiB de lineas o espacios en blanco, la cola acotada ya elimino sus ultimos mensajes utiles y el veredicto queda solo con la marca de truncado o blancos, aunque esos diagnosticos debian ser la cola despues del trim. Un fallo ruidoso pierde precisamente la evidencia necesaria para recuperarlo; el margen fijo no garantiza lo que afirma el comentario.",
+  "author": "reviewer@codex",
+  "fingerprint": "37a5f70c71fd5b1f",
+  "task": "gates-en-grupo"
+}

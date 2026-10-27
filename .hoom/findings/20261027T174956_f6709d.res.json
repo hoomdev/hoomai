@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T174956_f6709d",
+  "as": "refutado",
+  "evidence": "RIESGO RESIDUAL ACEPTADO por Henry (2026-10-27): la ventana entre mirar si el grupo tiene miembros y senalarlo, en la que el sistema reusa el numero, exige que el rango de PID de la vuelta entera en ese instante (asignacion secuencial en macOS y Linux; Windows usa handles), como se concluyo en 710266. Lo barato se hizo en 8e1ec66 (registro por objeto, no resenalar grupos muertos o vistos vacios, Liberar solo con miembros).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:25:17.076861Z"
+}

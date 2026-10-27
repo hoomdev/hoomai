@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T175322_bc1864",
+  "as": "corregido",
+  "evidence": "8e1ec66: cada registro de grupo es un objeto propio (grupos.pids map[int]*grupo); matarTrasGracia captura la registracion al llamarse y solo mata si grupos.pids[pid] sigue siendo ESA (un grupo nuevo de hoom con el mismo numero es otro objeto); un pid sin registro no recibe nada despues. TestHallazgo2f4af2_SIGKILLTardioSoloAUnGrupoDeHoom sigue pasando.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:25:17.048502Z"
+}

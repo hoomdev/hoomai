@@ -7,13 +7,17 @@ package gates
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -82,11 +86,14 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
 	start := time.Now()
-	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el gate es el comando que el proyecto declara en hoom.yaml: ejecutarlo es el trabajo de verify
-	cmd.Dir = m.Dir
-	out, err := cmd.CombinedOutput()
+	// correr keeps the last TailSize+margenCola bytes; tail then trims the
+	// blanks at both ends and keeps the last TailSize of what is left
+	out, cortado, err := correr(ctx, m.Dir, cmdStr, opt.TailSize+margenCola)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.OutputTail = tail(string(out), opt.TailSize)
+	if cortado && !strings.HasPrefix(res.OutputTail, marcaCorte) {
+		res.OutputTail = marcaCorte + res.OutputTail
+	}
 
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
@@ -108,6 +115,141 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status,
 		DurationMS: res.DurationMS, ExitCode: res.ExitCode})
 	return res
+}
+
+// graciaGate is how long a gate's group has, once its deadline passed,
+// between SIGTERM and SIGKILL: enough for a docker client to stop its
+// container and for a tool to clean up.
+const graciaGate = 10 * time.Second
+
+// correr runs one gate's command in dir and returns the end of its combined
+// output (at most limite bytes; cortado says some was dropped). The gate
+// runs in a process group of its own, registered so that a Ctrl-C to hoom
+// ends it too (procesos.ArrancarConGracia): when ctx ends, the WHOLE group
+// gets SIGTERM and, after graciaGate, SIGKILL — not only the sh, which used
+// to leave git, go test or semgrep (or the container a docker client
+// started) running after verify had marked the gate (findings 862449,
+// af0383).
+//
+// The output goes through a pipe of correr's own, whose write end the gate
+// gets as a file: Wait returns when the sh ends, even if something it left
+// behind still holds the output, so a gate that exits 0 is never kept
+// waiting nor turned into an error by an orphan (finding 5a05b4). Nothing
+// goes to disk (findings 6599fe, 47764f, fb2f6d, e55193) and only the end of
+// the output is kept in memory (finding 5a3741). Then whatever the gate left
+// in its group dies with it (procesos.Liberar) — after the rest of its
+// gracia when the deadline passed (finding 01d565) — and the reading ends
+// with it; something that left the group and still holds the output gets
+// finDeLectura more, and no more.
+func correr(ctx context.Context, dir, cmdStr string, limite int) (out []byte, cortado bool, err error) {
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return nil, false, err
+	}
+	defer pr.Close()
+	cola := &colaAcotada{limite: limite}
+	leido := make(chan struct{})
+	go func() {
+		io.Copy(cola, pr)
+		close(leido)
+	}()
+	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el gate es el comando que el proyecto declara en hoom.yaml: ejecutarlo es el trabajo de verify
+	cmd.Dir = dir
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+	cmd.WaitDelay = graciaGate + 5*time.Second
+	err = procesos.ArrancarConGracia(cmd, graciaGate)
+	pw.Close() // the gate keeps its copy: EOF comes when the gate's are closed
+	if err != nil {
+		return nil, false, err // the deferred Close ends the reading
+	}
+	err = cmd.Wait()
+	if ctx.Err() != nil {
+		procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGate))
+	}
+	procesos.Liberar(cmd.Process.Pid)
+	select {
+	case <-leido:
+	case <-time.After(finDeLectura):
+		// someone outside the group holds the output: stop reading. On
+		// Windows a pending read on a pipe may outlive its Close, so the
+		// wait is bounded too and the tail is taken as it is
+		pr.Close()
+		select {
+		case <-leido:
+		case <-time.After(finDeLectura):
+		}
+	}
+	out, cortado = cola.bytes()
+	return out, cortado, err
+}
+
+// finDeLectura is how long the output is still read once the gate and its
+// group are gone: what something that left the group writes is not the
+// gate's.
+const finDeLectura = 2 * time.Second
+
+// colaAcotada keeps the end of what is written to it: bytes() gives the
+// last limite bytes of the output without its trailing blanks, and whether
+// more came before them. To copy less, it lets its buffer grow up to
+// 2*limite before dropping the oldest half (finding d3331e).
+//
+// A run of blanks (blancosASCII) is held aside until something that is not
+// a blank follows it, and only then added (its last limite bytes are enough
+// for the tail): blanks in the middle stay exactly where they were (finding
+// 77dc9a), and the run at the end, which tail trims anyway, never pushes the
+// output before it out of the tail — a gate that prints its diagnostic and
+// then 64 KiB of blank lines keeps the diagnostic (findings c61685, 4a9763).
+type colaAcotada struct {
+	mu      sync.Mutex
+	limite  int
+	buf     []byte
+	blancos []byte // the run of blanks after buf, not added yet: its end
+	enRacha int    // how long that run really is
+	cortado bool
+}
+
+// blancosASCII are the blanks colaAcotada holds aside and tail trims: the
+// same set on both sides (finding 5fc8ff).
+const blancosASCII = " \t\n\r\v\f"
+
+func (c *colaAcotada) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, b := range p {
+		if strings.IndexByte(blancosASCII, b) >= 0 {
+			c.blancos = append(c.blancos, b)
+			c.enRacha++
+			if c.limite > 0 && len(c.blancos) > 2*c.limite {
+				c.blancos = append(c.blancos[:0], c.blancos[len(c.blancos)-c.limite:]...)
+			}
+			continue
+		}
+		// a run that lost its start is a cut only now that output follows
+		// it: a run at the very end is trimmed whole anyway
+		if c.enRacha > len(c.blancos) {
+			c.cortado = true
+		}
+		c.buf = append(c.buf, c.blancos...)
+		c.blancos, c.enRacha = c.blancos[:0], 0
+		c.buf = append(c.buf, b)
+	}
+	if c.limite > 0 && len(c.buf) > 2*c.limite {
+		c.buf = append(c.buf[:0], c.buf[len(c.buf)-c.limite:]...)
+		c.cortado = true
+	}
+	return len(p), nil
+}
+
+func (c *colaAcotada) bytes() ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	b := c.buf // the trailing blanks (c.blancos) are left out: tail trims them
+	cortado := c.cortado
+	if c.limite > 0 && len(b) > c.limite {
+		b, cortado = b[len(b)-c.limite:], true
+	}
+	return append([]byte(nil), b...), cortado
 }
 
 // selectCommand picks diff_cmd when a diff scope exists and --full was not
@@ -145,10 +287,20 @@ func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string)
 	return cmdStr, scope
 }
 
+// margenCola is how much more than TailSize correr keeps. tail trims the
+// blanks at both ends before taking its last TailSize bytes: keeping only
+// TailSize would leave the verdict's tail shorter than TailSize whenever the
+// kept bytes start with blanks. The margin makes sure that, after the trim,
+// there are still TailSize bytes to take (finding 3d3af4).
+const margenCola = 64 << 10
+
+// marcaCorte opens a tail that is not the whole output.
+const marcaCorte = "...[truncado]...\n"
+
 func tail(s string, n int) string {
-	s = strings.TrimSpace(s)
+	s = strings.Trim(s, blancosASCII)
 	if len(s) <= n {
 		return s
 	}
-	return "...[truncado]...\n" + s[len(s)-n:]
+	return marcaCorte + s[len(s)-n:]
 }

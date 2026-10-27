@@ -1,0 +1,11 @@
+{
+  "id": "20261027T185347_3d3af4",
+  "created_at": "2026-10-27T18:53:47.330048Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:89 y internal/gates/runner.go:289-290: los comentarios nuevos «so the tail tail cuts is full/never short» son gramaticalmente incomprensibles y no explican la relación entre TailSize, margenCola y los dos recortes; esto deja sin documentar el motivo de conservar 64 KiB adicionales. Reformularlos con el invariante concreto de cada límite.",
+  "author": "reviewer@codex",
+  "fingerprint": "51fdef68d4047bf0",
+  "task": "gates-en-grupo"
+}

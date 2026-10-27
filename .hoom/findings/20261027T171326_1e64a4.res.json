@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T171326_1e64a4",
+  "as": "corregido",
+  "evidence": "b8099aa: ante una senal, el manejador de procesos mata al instante los grupos sin gracia y despues espera la de los gates. Tests 0e1ba3d (fallan sobre bbb56fe, pasan con b8099aa): TestHallazgo1e64a4_SenalAHoomMataAlInstanteElGrupoSinGracia (provider con procesos.Arrancar y gate con gracia que ignora TERM; SIGINT/SIGTERM al PID o al grupo de hoom: el provider y su hijo mueren en menos de 1 s con el gate en su gracia; sobre bbb56fe el provider sigue vivo a 1 s).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:45:08.249152Z"
+}

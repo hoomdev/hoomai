@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T175901_d3331e",
+  "as": "corregido",
+  "evidence": "8e1ec66: los comentarios de TerminarGrupo (SIGTERM a cualquier grupo; el SIGKILL tardio solo a la misma registracion) y de colaAcotada (retencion amortizada hasta ~2*limite, bytes() da el final exacto) dicen lo que hace el codigo.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:25:17.167005Z"
+}

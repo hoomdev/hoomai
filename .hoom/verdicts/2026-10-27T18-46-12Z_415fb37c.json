@@ -1,0 +1,120 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-27T18-46-12Z_415fb37c",
+  "created_at": "2026-10-27T18:46:12.743343Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "0aa4babb9fd6",
+    "branch": "hoom/gates-en-grupo",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      "internal/gates/gates_en_grupo2_senales_test.go",
+      "internal/gates/gates_en_grupo2_test.go",
+      "internal/gates/gates_en_grupo3_test.go",
+      "internal/gates/gates_en_grupo4_senales_test.go",
+      "internal/gates/gates_en_grupo4_test.go",
+      "internal/gates/gates_en_grupo5_test.go",
+      "internal/gates/gates_en_grupo6_test.go",
+      "internal/gates/gates_en_grupo_ayudantes_test.go",
+      "internal/gates/gates_en_grupo_senales_test.go",
+      "internal/gates/gates_en_grupo_test.go",
+      "internal/gates/runner.go",
+      "internal/procesos/procesos.go",
+      "internal/procesos/procesos_unix.go",
+      "internal/procesos/procesos_windows.go",
+      "internal/runcmd/grupo.go"
+    ],
+    "change_fingerprint": "51fdef68d4047bf0",
+    "insertions": 3354,
+    "deletions": 65
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 83,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 11 medium, 14 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 448
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 816,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 650
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 14354
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./internal/gates ./internal/procesos ./internal/runcmd",
+      "exit_code": 0,
+      "duration_ms": 121237,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/gates\t69.523s\n?   \tgithub.com/hoomdev/hoomai/internal/procesos\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t118.699s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261027T170436_6599fe",
+  "created_at": "2026-10-27T17:04:36.037289Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO (f5d3210; test-writer) — la salida del gate va a $TMPDIR/hoom-gate-\u003cn\u003e.log y solo se borra al volver correr: si hoom termina por una senal (o SIGKILL) con un gate corriendo, el archivo queda, con la salida del gate (que puede traer secretos de una herramienta; modo 0600). Cada corrida de los tests de senales de internal/gates deja 16.",
+  "author": "test-writer",
+  "fingerprint": "c0d4d5ffb83e7e75",
+  "task": "gates-en-grupo"
+}

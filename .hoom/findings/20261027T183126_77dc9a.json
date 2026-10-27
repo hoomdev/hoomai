@@ -1,0 +1,11 @@
+{
+  "id": "20261027T183126_77dc9a",
+  "created_at": "2026-10-27T18:31:26.310259Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:216-225 descarta cualquier blanco después de 4 KiB aunque la racha esté en medio de la salida, no solo al final como presupone el comentario. Con TailSize=16384, por ejemplo, una salida 'INICIO'+5000 espacios+'FIN' cabe completa y antes se devolvía completa; ahora pierde 904 espacios y recibe la marca de truncado. Options.TailSize promete la cantidad de bytes de cola y la evidencia queda alterada aun cuando no era necesario truncarla; la prueba nueva solo cubre rachas internas de 2 MiB, que ya exceden la cola, y no detecta este caso.",
+  "author": "reviewer@codex",
+  "fingerprint": "89d61da4549d6a05",
+  "task": "gates-en-grupo"
+}

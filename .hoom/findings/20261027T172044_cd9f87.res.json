@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T172044_cd9f87",
+  "as": "corregido",
+  "evidence": "b8099aa: el SIGKILL de despues de la gracia (matarTrasGracia) solo va a un grupo todavia registrado y con miembros, mirado bajo el candado del registro; Liberar tambien mata solo un grupo con miembros (matarSiQueda). Tests 0e1ba3d (fallan sobre bbb56fe, pasan con b8099aa): TestHallazgo2f4af2_SIGKILLTardioSoloAUnGrupoDeHoom (TerminarGrupo sobre un grupo que hoom no registro: vivo pasada la gracia; sobre bbb56fe lo mataba al segundo) y TestHallazgo2f4af2_GrupoNuevoSobreviveLaGraciaDelGateAnterior. El reuso real del numero de grupo no se puede forzar de forma determinista (100.000 procesos en macOS, user namespaces en Linux): queda la evidencia del registro.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:45:08.333309Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T170436_6599fe",
+  "as": "corregido",
+  "evidence": "c12f14b: en Unix el temporal de la salida se borra apenas se crea y se lee por su descriptor (leerDesdeElPrincipio); en Windows se borra al volver. Test bb0309b: gates_en_grupo3_test.go (hoom ayudante con TMPDIR propio muerto por SIGINT y por SIGKILL con un gate corriendo: sobre f170ac5 queda hoom-gate-*.log con la salida; con c12f14b nada; corrida normal sin senal tampoco deja nada).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:09:21.458544Z"
+}

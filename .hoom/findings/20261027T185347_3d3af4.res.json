@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T185347_3d3af4",
+  "as": "corregido",
+  "evidence": "afbbd0e: los comentarios de margenCola y de la llamada a correr dicen la invariante: correr guarda TailSize+margenCola, tail recorta blancos en los dos extremos y toma los ultimos TailSize, y el margen asegura que despues del recorte queden TailSize bytes.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:55:28.276592Z"
+}

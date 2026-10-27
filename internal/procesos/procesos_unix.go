@@ -67,6 +67,46 @@ func MatarGrupo(pid int) error {
 	return err
 }
 
+// TerminarGrupo ends the process group whose leader is pid the polite way
+// first: SIGTERM to the whole group, which a docker client passes on to its
+// container (so a containerized semgrep stops instead of running on, finding
+// af0383) and a tool can catch to clean up; whoever is still in the group
+// after gracia gets SIGKILL (MatarGrupo). It does not wait for the gracia:
+// it is exec's Cancel, which must return at once. The SIGTERM goes to any
+// group number it is given; the SIGKILL after gracia only to a group this
+// process registered with Arrancar or ArrancarConGracia, and only to that
+// same registration (matarTrasGracia, finding 4757e3).
+func TerminarGrupo(pid int, gracia time.Duration) error {
+	if pid <= 0 {
+		return nil
+	}
+	err := syscall.Kill(-pid, syscall.SIGTERM)
+	if err == syscall.ESRCH {
+		return nil // nobody left in the group
+	}
+	matarTrasGracia(pid, gracia)
+	return err
+}
+
+// matarSiQueda kills the group of pid only if someone is still in it: an
+// empty group's number is free for the system to give to a new group.
+func matarSiQueda(pid int) {
+	if grupoVivo(pid) {
+		MatarGrupo(pid)
+	}
+}
+
+// senalarTerm sends SIGTERM to the group of pid and says whether it was
+// there to get it.
+func senalarTerm(pid int) bool {
+	return pid > 0 && syscall.Kill(-pid, syscall.SIGTERM) == nil
+}
+
+// grupoVivo says whether anyone is left in the group of pid.
+func grupoVivo(pid int) bool {
+	return pid > 0 && syscall.Kill(-pid, 0) == nil
+}
+
 // Senales are the signals after which this process must not leave its
 // groups behind: a group of its own gets neither the terminal's Ctrl-C nor
 // the hang-up of a closed terminal.

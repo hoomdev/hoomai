@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T183516_6d3179",
+  "as": "corregido",
+  "evidence": "e11d753: el comentario del registro de grupos separa las dos protecciones (el SIGKILL tardio solo a la misma registracion; no se resenala un grupo muerto o visto vacio) de la ventana que se acepta (mirar y senalar).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:43:54.057199Z"
+}

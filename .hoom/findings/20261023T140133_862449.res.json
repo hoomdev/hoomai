@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T140133_862449",
+  "as": "corregido",
+  "evidence": "ea59bba y f5d3210: cada gate corre en su grupo de procesos (procesos.ArrancarConGracia); al vencer el plazo el grupo entero recibe SIGTERM y, tras graciaGate (10 s), SIGKILL; ante Ctrl-C o SIGTERM a hoom, lo mismo; lo que el gate deja muere al terminar. Tests 707b629 y f170ac5: gates_en_grupo_test.go, gates_en_grupo_senales_test.go, gates_en_grupo2*_test.go (plazo que vuelve a tiempo, SIGTERM antes que SIGKILL, cliente tipo docker que para a su contenedor fuera del arbol, nada vivo despues; fallan sobre 8900379).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:05:47.33364Z"
+}

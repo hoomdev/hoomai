@@ -1,0 +1,11 @@
+{
+  "id": "20261027T183355_648d31",
+  "created_at": "2026-10-27T18:33:55.068187Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO — internal/procesos/procesos.go:68-70: el cierre por señal ahora aplica matarSiQueda solo a los PID que devuelve terminarConGracia. En Windows, internal/procesos/procesos_windows.go:118-123 define senalarTerm como false porque no hay señal amable; por eso terminarConGracia no agrega ningún gate arrancado con ArrancarConGracia a vivos y devuelve una lista vacía. Terminar sale inmediatamente sin ejecutar MatarGrupo sobre esos Job Objects, dejando vivos el gate y sus descendientes después de Ctrl-C/SIGTERM. La cobertura de señales está excluida de Windows (internal/gates/gates_en_grupo_senales_test.go:1).",
+  "author": "reviewer@codex",
+  "fingerprint": "89d61da4549d6a05",
+  "task": "gates-en-grupo"
+}

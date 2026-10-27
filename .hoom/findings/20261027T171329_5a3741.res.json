@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T171329_5a3741",
+  "as": "corregido",
+  "evidence": "b8099aa: correr guarda solo el final de la salida (colaAcotada, TailSize + 64 KiB) y nada va a disco. Tests 0e1ba3d (fallan sobre bbb56fe, pasan con b8099aa): TestHallazgo5a3741_SalidaEnormeSoloDejaLaColaSinDiscoNiMemoria (un gate imprime 50 MiB: cola con la marca de truncado y lo ultimo impreso; memoria residente maxima +115 MiB sobre bbb56fe, +1 a +4 MiB con la correccion; tope 25 MiB).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:47:31.762535Z"
+}

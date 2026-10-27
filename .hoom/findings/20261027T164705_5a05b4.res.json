@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T164705_5a05b4",
+  "as": "corregido",
+  "evidence": "f5d3210: la salida del gate va a un archivo y no a un pipe: Wait vuelve cuando termina el sh. Tests f170ac5 (fallan sobre d1ae903, pasan con f5d3210): gates_en_grupo2_test.go (gate con sleep 300 \u0026 heredando la salida y exit 0: vuelve en menos de 3 s, en pass, sin nota de timeout y con su salida exacta; el sleep queda muerto; sobre d1ae903 tardaba 15 s).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:05:47.290772Z"
+}

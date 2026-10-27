@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T183126_77dc9a",
+  "as": "corregido",
+  "evidence": "e11d753: colaAcotada deja aparte la ultima racha de blancos y la agrega solo cuando sigue salida: los blancos del medio quedan intactos y la marca de truncado aparece solo si se perdio salida. Test ad2d75b: gates_en_grupo6_test.go (INICIO + 5000 blancos + FIN con TailSize 16384: salida completa sin marca, 8 subtests; diagnostico + 1 MiB de blancos finales sin marca; fallan sobre 3d6d950).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:43:53.999485Z"
+}
