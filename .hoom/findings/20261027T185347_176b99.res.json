@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T185347_176b99",
+  "as": "corregido",
+  "evidence": "58aface: la tabla de 5fc8ff usa escapes '\\u00a0', '\\u2028', '\\u3000' y nombra cada caso por su codigo; los gates_en_grupo*_test.go no tienen bytes no ASCII. El test sigue pasando con la correccion y fallando sobre 3d6d950.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T18:55:28.244292Z"
+}
