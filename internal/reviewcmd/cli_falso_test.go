@@ -127,6 +127,7 @@ func cliFalso(cuerpo string) []byte {
 // review por stdin, asi que no llevan drenaje.
 var cliFalsoOtrosScripts = map[string]int{
 	"base_de_la_review_ronda1_test.go":      1, // bdGitQueMueveLaRef: un git
+	"evidencia_de_la_review_unix_test.go":   2, // edrGitViejo y edrGitSinMergeTree: dos git
 	"binario_de_la_review_test.go":          2, // el hoom viejo al frente del PATH (dos tests): nadie lo corre con el pedido
 	"review_aislada_evidencia_test.go":      1, // raGitRoto: un git
 	"review_aislada_memoria_test.go":        2, // un driver de diff de git y un git

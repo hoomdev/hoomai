@@ -43,6 +43,13 @@ import (
 // archivos nuevos (tambien con nombre no ASCII), binarios sin contenido, y
 // nada de .hoom/ fuera de .hoom/agents/, ni commiteado ni sin commitear; mas
 // el spec tal como esta en HEAD; Bytes y SHA256 cierran.
+//
+// Re-expresado por evidencia-de-la-review (CA-401 de review-aislada): "lo
+// que esta en las rutas de esta spec. Por ejemplo, .hoom/notas.txt ...
+// commiteado entra". El .hoom/notas.txt commiteado ahora va en la evidencia;
+// lo que no va es el estado de hoom (el spec, commiteado o no), y lo sin
+// commitear que no ensucia el arbol es estado de hoom (un borrador de spec):
+// un .hoom/notas-locales.txt sin rastrear ahora frena la review (CA-482).
 func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 	root := raRepo(t, "")
 	write(t, root, "committed.go", "package app\n\nvar Base = 1\n")
@@ -62,11 +69,13 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 	write(t, root, "imagen.bin", "\x00\x02MARCA-BINARIA-NUEVA\x00\xff")
 	const specRama = "# Spec x\n\nversion rama: SPEC-NO-VA-EN-EL-DIFF\n"
 	write(t, root, ".hoom/specs/x.md", specRama)
-	write(t, root, ".hoom/notas.txt", "NOTA-HOOM-FUERA-DEL-DIFF\n")
+	write(t, root, ".hoom/notas.txt", "NOTA-HOOM-COMMITEADA-VA\n")
 	raCommit(t, root, "segundo commit de la rama")
-	// sin commitear y solo bajo .hoom/: no ensucia el arbol ni va
-	write(t, root, ".hoom/notas-locales.txt", "NOTA-HOOM-SIN-COMMITEAR\n")
+	// sin commitear y solo en el estado de hoom (un borrador de spec): no
+	// ensucia el arbol ni va (evidencia-de-la-review)
+	write(t, root, ".hoom/specs/borrador.md", "NOTA-HOOM-SIN-COMMITEAR\n")
 	raLimpio(t, "CA-401", root)
+	edrLimpio(t, "CA-401", root)
 
 	g := gitx.Snapshot(root, "main")
 	for _, f := range []string{"committed.go", "app.go", "nuevo.go", "imagen.bin", ".hoom/specs/x.md"} {
@@ -91,6 +100,8 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 		"+++ b/nuevo.go", "+// archivo nuevo commiteado ñandú",
 		"+// contenido-unico-ñu",
 		"imagen.bin", "nuevo.bin", "Binary files",
+		// evidencia-de-la-review: .hoom/notas.txt commiteado entra
+		"diff --git a/.hoom/notas.txt b/.hoom/notas.txt", "+NOTA-HOOM-COMMITEADA-VA",
 	} {
 		if !strings.Contains(diff, quiero) {
 			t.Fatalf("CA-401: el diff del candidato trae %q:\n%s", quiero, diff)
@@ -99,10 +110,10 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 	if !strings.Contains(raSeccion(diff, "diff --git a/nuevo.go b/nuevo.go"), "new file mode") {
 		t.Fatalf("CA-401: un archivo nuevo va como parche de archivo nuevo:\n%s", diff)
 	}
-	for _, nunca := range []string{"MARCA-BINARIA", "GIT binary patch", "SPEC-NO-VA-EN-EL-DIFF", "NOTA-HOOM-FUERA-DEL-DIFF",
-		"NOTA-HOOM-SIN-COMMITEAR", "a/.hoom/", "b/.hoom/"} {
+	for _, nunca := range []string{"MARCA-BINARIA", "GIT binary patch", "SPEC-NO-VA-EN-EL-DIFF",
+		"NOTA-HOOM-SIN-COMMITEAR", "a/.hoom/specs/", "b/.hoom/specs/"} {
 		if strings.Contains(diff, nunca) {
-			t.Fatalf("CA-401: el diff no trae %q (binarios sin contenido, nada de .hoom/ fuera de .hoom/agents/):\n%s", nunca, diff)
+			t.Fatalf("CA-401: el diff no trae %q (binarios sin contenido, nada del estado de hoom):\n%s", nunca, diff)
 		}
 	}
 	if !bytes.Equal(ev.Spec, []byte(specRama)) {
@@ -131,6 +142,11 @@ func TestCA401_EvidenciaDelCandidato(t *testing.T) {
 // borrado commiteado ahi), con el archivo nuevo de nombre no ASCII y el
 // binario sin contenido; un archivo que solo EMPIEZA con .hoom esta fuera de
 // .hoom/ y va.
+//
+// Re-expresado por evidencia-de-la-review: lo de .hoom/ que la rama toca son
+// specs (estado de hoom: no van); lo sin commitear que "no cuenta ni va" es
+// estado de hoom (un documento de .hoom/intake/), porque un .hoom/notas.txt
+// sin rastrear ahora frena la review (CA-482).
 func TestCA401_BorradoYRenombreCommiteados(t *testing.T) {
 	root := raRepo(t, "")
 	write(t, root, "auth.go", "package app\n\n// Autoriza es la comprobacion de permisos que la rama borra.\n"+
@@ -157,9 +173,10 @@ func TestCA401_BorradoYRenombreCommiteados(t *testing.T) {
 	write(t, root, "piñata/ñandú.go", "package pinata\n\n// NO-ASCII-COMMITEADO\n")
 	write(t, root, "datos.bin", "\x00\x01BINARIO-SIN-CONTENIDO\x00\xff")
 	raCommit(t, root, "no ascii y binario")
-	// sin commitear bajo .hoom/: no cuenta ni va
-	write(t, root, ".hoom/notas.txt", "NOTA-HOOM-FUERA-DEL-DIFF\n")
+	// sin commitear en el estado de hoom: no cuenta ni va
+	write(t, root, ".hoom/intake/notas.txt", "NOTA-HOOM-FUERA-DEL-DIFF\n")
 	raLimpio(t, "CA-401", root)
+	edrLimpio(t, "CA-401", root)
 
 	ev, err := Evidence(root, "main", "", raTopeGrande)
 	if err != nil {
@@ -201,7 +218,7 @@ func TestCA401_BorradoYRenombreCommiteados(t *testing.T) {
 	for _, nunca := range []string{"BINARIO-SIN-CONTENIDO", "GIT binary patch", "SPEC-VIEJO-BORRADO-EN-LA-RAMA",
 		"SPEC-CAMBIADO-Y-COMMITEADO", "NOTA-HOOM-FUERA-DEL-DIFF", "a/.hoom/", "b/.hoom/"} {
 		if strings.Contains(diff, nunca) {
-			t.Fatalf("CA-401: la evidencia no trae %q (binario sin contenido, nada de .hoom/):\n%s", nunca, diff)
+			t.Fatalf("CA-401: la evidencia no trae %q (binario sin contenido, nada del estado de hoom):\n%s", nunca, diff)
 		}
 	}
 	if ev.Spec != nil || ev.Bytes != len(ev.Diff) || ev.SHA256 != raSHA(ev.Diff, nil) {
@@ -320,6 +337,14 @@ func TestCA401_UnaLenteMismaEvidencia(t *testing.T) {
 // directorio que solo EMPIEZA con 'agents' (.hoom/agents-viejo/), el spec,
 // los hallazgos ni el resto de .hoom/, ni una edicion sin commitear de
 // .hoom/agents/ (que tampoco ensucia el arbol).
+//
+// Re-expresado por evidencia-de-la-review: "lo que esta en las rutas de esta
+// spec. Por ejemplo, ... .hoom/agents-viejo/ commiteados entran". El cambio
+// commiteado en .hoom/agents-viejo/ ahora va en la evidencia; el spec, los
+// hallazgos y .hoom/intake/ (estado de hoom) siguen sin ir. Y la edicion sin
+// commitear de .hoom/agents/ ahora frena la review (CA-416 re-expresado,
+// CA-482): Evidence y la review se niegan nombrandola, sin pasadas; sin ella,
+// la review corre con la evidencia de lo commiteado.
 func TestCA401_CambioCommiteadoEnHoomAgentsVaEnLaEvidencia(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "")
@@ -342,6 +367,20 @@ func TestCA401_CambioCommiteadoEnHoomAgentsVaEnLaEvidencia(t *testing.T) {
 	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\nEDICION-SIN-COMMITEAR-DE-AGENTS\n")
 	raLimpio(t, "CA-401", root)
 
+	// evidencia-de-la-review: la edicion sin commitear de .hoom/agents/ frena
+	// la evidencia y la review, nombrandola, y no llega a ningun lado
+	if ev, err := Evidence(root, "main", "", raTopeGrande); err == nil || err.Error() != raErrSucio(".hoom/agents/04-writer.md") || len(ev.Diff) != 0 {
+		t.Fatalf("CA-401/CA-416: con una edicion sin commitear de .hoom/agents/ Evidence devuelve %q: %v", raErrSucio(".hoom/agents/04-writer.md"), err)
+	}
+	cx := raInstalar(t, bin, "codex", "")
+	res, rerr, out := raRunConReloj(t, "CA-401", 30*time.Second, root, Options{Provider: "codex", Lens: "risk"})
+	if msg := rdNegada(t, "CA-401/CA-416", "edicion sin commitear de .hoom/agents/", root, cx, 0, 0, res, rerr, out,
+		raErrSucio(".hoom/agents/04-writer.md")); strings.Contains(msg, "EDICION-SIN-COMMITEAR-DE-AGENTS") {
+		t.Fatalf("CA-401/CA-416: la edicion sin commitear no aparece en la negativa:\n%s", msg)
+	}
+	git(t, root, "checkout", "-q", "--", ".hoom/agents/04-writer.md")
+	edrLimpio(t, "CA-401", root)
+
 	ev := raEvidencia(t, "CA-401", root, "")
 	diff := string(ev.Diff)
 	w := raSeccion(diff, "diff --git a/.hoom/agents/04-writer.md b/.hoom/agents/04-writer.md")
@@ -359,16 +398,20 @@ func TestCA401_CambioCommiteadoEnHoomAgentsVaEnLaEvidencia(t *testing.T) {
 	if !strings.Contains(diff, "+func Nuevo() {}") {
 		t.Fatalf("CA-401: la evidencia trae el cambio de codigo:\n%s", diff)
 	}
-	for _, nunca := range []string{"agents-viejo", "FUERA-DE-AGENTS-POR-PREFIJO", "SPEC-DE-LA-RAMA-NO-VA", "HALLAZGO-NO-VA",
+	// evidencia-de-la-review: .hoom/agents-viejo/ commiteado entra
+	if v := raSeccion(diff, "diff --git a/.hoom/agents-viejo/nota.md b/.hoom/agents-viejo/nota.md"); !strings.Contains(v, "-nota base") ||
+		!strings.Contains(v, "+FUERA-DE-AGENTS-POR-PREFIJO") {
+		t.Fatalf("CA-401: el cambio commiteado en .hoom/agents-viejo/ va en la evidencia con sus dos lados:\n%s", diff)
+	}
+	for _, nunca := range []string{"SPEC-DE-LA-RAMA-NO-VA", "HALLAZGO-NO-VA",
 		"INTAKE-NO-VA", "EDICION-SIN-COMMITEAR-DE-AGENTS", "a/.hoom/specs", "b/.hoom/findings", "b/.hoom/intake"} {
 		if strings.Contains(diff, nunca) {
-			t.Fatalf("CA-401: de .hoom/ solo va lo commiteado en .hoom/agents/: la evidencia no trae %q:\n%s", nunca, diff)
+			t.Fatalf("CA-401: del estado de hoom no va nada: la evidencia no trae %q:\n%s", nunca, diff)
 		}
 	}
 
 	// y la pasada recibe esa misma evidencia
-	cx := raInstalar(t, bin, "codex", "")
-	res, out := raRevisar(t, "CA-401", root, Options{Provider: "codex", Lens: "risk"})
+	res, out = raRevisar(t, "CA-401", root, Options{Provider: "codex", Lens: "risk"})
 	if res.Status != "revisado" || cx.veces() != 1 || res.EvidenceSHA256 != ev.SHA256 {
 		t.Fatalf("CA-401: la review corre con esa evidencia: %+v\n%s", res, out)
 	}
@@ -1486,26 +1529,34 @@ func TestCA416_ArbolSucioEsErrorYLaReviewNoLanzaPasadas(t *testing.T) {
 // ignorado, por .git/info/exclude), el arbol no esta sucio: la evidencia se
 // arma como siempre, con lo commiteado y nada de eso; la review corre y
 // nada de eso llega al provider.
+//
+// Re-expresado por evidencia-de-la-review (CA-416 de review-aislada): "decia
+// 'con cambios solo en .hoom/ la evidencia se arma como siempre'. Ahora:
+// solo en el estado de hoom". Las mismas formas (un rastreado modificado, un
+// sin rastrear, uno en el indice, un borrado y dos mas) caen en entradas del
+// estado de hoom: el spec, .hoom/intake/, un item, un veredicto, el
+// trinquete y una aprobacion. .hoom/notas.txt, un borrado de .hoom/borrar.md
+// y lo sin commitear de .hoom/agents/ ahora frenan la review (CA-482).
 func TestCA416_CambiosSoloEnHoomOIgnoradosArmanLaEvidencia(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "")
 	write(t, root, ".gitignore", ".env\nbuild/\nnode_modules/\n")
 	write(t, root, ".hoom/specs/x.md", "# Spec x\n\nversion commiteada\n")
-	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\ncontrato commiteado\n")
-	write(t, root, ".hoom/borrar.md", "se borra sin commitear\n")
+	write(t, root, ".hoom/ratchet.json", "{}\n")
+	write(t, root, ".hoom/verdicts/borrar.json", "{\"se\":\"borra sin commitear\"}\n")
 	git(t, root, "add", "-A")
 	git(t, root, "commit", "-q", "-m", "base")
 	raCambio(t, root)
-	// bajo .hoom/
+	// en el estado de hoom
 	write(t, root, ".hoom/specs/x.md", "# Spec x\n\nEDICION-SIN-COMMITEAR-DEL-SPEC\n")
-	write(t, root, ".hoom/notas.txt", "NOTA-HOOM-SIN-COMMITEAR\n")
+	write(t, root, ".hoom/intake/notas.txt", "NOTA-HOOM-SIN-COMMITEAR\n")
 	write(t, root, ".hoom/items/y.yaml", "titulo: ITEM-EN-EL-INDICE\n")
 	git(t, root, "add", ".hoom/items/y.yaml")
-	if err := os.Remove(filepath.Join(root, ".hoom", "borrar.md")); err != nil {
+	if err := os.Remove(filepath.Join(root, ".hoom", "verdicts", "borrar.json")); err != nil {
 		t.Fatal(err)
 	}
-	write(t, root, ".hoom/agents/04-writer.md", "# Writer\n\nCONTRATO-SIN-COMMITEAR\n")
-	write(t, root, ".hoom/agents/99-nuevo.md", "# Nuevo\n\nAGENTE-SIN-RASTREAR\n")
+	write(t, root, ".hoom/ratchet.json", "{\"CONTRATO-SIN-COMMITEAR\":1}\n")
+	write(t, root, ".hoom/approvals/nuevo.json", "{\"AGENTE-SIN-RASTREAR\":1}\n")
 	// ignorado
 	write(t, root, ".env", raSecreto+"\n")
 	write(t, root, "build/salida.bin", "\x00IGNORADO-EN-BUILD\x00")
@@ -1516,12 +1567,13 @@ func TestCA416_CambiosSoloEnHoomOIgnoradosArmanLaEvidencia(t *testing.T) {
 	if s := raSuciedad(t, root); len(s) != 0 {
 		t.Fatalf("CA-416: fixture: git no ve nada sin commitear fuera de .hoom/: %q", s)
 	}
+	edrLimpio(t, "CA-416", root)
 
 	ocultos := []string{"EDICION-SIN-COMMITEAR-DEL-SPEC", "NOTA-HOOM-SIN-COMMITEAR", "ITEM-EN-EL-INDICE", "CONTRATO-SIN-COMMITEAR",
 		"AGENTE-SIN-RASTREAR", raSecreto, "IGNORADO-EN-BUILD", "DENTRO-DE-NODE-MODULES", "EXCLUIDO-POR-INFO-EXCLUDE"}
 	ev, err, _ := raEvidenceConReloj(t, "CA-416", 60*time.Second, root, "main", ".hoom/specs/x.md", raTopeGrande)
 	if err != nil || ev.Over {
-		t.Fatalf("CA-416: con cambios solo en .hoom/ o ignorados la evidencia se arma como siempre: %v (Over %v)", err, ev.Over)
+		t.Fatalf("CA-416: con cambios solo en el estado de hoom o ignorados la evidencia se arma como siempre: %v (Over %v)", err, ev.Over)
 	}
 	diff := string(ev.Diff)
 	if !strings.Contains(diff, "+func Nuevo() {}") {

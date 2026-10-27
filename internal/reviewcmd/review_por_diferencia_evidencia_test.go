@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/gitx"
 )
 
 // rdIgual exige que dos evidencias sean la misma: los mismos bytes de diff y
@@ -40,6 +42,10 @@ func rdIgual(t *testing.T, ca, caso string, got, want Evidencia) {
 // binario, un nombre no ASCII, un cambio en .hoom/agents/ (va), cambios en
 // .hoom/ fuera de agents (no van), el spec cambiando entre commits, y main
 // avanzando despues de abrir la rama (el merge-base no es la punta de main).
+//
+// evidencia-de-la-review: el .hoom/notas.txt de rama 3 no es estado de hoom
+// y ahora va (NOTA-HOOM-COMMITEADA); el spec, que cambia entre commits, es
+// el estado de hoom que no va.
 func rdRamaVariada(t *testing.T) (root, spec string) {
 	t.Helper()
 	spec = ".hoom/specs/x.md"
@@ -61,7 +67,7 @@ func rdRamaVariada(t *testing.T) (root, spec string) {
 		"dir con espacio/ñandú.go":    "package dir\n\n// contenido-unico-ñandú\n",
 		"imagen.bin":                  "\x00\x01MARCA-BINARIA\x00\xff",
 		".hoom/agents/06-reviewer.md": "# Reviewer\n\ncontrato de la rama: VA-EN-LA-EVIDENCIA\n",
-		".hoom/notas.txt":             "NOTA-HOOM-NO-VA\n",
+		".hoom/notas.txt":             "NOTA-HOOM-COMMITEADA\n",
 	})
 	rdCommit(t, root, "rama 4", map[string]string{
 		"app.go": "package app\n\nfunc Uno() {}\n\nfunc Cuatro() {}\n",
@@ -105,12 +111,18 @@ func TestCA420_EvidenceDesdeConElMergeBaseEsEvidence(t *testing.T) {
 // es la evidencia del contrato para ese rango: la de Evidence contra una
 // rama que apunta a c. Y lo commiteado antes de c no aparece, lo de despues
 // si.
+//
+// Re-expresado por evidencia-de-la-review (CA-420 de review-por-diferencia):
+// "un .hoom/notas.txt commiteado en la historia ahora va en el diff". Desde
+// cada commit anterior a rama 3 el diff trae su linea; desde rama 3 en
+// adelante, no (lo de antes de c no aparece).
 func TestCA420_EvidenceDesdeCadaCommitDeLaHistoria(t *testing.T) {
 	root, spec := rdRamaVariada(t)
 	commits := strings.Fields(rdGit(t, root, "rev-list", "--first-parent", "HEAD"))
 	if len(commits) < 6 {
 		t.Fatalf("CA-420: fixture: la historia tiene al menos 6 commits: %v", commits)
 	}
+	rama3 := rdSha(t, root, "HEAD~1")
 	for _, c := range commits {
 		want := rdOraculoCrudo(t, root, c, spec)
 		got, err := EvidenceDesde(root, c, spec, raTopeGrande)
@@ -122,8 +134,17 @@ func TestCA420_EvidenceDesdeCadaCommitDeLaHistoria(t *testing.T) {
 			t.Fatalf("CA-420: desde %s el spec es el de HEAD: %q", c[:12], got.Spec)
 		}
 		d := string(got.Diff)
-		if strings.Contains(d, "NOTA-HOOM-NO-VA") || strings.Contains(d, "MAIN-AVANZA-NO-VA") || strings.Contains(d, "version 4") {
-			t.Fatalf("CA-420: desde %s nada de .hoom/ fuera de agents, ni de main, ni el spec va en el diff:\n%s", c[:12], d)
+		if strings.Contains(d, "MAIN-AVANZA-NO-VA") || strings.Contains(d, "version 4") {
+			t.Fatalf("CA-420: desde %s nada de main ni el spec (estado de hoom) va en el diff:\n%s", c[:12], d)
+		}
+		// evidencia-de-la-review: .hoom/notas.txt (commiteado en rama 3) va
+		// en el diff si y solo si rama 3 es posterior a c
+		yaLaTiene, err := gitx.EsAncestro(root, rama3, c)
+		if err != nil {
+			t.Fatalf("CA-420: fixture: %v", err)
+		}
+		if strings.Contains(d, "+NOTA-HOOM-COMMITEADA") == yaLaTiene {
+			t.Fatalf("CA-420: desde %s el .hoom/notas.txt commiteado en rama 3 va en el diff si y solo si es posterior a %s:\n%s", c[:12], c[:12], d)
 		}
 	}
 	// lo de antes de c no aparece y lo de despues si: desde el commit del
@@ -137,8 +158,9 @@ func TestCA420_EvidenceDesdeCadaCommitDeLaHistoria(t *testing.T) {
 	if strings.Contains(d, "VIEJO-SE-BORRA") || strings.Contains(d, "renombrar.go") || strings.Contains(d, "+func Uno() {}") {
 		t.Fatalf("CA-420: lo commiteado antes de desde (el borrado, el renombre, rama 1) no aparece:\n%s", d)
 	}
-	if !raTieneNombre(d, "ñandú.go") || !strings.Contains(d, "imagen.bin") || !strings.Contains(d, "VA-EN-LA-EVIDENCIA") || !strings.Contains(d, "+func Cuatro() {}") {
-		t.Fatalf("CA-420: lo commiteado despues de desde (rama 3 y rama 4, con .hoom/agents/) aparece:\n%s", d)
+	if !raTieneNombre(d, "ñandú.go") || !strings.Contains(d, "imagen.bin") || !strings.Contains(d, "VA-EN-LA-EVIDENCIA") || !strings.Contains(d, "+func Cuatro() {}") ||
+		!strings.Contains(d, "+NOTA-HOOM-COMMITEADA") {
+		t.Fatalf("CA-420: lo commiteado despues de desde (rama 3 y rama 4, con .hoom/agents/ y .hoom/notas.txt) aparece:\n%s", d)
 	}
 	if strings.Contains(d, "MARCA-BINARIA") {
 		t.Fatalf("CA-420: un binario lleva la linea de git, sin contenido:\n%s", d)

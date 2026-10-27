@@ -396,6 +396,11 @@ func TestCA428_CodigoDespuesDeLaReviewVuelveAReviewHastaElDelta(t *testing.T) {
 // review: la tarjeta sigue revisada"; "Un commit que solo toca .hoom/
 // (veredictos, hallazgos, registros) fuera de .hoom/agents/: no cambia la
 // evidencia; la tarjeta sigue revisada"). Guardas: verdes hoy.
+//
+// evidencia-de-la-review re-expresa "solo de .hoom/" como "solo del estado
+// de hoom": el subtest hoom commitea un hallazgo, que es estado de hoom, asi
+// que no cambia. Lo que ahora si la hace volver (un commit solo de
+// .hoom/semgrep/) esta en TestCA483_UnCommitSoloDeSemgrepDevuelveLaTarjetaAReview.
 func TestCA428_DocumentacionOHoomDespuesDeLaReviewNoLaHaceVolver(t *testing.T) {
 	t.Run("documentacion", func(t *testing.T) {
 		tj := rdGrande(t)

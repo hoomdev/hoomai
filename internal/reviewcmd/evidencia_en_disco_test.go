@@ -182,6 +182,10 @@ func TestCA443_ElReviewerQueCreaUnGitignoreEnFindingsEsNoEntregable(t *testing.T
 // .hoom/findings/.gitignore previo, o por el .gitignore de la raiz), o que lo
 // borra, termina NO ENTREGABLE por territorio, sin registro, con "la
 // evidencia es append-only" y "cambio/desaparecio durante el run".
+//
+// Re-expresado por evidencia-de-la-review (CA-443 de evidencia-en-disco):
+// "el .hoom/findings/.gitignore que esconde un hallazgo no es estado: el
+// fixture lo commitea antes de la review, y lo demas no cambia".
 func TestCA443_ElReviewerQueEditaOBorraUnHallazgoIgnoradoEsNoEntregable(t *testing.T) {
 	for _, c := range []struct {
 		caso    string
@@ -193,6 +197,10 @@ func TestCA443_ElReviewerQueEditaOBorraUnHallazgoIgnoradoEsNoEntregable(t *testi
 		}, false},
 		{"baja la severidad, .hoom/findings/.gitignore previo", func(t *testing.T, root string) {
 			write(t, root, ".hoom/findings/.gitignore", "*.json\n")
+			// evidencia-de-la-review: no es estado de hoom; sin commitear
+			// frenaria la review por arbol sucio
+			git(t, root, "add", ".hoom/findings/.gitignore")
+			git(t, root, "commit", "-q", "-m", "los hallazgos se esconden de git")
 		}, false},
 		{"baja la severidad, .gitignore de la raiz", func(t *testing.T, root string) {
 			write(t, root, ".gitignore", ".hoom/findings/\n")
