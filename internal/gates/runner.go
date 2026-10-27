@@ -86,7 +86,8 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
 	start := time.Now()
-	// a little more than the tail is kept, so the tail tail cuts is full
+	// correr keeps the last TailSize+margenCola bytes; tail then trims the
+	// blanks at both ends and keeps the last TailSize of what is left
 	out, cortado, err := correr(ctx, m.Dir, cmdStr, opt.TailSize+margenCola)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.OutputTail = tail(string(out), opt.TailSize)
@@ -286,8 +287,11 @@ func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string)
 	return cmdStr, scope
 }
 
-// margenCola is what correr keeps beyond TailSize: room so that the tail
-// tail cuts is never short.
+// margenCola is how much more than TailSize correr keeps. tail trims the
+// blanks at both ends before taking its last TailSize bytes: keeping only
+// TailSize would leave the verdict's tail shorter than TailSize whenever the
+// kept bytes start with blanks. The margin makes sure that, after the trim,
+// there are still TailSize bytes to take (finding 3d3af4).
 const margenCola = 64 << 10
 
 // marcaCorte opens a tail that is not the whole output.
