@@ -45,6 +45,7 @@ type Info struct {
 func run(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	out, err := cmd.Output()
 	return strings.TrimSpace(string(out)), err
 }

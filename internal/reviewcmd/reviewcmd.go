@@ -149,10 +149,10 @@ type Evidencia struct {
 }
 
 // Evidence builds the review evidence of the COMMITTED change in dir: the
-// patch of merge-base..HEAD (deletions and renames included; outside .hoom/
-// plus .hoom/agents/) and the spec text as HEAD has it. spec is the path as
-// the user gave it, relative to dir; "" = none. With anything uncommitted
-// outside .hoom/ it returns gitx.ArbolSucio and reads nothing. It reads at
+// patch of merge-base..HEAD (deletions and renames included; everything but
+// hoom's state) and the spec text as HEAD has it. spec is the path as the
+// user gave it, relative to dir; "" = none. With anything uncommitted in
+// those paths it returns gitx.ArbolSucio and reads nothing. It reads at
 // most maxBytes between the two, into ONE buffer sized once: past that it
 // returns Over and keeps nothing. A spec that is not in HEAD leaves Spec nil
 // (the dossier says so: CA-334); one whose HEAD entry is not a regular file
@@ -179,15 +179,16 @@ func EvidenceDesde(dir, desde, spec string, maxBytes int) (Evidencia, error) {
 	if err != nil {
 		return Evidencia{}, err
 	}
-	return evidenciaRango(dir, desde, hasta, spec, maxBytes)
+	return evidenciaRango(dir, desde, hasta, nil, spec, maxBytes)
 }
 
 // evidenciaRango is the evidence of desde..hasta with both ends frozen: the
 // patch and the spec come from the sha hasta, never from a HEAD that may
-// have moved since the review resolved it.
-func evidenciaRango(dir, desde, hasta, spec string, maxBytes int) (Evidencia, error) {
+// have moved since the review resolved it. With comp, the patch leaves out
+// what the base the branch integrated after desde brought.
+func evidenciaRango(dir, desde, hasta string, comp *gitx.Comparacion, spec string, maxBytes int) (Evidencia, error) {
 	return evidencia(dir, hasta, spec, maxBytes, func(buf *bytes.Buffer) (bool, error) {
-		return gitx.RangePatch(dir, desde, hasta, buf, maxBytes)
+		return gitx.RangePatch(dir, desde, hasta, comp, buf, maxBytes)
 	})
 }
 
@@ -404,7 +405,18 @@ type rango struct {
 	cobertura   string
 	desdeReview string
 	medida      gitx.Info // files and lines from desde to HEAD in the evidence's paths (conRango only)
+	// comp is what HEAD is compared against (conRango only): desde, or desde
+	// with the base the branch integrated afterwards (integrada), so the
+	// range leaves out what that base brought (finding 547228).
+	comp      *gitx.Comparacion
+	integrada string
+	// avisoSeparacion: the range asked for could not leave the integrated
+	// base out, and the review is the complete one instead.
+	avisoSeparacion string
 }
+
+// cerrar frees what the range holds on disk (the synthetic merge's objects).
+func (r rango) cerrar() { r.comp.Cerrar() }
 
 // resolverRango decides where the evidence starts: the merge-base, the
 // --desde commit, or (--delta) the hasta of the task's newest chainable
@@ -454,10 +466,30 @@ func resolverRango(dir, base string, opt Options) (rango, error) {
 		return r, nil
 	}
 	r.conRango = true
-	files, ins, del, err := gitx.CambiosEntre(dir, r.desde, hasta)
+	// what the branch changed since desde, without what the base it
+	// integrated afterwards brought; the board asks the same (CambioDespues)
+	comp, err := gitx.SinLaBase(dir, r.desde, hasta, mb)
 	if err != nil {
 		return rango{}, err
 	}
+	if !comp.Separada() {
+		// the merge does not come apart from the change: the review is the
+		// complete one, and says why (CA-486)
+		motivo := "conflicto en " + mostrable(comp.Conflicto)
+		if comp.Conflicto == "" {
+			motivo = fmt.Sprintf("git %s no arma el merge sintetico, hace falta 2.40", mostrable(comp.Version))
+		}
+		completa := rango{desde: mb, hasta: hasta, mb: mb, cobertura: CoberturaCompleta}
+		completa.avisoSeparacion = fmt.Sprintf("la rama integro la base (%s) despues de %s y ese merge no se separa (%s): la review es completa",
+			mb[:12], r.desde[:12], motivo)
+		return completa, nil
+	}
+	files, ins, del, err := comp.Cambios(dir, hasta)
+	if err != nil {
+		comp.Cerrar()
+		return rango{}, err
+	}
+	r.comp, r.integrada = comp, comp.Integrada
 	r.medida = gitx.Info{ChangedFiles: files, Insertions: ins, Deletions: del}
 	return r, nil
 }
@@ -522,9 +554,12 @@ func lentesDe(rng rango, git gitx.Info, explicit string) (lentes []string, motiv
 // CambioDespues says whether code changed after a review that reached
 // hasta: ancestro is false when hasta left head's history; codigo is true
 // when, from hasta to head, something other than documentation changed in
-// the evidence's paths. head is a resolved sha (the tree's HEAD). The board
-// uses it to decide whether a review still covers the card's code.
-func CambioDespues(dir, hasta, head string) (ancestro, codigo bool, err error) {
+// the evidence's paths. What the base (the project's) brought when the branch
+// integrated it after hasta does not count, as in the --delta that would
+// follow (CA-485); a merge of the base that does not come apart does
+// (CA-486). head is a resolved sha (the tree's HEAD). The board uses it to
+// decide whether a review still covers the card's code.
+func CambioDespues(dir, base, hasta, head string) (ancestro, codigo bool, err error) {
 	if !esSha(hasta) {
 		// a record is data: a hasta that is not a full sha ("HEAD", a
 		// branch, an option) never reaches git and never anchors anything
@@ -534,7 +569,19 @@ func CambioDespues(dir, hasta, head string) (ancestro, codigo bool, err error) {
 	if err != nil || !ok {
 		return false, false, err
 	}
-	files, _, _, err := gitx.CambiosEntre(dir, hasta, head)
+	mb, err := gitx.MergeBaseDe(dir, base, head)
+	if err != nil {
+		return true, false, err
+	}
+	comp, err := gitx.SinLaBase(dir, hasta, head, mb)
+	if err != nil {
+		return true, false, err
+	}
+	defer comp.Cerrar()
+	if !comp.Separada() {
+		return true, true, nil
+	}
+	files, _, _, err := comp.Cambios(dir, head)
 	if err != nil {
 		return true, false, err
 	}
@@ -587,7 +634,7 @@ func resolveOptions(opt Options, r *manifest.ReviewPolicy) Options {
 // launching a lens.
 func prepararEvidencia(dir string, rng rango, opt Options, pol *manifest.ReviewPolicy) (ev Evidencia, isolated bool, tope int, err error) {
 	isolated, tope = pol.IsolatedOrDefault(), pol.MaxEvidenceKiBOrDefault()
-	ev, err = evidenciaRango(dir, rng.desde, rng.hasta, opt.Spec, tope*1024)
+	ev, err = evidenciaRango(dir, rng.desde, rng.hasta, rng.comp, opt.Spec, tope*1024)
 	return ev, isolated, tope, err
 }
 
@@ -654,8 +701,9 @@ type Result struct {
 	Cobertura   string `json:"cobertura"`
 	DesdeReview string `json:"desde_review,omitempty"`
 	// Base is the name the base was resolved from: --base, or the
-	// project's base_branch.
-	Base string `json:"base"`
+	// project's base_branch. BaseIntegrada as in the record.
+	Base          string `json:"base"`
+	BaseIntegrada string `json:"base_integrada,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
@@ -736,6 +784,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	defer rng.cerrar()
 	lentes, motivo, regla, err := lentesDe(rng, git, opt.Lens)
 	if err != nil {
 		return Result{}, err
@@ -752,7 +801,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res := Result{Cross: CrossUnknown, Reason: motivo, Lenses: lentes, Passes: []Pass{}, Findings: []string{},
 		WritersDeclared: declarados}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
-	res.Base = rng.baseNombre
+	res.Base, res.BaseIntegrada = rng.baseNombre, rng.integrada
 	var notas []string
 
 	if rng.conRango {
@@ -764,14 +813,20 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			linea += " de la review " + rng.desdeReview
 		}
 		fmt.Fprintln(w, linea)
+		if rng.integrada != "" {
+			fmt.Fprintf(w, "  base        integrada hasta %s despues de %s: lo que trajo no es parte del rango\n",
+				rng.integrada[:12], rng.desde[:12])
+		}
 	} else {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas contra %s\n",
 			plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
 			git.Insertions, git.Deletions, rng.baseNombre)
 	}
-	if rng.avisoBase != "" {
-		fmt.Fprintf(w, "  aviso: %s\n", rng.avisoBase)
-		notas = append(notas, rng.avisoBase)
+	for _, aviso := range []string{rng.avisoBase, rng.avisoSeparacion} {
+		if aviso != "" {
+			fmt.Fprintf(w, "  aviso: %s\n", aviso)
+			notas = append(notas, aviso)
+		}
 	}
 	if len(lentes) == 0 {
 		fmt.Fprintf(w, "  lentes      ninguna - %s\n", motivo)
@@ -962,7 +1017,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Model: opt.Model, Effort: opt.Effort, Isolated: isolated,
 		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos,
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
-		Base: rng.baseNombre,
+		Base: rng.baseNombre, BaseIntegrada: rng.integrada,
 	})
 	res.Notes = notas
 	if len(usos) == 0 {
@@ -1166,6 +1221,10 @@ func pedidoComun(baseNombre string, git gitx.Info, rng rango, spec string, v *ve
 		m := rng.medida
 		fmt.Fprintf(&b, "Rango: %s..%s (%s). Tamano: %d archivos, +%d/-%d lineas.\n",
 			rng.desde[:12], rng.hasta[:12], rng.cobertura, len(m.ChangedFiles), m.Insertions, m.Deletions)
+		if rng.integrada != "" {
+			fmt.Fprintf(&b, "La rama integro la base hasta %s despues de %s: el diff es contra %s con esa base integrada, "+
+				"asi que lo que trajo la base no esta en la evidencia y no es INTRODUCIDO.\n", rng.integrada[:12], rng.desde[:12], rng.desde[:12])
+		}
 		antes := fmt.Sprintf("Lo anterior a %s no es parte de esta review:", rng.desde[:12])
 		if rng.desdeReview != "" {
 			antes = fmt.Sprintf("Lo anterior a %s ya lo reviso la review %s:", rng.desde[:12], rng.desdeReview)

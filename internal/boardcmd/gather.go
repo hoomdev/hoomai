@@ -275,39 +275,42 @@ func (t *tree) headSHA() string {
 	return t.head
 }
 
-// colas caches review tails for the whole process by (tree, hasta, HEAD):
-// commits never change, so neither does the answer, and the Studio asks for
-// the board every second. Failures are not cached: git may be fine next time.
+// colas caches review tails for the whole process by (tree, base, hasta,
+// HEAD): commits never change, so neither does the answer, and the Studio
+// asks for the board every second. The base is a name: what it integrates
+// into HEAD is in HEAD's history, so moving it forward does not change the
+// answer. Failures are not cached: git may be fine next time.
 var colas = struct {
 	sync.Mutex
-	m map[[3]string]ReviewTail
-}{m: map[[3]string]ReviewTail{}}
+	m map[[4]string]ReviewTail
+}{m: map[[4]string]ReviewTail{}}
 
 // colasMax bounds the cache; past it, it starts over.
 const colasMax = 4096
 
-// tail is what changed in the tree after hasta, or nil when git cannot
+// tail is what changed in the tree after hasta, without what the base
+// brought when the branch integrated it afterwards, or nil when git cannot
 // place it (the review then does not cover anything).
-func (t *tree) tail(hasta string) *ReviewTail {
+func (t *tree) tail(base, hasta string) *ReviewTail {
 	head := t.headSHA()
 	if head == "" {
 		return nil
 	}
-	key := [3]string{t.dir, hasta, head}
+	key := [4]string{t.dir, base, hasta, head}
 	colas.Lock()
 	rt, ok := colas.m[key]
 	colas.Unlock()
 	if ok {
 		return &rt
 	}
-	anc, cod, err := reviewcmd.CambioDespues(t.dir, hasta, head)
+	anc, cod, err := reviewcmd.CambioDespues(t.dir, base, hasta, head)
 	if err != nil {
 		return nil
 	}
 	rt = ReviewTail{Ancestro: anc, Codigo: cod}
 	colas.Lock()
 	if len(colas.m) >= colasMax {
-		colas.m = map[[3]string]ReviewTail{}
+		colas.m = map[[4]string]ReviewTail{}
 	}
 	colas.m[key] = rt
 	colas.Unlock()
@@ -319,7 +322,7 @@ func (t *tree) tail(hasta string) *ReviewTail {
 // record that could cover the card, stopping at the first that covers it.
 // The newest one still in HEAD's history is the one --delta would continue.
 // Records that could never count cost no git.
-func colasDe(t *tree, ev Evidence) map[string]ReviewTail {
+func colasDe(t *tree, base string, ev Evidence) map[string]ReviewTail {
 	green := map[string]bool{}
 	for _, id := range ev.GreenVerdicts {
 		green[id] = true
@@ -334,7 +337,7 @@ func colasDe(t *tree, ev Evidence) map[string]ReviewTail {
 		if !reviewcmd.Encadenable(r) {
 			continue
 		}
-		rt := t.tail(r.Hasta)
+		rt := t.tail(base, r.Hasta)
 		if rt == nil {
 			continue
 		}
@@ -501,7 +504,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 			ev.Reviews = append(ev.Reviews, r)
 		}
 	}
-	ev.ReviewTails = colasDe(t, ev)
+	ev.ReviewTails = colasDe(t, g.base, ev)
 	var cardFindings []finding.Item
 	for _, f := range t.allFindings(g.base) {
 		if f.Task != s {

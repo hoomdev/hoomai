@@ -59,6 +59,10 @@ type Record struct {
 	// Base is the name the base was resolved from (--base or the project's
 	// base_branch), never the candidate's.
 	Base string `json:"base"`
+	// BaseIntegrada is the full sha of the base the branch integrated after
+	// desde, when the range left out what it brought (a synthetic merge of
+	// desde with it: spec evidencia-de-la-review).
+	BaseIntegrada string `json:"base_integrada,omitempty"`
 }
 
 // LensUsage is what one lens cost, as its provider reported it.

@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
 // Diff is base...HEAD of a tree: what its branch changed, committed.
@@ -79,11 +81,10 @@ func BranchDiff(dir, base string, maxBytes int) (Diff, error) {
 
 // CandidatePatch appends to dst the unified patch of the COMMITTED change:
 // `git diff --find-renames` of the merge-base of base against HEAD, of
-// everything outside .hoom/ plus .hoom/agents/ (the roles' contracts are part
-// of the change), with deletions and both sides of a rename as git writes
-// them. Nothing comes from the working tree: with anything uncommitted
-// outside .hoom/ it returns ArbolSucio, before looking at the base, and
-// reads no patch. A binary carries
+// everything but hoom's state (evidencePaths), with deletions and both sides
+// of a rename as git writes them. Nothing comes from the working tree: with
+// anything uncommitted in those paths it returns ArbolSucio, before looking
+// at the base, and reads no patch. A binary carries
 // git's own binary line and no content, and neither textconv nor clean
 // filters run (two commits are compared). dst holds at most max bytes of
 // evidence: the moment it would hold max+1 it stops git and returns over, and
@@ -103,15 +104,17 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 	if err != nil {
 		return false, err
 	}
-	return patchDesde(dir, mb, "HEAD", dst, max)
+	return patchDesde(dir, nil, mb, "HEAD", dst, max)
 }
 
 // RangePatch is CandidatePatch with explicit ends: the patch of desde..hasta,
 // with the same paths, the same dirty-tree refusal (first) and the same cap.
 // hasta is a frozen sha (the HEAD the review resolved once), so a HEAD that
 // moves meanwhile never changes what the patch says; desde must be its
-// ancestor.
-func RangePatch(dir, desde, hasta string, dst *bytes.Buffer, max int) (over bool, err error) {
+// ancestor. With a Comparacion (SinLaBase of desde), the patch starts at its
+// Antes instead: desde with the base the branch integrated afterwards, so
+// what that base brought is not in it.
+func RangePatch(dir, desde, hasta string, c *Comparacion, dst *bytes.Buffer, max int) (over bool, err error) {
 	ruta, err := CambioSinCommitear(dir)
 	if err != nil {
 		return false, err
@@ -126,29 +129,58 @@ func RangePatch(dir, desde, hasta string, dst *bytes.Buffer, max int) (over bool
 	if !ok {
 		return false, fmt.Errorf("%s no es un ancestro de %s", desde, hasta)
 	}
-	return patchDesde(dir, desde, hasta, dst, max)
+	if c == nil {
+		return patchDesde(dir, nil, desde, hasta, dst, max)
+	}
+	if !c.Separada() {
+		return false, fmt.Errorf("el merge de la base en %s no se separo del cambio", desde)
+	}
+	return patchDesde(dir, c.env, c.Antes, hasta, dst, max)
 }
 
-// evidencePaths are the paths the evidence covers: everything outside .hoom/
-// plus .hoom/agents/ (the roles' contracts are part of the change).
-var evidencePaths = [][]string{{".", ":(exclude).hoom"}, {".hoom/agents"}}
+// evidencePaths are the paths the evidence covers: the whole repository but
+// hoom's state, the records hoom writes ABOUT the work and never the work
+// (spec evidencia-de-la-review). It is a closed list of exclusions, so a new
+// directory under .hoom/ with something hoom runs (.hoom/semgrep/ was one:
+// finding 8fe5a6) is reviewed without anyone remembering to add it. A state
+// entry is a file of the shape hoom writes, directly in its directory:
+// another extension there, or a subdirectory, is not state and goes in. The
+// dirty-tree refusal, the range measure and the board look at these same
+// paths.
+var evidencePaths = append([]string{".",
+	":(exclude,glob).hoom/approvals/*.json", // spec approvals
+	":(exclude,glob).hoom/findings/*.json",  // findings and their resolutions
+	":(exclude,glob).hoom/reviews/*.json",   // review records
+	":(exclude,glob).hoom/verdicts/*.json",  // verdicts
+	":(exclude,glob).hoom/items/*.yaml",     // board items
+	":(exclude,glob).hoom/specs/*.md",       // specs: the reviewed one goes whole in the pedido
+	":(exclude).hoom/intake",                // the client's documents, of any kind, the Studio uploads
+	":(exclude).hoom/ratchet.json",
+	":(exclude).hoom/.gitignore", // hoom completes it on its own
+}, localesExcluidos()...)
 
-// patchDesde appends the patch of from..to over the evidence's paths.
-func patchDesde(dir, from, to string, dst *bytes.Buffer, max int) (over bool, err error) {
+// localesExcluidos excludes the local directories (never committed: .hoom/.gitignore)
+// in case a tree stopped ignoring them.
+func localesExcluidos() []string {
+	var out []string
+	for _, d := range hoomfs.Local {
+		out = append(out, ":(exclude).hoom/"+d)
+	}
+	return out
+}
+
+// patchDesde appends the patch of from..to over the evidence's paths. from
+// may be a tree (a synthetic merge) whose objects env points at.
+func patchDesde(dir string, env []string, from, to string, dst *bytes.Buffer, max int) (over bool, err error) {
 	// quotePath=false: the patch names a file as it is on disk (ñ, not
 	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure
-	diff := []string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
-		"--no-textconv", "--find-renames", from, to, "--"}
-	for _, paths := range evidencePaths {
-		over, err = gitOutBounded(dir, dst, max, false, append(append([]string{}, diff...), paths...)...)
-		if err != nil {
-			return false, fmt.Errorf("git diff: %v", err)
-		}
-		if over {
-			return true, nil
-		}
+	args := append([]string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
+		"--no-textconv", "--find-renames", from, to, "--"}, evidencePaths...)
+	over, err = gitOutBoundedEnv(dir, env, dst, max, false, args...)
+	if err != nil {
+		return false, fmt.Errorf("git diff: %v", err)
 	}
-	return false, nil
+	return over, nil
 }
 
 // EsAncestro says whether commit a is an ancestor of b (a commit is its own
@@ -208,24 +240,28 @@ func Head(dir string) (string, error) {
 // evidence's paths, with their added and deleted lines (a binary adds 0).
 // Renames count as a deletion and an addition.
 func CambiosEntre(dir, desde, hasta string) (files []string, ins, del int, err error) {
-	for _, paths := range evidencePaths {
-		args := append([]string{"-c", "core.quotePath=false", "diff", "--numstat", "-z", "--no-renames",
-			"--no-ext-diff", "--no-textconv", desde, hasta, "--"}, paths...)
-		out, err := gitOut(dir, args...)
-		if err != nil {
-			return nil, 0, 0, fmt.Errorf("git diff --numstat %s %s: %v", desde, hasta, err)
+	return cambiosEntre(dir, nil, desde, hasta)
+}
+
+// cambiosEntre is CambiosEntre from a desde that may be a tree (a synthetic
+// merge) whose objects env points at.
+func cambiosEntre(dir string, env []string, desde, hasta string) (files []string, ins, del int, err error) {
+	args := append([]string{"-c", "core.quotePath=false", "diff", "--numstat", "-z", "--no-renames",
+		"--no-ext-diff", "--no-textconv", desde, hasta, "--"}, evidencePaths...)
+	out, err := gitOutEnv(dir, env, args...)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("git diff --numstat %s %s: %v", desde, hasta, err)
+	}
+	// "<added>\t<deleted>\t<path>\0"; a binary is "-\t-\t<path>\0"
+	for _, entry := range strings.Split(out, "\x00") {
+		parts := strings.SplitN(entry, "\t", 3)
+		if len(parts) != 3 {
+			continue
 		}
-		// "<added>\t<deleted>\t<path>\0"; a binary is "-\t-\t<path>\0"
-		for _, entry := range strings.Split(out, "\x00") {
-			parts := strings.SplitN(entry, "\t", 3)
-			if len(parts) != 3 {
-				continue
-			}
-			a, _ := strconv.Atoi(parts[0])
-			d, _ := strconv.Atoi(parts[1])
-			ins, del = ins+a, del+d
-			files = append(files, parts[2])
-		}
+		a, _ := strconv.Atoi(parts[0])
+		d, _ := strconv.Atoi(parts[1])
+		ins, del = ins+a, del+d
+		files = append(files, parts[2])
 	}
 	return files, ins, del, nil
 }
@@ -245,6 +281,7 @@ type Cambio struct {
 func Cambios(dir string) ([]Cambio, error) {
 	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "-z")
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	out, err := cmd.Output()
@@ -273,16 +310,19 @@ func Cambios(dir string) ([]Cambio, error) {
 	return cambios, nil
 }
 
-// CambioSinCommitear is the first path outside .hoom/ with anything not
-// committed (modified, staged, deleted, or untracked and not ignored); ""
-// when the tree is clean. Only that first entry is read: the listing is
+// CambioSinCommitear is the first path of the evidence's (everything but
+// hoom's state: evidencePaths) with anything not committed (modified,
+// staged, deleted, or untracked and not ignored); "" when the tree is clean.
+// What goes into the evidence has to be committed: otherwise the reviewer
+// would read in the tree something other than what it was handed. Only that first entry is read: the listing is
 // never held, and git status opens no file (a symlink to a FIFO is listed,
 // never read). A bare FIFO is not a file for git: it is not listed, cannot
 // be committed, and so never enters the evidence.
 func CambioSinCommitear(dir string) (string, error) {
-	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
-		"--untracked-files=normal", "--", ".", ":(exclude).hoom")
+	cmd := exec.Command("git", append([]string{"-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
+		"--untracked-files=normal", "--"}, evidencePaths...)...)
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	pipe, err := cmd.StdoutPipe()
@@ -311,8 +351,8 @@ func CambioSinCommitear(dir string) (string, error) {
 	return "", nil
 }
 
-// ArbolSucio: the working tree has something uncommitted outside .hoom/, and
-// the review only reviews what is committed.
+// ArbolSucio: the working tree has something uncommitted in the evidence's
+// paths, and the review only reviews what is committed.
 type ArbolSucio struct{ Ruta string }
 
 func (e ArbolSucio) Error() string {
@@ -474,12 +514,18 @@ func ShowFile(dir, rev, path string) (content []byte, exists bool, err error) {
 // --no-index says "the files differ" that way); anything else that fails is
 // an error carrying git's stderr.
 func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ...string) (over bool, err error) {
+	return gitOutBoundedEnv(dir, nil, dst, max, exit1OK, args...)
+}
+
+// gitOutBoundedEnv is gitOutBounded with an environment (nil = hoom's own).
+func gitOutBoundedEnv(dir string, env []string, dst *bytes.Buffer, max int, exit1OK bool, args ...string) (over bool, err error) {
 	room := max - dst.Len()
 	if room < 0 {
 		return true, nil
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	cmd.Env = env
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	pipe, err := cmd.StdoutPipe()
@@ -516,8 +562,14 @@ func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ..
 // gitOut runs git and returns its stdout untrimmed; on failure the error
 // carries git's stderr, which is what a person needs to read.
 func gitOut(dir string, args ...string) (string, error) {
+	return gitOutEnv(dir, nil, args...)
+}
+
+// gitOutEnv is gitOut with an environment (nil = hoom's own).
+func gitOutEnv(dir string, env []string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	cmd.Env = env
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	out, err := cmd.Output()
