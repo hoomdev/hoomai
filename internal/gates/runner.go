@@ -189,25 +189,46 @@ func correr(ctx context.Context, dir, cmdStr string, limite int) (out []byte, co
 // gate's.
 const finDeLectura = 2 * time.Second
 
-// colaAcotada keeps the last limite bytes written to it, and whether more
-// came before them. Safe to read while it is still being written.
+// colaAcotada keeps the end of what is written to it: bytes() gives the
+// last limite bytes, and whether more came before them. To copy less, it
+// lets its buffer grow up to 2*limite before dropping the oldest half, so
+// it holds at most about 2*limite bytes at any time (finding d3331e).
+//
+// A run of blanks (spaces, tabs, newlines) is kept up to maxBlancos bytes and
+// the rest dropped: tail trims them anyway, and a gate that prints its
+// diagnostic and then 64 KiB of blank lines must not have the diagnostic
+// pushed out of the tail by them (findings c61685, 4a9763).
 type colaAcotada struct {
 	mu      sync.Mutex
 	limite  int
 	buf     []byte
+	blancos int // blanks at the end of buf
 	cortado bool
 }
+
+// maxBlancos is the longest run of blanks colaAcotada keeps.
+const maxBlancos = 4 << 10
 
 func (c *colaAcotada) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	n := len(p)
-	c.buf = append(c.buf, p...)
+	for _, b := range p {
+		if b == ' ' || b == '\t' || b == '\n' || b == '\r' || b == '\v' || b == '\f' {
+			if c.blancos >= maxBlancos {
+				c.cortado = true
+				continue
+			}
+			c.blancos++
+		} else {
+			c.blancos = 0
+		}
+		c.buf = append(c.buf, b)
+	}
 	if c.limite > 0 && len(c.buf) > 2*c.limite {
 		c.buf = append(c.buf[:0], c.buf[len(c.buf)-c.limite:]...)
 		c.cortado = true
 	}
-	return n, nil
+	return len(p), nil
 }
 
 func (c *colaAcotada) bytes() ([]byte, bool) {

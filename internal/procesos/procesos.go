@@ -24,11 +24,23 @@ import (
 // SIGTERM first and up to that long to end before the SIGKILL, as when its
 // deadline passes, so a docker client can stop its container on a Ctrl-C too
 // (finding 3f106e). A second signal meanwhile cuts the wait short.
+//
+// A group is only known by its number, which the system hands to a new
+// group once the old one is empty. Each registration is an object of its own
+// (grupo), so a late signal meant for one registration never reaches a new
+// one with the same number (finding bc1864); and a group already killed, or
+// seen empty, is never signalled again (findings 67eb4f, f5984e). What is
+// left — the system reusing a number between a look and the signal, which
+// takes the whole pid range going round in that instant — is accepted
+// (Henry, 2026-10-27; finding 710266, f6709d).
 var grupos = struct {
 	sync.Mutex
-	pids map[int]time.Duration // pid of each group's leader -> its gracia
+	pids map[int]*grupo // the leader's pid of each group -> its registration
 	once sync.Once
-}{pids: map[int]time.Duration{}}
+}{pids: map[int]*grupo{}}
+
+// grupo is one registration of a process group.
+type grupo struct{ gracia time.Duration }
 
 func prepararSenales() {
 	grupos.once.Do(func() {
@@ -40,51 +52,57 @@ func prepararSenales() {
 			// was about to start never starts, and the process ends holding
 			// it (finding e30013)
 			grupos.Lock()
-			// the groups without gracia (a run's provider) die at once:
-			// they never wait for a gate that ignores SIGTERM (finding
-			// 1e64a4)
+			// the groups without gracia (a run's provider) die at once and
+			// are not signalled again: they never wait for a gate that
+			// ignores SIGTERM (finding 1e64a4)
+			var conGracia []int
 			for p, g := range grupos.pids {
-				if g <= 0 {
+				if g.gracia > 0 {
+					conGracia = append(conGracia, p)
+				} else {
 					MatarGrupo(p)
 				}
 			}
-			terminarConGracia(grupos.pids, ch)
-			for p := range grupos.pids {
-				MatarGrupo(p)
+			// only the gates still there at the end of their gracia get
+			// the SIGKILL
+			for _, p := range terminarConGracia(conGracia, ch) {
+				matarSiQueda(p)
 			}
 			Terminar(s)
 		}()
 	})
 }
 
-// terminarConGracia sends SIGTERM to the groups of pids that have a gracia
-// and waits until they are gone, their longest gracia passes, or another
-// signal arrives on otra. Groups without gracia are left to the SIGKILL.
-func terminarConGracia(pids map[int]time.Duration, otra <-chan os.Signal) {
+// terminarConGracia sends SIGTERM to the registered groups of pids and
+// waits until they are gone, their longest gracia passes, or another signal
+// arrives on otra. It returns the ones still there: a group seen empty is
+// dropped and never signalled again. The registry's lock is held.
+func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 	hasta := time.Now()
-	var conGracia []int
-	for p, g := range pids {
-		if g > 0 && senalarTerm(p) {
-			conGracia = append(conGracia, p)
-			if t := time.Now().Add(g); t.After(hasta) {
+	var vivos []int
+	for _, p := range pids {
+		if senalarTerm(p) {
+			vivos = append(vivos, p)
+			if t := time.Now().Add(grupos.pids[p].gracia); t.After(hasta) {
 				hasta = t
 			}
 		}
 	}
-	for len(conGracia) > 0 && time.Now().Before(hasta) {
+	for len(vivos) > 0 && time.Now().Before(hasta) {
 		select {
 		case <-otra:
-			return
+			return vivos
 		case <-time.After(20 * time.Millisecond):
 		}
-		vivos := conGracia[:0]
-		for _, p := range conGracia {
+		quedan := vivos[:0]
+		for _, p := range vivos {
 			if grupoVivo(p) {
-				vivos = append(vivos, p)
+				quedan = append(quedan, p)
 			}
 		}
-		conGracia = vivos
+		vivos = quedan
 	}
+	return vivos
 }
 
 // EsperarGrupo waits until the group of pid is gone or hasta passes: the
@@ -121,7 +139,7 @@ func arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 		return err
 	}
 	Adoptar(cmd) // Windows: its Job Object (finding d24626)
-	grupos.pids[cmd.Process.Pid] = gracia
+	grupos.pids[cmd.Process.Pid] = &grupo{gracia: gracia}
 	return nil
 }
 
@@ -142,16 +160,23 @@ func Liberar(pid int) {
 }
 
 // matarTrasGracia is the SIGKILL that TerminarGrupo leaves for after gracia:
-// only for a group still registered (Liberar has not forgotten it) and
-// still with members, checked under the registry's lock, so a group that
-// already ended, and whose number another group may have taken, never gets
-// it (findings 2f4af2, f0dfd4, cd9f87).
+// only for the very registration pid has now (a group that Liberar forgot,
+// or a new group of hoom that got the same number, is another object) and
+// only if the group still has members, checked under the registry's lock
+// (findings 2f4af2, f0dfd4, cd9f87, bc1864). A pid with no registration gets
+// nothing later.
 func matarTrasGracia(pid int, gracia time.Duration) {
+	grupos.Lock()
+	esta := grupos.pids[pid]
+	grupos.Unlock()
+	if esta == nil {
+		return
+	}
 	go func() {
 		time.Sleep(gracia)
 		grupos.Lock()
 		defer grupos.Unlock()
-		if _, ok := grupos.pids[pid]; ok {
+		if grupos.pids[pid] == esta {
 			matarSiQueda(pid)
 		}
 	}()

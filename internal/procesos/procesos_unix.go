@@ -72,8 +72,10 @@ func MatarGrupo(pid int) error {
 // container (so a containerized semgrep stops instead of running on, finding
 // af0383) and a tool can catch to clean up; whoever is still in the group
 // after gracia gets SIGKILL (MatarGrupo). It does not wait for the gracia:
-// it is exec's Cancel, which must return at once. Only for a group started
-// with Arrancar or ArrancarConGracia: the later SIGKILL checks the registry.
+// it is exec's Cancel, which must return at once. The SIGTERM goes to any
+// group number it is given; the SIGKILL after gracia only to a group this
+// process registered with Arrancar or ArrancarConGracia, and only to that
+// same registration (matarTrasGracia, finding 4757e3).
 func TerminarGrupo(pid int, gracia time.Duration) error {
 	if pid <= 0 {
 		return nil
