@@ -7,8 +7,10 @@ package gates
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -135,8 +137,16 @@ func correr(ctx context.Context, dir, cmdStr string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(salida.Name())
 	defer salida.Close()
+	// on Unix the name goes at once and the file lives on its descriptor:
+	// hoom ended by a signal, or by SIGKILL, leaves no gate output behind in
+	// the temp directory (finding 6599fe). Windows cannot remove an open file:
+	// there it goes when correr returns.
+	if runtime.GOOS == "windows" {
+		defer os.Remove(salida.Name())
+	} else {
+		os.Remove(salida.Name())
+	}
 	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el gate es el comando que el proyecto declara en hoom.yaml: ejecutarlo es el trabajo de verify
 	cmd.Dir = dir
 	cmd.Stdout = salida
@@ -150,11 +160,20 @@ func correr(ctx context.Context, dir, cmdStr string) ([]byte, error) {
 		procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGate))
 	}
 	procesos.Liberar(cmd.Process.Pid)
-	out, rerr := os.ReadFile(salida.Name())
+	out, rerr := leerDesdeElPrincipio(salida)
 	if err == nil && rerr != nil {
 		err = rerr
 	}
 	return out, err
+}
+
+// leerDesdeElPrincipio reads f whole from its start: the gate wrote it
+// through the same open file, and its offset is at the end.
+func leerDesdeElPrincipio(f *os.File) ([]byte, error) {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	return io.ReadAll(f)
 }
 
 // selectCommand picks diff_cmd when a diff scope exists and --full was not
