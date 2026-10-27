@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261027T172229_c7a3ce",
+  "as": "corregido",
+  "evidence": "0e1ba3d: un solo ciclo de vida del hoom ayudante (gegArrancarHoom con gegAyudante{selector, entorno, etiqueta}, tipo gegHoom), un solo Test ayudante, y los ayudantes renombrados por su funcion; los tests de las rondas 1 a 3 pasan igual.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-27T17:45:08.36143Z"
+}
