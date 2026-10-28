@@ -1,0 +1,11 @@
+{
+  "id": "20261028T172028_4acfc8",
+  "created_at": "2026-10-28T17:20:28.677664Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gitx/sinlabase.go",
+  "description": "INTRODUCIDO — internal/gitx/sinlabase.go:153 enlaza solo el directorio de objetos al repo temporal y internal/gitx/sinlabase.go:188 ejecuta alli merge-tree, por lo que se pierden refs/replace que el resto de los git del flujo si honra. Reproduccion: con D reemplazado por un commit de igual padre pero otro arbol, I cambiando otro archivo y H conservando el arbol original de D, el merge sintetico anterior deja f en diff(merge(D,I),H); el nuevo bare ignora el reemplazo, produce el mismo arbol de H y la medida/evidencia queda vacia. Una delta puede terminar SIN REVISAR y el tablero mantener la review aunque los mismos D/H comparados por el repositorio muestran codigo cambiado.",
+  "author": "reviewer@codex",
+  "fingerprint": "52044bcaea7f5987",
+  "task": "evidencia-de-la-review"
+}

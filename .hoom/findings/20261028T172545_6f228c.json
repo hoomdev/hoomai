@@ -1,0 +1,11 @@
+{
+  "id": "20261028T172545_6f228c",
+  "created_at": "2026-10-28T17:25:45.99521Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/sinlabase.go",
+  "description": "INTRODUCIDO — internal/gitx/sinlabase.go:145-153: repoDeTrabajo inicializa un bare repo y enlaza solo el directorio de objetos, pero no conserva el archivo shallow del repositorio origen. En un clone --depth=2 donde D e I comparten un commit marcado como shallow, git merge-tree D I funciona en el repo origen y el mismo comando en este scratch falla con 'Could not read ... / could not parse commit ...' porque intenta seguir el padre ausente. SinLaBase propaga esa falla como error (lineas 111-114), de modo que review --delta/--desde aborta sin registro y CambioDespues hace que el tablero descarte la cola. El flujo anterior ejecutaba merge-tree dentro del repo origen y sí veía su frontera shallow; hay que trasladar esa metadata al scratch o manejar explícitamente repositorios shallow sin perder el aislamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "52044bcaea7f5987",
+  "task": "evidencia-de-la-review"
+}

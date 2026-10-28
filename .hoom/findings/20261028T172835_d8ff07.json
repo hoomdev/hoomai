@@ -1,0 +1,11 @@
+{
+  "id": "20261028T172835_d8ff07",
+  "created_at": "2026-10-28T17:28:35.90596Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/evidencia_de_la_review_hallazgos_unix_test.go",
+  "description": "INTRODUCIDO: internal/boardcmd/evidencia_de_la_review_hallazgos_unix_test.go:164: el retorno de elegir se usa a la vez como datos de entorno y como bandera implicita para escoger entre Build/edrRunDelta en proceso y ejecutar el binario en un subproceso. Esa sobrecarga de nil no aparece en el contrato del helper y obliga a duplicar dos flujos extensos (lineas 164-192), por lo que agregar otra fuente de configuracion exige entender y preservar una dependencia accidental. Separar explicitamente el modo de ejecucion (o extraer un runner comun) haria el test mas legible y mantenible.",
+  "author": "reviewer@codex",
+  "fingerprint": "52044bcaea7f5987",
+  "task": "evidencia-de-la-review"
+}

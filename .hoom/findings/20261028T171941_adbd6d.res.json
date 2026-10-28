@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T171941_adbd6d",
+  "as": "refutado",
+  "evidence": "Decision de Henry (2026-10-28, falla segura del merge sintetico): el repo de trabajo aislado no lleva los repos de submodulos, y lo que no lleva cae a review completa, nunca a una delta mas chica. Probado: si solo la base movio el gitlink, el merge sintetico sale limpio (exit 0, mismo arbol que en el repo real); el conflicto aparece solo si el gitlink se movio de los dos lados (lo revisado en D y la base), que es un conflicto del merge sintetico con lo ya revisado (CA-486 enmendado): la review es completa y lo avisa. Es el lado seguro: revisa mas, nunca menos.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T17:38:33.492665Z"
+}
