@@ -126,15 +126,16 @@ func cliFalso(cuerpo string) []byte {
 // tests de este paquete que NO son CLIs de IA: ninguno recibe el pedido de la
 // review por stdin, asi que no llevan drenaje.
 var cliFalsoOtrosScripts = map[string]int{
-	"base_de_la_review_ronda1_test.go":      1, // bdGitQueMueveLaRef: un git
-	"evidencia_de_la_review_unix_test.go":   2, // edrGitViejo y edrGitSinMergeTree: dos git
-	"binario_de_la_review_test.go":          2, // el hoom viejo al frente del PATH (dos tests): nadie lo corre con el pedido
-	"review_aislada_evidencia_test.go":      1, // raGitRoto: un git
-	"review_aislada_memoria_test.go":        2, // un driver de diff de git y un git
-	"review_aislada_opciones_test.go":       1, // raGitSinHoomYaml: un git
-	"review_por_diferencia_helpers_test.go": 1, // rdGitEspia: un git
-	"review_por_diferencia_ronda1_test.go":  1, // rdGitQueMueveHEAD: un git
-	"review_por_diferencia_ronda2_test.go":  1, // rd2GitIdaYVuelta: un git
+	"base_de_la_review_ronda1_test.go":              1, // bdGitQueMueveLaRef: un git
+	"evidencia_de_la_review_unix_test.go":           2, // edrGitViejo y edrGitSinMergeTree: dos git
+	"evidencia_de_la_review_hallazgos_unix_test.go": 1, // edrGit240: un git
+	"binario_de_la_review_test.go":                  2, // el hoom viejo al frente del PATH (dos tests): nadie lo corre con el pedido
+	"review_aislada_evidencia_test.go":              1, // raGitRoto: un git
+	"review_aislada_memoria_test.go":                2, // un driver de diff de git y un git
+	"review_aislada_opciones_test.go":               1, // raGitSinHoomYaml: un git
+	"review_por_diferencia_helpers_test.go":         1, // rdGitEspia: un git
+	"review_por_diferencia_ronda1_test.go":          1, // rdGitQueMueveHEAD: un git
+	"review_por_diferencia_ronda2_test.go":          1, // rd2GitIdaYVuelta: un git
 }
 
 // cliFalsoEsteArchivo es este archivo: el unico que puede escribir el shebang
