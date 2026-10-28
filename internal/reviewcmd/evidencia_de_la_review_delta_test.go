@@ -1,11 +1,15 @@
 // Tests adversariales del spec .hoom/specs/evidencia-de-la-review.md
-// (CA-484, CA-485, CA-486, enmienda 1) sobre la review con rango: "la delta
-// compara contra la punta anterior con la base integrada (un merge
-// sintetico)". Sea D el desde de la review e I el merge-base de la base con
-// HEAD (la base que la rama tiene integrada): si I es HEAD (un rango ya
-// integrado) o ancestro de D, el rango es el de hoy; si no, se compara el
+// (CA-484, CA-485, CA-486, CA-489, enmiendas 1 y 2) sobre la review con
+// rango: "la delta compara contra la punta anterior con la base integrada
+// (un merge sintetico)". Sea D el desde de la review e I el merge-base de la
+// base con HEAD (la base que la rama tiene integrada): si I es HEAD (un rango
+// ya integrado) o ancestro de D, el rango es el de hoy; si no, se compara el
 // arbol del merge sintetico de D con I contra HEAD, y base_integrada = I. Si
-// ese merge tiene conflicto, la review es la completa de hoy con un aviso.
+// ese merge tiene conflicto (la base choca con lo que ya estaba en D, lo
+// revisado: CA-486), la review es la completa de hoy con un aviso; si el
+// conflicto que la rama resolvio fue con codigo posterior a D, el merge
+// sintetico sale limpio y la resolucion va en la delta contra la version de
+// la base (CA-489).
 // Los fixtures estan en evidencia_de_la_review_helpers_test.go.
 package reviewcmd
 
@@ -366,11 +370,14 @@ func TestCA485_SoloIntegrarLaBaseEsSinRevisar(t *testing.T) {
 
 // ---------------------------------------------------------------- CA-486
 
-// edrConConflicto arma el caso: la rama cambia app.go (lo que la review R1
-// cubre: D lo trae), main cambia despues la misma linea (Y), la rama integra
-// main resolviendo el conflicto en app.go, y commitea Z. El merge sintetico
-// de D con I choca en app.go como choco el merge de la rama. Devuelve el
-// repo, R1, D, I y H.
+// edrConConflicto arma el caso de CA-486 (enmienda 2: "resolviendo un
+// conflicto con codigo que ya estaba en esa review (el merge sintetico de su
+// hasta con la base integrada tiene conflicto)"): la rama cambia app.go (lo
+// que la review R1 cubre: D lo trae), main cambia despues la misma linea
+// (Y), la rama integra main resolviendo el conflicto en app.go, y commitea
+// Z. El merge sintetico de D con I choca en app.go como choco el merge de la
+// rama. Devuelve el repo, R1, D, I y H. El conflicto con codigo POSTERIOR a
+// D es CA-489 (edrConConflictoNuevo).
 func edrConConflicto(t *testing.T, ca string, cx *raCLI) (root string, r1 Result, d, i, h string) {
 	t.Helper()
 	root, r1, d = edrConReviewTras(t, ca, cx, map[string]string{"app.go": "package app\n\nfunc Rama() {} // DE-LA-RAMA\n"})
@@ -439,9 +446,10 @@ func edrCompleta(t *testing.T, ca, caso, root string, cx *raCLI, antes int, res 
 	}
 }
 
-// CA-486: "si despues de una review la rama integro la base resolviendo un
-// conflicto, `hoom review --delta` hace la review completa": desde = el
-// merge-base, cobertura completa, sin desde_review ni base_integrada, primera
+// CA-486 (enmienda 2): "si despues de una review la rama integro la base
+// resolviendo un conflicto con codigo que ya estaba en esa review (el merge
+// sintetico de su hasta con la base integrada tiene conflicto), `hoom review
+// --delta` hace la review completa": desde = el merge-base, cobertura completa, sin desde_review ni base_integrada, primera
 // linea `contra main`, y el aviso `la rama integro la base (<I12>) despues
 // de <D12> y ese merge no se separa (conflicto en app.go): la review es
 // completa` en la salida y en notes. Con --desde D, lo mismo.
@@ -469,8 +477,10 @@ func TestCA486_ConflictoAlIntegrarLaBaseEsLaReviewCompleta(t *testing.T) {
 }
 
 // CA-486 (caso limite: "una ruta conflictiva con caracteres de control: el
-// aviso la escapa"). El conflicto es en un archivo cuyo nombre trae un salto
-// de linea, una linea falsa de la cabecera y un escape de terminal: el aviso
+// aviso la escapa"). Como en edrConConflicto, el lado de la rama que choca
+// ya estaba en la review (en D). El conflicto es en un archivo cuyo nombre
+// trae un salto de linea, una linea falsa de la cabecera y un escape de
+// terminal: el aviso
 // es una sola linea, sin caracteres de control, con la ruta visible
 // (escapada); ninguna linea de la salida empieza con la linea falsa, y las
 // notas no llevan controles.
@@ -557,6 +567,132 @@ func TestCA484_LensAManoConLaBaseIntegrada(t *testing.T) {
 			}
 			diff, _ := edrDiffDelPedido(t, "CA-484", cx.pedido(t, antes+1))
 			edrSoloLoNuevo(t, "CA-484", "--lens "+c.lente, diff)
+		})
+	}
+}
+
+// ---------------------------------------------------------------- CA-489
+
+const (
+	edrAppRama = "package app\n\nfunc Rama() {} // DE-LA-RAMA\n"
+	edrAppMain = "package app\n\nfunc Main() {} // DE-MAIN\n"
+)
+
+// edrConConflictoNuevo arma el caso de CA-489: despues de la review R1 (D
+// trae el app.go de la base), la rama escribe codigo nuevo en app.go (X);
+// main cambia las mismas lineas (Y) y trae ademas 450 lineas en una ruta de
+// riesgo; la rama integra main resolviendo el conflicto en app.go con
+// resolucion, y commitea Z. El merge sintetico de D con I no choca: X no
+// esta en D. Devuelve el repo, R1, D, I y H.
+func edrConConflictoNuevo(t *testing.T, ca string, cx *raCLI, resolucion string) (root string, r1 Result, d, i, h string) {
+	t.Helper()
+	root, r1, d = edrConReview(t, ca, cx)
+	rdCommit(t, root, "X: codigo nuevo en app.go", map[string]string{"app.go": edrAppRama})
+	i = edrMainAvanza(t, root, "Y", map[string]string{"app.go": edrAppMain, "internal/auth/y_main.go": rdCodigo(450, "MarcaYMain")})
+	edrIntegrarConConflicto(t, root, map[string]string{"app.go": resolucion})
+	h = rdCommit(t, root, "Z", map[string]string{"z.go": edrCodigo("MARCA-Z")})
+	if mb := rdMB(t, root); mb != i {
+		t.Fatalf("%s: fixture: el merge-base de main con HEAD es la punta de main: %s", ca, mb)
+	}
+	return root, r1, d, i, h
+}
+
+// CA-489: "si despues de una review la rama escribe codigo nuevo, la base
+// cambia las mismas lineas y la rama la integra resolviendo ese conflicto,
+// `hoom review --delta` revisa como delta con desde_review y
+// base_integrada. La evidencia trae la resolucion como cambio contra la
+// version de la base, y no trae lo demas que trajo la base". Dos
+// resoluciones: una que se queda con las dos lineas (contra la base: agrega
+// la de la rama y una marca), y una que descarta la de la base (contra la
+// base: la quita). En las dos, la evidencia son app.go (exactamente esas
+// lineas) y z.go, nada de y_main.go; la medida y las lentes son las de eso
+// (con y_main.go serian las 4); la salida y el pedido llevan las lineas de la
+// base integrada y no el aviso de "no se separa". Con --desde D, la misma
+// evidencia.
+func TestCA489_ConflictoConCodigoNuevoVaEnLaDeltaContraLaBase(t *testing.T) {
+	casos := []struct {
+		nombre, resolucion  string
+		agregadas, quitadas []string // de app.go, contra la version de la base
+	}{
+		{"se-queda-con-las-dos", edrAppRama + "func Main() {} // DE-MAIN\n// MARCA-RESOLUCION\n",
+			[]string{"+func Rama() {} // DE-LA-RAMA", "+// MARCA-RESOLUCION"}, nil},
+		{"descarta-lo-de-la-base", edrAppRama + "// MARCA-RESOLUCION\n",
+			[]string{"+func Rama() {} // DE-LA-RAMA", "+// MARCA-RESOLUCION"}, []string{"-func Main() {} // DE-MAIN"}},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			cx := raInstalar(t, bin, "codex", "")
+			root, r1, d, i, h := edrConConflictoNuevo(t, "CA-489", cx, c.resolucion)
+			antes := cx.veces()
+
+			res, out := edrRevisar(t, "CA-489", root, Options{Provider: "codex", Spec: edrSpec, Delta: true})
+			if res.Status != "revisado" || res.RecordID == "" || res.Cobertura != CoberturaDelta || res.Desde != d || res.Hasta != h ||
+				res.DesdeReview != r1.RecordID {
+				t.Fatalf("CA-489: %s: --delta revisa como delta, desde %s, hasta %s, desde_review %s: %+v\n%s",
+					c.nombre, d[:12], h[:12], r1.RecordID, res, out)
+			}
+			if m := edrJSON(t, res); m["base_integrada"] != i {
+				t.Fatalf("CA-489: %s: el Result (--json) dice base_integrada %s: %v", c.nombre, i[:12], m["base_integrada"])
+			}
+			if crudo := raRegistroCrudo(t, root, res.RecordID); crudo["base_integrada"] != i || crudo["desde_review"] != r1.RecordID {
+				t.Fatalf("CA-489: %s: el registro dice base_integrada %s y desde_review %s: %v", c.nombre, i[:12], r1.RecordID, crudo)
+			}
+			if !reflect.DeepEqual(res.Lenses, []string{LenteDominante}) || cx.veces() != antes+1 {
+				t.Fatalf("CA-489: %s: las lentes son las de la resolucion y Z (la dominante); con lo que trajo la base serian las 4: %v (%q)",
+					c.nombre, res.Lenses, res.Reason)
+			}
+			if strings.Contains(out, "no se separa") || bdTieneNota(res.Notes, "no se separa") {
+				t.Fatalf("CA-489: %s: el conflicto con codigo nuevo se separa: sin el aviso de CA-486:\n%s", c.nombre, out)
+			}
+
+			p := cx.pedido(t, antes+1)
+			diff, _ := edrDiffDelPedido(t, "CA-489", p)
+			if got := edrCabeceras(diff); !reflect.DeepEqual(got, []string{"app.go", "z.go"}) || strings.Contains(diff, "MarcaYMain") {
+				t.Fatalf("CA-489: %s: la evidencia trae la resolucion (app.go) y Z, y no lo demas que trajo la base (y_main.go): %q\n%s",
+					c.nombre, got, diff)
+			}
+			sec := raSeccion(diff, "diff --git a/app.go b/app.go")
+			var agregadas, quitadas []string
+			for _, l := range strings.Split(sec, "\n") {
+				switch {
+				case strings.HasPrefix(l, "+++") || strings.HasPrefix(l, "---"):
+				case strings.HasPrefix(l, "+"):
+					agregadas = append(agregadas, l)
+				case strings.HasPrefix(l, "-"):
+					quitadas = append(quitadas, l)
+				}
+			}
+			if !reflect.DeepEqual(agregadas, c.agregadas) || !reflect.DeepEqual(quitadas, c.quitadas) {
+				t.Fatalf("CA-489: %s: app.go va como la resolucion contra la version de la base: agrega %q y quita %q; fue +%q -%q\n%s",
+					c.nombre, c.agregadas, c.quitadas, agregadas, quitadas, sec)
+			}
+			n, ins, del := 2, len(c.agregadas)+edrLineasDe(edrCodigo("MARCA-Z")), len(c.quitadas)
+			if primera := fmt.Sprintf("hoom review: %d archivos cambiados, +%d/-%d lineas desde %s", n, ins, del, d[:12]); raLineas(out)[0] != primera {
+				t.Fatalf("CA-489: %s: la medida es la de la resolucion y Z: la primera linea es\n%q\nfue\n%q", c.nombre, primera, raLineas(out)[0])
+			}
+			lineas := raLineas(out)
+			if k := raLinea(lineas, 0, "  rango "); k < 0 || k+1 >= len(lineas) || lineas[k+1] != edrLineaBase(i, d) {
+				t.Fatalf("CA-489: %s: despues de la linea rango va %q:\n%s", c.nombre, edrLineaBase(i, d), out)
+			}
+			pl := raLineas(p)
+			if pl[2] != rdLineaRango(d, h, CoberturaDelta, n, ins, del) || pl[3] != edrLineaPedido(i, d) {
+				t.Fatalf("CA-489: %s: el pedido lleva Rango: con esa medida y la linea de la base integrada:\n%q\n%q", c.nombre, pl[2], pl[3])
+			}
+
+			// --desde D: la misma evidencia
+			rdEsperarSegundo()
+			antes = cx.veces()
+			res2, out2 := edrRevisar(t, "CA-489", root, Options{Provider: "codex", Spec: edrSpec, Desde: d})
+			if res2.Status != "revisado" || cx.veces() != antes+1 {
+				t.Fatalf("CA-489: %s: --desde %s revisa: %+v\n%s", c.nombre, d[:12], res2, out2)
+			}
+			if m := edrJSON(t, res2); m["base_integrada"] != i {
+				t.Fatalf("CA-489: %s: --desde: base_integrada %s: %v", c.nombre, i[:12], m["base_integrada"])
+			}
+			if diff2, _ := edrDiffDelPedido(t, "CA-489", cx.pedido(t, antes+1)); diff2 != diff {
+				t.Fatalf("CA-489: %s: --desde D revisa lo mismo que --delta:\n--- delta\n%s\n--- desde\n%s", c.nombre, diff, diff2)
+			}
 		})
 	}
 }

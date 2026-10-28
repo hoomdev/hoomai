@@ -16,7 +16,6 @@ package boardcmd
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -409,19 +408,4 @@ func TestCA487_UnaFallaDeGitEnElMergeSinteticoNoCuentaLaReview(t *testing.T) {
 	if _, err := os.Stat(marca); err != nil {
 		t.Fatalf("CA-487: la falla es la de git en el merge sintetico (git merge-tree no corrio): %v", err)
 	}
-}
-
-// edrJSONMapa es v como lo escribe --json, leido como mapa (sin depender de
-// los campos que el tipo tenga hoy).
-func edrJSONMapa(t *testing.T, v any) map[string]any {
-	t.Helper()
-	raw, err := json.Marshal(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		t.Fatal(err)
-	}
-	return m
 }

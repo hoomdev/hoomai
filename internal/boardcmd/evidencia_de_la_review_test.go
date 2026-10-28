@@ -1,6 +1,6 @@
 // Tests adversariales del spec .hoom/specs/evidencia-de-la-review.md
-// (CA-483, CA-485, CA-486, enmienda 1) en el tablero, con la evidencia EN
-// DISCO (repos git reales, CardFor) y `hoom review` de verdad
+// (CA-483, CA-485, CA-486, CA-489, enmiendas 1 y 2) en el tablero, con la
+// evidencia EN DISCO (repos git reales, CardFor) y `hoom review` de verdad
 // (reviewcmd.Run con un codex falso):
 //
 //   - "codigo" despues de una review es lo que cambio en las rutas de la
@@ -9,7 +9,9 @@
 //     --delta lo revisa con lentes); uno que solo toca el estado de hoom no.
 //   - CambioDespues gana la base: lo que trajo un merge limpio de la base
 //     despues de la review no cuenta (CA-485); un merge que no se separa
-//     (conflicto) si (CA-486).
+//     (conflicto con lo revisado) si (CA-486); y la resolucion de un
+//     conflicto con codigo posterior a la review es codigo nuevo que pide
+//     el --delta, y ese --delta se separa (CA-489).
 //
 // Los fixtures (rdGrande, rdTarjeta, rdCuenta, rdNoCuenta, r1Codex,
 // tj.review, ...) estan en review_por_diferencia_test.go y
@@ -17,6 +19,7 @@
 package boardcmd
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -193,11 +196,13 @@ func TestCA485_SoloIntegrarLaBaseNoDevuelveLaTarjetaAReview(t *testing.T) {
 
 // ---------------------------------------------------------------- CA-486
 
-// CA-486: "para el tablero, el codigo cambio despues de la review" cuando la
-// rama integro la base resolviendo un conflicto, aunque lo que choco sea
-// documentacion: la tarjeta vuelve a Review con el motivo y el siguiente paso
-// del delta. Seguir ese paso (hoom review --delta, que no se separa y hace
-// la review completa) la devuelve a Tu aceptacion.
+// CA-486 (enmienda 2): "para el tablero, el codigo cambio despues de la
+// review" cuando la rama integro la base resolviendo un conflicto con codigo
+// que ya estaba en esa review (el README que la tarea cambio antes de R1: el
+// merge sintetico de su hasta con la base integrada tiene conflicto), aunque
+// lo que choco sea documentacion: la tarjeta vuelve a Review con el motivo y
+// el siguiente paso del delta. Seguir ese paso (hoom review --delta, que no
+// se separa y hace la review completa) la devuelve a Tu aceptacion.
 func TestCA486_ConflictoAlIntegrarLaBaseDevuelveLaTarjetaAReview(t *testing.T) {
 	r1Codex(t)
 	tj := rdGrande(t)
@@ -234,4 +239,70 @@ func edrGitErr(dir string, args ...string) (string, error) {
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+// ---------------------------------------------------------------- CA-489
+
+// CA-489: "si despues de una review la rama escribe codigo nuevo, la base
+// cambia las mismas lineas y la rama la integra resolviendo ese conflicto
+// ... Para el tablero, el codigo cambio (hay resolucion nueva) y el
+// siguiente paso es --delta". La tarjeta vuelve a Review con el motivo y el
+// siguiente paso del delta; seguir ese paso (hoom review --delta de verdad)
+// revisa como delta encadenado a la review, con base_integrada = la punta de
+// main, y su evidencia trae la resolucion de app.go contra la version de la
+// base y no lo demas que trajo main; despues, la tarjeta pasa a Tu
+// aceptacion. (Que la tarjeta vuelva a Review no distingue la regla vieja,
+// que tambien ve codigo; lo que la distingue es el delta que el tablero
+// pide.)
+func TestCA489_ConflictoConCodigoNuevoPideElDeltaYElDeltaSeSepara(t *testing.T) {
+	pedidos := edrCodex(t)
+	tj := rdGrande(t)
+	r1 := tj.completa(t, "20261028T160000_c0mp1a")
+	rdCuenta(t, "CA-489 (fixture)", "completa", tj.card(t), r1.ID)
+
+	bdEscribir(t, tj.wt, "app.go", "package app\n\nfunc Rama() {} // DE-LA-TAREA\n")
+	bdCommitear(t, tj.wt, "codigo nuevo en app.go despues de la review")
+	i := edrMainAvanza(t, tj, "main cambia las mismas lineas", map[string]string{
+		"app.go":        "package app\n\nfunc Main() {} // DE-MAIN\n",
+		"main_extra.go": "package app\n\n// MARCA-DE-MAIN\nfunc Extra() {}\n",
+	})
+	if _, err := edrGitErr(tj.wt, "merge", "-q", "--no-ff", "--no-edit", "main"); err == nil {
+		t.Fatal("CA-489: fixture: el merge de main tiene conflicto en app.go")
+	}
+	bdEscribir(t, tj.wt, "app.go", "package app\n\nfunc Rama() {} // DE-LA-TAREA\nfunc Main() {} // DE-MAIN\n// MARCA-RESOLUCION\n")
+	bdGit(t, tj.wt, "add", "app.go")
+	bdGit(t, tj.wt, "commit", "-q", "--no-edit")
+	tj.verde(t)
+	edrPideElDelta(t, "CA-489", "conflicto con codigo nuevo", tj.card(t), r1.ID, r1.Hasta)
+
+	r1Esperar()
+	res, out := tj.review(t, "CA-489", true)
+	if res.Status != "revisado" || res.Cobertura != reviewcmd.CoberturaDelta || res.DesdeReview != r1.ID || res.Desde != r1.Hasta {
+		t.Fatalf("CA-489: el --delta que pide la tarjeta revisa como delta encadenado a %s: %+v\n%s", r1.ID, res, out)
+	}
+	if m := edrJSONMapa(t, res); m["base_integrada"] != i {
+		t.Fatalf("CA-489: el --delta que pide la tarjeta separa la base integrada (base_integrada %s): %v", i[:12], m["base_integrada"])
+	}
+	p := edrPedido(t, pedidos, 1)
+	if !strings.Contains(p, "diff --git a/app.go b/app.go") || !strings.Contains(p, "+func Rama() {} // DE-LA-TAREA") ||
+		!strings.Contains(p, "+// MARCA-RESOLUCION") || strings.Contains(p, "+func Main() {} // DE-MAIN") ||
+		strings.Contains(p, "main_extra.go") || strings.Contains(p, "MARCA-DE-MAIN") {
+		t.Fatalf("CA-489: la evidencia trae la resolucion de app.go contra la version de la base, y no lo demas que trajo main:\n%s", p)
+	}
+	rdCuenta(t, "CA-489", "despues del --delta", tj.card(t), res.RecordID)
+}
+
+// edrJSONMapa es v como lo escribe --json, leido como mapa (sin depender de
+// los campos que el tipo tenga hoy).
+func edrJSONMapa(t *testing.T, v any) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
 }
