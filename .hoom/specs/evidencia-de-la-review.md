@@ -1,8 +1,18 @@
 # Spec: la review ve todo lo que no es estado de hoom, y la delta no cuenta lo que trajo la base
 
-Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La implementación
-de la versión aprobada (sha256 8e921c8d) mostró tres cosas, y la enmienda
-las fija:
+Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La versión con la
+enmienda 1 (sha256 73516333) está implementada. Sus tests mostraron que
+CA-486 decía "resolviendo un conflicto", pero el contrato decide por el
+merge sintético de `D` con `I`. Si el conflicto que la rama resolvió fue
+con código que escribió **después** de la review anterior, ese código no
+está en `D` y el merge sintético sale limpio. Henry eligió el contrato
+(2026-10-28): ese caso se revisa como delta, y la resolución aparece contra
+la versión de la base. La review completa queda para el conflicto con lo
+que ya estaba revisado. La enmienda 2 reescribe CA-486, agrega CA-489 y
+precisa el contrato, los casos límite y la decisión.
+
+Enmienda 1 (aprobada, sha256 73516333). La implementación de la versión
+aprobada (sha256 8e921c8d) mostró tres cosas, y la enmienda las fija:
 
 1. Con `--desde` en un árbol cuya base ya contiene `HEAD`, la regla
    descontaba el rango entero y la review terminaba `SIN REVISAR`. Es el
@@ -15,7 +25,8 @@ las fija:
    (CA-413, CA-419, CA-420, CA-421, CA-443). Se suman a la lista de
    re-expresados.
 
-Historia: aprobada el 2026-10-27 (sha256 8e921c8d).
+Historia: aprobada el 2026-10-27 (sha256 8e921c8d); enmienda 1 aprobada el
+2026-10-27 (sha256 73516333).
 Depende de: `review-aislada-y-modelo-elegido.md` (PR #38),
 `review-por-diferencia.md` (PR #39) y `base-de-la-review.md` (PR #40),
 integradas.
@@ -124,6 +135,11 @@ la base que la rama tiene integrada.
   instalado no lo sabe armar (anterior a 2.40). Entonces la review con rango
   es la **review completa** de hoy, con el aviso de abajo, y para el tablero
   el código cambió.
+- El merge sintético tiene conflicto solo cuando la base choca con lo que
+  ya estaba en `D`, es decir, con lo revisado. Si el conflicto que la rama
+  resolvió fue con código posterior a `D`, ese código no está en `D`, el
+  merge sintético sale limpio y la resolución queda en la comparación como
+  cambio contra la versión de la base.
 - Cualquier otra falla de git es un error, sin pasadas ni registro (falla
   cerrada), y nunca se cae al diff crudo.
 
@@ -229,9 +245,14 @@ re-expresa el test-writer contra esta spec, y no se borra ninguno:
 - Solo un merge limpio de la base después de la review: lo nuevo está vacío.
   La delta termina `SIN REVISAR` y la tarjeta sigue revisada, siempre que
   haya un verde para el `HEAD` nuevo.
-- Un conflicto que la rama resolvió al integrar la base: no se separa, y la
-  review es completa. La resolución es código de la tarea y se revisa con
-  todo el contexto.
+- Un conflicto que la rama resolvió al integrar la base, contra código que
+  ya estaba en la review anterior: no se separa, y la review es completa.
+  La resolución toca lo revisado en el punto donde se cruza con la base, y
+  se revisa con todo el contexto.
+- Un conflicto que la rama resolvió al integrar la base, contra código que
+  escribió después de la review anterior: se separa, y la delta lo revisa.
+  El reviewer ve la resolución como cambio contra la versión de la base,
+  que es lo que la tarea le hace a la base.
 - `--desde <c>` con la base integrada después de `c`: la misma regla, y la
   cobertura sale como hoy (`parcial` o `delta`).
 - `--desde <c>` en un árbol cuya base ya contiene `HEAD` (un rango ya
@@ -246,8 +267,9 @@ re-expresa el test-writer contra esta spec, y no se borra ninguno:
 - CA-483: después de una review de 4 lentes, un commit que solo toca `.hoom/semgrep/gate.sh` devuelve la tarjeta a Review con el siguiente paso `--delta`, y ese `--delta` lo revisa con lentes, no con `SIN REVISAR`. Un commit que solo toca el estado de hoom (un veredicto, hallazgos, un registro de review) no la devuelve.
 - CA-484: si después de una review la rama commitea X, integra la base sin conflicto (eso trae Y) y commitea Z, `hoom review --delta` revisa X y Z sin Y. La medida y las lentes "sobre el rango" son las de X+Z. El registro, el `Result` y `--json` dicen `cobertura: delta`, `desde` = el `hasta` anterior, su `desde_review` y `base_integrada` = el merge-base de la base con `HEAD` (40 hex). La salida lleva la línea `base` y el pedido la línea de la base integrada. Un cambio hecho en el propio commit de merge, más allá del merge limpio, sí aparece. `--desde <c>` en el mismo caso también deja Y afuera.
 - CA-485: si después de una review la rama solo integró la base sin conflicto, `hoom review --delta` termina `SIN REVISAR - no hay cambios desde <desde12>: no hay nada que revisar`, con exit 0 y sin registro. Con un verde para el `HEAD` nuevo, el tablero no devuelve la tarjeta a Review por ese merge.
-- CA-486: si después de una review la rama integró la base resolviendo un conflicto, `hoom review --delta` hace la review completa: `desde` = el merge-base, `cobertura: completa`, sin `desde_review` ni `base_integrada` y primera línea `contra <base>`. La salida y `notes` llevan el aviso `la rama integro la base (<I12>) despues de <D12> y ese merge no se separa (conflicto en <ruta>): la review es completa`. Para el tablero, el código cambió después de la review. Un git que se anuncia anterior a 2.40 da lo mismo con el motivo `git <version> no arma el merge sintetico, hace falta 2.40`.
+- CA-486: si después de una review la rama integró la base resolviendo un conflicto con código que ya estaba en esa review (el merge sintético de su `hasta` con la base integrada tiene conflicto), `hoom review --delta` hace la review completa: `desde` = el merge-base, `cobertura: completa`, sin `desde_review` ni `base_integrada` y primera línea `contra <base>`. La salida y `notes` llevan el aviso `la rama integro la base (<I12>) despues de <D12> y ese merge no se separa (conflicto en <ruta>): la review es completa`. Para el tablero, el código cambió después de la review. Un git que se anuncia anterior a 2.40 da lo mismo con el motivo `git <version> no arma el merge sintetico, hace falta 2.40`.
 - CA-487: el merge sintético no deja rastro ni corre programas. Después de un `--delta` que separó y de un `hoom board` que evaluó esa tarjeta, el repositorio tiene los mismos objetos, refs e índice que antes, y el árbol de trabajo solo cambia en lo que toda review escribe bajo `.hoom/` (su registro, su sobre, su narración). Si la rama declara `* merge=drv` en su `.gitattributes` y la config del repo define `merge.drv.driver` como un programa que escribe una marca, la marca nunca aparece. Una falla de git en el merge sintético que no es un conflicto da un error, sin pasadas ni registro.
+- CA-489: si después de una review la rama escribe código nuevo, la base cambia las mismas líneas y la rama la integra resolviendo ese conflicto, `hoom review --delta` revisa como `delta` con `desde_review` y `base_integrada`. La evidencia trae la resolución como cambio contra la versión de la base, y no trae lo demás que trajo la base. Para el tablero, el código cambió (hay resolución nueva) y el siguiente paso es `--delta`.
 - CA-488: el README y el contrato 06 (sus dos copias iguales) dicen que la evidencia es todo menos el estado de hoom y que la delta descuenta la base integrada. [verifica: grep -q "base_integrada" README.md && grep -q "estado de hoom" README.md && grep -q "estado de hoom" internal/agents/assets/agents/06-reviewer.md && cmp -s internal/agents/assets/agents/06-reviewer.md .hoom/agents/06-reviewer.md]
 
 ## Decisiones
@@ -276,9 +298,15 @@ re-expresa el test-writer contra esta spec, y no se borra ninguno:
     diffs, difícil de leer y de citar;
   - avisar y seguir: el reviewer sigue atribuyéndole a la tarea lo de main,
     que es exactamente 547228.
-- **Con conflicto, review completa.** La resolución de un conflicto es
-  código de la tarea en el punto donde se cruza con la base: es lo que más
-  contexto pide.
+- **Con conflicto contra lo revisado, review completa; contra código nuevo,
+  delta** (Henry, 2026-10-28). Cuando la base choca con lo que ya estaba
+  revisado, la resolución reescribe código revisado donde se cruza con la
+  base: es lo que más contexto pide. Cuando choca con código posterior a la
+  review, ese código nunca se revisó y la delta lo trae entero: la
+  resolución contra la versión de la base es el cambio real de la tarea.
+  Descartado: detectar si el merge real tuvo conflicto (rehacer el merge de
+  los padres de cada commit de merge). Es más código, y manda a review
+  completa casos que la delta ya cubre.
 - **`desde` no cambia de significado.** La cadena del tablero sigue
   igual, y `base_integrada` dice qué se descontó.
 - **Una sola función para la review y el tablero,** como `Encadenable`: el
