@@ -1,0 +1,11 @@
+{
+  "id": "20261028T213256_cd162c",
+  "created_at": "2026-10-28T21:32:56.208444Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/evidencia_de_la_review_hallazgos4_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/evidencia_de_la_review_hallazgos4_test.go:31-68 define edrVariablesDeLectura, edrEntornoDelFixture y edrGitDelFixture como helpers de fixture compartidos por el paquete, y evidencia_de_la_review_hallazgos5_test.go:36 ya depende de uno de ellos. Alojar helpers compartidos dentro del archivo tematico de la ronda 4 contradice los encabezados que remiten los fixtures a evidencia_de_la_review_helpers_test.go y obliga a conocer un archivo de otro hallazgo para encontrarlos; moverlos al archivo central de fixtures mantendria clara la organizacion por rondas.",
+  "author": "reviewer@codex",
+  "fingerprint": "c353bcba54f8de85",
+  "task": "evidencia-de-la-review"
+}
