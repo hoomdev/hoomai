@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T172835_d8ff07",
+  "as": "corregido",
+  "evidence": "f196eed: el test separa el modo de ejecucion de forma explicita (edrModo: en proceso o subproceso) con un runner comun (edrCorredor); cada caso declara aparte que cambia en el repo, que entorno usa y en que modo corre. Sigue fallando con 756026c en las tres variantes y pasa con a3470d1.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T18:21:26.49439Z"
+}
