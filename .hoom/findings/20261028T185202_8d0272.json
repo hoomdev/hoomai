@@ -1,0 +1,11 @@
+{
+  "id": "20261028T185202_8d0272",
+  "created_at": "2026-10-28T18:52:02.142967Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/gitx/sinlabase.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea este rango): internal/gitx/sinlabase.go:313-314 soloLectura desactiva refs/replace, pero Git sigue honrando .git/info/grafts en los merge-base/--is-ancestor de internal/gitx/diff.go:195 y internal/gitx/diff.go:491. Un graft que declara H con padres D y una punta posterior J de la base hace elegir J como base_integrada aunque H realmente solo integro I; el merge sintetico D+J puede contener un cambio de la tarea tambien presente en J y dejar la delta y el tablero sin ese cambio. Se reprodujo que GIT_NO_REPLACE_OBJECTS=1 no desactiva info/grafts: el fallo puede achicar silenciosamente la evidencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "7124658eb5f1edef",
+  "task": "evidencia-de-la-review"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T185202_8d0272",
+  "as": "corregido",
+  "evidence": "22f9655: soloLectura (toda lectura de gitx: merge-base, --is-ancestor, diffs, status) y el repo de trabajo fijan GIT_GRAFT_FILE=/dev/null ademas de GIT_NO_REPLACE_OBJECTS=1: un .git/info/grafts plantado ya no cambia el merge-base ni la base integrada que se descuenta. Probado: con un graft que le da a B el padre C, git merge-base B C da C; con GIT_GRAFT_FILE=/dev/null da el ancestro real. Achicaba la evidencia, asi que se corrige (decision de Henry 2026-10-28).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T18:55:08.56608Z"
+}
