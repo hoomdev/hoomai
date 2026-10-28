@@ -1,0 +1,11 @@
+{
+  "id": "20261028T200906_a21de0",
+  "created_at": "2026-10-28T20:09:06.683512Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/evidencia_de_la_review_hallazgos5_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/evidencia_de_la_review_hallazgos5_test.go:78 y internal/boardcmd/evidencia_de_la_review_hallazgos_test.go:181 exigen que info/grafts altere merge-base. Git 3.0 eliminara el soporte de grafts (y un Git actual compilado con WITH_BREAKING_CHANGES ya puede omitirlo), por lo que el fixture esperara J pero recibira I y ambas suites fallaran aunque produccion este correctamente protegida porque ese vector ya no existe. El escenario debe reconocer que la dependencia no soporta grafts y omitir/adaptar solo esa prueba.",
+  "author": "reviewer@codex",
+  "fingerprint": "064cef82bf737082",
+  "task": "evidencia-de-la-review"
+}
