@@ -135,7 +135,7 @@ func RangePatch(dir, desde, hasta string, c *Comparacion, dst *bytes.Buffer, max
 	if !c.Separada() {
 		return false, fmt.Errorf("el merge de la base en %s no se separo del cambio", desde)
 	}
-	return patchDesde(dir, c.env, c.Antes, hasta, dst, max)
+	return patchDesde(c.donde(dir), c.env, c.Antes, hasta, dst, max)
 }
 
 // evidencePaths are the paths the evidence covers: the whole repository but
@@ -147,6 +147,12 @@ func RangePatch(dir, desde, hasta string, c *Comparacion, dst *bytes.Buffer, max
 // another extension there, or a subdirectory, is not state and goes in. The
 // dirty-tree refusal, the range measure and the board look at these same
 // paths.
+//
+// Each exclusion matches its exact shape and nothing else (finding 686b61):
+// a pathspec without a wildcard also matches everything under a directory of
+// that name, so a single file is written with a one-letter class
+// (ratche[t].json matches the file, never a directory .hoom/ratchet.json/),
+// and a directory with /** (the files in it, never a file of that name).
 var evidencePaths = append([]string{".",
 	":(exclude,glob).hoom/approvals/*.json", // spec approvals
 	":(exclude,glob).hoom/findings/*.json",  // findings and their resolutions
@@ -154,17 +160,17 @@ var evidencePaths = append([]string{".",
 	":(exclude,glob).hoom/verdicts/*.json",  // verdicts
 	":(exclude,glob).hoom/items/*.yaml",     // board items
 	":(exclude,glob).hoom/specs/*.md",       // specs: the reviewed one goes whole in the pedido
-	":(exclude).hoom/intake",                // the client's documents, of any kind, the Studio uploads
-	":(exclude).hoom/ratchet.json",
-	":(exclude).hoom/.gitignore", // hoom completes it on its own
+	":(exclude,glob).hoom/intake/**",        // the client's documents, of any kind, the Studio uploads
+	":(exclude,glob).hoom/ratche[t].json",
+	":(exclude,glob).hoom/.gitignor[e]", // hoom completes it on its own
 }, localesExcluidos()...)
 
-// localesExcluidos excludes the local directories (never committed: .hoom/.gitignore)
-// in case a tree stopped ignoring them.
+// localesExcluidos excludes what is in the local directories (never
+// committed: .hoom/.gitignore), in case a tree stopped ignoring them.
 func localesExcluidos() []string {
 	var out []string
 	for _, d := range hoomfs.Local {
-		out = append(out, ":(exclude).hoom/"+d)
+		out = append(out, ":(exclude,glob).hoom/"+d+"/**")
 	}
 	return out
 }

@@ -1,12 +1,12 @@
 package gitx
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -19,23 +19,26 @@ import (
 // leaves out what the base brought and keeps what the branch did, including
 // what a merge commit added beyond the clean merge.
 //
-// The synthetic merge writes nothing into the repository: its objects go to
-// a temporary directory (the repository's are only read, as an alternate)
-// that Cerrar removes, and nothing touches refs, the index or the working
-// tree; the board is read-only. It runs no program of the configuration
-// either: the attributes come from the empty tree, so a .gitattributes of
-// the branch picks no merge driver and no filter (as the diff runs no
-// textconv: finding 43bde9).
+// The synthetic merge, and every git that reads its tree, runs in a scratch
+// bare repository of its own, in a temporary directory Cerrar removes: the
+// repository's objects are only read, as an alternate, and nothing touches
+// its objects, refs, index or working tree; the board is read-only. That
+// scratch repository has no configuration and no attributes of its own, the
+// global and system ones are off, and no GIT_* variable hoom inherited
+// reaches it: no .gitattributes of the branch, no $GIT_DIR/info/attributes,
+// no merge.default nor merge.<driver> of the repository can pick a program,
+// so the merge runs none (as the diff runs no textconv: finding 43bde9;
+// findings be631b, fec6f2, 85d5b8).
 type Comparacion struct {
 	Antes     string // desde, or the synthetic merge's tree; "" when the merge does not come apart
 	Integrada string // the base integrated after desde; "" when desde already had it
 	// When the merge does not come apart from the change, one of these says
-	// why: the first conflicted path, or the version of a git too old to
-	// build the merge (it needs 2.40: merge-tree --write-tree, --attr-source).
+	// why: the first conflicted path, or the version of a git older than the
+	// floor (gitMinimo).
 	Conflicto string
 	Version   string
-	env       []string // points every git that reads Antes at the temporary objects
-	tmp       string
+	repo      string   // the scratch repository Antes lives in; "" = the caller's
+	env       []string // the environment of a git that runs in repo
 }
 
 // Separada says whether Antes can be compared: the base did not need to be
@@ -45,10 +48,19 @@ func (c *Comparacion) Separada() bool { return c.Antes != "" }
 // Cerrar removes the synthetic merge's objects. It is safe on any
 // Comparacion, and more than once.
 func (c *Comparacion) Cerrar() {
-	if c != nil && c.tmp != "" {
-		os.RemoveAll(c.tmp)
-		c.tmp = ""
+	if c != nil && c.repo != "" {
+		os.RemoveAll(c.repo)
+		c.repo = ""
 	}
+}
+
+// donde is where a git that reads Antes runs: the scratch repository, or
+// dir when Antes is a commit of dir.
+func (c *Comparacion) donde(dir string) string {
+	if c.repo != "" {
+		return c.repo
+	}
+	return dir
 }
 
 // Cambios is CambiosEntre from Antes to hasta: the files and lines the
@@ -57,10 +69,11 @@ func (c *Comparacion) Cambios(dir, hasta string) (files []string, ins, del int, 
 	if !c.Separada() {
 		return nil, 0, 0, errors.New("el merge de la base no se separo del cambio")
 	}
-	return cambiosEntre(dir, c.env, c.Antes, hasta)
+	return cambiosEntre(c.donde(dir), c.env, c.Antes, hasta)
 }
 
-// gitMinimo is the oldest git that builds the synthetic merge.
+// gitMinimo is the oldest git hoom builds the synthetic merge with: the
+// floor the spec sets (merge-tree --write-tree -z --name-only is 2.38).
 var gitMinimo = [2]int{2, 40}
 
 // SinLaBase is the Comparacion of desde..hasta for a branch whose integrated
@@ -91,24 +104,11 @@ func SinLaBase(dir, desde, hasta, integrada string) (*Comparacion, error) {
 		c.Version = v
 		return c, nil
 	}
-	objetos, err := gitOut(dir, "rev-parse", "--path-format=absolute", "--git-path", "objects")
-	if err != nil {
-		return nil, fmt.Errorf("git rev-parse --git-path objects: %v", err)
-	}
-	vacio, err := arbolVacio(dir)
-	if err != nil {
+	if c.repo, err = repoDeTrabajo(dir); err != nil {
 		return nil, err
 	}
-	tmp, err := os.MkdirTemp("", "hoom-merge-")
-	if err != nil {
-		return nil, err
-	}
-	c.tmp = tmp
-	c.env = append(soloLectura(),
-		"GIT_OBJECT_DIRECTORY="+tmp,
-		"GIT_ALTERNATE_OBJECT_DIRECTORIES="+citarAlterno(strings.TrimRight(objetos, "\r\n")),
-		"GIT_ATTR_NOSYSTEM=1")
-	arbol, conflicto, err := mergeSintetico(dir, c.env, vacio, desde, integrada)
+	c.env = aislado(c.repo)
+	arbol, conflicto, err := mergeSintetico(c.repo, c.env, desde, integrada)
 	if err != nil {
 		c.Cerrar()
 		return nil, err
@@ -122,13 +122,69 @@ func SinLaBase(dir, desde, hasta, integrada string) (*Comparacion, error) {
 	return c, nil
 }
 
-// mergeSintetico runs `git merge-tree --write-tree` of a and b with the
-// attributes of the tree vacio and no attributes file: the tree it wrote,
-// or the first conflicted path when git says there are conflicts (exit 1).
-func mergeSintetico(dir string, env []string, vacio, a, b string) (arbol, conflicto string, err error) {
-	cmd := exec.Command("git", "--attr-source="+vacio, "-c", "core.attributesFile="+os.DevNull,
+// repoDeTrabajo creates the scratch bare repository for dir: a temporary
+// directory with the same object format, no templates (no hooks, no
+// info/attributes), whose objects/info/alternates is dir's object directory.
+func repoDeTrabajo(dir string) (string, error) {
+	objetos, err := gitOut(dir, "rev-parse", "--path-format=absolute", "--git-path", "objects")
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse --git-path objects: %v", err)
+	}
+	objetos = strings.TrimRight(objetos, "\r\n")
+	if strings.ContainsAny(objetos, "\r\n") {
+		return "", fmt.Errorf("el directorio de objetos %q no cabe en objects/info/alternates", objetos)
+	}
+	formato, err := gitOut(dir, "rev-parse", "--show-object-format")
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse --show-object-format: %v", err)
+	}
+	repo, err := os.MkdirTemp("", "hoom-merge-")
+	if err != nil {
+		return "", err
+	}
+	if _, err := gitOutEnv(repo, ambienteAislado(), "-c", "init.defaultBranch=hoom", "init", "--bare", "--quiet",
+		"--template=", "--object-format="+strings.TrimSpace(formato), repo); err != nil {
+		os.RemoveAll(repo)
+		return "", fmt.Errorf("git init del repositorio de trabajo: %v", err)
+	}
+	info := filepath.Join(repo, "objects", "info")
+	if err := os.MkdirAll(info, 0o700); err == nil {
+		err = os.WriteFile(filepath.Join(info, "alternates"), []byte(objetos+"\n"), 0o600)
+	}
+	if err != nil {
+		os.RemoveAll(repo)
+		return "", err
+	}
+	return repo, nil
+}
+
+// ambienteAislado is hoom's environment minus every GIT_* it inherited (a
+// GIT_DIR, GIT_INDEX_FILE or GIT_CONFIG_PARAMETERS of a hook that runs hoom
+// would point git elsewhere or add configuration), with the global and
+// system configuration and the system attributes off.
+func ambienteAislado() []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(strings.ToUpper(kv), "GIT_") {
+			env = append(env, kv)
+		}
+	}
+	return append(env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_ATTR_NOSYSTEM=1",
+		"GIT_OPTIONAL_LOCKS=0")
+}
+
+// aislado is ambienteAislado for a git that runs in the scratch repository.
+func aislado(repo string) []string {
+	return append(ambienteAislado(), "GIT_DIR="+repo)
+}
+
+// mergeSintetico runs `git merge-tree --write-tree` of a and b in the
+// scratch repository, with no attributes file: the tree it wrote, or the
+// first conflicted path when git says there are conflicts (exit 1).
+func mergeSintetico(repo string, env []string, a, b string) (arbol, conflicto string, err error) {
+	cmd := exec.Command("git", "-c", "core.attributesFile="+os.DevNull,
 		"merge-tree", "--write-tree", "-z", "--name-only", "--no-messages", a, b)
-	cmd.Dir = dir
+	cmd.Dir = repo
 	cmd.Env = env
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
@@ -164,24 +220,6 @@ func mergeSintetico(dir string, env []string, vacio, a, b string) (arbol, confli
 		return "", "", fmt.Errorf("git merge-tree %s %s: %v", a, b, werr)
 	}
 	return "", "", fmt.Errorf("git merge-tree %s %s: salida inesperada", a, b)
-}
-
-// arbolVacio is the id of the empty tree in this repository's hash, computed
-// without writing it.
-func arbolVacio(dir string) (string, error) {
-	cmd := exec.Command("git", "hash-object", "-t", "tree", "--stdin")
-	cmd.Dir = dir
-	cmd.Env = soloLectura()
-	cmd.Stdin = strings.NewReader("")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("git hash-object del arbol vacio: %v", err)
-	}
-	id := strings.TrimSpace(string(out))
-	if !esOID(id) {
-		return "", fmt.Errorf("git hash-object del arbol vacio: %q", id)
-	}
-	return id, nil
 }
 
 // versionDeGit is the version git reports ("2.54.0" of "git version 2.54.0
@@ -224,22 +262,6 @@ func esOID(s string) bool {
 		}
 	}
 	return true
-}
-
-// citarAlterno quotes a path for GIT_ALTERNATE_OBJECT_DIRECTORIES, where an
-// entry that starts with a double quote is read C-style: a path with the
-// list separator (":" or ";") stays one entry.
-func citarAlterno(p string) string {
-	var b bytes.Buffer
-	b.WriteByte('"')
-	for _, r := range p {
-		if r == '"' || r == '\\' {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(r)
-	}
-	b.WriteByte('"')
-	return b.String()
 }
 
 // soloLectura is hoom's environment for a git that only reads: without

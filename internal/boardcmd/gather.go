@@ -188,6 +188,7 @@ type tree struct {
 	unreadable      []string
 	reviews         []reviewcmd.Record
 	head            string   // HEAD's sha, resolved once; "" = git could not
+	base            string   // the base's sha, resolved once; "" = git could not
 	status          []string // uncommitted paths, relative to dir
 	fingerprint     string
 	changed         []string // the candidate's files (gitx.Snapshot)
@@ -275,11 +276,18 @@ func (t *tree) headSHA() string {
 	return t.head
 }
 
+// baseSHA is the sha the base names in this tree, resolved once per board.
+func (t *tree) baseSHA(base string) string {
+	t.once("base", func() { t.base, _, _ = gitx.ResolverCommit(t.dir, base) })
+	return t.base
+}
+
 // colas caches review tails for the whole process by (tree, base, hasta,
-// HEAD): commits never change, so neither does the answer, and the Studio
-// asks for the board every second. The base is a name: what it integrates
-// into HEAD is in HEAD's history, so moving it forward does not change the
-// answer. Failures are not cached: git may be fine next time.
+// HEAD), all four resolved shas: commits never change, so neither does the
+// answer, and the Studio asks for the board every second. The base goes by
+// its sha, not its name: a base that moves can change the merge-base the
+// tail takes out (or come to contain HEAD), so it is another key (finding
+// 791394). Failures are not cached: git may be fine next time.
 var colas = struct {
 	sync.Mutex
 	m map[[4]string]ReviewTail
@@ -292,18 +300,18 @@ const colasMax = 4096
 // brought when the branch integrated it afterwards, or nil when git cannot
 // place it (the review then does not cover anything).
 func (t *tree) tail(base, hasta string) *ReviewTail {
-	head := t.headSHA()
-	if head == "" {
+	head, baseSHA := t.headSHA(), t.baseSHA(base)
+	if head == "" || baseSHA == "" {
 		return nil
 	}
-	key := [4]string{t.dir, base, hasta, head}
+	key := [4]string{t.dir, baseSHA, hasta, head}
 	colas.Lock()
 	rt, ok := colas.m[key]
 	colas.Unlock()
 	if ok {
 		return &rt
 	}
-	anc, cod, err := reviewcmd.CambioDespues(t.dir, base, hasta, head)
+	anc, cod, err := reviewcmd.CambioDespues(t.dir, baseSHA, hasta, head)
 	if err != nil {
 		return nil
 	}
