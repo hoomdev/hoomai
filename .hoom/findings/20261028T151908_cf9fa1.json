@@ -1,0 +1,11 @@
+{
+  "id": "20261028T151908_cf9fa1",
+  "created_at": "2026-10-28T15:19:08.71603Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:159 y internal/gitx/diff.go:321-323: la guarda excluye .hoom/.gitignore y usa git status sin incluir ignorados. Si ese archivo (que puede cambiar sin ensuciar la review) contiene 'semgrep/', un .hoom/semgrep/gate.sh sin rastrear queda marcado como ignorado y CambioSinCommitear devuelve árbol limpio. Así hoom puede ejecutar un gate distinto del cambio commiteado mientras Evidence no lo entrega al reviewer, contradiciendo CA-482 y el contrato de que toda ruta de evidencia sin commitear frena la review.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d7564344a40d50b",
+  "task": "evidencia-de-la-review"
+}

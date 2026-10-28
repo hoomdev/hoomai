@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T152732_3febb4",
+  "as": "corregido",
+  "evidence": "8771c87: el contrato 06 (las dos copias, iguales) dice que el estado de hoom es exactamente los .json directos de approvals/findings/reviews/verdicts, los .yaml de items, los .md de specs, todo intake/, ratchet.json, .gitignore y los directorios locales, como evidencePaths.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T15:37:58.153442Z"
+}

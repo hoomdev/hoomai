@@ -1,0 +1,11 @@
+{
+  "id": "20261028T151733_fec6f2",
+  "created_at": "2026-10-28T15:17:33.351738Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitx/sinlabase.go",
+  "description": "INTRODUCIDO — internal/gitx/sinlabase.go:129: el merge sintético no desactiva .git/info/attributes. Aunque usa --attr-source=\u003cárbol vacío\u003e, core.attributesFile=/dev/null y GIT_ATTR_NOSYSTEM, Git sigue aplicando los atributos locales de .git/info/attributes; con '* merge=drv' y merge.drv.driver configurado, merge-tree ejecuta ese programa. Esto viola CA-487 (el tablero y --delta deben ser de solo lectura y no correr programas) y el driver también puede alterar el árbol sintético, haciendo que la medida y la evidencia omitan o atribuyan cambios incorrectamente.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d7564344a40d50b",
+  "task": "evidencia-de-la-review"
+}

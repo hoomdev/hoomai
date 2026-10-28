@@ -1,0 +1,11 @@
+{
+  "id": "20261028T150850_85d5b8",
+  "created_at": "2026-10-28T15:08:50.337271Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitx/sinlabase.go",
+  "description": "INTRODUCIDO — internal/gitx/sinlabase.go:129 ejecuta git merge-tree heredando la configuracion del repositorio y del usuario. --attr-source sobre el arbol vacio y core.attributesFile=/dev/null no neutralizan merge.default ni $GIT_DIR/info/attributes, que pueden seleccionar merge.\u003cnombre\u003e.driver; un writer puede plantar esa configuracion fuera del arbol y hacer que hoom review --delta o el tablero ejecuten un comando arbitrario, contradiciendo CA-487. El merge sintetico debe usar un gitdir y configuracion completamente saneados. Patronizable: agregar una regla Semgrep para merge-tree lanzado sin aislamiento explicito de config y atributos.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d7564344a40d50b",
+  "task": "evidencia-de-la-review"
+}

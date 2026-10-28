@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T150850_85d5b8",
+  "as": "corregido",
+  "evidence": "8771c87: el merge sintetico y los diffs que leen su arbol corren en un repositorio bare temporal (gitx.repoDeTrabajo: git init --bare --template= con objects/info/alternates a los objetos reales) con ambienteAislado: sin las GIT_* heredadas, GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1, GIT_ATTR_NOSYSTEM=1 y core.attributesFile=/dev/null; ese repo no tiene config ni info/attributes propios, asi que ni $GIT_DIR/info/attributes, ni merge.default/merge.\u003cx\u003e.driver del repo, ni GIT_CONFIG_PARAMETERS eligen un programa. Probado con info/attributes '* merge=drv', merge.default=drv y GIT_CONFIG_PARAMETERS: la marca del driver no aparece y los objetos del repo no cambian.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T15:37:57.949475Z"
+}

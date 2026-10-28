@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T152325_791394",
+  "as": "corregido",
+  "evidence": "8771c87: la cola del tablero (boardcmd colas) se cachea por (arbol, sha de la base, hasta, HEAD): tree.baseSHA resuelve la base una vez por tablero, y CambioDespues recibe ese sha; una base que avanza o se reubica es otra clave.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T15:37:58.115281Z"
+}

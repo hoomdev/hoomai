@@ -1,0 +1,11 @@
+{
+  "id": "20261028T152025_686b61",
+  "created_at": "2026-10-28T15:20:25.843991Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gitx/diff.go",
+  "description": "INTRODUCIDO — internal/gitx/diff.go:157-159: los pathspec exactos usados para entradas cuyo tipo importa excluyen cualquier objeto con ese prefijo, no solo la forma declarada por el spec. En concreto, ':(exclude).hoom/ratchet.json' también elimina todo , aunque ratchet.json solo es estado cuando es el archivo directo; y ':(exclude).hoom/intake' elimina un archivo regular llamado , aunque el estado es el directorio . Esto rompe la lista cerrada de CA-481 y permite que rutas que deberían entrar falten tanto del diff como de la guarda de árbol sucio.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d7564344a40d50b",
+  "task": "evidencia-de-la-review"
+}

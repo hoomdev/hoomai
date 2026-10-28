@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T151908_cf9fa1",
+  "as": "refutado",
+  "evidence": "Por diseno de la spec: CA-416 (review-aislada), que evidencia-de-la-review mantiene y solo re-expresa para la parte de .hoom/, fija que los archivos ignorados no ensucian el arbol en todo el repositorio (igual que un .go ignorado sin rastrear que go test compila fuera de .hoom/); la guarda es sobre lo no commiteado que git rastrearia. Que un rol cambie .hoom/.gitignore es violacion del gate de scope del sobre (internal/agentcmd/scope.go:757: 'que queda fuera de Git lo decide hoom, no un rol'), y lo ignorado nunca esta en el cambio commiteado que se revisa. Negarse por archivos ignorados bajo .hoom/ tambien frenaria la review por un .DS_Store o un .swp que el excludesFile global ignora.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T15:37:58.187837Z"
+}

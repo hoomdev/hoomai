@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T152025_686b61",
+  "as": "corregido",
+  "evidence": "8771c87: cada exclusion de evidencePaths calza su forma exacta: .hoom/ratche[t].json y .hoom/.gitignor[e] (una clase de una letra: el archivo, nunca un directorio con ese nombre), .hoom/intake/** y .hoom/\u003clocal\u003e/** (lo que esta dentro, nunca un archivo con ese nombre). Probado con git: .hoom/ratchet.json/x y un archivo .hoom/intake entran al diff y a git status.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T15:37:58.081321Z"
+}
