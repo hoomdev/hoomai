@@ -148,7 +148,8 @@ func repoDeTrabajo(dir string) (string, error) {
 		return "", fmt.Errorf("git init del repositorio de trabajo: %v", err)
 	}
 	info := filepath.Join(repo, "objects", "info")
-	if err := os.MkdirAll(info, 0o700); err == nil {
+	err = os.MkdirAll(info, 0o700)
+	if err == nil {
 		err = os.WriteFile(filepath.Join(info, "alternates"), []byte(objetos+"\n"), 0o600)
 	}
 	if err != nil {
