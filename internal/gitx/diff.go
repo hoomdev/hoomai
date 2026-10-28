@@ -194,6 +194,7 @@ func patchDesde(dir string, env []string, from, to string, dst *bytes.Buffer, ma
 func EsAncestro(dir, a, b string) (bool, error) {
 	cmd := exec.Command("git", "merge-base", "--is-ancestor", a, b)
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	err := cmd.Run()
@@ -218,6 +219,7 @@ func ResolverCommit(dir, rev string) (sha string, ok bool, err error) {
 	}
 	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", rev+"^{commit}")
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	out, err := cmd.Output()
@@ -433,6 +435,7 @@ func VerificarBase(dir, base string) error {
 	}
 	cmd := exec.Command("git", "diff", "--quiet", "--no-ext-diff", "--no-textconv", mb, "HEAD", "--")
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	err = cmd.Run()
@@ -523,11 +526,14 @@ func gitOutBounded(dir string, dst *bytes.Buffer, max int, exit1OK bool, args ..
 	return gitOutBoundedEnv(dir, nil, dst, max, exit1OK, args...)
 }
 
-// gitOutBoundedEnv is gitOutBounded with an environment (nil = hoom's own).
+// gitOutBoundedEnv is gitOutBounded with an environment (nil = soloLectura).
 func gitOutBoundedEnv(dir string, env []string, dst *bytes.Buffer, max int, exit1OK bool, args ...string) (over bool, err error) {
 	room := max - dst.Len()
 	if room < 0 {
 		return true, nil
+	}
+	if env == nil {
+		env = soloLectura()
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
@@ -571,8 +577,11 @@ func gitOut(dir string, args ...string) (string, error) {
 	return gitOutEnv(dir, nil, args...)
 }
 
-// gitOutEnv is gitOut with an environment (nil = hoom's own).
+// gitOutEnv is gitOut with an environment (nil = soloLectura).
 func gitOutEnv(dir string, env []string, args ...string) (string, error) {
+	if env == nil {
+		env = soloLectura()
+	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	cmd.Env = env
@@ -600,6 +609,7 @@ func OutPrefix(dir string, max int, args ...string) (out string, truncated bool,
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
 	cmd.Stderr = stderr
 	pipe, err := cmd.StdoutPipe()

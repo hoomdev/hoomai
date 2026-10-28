@@ -417,6 +417,7 @@ func runTope(dir string, tope time.Duration, args ...string) (string, error) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.Output()
 	if ctx.Err() == context.DeadlineExceeded {

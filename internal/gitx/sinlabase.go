@@ -4,11 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
 // Comparacion is what hasta is compared against to see only what a branch
@@ -152,11 +155,47 @@ func repoDeTrabajo(dir string) (string, error) {
 	if err == nil {
 		err = os.WriteFile(filepath.Join(info, "alternates"), []byte(objetos+"\n"), 0o600)
 	}
+	if err == nil {
+		err = copiarShallow(dir, repo)
+	}
 	if err != nil {
 		os.RemoveAll(repo)
 		return "", err
 	}
 	return repo, nil
+}
+
+// shallowMax bounds the shallow file hoom carries: a line per boundary
+// commit, far below this for any real clone.
+const shallowMax = 64 << 20
+
+// copiarShallow carries dir's shallow boundary (the commits whose parents a
+// shallow clone does not have) to the scratch repository, so the merge stops
+// where dir stops instead of failing on a parent it never had (finding
+// 6f228c). It is the one piece of the repository's context the scratch
+// repository takes; the rest stays out on purpose (Henry, 2026-10-28): what
+// isolation cannot carry makes the review bigger or fails, never smaller.
+func copiarShallow(dir, repo string) error {
+	ruta, err := gitOut(dir, "rev-parse", "--path-format=absolute", "--git-path", "shallow")
+	if err != nil {
+		return fmt.Errorf("git rev-parse --git-path shallow: %v", err)
+	}
+	f, err := hoomfs.AbrirRegular(strings.TrimRight(ruta, "\r\n"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil // not a shallow clone
+	}
+	if err != nil {
+		return fmt.Errorf("el archivo shallow del repositorio: %v", err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, shallowMax+1))
+	if err != nil {
+		return fmt.Errorf("el archivo shallow del repositorio: %v", err)
+	}
+	if len(data) > shallowMax {
+		return fmt.Errorf("el archivo shallow del repositorio pasa de %d MiB", shallowMax>>20)
+	}
+	return os.WriteFile(filepath.Join(repo, "shallow"), data, 0o600)
 }
 
 // ambienteAislado is hoom's environment minus every GIT_* it inherited (a
@@ -171,7 +210,7 @@ func ambienteAislado() []string {
 		}
 	}
 	return append(env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_ATTR_NOSYSTEM=1",
-		"GIT_OPTIONAL_LOCKS=0")
+		"GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1")
 }
 
 // aislado is ambienteAislado for a git that runs in the scratch repository.
@@ -266,7 +305,11 @@ func esOID(s string) bool {
 }
 
 // soloLectura is hoom's environment for a git that only reads: without
-// optional locks, so a git status does not rewrite the index to refresh it.
+// optional locks, so a git status does not rewrite the index to refresh it,
+// and without replace refs, so every read sees the objects as they are: a
+// refs/replace/<commit> planted in the repository (a role can run git) does
+// not change what the review is handed, and the synthetic merge, which never
+// sees them, reads the same objects as everything else (finding 4acfc8).
 func soloLectura() []string {
-	return append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	return append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1")
 }
