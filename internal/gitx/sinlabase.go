@@ -210,7 +210,7 @@ func ambienteAislado() []string {
 		}
 	}
 	return append(env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_ATTR_NOSYSTEM=1",
-		"GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_GRAFT_FILE="+os.DevNull)
+		"GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", sinGrafts)
 }
 
 // aislado is ambienteAislado for a git that runs in the scratch repository.
@@ -312,5 +312,12 @@ func esOID(s string) bool {
 // the branch integrated, and the synthetic merge, which never sees them,
 // reads the same objects as everything else (findings 4acfc8, 8d0272).
 func soloLectura() []string {
-	return append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_GRAFT_FILE="+os.DevNull)
+	return append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", sinGrafts)
 }
+
+// sinGrafts points git's graft file at a path that cannot exist (a name
+// under the null device): git reads no grafts and, the file not being
+// there, does not print the deprecation hint it prints for any graft file
+// it opens, even an empty one like /dev/null itself, which would end up in
+// the git errors hoom quotes (finding 177236).
+var sinGrafts = "GIT_GRAFT_FILE=" + filepath.Join(os.DevNull, "sin-grafts")

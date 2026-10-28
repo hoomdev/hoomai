@@ -7,11 +7,19 @@
 //     El tablero se deriva una y otra vez en el mismo proceso (el Studio):
 //     si la base se mueve y cambia I, el tablero siguiente refleja la base
 //     nueva, no la cola que calculo con la de antes.
+//   - 4acfc8 (CA-483, ronda 4): un refs/replace plantado no esconde codigo
+//     de la cola del tablero.
+//   - 8d0272 (CA-483, CA-485, ronda 5): un .git/info/grafts plantado no
+//     cambia la base integrada que la cola descuenta.
 package boardcmd
 
 import (
 	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -121,4 +129,61 @@ func TestHallazgo4acfc8_CA483_UnReplaceNoEscondeElCodigoDelTablero(t *testing.T)
 		t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a HEAD: %q", out)
 	}
 	edrPideElDelta(t, "4acfc8/CA-483", "codigo escondido por refs/replace", tj.card(t), r1.ID, r1.Hasta)
+}
+
+// edrMergeBaseEn es `git merge-base main HEAD` en dir con extra en el
+// entorno, leyendo solo su salida (git avisa por stderr que info/grafts esta
+// en desuso).
+func edrMergeBaseEn(t *testing.T, dir string, extra ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", "merge-base", "main", "HEAD")
+	cmd.Dir, cmd.Env = dir, append(os.Environ(), extra...)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("fixture: git merge-base main HEAD en %s: %v", dir, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// Hallazgo 8d0272 (CA-483, CA-485, ronda 5): la cola del tablero descuenta
+// la base que la rama integro de verdad. Despues de la review de la tarjeta
+// (hasta D) la tarea commitea X (codigo nuevo), integra main en I (un merge
+// limpio, H), y main sigue con J, que trae el mismo archivo de X. Un
+// .git/info/grafts declara H con padres X y J: para git, el merge-base de
+// main con HEAD pasa de I a J (las guardas lo comprueban; sin el graft es
+// I), y con J descontada el codigo de X desapareceria. Sin refs/replace:
+// falla solo por el graft (y el aviso de desuso de git va apagado, como lo
+// apagaria quien lo planta). Con un verde para el HEAD (escrito con el graft
+// ya plantado), la tarjeta no queda revisada: vuelve a Review con el motivo y
+// el siguiente paso del delta.
+func TestHallazgo8d0272_CA485_UnGraftNoDejaLaTarjetaRevisada(t *testing.T) {
+	const ca = "8d0272/CA-485"
+	tj := rdGrande(t)
+	r1 := tj.completa(t, "20261028T160000_c0mp1a")
+	rdCuenta(t, ca+" (fixture)", "completa", tj.card(t), r1.ID)
+	const x = "package app\n\n// MARCA-X-TAREA\nfunc XTarea() {}\n"
+	bdEscribir(t, tj.wt, "x_tarea.go", x)
+	bdCommitear(t, tj.wt, "X: codigo de la tarea")
+	xSha := tj.head(t)
+	i := edrMainAvanza(t, tj, "I", map[string]string{"y.go": "package app\n\nfunc Y() {}\n"})
+	edrIntegrar(t, tj)
+	h := tj.head(t)
+	j := edrMainAvanza(t, tj, "J: main trae el mismo archivo de X", map[string]string{"x_tarea.go": x})
+	if mb := edrMergeBaseEn(t, tj.wt); mb != i {
+		t.Fatalf("%s: fixture: sin el graft, el merge-base de main con HEAD es I: %s", ca, mb)
+	}
+	comun := bdGit(t, tj.wt, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	// quien planta el graft tambien apaga el aviso de git ("info/grafts esta
+	// en desuso", por stderr en cada comando): asi lo unico que cambia es la
+	// historia que git cree, no la salida de los comandos
+	bdGit(t, tj.wt, "config", "advice.graftFileDeprecated", "false")
+	bdEscribir(t, comun, filepath.Join("info", "grafts"), h+" "+xSha+" "+j+"\n")
+	if mb := edrMergeBaseEn(t, tj.wt); mb != j {
+		t.Fatalf("%s: fixture: con el graft, git ve a J como merge-base de main con HEAD: %s", ca, mb)
+	}
+	if mb := edrMergeBaseEn(t, tj.wt, "GIT_GRAFT_FILE=/dev/null"); mb != i {
+		t.Fatalf("%s: fixture: sin leer el graft, el merge-base sigue siendo I: %s", ca, mb)
+	}
+	tj.verde(t)
+	edrPideElDelta(t, ca, "codigo de la tarea que el graft le atribuye a la base", tj.card(t), r1.ID, r1.Hasta)
 }
