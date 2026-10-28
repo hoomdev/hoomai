@@ -210,7 +210,7 @@ func ambienteAislado() []string {
 		}
 	}
 	return append(env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_ATTR_NOSYSTEM=1",
-		"GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1")
+		"GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_GRAFT_FILE="+os.DevNull)
 }
 
 // aislado is ambienteAislado for a git that runs in the scratch repository.
@@ -306,10 +306,11 @@ func esOID(s string) bool {
 
 // soloLectura is hoom's environment for a git that only reads: without
 // optional locks, so a git status does not rewrite the index to refresh it,
-// and without replace refs, so every read sees the objects as they are: a
-// refs/replace/<commit> planted in the repository (a role can run git) does
-// not change what the review is handed, and the synthetic merge, which never
-// sees them, reads the same objects as everything else (finding 4acfc8).
+// and without replace refs nor info/grafts, so every read sees the history
+// as it is: a refs/replace/<commit> or a graft planted in the repository (a
+// role can run git) does not change what the review is handed nor which base
+// the branch integrated, and the synthetic merge, which never sees them,
+// reads the same objects as everything else (findings 4acfc8, 8d0272).
 func soloLectura() []string {
-	return append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1")
+	return append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_GRAFT_FILE="+os.DevNull)
 }
