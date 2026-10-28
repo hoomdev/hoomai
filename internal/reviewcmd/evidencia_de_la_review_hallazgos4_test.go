@@ -28,6 +28,46 @@ import (
 	"github.com/hoomdev/hoomai/internal/gittest"
 )
 
+// edrVariablesDeLectura son las variables del entorno con las que git deja
+// de leer lo que un test planta en el repositorio: los reemplazos
+// (refs/replace) y los grafts (hallazgo ff30ce). Las lecturas del fixture
+// (sus guardas) las quitan del entorno que heredan, venga de donde venga el
+// go test; hoom, que corre en el proceso del test, las hereda como esten y
+// tiene que fijar las suyas.
+var edrVariablesDeLectura = []string{"GIT_GRAFT_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE"}
+
+// edrEntornoDelFixture es el entorno de este proceso sin edrVariablesDeLectura,
+// con extra al final.
+func edrEntornoDelFixture(extra ...string) []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		quitar := false
+		for _, v := range edrVariablesDeLectura {
+			if strings.HasPrefix(kv, v+"=") {
+				quitar = true
+				break
+			}
+		}
+		if !quitar {
+			env = append(env, kv)
+		}
+	}
+	return append(env, extra...)
+}
+
+// edrGitDelFixture corre git en dir con edrEntornoDelFixture y devuelve su
+// stdout sin espacios alrededor (git puede avisar por stderr).
+func edrGitDelFixture(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir, cmd.Env = dir, edrEntornoDelFixture()
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("fixture: git %v en %s: %v", args, dir, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // ---------------------------------------------------------------- 6f228c
 
 // edrClonShallowConBaseIntegrada arma el caso del hallazgo 6f228c. En el
@@ -120,7 +160,8 @@ func TestHallazgo6f228c_CA484_EnUnClonShallowLaDeltaSeparaLaBase(t *testing.T) {
 
 // edrReemplazar planta refs/replace/<viejo>: un commit con el arbol arbol y
 // los padres padres, que git (sin GIT_NO_REPLACE_OBJECTS) lee en lugar de
-// viejo. Guarda: git lo honra.
+// viejo. Guarda: git lo honra, aunque el go test herede
+// GIT_NO_REPLACE_OBJECTS (la guarda corre con edrEntornoDelFixture).
 func edrReemplazar(t *testing.T, dir, viejo, arbol string, padres ...string) {
 	t.Helper()
 	args := []string{"commit-tree", arbol + "^{tree}", "-m", "commit falso que reemplaza a " + viejo[:12]}
@@ -129,7 +170,7 @@ func edrReemplazar(t *testing.T, dir, viejo, arbol string, padres ...string) {
 	}
 	falso := rdGit(t, dir, args...)
 	git(t, dir, "replace", "-f", viejo, falso)
-	if got := rdGit(t, dir, "rev-parse", viejo+"^{tree}"); got != rdGit(t, dir, "rev-parse", arbol+"^{tree}") {
+	if got := edrGitDelFixture(t, dir, "rev-parse", viejo+"^{tree}"); got != edrGitDelFixture(t, dir, "rev-parse", arbol+"^{tree}") {
 		t.Fatalf("4acfc8: fixture: git honra refs/replace/%s (su arbol es el de %s): %s", viejo[:12], arbol[:12], got)
 	}
 }
@@ -147,7 +188,7 @@ func TestHallazgo4acfc8_CA481_UnReplaceNoEscondeElCambioDeUnRango(t *testing.T) 
 	x := rdCommit(t, root, "X", map[string]string{"x.go": edrCodigo("MARCA-X-REAL")})
 	ev := rdOraculo(t, "4acfc8", root, d, edrSpec)
 	edrReemplazar(t, root, d, x, rdSha(t, root, d+"^"))
-	if out := rdGit(t, root, "diff", "--stat", d, x); out != "" {
+	if out := edrGitDelFixture(t, root, "diff", "--stat", d, x); out != "" {
 		t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a X: %q", out)
 	}
 	antes := cx.veces()
@@ -174,10 +215,12 @@ func TestHallazgo4acfc8_CA484_UnReplaceNoEscondeElCambioConLaBaseIntegrada(t *te
 	cx := raInstalar(t, bin, "codex", "")
 	root, r1, d, i, h := edrConBaseIntegrada(t, "4acfc8", cx)
 	edrReemplazar(t, root, d, h, i)
-	if out := rdGit(t, root, "diff", "--stat", d, h); out != "" {
+	if out := edrGitDelFixture(t, root, "diff", "--stat", d, h); out != "" {
 		t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a HEAD: %q", out)
 	}
-	if err := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", i, d).Run(); err != nil {
+	esAncestro := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", i, d)
+	esAncestro.Env = edrEntornoDelFixture()
+	if err := esAncestro.Run(); err != nil {
 		t.Fatalf("4acfc8: fixture: con el reemplazo, git ve a I como ancestro de D: %v", err)
 	}
 	antes := cx.veces()

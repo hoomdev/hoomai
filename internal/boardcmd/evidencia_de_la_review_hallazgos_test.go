@@ -24,6 +24,46 @@ import (
 	"time"
 )
 
+// edrVariablesDeLectura son las variables del entorno con las que git deja
+// de leer lo que un test planta en el repositorio: los reemplazos
+// (refs/replace) y los grafts (hallazgo ff30ce). Las guardas del fixture las
+// quitan del entorno que heredan, venga de donde venga el go test; hoom, que
+// corre en el proceso del test, las hereda como esten y tiene que fijar las
+// suyas.
+var edrVariablesDeLectura = []string{"GIT_GRAFT_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE"}
+
+// edrEntornoDelFixture es el entorno de este proceso sin edrVariablesDeLectura,
+// con extra al final.
+func edrEntornoDelFixture(extra ...string) []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		quitar := false
+		for _, v := range edrVariablesDeLectura {
+			if strings.HasPrefix(kv, v+"=") {
+				quitar = true
+				break
+			}
+		}
+		if !quitar {
+			env = append(env, kv)
+		}
+	}
+	return append(env, extra...)
+}
+
+// edrGitDelFixture corre git en dir con edrEntornoDelFixture y devuelve su
+// stdout sin espacios alrededor (git puede avisar por stderr).
+func edrGitDelFixture(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir, cmd.Env = dir, edrEntornoDelFixture()
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("fixture: git %v en %s: %v", args, dir, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // edrBuildCard es la tarjeta de la tarea en un Build del proceso del test.
 func edrBuildCard(t *testing.T, ca string, tj *rdTarjeta) Card {
 	t.Helper()
@@ -125,19 +165,20 @@ func TestHallazgo4acfc8_CA483_UnReplaceNoEscondeElCodigoDelTablero(t *testing.T)
 	head := tj.head(t)
 	falso := bdGit(t, tj.wt, "commit-tree", head+"^{tree}", "-p", r1.Hasta+"^", "-m", "commit falso que reemplaza a D")
 	bdGit(t, tj.wt, "replace", "-f", r1.Hasta, falso)
-	if out := bdGit(t, tj.wt, "diff", "--stat", r1.Hasta, head); out != "" {
+	if out := edrGitDelFixture(t, tj.wt, "diff", "--stat", r1.Hasta, head); out != "" {
 		t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a HEAD: %q", out)
 	}
 	edrPideElDelta(t, "4acfc8/CA-483", "codigo escondido por refs/replace", tj.card(t), r1.ID, r1.Hasta)
 }
 
-// edrMergeBaseEn es `git merge-base main HEAD` en dir con extra en el
-// entorno, leyendo solo su salida (git avisa por stderr que info/grafts esta
+// edrMergeBaseEn es `git merge-base main HEAD` en dir con el entorno del
+// fixture (sin un GIT_GRAFT_FILE heredado: hallazgo ff30ce) y extra,
+// leyendo solo su salida (git puede avisar por stderr que info/grafts esta
 // en desuso).
 func edrMergeBaseEn(t *testing.T, dir string, extra ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", "merge-base", "main", "HEAD")
-	cmd.Dir, cmd.Env = dir, append(os.Environ(), extra...)
+	cmd.Dir, cmd.Env = dir, edrEntornoDelFixture(extra...)
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("fixture: git merge-base main HEAD en %s: %v", dir, err)
@@ -155,7 +196,9 @@ func edrMergeBaseEn(t *testing.T, dir string, extra ...string) string {
 // falla solo por el graft (y el aviso de desuso de git va apagado, como lo
 // apagaria quien lo planta). Con un verde para el HEAD (escrito con el graft
 // ya plantado), la tarjeta no queda revisada: vuelve a Review con el motivo y
-// el siguiente paso del delta.
+// el siguiente paso del delta. Las guardas del fixture no heredan
+// GIT_GRAFT_FILE ni GIT_NO_REPLACE_OBJECTS (hallazgo ff30ce), y con un git
+// que ya no lee grafts el test se salta (hallazgo a21de0).
 func TestHallazgo8d0272_CA485_UnGraftNoDejaLaTarjetaRevisada(t *testing.T) {
 	const ca = "8d0272/CA-485"
 	tj := rdGrande(t)
@@ -178,7 +221,13 @@ func TestHallazgo8d0272_CA485_UnGraftNoDejaLaTarjetaRevisada(t *testing.T) {
 	// historia que git cree, no la salida de los comandos
 	bdGit(t, tj.wt, "config", "advice.graftFileDeprecated", "false")
 	bdEscribir(t, comun, filepath.Join("info", "grafts"), h+" "+xSha+" "+j+"\n")
-	if mb := edrMergeBaseEn(t, tj.wt); mb != j {
+	switch mb := edrMergeBaseEn(t, tj.wt); mb {
+	case j:
+	case i:
+		// hallazgo a21de0: git 3.0 (o uno compilado con
+		// WITH_BREAKING_CHANGES) ya no lee info/grafts
+		t.Skip("8d0272: el git instalado no lee .git/info/grafts (el graft no cambia el merge-base): ese vector no existe con este git")
+	default:
 		t.Fatalf("%s: fixture: con el graft, git ve a J como merge-base de main con HEAD: %s", ca, mb)
 	}
 	if mb := edrMergeBaseEn(t, tj.wt, "GIT_GRAFT_FILE=/dev/null"); mb != i {

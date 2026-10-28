@@ -10,13 +10,15 @@
 //     sintetico de D con J ya lo tiene y la delta lo pierde. La review mira
 //     la historia real: base_integrada = I, y el cambio de la tarea sigue en
 //     la evidencia y en la medida. Sin refs/replace: falla solo por el graft.
+//     Las guardas del fixture no heredan GIT_GRAFT_FILE ni
+//     GIT_NO_REPLACE_OBJECTS (hallazgo ff30ce), y con un git que ya no lee
+//     grafts el test se salta (hallazgo a21de0).
 //
 // Los fixtures estan en evidencia_de_la_review_helpers_test.go.
 package reviewcmd
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -24,13 +26,14 @@ import (
 	"testing"
 )
 
-// edrMergeBaseCon es `git merge-base main HEAD` en dir con extra en el
-// entorno, leyendo solo su salida (git avisa por stderr que info/grafts esta
+// edrMergeBaseCon es `git merge-base main HEAD` en dir con el entorno del
+// fixture (sin un GIT_GRAFT_FILE heredado: hallazgo ff30ce) y extra,
+// leyendo solo su salida (git puede avisar por stderr que info/grafts esta
 // en desuso).
 func edrMergeBaseCon(t *testing.T, dir string, extra ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", "merge-base", "main", "HEAD")
-	cmd.Dir, cmd.Env = dir, append(os.Environ(), extra...)
+	cmd.Dir, cmd.Env = dir, edrEntornoDelFixture(extra...)
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("fixture: git merge-base main HEAD en %s: %v", dir, err)
@@ -75,7 +78,13 @@ func TestHallazgo8d0272_CA484_UnGraftNoAchicaLaDelta(t *testing.T) {
 			// (por stderr en cada comando): solo cambia la historia que git cree
 			git(t, root, "config", "advice.graftFileDeprecated", "false")
 			edrPlantarGraft(t, root, h, x, j)
-			if mb := edrMergeBaseCon(t, root); mb != j {
+			switch mb := edrMergeBaseCon(t, root); mb {
+			case j:
+			case i:
+				// hallazgo a21de0: git 3.0 (o uno compilado con
+				// WITH_BREAKING_CHANGES) ya no lee info/grafts
+				t.Skip("8d0272: el git instalado no lee .git/info/grafts (el graft no cambia el merge-base): ese vector no existe con este git")
+			default:
 				t.Fatalf("8d0272: fixture: con el graft, git ve a J como merge-base de main con HEAD: %s", mb)
 			}
 			if mb := edrMergeBaseCon(t, root, "GIT_GRAFT_FILE=/dev/null"); mb != i {
