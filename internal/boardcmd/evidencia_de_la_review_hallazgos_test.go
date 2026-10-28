@@ -101,3 +101,24 @@ func TestHallazgo791394_CA483_CA485_ElTableroVeLaBaseNuevaEnElMismoProceso(t *te
 	}
 	edrMismaTarjeta(t, ca, "main en L, segundo Build del proceso", edrBuildCard(t, ca, tj), nuevoEnL)
 }
+
+// Hallazgo 4acfc8 (CA-483, ronda 4): la cola del tablero sale de los objetos
+// reales. Despues de la review de la tarjeta (hasta D) la tarea commitea
+// codigo (y su verde); un refs/replace/<D> plantado hace que git lea D con el
+// arbol de HEAD, y el diff de D a HEAD que da git queda vacio. El tablero
+// igual ve el codigo nuevo: la tarjeta vuelve a Review con el motivo y el
+// siguiente paso del delta. (Sin derivar la tarjeta despues del commit y
+// antes del reemplazo: el tablero guarda las colas, CA-427.)
+func TestHallazgo4acfc8_CA483_UnReplaceNoEscondeElCodigoDelTablero(t *testing.T) {
+	tj := rdGrande(t)
+	r1 := tj.completa(t, "20261028T160000_c0mp1a")
+	rdCuenta(t, "4acfc8 (fixture)", "completa", tj.card(t), r1.ID)
+	tj.codigo(t, "Escondido")
+	head := tj.head(t)
+	falso := bdGit(t, tj.wt, "commit-tree", head+"^{tree}", "-p", r1.Hasta+"^", "-m", "commit falso que reemplaza a D")
+	bdGit(t, tj.wt, "replace", "-f", r1.Hasta, falso)
+	if out := bdGit(t, tj.wt, "diff", "--stat", r1.Hasta, head); out != "" {
+		t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a HEAD: %q", out)
+	}
+	edrPideElDelta(t, "4acfc8/CA-483", "codigo escondido por refs/replace", tj.card(t), r1.ID, r1.Hasta)
+}

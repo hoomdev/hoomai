@@ -94,6 +94,63 @@ func edrHoom(t *testing.T, bin, dir string, extra []string, args ...string) bxSa
 	return bxSalida{exit: cmd.ProcessState.ExitCode(), stdout: out.String(), stderr: errb.String()}
 }
 
+// edrModo es donde corren el tablero y la review con rango de un caso: en
+// el proceso del test (Build y reviewcmd.Run) o en un subproceso (el binario
+// de hoom, con el entorno del caso).
+type edrModo int
+
+const (
+	edrEnElProceso edrModo = iota
+	edrEnUnSubproceso
+)
+
+// edrCorredor corre lo que el test mira de hoom: el tablero (la tarjeta de
+// la tarea) y `hoom review --task precios --spec ... --delta` (el JSON de su
+// Result, el de --json).
+type edrCorredor struct {
+	tablero func(t *testing.T, ca string, tj *rdTarjeta) Card
+	delta   func(t *testing.T, ca string, tj *rdTarjeta) map[string]any
+}
+
+// edrCorredorPara es el corredor del modo. entorno va en el entorno de los
+// hoom del subproceso; en el proceso del test no se puede poner sin que lo
+// herede todo el proceso, y el modo en el proceso no lo acepta.
+func edrCorredorPara(t *testing.T, modo edrModo, bin string, entorno []string) edrCorredor {
+	t.Helper()
+	switch modo {
+	case edrEnElProceso:
+		if len(entorno) != 0 {
+			t.Fatalf("fixture: en el proceso del test no hay entorno propio: %q", entorno)
+		}
+		return edrCorredor{
+			tablero: func(t *testing.T, ca string, tj *rdTarjeta) Card { return edrBuildCard(t, ca, tj) },
+			delta: func(t *testing.T, ca string, tj *rdTarjeta) map[string]any {
+				res, err := edrRunDelta(t, tj)
+				if err != nil {
+					t.Fatalf("%s: el --delta no se rompe: %v", ca, err)
+				}
+				return edrJSONMapa(t, res)
+			},
+		}
+	case edrEnUnSubproceso:
+		return edrCorredor{
+			tablero: func(t *testing.T, ca string, tj *rdTarjeta) Card {
+				return edrCardDelBinario(t, ca, edrHoom(t, bin, tj.root, entorno, "board", "--json"))
+			},
+			delta: func(t *testing.T, ca string, tj *rdTarjeta) map[string]any {
+				r := edrHoom(t, bin, tj.root, entorno, "review", "--provider", "codex", "--task", bdSlug, "--spec", bdSpec, "--delta", "--json")
+				var m map[string]any
+				if err := json.Unmarshal([]byte(r.stdout), &m); err != nil || r.exit != 0 {
+					t.Fatalf("%s: hoom review --delta --json sale con 0 y JSON (exit %d, %v):\n%s\n%s", ca, r.exit, err, r.stdout, r.stderr)
+				}
+				return m
+			},
+		}
+	}
+	t.Fatalf("fixture: modo desconocido %d", modo)
+	return edrCorredor{}
+}
+
 // Hallazgos be631b, fec6f2 y 85d5b8 (CA-487): tres formas de elegir un
 // driver de merge que no son el .gitattributes de la rama, cada una por
 // separado: `* merge=drv` en .git/info/attributes, merge.default=drv en la
@@ -105,31 +162,34 @@ func edrHoom(t *testing.T, bin, dir string, extra []string, args ...string) bxSa
 // cola de R1), del --delta que separa (base_integrada = I) y de otro
 // tablero: la marca no aparecio, y el repo tiene los mismos objetos, refs e
 // indice, con el arbol cambiado solo en lo que escribe una review.
+//
+// Cada caso dice tres cosas por separado (hallazgo d8ff07): que deja en el
+// repo (elegir), que va en el entorno de sus git y sus hoom (entorno), y
+// donde corren el tablero y la review (modo).
 func TestHallazgo_be631b_fec6f2_85d5b8_CA487_NingunaConfigEligeUnDriver(t *testing.T) {
-	const parametros = "GIT_CONFIG_PARAMETERS='merge.default'='drv'"
 	bin := bxBinario(t) // antes del PATH minimo de r1Codex: compila con go
+	nada := func(t *testing.T, dir string) {}
 	casos := []struct {
 		nombre string
-		// elegir deja la forma en el repo de dir (el proyecto o el clon de la
-		// guarda) y devuelve lo que va en el entorno de los git y los hoom.
-		elegir func(t *testing.T, dir string) []string
+		// elegir deja la forma en el repo de dir: el proyecto o el clon de la
+		// guarda.
+		elegir  func(t *testing.T, dir string)
+		entorno []string
+		modo    edrModo
 	}{
-		{"info-attributes", func(t *testing.T, dir string) []string {
+		{"info-attributes", func(t *testing.T, dir string) {
 			p := bdGit(t, dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 			bdEscribir(t, p, filepath.Join("info", "attributes"), "* merge=drv\n")
-			return nil
-		}},
-		{"merge-default-en-la-config", func(t *testing.T, dir string) []string {
+		}, nil, edrEnElProceso},
+		{"merge-default-en-la-config", func(t *testing.T, dir string) {
 			bdGit(t, dir, "config", "merge.default", "drv")
-			return nil
-		}},
-		{"git-config-parameters-heredado", func(t *testing.T, dir string) []string {
-			return []string{parametros}
-		}},
+		}, nil, edrEnElProceso},
+		{"git-config-parameters-heredado", nada, []string{"GIT_CONFIG_PARAMETERS='merge.default'='drv'"}, edrEnUnSubproceso},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
 			ca := "be631b/fec6f2/85d5b8 CA-487 (" + c.nombre + ")"
+			corre := edrCorredorPara(t, c.modo, bin, c.entorno)
 			tj, r1, d, i := edrConDriverPosible(t, ca)
 			driver, marca := edrDriver(t)
 
@@ -141,10 +201,10 @@ func TestHallazgo_be631b_fec6f2_85d5b8_CA487_NingunaConfigEligeUnDriver(t *testi
 			bdGit(t, clon, "config", "user.email", "test@hoom.dev")
 			bdGit(t, clon, "config", "user.name", "hoom test")
 			bdGit(t, clon, "config", "merge.drv.driver", driver)
-			entorno := c.elegir(t, clon)
+			c.elegir(t, clon)
 			bdGit(t, clon, "checkout", "-q", "--detach", d)
 			merge := exec.Command("git", "merge", "-q", "--no-edit", i)
-			merge.Dir, merge.Env = clon, append(os.Environ(), entorno...)
+			merge.Dir, merge.Env = clon, append(os.Environ(), c.entorno...)
 			if out, err := merge.CombinedOutput(); err != nil {
 				t.Fatalf("%s: fixture: el merge real de D con I en el clon: %v\n%s", ca, err, out)
 			}
@@ -158,38 +218,15 @@ func TestHallazgo_be631b_fec6f2_85d5b8_CA487_NingunaConfigEligeUnDriver(t *testi
 			// el proyecto: el driver y la forma
 			bdGit(t, tj.root, "config", "merge.drv.driver", driver)
 			bdGit(t, tj.root, "config", "merge.drv.name", "driver de prueba")
-			entorno = c.elegir(t, tj.root)
+			c.elegir(t, tj.root)
 
 			antes := edrFotoRastro(t, tj)
-			if entorno == nil {
-				if _, err := Build(tj.root, "main", "high", time.Now().UTC()); err != nil {
-					t.Fatalf("%s: el tablero se arma: %v", ca, err)
-				}
-				edrPideElDelta(t, ca, "X y Z despues de la review", tj.card(t), r1.RecordID, d)
-				r1Esperar()
-				res, err := edrRunDelta(t, tj)
-				if err != nil || res.Status != "revisado" || res.Cobertura != reviewcmd.CoberturaDelta {
-					t.Fatalf("%s: el --delta revisa: %+v %v", ca, res, err)
-				}
-				if m := edrJSONMapa(t, res); m["base_integrada"] != i {
-					t.Fatalf("%s: el --delta separo la base integrada (base_integrada %s): %v", ca, i[:12], m["base_integrada"])
-				}
-				if _, err := Build(tj.root, "main", "high", time.Now().UTC()); err != nil {
-					t.Fatalf("%s: el tablero se arma: %v", ca, err)
-				}
-			} else {
-				edrPideElDelta(t, ca, "X y Z despues de la review (hoom board)", edrCardDelBinario(t, ca, edrHoom(t, bin, tj.root, entorno, "board", "--json")), r1.RecordID, d)
-				r1Esperar()
-				r := edrHoom(t, bin, tj.root, entorno, "review", "--provider", "codex", "--task", bdSlug, "--spec", bdSpec, "--delta", "--json")
-				var m map[string]any
-				if err := json.Unmarshal([]byte(r.stdout), &m); err != nil || r.exit != 0 {
-					t.Fatalf("%s: hoom review --delta --json sale con 0 y JSON (exit %d, %v):\n%s\n%s", ca, r.exit, err, r.stdout, r.stderr)
-				}
-				if m["status"] != "revisado" || m["cobertura"] != reviewcmd.CoberturaDelta || m["base_integrada"] != i {
-					t.Fatalf("%s: el --delta revisa y separa la base integrada (base_integrada %s): %v", ca, i[:12], m)
-				}
-				edrCardDelBinario(t, ca, edrHoom(t, bin, tj.root, entorno, "board", "--json"))
+			edrPideElDelta(t, ca, "X y Z despues de la review", corre.tablero(t, ca, tj), r1.RecordID, d)
+			r1Esperar()
+			if m := corre.delta(t, ca, tj); m["status"] != "revisado" || m["cobertura"] != reviewcmd.CoberturaDelta || m["base_integrada"] != i {
+				t.Fatalf("%s: el --delta revisa y separa la base integrada (base_integrada %s): %v", ca, i[:12], m)
 			}
+			corre.tablero(t, ca, tj)
 			despues := edrFotoRastro(t, tj)
 
 			if raw, err := os.ReadFile(marca); err == nil {
