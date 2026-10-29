@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261029T193927_c4ebe3",
+  "as": "corregido",
+  "evidence": "e996ae0: el callback de AislarGit se llama borrarConfig (aislar.go, su doc, aislar_test.go y los TestMain de boardcmd, gitx y reviewcmd); la doc dice que borra el archivo de la config global y no revierte el entorno.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T19:52:18.430176Z"
+}
