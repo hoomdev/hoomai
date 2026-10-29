@@ -1,0 +1,11 @@
+{
+  "id": "20261029T193832_7dbb81",
+  "created_at": "2026-10-29T19:38:32.236163Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gittest/aislar_test.go",
+  "description": "INTRODUCIDO — internal/gittest/aislar_test.go:228 conserva todas las variables GIT_* heredadas y ejecuta los controles de internal/gittest/aislar_test.go:266-279 antes de llamar AislarGit en :284. Por eso el test nuevo no tolera justamente un entorno Git hostil: con GIT_DIR=/tmp/hoom-review-git-dir-inexistente, go test ./internal/gittest -run TestHallazgo8f2253_AislarGitDejaAfueraLaConfigDeQuienCorreLosTests falla en :275 porque git init obedece ese GIT_DIR y no crea control/.git; el gate queda rojo antes de probar el mecanismo de aislamiento. Neutralizar para los controles las variables heredadas ajenas a HOME/XDG/config evita que una dependencia ambiental degradada invalide el fixture.",
+  "author": "reviewer@codex",
+  "fingerprint": "7241c34268525c48",
+  "task": "evidencia-de-la-review"
+}

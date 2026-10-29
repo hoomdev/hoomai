@@ -1,0 +1,11 @@
+{
+  "id": "20261029T193536_20cb80",
+  "created_at": "2026-10-29T19:35:36.878749Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gittest/aislar_test.go",
+  "description": "INTRODUCIDO — internal/gittest/aislar_test.go:228 preserva las variables GIT_* heredadas pero no las neutraliza antes de los controles de las lineas 266-279. Por eso el propio test nuevo no es hermetico: con GIT_DIR=/tmp/hoom-review-git-dir-inexistente, go test ./internal/gittest -run TestHallazgo8f2253_AislarGitDejaAfueraLaConfigDeQuienCorreLosTests falla en la linea 275 porque git init obedece ese GIT_DIR y no crea control/.git. Un entorno que esta implementacion pretende soportar puede volver rojo el gate antes de que AislarGit sea probado.",
+  "author": "reviewer@codex",
+  "fingerprint": "7241c34268525c48",
+  "task": "evidencia-de-la-review"
+}

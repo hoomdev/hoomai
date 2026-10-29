@@ -1,0 +1,11 @@
+{
+  "id": "20261029T193927_c4ebe3",
+  "created_at": "2026-10-29T19:39:27.457479Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gittest/aislar.go",
+  "description": "INTRODUCIDO — internal/gittest/aislar.go:76: AislarGit llama 'deshacer' al callback que devuelve, pero en internal/gittest/aislar.go:88 ese callback solo borra el directorio temporal y no revierte los os.Unsetenv/os.Setenv de las lineas 77-99. Los tres TestMain y aisAislar lo usan con ese nombre de restauracion, asi que la API hace facil asumir que el entorno queda repuesto cuando esa responsabilidad depende por separado de t.Setenv; un nombre que exprese que solo limpia la config temporal (o un cleanup que realmente restaure) haria explicito el ciclo de vida.",
+  "author": "reviewer@codex",
+  "fingerprint": "7241c34268525c48",
+  "task": "evidencia-de-la-review"
+}
