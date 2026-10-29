@@ -15,11 +15,12 @@
 //     archivo que hoom hereda en GIT_GRAFT_FILE (ronda 7).
 //
 // Las guardas de los fixtures corren con los git de siempre (bdGit): TestMain
-// quita del entorno heredado las variables de git que cambian lo que el
-// fixture planta o lee (edrGitHeredado; hallazgo 43f79f). Los helpers de
-// entorno que la ronda 6 habia dejado aca ya no estan, y edrGitConEntorno,
-// para las guardas que leen con una variable que hoom va a heredar, esta en
-// evidencia_de_la_review_test.go (hallazgo cd162c).
+// aisla el git del binario (gittest.AislarGit: quita las variables de git
+// que cambian lo que el fixture planta o lee, hallazgo 43f79f, y fija la
+// config global y la del sistema, hallazgo 20261029T172636_8f2253). Los
+// helpers de entorno que la ronda 6 habia dejado aca ya no estan, y
+// edrGitConEntorno, para las guardas que leen con una variable que hoom va a
+// heredar, esta en evidencia_de_la_review_test.go (hallazgo cd162c).
 package boardcmd
 
 import (
@@ -181,7 +182,7 @@ func edrMergeBaseEn(t *testing.T, dir string, extra ...string) string {
 // ya plantado), la tarjeta no queda revisada: vuelve a Review con el motivo y
 // el siguiente paso del delta. El graft esta en .git/info/grafts o en un
 // archivo de afuera que hoom hereda en GIT_GRAFT_FILE (ronda 7): TestMain
-// quito del entorno un GIT_GRAFT_FILE heredado (edrGitHeredado; hallazgos
+// quito del entorno un GIT_GRAFT_FILE heredado (gittest.AislarGit; hallazgos
 // ff30ce y 43f79f), y el test se lo pone a hoom con t.Setenv despues de
 // plantar y guardar. Con un git que ya no lee grafts el test se salta
 // (hallazgo a21de0).

@@ -11,10 +11,10 @@
 //     la historia real: base_integrada = I, y el cambio de la tarea sigue en
 //     la evidencia y en la medida. Sin refs/replace: falla solo por el graft.
 //     El graft esta en .git/info/grafts o en un archivo de afuera que hoom
-//     hereda en GIT_GRAFT_FILE (ronda 7). TestMain quita del entorno
-//     heredado las variables de git que cambian lo que el fixture planta o
-//     lee (edrGitHeredado: un GIT_GRAFT_FILE heredado, hallazgos ff30ce y
-//     d88bae), asi que el fixture y sus guardas ven el entorno limpio, y el
+//     hereda en GIT_GRAFT_FILE (ronda 7). TestMain aisla el git del binario
+//     (gittest.AislarGit: entre otras, quita un GIT_GRAFT_FILE heredado,
+//     hallazgos ff30ce y d88bae), asi que el fixture y sus guardas ven el
+//     entorno limpio, y el
 //     test le pone a hoom el GIT_GRAFT_FILE con t.Setenv; con un git que ya
 //     no lee grafts el test se salta (hallazgo a21de0).
 //

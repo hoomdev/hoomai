@@ -14,11 +14,19 @@
 // RepoCrudo), lo que git lanza despues de un commit (CommitConTraza) y las
 // formas de escribir el apagado (ConfigsDeMantenimiento).
 //
+// Tambien vive aca el git aislado de un binario de tests entero (AislarGit):
+// lo que sus TestMain le sacan y le fijan al entorno antes de m.Run para que
+// ni las variables de git de quien corre los tests ni su config cambien lo
+// que el fixture planta o lee (hallazgos 20261029T172636_8f2253 y
+// 20261029T172811_c4957f).
+//
 // Existe solo para tests, como net/http/httptest: ningun codigo de
 // produccion lo importa. Es un paquete y no un _test.go porque lo usan
-// agentcmd y reviewcmd, y con una copia en cada uno el apagado y la lectura
-// de GIT_TRACE tenian dos fuentes de verdad que habia que mover juntas
-// (hallazgo 20261007T142722_de562b). Cada paquete conserva su git(t, dir,
-// ...), que con `init` llama a ApagarMantenimiento, y los tests de sus
-// constructores; los del fixture mismo estan aca.
+// varios paquetes (agentcmd, reviewcmd, boardcmd, gitx), y con una copia en
+// cada uno el apagado, la lectura de GIT_TRACE y el aislamiento tenian
+// varias fuentes de verdad que habia que mover juntas (hallazgos
+// 20261007T142722_de562b y 20261029T172811_c4957f). Solo importa la
+// biblioteca estandar, asi que tambien lo puede usar gitx. Cada paquete
+// conserva su git(t, dir, ...), que con `init` llama a ApagarMantenimiento, y
+// los tests de sus constructores; los del fixture mismo estan aca.
 package gittest

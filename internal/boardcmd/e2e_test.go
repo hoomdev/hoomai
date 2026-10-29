@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/hoomdev/hoomai/internal/envelope"
+	"github.com/hoomdev/hoomai/internal/gittest"
 )
 
 var (
@@ -30,13 +31,19 @@ var (
 	bxErr  error
 )
 
-// TestMain quita del entorno las variables de git que cambian lo que un
-// fixture planta o lee (edrLimpiarGitHeredado, en
-// evidencia_de_la_review_test.go; hallazgo 43f79f), corre los tests y borra
-// el binario de hoom que compilo bxBinario.
+// TestMain aisla el git del binario (gittest.AislarGit: quita las variables
+// de git que cambian lo que un fixture planta o lee, hallazgo 43f79f, y fija
+// la config global y la del sistema, hallazgo 20261029T172636_8f2253; la
+// politica es una sola, en gittest, hallazgo 20261029T172811_c4957f), corre
+// los tests y borra el binario de hoom que compilo bxBinario.
 func TestMain(m *testing.M) {
-	edrLimpiarGitHeredado()
+	deshacer, err := gittest.AislarGit()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fixture:", err)
+		os.Exit(2)
+	}
 	code := m.Run()
+	deshacer()
 	if bxDir != "" {
 		os.RemoveAll(bxDir)
 	}

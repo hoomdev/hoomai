@@ -49,6 +49,8 @@ import (
 	"testing"
 	"testing/quick"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/gittest"
 )
 
 // ---------------------------------------------------------------- la medida
@@ -114,11 +116,14 @@ const (
 // El otro papel que se reparte aca es el del proceso que se va de su grupo
 // (grupoPapelSeVa, en grupo_de_procesos_test.go).
 //
-// Antes de correr los tests quita del entorno las variables de git que
-// cambian lo que un fixture planta o lee (edrLimpiarGitHeredado, en
-// evidencia_de_la_review_helpers_test.go; hallazgos 688441 y d88bae). Los
-// papeles no las tocan: el medidor le pasa a hoom el entorno que recibio de
-// un test, que ya es limpio.
+// Antes de correr los tests aisla el git del binario (gittest.AislarGit):
+// quita las variables de git que cambian lo que un fixture planta o lee
+// (hallazgos 688441 y d88bae) y fija la config global y la del sistema, para
+// que tampoco entre la de quien corre los tests (hallazgo
+// 20261029T172636_8f2253). La politica vive en gittest y no en una copia por
+// paquete (hallazgo 20261029T172811_c4957f). Los papeles no la necesitan: el
+// medidor le pasa a hoom el entorno que recibio de un test, que ya es el
+// aislado.
 func TestMain(m *testing.M) {
 	if os.Getenv(raPapelMedidor) != "" {
 		syscall.Exit(raMedidor(os.Args[1:]))
@@ -126,8 +131,14 @@ func TestMain(m *testing.M) {
 	if testigo := os.Getenv(grupoPapelSeVa); testigo != "" {
 		syscall.Exit(grupoElQueSeVa(testigo))
 	}
-	edrLimpiarGitHeredado()
-	os.Exit(m.Run())
+	deshacer, err := gittest.AislarGit()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fixture:", err)
+		os.Exit(2)
+	}
+	code := m.Run()
+	deshacer()
+	os.Exit(code)
 }
 
 // raMedidor es el papel de medidor: lanza a hoom (argv: su ruta y sus

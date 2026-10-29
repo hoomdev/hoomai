@@ -15,10 +15,11 @@
 //
 // Los fixtures estan en evidencia_de_la_review_helpers_test.go y
 // evidencia_de_la_review_delta_test.go. Las guardas de los fixtures corren
-// con los git de siempre (rdGit): TestMain quita del entorno heredado las
-// variables de git que cambian lo que el fixture planta o lee
-// (edrGitHeredado; hallazgo 688441). Los helpers de entorno que la ronda 6
-// habia dejado aca ya no estan, y lo que comparten este archivo y
+// con los git de siempre (rdGit): TestMain aisla el git del binario
+// (gittest.AislarGit: quita las variables de git que cambian lo que el
+// fixture planta o lee, hallazgo 688441, y fija la config global y la del
+// sistema, hallazgo 20261029T172636_8f2253). Los helpers de entorno que la
+// ronda 6 habia dejado aca ya no estan, y lo que comparten este archivo y
 // evidencia_de_la_review_hallazgos5_test.go (edrGitConEntorno) esta en el
 // de los fixtures (hallazgo cd162c).
 package reviewcmd
