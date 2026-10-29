@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T200906_a21de0",
+  "as": "corregido",
+  "evidence": "f6ce315: despues de plantar el graft, si el merge-base no cambia (un git sin soporte de info/grafts) el test hace t.Skip diciendo que ese vector no existe en ese git; cualquier otro resultado es falla de fixture. Probado simulando un git sin grafts: los tres casos salen SKIP.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T20:56:04.414918Z"
+}

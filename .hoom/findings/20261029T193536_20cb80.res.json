@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261029T193536_20cb80",
+  "as": "corregido",
+  "evidence": "e996ae0: internal/gittest/main_test.go (TestMain del paquete) quita las variables de quitaAislarGit antes de m.Run, sin llamar a AislarGit; los controles de aislar_test.go ya no ven el GIT_DIR heredado. Con GIT_DIR=/tmp/no-existe gittest da 12 PASS (antes fallaban los 6 subtests en :275); el control de 30abfc, que caia con GIT_CONFIG_PARAMETERS o GIT_TRACE heredados, tambien pasa. Los 8 mutantes de AislarGit siguen fallando (INFORME-test-writer-9).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T19:52:18.367803Z"
+}

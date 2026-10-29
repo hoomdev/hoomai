@@ -1,0 +1,11 @@
+{
+  "id": "20261029T172636_8f2253",
+  "created_at": "2026-10-29T17:26:36.258069Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/evidencia_de_la_review_test.go",
+  "description": "INTRODUCIDO — internal/boardcmd/evidencia_de_la_review_test.go:61 y :73-76: TestMain elimina GIT_CONFIG_GLOBAL/GIT_CONFIG_NOSYSTEM en vez de reemplazarlos por un entorno aislado, por lo que los helpers bdGit vuelven a leer la configuracion global y de sistema del usuario. Reproduccion: con HOME apuntando a un .gitconfig con commit.gpgsign=true y el padre fijando GIT_CONFIG_GLOBAL=/dev/null, el test nuevo TestHallazgo4acfc8_CA483_UnReplaceNoEscondeElCodigoDelTablero falla en el primer git commit porque TestMain borra la proteccion y Git intenta firmar. Configuraciones comunes como commit.gpgsign, core.hooksPath, init.templateDir o init.defaultObjectFormat pueden romper los fixtures o ejecutar hooks. Las copias equivalentes en internal/reviewcmd/evidencia_de_la_review_helpers_test.go:62,74-78 y internal/gitx/evidencia_de_la_review_test.go:59,71-75 tienen el mismo problema; hay que conservar/fijar explicitamente el aislamiento mientras se neutralizan solo los vectores hostiles que se quieren probar.",
+  "author": "reviewer@codex",
+  "fingerprint": "681b2cecbd929104",
+  "task": "evidencia-de-la-review"
+}

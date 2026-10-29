@@ -1,0 +1,11 @@
+{
+  "id": "20261028T171941_adbd6d",
+  "created_at": "2026-10-28T17:19:41.267098Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gitx/sinlabase.go",
+  "description": "INTRODUCIDO — internal/gitx/sinlabase.go:188 ejecuta merge-tree desde el repositorio bare temporal, que no tiene worktree ni acceso al repositorio inicializado de un submodulo. Si D apunta el gitlink a S1 y la base integrada I lo avanza limpiamente a su descendiente S2, merge-tree en el repo original sale 0, pero desde este bare sale 1 con conflicto en el gitlink. Asi, una rama que solo integro ese avance de la base deja de producir una delta vacia (CA-485): review --delta cae a review completa y CambioDespues informa codigo cambiado. El test de drivers no cubre gitlinks/submodulos.",
+  "author": "reviewer@codex",
+  "fingerprint": "52044bcaea7f5987",
+  "task": "evidencia-de-la-review"
+}

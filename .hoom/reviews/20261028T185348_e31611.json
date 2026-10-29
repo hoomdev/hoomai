@@ -1,0 +1,62 @@
+{
+  "id": "20261028T185348_e31611",
+  "created_at": "2026-10-28T18:53:48.634822Z",
+  "task": "evidencia-de-la-review",
+  "spec": ".hoom/specs/evidencia-de-la-review.md",
+  "fingerprint": "7124658eb5f1edef",
+  "verdict_id": "2026-10-28T18-40-42Z_38b105bb",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261028T185202_8d0272"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 48373,
+  "evidence_sha256": "64354b85a3c0e04a63c20624379190ff547ff8adf7a7da63a28279d5982d5d76",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1325346,
+      "cached_input_tokens": 1241856,
+      "output_tokens": 13546,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 450141,
+      "cached_input_tokens": 395520,
+      "output_tokens": 5538,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1308376,
+      "cached_input_tokens": 1249408,
+      "output_tokens": 15509,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 285865,
+      "cached_input_tokens": 235648,
+      "output_tokens": 5331,
+      "turns": 1
+    }
+  ],
+  "desde": "f3b9576a9deae05ba42d975bc2fd58fc2f92e2e0",
+  "hasta": "36896fadf9e58d1aadf7270cc01b63d255cdd20f",
+  "cobertura": "delta",
+  "desde_review": "20261028T172844_a77dd3",
+  "base": "main"
+}

@@ -19,8 +19,13 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
 
 ## Entradas
 - La evidencia completa, congelada por hoom y puesta en el pedido: el diff
-  del candidato (sin .hoom/) y el texto del spec, los mismos bytes para las
-  4 lentes. No se vuelve a sacar el diff; otros archivos se leen solo por
+  del candidato (todo menos el estado de hoom, que es exactamente: los
+  .json directos de .hoom/{approvals,findings,reviews,verdicts}/, los .yaml
+  directos de .hoom/items/, los .md directos de .hoom/specs/, todo
+  .hoom/intake/, .hoom/ratchet.json, .hoom/.gitignore y los directorios
+  locales .hoom/{cache,worktrees,runs,isolated,envelopes}/; en una delta,
+  sin lo que trajo la base que la rama integro despues de la review
+  anterior) y el texto del spec, los mismos bytes para las 4 lentes. No se vuelve a sacar el diff; otros archivos se leen solo por
   rangos y solo si hace falta. Si la evidencia pasa el tope
   (`review.max_evidence_kib`, 320 KiB por defecto) no corre ninguna lente:
   hoom no la corta.

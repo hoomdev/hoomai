@@ -45,6 +45,7 @@ type Info struct {
 func run(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	out, err := cmd.Output()
 	return strings.TrimSpace(string(out)), err
 }
@@ -416,6 +417,7 @@ func runTope(dir string, tope time.Duration, args ...string) (string, error) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
+	cmd.Env = soloLectura()
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.Output()
 	if ctx.Err() == context.DeadlineExceeded {

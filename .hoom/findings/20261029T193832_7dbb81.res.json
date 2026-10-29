@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261029T193832_7dbb81",
+  "as": "corregido",
+  "evidence": "e996ae0: mismo cierre que 20cb80 (duplicado): el TestMain de gittest neutraliza las GIT_* heredadas para los controles antes de que el test plante HOME/XDG/GIT_CONFIG_GLOBAL con t.Setenv; pasa con GIT_DIR=/tmp/no-existe y con todas las hostiles de las rondas 7-8.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T19:52:18.398937Z"
+}

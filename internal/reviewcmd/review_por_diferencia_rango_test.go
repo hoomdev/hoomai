@@ -167,6 +167,12 @@ func TestCA421_HoomYamlYBaseVanAntesQueElDesde(t *testing.T) {
 // `SIN REVISAR - no hay cambios desde <desde12>: no hay nada que revisar`.
 // Aunque el cambio entero sea grande (la regla sobre el cambio entero pediria
 // las 4): no hay nada que revisar en el rango.
+//
+// Re-expresado por evidencia-de-la-review (CA-421 de review-por-diferencia):
+// "un rango que solo toca .hoom/notas.txt ahora es solo documentacion; 'no
+// hay cambios' es un rango que solo toca el estado de hoom". El rango que
+// solo toca el spec, un veredicto y un hallazgo es SIN REVISAR - no hay
+// cambios; con .hoom/notas.txt encima, SIN REVISAR - solo documentacion.
 func TestCA421_RangoSinCambiosEsSinRevisar(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "")
@@ -181,13 +187,19 @@ func TestCA421_RangoSinCambiosEsSinRevisar(t *testing.T) {
 	}
 
 	c := head
-	rdCommit(t, root, "solo .hoom", map[string]string{
+	rdCommit(t, root, "solo estado de hoom", map[string]string{
 		".hoom/specs/x.md": "# Spec x\n\ncambio solo del spec\n",
-		".hoom/notas.txt":  "una nota\n",
+		".hoom/verdicts/2026-10-27T12-00-00Z_0a0b0c.json": "{\"veredicto\":1}\n",
+		".hoom/findings/20261027T120000_a1b2c3.json":      "{\"hallazgo\":1}\n",
 	})
-	raLimpio(t, "CA-421", root)
+	edrLimpio(t, "CA-421", root)
 	res, err, out := rdCorrer(t, "CA-421", root, Options{Provider: "codex", Desde: c})
-	rdSinRevisar(t, "CA-421", "solo .hoom/", root, cx, 0, 0, res, err, out, rdSinCambios(c[:12]))
+	rdSinRevisar(t, "CA-421", "solo el estado de hoom", root, cx, 0, 0, res, err, out, rdSinCambios(c[:12]))
+
+	rdCommit(t, root, "una nota en .hoom/", map[string]string{".hoom/notas.txt": "una nota\n"})
+	edrLimpio(t, "CA-421", root)
+	res, err, out = rdCorrer(t, "CA-421", root, Options{Provider: "codex", Desde: c})
+	rdSinRevisar(t, "CA-421", ".hoom/notas.txt", root, cx, 0, 0, res, err, out, rdSoloDocs(c[:12]))
 }
 
 // CA-421: un rango cuyo cambio en las rutas de la evidencia es solo

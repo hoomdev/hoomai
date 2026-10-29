@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T152313_d00a72",
+  "as": "corregido",
+  "evidence": "8771c87: mergeSintetico ya no usa --attr-source (Git 2.41); el aislamiento sale del repositorio de trabajo sin atributos, y lo que usa (merge-tree --write-tree -z --name-only --no-messages, rev-parse --show-object-format/--path-format) existe desde 2.38, debajo del piso de 2.40 que fija la spec (gitMinimo).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T15:37:58.049531Z"
+}

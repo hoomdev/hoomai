@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T180502_547228",
+  "as": "corregido",
+  "evidence": "Spec evidencia-de-la-review (CA-484..486, CA-489; enmiendas 1 y 2). 756026c+8771c87+a3470d1+22f9655: la delta descuenta la base integrada: I = merge-base(base, H); si I==H o I es ancestro de D compara D crudo; si no, gitx.SinLaBase arma un merge sintetico D+I (git merge-tree en un repo bare temporal aislado) y el diff es contra ese arbol, con base_integrada=I en el registro y la linea 'base integrada hasta I despues de D'. Conflicto con lo ya revisado o git \u003c 2.40 -\u003e review completa con aviso (nunca una delta mas chica). CambioDespues y el tablero usan lo mismo. Tests en reviewcmd/boardcmd evidencia_de_la_review_delta/hallazgos*_test.go. Delta 7 sin hallazgos; verde bd0cd58d.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T20:27:23.662775Z"
+}

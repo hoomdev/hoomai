@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T213208_d88bae",
+  "as": "corregido",
+  "evidence": "2628cd0: el TestMain de reviewcmd (y gitx/boardcmd) quita GIT_GRAFT_FILE heredado antes de m.Run, asi rdGit/dfGit no reciben el aviso de desuso por stderr; rdGit no cambia. TestHallazgo8d0272_CA484_UnGraftNoAchicaLaDelta pasa con GIT_GRAFT_FILE=/dev/null y /dev/null/externo; el graft externo que hoom hereda se prueba con t.Setenv en un subtest.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T16:59:58.50833Z"
+}

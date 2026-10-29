@@ -1,0 +1,142 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-10-29T17-19-38Z_86065b45",
+  "created_at": "2026-10-29T17:19:38.283524Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "dee6a7a1e9ad",
+    "branch": "hoom/evidencia-de-la-review",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/agents/06-reviewer.md",
+      ".hoom/approvals/evidencia-de-la-review_0d15458c.json",
+      ".hoom/approvals/evidencia-de-la-review_73516333.json",
+      ".hoom/approvals/evidencia-de-la-review_8e921c8d.json",
+      ".hoom/specs/evidencia-de-la-review.md",
+      "README.md",
+      "internal/agents/assets/agents/06-reviewer.md",
+      "internal/boardcmd/e2e_test.go",
+      "internal/boardcmd/evidencia_de_la_review_hallazgos_test.go",
+      "internal/boardcmd/evidencia_de_la_review_hallazgos_unix_test.go",
+      "internal/boardcmd/evidencia_de_la_review_test.go",
+      "internal/boardcmd/evidencia_de_la_review_unix_test.go",
+      "internal/boardcmd/gather.go",
+      "internal/boardcmd/review_por_diferencia_test.go",
+      "internal/gitx/diff.go",
+      "internal/gitx/evidencia_de_la_review_hallazgos_test.go",
+      "internal/gitx/evidencia_de_la_review_test.go",
+      "internal/gitx/gitx.go",
+      "internal/gitx/sinlabase.go",
+      "internal/reviewcmd/cli_falso_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_delta_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_evidencia_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_hallazgos4_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_hallazgos5_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_hallazgos_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_hallazgos_unix_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_helpers_test.go",
+      "internal/reviewcmd/evidencia_de_la_review_unix_test.go",
+      "internal/reviewcmd/evidencia_en_disco_test.go",
+      "internal/reviewcmd/record.go",
+      "internal/reviewcmd/review_aislada_contrato_test.go",
+      "internal/reviewcmd/review_aislada_evidencia_test.go",
+      "internal/reviewcmd/review_aislada_memoria_test.go",
+      "internal/reviewcmd/review_aislada_rss_test.go",
+      "internal/reviewcmd/review_por_diferencia_evidencia_test.go",
+      "internal/reviewcmd/review_por_diferencia_rango_test.go",
+      "internal/reviewcmd/reviewcmd.go"
+    ],
+    "change_fingerprint": "681b2cecbd929104",
+    "insertions": 6903,
+    "deletions": 147
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 73,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 11 medium, 14 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 442
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 693,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 284
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 14514
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./internal/boardcmd ./internal/gitx ./internal/reviewcmd",
+      "exit_code": 0,
+      "duration_ms": 19558,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t(cached)"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "green"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T172545_6f228c",
+  "as": "corregido",
+  "evidence": "a3470d1: repoDeTrabajo lleva al repo de trabajo el archivo shallow del repositorio (copiarShallow: git rev-parse --git-path shallow, abierto con hoomfs.AbrirRegular y acotado a 64 MiB), asi el merge sintetico se detiene en la misma frontera que el repo y no busca padres que el clon no tiene.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T17:38:33.432787Z"
+}

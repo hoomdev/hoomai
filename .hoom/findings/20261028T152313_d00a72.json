@@ -1,0 +1,11 @@
+{
+  "id": "20261028T152313_d00a72",
+  "created_at": "2026-10-28T15:23:13.713124Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/sinlabase.go",
+  "description": "internal/gitx/sinlabase.go:64 INTRODUCIDO: gitMinimo acepta Git 2.40, pero mergeSintetico invoca la opcion global --attr-source en la linea 129; Git la incorporo en 2.41. En Git 2.40 la ruta no toma el fallback documentado de review completa: intenta el comando, falla como opcion desconocida y aborta toda review delta/--desde y la evaluacion del tablero despues de integrar la base.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d7564344a40d50b",
+  "task": "evidencia-de-la-review"
+}

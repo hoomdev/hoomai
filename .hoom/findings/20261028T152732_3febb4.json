@@ -1,0 +1,11 @@
+{
+  "id": "20261028T152732_3febb4",
+  "created_at": "2026-10-28T15:27:32.485385Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agents/assets/agents/06-reviewer.md",
+  "description": "INTRODUCIDO: internal/agents/assets/agents/06-reviewer.md:21 enumera tras dos puntos el estado de hoom como veredictos, hallazgos, registros, items, aprobaciones y specs, pero omite .hoom/intake/, .hoom/ratchet.json, .hoom/.gitignore y los directorios locales que internal/gitx/diff.go:150-160 tambien excluye. Al parecer exhaustiva, la frase deja al reviewer con un modelo distinto de la evidencia real; completar la lista o marcarla explicitamente como ejemplos mantendria alineados contrato e implementacion (y la copia .hoom/agents/06-reviewer.md).",
+  "author": "reviewer@codex",
+  "fingerprint": "6d7564344a40d50b",
+  "task": "evidencia-de-la-review"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261028T212732_688441",
+  "created_at": "2026-10-28T21:27:32.657349Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/evidencia_de_la_review_hallazgos4_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/evidencia_de_la_review_hallazgos4_test.go:172 planta el reemplazo con git(t, ...) heredando GIT_REPLACE_REF_BASE, pero la nueva guarda de :173 lo elimina mediante edrEntornoDelFixture; lo mismo ocurre entre internal/boardcmd/evidencia_de_la_review_hallazgos_test.go:167-168. Antes planta y guarda heredaban el mismo namespace, así que el cambio vuelve no deterministas los tres tests de refs/replace: env GIT_REPLACE_REF_BASE=refs/hoom-review-test/ go test ./internal/reviewcmd -run 'TestHallazgo4acfc8_CA(481_UnReplaceNoEscondeElCambioDeUnRango|484_UnReplaceNoEscondeElCambioConLaBaseIntegrada)$' -count=1 falla en ambas guardas, y el test equivalente de boardcmd también falla. La fase que planta el ref debe usar el mismo entorno limpio que su guarda, dejando que solo hoom herede el valor hostil.",
+  "author": "reviewer@codex",
+  "fingerprint": "c353bcba54f8de85",
+  "task": "evidencia-de-la-review"
+}

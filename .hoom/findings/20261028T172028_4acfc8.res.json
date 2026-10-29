@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T172028_4acfc8",
+  "as": "corregido",
+  "evidence": "a3470d1: toda lectura de gitx (soloLectura: run, runTope, gitOut/gitOutBounded, OutPrefix, EsAncestro, ResolverCommit, VerificarBase, Cambios, CambioSinCommitear) y el repo de trabajo fijan GIT_NO_REPLACE_OBJECTS=1: el merge sintetico y los diffs leen los mismos objetos, los reales; ademas un refs/replace plantado en el repositorio ya no cambia lo que recibe la review. Decision de Henry 2026-10-28 (falla segura del merge sintetico).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T17:38:33.46308Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T212732_688441",
+  "as": "corregido",
+  "evidence": "2628cd0: TestMain de reviewcmd/boardcmd/gitx quita del entorno heredado GIT_REPLACE_REF_BASE (y el resto de edrGitHeredado) antes de m.Run; plantar y guardar el refs/replace usan el mismo git/rdGit/bdGit. Los tests 4acfc8 suman el subtest GIT_REPLACE_REF_BASE-heredado (t.Setenv despues de plantar y guardar). Pasan con GIT_REPLACE_REF_BASE=refs/prueba-externa/ y con todas las hostiles juntas (INFORME-test-writer-7).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T16:59:58.451267Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261023T133906_8fe5a6",
+  "as": "corregido",
+  "evidence": "Spec evidencia-de-la-review (CA-481..483, CA-487/488, aprobada 0d15458c). 756026c+8771c87: la evidencia de hoom review es todo el arbol menos una lista cerrada y exacta de estado de hoom (internal/gitx/diff.go evidencePaths: approvals/findings/reviews/verdicts *.json directos, items *.yaml, specs *.md, intake/**, ratchet.json, .hoom/.gitignore y los locales de hoomfs.Local); .hoom/semgrep/, .hoom/agents/, hoom.yaml y cualquier otro codigo bajo .hoom/ entran. El arbol sucio, la medida del rango y el tablero usan las mismas rutas; README y contrato 06 lo dicen. Tests: internal/gitx/evidencia_de_la_review_test.go (oraculo edrRutas), reviewcmd/boardcmd evidencia_de_la_review*_test.go. 7 reviews Codex, la delta 7 (20261029T202526_91fde5) sin hallazgos; verde bd0cd58d.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T20:27:23.621157Z"
+}

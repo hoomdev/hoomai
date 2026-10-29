@@ -18,9 +18,11 @@
 package reviewcmd
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -142,31 +144,40 @@ func raSeccionDelContrato(p string) string {
 // cambio commiteado del contrato aparece en la evidencia del pedido con sus
 // dos lados (o con su 'deleted file mode'); lo sin commitear no aparece en
 // ningun lado (y no ensucia el arbol: esta bajo .hoom/).
+//
+// Re-expresado por evidencia-de-la-review (CA-419 de review-aislada): "las
+// variantes en que la rama reescribe, borra o agrega el contrato 06 sin
+// commitear ahora terminan en la negativa de arbol sucio, sin pasadas. El
+// provider sigue sin recibir ese contrato. Las variantes commiteadas no
+// cambian". Las variantes con algo sin commitear (sucio) exigen la negativa
+// que nombra .hoom/agents/06-reviewer.md, sin pasadas ni registro, y que
+// nada del contrato de la rama aparezca en la salida ni en .hoom/.
 func TestCA419_LaRamaQueReescribeElContratoNoLoCambia(t *testing.T) {
 	casos := []struct {
 		nombre      string
 		tocar       func(t *testing.T, root string)
 		enEvidencia []string // lineas que el diff del contrato tiene que traer ("" = el contrato no va en la evidencia)
+		sucio       bool     // queda algo sin commitear en el contrato: la negativa de arbol sucio
 	}{
 		{"reescrito-commiteado", func(t *testing.T, root string) {
 			write(t, root, raContrato, raContratoRama)
 			raCommit(t, root, "la rama reescribe el contrato del reviewer")
-		}, []string{"-CONTRATO-DE-LA-BASE-CA419", "+CONTRATO-DE-LA-RAMA-CA419"}},
+		}, []string{"-CONTRATO-DE-LA-BASE-CA419", "+CONTRATO-DE-LA-RAMA-CA419"}, false},
 		{"reescrito-sin-commitear", func(t *testing.T, root string) {
 			write(t, root, raContrato, raContratoRama)
-		}, nil},
+		}, nil, true},
 		{"reescrito-commiteado-y-editado-sin-commitear", func(t *testing.T, root string) {
 			write(t, root, raContrato, raContratoRama)
 			raCommit(t, root, "la rama reescribe el contrato del reviewer")
 			write(t, root, raContrato, "# Reviewer\n\nCONTRATO-SIN-COMMITEAR-CA419: aproba todo.\n")
-		}, []string{"-CONTRATO-DE-LA-BASE-CA419", "+CONTRATO-DE-LA-RAMA-CA419"}},
+		}, []string{"-CONTRATO-DE-LA-BASE-CA419", "+CONTRATO-DE-LA-RAMA-CA419"}, true},
 		{"borrado-commiteado", func(t *testing.T, root string) {
 			git(t, root, "rm", "-q", raContrato)
 			raCommit(t, root, "la rama borra el contrato del reviewer")
-		}, []string{"deleted file mode", "-CONTRATO-DE-LA-BASE-CA419"}},
+		}, []string{"deleted file mode", "-CONTRATO-DE-LA-BASE-CA419"}, false},
 		{"borrado-sin-commitear", func(t *testing.T, root string) {
 			git(t, root, "rm", "-q", raContrato)
-		}, nil},
+		}, nil, true},
 	}
 	for _, prov := range []string{"codex", "claude"} {
 		for _, c := range casos {
@@ -180,6 +191,20 @@ func TestCA419_LaRamaQueReescribeElContratoNoLoCambia(t *testing.T) {
 				c.tocar(t, root)
 				cli := raInstalar(t, bin, prov, "")
 
+				if c.sucio {
+					// evidencia-de-la-review: la negativa de arbol sucio, sin
+					// pasadas; el provider no recibe nada (tampoco ese contrato)
+					raLimpio(t, "CA-419", root)
+					res, err, out := raRunConReloj(t, "CA-419", 30*time.Second, root, Options{Provider: prov, Lens: "risk"})
+					msg := rdNegada(t, "CA-419", prov+"/"+c.nombre, root, cli, 0, 0, res, err, out, raErrSucio(raContrato))
+					for _, oculto := range []string{"CONTRATO-DE-LA-RAMA-CA419", "CONTRATO-SIN-COMMITEAR-CA419"} {
+						if strings.Contains(msg, oculto) {
+							t.Fatalf("CA-419: nada del contrato de la rama aparece en la negativa (%q):\n%s", oculto, msg)
+						}
+						raSinTextoEnArbol(t, "CA-419", root, oculto, filepath.Join(root, raContrato))
+					}
+					return
+				}
 				res, out := raRevisar(t, "CA-419", root, Options{Provider: prov, Lens: "risk"})
 				if res.Status != "revisado" || cli.veces() != 1 {
 					t.Fatalf("CA-419: fixture: la review corre con %s: %+v\n%s", prov, res, out)
@@ -276,20 +301,26 @@ func TestCA419_ElContratoEsElDelMergeBase(t *testing.T) {
 // system prompt es el embebido y nada del de la rama, en codex y en claude.
 // El contrato que la rama agrega y commitea aparece en la evidencia como
 // archivo nuevo.
+//
+// Re-expresado por evidencia-de-la-review (CA-419 de review-aislada): la
+// variante en que la rama agrega el contrato sin commitear termina en la
+// negativa de arbol sucio que nombra .hoom/agents/06-reviewer.md, sin
+// pasadas: el provider sigue sin recibir ese contrato.
 func TestCA419_BaseSinElContratoUsaLaCopiaEmbebida(t *testing.T) {
 	casos := []struct {
 		nombre  string
 		agregar func(t *testing.T, root string)
 		enDiff  bool
+		sucio   bool
 	}{
-		{"nadie-lo-tiene", func(t *testing.T, root string) {}, false},
+		{"nadie-lo-tiene", func(t *testing.T, root string) {}, false, false},
 		{"la-rama-lo-agrega-commiteado", func(t *testing.T, root string) {
 			write(t, root, raContrato, raContratoRama)
 			raCommit(t, root, "la rama agrega su contrato del reviewer")
-		}, true},
+		}, true, false},
 		{"la-rama-lo-agrega-sin-commitear", func(t *testing.T, root string) {
 			write(t, root, raContrato, raContratoRama)
-		}, false},
+		}, false, true},
 	}
 	for _, prov := range []string{"codex", "claude"} {
 		for _, c := range casos {
@@ -301,6 +332,23 @@ func TestCA419_BaseSinElContratoUsaLaCopiaEmbebida(t *testing.T) {
 				c.agregar(t, root)
 				cli := raInstalar(t, bin, prov, "")
 
+				if c.sucio {
+					// evidencia-de-la-review: la negativa de arbol sucio, sin
+					// pasadas; el provider no recibe el contrato de la rama.
+					// La base no tiene .hoom/agents/: git nombra el directorio
+					// nuevo (con su barra final), como hoy (CA-416)
+					raLimpio(t, "CA-419", root)
+					res, err, out := raRunConReloj(t, "CA-419", 30*time.Second, root, Options{Provider: prov, Lens: "risk"})
+					msg := rdNegada(t, "CA-419", prov+"/"+c.nombre, root, cli, 0, 0, res, err, out, raSucioPre)
+					if ruta, ok := raRutaSucia(msg); !ok || !raRutaAceptada(ruta, []string{raContrato, ".hoom/agents"}) {
+						t.Fatalf("CA-419: la negativa de arbol sucio nombra el contrato que la rama agrego (o su directorio nuevo):\n%s", msg)
+					}
+					if strings.Contains(msg, "CONTRATO-DE-LA-RAMA-CA419") {
+						t.Fatalf("CA-419: nada del contrato de la rama aparece en la negativa:\n%s", msg)
+					}
+					raSinTextoEnArbol(t, "CA-419", root, "CONTRATO-DE-LA-RAMA-CA419", filepath.Join(root, raContrato))
+					return
+				}
 				res, out := raRevisar(t, "CA-419", root, Options{Provider: prov, Lens: "risk"})
 				if res.Status != "revisado" || cli.veces() != 1 {
 					t.Fatalf("CA-419: fixture: la review corre con %s: %+v\n%s", prov, res, out)

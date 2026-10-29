@@ -91,21 +91,29 @@ func ramPlantar(t *testing.T, dir string, n int) {
 // al menos su tamano (mas de 4 MiB, y mas con el crecimiento del buffer); la
 // negativa solo necesita la primera ruta sucia, y la evidencia del cambio
 // commiteado (un archivo) son unos pocos KiB y un punado de procesos git.
+//
+// Re-expresado por evidencia-de-la-review (CA-413 de review-aislada): "miles
+// de archivos sin rastrear bajo .hoom/, fuera del estado, ahora ensucian el
+// arbol. Que no se lean enteros se prueba con los que estan en el estado de
+// hoom, o con la negativa, que lee solo la primera entrada". bajo-hoom planta
+// los 20.000 en .hoom/intake/montones/ (estado de hoom: la evidencia se
+// arma), y bajo-hoom-fuera-del-estado en .hoom/montones/ (la negativa nombra
+// uno de ellos, o su directorio); con el mismo umbral.
 func TestCA413_MilesDeNoRastreadosNoSeLeenEnteros(t *testing.T) {
 	if testing.Short() {
 		t.Skip("CA-413: planta 20.000 archivos no rastreados; corre sin -short")
 	}
 	const n = 20000
-	for _, bajoHoom := range []bool{false, true} {
-		nombre := "en-la-raiz"
-		if bajoHoom {
-			nombre = "bajo-hoom"
-		}
+	for _, nombre := range []string{"en-la-raiz", "bajo-hoom", "bajo-hoom-fuera-del-estado"} {
+		bajoHoom := nombre == "bajo-hoom"
 		t.Run(nombre, func(t *testing.T) {
 			root := raRepo(t, "")
 			raCambio(t, root)
 			dir := root
-			if bajoHoom {
+			switch nombre {
+			case "bajo-hoom":
+				dir = filepath.Join(root, ".hoom", "intake", "montones")
+			case "bajo-hoom-fuera-del-estado":
 				dir = filepath.Join(root, ".hoom", "montones")
 			}
 			ramPlantar(t, dir, n)
@@ -119,18 +127,22 @@ func TestCA413_MilesDeNoRastreadosNoSeLeenEnteros(t *testing.T) {
 			ev, err, asignado := raEvidenceConReloj(t, "CA-413", 120*time.Second, root, "main", "", tope)
 			if bajoHoom {
 				if err != nil || ev.Over || !strings.Contains(string(ev.Diff), "+func Nuevo() {}") {
-					t.Fatalf("CA-416: 20.000 no rastreados bajo .hoom/ no ensucian el arbol: la evidencia se arma: %v (Over %v)", err, ev.Over)
+					t.Fatalf("CA-416: 20.000 no rastreados en el estado de hoom (.hoom/intake/) no ensucian el arbol: la evidencia se arma: %v (Over %v)", err, ev.Over)
 				}
 				if bytes.Contains(ev.Diff, []byte("montones")) {
-					t.Fatalf("CA-416: nada de .hoom/ sin commitear va en la evidencia")
+					t.Fatalf("CA-416: nada del estado de hoom sin commitear va en la evidencia")
 				}
 			} else {
 				if err == nil {
 					t.Fatalf("CA-416: con 20.000 no rastreados Evidence se niega por arbol sucio; armo %d bytes", ev.Bytes)
 				}
+				prefijo := "archivo-"
+				if nombre == "bajo-hoom-fuera-del-estado" {
+					prefijo = ".hoom/montones/"
+				}
 				ruta, ok := raRutaSucia(err.Error())
-				if !ok || !strings.HasPrefix(ruta, "archivo-") || !strings.HasSuffix(ruta, ".txt") {
-					t.Fatalf("CA-416: la negativa nombra uno de los no rastreados: %v", err)
+				if !ok || !strings.HasPrefix(ruta, prefijo) || (prefijo == "archivo-" && !strings.HasSuffix(ruta, ".txt")) {
+					t.Fatalf("CA-416: la negativa nombra uno de los no rastreados (%s...): %v", prefijo, err)
 				}
 				if len(ev.Diff) != 0 || ev.SHA256 != "" {
 					t.Fatalf("CA-416: sin armar la evidencia: diff %d bytes", len(ev.Diff))

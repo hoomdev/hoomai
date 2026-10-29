@@ -1,0 +1,11 @@
+{
+  "id": "20261028T200623_ff30ce",
+  "created_at": "2026-10-28T20:06:23.90731Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/evidencia_de_la_review_hallazgos5_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/evidencia_de_la_review_hallazgos5_test.go:35 y internal/boardcmd/evidencia_de_la_review_hallazgos_test.go:140 construyen los comandos Git del fixture con append(os.Environ(), extra...), así que un GIT_GRAFT_FILE heredado impide leer el .git/info/grafts que los tests plantan. Los dos tests nuevos dejan de ejercer la regresión y fallan en su guarda; reproducción: env GIT_GRAFT_FILE=/dev/null/externo go test ./internal/reviewcmd -run TestHallazgo8d0272_CA484_UnGraftNoAchicaLaDelta -count=1, y análogamente en internal/boardcmd. Las pruebas deben neutralizar esa variable en sus invocaciones de fixture para ser deterministas.",
+  "author": "reviewer@codex",
+  "fingerprint": "064cef82bf737082",
+  "task": "evidencia-de-la-review"
+}

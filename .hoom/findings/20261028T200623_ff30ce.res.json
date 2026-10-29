@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T200623_ff30ce",
+  "as": "corregido",
+  "evidence": "f6ce315: las guardas de los fixtures de grafts y replace (reviewcmd hallazgos4/5, boardcmd hallazgos) corren git con edrEntornoDelFixture, que les quita GIT_GRAFT_FILE, GIT_NO_REPLACE_OBJECTS y GIT_REPLACE_REF_BASE heredados; hoom sigue heredando el entorno y fija lo suyo. Pasan con GIT_GRAFT_FILE=/dev/null/externo, con GIT_NO_REPLACE_OBJECTS=1 y con las dos.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-28T20:56:04.381497Z"
+}

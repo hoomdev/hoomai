@@ -1,0 +1,11 @@
+{
+  "id": "20261028T213208_d88bae",
+  "created_at": "2026-10-28T21:32:08.13606Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/reviewcmd/review_por_diferencia_helpers_test.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea esta delta): internal/reviewcmd/review_por_diferencia_helpers_test.go:37-45 usa CombinedOutput en rdGit y trata stdout+stderr como el valor de git. Con GIT_GRAFT_FILE=/dev/null heredado, git emite el aviso deprecado de grafts por stderr; rdSha recibe aviso+SHA y TestHallazgo8d0272_CA484_UnGraftNoAchicaLaDelta falla desde evidencia_de_la_review_hallazgos5_test.go:69, antes de llegar a la nueva guarda que limpia el entorno. Reproducido con GIT_GRAFT_FILE=/dev/null go test ./internal/reviewcmd -run TestHallazgo8d0272_CA484_UnGraftNoAchicaLaDelta -count=1.",
+  "author": "reviewer@codex",
+  "fingerprint": "c353bcba54f8de85",
+  "task": "evidencia-de-la-review"
+}
