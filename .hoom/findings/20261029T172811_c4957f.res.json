@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261029T172811_c4957f",
+  "as": "corregido",
+  "evidence": "4251ca2: la lista y la limpieza viven solo en internal/gittest/aislar.go (AislarGit, quitaAislarGit), con su test aislar_test.go; las tres copias de reviewcmd, boardcmd y gitx se fueron y sus TestMain llaman a gittest.AislarGit. Se fue la frase de que Go no comparte helpers de test.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T19:09:02.267057Z"
+}

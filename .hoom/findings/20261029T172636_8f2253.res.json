@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261029T172636_8f2253",
+  "as": "corregido",
+  "evidence": "4251ca2: gittest.AislarGit (TestMain de gitx, reviewcmd y boardcmd) ya no quita GIT_CONFIG_GLOBAL/NOSYSTEM: los FIJA (GIT_CONFIG_GLOBAL a un archivo propio con core.excludesFile/attributesFile=/dev/null, GIT_CONFIG_NOSYSTEM=1, GIT_ATTR_NOSYSTEM=1). Con HOME hostil (commit.gpgsign, core.hooksPath con pre-commit que sale 1, init.defaultObjectFormat=sha256), con y sin GIT_CONFIG_GLOBAL=/dev/null en el padre, los 4 paquetes pasan; con la ronda 7 fallaban 4acfc8/CA-483, 8d0272/CA-485 y 6f228c (INFORME-test-writer-8).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T19:09:02.235985Z"
+}
