@@ -10,7 +10,9 @@
 // AislarGit cambia el entorno del proceso con os.Setenv y os.Unsetenv. Cada
 // test pone antes con t.Setenv todo lo que AislarGit puede tocar (aisProteger),
 // asi al terminar el entorno vuelve a ser el de antes para los demas tests del
-// paquete.
+// paquete. Ese entorno ya viene sin las variables de quitaAislarGit que trae
+// quien corre go test: las saca el TestMain del paquete (main_test.go;
+// hallazgos 20261029T193536_20cb80 y 20261029T193832_7dbb81).
 package gittest
 
 import (
@@ -66,14 +68,14 @@ func aisProteger(t *testing.T, nombres ...string) {
 	}
 }
 
-// aisAislar llama a AislarGit y deja para el final del test lo que devuelve.
+// aisAislar llama a AislarGit y deja para el final del test su borrarConfig.
 func aisAislar(t *testing.T) {
 	t.Helper()
-	deshacer, err := AislarGit()
+	borrarConfig, err := AislarGit()
 	if err != nil {
 		t.Fatalf("AislarGit: %v", err)
 	}
-	t.Cleanup(deshacer)
+	t.Cleanup(borrarConfig)
 }
 
 // aisGit corre git en dir con el entorno del proceso y devuelve su stdout
@@ -124,7 +126,7 @@ func aisEscribir(t *testing.T, p, contenido string, modo os.FileMode) {
 // y la del sistema aunque el padre traiga otra (GIT_CONFIG_GLOBAL a un
 // archivo que no dice nada de lo de quien corre los tests, y
 // GIT_CONFIG_NOSYSTEM y GIT_ATTR_NOSYSTEM en si), no toca la identidad ni
-// las variables que no son de git, y lo que devuelve borra lo que creo.
+// las variables que no son de git, y su borrarConfig borra lo que creo.
 func TestHallazgo8f2253_AislarGitQuitaFijaYNoTocaLoDemas(t *testing.T) {
 	casa := t.TempDir()
 	hostil := filepath.Join(casa, "gitconfig-hostil")
@@ -147,14 +149,14 @@ func TestHallazgo8f2253_AislarGitQuitaFijaYNoTocaLoDemas(t *testing.T) {
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "0")
 	t.Setenv("GIT_ATTR_NOSYSTEM", "")
 
-	deshacer, err := AislarGit()
+	borrarConfig, err := AislarGit()
 	if err != nil {
 		t.Fatalf("AislarGit: %v", err)
 	}
 	borrado := false
 	t.Cleanup(func() {
 		if !borrado {
-			deshacer()
+			borrarConfig()
 		}
 	})
 
@@ -194,10 +196,10 @@ func TestHallazgo8f2253_AislarGitQuitaFijaYNoTocaLoDemas(t *testing.T) {
 		if _, err := os.Stat(global); err != nil {
 			t.Fatalf("8f2253: la config global que fija AislarGit (%s) existe mientras corren los tests: %v", global, err)
 		}
-		deshacer()
+		borrarConfig()
 		borrado = true
 		if _, err := os.Stat(global); !os.IsNotExist(err) {
-			t.Fatalf("8f2253: lo que devuelve AislarGit borra la config global que creo (%s); sigue ahi (%v)", global, err)
+			t.Fatalf("8f2253: el borrarConfig de AislarGit borra la config global que creo (%s); sigue ahi (%v)", global, err)
 		}
 	}
 }
@@ -255,7 +257,12 @@ func aisDePuntaAPunta(t *testing.T, globalDelPadre string, conXDG bool) {
 
 	// controles: lo plantado es lo que git lee sin aislar. Sin GIT_CONFIG_GLOBAL
 	// (lo que dejaba la ronda 7) git lee el ~/.gitconfig, y el ignore y los
-	// attributes los lee aun con GIT_CONFIG_GLOBAL=/dev/null.
+	// attributes los lee aun con GIT_CONFIG_GLOBAL=/dev/null. Corren con el
+	// entorno del proceso, que el TestMain ya dejo sin las variables de
+	// quitaAislarGit heredadas (un GIT_DIR heredado haria que el git init del
+	// control no cree control/.git; hallazgos 20cb80 y 7dbb81): lo que
+	// cambia lo que git lee es solo lo que el control quiere ver, HOME,
+	// XDG_CONFIG_HOME y el GIT_CONFIG_GLOBAL del caso.
 	sinGlobal := []string{}
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(kv, "GIT_CONFIG_GLOBAL=") {

@@ -131,13 +131,13 @@ func TestMain(m *testing.M) {
 	if testigo := os.Getenv(grupoPapelSeVa); testigo != "" {
 		syscall.Exit(grupoElQueSeVa(testigo))
 	}
-	deshacer, err := gittest.AislarGit()
+	borrarConfig, err := gittest.AislarGit()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fixture:", err)
 		os.Exit(2)
 	}
 	code := m.Run()
-	deshacer()
+	borrarConfig()
 	os.Exit(code)
 }
 

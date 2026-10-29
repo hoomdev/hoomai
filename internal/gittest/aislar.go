@@ -69,11 +69,13 @@ const configGlobalAislada = "[core]\n\texcludesFile = " + os.DevNull + "\n\tattr
 // que hoom resiste una de estas variables, o que necesita otra config
 // global, la pone con t.Setenv: le gana a esto durante ese test.
 //
-// Devuelve con que borrar el archivo, para despues de m.Run. Es una funcion
-// de proceso y no recibe un testing.TB porque corre antes que todo test;
-// los tres TestMain la comparten desde aca, y no con una copia cada uno
+// Devuelve borrarConfig, para despues de m.Run: borra el archivo de la
+// config global y nada mas; no le devuelve al entorno lo que AislarGit le
+// saco o le fijo (hallazgo 20261029T193927_c4ebe3). Es una funcion de
+// proceso y no recibe un testing.TB porque corre antes que todo test; los
+// tres TestMain la comparten desde aca, y no con una copia cada uno
 // (hallazgo 20261029T172811_c4957f, como 20261007T142722_de562b).
-func AislarGit() (deshacer func(), err error) {
+func AislarGit() (borrarConfig func(), err error) {
 	for _, kv := range os.Environ() {
 		if nombre, _, _ := strings.Cut(kv, "="); seQuitaEnAislarGit(nombre) {
 			if err := os.Unsetenv(nombre); err != nil {
@@ -85,19 +87,19 @@ func AislarGit() (deshacer func(), err error) {
 	if err != nil {
 		return nil, fmt.Errorf("aislar git: %w", err)
 	}
-	deshacer = func() { os.RemoveAll(dir) }
+	borrarConfig = func() { os.RemoveAll(dir) }
 	global := filepath.Join(dir, "gitconfig")
 	if err := os.WriteFile(global, []byte(configGlobalAislada), 0o644); err != nil {
-		deshacer()
+		borrarConfig()
 		return nil, fmt.Errorf("aislar git: %w", err)
 	}
 	for _, kv := range [][2]string{{"GIT_CONFIG_GLOBAL", global}, {"GIT_CONFIG_NOSYSTEM", "1"}, {"GIT_ATTR_NOSYSTEM", "1"}} {
 		if err := os.Setenv(kv[0], kv[1]); err != nil {
-			deshacer()
+			borrarConfig()
 			return nil, fmt.Errorf("aislar git: fijar %s: %w", kv[0], err)
 		}
 	}
-	return deshacer, nil
+	return borrarConfig, nil
 }
 
 // seQuitaEnAislarGit dice si nombre es una de quitaAislarGit o de sus

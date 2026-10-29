@@ -37,13 +37,13 @@ var (
 // politica es una sola, en gittest, hallazgo 20261029T172811_c4957f), corre
 // los tests y borra el binario de hoom que compilo bxBinario.
 func TestMain(m *testing.M) {
-	deshacer, err := gittest.AislarGit()
+	borrarConfig, err := gittest.AislarGit()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fixture:", err)
 		os.Exit(2)
 	}
 	code := m.Run()
-	deshacer()
+	borrarConfig()
 	if bxDir != "" {
 		os.RemoveAll(bxDir)
 	}

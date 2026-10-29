@@ -39,13 +39,13 @@ import (
 
 // TestMain aisla el git del binario (gittest.AislarGit) y corre los tests.
 func TestMain(m *testing.M) {
-	deshacer, err := gittest.AislarGit()
+	borrarConfig, err := gittest.AislarGit()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fixture:", err)
 		os.Exit(2)
 	}
 	code := m.Run()
-	deshacer()
+	borrarConfig()
 	os.Exit(code)
 }
 
