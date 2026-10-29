@@ -12,24 +12,105 @@
 //     parte del rango, y si ese merge no se separa (conflicto, git anterior a
 //     2.40) la review es la completa de hoy, con un aviso.
 //
-// Este archivo tiene los fixtures; los tests estan en
-// evidencia_de_la_review_{evidencia,delta}_test.go y, los que necesitan un
-// git falso al frente del PATH, en evidencia_de_la_review_unix_test.go.
-// Reusa los de review_aislada_helpers_test.go y
-// review_por_diferencia_helpers_test.go (CLIs falsos en un PATH minimo, la
-// base main y la rama feature, rdCommit, rdSha, ...).
+// Este archivo tiene los fixtures y las variables de git que TestMain quita
+// del entorno heredado (edrGitHeredado); los tests estan en
+// evidencia_de_la_review_{evidencia,delta,hallazgos*}_test.go y, los que
+// necesitan un git falso al frente del PATH, en
+// evidencia_de_la_review_unix_test.go. Reusa los de
+// review_aislada_helpers_test.go y review_por_diferencia_helpers_test.go
+// (CLIs falsos en un PATH minimo, la base main y la rama feature, rdCommit,
+// rdSha, ...).
 package reviewcmd
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 // edrSpec es el spec de la tarea x de los fixtures de delta (rdDeltaRepo).
 const edrSpec = ".hoom/specs/x.md"
+
+// edrGitHeredado son las variables de git que, heredadas por el go test,
+// cambian lo que un fixture planta o lee: que repositorio, objetos, refs e
+// historia ve git, de donde salen su config y sus atributos, que planta git
+// init, con que protocolo clona, como lee los pathspecs y que agrega por
+// stderr a la salida que leen los helpers (rdGit, bdGit y dfGit leen stdout
+// y stderr juntos). Un nombre que termina en "_" es una familia
+// (GIT_CONFIG_KEY_<n>, GIT_TRACE2_EVENT, ...).
+//
+// TestMain las quita del entorno antes de m.Run (edrLimpiarGitHeredado,
+// hallazgos 688441, 43f79f y d88bae): el fixture, sus guardas y hoom ven el
+// mismo entorno limpio, y plantar y guardar usan los git de siempre. Un test
+// que prueba que hoom resiste una de ellas la pone con t.Setenv despues de
+// plantar y guardar.
+//
+// La lista y edrLimpiarGitHeredado son identicas en reviewcmd, boardcmd y
+// gitx: Go no comparte helpers de test entre paquetes.
+var edrGitHeredado = []string{
+	// el repositorio, el arbol, el indice, los objetos y las refs
+	"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+	"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE",
+	// la historia: reemplazos, grafts y la frontera de un clon shallow
+	"GIT_REPLACE_REF_BASE", "GIT_NO_REPLACE_OBJECTS", "GIT_GRAFT_FILE", "GIT_SHALLOW_FILE",
+	// la config y los atributos
+	"GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_",
+	"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG",
+	"GIT_ATTR_NOSYSTEM", "GIT_ATTR_SOURCE",
+	// lo que planta git init y con que protocolo clona
+	"GIT_DEFAULT_HASH", "GIT_TEMPLATE_DIR", "GIT_ALLOW_PROTOCOL", "GIT_PROTOCOL_FROM_USER",
+	// como lee los pathspecs
+	"GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS",
+	// lo que agrega por stderr
+	"GIT_TRACE", "GIT_TRACE_", "GIT_TRACE2", "GIT_TRACE2_",
+}
+
+// edrLimpiarGitHeredado quita del entorno de este proceso las variables de
+// edrGitHeredado, con valor o vacias. La llama TestMain antes de m.Run.
+func edrLimpiarGitHeredado() {
+	for _, kv := range os.Environ() {
+		if nombre, _, _ := strings.Cut(kv, "="); edrEsGitHeredado(nombre) {
+			os.Unsetenv(nombre)
+		}
+	}
+}
+
+// edrEsGitHeredado dice si nombre es una de edrGitHeredado o de sus familias.
+func edrEsGitHeredado(nombre string) bool {
+	if runtime.GOOS == "windows" { // ahi el entorno no distingue mayusculas
+		nombre = strings.ToUpper(nombre)
+	}
+	for _, v := range edrGitHeredado {
+		if nombre == v || (strings.HasSuffix(v, "_") && strings.HasPrefix(nombre, v)) {
+			return true
+		}
+	}
+	return false
+}
+
+// edrGitConEntorno corre git en dir con extra agregado al entorno de este
+// proceso (que TestMain ya limpio) y devuelve su stdout sin espacios
+// alrededor: git puede avisar por stderr (que info/grafts esta en desuso,
+// por ejemplo). Es para las guardas que leen lo plantado con una variable
+// que hoom va a heredar (GIT_REPLACE_REF_BASE, GIT_GRAFT_FILE).
+func edrGitConEntorno(t *testing.T, dir string, extra []string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir, cmd.Env = dir, append(os.Environ(), extra...)
+	out, err := cmd.Output()
+	if err != nil {
+		var stderr []byte
+		if ee, ok := err.(*exec.ExitError); ok {
+			stderr = ee.Stderr
+		}
+		t.Fatalf("fixture: git %v en %s con %q: %v\n%s", args, dir, extra, err, stderr)
+	}
+	return strings.TrimSpace(string(out))
+}
 
 // edrEsEstado es el oraculo de la tabla del spec: si ruta es estado de hoom.
 // *.json, *.yaml y *.md son archivos DIRECTOS de su directorio; .hoom/intake/

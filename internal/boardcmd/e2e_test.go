@@ -30,7 +30,12 @@ var (
 	bxErr  error
 )
 
+// TestMain quita del entorno las variables de git que cambian lo que un
+// fixture planta o lee (edrLimpiarGitHeredado, en
+// evidencia_de_la_review_test.go; hallazgo 43f79f), corre los tests y borra
+// el binario de hoom que compilo bxBinario.
 func TestMain(m *testing.M) {
+	edrLimpiarGitHeredado()
 	code := m.Run()
 	if bxDir != "" {
 		os.RemoveAll(bxDir)

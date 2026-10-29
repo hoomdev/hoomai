@@ -9,10 +9,18 @@
 //     base_integrada, como en un clon entero.
 //   - 4acfc8 (CA-481, CA-484): la evidencia y la medida salen de los
 //     objetos reales: un refs/replace plantado en el repositorio no cambia lo
-//     que recibe la review, ni en un rango simple ni con la base integrada.
+//     que recibe la review, ni en un rango simple ni con la base integrada;
+//     tampoco un reemplazo plantado en otra base de refs que hoom hereda en
+//     GIT_REPLACE_REF_BASE (ronda 7).
 //
 // Los fixtures estan en evidencia_de_la_review_helpers_test.go y
-// evidencia_de_la_review_delta_test.go.
+// evidencia_de_la_review_delta_test.go. Las guardas de los fixtures corren
+// con los git de siempre (rdGit): TestMain quita del entorno heredado las
+// variables de git que cambian lo que el fixture planta o lee
+// (edrGitHeredado; hallazgo 688441). Los helpers de entorno que la ronda 6
+// habia dejado aca ya no estan, y lo que comparten este archivo y
+// evidencia_de_la_review_hallazgos5_test.go (edrGitConEntorno) esta en el
+// de los fixtures (hallazgo cd162c).
 package reviewcmd
 
 import (
@@ -27,46 +35,6 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/gittest"
 )
-
-// edrVariablesDeLectura son las variables del entorno con las que git deja
-// de leer lo que un test planta en el repositorio: los reemplazos
-// (refs/replace) y los grafts (hallazgo ff30ce). Las lecturas del fixture
-// (sus guardas) las quitan del entorno que heredan, venga de donde venga el
-// go test; hoom, que corre en el proceso del test, las hereda como esten y
-// tiene que fijar las suyas.
-var edrVariablesDeLectura = []string{"GIT_GRAFT_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE"}
-
-// edrEntornoDelFixture es el entorno de este proceso sin edrVariablesDeLectura,
-// con extra al final.
-func edrEntornoDelFixture(extra ...string) []string {
-	var env []string
-	for _, kv := range os.Environ() {
-		quitar := false
-		for _, v := range edrVariablesDeLectura {
-			if strings.HasPrefix(kv, v+"=") {
-				quitar = true
-				break
-			}
-		}
-		if !quitar {
-			env = append(env, kv)
-		}
-	}
-	return append(env, extra...)
-}
-
-// edrGitDelFixture corre git en dir con edrEntornoDelFixture y devuelve su
-// stdout sin espacios alrededor (git puede avisar por stderr).
-func edrGitDelFixture(t *testing.T, dir string, args ...string) string {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir, cmd.Env = dir, edrEntornoDelFixture()
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("fixture: git %v en %s: %v", args, dir, err)
-	}
-	return strings.TrimSpace(string(out))
-}
 
 // ---------------------------------------------------------------- 6f228c
 
@@ -158,83 +126,136 @@ func TestHallazgo6f228c_CA484_EnUnClonShallowLaDeltaSeparaLaBase(t *testing.T) {
 
 // ---------------------------------------------------------------- 4acfc8
 
-// edrReemplazar planta refs/replace/<viejo>: un commit con el arbol arbol y
-// los padres padres, que git (sin GIT_NO_REPLACE_OBJECTS) lee en lugar de
-// viejo. Guarda: git lo honra, aunque el go test herede
-// GIT_NO_REPLACE_OBJECTS (la guarda corre con edrEntornoDelFixture).
-func edrReemplazar(t *testing.T, dir, viejo, arbol string, padres ...string) {
+// edrReemplazo es donde un test planta el reemplazo de un commit: en
+// refs/replace/ (git replace), o en otra base de refs que hoom hereda en
+// GIT_REPLACE_REF_BASE.
+type edrReemplazo struct {
+	nombre string
+	base   string // "" = refs/replace/
+}
+
+// edrReemplazos son los dos lugares. TestMain quito del entorno un
+// GIT_REPLACE_REF_BASE heredado (hallazgo 688441): el test que lo quiere
+// para hoom lo pone con t.Setenv (heredar) despues de plantar y guardar.
+var edrReemplazos = []edrReemplazo{
+	{"refs-replace", ""},
+	{"GIT_REPLACE_REF_BASE-heredado", "refs/prueba-externa/"},
+}
+
+// entorno es lo que git necesita en el entorno para leer el reemplazo.
+func (r edrReemplazo) entorno() []string {
+	if r.base == "" {
+		return nil
+	}
+	return []string{"GIT_REPLACE_REF_BASE=" + r.base}
+}
+
+// heredar pone en el entorno del proceso del test, el de hoom, lo que git
+// necesita para leer el reemplazo.
+func (r edrReemplazo) heredar(t *testing.T) {
+	if r.base != "" {
+		t.Setenv("GIT_REPLACE_REF_BASE", r.base)
+	}
+}
+
+// edrReemplazar planta, en el lugar de r, el reemplazo de viejo: un commit
+// con el arbol arbol y los padres padres, que git lee en lugar de viejo.
+// Guarda: git lo honra con r.entorno(); y si r no es refs/replace/, sin esa
+// variable no lo honra (la variable es lo que trae el reemplazo).
+func edrReemplazar(t *testing.T, dir string, r edrReemplazo, viejo, arbol string, padres ...string) {
 	t.Helper()
 	args := []string{"commit-tree", arbol + "^{tree}", "-m", "commit falso que reemplaza a " + viejo[:12]}
 	for _, p := range padres {
 		args = append(args, "-p", p)
 	}
 	falso := rdGit(t, dir, args...)
-	git(t, dir, "replace", "-f", viejo, falso)
-	if got := edrGitDelFixture(t, dir, "rev-parse", viejo+"^{tree}"); got != edrGitDelFixture(t, dir, "rev-parse", arbol+"^{tree}") {
-		t.Fatalf("4acfc8: fixture: git honra refs/replace/%s (su arbol es el de %s): %s", viejo[:12], arbol[:12], got)
+	quiero := rdGit(t, dir, "rev-parse", arbol+"^{tree}")
+	if r.base == "" {
+		git(t, dir, "replace", "-f", viejo, falso)
+	} else {
+		git(t, dir, "update-ref", r.base+viejo, falso)
+		if got := rdGit(t, dir, "rev-parse", viejo+"^{tree}"); got == quiero {
+			t.Fatalf("4acfc8: fixture: sin GIT_REPLACE_REF_BASE=%s, git no honra %s%s", r.base, r.base, viejo[:12])
+		}
+	}
+	if got := edrGitConEntorno(t, dir, r.entorno(), "rev-parse", viejo+"^{tree}"); got != quiero {
+		t.Fatalf("4acfc8: fixture: git honra el reemplazo de %s en %s (su arbol es el de %s): %s", viejo[:12], r.nombre, arbol[:12], got)
 	}
 }
 
 // Hallazgo 4acfc8 (CA-481, rango simple): despues de la review R1 (hasta D)
-// la rama commitea X. Un refs/replace/<D> plantado hace que git lea D con
-// el arbol de X: el diff de D a HEAD que da git queda vacio. `hoom review
+// la rama commitea X. Un reemplazo de D plantado hace que git lea D con el
+// arbol de X: el diff de D a HEAD que da git queda vacio. `hoom review
 // --delta` revisa igual lo real: la evidencia es la de hoy (Evidence contra
 // una rama en D, armada antes de plantar el reemplazo), la medida es la de
-// x.go, y nunca SIN REVISAR.
+// x.go, y nunca SIN REVISAR. El reemplazo esta en refs/replace/ o en otra
+// base que hoom hereda en GIT_REPLACE_REF_BASE (edrReemplazos).
 func TestHallazgo4acfc8_CA481_UnReplaceNoEscondeElCambioDeUnRango(t *testing.T) {
-	bin := raPATH(t)
-	cx := raInstalar(t, bin, "codex", "")
-	root, r1, d := edrConReview(t, "4acfc8", cx)
-	x := rdCommit(t, root, "X", map[string]string{"x.go": edrCodigo("MARCA-X-REAL")})
-	ev := rdOraculo(t, "4acfc8", root, d, edrSpec)
-	edrReemplazar(t, root, d, x, rdSha(t, root, d+"^"))
-	if out := edrGitDelFixture(t, root, "diff", "--stat", d, x); out != "" {
-		t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a X: %q", out)
-	}
-	antes := cx.veces()
-	res, out := edrRevisar(t, "4acfc8", root, Options{Provider: "codex", Spec: edrSpec, Delta: true})
-	if res.Status != "revisado" || res.Cobertura != CoberturaDelta || res.DesdeReview != r1.RecordID || cx.veces() != antes+1 {
-		t.Fatalf("4acfc8/CA-481: un refs/replace no esconde X: --delta revisa: %+v\n%s", res, out)
-	}
-	if !strings.Contains(cx.pedido(t, antes+1), raBloque(t, ev, edrSpec, true)) || res.EvidenceSHA256 != ev.SHA256 {
-		t.Fatalf("4acfc8/CA-481: la review recibe la evidencia real de D a X:\n%s", cx.pedido(t, antes+1))
-	}
-	if primera := fmt.Sprintf("hoom review: 1 archivo cambiado, +%d/-0 lineas desde %s", edrLineasDe(edrCodigo("MARCA-X-REAL")), d[:12]); raLineas(out)[0] != primera {
-		t.Fatalf("4acfc8/CA-481: la medida es la real (x.go):\n%q\nfue\n%q", primera, raLineas(out)[0])
+	for _, r := range edrReemplazos {
+		t.Run(r.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			cx := raInstalar(t, bin, "codex", "")
+			root, r1, d := edrConReview(t, "4acfc8", cx)
+			x := rdCommit(t, root, "X", map[string]string{"x.go": edrCodigo("MARCA-X-REAL")})
+			ev := rdOraculo(t, "4acfc8", root, d, edrSpec)
+			edrReemplazar(t, root, r, d, x, rdSha(t, root, d+"^"))
+			if out := edrGitConEntorno(t, root, r.entorno(), "diff", "--stat", d, x); out != "" {
+				t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a X: %q", out)
+			}
+			r.heredar(t)
+			antes := cx.veces()
+			res, out := edrRevisar(t, "4acfc8", root, Options{Provider: "codex", Spec: edrSpec, Delta: true})
+			if res.Status != "revisado" || res.Cobertura != CoberturaDelta || res.DesdeReview != r1.RecordID || cx.veces() != antes+1 {
+				t.Fatalf("4acfc8/CA-481 (%s): un reemplazo no esconde X: --delta revisa: %+v\n%s", r.nombre, res, out)
+			}
+			if !strings.Contains(cx.pedido(t, antes+1), raBloque(t, ev, edrSpec, true)) || res.EvidenceSHA256 != ev.SHA256 {
+				t.Fatalf("4acfc8/CA-481 (%s): la review recibe la evidencia real de D a X:\n%s", r.nombre, cx.pedido(t, antes+1))
+			}
+			if primera := fmt.Sprintf("hoom review: 1 archivo cambiado, +%d/-0 lineas desde %s", edrLineasDe(edrCodigo("MARCA-X-REAL")), d[:12]); raLineas(out)[0] != primera {
+				t.Fatalf("4acfc8/CA-481 (%s): la medida es la real (x.go):\n%q\nfue\n%q", r.nombre, primera, raLineas(out)[0])
+			}
+		})
 	}
 }
 
 // Hallazgo 4acfc8 (CA-484, con la base integrada): el caso de CA-484 (X, un
-// merge limpio de main con un cambio propio, Z) y un refs/replace/<D> que
-// hace que git lea D con el arbol de HEAD y con I de padre: con el
-// reemplazo, D "ya tiene" la base y todo el cambio. `hoom review --delta`
-// mira los objetos reales: separa la base (base_integrada = I) y la
-// evidencia y la medida son X, el commit de merge y Z, como sin reemplazo.
+// merge limpio de main con un cambio propio, Z) y un reemplazo de D que hace
+// que git lea D con el arbol de HEAD y con I de padre: con el reemplazo, D
+// "ya tiene" la base y todo el cambio. `hoom review --delta` mira los
+// objetos reales: separa la base (base_integrada = I) y la evidencia y la
+// medida son X, el commit de merge y Z, como sin reemplazo. El reemplazo
+// esta en refs/replace/ o en otra base que hoom hereda en
+// GIT_REPLACE_REF_BASE (edrReemplazos).
 func TestHallazgo4acfc8_CA484_UnReplaceNoEscondeElCambioConLaBaseIntegrada(t *testing.T) {
-	bin := raPATH(t)
-	cx := raInstalar(t, bin, "codex", "")
-	root, r1, d, i, h := edrConBaseIntegrada(t, "4acfc8", cx)
-	edrReemplazar(t, root, d, h, i)
-	if out := edrGitDelFixture(t, root, "diff", "--stat", d, h); out != "" {
-		t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a HEAD: %q", out)
-	}
-	esAncestro := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", i, d)
-	esAncestro.Env = edrEntornoDelFixture()
-	if err := esAncestro.Run(); err != nil {
-		t.Fatalf("4acfc8: fixture: con el reemplazo, git ve a I como ancestro de D: %v", err)
-	}
-	antes := cx.veces()
-	res, out := edrRevisar(t, "4acfc8", root, Options{Provider: "codex", Spec: edrSpec, Delta: true})
-	if res.Status != "revisado" || res.Cobertura != CoberturaDelta || res.DesdeReview != r1.RecordID || cx.veces() != antes+1 {
-		t.Fatalf("4acfc8/CA-484: un refs/replace no esconde el cambio: --delta revisa: %+v\n%s", res, out)
-	}
-	if m := edrJSON(t, res); m["base_integrada"] != i {
-		t.Fatalf("4acfc8/CA-484: con los objetos reales la base se separa: base_integrada %s: %v", i[:12], m["base_integrada"])
-	}
-	diff, _ := edrDiffDelPedido(t, "4acfc8", cx.pedido(t, antes+1))
-	edrSoloLoNuevo(t, "4acfc8/CA-484", "con refs/replace", diff)
-	n, ins, del := edrTamanoXZ()
-	if primera := fmt.Sprintf("hoom review: %d archivos cambiados, +%d/-%d lineas desde %s", n, ins, del, d[:12]); raLineas(out)[0] != primera {
-		t.Fatalf("4acfc8/CA-484: la medida es la real:\n%q\nfue\n%q", primera, raLineas(out)[0])
+	for _, r := range edrReemplazos {
+		t.Run(r.nombre, func(t *testing.T) {
+			bin := raPATH(t)
+			cx := raInstalar(t, bin, "codex", "")
+			root, r1, d, i, h := edrConBaseIntegrada(t, "4acfc8", cx)
+			edrReemplazar(t, root, r, d, h, i)
+			if out := edrGitConEntorno(t, root, r.entorno(), "diff", "--stat", d, h); out != "" {
+				t.Fatalf("4acfc8: fixture: con el reemplazo, git no ve cambios de D a HEAD: %q", out)
+			}
+			esAncestro := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", i, d)
+			esAncestro.Env = append(os.Environ(), r.entorno()...)
+			if err := esAncestro.Run(); err != nil {
+				t.Fatalf("4acfc8: fixture: con el reemplazo, git ve a I como ancestro de D: %v", err)
+			}
+			r.heredar(t)
+			antes := cx.veces()
+			res, out := edrRevisar(t, "4acfc8", root, Options{Provider: "codex", Spec: edrSpec, Delta: true})
+			if res.Status != "revisado" || res.Cobertura != CoberturaDelta || res.DesdeReview != r1.RecordID || cx.veces() != antes+1 {
+				t.Fatalf("4acfc8/CA-484 (%s): un reemplazo no esconde el cambio: --delta revisa: %+v\n%s", r.nombre, res, out)
+			}
+			if m := edrJSON(t, res); m["base_integrada"] != i {
+				t.Fatalf("4acfc8/CA-484 (%s): con los objetos reales la base se separa: base_integrada %s: %v", r.nombre, i[:12], m["base_integrada"])
+			}
+			diff, _ := edrDiffDelPedido(t, "4acfc8", cx.pedido(t, antes+1))
+			edrSoloLoNuevo(t, "4acfc8/CA-484", "con un reemplazo en "+r.nombre, diff)
+			n, ins, del := edrTamanoXZ()
+			if primera := fmt.Sprintf("hoom review: %d archivos cambiados, +%d/-%d lineas desde %s", n, ins, del, d[:12]); raLineas(out)[0] != primera {
+				t.Fatalf("4acfc8/CA-484 (%s): la medida es la real:\n%q\nfue\n%q", r.nombre, primera, raLineas(out)[0])
+			}
+		})
 	}
 }
