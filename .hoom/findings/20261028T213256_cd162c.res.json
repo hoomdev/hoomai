@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T213256_cd162c",
+  "as": "corregido",
+  "evidence": "2628cd0: edrVariablesDeLectura, edrEntornoDelFixture y edrGitDelFixture ya no existen; lo compartido entre hallazgos4 y hallazgos5 (edrGitConEntorno) y la lista edrGitHeredado viven en evidencia_de_la_review_helpers_test.go (en boardcmd, en evidencia_de_la_review_test.go).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T16:59:58.536661Z"
+}

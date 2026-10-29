@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261028T213129_43f79f",
+  "as": "corregido",
+  "evidence": "2628cd0: mismo cierre que 688441: el TestMain limpia GIT_REPLACE_REF_BASE heredado, asi git replace -f escribe en refs/replace/ y la guarda lo lee ahi; el reemplazo en refs/prueba-externa/ que hoom hereda se prueba explicitamente con t.Setenv. 4acfc8 en reviewcmd y boardcmd pasa con la variable hostil y sigue fallando contra 1b6f15e.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-10-29T16:59:58.480159Z"
+}
