@@ -1,0 +1,11 @@
+{
+  "id": "20261029T172811_c4957f",
+  "created_at": "2026-10-29T17:28:11.509208Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/evidencia_de_la_review_helpers_test.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/evidencia_de_la_review_helpers_test.go:52 duplica edrGitHeredado, edrLimpiarGitHeredado y edrEsGitHeredado en reviewcmd, boardcmd y gitx, dejando tres fuentes de verdad para una politica que debe permanecer identica. El comentario afirma que Go no comparte helpers de test entre paquetes, pero internal/gittest/doc.go:17-23 ya establece el patron del repositorio para compartir fixtures mediante un paquete no _test precisamente para evitar copias divergentes. Centralizar este saneamiento alli reduciria unas 150 lineas repetidas y evitaria que una futura variable o familia se agregue solo en una suite.",
+  "author": "reviewer@codex",
+  "fingerprint": "681b2cecbd929104",
+  "task": "evidencia-de-la-review"
+}
