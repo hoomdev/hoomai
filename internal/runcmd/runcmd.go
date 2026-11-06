@@ -1327,6 +1327,8 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 				m.append(r, ev)
 			}
 		}, func(n int) {
+			// a dropped line is output too: the provider is narrating
+			ultimo.Store(time.Now().UnixNano())
 			descartadas.Add(1)
 			m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
 				Detail: fmt.Sprintf("aviso: hoom descarto una linea de %s de %d bytes del provider: supera el tope de %d bytes por linea", fuente, n, MaxLinea)})

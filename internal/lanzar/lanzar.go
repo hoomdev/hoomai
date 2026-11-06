@@ -47,6 +47,62 @@ type Request struct {
 	Timeout   time.Duration // 0 = the action's timeout (timeout_s)
 	Pedido    string        // what the role has to do; the reviewer builds its own
 	Pilot     bool          // the belt launched it: its record says so
+	// Vista is what the action proposed when the skin showed it (the
+	// terminal's valores: and → lines, the Studio's dialog). nil = nothing
+	// was shown (the belt).
+	Vista *Propuesta
+}
+
+// Propuesta is what a card's action proposes: its default provider, its
+// values and the session it resumes. A skin shows it and then waits for the
+// pedido (the terminal's editor, the Studio's dialog); Lanzar derives the
+// card again under the lock and refuses when the action proposes something
+// else by then, so what launches is never other than what was shown.
+type Propuesta struct {
+	Provider  string   `json:"provider"`
+	Model     string   `json:"model"`
+	Effort    string   `json:"effort"`
+	BudgetUSD *float64 `json:"budget_usd"`
+	TimeoutS  int      `json:"timeout_s"`
+	ResumeID  string   `json:"resume_id"`
+}
+
+// PropuestaDe is what action a proposes now.
+func PropuestaDe(a boardcmd.Action) Propuesta {
+	p := Propuesta{Model: a.Model, Effort: a.Effort, TimeoutS: a.TimeoutS, ResumeID: a.ResumeID}
+	if o, ok := defaultOption(a); ok {
+		p.Provider = o.Name
+	}
+	if a.BudgetUSD != nil {
+		v := *a.BudgetUSD
+		p.BudgetUSD = &v
+	}
+	return p
+}
+
+// cambios names what differs between two proposals, in the order of the
+// valores: line.
+func cambios(antes, ahora Propuesta) []string {
+	var out []string
+	if antes.Provider != ahora.Provider {
+		out = append(out, "provider")
+	}
+	if antes.Model != ahora.Model {
+		out = append(out, "modelo")
+	}
+	if antes.Effort != ahora.Effort {
+		out = append(out, "esfuerzo")
+	}
+	if (antes.BudgetUSD == nil) != (ahora.BudgetUSD == nil) || antes.BudgetUSD != nil && *antes.BudgetUSD != *ahora.BudgetUSD {
+		out = append(out, "presupuesto")
+	}
+	if antes.TimeoutS != ahora.TimeoutS {
+		out = append(out, "tiempo limite")
+	}
+	if antes.ResumeID != ahora.ResumeID {
+		out = append(out, "sesion")
+	}
+	return out
 }
 
 // Params are the skin of a launch.
@@ -118,10 +174,20 @@ func Candado(root, slug string) string {
 	return hoomfs.LockPath(root, "lanzar-"+slug)
 }
 
-// Valores are the values a launch of action a of card c takes for req: what
-// req asks, else what the action proposes (which already applied hoom.yaml),
-// each with its origin. The card verbs print them before launching.
-func Valores(c boardcmd.Card, a boardcmd.Action, req Request) valores.Elegidos {
+// Valores are the values a launch of action a takes for req: what req asks
+// over what the action proposes (which already applied hoom.yaml), each with
+// its origin, by the one rule (valores.Sobre). The card verbs print them.
+func Valores(a boardcmd.Action, req Request) valores.Elegidos {
+	p := valores.Pedido{Provider: strings.TrimSpace(req.Provider), Model: strings.TrimSpace(req.Model),
+		Effort: strings.TrimSpace(req.Effort), BudgetUSD: req.BudgetUSD}
+	if req.Timeout > 0 {
+		p.Timeout = req.Timeout
+	}
+	return valores.Sobre(p, elegidosDe(a))
+}
+
+// elegidosDe is what action a proposes, as values with their origins.
+func elegidosDe(a boardcmd.Action) valores.Elegidos {
 	e := valores.Elegidos{Model: a.Model, Effort: a.Effort, Origen: a.Origen}
 	if o, ok := defaultOption(a); ok {
 		e.Provider = o.Name
@@ -133,22 +199,6 @@ func Valores(c boardcmd.Card, a boardcmd.Action, req Request) valores.Elegidos {
 	e.Timeout = time.Duration(a.TimeoutS) * time.Second
 	if e.Timeout <= 0 {
 		e.Timeout, e.Origen.Timeout = valores.DefaultTimeout, valores.OrigenProvider
-	}
-	if p := strings.TrimSpace(req.Provider); p != "" {
-		e.Provider, e.Origen.Provider = p, valores.OrigenComando
-	}
-	if m := strings.TrimSpace(req.Model); m != "" {
-		e.Model, e.Origen.Model = m, valores.OrigenComando
-	}
-	if ef := strings.TrimSpace(req.Effort); ef != "" {
-		e.Effort, e.Origen.Effort = ef, valores.OrigenComando
-	}
-	if req.Timeout > 0 {
-		e.Timeout, e.Origen.Timeout = req.Timeout, valores.OrigenComando
-	}
-	if req.BudgetUSD != nil {
-		v := *req.BudgetUSD
-		e.BudgetUSD, e.Origen.BudgetUSD = &v, valores.OrigenComando
 	}
 	// an action derived elsewhere (no origins): what it carries is the card's
 	fill := func(origen *string, tiene bool) {
@@ -187,13 +237,14 @@ func optionOf(a boardcmd.Action, name string) (boardcmd.ProviderOption, bool) {
 	return boardcmd.ProviderOption{}, false
 }
 
-// trabajo is one launch's job as Lanzar sees it (finding a46d0c). Until it
+// estadoLanzamiento is one launch as Lanzar sees it, apart from the Trabajo
+// handle it hands back (findings a46d0c, a0c783). Until it
 // is enMarcha the card's launch lock belongs to Lanzar, which releases it on
 // any early exit; from then on the job releases it, once, when its envelope
 // writes the first record (empezo) or when it ends without writing it
 // (termino). listo and fin say which of the two happened; fin also says
 // whether the first record came before the end.
-type trabajo struct {
+type estadoLanzamiento struct {
 	soltar   func() // releases the card's launch locks
 	soltado  sync.Once
 	enMarcha bool
@@ -202,17 +253,17 @@ type trabajo struct {
 	fin      chan Fin
 }
 
-func (t *trabajo) soltarCandado() { t.soltado.Do(t.soltar) }
+func (t *estadoLanzamiento) soltarCandado() { t.soltado.Do(t.soltar) }
 
 // empezo is the envelope's Started: its first record is on disk.
-func (t *trabajo) empezo() {
+func (t *estadoLanzamiento) empezo() {
 	t.arranco.Store(true)
 	t.soltarCandado()
 	t.listo <- struct{}{}
 }
 
 // termino closes the job with how it ended.
-func (t *trabajo) termino(f Fin) {
+func (t *estadoLanzamiento) termino(f Fin) {
 	f.Arranco = t.arranco.Load()
 	t.soltarCandado()
 	t.fin <- f
@@ -266,7 +317,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if err != nil {
 		return nil, err
 	}
-	t := &trabajo{soltar: soltar, listo: make(chan struct{}, 1), fin: make(chan Fin, 1)}
+	t := &estadoLanzamiento{soltar: soltar, listo: make(chan struct{}, 1), fin: make(chan Fin, 1)}
 	// hasta que el trabajo arranca, el candado es de Lanzar: cualquier
 	// salida antes lo suelta
 	defer func() {
@@ -288,8 +339,13 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if p.ProviderExplicito && strings.TrimSpace(req.Provider) == "" {
 		return fail(http.StatusBadRequest, "el proveedor %q no es una opcion de esta accion", "")
 	}
+	if req.Vista != nil {
+		if dif := cambios(*req.Vista, PropuestaDe(a)); len(dif) > 0 {
+			return fail(http.StatusConflict, "la tarjeta cambio mientras escribias el pedido (%s): no se lanzo nada, vuelve a pedirlo", strings.Join(dif, ", "))
+		}
+	}
 	// in the contract's order: the provider, the pedido, the budget
-	v, opt, err := opcion(c, a, req)
+	v, opt, err := opcion(a, req)
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +503,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 // action a of card c, with the motive Lanzar would give: a skin that asks
 // for the pedido afterwards (the terminal's editor) asks only when they can.
 func Comprobar(c boardcmd.Card, a boardcmd.Action, req Request) error {
-	_, opt, err := opcion(c, a, req)
+	_, opt, err := opcion(a, req)
 	if err != nil {
 		return err
 	}
@@ -459,8 +515,8 @@ func Comprobar(c boardcmd.Card, a boardcmd.Action, req Request) error {
 
 // opcion resolves req's values and the provider option they name, which
 // has to be one with ok.
-func opcion(c boardcmd.Card, a boardcmd.Action, req Request) (valores.Elegidos, boardcmd.ProviderOption, error) {
-	v := Valores(c, a, req)
+func opcion(a boardcmd.Action, req Request) (valores.Elegidos, boardcmd.ProviderOption, error) {
+	v := Valores(a, req)
 	opt, ok := optionOf(a, v.Provider)
 	if !ok {
 		return v, opt, &Rechazo{Code: http.StatusBadRequest, Motivo: fmt.Sprintf("el proveedor %q no es una opcion de esta accion", v.Provider)}
@@ -484,6 +540,11 @@ func budgetFor(c boardcmd.Card, a boardcmd.Action, o boardcmd.ProviderOption, as
 		if a.BudgetUSD == nil {
 			return 0, 0, nil
 		}
+		// hoom.yaml's budget_usd lands on the action after its options were
+		// judged: the provider's floor holds for it as for an asked one
+		if v := *a.BudgetUSD; v > 0 && v < o.MinBudgetUSD {
+			return 0, http.StatusConflict, pocoParaElProvider(o)
+		}
 		return *a.BudgetUSD, 0, nil
 	}
 	v := *asked
@@ -491,7 +552,7 @@ func budgetFor(c boardcmd.Card, a boardcmd.Action, o boardcmd.ProviderOption, as
 		return 0, http.StatusBadRequest, fmt.Errorf("el presupuesto tiene que ser un numero mayor que 0 (vacio = %s)", sinTope(a))
 	}
 	if v < o.MinBudgetUSD {
-		return 0, http.StatusConflict, fmt.Errorf("%s necesita al menos %s USD por run", o.Name, USD(o.MinBudgetUSD))
+		return 0, http.StatusConflict, pocoParaElProvider(o)
 	}
 	if left := c.Spend.RemainingUSD; left != nil {
 		if a.Role == "reviewer" && v*boardcmd.ReviewLenses > *left {
@@ -503,6 +564,10 @@ func budgetFor(c boardcmd.Card, a boardcmd.Action, o boardcmd.ProviderOption, as
 		}
 	}
 	return v, 0, nil
+}
+
+func pocoParaElProvider(o boardcmd.ProviderOption) error {
+	return fmt.Errorf("%s necesita al menos %s USD por run", o.Name, USD(o.MinBudgetUSD))
 }
 
 func sinTope(a boardcmd.Action) string {

@@ -115,6 +115,11 @@ func (a *AgentPolicies) UnmarshalYAML(n *yaml.Node) error {
 	out := AgentPolicies{}
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		role := n.Content[i].Value
+		// decoding by hand skips yaml.v3's unique-key check: a second
+		// agents.<rol> would silently replace the first (its write: too)
+		if _, visto := out[role]; visto {
+			return fmt.Errorf("agents: el rol %q esta repetido (linea %d)", role, n.Content[i].Line)
+		}
 		p, err := decodeAgent(role, n.Content[i+1])
 		if err != nil {
 			return err

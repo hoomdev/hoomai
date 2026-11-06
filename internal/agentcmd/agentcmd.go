@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/valores"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
@@ -142,14 +143,15 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if role.Slug != "reviewer" {
 		def = roles.RoleDefaults(role.Slug)
 	}
-	if strings.TrimSpace(opt.Provider) == "" {
-		opt.Provider = def.Provider
-	}
+	// the one rule (valores): the command, then hoom.yaml, then the
+	// provider's own; hoom agent's place proposes no value of its own
+	elegidos := valores.Resolver(pedidoDe(opt), def, valores.Lugar{})
+	opt.Provider = elegidos.Provider
 	prov, err := pickProvider(opt.Provider)
 	if err != nil {
 		return Result{}, err
 	}
-	avisos := aplicarDefaults(prov, def, &opt)
+	avisos := aplicarValores(prov, elegidos, &opt)
 	steps := 5
 	if role.Isolated {
 		steps = 6 // el arbol ciego se arma y se prueba: eso es un paso, no una nota al pie
@@ -444,32 +446,41 @@ func pickProvider(name string) (providers.Provider, error) {
 	return nil, fmt.Errorf("ningun provider instalado soporta system_prompt, que 'hoom agent' exige para dar el contrato del rol (mira 'hoom providers')")
 }
 
-// aplicarDefaults fills what opt did not ask with hoom.yaml's values for the
-// role (the order of the values: the command, then hoom.yaml, then the
-// provider's own), and drops what the provider cannot take. The envelope is
+// pedidoDe is what the command asked: the first level of the rule.
+func pedidoDe(o Options) valores.Pedido {
+	p := valores.Pedido{Provider: strings.TrimSpace(o.Provider), Model: strings.TrimSpace(o.Model), Effort: strings.TrimSpace(o.Effort)}
+	if o.Timeout > 0 {
+		p.Timeout = o.Timeout
+	}
+	if o.BudgetSet {
+		b := o.BudgetUSD
+		p.BudgetUSD = &b
+	}
+	return p
+}
+
+// aplicarValores puts the values the rule chose in opt, and then, as a
+// phase of its own, drops what the provider cannot take. The envelope is
 // strict, so an effort the provider ignores would refuse the run: it is
-// dropped with the usual warning instead, before the run exists. It returns
-// the warnings to print.
-func aplicarDefaults(prov providers.Provider, def manifest.RoleDefaults, opt *Options) []string {
+// dropped with the usual warning instead, before the run exists; so is a
+// hoom.yaml budget for a provider without a cap. It returns the warnings to
+// print.
+func aplicarValores(prov providers.Provider, e valores.Elegidos, opt *Options) []string {
+	opt.Model, opt.Effort = e.Model, e.Effort
+	if e.Origen.Timeout != valores.OrigenProvider {
+		// the provider's own is the run's default: opt leaves it to the run
+		opt.Timeout = e.Timeout
+	}
 	caps := prov.Capabilities()
 	var avisos []string
-	if strings.TrimSpace(opt.Model) == "" {
-		opt.Model = def.Model
-	}
-	if strings.TrimSpace(opt.Effort) == "" {
-		opt.Effort = def.Effort
-	}
-	if opt.Timeout <= 0 {
-		opt.Timeout = def.Timeout
-	}
-	if !opt.BudgetSet && def.BudgetUSD != nil && *def.BudgetUSD > 0 {
+	if e.Origen.BudgetUSD == valores.OrigenHoomYAML && e.BudgetUSD != nil {
 		if caps.Budget {
-			opt.BudgetUSD = *def.BudgetUSD
+			opt.BudgetUSD = *e.BudgetUSD
 		} else {
 			avisos = append(avisos, fmt.Sprintf("%s no acepta tope: agents.%s.budget_usd no se aplica", prov.Name(), opt.roleSlug()))
 		}
 	}
-	if strings.TrimSpace(opt.Effort) != "" && !caps.Effort {
+	if opt.Effort != "" && !caps.Effort {
 		avisos = append(avisos, fmt.Sprintf("%s no soporta %s; se ignora", prov.Name(), providers.FieldEffort))
 		opt.Effort = ""
 	}

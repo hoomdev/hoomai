@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/approval"
@@ -139,20 +140,39 @@ func proyecto(dir string) (root, slug string, err error) {
 		return "", "", err
 	}
 	abs = filepath.Clean(abs)
-	sep := string(filepath.Separator)
-	marca := sep + ".hoom" + sep + "worktrees" + sep
-	if i := strings.Index(abs+sep, marca); i >= 0 {
-		resto := strings.TrimPrefix((abs + sep)[i+len(marca):], sep)
-		if j := strings.Index(resto, sep); j > 0 {
-			root = abs[:i]
-			if root == "" {
-				root = sep
-			}
-			return root, resto[:j], nil
+	if root, slug, ok := enEspacio(abs); ok {
+		return root, slug, nil
+	}
+	// entered through a symlink from outside .hoom/worktrees: the path
+	// lost the marker, but the workspace is still a card's, never a project
+	if real, err := filepath.EvalSymlinks(abs); err == nil && real != abs {
+		if root, slug, ok := enEspacio(real); ok {
+			return root, slug, nil
 		}
 	}
 	root, err = manifest.Find(abs)
 	return root, "", err
+}
+
+// enEspacio reads a card's workspace off a clean absolute path: the project
+// before the first /.hoom/worktrees/ and the slug right after it.
+func enEspacio(abs string) (root, slug string, ok bool) {
+	sep := string(filepath.Separator)
+	marca := sep + ".hoom" + sep + "worktrees" + sep
+	i := strings.Index(abs+sep, marca)
+	if i < 0 {
+		return "", "", false
+	}
+	resto := strings.TrimPrefix((abs + sep)[i+len(marca):], sep)
+	j := strings.Index(resto, sep)
+	if j <= 0 {
+		return "", "", false
+	}
+	root = abs[:i]
+	if root == "" {
+		root = sep
+	}
+	return root, resto[:j], true
 }
 
 // esTarjeta says whether slug is a card of the project: an item file.
@@ -400,7 +420,8 @@ func (v *verbo) usarCon(ninguna, fijar bool, slug string) int {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return v.falla(err.Error())
 		}
-		if err := os.WriteFile(path, []byte(slug+"\n"), 0o644); err != nil {
+		// temp file and rename: a failed write keeps the card fixed before
+		if err := hoomfs.AtomicWrite(path, []byte(slug+"\n"), 0o644); err != nil {
 			return v.falla(err.Error())
 		}
 		fmt.Fprintf(v.e.Out, "tarjeta fijada: %s\n", slug)
@@ -423,11 +444,15 @@ func (v *verbo) usarCon(ninguna, fijar bool, slug string) int {
 // roles are the roles hoom pedir asks for: the four of the card.
 var roles = []string{"arquitecto", "test-writer", "writer", "reviewer"}
 
+// The reviewer builds its own pedido, and its timeout is review.timeout's:
+// one place per role, so the → line stays the equivalent hoom review.
+const (
+	msgRevisionSinPedido  = "la revision arma su propio pedido: no lleva -m"
+	msgRevisionSinTimeout = "la revision toma su tiempo limite de review.timeout: no lleva --timeout"
+)
+
 // msgRolDesconocido is the usage reason for another role (roles, in order).
 const msgRolDesconocido = "rol desconocido %q (arquitecto, test-writer, writer, reviewer); para otros roles: hoom agent"
-
-// flagsLanzamiento are the launch flags, in the order the usage gives them.
-var flagsLanzamiento = []string{"m", "provider", "model", "effort", "budget-usd", "timeout", "json"}
 
 // lanzamiento is what the launch flags asked.
 type lanzamiento struct {
@@ -500,7 +525,10 @@ func (v *verbo) pedir(args []string) int {
 		return v.uso(fmt.Sprintf(msgRolDesconocido, rol))
 	}
 	if rol == "reviewer" && l.escritos["m"] {
-		return v.uso("la revision arma su propio pedido: no lleva -m")
+		return v.uso(msgRevisionSinPedido)
+	}
+	if rol == "reviewer" && l.escritos["timeout"] {
+		return v.uso(msgRevisionSinTimeout)
 	}
 	operando := ""
 	if len(ops) == 2 {
@@ -565,12 +593,16 @@ func (v *verbo) lanzarRol(d Deduccion, m *manifest.Manifest, c boardcmd.Card, a 
 		return v.falla(a.Why)
 	}
 	req := l.request(a.ID)
+	// what is shown is what launches: Lanzar refuses if the card proposes
+	// something else once the pedido is written (finding faff7c)
+	vista := lanzar.PropuestaDe(a)
+	req.Vista = &vista
 	// the values before the pedido: the editor shows them, and a provider
 	// or budget that cannot launch does not cost the person a pedido
 	if err := lanzar.Comprobar(c, a, req); err != nil {
 		return v.falla(err.Error())
 	}
-	vals := lanzar.Valores(c, a, req)
+	vals := lanzar.Valores(a, req)
 	linea := lineaValores(vals, a, req)
 	review := a.Role == "reviewer"
 	if !review {
@@ -740,10 +772,10 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 		parts = append(parts, "--provider", e.Provider)
 	}
 	if e.Model != "" {
-		parts = append(parts, "--model", visible(e.Model))
+		parts = append(parts, "--model", enShell(e.Model))
 	}
 	if e.Effort != "" {
-		parts = append(parts, "--effort", visible(e.Effort))
+		parts = append(parts, "--effort", enShell(e.Effort))
 	}
 	if o, ok := opcionDe(a, e.Provider); e.BudgetUSD != nil && (!ok || o.Budget) {
 		// a provider that takes no cap gets none: hoom agent would refuse it
@@ -755,13 +787,74 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 			parts = append(parts, "--timeout", valores.Duracion(e.Timeout))
 		}
 		if a.ID == boardcmd.ActReanudar && a.ResumeID != "" {
-			parts = append(parts, "--resume", a.ResumeID)
+			parts = append(parts, "--resume", enShell(a.ResumeID))
 		}
-		// quoted: a control character or an escape sequence in -m never
-		// reaches the terminal raw
-		parts = append(parts, strconv.Quote(recortar(pedido)))
+		parts = append(parts, pedidoEnShell(recortar(pedido)))
 	}
 	return "→ " + strings.Join(parts, " ")
+}
+
+// The → line is a command to copy: every value a user or a hoom.yaml wrote
+// goes in it quoted for a POSIX shell, so pasting it runs hoom with exactly
+// that value and never a $(...), a `...` or a glob; and no control character
+// or escape sequence reaches the terminal raw.
+
+// planoEnShell are the bytes a word may carry unquoted: none of them is
+// special to sh, bash or zsh (no =, which zsh expands at a word's start).
+const planoEnShell = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:/@%+,-"
+
+// enShell is s as one shell word: as it is when every byte is plain, in
+// single quotes when it is printable, and in $'...' with \xHH escapes when
+// it has a control character, an invalid byte or a rune that does not print.
+func enShell(s string) string {
+	if s != "" && strings.Trim(s, planoEnShell) == "" {
+		return s
+	}
+	if imprimible(s) {
+		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+	}
+	var b strings.Builder
+	b.WriteString("$'")
+	for i := 0; i < len(s); {
+		r, n := utf8.DecodeRuneInString(s[i:])
+		switch {
+		case r == '\\' || r == '\'':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r != utf8.RuneError && unicode.IsPrint(r):
+			b.WriteString(s[i : i+n])
+		default:
+			for _, c := range []byte(s[i : i+n]) {
+				fmt.Fprintf(&b, `\x%02x`, c)
+			}
+		}
+		i += n
+	}
+	b.WriteByte('\'')
+	return b.String()
+}
+
+// pedidoEnShell is the pedido between double quotes, as the spec shows it,
+// when nothing in it is special there ($, `, \, " and the history !);
+// otherwise enShell's quoting.
+func pedidoEnShell(p string) string {
+	if imprimible(p) && !strings.ContainsAny(p, "$`\\\"!") {
+		return `"` + p + `"`
+	}
+	return enShell(p)
+}
+
+// imprimible: valid UTF-8 where every rune prints (the space included).
+func imprimible(s string) bool {
+	if !utf8.ValidString(s) {
+		return false
+	}
+	for _, r := range s {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
 }
 
 // recortar is the pedido on one line, cut to 60 characters with ….
@@ -795,11 +888,11 @@ func (v *verbo) siguiente(args []string) int {
 	if code, ok := l.leer(v, fs); !ok {
 		return code
 	}
-	return v.siguienteCon(primero(ops), &l, flagEscrito(args))
+	return v.siguienteCon(primero(ops), &l, flagEscrito(fs, args))
 }
 
 // siguienteCon is siguiente with what it parsed; escrito is the first launch
-// flag as written ("" without one): one of flagsLanzamiento.
+// flag as written ("" without one).
 func (v *verbo) siguienteCon(operando string, l *lanzamiento, escrito string) int {
 	d, code, ok := v.tarjeta(operando)
 	if !ok {
@@ -867,33 +960,28 @@ func (v *verbo) siguienteCon(operando string, l *lanzamiento, escrito string) in
 		return v.falla(msg)
 	}
 	if a.Role == "reviewer" && l.escritos["m"] {
-		return v.uso("la revision arma su propio pedido: no lleva -m")
+		return v.uso(msgRevisionSinPedido)
+	}
+	if a.Role == "reviewer" && l.escritos["timeout"] {
+		return v.uso(msgRevisionSinTimeout)
 	}
 	return v.lanzarRol(d, m, c, a, l)
 }
 
-// flagEscrito is the first launch flag of args, as it was written (--model,
-// -m), or "".
-func flagEscrito(args []string) string {
-	for i := 0; i < len(args); i++ {
-		s := args[i]
+// flagEscrito is the first flag of args as it was written (--model, -m), or
+// "". fs registered them (lanzamiento.registrar, the one list of the launch
+// flags) and already parsed args, so every flag in them is one of its own.
+func flagEscrito(fs *flag.FlagSet, args []string) string {
+	for _, s := range args {
 		if s == "--" {
 			return ""
 		}
 		if len(s) < 2 || s[0] != '-' {
 			continue
 		}
-		nombre := strings.TrimLeft(s, "-")
-		escrito, conValor := s, false
-		if j := strings.IndexByte(nombre, '='); j >= 0 {
-			nombre, conValor = nombre[:j], true
-			escrito = s[:strings.IndexByte(s, '=')]
-		}
-		if contiene(flagsLanzamiento, nombre) {
+		escrito, _, _ := strings.Cut(s, "=")
+		if fs.Lookup(strings.TrimLeft(escrito, "-")) != nil {
 			return escrito
-		}
-		if !conValor && nombre != "json" {
-			i++ // the value of a flag is not a flag
 		}
 	}
 	return ""
@@ -960,11 +1048,14 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 		texto = fmt.Sprintf("Se cierra el trabajo de %q: se comprueba una ultima vez que todo este verde y guardado, y la tarjeta pasa a Hecho. Juntarlo con el proyecto lo haces vos despues.",
 			c.Item.Titulo)
 	}
-	if !si {
-		if !v.e.Terminal {
-			return v.uso(fmt.Sprintf("sin terminal, %s necesita --si", v.nombre))
-		}
+	if !si && !v.e.Terminal {
+		return v.uso(fmt.Sprintf("sin terminal, %s necesita --si", v.nombre))
+	}
+	if v.e.Terminal {
+		// --si skips the question, never what is signed
 		fmt.Fprintln(v.e.Out, texto)
+	}
+	if !si {
 		fmt.Fprint(v.e.Out, "¿Seguir? [s/N] ")
 		resp, _ := bufio.NewReader(v.e.In).ReadString('\n')
 		if r := strings.ToLower(strings.TrimSpace(resp)); r != "s" && r != "si" {

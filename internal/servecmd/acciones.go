@@ -119,6 +119,9 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		BudgetUSD *float64 `json:"budget_usd"`
 		Pedido    string   `json:"pedido"`
 		Effort    string   `json:"effort"`
+		// what the dialog showed of the action: a card that changed while
+		// it was open is refused, never launched with other values
+		Vista *lanzar.Propuesta `json:"vista"`
 	}
 	if _, err := decodeStrict(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -131,7 +134,7 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp, code, err := s.start(r.Context(), slug, launchReq{Action: body.Action, Provider: body.Provider, Model: body.Model,
-		BudgetUSD: body.BudgetUSD, Pedido: body.Pedido, Effort: body.Effort})
+		BudgetUSD: body.BudgetUSD, Pedido: body.Pedido, Effort: body.Effort, Vista: body.Vista})
 	if err != nil {
 		writeError(w, code, err.Error())
 		return
@@ -148,8 +151,9 @@ type launchReq struct {
 	Model     string
 	BudgetUSD *float64
 	Pedido    string
-	Pilot     bool   // the belt launched it: its record says so
-	Effort    string // reasoning effort; every role action takes it
+	Pilot     bool              // the belt launched it: its record says so
+	Effort    string            // reasoning effort; every role action takes it
+	Vista     *lanzar.Propuesta // what the dialog showed; nil = the belt
 }
 
 // start is the Studio's skin of the ONE launch function (lanzar.Lanzar): the
@@ -165,7 +169,7 @@ func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchR
 		Candado: s.candado,
 		Despues: func(antes boardcmd.Card, envelopeID string, log io.Writer) { s.belt(slug, antes, envelopeID, log) },
 	}, slug, lanzar.Request{Action: req.Action, Provider: req.Provider, Model: req.Model, Effort: req.Effort,
-		BudgetUSD: req.BudgetUSD, Pedido: req.Pedido, Pilot: req.Pilot})
+		BudgetUSD: req.BudgetUSD, Pedido: req.Pedido, Pilot: req.Pilot, Vista: req.Vista})
 	if err != nil {
 		var r *lanzar.Rechazo
 		if errors.As(err, &r) {

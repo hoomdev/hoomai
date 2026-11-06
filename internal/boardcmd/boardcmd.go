@@ -233,11 +233,12 @@ type Action struct {
 	// verbos-de-la-tarjeta: the model, effort and timeout the value rule
 	// gives the action's role ("" = the provider's; timeout_s is never 0:
 	// 1800 without anything declared), and where each proposed value came
-	// from (valores.Origen*), for the verbs that print it.
+	// from (valores.Origen*): the verbs print it, and the Studio says "(el
+	// de hoom)" only when nothing declared the timeout.
 	Model    string           `json:"model"`
 	Effort   string           `json:"effort"`
 	TimeoutS int              `json:"timeout_s"`
-	Origen   valores.Origenes `json:"-"`
+	Origen   valores.Origenes `json:"origen"`
 }
 
 // ProviderOption is one installed provider as a role action sees it.

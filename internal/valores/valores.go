@@ -50,11 +50,11 @@ type Lugar struct {
 
 // Origenes says where each chosen value came from.
 type Origenes struct {
-	Provider  string
-	Model     string
-	Effort    string
-	BudgetUSD string
-	Timeout   string
+	Provider  string `json:"provider"`
+	Model     string `json:"model"`
+	Effort    string `json:"effort"`
+	BudgetUSD string `json:"budget_usd"`
+	Timeout   string `json:"timeout"`
 }
 
 // Elegidos are the values of one launch. "" / nil = none (the provider's
@@ -72,10 +72,39 @@ type Elegidos struct {
 // proposal, the provider. hoom.yaml's budget is capped by what the place has
 // left; a budget_usd of 0 (no cap) takes what the place has left, or no cap.
 func Resolver(p Pedido, yaml manifest.RoleDefaults, l Lugar) Elegidos {
+	return Sobre(p, propuesta(yaml, l))
+}
+
+// Sobre puts what the command asked (level 1) over values already chosen by
+// the other levels: what the card's action proposes, which applied hoom.yaml
+// and the place when the card was derived. Each value the command asks wins,
+// with origin comando; the rest keep their value and origin.
+func Sobre(p Pedido, base Elegidos) Elegidos {
+	e := base
+	e.BudgetUSD = copia(base.BudgetUSD)
+	if p.Provider != "" {
+		e.Provider, e.Origen.Provider = p.Provider, OrigenComando
+	}
+	if p.Model != "" {
+		e.Model, e.Origen.Model = p.Model, OrigenComando
+	}
+	if p.Effort != "" {
+		e.Effort, e.Origen.Effort = p.Effort, OrigenComando
+	}
+	if p.BudgetUSD != nil {
+		e.BudgetUSD, e.Origen.BudgetUSD = copia(p.BudgetUSD), OrigenComando
+	}
+	if p.Timeout > 0 {
+		e.Timeout, e.Origen.Timeout = p.Timeout, OrigenComando
+	}
+	return e
+}
+
+// propuesta is levels 2 to 4: the project's hoom.yaml, the place's
+// proposal, the provider's own.
+func propuesta(yaml manifest.RoleDefaults, l Lugar) Elegidos {
 	var e Elegidos
 	switch {
-	case p.Provider != "":
-		e.Provider, e.Origen.Provider = p.Provider, OrigenComando
 	case yaml.Provider != "" && (l.Puede == nil || l.Puede(yaml.Provider)):
 		e.Provider, e.Origen.Provider = yaml.Provider, OrigenHoomYAML
 	case l.Provider != "":
@@ -83,12 +112,10 @@ func Resolver(p Pedido, yaml manifest.RoleDefaults, l Lugar) Elegidos {
 	default:
 		e.Origen.Provider = OrigenProvider
 	}
-	e.Model, e.Origen.Model = pick(p.Model, yaml.Model)
-	e.Effort, e.Origen.Effort = pick(p.Effort, yaml.Effort)
+	e.Model, e.Origen.Model = pick(yaml.Model)
+	e.Effort, e.Origen.Effort = pick(yaml.Effort)
 
 	switch {
-	case p.BudgetUSD != nil:
-		e.BudgetUSD, e.Origen.BudgetUSD = copia(p.BudgetUSD), OrigenComando
 	case yaml.BudgetUSD != nil && *yaml.BudgetUSD > 0:
 		e.BudgetUSD, e.Origen.BudgetUSD = copia(yaml.BudgetUSD), OrigenHoomYAML
 		if l.BudgetUSD != nil && *l.BudgetUSD < *yaml.BudgetUSD {
@@ -107,24 +134,18 @@ func Resolver(p Pedido, yaml manifest.RoleDefaults, l Lugar) Elegidos {
 		e.Origen.BudgetUSD = OrigenProvider
 	}
 
-	switch {
-	case p.Timeout > 0:
-		e.Timeout, e.Origen.Timeout = p.Timeout, OrigenComando
-	case yaml.Timeout > 0:
+	if yaml.Timeout > 0 {
 		e.Timeout, e.Origen.Timeout = yaml.Timeout, OrigenHoomYAML
-	default:
+	} else {
 		e.Timeout, e.Origen.Timeout = DefaultTimeout, OrigenProvider
 	}
 	return e
 }
 
-// pick is the order of a value the place does not propose (model, effort):
-// the command, hoom.yaml, the provider's own ("").
-func pick(cmd, yaml string) (string, string) {
-	switch {
-	case cmd != "":
-		return cmd, OrigenComando
-	case yaml != "":
+// pick is the order of a value the place does not propose (model, effort)
+// under the command: hoom.yaml, the provider's own ("").
+func pick(yaml string) (string, string) {
+	if yaml != "" {
 		return yaml, OrigenHoomYAML
 	}
 	return "", OrigenProvider
