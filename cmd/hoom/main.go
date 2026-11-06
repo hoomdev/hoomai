@@ -38,6 +38,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
 	"github.com/hoomdev/hoomai/internal/statuscmd"
+	"github.com/hoomdev/hoomai/internal/tarjetacmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
@@ -255,6 +256,9 @@ func main() {
 		err = cmdHook(args)
 	case "agents":
 		err = cmdAgents(args)
+	case "usar", "pedir", "siguiente", "aprobar", "integrar", "guardar", "reanudar":
+		// the card verbs own their exit codes: 0, 1, 2 or the envelope's
+		os.Exit(tarjetacmd.Run(cmd, args, tarjetacmd.Real()))
 	case "profiles":
 		for _, line := range profiles.Describe() {
 			fmt.Println(line)

@@ -39,6 +39,15 @@ type Options struct {
 	ResumeID  string
 	MaxTurns  int
 	BudgetUSD float64
+	// BudgetSet: BudgetUSD was asked (0 included), so hoom.yaml's
+	// agents.<rol>.budget_usd does not apply.
+	BudgetSet bool
+	// Effort is the reasoning effort, in the provider's vocabulary; "" =
+	// agents.<rol>.effort of the project's hoom.yaml, or the provider's.
+	Effort string
+	// Timeout bounds the role's run; 0 = agents.<rol>.timeout of the
+	// project's hoom.yaml, or hoom's 30 minutes.
+	Timeout time.Duration
 	// EnvelopeID presets the id of the envelope's record ("" = a new one), so
 	// a caller that runs the envelope in the background can name it at once.
 	EnvelopeID string

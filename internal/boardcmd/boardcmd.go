@@ -18,9 +18,11 @@ import (
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/valores"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -136,6 +138,11 @@ type Evidence struct {
 	Providers []providers.Info // the providers of this machine (providers.Detect, once per Build)
 	Signer    string           // git identity of the evidence tree: who an approval would name
 
+	// verbos-de-la-tarjeta: what the PROJECT's hoom.yaml declares for each
+	// role (manifest.RoleDefaults, keyed by role slug), never the card
+	// branch's. A missing role declares nothing.
+	Defaults map[string]manifest.RoleDefaults
+
 	// C4: what the doctor needs. Fingerprint (C1) stays empty without a
 	// verdict; TreeFingerprint is the current fingerprint of E whenever the
 	// card has a task worktree or a verdict.
@@ -223,6 +230,14 @@ type Action struct {
 	Paths     []string         `json:"paths"`     // guardar: unsynced; descartar: what goes back
 	ResumeID  string           `json:"resume_id"` // reanudar: the provider session to resume
 	Signer    string           `json:"signer"`    // aprobar: the identity that signs
+	// verbos-de-la-tarjeta: the model, effort and timeout the value rule
+	// gives the action's role ("" = the provider's; timeout_s is never 0:
+	// 1800 without anything declared), and where each proposed value came
+	// from (valores.Origen*), for the verbs that print it.
+	Model    string           `json:"model"`
+	Effort   string           `json:"effort"`
+	TimeoutS int              `json:"timeout_s"`
+	Origen   valores.Origenes `json:"-"`
 }
 
 // ProviderOption is one installed provider as a role action sees it.

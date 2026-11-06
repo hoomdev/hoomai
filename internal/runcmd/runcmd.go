@@ -125,7 +125,15 @@ type StartOptions struct {
 	Effort       string // reasoning effort, provider vocabulary; "" = provider default
 	Isolated     bool   // run without the user's personal provider config
 	PromptStdin  bool   // the prompt travels by stdin at any size
+	// Timeout bounds each invocation of THIS run; 0 = the Manager's (30
+	// minutes by default). The sidecar records it (timeout_s).
+	Timeout time.Duration
 }
+
+// VentanaNarrando is how recent the provider's last narration must be, when
+// the timeout fires, for hoom to say the CLI was still narrating (and not
+// waiting for an interactive permission).
+const VentanaNarrando = 60 * time.Second
 
 // request builds the provider request for these options.
 func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Request {
@@ -255,6 +263,10 @@ type Meta struct {
 	// ChildStartedAt is when the provider started: a ChildPID that another
 	// process reused started at another time (finding cea64f).
 	ChildStartedAt time.Time `json:"child_started_at,omitempty"`
+	// TimeoutS is the run's own timeout in seconds. The rule that decides
+	// whether a run another process owns is still alive uses it (plus 5
+	// minutes); 0 = an older sidecar, which uses the Manager's.
+	TimeoutS int `json:"timeout_s,omitempty"`
 }
 
 // vivo says whether the run of meta still has someone working: its owner, or

@@ -284,6 +284,13 @@ func Operands(fs *flag.FlagSet, args []string, verb, usage string, n int) ([]str
 	return operandos, nil
 }
 
+// OperandsRango is Operands for a verb that takes between min and max
+// operands (`hoom pedir <rol> [<slug>]`). The flags named in vacios may be
+// written with an empty value (`-m ""` is an empty pedido, not a typo).
+func OperandsRango(fs *flag.FlagSet, args []string, verb, usage string, min, max int, vacios ...string) ([]string, error) {
+	panic("sin implementar")
+}
+
 // operandos is what escanear collects for a verb that takes them.
 type operandos struct {
 	idx []int // indices de los operandos en args

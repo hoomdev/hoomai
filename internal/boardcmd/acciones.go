@@ -64,6 +64,11 @@ const (
 	whyBack        = "la tarjeta no vuelve atras: su columna la da la evidencia"
 )
 
+// WhySpecSinGuardar disables the test-writer while the card's spec is not in
+// what its workspace saved, or differs from it: the blind tree is built from
+// what is saved (verbos-de-la-tarjeta).
+const WhySpecSinGuardar = "el spec tiene cambios sin guardar y el test-writer trabaja con lo guardado: guarda primero"
+
 // Action returns the card's action with that id, if it has it.
 func (c Card) Action(id string) (Action, bool) {
 	for _, a := range c.Actions {

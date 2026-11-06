@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -57,9 +58,62 @@ func (g Gate) DiffCmdStr() string {
 	return *g.DiffCmd
 }
 
-// AgentPolicy is one role's project-level policy.
+// AgentPolicy is one role's project-level policy: where it may write, and
+// the launch values the project chooses for it (verbos-de-la-tarjeta). Every
+// launch value is optional; model and effort are the provider's vocabulary
+// and are never validated.
 type AgentPolicy struct {
-	Write WriteScope `yaml:"write,omitempty"`
+	Provider  string        `yaml:"provider,omitempty"`
+	Model     string        `yaml:"model,omitempty"`
+	Effort    string        `yaml:"effort,omitempty"`
+	BudgetUSD *float64      `yaml:"budget_usd,omitempty"` // nil = not declared; 0 = no cap
+	Timeout   time.Duration `yaml:"-"`                    // agents.<rol>.timeout; 0 = not declared
+	Write     WriteScope    `yaml:"write,omitempty"`
+}
+
+// AgentKeys are the keys agents.<rol> accepts, in the order the error names
+// them.
+var AgentKeys = []string{"provider", "model", "effort", "budget_usd", "timeout", "write"}
+
+// MinTimeout and MaxTimeout bound every timeout hoom.yaml or a flag declares:
+// under a minute no CLI gets to start, over 12 hours is a forgotten run.
+const (
+	MinTimeout = time.Minute
+	MaxTimeout = 12 * time.Hour
+)
+
+// ParseTimeout reads a timeout as hoom.yaml and the flags write it: a Go
+// duration ("45m", "1h30m") between MinTimeout and MaxTimeout. campo names
+// where it was written ("agents.writer.timeout", "--timeout"); the error is
+// `<campo>: "<v>" no es una duracion entre 1m y 12h (ej. 45m, 1h30m)`.
+func ParseTimeout(campo, v string) (time.Duration, error) {
+	panic("sin implementar")
+}
+
+// RoleDefaults are the launch values hoom.yaml declares for one role:
+// agents.<rol>, or review: for the reviewer. An empty field was not declared.
+type RoleDefaults struct {
+	Provider  string
+	Model     string
+	Effort    string
+	BudgetUSD *float64      // nil = not declared; 0 = declared without a cap
+	Timeout   time.Duration // 0 = not declared
+}
+
+// RoleDefaults is the ONE place that says what hoom.yaml declares for a role:
+// `hoom agent`, the card verbs and the board ask here. The reviewer's come
+// from review: (it has no budget there); every other role's from
+// agents.<rol>. A nil manifest declares nothing.
+func (m *Manifest) RoleDefaults(role string) RoleDefaults {
+	panic("sin implementar")
+}
+
+// LoadRoles reads only the agents: and review: sections of root/hoom.yaml,
+// with the strictness Load applies to them: the values of the PROJECT, which
+// the board and the launches read whatever the card's branch says. A root
+// without hoom.yaml declares nothing (an empty manifest, no error).
+func LoadRoles(root string) (*Manifest, error) {
+	panic("sin implementar")
 }
 
 // WriteScope re-aims where a role may write. A declared Allow REPLACES the
@@ -119,6 +173,9 @@ type ReviewPolicy struct {
 	SameProvider   *bool  `yaml:"same_provider"`
 	Isolated       *bool  `yaml:"isolated"`
 	MaxEvidenceKiB *int   `yaml:"max_evidence_kib"`
+	// Timeout is review.timeout, with the rules of agents.<rol>.timeout;
+	// 0 = not declared.
+	Timeout time.Duration `yaml:"-"`
 }
 
 // reviewKeys are the keys `review:` accepts, in the order the error names them.

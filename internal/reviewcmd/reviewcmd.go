@@ -87,6 +87,9 @@ type Options struct {
 	SameProviderSet bool
 	MaxTurns        int
 	BudgetUSD       float64
+	// Timeout bounds each lens's run; 0 = review.timeout of the base's
+	// hoom.yaml, or hoom's 30 minutes.
+	Timeout time.Duration
 	// EnvelopeID and Started: the same contract as agentcmd.Options.
 	EnvelopeID string
 	Started    func()
