@@ -56,8 +56,7 @@ func vdtAccion() boardcmd.Action {
 // los origenes de la accion.
 func TestCA491_ValoresSinPedidoSonLosDeLaAccion(t *testing.T) {
 	a := vdtAccion()
-	c := boardcmd.Card{Slug: "precios", Actions: []boardcmd.Action{a}}
-	e := lanzar.Valores(c, a, lanzar.Request{Action: a.ID, Pedido: "x"})
+	e := lanzar.Valores(a, lanzar.Request{Action: a.ID, Pedido: "x"})
 	if e.Provider != "codex" || e.Model != "m-accion" || e.Effort != "e-accion" ||
 		e.BudgetUSD == nil || *e.BudgetUSD != 2 || e.Timeout != 45*time.Minute {
 		t.Fatalf("CA-491: sin pedir nada, los valores de la accion (codex, m-accion, e-accion, 2, 45m): %+v", e)
@@ -71,8 +70,7 @@ func TestCA491_ValoresSinPedidoSonLosDeLaAccion(t *testing.T) {
 // pedido sigue siendo de la accion.
 func TestCA491_ValoresPedidosGananConOrigenComando(t *testing.T) {
 	a := vdtAccion()
-	c := boardcmd.Card{Slug: "precios", Actions: []boardcmd.Action{a}}
-	e := lanzar.Valores(c, a, lanzar.Request{Action: a.ID, Provider: "claude", Model: "m-cmd", Effort: "e-cmd",
+	e := lanzar.Valores(a, lanzar.Request{Action: a.ID, Provider: "claude", Model: "m-cmd", Effort: "e-cmd",
 		BudgetUSD: vdtF(1), Timeout: 10 * time.Minute, Pedido: "x"})
 	if e.Provider != "claude" || e.Model != "m-cmd" || e.Effort != "e-cmd" ||
 		e.BudgetUSD == nil || *e.BudgetUSD != 1 || e.Timeout != 10*time.Minute {
@@ -85,7 +83,7 @@ func TestCA491_ValoresPedidosGananConOrigenComando(t *testing.T) {
 	}
 
 	// solo el esfuerzo pedido: el resto, de la accion
-	e = lanzar.Valores(c, a, lanzar.Request{Action: a.ID, Effort: "low", Pedido: "x"})
+	e = lanzar.Valores(a, lanzar.Request{Action: a.ID, Effort: "low", Pedido: "x"})
 	if e.Effort != "low" || e.Origen.Effort != valores.OrigenComando || e.Model != "m-accion" ||
 		e.Origen.Model != valores.OrigenHoomYAML || e.Provider != "codex" || e.Timeout != 45*time.Minute {
 		t.Fatalf("CA-491: cada valor por separado: %+v", e)
@@ -98,7 +96,7 @@ func TestCA494_ValoresTimeoutNuncaCero(t *testing.T) {
 	a := vdtAccion()
 	a.TimeoutS = 1800
 	a.Origen.Timeout = valores.OrigenProvider
-	e := lanzar.Valores(boardcmd.Card{Slug: "precios", Actions: []boardcmd.Action{a}}, a, lanzar.Request{Action: a.ID})
+	e := lanzar.Valores(a, lanzar.Request{Action: a.ID})
 	if e.Timeout != 30*time.Minute {
 		t.Fatalf("CA-494: timeout_s 1800 es 30m: %v", e.Timeout)
 	}
