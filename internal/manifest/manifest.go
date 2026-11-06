@@ -6,6 +6,7 @@ package manifest
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/hoomdev/hoomai/internal/providers"
 )
 
 const (
@@ -87,7 +90,115 @@ const (
 // where it was written ("agents.writer.timeout", "--timeout"); the error is
 // `<campo>: "<v>" no es una duracion entre 1m y 12h (ej. 45m, 1h30m)`.
 func ParseTimeout(campo, v string) (time.Duration, error) {
-	panic("sin implementar")
+	d, err := time.ParseDuration(strings.TrimSpace(v))
+	if err != nil || d < MinTimeout || d > MaxTimeout {
+		return 0, fmt.Errorf("%s: %q no es una duracion entre 1m y 12h (ej. 45m, 1h30m)", campo, v)
+	}
+	return d, nil
+}
+
+// AgentPolicies are the agents: section, keyed by role slug. It decodes
+// itself so every error names the role: a key hoom does not know is an
+// error, never a silence (an ignored `efort: low` is the very failure the
+// launch values must not have).
+type AgentPolicies map[string]AgentPolicy
+
+// UnmarshalYAML decodes agents: role by role, with the contract's rules.
+func (a *AgentPolicies) UnmarshalYAML(n *yaml.Node) error {
+	if esNulo(n) {
+		*a = nil
+		return nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("agents debe ser un mapa por rol (ej. agents: { writer: { effort: high } })")
+	}
+	out := AgentPolicies{}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		role := n.Content[i].Value
+		p, err := decodeAgent(role, n.Content[i+1])
+		if err != nil {
+			return err
+		}
+		out[role] = p
+	}
+	*a = out
+	return nil
+}
+
+// decodeAgent is one agents.<rol>: its keys, its provider, its budget and
+// its timeout, each refused with the role in the message.
+func decodeAgent(role string, n *yaml.Node) (AgentPolicy, error) {
+	var p AgentPolicy
+	if esNulo(n) {
+		return p, nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return p, fmt.Errorf("agents.%s debe ser un mapa (ej. agents: { %s: { effort: high } })", role, role)
+	}
+	var timeout *yaml.Node
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i].Value
+		if !containsKey(AgentKeys, key) {
+			return p, fmt.Errorf("agents.%s: clave desconocida %q (validas: %s)", role, key, strings.Join(AgentKeys, ", "))
+		}
+		// one place per role: the reviewer launches from review:
+		if role == "reviewer" && key != "write" {
+			return p, fmt.Errorf("agents.reviewer: la review se configura en review: (provider, model, effort, timeout)")
+		}
+		if key == "timeout" {
+			timeout = n.Content[i+1]
+		}
+	}
+	var plain struct {
+		Provider  string     `yaml:"provider"`
+		Model     string     `yaml:"model"`
+		Effort    string     `yaml:"effort"`
+		BudgetUSD *float64   `yaml:"budget_usd"`
+		Write     WriteScope `yaml:"write"`
+	}
+	if err := n.Decode(&plain); err != nil {
+		return p, fmt.Errorf("agents.%s: %v", role, err)
+	}
+	p = AgentPolicy{Provider: strings.TrimSpace(plain.Provider), Model: strings.TrimSpace(plain.Model),
+		Effort: strings.TrimSpace(plain.Effort), BudgetUSD: plain.BudgetUSD, Write: plain.Write}
+	if p.Provider != "" && !containsKey(providerNames(), p.Provider) {
+		return p, fmt.Errorf("agents.%s.provider: %q no es un provider de hoom (%s)", role, plain.Provider, strings.Join(providerNames(), ", "))
+	}
+	if b := p.BudgetUSD; b != nil && !(*b >= 0) || b != nil && math.IsInf(*b, 0) {
+		return p, fmt.Errorf("agents.%s.budget_usd: %v no es un numero mayor o igual que 0 (0 = sin tope)", role, *b)
+	}
+	if timeout != nil && !esNulo(timeout) {
+		d, err := ParseTimeout("agents."+role+".timeout", timeout.Value)
+		if err != nil {
+			return p, err
+		}
+		p.Timeout = d
+	}
+	return p, nil
+}
+
+// providerNames are the names of hoom's registry, sorted: the providers a
+// hoom.yaml may name. Whether one is installed is checked at launch.
+func providerNames() []string {
+	var out []string
+	for _, p := range providers.All() {
+		out = append(out, p.Name())
+	}
+	sort.Strings(out)
+	return out
+}
+
+func esNulo(n *yaml.Node) bool {
+	return n == nil || n.Kind == yaml.ScalarNode && n.Tag == "!!null"
+}
+
+func containsKey(list []string, k string) bool {
+	for _, v := range list {
+		if v == k {
+			return true
+		}
+	}
+	return false
 }
 
 // RoleDefaults are the launch values hoom.yaml declares for one role:
@@ -105,7 +216,27 @@ type RoleDefaults struct {
 // from review: (it has no budget there); every other role's from
 // agents.<rol>. A nil manifest declares nothing.
 func (m *Manifest) RoleDefaults(role string) RoleDefaults {
-	panic("sin implementar")
+	if m == nil {
+		return RoleDefaults{}
+	}
+	if role == "reviewer" {
+		r := m.Review
+		if r == nil {
+			return RoleDefaults{}
+		}
+		return RoleDefaults{Provider: strings.TrimSpace(r.Provider), Model: strings.TrimSpace(r.Model),
+			Effort: strings.TrimSpace(r.Effort), Timeout: r.Timeout}
+	}
+	p, ok := m.Agents[role]
+	if !ok {
+		return RoleDefaults{}
+	}
+	d := RoleDefaults{Provider: p.Provider, Model: p.Model, Effort: p.Effort, Timeout: p.Timeout}
+	if p.BudgetUSD != nil {
+		v := *p.BudgetUSD
+		d.BudgetUSD = &v
+	}
+	return d
 }
 
 // LoadRoles reads only the agents: and review: sections of root/hoom.yaml,
@@ -113,7 +244,24 @@ func (m *Manifest) RoleDefaults(role string) RoleDefaults {
 // the board and the launches read whatever the card's branch says. A root
 // without hoom.yaml declares nothing (an empty manifest, no error).
 func LoadRoles(root string) (*Manifest, error) {
-	panic("sin implementar")
+	raw, err := os.ReadFile(filepath.Join(root, FileName))
+	if os.IsNotExist(err) {
+		return &Manifest{Dir: root}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var doc struct {
+		Agents AgentPolicies `yaml:"agents"`
+		Review *ReviewPolicy `yaml:"review"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	if err := doc.Review.validate(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	return &Manifest{Agents: doc.Agents, Review: doc.Review, Dir: root}, nil
 }
 
 // WriteScope re-aims where a role may write. A declared Allow REPLACES the
@@ -143,7 +291,7 @@ type Manifest struct {
 	// role slug ("test-writer"). It can only re-aim a role's territory: the
 	// universal append-only floor that `hoom agent` enforces is not
 	// reachable from here, because a floor you can lower is not a floor.
-	Agents map[string]AgentPolicy `yaml:"agents,omitempty"`
+	Agents AgentPolicies `yaml:"agents,omitempty"`
 	// Findings lets open findings of a severity or worse turn verify red.
 	// Project-level only: blocking on findings is a team decision, not a
 	// stack default, so profiles never carry it.
@@ -178,8 +326,13 @@ type ReviewPolicy struct {
 	Timeout time.Duration `yaml:"-"`
 }
 
-// reviewKeys are the keys `review:` accepts, in the order the error names them.
-var reviewKeys = []string{"provider", "model", "effort", "same_provider", "isolated", "max_evidence_kib"}
+// reviewKeys are the keys `review:` accepts, in the order the error names them:
+// the six of review-aislada (CA-394 fixes that text) and then timeout, which
+// verbos-de-la-tarjeta added after them.
+var (
+	reviewKeys        = []string{"provider", "model", "effort", "same_provider", "isolated", "max_evidence_kib"}
+	reviewKeysTimeout = "timeout"
+)
 
 // UnmarshalYAML rejects unknown keys inside `review`: a typo like `isolate`
 // would otherwise hand the reviewer the user's personal config in silence.
@@ -187,18 +340,28 @@ func (p *ReviewPolicy) UnmarshalYAML(n *yaml.Node) error {
 	if n.Kind != yaml.MappingNode {
 		return fmt.Errorf("review debe ser un mapa (ej. review: { model: gpt-5.6-sol, effort: high })")
 	}
+	var timeout *yaml.Node
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		key := n.Content[i].Value
-		known := false
-		for _, k := range reviewKeys {
-			known = known || key == k
+		if !containsKey(reviewKeys, key) && key != reviewKeysTimeout {
+			return fmt.Errorf("review: clave desconocida %q (validas: %s) y %s", key, strings.Join(reviewKeys, ", "), reviewKeysTimeout)
 		}
-		if !known {
-			return fmt.Errorf("review: clave desconocida %q (validas: %s)", key, strings.Join(reviewKeys, ", "))
+		if key == reviewKeysTimeout {
+			timeout = n.Content[i+1]
 		}
 	}
 	type plain ReviewPolicy // sin el metodo: evita la recursion
-	return n.Decode((*plain)(p))
+	if err := n.Decode((*plain)(p)); err != nil {
+		return err
+	}
+	if timeout != nil && !esNulo(timeout) {
+		d, err := ParseTimeout("review.timeout", timeout.Value)
+		if err != nil {
+			return err
+		}
+		p.Timeout = d
+	}
+	return nil
 }
 
 // validateReview rejects a cap that could never admit any evidence.
@@ -241,7 +404,7 @@ func ParseReview(raw []byte) (*ReviewPolicy, error) {
 // ParseReview). nil = no section.
 func ParseAgents(raw []byte) (map[string]AgentPolicy, error) {
 	var doc struct {
-		Agents map[string]AgentPolicy `yaml:"agents"`
+		Agents AgentPolicies `yaml:"agents"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)

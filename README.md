@@ -141,6 +141,35 @@ findings:
   block_on: high   # low | medium | high: esa severidad o mayor pone ROJO a verify
 ```
 
+Los valores con que se lanza cada rol, tambien a nivel proyecto. Todas las
+claves son opcionales; una clave desconocida, un provider que no es de hoom,
+un `budget_usd` negativo o un `timeout` sin unidad o fuera de `1m`..`12h`
+hacen invalido el `hoom.yaml`:
+
+```yaml
+agents:
+  arquitecto:
+    provider: claude       # claude | codex | gemini | opencode
+    model: opus            # vocabulario del provider; hoom no lo valida
+    effort: high           # vocabulario del provider; hoom no lo valida
+    budget_usd: 5          # tope por run en USD; 0 = sin tope
+    timeout: 45m           # tiempo limite del run, entre 1m y 12h (sin el: 30m)
+  test-writer:
+    effort: high
+    write: { allow: ["tests/**"] }
+```
+
+`agents.reviewer` solo acepta `write`: la review se configura en `review:`.
+Para cada valor gana el primero que existe: lo que se pide en el comando
+(`--provider`, `--model`, `--effort`, `--budget-usd`, `--timeout`) o en el
+dialogo del Studio, despues `agents.<rol>` (o `review:`) del `hoom.yaml` del
+proyecto, despues lo que propone la tarjeta (el primer provider que puede y
+lo que le queda de presupuesto) y por ultimo lo del provider. El presupuesto
+de `hoom.yaml` nunca pasa lo que le queda a la tarjeta, y un provider que no
+acepta tope (codex) no lo recibe. Los valores salen siempre del `hoom.yaml`
+del proyecto, nunca del de la rama de la tarjeta: una rama no se sube su
+propio presupuesto ni su tiempo limite.
+
 Variables de template: `{base}` (rama base), `{files}` (archivos cambiados),
 `{packages}` (paquetes Go derivados de los .go cambiados). Si un `diff_cmd` expande a
 vacio, cae al comando completo en lugar de ejecutar una linea rota.
@@ -399,6 +428,7 @@ review:
   same_provider: false     # true = --same-provider (para quien paga un solo provider)
   isolated: true           # false solo si tu config de Codex define un model_provider propio
   max_evidence_kib: 320    # tope de la evidencia de cada lente
+  timeout: 60m             # tiempo limite de cada lente, entre 1m y 12h (sin el: 30m)
 ```
 
 Una opcion explicita (`--model`, `--effort`, `--provider`, `--same-provider`,
@@ -458,6 +488,63 @@ que pudiera elegirla elegiria su propia review. Lo mismo el territorio de
 escritura del reviewer (`agents.reviewer.write`). El registro guarda la base
 en `base`. Sin `--task`, el arbol revisado es el del proyecto; para revisar
 en tu checkout la rama de otra persona, usa una tarea o `--base`.
+
+## Llevar una tarjeta desde la terminal
+
+Los verbos de la tarjeta hacen lo mismo que los botones del Studio, con las
+mismas palabras: cada uno toma una accion de la tarjeta (la columna, las
+acciones validas y su motivo cuando no valen salen de la misma derivacion) y
+la ejecuta, o dice por que no. La tarjeta sale del argumento, de la carpeta
+(si estas dentro de `.hoom/worktrees/<slug>/`) o de la fijada con
+`hoom usar`, en ese orden, y cada verbo lo dice antes de hacer nada:
+`tarjeta: infra-ci-cd (carpeta)`.
+
+El ciclo completo de una tarjeta, solo con los verbos:
+
+```bash
+hoom item add "CI/CD de la infra" --slug infra-ci-cd
+hoom usar infra-ci-cd                 # fija la tarjeta (estado local, fuera de git)
+hoom pedir arquitecto -m "Escribi el spec del pipeline de CI/CD"
+hoom aprobar                          # te muestra lo que firmas y pregunta [s/N]
+hoom guardar                          # guarda el spec y su aprobacion: el test-writer trabaja con lo guardado
+hoom siguiente                        # pide al test-writer
+hoom siguiente                        # pide al writer
+hoom siguiente                        # pide la review
+hoom integrar                         # cierra la tarea: la tarjeta pasa a Hecho
+git merge --no-ff hoom/infra-ci-cd    # juntarla es tuyo
+```
+
+- `hoom pedir <rol> [<slug>] [-m "<pedido>"]`: sin `-m` abre tu editor
+  (`$VISUAL`, `$EDITOR` o `vi`) con el pedido que propone la tarjeta, como
+  `git commit`; un pedido vacio no lanza nada. Acepta `--provider`,
+  `--model`, `--effort`, `--budget-usd`, `--timeout` y `--json`. Antes de
+  lanzar imprime los valores con su origen y el comando largo equivalente:
+
+  ```
+  valores: provider claude (hoom.yaml) · modelo opus (hoom.yaml) · esfuerzo high (hoom.yaml) · presupuesto 2 (tarjeta) · tiempo limite 45m (hoom.yaml)
+  → hoom agent --role writer --task infra-ci-cd --spec .hoom/specs/infra-ci-cd.md --provider claude --model opus --effort high --budget-usd 2 --timeout 45m "Implementa el spec"
+  ```
+
+  Lanza con la misma funcion que el Studio, con la narracion en la salida
+  estandar, y sale con el exit code de `hoom agent` (o de `hoom review`).
+- `hoom siguiente`: hace la accion principal de la tarjeta. Nunca aprueba ni
+  integra: en Tu aprobacion y Tu aceptacion dice el comando que es tuyo.
+- `hoom aprobar` y `hoom integrar`: las firmas. Preguntan `¿Seguir? [s/N]`;
+  `--si` no pregunta, y sin terminal es obligatorio.
+- `hoom guardar`: commitea lo que la tarjeta tiene sin guardar, como
+  `hoom item save`.
+- `hoom reanudar`: retoma la sesion del trabajo cortado, con su provider.
+- `hoom usar <slug>` fija la tarjeta, `hoom usar` la muestra y
+  `hoom usar --ninguna` la quita.
+
+Los verbos de siempre (`hoom agent`, `hoom review`, `hoom spec approve`,
+`hoom item save`, `hoom task done`) no cambian ni deducen la tarjeta: quedan
+para scripts y para lo que los verbos nuevos no cubren. `hoom agent` gana
+`--effort` y `--timeout`, y toma de `agents.<rol>` lo que no se le pasa.
+
+Cuando se cumple el tiempo limite, el detalle del run dice si la CLI seguia
+narrando (subi el tiempo limite o pedi menos por run) o estaba muda (puede
+estar esperando un permiso interactivo).
 
 ## HoomAI Studio (hoom serve)
 

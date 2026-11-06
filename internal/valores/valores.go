@@ -72,10 +72,73 @@ type Elegidos struct {
 // proposal, the provider. hoom.yaml's budget is capped by what the place has
 // left; a budget_usd of 0 (no cap) takes what the place has left, or no cap.
 func Resolver(p Pedido, yaml manifest.RoleDefaults, l Lugar) Elegidos {
-	panic("sin implementar")
+	var e Elegidos
+	switch {
+	case p.Provider != "":
+		e.Provider, e.Origen.Provider = p.Provider, OrigenComando
+	case yaml.Provider != "" && (l.Puede == nil || l.Puede(yaml.Provider)):
+		e.Provider, e.Origen.Provider = yaml.Provider, OrigenHoomYAML
+	case l.Provider != "":
+		e.Provider, e.Origen.Provider = l.Provider, OrigenTarjeta
+	default:
+		e.Origen.Provider = OrigenProvider
+	}
+	e.Model, e.Origen.Model = pick(p.Model, yaml.Model)
+	e.Effort, e.Origen.Effort = pick(p.Effort, yaml.Effort)
+
+	switch {
+	case p.BudgetUSD != nil:
+		e.BudgetUSD, e.Origen.BudgetUSD = copia(p.BudgetUSD), OrigenComando
+	case yaml.BudgetUSD != nil && *yaml.BudgetUSD > 0:
+		e.BudgetUSD, e.Origen.BudgetUSD = copia(yaml.BudgetUSD), OrigenHoomYAML
+		if l.BudgetUSD != nil && *l.BudgetUSD < *yaml.BudgetUSD {
+			// never over what the card has left
+			e.BudgetUSD, e.Origen.BudgetUSD = copia(l.BudgetUSD), OrigenTarjeta
+		}
+	case yaml.BudgetUSD != nil: // 0 = no cap: what is left, or none
+		if l.BudgetUSD != nil {
+			e.BudgetUSD, e.Origen.BudgetUSD = copia(l.BudgetUSD), OrigenTarjeta
+		} else {
+			e.Origen.BudgetUSD = OrigenHoomYAML
+		}
+	case l.BudgetUSD != nil:
+		e.BudgetUSD, e.Origen.BudgetUSD = copia(l.BudgetUSD), OrigenTarjeta
+	default:
+		e.Origen.BudgetUSD = OrigenProvider
+	}
+
+	switch {
+	case p.Timeout > 0:
+		e.Timeout, e.Origen.Timeout = p.Timeout, OrigenComando
+	case yaml.Timeout > 0:
+		e.Timeout, e.Origen.Timeout = yaml.Timeout, OrigenHoomYAML
+	default:
+		e.Timeout, e.Origen.Timeout = DefaultTimeout, OrigenProvider
+	}
+	return e
+}
+
+// pick is the order of a value the place does not propose (model, effort):
+// the command, hoom.yaml, the provider's own ("").
+func pick(cmd, yaml string) (string, string) {
+	switch {
+	case cmd != "":
+		return cmd, OrigenComando
+	case yaml != "":
+		return yaml, OrigenHoomYAML
+	}
+	return "", OrigenProvider
+}
+
+func copia(v *float64) *float64 {
+	if v == nil {
+		return nil
+	}
+	c := *v
+	return &c
 }
 
 // Duracion renders a timeout the way hoom prints it: 45m, 1h30m, 2h, 30s.
 func Duracion(d time.Duration) string {
-	panic("sin implementar")
+	return runcmd.Duracion(d)
 }

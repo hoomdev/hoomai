@@ -130,10 +130,21 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// the role's values from the PROJECT's hoom.yaml, never the branch's:
+	// a branch does not raise its own budget or timeout
+	roles, err := manifest.LoadRoles(root)
+	if err != nil {
+		return Result{}, err
+	}
+	def := roles.RoleDefaults(role.Slug)
+	if strings.TrimSpace(opt.Provider) == "" {
+		opt.Provider = def.Provider
+	}
 	prov, err := pickProvider(opt.Provider)
 	if err != nil {
 		return Result{}, err
 	}
+	avisos := aplicarDefaults(prov, def, &opt)
 	steps := 5
 	if role.Isolated {
 		steps = 6 // el arbol ciego se arma y se prueba: eso es un paso, no una nota al pie
@@ -176,6 +187,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		opt.Started() // el primer registro ya esta en disco: quien espera puede nombrarlo
 	}
 	fmt.Fprintf(w, "hoom agent: rol %s (%s) en %s\n", role.Slug, prov.Name(), displayDir(opt.Task))
+	for _, a := range avisos {
+		fmt.Fprintf(w, "  aviso: %s\n", a)
+	}
 	// Lo local queda fuera de Git ANTES de la primera foto: una regla que
 	// hoom agrega durante el run se le imputaria al rol, y una que falta deja
 	// telemetria sin trackear bloqueando el cierre de la tarea.
@@ -425,6 +439,46 @@ func pickProvider(name string) (providers.Provider, error) {
 	return nil, fmt.Errorf("ningun provider instalado soporta system_prompt, que 'hoom agent' exige para dar el contrato del rol (mira 'hoom providers')")
 }
 
+// aplicarDefaults fills what opt did not ask with hoom.yaml's values for the
+// role (the order of the values: the command, then hoom.yaml, then the
+// provider's own), and drops what the provider cannot take. The envelope is
+// strict, so an effort the provider ignores would refuse the run: it is
+// dropped with the usual warning instead, before the run exists. It returns
+// the warnings to print.
+func aplicarDefaults(prov providers.Provider, def manifest.RoleDefaults, opt *Options) []string {
+	caps := prov.Capabilities()
+	var avisos []string
+	if strings.TrimSpace(opt.Model) == "" {
+		opt.Model = def.Model
+	}
+	if strings.TrimSpace(opt.Effort) == "" {
+		opt.Effort = def.Effort
+	}
+	if opt.Timeout <= 0 {
+		opt.Timeout = def.Timeout
+	}
+	if !opt.BudgetSet && def.BudgetUSD != nil && *def.BudgetUSD > 0 {
+		if caps.Budget {
+			opt.BudgetUSD = *def.BudgetUSD
+		} else {
+			avisos = append(avisos, fmt.Sprintf("%s no acepta tope: agents.%s.budget_usd no se aplica", prov.Name(), opt.roleSlug()))
+		}
+	}
+	if strings.TrimSpace(opt.Effort) != "" && !caps.Effort {
+		avisos = append(avisos, fmt.Sprintf("%s no soporta %s; se ignora", prov.Name(), providers.FieldEffort))
+		opt.Effort = ""
+	}
+	return avisos
+}
+
+// roleSlug is the role of opt as hoom.yaml names it.
+func (o Options) roleSlug() string {
+	if r, err := agents.Lookup(o.Role); err == nil {
+		return r.Slug
+	}
+	return o.Role
+}
+
 // startOptions translates the envelope's decision into a run request. Strict
 // is not a flag here: without its contract as system prompt there is no role
 // to verify, and a silent degradation would be a lie told with evidence.
@@ -433,6 +487,7 @@ func startOptions(prov providers.Provider, role agents.Role, contract string, op
 		Provider: prov.Name(), Prompt: opt.Prompt, Task: opt.Task, Role: role.Slug,
 		ResumeID: opt.ResumeID, Model: opt.Model, SystemPrompt: contract,
 		MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
+		Effort: opt.Effort, Timeout: opt.Timeout,
 		// The envelope is unattended by definition: no human answers the
 		// CLI's prompts, so the role gets its tools up front and the scope
 		// gate, not a denied Write, is what bounds it.

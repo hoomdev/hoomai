@@ -11,27 +11,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/envelope"
-	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/itemcmd"
-	"github.com/hoomdev/hoomai/internal/reviewcmd"
-	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/lanzar"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 )
 
@@ -154,218 +149,46 @@ type launchReq struct {
 	BudgetUSD *float64
 	Pedido    string
 	Pilot     bool   // the belt launched it: its record says so
-	Effort    string // reasoning effort; only pedir-reviewer takes it
+	Effort    string // reasoning effort; every role action takes it
 }
 
-// start is the ONE way the Studio launches a role: the endpoint and the belt
-// go through the same checks, in the contract's order. It answers when the
-// envelope's first record is on disk (or with the HTTP code of why not), or
-// when whoever asked (ctx) is gone: the job then goes on by itself.
+// start is the Studio's skin of the ONE launch function (lanzar.Lanzar): the
+// endpoint and the belt go through the same checks as the card verbs of the
+// terminal. Its own in-memory lock goes first (a launch the belt and a tab
+// race for), then the card's file lock, which another process sees too. It
+// answers when the envelope's first record is on disk (or with the HTTP code
+// of why not), or when whoever asked (ctx) is gone: the job then goes on by
+// itself, and the belt runs after it.
 func (s *Server) start(ctx context.Context, slug string, req launchReq) (launchResp, int, error) {
-	fail := func(code int, format string, args ...any) (launchResp, int, error) {
-		return launchResp{}, code, fmt.Errorf(format, args...)
+	t, err := lanzar.Lanzar(ctx, lanzar.Params{
+		Root: s.m.Dir, Manifest: s.m, Runs: s.runs, Grupo: &s.launches, ProviderExplicito: true,
+		Candado: s.candado,
+		Despues: func(antes boardcmd.Card, envelopeID string, log io.Writer) { s.belt(slug, antes, envelopeID, log) },
+	}, slug, lanzar.Request{Action: req.Action, Provider: req.Provider, Model: req.Model, Effort: req.Effort,
+		BudgetUSD: req.BudgetUSD, Pedido: req.Pedido, Pilot: req.Pilot})
+	if err != nil {
+		var r *lanzar.Rechazo
+		if errors.As(err, &r) {
+			return launchResp{}, r.Code, r
+		}
+		return launchResp{}, http.StatusInternalServerError, err
 	}
-	// Un lanzamiento por tarjeta a la vez. El candado se toma ANTES de derivar
-	// la tarjeta y lo suelta el trabajo cuando su sobre ya escribio el
-	// registro, o cuando termina sin escribirlo: el segundo pedido o encuentra
-	// el candado, o encuentra la tarjeta en curso. No lo suelta el handler:
-	// el pedido se puede cancelar antes (hallazgo 0cf41f).
+	return launchResp{EnvelopeID: t.EnvelopeID, Role: t.Role, Provider: t.Provider, TaskStarted: t.TaskStarted}, 0, nil
+}
+
+// candado is the Studio's in-memory launch lock of a card.
+func (s *Server) candado(slug string) (func(), bool) {
 	s.launchMu.Lock()
+	defer s.launchMu.Unlock()
 	if s.launching[slug] {
-		s.launchMu.Unlock()
-		return fail(http.StatusConflict, "ya se esta lanzando un trabajo en esta tarjeta")
+		return nil, false
 	}
 	s.launching[slug] = true
-	s.launchMu.Unlock()
-	t := &trabajo{soltar: func() {
+	return func() {
 		s.launchMu.Lock()
 		delete(s.launching, slug)
 		s.launchMu.Unlock()
-	}, listo: make(chan struct{}, 1), fin: make(chan finDeTrabajo, 1)}
-	// hasta que el trabajo arranca, el candado es de este handler: cualquier
-	// salida antes lo suelta
-	defer func() {
-		if !t.enMarcha {
-			t.soltarCandado()
-		}
-	}()
-	c, err := boardcmd.CardFor(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), slug, time.Now().UTC())
-	if err != nil {
-		return fail(http.StatusNotFound, "%s", err.Error())
-	}
-	a, ok := c.Action(req.Action)
-	if !ok {
-		return fail(http.StatusConflict, "la tarjeta ya no esta donde la viste: ahora esta en %s (%s)", c.ColumnName, c.Plain)
-	}
-	if !a.Enabled {
-		return fail(http.StatusConflict, "%s", a.Why)
-	}
-	var opt *boardcmd.ProviderOption
-	for i := range a.Providers {
-		if a.Providers[i].Name == strings.TrimSpace(req.Provider) {
-			opt = &a.Providers[i]
-		}
-	}
-	if opt == nil {
-		return fail(http.StatusBadRequest, "el proveedor %q no es una opcion de esta accion", req.Provider)
-	}
-	if !opt.OK {
-		return fail(http.StatusConflict, "%s", opt.Why)
-	}
-	review := a.Role == "reviewer"
-	pedido := strings.TrimSpace(req.Pedido)
-	switch {
-	case !review && strings.TrimSpace(req.Effort) != "":
-		return fail(http.StatusBadRequest, "effort solo aplica a pedir-reviewer")
-	case review && pedido != "":
-		return fail(http.StatusBadRequest, "la revision arma su propio pedido: deja el pedido vacio")
-	case !review && pedido == "":
-		return fail(http.StatusBadRequest, "falta el pedido: lo que el rol tiene que hacer")
-	case !review && agentcmd.IsPlaceholder(pedido):
-		return fail(http.StatusBadRequest, "el pedido %q no dice nada: escribi lo que el rol tiene que hacer", req.Pedido)
-	}
-	budget, code, err := budgetFor(c, a, *opt, req.BudgetUSD)
-	if err != nil {
-		return launchResp{}, code, err
-	}
-
-	// y ningun run activo en su arbol, de ningun proceso: dos roles en el
-	// mismo arbol se pisan
-	if dir, err := runcmd.TaskDir(s.m.Dir, slug); err == nil {
-		if id, busy := s.runs.Busy(dir); busy {
-			return fail(http.StatusConflict, "ya hay un run activo (%s) en el espacio de trabajo de la tarjeta: espera a que termine", id)
-		}
-	}
-
-	// the log first: a launch that cannot write it fails before creating
-	// anything (finding dda1cc)
-	id := envelope.NewID()
-	logPath := filepath.Join(s.m.Dir, ".hoom", envelope.DirName, id+".log")
-	logFile, err := openLog(s.m.Dir, logPath)
-	if err != nil {
-		return fail(http.StatusInternalServerError, "%s", err.Error())
-	}
-	// a card in Backlog without a workspace gets its task first: inside the
-	// job, so a request canceled meanwhile does not wait for git (finding
-	// 0cf41f)
-	crearTarea := c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog
-	var tareaCreada atomic.Bool
-
-	spec := ".hoom/specs/" + slug + ".md"
-
-	t.enMarcha = true
-	s.launches.Add(1)
-	go func() {
-		defer s.launches.Done()
-		defer logFile.Close()
-		var f finDeTrabajo
-		if crearTarea {
-			if f.err = taskcmd.Start(s.m.Dir, slug, s.m.BaseBranch); f.err == nil {
-				tareaCreada.Store(true)
-			}
-		}
-		switch {
-		case f.err != nil:
-			// la tarea no se pudo crear: no corre nada, y el 409 lo dice
-		case review:
-			var res reviewcmd.Result
-			res, f.err = reviewcmd.Run(s.m.Dir, s.m.BaseBranch, reviewcmd.Options{
-				Provider: opt.Name, Task: slug, Spec: spec, Model: req.Model, Effort: req.Effort, BudgetUSD: budget,
-				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
-			}, logFile)
-			f.nota = res.Nota
-		default:
-			o := agentcmd.Options{
-				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: req.Model,
-				BudgetUSD: budget, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
-			}
-			if !boardcmd.WritesSpecs(a.Role) {
-				o.Spec = spec
-			}
-			if a.ID == boardcmd.ActReanudar {
-				o.ResumeID = a.ResumeID
-			}
-			_, f.err = agentcmd.Run(s.m.Dir, s.m.BaseBranch, o, logFile)
-		}
-		if !t.arranco.Load() {
-			// termino antes de su primer registro: no corrio nada, y no
-			// queda nada (tampoco su log)
-			logFile.Close()
-			os.Remove(logPath)
-		}
-		t.termino(f)
-		// la cinta: despues de un trabajo que lanzo el Studio, y solo si
-		// ese trabajo llego a dejar su registro
-		s.belt(slug, c, id, logFile)
-	}()
-
-	ok202 := func() (launchResp, int, error) {
-		return launchResp{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: tareaCreada.Load()}, 0, nil
-	}
-	select {
-	case <-t.listo:
-		return ok202()
-	case f := <-t.fin:
-		if f.arranco {
-			// llego a su primer registro y termino antes de esta respuesta:
-			// corrio, y su registro dice como (hallazgo 17225a)
-			return ok202()
-		}
-		// el error, o la nota de una review que se decidio sin pasadas: lo
-		// que el resultado dice, no la ultima linea de su texto (hallazgo
-		// fdccff)
-		msg := f.nota
-		if f.err != nil {
-			msg = f.err.Error()
-		}
-		if msg == "" {
-			msg = "el trabajo no arranco"
-		}
-		return fail(http.StatusConflict, "%s", msg)
-	case <-ctx.Done():
-		// quien pidio ya no espera: el trabajo sigue (o termina) solo, y la
-		// tarjeta lo muestra (hallazgo 0cf41f)
-		return fail(http.StatusRequestTimeout, "el pedido se cancelo antes de que el trabajo arrancara; la tarjeta muestra como sigue")
-	}
-}
-
-// trabajo is one launch's job as the handler sees it (finding a46d0c). Until
-// it is enMarcha the card's launch lock belongs to the handler, which
-// releases it on any early exit; from then on the job releases it, once,
-// when its envelope writes the first record (empezo) or when it ends without
-// writing it (termino). listo and fin tell the handler which of the two
-// happened; fin also says whether the first record came before the end.
-type trabajo struct {
-	soltar   func() // releases the card's launch lock
-	soltado  sync.Once
-	enMarcha bool
-	arranco  atomic.Bool
-	listo    chan struct{}
-	fin      chan finDeTrabajo
-}
-
-// finDeTrabajo is how a job ended: its error, or the note of a review
-// decided without passes, and whether it reached its first record.
-type finDeTrabajo struct {
-	err     error
-	nota    string
-	arranco bool
-}
-
-func (t *trabajo) soltarCandado() { t.soltado.Do(t.soltar) }
-
-// empezo is the envelope's Started: its first record is on disk.
-func (t *trabajo) empezo() {
-	t.arranco.Store(true)
-	t.soltarCandado()
-	t.listo <- struct{}{}
-}
-
-// termino closes the job with how it ended.
-func (t *trabajo) termino(f finDeTrabajo) {
-	f.arranco = t.arranco.Load()
-	t.soltarCandado()
-	t.fin <- f
+	}, true
 }
 
 // belt is the autopilot of a card with `auto: hasta-humano`: a conveyor
@@ -405,64 +228,7 @@ func (s *Server) belt(slug string, before boardcmd.Card, envelopeID string, log 
 		fmt.Fprintf(log, "piloto automatico: no pudo lanzar al %s: %s\n", d.Role, err)
 		return
 	}
-	fmt.Fprintf(log, "piloto automatico: pide al %s con %s (%s USD): sobre %s\n", d.Role, d.Provider, usd(budget), resp.EnvelopeID)
-}
-
-// budgetFor resolves the budget of a launch against the provider and what
-// is left of the card's. 0 = no cap.
-func budgetFor(c boardcmd.Card, a boardcmd.Action, o boardcmd.ProviderOption, asked *float64) (float64, int, error) {
-	if !o.Budget {
-		if asked != nil {
-			return 0, http.StatusBadRequest, fmt.Errorf("%s no acepta tope de presupuesto: deja el presupuesto vacio", o.Name)
-		}
-		return 0, 0, nil
-	}
-	if asked == nil {
-		if a.BudgetUSD == nil {
-			return 0, 0, nil
-		}
-		return *a.BudgetUSD, 0, nil
-	}
-	v := *asked
-	if math.IsNaN(v) || math.IsInf(v, 0) || !(v > 0) {
-		return 0, http.StatusBadRequest, fmt.Errorf("el presupuesto tiene que ser un numero mayor que 0 (vacio = %s)", sinTope(a))
-	}
-	if v < o.MinBudgetUSD {
-		return 0, http.StatusConflict, fmt.Errorf("%s necesita al menos %s USD por run", o.Name, usd(o.MinBudgetUSD))
-	}
-	if left := c.Spend.RemainingUSD; left != nil {
-		if a.Role == "reviewer" && v*boardcmd.ReviewLenses > *left {
-			return 0, http.StatusConflict, fmt.Errorf("la revision puede usar %d lentes y %d veces %s USD supera lo que queda de la tarjeta (%s USD)",
-				boardcmd.ReviewLenses, boardcmd.ReviewLenses, usd(v), usd(*left))
-		}
-		if v > *left {
-			return 0, http.StatusConflict, fmt.Errorf("el presupuesto pedido (%s USD) supera lo que queda de la tarjeta (%s USD)", usd(v), usd(*left))
-		}
-	}
-	return v, 0, nil
-}
-
-func sinTope(a boardcmd.Action) string {
-	if a.BudgetUSD == nil {
-		return "sin tope"
-	}
-	return "lo que queda de la tarjeta"
-}
-
-func usd(v float64) string {
-	s := fmt.Sprintf("%.4f", v)
-	s = strings.TrimRight(s, "0")
-	return strings.TrimSuffix(s, ".")
-}
-
-// openLog creates the envelope's text output next to its record, in the
-// directory hoom keeps out of git.
-func openLog(root, path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
-	}
-	hoomfs.EnsureIgnored(root, envelope.DirName)
-	return os.Create(path)
+	fmt.Fprintf(log, "piloto automatico: pide al %s con %s (%s USD): sobre %s\n", d.Role, d.Provider, lanzar.USD(budget), resp.EnvelopeID)
 }
 
 // approveCard is "Aprobar spec" from the card: `hoom spec approve` run in

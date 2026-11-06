@@ -704,7 +704,12 @@ func (m *Manager) liveElsewhere(id string, lastTS time.Time) bool {
 	if provider(meta) {
 		return true
 	}
-	if !lastTS.IsZero() && time.Since(lastTS) > m.Timeout+5*time.Minute {
+	limite := m.Timeout
+	if meta.TimeoutS > 0 {
+		// the run's own bound: a run of 2 h is not dead at 35 min
+		limite = time.Duration(meta.TimeoutS) * time.Second
+	}
+	if !lastTS.IsZero() && time.Since(lastTS) > limite+5*time.Minute {
 		return false // too old: a live PID may be another process by now
 	}
 	return alive(meta.PID)
@@ -980,6 +985,7 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	r.meta = Meta{
 		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
 		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1, PID: os.Getpid(),
+		TimeoutS: int(m.timeoutOf(opts) / time.Second),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
 	// the sidecar is how another process sees this run: without it the run
@@ -1205,7 +1211,8 @@ func (m *Manager) Wait(id string) Run {
 
 // execute runs ONE subprocess invocation of the provider and settles state.
 func (m *Manager) execute(r *run, inv providers.Invocation) {
-	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
+	timeout := m.timeoutOf(r.opts)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	m.mu.Lock()
 	r.cancel = cancel
 	m.mu.Unlock()
@@ -1294,6 +1301,10 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	normalize := r.normalize
 	var wg sync.WaitGroup
 	var descartadas atomic.Int64
+	// ultimo is when the provider last narrated in this invocation (0 =
+	// never): the timeout's message depends on it
+	var ultimo atomic.Int64
+	inicio := time.Now()
 	scan := func(src io.Reader, isErr bool) {
 		defer wg.Done()
 		fuente := "stdout"
@@ -1306,11 +1317,13 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		lineas(src, MaxLinea, func(line string) {
 			if isErr {
 				if strings.TrimSpace(line) != "" {
+					ultimo.Store(time.Now().UnixNano())
 					m.append(r, Event{TS: time.Now().UTC(), Kind: "text", Detail: "stderr: " + line})
 				}
 				return
 			}
 			for _, ev := range normalize(line) {
+				ultimo.Store(time.Now().UnixNano())
 				m.append(r, ev)
 			}
 		}, func(n int) {
@@ -1331,7 +1344,7 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
 		status, exit = StatusError, -1
-		detail = fmt.Sprintf("timeout tras %s (¿la CLI espera un permiso interactivo? preconfigura sus permisos headless)", m.Timeout)
+		detail = detalleTimeout(timeout, inicio, ultimo.Load(), r.opts.Role)
 	case m.wasCanceled(r):
 		status, exit = StatusCanceled, -1
 		detail = "cancelado por el operador"
@@ -1366,6 +1379,59 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		detail = detalleLogRoto(r.info.ID, lerr)
 	}
 	m.settle(r, status, exit, detail)
+}
+
+// timeoutOf is the bound of each invocation of a run with opts: its own, or
+// the Manager's.
+func (m *Manager) timeoutOf(opts StartOptions) time.Duration {
+	if opts.Timeout > 0 {
+		return opts.Timeout
+	}
+	return m.Timeout
+}
+
+// detalleTimeout says why a run's time ran out, from its last narration: a
+// CLI that narrated in the last VentanaNarrando was working, not waiting for
+// a permission, and the action is a longer timeout (where it is set depends
+// on the role) or a smaller request.
+func detalleTimeout(timeout time.Duration, inicio time.Time, ultimo int64, role string) string {
+	silencio := time.Since(inicio)
+	if ultimo != 0 {
+		silencio = time.Since(time.Unix(0, ultimo))
+	}
+	if ultimo != 0 && silencio < VentanaNarrando {
+		donde := "--timeout o agents." + role + ".timeout en hoom.yaml"
+		switch role {
+		case "":
+			donde = "--timeout" // hoom run: no role, no hoom.yaml key
+		case "reviewer":
+			donde = "--timeout o review.timeout en hoom.yaml"
+		}
+		return fmt.Sprintf("timeout tras %s: la CLI seguia narrando (ultimo evento hace %ds), no esperaba un permiso. Accion: subi el tiempo limite (%s) o pedi menos por run",
+			Duracion(timeout), int(silencio/time.Second), donde)
+	}
+	return fmt.Sprintf("timeout tras %s sin narracion desde hace %s: la CLI puede estar esperando un permiso interactivo. Accion: preconfigura sus permisos headless",
+		Duracion(timeout), Duracion(silencio))
+}
+
+// Duracion renders a duration the way hoom prints a timeout: 45m, 1h30m,
+// 2h, 30s (to the second).
+func Duracion(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d <= 0 {
+		return "0s"
+	}
+	out := ""
+	if h := d / time.Hour; h > 0 {
+		out += fmt.Sprintf("%dh", h)
+	}
+	if m := (d % time.Hour) / time.Minute; m > 0 {
+		out += fmt.Sprintf("%dm", m)
+	}
+	if s := (d % time.Minute) / time.Second; s > 0 {
+		out += fmt.Sprintf("%ds", s)
+	}
+	return out
 }
 
 func (m *Manager) wasCanceled(r *run) bool {

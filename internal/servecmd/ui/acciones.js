@@ -210,12 +210,13 @@ function dialogoRol(c, a) {
     <div class="fld"><label for="acc-prov">Provider</label>
       <select id="acc-prov"${reanuda ? " disabled" : ""}>${opciones}</select></div>
     <div class="fld"><label for="acc-model">Modelo</label>
-      <input id="acc-model" placeholder="${revision ? "vacío: el de hoom.yaml o el del CLI" : "vacío: el que usa el CLI por defecto"}"></div>
-    ${revision ? `<div class="fld"><label for="acc-effort">Esfuerzo</label>
-      <input id="acc-effort" placeholder="vacío: el de hoom.yaml o el del CLI"></div>` : ""}
+      <input id="acc-model" value="${esc(a.model || "")}" placeholder="vacío: el que usa el CLI por defecto"></div>
+    <div class="fld"><label for="acc-effort">Esfuerzo</label>
+      <input id="acc-effort" value="${esc(a.effort || "")}" placeholder="vacío: el que usa el CLI por defecto"></div>
     <div class="fld"><label for="acc-budget">Presupuesto en USD</label>
       <input id="acc-budget" type="number" min="0" step="0.1" value="${a.budget_usd != null ? esc(String(a.budget_usd)) : ""}" placeholder="vacío: sin tope"></div>
     <div class="aviso" id="acc-budgetnote"></div>
+    <div class="hint" id="acc-timeout">${esc(tiempoLimite(a.timeout_s))}</div>
     ${revision ? "" : `<div class="fld"><label for="acc-pedido">Pedido</label><textarea id="acc-pedido">${esc(a.pedido)}</textarea></div>`}`;
   dialogo(`${etiquetaAccion(a)} · ${c.item.titulo}`, html, async () => {
     const budget = $("acc-budget");
@@ -226,7 +227,7 @@ function dialogoRol(c, a) {
       model: $("acc-model").value.trim(),
       budget_usd: valor,
       pedido: revision ? "" : $("acc-pedido").value,
-      effort: revision ? $("acc-effort").value.trim() : "",
+      effort: $("acc-effort").value.trim(),
     });
     return ACC_NORMAL.empezo(r.role || a.role);
   }, "Lanzar");
@@ -248,6 +249,14 @@ function dialogoRol(c, a) {
   };
   $("acc-prov").addEventListener("change", alCambiar);
   alCambiar();
+}
+
+// tiempoLimite is the line under the budget: the timeout the launch takes
+// (hoom.yaml's, or hoom's 30 minutes). The Studio shows it; it is changed in
+// hoom.yaml or with --timeout.
+function tiempoLimite(s) {
+  const min = Math.round((s || 1800) / 60);
+  return min === 30 && (s || 1800) === 1800 ? "tiempo limite: 30 min (el de hoom)" : `tiempo limite: ${min} min`;
 }
 
 /* ---------- las firmas: aprobar e integrar ---------- */

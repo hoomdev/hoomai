@@ -17,6 +17,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/live"
+	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
@@ -138,6 +139,33 @@ type gatherer struct {
 	// vistas: the fallas already kept, so recording one is constant time
 	// however many a degraded tree reports (findings 83b100, 68b1e2)
 	vistas map[string]bool
+	// defaults: the roles' launch values of the PROJECT's hoom.yaml (never a
+	// card branch's), read once per gatherer
+	defaults     map[string]manifest.RoleDefaults
+	defaultsRead bool
+}
+
+// roleDefaults reads agents: and review: of the project's hoom.yaml once.
+// One it cannot read is said once, and the cards propose today's values.
+func (g *gatherer) roleDefaults() map[string]manifest.RoleDefaults {
+	if g.defaultsRead {
+		return g.defaults
+	}
+	g.defaultsRead = true
+	m, err := manifest.LoadRoles(g.root)
+	if err != nil {
+		g.fallar("no se pudieron leer los valores por rol de " + manifest.FileName + ": " + err.Error())
+		return nil
+	}
+	out := map[string]manifest.RoleDefaults{}
+	for role := range m.Agents {
+		out[role] = m.RoleDefaults(role)
+	}
+	if m.Review != nil {
+		out["reviewer"] = m.RoleDefaults("reviewer")
+	}
+	g.defaults = out
+	return out
 }
 
 // fallar records a source the gatherer could not read, once. The message
@@ -539,6 +567,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	ev.Uncommitted = g.uncommitted(ev, t, dir, cardVerdicts, cardFindings)
 	ev.Envelopes, ev.Runs = g.telemetry(s, dir)
 	ev.Providers = g.installed()
+	ev.Defaults = g.roleDefaults()
 	ev.Signer = t.identity()
 	return ev, dir, t
 }

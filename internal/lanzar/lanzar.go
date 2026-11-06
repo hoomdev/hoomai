@@ -10,16 +10,26 @@ package lanzar
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"math"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/boardcmd"
+	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/valores"
 )
 
@@ -59,6 +69,10 @@ type Params struct {
 	// Grupo, when given, counts the job's goroutine (the Studio waits for its
 	// launches with it).
 	Grupo *sync.WaitGroup
+	// ProviderExplicito: the skin always names the provider (the Studio's
+	// dialog), so an empty one is not an option of the action; false = ""
+	// takes the action's default (the terminal).
+	ProviderExplicito bool
 }
 
 // Rechazo is why a launch did not happen: the same motive for every skin, and
@@ -79,6 +93,8 @@ type Trabajo struct {
 	TaskStarted bool
 	Valores     valores.Elegidos // the values it was launched with
 	fin         chan Fin
+	once        sync.Once
+	final       Fin
 }
 
 // Fin is how a job ended.
@@ -90,9 +106,10 @@ type Fin struct {
 	Arranco bool              // it reached its first record
 }
 
-// Wait blocks until the job ends.
+// Wait blocks until the job ends. It can be called more than once.
 func (t *Trabajo) Wait() Fin {
-	panic("sin implementar")
+	t.once.Do(func() { t.final = <-t.fin })
+	return t.final
 }
 
 // Candado is the path of the card's launch lock: a file lock in
@@ -105,12 +122,409 @@ func Candado(root, slug string) string {
 // req asks, else what the action proposes (which already applied hoom.yaml),
 // each with its origin. The card verbs print them before launching.
 func Valores(c boardcmd.Card, a boardcmd.Action, req Request) valores.Elegidos {
-	panic("sin implementar")
+	e := valores.Elegidos{Model: a.Model, Effort: a.Effort, Origen: a.Origen}
+	if o, ok := defaultOption(a); ok {
+		e.Provider = o.Name
+	}
+	if a.BudgetUSD != nil {
+		v := *a.BudgetUSD
+		e.BudgetUSD = &v
+	}
+	e.Timeout = time.Duration(a.TimeoutS) * time.Second
+	if e.Timeout <= 0 {
+		e.Timeout, e.Origen.Timeout = valores.DefaultTimeout, valores.OrigenProvider
+	}
+	if p := strings.TrimSpace(req.Provider); p != "" {
+		e.Provider, e.Origen.Provider = p, valores.OrigenComando
+	}
+	if m := strings.TrimSpace(req.Model); m != "" {
+		e.Model, e.Origen.Model = m, valores.OrigenComando
+	}
+	if ef := strings.TrimSpace(req.Effort); ef != "" {
+		e.Effort, e.Origen.Effort = ef, valores.OrigenComando
+	}
+	if req.Timeout > 0 {
+		e.Timeout, e.Origen.Timeout = req.Timeout, valores.OrigenComando
+	}
+	if req.BudgetUSD != nil {
+		v := *req.BudgetUSD
+		e.BudgetUSD, e.Origen.BudgetUSD = &v, valores.OrigenComando
+	} else if o, ok := optionOf(a, e.Provider); ok && !o.Budget {
+		// a provider without a cap takes none: the proposal does not travel
+		e.BudgetUSD, e.Origen.BudgetUSD = nil, valores.OrigenProvider
+	}
+	// an action derived elsewhere (no origins): what it carries is the card's
+	fill := func(origen *string, tiene bool) {
+		if *origen == "" {
+			*origen = valores.OrigenProvider
+			if tiene {
+				*origen = valores.OrigenTarjeta
+			}
+		}
+	}
+	fill(&e.Origen.Provider, e.Provider != "")
+	fill(&e.Origen.Model, e.Model != "")
+	fill(&e.Origen.Effort, e.Effort != "")
+	fill(&e.Origen.BudgetUSD, e.BudgetUSD != nil)
+	fill(&e.Origen.Timeout, false)
+	return e
+}
+
+// defaultOption is the provider the action proposes.
+func defaultOption(a boardcmd.Action) (boardcmd.ProviderOption, bool) {
+	for _, o := range a.Providers {
+		if o.Default {
+			return o, true
+		}
+	}
+	return boardcmd.ProviderOption{}, false
+}
+
+// optionOf is the action's option for the provider name.
+func optionOf(a boardcmd.Action, name string) (boardcmd.ProviderOption, bool) {
+	for _, o := range a.Providers {
+		if o.Name == name {
+			return o, true
+		}
+	}
+	return boardcmd.ProviderOption{}, false
+}
+
+// trabajo is one launch's job as Lanzar sees it (finding a46d0c). Until it
+// is enMarcha the card's launch lock belongs to Lanzar, which releases it on
+// any early exit; from then on the job releases it, once, when its envelope
+// writes the first record (empezo) or when it ends without writing it
+// (termino). listo and fin say which of the two happened; fin also says
+// whether the first record came before the end.
+type trabajo struct {
+	soltar   func() // releases the card's launch locks
+	soltado  sync.Once
+	enMarcha bool
+	arranco  atomic.Bool
+	listo    chan struct{}
+	fin      chan Fin
+}
+
+func (t *trabajo) soltarCandado() { t.soltado.Do(t.soltar) }
+
+// empezo is the envelope's Started: its first record is on disk.
+func (t *trabajo) empezo() {
+	t.arranco.Store(true)
+	t.soltarCandado()
+	t.listo <- struct{}{}
+}
+
+// termino closes the job with how it ended.
+func (t *trabajo) termino(f Fin) {
+	f.Arranco = t.arranco.Load()
+	t.soltarCandado()
+	t.fin <- f
+}
+
+// tomarCandados takes the skin's lock and then the card's file lock: the
+// second launch of the card, from this process or another, is refused with
+// the same motive.
+func tomarCandados(p Params, slug string) (func(), error) {
+	soltarMem := func() {}
+	if p.Candado != nil {
+		s, ok := p.Candado(slug)
+		if !ok {
+			return nil, &Rechazo{Code: http.StatusConflict, Motivo: MsgLanzando}
+		}
+		soltarMem = s
+	}
+	soltarArchivo, err := hoomfs.Lock(Candado(p.Root, slug), 0)
+	if err != nil {
+		soltarMem()
+		if errors.Is(err, hoomfs.ErrLocked) {
+			return nil, &Rechazo{Code: http.StatusConflict, Motivo: MsgLanzando}
+		}
+		return nil, &Rechazo{Code: http.StatusInternalServerError, Motivo: "no pude tomar el candado de la tarjeta: " + err.Error()}
+	}
+	return func() {
+		soltarArchivo()
+		soltarMem()
+	}, nil
 }
 
 // Lanzar launches req on the card slug. It answers when the envelope's first
 // record is on disk, with a *Rechazo when the launch did not happen, or when
 // ctx is done (the job then goes on by itself).
 func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, error) {
-	panic("sin implementar")
+	fail := func(code int, format string, args ...any) (*Trabajo, error) {
+		return nil, &Rechazo{Code: code, Motivo: fmt.Sprintf(format, args...)}
+	}
+	m := p.Manifest
+	if m == nil {
+		m = &manifest.Manifest{Dir: p.Root}
+	}
+	// Un lanzamiento por tarjeta a la vez, de cualquier proceso. El candado
+	// se toma ANTES de derivar la tarjeta y lo suelta el trabajo cuando su
+	// sobre ya escribio el registro, o cuando termina sin escribirlo: el
+	// segundo pedido o encuentra el candado, o encuentra la tarjeta en curso.
+	// No lo suelta quien pidio: el pedido se puede cancelar antes (hallazgo
+	// 0cf41f).
+	soltar, err := tomarCandados(p, slug)
+	if err != nil {
+		return nil, err
+	}
+	t := &trabajo{soltar: soltar, listo: make(chan struct{}, 1), fin: make(chan Fin, 1)}
+	// hasta que el trabajo arranca, el candado es de Lanzar: cualquier
+	// salida antes lo suelta
+	defer func() {
+		if !t.enMarcha {
+			t.soltarCandado()
+		}
+	}()
+	c, err := boardcmd.CardFor(p.Root, m.BaseBranch, m.FindingsBlockOn(), slug, time.Now().UTC())
+	if err != nil {
+		return fail(http.StatusNotFound, "%s", err.Error())
+	}
+	a, ok := c.Action(req.Action)
+	if !ok {
+		return fail(http.StatusConflict, "la tarjeta ya no esta donde la viste: ahora esta en %s (%s)", c.ColumnName, c.Plain)
+	}
+	if !a.Enabled {
+		return fail(http.StatusConflict, "%s", a.Why)
+	}
+	if p.ProviderExplicito && strings.TrimSpace(req.Provider) == "" {
+		return fail(http.StatusBadRequest, "el proveedor %q no es una opcion de esta accion", "")
+	}
+	// in the contract's order: the provider, the pedido, the budget
+	v, opt, err := opcion(c, a, req)
+	if err != nil {
+		return nil, err
+	}
+	review := a.Role == "reviewer"
+	pedido := strings.TrimSpace(req.Pedido)
+	switch {
+	case review && pedido != "":
+		return fail(http.StatusBadRequest, "la revision arma su propio pedido: deja el pedido vacio")
+	case !review && pedido == "":
+		return fail(http.StatusBadRequest, "falta el pedido: lo que el rol tiene que hacer")
+	case !review && agentcmd.IsPlaceholder(pedido):
+		return fail(http.StatusBadRequest, "el pedido %q no dice nada: escribi lo que el rol tiene que hacer", req.Pedido)
+	}
+	budget, code, err := budgetFor(c, a, opt, req.BudgetUSD)
+	if err != nil {
+		return nil, &Rechazo{Code: code, Motivo: err.Error()}
+	}
+
+	// y ningun run activo en su arbol, de ningun proceso: dos roles en el
+	// mismo arbol se pisan
+	if dir, err := runcmd.TaskDir(p.Root, slug); err == nil {
+		id, busy := runcmd.Active(p.Root, dir)
+		if p.Runs != nil {
+			id, busy = p.Runs.Busy(dir)
+		}
+		if busy {
+			return fail(http.StatusConflict, "ya hay un run activo (%s) en el espacio de trabajo de la tarjeta: espera a que termine", id)
+		}
+	}
+
+	// the log first: a launch that cannot write it fails before creating
+	// anything (finding dda1cc)
+	id := envelope.NewID()
+	logPath := filepath.Join(p.Root, ".hoom", envelope.DirName, id+".log")
+	logFile, err := openLog(p.Root, logPath)
+	if err != nil {
+		return fail(http.StatusInternalServerError, "%s", err.Error())
+	}
+	out := io.Writer(logFile)
+	if p.Eco != nil {
+		out = io.MultiWriter(logFile, p.Eco)
+	}
+	// a card in Backlog without a workspace gets its task first: inside the
+	// job, so a request canceled meanwhile does not wait for git (finding
+	// 0cf41f)
+	crearTarea := c.Evidence.Source != boardcmd.SourceWorktree && c.Column == boardcmd.ColBacklog
+	var tareaCreada atomic.Bool
+
+	spec := ".hoom/specs/" + slug + ".md"
+
+	t.enMarcha = true
+	if p.Grupo != nil {
+		p.Grupo.Add(1)
+	}
+	go func() {
+		if p.Grupo != nil {
+			defer p.Grupo.Done()
+		}
+		defer logFile.Close()
+		var f Fin
+		if crearTarea {
+			if f.Err = taskcmd.Start(p.Root, slug, m.BaseBranch); f.Err == nil {
+				tareaCreada.Store(true)
+			}
+		}
+		switch {
+		case f.Err != nil:
+			// la tarea no se pudo crear: no corre nada, y el 409 lo dice
+		case review:
+			var res reviewcmd.Result
+			res, f.Err = reviewcmd.Run(p.Root, m.BaseBranch, reviewcmd.Options{
+				Provider: opt.Name, Task: slug, Spec: spec, Model: v.Model, Effort: v.Effort, BudgetUSD: budget,
+				Timeout: v.Timeout, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
+			}, out)
+			f.Nota = res.Nota
+			if f.Err == nil {
+				f.Review = &res
+			}
+		default:
+			o := agentcmd.Options{
+				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: v.Model,
+				Effort: v.Effort, Timeout: v.Timeout, BudgetUSD: budget, BudgetSet: true,
+				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
+			}
+			if !boardcmd.WritesSpecs(a.Role) {
+				o.Spec = spec
+			}
+			if a.ID == boardcmd.ActReanudar {
+				o.ResumeID = a.ResumeID
+			}
+			var res agentcmd.Result
+			res, f.Err = agentcmd.Run(p.Root, m.BaseBranch, o, out)
+			if f.Err == nil {
+				f.Agent = &res
+			}
+		}
+		if !t.arranco.Load() {
+			// termino antes de su primer registro: no corrio nada, y no
+			// queda nada (tampoco su log)
+			logFile.Close()
+			os.Remove(logPath)
+		}
+		t.termino(f)
+		if p.Despues != nil {
+			// la cinta: despues del trabajo, y ella decide si llego a dejar
+			// su registro
+			p.Despues(c, id, logFile)
+		}
+	}()
+
+	listo := func(fin *Fin) (*Trabajo, error) {
+		tr := &Trabajo{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: tareaCreada.Load(),
+			Valores: v, fin: t.fin}
+		tr.Valores.Provider, tr.Valores.BudgetUSD = opt.Name, nil
+		if budget > 0 {
+			b := budget
+			tr.Valores.BudgetUSD = &b
+		}
+		if fin != nil {
+			tr.once.Do(func() { tr.final = *fin })
+		}
+		return tr, nil
+	}
+	select {
+	case <-t.listo:
+		return listo(nil)
+	case f := <-t.fin:
+		if f.Arranco {
+			// llego a su primer registro y termino antes de esta respuesta:
+			// corrio, y su registro dice como (hallazgo 17225a)
+			return listo(&f)
+		}
+		// el error, o la nota de una review que se decidio sin pasadas: lo
+		// que el resultado dice, no la ultima linea de su texto (hallazgo
+		// fdccff)
+		msg := f.Nota
+		if f.Err != nil {
+			msg = f.Err.Error()
+		}
+		if msg == "" {
+			msg = "el trabajo no arranco"
+		}
+		return fail(http.StatusConflict, "%s", msg)
+	case <-ctx.Done():
+		// quien pidio ya no espera: el trabajo sigue (o termina) solo, y la
+		// tarjeta lo muestra (hallazgo 0cf41f)
+		return fail(http.StatusRequestTimeout, "el pedido se cancelo antes de que el trabajo arrancara; la tarjeta muestra como sigue")
+	}
+}
+
+// Comprobar says whether req's values (provider and budget) can launch
+// action a of card c, with the motive Lanzar would give: a skin that asks
+// for the pedido afterwards (the terminal's editor) asks only when they can.
+func Comprobar(c boardcmd.Card, a boardcmd.Action, req Request) error {
+	_, opt, err := opcion(c, a, req)
+	if err != nil {
+		return err
+	}
+	if _, code, err := budgetFor(c, a, opt, req.BudgetUSD); err != nil {
+		return &Rechazo{Code: code, Motivo: err.Error()}
+	}
+	return nil
+}
+
+// opcion resolves req's values and the provider option they name, which
+// has to be one with ok.
+func opcion(c boardcmd.Card, a boardcmd.Action, req Request) (valores.Elegidos, boardcmd.ProviderOption, error) {
+	v := Valores(c, a, req)
+	opt, ok := optionOf(a, v.Provider)
+	if !ok {
+		return v, opt, &Rechazo{Code: http.StatusBadRequest, Motivo: fmt.Sprintf("el proveedor %q no es una opcion de esta accion", v.Provider)}
+	}
+	if !opt.OK {
+		return v, opt, &Rechazo{Code: http.StatusConflict, Motivo: opt.Why}
+	}
+	return v, opt, nil
+}
+
+// budgetFor resolves the budget of a launch against the provider and what
+// is left of the card's. 0 = no cap.
+func budgetFor(c boardcmd.Card, a boardcmd.Action, o boardcmd.ProviderOption, asked *float64) (float64, int, error) {
+	if !o.Budget {
+		if asked != nil {
+			return 0, http.StatusBadRequest, fmt.Errorf("%s no acepta tope de presupuesto: deja el presupuesto vacio", o.Name)
+		}
+		return 0, 0, nil
+	}
+	if asked == nil {
+		if a.BudgetUSD == nil {
+			return 0, 0, nil
+		}
+		return *a.BudgetUSD, 0, nil
+	}
+	v := *asked
+	if math.IsNaN(v) || math.IsInf(v, 0) || !(v > 0) {
+		return 0, http.StatusBadRequest, fmt.Errorf("el presupuesto tiene que ser un numero mayor que 0 (vacio = %s)", sinTope(a))
+	}
+	if v < o.MinBudgetUSD {
+		return 0, http.StatusConflict, fmt.Errorf("%s necesita al menos %s USD por run", o.Name, USD(o.MinBudgetUSD))
+	}
+	if left := c.Spend.RemainingUSD; left != nil {
+		if a.Role == "reviewer" && v*boardcmd.ReviewLenses > *left {
+			return 0, http.StatusConflict, fmt.Errorf("la revision puede usar %d lentes y %d veces %s USD supera lo que queda de la tarjeta (%s USD)",
+				boardcmd.ReviewLenses, boardcmd.ReviewLenses, USD(v), USD(*left))
+		}
+		if v > *left {
+			return 0, http.StatusConflict, fmt.Errorf("el presupuesto pedido (%s USD) supera lo que queda de la tarjeta (%s USD)", USD(v), USD(*left))
+		}
+	}
+	return v, 0, nil
+}
+
+func sinTope(a boardcmd.Action) string {
+	if a.BudgetUSD == nil {
+		return "sin tope"
+	}
+	return "lo que queda de la tarjeta"
+}
+
+// USD renders an amount the way the cards say it: up to 4 decimals, no
+// trailing zeros.
+func USD(v float64) string {
+	s := fmt.Sprintf("%.4f", v)
+	s = strings.TrimRight(s, "0")
+	return strings.TrimSuffix(s, ".")
+}
+
+// openLog creates the envelope's text output next to its record, in the
+// directory hoom keeps out of git.
+func openLog(root, path string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	hoomfs.EnsureIgnored(root, envelope.DirName)
+	return os.Create(path)
 }
