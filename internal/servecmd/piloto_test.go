@@ -435,30 +435,56 @@ func TestCA416_LaCintaSeDetieneSiElWriterNoCommitea(t *testing.T) {
 	}
 }
 
-// CA-381: la cinta sobre otro tramo de la tabla. Una persona pide al
-// arquitecto desde Backlog; el spec que entrega ya tenia aprobacion, asi que
-// la tarjeta salta a Test-writer, y la cinta pide al test-writer con el
-// provider del arquitecto (claude, ok y con tope) y lo que queda (5 USD). El
-// test-writer ciego no llega a correr (su spec no esta en el commit) y
-// cierra no-entregable: la cinta se detiene ante ese rojo y lo escribe en su
-// log, con el Why del contrato.
+// spMarcaArquitecto es la marca del pedido del arquitecto de mentira: sus
+// CLIs falsos la usan para saber que les toca escribir el spec.
+const spMarcaArquitecto = "SPEC-DE-LA-CINTA"
+
+// spEscribeYGuardaSpec es el arquitecto de mentira que GUARDA lo que entrega:
+// con la marca SPEC-DE-LA-CINTA deja en su arbol el spec byte a byte igual a
+// fuente y lo commitea en su espacio de trabajo (como spEscribeCodigo commitea
+// lo del writer). Cualquier otro pedido es el del test-writer que lanza la
+// cinta: sale 1 sin tocar nada.
+func spEscribeYGuardaSpec(fuente, slug string) string {
+	spec := ".hoom/specs/" + slug + ".md"
+	return "case \"$*\" in\n*" + spMarcaArquitecto + "*) mkdir -p .hoom/specs && cp '" + fuente + "' '" + spec + "' && " +
+		"git add '" + spec + "' && git commit -qm spec || exit 1 ;;\n*) exit 1 ;;\nesac\nexit 0\n"
+}
+
+// CA-381, el tramo arquitecto -> test-writer tal como lo re-expresa CA-497
+// (verbos-de-la-tarjeta): con el spec del arquitecto GUARDADO, la cinta pide
+// al test-writer como hoy. Una persona pide al arquitecto desde Backlog; el
+// spec que entrega ya tenia aprobacion y el arquitecto lo commitea en su
+// espacio de trabajo, asi que la tarjeta salta a Test-writer con el spec en
+// lo guardado, y sin otro POST la cinta pide al test-writer con el provider
+// del arquitecto (claude, ok y con tope) y lo que queda (5 USD), con
+// "piloto": true en su registro.
+//
+// Supuesto sobre como cierra el sobre del test-writer: su CLI falso sale 1, y
+// un run con exit distinto de cero corta el sobre, que cierra no-entregable
+// (CA-143 de hoom-agent-sobre-determinista; el mismo supuesto que el writer
+// de TestCA381_UnCierreNoEntregableDetieneLaCinta). Los specs no dicen como
+// cierra un test-writer que sale 0 sin escribir ningun test, y este test no
+// lo supone. Ante ese rojo la cinta se detiene, lo escribe en el log del
+// test-writer con el Why del contrato (caso 2) y no relanza: claude corrio
+// una vez como arquitecto y una como test-writer (con el spec en el commit,
+// el arbol ciego se arma y su CLI llega a correr), y nada mas.
 func TestCA381_LaCintaPideAlTestWriterYSeDetieneAnteSuRojo(t *testing.T) {
 	f := lnPATH(t)
 	root := tbProyecto(t)
 	const slug = "desde-backlog"
 	fuente := spCartaBacklogAprobada(t, "CA-381", root, slug, spPresupuesto+spAuto)
-	spCLI(t, f, "claude", spEscribeSpec(fuente, slug), false)
+	spCLI(t, f, "claude", spEscribeYGuardaSpec(fuente, slug), false)
 	s := lnServidor(t, root, f)
 
 	r := lnAceptado(t, "CA-381", lnLaunch(t, s, slug, s.Token(),
-		lnCuerpo("pedir-arquitecto", "claude", "", nil, "Escribi el spec de la tarjeta (SPEC-DE-LA-CINTA).")))
+		lnCuerpo("pedir-arquitecto", "claude", "", nil, "Escribi el spec de la tarjeta ("+spMarcaArquitecto+").")))
 	primero := spCerrado(t, "CA-381", root, r.EnvelopeID)
 	if primero.Status != envelope.StatusDeliverable {
-		t.Fatalf("CA-381: fixture: el arquitecto que entrega el spec cierra entregable: %+v\n%s", primero, spLog(root, r.EnvelopeID))
+		t.Fatalf("CA-381: fixture: el arquitecto que entrega y guarda el spec cierra entregable: %+v\n%s", primero, spLog(root, r.EnvelopeID))
 	}
 	spPersona(t, "CA-381", root, r.EnvelopeID)
 
-	segundo := spEsperarOtro(t, "CA-381", root, "arquitecto entregable y la tarjeta en Test-writer", r.EnvelopeID)
+	segundo := spEsperarOtro(t, "CA-381", root, "arquitecto entregable, spec guardado y la tarjeta en Test-writer", r.EnvelopeID)
 	segundo = spCerrado(t, "CA-381", root, segundo.ID)
 	if segundo.Role != "test-writer" || segundo.Provider != "claude" || segundo.Task != slug {
 		t.Fatalf("CA-381: la cinta pide al test-writer de la tabla con el provider del arquitecto: %+v", segundo)
@@ -468,7 +494,7 @@ func TestCA381_LaCintaPideAlTestWriterYSeDetieneAnteSuRojo(t *testing.T) {
 	spRevisarPide(t, "CA-381", spUnaLinea(t, "CA-381", root, r.EnvelopeID), "test-writer", "claude", 5, segundo.ID)
 
 	if segundo.Status != envelope.StatusNotDeliverable {
-		t.Fatalf("CA-381: fixture: el test-writer ciego sin su spec en el commit cierra no-entregable: %+v\n%s", segundo, spLog(root, segundo.ID))
+		t.Fatalf("CA-381: fixture: el test-writer cuyo run sale 1 cierra no-entregable: %+v\n%s", segundo, spLog(root, segundo.ID))
 	}
 	const quiere = spPrefijo + "se detiene: el trabajo del test-writer no cerro entregable (no-entregable): el piloto se detiene ante un rojo"
 	l := spEsperarLinea(t, "CA-381", root, segundo.ID, "el test-writer que lanzo la cinta cerro no-entregable")
@@ -479,8 +505,70 @@ func TestCA381_LaCintaPideAlTestWriterYSeDetieneAnteSuRojo(t *testing.T) {
 	if otros := spOtros(root, r.EnvelopeID, segundo.ID); len(otros) != 0 {
 		t.Fatalf("CA-381: la cinta no relanza tras un rojo: %+v", otros)
 	}
+
+	// claude corrio una vez como arquitecto y una como el test-writer que
+	// lanzo la cinta, con el tope que propone la accion (lo que queda, 5 USD)
+	var arquitecto, testWriter [][]string
+	for _, args := range f.llamadas(t, "claude") {
+		if strings.Contains(strings.Join(args, " "), spMarcaArquitecto) {
+			arquitecto = append(arquitecto, args)
+		} else {
+			testWriter = append(testWriter, args)
+		}
+	}
+	if len(arquitecto) != 1 || len(testWriter) != 1 {
+		t.Fatalf("CA-381: con el spec guardado claude corre una vez como arquitecto y una como test-writer (la cinta no relanza): arquitecto %d, test-writer %d", len(arquitecto), len(testWriter))
+	}
+	if v, ok := lnSigue(testWriter[0], "--max-budget-usd"); !ok || v != "5" {
+		t.Fatalf("CA-381: el test-writer que lanzo la cinta corre con lo que queda (--max-budget-usd 5): %q", testWriter[0])
+	}
+}
+
+// CA-381 y CA-497 (verbos-de-la-tarjeta re-expresa el tramo arquitecto ->
+// test-writer de CA-381): el mismo arquitecto desde Backlog, pero deja el spec
+// en su espacio de trabajo SIN guardarlo. La tarjeta salta a Test-writer y
+// pedir-test-writer queda deshabilitada, porque el test-writer trabaja con lo
+// guardado. La cinta, ante esa accion deshabilitada (caso 9 de la tabla de
+// Pilot: su why), no pide al test-writer: se detiene, y el log del sobre del
+// arquitecto gana exactamente una linea del piloto,
+// "piloto automatico: se detiene: el spec tiene cambios sin guardar y el
+// test-writer trabaja con lo guardado: guarda primero". No hay sobre de
+// test-writer y claude corrio una sola vez (el arquitecto).
+func TestCA381_CA497_LaCintaSeDetieneConElSpecSinGuardar(t *testing.T) {
+	f := lnPATH(t)
+	root := tbProyecto(t)
+	const slug = "sin-guardar"
+	fuente := spCartaBacklogAprobada(t, "CA-497", root, slug, spPresupuesto+spAuto)
+	spCLI(t, f, "claude", spEscribeSpec(fuente, slug), false)
+	s := lnServidor(t, root, f)
+
+	r := lnAceptado(t, "CA-497", lnLaunch(t, s, slug, s.Token(),
+		lnCuerpo("pedir-arquitecto", "claude", "", nil, "Escribi el spec de la tarjeta ("+spMarcaArquitecto+").")))
+	primero := spCerrado(t, "CA-497", root, r.EnvelopeID)
+	if primero.Status != envelope.StatusDeliverable {
+		t.Fatalf("CA-497: fixture: el arquitecto que entrega el spec sin guardarlo cierra entregable: %+v\n%s", primero, spLog(root, r.EnvelopeID))
+	}
+	spPersona(t, "CA-497", root, r.EnvelopeID)
+
+	const why = "el spec tiene cambios sin guardar y el test-writer trabaja con lo guardado: guarda primero"
+	const quiere = spPrefijo + "se detiene: " + why
+	l := spEsperarLinea(t, "CA-497", root, r.EnvelopeID, "el arquitecto dejo el spec sin guardar")
+	lnEsperarLanzamientos(t, "CA-497", s)
+	if l != quiere || spUnaLinea(t, "CA-497", root, r.EnvelopeID) != quiere {
+		t.Fatalf("CA-497: con el spec sin guardar la cinta no pide al test-writer: se detiene y escribe\n  %q\nfue\n  %q", quiere, spLineas(root, r.EnvelopeID))
+	}
+	if otros := spOtros(root, r.EnvelopeID); len(otros) != 0 {
+		t.Fatalf("CA-497: con el spec sin guardar la cinta no lanza ningun sobre (tampoco el del test-writer): %+v", otros)
+	}
 	if n := len(f.llamadas(t, "claude")); n != 1 {
-		t.Fatalf("CA-381: solo corrio el arquitecto (el test-writer no llego a correr): claude corrio %d veces", n)
+		t.Fatalf("CA-497: con el spec sin guardar solo corre el arquitecto: claude corrio %d veces", n)
+	}
+
+	// la tarjeta quedo en Test-writer con pedir-test-writer deshabilitada
+	// por ese mismo why
+	c := spColumna(t, "CA-497", root, slug, boardcmd.ColTestWriter)
+	if a, ok := lnAccion(c, boardcmd.ActPedirTestWriter); !ok || a.Enabled || a.Why != why {
+		t.Fatalf("CA-497: con el spec sin guardar pedir-test-writer esta deshabilitada con %q: %+v (ok=%v)", why, a, ok)
 	}
 }
 
