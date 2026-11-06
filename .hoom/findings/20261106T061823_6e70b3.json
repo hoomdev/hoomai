@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061823_6e70b3",
+  "created_at": "2026-11-06T06:18:23.334143Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO: internal/tarjetacmd/tarjetacmd.go:752-755 omite siempre --timeout del comando largo del reviewer. hoom pedir reviewer acepta --timeout y lanzar.Lanzar sí pasa ese valor explícito a reviewcmd, por lo que hoom pedir reviewer --timeout 2h imprime un hoom review que usará review.timeout o 30m, no las 2h ejecutadas; el comando anunciado no es equivalente como exige CA-503.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

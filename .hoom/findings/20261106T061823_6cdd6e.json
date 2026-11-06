@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061823_6cdd6e",
+  "created_at": "2026-11-06T06:18:23.114826Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: internal/agentcmd/agentcmd.go:135 carga los defaults desde el argumento root, pero cmd/hoom/main.go:677-685 entrega m.Dir; al ejecutar hoom agent dentro de .hoom/worktrees/\u003cslug\u003e, manifest.Find elige el hoom.yaml de esa rama. Así la rama puede elegir su propio provider/model/effort/budget/timeout, incluida la subida de presupuesto o tiempo que CA-491 prohíbe.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

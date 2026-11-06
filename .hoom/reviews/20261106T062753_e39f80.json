@@ -1,0 +1,76 @@
+{
+  "id": "20261106T062753_e39f80",
+  "created_at": "2026-11-06T06:27:53.665791Z",
+  "task": "verbos-de-la-tarjeta",
+  "spec": ".hoom/specs/verbos-de-la-tarjeta.md",
+  "fingerprint": "f22e821a5a47459e",
+  "verdict_id": "2026-11-06T06-03-12Z_d81ad56b",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261106T061052_1243ff",
+    "20261106T061052_726459",
+    "20261106T061052_c5a19f",
+    "20261106T061823_4a1c25",
+    "20261106T061823_6cdd6e",
+    "20261106T061823_6e70b3",
+    "20261106T061823_896eff",
+    "20261106T061823_faff7c",
+    "20261106T061823_fbf9e5",
+    "20261106T062405_5672b8",
+    "20261106T062405_829af2",
+    "20261106T062405_a91570",
+    "20261106T062734_4cb6b0",
+    "20261106T062734_785510",
+    "20261106T062734_a0c783",
+    "20261106T062734_d6eec5"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 376565,
+  "evidence_sha256": "142cafdbd7283dc047acd630611374337af83925bb8dbb9e7ac5ac8055d82591",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 4828311,
+      "cached_input_tokens": 4646016,
+      "output_tokens": 20133,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 4089959,
+      "cached_input_tokens": 3881344,
+      "output_tokens": 23108,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 3133017,
+      "cached_input_tokens": 2953984,
+      "output_tokens": 16670,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 2078280,
+      "cached_input_tokens": 1921920,
+      "output_tokens": 10525,
+      "turns": 1
+    }
+  ],
+  "desde": "f07feff899342de334aa98b7058b6d36a7f32665",
+  "hasta": "614f07f2afe5f5159f9697291f09ce7249127d41",
+  "cobertura": "completa",
+  "base": "main"
+}

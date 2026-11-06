@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061823_4a1c25",
+  "created_at": "2026-11-06T06:18:23.4068Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/servecmd/ui/acciones.js",
+  "description": "INTRODUCIDO: internal/servecmd/ui/acciones.js:257-259 redondea timeout_s a minutos. El manifiesto acepta duraciones con segundos, por ejemplo 90s, pero el Studio muestra 2 min aunque el run corta a 90s; la UI deja de mostrar el tiempo límite efectivo que exige CA-496.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

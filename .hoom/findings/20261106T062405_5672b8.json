@@ -1,0 +1,11 @@
+{
+  "id": "20261106T062405_5672b8",
+  "created_at": "2026-11-06T06:24:05.39859Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO: internal/tarjetacmd/tarjetacmd.go:403 actualiza .hoom/cache/tarjeta con os.WriteFile directamente. La apertura trunca primero el valor anterior; un ENOSPC, fallo de I/O o caida a mitad de escritura hace que 'hoom usar' devuelva error pero pierda/corrompa la tarjeta fijada previa, sin conservar un estado recuperable.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

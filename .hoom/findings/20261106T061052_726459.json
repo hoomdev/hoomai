@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061052_726459",
+  "created_at": "2026-11-06T06:10:52.75595Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO — internal/tarjetacmd/tarjetacmd.go:742-762,1054-1058: comandoLargo presenta una linea → copiable como comando equivalente, pero usa strconv.Quote para el pedido y visible para model/effort. Ese quoting de Go usa comillas dobles y no neutraliza sustituciones de shell como $() o backticks; visible incluso deja metacaracteres sin comillas. Un pedido de item o valor de hoom.yaml como $(touch${IFS}/tmp/pwn) queda ejecutable al pegar la linea. Construir la representacion con quoting real del shell (incluidos ResumeID/model/effort/pedido) o dejar de presentarla como comando copiable.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

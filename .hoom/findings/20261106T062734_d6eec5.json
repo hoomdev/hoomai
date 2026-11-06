@@ -1,0 +1,11 @@
+{
+  "id": "20261106T062734_d6eec5",
+  "created_at": "2026-11-06T06:27:34.521791Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/valores/valores.go",
+  "description": "INTRODUCIDO — internal/valores/valores.go:74 presenta Resolver como la unica regla de precedencia, pero internal/agentcmd/agentcmd.go:145-152 y :453-476 vuelven a combinar provider/model/effort/budget/timeout, e internal/lanzar/lanzar.go:124-167 repite otra combinacion para la accion. Mantener tres implementaciones obliga a tocar varios caminos al cambiar un valor u origen y hace posible que hoom agent, Studio y los verbos diverjan; centraliza la combinacion y deja el filtrado de capacidades como una fase separada.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}
