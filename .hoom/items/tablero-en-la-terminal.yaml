@@ -1,0 +1,6 @@
+titulo: El tablero en la terminal (hoom tablero, capa 2)
+tipo: feature
+prioridad: media
+pedido: 'Spec .hoom/specs/tablero-en-la-terminal.md: TUI a pantalla completa con la lista de tarjetas y su tira de progreso, la tarjeta abierta en cinco pestanas, una tecla por accion y un formulario donde solo se escribe el pedido; cada accion ejecuta un verbo de la capa 1. Depende de verbos-de-la-tarjeta.'
+creado_por: Henry Orellana <henry.orellana@oceansbits.com>
+creado_en: 2026-11-05T22:03:24Z

@@ -1,0 +1,6 @@
+titulo: Verbos de la tarjeta (la CLI facil, capa 1)
+tipo: feature
+prioridad: alta
+pedido: 'Spec .hoom/specs/verbos-de-la-tarjeta.md: valores por rol en hoom.yaml (provider, model, effort, budget_usd, timeout), esfuerzo y tiempo limite para todos los roles, verbos hoom pedir/siguiente/aprobar/guardar/integrar/reanudar/usar sobre las acciones de la tarjeta, y el test-writer deshabilitado con el spec sin guardar.'
+creado_por: Henry Orellana <henry.orellana@oceansbits.com>
+creado_en: 2026-11-05T22:03:24Z
