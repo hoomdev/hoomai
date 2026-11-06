@@ -1,0 +1,62 @@
+{
+  "id": "20261106T182109_ffa87b",
+  "created_at": "2026-11-06T18:21:09.300241Z",
+  "task": "verbos-de-la-tarjeta",
+  "spec": ".hoom/specs/verbos-de-la-tarjeta.md",
+  "fingerprint": "e8b1a2af479a7835",
+  "verdict_id": "2026-11-06T18-01-11Z_a701a7f0",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261106T182045_998426"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 139476,
+  "evidence_sha256": "dadde89f48219c66ce213cff0de0c53ba148b243c53db680453370efe51ac267",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 642094,
+      "cached_input_tokens": 564992,
+      "output_tokens": 6450,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 1360622,
+      "cached_input_tokens": 1286784,
+      "output_tokens": 14368,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1532302,
+      "cached_input_tokens": 1451264,
+      "output_tokens": 13413,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 495874,
+      "cached_input_tokens": 436608,
+      "output_tokens": 4642,
+      "turns": 1
+    }
+  ],
+  "desde": "57c23e658c9a4beb0bfe603b4efdd22e08ee75b0",
+  "hasta": "b40544f6f59e74c0493928026b5929d5b1d77a1f",
+  "cobertura": "delta",
+  "desde_review": "20261106T153954_351581",
+  "base": "main"
+}
