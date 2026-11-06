@@ -131,9 +131,8 @@ func r1EntreSimples(s string) string { return `'` + strings.ReplaceAll(s, `'`, `
 
 // r1Shells son los shells con los que se evalua una linea: /bin/sh (POSIX),
 // dash, bash, zsh y ksh, los que esten. Ronda 2 (hallazgos 522ed0 y
-// 1ccc66): ninguna linea usa $'...', asi que /bin/sh entra siempre y el
-// argumento ya no excluye nada.
-func r1Shells(conDolarComilla bool) []string {
+// 1ccc66): ninguna linea usa $'...', asi que /bin/sh entra siempre.
+func r1Shells() []string {
 	var out []string
 	cands := []string{"/bin/sh", "/bin/dash", "/usr/bin/dash", "/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash",
 		"/bin/zsh", "/usr/bin/zsh", "/bin/ksh", "/usr/bin/ksh"}
@@ -200,9 +199,9 @@ func r1SinControlCrudo(t *testing.T, ca, linea string) {
 // den las palabras quiero.
 func r1PegarEnShells(t *testing.T, ca, resto string, quiero []string) {
 	t.Helper()
-	sh := r1Shells(strings.Contains(resto, "$'"))
+	sh := r1Shells()
 	if len(sh) == 0 {
-		t.Logf("%s: no hay bash ni zsh para evaluar $'...': solo se miro la forma", ca)
+		t.Fatalf("%s: no hay ningun shell para pegar la linea", ca)
 	}
 	for _, s := range sh {
 		got := r1Evaluar(t, ca+" ("+s+")", s, resto)
@@ -297,8 +296,9 @@ func r1Despues(ws []string, flag string) (string, bool) {
 
 // hallazgo 726459, CA-503: los valores de --model y --effort van tal cual
 // cuando cada byte esta en [A-Za-z0-9._:/@%+,-]; si no, entre comillas
-// simples (o $'...'), nunca entre dobles. Vale para los de hoom.yaml y los
-// del comando; pegada, la linea da cada valor byte a byte y no ejecuta nada.
+// simples (o "$(printf '...')"), nunca entre dobles. Vale para los de
+// hoom.yaml y los del comando; pegada, la linea da cada valor byte a byte y
+// no ejecuta nada.
 func TestHallazgo_726459_CA503_ModeloYEsfuerzoSePeganEnUnShell(t *testing.T) {
 	casos := []struct {
 		nombre, yaml   string
@@ -329,7 +329,7 @@ func TestHallazgo_726459_CA503_ModeloYEsfuerzoSePeganEnUnShell(t *testing.T) {
 		linea := vdtFlechaDe(t, ca, s.out)
 		r1SinControlCrudo(t, ca, linea)
 		resto := strings.TrimPrefix(linea, "→ hoom agent ")
-		for _, sh := range r1Shells(strings.Contains(resto, "$'")) {
+		for _, sh := range r1Shells() {
 			ws := r1Evaluar(t, ca+" ("+sh+")", sh, resto)
 			if v, _ := r1Despues(ws, "--model"); v != c.model {
 				t.Fatalf("%s (%s): pegada, --model da %q, quiero %q byte a byte:\n%q", ca, sh, v, c.model, resto)
@@ -395,7 +395,7 @@ func TestHallazgo_726459_CA503_ResumeYSiguienteSePeganEnUnShell(t *testing.T) {
 		ca := "hallazgo 726459, CA-503 (--resume " + k.sesion + ")"
 		linea := vdtFlechaDe(t, ca, s.out)
 		resto := strings.TrimPrefix(linea, "→ hoom agent ")
-		for _, sh := range r1Shells(false) {
+		for _, sh := range r1Shells() {
 			ws := r1Evaluar(t, ca+" ("+sh+")", sh, resto)
 			if v, _ := r1Despues(ws, "--resume"); v != k.sesion {
 				t.Fatalf("%s (%s): pegada, --resume da %q, quiero %q: %q", ca, sh, v, k.sesion, resto)
@@ -425,7 +425,7 @@ func TestHallazgo_726459_CA503_ResumeYSiguienteSePeganEnUnShell(t *testing.T) {
 	if linea != r1Base+`'Implementa $(touch pwn) ya'` {
 		t.Fatalf("hallazgo 726459, CA-507: hoom siguiente imprime la → de hoom pedir, con el pedido entre comillas simples: %q", linea)
 	}
-	for _, sh := range r1Shells(false) {
+	for _, sh := range r1Shells() {
 		ws := r1Evaluar(t, "hallazgo 726459 (siguiente, "+sh+")", sh, strings.TrimPrefix(linea, "→ hoom agent "))
 		if ws[len(ws)-1] != "Implementa $(touch pwn) ya" {
 			t.Fatalf("hallazgo 726459 (siguiente, %s): pegada da el pedido: %q", sh, ws)
@@ -448,7 +448,7 @@ func TestHallazgo_726459_CA503_FlechaDelReviewerSePegaEnUnShell(t *testing.T) {
 		t.Fatalf("hallazgo 726459, CA-503: la → del reviewer empieza con %q: %q", pre, linea)
 	}
 	resto := strings.TrimPrefix(linea, "→ hoom review ")
-	for _, sh := range r1Shells(strings.Contains(resto, "$'")) {
+	for _, sh := range r1Shells() {
 		ws := r1Evaluar(t, "hallazgo 726459 (reviewer, "+sh+")", sh, resto)
 		if v, ok := r1Despues(ws, "--model"); ok && v != "mi modelo $(touch pwn)" {
 			t.Fatalf("hallazgo 726459 (reviewer, %s): pegada, --model da %q: %q", sh, v, resto)

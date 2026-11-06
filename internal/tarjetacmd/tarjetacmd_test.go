@@ -27,8 +27,8 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/runcmd"
-	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/tarjetacmd"
+	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 

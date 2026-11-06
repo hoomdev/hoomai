@@ -129,7 +129,7 @@ func r2Corte(p string) string {
 // palabras de cada uno; exige que todos den las mismas.
 func r2Pegar(t *testing.T, ca, resto string) []string {
 	t.Helper()
-	shells := r1Shells(false)
+	shells := r1Shells()
 	if len(shells) == 0 {
 		t.Fatalf("%s: no hay ningun shell para pegar la linea", ca)
 	}
