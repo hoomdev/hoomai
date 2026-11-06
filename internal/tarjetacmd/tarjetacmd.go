@@ -702,7 +702,7 @@ func (v *verbo) editar(texto string) (string, error) {
 func lineaValores(e valores.Elegidos, a boardcmd.Action, req lanzar.Request) string {
 	valor := func(nombre, v, origen string) string {
 		if v == "" {
-			v, origen = "del provider", valores.OrigenProvider
+			return fmt.Sprintf("%s del provider (%s)", nombre, valores.OrigenProvider)
 		}
 		return fmt.Sprintf("%s %s (%s)", nombre, visible(v), origen)
 	}
