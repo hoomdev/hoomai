@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061823_6cdd6e",
+  "as": "refutado",
+  "evidence": "Refutado contra feedcc7. (1) Desde dentro de .hoom/worktrees/\u003cslug\u003e no hay lanzamiento de la tarjeta que lea el hoom.yaml de su rama: con cwd en el espacio, manifest.Find(wt)=wt y runcmd.TaskDir(wt, \"precios\") devuelve 'la tarea \"precios\" no existe' (runcmd.go:797-806; reproducido con un test temporal sobre un proyecto git real con la tarea precios, ya borrado), asi que hoom agent --task \u003cslug\u003e corta antes de LoadRoles; y los lanzamientos de la tarjeta (verbos, Studio, cinta) pasan Params.Root = el proyecto a agentcmd.Run (lanzar.go:384), que lee LoadRoles(root) del proyecto (agentcmd.go:135). (2) Sin --task, hoom agent toma como proyecto el dir del hoom.yaml hallado desde cwd: cmd/hoom/main.go:677 y :685 son f07feff:cmd/hoom/main.go:627 y :635 sin cambios, y el spec lo fija (No-goals l.77-83: hoom agent conserva su sintaxis y su efecto y no deduce la tarjeta; CA-513). En esa invocacion no hay tarjeta, y ese mismo hoom.yaml ya decide en main los gates y el territorio de escritura del rol (agentcmd.go:122 manifest.Load(dir) + PolicyFor(m) en :227 y :295; f07feff agentcmd.go:113), y sin --budget-usd hoom agent corria sin tope en main (main.go: '0 = sin tope'): los valores nuevos no cruzan una frontera que esa invocacion no cruzara ya. CA-491 habla de la rama de la tarjeta, y desde la rama no hay lanzamiento de la tarjeta.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-11-06T06:43:30.03004Z"
+}
