@@ -54,8 +54,8 @@ const (
 const ArchivoFijada = ".hoom/cache/tarjeta"
 
 // Entorno is the process boundary of a verb: where it was called from, its
-// standard streams, whether it runs on a terminal and the environment it
-// reads ($VISUAL, $EDITOR). Tests replace it whole.
+// standard streams, whether it runs on a terminal, the environment it reads
+// ($VISUAL, $EDITOR) and the platform. Tests replace it whole.
 type Entorno struct {
 	Dir      string    // the working directory
 	In       io.Reader // answers to the confirmation of a signature
@@ -63,6 +63,7 @@ type Entorno struct {
 	Err      io.Writer // errors (and, with --json, the lines that are not the JSON)
 	Terminal bool      // stdin and stdout are a terminal: the editor and the questions are allowed
 	Getenv   func(string) string
+	GOOS     string // the platform the editor and the → line are for; "" = the one hoom runs on
 }
 
 // Real is the Entorno of the hoom process.
@@ -212,6 +213,9 @@ func Run(verb string, args []string, e Entorno) int {
 	}
 	if e.Dir == "" {
 		e.Dir = "."
+	}
+	if e.GOOS == "" {
+		e.GOOS = runtime.GOOS
 	}
 	v := &verbo{nombre: verb, e: e}
 	switch verb {
@@ -613,7 +617,7 @@ func (v *verbo) lanzarRol(d Deduccion, m *manifest.Manifest, c boardcmd.Card, a 
 		req.Pedido = pedido
 	}
 	fmt.Fprintln(v.info, linea)
-	fmt.Fprintln(v.info, comandoLargo(d.Slug, a, vals, req.Pedido))
+	fmt.Fprintln(v.info, comandoLargo(d.Slug, a, vals, req.Pedido, v.e.GOOS == "windows"))
 	p := lanzar.Params{Root: d.Root, Manifest: m}
 	if !l.json {
 		p.Eco = v.e.Out
@@ -713,11 +717,11 @@ func (v *verbo) editar(texto string) (string, error) {
 	}
 	var cmd *exec.Cmd
 	switch {
-	case editor == "" && runtime.GOOS == "windows":
+	case editor == "" && v.e.GOOS == "windows":
 		cmd = exec.Command("notepad", path)
 	case editor == "":
 		cmd = exec.Command("vi", path)
-	case runtime.GOOS == "windows":
+	case v.e.GOOS == "windows":
 		cmd = exec.Command("cmd", "/C", editor+` "`+path+`"`) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el editor es el de la persona ($VISUAL/$EDITOR), como en git
 	default:
 		cmd = exec.Command("sh", "-c", editor+` "$@"`, editor, path) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el editor es el de la persona ($VISUAL/$EDITOR), como en git
@@ -759,7 +763,14 @@ func lineaValores(e valores.Elegidos, a boardcmd.Action, req lanzar.Request) str
 
 // comandoLargo is the equivalent command of a launch, with the pedido cut
 // to 60 characters.
-func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido string) string {
+func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido string, windows bool) string {
+	// cita writes a value of the line, or its marker on Windows
+	cita := func(v, marcador string) string {
+		if windows {
+			return enWindows(v, marcador)
+		}
+		return enShell(v)
+	}
 	spec := ".hoom/specs/" + slug + ".md"
 	var parts []string
 	if a.Role == "reviewer" {
@@ -772,10 +783,10 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 		parts = append(parts, "--provider", e.Provider)
 	}
 	if e.Model != "" {
-		parts = append(parts, "--model", enShell(e.Model))
+		parts = append(parts, "--model", cita(e.Model, "<modelo>"))
 	}
 	if e.Effort != "" {
-		parts = append(parts, "--effort", enShell(e.Effort))
+		parts = append(parts, "--effort", cita(e.Effort, "<esfuerzo>"))
 	}
 	if o, ok := opcionDe(a, e.Provider); e.BudgetUSD != nil && (!ok || o.Budget) {
 		// a provider that takes no cap gets none: hoom agent would refuse it
@@ -787,9 +798,13 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 			parts = append(parts, "--timeout", valores.Duracion(e.Timeout))
 		}
 		if a.ID == boardcmd.ActReanudar && a.ResumeID != "" {
-			parts = append(parts, "--resume", enShell(a.ResumeID))
+			parts = append(parts, "--resume", cita(a.ResumeID, "<sesion>"))
 		}
-		parts = append(parts, pedidoEnShell(recortar(pedido)))
+		if windows {
+			parts = append(parts, entreDoblesEnWindows(recortar(pedido), "<pedido>"))
+		} else {
+			parts = append(parts, pedidoEnShell(recortar(pedido)))
+		}
 	}
 	return "→ " + strings.Join(parts, " ")
 }
@@ -860,6 +875,41 @@ func pedidoEnShell(p string) string {
 		return `"` + p + `"`
 	}
 	return enShell(p)
+}
+
+// On Windows the → line is for cmd and PowerShell, and no quoting reads the
+// same in both for every value: a value goes as it is when every byte is
+// plain there, or between double quotes when neither reads anything in it;
+// any other value goes as its marker (<pedido>, <modelo>, <esfuerzo>,
+// <sesion>), and then the line shows the form and is not pasted (spec,
+// amendment 3).
+
+// planoEnWindows are the bytes a word may carry unquoted on Windows:
+// planoEnShell without @ (a PowerShell splat), % (a cmd variable) and ,
+// (a PowerShell array).
+const planoEnWindows = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:/+-"
+
+// enWindows is v as it is when every byte is plain on Windows, otherwise
+// entreDoblesEnWindows.
+func enWindows(v, marcador string) string {
+	if v != "" && strings.Trim(v, planoEnWindows) == "" {
+		return v
+	}
+	return entreDoblesEnWindows(v, marcador)
+}
+
+// entreDoblesEnWindows is v between double quotes when it prints and has
+// nothing cmd or PowerShell read there: no ", $ or ` (PowerShell), no % or !
+// (cmd's variables), no typographic double quote (PowerShell closes the
+// string on them), no doubled \ and no \ at the end (the program that gets
+// the argument reads a \ before the closing quote as an escape). Otherwise
+// marcador.
+func entreDoblesEnWindows(v, marcador string) string {
+	if imprimible(v) && !strings.ContainsAny(v, "\"$`%!\u201c\u201d\u201e\u201f") &&
+		!strings.Contains(v, `\\`) && !strings.HasSuffix(v, `\`) {
+		return `"` + v + `"`
+	}
+	return marcador
 }
 
 // imprimible: valid UTF-8 where every rune prints (the space included).
