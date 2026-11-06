@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T153121_97284d",
+  "as": "corregido",
+  "evidence": "Henry eligio la opcion A: enmienda 3 del spec (de1e0a6, aprobada a1fdade3 en 4cca15f). 4ca26df: Entorno.GOOS; en Windows un valor va tal cual si sus bytes son planos alli, entre comillas dobles si cmd y PowerShell no leen nada en el, y si no como su marcador (\u003cpedido\u003e, \u003cmodelo\u003e, \u003cesfuerzo\u003e, \u003csesion\u003e). Tests a4264c6 (test-writer ciego 2b, tarjetacmd/flecha_windows_ronda2_test.go, 11 tests): rojos en b8b7ca6, verdes en 08fea24. cmd y PowerShell no se pueden correr en esta Mac.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T17:42:10.65992Z"
+}

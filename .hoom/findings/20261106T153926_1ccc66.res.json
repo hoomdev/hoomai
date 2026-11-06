@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T153926_1ccc66",
+  "as": "corregido",
+  "evidence": "b8b7ca6: el comentario de la linea -\u003e dice lo que hace: escrita para un sh POSIX (dash, bash, zsh, ksh), la unica orden que corre ademas de hoom es printf, y solo un valor que termina en saltos pone un caracter de control. La forma $'...' ya no existe (ver 522ed0); los tests de la ronda 2 ya no excluyen /bin/sh.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T17:42:10.654055Z"
+}

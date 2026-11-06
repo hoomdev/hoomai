@@ -809,10 +809,11 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 	return "→ " + strings.Join(parts, " ")
 }
 
-// The → line is a command to copy, written for a POSIX sh: dash, bash, zsh
-// and ksh read each word back as exactly the value that launches (the
-// pedido, cut), nothing in a value runs, and only a value that ends in a
-// newline puts a control character on the terminal (see enShell).
+// The → line is a command to copy. Outside Windows it is written for a POSIX
+// sh: dash, bash, zsh and ksh read each word back as exactly the value that
+// launches (the pedido, cut), nothing in a value runs, and only a value that
+// ends in a newline puts a control character on the terminal (see enShell).
+// Windows has its own rule (see enWindows).
 
 // planoEnShell are the bytes a word may carry unquoted: none of them is
 // special to sh, bash or zsh (no =, which zsh expands at a word's start).
