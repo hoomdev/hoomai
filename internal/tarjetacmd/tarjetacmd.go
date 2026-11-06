@@ -794,18 +794,23 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 	return "→ " + strings.Join(parts, " ")
 }
 
-// The → line is a command to copy: every value a user or a hoom.yaml wrote
-// goes in it quoted for a POSIX shell, so pasting it runs hoom with exactly
-// that value and never a $(...), a `...` or a glob; and no control character
-// or escape sequence reaches the terminal raw.
+// The → line is a command to copy, written for a POSIX sh: dash, bash, zsh
+// and ksh read each word back as exactly the value that launches (the
+// pedido, cut), nothing in a value runs, and only a value that ends in a
+// newline puts a control character on the terminal (see enShell).
 
 // planoEnShell are the bytes a word may carry unquoted: none of them is
 // special to sh, bash or zsh (no =, which zsh expands at a word's start).
 const planoEnShell = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:/@%+,-"
 
-// enShell is s as one shell word: as it is when every byte is plain, in
-// single quotes when it is printable, and in $'...' with \xHH escapes when
-// it has a control character, an invalid byte or a rune that does not print.
+// enShell is s as one sh word: as it is when every byte is plain, between
+// single quotes when it prints (a ' inside closes them, goes as \' and opens
+// them again), and otherwise as
+// "$(printf '...')" with each byte that does not print written \NNN, so the
+// line stays printable; that printf is the only command the line runs
+// besides hoom. A $(...) drops the newlines at its end, so a value's
+// trailing newlines go raw between single quotes after it. A NUL byte has no
+// word: no argument carries one.
 func enShell(s string) string {
 	if s != "" && strings.Trim(s, planoEnShell) == "" {
 		return s
@@ -813,24 +818,37 @@ func enShell(s string) string {
 	if imprimible(s) {
 		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 	}
+	cuerpo := strings.TrimRight(s, "\n")
 	var b strings.Builder
-	b.WriteString("$'")
-	for i := 0; i < len(s); {
-		r, n := utf8.DecodeRuneInString(s[i:])
+	b.WriteString(`"$(printf '`)
+	for i := 0; i < len(cuerpo); {
+		r, n := utf8.DecodeRuneInString(cuerpo[i:])
 		switch {
-		case r == '\\' || r == '\'':
-			b.WriteByte('\\')
-			b.WriteRune(r)
+		case i == 0 && r == '-':
+			b.WriteString(`\055`) // a format that starts with - is an option to some printf
+		case r == '\'':
+			b.WriteString(`'\''`)
+		case r == '\\':
+			b.WriteString(`\\`)
+		case r == '%':
+			b.WriteString("%%")
+		case r == '!':
+			// interactive bash and zsh expand a ! inside "...", even
+			// between the single quotes of the $(...)
+			b.WriteString(`\041`)
 		case r != utf8.RuneError && unicode.IsPrint(r):
-			b.WriteString(s[i : i+n])
+			b.WriteString(cuerpo[i : i+n])
 		default:
-			for _, c := range []byte(s[i : i+n]) {
-				fmt.Fprintf(&b, `\x%02x`, c)
+			for _, c := range []byte(cuerpo[i : i+n]) {
+				fmt.Fprintf(&b, `\%03o`, c)
 			}
 		}
 		i += n
 	}
-	b.WriteByte('\'')
+	b.WriteString(`')"`)
+	if fin := s[len(cuerpo):]; fin != "" {
+		b.WriteString("'" + fin + "'")
+	}
 	return b.String()
 }
 

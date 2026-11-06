@@ -262,12 +262,12 @@ function siVacio(a, campo) {
   return v && a.origen && a.origen[campo] === "hoom.yaml" ? `vacío: el de hoom.yaml (${v})` : "vacío: el que usa el CLI por defecto";
 }
 
-// vistaDe is what the action proposes as the dialog shows it: its default
-// provider, its values and the session it resumes.
+// vistaDe is what the action proposes as the dialog shows it: its role, its
+// default provider, its values and the session it resumes.
 function vistaDe(a) {
   const p = a.providers.find(x => x.default);
   return {
-    provider: p ? p.name : "", model: a.model || "", effort: a.effort || "",
+    role: a.role || "", provider: p ? p.name : "", model: a.model || "", effort: a.effort || "",
     budget_usd: a.budget_usd != null ? a.budget_usd : null, timeout_s: a.timeout_s || 0, resume_id: a.resume_id || "",
   };
 }

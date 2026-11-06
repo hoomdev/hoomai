@@ -1304,6 +1304,15 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	// ultimo is when the provider last narrated in this invocation (0 =
 	// never): the timeout's message depends on it
 	var ultimo atomic.Int64
+	narro := func(t int64) {
+		// stdout and stderr each bring their own time: the later one stays
+		for {
+			old := ultimo.Load()
+			if t <= old || ultimo.CompareAndSwap(old, t) {
+				return
+			}
+		}
+	}
 	inicio := time.Now()
 	scan := func(src io.Reader, isErr bool) {
 		defer wg.Done()
@@ -1311,24 +1320,28 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		if isErr {
 			fuente = "stderr"
 		}
+		// a line counts from when its bytes arrived, not from when it ends:
+		// the pipe's close at the timeout ends a line the provider wrote long
+		// before, and that is not narrating (finding d4e3bf)
+		ll := &llegada{r: src}
 		// a line over the cap is read to its end and dropped, and the
 		// reading goes on: a provider is never left blocked on a pipe
 		// nobody drains, and the drop is said (finding e8e42c)
-		lineas(src, MaxLinea, func(line string) {
+		lineas(ll, MaxLinea, func(line string) {
 			if isErr {
 				if strings.TrimSpace(line) != "" {
-					ultimo.Store(time.Now().UnixNano())
+					narro(ll.t)
 					m.append(r, Event{TS: time.Now().UTC(), Kind: "text", Detail: "stderr: " + line})
 				}
 				return
 			}
 			for _, ev := range normalize(line) {
-				ultimo.Store(time.Now().UnixNano())
+				narro(ll.t)
 				m.append(r, ev)
 			}
 		}, func(n int) {
 			// a dropped line is output too: the provider is narrating
-			ultimo.Store(time.Now().UnixNano())
+			narro(ll.t)
 			descartadas.Add(1)
 			m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
 				Detail: fmt.Sprintf("aviso: hoom descarto una linea de %s de %d bytes del provider: supera el tope de %d bytes por linea", fuente, n, MaxLinea)})
@@ -1586,6 +1599,21 @@ func Alive(pid int) bool { return alive(pid) }
 // lines can be huge; one past this is read to its end and dropped, never
 // held whole (finding e8e42c).
 const MaxLinea = 4 << 20
+
+// llegada reads r and keeps when its last bytes arrived (UnixNano): the
+// reader of lineas, whose callbacks run in the same goroutine.
+type llegada struct {
+	r io.Reader
+	t int64
+}
+
+func (l *llegada) Read(p []byte) (int, error) {
+	n, err := l.r.Read(p)
+	if n > 0 {
+		l.t = time.Now().UnixNano()
+	}
+	return n, err
+}
 
 // lineas reads src line by line the way bufio.ScanLines does (the \n and a
 // \r before it are dropped; a last line without \n counts) and hands each

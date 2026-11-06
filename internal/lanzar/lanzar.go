@@ -53,12 +53,13 @@ type Request struct {
 	Vista *Propuesta
 }
 
-// Propuesta is what a card's action proposes: its default provider, its
-// values and the session it resumes. A skin shows it and then waits for the
+// Propuesta is what a card's action proposes: the role it launches, its
+// default provider, its values and the session it resumes. A skin shows it and then waits for the
 // pedido (the terminal's editor, the Studio's dialog); Lanzar derives the
 // card again under the lock and refuses when the action proposes something
 // else by then, so what launches is never other than what was shown.
 type Propuesta struct {
+	Role      string   `json:"role"`
 	Provider  string   `json:"provider"`
 	Model     string   `json:"model"`
 	Effort    string   `json:"effort"`
@@ -69,7 +70,7 @@ type Propuesta struct {
 
 // PropuestaDe is what action a proposes now.
 func PropuestaDe(a boardcmd.Action) Propuesta {
-	p := Propuesta{Model: a.Model, Effort: a.Effort, TimeoutS: a.TimeoutS, ResumeID: a.ResumeID}
+	p := Propuesta{Role: a.Role, Model: a.Model, Effort: a.Effort, TimeoutS: a.TimeoutS, ResumeID: a.ResumeID}
 	if o, ok := defaultOption(a); ok {
 		p.Provider = o.Name
 	}
@@ -80,10 +81,14 @@ func PropuestaDe(a boardcmd.Action) Propuesta {
 	return p
 }
 
-// cambios names what differs between two proposals, in the order of the
-// valores: line.
+// cambios names what differs between two proposals: the role first (a
+// reanudar or relanzar takes it from the interruption, which can be another
+// one by now: finding a8e103), then in the order of the valores: line.
 func cambios(antes, ahora Propuesta) []string {
 	var out []string
+	if antes.Role != ahora.Role {
+		out = append(out, "rol")
+	}
 	if antes.Provider != ahora.Provider {
 		out = append(out, "provider")
 	}
