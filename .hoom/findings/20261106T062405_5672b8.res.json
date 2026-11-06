@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T062405_5672b8",
+  "as": "corregido",
+  "evidence": "1aa746f: hoom usar escribe .hoom/cache/tarjeta con hoomfs.AtomicWrite (temporal + rename); TestHallazgo_5672b8_CA500_UsarQueNoPuedeEscribirConservaLaFijada (EFBIG real con RLIMIT_FSIZE en un proceso hijo: antes quedaba la fijada a medias); tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.904586Z"
+}

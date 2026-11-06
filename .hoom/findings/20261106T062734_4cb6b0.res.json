@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T062734_4cb6b0",
+  "as": "corregido",
+  "evidence": "1aa746f: flagEscrito(fs, args) usa el FlagSet que registro lanzamiento.registrar (una sola lista); se borro flagsLanzamiento; TestHallazgo_4cb6b0_CA507_CadaFlagDeLanzamientoSinRol (los 7 flags en 3 formas; verde tambien en 1dfb90e: refactor); tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.932569Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061823_4a1c25",
+  "as": "corregido",
+  "evidence": "1aa746f: tiempoLimite en acciones.js muestra el valor exacto (90 s = '1 min 30 s') y Action emite su origen en JSON; TestHallazgo_4a1c25_CA492_TodaAccionDeRolTraeSuOrigen y TestHallazgo_810954_CA496_AccionesJSUsaElOrigen (fuente); tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.915763Z"
+}

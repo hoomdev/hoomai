@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T062405_829af2",
+  "as": "corregido",
+  "evidence": "1aa746f: la linea descartada por superar MaxLinea actualiza ultimo (cuenta como narracion); TestHallazgo_829af2_CA495_LineasDescartadasSonNarracion; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.910096Z"
+}

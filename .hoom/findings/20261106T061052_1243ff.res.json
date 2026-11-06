@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061052_1243ff",
+  "as": "corregido",
+  "evidence": "1aa746f: proyecto() resuelve symlinks (filepath.EvalSymlinks) cuando la ruta lexical no tiene /.hoom/worktrees/\u003cslug\u003e/ y deduce la tarjeta y el proyecto principal; TestHallazgo_1243ff_CA499_EnlaceSimbolicoAlEspacioDeTrabajo; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.874595Z"
+}

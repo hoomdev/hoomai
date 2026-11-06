@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061052_c5a19f",
+  "as": "corregido",
+  "evidence": "1aa746f: AgentPolicies.UnmarshalYAML rechaza un rol repetido (agents: el rol \"\u003crol\u003e\" esta repetido (linea N)), lo que cubre Load y ParseAgents; TestHallazgo_c5a19f_CA490_LoadRechazaUnRolRepetido, TestHallazgo_c5a19f_ParseAgentsRechazaUnRolRepetido, TestHallazgo_c5a19f_CA490_SinRepetidosCargaIgual; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.86836Z"
+}

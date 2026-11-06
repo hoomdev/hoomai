@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T062734_a0c783",
+  "as": "corregido",
+  "evidence": "1aa746f: el estado interno se llama estadoLanzamiento (distinto del handle Trabajo); rename sin cambio de comportamiento: suite de lanzar y servecmd verdes; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.950012Z"
+}

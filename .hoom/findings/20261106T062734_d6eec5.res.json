@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T062734_d6eec5",
+  "as": "corregido",
+  "evidence": "1aa746f: valores.Sobre es la capa del comando y Resolver = Sobre(propuesta(hoom.yaml, lugar)); lanzar.Valores usa Sobre y hoom agent usa Resolver con el filtro de capacidades aparte (aplicarValores); refactor: suites enteras verdes y la sonda de paridad del test-writer (hoom pedir vs el hoom agent de su linea →, 6 casos) verde; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.938214Z"
+}
