@@ -1,0 +1,11 @@
+{
+  "id": "20261106T153939_5455b5",
+  "created_at": "2026-11-06T15:39:39.950167Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tarjetacmd/hallazgos_ronda1_test.go",
+  "description": "INTRODUCIDO — internal/tarjetacmd/hallazgos_ronda1_test.go:1-928 concentra en un solo archivo pruebas de deduccion por symlink, citado de shell, presupuesto, cambios concurrentes de la tarjeta, firmas, flags de siguiente y timeout de review. El nombre por ronda y los helpers r1 ocultan la funcionalidad propietaria y obligan a recorrer casi mil lineas para mantener un comportamiento; divide las secciones en archivos nombrados por comportamiento y conserva los ids de hallazgo en los comentarios de regresion.",
+  "author": "reviewer@codex",
+  "fingerprint": "94c3033d021aa6b7",
+  "task": "verbos-de-la-tarjeta"
+}
