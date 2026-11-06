@@ -303,6 +303,9 @@ hoom pedir <rol> [<slug>] [-m "<pedido>"] [--provider p] [--model m]
     <slug> --spec .hoom/specs/<slug>.md --provider ... "<pedido>"`, o
     `hoom review --task <slug> --spec ... --provider ...` para el reviewer.
     El pedido va recortado a 60 caracteres con `…`.
+    En Windows, un valor que cmd y PowerShell no leen igual va como
+    `<pedido>` (o `<modelo>`, `<esfuerzo>`, `<sesion>`): la linea muestra la
+    forma y no se pega.
 - **Lanzar** es la misma función que `POST /launch` (ver abajo), con la
   narración del sobre en la salida estándar, como `hoom agent`. El exit code
   y `--json` son los de `hoom agent` (o los de `hoom review` para el
@@ -451,7 +454,7 @@ bloque de uso del verbo. `-h` imprime el uso y sale con 0.
 - CA-500: `hoom usar <slug>` escribe `.hoom/cache/tarjeta`, `hoom usar` la muestra o dice `sin tarjeta fijada`, `hoom usar --ninguna` la quita, un slug inexistente es exit 1 sin cambiar nada, y una tarjeta fijada que dejó de existir da el error del contrato. El archivo no entra en la huella.
 - CA-501: `hoom pedir` acepta solo los cuatro roles (exit 2 con el texto del contrato para otro), sale con 1 y el texto del contrato cuando la columna no tiene la acción, y con 1 y el `why` cuando está deshabilitada.
 - CA-502: el pedido de `hoom pedir` sale de `-m`; sin `-m` y con terminal pasa por el editor con la plantilla del contrato y se quitan las líneas con `#`; un pedido vacío o un editor que falla son exit 1 sin lanzar; sin terminal se usa el pedido propuesto; `hoom pedir reviewer -m` y `hoom pedir reviewer --timeout` son exit 2.
-- CA-503: antes de lanzar, `hoom pedir` imprime la línea `valores:` con el origen de cada valor y la línea `→ ` con el comando largo equivalente, con el pedido recortado a 60 caracteres.
+- CA-503: antes de lanzar, `hoom pedir` imprime la línea `valores:` con el origen de cada valor y la línea `→ ` con el comando largo equivalente, con el pedido recortado a 60 caracteres; en Windows, un valor que cmd y PowerShell no leen igual va como su marcador.
 - CA-504: `hoom pedir` y `POST /launch` lanzan por la misma función: para los mismos estados de la tarjeta (sin la acción, deshabilitada, provider que no puede, presupuesto que no alcanza, run activo, pedido de relleno, Backlog sin espacio de trabajo) dan el mismo motivo, y en Backlog los dos crean la tarea. Los dos escriben el log del sobre, y `hoom pedir` además copia la narración a la salida estándar. La cinta corre solo después de un lanzamiento del Studio.
 - CA-505: el candado de lanzamiento de una tarjeta es de archivo: con el Studio lanzando, un `hoom pedir` sobre la misma tarjeta desde otro proceso recibe `ya se esta lanzando un trabajo en esta tarjeta`, y al revés.
 - CA-506: el exit code y la salida `--json` de `hoom pedir` son los de `hoom agent` para los roles del sobre y los de `hoom review` para el reviewer.
