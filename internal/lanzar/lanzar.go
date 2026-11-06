@@ -149,9 +149,6 @@ func Valores(c boardcmd.Card, a boardcmd.Action, req Request) valores.Elegidos {
 	if req.BudgetUSD != nil {
 		v := *req.BudgetUSD
 		e.BudgetUSD, e.Origen.BudgetUSD = &v, valores.OrigenComando
-	} else if o, ok := optionOf(a, e.Provider); ok && !o.Budget {
-		// a provider without a cap takes none: the proposal does not travel
-		e.BudgetUSD, e.Origen.BudgetUSD = nil, valores.OrigenProvider
 	}
 	// an action derived elsewhere (no origins): what it carries is the card's
 	fill := func(origen *string, tiene bool) {
@@ -249,7 +246,8 @@ func tomarCandados(p Params, slug string) (func(), error) {
 
 // Lanzar launches req on the card slug. It answers when the envelope's first
 // record is on disk, with a *Rechazo when the launch did not happen, or when
-// ctx is done (the job then goes on by itself).
+// ctx is done (the job then goes on by itself). A job that ended before its
+// first record comes back too, already ended, next to its *Rechazo.
 func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, error) {
 	fail := func(code int, format string, args ...any) (*Trabajo, error) {
 		return nil, &Rechazo{Code: code, Motivo: fmt.Sprintf(format, args...)}
@@ -434,7 +432,10 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 		if msg == "" {
 			msg = "el trabajo no arranco"
 		}
-		return fail(http.StatusConflict, "%s", msg)
+		// the job that ended goes with the refusal: a review decided without
+		// passes has a result the terminal answers with, as hoom review does
+		tr, _ := listo(&f)
+		return tr, &Rechazo{Code: http.StatusConflict, Motivo: msg}
 	case <-ctx.Done():
 		// quien pidio ya no espera: el trabajo sigue (o termina) solo, y la
 		// tarjeta lo muestra (hallazgo 0cf41f)

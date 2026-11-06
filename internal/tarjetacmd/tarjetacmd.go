@@ -554,7 +554,7 @@ func (v *verbo) lanzarRol(d Deduccion, m *manifest.Manifest, c boardcmd.Card, a 
 		p.Eco = v.e.Out
 	}
 	t, err := lanzar.Lanzar(context.Background(), p, d.Slug, req)
-	if err != nil {
+	if err != nil && (t == nil || t.Wait().Review == nil && t.Wait().Agent == nil) {
 		return v.falla(err.Error())
 	}
 	fin := t.Wait()
@@ -712,7 +712,8 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 	if e.Effort != "" {
 		parts = append(parts, "--effort", e.Effort)
 	}
-	if e.BudgetUSD != nil {
+	if o, ok := opcionDe(a, e.Provider); e.BudgetUSD != nil && (!ok || o.Budget) {
+		// a provider that takes no cap gets none: hoom agent would refuse it
 		parts = append(parts, "--budget-usd", lanzar.USD(*e.BudgetUSD))
 	}
 	if a.Role != "reviewer" {
