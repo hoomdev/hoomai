@@ -129,14 +129,14 @@ func r1Recorte(p string) string {
 
 func r1EntreSimples(s string) string { return `'` + strings.ReplaceAll(s, `'`, `'\''`) + `'` }
 
-// r1Shells son los shells con los que se evalua una linea: /bin/sh (POSIX)
-// cuando la linea no usa $'...', y bash y zsh si estan.
+// r1Shells son los shells con los que se evalua una linea: /bin/sh (POSIX),
+// dash, bash, zsh y ksh, los que esten. Ronda 2 (hallazgos 522ed0 y
+// 1ccc66): ninguna linea usa $'...', asi que /bin/sh entra siempre y el
+// argumento ya no excluye nada.
 func r1Shells(conDolarComilla bool) []string {
 	var out []string
-	cands := []string{"/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash", "/bin/zsh", "/usr/bin/zsh"}
-	if !conDolarComilla {
-		cands = append([]string{"/bin/sh"}, cands...)
-	}
+	cands := []string{"/bin/sh", "/bin/dash", "/usr/bin/dash", "/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash",
+		"/bin/zsh", "/usr/bin/zsh", "/bin/ksh", "/usr/bin/ksh"}
 	vistos := map[string]bool{}
 	for _, c := range cands {
 		real, err := filepath.EvalSymlinks(c)
@@ -220,8 +220,9 @@ func r1PegarEnShells(t *testing.T, ca, resto string, quiero []string) {
 // hallazgo 726459, CA-503: el pedido de la linea → va entre comillas dobles
 // cuando se imprime y no tiene $, `, \, " ni !; si no, entre comillas simples
 // (una ' adentro como '\”); con un caracter de control, un byte que no es
-// UTF-8 o una runa que no se imprime, como $'...' con \xHH. Pegada en un
-// shell, la linea da el pedido (recortado) byte a byte y no ejecuta nada.
+// UTF-8 o una runa que no se imprime, como "$(printf '...')" (ronda 2,
+// hallazgos 522ed0 y 1ccc66; antes $'...'). Pegada en un shell, la linea da
+// el pedido (recortado) byte a byte y no ejecuta nada.
 func TestHallazgo_726459_CA503_ElPedidoDeLaFlechaSePegaEnUnShell(t *testing.T) {
 	f := vdtPATH(t)
 	f.cli(t, "claude", "")
@@ -273,9 +274,9 @@ func TestHallazgo_726459_CA503_ElPedidoDeLaFlechaSePegaEnUnShell(t *testing.T) {
 			if ultimo != r1EntreSimples(cut) {
 				t.Fatalf("%s: va entre comillas simples (una ' como '\\''):\n quiero %q\n fue    %q", ca, r1EntreSimples(cut), ultimo)
 			}
-		case dolar:
-			if !strings.HasPrefix(ultimo, "$'") || !strings.HasSuffix(ultimo, "'") || !strings.Contains(ultimo, `\x`) {
-				t.Fatalf("%s: con un caracter de control, un byte que no es UTF-8 o una runa que no se imprime, va como $'...' con \\xHH: %q", ca, ultimo)
+		case dolar: // ronda 2: la forma "$(printf '...')", ya no $'...'
+			if !strings.HasPrefix(ultimo, `"$(printf '`) || !strings.HasSuffix(ultimo, `')"`) || strings.Contains(linea, "$'") {
+				t.Fatalf("%s: con un caracter de control, un byte que no es UTF-8 o una runa que no se imprime, va como \"$(printf '...')\", sin $'...': %q", ca, ultimo)
 			}
 		}
 	}
@@ -303,7 +304,7 @@ func TestHallazgo_726459_CA503_ModeloYEsfuerzoSePeganEnUnShell(t *testing.T) {
 		nombre, yaml   string
 		flags          []string
 		model, effort  string
-		formaM, formaE string // como se escriben en la linea; "" = $'...'
+		formaM, formaE string // como se escriben en la linea; "" = "$(printf '...')" (ronda 2; antes $'...')
 	}{
 		{"de hoom.yaml, seguros", "agents:\n  writer:\n    model: \"us.anthropic/claude-opus@4:5+x,y%z_w-1\"\n    effort: high\n", nil,
 			"us.anthropic/claude-opus@4:5+x,y%z_w-1", "high", "us.anthropic/claude-opus@4:5+x,y%z_w-1", "high"},
@@ -342,8 +343,9 @@ func TestHallazgo_726459_CA503_ModeloYEsfuerzoSePeganEnUnShell(t *testing.T) {
 		}
 		for _, k := range []struct{ flag, forma string }{{"--model", c.formaM}, {"--effort", c.formaE}} {
 			if k.forma == "" {
-				if !strings.Contains(linea, " "+k.flag+" $'") {
-					t.Fatalf("%s: %s con un caracter de control va como $'...': %q", ca, k.flag, linea)
+				i := strings.Index(linea, " "+k.flag+` "$(printf '`)
+				if i < 0 || !strings.Contains(linea[i:], `')" `) || strings.Contains(linea, "$'") {
+					t.Fatalf("%s: %s con un caracter de control va como \"$(printf '...')\", sin $'...': %q", ca, k.flag, linea)
 				}
 				continue
 			}

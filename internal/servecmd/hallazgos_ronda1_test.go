@@ -61,9 +61,9 @@ func r1Cambio(lista string) string {
 	return "la tarjeta cambio mientras escribias el pedido (" + lista + "): no se lanzo nada, vuelve a pedirlo"
 }
 
-// r1Vista es lo que el dialogo mostro de la accion a: su provider default,
-// modelo, esfuerzo, presupuesto, tiempo limite y la sesion que retoma, con
-// las seis claves del contrato.
+// r1Vista es lo que el dialogo mostro de la accion a: su rol, su provider
+// default, modelo, esfuerzo, presupuesto, tiempo limite y la sesion que
+// retoma, con las siete claves del contrato (el rol, hallazgo a8e103).
 func r1Vista(a boardcmd.Action) map[string]any {
 	prov := ""
 	for _, p := range a.Providers {
@@ -75,7 +75,7 @@ func r1Vista(a boardcmd.Action) map[string]any {
 	if a.BudgetUSD != nil {
 		b = *a.BudgetUSD
 	}
-	return map[string]any{"provider": prov, "model": a.Model, "effort": a.Effort, "budget_usd": b,
+	return map[string]any{"role": a.Role, "provider": prov, "model": a.Model, "effort": a.Effort, "budget_usd": b,
 		"timeout_s": a.TimeoutS, "resume_id": a.ResumeID}
 }
 
