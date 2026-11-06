@@ -330,6 +330,14 @@ func vdtCardFor(t *testing.T, ca, root string) Card {
 // deshabilita; guardado, habilita; y lo guardado distinto de lo que hay en
 // disco (aprobado en disco) vuelve a deshabilitar.
 func TestCA497_ConGitReal(t *testing.T) {
+	// un provider (claude, falso) instalado al frente del PATH, con git
+	// todavia alcanzable: pedir-test-writer necesita un provider que tome el
+	// trabajo y el runner de CI no tiene ninguna CLI de IA (hallazgo: CI rojo
+	// en PR 61). Sin el, la accion queda deshabilitada por otro motivo.
+	provs := t.TempDir()
+	e7ClaudeFalso(t, provs)
+	t.Setenv("PATH", provs+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	root, wt := vdtTarjetaTestWriter(t, "")
 	c := vdtCardFor(t, "CA-497", root)
 	acCol(t, "CA-497", "spec nunca guardado", c, ColTestWriter)
