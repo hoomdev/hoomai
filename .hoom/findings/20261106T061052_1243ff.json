@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061052_1243ff",
+  "created_at": "2026-11-06T06:10:52.91155Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO — internal/tarjetacmd/tarjetacmd.go:136-155: proyecto solo aplica filepath.Abs/Clean y decide por la ruta lexical. En Unix os.Getwd puede devolver PWD, por lo que al entrar a un worktree mediante un symlink exterior a .hoom/worktrees el marcador desaparece y manifest.Find trata el propio worktree de la tarjeta como proyecto. Desde ahi los verbos leen el hoom.yaml de la rama y pueden lanzar, firmar o crear tareas anidadas con esa raiz, rompiendo la garantia de que presupuesto, timeout y decisiones salen del proyecto principal. Canonicalizar symlinks y verificar la pertenencia real del worktree antes de fijar root.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

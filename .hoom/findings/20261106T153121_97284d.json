@@ -1,0 +1,11 @@
+{
+  "id": "20261106T153121_97284d",
+  "created_at": "2026-11-06T15:31:21.633568Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO — internal/tarjetacmd/tarjetacmd.go:797-844: enShell/pedidoEnShell emiten comillas simples, el escape POSIX '\\'' y sintaxis ANSI-C $'...' para construir el comando largo. El binario soporta Windows (el editor se ejecuta por cmd en tarjetacmd.go:715-723), pero cmd.exe no usa comillas simples ni $'...'; por ejemplo un model 'm \u0026 otro' se imprime entre comillas simples y al pegar la linea se separa en el operador \u0026, por lo que el comando deja de ser equivalente a lo lanzado como exige CA-503. El render del comando necesita una forma valida para el shell de la plataforma (o no presentarse como copiable alli).",
+  "author": "reviewer@codex",
+  "fingerprint": "94c3033d021aa6b7",
+  "task": "verbos-de-la-tarjeta"
+}

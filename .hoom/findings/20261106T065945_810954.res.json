@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T065945_810954",
+  "as": "corregido",
+  "evidence": "1aa746f: Action.Origen sale en el JSON ('origen') y el Studio dice '(el de hoom)' solo con origen.timeout provider; TestHallazgo_810954_CA496_OrigenDelModeloYElEsfuerzo, TestHallazgo_810954_CA496_AccionesJSUsaElOrigen, TestHallazgo_42550b_CA496_TimeoutDeclaradoDe30mNoEsElDeHoom; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.921347Z"
+}

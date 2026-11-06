@@ -1,0 +1,11 @@
+{
+  "id": "20261106T062405_a91570",
+  "created_at": "2026-11-06T06:24:05.248211Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "PRE-EXISTENTE (follow-up): internal/lanzar/lanzar.go:353 ejecuta taskcmd.Start antes del primer registro dentro de una goroutine sin contexto ni timeout; taskcmd.Start usa git worktree add bloqueante. Si git, un hook o el filesystem se cuelgan, la cancelacion HTTP solo deja de esperar: la goroutine conserva indefinidamente el candado de la tarjeta y el WaitGroup del Studio, por lo que nuevos lanzamientos quedan en 'ya se esta lanzando...' y el apagado puede no terminar. El comportamiento ya estaba en servecmd.start y el cambio lo traslado a la funcion compartida.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

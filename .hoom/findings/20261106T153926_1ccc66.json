@@ -1,0 +1,11 @@
+{
+  "id": "20261106T153926_1ccc66",
+  "created_at": "2026-11-06T15:39:26.08268Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO — internal/tarjetacmd/tarjetacmd.go:797 afirma que toda la linea se cita para un shell POSIX, pero enShell emite la forma ANSI-C con signo dolar y comillas simples en internal/tarjetacmd/tarjetacmd.go:816-834; la propia prueba excluye /bin/sh para esa forma en internal/tarjetacmd/hallazgos_ronda1_test.go:132-149. El comentario deja un contrato de compatibilidad falso y hace dificil saber que shells soporta realmente la linea copiable; documenta con precision bash/zsh o separa una representacion realmente POSIX.",
+  "author": "reviewer@codex",
+  "fingerprint": "94c3033d021aa6b7",
+  "task": "verbos-de-la-tarjeta"
+}

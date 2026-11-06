@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061823_fbf9e5",
+  "created_at": "2026-11-06T06:18:23.476393Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO: internal/tarjetacmd/tarjetacmd.go:963-973 mete tanto el texto de la firma como la pregunta dentro de if !si. Por eso hoom aprobar --si y hoom integrar --si omiten por completo qué se firma; el contrato dice que --si saltea la pregunta, no el texto de aprobación/integración.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

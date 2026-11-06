@@ -1,0 +1,11 @@
+{
+  "id": "20261106T194258_5940ed",
+  "created_at": "2026-11-06T19:42:58.823345Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/verbos_de_la_tarjeta_test.go",
+  "description": "INTRODUCIDO: internal/boardcmd/verbos_de_la_tarjeta_test.go:338 hace que TestCA497_ConGitReal dependa de e7ClaudeFalso, un helper cuyo nombre y ubicacion estan ligados al hallazgo historico e7ab69 en otro archivo de regresion. Desde CA-497 el proposito del fixture queda opaco y reorganizar o retirar aquel test puede romper esta prueba no relacionada; conviene mover o renombrar el provider falso como helper comun con un nombre descriptivo.",
+  "author": "reviewer@codex",
+  "fingerprint": "a8979a5f41eed5c0",
+  "task": "verbos-de-la-tarjeta"
+}

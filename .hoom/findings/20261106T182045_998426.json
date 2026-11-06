@@ -1,0 +1,11 @@
+{
+  "id": "20261106T182045_998426",
+  "created_at": "2026-11-06T18:20:45.066832Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tarjetacmd/hallazgos_ronda1_test.go",
+  "description": "INTRODUCIDO — internal/tarjetacmd/hallazgos_ronda1_test.go:136: r1Shells conserva el parametro conDolarComilla aunque la ronda 2 hizo que ya no afecte el resultado; varios callers (p. ej. lineas 203, 332 y 451) todavia inspeccionan la sintaxis ANSI-C y pasan ese booleano inutil. La API y esos calculos comunican una bifurcacion de compatibilidad que ya no existe; elimina el parametro y actualiza los callers para que el helper refleje su unico comportamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "e8b1a2af479a7835",
+  "task": "verbos-de-la-tarjeta"
+}

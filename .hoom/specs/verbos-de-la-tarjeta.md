@@ -15,7 +15,10 @@ límite fijo de 30 minutos con un mensaje que culpa a los permisos cuando el
 agente estaba pensando, y el test-writer que se puede pedir con el spec sin
 guardar.
 Re-expresa: CA-409 (review-aislada-y-modelo-elegido), porque `POST /launch`
-pasa a aceptar `effort` para todas las acciones de rol.
+pasa a aceptar `effort` para todas las acciones de rol, y CA-381
+(historia-doctor-y-cinta) en el tramo arquitecto -> test-writer, porque con
+el spec del arquitecto sin guardar la cinta ya no pide al test-writer: se
+detiene antes con el why de CA-497.
 
 ## Objetivo
 
@@ -287,6 +290,10 @@ hoom pedir <rol> [<slug>] [-m "<pedido>"] [--provider p] [--model m]
 - El reviewer arma su propio pedido: `hoom pedir reviewer -m ...` es exit 2,
   `la revision arma su propio pedido: no lleva -m`, y sin `-m` no se abre el
   editor.
+- El tiempo limite de la review sale solo de `review.timeout`:
+  `hoom pedir reviewer --timeout ...` es exit 2,
+  `la revision toma su tiempo limite de review.timeout: no lleva --timeout`,
+  y lo mismo `hoom siguiente --timeout` cuando lanzaria al reviewer.
 - **Antes de lanzar** imprime, en este orden:
   - `valores: provider <p> (<origen>) · modelo <m> (<origen>) · esfuerzo
     <e> (<origen>) · presupuesto <x> (<origen>) · tiempo limite <d>
@@ -296,6 +303,9 @@ hoom pedir <rol> [<slug>] [-m "<pedido>"] [--provider p] [--model m]
     <slug> --spec .hoom/specs/<slug>.md --provider ... "<pedido>"`, o
     `hoom review --task <slug> --spec ... --provider ...` para el reviewer.
     El pedido va recortado a 60 caracteres con `…`.
+    En Windows, un valor que cmd y PowerShell no leen igual va como
+    `<pedido>` (o `<modelo>`, `<esfuerzo>`, `<sesion>`): la linea muestra la
+    forma y no se pega.
 - **Lanzar** es la misma función que `POST /launch` (ver abajo), con la
   narración del sobre en la salida estándar, como `hoom agent`. El exit code
   y `--json` son los de `hoom agent` (o los de `hoom review` para el
@@ -438,13 +448,13 @@ bloque de uso del verbo. `-h` imprime el uso y sale con 0.
 - CA-494: un run con `Timeout` corta a ese tiempo y no al del `Manager`, su sidecar trae `timeout_s`, y la regla de run vivo usa el tiempo límite del run más 5 minutos (y el del `Manager` para un sidecar sin `timeout_s`).
 - CA-495: al vencer el tiempo límite, el detalle del run es el mensaje "seguia narrando" con un evento en los 60 segundos anteriores y el mensaje "sin narracion" sin él, con los textos del contrato; `hoom run` acepta `--timeout`.
 - CA-496: el diálogo de rol del Studio tiene el campo Esfuerzo para las cuatro acciones de rol, relleno con `effort` de la acción, el Modelo relleno con `model` y la línea del tiempo límite; `POST /launch` pasa `effort` al sobre o a la review en las cuatro, y ya no responde `effort solo aplica a pedir-reviewer`. Re-expresa CA-409.
-- CA-497: `pedir-test-writer`, y `relanzar` con rol test-writer, están deshabilitadas con el `why` del contrato cuando el spec de la tarjeta no está en lo guardado de su espacio de trabajo o lo guardado difiere del disco, y habilitadas cuando coinciden; el `why` no contiene ninguna palabra de git.
+- CA-497: `pedir-test-writer`, y `relanzar` con rol test-writer, están deshabilitadas con el `why` del contrato cuando el spec de la tarjeta no está en lo guardado de su espacio de trabajo o lo guardado difiere del disco, y habilitadas cuando coinciden; el `why` no contiene ninguna palabra de git. La cinta, ante esa accion deshabilitada, se detiene y escribe en su log `piloto automatico: se detiene: el spec tiene cambios sin guardar y el test-writer trabaja con lo guardado: guarda primero`; con el spec guardado pide al test-writer como hoy (CA-381).
 - CA-498: los verbos nuevos deducen la tarjeta en el orden del contrato (operando, carpeta, `hoom usar`), imprimen `tarjeta: <slug> (<origen>)` antes de hacer nada, y sin tarjeta salen con 2 y el texto del contrato sin efectos; un slug que no es tarjeta es exit 1.
 - CA-499: desde una carpeta dentro de `.hoom/worktrees/<slug>/` (incluido un árbol ciego anidado) la tarjeta es `<slug>` y el proyecto es el árbol principal, no el espacio de trabajo.
 - CA-500: `hoom usar <slug>` escribe `.hoom/cache/tarjeta`, `hoom usar` la muestra o dice `sin tarjeta fijada`, `hoom usar --ninguna` la quita, un slug inexistente es exit 1 sin cambiar nada, y una tarjeta fijada que dejó de existir da el error del contrato. El archivo no entra en la huella.
 - CA-501: `hoom pedir` acepta solo los cuatro roles (exit 2 con el texto del contrato para otro), sale con 1 y el texto del contrato cuando la columna no tiene la acción, y con 1 y el `why` cuando está deshabilitada.
-- CA-502: el pedido de `hoom pedir` sale de `-m`; sin `-m` y con terminal pasa por el editor con la plantilla del contrato y se quitan las líneas con `#`; un pedido vacío o un editor que falla son exit 1 sin lanzar; sin terminal se usa el pedido propuesto; `hoom pedir reviewer -m` es exit 2.
-- CA-503: antes de lanzar, `hoom pedir` imprime la línea `valores:` con el origen de cada valor y la línea `→ ` con el comando largo equivalente, con el pedido recortado a 60 caracteres.
+- CA-502: el pedido de `hoom pedir` sale de `-m`; sin `-m` y con terminal pasa por el editor con la plantilla del contrato y se quitan las líneas con `#`; un pedido vacío o un editor que falla son exit 1 sin lanzar; sin terminal se usa el pedido propuesto; `hoom pedir reviewer -m` y `hoom pedir reviewer --timeout` son exit 2.
+- CA-503: antes de lanzar, `hoom pedir` imprime la línea `valores:` con el origen de cada valor y la línea `→ ` con el comando largo equivalente, con el pedido recortado a 60 caracteres; en Windows, un valor que cmd y PowerShell no leen igual va como su marcador.
 - CA-504: `hoom pedir` y `POST /launch` lanzan por la misma función: para los mismos estados de la tarjeta (sin la acción, deshabilitada, provider que no puede, presupuesto que no alcanza, run activo, pedido de relleno, Backlog sin espacio de trabajo) dan el mismo motivo, y en Backlog los dos crean la tarea. Los dos escriben el log del sobre, y `hoom pedir` además copia la narración a la salida estándar. La cinta corre solo después de un lanzamiento del Studio.
 - CA-505: el candado de lanzamiento de una tarjeta es de archivo: con el Studio lanzando, un `hoom pedir` sobre la misma tarjeta desde otro proceso recibe `ya se esta lanzando un trabajo en esta tarjeta`, y al revés.
 - CA-506: el exit code y la salida `--json` de `hoom pedir` son los de `hoom agent` para los roles del sobre y los de `hoom review` para el reviewer.
@@ -515,8 +525,8 @@ bloque de uso del verbo. `-h` imprime el uso y sale con 0.
   el tope de gasto donde el provider lo acepta; con codex no hay tope y la
   línea de valores lo dice.
 - **Mover `servecmd.start` a un paquete compartido toca el Studio.** Los
-  tests de C3 tienen que pasar sin cambios, salvo CA-409 que esta spec
-  re-expresa.
+  tests de C3 y C4 tienen que pasar sin cambios, salvo CA-409 y el tramo
+  arquitecto -> test-writer de CA-381, que esta spec re-expresa.
 - **El editor por defecto varía por sistema.** `vi` en Unix y `notepad` en
   Windows. Quien no los quiera declara `$EDITOR`, como con git.
 - **El mensaje del tiempo límite mira solo el último evento.** Una CLI que

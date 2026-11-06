@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T153600_d4e3bf",
+  "as": "corregido",
+  "evidence": "b8b7ca6: runcmd lee cada pipe por llegada (hora de la ultima lectura con bytes) y los callbacks de lineas sellan ultimo con esa hora (maximo entre stdout y stderr), nunca con la del cierre del pipe. Tests 08fea24: TestHallazgo_d4e3bf_CA495_LoQueLlegoSinSaltoLlevaSuHora (4 subtests, incluye el permiso sin salto por stderr) y _PermisoSinSaltoYSilencioEsSinNarracion; rojos en 306adb4, verdes en b8b7ca6; TestHallazgo_829af2 sigue verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T17:42:10.642197Z"
+}

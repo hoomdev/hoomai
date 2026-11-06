@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061823_896eff",
+  "created_at": "2026-11-06T06:18:23.178248Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/lanzar/lanzar.go:483-487 devuelve el budget implícito de Action sin comprobar MinBudgetUSD. Como internal/boardcmd/acciones.go:211 calcula las opciones antes de que proponerValores aplique agents.\u003crol\u003e.budget_usd, un budget YAML de 0.1 deja a Claude habilitado usando el remanente de la tarjeta, luego reemplaza el presupuesto por 0.1 y lanza por debajo de su piso declarado de 0.5; se pierde el check que sí existe para un --budget-usd explícito en lanzar.go:493-495.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

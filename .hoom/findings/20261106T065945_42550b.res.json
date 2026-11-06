@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T065945_42550b",
+  "as": "corregido",
+  "evidence": "1aa746f: los placeholders de Modelo y Esfuerzo dicen 'vacío: el de hoom.yaml (\u003cvalor\u003e)' cuando la accion lo trae de hoom.yaml; TestHallazgo_42550b_CA496_ApiBoardEmiteElOrigen, TestHallazgo_42550b_CA496_TimeoutDeclaradoDe30mNoEsElDeHoom; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.926822Z"
+}

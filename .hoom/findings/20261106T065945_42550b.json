@@ -1,0 +1,11 @@
+{
+  "id": "20261106T065945_42550b",
+  "created_at": "2026-11-06T06:59:45.202519Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/ui/acciones.js",
+  "description": "INTRODUCIDO (observacion del writer, ronda 1): en el dialogo de rol del Studio, Modelo y Esfuerzo vienen rellenos con model/effort de la accion (hoom.yaml) y su placeholder dice 'vacio: el que usa el CLI por defecto'; pero un campo vaciado manda \"\" y lanzar.Valores conserva el valor de la accion (hoom.yaml), asi que con un modelo declarado el placeholder promete el del CLI y se lanza el de hoom.yaml. El placeholder tiene que decir lo que pasa con el campo vacio: el de hoom.yaml cuando la accion lo trae de ahi.",
+  "author": "writer@claude",
+  "fingerprint": "6a5543aaba711d96",
+  "task": "verbos-de-la-tarjeta"
+}

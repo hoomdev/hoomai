@@ -1,0 +1,11 @@
+{
+  "id": "20261106T062734_a0c783",
+  "created_at": "2026-11-06T06:27:34.790068Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO — internal/lanzar/lanzar.go:89 y :196 definen Trabajo y trabajo, ambos estados del mismo lanzamiento y ambos con un canal fin; Lanzar (:251-443) alterna t y tr para distinguirlos. En la ruta concurrente central del Studio y la terminal, diferenciarlos solo por capitalizacion dificulta seguir propiedad de candados, canales y resultado. Renombra el estado interno por su responsabilidad (por ejemplo estadoLanzamiento) o encapsulalo en el handle.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

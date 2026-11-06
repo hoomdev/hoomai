@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/valores"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
@@ -39,6 +40,15 @@ type Options struct {
 	ResumeID  string
 	MaxTurns  int
 	BudgetUSD float64
+	// BudgetSet: BudgetUSD was asked (0 included), so hoom.yaml's
+	// agents.<rol>.budget_usd does not apply.
+	BudgetSet bool
+	// Effort is the reasoning effort, in the provider's vocabulary; "" =
+	// agents.<rol>.effort of the project's hoom.yaml, or the provider's.
+	Effort string
+	// Timeout bounds the role's run; 0 = agents.<rol>.timeout of the
+	// project's hoom.yaml, or hoom's 30 minutes.
+	Timeout time.Duration
 	// EnvelopeID presets the id of the envelope's record ("" = a new one), so
 	// a caller that runs the envelope in the background can name it at once.
 	EnvelopeID string
@@ -121,10 +131,27 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// the role's values from the PROJECT's hoom.yaml, never the branch's:
+	// a branch does not raise its own budget or timeout
+	roles, err := manifest.LoadRoles(root)
+	if err != nil {
+		return Result{}, err
+	}
+	// review: configures hoom review's passes (isolated, with its effort);
+	// an envelope never carries them, whatever the role (CA-400)
+	var def manifest.RoleDefaults
+	if role.Slug != "reviewer" {
+		def = roles.RoleDefaults(role.Slug)
+	}
+	// the one rule (valores): the command, then hoom.yaml, then the
+	// provider's own; hoom agent's place proposes no value of its own
+	elegidos := valores.Resolver(pedidoDe(opt), def, valores.Lugar{})
+	opt.Provider = elegidos.Provider
 	prov, err := pickProvider(opt.Provider)
 	if err != nil {
 		return Result{}, err
 	}
+	avisos := aplicarValores(prov, elegidos, &opt)
 	steps := 5
 	if role.Isolated {
 		steps = 6 // el arbol ciego se arma y se prueba: eso es un paso, no una nota al pie
@@ -167,6 +194,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		opt.Started() // el primer registro ya esta en disco: quien espera puede nombrarlo
 	}
 	fmt.Fprintf(w, "hoom agent: rol %s (%s) en %s\n", role.Slug, prov.Name(), displayDir(opt.Task))
+	for _, a := range avisos {
+		fmt.Fprintf(w, "  aviso: %s\n", a)
+	}
 	// Lo local queda fuera de Git ANTES de la primera foto: una regla que
 	// hoom agrega durante el run se le imputaria al rol, y una que falta deja
 	// telemetria sin trackear bloqueando el cierre de la tarea.
@@ -416,6 +446,55 @@ func pickProvider(name string) (providers.Provider, error) {
 	return nil, fmt.Errorf("ningun provider instalado soporta system_prompt, que 'hoom agent' exige para dar el contrato del rol (mira 'hoom providers')")
 }
 
+// pedidoDe is what the command asked: the first level of the rule.
+func pedidoDe(o Options) valores.Pedido {
+	p := valores.Pedido{Provider: strings.TrimSpace(o.Provider), Model: strings.TrimSpace(o.Model), Effort: strings.TrimSpace(o.Effort)}
+	if o.Timeout > 0 {
+		p.Timeout = o.Timeout
+	}
+	if o.BudgetSet {
+		b := o.BudgetUSD
+		p.BudgetUSD = &b
+	}
+	return p
+}
+
+// aplicarValores puts the values the rule chose in opt, and then, as a
+// phase of its own, drops what the provider cannot take. The envelope is
+// strict, so an effort the provider ignores would refuse the run: it is
+// dropped with the usual warning instead, before the run exists; so is a
+// hoom.yaml budget for a provider without a cap. It returns the warnings to
+// print.
+func aplicarValores(prov providers.Provider, e valores.Elegidos, opt *Options) []string {
+	opt.Model, opt.Effort = e.Model, e.Effort
+	if e.Origen.Timeout != valores.OrigenProvider {
+		// the provider's own is the run's default: opt leaves it to the run
+		opt.Timeout = e.Timeout
+	}
+	caps := prov.Capabilities()
+	var avisos []string
+	if e.Origen.BudgetUSD == valores.OrigenHoomYAML && e.BudgetUSD != nil {
+		if caps.Budget {
+			opt.BudgetUSD = *e.BudgetUSD
+		} else {
+			avisos = append(avisos, fmt.Sprintf("%s no acepta tope: agents.%s.budget_usd no se aplica", prov.Name(), opt.roleSlug()))
+		}
+	}
+	if opt.Effort != "" && !caps.Effort {
+		avisos = append(avisos, fmt.Sprintf("%s no soporta %s; se ignora", prov.Name(), providers.FieldEffort))
+		opt.Effort = ""
+	}
+	return avisos
+}
+
+// roleSlug is the role of opt as hoom.yaml names it.
+func (o Options) roleSlug() string {
+	if r, err := agents.Lookup(o.Role); err == nil {
+		return r.Slug
+	}
+	return o.Role
+}
+
 // startOptions translates the envelope's decision into a run request. Strict
 // is not a flag here: without its contract as system prompt there is no role
 // to verify, and a silent degradation would be a lie told with evidence.
@@ -424,6 +503,7 @@ func startOptions(prov providers.Provider, role agents.Role, contract string, op
 		Provider: prov.Name(), Prompt: opt.Prompt, Task: opt.Task, Role: role.Slug,
 		ResumeID: opt.ResumeID, Model: opt.Model, SystemPrompt: contract,
 		MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
+		Effort: opt.Effort, Timeout: opt.Timeout,
 		// The envelope is unattended by definition: no human answers the
 		// CLI's prompts, so the role gets its tools up front and the scope
 		// gate, not a denied Write, is what bounds it.

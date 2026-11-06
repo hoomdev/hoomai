@@ -1,0 +1,11 @@
+{
+  "id": "20261106T152429_4507b7",
+  "created_at": "2026-11-06T15:24:29.29999Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/servecmd/acciones.go",
+  "description": "INTRODUCIDO: internal/servecmd/acciones.go:115-137 acepta vista como puntero opcional en POST /launch y la propaga nil; internal/lanzar/lanzar.go:342-346 solo compara lo mostrado cuando Vista no es nil, y internal/servecmd/hallazgos_ronda1_test.go:162-167 exige que el endpoint lance sin vista. Por eso cualquier cliente autenticado que omita vista elude la garantia de que provider/modelo/esfuerzo/presupuesto/timeout/sesion siguen siendo los mostrados; si hoom.yaml o el gasto cambian con el dialogo abierto, puede arrancar con un timeout o presupuesto no mostrado y aumentar el gasto. La ruta HTTP debe exigir la vista; el piloto puede conservar nil en su llamada interna.",
+  "author": "reviewer@codex",
+  "fingerprint": "94c3033d021aa6b7",
+  "task": "verbos-de-la-tarjeta"
+}

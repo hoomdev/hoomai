@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061052_c5a19f",
+  "created_at": "2026-11-06T06:10:52.599398Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/manifest/manifest.go",
+  "description": "INTRODUCIDO — internal/manifest/manifest.go:115-123: AgentPolicies.UnmarshalYAML recorre el nodo y hace out[role] = p sin rechazar un rol repetido. Al implementar UnmarshalYAML se salta el chequeo de claves unicas que yaml.v3 haria al decodificar el mapa: un hoom.yaml con dos bloques agents.writer carga y el ultimo reemplaza por completo al primero. Si el primero contiene write.allow/write.deny y el segundo solo valores de lanzamiento, la politica de escritura desaparece silenciosamente y PolicyFor vuelve al territorio por defecto, ampliando permisos. Debe rechazarse un role ya visto antes de asignarlo.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

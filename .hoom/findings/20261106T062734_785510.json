@@ -1,0 +1,11 @@
+{
+  "id": "20261106T062734_785510",
+  "created_at": "2026-11-06T06:27:34.934481Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO — internal/lanzar/lanzar.go:124 declara Valores(c boardcmd.Card, ...), pero el cuerpo :125-167 nunca usa c; opcion (:462-464) y todos los tests deben construir/pasar una Card que no influye en el resultado. El parametro ensancha la API y hace creer que el calculo consulta estado de tarjeta. Eliminalo o usa explicitamente el dato de la tarjeta que corresponda.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

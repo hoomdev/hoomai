@@ -1,0 +1,11 @@
+{
+  "id": "20261106T062734_4cb6b0",
+  "created_at": "2026-11-06T06:27:34.65462Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO — internal/tarjetacmd/tarjetacmd.go:430, :445-455 y :877-899 mantienen los flags de lanzamiento en una lista, en el registro del FlagSet y en un parser manual de argv distinto de cliargs. Agregar o renombrar un flag puede hacer que se acepte al parsear pero que hoom siguiente no lo reconozca cuando la accion no lanza un rol. Usa una sola descripcion/registro de flags para derivar tanto el parseo como la deteccion del primer flag escrito.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

@@ -87,6 +87,9 @@ type Options struct {
 	SameProviderSet bool
 	MaxTurns        int
 	BudgetUSD       float64
+	// Timeout bounds each lens's run; 0 = review.timeout of the base's
+	// hoom.yaml, or hoom's 30 minutes.
+	Timeout time.Duration
 	// EnvelopeID and Started: the same contract as agentcmd.Options.
 	EnvelopeID string
 	Started    func()
@@ -623,6 +626,9 @@ func resolveOptions(opt Options, r *manifest.ReviewPolicy) Options {
 	if opt.Effort == "" {
 		opt.Effort = strings.TrimSpace(r.Effort)
 	}
+	if opt.Timeout <= 0 {
+		opt.Timeout = r.Timeout
+	}
 	if !opt.SameProviderSet && r.SameProvider != nil && *r.SameProvider {
 		opt.SameProvider = true
 	}
@@ -890,7 +896,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			Provider: prov.Name(), Prompt: pedido(comun, lens, role, prov.Name(), bin),
 			Task: opt.Task, FindingTask: findingTask(opt), Role: role.Slug, SystemPrompt: contract,
 			Model: opt.Model, Effort: opt.Effort, Isolated: isolated, PromptStdin: true, ReadOnly: readOnly, Exec: exec,
-			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true,
+			MaxTurns: opt.MaxTurns, BudgetUSD: opt.BudgetUSD, Strict: true, Timeout: opt.Timeout,
 		}
 	}
 	// a provider that does not take what the review asks for (a cap of

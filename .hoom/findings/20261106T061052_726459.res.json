@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061052_726459",
+  "as": "corregido",
+  "evidence": "1aa746f: la linea → cita cada valor para un shell POSIX (\"...\" si no hay nada especial, '...' si no, $'..\\xHH..' con controles) en el pedido, --model, --effort y --resume; TestHallazgo_726459_CA503_ElPedidoDeLaFlechaSePegaEnUnShell, _ModeloYEsfuerzoSePeganEnUnShell, _ResumeYSiguienteSePeganEnUnShell, _FlechaDelReviewerSePegaEnUnShell (pegado en sh, bash y zsh, nada se ejecuta); tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.8806Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061823_896eff",
+  "as": "corregido",
+  "evidence": "1aa746f: budgetFor aplica el piso del provider tambien al presupuesto implicito (hoom.yaml): 409 'claude necesita al menos 0.5 USD por run' en la terminal y el Studio; TestHallazgo_896eff_CA504_LanzarRechazaElPresupuestoDeHoomYamlBajoElPiso, _PresupuestoDeHoomYamlBajoElPiso, _LaunchConPresupuestoDeHoomYamlBajoElPiso, _ElPisoNoRechazaDeMas; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.886504Z"
+}

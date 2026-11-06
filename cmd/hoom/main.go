@@ -38,6 +38,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
 	"github.com/hoomdev/hoomai/internal/statuscmd"
+	"github.com/hoomdev/hoomai/internal/tarjetacmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
@@ -130,6 +131,25 @@ Comandos:
   profiles    Lista los perfiles de stack embebidos
   version     Muestra la version
 
+La tarjeta (cada verbo es una accion de la tarjeta, la misma que en el Studio):
+  usar        Fija la tarjeta de la que hablan estos verbos: usar <slug> | usar
+              (la muestra) | usar --ninguna (la quita); estado local
+  pedir       Le pide trabajo a un rol: pedir <rol> [<slug>] [-m "<pedido>"];
+              sin -m abre tu editor con el pedido que propone la tarjeta
+  siguiente   Hace la accion principal de la tarjeta; nunca aprueba ni integra
+  aprobar     Aprueba el spec de la tarjeta con tu identidad [--si]
+  integrar    Cierra la tarea de la tarjeta, como 'hoom task done' [--si]
+  guardar     Guarda en git lo que la tarjeta tiene sin guardar
+  reanudar    Retoma la sesion del trabajo cortado de la tarjeta
+  La tarjeta sale del argumento <slug>, de la carpeta (dentro de
+  .hoom/worktrees/<slug>/) o de la fijada con 'hoom usar', en ese orden, y
+  cada verbo dice de donde la saco antes de hacer nada.
+  Los valores de un lanzamiento (provider, modelo, esfuerzo, presupuesto y
+  tiempo limite) salen, en este orden, del comando (--provider, --model,
+  --effort, --budget-usd, --timeout), de agents.<rol> (o review:) en el
+  hoom.yaml del proyecto, de lo que propone la tarjeta y del provider; antes
+  de lanzar se imprimen con su origen y con el comando largo equivalente.
+
 Flags de init:
   --profile <nombre>   Fuerza un perfil (laravel|kmp|kmp-compose|go)
   --name <proyecto>    Nombre del proyecto (default: nombre del directorio)
@@ -166,6 +186,8 @@ Flags de run (lo que el provider no soporta se ignora CON aviso en el log;
   --deny-tools a,b     Herramientas prohibidas
   --max-turns n        Tope de turnos del agente (0 = sin tope)
   --budget-usd x       Tope de gasto en USD (0 = sin tope)
+  --timeout d          Tiempo limite de cada invocacion, entre 1m y 12h
+                       (ej. 45m, 1h30m); sin el: 30m
   --strict             Campo no soportado = error, no aviso. Con strict,
   --unattended         Nadie responde prompts: el CLI recibe de entrada las
                        herramientas de lectura, escritura y shell (en Claude,
@@ -173,6 +195,17 @@ Flags de run (lo que el provider no soporta se ignora CON aviso en el log;
                        continuar una sesion en un provider que no puede
                        (ni --resume ni --continue) tambien es error: una
                        invocacion nueva empezaria de cero y eso no es continuar
+
+Flags de agent (lo que no se pasa sale de agents.<rol> del hoom.yaml del
+              proyecto, despues del provider):
+  --provider <p>       Provider; vacio = agents.<rol>.provider o el primero
+                       instalado que soporte system prompt
+  --model <m>          Modelo; vacio = agents.<rol>.model o el del provider
+  --effort <e>         Esfuerzo; vacio = agents.<rol>.effort o el del provider
+                       (un provider que no lo soporta lo ignora con aviso)
+  --budget-usd x       Tope en USD; sin el = agents.<rol>.budget_usd
+  --timeout d          Tiempo limite, entre 1m y 12h; vacio =
+                       agents.<rol>.timeout o 30m
 
 Flags de serve:
   --addr host:puerto   Direccion de escucha (default 127.0.0.1:4666, solo loopback)
@@ -255,6 +288,9 @@ func main() {
 		err = cmdHook(args)
 	case "agents":
 		err = cmdAgents(args)
+	case "usar", "pedir", "siguiente", "aprobar", "integrar", "guardar", "reanudar":
+		// the card verbs own their exit codes: 0, 1, 2 or the envelope's
+		os.Exit(tarjetacmd.Run(cmd, args, tarjetacmd.Real()))
 	case "profiles":
 		for _, line := range profiles.Describe() {
 			fmt.Println(line)
@@ -524,7 +560,12 @@ func cmdRun(args []string) error {
 	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
 	strict := fs.Bool("strict", false, "un campo que el provider no soporta es error, no aviso")
 	unattended := fs.Bool("unattended", false, "nadie responde prompts: el provider recibe de entrada las herramientas para leer, escribir y ejecutar")
+	timeoutFlag := fs.String("timeout", "", "tiempo limite de cada invocacion, entre 1m y 12h (ej. 45m, 1h30m); vacio = 30m")
 	_ = fs.Parse(args)
+	timeout, err := timeoutDe(fs, "run", *timeoutFlag, runUso)
+	if err != nil {
+		return err
+	}
 	if *provider == "" {
 		return fmt.Errorf("falta --provider (mira 'hoom providers')")
 	}
@@ -546,6 +587,7 @@ func cmdRun(args []string) error {
 		Model: *model, SystemPrompt: sp,
 		AllowTools: splitList(*allow), DenyTools: splitList(*deny),
 		MaxTurns: *maxTurns, BudgetUSD: *budget, Strict: *strict, Unattended: *unattended,
+		Timeout: timeout,
 	})
 	if err != nil {
 		return err
@@ -614,9 +656,17 @@ func cmdAgent(args []string) error {
 	model := fs.String("model", "", "modelo, en el vocabulario del provider (ej: sonnet)")
 	resume := fs.String("resume", "", "id de sesion del provider a reanudar")
 	maxTurns := fs.Int("max-turns", 0, "tope de turnos del agente (0 = sin tope)")
-	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope)")
+	budget := fs.Float64("budget-usd", 0, "tope de gasto en USD (0 = sin tope); sin el: agents.<rol>.budget_usd de hoom.yaml")
+	effort := fs.String("effort", "", "esfuerzo, en el vocabulario del provider; vacio = agents.<rol>.effort de hoom.yaml o el del provider")
+	timeoutFlag := fs.String("timeout", "", "tiempo limite del run, entre 1m y 12h (ej. 45m, 1h30m); vacio = agents.<rol>.timeout de hoom.yaml o 30m")
 	asJSON := fs.Bool("json", false, "emitir el resultado del sobre como JSON en stdout")
 	_ = fs.Parse(args)
+	timeout, err := timeoutDe(fs, "agent", *timeoutFlag, agentUso)
+	if err != nil {
+		return err
+	}
+	budgetSet := false
+	fs.Visit(func(f *flag.Flag) { budgetSet = budgetSet || f.Name == "budget-usd" })
 	if *role == "" {
 		return fmt.Errorf("falta --role (mira 'hoom agents' o el listado de roles en .hoom/agents/)")
 	}
@@ -635,7 +685,8 @@ func cmdAgent(args []string) error {
 	res, err := agentcmd.Run(m.Dir, m.BaseBranch, agentcmd.Options{
 		Role: *role, Provider: *provider, Task: *task, Spec: *specPath,
 		Prompt: prompt, Model: *model, ResumeID: *resume,
-		MaxTurns: *maxTurns, BudgetUSD: *budget,
+		MaxTurns: *maxTurns, BudgetUSD: *budget, BudgetSet: budgetSet,
+		Effort: *effort, Timeout: timeout,
 	}, out)
 	if err != nil {
 		return err
@@ -648,6 +699,29 @@ func cmdAgent(args []string) error {
 		os.Exit(res.ExitCode)
 	}
 	return nil
+}
+
+// agentUso and runUso are the usage lines of agent and run, for their
+// argument errors.
+const (
+	agentUso = "uso: hoom agent --role <rol> [--task <slug>] [--spec <ruta>] [--provider p] [--model m] [--effort e] [--budget-usd x] [--timeout d] [--max-turns n] [--resume id] [--json] \"<pedido>\""
+	runUso   = "uso: hoom run --provider <p> [--task <slug>] [--model m] [--timeout d] [--strict] ... \"<prompt>\""
+)
+
+// timeoutDe is the --timeout of a verb: 0 when it was not written, and a
+// usage error (exit 2, nothing done) when it is not a duration between 1m
+// and 12h — --timeout 0 included.
+func timeoutDe(fs *flag.FlagSet, verb, v, uso string) (time.Duration, error) {
+	set := false
+	fs.Visit(func(f *flag.Flag) { set = set || f.Name == "timeout" })
+	if !set {
+		return 0, nil
+	}
+	d, err := manifest.ParseTimeout("--timeout", v)
+	if err != nil {
+		return 0, cliargs.NewUsageError(verb, err.Error(), uso)
+	}
+	return d, nil
 }
 
 // reviewUso is the review verb's usage line, for its argument errors.

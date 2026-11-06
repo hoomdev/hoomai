@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T153600_522ed0",
+  "as": "corregido",
+  "evidence": "b8b7ca6: enShell ya no emite $'...': lo que no se imprime va como \"$(printf '...')\" con \\NNN octal (', \\, %, ! y un - inicial escapados). Tests 08fea24 en tarjetacmd/flecha_posix_ronda2_test.go: la vuelta en sh, dash, bash, zsh y ksh da cada valor byte a byte y no ejecuta nada (incluye el caso del refutador que en dash ejecutaba touch pwn); rojos en 306adb4, verdes en b8b7ca6.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T17:42:10.648191Z"
+}

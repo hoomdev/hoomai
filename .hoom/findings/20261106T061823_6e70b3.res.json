@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061823_6e70b3",
+  "as": "corregido",
+  "evidence": "1aa746f + enmienda 2 aprobada (6ab4188, ccb460f): hoom pedir reviewer --timeout y hoom siguiente --timeout cuando lanzaria al reviewer son exit 2 'la revision toma su tiempo limite de review.timeout: no lleva --timeout', asi la → del reviewer sigue siendo equivalente; TestHallazgo_6e70b3_CA502_LaReviewNoLlevaTimeout; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.955597Z"
+}

@@ -234,6 +234,19 @@ func hastaDosPuntos(s string) string {
 // value, an operand too many or too few, or an empty operand; -h/--help is
 // ErrHelp.
 func Operands(fs *flag.FlagSet, args []string, verb, usage string, n int) ([]string, error) {
+	return parseOperands(fs, args, verb, usage, n, n, nil, false)
+}
+
+// OperandsRango is Operands for a verb that takes between min and max
+// operands (`hoom pedir <rol> [<slug>]`). The flags named in vacios may be
+// written with an empty value (`-m ""` is an empty pedido, not a typo). An
+// empty operand is returned as is: the verb judges it (an empty role is an
+// unknown role, with the verb's own message).
+func OperandsRango(fs *flag.FlagSet, args []string, verb, usage string, min, max int, vacios ...string) ([]string, error) {
+	return parseOperands(fs, args, verb, usage, min, max, vacios, true)
+}
+
+func parseOperands(fs *flag.FlagSet, args []string, verb, usage string, min, max int, vacios []string, vacioDelVerbo bool) ([]string, error) {
 	fail := func(reason string) error {
 		return NewUsageError(verb, reason, usage)
 	}
@@ -266,22 +279,47 @@ func Operands(fs *flag.FlagSet, args []string, verb, usage string, n int) ([]str
 		}
 		return nil, fail(razonResidual(err))
 	}
-	if vacio := FirstEmptyValue(fs, flags); vacio != "" {
+	if vacio := primerVacio(fs, flags, vacios); vacio != "" {
 		return nil, fail("--" + vacio + " vacio: escribir un flag y no darle valor es un typo")
 	}
 	switch {
-	case len(operandos) > n:
-		return nil, fail(posicional(operandos[n]))
-	case len(operandos) < n:
+	case len(operandos) > max:
+		return nil, fail(posicional(operandos[max]))
+	case len(operandos) < min:
 		return nil, fail(fmt.Sprintf("faltan argumentos: %s %d y %s %d",
-			plural(n, "se esperaba", "se esperaban"), n, plural(len(operandos), "llego", "llegaron"), len(operandos)))
+			plural(min, "se esperaba", "se esperaban"), min, plural(len(operandos), "llego", "llegaron"), len(operandos)))
 	}
 	for _, o := range operandos {
-		if o == "" {
-			return nil, fail(`argumento vacio: ""`)
+		if o == "" && !vacioDelVerbo {
+			return nil, fail(ArgumentoVacio)
 		}
 	}
 	return operandos, nil
+}
+
+// ArgumentoVacio is the usage reason for an empty operand.
+const ArgumentoVacio = `argumento vacio: ""`
+
+// primerVacio is FirstEmptyValue skipping the flags that may be empty.
+func primerVacio(fs *flag.FlagSet, args []string, permitidos []string) string {
+	var vacio string
+	_ = escanear(fs, args, func(string) error { return nil },
+		func(nombre, valor string) bool {
+			if valor == "" && !contiene(permitidos, nombre) {
+				vacio = nombre
+			}
+			return vacio == ""
+		}, nil)
+	return vacio
+}
+
+func contiene(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // operandos is what escanear collects for a verb that takes them.

@@ -1,0 +1,11 @@
+{
+  "id": "20261106T061823_faff7c",
+  "created_at": "2026-11-06T06:18:23.267299Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO: internal/tarjetacmd/tarjetacmd.go:573-589 congela y muestra valores antes de abrir el editor, pero lanzar.Lanzar vuelve a derivar la tarjeta en internal/lanzar/lanzar.go:277-292 y usa esa segunda acción. Si hoom.yaml o una interrupción cambia mientras el editor está abierto, la línea valores/comando puede anunciar provider, timeout o sesión distintos de los que realmente se lanzan; incluso reanudar puede tomar la nueva sesión con el pedido y comando de la anterior, violando la regla de transparencia y el determinismo de CA-503.",
+  "author": "reviewer@codex",
+  "fingerprint": "f22e821a5a47459e",
+  "task": "verbos-de-la-tarjeta"
+}

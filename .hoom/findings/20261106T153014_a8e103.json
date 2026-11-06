@@ -1,0 +1,11 @@
+{
+  "id": "20261106T153014_a8e103",
+  "created_at": "2026-11-06T15:30:14.839178Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO — internal/lanzar/lanzar.go:61-68,342-352,428-440: la Propuesta que congela lo mostrado no incluye el rol, aunque las acciones reanudar/relanzar toman a.Role de la interrupcion vigente. Si mientras el dialogo/editor sigue abierto una interrupcion de writer es reemplazada por otra de test-writer (mismo provider, defaults, presupuesto y timeout; relanzar no lleva sesion), cambios() no detecta diferencia y Lanzar ejecuta el pedido/comando mostrado para writer bajo el test-writer actual. La proteccion TOCTOU debe comparar tambien el rol dinamico antes de lanzar.",
+  "author": "reviewer@codex",
+  "fingerprint": "94c3033d021aa6b7",
+  "task": "verbos-de-la-tarjeta"
+}

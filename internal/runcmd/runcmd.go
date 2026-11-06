@@ -125,7 +125,15 @@ type StartOptions struct {
 	Effort       string // reasoning effort, provider vocabulary; "" = provider default
 	Isolated     bool   // run without the user's personal provider config
 	PromptStdin  bool   // the prompt travels by stdin at any size
+	// Timeout bounds each invocation of THIS run; 0 = the Manager's (30
+	// minutes by default). The sidecar records it (timeout_s).
+	Timeout time.Duration
 }
+
+// VentanaNarrando is how recent the provider's last narration must be, when
+// the timeout fires, for hoom to say the CLI was still narrating (and not
+// waiting for an interactive permission).
+const VentanaNarrando = 60 * time.Second
 
 // request builds the provider request for these options.
 func (o StartOptions) request(prompt, resumeID string, cont bool) providers.Request {
@@ -255,6 +263,10 @@ type Meta struct {
 	// ChildStartedAt is when the provider started: a ChildPID that another
 	// process reused started at another time (finding cea64f).
 	ChildStartedAt time.Time `json:"child_started_at,omitempty"`
+	// TimeoutS is the run's own timeout in seconds. The rule that decides
+	// whether a run another process owns is still alive uses it (plus 5
+	// minutes); 0 = an older sidecar, which uses the Manager's.
+	TimeoutS int `json:"timeout_s,omitempty"`
 }
 
 // vivo says whether the run of meta still has someone working: its owner, or
@@ -692,7 +704,12 @@ func (m *Manager) liveElsewhere(id string, lastTS time.Time) bool {
 	if provider(meta) {
 		return true
 	}
-	if !lastTS.IsZero() && time.Since(lastTS) > m.Timeout+5*time.Minute {
+	limite := m.Timeout
+	if meta.TimeoutS > 0 {
+		// the run's own bound: a run of 2 h is not dead at 35 min
+		limite = time.Duration(meta.TimeoutS) * time.Second
+	}
+	if !lastTS.IsZero() && time.Since(lastTS) > limite+5*time.Minute {
 		return false // too old: a live PID may be another process by now
 	}
 	return alive(meta.PID)
@@ -968,6 +985,7 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	r.meta = Meta{
 		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
 		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1, PID: os.Getpid(),
+		TimeoutS: int(m.timeoutOf(opts) / time.Second),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
 	// the sidecar is how another process sees this run: without it the run
@@ -1193,7 +1211,8 @@ func (m *Manager) Wait(id string) Run {
 
 // execute runs ONE subprocess invocation of the provider and settles state.
 func (m *Manager) execute(r *run, inv providers.Invocation) {
-	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
+	timeout := m.timeoutOf(r.opts)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	m.mu.Lock()
 	r.cancel = cancel
 	m.mu.Unlock()
@@ -1282,26 +1301,47 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	normalize := r.normalize
 	var wg sync.WaitGroup
 	var descartadas atomic.Int64
+	// ultimo is when the provider last narrated in this invocation (0 =
+	// never): the timeout's message depends on it
+	var ultimo atomic.Int64
+	narro := func(t int64) {
+		// stdout and stderr each bring their own time: the later one stays
+		for {
+			old := ultimo.Load()
+			if t <= old || ultimo.CompareAndSwap(old, t) {
+				return
+			}
+		}
+	}
+	inicio := time.Now()
 	scan := func(src io.Reader, isErr bool) {
 		defer wg.Done()
 		fuente := "stdout"
 		if isErr {
 			fuente = "stderr"
 		}
+		// a line counts from when its bytes arrived, not from when it ends:
+		// the pipe's close at the timeout ends a line the provider wrote long
+		// before, and that is not narrating (finding d4e3bf)
+		ll := &llegada{r: src}
 		// a line over the cap is read to its end and dropped, and the
 		// reading goes on: a provider is never left blocked on a pipe
 		// nobody drains, and the drop is said (finding e8e42c)
-		lineas(src, MaxLinea, func(line string) {
+		lineas(ll, MaxLinea, func(line string) {
 			if isErr {
 				if strings.TrimSpace(line) != "" {
+					narro(ll.t)
 					m.append(r, Event{TS: time.Now().UTC(), Kind: "text", Detail: "stderr: " + line})
 				}
 				return
 			}
 			for _, ev := range normalize(line) {
+				narro(ll.t)
 				m.append(r, ev)
 			}
 		}, func(n int) {
+			// a dropped line is output too: the provider is narrating
+			narro(ll.t)
 			descartadas.Add(1)
 			m.append(r, Event{TS: time.Now().UTC(), Kind: "text",
 				Detail: fmt.Sprintf("aviso: hoom descarto una linea de %s de %d bytes del provider: supera el tope de %d bytes por linea", fuente, n, MaxLinea)})
@@ -1319,7 +1359,7 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
 		status, exit = StatusError, -1
-		detail = fmt.Sprintf("timeout tras %s (¿la CLI espera un permiso interactivo? preconfigura sus permisos headless)", m.Timeout)
+		detail = detalleTimeout(timeout, inicio, ultimo.Load(), r.opts.Role)
 	case m.wasCanceled(r):
 		status, exit = StatusCanceled, -1
 		detail = "cancelado por el operador"
@@ -1354,6 +1394,59 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		detail = detalleLogRoto(r.info.ID, lerr)
 	}
 	m.settle(r, status, exit, detail)
+}
+
+// timeoutOf is the bound of each invocation of a run with opts: its own, or
+// the Manager's.
+func (m *Manager) timeoutOf(opts StartOptions) time.Duration {
+	if opts.Timeout > 0 {
+		return opts.Timeout
+	}
+	return m.Timeout
+}
+
+// detalleTimeout says why a run's time ran out, from its last narration: a
+// CLI that narrated in the last VentanaNarrando was working, not waiting for
+// a permission, and the action is a longer timeout (where it is set depends
+// on the role) or a smaller request.
+func detalleTimeout(timeout time.Duration, inicio time.Time, ultimo int64, role string) string {
+	silencio := time.Since(inicio)
+	if ultimo != 0 {
+		silencio = time.Since(time.Unix(0, ultimo))
+	}
+	if ultimo != 0 && silencio < VentanaNarrando {
+		donde := "--timeout o agents." + role + ".timeout en hoom.yaml"
+		switch role {
+		case "":
+			donde = "--timeout" // hoom run: no role, no hoom.yaml key
+		case "reviewer":
+			donde = "--timeout o review.timeout en hoom.yaml"
+		}
+		return fmt.Sprintf("timeout tras %s: la CLI seguia narrando (ultimo evento hace %ds), no esperaba un permiso. Accion: subi el tiempo limite (%s) o pedi menos por run",
+			Duracion(timeout), int(silencio/time.Second), donde)
+	}
+	return fmt.Sprintf("timeout tras %s sin narracion desde hace %s: la CLI puede estar esperando un permiso interactivo. Accion: preconfigura sus permisos headless",
+		Duracion(timeout), Duracion(silencio))
+}
+
+// Duracion renders a duration the way hoom prints a timeout: 45m, 1h30m,
+// 2h, 30s (to the second).
+func Duracion(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d <= 0 {
+		return "0s"
+	}
+	out := ""
+	if h := d / time.Hour; h > 0 {
+		out += fmt.Sprintf("%dh", h)
+	}
+	if m := (d % time.Hour) / time.Minute; m > 0 {
+		out += fmt.Sprintf("%dm", m)
+	}
+	if s := (d % time.Minute) / time.Second; s > 0 {
+		out += fmt.Sprintf("%ds", s)
+	}
+	return out
 }
 
 func (m *Manager) wasCanceled(r *run) bool {
@@ -1506,6 +1599,21 @@ func Alive(pid int) bool { return alive(pid) }
 // lines can be huge; one past this is read to its end and dropped, never
 // held whole (finding e8e42c).
 const MaxLinea = 4 << 20
+
+// llegada reads r and keeps when its last bytes arrived (UnixNano): the
+// reader of lineas, whose callbacks run in the same goroutine.
+type llegada struct {
+	r io.Reader
+	t int64
+}
+
+func (l *llegada) Read(p []byte) (int, error) {
+	n, err := l.r.Read(p)
+	if n > 0 {
+		l.t = time.Now().UnixNano()
+	}
+	return n, err
+}
 
 // lineas reads src line by line the way bufio.ScanLines does (the \n and a
 // \r before it are dropped; a last line without \n counts) and hands each

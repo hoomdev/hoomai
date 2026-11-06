@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T062734_785510",
+  "as": "corregido",
+  "evidence": "1aa746f: lanzar.Valores(a, req) y opcion(a, req) sin la Card que no usaban; las 4 llamadas de lanzar_test.go actualizadas por el test-writer en 2413993 (sin cambiar asserts); tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.944064Z"
+}

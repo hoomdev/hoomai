@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T061823_fbf9e5",
+  "as": "corregido",
+  "evidence": "1aa746f: con terminal, aprobar/integrar --si imprimen el texto de la firma y solo saltean la pregunta; TestHallazgo_fbf9e5_CA508_AprobarSiConTerminalMuestraElTexto, TestHallazgo_fbf9e5_CA509_IntegrarSiConTerminalMuestraElTexto; tests en 2413993 (test-writer ronda 1): rojos en 1dfb90e, verdes en ccb460f; go test -race verde en los 11 paquetes cambiados",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T15:20:01.898472Z"
+}

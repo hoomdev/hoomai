@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T153014_a8e103",
+  "as": "corregido",
+  "evidence": "b8b7ca6: lanzar.Propuesta lleva Role (json role), PropuestaDe lo llena y cambios() nombra rol primero; acciones.js vistaDe manda role. Tests 08fea24 (rojos en 306adb4, verdes en b8b7ca6): lanzar TestHallazgo_a8e103_CA504_VistaConOtroRolSeRechazaSinEfectos, servecmd TestHallazgo_a8e103_CA504_LaunchConVistaDeOtroRolEs409 y _RelanzarConLaInterrupcionReemplazada, tarjetacmd TestHallazgo_a8e103_CA511_ReanudarConLaInterrupcionReemplazada. El refutador lo vio pre-existente en servecmd.start de main; se arregla aca porque lanzar reemplaza a start.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T17:42:10.635226Z"
+}

@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
+	"github.com/hoomdev/hoomai/internal/valores"
 )
 
 // C3: what a person can do with the card. Everything here is part of Derive
@@ -63,6 +65,11 @@ const (
 	whyReviewer    = "una revision cortada se vuelve a lanzar entera"
 	whyBack        = "la tarjeta no vuelve atras: su columna la da la evidencia"
 )
+
+// WhySpecSinGuardar disables the test-writer while the card's spec is not in
+// what its workspace saved, or differs from it: the blind tree is built from
+// what is saved (verbos-de-la-tarjeta).
+const WhySpecSinGuardar = "el spec tiene cambios sin guardar y el test-writer trabaja con lo guardado: guarda primero"
 
 // Action returns the card's action with that id, if it has it.
 func (c Card) Action(id string) (Action, bool) {
@@ -192,14 +199,43 @@ func roleAction(ev Evidence, c Card, a *Action) {
 		a.Pedido = defaultPedido(ev, c, a.Role)
 	}
 	review := a.Role == "reviewer"
+	var queda *float64 // what the card has left for this run (per lens in the review)
 	if b := ev.Item.PresupuestoUSD; b != nil && c.Spend.RemainingUSD != nil {
 		v := *c.Spend.RemainingUSD
 		if review {
 			v /= ReviewLenses
 		}
-		a.BudgetUSD = &v
+		queda = &v
 	}
+	a.BudgetUSD = queda
 	a.Providers = providerOptions(ev, c, a)
+	proponerValores(ev, a, queda)
+}
+
+// proponerValores applies the order of the values to a role action: the
+// project's hoom.yaml for the role, then what the card proposes today (its
+// first provider that can, what it has left), then the provider's own. The
+// provider marked default is hoom.yaml's when it is an option with ok.
+func proponerValores(ev Evidence, a *Action, queda *float64) {
+	lugar := valores.Lugar{BudgetUSD: queda}
+	ok := map[string]bool{}
+	for _, o := range a.Providers {
+		ok[o.Name] = o.OK
+		if o.Default {
+			lugar.Provider = o.Name
+		}
+	}
+	lugar.Puede = func(p string) bool { return ok[p] }
+	e := valores.Resolver(valores.Pedido{}, ev.Defaults[a.Role], lugar)
+	a.Model, a.Effort = e.Model, e.Effort
+	a.TimeoutS = int(e.Timeout / time.Second)
+	a.BudgetUSD = e.BudgetUSD
+	a.Origen = e.Origen
+	if e.Provider != "" && e.Provider != lugar.Provider {
+		for i := range a.Providers {
+			a.Providers[i].Default = a.Providers[i].Name == e.Provider
+		}
+	}
 }
 
 // roleWhy disables a role action that cannot run now, in the contract's
@@ -208,6 +244,11 @@ func roleWhy(ev Evidence, c Card, a *Action) {
 	switch {
 	case !hasTask(ev) && c.Column != ColBacklog:
 		disable(a, whyNoWorkspace)
+		return
+	case a.Role == "test-writer" && (a.ID == ActPedirTestWriter || a.ID == ActRelanzar) && specSinGuardar(ev):
+		// the blind tree is built from what is saved: an unsaved spec would
+		// fail the envelope at its step 2, so the card says it first
+		disable(a, WhySpecSinGuardar)
 		return
 	case ev.Item.PresupuestoUSD != nil && c.Spend.RemainingUSD != nil && *c.Spend.RemainingUSD <= 0:
 		disable(a, fmt.Sprintf("se agoto el presupuesto de la tarjeta: se gastaron %s de %s USD",
@@ -238,6 +279,16 @@ func roleWhy(ev Evidence, c Card, a *Action) {
 	case !infoOf(ev, intr.Provider).Capabilities.Resume:
 		disable(a, intr.Provider+" no puede retomar una sesion: solo se puede volver a lanzar")
 	}
+}
+
+// specSinGuardar says whether the card's spec is among what its tree has
+// not saved: missing from it, or different from it.
+func specSinGuardar(ev Evidence) bool {
+	spec := ev.SpecPath
+	if ev.Source == SourceWorktree && ev.Dir != "" && ev.Dir != "." {
+		spec = ev.Dir + "/" + ev.SpecPath
+	}
+	return containsStr(ev.Uncommitted, spec)
 }
 
 // providerOptions lists the installed providers as this action sees them.

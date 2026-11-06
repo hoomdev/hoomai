@@ -1,0 +1,11 @@
+{
+  "id": "20261106T065945_810954",
+  "created_at": "2026-11-06T06:59:45.049761Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/servecmd/ui/acciones.js",
+  "description": "INTRODUCIDO (observacion del refutador, ronda 1): internal/servecmd/ui/acciones.js tiempoLimite decide '(el de hoom)' por el valor (1800 s), no por el origen: un agents.\u003crol\u003e.timeout: 30m declarado tambien muestra 'tiempo limite: 30 min (el de hoom)', y el spec (seccion del dialogo) dice '(el de hoom)' solo sin nada declarado. Action.Origen es json:\"-\", asi que el Studio no puede saber el origen. Exponer el origen en el JSON de la accion y decidir por el.",
+  "author": "writer@claude",
+  "fingerprint": "6a5543aaba711d96",
+  "task": "verbos-de-la-tarjeta"
+}

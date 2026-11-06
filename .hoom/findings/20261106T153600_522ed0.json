@@ -1,0 +1,11 @@
+{
+  "id": "20261106T153600_522ed0",
+  "created_at": "2026-11-06T15:36:00.707495Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tarjetacmd/tarjetacmd.go",
+  "description": "INTRODUCIDO: internal/tarjetacmd/tarjetacmd.go:817 emite palabras no imprimibles con sintaxis ANSI-C $-comilla, que no pertenece al shell POSIX y tampoco es interpretable por cmd.exe; por ejemplo dash conserva literalmente el prefijo y las secuencias hexadecimales. En esos entornos, pegar la linea de comando equivalente cambia model, effort, resume o pedido y puede lanzar un trabajo distinto del mostrado. Los tests omiten /bin/sh precisamente cuando aparece esa forma.",
+  "author": "reviewer@codex",
+  "fingerprint": "94c3033d021aa6b7",
+  "task": "verbos-de-la-tarjeta"
+}

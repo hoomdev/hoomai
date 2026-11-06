@@ -210,12 +210,13 @@ function dialogoRol(c, a) {
     <div class="fld"><label for="acc-prov">Provider</label>
       <select id="acc-prov"${reanuda ? " disabled" : ""}>${opciones}</select></div>
     <div class="fld"><label for="acc-model">Modelo</label>
-      <input id="acc-model" placeholder="${revision ? "vacío: el de hoom.yaml o el del CLI" : "vacío: el que usa el CLI por defecto"}"></div>
-    ${revision ? `<div class="fld"><label for="acc-effort">Esfuerzo</label>
-      <input id="acc-effort" placeholder="vacío: el de hoom.yaml o el del CLI"></div>` : ""}
+      <input id="acc-model" value="${esc(a.model || "")}" placeholder="${esc(siVacio(a, "model"))}"></div>
+    <div class="fld"><label for="acc-effort">Esfuerzo</label>
+      <input id="acc-effort" value="${esc(a.effort || "")}" placeholder="${esc(siVacio(a, "effort"))}"></div>
     <div class="fld"><label for="acc-budget">Presupuesto en USD</label>
       <input id="acc-budget" type="number" min="0" step="0.1" value="${a.budget_usd != null ? esc(String(a.budget_usd)) : ""}" placeholder="vacío: sin tope"></div>
     <div class="aviso" id="acc-budgetnote"></div>
+    <div class="hint" id="acc-timeout">${esc(tiempoLimite(a.timeout_s, a.origen))}</div>
     ${revision ? "" : `<div class="fld"><label for="acc-pedido">Pedido</label><textarea id="acc-pedido">${esc(a.pedido)}</textarea></div>`}`;
   dialogo(`${etiquetaAccion(a)} · ${c.item.titulo}`, html, async () => {
     const budget = $("acc-budget");
@@ -226,7 +227,10 @@ function dialogoRol(c, a) {
       model: $("acc-model").value.trim(),
       budget_usd: valor,
       pedido: revision ? "" : $("acc-pedido").value,
-      effort: revision ? $("acc-effort").value.trim() : "",
+      effort: $("acc-effort").value.trim(),
+      // lo que el dialogo mostro: si la tarjeta cambio mientras estaba
+      // abierto, no se lanza con otros valores (hallazgo faff7c)
+      vista: vistaDe(a),
     });
     return ACC_NORMAL.empezo(r.role || a.role);
   }, "Lanzar");
@@ -248,6 +252,35 @@ function dialogoRol(c, a) {
   };
   $("acc-prov").addEventListener("change", alCambiar);
   alCambiar();
+}
+
+// siVacio is what an emptied Modelo or Esfuerzo launches: hoom.yaml's value
+// when the action brings it from there (an empty field asks for nothing, so
+// the next level wins), else the CLI's own.
+function siVacio(a, campo) {
+  const v = a[campo];
+  return v && a.origen && a.origen[campo] === "hoom.yaml" ? `vacío: el de hoom.yaml (${v})` : "vacío: el que usa el CLI por defecto";
+}
+
+// vistaDe is what the action proposes as the dialog shows it: its role, its
+// default provider, its values and the session it resumes.
+function vistaDe(a) {
+  const p = a.providers.find(x => x.default);
+  return {
+    role: a.role || "", provider: p ? p.name : "", model: a.model || "", effort: a.effort || "",
+    budget_usd: a.budget_usd != null ? a.budget_usd : null, timeout_s: a.timeout_s || 0, resume_id: a.resume_id || "",
+  };
+}
+
+// tiempoLimite is the line under the budget: the timeout the launch takes,
+// exact (90 s is not 2 min), and "(el de hoom)" only when nothing declared
+// it. The Studio shows it; it is changed in hoom.yaml or with --timeout.
+function tiempoLimite(s, origen) {
+  const seg = s || 1800;
+  const deHoom = origen && origen.timeout ? origen.timeout === "provider" : !s;
+  const min = Math.floor(seg / 60), resto = seg % 60;
+  if (resto === 0) return deHoom ? `tiempo limite: ${min} min (el de hoom)` : `tiempo limite: ${min} min`;
+  return `tiempo limite: ${min ? `${min} min ` : ""}${resto} s`;
 }
 
 /* ---------- las firmas: aprobar e integrar ---------- */

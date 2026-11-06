@@ -1,14 +1,14 @@
 // Tests adversariales del spec .hoom/specs/review-aislada-y-modelo-elegido.md
 // en el Studio: la tarjeta muestra modelo y esfuerzo del reviewer y marca la
 // cruzada sin confirmar (CA-408); el dialogo de pedir-reviewer gana el campo
-// esfuerzo y POST /launch lo pasa a la review, o responde 400 con otra accion
-// (CA-409); sin opciones, la review del Studio toma modelo y esfuerzo de
+// esfuerzo y POST /launch lo pasa a la review (CA-409; desde
+// verbos-de-la-tarjeta, CA-496, tambien al sobre en las otras acciones de
+// rol); sin opciones, la review del Studio toma modelo y esfuerzo de
 // hoom.yaml (CA-395); y los roles que escriben siguen sin aislamiento
 // (CA-400). Los CLIs son los falsos de lanzar_test.go, en un PATH minimo.
 package servecmd
 
 import (
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -124,9 +124,12 @@ func raHayPar(args []string, flag, valor string) bool {
 	return false
 }
 
-// CA-409: effort con otra accion es 400 'effort solo aplica a
-// pedir-reviewer', sin efectos ni llamadas; vacio, la accion sigue como hoy.
-func TestCA409_EffortConOtraAccionEs400(t *testing.T) {
+// CA-409, re-expresado por CA-496 (verbos-de-la-tarjeta): effort ya no es
+// solo de pedir-reviewer. Con pedir-writer y pedir-test-writer el launch se
+// acepta y el esfuerzo llega al sobre (claude --effort high); el error
+// 'effort solo aplica a pedir-reviewer' no aparece nunca. Vacio, la accion
+// sigue como hoy.
+func TestCA409_EffortConOtraAccionLlegaAlSobre(t *testing.T) {
 	f := lnPATH(t)
 	f.cli(t, "claude", false)
 	root := tbProyecto(t)
@@ -134,20 +137,28 @@ func TestCA409_EffortConOtraAccionEs400(t *testing.T) {
 	lnCartaTestWriter(t, "CA-409", root, "faltan-tests")
 	s := lnServidor(t, root, f)
 
-	antes := lnHuellas(t, root)
 	for _, k := range []struct{ slug, action, pedido string }{
 		{"a-implementar", "pedir-writer", "Implementa el spec hasta que verify de verde."},
 		{"faltan-tests", "pedir-test-writer", "Escribi los tests del criterio que falta."},
 	} {
-		msg := tbErrorJSON(t, "CA-409", lnLaunch(t, s, k.slug, s.Token(),
-			raCuerpo(k.action, "claude", "", k.pedido, "high")), http.StatusBadRequest)
-		if !strings.Contains(msg, "effort solo aplica a pedir-reviewer") {
-			t.Fatalf("CA-409: %s con effort es 400 'effort solo aplica a pedir-reviewer': %q", k.action, msg)
+		rec := lnLaunch(t, s, k.slug, s.Token(), raCuerpo(k.action, "claude", "", k.pedido, "high"))
+		if strings.Contains(rec.Body.String(), "effort solo aplica a pedir-reviewer") {
+			t.Fatalf("CA-409/CA-496: %s con effort ya no responde 'effort solo aplica a pedir-reviewer': %s", k.action, rec.Body.String())
+		}
+		if r := lnAceptado(t, "CA-409/CA-496 ("+k.action+")", rec); r.Provider != "claude" {
+			t.Fatalf("CA-409/CA-496: %s con effort se lanza con claude: %+v", k.action, r)
+		}
+		lnEsperarLanzamientos(t, "CA-409", s)
+	}
+	ll := f.llamadas(t, "claude")
+	if len(ll) != 2 {
+		t.Fatalf("CA-409/CA-496: dos lanzamientos, dos llamadas a claude: %d", len(ll))
+	}
+	for _, args := range ll {
+		if v, ok := lnSigue(args, "--effort"); !ok || v != "high" {
+			t.Fatalf("CA-409/CA-496: el esfuerzo pedido llega al sobre (--effort high): %q", args)
 		}
 	}
-	lnEsperarLanzamientos(t, "CA-409", s)
-	lnSinEfectos(t, "CA-409", "un effort fuera de pedir-reviewer", antes, lnHuellas(t, root), false)
-	lnSinLlamadas(t, "CA-409", "un effort fuera de pedir-reviewer", f)
 
 	// con effort vacio, la misma accion se acepta como hoy
 	lnAceptado(t, "CA-409", lnLaunch(t, s, "a-implementar", s.Token(),

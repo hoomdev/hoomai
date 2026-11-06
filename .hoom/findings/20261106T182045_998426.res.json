@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261106T182045_998426",
+  "as": "corregido",
+  "evidence": "fa68865 (test-writer ciego, ronda 3): r1Shells() sin el parametro conDolarComilla y sus 6 callers (hallazgos_ronda1_test.go y flecha_posix_ronda2_test.go:132) sin el strings.Contains(resto, \"$'\") inutil; ademas r1PegarEnShells falla con t.Fatalf como r2Pegar si no hay shell (el log 'no hay bash ni zsh' era falso) y el comentario de TestHallazgo_726459_CA503_ModeloYEsfuerzoSePeganEnUnShell nombra la forma \"$(printf '...')\". Mismos 91 tests (go test -list), race de tarjetacmd verde.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-06T18:41:06.989869Z"
+}
