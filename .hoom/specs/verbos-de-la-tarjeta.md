@@ -15,7 +15,10 @@ límite fijo de 30 minutos con un mensaje que culpa a los permisos cuando el
 agente estaba pensando, y el test-writer que se puede pedir con el spec sin
 guardar.
 Re-expresa: CA-409 (review-aislada-y-modelo-elegido), porque `POST /launch`
-pasa a aceptar `effort` para todas las acciones de rol.
+pasa a aceptar `effort` para todas las acciones de rol, y CA-381
+(historia-doctor-y-cinta) en el tramo arquitecto -> test-writer, porque con
+el spec del arquitecto sin guardar la cinta ya no pide al test-writer: se
+detiene antes con el why de CA-497.
 
 ## Objetivo
 
@@ -438,7 +441,7 @@ bloque de uso del verbo. `-h` imprime el uso y sale con 0.
 - CA-494: un run con `Timeout` corta a ese tiempo y no al del `Manager`, su sidecar trae `timeout_s`, y la regla de run vivo usa el tiempo límite del run más 5 minutos (y el del `Manager` para un sidecar sin `timeout_s`).
 - CA-495: al vencer el tiempo límite, el detalle del run es el mensaje "seguia narrando" con un evento en los 60 segundos anteriores y el mensaje "sin narracion" sin él, con los textos del contrato; `hoom run` acepta `--timeout`.
 - CA-496: el diálogo de rol del Studio tiene el campo Esfuerzo para las cuatro acciones de rol, relleno con `effort` de la acción, el Modelo relleno con `model` y la línea del tiempo límite; `POST /launch` pasa `effort` al sobre o a la review en las cuatro, y ya no responde `effort solo aplica a pedir-reviewer`. Re-expresa CA-409.
-- CA-497: `pedir-test-writer`, y `relanzar` con rol test-writer, están deshabilitadas con el `why` del contrato cuando el spec de la tarjeta no está en lo guardado de su espacio de trabajo o lo guardado difiere del disco, y habilitadas cuando coinciden; el `why` no contiene ninguna palabra de git.
+- CA-497: `pedir-test-writer`, y `relanzar` con rol test-writer, están deshabilitadas con el `why` del contrato cuando el spec de la tarjeta no está en lo guardado de su espacio de trabajo o lo guardado difiere del disco, y habilitadas cuando coinciden; el `why` no contiene ninguna palabra de git. La cinta, ante esa accion deshabilitada, se detiene y escribe en su log `piloto automatico: se detiene: el spec tiene cambios sin guardar y el test-writer trabaja con lo guardado: guarda primero`; con el spec guardado pide al test-writer como hoy (CA-381).
 - CA-498: los verbos nuevos deducen la tarjeta en el orden del contrato (operando, carpeta, `hoom usar`), imprimen `tarjeta: <slug> (<origen>)` antes de hacer nada, y sin tarjeta salen con 2 y el texto del contrato sin efectos; un slug que no es tarjeta es exit 1.
 - CA-499: desde una carpeta dentro de `.hoom/worktrees/<slug>/` (incluido un árbol ciego anidado) la tarjeta es `<slug>` y el proyecto es el árbol principal, no el espacio de trabajo.
 - CA-500: `hoom usar <slug>` escribe `.hoom/cache/tarjeta`, `hoom usar` la muestra o dice `sin tarjeta fijada`, `hoom usar --ninguna` la quita, un slug inexistente es exit 1 sin cambiar nada, y una tarjeta fijada que dejó de existir da el error del contrato. El archivo no entra en la huella.
@@ -515,8 +518,8 @@ bloque de uso del verbo. `-h` imprime el uso y sale con 0.
   el tope de gasto donde el provider lo acepta; con codex no hay tope y la
   línea de valores lo dice.
 - **Mover `servecmd.start` a un paquete compartido toca el Studio.** Los
-  tests de C3 tienen que pasar sin cambios, salvo CA-409 que esta spec
-  re-expresa.
+  tests de C3 y C4 tienen que pasar sin cambios, salvo CA-409 y el tramo
+  arquitecto -> test-writer de CA-381, que esta spec re-expresa.
 - **El editor por defecto varía por sistema.** `vi` en Unix y `notepad` en
   Windows. Quien no los quiera declara `$EDITOR`, como con git.
 - **El mensaje del tiempo límite mira solo el último evento.** Una CLI que
