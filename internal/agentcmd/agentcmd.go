@@ -136,7 +136,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	def := roles.RoleDefaults(role.Slug)
+	// review: configures hoom review's passes (isolated, with its effort);
+	// an envelope never carries them, whatever the role (CA-400)
+	var def manifest.RoleDefaults
+	if role.Slug != "reviewer" {
+		def = roles.RoleDefaults(role.Slug)
+	}
 	if strings.TrimSpace(opt.Provider) == "" {
 		opt.Provider = def.Provider
 	}

@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -115,12 +116,12 @@ func Deducir(dir, operando string) (Deduccion, error) {
 			return Deduccion{}, &Fallo{Code: 2, Msg: msgSinTarjeta}
 		}
 		if !esTarjeta(root, fijada) {
-			return Deduccion{}, &Fallo{Code: 1, Msg: fmt.Sprintf("la tarjeta fijada %s ya no existe: hoom usar <otra>", fijada)}
+			return Deduccion{}, &Fallo{Code: 1, Msg: fmt.Sprintf("la tarjeta fijada %s ya no existe: hoom usar <otra>", nombrar(fijada))}
 		}
 		d.Slug, d.Origen = fijada, OrigenUsar
 	}
 	if !esTarjeta(root, d.Slug) {
-		return Deduccion{}, &Fallo{Code: 1, Msg: fmt.Sprintf("no hay tarjeta %s: hoom item list", d.Slug)}
+		return Deduccion{}, &Fallo{Code: 1, Msg: fmt.Sprintf("no hay tarjeta %s: hoom item list", nombrar(d.Slug))}
 	}
 	return d, nil
 }
@@ -304,7 +305,22 @@ func (v *verbo) fallo(err error) int {
 // without its value or an operand too many is exit 2 with the usage block;
 // -h prints it and exits 0. ok=false means the verb ends with code.
 func (v *verbo) parsear(fs *flag.FlagSet, args []string, min, max int, vacios ...string) (ops []string, code int, ok bool) {
+	return v.parsearDesde(0, fs, args, min, max, vacios...)
+}
+
+// parsearDesde is parsear leaving the operands before desde to the verb:
+// pedir's empty role is an unknown role, with its own message; an empty
+// card is still a typo.
+func (v *verbo) parsearDesde(desde int, fs *flag.FlagSet, args []string, min, max int, vacios ...string) (ops []string, code int, ok bool) {
 	ops, err := cliargs.OperandsRango(fs, args, v.nombre, Uso(v.nombre), min, max, vacios...)
+	if err == nil {
+		for i := desde; i < len(ops); i++ {
+			if ops[i] == "" {
+				err = cliargs.NewUsageError(v.nombre, cliargs.ArgumentoVacio, Uso(v.nombre))
+				break
+			}
+		}
+	}
 	if errors.Is(err, cliargs.ErrHelp) {
 		fmt.Fprintln(v.e.Out, Uso(v.nombre))
 		return nil, 0, false
@@ -346,6 +362,9 @@ func (v *verbo) carta(d Deduccion) (*manifest.Manifest, boardcmd.Card, int, bool
 
 // ---------------------------------------------------------------- usar
 
+// usar parses argv; usarCon does the work with what it parsed. Every verb
+// keeps argv to its parse: what reaches a message is a value the verb
+// already judged (a known role, a card) or one shown with nombrar/visible.
 func (v *verbo) usar(args []string) int {
 	v.info = v.e.Out
 	fs := flag.NewFlagSet("usar", flag.ContinueOnError)
@@ -357,21 +376,24 @@ func (v *verbo) usar(args []string) int {
 	if *ninguna && len(ops) > 0 {
 		return v.uso("--ninguna no lleva tarjeta")
 	}
+	return v.usarCon(*ninguna, len(ops) == 1, primero(ops))
+}
+
+func (v *verbo) usarCon(ninguna, fijar bool, slug string) int {
 	root, _, err := proyecto(v.e.Dir)
 	if err != nil {
 		return v.falla(err.Error())
 	}
 	path := filepath.Join(root, filepath.FromSlash(ArchivoFijada))
 	switch {
-	case *ninguna:
+	case ninguna:
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return v.falla(err.Error())
 		}
 		fmt.Fprintln(v.e.Out, "sin tarjeta fijada")
-	case len(ops) == 1:
-		slug := ops[0]
+	case fijar:
 		if !esTarjeta(root, slug) {
-			return v.falla(fmt.Sprintf("no hay tarjeta %s: hoom item list", slug))
+			return v.falla(fmt.Sprintf("no hay tarjeta %s: hoom item list", nombrar(slug)))
 		}
 		// local state: .hoom/cache stays out of git and of the fingerprint
 		hoomfs.EnsureIgnored(root)
@@ -389,7 +411,7 @@ func (v *verbo) usar(args []string) int {
 			return 0
 		}
 		if !esTarjeta(root, slug) {
-			return v.falla(fmt.Sprintf("la tarjeta fijada %s ya no existe: hoom usar <otra>", slug))
+			return v.falla(fmt.Sprintf("la tarjeta fijada %s ya no existe: hoom usar <otra>", nombrar(slug)))
 		}
 		fmt.Fprintf(v.e.Out, "tarjeta: %s\n", slug)
 	}
@@ -400,6 +422,9 @@ func (v *verbo) usar(args []string) int {
 
 // roles are the roles hoom pedir asks for: the four of the card.
 var roles = []string{"arquitecto", "test-writer", "writer", "reviewer"}
+
+// msgRolDesconocido is the usage reason for another role (roles, in order).
+const msgRolDesconocido = "rol desconocido %q (arquitecto, test-writer, writer, reviewer); para otros roles: hoom agent"
 
 // flagsLanzamiento are the launch flags, in the order the usage gives them.
 var flagsLanzamiento = []string{"m", "provider", "model", "effort", "budget-usd", "timeout", "json"}
@@ -463,7 +488,7 @@ func (v *verbo) pedir(args []string) int {
 	fs := flag.NewFlagSet("pedir", flag.ContinueOnError)
 	var l lanzamiento
 	l.registrar(fs, true)
-	ops, code, ok := v.parsear(fs, args, 1, 2, "m")
+	ops, code, ok := v.parsearDesde(1, fs, args, 1, 2, "m")
 	if !ok {
 		return code
 	}
@@ -472,7 +497,7 @@ func (v *verbo) pedir(args []string) int {
 	}
 	rol := ops[0]
 	if !contiene(roles, rol) {
-		return v.uso(fmt.Sprintf("rol desconocido %q (%s); para otros roles: hoom agent", rol, strings.Join(roles, ", ")))
+		return v.uso(fmt.Sprintf(msgRolDesconocido, rol))
 	}
 	if rol == "reviewer" && l.escritos["m"] {
 		return v.uso("la revision arma su propio pedido: no lleva -m")
@@ -481,6 +506,10 @@ func (v *verbo) pedir(args []string) int {
 	if len(ops) == 2 {
 		operando = ops[1]
 	}
+	return v.pedirCon(rol, operando, &l)
+}
+
+func (v *verbo) pedirCon(rol, operando string, l *lanzamiento) int {
 	d, code, ok := v.tarjeta(operando)
 	if !ok {
 		return code
@@ -493,7 +522,7 @@ func (v *verbo) pedir(args []string) int {
 	if !ok {
 		return v.falla(fmt.Sprintf("en %s no se le pide al %s: %s. Siguiente: hoom siguiente", c.ColumnName, rol, c.Plain))
 	}
-	return v.lanzarRol(d, m, c, a, &l)
+	return v.lanzarRol(d, m, c, a, l)
 }
 
 func (v *verbo) reanudar(args []string) int {
@@ -507,7 +536,11 @@ func (v *verbo) reanudar(args []string) int {
 	if code, ok := l.leer(v, fs); !ok {
 		return code
 	}
-	d, code, ok := v.tarjeta(primero(ops))
+	return v.reanudarCon(primero(ops), &l)
+}
+
+func (v *verbo) reanudarCon(operando string, l *lanzamiento) int {
+	d, code, ok := v.tarjeta(operando)
 	if !ok {
 		return code
 	}
@@ -519,7 +552,7 @@ func (v *verbo) reanudar(args []string) int {
 	if !ok {
 		return v.falla(fmt.Sprintf("en %s no hay nada que reanudar: %s", c.ColumnName, c.Plain))
 	}
-	return v.lanzarRol(d, m, c, a, &l)
+	return v.lanzarRol(d, m, c, a, l)
 }
 
 // lanzarRol runs a role action of the card with the same function as the
@@ -671,7 +704,7 @@ func lineaValores(e valores.Elegidos, a boardcmd.Action, req lanzar.Request) str
 		if v == "" {
 			v, origen = "del provider", valores.OrigenProvider
 		}
-		return fmt.Sprintf("%s %s (%s)", nombre, v, origen)
+		return fmt.Sprintf("%s %s (%s)", nombre, visible(v), origen)
 	}
 	presupuesto := valor("presupuesto", "", e.Origen.BudgetUSD)
 	o, ok := opcionDe(a, e.Provider)
@@ -707,10 +740,10 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 		parts = append(parts, "--provider", e.Provider)
 	}
 	if e.Model != "" {
-		parts = append(parts, "--model", e.Model)
+		parts = append(parts, "--model", visible(e.Model))
 	}
 	if e.Effort != "" {
-		parts = append(parts, "--effort", e.Effort)
+		parts = append(parts, "--effort", visible(e.Effort))
 	}
 	if o, ok := opcionDe(a, e.Provider); e.BudgetUSD != nil && (!ok || o.Budget) {
 		// a provider that takes no cap gets none: hoom agent would refuse it
@@ -724,7 +757,9 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 		if a.ID == boardcmd.ActReanudar && a.ResumeID != "" {
 			parts = append(parts, "--resume", a.ResumeID)
 		}
-		parts = append(parts, `"`+recortar(pedido)+`"`)
+		// quoted: a control character or an escape sequence in -m never
+		// reaches the terminal raw
+		parts = append(parts, strconv.Quote(recortar(pedido)))
 	}
 	return "→ " + strings.Join(parts, " ")
 }
@@ -760,7 +795,13 @@ func (v *verbo) siguiente(args []string) int {
 	if code, ok := l.leer(v, fs); !ok {
 		return code
 	}
-	d, code, ok := v.tarjeta(primero(ops))
+	return v.siguienteCon(primero(ops), &l, flagEscrito(args))
+}
+
+// siguienteCon is siguiente with what it parsed; escrito is the first launch
+// flag as written ("" without one): one of flagsLanzamiento.
+func (v *verbo) siguienteCon(operando string, l *lanzamiento, escrito string) int {
+	d, code, ok := v.tarjeta(operando)
 	if !ok {
 		return code
 	}
@@ -771,7 +812,7 @@ func (v *verbo) siguiente(args []string) int {
 	// what the card asks now, when it is not to launch a role: the launch
 	// flags have nothing to do then
 	noLanza := func(verbo string, imprimir func()) int {
-		if f := flagEscrito(args); f != "" {
+		if f := escrito; f != "" {
 			ahora := "ahora te toca hoom " + verbo
 			if verbo == "" {
 				ahora = "la tarjeta ya esta en Hecho"
@@ -828,7 +869,7 @@ func (v *verbo) siguiente(args []string) int {
 	if a.Role == "reviewer" && l.escritos["m"] {
 		return v.uso("la revision arma su propio pedido: no lleva -m")
 	}
-	return v.lanzarRol(d, m, c, a, &l)
+	return v.lanzarRol(d, m, c, a, l)
 }
 
 // flagEscrito is the first launch flag of args, as it was written (--model,
@@ -884,7 +925,11 @@ func (v *verbo) firmar(args []string) int {
 	if !ok {
 		return code
 	}
-	d, code, ok := v.tarjeta(primero(ops))
+	return v.firmarCon(primero(ops), *si)
+}
+
+func (v *verbo) firmarCon(operando string, si bool) int {
+	d, code, ok := v.tarjeta(operando)
 	if !ok {
 		return code
 	}
@@ -915,7 +960,7 @@ func (v *verbo) firmar(args []string) int {
 		texto = fmt.Sprintf("Se cierra el trabajo de %q: se comprueba una ultima vez que todo este verde y guardado, y la tarjeta pasa a Hecho. Juntarlo con el proyecto lo haces vos despues.",
 			c.Item.Titulo)
 	}
-	if !*si {
+	if !si {
 		if !v.e.Terminal {
 			return v.uso(fmt.Sprintf("sin terminal, %s necesita --si", v.nombre))
 		}
@@ -956,7 +1001,11 @@ func (v *verbo) guardar(args []string) int {
 	if !ok {
 		return code
 	}
-	d, code, ok := v.tarjeta(primero(ops))
+	return v.guardarCon(primero(ops))
+}
+
+func (v *verbo) guardarCon(operando string) int {
+	d, code, ok := v.tarjeta(operando)
 	if !ok {
 		return code
 	}
@@ -989,6 +1038,25 @@ func (v *verbo) guardar(args []string) int {
 }
 
 // ---------------------------------------------------------------- helpers
+
+// nombrar is a card as a message shows it: a slug as it is (its shape has no
+// room for a control character), anything else quoted.
+func nombrar(slug string) string {
+	if item.ValidSlug(slug) {
+		return slug
+	}
+	return strconv.Quote(slug)
+}
+
+// visible is a value of a flag (a model, an effort) as a message shows it:
+// as it is when it is a plain token, quoted when it has a space, a quote, a
+// control character or an escape sequence.
+func visible(s string) string {
+	if q := strconv.Quote(s); q != `"`+s+`"` || strings.ContainsAny(s, " \t") {
+		return q
+	}
+	return s
+}
 
 func primero(ops []string) string {
 	if len(ops) > 0 {

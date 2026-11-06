@@ -234,17 +234,19 @@ func hastaDosPuntos(s string) string {
 // value, an operand too many or too few, or an empty operand; -h/--help is
 // ErrHelp.
 func Operands(fs *flag.FlagSet, args []string, verb, usage string, n int) ([]string, error) {
-	return parseOperands(fs, args, verb, usage, n, n, nil)
+	return parseOperands(fs, args, verb, usage, n, n, nil, false)
 }
 
 // OperandsRango is Operands for a verb that takes between min and max
 // operands (`hoom pedir <rol> [<slug>]`). The flags named in vacios may be
-// written with an empty value (`-m ""` is an empty pedido, not a typo).
+// written with an empty value (`-m ""` is an empty pedido, not a typo). An
+// empty operand is returned as is: the verb judges it (an empty role is an
+// unknown role, with the verb's own message).
 func OperandsRango(fs *flag.FlagSet, args []string, verb, usage string, min, max int, vacios ...string) ([]string, error) {
-	return parseOperands(fs, args, verb, usage, min, max, vacios)
+	return parseOperands(fs, args, verb, usage, min, max, vacios, true)
 }
 
-func parseOperands(fs *flag.FlagSet, args []string, verb, usage string, min, max int, vacios []string) ([]string, error) {
+func parseOperands(fs *flag.FlagSet, args []string, verb, usage string, min, max int, vacios []string, vacioDelVerbo bool) ([]string, error) {
 	fail := func(reason string) error {
 		return NewUsageError(verb, reason, usage)
 	}
@@ -288,12 +290,15 @@ func parseOperands(fs *flag.FlagSet, args []string, verb, usage string, min, max
 			plural(min, "se esperaba", "se esperaban"), min, plural(len(operandos), "llego", "llegaron"), len(operandos)))
 	}
 	for _, o := range operandos {
-		if o == "" {
-			return nil, fail(`argumento vacio: ""`)
+		if o == "" && !vacioDelVerbo {
+			return nil, fail(ArgumentoVacio)
 		}
 	}
 	return operandos, nil
 }
+
+// ArgumentoVacio is the usage reason for an empty operand.
+const ArgumentoVacio = `argumento vacio: ""`
 
 // primerVacio is FirstEmptyValue skipping the flags that may be empty.
 func primerVacio(fs *flag.FlagSet, args []string, permitidos []string) string {
