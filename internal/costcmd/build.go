@@ -30,129 +30,24 @@ func (e *SinNada) Error() string { return fmt.Sprintf(ErrSinNada, e.Slug) }
 // slug is "", or that task alone. A slug with no runs and no reviews is a
 // *SinNada, whose text is fmt.Sprintf(ErrSinNada, slug).
 //
-// It reads the project and every task worktree under .hoom/worktrees: while
-// a task is in course its review records and findings live in its worktree
-// (they reach the project with the merge), and its rounds have to be told
-// apart before that.
+// The runs are the project's (.hoom/runs at root): a sidecar inside a task
+// worktree goes away with task done, so it is not counted (spec, non-goals).
+// The review records and findings are also read from every task worktree:
+// while a task is in course they live in its worktree (they reach the
+// project with the merge). A worktree only speaks for its own task.
 func Build(root, slug string) (Reporte, error) {
 	ctx := &contexto{root: root, porID: map[string]runcmd.Meta{}, severidad: map[string]string{}}
-	fuentes := append([]string{root}, worktrees(root)...)
-	vistosRec := map[string]bool{}
-	var recs []reviewcmd.Record
-	recIlegibles, hallIlegibles := 0, 0
-	conHallazgos := false
-	for i, dir := range fuentes {
-		metas, sinLeer, err := runcmd.MetasConIlegibles(dir)
-		if err != nil {
-			if i == 0 {
-				return Reporte{}, err
-			}
-			ctx.avisar(fmt.Sprintf("no se pudo leer .hoom/runs del worktree %q: sus runs no se suman", filepath.Base(dir)))
-		}
-		ctx.ilegibles += len(sinLeer)
-		for _, m := range metas {
-			if _, ok := ctx.porID[m.ID]; !ok {
-				ctx.porID[m.ID] = m
-			}
-		}
-		rs, warnings, err := reviewcmd.RecordsErr(dir)
-		if err != nil {
-			if i == 0 {
-				return Reporte{}, err
-			}
-			ctx.avisar(fmt.Sprintf("no se pudo leer .hoom/reviews del worktree %q: sus rondas no se cuentan", filepath.Base(dir)))
-		}
-		recIlegibles += len(warnings)
-		for _, r := range rs {
-			if !vistosRec[r.ID] {
-				vistosRec[r.ID] = true
-				recs = append(recs, r)
-				conHallazgos = conHallazgos || len(r.Findings) > 0
-			}
-		}
+	if err := ctx.cargarRuns(); err != nil {
+		return Reporte{}, err
 	}
-	if recIlegibles > 0 {
-		ctx.avisar(fmt.Sprintf("%d registros de review ilegibles: las rondas pueden ser mas", recIlegibles))
+	recs, err := ctx.cargarEvidencia()
+	if err != nil {
+		return Reporte{}, err
 	}
-	if conHallazgos {
-		for _, dir := range fuentes {
-			items, ilegibles, _, err := finding.ListConIlegibles(dir, "", false)
-			if err != nil {
-				ctx.avisar("no se pudieron leer los hallazgos: los de las rondas quedan sin dato")
-				continue
-			}
-			hallIlegibles += len(ilegibles)
-			for _, it := range items {
-				ctx.severidad[it.ID] = it.Severity
-			}
-		}
-		if hallIlegibles > 0 {
-			ctx.avisar(fmt.Sprintf("%d hallazgos ilegibles: quedan sin dato en sus rondas", hallIlegibles))
-		}
-	}
-
-	ids := make([]string, 0, len(ctx.porID))
-	for id := range ctx.porID {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	runsDe := map[string][]runcmd.Meta{}
-	for _, id := range ids {
-		if m := ctx.porID[id]; tareaDe(m) != "" {
-			runsDe[tareaDe(m)] = append(runsDe[tareaDe(m)], m)
-		}
-	}
-	sort.SliceStable(recs, func(i, j int) bool { return recs[i].CreatedAt.Before(recs[j].CreatedAt) })
-	recsDe := map[string][]reviewcmd.Record{}
-	for _, r := range recs {
-		if r.Task != "" {
-			recsDe[r.Task] = append(recsDe[r.Task], r)
-		}
-	}
-	// a run with neither task nor finding_task (an older review with --spec
-	// and no --task) is the task of the record that names it, so a total is
-	// never less than its rounds. A run of ANOTHER task is not taken: it
-	// would be counted twice.
-	for _, r := range recs {
-		t := r.Task
-		if t == "" {
-			continue
-		}
-		suyos := map[string]bool{}
-		for _, m := range runsDe[t] {
-			suyos[m.ID] = true
-		}
-		for _, lr := range r.Runs {
-			m, ok := ctx.porID[lr.Run]
-			switch {
-			case !ok || suyos[m.ID]:
-			case tareaDe(m) != "" && tareaDe(m) != t:
-				ctx.avisar(fmt.Sprintf("el registro %s nombra el run %s, que es de la tarea %q: no se suma a %q", r.ID, m.ID, tareaDe(m), t))
-			default:
-				suyos[m.ID] = true
-				runsDe[t] = append(runsDe[t], m)
-			}
-		}
-	}
-
-	var slugs []string
-	if slug != "" {
-		if len(runsDe[slug]) == 0 && len(recsDe[slug]) == 0 {
-			return Reporte{}, &SinNada{Slug: slug}
-		}
-		slugs = []string{slug}
-	} else {
-		vistos := map[string]bool{}
-		for t := range runsDe {
-			vistos[t] = true
-		}
-		for t := range recsDe {
-			vistos[t] = true
-		}
-		for t := range vistos {
-			slugs = append(slugs, t)
-		}
-		sort.Strings(slugs)
+	runsDe, recsDe := ctx.asignar(recs)
+	slugs, err := elegir(slug, runsDe, recsDe)
+	if err != nil {
+		return Reporte{}, err
 	}
 	rep := Reporte{Tareas: []Tarea{}}
 	for _, t := range slugs {
@@ -170,16 +65,183 @@ func Build(root, slug string) (Reporte, error) {
 	return rep, nil
 }
 
-// worktrees lists the task worktrees under root/.hoom/worktrees, by name.
-func worktrees(root string) []string {
-	entries, err := os.ReadDir(filepath.Join(root, ".hoom", "worktrees"))
+// cargarRuns reads the project's run sidecars; the unreadable ones are
+// counted, never dropped in silence.
+func (c *contexto) cargarRuns() error {
+	metas, sinLeer, err := runcmd.MetasConIlegibles(c.root)
 	if err != nil {
+		return err
+	}
+	c.ilegibles += len(sinLeer)
+	for _, m := range metas {
+		c.porID[m.ID] = m
+	}
+	return nil
+}
+
+// fuente is one place the evidence is read from: the project (tarea "")
+// or the worktree of one task, which speaks only for that task.
+type fuente struct {
+	dir   string
+	tarea string
+}
+
+// cargarEvidencia reads the review records of the project and of every task
+// worktree, and the severity of the findings they name. A record that a
+// worktree carries for another task, or with a task that is no slug, is left
+// out and said; what cannot be read is said too.
+func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
+	fuentes := append([]fuente{{dir: c.root}}, c.worktrees()...)
+	vistos := map[string]bool{}
+	var recs []reviewcmd.Record
+	sinLeer := 0
+	conHallazgos := false
+	for _, f := range fuentes {
+		rs, warnings, err := reviewcmd.RecordsErr(f.dir)
+		if err != nil {
+			if f.tarea == "" {
+				return nil, err
+			}
+			c.avisar(fmt.Sprintf("no se pudo leer .hoom/reviews del worktree %q: sus rondas no se cuentan", f.tarea))
+		}
+		sinLeer += len(warnings)
+		for _, r := range rs {
+			if vistos[r.ID] {
+				continue
+			}
+			vistos[r.ID] = true
+			switch {
+			case r.Task != "" && !item.ValidSlug(r.Task):
+				c.avisar(fmt.Sprintf("el registro %s tiene una tarea que no es un slug (%q): no se cuenta", r.ID, r.Task))
+				continue
+			case f.tarea != "" && r.Task != "" && r.Task != f.tarea:
+				c.avisar(fmt.Sprintf("el worktree %q tiene el registro %s de la tarea %q: no se cuenta", f.tarea, r.ID, r.Task))
+				continue
+			}
+			recs = append(recs, r)
+			conHallazgos = conHallazgos || len(r.Findings) > 0
+		}
+	}
+	if sinLeer > 0 {
+		c.avisar(fmt.Sprintf("%d registros de review ilegibles: las rondas pueden ser mas", sinLeer))
+	}
+	if conHallazgos {
+		c.cargarSeveridades(fuentes)
+	}
+	return recs, nil
+}
+
+// cargarSeveridades reads the findings of every source. The project's come
+// first and are never replaced; a worktree adds only its task's own.
+func (c *contexto) cargarSeveridades(fuentes []fuente) {
+	sinLeer := 0
+	for _, f := range fuentes {
+		items, ilegibles, _, err := finding.ListConIlegibles(f.dir, "", false)
+		if err != nil {
+			c.avisar("no se pudieron leer los hallazgos: los de las rondas quedan sin dato")
+			continue
+		}
+		sinLeer += len(ilegibles)
+		for _, it := range items {
+			if _, ya := c.severidad[it.ID]; ya || (f.tarea != "" && it.Task != f.tarea) {
+				continue
+			}
+			c.severidad[it.ID] = it.Severity
+		}
+	}
+	if sinLeer > 0 {
+		c.avisar(fmt.Sprintf("%d hallazgos ilegibles: quedan sin dato en sus rondas", sinLeer))
+	}
+}
+
+// asignar gives every run and every record its task. A run is its task's,
+// else its finding_task's; a run with neither (an older review with --spec
+// and no --task) is the task of the record that names it, so a total is
+// never less than its rounds. A record that names a run of ANOTHER task does
+// not take it: it would be counted twice.
+func (c *contexto) asignar(recs []reviewcmd.Record) (map[string][]runcmd.Meta, map[string][]reviewcmd.Record) {
+	ids := make([]string, 0, len(c.porID))
+	for id := range c.porID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	runsDe := map[string][]runcmd.Meta{}
+	for _, id := range ids {
+		if m := c.porID[id]; tareaDe(m) != "" {
+			runsDe[tareaDe(m)] = append(runsDe[tareaDe(m)], m)
+		}
+	}
+	sort.SliceStable(recs, func(i, j int) bool { return recs[i].CreatedAt.Before(recs[j].CreatedAt) })
+	recsDe := map[string][]reviewcmd.Record{}
+	for _, r := range recs {
+		if r.Task != "" {
+			recsDe[r.Task] = append(recsDe[r.Task], r)
+		}
+	}
+	for _, r := range recs {
+		t := r.Task
+		if t == "" {
+			continue
+		}
+		suyos := map[string]bool{}
+		for _, m := range runsDe[t] {
+			suyos[m.ID] = true
+		}
+		for _, lr := range r.Runs {
+			m, ok := c.porID[lr.Run]
+			switch {
+			case !ok || suyos[m.ID]:
+			case tareaDe(m) != "" && tareaDe(m) != t:
+				c.avisar(fmt.Sprintf("el registro %s nombra el run %s, que es de la tarea %q: no se suma a %q", r.ID, m.ID, tareaDe(m), t))
+			default:
+				suyos[m.ID] = true
+				runsDe[t] = append(runsDe[t], m)
+			}
+		}
+	}
+	return runsDe, recsDe
+}
+
+// elegir is the tasks of the report: slug alone (a *SinNada when it has no
+// runs and no reviews), or every task with either.
+func elegir(slug string, runsDe map[string][]runcmd.Meta, recsDe map[string][]reviewcmd.Record) ([]string, error) {
+	if slug != "" {
+		if len(runsDe[slug]) == 0 && len(recsDe[slug]) == 0 {
+			return nil, &SinNada{Slug: slug}
+		}
+		return []string{slug}, nil
+	}
+	vistos := map[string]bool{}
+	for t := range runsDe {
+		vistos[t] = true
+	}
+	for t := range recsDe {
+		vistos[t] = true
+	}
+	slugs := make([]string, 0, len(vistos))
+	for t := range vistos {
+		slugs = append(slugs, t)
+	}
+	sort.Strings(slugs)
+	return slugs, nil
+}
+
+// worktrees lists the task worktrees under root/.hoom/worktrees, by name.
+// No such directory is no worktrees; one that cannot be listed is said,
+// because the rounds of the tasks in course may then be missing.
+func (c *contexto) worktrees() []fuente {
+	dir := filepath.Join(c.root, ".hoom", "worktrees")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			c.avisar("no se pudo listar .hoom/worktrees: las rondas de las tareas en curso pueden faltar")
+		}
 		return nil
 	}
-	var out []string
+	var out []fuente
 	for _, e := range entries {
 		if e.IsDir() && item.ValidSlug(e.Name()) {
-			out = append(out, filepath.Join(root, ".hoom", "worktrees", e.Name()))
+			out = append(out, fuente{dir: filepath.Join(dir, e.Name()), tarea: e.Name()})
 		}
 	}
 	return out
@@ -215,7 +277,7 @@ func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Recor
 		fuera := Fuera{}
 		var antes []runcmd.Meta
 		for _, m := range runs {
-			if m.CreatedAt.After(hasta) {
+			if despuesDe(m.CreatedAt, hasta) {
 				fuera.Runs++
 				continue
 			}
@@ -223,7 +285,7 @@ func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Recor
 		}
 		var recsAntes []reviewcmd.Record
 		for _, r := range recs {
-			if r.CreatedAt.After(hasta) {
+			if despuesDe(r.CreatedAt, hasta) {
 				fuera.Rondas++
 				continue
 			}
@@ -323,6 +385,11 @@ func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Recor
 	}
 	return t
 }
+
+// despuesDe says whether t came after the acceptance hasta. hecho_en is
+// kept to the second (item.MarkDone), so t is compared at that resolution:
+// a round of 10:00:00.500 is not after an acceptance kept as 10:00:00.
+func despuesDe(t, hasta time.Time) bool { return t.Truncate(time.Second).After(hasta) }
 
 // tareaDe is the task a run belongs to: its task (where it ran) or, when it
 // ran at the root, the task of its findings (costo-por-spec, amendment 2).

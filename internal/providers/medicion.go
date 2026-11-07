@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -142,16 +143,24 @@ const maxLineaSesion = 4 << 20
 var limitesSesion = struct {
 	bytes    int64
 	archivos int
+	entradas int // directory entries looked at while finding the files
 	plazo    time.Duration
-}{bytes: 256 << 20, archivos: 8, plazo: 10 * time.Second}
+}{bytes: 256 << 20, archivos: 8, entradas: 1 << 20, plazo: 10 * time.Second}
 
 // errTopeSesion is a session reading cut by its bounds.
 var errTopeSesion = errors.New("la sesion de codex supera el tope de lectura de hoom: sin dato")
 
-// presupuesto is what is left of one MedirSesion's bounds.
+// presupuesto is what is left of one MedirSesion's bounds. It covers the
+// whole reading: finding the files and reading them.
 type presupuesto struct {
-	bytes int64
-	hasta time.Time
+	bytes    int64
+	entradas int
+	hasta    time.Time
+}
+
+func nuevoPresupuesto() *presupuesto {
+	l := limitesSesion
+	return &presupuesto{bytes: l.bytes, entradas: l.entradas, hasta: time.Now().Add(l.plazo)}
 }
 
 func (p *presupuesto) gastar(n int) error {
@@ -160,6 +169,91 @@ func (p *presupuesto) gastar(n int) error {
 		return errTopeSesion
 	}
 	return nil
+}
+
+// listar gives fn the entries of dir, read in chunks: each entry spends one
+// of the entries the reading may look at, and the clock is checked after
+// every chunk, so a directory of millions of entries ends the reading
+// instead of holding it.
+func (p *presupuesto) listar(dir string, fn func(fs.DirEntry)) error {
+	f, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	for {
+		es, err := f.ReadDir(256)
+		for _, e := range es {
+			p.entradas--
+			fn(e)
+		}
+		if p.entradas < 0 || time.Now().After(p.hasta) {
+			return errTopeSesion
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+// buscarSesiones finds the files sessions/*/*/*/rollout-*-<thread>.jsonl
+// under home, within budget, the way filepath.Glob would: a directory that
+// cannot be read is skipped, and a symlink counts as a directory only when
+// it leads to one. More files than the bounds allow is errTopeSesion.
+func buscarSesiones(home, thread string, budget *presupuesto) ([]string, error) {
+	const prefijo = "rollout-"
+	sufijo := "-" + thread + ".jsonl"
+	dirs := []string{filepath.Join(home, "sessions")}
+	for nivel := 0; nivel < 3; nivel++ {
+		var next []string
+		for _, d := range dirs {
+			err := budget.listar(d, func(e fs.DirEntry) {
+				if esDirectorio(d, e) {
+					next = append(next, filepath.Join(d, e.Name()))
+				}
+			})
+			if errors.Is(err, errTopeSesion) {
+				return nil, err
+			}
+		}
+		dirs = next
+	}
+	var files []string
+	for _, d := range dirs {
+		err := budget.listar(d, func(e fs.DirEntry) {
+			n := e.Name()
+			if len(n) >= len(prefijo)+len(sufijo) && strings.HasPrefix(n, prefijo) && strings.HasSuffix(n, sufijo) {
+				files = append(files, filepath.Join(d, n))
+			}
+		})
+		if errors.Is(err, errTopeSesion) {
+			return nil, err
+		}
+		if len(files) > limitesSesion.archivos {
+			return nil, errTopeSesion
+		}
+	}
+	// the names start with the session's date, so the order is the order the
+	// files were opened in: a resumed thread may leave a second file whose
+	// session_meta names the same thread, and its reports come after
+	sort.Strings(files)
+	return files, nil
+}
+
+// esDirectorio says whether the entry e of dir is a directory, following a
+// symlink without opening what it leads to.
+func esDirectorio(dir string, e fs.DirEntry) bool {
+	if e.IsDir() {
+		return true
+	}
+	if e.Type()&fs.ModeSymlink == 0 {
+		return false
+	}
+	fi, err := os.Stat(filepath.Join(dir, e.Name()))
+	return err == nil && fi.IsDir()
 }
 
 // MedirSesion reads the Codex session files of thread sessionID under
@@ -176,18 +270,11 @@ func (codex) MedirSesion(sessionID string, desde time.Time) (Medicion, error) {
 	if home == "" {
 		return Medicion{}, errors.New("sin CODEX_HOME ni directorio personal")
 	}
-	files, err := filepath.Glob(filepath.Join(home, "sessions", "*", "*", "*", "rollout-*-"+sessionID+".jsonl"))
+	budget := nuevoPresupuesto()
+	files, err := buscarSesiones(home, sessionID, budget)
 	if err != nil {
 		return Medicion{}, err
 	}
-	// the names start with the session's date, so the order is the order the
-	// files were opened in: a resumed thread may leave a second file whose
-	// session_meta names the same thread, and its reports come after
-	sort.Strings(files)
-	if len(files) > limitesSesion.archivos {
-		return Medicion{}, errTopeSesion
-	}
-	budget := &presupuesto{bytes: limitesSesion.bytes, hasta: time.Now().Add(limitesSesion.plazo)}
 	lastErr := fmt.Errorf("no hay archivo de sesion de codex para el thread %s", sessionID)
 	var out Medicion
 	encontrado := false
@@ -237,9 +324,9 @@ func leerSesionCodex(path, thread string, desde time.Time, budget *presupuesto) 
 	suyo, visto := false, false
 	br := bufio.NewReaderSize(f, 64<<10)
 	for {
-		line, largo, leidos, err := leerLineaAcotada(br, maxLineaSesion)
-		if berr := budget.gastar(leidos); berr != nil {
-			return Medicion{}, false, berr
+		line, largo, err := leerLineaAcotada(br, maxLineaSesion, budget)
+		if errors.Is(err, errTopeSesion) {
+			return Medicion{}, false, err
 		}
 		if !largo && len(line) > 0 {
 			switch codexTipo(line) {
@@ -407,14 +494,17 @@ func finito(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
 
 // leerLineaAcotada reads one line of br without its newline. A line longer
 // than max is read to its end and reported as largo, with no content: the
-// reader never holds it whole. leidos is every byte it consumed.
-func leerLineaAcotada(br *bufio.Reader, max int) ([]byte, bool, int, error) {
+// reader never holds it whole. Every fragment it reads is spent from budget
+// as it comes, so one endless line (or a file that keeps growing without a
+// newline) ends in errTopeSesion within the bounds, not after them.
+func leerLineaAcotada(br *bufio.Reader, max int, budget *presupuesto) ([]byte, bool, error) {
 	var buf []byte
 	largo := false
-	leidos := 0
 	for {
 		frag, err := br.ReadSlice('\n')
-		leidos += len(frag)
+		if berr := budget.gastar(len(frag)); berr != nil {
+			return nil, false, berr
+		}
 		if !largo {
 			if len(buf)+len(frag) > max+1 {
 				largo, buf = true, nil
@@ -428,7 +518,7 @@ func leerLineaAcotada(br *bufio.Reader, max int) ([]byte, bool, int, error) {
 		if len(buf) > 0 && buf[len(buf)-1] == '\n' {
 			buf = buf[:len(buf)-1]
 		}
-		return buf, largo, leidos, err
+		return buf, largo, err
 	}
 }
 

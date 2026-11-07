@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/runcmd"
@@ -52,6 +54,9 @@ func JSONBytes(r Reporte) ([]byte, error) {
 // Render writes the report for humans: one line per task, or the breakdown
 // of each task when the report was built for one slug (detalle).
 func Render(w io.Writer, r Reporte, detalle bool) {
+	// the report prints names that come from the evidence (a slug, a lens, a
+	// provider, a window): none of them reaches the terminal as a control
+	w = terminal{w}
 	if len(r.Tareas) == 0 {
 		fmt.Fprintln(w, "ninguna tarea tiene runs ni reviews")
 	}
@@ -269,4 +274,31 @@ func plural(n int, uno, varios string) string {
 		return "1 " + uno
 	}
 	return fmt.Sprintf("%d %s", n, varios)
+}
+
+// terminal is a writer whose output a terminal prints as text: every control
+// or direction character (ESC, NUL, \r, U+202E...) but the newline that ends
+// each line, and every byte that is no UTF-8, goes out escaped (\x1b,
+// \u202e). fmt writes each line in one Write, so no rune is ever split.
+type terminal struct{ w io.Writer }
+
+func (t terminal) Write(p []byte) (int, error) {
+	var b strings.Builder
+	for i := 0; i < len(p); {
+		r, n := utf8.DecodeRune(p[i:])
+		switch {
+		case r == utf8.RuneError && n == 1:
+			fmt.Fprintf(&b, "\\x%02x", p[i])
+		case r != '\n' && (unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r)):
+			q := strconv.QuoteRune(r)
+			b.WriteString(q[1 : len(q)-1])
+		default:
+			b.Write(p[i : i+n])
+		}
+		i += n
+	}
+	if _, err := io.WriteString(t.w, b.String()); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
