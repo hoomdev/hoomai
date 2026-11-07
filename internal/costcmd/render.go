@@ -231,6 +231,9 @@ func puntosTexto(m Movimiento) string {
 		return s + "<1 punto"
 	}
 	x := math.Round(*m.Puntos*10) / 10
+	if x == 1 {
+		return s + "1 punto"
+	}
 	return s + strconv.FormatFloat(x, 'f', -1, 64) + " puntos"
 }
 

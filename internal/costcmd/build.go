@@ -47,6 +47,23 @@ func Build(root, slug string) (Reporte, error) {
 		recsDe[r.Task] = append(recsDe[r.Task], r)
 		conHallazgos = conHallazgos || len(r.Findings) > 0
 	}
+	// a review with --spec and no --task starts its runs without a task: the
+	// record names them, so they are the task's all the same, and its total
+	// is never less than its rounds
+	for t, rs := range recsDe {
+		suyos := map[string]bool{}
+		for _, m := range runsDe[t] {
+			suyos[m.ID] = true
+		}
+		for _, r := range rs {
+			for _, lr := range r.Runs {
+				if m, ok := porID[lr.Run]; ok && !suyos[m.ID] {
+					suyos[m.ID] = true
+					runsDe[t] = append(runsDe[t], m)
+				}
+			}
+		}
+	}
 	var slugs []string
 	if slug != "" {
 		if len(runsDe[slug]) == 0 && len(recsDe[slug]) == 0 {
