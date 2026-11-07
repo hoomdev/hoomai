@@ -1,0 +1,11 @@
+{
+  "id": "20261107T163129_e81263",
+  "created_at": "2026-11-07T16:31:29.776368Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/providers/medicion.go",
+  "description": "INTRODUCIDO. internal/providers/medicion.go:151-178 y 188-275 recorren todos los archivos y todas las lineas de la sesion Codex sin limite total de bytes, archivos ni deadline; internal/runcmd/runcmd.go:1502-1505 hace esa lectura sincronicamente antes de publicar el cierre. Un thread largo o un archivo regular que siga creciendo puede mantener el run en running, impedir cancelarlo efectivamente y dejar ocupado su worktree por tiempo no acotado, aunque la medicion de sesion debe degradarse sin cambiar el resultado.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

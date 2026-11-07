@@ -1,0 +1,93 @@
+{
+  "id": "20261107T163525_52e14a",
+  "created_at": "2026-11-07T16:35:25.608664Z",
+  "task": "costo-por-spec",
+  "spec": "",
+  "fingerprint": "bec409506fe063bd",
+  "verdict_id": "2026-11-07T16-15-28Z_c36f46d0",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261107T161935_ffdf21",
+    "20261107T161944_a6c078",
+    "20261107T161958_0cc0ae",
+    "20261107T162600_6a39f7",
+    "20261107T162601_54db05",
+    "20261107T162601_610e19",
+    "20261107T162601_acae9a",
+    "20261107T162601_ec01ff",
+    "20261107T163129_e81263",
+    "20261107T163135_0b28bb",
+    "20261107T163142_77285c",
+    "20261107T163148_eb2509",
+    "20261107T163511_1f72e7",
+    "20261107T163511_ba9b59",
+    "20261107T163512_aad17f"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 202184,
+  "evidence_sha256": "01c5b5f496e6dc1363e9fc0aa4675eb00a5278b7e6475fd30cfee168fe8ad0f5",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1565424,
+      "cached_input_tokens": 1463680,
+      "output_tokens": 14732,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 2310519,
+      "cached_input_tokens": 2192384,
+      "output_tokens": 16380,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 2117302,
+      "cached_input_tokens": 2013312,
+      "output_tokens": 17936,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 1893139,
+      "cached_input_tokens": 1768448,
+      "output_tokens": 9654,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261107T161558_5e1f03"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261107T162051_6d80e8"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261107T162616_a92440"
+    },
+    {
+      "lens": "readability",
+      "run": "20261107T163206_b2b75a"
+    }
+  ],
+  "desde": "f88eb1afba783634863a9908566f65659aed9fd9",
+  "hasta": "68b07a77cb0b8270a1fba8da84dbecaf35ad64e1",
+  "cobertura": "completa",
+  "base": "main"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261107T162601_54db05",
+  "created_at": "2026-11-07T16:26:01.083573Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/reviewcmd.go:983-992 retorna ante una lente fallida y el único WriteRecord que persiste Runs está en 1019-1029. Una review NO ENTREGABLE no queda asociada a su ronda; con review --spec sin --task sus runs tampoco tienen Task y hoom costo puede omitir por completo ese gasto.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

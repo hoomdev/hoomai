@@ -1,0 +1,11 @@
+{
+  "id": "20261107T163512_aad17f",
+  "created_at": "2026-11-07T16:35:12.000013Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/providers/medicion.go",
+  "description": "INTRODUCIDO — internal/providers/medicion.go:48: Medidor mezcla dos capacidades opcionales consumidas por separado; Claude debe implementar MedirSesion como no-op (línea 122) y Codex MedirLinea como no-op (línea 127). Separar interfaces pequeñas elimina implementaciones ficticias y permite añadir adapters que midan por un solo canal.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

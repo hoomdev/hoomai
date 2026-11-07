@@ -1,0 +1,11 @@
+{
+  "id": "20261107T163511_1f72e7",
+  "created_at": "2026-11-07T16:35:11.859706Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:270: nuevos decide la semántica de tokens con el literal \"codex\" y trata a todo provider no codex como Claude. Esto acopla costcmd a detalles del adapter y hace que ampliar el Registry pueda producir cifras silenciosamente erróneas; mueve la normalización/capacidad junto al provider o usa una decisión exhaustiva.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}
