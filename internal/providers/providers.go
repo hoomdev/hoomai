@@ -65,6 +65,13 @@ type Usage struct {
 	CachedTokens int      `json:"cached_input_tokens,omitempty"`
 	OutputTokens int      `json:"output_tokens,omitempty"`
 	DurationMS   int      `json:"duration_ms,omitempty"`
+	// ReasoningTokens is what Codex reports as reasoning_output_tokens
+	// (spec costo-por-spec).
+	ReasoningTokens int `json:"reasoning_output_tokens,omitempty"`
+	// CacheWriteTokens is how many of InputTokens were written to cache: a
+	// SUBSET of InputTokens, never added on top (Codex
+	// cache_write_input_tokens, Claude cache_creation_input_tokens).
+	CacheWriteTokens int `json:"cache_write_input_tokens,omitempty"`
 }
 
 // Empty reports a usage that measured nothing: an adapter attaches it only

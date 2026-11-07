@@ -227,6 +227,20 @@ type Manager struct {
 
 func runsDir(root string) string { return filepath.Join(root, ".hoom", "runs") }
 
+// VentanaRun is how one plan window moved during a run (spec
+// costo-por-spec): the percent used at the run's first and last report.
+type VentanaRun struct {
+	Nombre string  `json:"nombre"` // "5h", "semana" or "<n>min"
+	Inicio float64 `json:"inicio"` // percent used at the first report, 0..100
+	Fin    float64 `json:"fin"`    // percent used at the last report
+	// ReiniciaEn is the reset time of the last report; zero = not reported.
+	ReiniciaEn time.Time `json:"reinicia_en,omitzero"`
+	// Reiniciada: the reset time moved more than 60 s between two reports
+	// of the run, so the window reset mid-run and Fin-Inicio measures nothing.
+	Reiniciada bool   `json:"reiniciada,omitempty"`
+	Plan       string `json:"plan,omitempty"`
+}
+
 // Meta is the DURABLE identity of a run: the jsonl NARRATES, the meta
 // IDENTIFIES. Without it a finished run is anonymous the moment the process
 // exits — and "which provider wrote this tree?" is exactly the question the
@@ -253,6 +267,13 @@ type Meta struct {
 	// the only place that survives the process: a finished run has to be able
 	// to say what it cost long after its manager is gone.
 	Usage *providers.Usage `json:"usage,omitempty"`
+	// Model and Effort are the ones hoom passed to the provider or, when it
+	// passed none, the ones the provider said it used (spec costo-por-spec).
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
+	// Ventanas is how each plan window the provider reported moved during
+	// the run: one entry per window.
+	Ventanas []VentanaRun `json:"ventanas,omitempty"`
 	// PID is the process that owns the run while it runs: the only way another
 	// process can tell a live run from one whose owner died.
 	PID int `json:"pid,omitempty"`
