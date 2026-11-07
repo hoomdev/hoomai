@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T175625_e4ed1b",
+  "as": "corregido",
+  "evidence": "fd7cc29: cargarEvidencia marca un registro como tomado solo cuando una fuente puede darlo (rechazo(f, r) vacio); una fuente que no puede (tarea que no es slug, o un worktree con el registro de otra tarea) no lo esconde de la que si, y el rechazo se avisa solo si ninguna fuente lo dio. La raiz sigue primero. Test: internal/costcmd/hallazgos_d2_test.go TestHallazgo_e4ed1b_8562a7_b68eab_CA544_UnaCopiaAjenaNoEscondeLaPropia (worktree alfa con la copia de beta, recorrido antes: la ronda de beta cuenta y no hay aviso)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T18:08:54.119635Z"
+}

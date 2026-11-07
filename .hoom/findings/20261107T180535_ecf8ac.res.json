@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T180535_ecf8ac",
+  "as": "corregido",
+  "evidence": "fd7cc29: ya no hay un io.Writer que dependa de que fmt no parta runas: salida.linea escapa el string completo que arma Sprintf y lo escribe en una sola llamada; el contrato (una linea por llamada) esta en el tipo. Test: TestHallazgo_ecf8ac_CA544_CadaLineaEsUnaEscritura (cada escritura es una linea con su salto; el texto valido no UTF-8-ASCII sale igual)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T18:08:54.293463Z"
+}
