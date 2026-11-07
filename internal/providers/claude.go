@@ -527,6 +527,8 @@ func claudeUsage(msg claudeMsg) *Usage {
 		CachedTokens: msg.Usage.CacheReadTokens,
 		OutputTokens: msg.Usage.OutputTokens,
 		DurationMS:   msg.DurationMS,
+		// a subset of InputTokens, which already counts it as new input
+		CacheWriteTokens: msg.Usage.CacheCreationTokens,
 	}
 	if u.Empty() {
 		return nil

@@ -96,6 +96,8 @@ func accumulate(total, ev *providers.Usage) *providers.Usage {
 	sum.CachedTokens += ev.CachedTokens
 	sum.OutputTokens += ev.OutputTokens
 	sum.DurationMS += ev.DurationMS
+	sum.ReasoningTokens += ev.ReasoningTokens
+	sum.CacheWriteTokens += ev.CacheWriteTokens
 	return &sum
 }
 
@@ -204,6 +206,11 @@ type run struct {
 	// closed by a line that comes when Input continues the session
 	// (finding 3bdc20)
 	normalize func(line string) []Event
+	// muestras are the window reports the provider's stdout carried, every
+	// invocation of the run, oldest first; modelo is the model it said it
+	// ran with (spec costo-por-spec). Under the Manager's mu.
+	muestras [][]providers.Ventana
+	modelo   string
 }
 
 // normalizerFor is the normalizer of one run of p: a Correlating provider
@@ -452,6 +459,20 @@ func Metas(root string) []Meta {
 // with a status hoom does not write is no write of hoom's: it is skipped, as
 // in Metas.
 func MetasErr(root string) ([]Meta, error) {
+	out, sinLeer, err := MetasConIlegibles(root)
+	if err != nil {
+		return nil, err
+	}
+	if len(sinLeer) > 0 {
+		return out, fmt.Errorf("no se pudieron leer %d sidecar(s) de .hoom/runs: %s", len(sinLeer), strings.Join(sinLeer, "; "))
+	}
+	return out, nil
+}
+
+// MetasConIlegibles is MetasErr with the unreadable sidecars apart, one
+// "<name>: <why>" each, for whoever counts them and goes on (`hoom costo`):
+// the error is only a runs directory that cannot be listed.
+func MetasConIlegibles(root string) ([]Meta, []string, error) {
 	var out []Meta
 	var sinLeer []string
 	err := hoomfs.RecorrerDirectorio(root, []string{".hoom", "runs"},
@@ -474,14 +495,11 @@ func MetasErr(root string) ([]Meta, error) {
 			}
 		})
 	if err != nil {
-		return nil, fmt.Errorf("no se pudo leer .hoom/runs: %v", err)
+		return nil, nil, fmt.Errorf("no se pudo leer .hoom/runs: %v", err)
 	}
 	// stable: ties keep the name order they were read in (finding 3cb01b)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
-	if len(sinLeer) > 0 {
-		return out, fmt.Errorf("no se pudieron leer %d sidecar(s) de .hoom/runs: %s", len(sinLeer), strings.Join(sinLeer, "; "))
-	}
-	return out, nil
+	return out, sinLeer, nil
 }
 
 // ReadEvents reads a run's narration from disk. The Studio needs it for runs
@@ -1007,6 +1025,7 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		ID: id, Provider: p.Name(), Role: opts.Role, Task: opts.Task, Dir: dir,
 		CreatedAt: r.info.CreatedAt, Status: StatusRunning, ExitCode: -1, PID: os.Getpid(),
 		TimeoutS: int(m.timeoutOf(opts) / time.Second),
+		Model:    strings.TrimSpace(opts.Model), Effort: strings.TrimSpace(opts.Effort),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
 	// the sidecar is how another process sees this run: without it the run
@@ -1335,6 +1354,7 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		}
 	}
 	inicio := time.Now()
+	med, _ := r.provider.(providers.Medidor)
 	scan := func(src io.Reader, isErr bool) {
 		defer wg.Done()
 		fuente := "stdout"
@@ -1359,6 +1379,9 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 			for _, ev := range normalize(line) {
 				narro(ll.t)
 				m.append(r, ev)
+			}
+			if med != nil {
+				m.anotarMedicion(r, med.MedirLinea(line))
 			}
 		}, func(n int) {
 			// a dropped line is output too: the provider is narrating
@@ -1477,6 +1500,9 @@ func (m *Manager) wasCanceled(r *run) bool {
 }
 
 func (m *Manager) settle(r *run, status string, exit int, detail string) {
+	// what the provider wrote in its own session file is read before the
+	// lock: a file, and the close waits for nobody (spec costo-por-spec)
+	sesion := m.medirSesion(r)
 	kind := "end"
 	if status != StatusDone {
 		kind = "error"
@@ -1500,6 +1526,7 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	r.cancel = nil
 	r.meta.Status, r.meta.ExitCode = status, exit
 	r.meta.ProviderSessionID, r.meta.EndedAt = r.info.ProviderSessionID, time.Now().UTC()
+	medir(r, sesion)
 	if m.byDir[r.dir] == r.info.ID {
 		delete(m.byDir, r.dir)
 	}
@@ -1508,6 +1535,118 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	// archivo aparece despues de que el run dejo de estar en curso.
 	_ = writeMeta(m.root, r.meta) // best-effort: a close (see writeMeta)
 	m.mu.Unlock()
+}
+
+// anotarMedicion keeps what one stdout line said about the model and the
+// plan windows.
+func (m *Manager) anotarMedicion(r *run, med providers.Medicion) {
+	if med.Model == "" && len(med.Muestras) == 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if med.Model != "" {
+		r.modelo = med.Model
+	}
+	r.muestras = append(r.muestras, med.Muestras...)
+}
+
+// medirSesion reads what the provider wrote about the run in its own
+// session file, since the run started. No file, an unreadable one or a
+// provider without one is the zero Medicion: the run closes the same.
+func (m *Manager) medirSesion(r *run) providers.Medicion {
+	med, ok := r.provider.(providers.Medidor)
+	if !ok {
+		return providers.Medicion{}
+	}
+	m.mu.Lock()
+	sid, desde := r.info.ProviderSessionID, r.info.CreatedAt
+	m.mu.Unlock()
+	if sid == "" {
+		return providers.Medicion{}
+	}
+	ses, err := med.MedirSesion(sid, desde)
+	if err != nil {
+		return providers.Medicion{}
+	}
+	return ses
+}
+
+// medir fills the meta's model, effort and windows from what hoom passed and
+// what the provider said: hoom's choice first, the provider's when hoom made
+// none. The caller holds m.mu.
+func medir(r *run, sesion providers.Medicion) {
+	if r.meta.Model == "" {
+		r.meta.Model = primero(r.modelo, sesion.Model)
+	}
+	if r.meta.Effort == "" {
+		r.meta.Effort = strings.TrimSpace(sesion.Effort)
+	}
+	muestras := append(append([][]providers.Ventana{}, r.muestras...), sesion.Muestras...)
+	r.meta.Ventanas = ventanasDe(muestras)
+}
+
+func primero(vs ...string) string {
+	for _, v := range vs {
+		if v = strings.TrimSpace(v); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// UmbralReinicio is how far a window's reset time may move between two
+// reports and still be the same window: Codex jitters it by a second.
+const UmbralReinicio = 60 * time.Second
+
+// ventanasDe turns the reports of a run, oldest first, into one VentanaRun
+// per window: the first report's percent, the last one's, the last reset
+// time, and reiniciada when the reset time moved more than UmbralReinicio
+// between two reports (the window reset mid-run). Nil when there were none.
+func ventanasDe(muestras [][]providers.Ventana) []VentanaRun {
+	por := map[string]*VentanaRun{}
+	var orden []string
+	for _, snap := range muestras {
+		for _, v := range snap {
+			w, ok := por[v.Nombre]
+			if !ok {
+				w = &VentanaRun{Nombre: v.Nombre, Inicio: v.Usado}
+				por[v.Nombre] = w
+				orden = append(orden, v.Nombre)
+			} else if CambioDeReinicio(w.ReiniciaEn, v.ReiniciaEn) {
+				w.Reiniciada = true
+			}
+			w.Fin = v.Usado
+			if !v.ReiniciaEn.IsZero() {
+				w.ReiniciaEn = v.ReiniciaEn.UTC()
+			}
+			if v.Plan != "" {
+				w.Plan = v.Plan
+			}
+		}
+	}
+	if len(orden) == 0 {
+		return nil
+	}
+	sort.SliceStable(orden, func(i, j int) bool { return providers.MenorVentana(orden[i], orden[j]) })
+	out := make([]VentanaRun, 0, len(orden))
+	for _, n := range orden {
+		out = append(out, *por[n])
+	}
+	return out
+}
+
+// CambioDeReinicio says whether two reported reset times are two different
+// windows: both known and more than UmbralReinicio apart.
+func CambioDeReinicio(a, b time.Time) bool {
+	if a.IsZero() || b.IsZero() {
+		return false
+	}
+	d := a.Sub(b)
+	if d < 0 {
+		d = -d
+	}
+	return d > UmbralReinicio
 }
 
 // append records one event in the append-only jsonl log and then in memory,

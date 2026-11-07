@@ -955,6 +955,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		}
 	}()
 	var usos []LensUsage
+	var corridas []LensRun // the run of each lens: what tells one round from another
 	var total providers.Usage
 	for i, lens := range lentes {
 		fmt.Fprintf(w, "  [%d/%d] %s\n", i+1, len(lentes), lens)
@@ -971,6 +972,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			return res, err
 		}
 		pass.RunID = info.ID
+		corridas = append(corridas, LensRun{Lens: lens, Run: info.ID})
 		rec.RunID = info.ID
 		_ = envelope.Write(root, rec) // best-effort (CA-202)
 		fmt.Fprintf(w, "    run       %s - narracion en .hoom/runs/%s.jsonl\n", info.ID, info.ID)
@@ -1021,7 +1023,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Cross: res.Cross, Findings: append([]string{}, res.Findings...),
 		WritersDeclared: append([]string{}, res.WritersDeclared...), Notes: notas,
 		Model: opt.Model, Effort: opt.Effort, Isolated: isolated,
-		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos,
+		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos, Runs: corridas,
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
 		Base: rng.baseNombre, BaseIntegrada: rng.integrada,
 	})

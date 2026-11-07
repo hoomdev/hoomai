@@ -36,13 +36,18 @@
 // "reset" when one of its runs has the window reiniciada, or two consecutive
 // runs (by created_at) report reinicia_en more than 60 s apart: then the
 // block contributes fin(last run to end) — what was spent after the reset is
-// at least that — and the total is AlMenos. The total adds the blocks.
+// at least that — and the total is AlMenos. A block whose figure went down
+// with no reset seen is a reset hoom did not see, and counts the same. The
+// total adds the blocks.
 package costcmd
 
 import (
-	"errors"
-	"io"
+	"flag"
+	"fmt"
 	"time"
+
+	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/item"
 )
 
 // UsageText is `hoom costo --help`.
@@ -69,7 +74,20 @@ type Options struct {
 // slug of another shape — is a *cliargs.UsageError (exit 2); -h/--help is
 // cliargs.ErrHelp.
 func ParseArgs(args []string) (Options, error) {
-	return Options{}, errors.New("costcmd: esqueleto sin comportamiento")
+	fs := flag.NewFlagSet("costo", flag.ContinueOnError)
+	asJSON := fs.Bool("json", false, "emitir el reporte como JSON en stdout")
+	ops, err := cliargs.OperandsRango(fs, args, "costo", UsageText, 0, 1)
+	if err != nil {
+		return Options{}, err
+	}
+	opt := Options{JSON: *asJSON}
+	if len(ops) == 1 {
+		if !item.ValidSlug(ops[0]) {
+			return Options{}, cliargs.NewUsageError("costo", fmt.Sprintf("slug invalido %q", ops[0]), UsageText)
+		}
+		opt.Slug = ops[0]
+	}
+	return opt, nil
 }
 
 // Estado values of a task.
@@ -176,19 +194,3 @@ type Ronda struct {
 	// none (records older than costo-por-spec).
 	Gasto *Gasto `json:"gasto"`
 }
-
-// Build reads the project at root and returns the report: every task when
-// slug is "", or that task alone. A slug with no runs and no reviews is an
-// error whose text is fmt.Sprintf(ErrSinNada, slug).
-func Build(root, slug string) (Reporte, error) {
-	return Reporte{}, errors.New("costcmd: esqueleto sin comportamiento")
-}
-
-// JSONBytes renders the report as indented JSON.
-func JSONBytes(r Reporte) ([]byte, error) {
-	return nil, errors.New("costcmd: esqueleto sin comportamiento")
-}
-
-// Render writes the report for humans: one line per task, or the breakdown
-// when the report was built for one slug (detalle).
-func Render(w io.Writer, r Reporte, detalle bool) {}

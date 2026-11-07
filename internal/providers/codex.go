@@ -167,9 +167,11 @@ func parseCodexLine(line string, ts time.Time) ([]Event, bool) {
 			Message string `json:"message"`
 		} `json:"error"`
 		Usage *struct {
-			InputTokens  int `json:"input_tokens"`
-			CachedTokens int `json:"cached_input_tokens"`
-			OutputTokens int `json:"output_tokens"`
+			InputTokens      int `json:"input_tokens"`
+			CachedTokens     int `json:"cached_input_tokens"`
+			CacheWriteTokens int `json:"cache_write_input_tokens"`
+			OutputTokens     int `json:"output_tokens"`
+			ReasoningTokens  int `json:"reasoning_output_tokens"`
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {
@@ -192,7 +194,8 @@ func parseCodexLine(line string, ts time.Time) ([]Event, bool) {
 		ev := Event{TS: ts, Kind: "end", Detail: "turn completado"}
 		if msg.Usage != nil {
 			u := &Usage{Turns: 1, InputTokens: msg.Usage.InputTokens,
-				CachedTokens: msg.Usage.CachedTokens, OutputTokens: msg.Usage.OutputTokens}
+				CachedTokens: msg.Usage.CachedTokens, OutputTokens: msg.Usage.OutputTokens,
+				CacheWriteTokens: msg.Usage.CacheWriteTokens, ReasoningTokens: msg.Usage.ReasoningTokens}
 			if !u.Empty() {
 				ev.Usage = u
 			}

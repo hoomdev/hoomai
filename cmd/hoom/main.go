@@ -24,6 +24,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
+	"github.com/hoomdev/hoomai/internal/costcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/initcmd"
@@ -86,6 +87,11 @@ Comandos:
               (spec editado tras aprobarlo, cambios sin veredicto, verde
               vencido, sobres huerfanos, items sin spec, evidencia sin item),
               cada problema con su accion exacta; solo lee, sale con 0
+  costo       Costo por tarea, con la ventana de la cuenta durante los runs:
+              tokens por provider (nuevos, cache leido, salida, razonamiento),
+              USD equivalente API y movimiento de las ventanas de 5h y de la
+              semana; con <slug>, por rol y por ronda de review; solo lee
+              [<slug>] [--json]
   roles       Matriz de enforcement: que puede leer, escribir y ejecutar cada
               rol con cada provider, con que mecanismo y en que categoria
               (ENFORCED|POST-VERIFIED|BEST-EFFORT|UNSUPPORTED)
@@ -270,6 +276,8 @@ func main() {
 		err = cmdItem(args)
 	case "board":
 		err = cmdBoard(args)
+	case "costo":
+		err = cmdCosto(args)
 	case "roles":
 		err = cmdRoles(args)
 	case "context":
@@ -954,6 +962,41 @@ func cmdBoard(args []string) error {
 		return nil
 	}
 	boardcmd.Render(os.Stdout, b)
+	return nil
+}
+
+// cmdCosto is `hoom costo`: what each task cost until it was accepted. It
+// only reads; a slug with nothing to show is exit 1 with the spec's line.
+func cmdCosto(args []string) error {
+	opt, err := costcmd.ParseArgs(args)
+	if errors.Is(err, cliargs.ErrHelp) {
+		fmt.Println(costcmd.UsageText)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	m, err := manifest.Load(".", profiles.Resolve)
+	if err != nil {
+		return err
+	}
+	rep, err := costcmd.Build(m.Dir, opt.Slug)
+	if err != nil {
+		if opt.Slug != "" && err.Error() == fmt.Sprintf(costcmd.ErrSinNada, opt.Slug) {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		return err
+	}
+	if opt.JSON {
+		raw, err := costcmd.JSONBytes(rep)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
+	costcmd.Render(os.Stdout, rep, opt.Slug != "")
 	return nil
 }
 
