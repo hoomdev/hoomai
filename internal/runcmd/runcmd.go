@@ -281,6 +281,12 @@ type Meta struct {
 	// Ventanas is how each plan window the provider reported moved during
 	// the run: one entry per window.
 	Ventanas []VentanaRun `json:"ventanas,omitempty"`
+	// FindingTask is the task the run's findings belong to (the one in
+	// EnvTask) when the run has no Task: a review with --spec and no --task
+	// runs at the root, and this is what ties its cost to the task even when
+	// it ends without a record (spec costo-por-spec, amendment 2). Omitted
+	// when the run has a Task or there is no task.
+	FindingTask string `json:"finding_task,omitempty"`
 	// PID is the process that owns the run while it runs: the only way another
 	// process can tell a live run from one whose owner died.
 	PID int `json:"pid,omitempty"`
