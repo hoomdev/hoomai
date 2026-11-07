@@ -92,7 +92,14 @@ type fuente struct {
 // out and said; what cannot be read is said too.
 func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 	fuentes := append([]fuente{{dir: c.root}}, c.worktrees()...)
-	vistos := map[string]bool{}
+	// a record is taken from the first source that may give it (the
+	// project first). A source that may not give it does not hide it from
+	// one that may — a worktree that merged another task's branch carries
+	// that task's records — and the refusal is said only when no source
+	// gave the record at all.
+	tomados := map[string]bool{}
+	rechazos := map[string]string{}
+	var rechazados []string
 	var recs []reviewcmd.Record
 	sinLeer := 0
 	conHallazgos := false
@@ -106,20 +113,24 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 		}
 		sinLeer += len(warnings)
 		for _, r := range rs {
-			if vistos[r.ID] {
+			if tomados[r.ID] {
 				continue
 			}
-			vistos[r.ID] = true
-			switch {
-			case r.Task != "" && !item.ValidSlug(r.Task):
-				c.avisar(fmt.Sprintf("el registro %s tiene una tarea que no es un slug (%q): no se cuenta", r.ID, r.Task))
-				continue
-			case f.tarea != "" && r.Task != "" && r.Task != f.tarea:
-				c.avisar(fmt.Sprintf("el worktree %q tiene el registro %s de la tarea %q: no se cuenta", f.tarea, r.ID, r.Task))
+			if por := rechazo(f, r); por != "" {
+				if _, ya := rechazos[r.ID]; !ya {
+					rechazos[r.ID] = por
+					rechazados = append(rechazados, r.ID)
+				}
 				continue
 			}
+			tomados[r.ID] = true
 			recs = append(recs, r)
 			conHallazgos = conHallazgos || len(r.Findings) > 0
+		}
+	}
+	for _, id := range rechazados {
+		if !tomados[id] {
+			c.avisar(rechazos[id])
 		}
 	}
 	if sinLeer > 0 {
@@ -129,6 +140,19 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 		c.cargarSeveridades(fuentes)
 	}
 	return recs, nil
+}
+
+// rechazo is why source f may not give the record r, "" when it may: a
+// task that is no slug never reaches the report, and a worktree speaks only
+// for its own task.
+func rechazo(f fuente, r reviewcmd.Record) string {
+	switch {
+	case r.Task != "" && !item.ValidSlug(r.Task):
+		return fmt.Sprintf("el registro %s tiene una tarea que no es un slug (%q): no se cuenta", r.ID, r.Task)
+	case f.tarea != "" && r.Task != "" && r.Task != f.tarea:
+		return fmt.Sprintf("el worktree %q tiene el registro %s de la tarea %q: no se cuenta", f.tarea, r.ID, r.Task)
+	}
+	return ""
 }
 
 // cargarSeveridades reads the findings of every source. The project's come

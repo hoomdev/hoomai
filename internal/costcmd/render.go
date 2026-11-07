@@ -54,27 +54,25 @@ func JSONBytes(r Reporte) ([]byte, error) {
 // Render writes the report for humans: one line per task, or the breakdown
 // of each task when the report was built for one slug (detalle).
 func Render(w io.Writer, r Reporte, detalle bool) {
-	// the report prints names that come from the evidence (a slug, a lens, a
-	// provider, a window): none of them reaches the terminal as a control
-	w = terminal{w}
+	s := salida{w}
 	if len(r.Tareas) == 0 {
-		fmt.Fprintln(w, "ninguna tarea tiene runs ni reviews")
+		s.linea("ninguna tarea tiene runs ni reviews")
 	}
 	for i, t := range r.Tareas {
 		if detalle {
 			if i > 0 {
-				fmt.Fprintln(w)
+				s.linea("")
 			}
-			renderDetalle(w, t)
+			renderDetalle(s, t)
 			continue
 		}
-		renderLinea(w, t)
+		renderLinea(s, t)
 	}
 	if r.Ilegibles > 0 {
-		fmt.Fprintf(w, "%d runs ilegibles\n", r.Ilegibles)
+		s.linea("%d runs ilegibles", r.Ilegibles)
 	}
 	for _, a := range r.Avisos {
-		fmt.Fprintln(w, "aviso: "+a)
+		s.linea("aviso: %s", a)
 	}
 }
 
@@ -90,7 +88,7 @@ func fueraTexto(t Tarea) string {
 
 // renderLinea is the task in one line; the window note goes on the line, so
 // the list stays one line per task.
-func renderLinea(w io.Writer, t Tarea) {
+func renderLinea(s salida, t Tarea) {
 	parts := []string{t.Slug, estadoTexto(t), fmt.Sprintf("rondas %d", t.Rondas)}
 	conVentana := false
 	for _, p := range provsDe(t.PorProvider) {
@@ -105,11 +103,11 @@ func renderLinea(w io.Writer, t Tarea) {
 	if conVentana {
 		line += " " + NotaVentana
 	}
-	fmt.Fprintln(w, line)
+	s.linea("%s", line)
 }
 
-func renderDetalle(w io.Writer, t Tarea) {
-	fmt.Fprintf(w, "%s · %s · rondas %d\n", t.Slug, estadoTexto(t), t.Rondas)
+func renderDetalle(s salida, t Tarea) {
+	s.linea("%s · %s · rondas %d", t.Slug, estadoTexto(t), t.Rondas)
 	if t.Estado == EstadoAceptada {
 		v, c := "sin dato", "sin dato"
 		if t.Veredicto != nil {
@@ -118,29 +116,29 @@ func renderDetalle(w io.Writer, t Tarea) {
 		if t.CommitFinal != nil {
 			c = *t.CommitFinal
 		}
-		fmt.Fprintf(w, "veredicto %s · commit_final %s\n", v, c)
+		s.linea("veredicto %s · commit_final %s", v, c)
 		if f := fueraTexto(t); f != "" {
-			fmt.Fprintln(w, f)
+			s.linea("%s", f)
 		}
 	}
-	fmt.Fprintln(w, "por rol")
+	s.linea("por rol")
 	if len(t.PorRol) == 0 {
-		fmt.Fprintln(w, "  sin runs")
+		s.linea("  sin runs")
 	}
 	for _, r := range t.PorRol {
 		rol := r.Rol
 		if rol == "" {
 			rol = "sin rol"
 		}
-		fmt.Fprintf(w, "  %s · %s: %s\n", rol, r.Provider, gastoTexto(r.Provider, r.Gasto))
+		s.linea("  %s · %s: %s", rol, r.Provider, gastoTexto(r.Provider, r.Gasto))
 	}
-	fmt.Fprintln(w, "por ronda de review")
+	s.linea("por ronda de review")
 	if len(t.RondasReview) == 0 {
-		fmt.Fprintln(w, "  ninguna")
+		s.linea("  ninguna")
 	}
 	for _, r := range t.RondasReview {
 		if r.SinRonda {
-			fmt.Fprintf(w, "  reviewer (sin ronda) · %s: %s\n", r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
+			s.linea("  reviewer (sin ronda) · %s: %s", r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
 			continue
 		}
 		id := ""
@@ -155,17 +153,17 @@ func renderDetalle(w io.Writer, t Tarea) {
 		if r.HallazgosSinDato > 0 {
 			hall += fmt.Sprintf(" · hallazgos sin dato %d", r.HallazgosSinDato)
 		}
-		fmt.Fprintf(w, "  %s · %s · lentes %s · %s · %s: %s\n", id, cob,
+		s.linea("  %s · %s · lentes %s · %s · %s: %s", id, cob,
 			strings.Join(r.Lentes, ","), hall, r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
 	}
-	fmt.Fprintln(w, "total")
+	s.linea("total")
 	if len(t.PorProvider) == 0 {
-		fmt.Fprintln(w, "  sin runs")
+		s.linea("  sin runs")
 	}
 	for _, p := range provsDe(t.PorProvider) {
-		fmt.Fprintf(w, "  %s: %s\n", p, gastoTexto(p, t.PorProvider[p]))
+		s.linea("  %s: %s", p, gastoTexto(p, t.PorProvider[p]))
 	}
-	fmt.Fprintln(w, NotaVentana)
+	s.linea("%s", NotaVentana)
 }
 
 func estadoTexto(t Tarea) string {
@@ -276,29 +274,34 @@ func plural(n int, uno, varios string) string {
 	return fmt.Sprintf("%d %s", n, varios)
 }
 
-// terminal is a writer whose output a terminal prints as text: every control
-// or direction character (ESC, NUL, \r, U+202E...) but the newline that ends
-// each line, and every byte that is no UTF-8, goes out escaped (\x1b,
-// \u202e). fmt writes each line in one Write, so no rune is ever split.
-type terminal struct{ w io.Writer }
+// salida prints the report one line at a time: each line is formatted
+// whole and then escaped whole, so the only newline a terminal gets is the
+// one salida puts at its end. A name that comes from the evidence (a slug, a
+// lens, a provider, a window) can neither hide text nor make up a line:
+// every control or direction character in it — newline included — and every
+// byte that is no UTF-8 goes out escaped (\n, \x1b, \u202e).
+type salida struct{ w io.Writer }
 
-func (t terminal) Write(p []byte) (int, error) {
+func (s salida) linea(format string, args ...any) {
+	fmt.Fprintln(s.w, escapar(fmt.Sprintf(format, args...)))
+}
+
+// escapar is s with its control and direction characters, and its bytes that
+// are no UTF-8, written as their Go escapes.
+func escapar(s string) string {
 	var b strings.Builder
-	for i := 0; i < len(p); {
-		r, n := utf8.DecodeRune(p[i:])
+	for i := 0; i < len(s); {
+		r, n := utf8.DecodeRuneInString(s[i:])
 		switch {
 		case r == utf8.RuneError && n == 1:
-			fmt.Fprintf(&b, "\\x%02x", p[i])
-		case r != '\n' && (unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r)):
+			fmt.Fprintf(&b, "\\x%02x", s[i])
+		case unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r):
 			q := strconv.QuoteRune(r)
 			b.WriteString(q[1 : len(q)-1])
 		default:
-			b.Write(p[i : i+n])
+			b.WriteString(s[i : i+n])
 		}
 		i += n
 	}
-	if _, err := io.WriteString(t.w, b.String()); err != nil {
-		return 0, err
-	}
-	return len(p), nil
+	return b.String()
 }

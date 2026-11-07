@@ -150,17 +150,29 @@ var limitesSesion = struct {
 // errTopeSesion is a session reading cut by its bounds.
 var errTopeSesion = errors.New("la sesion de codex supera el tope de lectura de hoom: sin dato")
 
-// presupuesto is what is left of one MedirSesion's bounds. It covers the
-// whole reading: finding the files and reading them.
+// presupuesto is what is left of one MedirSesion's bounds, all of them: the
+// files it may take, the directory entries it may look at, the bytes it may
+// read and the clock. It covers the whole reading, finding the files and
+// reading them; nothing else consults limitesSesion.
 type presupuesto struct {
 	bytes    int64
+	archivos int
 	entradas int
 	hasta    time.Time
 }
 
 func nuevoPresupuesto() *presupuesto {
 	l := limitesSesion
-	return &presupuesto{bytes: l.bytes, entradas: l.entradas, hasta: time.Now().Add(l.plazo)}
+	return &presupuesto{bytes: l.bytes, archivos: l.archivos, entradas: l.entradas, hasta: time.Now().Add(l.plazo)}
+}
+
+// tomarArchivo spends one of the files the reading may take.
+func (p *presupuesto) tomarArchivo() error {
+	p.archivos--
+	if p.archivos < 0 {
+		return errTopeSesion
+	}
+	return nil
 }
 
 func (p *presupuesto) gastar(n int) error {
@@ -174,8 +186,8 @@ func (p *presupuesto) gastar(n int) error {
 // listar gives fn the entries of dir, read in chunks: each entry spends one
 // of the entries the reading may look at, and the clock is checked after
 // every chunk, so a directory of millions of entries ends the reading
-// instead of holding it.
-func (p *presupuesto) listar(dir string, fn func(fs.DirEntry)) error {
+// instead of holding it. An error from fn stops the listing there.
+func (p *presupuesto) listar(dir string, fn func(fs.DirEntry) error) error {
 	f, err := os.Open(dir)
 	if err != nil {
 		return err
@@ -185,7 +197,9 @@ func (p *presupuesto) listar(dir string, fn func(fs.DirEntry)) error {
 		es, err := f.ReadDir(256)
 		for _, e := range es {
 			p.entradas--
-			fn(e)
+			if err := fn(e); err != nil {
+				return err
+			}
 		}
 		if p.entradas < 0 || time.Now().After(p.hasta) {
 			return errTopeSesion
@@ -210,10 +224,11 @@ func buscarSesiones(home, thread string, budget *presupuesto) ([]string, error) 
 	for nivel := 0; nivel < 3; nivel++ {
 		var next []string
 		for _, d := range dirs {
-			err := budget.listar(d, func(e fs.DirEntry) {
+			err := budget.listar(d, func(e fs.DirEntry) error {
 				if esDirectorio(d, e) {
 					next = append(next, filepath.Join(d, e.Name()))
 				}
+				return nil
 			})
 			if errors.Is(err, errTopeSesion) {
 				return nil, err
@@ -223,17 +238,20 @@ func buscarSesiones(home, thread string, budget *presupuesto) ([]string, error) 
 	}
 	var files []string
 	for _, d := range dirs {
-		err := budget.listar(d, func(e fs.DirEntry) {
+		err := budget.listar(d, func(e fs.DirEntry) error {
 			n := e.Name()
-			if len(n) >= len(prefijo)+len(sufijo) && strings.HasPrefix(n, prefijo) && strings.HasSuffix(n, sufijo) {
-				files = append(files, filepath.Join(d, n))
+			if len(n) < len(prefijo)+len(sufijo) || !strings.HasPrefix(n, prefijo) || !strings.HasSuffix(n, sufijo) {
+				return nil
 			}
+			// the file past the bound ends the search right there
+			if err := budget.tomarArchivo(); err != nil {
+				return err
+			}
+			files = append(files, filepath.Join(d, n))
+			return nil
 		})
 		if errors.Is(err, errTopeSesion) {
 			return nil, err
-		}
-		if len(files) > limitesSesion.archivos {
-			return nil, errTopeSesion
 		}
 	}
 	// the names start with the session's date, so the order is the order the
