@@ -1,6 +1,10 @@
 # Spec: lo que costó un spec
 
-Estado: BORRADOR — pendiente de aprobación humana.
+Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión aprobada
+(sha256 90997459) todavía no tiene código. La enmienda 1 agrega `reiniciada`
+a cada ventana de un run. Sin ese dato, después no se puede distinguir un run
+que cruzó un reinicio de la ventana de uno que no lo cruzó, y el movimiento
+de ese run mentiría.
 Depende de: nada nuevo (main f88eb1a).
 Tarea: `hoom task start costo-por-spec`.
 
@@ -62,7 +66,12 @@ opcionales y se omiten si no hay dato:
   `semana`, y estos campos:
   - `inicio`: el % usado en el primer dato del run;
   - `fin`: el % usado en el último dato del run;
-  - `reinicia_en`: la hora UTC del reinicio, tal como la da el provider;
+  - `reinicia_en`: la hora UTC del reinicio, tal como la da el provider en
+    el último dato;
+  - `reiniciada`: `true` si, dentro del run, `reinicia_en` cambió más de 60 s
+    entre dos datos. Quiere decir que la ventana se reinició en medio y el
+    movimiento de ese run no se puede medir. Se omite si no cambió
+    (enmienda 1);
   - `plan`: si el provider lo dice.
 
   El % se guarda de 0 a 100, sin redondear lo que el provider dio. De dónde
@@ -121,9 +130,10 @@ Reglas de las cifras:
   - Para el total, los runs del mismo provider que se superponen en el
     tiempo se unen en un bloque. Cada bloque cuenta desde el `inicio` de su
     primer run hasta el `fin` del último, y los bloques se suman.
-  - Si `reinicia_en` cambia más de 60 s dentro de un run o de un bloque, la
-    ventana se reinició y ese tramo no se puede medir. El total pasa a
-    decir `al menos <x>`.
+  - Hay dos casos en que la ventana se reinició y ese tramo no se puede
+    medir: un run con la ventana `reiniciada`, o un bloque donde
+    `reinicia_en` cambia más de 60 s de un run a otro. En los dos, el total
+    pasa a decir `al menos <x>`.
   - Un movimiento menor a 1 punto se muestra `<1`.
   - La línea de ventanas siempre aclara que es la ventana de la cuenta
     durante los runs.
@@ -166,12 +176,12 @@ Reglas de las cifras:
 
 - CA-538: el sidecar de un run guarda `model` y `effort` cuando hoom se los pasó al provider; sin ellos guarda los que informó el provider (Claude `system/init.model`, Codex `turn_context.model`/`effort`); sin ninguno, los omite.
 - CA-539: `Usage` gana `reasoning_output_tokens` (Codex, de `turn.completed`) y `cache_write_input_tokens` (Codex `cache_write_input_tokens`, Claude `cache_creation_input_tokens`), sin cambiar `input_tokens`, `cached_input_tokens`, `output_tokens` ni el texto de `Summary`.
-- CA-540: un run de Claude con `rate_limit_event` guarda en `ventanas` las ventanas `5h` y `semana` con `inicio` del primer evento, `fin` del último y `reinicia_en`, con `utilization` pasada a %; sin eventos, el sidecar no tiene `ventanas`.
-- CA-541: al cerrar un run de Codex, hoom lee el archivo de `$CODEX_HOME/sessions` (por defecto `~/.codex/sessions`) cuyo `session_meta.id` es el thread y guarda `ventanas` (`primary`/`secondary` nombradas por `window_minutes`, con `plan`) y, si hoom no los pasó, `model` y `effort` del `turn_context`; con el archivo ausente o ilegible el run termina con el mismo resultado y sin `ventanas`.
+- CA-540: un run de Claude con `rate_limit_event` guarda en `ventanas` las ventanas `5h` y `semana` con `inicio` del primer evento, `fin` del último y `reinicia_en` del último, con `utilization` pasada a %, y `reiniciada: true` cuando `reinicia_en` cambió más de 60 s entre dos eventos del run (un salto de 1 s no la marca); sin eventos, el sidecar no tiene `ventanas`.
+- CA-541: al cerrar un run de Codex, hoom lee el archivo de `$CODEX_HOME/sessions` (por defecto `~/.codex/sessions`) cuyo `session_meta.id` es el thread y guarda `ventanas` (`primary`/`secondary` nombradas por `window_minutes`, con `plan` y con `reiniciada` según la misma regla) y, si hoom no los pasó, `model` y `effort` del `turn_context`; con el archivo ausente o ilegible el run termina con el mismo resultado y sin `ventanas`.
 - CA-542: el registro de una review guarda `runs` con el run de cada lente.
 - CA-543: `hoom costo` sin slug lista una línea por tarea con runs o reviews, de la más reciente a la más vieja, con estado `aceptada <fecha>` (item con `hecho_en`), `cerrada sin aceptar` (sin `hecho_en` y sin worktree) o `en curso`, rondas de review y, por provider, tokens, USD y ventana.
 - CA-544: `hoom costo <slug>` desglosa por rol y por ronda de review (id, completa o delta, lentes, hallazgos por severidad); muestra los tokens por provider (`nuevos`, `cache leido`, `salida`, `razonamiento`) y nunca suma tokens de dos providers; los USD salen rotulados `equivalente API` y un total que no cubre a un provider dice `<provider> no informa costo`.
-- CA-545: el total de ventana de una tarea une los runs superpuestos del mismo provider en bloques y suma los bloques; un `reinicia_en` que cambia más de 60 s marca el tramo como reiniciado y el total dice `al menos`; un salto de 1 s no es reinicio; un movimiento menor a 1 punto se muestra `<1`.
+- CA-545: el total de ventana de una tarea une los runs superpuestos del mismo provider en bloques y suma los bloques; un run con la ventana `reiniciada`, o un `reinicia_en` que cambia más de 60 s entre runs de un bloque, marca el tramo como reiniciado y el total dice `al menos`; un salto de 1 s no es reinicio; un movimiento menor a 1 punto se muestra `<1`.
 - CA-546: lo que falta se dice: `sin dato` con el conteo de runs que no lo tienen, los sidecars ilegibles se cuentan sin abortar, una ronda de un registro sin `runs` muestra sus runs como `reviewer (sin ronda)`, y un slug sin runs ni reviews sale con 1 y `hoom costo: no hay runs ni reviews de la tarea <slug>`.
 - CA-547: `hoom costo --json` emite `tareas` con `slug`, `estado`, `aceptada_en`, `veredicto`, `commit_final`, `rondas`, `por_provider`, `por_rol` y `rondas_review`, y cada cifra que falta es `null`, nunca 0.
 - CA-548: `hoom help` lista `costo` con una línea que dice que el movimiento de ventana es el de la cuenta durante los runs.
@@ -187,6 +197,10 @@ Reglas de las cifras:
   su ventana. Si el formato cambia, el run queda `sin dato`; nunca falla.
 - **Bloques unidos en vez de sumar runs.** Sumar runs superpuestos contaría
   dos veces el mismo movimiento de la cuenta.
+- **El reinicio se marca en el run, mientras pasa (enmienda 1).** El run es
+  el único que ve todos sus datos. Después solo queda `inicio`, `fin` y un
+  `reinicia_en`, y con eso un reinicio en medio se confunde con un
+  movimiento real.
 - **Aceptada = `hecho_en`.** Es el único hecho que hoom escribe con el gate
   verde.
 - **Un verbo nuevo.** `report` es de veredictos y `status` es lo que está
