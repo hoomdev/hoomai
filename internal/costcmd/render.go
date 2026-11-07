@@ -21,11 +21,13 @@ const NotaVentana = "(ventana de la cuenta durante los runs)"
 // JSONBytes renders the report as indented JSON, with the schema the spec
 // fixes: empty lists and maps are [] and {}, a missing figure is null.
 func JSONBytes(r Reporte) ([]byte, error) {
-	if r.Tareas == nil {
-		r.Tareas = []Tarea{}
-	}
+	// a copy all the way down to what gets filled in: the caller's report is
+	// never changed by serializing it
+	r.Tareas = append([]Tarea{}, r.Tareas...)
+	r.Avisos = append([]string{}, r.Avisos...)
 	for i := range r.Tareas {
 		t := &r.Tareas[i]
+		t.RondasReview = append([]Ronda(nil), t.RondasReview...)
 		if t.PorProvider == nil {
 			t.PorProvider = map[string]Gasto{}
 		}
@@ -66,6 +68,19 @@ func Render(w io.Writer, r Reporte, detalle bool) {
 	if r.Ilegibles > 0 {
 		fmt.Fprintf(w, "%d runs ilegibles\n", r.Ilegibles)
 	}
+	for _, a := range r.Avisos {
+		fmt.Fprintln(w, "aviso: "+a)
+	}
+}
+
+// fueraTexto is what came after the acceptance, "" when nothing did.
+func fueraTexto(t Tarea) string {
+	f := t.DespuesDeAceptada
+	if f == nil || (f.Runs == 0 && f.Rondas == 0) {
+		return ""
+	}
+	return fmt.Sprintf("despues de aceptada: %s y %s, fuera del costo",
+		plural(f.Runs, "run", "runs"), plural(f.Rondas, "ronda", "rondas"))
 }
 
 // renderLinea is the task in one line; the window note goes on the line, so
@@ -77,6 +92,9 @@ func renderLinea(w io.Writer, t Tarea) {
 		g := t.PorProvider[p]
 		parts = append(parts, p+": "+gastoTexto(p, g))
 		conVentana = conVentana || g.Ventanas != nil
+	}
+	if f := fueraTexto(t); f != "" {
+		parts = append(parts, f)
 	}
 	line := strings.Join(parts, " · ")
 	if conVentana {
@@ -96,6 +114,9 @@ func renderDetalle(w io.Writer, t Tarea) {
 			c = *t.CommitFinal
 		}
 		fmt.Fprintf(w, "veredicto %s · commit_final %s\n", v, c)
+		if f := fueraTexto(t); f != "" {
+			fmt.Fprintln(w, f)
+		}
 	}
 	fmt.Fprintln(w, "por rol")
 	if len(t.PorRol) == 0 {
@@ -125,9 +146,12 @@ func renderDetalle(w io.Writer, t Tarea) {
 		if cob == "" {
 			cob = "sin dato"
 		}
-		fmt.Fprintf(w, "  %s · %s · lentes %s · high %d medium %d low %d · %s: %s\n", id, cob,
-			strings.Join(r.Lentes, ","), r.Hallazgos["high"], r.Hallazgos["medium"], r.Hallazgos["low"],
-			r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
+		hall := fmt.Sprintf("high %d medium %d low %d", r.Hallazgos["high"], r.Hallazgos["medium"], r.Hallazgos["low"])
+		if r.HallazgosSinDato > 0 {
+			hall += fmt.Sprintf(" · hallazgos sin dato %d", r.HallazgosSinDato)
+		}
+		fmt.Fprintf(w, "  %s · %s · lentes %s · %s · %s: %s\n", id, cob,
+			strings.Join(r.Lentes, ","), hall, r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
 	}
 	fmt.Fprintln(w, "total")
 	if len(t.PorProvider) == 0 {
@@ -177,6 +201,9 @@ func gastoTexto(provider string, g Gasto) string {
 	parts = append(parts,
 		cifra("nuevos", g.Tokens.Nuevos), cifra("cache leido", g.Tokens.CacheLeido),
 		cifra("salida", g.Tokens.Salida), cifra("razonamiento", g.Tokens.Razonamiento))
+	if g.SinUso > 0 && g.SinUso < g.Runs {
+		parts = append(parts, fmt.Sprintf("tokens: sin dato en %d de %d runs", g.SinUso, g.Runs))
+	}
 	terminados := g.Runs - g.EnCurso
 	if g.CostoUSD == nil {
 		parts = append(parts, provider+" no informa costo")

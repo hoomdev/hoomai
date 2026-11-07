@@ -1605,6 +1605,7 @@ const UmbralReinicio = 60 * time.Second
 // between two reports (the window reset mid-run). Nil when there were none.
 func ventanasDe(muestras [][]providers.Ventana) []VentanaRun {
 	por := map[string]*VentanaRun{}
+	conocido := map[string]time.Time{} // the last reset time some report gave
 	var orden []string
 	for _, snap := range muestras {
 		for _, v := range snap {
@@ -1613,12 +1614,17 @@ func ventanasDe(muestras [][]providers.Ventana) []VentanaRun {
 				w = &VentanaRun{Nombre: v.Nombre, Inicio: v.Usado}
 				por[v.Nombre] = w
 				orden = append(orden, v.Nombre)
-			} else if CambioDeReinicio(w.ReiniciaEn, v.ReiniciaEn) {
+			} else if CambioDeReinicio(conocido[v.Nombre], v.ReiniciaEn) {
 				w.Reiniciada = true
 			}
 			w.Fin = v.Usado
-			if !v.ReiniciaEn.IsZero() {
-				w.ReiniciaEn = v.ReiniciaEn.UTC()
+			// the last report's, as it gave it: a report without one leaves
+			// none, never an older report's
+			w.ReiniciaEn = v.ReiniciaEn.UTC()
+			if v.ReiniciaEn.IsZero() {
+				w.ReiniciaEn = time.Time{}
+			} else {
+				conocido[v.Nombre] = v.ReiniciaEn
 			}
 			if v.Plan != "" {
 				w.Plan = v.Plan

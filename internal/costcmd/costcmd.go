@@ -109,6 +109,11 @@ type Reporte struct {
 	// an unreadable sidecar names no task, so it is counted for the whole
 	// report ("<n> runs ilegibles") and the command goes on.
 	Ilegibles int `json:"ilegibles"`
+	// Avisos say what else hoom could not read or would not trust (review
+	// records, findings, items, verdicts, a record naming another task's
+	// run): a figure that comes out of a partial reading says so here
+	// instead of passing for a fact. Text: one "aviso: <...>" line each.
+	Avisos []string `json:"avisos"`
 }
 
 // Tarea is one task's cost. Sin slug the report carries every task (newest
@@ -131,9 +136,21 @@ type Tarea struct {
 	// one row with ID null and SinRonda true holding the reviewer runs no
 	// record names (only when there are such runs).
 	RondasReview []Ronda `json:"rondas_review"`
-	// UltimaActividad is the newest of its runs' start and its records'
+	// DespuesDeAceptada counts what came after hecho_en — the cost is until
+	// the task was accepted, so those runs and rounds are left out and only
+	// counted ("despues de aceptada: <n> runs y <m> rondas, fuera del
+	// costo"); nil when the task is not accepted. The JSON schema of a task
+	// is the spec's, so there it travels as one of the report's avisos.
+	DespuesDeAceptada *Fuera `json:"-"`
+	// UltimaActividad is the newest of its counted runs' start and records'
 	// creation: the order of the list. Not part of the JSON.
 	UltimaActividad time.Time `json:"-"`
+}
+
+// Fuera is what was left out of a task's cost.
+type Fuera struct {
+	Runs   int `json:"runs"`
+	Rondas int `json:"rondas"`
 }
 
 // Gasto is what a set of runs of ONE provider cost.
@@ -141,6 +158,10 @@ type Gasto struct {
 	Runs    int    `json:"runs"`
 	EnCurso int    `json:"en_curso"` // runs still running: they add no window
 	Tokens  Tokens `json:"tokens"`
+	// SinUso counts the runs that reported no token figure (no usage, or a
+	// usage with no input, cache or output): the tokens cover the others
+	// ("tokens: sin dato en <n> de <m> runs").
+	SinUso int `json:"sin_uso"`
 	// CostoUSD is the sum of what the provider reported (Claude's
 	// total_cost_usd: the API equivalent); null when no run reported a cost.
 	CostoUSD *float64 `json:"costo_usd"`
@@ -157,8 +178,9 @@ type Gasto struct {
 }
 
 // Tokens are provider-neutral columns: Nuevos is Claude input_tokens and
-// Codex input_tokens - cached_input_tokens; CacheLeido is
-// cached_input_tokens. Each is null when no run reported it.
+// Codex input_tokens - cached_input_tokens (providers.EntradaNueva);
+// CacheLeido is cached_input_tokens. Each is null when no run reported it,
+// and Nuevos also for a provider whose accounting hoom does not know.
 type Tokens struct {
 	Nuevos       *int `json:"nuevos"`
 	CacheLeido   *int `json:"cache_leido"`
@@ -189,7 +211,10 @@ type Ronda struct {
 	Cobertura string         `json:"cobertura"` // completa | delta | parcial ("" for SinRonda)
 	Lentes    []string       `json:"lentes"`
 	Hallazgos map[string]int `json:"hallazgos"` // "high", "medium", "low" -> count of the record's findings
-	Provider  string         `json:"provider"`
+	// HallazgosSinDato counts the record's findings hoom could not read: they
+	// are in none of the three counts ("hallazgos sin dato <n>").
+	HallazgosSinDato int    `json:"hallazgos_sin_dato"`
+	Provider         string `json:"provider"`
 	// Gasto adds up the runs the record names; null when the record names
 	// none (records older than costo-por-spec).
 	Gasto *Gasto `json:"gasto"`

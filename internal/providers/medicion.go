@@ -96,7 +96,9 @@ func (claude) MedirLinea(line string) Medicion {
 		var snap []Ventana
 		for key, w := range msg.RateLimit.UnifiedWindows {
 			nombre, ok := claudeVentanas[key]
-			if !ok || w.Utilization == nil || !finito(*w.Utilization) {
+			// a fraction outside 0..1 is no percent of a window: that sample
+			// is "sin dato", never a figure that poisons the totals
+			if !ok || w.Utilization == nil || !finito(*w.Utilization) || *w.Utilization < 0 || *w.Utilization > 1 {
 				continue
 			}
 			v := Ventana{Nombre: nombre, Usado: *w.Utilization * 100}
@@ -134,6 +136,32 @@ var threadRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`)
 // message (never a token_count): it is skipped, and the reading goes on.
 const maxLineaSesion = 4 << 20
 
+// The bounds of one MedirSesion: the run's close waits for it, so a huge
+// thread, a file that keeps growing or a directory full of look-alikes ends
+// the reading with "sin dato" instead of holding the run in running.
+var limitesSesion = struct {
+	bytes    int64
+	archivos int
+	plazo    time.Duration
+}{bytes: 256 << 20, archivos: 8, plazo: 10 * time.Second}
+
+// errTopeSesion is a session reading cut by its bounds.
+var errTopeSesion = errors.New("la sesion de codex supera el tope de lectura de hoom: sin dato")
+
+// presupuesto is what is left of one MedirSesion's bounds.
+type presupuesto struct {
+	bytes int64
+	hasta time.Time
+}
+
+func (p *presupuesto) gastar(n int) error {
+	p.bytes -= int64(n)
+	if p.bytes < 0 || time.Now().After(p.hasta) {
+		return errTopeSesion
+	}
+	return nil
+}
+
 // MedirSesion reads the Codex session files of thread sessionID under
 // CodexHome()/sessions: the files whose session_meta.id IS the thread (a
 // file can carry it in the name and be another's). It reads only session_meta, turn_context
@@ -156,11 +184,18 @@ func (codex) MedirSesion(sessionID string, desde time.Time) (Medicion, error) {
 	// files were opened in: a resumed thread may leave a second file whose
 	// session_meta names the same thread, and its reports come after
 	sort.Strings(files)
+	if len(files) > limitesSesion.archivos {
+		return Medicion{}, errTopeSesion
+	}
+	budget := &presupuesto{bytes: limitesSesion.bytes, hasta: time.Now().Add(limitesSesion.plazo)}
 	lastErr := fmt.Errorf("no hay archivo de sesion de codex para el thread %s", sessionID)
 	var out Medicion
 	encontrado := false
 	for _, f := range files {
-		med, suyo, err := leerSesionCodex(f, sessionID, desde)
+		med, suyo, err := leerSesionCodex(f, sessionID, desde, budget)
+		if errors.Is(err, errTopeSesion) {
+			return Medicion{}, err
+		}
 		if err != nil {
 			lastErr = err
 			continue
@@ -185,7 +220,7 @@ func (codex) MedirSesion(sessionID string, desde time.Time) (Medicion, error) {
 
 // leerSesionCodex reads one session file: whether its session_meta names
 // the thread and, if so, what its reports since desde said.
-func leerSesionCodex(path, thread string, desde time.Time) (Medicion, bool, error) {
+func leerSesionCodex(path, thread string, desde time.Time, budget *presupuesto) (Medicion, bool, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return Medicion{}, false, err
@@ -202,7 +237,10 @@ func leerSesionCodex(path, thread string, desde time.Time) (Medicion, bool, erro
 	suyo, visto := false, false
 	br := bufio.NewReaderSize(f, 64<<10)
 	for {
-		line, largo, err := leerLineaAcotada(br, maxLineaSesion)
+		line, largo, leidos, err := leerLineaAcotada(br, maxLineaSesion)
+		if berr := budget.gastar(leidos); berr != nil {
+			return Medicion{}, false, berr
+		}
 		if !largo && len(line) > 0 {
 			switch codexTipo(line) {
 			case "session_meta":
@@ -307,7 +345,8 @@ type codexVentana struct {
 }
 
 func (w *codexVentana) ventana(plan string) (Ventana, bool) {
-	if w == nil || w.UsedPercent == nil || w.WindowMinutes == nil || !finito(*w.UsedPercent) || *w.WindowMinutes <= 0 {
+	if w == nil || w.UsedPercent == nil || w.WindowMinutes == nil || !finito(*w.UsedPercent) ||
+		*w.UsedPercent < 0 || *w.UsedPercent > 100 || *w.WindowMinutes <= 0 {
 		return Ventana{}, false
 	}
 	v := Ventana{Nombre: NombreVentana(*w.WindowMinutes), Usado: *w.UsedPercent, Plan: plan}
@@ -368,12 +407,14 @@ func finito(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
 
 // leerLineaAcotada reads one line of br without its newline. A line longer
 // than max is read to its end and reported as largo, with no content: the
-// reader never holds it whole.
-func leerLineaAcotada(br *bufio.Reader, max int) ([]byte, bool, error) {
+// reader never holds it whole. leidos is every byte it consumed.
+func leerLineaAcotada(br *bufio.Reader, max int) ([]byte, bool, int, error) {
 	var buf []byte
 	largo := false
+	leidos := 0
 	for {
 		frag, err := br.ReadSlice('\n')
+		leidos += len(frag)
 		if !largo {
 			if len(buf)+len(frag) > max+1 {
 				largo, buf = true, nil
@@ -387,6 +428,21 @@ func leerLineaAcotada(br *bufio.Reader, max int) ([]byte, bool, error) {
 		if len(buf) > 0 && buf[len(buf)-1] == '\n' {
 			buf = buf[:len(buf)-1]
 		}
-		return buf, largo, err
+		return buf, largo, leidos, err
 	}
+}
+
+// EntradaNueva is the input of u that did not come from the cache, in the
+// accounting of provider: Codex counts the cached tokens inside
+// input_tokens, while Claude's InputTokens (input plus cache creation, as
+// the adapter stores it) never had them. A provider whose accounting hoom
+// does not know gives false: no figure rather than a guessed one.
+func EntradaNueva(provider string, u Usage) (int, bool) {
+	switch provider {
+	case "claude":
+		return u.InputTokens, true
+	case "codex":
+		return max(u.InputTokens-u.CachedTokens, 0), true
+	}
+	return 0, false
 }

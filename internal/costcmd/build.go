@@ -1,7 +1,9 @@
 package costcmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,52 +20,121 @@ import (
 // rolReviewer is the role of the runs `hoom review` starts.
 const rolReviewer = "reviewer"
 
+// SinNada is Build's error for a slug with no runs and no reviews: the verb
+// prints it and exits 1.
+type SinNada struct{ Slug string }
+
+func (e *SinNada) Error() string { return fmt.Sprintf(ErrSinNada, e.Slug) }
+
 // Build reads the project at root and returns the report: every task when
-// slug is "", or that task alone. A slug with no runs and no reviews is an
-// error whose text is fmt.Sprintf(ErrSinNada, slug).
+// slug is "", or that task alone. A slug with no runs and no reviews is a
+// *SinNada, whose text is fmt.Sprintf(ErrSinNada, slug).
+//
+// It reads the project and every task worktree under .hoom/worktrees: while
+// a task is in course its review records and findings live in its worktree
+// (they reach the project with the merge), and its rounds have to be told
+// apart before that.
 func Build(root, slug string) (Reporte, error) {
-	metas, ilegibles, err := runcmd.MetasConIlegibles(root)
-	if err != nil {
-		return Reporte{}, err
+	ctx := &contexto{root: root, porID: map[string]runcmd.Meta{}, severidad: map[string]string{}}
+	fuentes := append([]string{root}, worktrees(root)...)
+	vistosRec := map[string]bool{}
+	var recs []reviewcmd.Record
+	recIlegibles, hallIlegibles := 0, 0
+	conHallazgos := false
+	for i, dir := range fuentes {
+		metas, sinLeer, err := runcmd.MetasConIlegibles(dir)
+		if err != nil {
+			if i == 0 {
+				return Reporte{}, err
+			}
+			ctx.avisar(fmt.Sprintf("no se pudo leer .hoom/runs del worktree %q: sus runs no se suman", filepath.Base(dir)))
+		}
+		ctx.ilegibles += len(sinLeer)
+		for _, m := range metas {
+			if _, ok := ctx.porID[m.ID]; !ok {
+				ctx.porID[m.ID] = m
+			}
+		}
+		rs, warnings, err := reviewcmd.RecordsErr(dir)
+		if err != nil {
+			if i == 0 {
+				return Reporte{}, err
+			}
+			ctx.avisar(fmt.Sprintf("no se pudo leer .hoom/reviews del worktree %q: sus rondas no se cuentan", filepath.Base(dir)))
+		}
+		recIlegibles += len(warnings)
+		for _, r := range rs {
+			if !vistosRec[r.ID] {
+				vistosRec[r.ID] = true
+				recs = append(recs, r)
+				conHallazgos = conHallazgos || len(r.Findings) > 0
+			}
+		}
 	}
-	recs, _, err := reviewcmd.RecordsErr(root)
-	if err != nil {
-		return Reporte{}, err
+	if recIlegibles > 0 {
+		ctx.avisar(fmt.Sprintf("%d registros de review ilegibles: las rondas pueden ser mas", recIlegibles))
 	}
-	porID := map[string]runcmd.Meta{}
+	if conHallazgos {
+		for _, dir := range fuentes {
+			items, ilegibles, _, err := finding.ListConIlegibles(dir, "", false)
+			if err != nil {
+				ctx.avisar("no se pudieron leer los hallazgos: los de las rondas quedan sin dato")
+				continue
+			}
+			hallIlegibles += len(ilegibles)
+			for _, it := range items {
+				ctx.severidad[it.ID] = it.Severity
+			}
+		}
+		if hallIlegibles > 0 {
+			ctx.avisar(fmt.Sprintf("%d hallazgos ilegibles: quedan sin dato en sus rondas", hallIlegibles))
+		}
+	}
+
+	ids := make([]string, 0, len(ctx.porID))
+	for id := range ctx.porID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
 	runsDe := map[string][]runcmd.Meta{}
-	for _, m := range metas {
-		porID[m.ID] = m
-		if m.Task != "" {
+	for _, id := range ids {
+		if m := ctx.porID[id]; m.Task != "" {
 			runsDe[m.Task] = append(runsDe[m.Task], m)
 		}
 	}
+	sort.SliceStable(recs, func(i, j int) bool { return recs[i].CreatedAt.Before(recs[j].CreatedAt) })
 	recsDe := map[string][]reviewcmd.Record{}
-	conHallazgos := false
 	for _, r := range recs {
-		if r.Task == "" {
-			continue
+		if r.Task != "" {
+			recsDe[r.Task] = append(recsDe[r.Task], r)
 		}
-		recsDe[r.Task] = append(recsDe[r.Task], r)
-		conHallazgos = conHallazgos || len(r.Findings) > 0
 	}
 	// a review with --spec and no --task starts its runs without a task: the
 	// record names them, so they are the task's all the same, and its total
-	// is never less than its rounds
-	for t, rs := range recsDe {
+	// is never less than its rounds. A run of ANOTHER task is not taken: it
+	// would be counted twice.
+	for _, r := range recs {
+		t := r.Task
+		if t == "" {
+			continue
+		}
 		suyos := map[string]bool{}
 		for _, m := range runsDe[t] {
 			suyos[m.ID] = true
 		}
-		for _, r := range rs {
-			for _, lr := range r.Runs {
-				if m, ok := porID[lr.Run]; ok && !suyos[m.ID] {
-					suyos[m.ID] = true
-					runsDe[t] = append(runsDe[t], m)
-				}
+		for _, lr := range r.Runs {
+			m, ok := ctx.porID[lr.Run]
+			switch {
+			case !ok || suyos[m.ID]:
+			case m.Task != "" && m.Task != t:
+				ctx.avisar(fmt.Sprintf("el registro %s nombra el run %s, que es de la tarea %q: no se suma a %q", r.ID, m.ID, m.Task, t))
+			default:
+				suyos[m.ID] = true
+				runsDe[t] = append(runsDe[t], m)
 			}
 		}
 	}
+
 	var slugs []string
 	if slug != "" {
 		if len(runsDe[slug]) == 0 && len(recsDe[slug]) == 0 {
@@ -81,12 +152,9 @@ func Build(root, slug string) (Reporte, error) {
 		for t := range vistos {
 			slugs = append(slugs, t)
 		}
+		sort.Strings(slugs)
 	}
-	ctx := contexto{root: root, porID: porID}
-	if conHallazgos {
-		ctx.severidad = severidades(root)
-	}
-	rep := Reporte{Tareas: []Tarea{}, Ilegibles: len(ilegibles)}
+	rep := Reporte{Tareas: []Tarea{}}
 	for _, t := range slugs {
 		rep.Tareas = append(rep.Tareas, ctx.tarea(t, runsDe[t], recsDe[t]))
 	}
@@ -97,40 +165,81 @@ func Build(root, slug string) (Reporte, error) {
 		}
 		return a.Slug < b.Slug
 	})
+	rep.Ilegibles = ctx.ilegibles
+	rep.Avisos = append([]string{}, ctx.avisos...)
 	return rep, nil
 }
 
-// SinNada is Build's error for a slug with no runs and no reviews: the verb
-// prints it and exits 1.
-type SinNada struct{ Slug string }
-
-func (e *SinNada) Error() string { return fmt.Sprintf(ErrSinNada, e.Slug) }
+// worktrees lists the task worktrees under root/.hoom/worktrees, by name.
+func worktrees(root string) []string {
+	entries, err := os.ReadDir(filepath.Join(root, ".hoom", "worktrees"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() && item.ValidSlug(e.Name()) {
+			out = append(out, filepath.Join(root, ".hoom", "worktrees", e.Name()))
+		}
+	}
+	return out
+}
 
 // contexto is what every task of one report reads from the same project.
 type contexto struct {
 	root      string
 	porID     map[string]runcmd.Meta
 	severidad map[string]string // finding id -> low | medium | high
+	ilegibles int
+	avisos    []string
 	verdicts  []*verdict.Verdict
 	leidos    bool // verdicts were loaded
 }
 
-// severidades maps every readable finding to its severity. What cannot be
-// read is not counted: the round shows what hoom could see.
-func severidades(root string) map[string]string {
-	items, _, _ := finding.List(root, "", false)
-	out := make(map[string]string, len(items))
-	for _, it := range items {
-		out[it.ID] = it.Severity
+func (c *contexto) avisar(s string) {
+	for _, a := range c.avisos {
+		if a == s {
+			return
+		}
 	}
-	return out
+	c.avisos = append(c.avisos, s)
 }
 
 func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Record) Tarea {
-	t := Tarea{Slug: slug, Rondas: len(recs), PorProvider: map[string]Gasto{},
-		PorRol: []GastoRol{}, RondasReview: []Ronda{}}
+	t := Tarea{Slug: slug, PorProvider: map[string]Gasto{}, PorRol: []GastoRol{}, RondasReview: []Ronda{}}
 	c.estado(&t)
+	// the cost is until the task was accepted: what came after hecho_en is
+	// counted apart and left out
+	if t.AceptadaEn != nil {
+		hasta := *t.AceptadaEn
+		fuera := Fuera{}
+		var antes []runcmd.Meta
+		for _, m := range runs {
+			if m.CreatedAt.After(hasta) {
+				fuera.Runs++
+				continue
+			}
+			antes = append(antes, m)
+		}
+		var recsAntes []reviewcmd.Record
+		for _, r := range recs {
+			if r.CreatedAt.After(hasta) {
+				fuera.Rondas++
+				continue
+			}
+			recsAntes = append(recsAntes, r)
+		}
+		runs, recs = antes, recsAntes
+		t.DespuesDeAceptada = &fuera
+		if fuera.Runs > 0 || fuera.Rondas > 0 {
+			c.avisar(fmt.Sprintf("la tarea %q tiene %s y %s despues de aceptada: fuera del costo", slug,
+				plural(fuera.Runs, "run", "runs"), plural(fuera.Rondas, "ronda", "rondas")))
+		}
+	}
+	t.Rondas = len(recs)
+	enLaTarea := map[string]bool{}
 	for _, m := range runs {
+		enLaTarea[m.ID] = true
 		if m.CreatedAt.After(t.UltimaActividad) {
 			t.UltimaActividad = m.CreatedAt
 		}
@@ -168,16 +277,19 @@ func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Recor
 		id := r.ID
 		ronda.ID = &id
 		for _, f := range r.Findings {
-			if sev, ok := c.severidad[f]; ok {
-				if _, conocida := ronda.Hallazgos[sev]; conocida {
-					ronda.Hallazgos[sev]++
-				}
+			sev, ok := c.severidad[f]
+			if _, conocida := ronda.Hallazgos[sev]; ok && conocida {
+				ronda.Hallazgos[sev]++
+			} else {
+				ronda.HallazgosSinDato++
 			}
 		}
 		var suyos []runcmd.Meta
 		for _, lr := range r.Runs {
 			nombrados[lr.Run] = true
-			if m, ok := c.porID[lr.Run]; ok {
+			// only the task's own runs: one of another task was left out
+			// (and said) when the task's runs were gathered
+			if m, ok := c.porID[lr.Run]; ok && enLaTarea[m.ID] {
 				suyos = append(suyos, m)
 			}
 		}
@@ -213,9 +325,12 @@ func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Recor
 }
 
 // estado: aceptada when the item has hecho_en; otherwise en curso while the
-// task's worktree exists, and cerrada sin aceptar when it is gone.
+// task's worktree exists, and cerrada sin aceptar when it is gone. An item
+// that exists and cannot be read is said: the state then comes from the
+// worktree alone.
 func (c *contexto) estado(t *Tarea) {
-	if it, err := item.Load(c.root, t.Slug); err == nil && it.HechoEn != nil {
+	it, err := item.Load(c.root, t.Slug)
+	if err == nil && it.HechoEn != nil {
 		t.Estado = EstadoAceptada
 		at := it.HechoEn.UTC()
 		t.AceptadaEn = &at
@@ -228,6 +343,9 @@ func (c *contexto) estado(t *Tarea) {
 		}
 		return
 	}
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		c.avisar(fmt.Sprintf("el item de %q no se pudo leer: su estado no sale de hecho_en", t.Slug))
+	}
 	if fi, err := os.Stat(filepath.Join(c.root, ".hoom", "worktrees", t.Slug)); err == nil && fi.IsDir() {
 		t.Estado = EstadoEnCurso
 		return
@@ -239,8 +357,11 @@ func (c *contexto) estado(t *Tarea) {
 // spec, "" when there is none.
 func (c *contexto) veredicto(slug string) string {
 	if !c.leidos {
-		c.verdicts, _, _ = verdict.LoadAllWithWarnings(c.root)
-		c.leidos = true
+		vs, warnings, err := verdict.LoadAllWithWarnings(c.root)
+		c.verdicts, c.leidos = vs, true
+		if err != nil || len(warnings) > 0 {
+			c.avisar("hay veredictos ilegibles: el veredicto de una tarea aceptada puede faltar")
+		}
 	}
 	var mejor *verdict.Verdict
 	for _, v := range c.verdicts {
@@ -265,37 +386,38 @@ func porProvider(runs []runcmd.Meta) map[string][]runcmd.Meta {
 	return out
 }
 
-// nuevos is the input that did not come from the cache: Codex counts the
-// cached tokens inside input_tokens, Claude (as hoom stores it) does not.
-func nuevos(provider string, u *providers.Usage) int {
-	if provider == "codex" {
-		if n := u.InputTokens - u.CachedTokens; n > 0 {
-			return n
-		}
-		return 0
-	}
-	return u.InputTokens
+// conTokens says whether u reported any token figure: a usage with only a
+// cost, a duration or turns says nothing about tokens, and its zeros are
+// not zeros.
+func conTokens(u *providers.Usage) bool {
+	return u != nil && (u.InputTokens > 0 || u.CachedTokens > 0 || u.OutputTokens > 0)
 }
 
 // gasto adds up the runs of ONE provider. A figure no run reported stays
-// null.
+// null, and one only some runs reported says how many lack it.
 func gasto(provider string, runs []runcmd.Meta) Gasto {
 	g := Gasto{Runs: len(runs)}
 	var nue, cache, sal, razon int
 	var usd float64
 	var dur int64
-	conUso, conRazon, conCosto, conDur := false, false, false, false
+	conUso, conNuevos, conRazon, conCosto, conDur := false, true, false, false, false
 	var conVentana []runcmd.Meta
 	for _, m := range runs {
-		if u := m.Usage; u != nil {
+		if u := m.Usage; conTokens(u) {
 			conUso = true
-			nue += nuevos(provider, u)
+			if n, ok := providers.EntradaNueva(provider, *u); ok {
+				nue += n
+			} else {
+				conNuevos = false
+			}
 			cache += u.CachedTokens
 			sal += u.OutputTokens
-			if u.ReasoningTokens > 0 {
-				conRazon = true
-				razon += u.ReasoningTokens
-			}
+		} else {
+			g.SinUso++
+		}
+		if u := m.Usage; u != nil && u.ReasoningTokens > 0 {
+			conRazon = true
+			razon += u.ReasoningTokens
 		}
 		if m.Usage != nil && m.Usage.CostUSD != nil {
 			conCosto = true
@@ -307,11 +429,11 @@ func gasto(provider string, runs []runcmd.Meta) Gasto {
 			g.EnCurso++
 			continue
 		}
-		if !m.EndedAt.IsZero() && m.EndedAt.After(m.CreatedAt) {
+		if !m.EndedAt.IsZero() {
 			conDur = true
-			dur += m.EndedAt.Sub(m.CreatedAt).Milliseconds()
-		} else if !m.EndedAt.IsZero() {
-			conDur = true
+			if m.EndedAt.After(m.CreatedAt) {
+				dur += m.EndedAt.Sub(m.CreatedAt).Milliseconds()
+			}
 		}
 		if len(m.Ventanas) == 0 {
 			g.SinVentana++
@@ -320,7 +442,10 @@ func gasto(provider string, runs []runcmd.Meta) Gasto {
 		conVentana = append(conVentana, m)
 	}
 	if conUso {
-		g.Tokens = Tokens{Nuevos: &nue, CacheLeido: &cache, Salida: &sal}
+		g.Tokens = Tokens{CacheLeido: &cache, Salida: &sal}
+		if conNuevos {
+			g.Tokens.Nuevos = &nue
+		}
 	}
 	if conRazon {
 		g.Tokens.Razonamiento = &razon
