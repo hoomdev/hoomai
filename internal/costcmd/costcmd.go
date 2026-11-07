@@ -39,6 +39,11 @@
 // at least that — and the total is AlMenos. A block whose figure went down
 // with no reset seen is a reset hoom did not see, and counts the same. The
 // total adds the blocks.
+//
+// Which task a run belongs to: its task; with none, its finding_task (a
+// review with --spec and no --task runs at the root); with neither, the task
+// of the review record that names it in runs. A record that names a run of
+// another task does not add it: it says so in an aviso.
 package costcmd
 
 import (

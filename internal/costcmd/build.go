@@ -98,8 +98,8 @@ func Build(root, slug string) (Reporte, error) {
 	sort.Strings(ids)
 	runsDe := map[string][]runcmd.Meta{}
 	for _, id := range ids {
-		if m := ctx.porID[id]; m.Task != "" {
-			runsDe[m.Task] = append(runsDe[m.Task], m)
+		if m := ctx.porID[id]; tareaDe(m) != "" {
+			runsDe[tareaDe(m)] = append(runsDe[tareaDe(m)], m)
 		}
 	}
 	sort.SliceStable(recs, func(i, j int) bool { return recs[i].CreatedAt.Before(recs[j].CreatedAt) })
@@ -109,9 +109,9 @@ func Build(root, slug string) (Reporte, error) {
 			recsDe[r.Task] = append(recsDe[r.Task], r)
 		}
 	}
-	// a review with --spec and no --task starts its runs without a task: the
-	// record names them, so they are the task's all the same, and its total
-	// is never less than its rounds. A run of ANOTHER task is not taken: it
+	// a run with neither task nor finding_task (an older review with --spec
+	// and no --task) is the task of the record that names it, so a total is
+	// never less than its rounds. A run of ANOTHER task is not taken: it
 	// would be counted twice.
 	for _, r := range recs {
 		t := r.Task
@@ -126,8 +126,8 @@ func Build(root, slug string) (Reporte, error) {
 			m, ok := ctx.porID[lr.Run]
 			switch {
 			case !ok || suyos[m.ID]:
-			case m.Task != "" && m.Task != t:
-				ctx.avisar(fmt.Sprintf("el registro %s nombra el run %s, que es de la tarea %q: no se suma a %q", r.ID, m.ID, m.Task, t))
+			case tareaDe(m) != "" && tareaDe(m) != t:
+				ctx.avisar(fmt.Sprintf("el registro %s nombra el run %s, que es de la tarea %q: no se suma a %q", r.ID, m.ID, tareaDe(m), t))
 			default:
 				suyos[m.ID] = true
 				runsDe[t] = append(runsDe[t], m)
@@ -322,6 +322,16 @@ func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Recor
 			Hallazgos: map[string]int{"high": 0, "medium": 0, "low": 0}, Provider: p, Gasto: &g})
 	}
 	return t
+}
+
+// tareaDe is the task a run belongs to: its task (where it ran) or, when it
+// ran at the root, the task of its findings (costo-por-spec, amendment 2).
+// "" leaves it to the record that names it.
+func tareaDe(m runcmd.Meta) string {
+	if m.Task != "" {
+		return m.Task
+	}
+	return m.FindingTask
 }
 
 // estado: aceptada when the item has hecho_en; otherwise en curso while the

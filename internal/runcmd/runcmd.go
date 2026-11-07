@@ -437,6 +437,9 @@ func clasificarMeta(id string, raw []byte) (meta Meta, ajeno bool, err error) {
 	if !slugOK(meta.Task) {
 		meta.Task = ""
 	}
+	if !slugOK(meta.FindingTask) || meta.Task != "" {
+		meta.FindingTask = ""
+	}
 	return meta, false, nil
 }
 
@@ -1034,6 +1037,12 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		Model:    strings.TrimSpace(opts.Model), Effort: strings.TrimSpace(opts.Effort),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
+	// a run with no task (a review with --spec and no --task, at the root)
+	// keeps the task of its findings: the only fact that ties its cost to
+	// the task when it ends with no record (costo-por-spec, amendment 2)
+	if opts.Task == "" && opts.FindingTask != "" && slugRe.MatchString(opts.FindingTask) {
+		r.meta.FindingTask = opts.FindingTask
+	}
 	// the sidecar is how another process sees this run: without it the run
 	// would not exclude anybody, so it does not start (finding da369a)
 	if err := writeMeta(m.root, r.meta); err != nil {
