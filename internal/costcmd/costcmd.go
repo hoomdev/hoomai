@@ -5,24 +5,38 @@
 // (.hoom/findings) and the verdicts (.hoom/verdicts). What a provider did not
 // report is said ("sin dato"), never filled in with a zero.
 //
-// Text output (the strings a reader and a test can rely on):
+// Text output (the strings a reader and a test can rely on; layout and
+// spacing around them are not part of the contract):
 //
 //   - state of a task: "aceptada <fecha>" (fecha = "2006-01-02 15:04 UTC"),
-//     "cerrada sin aceptar" or "en curso";
-//   - token columns, per provider: "nuevos", "cache leido", "salida",
-//     "razonamiento";
-//   - USD: the figure followed by "USD equivalente API"; a total that does not
-//     cover a provider adds "<provider> no informa costo";
-//   - window movement, per window and provider: "<x> puntos", "<1 punto"
-//     when it moved less than one point, "al menos <x> puntos" when a stretch
-//     could not be measured because the window reset; every window line ends
-//     with "(ventana de la cuenta durante los runs)";
-//   - missing data: "sin dato", and when some runs lack it
-//     "<que>: sin dato en <n> de <m> runs";
+//     "cerrada sin aceptar" or "en curso"; "rondas <n>";
+//   - token figures, per provider: "nuevos <n>", "cache leido <n>",
+//     "salida <n>", "razonamiento <n>", plain integers; a null figure is
+//     "<label> sin dato" (e.g. "razonamiento sin dato");
+//   - USD: "<x> USD equivalente API" with x to 2 decimals; a provider whose
+//     runs reported no cost at all says "<provider> no informa costo"; some
+//     runs without cost add "costo: sin dato en <n> de <m> runs";
+//   - window, per window name: "<nombre> <x> puntos" (x with at most one
+//     decimal, "3" not "3.0"), "<nombre> <1 punto" when it moved less than
+//     one point, and "al menos " before the figure when AlMenos; a provider
+//     with no window data says "ventana: sin dato", and finished runs without
+//     it add "ventana: sin dato en <n> de <m> runs"; any output that shows a
+//     window figure also says "(ventana de la cuenta durante los runs)";
+//   - runs still running: "<n> en curso";
 //   - unreadable sidecars: "<n> runs ilegibles";
-//   - a round of review: its id, "completa", "delta" or "parcial", its lenses
-//     and "high <a> medium <b> low <c>";
-//   - reviewer runs no round names: "reviewer (sin ronda)".
+//   - a round of review: its id, "completa", "delta" or "parcial",
+//     "lentes <a>,<b>" and "high <a> medium <b> low <c>";
+//   - reviewer runs no record names: "reviewer (sin ronda)";
+//   - a role-less run is role "sin rol".
+//
+// Window rule (CA-545): the finished runs of one provider that have a window
+// are ordered by created_at and grouped in blocks — a run joins the block
+// while its created_at is not after the latest ended_at of the block. A
+// block moved fin(last run to end) - inicio(first run to start). A block
+// "reset" when one of its runs has the window reiniciada, or two consecutive
+// runs (by created_at) report reinicia_en more than 60 s apart: then the
+// block contributes fin(last run to end) — what was spent after the reset is
+// at least that — and the total is AlMenos. The total adds the blocks.
 package costcmd
 
 import (
@@ -50,8 +64,10 @@ type Options struct {
 	JSON bool
 }
 
-// ParseArgs is pure: a request hoom does not understand is a
-// *cliargs.UsageError (exit 2); -h/--help is cliargs.ErrHelp.
+// ParseArgs is pure: at most one positional (the slug, which must be a valid
+// item slug) and --json. Anything else — another flag, two positionals, a
+// slug of another shape — is a *cliargs.UsageError (exit 2); -h/--help is
+// cliargs.ErrHelp.
 func ParseArgs(args []string) (Options, error) {
 	return Options{}, errors.New("costcmd: esqueleto sin comportamiento")
 }
@@ -112,8 +128,11 @@ type Gasto struct {
 	CostoUSD *float64 `json:"costo_usd"`
 	// SinCosto counts the runs that reported no cost.
 	SinCosto int `json:"sin_costo"`
-	// Ventanas is the movement of each plan window ("5h", "semana", ...).
+	// Ventanas is the movement of each plan window ("5h", "semana", ...);
+	// null when no finished run of the set has a window.
 	Ventanas map[string]Movimiento `json:"ventanas"`
+	// SinVentana counts the finished runs of the set without any window.
+	SinVentana int `json:"sin_ventana"`
 	// DuracionMS is the sum of the finished runs' wall time
 	// (ended_at - created_at); null when none finished.
 	DuracionMS *int64 `json:"duracion_ms"`
@@ -129,19 +148,13 @@ type Tokens struct {
 	Razonamiento *int `json:"razonamiento"`
 }
 
-// Movimiento is how far one window moved over a set of runs: overlapping
-// runs form one block (from its first run's inicio to its last run's fin)
-// and the blocks are added.
+// Movimiento is how far one window moved over a set of runs (see the window
+// rule in the package doc).
 type Movimiento struct {
-	// Puntos: percent points moved; null when no run of the set has this
-	// window.
+	// Puntos: percent points moved, the sum of the blocks.
 	Puntos *float64 `json:"puntos"`
-	// AlMenos: some stretch could not be measured (a run with the window
-	// reiniciada, or a reset time that moved more than 60 s inside a block),
-	// so Puntos is a lower bound.
+	// AlMenos: some block reset, so Puntos is a lower bound.
 	AlMenos bool `json:"al_menos"`
-	// SinDato counts the finished runs of the set without this window.
-	SinDato int `json:"sin_dato"`
 }
 
 // GastoRol is the cost of one role on one provider.
