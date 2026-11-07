@@ -294,6 +294,17 @@ func TestCA549_RegistroDeOtraTareaNoSeLlevaElRunConFindingTask(t *testing.T) {
 }
 
 // ---------------------------------------------------------------- propiedad
+//
+// TestCA549_PropiedadCadaRunEnUnaSolaTarea esta armada en cuatro partes:
+//
+//   - el generador (cfGenerador): escribe en disco un escenario al azar de
+//     runs y registros, con la semilla fija;
+//   - el oraculo (cfCaso.duenio y cfModelo): la tarea de cada run segun la
+//     regla del spec, y lo que cada tarea tiene que mostrar;
+//   - el diagnostico (cfCaso.describe): el escenario entero, para el
+//     mensaje de una falla;
+//   - las comprobaciones (cfVerificacion): cada una fija un invariante del
+//     reporte contra el oraculo.
 
 // cfCaso es un escenario al azar: runs (todos de codex, el run i con
 // entrada 1<<i y sin cache: su "nuevos" es un bit propio) y registros que
@@ -306,7 +317,7 @@ type cfCaso struct {
 	regIDs   []string    // id de cada registro
 }
 
-// cfDuenio es la regla del spec: task; si no, finding_task; si no, la tarea
+// duenio es la regla del spec: task; si no, finding_task; si no, la tarea
 // del registro que lo nombra; si no, ninguna.
 func (c *cfCaso) duenio(i int) string {
 	m := c.metas[i]
@@ -320,6 +331,20 @@ func (c *cfCaso) duenio(i int) string {
 		return c.regTask[reg]
 	}
 	return ""
+}
+
+// describe es el escenario en texto: cada run con su task, su finding_task,
+// su rol, el registro que lo nombra y la tarea que le da la regla.
+func (c *cfCaso) describe() string {
+	var b strings.Builder
+	for i, m := range c.metas {
+		fmt.Fprintf(&b, "\n  run %d: task %q finding_task %q rol %q", i, m.Task, m.FindingTask, m.Role)
+		if reg, ok := c.nombrado[i]; ok {
+			fmt.Fprintf(&b, " nombrado por el registro %d (tarea %s)", reg, c.regTask[reg])
+		}
+		fmt.Fprintf(&b, " -> %q", c.duenio(i))
+	}
+	return b.String()
 }
 
 func cfBits(p *int) uint {
@@ -339,6 +364,313 @@ func cfLista(mask uint) []int {
 	return out
 }
 
+// ------------------------------------------------------------- el generador
+
+// cfGenerador arma los escenarios de la propiedad. Todo lo que sale al azar
+// sale de r, en un orden fijo: con la misma semilla, los mismos escenarios.
+type cfGenerador struct {
+	r     *rand.Rand
+	slugs []string // las tareas de los runs
+	roles []string // reviewer pesa doble: es el rol de la fila sin ronda
+}
+
+func cfNuevoGenerador(semilla int64) *cfGenerador {
+	return &cfGenerador{r: rand.New(rand.NewSource(semilla)),
+		slugs: []string{"tarea-a", "tarea-b", "tarea-c"},
+		roles: []string{"reviewer", "reviewer", "writer", ""}}
+}
+
+// elegir devuelve una de las tareas, o "" con peso conVacio.
+func (g *cfGenerador) elegir(conVacio int) string {
+	k := g.r.Intn(len(g.slugs) + conVacio)
+	if k < conVacio {
+		return ""
+	}
+	return g.slugs[k-conVacio]
+}
+
+// escenario escribe en root un escenario nuevo: sus runs y despues sus
+// registros.
+func (g *cfGenerador) escenario(t *testing.T, root string) *cfCaso {
+	t.Helper()
+	c := &cfCaso{nombrado: map[int]int{}}
+	n := 3 + g.r.Intn(10)
+	g.runs(t, root, c, n)
+	g.registros(t, root, c, n)
+	return c
+}
+
+// runs escribe n runs de codex, uno cada 10 minutos, sin superponerse. La
+// mitad no tiene task; todo run sin task tiene finding_task con peso 3/5, y
+// uno de cada cuatro con task tambien (ahi task gana). El run i tiene un bit
+// propio en "nuevos".
+func (g *cfGenerador) runs(t *testing.T, root string, c *cfCaso, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		m := ccMeta(g.elegir(3), g.roles[g.r.Intn(len(g.roles))], "codex", ccT0.Add(ccMin(10*i)), ccMin(5))
+		if m.Task == "" || g.r.Intn(4) == 0 { // a veces un task con finding_task (task gana)
+			m.FindingTask = g.elegir(2)
+		}
+		m.Usage = ccCodex(1<<uint(i), 0, 1, 0)
+		c.metas = append(c.metas, ccRun(t, root, m))
+	}
+}
+
+// registros escribe, despues de los runs, de 0 a 3 registros. Cada uno es
+// de una tarea (a veces tarea-d, que solo tiene registros) y nombra runs que
+// ningun otro registro nombra; puede no nombrar ninguno (un registro viejo,
+// sin runs).
+func (g *cfGenerador) registros(t *testing.T, root string, c *cfCaso, n int) {
+	t.Helper()
+	libres := g.r.Perm(n)
+	for k := 0; k < g.r.Intn(4); k++ { // el tope se sortea en cada vuelta
+		task := append([]string{"tarea-d"}, g.slugs...)[g.r.Intn(len(g.slugs)+1)]
+		var nombra []int
+		for len(libres) > 0 && g.r.Intn(3) != 0 {
+			nombra = append(nombra, libres[0])
+			libres = libres[1:]
+		}
+		sort.Ints(nombra)
+		var lr []reviewcmd.LensRun
+		for _, i := range nombra {
+			lr = append(lr, reviewcmd.LensRun{Lens: "risk", Run: c.metas[i].ID})
+			c.nombrado[i] = len(c.regTask)
+		}
+		reg := ccRegistro(t, root, task, reviewcmd.CoberturaCompleta, ccT0.Add(ccMin(10*n+k)), []string{"risk"}, lr, nil)
+		c.regTask = append(c.regTask, task)
+		c.regRuns = append(c.regRuns, nombra)
+		c.regIDs = append(c.regIDs, reg.ID)
+	}
+}
+
+// ---------------------------------------------------------------- el oraculo
+
+// cfEsperado es lo que el reporte tiene que mostrar de un escenario, por
+// tarea, en bits de run (el bit i es el run i).
+type cfEsperado struct {
+	// tareas son las que tienen algun run (por la regla) o algun registro.
+	tareas map[string]bool
+	// total son los runs de cada tarea.
+	total map[string]uint
+	// porRol son los runs de cada tarea por rol ("" = sin rol).
+	porRol map[string]map[string]uint
+	// sinRondaSegura son los reviewer de la tarea que ningun registro nombra:
+	// tienen que estar en la fila sin ronda.
+	sinRondaSegura map[string]uint
+	// sinRondaPosible son los reviewer de la tarea que solo nombra un
+	// registro de otra tarea: el spec no decide si van en la fila sin ronda,
+	// asi que pueden estar o no.
+	sinRondaPosible map[string]uint
+	// cruzado: algun registro nombra un run de otra tarea (hay que avisarlo).
+	cruzado bool
+}
+
+// cfModelo aplica la regla del spec (cfCaso.duenio) a cada run del
+// escenario. Los runs sin tarea no van en ninguna.
+func cfModelo(c *cfCaso) cfEsperado {
+	e := cfEsperado{tareas: map[string]bool{}, total: map[string]uint{}, porRol: map[string]map[string]uint{},
+		sinRondaSegura: map[string]uint{}, sinRondaPosible: map[string]uint{}}
+	for _, task := range c.regTask {
+		e.tareas[task] = true
+	}
+	for i, m := range c.metas {
+		d := c.duenio(i)
+		if reg, ok := c.nombrado[i]; ok && d != c.regTask[reg] {
+			e.cruzado = true
+		}
+		if d == "" {
+			continue
+		}
+		e.tareas[d] = true
+		bit := uint(1) << uint(i)
+		e.total[d] |= bit
+		if e.porRol[d] == nil {
+			e.porRol[d] = map[string]uint{}
+		}
+		e.porRol[d][m.Role] |= bit
+		if m.Role == "reviewer" {
+			reg, ok := c.nombrado[i]
+			switch {
+			case !ok:
+				e.sinRondaSegura[d] |= bit
+			case c.regTask[reg] != d:
+				e.sinRondaPosible[d] |= bit
+			}
+		}
+	}
+	return e
+}
+
+// rondaEsperada son los runs que la ronda del registro id tiene que contar:
+// los que el registro nombra y son de su tarea (un run de otra tarea no lo
+// suma). deOtra es la tarea del registro si no es slug.
+func (c *cfCaso) rondaEsperada(id, slug string) (quiero uint, deOtra string) {
+	for k, rid := range c.regIDs {
+		if rid != id {
+			continue
+		}
+		if c.regTask[k] != slug {
+			return 0, c.regTask[k]
+		}
+		for _, i := range c.regRuns[k] {
+			if c.duenio(i) == slug {
+				quiero |= 1 << uint(i)
+			}
+		}
+	}
+	return quiero, ""
+}
+
+// ------------------------------------------------------- las comprobaciones
+
+// cfVerificacion compara los reportes de un escenario con su oraculo.
+type cfVerificacion struct {
+	t    *testing.T
+	caso int
+	c    *cfCaso
+	e    cfEsperado
+}
+
+// lista fija que la lista sin slug trae cada tarea con runs o registros una
+// sola vez, y ninguna otra.
+func (v cfVerificacion) lista(lista Reporte) {
+	v.t.Helper()
+	vistos := map[string]bool{}
+	for _, ta := range lista.Tareas {
+		if vistos[ta.Slug] {
+			v.t.Fatalf("CA-549: caso %d: la tarea %q aparece dos veces%s", v.caso, ta.Slug, v.c.describe())
+		}
+		vistos[ta.Slug] = true
+		if !v.e.tareas[ta.Slug] {
+			v.t.Fatalf("CA-549: caso %d: la tarea %q no tiene runs ni registros%s", v.caso, ta.Slug, v.c.describe())
+		}
+	}
+	for slug := range v.e.tareas {
+		if !vistos[slug] {
+			v.t.Fatalf("CA-549: caso %d: falta la tarea %q en la lista%s", v.caso, slug, v.c.describe())
+		}
+	}
+}
+
+// tarea fija lo de la tarea slug en el reporte rep (la lista o el de su
+// slug): que esta una vez, su total, sus roles y sus rondas. Devuelve los
+// runs que cuentan sus filas de rondas.
+func (v cfVerificacion) tarea(donde string, rep Reporte, slug string) (filas uint) {
+	v.t.Helper()
+	ta := ccTarea(v.t, "CA-549", rep, slug)
+	que := fmt.Sprintf("caso %d, %s, tarea %s", v.caso, donde, slug)
+	v.total(que, ta, slug)
+	v.roles(que, ta, slug)
+	return v.rondas(que, ta, slug)
+}
+
+// total fija que el total de codex de la tarea cuenta exactamente sus runs
+// segun la regla: ni uno de otra tarea, ni uno sin tarea, ninguno dos veces.
+func (v cfVerificacion) total(que string, ta Tarea, slug string) {
+	v.t.Helper()
+	quiero := v.e.total[slug]
+	g := ta.PorProvider["codex"]
+	if got := cfBits(g.Tokens.Nuevos); got != quiero || g.Runs != len(cfLista(quiero)) {
+		v.t.Fatalf("CA-549: %s: cuenta los runs %v (%d), conto %v (%d)%s", que,
+			cfLista(quiero), len(cfLista(quiero)), cfLista(got), g.Runs, v.c.describe())
+	}
+}
+
+// roles fija que cada fila por rol de codex cuenta exactamente los runs de
+// la tarea con ese rol, que ningun run esta en dos roles y que los roles
+// juntos cubren el total.
+func (v cfVerificacion) roles(que string, ta Tarea, slug string) {
+	v.t.Helper()
+	var roles uint
+	for _, gr := range ta.PorRol {
+		if gr.Provider != "codex" {
+			continue
+		}
+		got := cfBits(gr.Tokens.Nuevos)
+		if got != v.e.porRol[slug][gr.Rol] || roles&got != 0 {
+			v.t.Fatalf("CA-549: %s: el rol %q cuenta %v, conto %v%s", que, gr.Rol,
+				cfLista(v.e.porRol[slug][gr.Rol]), cfLista(got), v.c.describe())
+		}
+		roles |= got
+	}
+	if roles != v.e.total[slug] {
+		v.t.Fatalf("CA-549: %s: los roles cubren %v, cubrieron %v%s", que, cfLista(v.e.total[slug]), cfLista(roles), v.c.describe())
+	}
+}
+
+// rondas fija las filas de rondas de la tarea: ningun run en dos filas; la
+// fila reviewer (sin ronda) tiene los reviewer que ningun registro nombra
+// (y a lo sumo los que solo nombra un registro de otra tarea); toda otra
+// fila es un registro de esta tarea y cuenta los runs que nombra y son de
+// ella; y si hay reviewer sin registro, la fila sin ronda existe (una sola).
+// Devuelve los runs que cuentan sus filas.
+func (v cfVerificacion) rondas(que string, ta Tarea, slug string) (filas uint) {
+	v.t.Helper()
+	for _, rr := range ta.RondasReview {
+		var got uint
+		if rr.Gasto != nil {
+			got = cfBits(rr.Gasto.Tokens.Nuevos)
+		}
+		if filas&got != 0 {
+			v.t.Fatalf("CA-549: %s: un run en dos filas de rondas: %v%s", que, cfLista(filas&got), v.c.describe())
+		}
+		filas |= got
+		if rr.SinRonda {
+			if seg, pos := v.e.sinRondaSegura[slug], v.e.sinRondaPosible[slug]; got&seg != seg || got&^(seg|pos) != 0 {
+				v.t.Fatalf("CA-549: %s: la fila reviewer (sin ronda) tiene %v (y quiza %v), tiene %v%s", que,
+					cfLista(seg), cfLista(pos), cfLista(got), v.c.describe())
+			}
+			continue
+		}
+		if rr.ID == nil {
+			v.t.Fatalf("CA-549: %s: una fila sin id que no es la sin ronda: %+v", que, rr)
+		}
+		quiero, deOtra := v.c.rondaEsperada(*rr.ID, slug)
+		if deOtra != "" {
+			v.t.Fatalf("CA-549: %s: la ronda %s es de %s, no de esta tarea%s", que, *rr.ID, deOtra, v.c.describe())
+		}
+		if got != quiero {
+			v.t.Fatalf("CA-549: %s: la ronda %s cuenta los runs %v que nombra y son de la tarea, conto %v%s", que,
+				*rr.ID, cfLista(quiero), cfLista(got), v.c.describe())
+		}
+	}
+	if v.e.sinRondaSegura[slug] != 0 {
+		if _, ok := cfSinRonda(v.t, ta); !ok {
+			v.t.Fatalf("CA-549: %s: hay reviewer sin registro (%v): falta la fila sin ronda%s", que,
+				cfLista(v.e.sinRondaSegura[slug]), v.c.describe())
+		}
+	}
+	return filas
+}
+
+// rondasDeUnaSolaTarea fija que, en la lista, ningun run esta en las filas
+// de rondas de dos tareas. enRondas acumula los de las tareas ya vistas.
+func (v cfVerificacion) rondasDeUnaSolaTarea(que string, enRondas *uint, filas uint) {
+	v.t.Helper()
+	if *enRondas&filas != 0 {
+		v.t.Fatalf("CA-549: %s: un run en las rondas de dos tareas: %v%s", que, cfLista(*enRondas&filas), v.c.describe())
+	}
+	*enRondas |= filas
+}
+
+// avisos fija que un registro que nombra un run de otra tarea se avisa.
+func (v cfVerificacion) avisos(lista Reporte) {
+	v.t.Helper()
+	if v.e.cruzado && len(lista.Avisos) == 0 {
+		v.t.Fatalf("CA-549: caso %d: un registro nombra un run de otra tarea y el reporte no lo avisa%s", v.caso, v.c.describe())
+	}
+}
+
+// sinNada fija que un slug sin runs ni registros sigue siendo SinNada.
+func (v cfVerificacion) sinNada(root string) {
+	v.t.Helper()
+	for _, s := range []string{"nunca", "tarea-z"} {
+		if _, err := Build(root, s); !cfSinNada(err, s) {
+			v.t.Fatalf("CA-549: caso %d: %s no tiene runs ni registros: SinNada, fue %v", v.caso, s, err)
+		}
+	}
+}
+
 // CA-549 (propiedad, semilla fija): para combinaciones al azar de task,
 // finding_task, rol y registro que nombra el run, cada run se cuenta en
 // exactamente la tarea que dice la regla del spec (task; si no,
@@ -346,203 +678,22 @@ func cfLista(mask uint) []int {
 // tareas, ni en dos roles, ni en dos filas de rondas. Los runs sin ninguna
 // tarea no se cuentan. Se verifica con la lista y con el slug de cada tarea.
 func TestCA549_PropiedadCadaRunEnUnaSolaTarea(t *testing.T) {
-	r := rand.New(rand.NewSource(549))
-	slugs := []string{"tarea-a", "tarea-b", "tarea-c"}
-	elegir := func(conVacio int) string { // conVacio: peso del ""
-		k := r.Intn(len(slugs) + conVacio)
-		if k < conVacio {
-			return ""
-		}
-		return slugs[k-conVacio]
-	}
-	roles := []string{"reviewer", "reviewer", "writer", ""}
+	g := cfNuevoGenerador(549)
 	for caso := 0; caso < 40; caso++ {
 		root := ccRoot(t)
-		c := &cfCaso{nombrado: map[int]int{}}
-		n := 3 + r.Intn(10)
-		for i := 0; i < n; i++ {
-			m := ccMeta(elegir(3), roles[r.Intn(len(roles))], "codex", ccT0.Add(ccMin(10*i)), ccMin(5))
-			if m.Task == "" || r.Intn(4) == 0 { // a veces un task con finding_task (task gana)
-				m.FindingTask = elegir(2)
-			}
-			m.Usage = ccCodex(1<<uint(i), 0, 1, 0)
-			c.metas = append(c.metas, ccRun(t, root, m))
-		}
-		// registros: cada uno de una tarea (a veces una que solo tiene
-		// registros) nombra runs que ningun otro registro nombra
-		libres := r.Perm(n)
-		for k := 0; k < r.Intn(4); k++ {
-			task := append([]string{"tarea-d"}, slugs...)[r.Intn(len(slugs)+1)]
-			var nombra []int
-			for len(libres) > 0 && r.Intn(3) != 0 {
-				nombra = append(nombra, libres[0])
-				libres = libres[1:]
-			}
-			sort.Ints(nombra)
-			var lr []reviewcmd.LensRun
-			for _, i := range nombra {
-				lr = append(lr, reviewcmd.LensRun{Lens: "risk", Run: c.metas[i].ID})
-				c.nombrado[i] = len(c.regTask)
-			}
-			reg := ccRegistro(t, root, task, reviewcmd.CoberturaCompleta, ccT0.Add(ccMin(10*n+k)), []string{"risk"}, lr, nil)
-			c.regTask = append(c.regTask, task)
-			c.regRuns = append(c.regRuns, nombra)
-			c.regIDs = append(c.regIDs, reg.ID)
-		}
-
-		// lo esperado, por tarea: el total, por rol, y la fila sin ronda
-		// (la segura y la que el spec no decide: un reviewer de T que solo
-		// nombra un registro de otra tarea)
-		total := map[string]uint{}
-		porRol := map[string]map[string]uint{}
-		sinRondaSegura, sinRondaPosible := map[string]uint{}, map[string]uint{}
-		tareas := map[string]bool{}
-		for _, task := range c.regTask {
-			tareas[task] = true
-		}
-		cruzado := false
-		for i, m := range c.metas {
-			d := c.duenio(i)
-			if reg, ok := c.nombrado[i]; ok && d != c.regTask[reg] {
-				cruzado = true
-			}
-			if d == "" {
-				continue
-			}
-			tareas[d] = true
-			bit := uint(1) << uint(i)
-			total[d] |= bit
-			if porRol[d] == nil {
-				porRol[d] = map[string]uint{}
-			}
-			porRol[d][m.Role] |= bit
-			if m.Role == "reviewer" {
-				reg, ok := c.nombrado[i]
-				switch {
-				case !ok:
-					sinRondaSegura[d] |= bit
-				case c.regTask[reg] != d:
-					sinRondaPosible[d] |= bit
-				}
-			}
-		}
-		describe := func() string {
-			var b strings.Builder
-			for i, m := range c.metas {
-				fmt.Fprintf(&b, "\n  run %d: task %q finding_task %q rol %q", i, m.Task, m.FindingTask, m.Role)
-				if reg, ok := c.nombrado[i]; ok {
-					fmt.Fprintf(&b, " nombrado por el registro %d (tarea %s)", reg, c.regTask[reg])
-				}
-				fmt.Fprintf(&b, " -> %q", c.duenio(i))
-			}
-			return b.String()
-		}
+		c := g.escenario(t, root)
+		v := cfVerificacion{t: t, caso: caso, c: c, e: cfModelo(c)}
 
 		lista := ccBuild(t, root, "")
-		vistos := map[string]bool{}
+		v.lista(lista)
 		var enRondas uint
-		for _, ta := range lista.Tareas {
-			if vistos[ta.Slug] {
-				t.Fatalf("CA-549: caso %d: la tarea %q aparece dos veces%s", caso, ta.Slug, describe())
-			}
-			vistos[ta.Slug] = true
-			if !tareas[ta.Slug] {
-				t.Fatalf("CA-549: caso %d: la tarea %q no tiene runs ni registros%s", caso, ta.Slug, describe())
-			}
-		}
-		for slug := range tareas {
-			if !vistos[slug] {
-				t.Fatalf("CA-549: caso %d: falta la tarea %q en la lista%s", caso, slug, describe())
-			}
-		}
-		for slug := range tareas {
+		for slug := range v.e.tareas {
 			sola := ccBuild(t, root, slug)
-			for _, rep := range []struct {
-				que string
-				r   Reporte
-			}{{"lista", lista}, {"slug " + slug, sola}} {
-				ta := ccTarea(t, "CA-549", rep.r, slug)
-				que := fmt.Sprintf("caso %d, %s, tarea %s", caso, rep.que, slug)
-				g := ta.PorProvider["codex"]
-				if got := cfBits(g.Tokens.Nuevos); got != total[slug] || g.Runs != len(cfLista(total[slug])) {
-					t.Fatalf("CA-549: %s: cuenta los runs %v (%d), conto %v (%d)%s", que,
-						cfLista(total[slug]), len(cfLista(total[slug])), cfLista(got), g.Runs, describe())
-				}
-				var roles uint
-				for _, gr := range ta.PorRol {
-					if gr.Provider != "codex" {
-						continue
-					}
-					got := cfBits(gr.Tokens.Nuevos)
-					if got != porRol[slug][gr.Rol] || roles&got != 0 {
-						t.Fatalf("CA-549: %s: el rol %q cuenta %v, conto %v%s", que, gr.Rol,
-							cfLista(porRol[slug][gr.Rol]), cfLista(got), describe())
-					}
-					roles |= got
-				}
-				if roles != total[slug] {
-					t.Fatalf("CA-549: %s: los roles cubren %v, cubrieron %v%s", que, cfLista(total[slug]), cfLista(roles), describe())
-				}
-				var filas uint
-				for _, rr := range ta.RondasReview {
-					var got uint
-					if rr.Gasto != nil {
-						got = cfBits(rr.Gasto.Tokens.Nuevos)
-					}
-					if filas&got != 0 {
-						t.Fatalf("CA-549: %s: un run en dos filas de rondas: %v%s", que, cfLista(filas&got), describe())
-					}
-					filas |= got
-					if rr.SinRonda {
-						if seg, pos := sinRondaSegura[slug], sinRondaPosible[slug]; got&seg != seg || got&^(seg|pos) != 0 {
-							t.Fatalf("CA-549: %s: la fila reviewer (sin ronda) tiene %v (y quiza %v), tiene %v%s", que,
-								cfLista(seg), cfLista(pos), cfLista(got), describe())
-						}
-						continue
-					}
-					if rr.ID == nil {
-						t.Fatalf("CA-549: %s: una fila sin id que no es la sin ronda: %+v", que, rr)
-					}
-					var quiero uint
-					for k, id := range c.regIDs {
-						if id != *rr.ID {
-							continue
-						}
-						if c.regTask[k] != slug {
-							t.Fatalf("CA-549: %s: la ronda %s es de %s, no de esta tarea%s", que, id, c.regTask[k], describe())
-						}
-						for _, i := range c.regRuns[k] {
-							if c.duenio(i) == slug {
-								quiero |= 1 << uint(i)
-							}
-						}
-					}
-					if got != quiero {
-						t.Fatalf("CA-549: %s: la ronda %s cuenta los runs %v que nombra y son de la tarea, conto %v%s", que,
-							*rr.ID, cfLista(quiero), cfLista(got), describe())
-					}
-				}
-				if sinRondaSegura[slug] != 0 {
-					if _, ok := cfSinRonda(t, ta); !ok {
-						t.Fatalf("CA-549: %s: hay reviewer sin registro (%v): falta la fila sin ronda%s", que,
-							cfLista(sinRondaSegura[slug]), describe())
-					}
-				}
-				if rep.que == "lista" {
-					if enRondas&filas != 0 {
-						t.Fatalf("CA-549: %s: un run en las rondas de dos tareas: %v%s", que, cfLista(enRondas&filas), describe())
-					}
-					enRondas |= filas
-				}
-			}
+			filas := v.tarea("lista", lista, slug)
+			v.rondasDeUnaSolaTarea(fmt.Sprintf("caso %d, %s, tarea %s", caso, "lista", slug), &enRondas, filas)
+			v.tarea("slug "+slug, sola, slug)
 		}
-		if cruzado && len(lista.Avisos) == 0 {
-			t.Fatalf("CA-549: caso %d: un registro nombra un run de otra tarea y el reporte no lo avisa%s", caso, describe())
-		}
-		for _, s := range []string{"nunca", "tarea-z"} {
-			if _, err := Build(root, s); !cfSinNada(err, s) {
-				t.Fatalf("CA-549: caso %d: %s no tiene runs ni registros: SinNada, fue %v", caso, s, err)
-			}
-		}
+		v.avisos(lista)
+		v.sinNada(root)
 	}
 }
