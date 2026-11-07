@@ -1,0 +1,87 @@
+{
+  "id": "20261107T180547_fe87f0",
+  "created_at": "2026-11-07T18:05:47.179917Z",
+  "task": "costo-por-spec",
+  "spec": "",
+  "fingerprint": "fb31fa7d4ebdb5d9",
+  "verdict_id": "2026-11-07T17-53-08Z_bc3601be",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261107T175625_3868dd",
+    "20261107T175625_e4ed1b",
+    "20261107T180045_8562a7",
+    "20261107T180051_2e32a9",
+    "20261107T180405_835709",
+    "20261107T180405_b68eab",
+    "20261107T180535_62deb0",
+    "20261107T180535_ecf8ac"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 55546,
+  "evidence_sha256": "9a8a2d320ae556f9de3facb60b8d7301a3123ae60275058b99e5bb4c60418922",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 514796,
+      "cached_input_tokens": 472704,
+      "output_tokens": 10175,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 787825,
+      "cached_input_tokens": 738048,
+      "output_tokens": 13851,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 456210,
+      "cached_input_tokens": 402176,
+      "output_tokens": 9895,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 290066,
+      "cached_input_tokens": 246912,
+      "output_tokens": 4478,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261107T175319_8777f9"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261107T175641_c63580"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261107T180106_3f024b"
+    },
+    {
+      "lens": "readability",
+      "run": "20261107T180416_5f6438"
+    }
+  ],
+  "desde": "0bf1a2498fc3509f513dd9936e26b35ca9540065",
+  "hasta": "56df726cc62bed7a29bb354066ceef373b024d7b",
+  "cobertura": "delta",
+  "desde_review": "20261107T173245_7f0aa5",
+  "base": "main"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261107T180051_2e32a9",
+  "created_at": "2026-11-07T18:00:51.535466Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/providers/medicion.go",
+  "description": "INTRODUCIDO — internal/providers/medicion.go:226-235 comprueba limitesSesion.archivos solo despues de que budget.listar termino de recorrer un directorio diario, mientras el callback de internal/providers/medicion.go:228-230 agrega todos los nombres coincidentes a files. Con limite 8, un solo dia con cientos de miles de rollout-*-\u003cthread\u003e.jsonl acumula todos esos paths y hace todo el trabajo antes de devolver errTopeSesion; el tope de archivos no limita memoria ni trabajo y puede agotar el proceso al cerrar el run. La iteracion debe poder abortar en cuanto aparece el noveno candidato.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb31fa7d4ebdb5d9",
+  "task": "costo-por-spec"
+}

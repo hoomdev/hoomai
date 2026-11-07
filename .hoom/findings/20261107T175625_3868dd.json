@@ -1,0 +1,11 @@
+{
+  "id": "20261107T175625_3868dd",
+  "created_at": "2026-11-07T17:56:25.602431Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/costcmd/render.go",
+  "description": "INTRODUCIDO: internal/costcmd/render.go:292 exceptua todo salto de linea de la neutralizacion aunque los campos de evidencia se interpolan dentro de una linea. Un lens/provider/rol controlado en JSON puede contener \\\\n y fabricar filas o avisos adicionales en la salida humana; la nueva barrera escapa ESC y bidi pero no impide esta inyeccion de lineas.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb31fa7d4ebdb5d9",
+  "task": "costo-por-spec"
+}
