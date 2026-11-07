@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T172651_85877f",
+  "as": "corregido",
+  "evidence": "40ef924: leerLineaAcotada recibe el presupuesto y gasta cada fragmento al leerlo (bytes y plazo), asi una linea sin fin o sin salto corta dentro del tope. Test: internal/providers/hallazgos_costo_d1_test.go TestHallazgo_85877f_168202_CA541_UnaLineaSinFinCortaDentroDelTope (lector infinito: corta por bytes y por plazo; sesion con una linea de 1 MiB y tope de 128 KiB)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:36.979002Z"
+}

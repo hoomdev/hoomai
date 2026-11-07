@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T173046_5294dd",
+  "as": "corregido",
+  "evidence": "40ef924: worktrees() solo trata fs.ErrNotExist como sin worktrees; cualquier otro error de ReadDir se avisa ('no se pudo listar .hoom/worktrees: las rondas de las tareas en curso pueden faltar'). Test: TestHallazgo_5294dd_CA546_WorktreesIlegiblesSeAvisan",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:36.911471Z"
+}

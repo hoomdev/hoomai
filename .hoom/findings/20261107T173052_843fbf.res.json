@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T173052_843fbf",
+  "as": "corregido",
+  "evidence": "40ef924: filepath.Glob se reemplaza por buscarSesiones, dentro del mismo presupuesto creado antes de buscar: lee cada directorio de a 256 entradas, cuenta las entradas (tope 1\u003c\u003c20), mira el plazo entre tandas y corta al pasar el tope de archivos; encuentra lo mismo que el patron (symlink a directorio incluido). Test: internal/providers TestHallazgo_843fbf_CA541_LaBusquedaTieneTopes",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:37.045659Z"
+}

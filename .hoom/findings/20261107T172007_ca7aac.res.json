@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T172007_ca7aac",
+  "as": "corregido",
+  "evidence": "40ef924: cada worktree es una fuente atada a su slug: un registro que trae de otra tarea, o uno con una tarea que no es slug (item.ValidSlug), no se cuenta y se avisa; sus hallazgos solo dan severidad si son de su tarea y nunca reemplazan los de la raiz; Render escribe por un writer que escapa controles, bidi y bytes no UTF-8. Ya no se leen runs de worktrees (6b9362). Tests: TestHallazgo_ca7aac_CA544_UnWorktreeHablaSoloPorSuTarea y TestHallazgo_ca7aac_CA544_LaSalidaEscapaLosControles",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:36.877083Z"
+}

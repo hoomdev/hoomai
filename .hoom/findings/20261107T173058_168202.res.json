@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T173058_168202",
+  "as": "corregido",
+  "evidence": "40ef924: mismo arreglo que 85877f: presupuesto y plazo por fragmento dentro de leerLineaAcotada. Test: TestHallazgo_85877f_168202_CA541_UnaLineaSinFinCortaDentroDelTope",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:37.012333Z"
+}

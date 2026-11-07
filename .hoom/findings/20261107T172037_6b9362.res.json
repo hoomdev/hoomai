@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T172037_6b9362",
+  "as": "corregido",
+  "evidence": "40ef924: Build lee los runs solo de .hoom/runs de la raiz (cargarRuns), como manda el no-objetivo de la spec; de los worktrees solo registros y hallazgos, que llegan con el merge. Test: internal/costcmd/hallazgos_d1_test.go TestHallazgo_6b9362_CA544_RunDelWorktreeNoSeCuenta",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:36.840838Z"
+}
