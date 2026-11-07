@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T162601_acae9a",
+  "as": "corregido",
+  "evidence": "1f3ca19: medicion.go descarta utilization fuera de 0..1 (Claude) y used_percent fuera de 0..100 (Codex): sin ventana, no ventana absurda. Tests: TestHallazgo_acae9a_0b28bb_CA540_UtilizationFueraDeRangoNoEsVentana y TestHallazgo_acae9a_0b28bb_CA541_UsedPercentFueraDeRangoNoEsVentana",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.776393Z"
+}

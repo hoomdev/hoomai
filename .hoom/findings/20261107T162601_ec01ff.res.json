@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T162601_ec01ff",
+  "as": "corregido",
+  "evidence": "1f3ca19: Gasto.SinUso cuenta los runs sin tokens y render dice 'tokens: sin dato en n de m runs'. Test: TestHallazgo_ec01ff_77285c_CA546_CoberturaDeTokens",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.670401Z"
+}

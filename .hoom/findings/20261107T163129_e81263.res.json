@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T163129_e81263",
+  "as": "corregido",
+  "evidence": "1f3ca19: MedirSesion tiene topes: 8 archivos, 256 MiB y 10 s; al pasarlos devuelve errTopeSesion (sin dato) y el run cierra igual. Test: internal/providers TestHallazgo_e81263_CA541_LaLecturaDeLaSesionTieneTopes",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.841907Z"
+}

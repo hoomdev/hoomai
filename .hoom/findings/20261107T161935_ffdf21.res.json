@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T161935_ffdf21",
+  "as": "corregido",
+  "evidence": "1f3ca19: build.go corta en hecho_en: runs y registros posteriores salen del total, rondas y ultima actividad y se avisan ('despues de aceptada: fuera del costo'). Test: internal/costcmd/hallazgos_r1_test.go TestHallazgo_ffdf21_6a39f7_CA544_LoPosteriorAAceptadaNoSuma",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.497478Z"
+}

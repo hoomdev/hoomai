@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T163512_aad17f",
+  "as": "refutado",
+  "evidence": "El contrato probado exige la interfaz entera: el test ciego internal/providers/costo_por_spec_test.go:56-66 (cpsMedidor) hace p.(Medidor) sobre claude y codex y falla si alguno no la implementa (CA-538/540/541). Partirla en dos rompe ese contrato del esqueleto que el test-writer recibio. Los metodos vacios son de una linea y dicen que ese provider no mide por ese canal; no hay un tercer adapter que lo necesite.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.938936Z"
+}

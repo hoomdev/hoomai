@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T163148_eb2509",
+  "as": "corregido",
+  "evidence": "1f3ca19: build.go avisa registros ilegibles (RecordsErr), hallazgos ilegibles, item existente que no se lee y veredictos ilegibles en Reporte.Avisos; render los imprime como 'aviso: ...'. Test: TestHallazgo_eb2509_CA546_LoIlegibleSeAvisa",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.601412Z"
+}

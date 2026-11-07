@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T162600_6a39f7",
+  "as": "corregido",
+  "evidence": "1f3ca19: mismo arreglo que ffdf21 (corte en hecho_en con aviso). Test: TestHallazgo_ffdf21_6a39f7_CA544_LoPosteriorAAceptadaNoSuma",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.532043Z"
+}
