@@ -1,0 +1,11 @@
+{
+  "id": "20261107T173235_a9f313",
+  "created_at": "2026-11-07T17:32:35.872972Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/costcmd/costo_por_spec_e2_test.go",
+  "description": "INTRODUCIDO — internal/costcmd/costo_por_spec_e2_test.go:348: TestCA549_PropiedadCadaRunEnUnaSolaTarea ocupa unas 200 lineas y mezcla generacion del escenario, construccion del oraculo, formateo diagnostico y validaciones de lista, slug, roles y rondas dentro de varios bucles anidados. Esta estructura dificulta identificar que invariantes cubre cada bloque o extender el generador sin tocar las aserciones; separar generacion/modelo/assert helpers mantendria la propiedad legible.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

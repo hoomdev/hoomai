@@ -1,0 +1,11 @@
+{
+  "id": "20261107T172007_ca7aac",
+  "created_at": "2026-11-07T17:20:07.725064Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:181 acepta como fuente global cualquier directorio .hoom/worktrees/\u003cslug\u003e solo por IsDir+ValidSlug, y internal/costcmd/build.go:101-109 atribuye sus Meta.Task/Record.Task sin ligarlos al slug del worktree (Record.Task ni siquiera se valida). Un proceso con escritura en su propio worktree puede plantar runs/reviews que declaren otra tarea —o controles de terminal en Record.Task— y hoom costo los suma/renderiza desde la raiz, corrompiendo el reporte entre tareas. Debe validarse que la fuente sea un worktree registrado y rechazar o avisar datos cuya tarea no coincida con el worktree de origen.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

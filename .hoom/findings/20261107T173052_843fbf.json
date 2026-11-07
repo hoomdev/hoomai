@@ -1,0 +1,11 @@
+{
+  "id": "20261107T173052_843fbf",
+  "created_at": "2026-11-07T17:30:52.378667Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/providers/medicion.go",
+  "description": "PRE-EXISTENTE (follow-up de e81263; la mitigacion del rango no lo cubre) — internal/providers/medicion.go:179-190: el limite de archivos y el plazo empiezan despues de que filepath.Glob recorrio y materializo todos los matches. Un arbol sessions con directorios o coincidencias masivas puede bloquear y consumir memoria sin limite antes de llegar a len(files) o crear presupuesto, dejando el cierre del run esperando pese a la garantia de terminar con sin dato. El presupuesto debe abarcar tambien el descubrimiento de archivos.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

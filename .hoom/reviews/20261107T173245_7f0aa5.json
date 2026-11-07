@@ -1,0 +1,88 @@
+{
+  "id": "20261107T173245_7f0aa5",
+  "created_at": "2026-11-07T17:32:45.824953Z",
+  "task": "costo-por-spec",
+  "spec": "",
+  "fingerprint": "10da22a06c3c3865",
+  "verdict_id": "2026-11-07T17-16-37Z_080b0dba",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261107T172007_ca7aac",
+    "20261107T172037_6b9362",
+    "20261107T172645_ca8e4a",
+    "20261107T172651_85877f",
+    "20261107T173046_5294dd",
+    "20261107T173052_843fbf",
+    "20261107T173058_168202",
+    "20261107T173235_1f8e8c",
+    "20261107T173235_a9f313"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 96831,
+  "evidence_sha256": "45e7dd07d597f55f10acbf7cdb1ffb76ad23bc5953c977be412a07af2a59a911",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1406532,
+      "cached_input_tokens": 1298176,
+      "output_tokens": 12418,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 2400936,
+      "cached_input_tokens": 2286976,
+      "output_tokens": 17485,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1541703,
+      "cached_input_tokens": 1467264,
+      "output_tokens": 12489,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 402251,
+      "cached_input_tokens": 334976,
+      "output_tokens": 4447,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261107T171719_946e9e"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261107T172121_5d4db1"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261107T172705_9c4414"
+    },
+    {
+      "lens": "readability",
+      "run": "20261107T173116_df2212"
+    }
+  ],
+  "desde": "68b07a77cb0b8270a1fba8da84dbecaf35ad64e1",
+  "hasta": "0bf1a2498fc3509f513dd9936e26b35ca9540065",
+  "cobertura": "delta",
+  "desde_review": "20261107T163525_52e14a",
+  "base": "main"
+}

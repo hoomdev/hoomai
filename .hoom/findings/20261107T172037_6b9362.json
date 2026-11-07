@@ -1,0 +1,11 @@
+{
+  "id": "20261107T172037_6b9362",
+  "created_at": "2026-11-07T17:20:37.203464Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:44-57 carga y suma runcmd.Meta desde cada worktree, aunque .hoom/specs/costo-por-spec.md:56-57 excluye esos sidecars porque task done borra el worktree. Un run que solo exista en .hoom/worktrees/\u003cslug\u003e aparece en el costo mientras la tarea esta abierta y desaparece al cerrarla, haciendo que el historial de costo pierda datos y disminuya despues de la aceptacion. La lectura de worktrees debe limitarse a la evidencia que se fusiona (reviews/findings) o persistir los sidecars antes de contarlos.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

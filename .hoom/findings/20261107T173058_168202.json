@@ -1,0 +1,11 @@
+{
+  "id": "20261107T173058_168202",
+  "created_at": "2026-11-07T17:30:58.449052Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/providers/medicion.go",
+  "description": "PRE-EXISTENTE (follow-up de e81263; la mitigacion del rango no lo cubre) — internal/providers/medicion.go:240-242 y 411-431: presupuesto.gastar se llama solo despues de que leerLineaAcotada termino de consumir una linea; esa funcion sigue leyendo fragmentos hasta newline o EOF. Una unica linea enorme o truncada sin newline puede hacer E/S arbitrariamente mayor que 256 MiB y superar ampliamente 10 s antes de comprobar ambos topes, por lo que settle puede mantener el run en running. El presupuesto y el plazo deben comprobarse por fragmento dentro del bucle.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

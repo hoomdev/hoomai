@@ -1,0 +1,11 @@
+{
+  "id": "20261107T172645_ca8e4a",
+  "created_at": "2026-11-07T17:26:45.163614Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO: internal/costcmd/build.go:218 y :226 comparan CreatedAt con hecho_en usando After, pero item.MarkDone guarda hecho_en truncado al segundo (internal/item/item.go:415) mientras runs y registros conservan subsegundos. Si la ultima ronda se registra a 10:00:00.500 y task done acepta a 10:00:00.900, el limite persistido es 10:00:00.000 y costo la clasifica falsamente como posterior: pierde la ronda/gasto y reporta actividad despues de aceptada aunque ocurrio antes.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}
