@@ -50,7 +50,7 @@ func Build(root, slug string) (Reporte, error) {
 	var slugs []string
 	if slug != "" {
 		if len(runsDe[slug]) == 0 && len(recsDe[slug]) == 0 {
-			return Reporte{}, fmt.Errorf(ErrSinNada, slug)
+			return Reporte{}, &SinNada{Slug: slug}
 		}
 		slugs = []string{slug}
 	} else {
@@ -82,6 +82,12 @@ func Build(root, slug string) (Reporte, error) {
 	})
 	return rep, nil
 }
+
+// SinNada is Build's error for a slug with no runs and no reviews: the verb
+// prints it and exits 1.
+type SinNada struct{ Slug string }
+
+func (e *SinNada) Error() string { return fmt.Sprintf(ErrSinNada, e.Slug) }
 
 // contexto is what every task of one report reads from the same project.
 type contexto struct {

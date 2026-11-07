@@ -981,11 +981,13 @@ func cmdCosto(args []string) error {
 		return err
 	}
 	rep, err := costcmd.Build(m.Dir, opt.Slug)
+	var sinNada *costcmd.SinNada
+	if errors.As(err, &sinNada) {
+		// the spec's line as is, without the "hoom:" every other error gets
+		fmt.Fprintln(os.Stderr, sinNada.Error())
+		os.Exit(1)
+	}
 	if err != nil {
-		if opt.Slug != "" && err.Error() == fmt.Sprintf(costcmd.ErrSinNada, opt.Slug) {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
-		}
 		return err
 	}
 	if opt.JSON {

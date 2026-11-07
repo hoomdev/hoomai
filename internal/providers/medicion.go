@@ -156,7 +156,7 @@ func (codex) MedirSesion(sessionID string, desde time.Time) (Medicion, error) {
 	// files were opened in: a resumed thread may leave a second file whose
 	// session_meta names the same thread, and its reports come after
 	sort.Strings(files)
-	var lastErr error = fmt.Errorf("no hay archivo de sesion de codex para el thread %s", sessionID)
+	lastErr := fmt.Errorf("no hay archivo de sesion de codex para el thread %s", sessionID)
 	var out Medicion
 	encontrado := false
 	for _, f := range files {
