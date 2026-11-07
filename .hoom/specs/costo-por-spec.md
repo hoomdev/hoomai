@@ -1,10 +1,14 @@
 # Spec: lo que costó un spec
 
-Estado: ENMIENDA 1 — pendiente de re-aprobación humana. La versión aprobada
-(sha256 90997459) todavía no tiene código. La enmienda 1 agrega `reiniciada`
-a cada ventana de un run. Sin ese dato, después no se puede distinguir un run
-que cruzó un reinicio de la ventana de uno que no lo cruzó, y el movimiento
-de ese run mentiría.
+Estado: ENMIENDA 2 — pendiente de re-aprobación humana. La enmienda 1
+(sha256 813e89e2) está implementada. Su primera review mostró que una review
+`--spec` sin `--task` que no termina se pierde: corre en la raíz, así que su
+run no tiene `task`, y una review cortada no deja registro que lo nombre. La
+enmienda 2 hace que el run guarde `finding_task`, la tarea a la que hoom ata
+sus hallazgos, y que `hoom costo` lo cuente por ella. Agrega CA-549.
+
+Historia: aprobada el 2026-11-07 (sha256 90997459); enmienda 1 aprobada el
+2026-11-07 (sha256 813e89e2).
 Depende de: nada nuevo (main f88eb1a).
 Tarea: `hoom task start costo-por-spec`.
 
@@ -56,8 +60,8 @@ sería narración.
 
 ### Lo que guarda un run
 
-`runcmd.Meta` (`.hoom/runs/<id>.meta.json`) gana tres campos. Los tres son
-opcionales y se omiten si no hay dato:
+`runcmd.Meta` (`.hoom/runs/<id>.meta.json`) gana cuatro campos. Los cuatro
+son opcionales y se omiten si no hay dato:
 
 - `model` y `effort`: los que hoom le pasó al provider. Si no le pasó
   ninguno, los que el provider dice haber usado (Claude: `model` del
@@ -73,6 +77,9 @@ opcionales y se omiten si no hay dato:
     movimiento de ese run no se puede medir. Se omite si no cambió
     (enmienda 1);
   - `plan`: si el provider lo dice.
+- `finding_task`: la tarea a la que hoom ata los hallazgos del run (la que
+  le pone en `HOOM_TASK`), cuando el run no tiene `task`. Se omite si el run
+  tiene `task` o si no hay tarea (enmienda 2).
 
   El % se guarda de 0 a 100, sin redondear lo que el provider dio. De dónde
   sale cada uno:
@@ -115,6 +122,14 @@ opcionales y se omiten si no hay dato:
 - **Siempre:** solo lee y sale con 0.
 - **Slug sin runs ni reviews:** sale con 1 y dice
   `hoom costo: no hay runs ni reviews de la tarea <slug>`.
+
+De qué tarea es un run:
+
+- de su `task`;
+- si no tiene `task`, de su `finding_task` (enmienda 2);
+- si no tiene ninguno de los dos, de la tarea del registro de review que lo
+  nombra en `runs`. Un registro que nombra un run de otra tarea no lo suma:
+  lo avisa.
 
 Reglas de las cifras:
 
@@ -169,7 +184,9 @@ Reglas de las cifras:
   movimiento puede quedarse corto en lo que gastó esa llamada; la ayuda lo
   dice.
 - **Ronda `NO ENTREGABLE` o con lentes fallidas:** cuenta igual, porque el
-  costo se gastó.
+  costo se gastó. Una review que no termina no deja registro, así que sus
+  runs se muestran como `reviewer (sin ronda)`. Si corrió con `--spec` y sin
+  `--task`, se atan a la tarea por `finding_task` (enmienda 2).
 - **Tarea con runs de dos providers:** dos totales, uno por provider.
 
 ## Criterios de aceptación
@@ -185,6 +202,7 @@ Reglas de las cifras:
 - CA-546: lo que falta se dice: `sin dato` con el conteo de runs que no lo tienen, los sidecars ilegibles se cuentan sin abortar, una ronda de un registro sin `runs` muestra sus runs como `reviewer (sin ronda)`, y un slug sin runs ni reviews sale con 1 y `hoom costo: no hay runs ni reviews de la tarea <slug>`.
 - CA-547: `hoom costo --json` emite `tareas` con `slug`, `estado`, `aceptada_en`, `veredicto`, `commit_final`, `rondas`, `por_provider`, `por_rol` y `rondas_review`, y cada cifra que falta es `null`, nunca 0.
 - CA-548: `hoom help` lista `costo` con una línea que dice que el movimiento de ventana es el de la cuenta durante los runs.
+- CA-549: un run sin `task` guarda en su sidecar `finding_task` con la tarea de `HOOM_TASK`, y uno con `task` no lo guarda; `hoom costo <slug>` cuenta como de la tarea los runs sin `task` cuyo `finding_task` es el slug, así que una review `--spec` sin `--task` que termina `NO ENTREGABLE` suma su gasto como `reviewer (sin ronda)`.
 
 ## Decisiones
 
@@ -201,6 +219,11 @@ Reglas de las cifras:
   el único que ve todos sus datos. Después solo queda `inicio`, `fin` y un
   `reinicia_en`, y con eso un reinicio en medio se confunde con un
   movimiento real.
+- **La tarea de un run sin worktree (enmienda 2).** El run ya conoce la
+  tarea de sus hallazgos (`HOOM_TASK`). Guardarla es lo único que ata a la
+  tarea una review `--spec` sin `--task` que no terminó. Se descartó ponerla
+  en `task`: `task` dice dónde corre el run, y el tablero lo usa para listar
+  los runs de la tarjeta.
 - **Aceptada = `hecho_en`.** Es el único hecho que hoom escribe con el gate
   verde.
 - **Un verbo nuevo.** `report` es de veredictos y `status` es lo que está
