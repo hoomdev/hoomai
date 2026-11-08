@@ -189,3 +189,36 @@ func TestCA523_DatosDeLogDeVariosMB(t *testing.T) {
 		t.Fatalf("CA-523: el ultimo evento es el del final del log: %q", ev[len(ev)-1].Detail)
 	}
 }
+
+// CA-523 (hallazgos 5d0044, 92edb2): la fila de trabajo mas nueva de la
+// tarjeta es un run con su sidecar pero sin su narracion .jsonl (ni en la
+// raiz ni en la carpeta de la evidencia: un run de otra maquina). El Sobre
+// queda sin eventos y sin Err, y el detalle tampoco es un error.
+func TestCA523_DatosDeRunSinNarracion(t *testing.T) {
+	root, runID := ttProyecto(t)
+	if err := os.Remove(filepath.Join(root, ".hoom", "runs", runID+".jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	// guarda: la fila mas nueva de la tarjeta es ese run (DetailFor es la
+	// capa de abajo, ya hecha)
+	quiere, err := boardcmd.DetailFor(root, "main", "high", "datos", time.Now(), false)
+	if err != nil {
+		t.Fatalf("CA-523 (guarda): DetailFor: %v", err)
+	}
+	if len(quiere.Work) == 0 || (quiere.Work[0].ID != runID && quiere.Work[0].RunID != runID) {
+		t.Fatalf("CA-523 (guarda): la fila mas nueva de la tarjeta es el run %s: %+v", runID, quiere.Work)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".hoom", "runs", runID+".meta.json")); err != nil {
+		t.Fatalf("CA-523 (guarda): el sidecar del run sigue: %v", err)
+	}
+	det := ttDatosDe(t, root).Detalle("datos", false)
+	if det.Err != nil {
+		t.Fatalf("CA-523: un run sin narracion no hace fallar el detalle: %v", det.Err)
+	}
+	if det.Detalle.Card.Slug != "datos" {
+		t.Fatalf("CA-523: el detalle es el de la tarjeta: %q", det.Detalle.Card.Slug)
+	}
+	if det.Sobre.Err != nil || len(det.Sobre.Eventos) != 0 {
+		t.Fatalf("CA-523: sin narracion el Sobre queda sin eventos y sin Err: %d eventos, %v", len(det.Sobre.Eventos), det.Sobre.Err)
+	}
+}

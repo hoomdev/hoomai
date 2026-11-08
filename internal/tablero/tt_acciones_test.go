@@ -659,8 +659,32 @@ func TestCA527_CtrlEYEsc(t *testing.T) {
 	}
 }
 
-// CA-527: el reviewer no tiene Pedido ni Tiempo limite, el foco empieza en
-// Provider y sus Args no llevan -m.
+// ttEnfocado es la etiqueta del campo del formulario que lleva la marca del
+// foco ("> " en ASCII), o "" si ninguno la lleva.
+func ttEnfocado(m *tablero.Modelo) string {
+	for _, l := range ttCaja(m) {
+		if !strings.HasPrefix(l, "> ") {
+			continue
+		}
+		for _, et := range []string{"Provider", "Modelo", "Esfuerzo", "Presupuesto", "Tiempo limite", "Pedido"} {
+			if strings.HasPrefix(l[2:], et) {
+				return et
+			}
+		}
+	}
+	return ""
+}
+
+// CA-527: el reviewer no tiene Pedido (ni su linea vacia), el foco empieza en
+// Provider y sus Args no llevan -m. Su Tiempo limite no es un campo: la
+// linea lo muestra (sin la marca del foco) como "Tiempo limite  <texto> (de
+// review.timeout)", tab lo saltea y nunca se manda --timeout.
+//
+// Hallazgo 20261108T230035_bc6939: la version de la ronda 0 exigia que el
+// reviewer NO tuviera la linea Tiempo limite (lo decia el doc viejo del
+// esqueleto); CA-527 dice que el formulario trae timeout_s y solo exime al
+// reviewer del Pedido. Reescrito al contrato de hoy (doc.go, "The launch
+// form"); lo demas que el test revisaba sigue igual.
 func TestCA527_ElReviewerNoTienePedido(t *testing.T) {
 	a := ttAccionRol(boardcmd.ActPedirReviewer, "reviewer", "Pedir al reviewer", "un pedido que no se usa")
 	m := ttFormulario(t, ttAncho(), "r", a)
@@ -670,11 +694,29 @@ func TestCA527_ElReviewerNoTienePedido(t *testing.T) {
 	if got := ttCampo(m, "Pedido"); got != "" {
 		t.Fatalf("CA-527: el reviewer no tiene campo Pedido: %q", got)
 	}
-	if got := ttCampo(m, "Tiempo limite"); got != "" {
-		t.Fatalf("CA-527: el reviewer no tiene Tiempo limite: %q", got)
+	tiempo := "  Tiempo limite  45m (de review.timeout)"
+	if got := ttCampo(m, "Tiempo limite"); got != tiempo {
+		t.Fatalf("CA-527: el Tiempo limite del reviewer se muestra sin la marca del foco y con su origen:\n got %q\nwant %q", got, tiempo)
 	}
 	if got := ttFlecha(t, "CA-527", m); got != "hoom pedir reviewer tarjeta" {
-		t.Fatalf("CA-527: la linea -> del reviewer no lleva -m: %q", got)
+		t.Fatalf("CA-527: la linea -> del reviewer no lleva -m ni --timeout: %q", got)
+	}
+	// tab y shift-tab saltean el Tiempo limite (y no hay Pedido): el ciclo
+	// es Provider, Modelo, Esfuerzo, Presupuesto
+	for _, quiere := range []string{"Modelo", "Esfuerzo", "Presupuesto", "Provider"} {
+		ttSinOrdenes(t, "CA-527", "tab", m.Tecla(tablero.TeclaTab, ttAhora))
+		if got := ttEnfocado(m); got != quiere {
+			t.Fatalf("CA-527: en el reviewer tab deja el foco en %q, se esperaba %q (el Tiempo limite no es un campo)\n%s", got, quiere, ttPantalla(m))
+		}
+		if got := ttCampo(m, "Tiempo limite"); got != tiempo {
+			t.Fatalf("CA-527: el Tiempo limite del reviewer nunca lleva el foco: %q", got)
+		}
+	}
+	for _, quiere := range []string{"Presupuesto", "Esfuerzo", "Modelo", "Provider"} {
+		ttSinOrdenes(t, "CA-527", "shift-tab", m.Tecla(tablero.TeclaShiftTab, ttAhora))
+		if got := ttEnfocado(m); got != quiere {
+			t.Fatalf("CA-527: en el reviewer shift-tab deja el foco en %q, se esperaba %q\n%s", got, quiere, ttPantalla(m))
+		}
 	}
 	m.Tecla(tablero.TeclaTab, ttAhora)
 	ttTeclas(m, tablero.TeclaCtrlU)
@@ -684,6 +726,14 @@ func TestCA527_ElReviewerNoTienePedido(t *testing.T) {
 	if l.Rol != "reviewer" {
 		t.Fatalf("CA-528: el Lanzar del reviewer lleva su rol: %#v", l)
 	}
+	// una accion sin tiempo limite: la linea dice que sale de review.timeout
+	a.TimeoutS = 0
+	m = ttFormulario(t, ttAncho(), "r", a)
+	if got := ttCampo(m, "Tiempo limite"); !strings.HasPrefix(got, "  Tiempo limite  de review.timeout") {
+		t.Fatalf("CA-527: sin tiempo limite en la accion, el del reviewer dice 'de review.timeout': %q", got)
+	}
+	l = ttUnaLanzar(t, "CA-528", "enter", m.Tecla(tablero.TeclaEnter, ttAhora))
+	ttMismosArgs(t, "CA-528", "reviewer sin tiempo limite", l.Args, []string{"pedir", "reviewer", "tarjeta"})
 }
 
 // CA-527: reanudar muestra Provider sin flechas (← y → no hacen nada ahi) y
