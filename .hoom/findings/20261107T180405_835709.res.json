@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T180405_835709",
+  "as": "corregido",
+  "evidence": "fd7cc29: el writer terminal se reemplaza por salida.linea: cada linea se arma entera con Sprintf y se escapa entera (escapar: controles, bidi, bytes no UTF-8, salto de linea incluido) antes de escribirla con su unico salto final. Test: TestHallazgo_3868dd_835709_CA544_UnSaltoDeLaEvidenciaNoHaceLinea (provider, lente y ventana con \\n y \\r\\n: mismas lineas que sin ellos, escapados a la vista)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T18:08:54.258146Z"
+}

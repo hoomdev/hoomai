@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T163142_77285c",
+  "as": "corregido",
+  "evidence": "1f3ca19: conTokens exige Input, Cached u Output \u003e 0; un Usage que solo trae costo, duracion o turnos no da ceros, cuenta como sin dato. Test: TestHallazgo_ec01ff_77285c_CA546_CoberturaDeTokens",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.707753Z"
+}

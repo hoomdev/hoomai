@@ -48,6 +48,10 @@ type Record struct {
 	// Usage: one entry per pass the provider reported usage for. The board
 	// never adds it up: the runs already carry their spend (CA-334).
 	Usage []LensUsage `json:"usage"`
+	// Runs names the run of each lens (spec costo-por-spec): what lets
+	// `hoom costo` tell one round of review from another. Records older than
+	// that spec do not have it.
+	Runs []LensRun `json:"runs,omitempty"`
 	// Desde and Hasta are the full shas the evidence went from and to: the
 	// anchor that lets the board tell whether the code changed after the
 	// review. Records older than review-por-diferencia do not have them.
@@ -63,6 +67,12 @@ type Record struct {
 	// desde, when the range left out what it brought (a synthetic merge of
 	// desde with it: spec evidencia-de-la-review).
 	BaseIntegrada string `json:"base_integrada,omitempty"`
+}
+
+// LensRun pairs a lens with the run that applied it.
+type LensRun struct {
+	Lens string `json:"lens"`
+	Run  string `json:"run"`
 }
 
 // LensUsage is what one lens cost, as its provider reported it.

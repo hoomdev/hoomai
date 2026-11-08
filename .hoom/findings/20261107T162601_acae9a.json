@@ -1,0 +1,11 @@
+{
+  "id": "20261107T162601_acae9a",
+  "created_at": "2026-11-07T16:26:01.513564Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/providers/medicion.go",
+  "description": "INTRODUCIDO — internal/providers/medicion.go:97-105 y 309-317 aceptan cualquier porcentaje finito: Claude multiplica utilization sin exigir 0..1 y Codex no exige used_percent entre 0 y 100. Un valor fuera de rango o un cambio semántico del formato se guarda como una ventana absurda y contamina los movimientos, en vez de degradarse a sin dato.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

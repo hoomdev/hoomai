@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T180535_62deb0",
+  "as": "corregido",
+  "evidence": "fd7cc29: presupuesto guarda los cuatro topes (archivos, entradas, bytes, plazo) desde nuevoPresupuesto; buscarSesiones ya no lee limitesSesion. Test: TestHallazgo_2e32a9_62deb0_CA541_ElTopeDeArchivosCortaEnElCandidato (el cupo se gasta en el presupuesto)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T18:08:54.358062Z"
+}

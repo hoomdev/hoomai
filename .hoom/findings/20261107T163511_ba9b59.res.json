@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T163511_ba9b59",
+  "as": "corregido",
+  "evidence": "1f3ca19: JSONBytes copia en profundidad Tareas, Avisos y RondasReview antes de normalizar: serializar no cambia el Reporte. Test: TestHallazgo_ba9b59_CA547_JSONBytesNoCambiaElReporte",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.905796Z"
+}

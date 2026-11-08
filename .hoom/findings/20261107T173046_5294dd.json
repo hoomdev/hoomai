@@ -1,0 +1,11 @@
+{
+  "id": "20261107T173046_5294dd",
+  "created_at": "2026-11-07T17:30:46.782103Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:173-178: worktrees descarta cualquier error de os.ReadDir y lo convierte en una lista vacia. Si .hoom/worktrees existe pero no puede listarse por permisos o un fallo de E/S, Build continua sin aviso y omite todos los runs, rondas y hallazgos que solo viven en esos worktrees, haciendo pasar un reporte parcial por completo. Solo fs.ErrNotExist deberia equivaler a no tener worktrees; los demas errores deben propagarse o aparecer en Reporte.Avisos.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

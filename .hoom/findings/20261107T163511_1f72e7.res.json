@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T163511_1f72e7",
+  "as": "corregido",
+  "evidence": "1f3ca19: la contabilidad de nuevos vive en providers.EntradaNueva (claude: Input; codex: Input-Cached); un provider sin contabilidad conocida da sin dato, no la de Claude. Tests: internal/providers/hallazgos_costo_r1_test.go TestHallazgo_1f72e7_CA544_EntradaNueva y internal/costcmd TestHallazgo_1f72e7_CA544_ProviderSinContabilidadConocida",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.742688Z"
+}

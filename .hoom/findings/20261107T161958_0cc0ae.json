@@ -1,0 +1,11 @@
+{
+  "id": "20261107T161958_0cc0ae",
+  "created_at": "2026-11-07T16:19:58.407348Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO: internal/costcmd/build.go:60 acepta cualquier Meta nombrada por Record.Runs y la agrega a la tarea del registro sin comprobar que m.Task este vacio o coincida con t; internal/costcmd/build.go:180 repite esa confianza para el gasto de la ronda. Un registro sintacticamente valido que nombre por error un run de otra tarea duplica y atribuye su costo a ambas tareas, incluso usando el provider del registro para calcular nuevos. Debe rechazarse o advertirse la referencia cruzada.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

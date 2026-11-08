@@ -1,0 +1,11 @@
+{
+  "id": "20261107T175625_e4ed1b",
+  "created_at": "2026-11-07T17:56:25.534749Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO: internal/costcmd/build.go:112 marca el ID como visto antes de validar que el registro pertenece al worktree. Un worktree anterior puede copiar el ID de una review legitima de otra tarea, aportar ese registro con task ajena o invalida para que se descarte, y hacer que luego la review legitima se omita en lineas 109-110; asi una tarea puede ocultar rondas y costo de otra pese al nuevo aislamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb31fa7d4ebdb5d9",
+  "task": "costo-por-spec"
+}

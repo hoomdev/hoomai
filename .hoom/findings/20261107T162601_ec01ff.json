@@ -1,0 +1,11 @@
+{
+  "id": "20261107T162601_ec01ff",
+  "created_at": "2026-11-07T16:26:01.229003Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:287-324 marca conUso si un solo run trae Usage y suma únicamente esos runs, pero no conserva cuántos carecen de uso. En una mezcla de sidecars viejos sin Usage y nuevos medidos, la salida muestra un total de tokens aparentemente completo para todos los runs sin advertir la cobertura parcial.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261107T163135_0b28bb",
+  "created_at": "2026-11-07T16:31:35.928353Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/providers/medicion.go",
+  "description": "INTRODUCIDO. internal/providers/medicion.go:97-106 acepta cualquier utilization finita de Claude y 309-317 acepta cualquier used_percent finito de Codex, sin exigir los rangos 0..1 y 0..100 que producen un porcentaje 0..100. Una respuesta degradada con -1 o 200 queda durable en ventanas y puede convertir el costo en cientos de puntos o en un falso reinicio, contaminando todos los totales posteriores en vez de descartar solo esa muestra.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

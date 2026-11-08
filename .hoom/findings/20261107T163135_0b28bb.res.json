@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T163135_0b28bb",
+  "as": "corregido",
+  "evidence": "1f3ca19: mismo arreglo que acae9a. Tests: TestHallazgo_acae9a_0b28bb_CA540_UtilizationFueraDeRangoNoEsVentana y ..._CA541_UsedPercentFueraDeRangoNoEsVentana",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.809591Z"
+}

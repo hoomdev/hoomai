@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T045531_627919",
+  "as": "corregido",
+  "evidence": "5bb3ba6: releer ya no existe; ninguna fuente se lee dos veces. Por decision de Henry (2026-11-08, anti-loop) dos copias distintas con el mismo id quedan fuera del modelo y no se comparan: de una copia solo queda su id y su aviso (pendientes map[string]string). Tests TestHallazgo_627919_CA546_LaCopiaAjenaLeidaAntesCallaSiSuTareaLaDa y TestHallazgo_66c8c7_c05fcb_CA546_UnaCopiaNoRetieneElRegistro",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T05:05:43.772854Z"
+}

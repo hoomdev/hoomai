@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T051653_8d27f6",
+  "as": "corregido",
+  "evidence": "2afbea7: el comentario dice que el registro de otra tarea lo dio ya alguna fuente (el proyecto o el worktree de esa tarea) y que cuenta la primera copia, que es lo que comprueba tomados[r.ID]. Solo comentario; la conducta la fija TestHallazgo_627919_CA546_LaCopiaAjenaLeidaAntesCallaSiSuTareaLaDa y TestHallazgo_75b0ce_a503df_CA546_LaTareaQueNoEsUnSlugSeDiceSiempre (copia de beta en el proyecto), pasan con -race",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T05:17:53.621823Z"
+}

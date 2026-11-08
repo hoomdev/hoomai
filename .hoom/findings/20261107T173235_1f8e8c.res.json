@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T173235_1f8e8c",
+  "as": "corregido",
+  "evidence": "40ef924: Build queda en orquestacion y delega en cargarRuns, cargarEvidencia (con fuente{dir,tarea}), cargarSeveridades, asignar (la regla de pertenencia, documentada) y elegir, cada uno con su comentario de contrato. Tests sin cambios: internal/costcmd entero pasa",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:37.077658Z"
+}

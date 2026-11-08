@@ -1,0 +1,11 @@
+{
+  "id": "20261107T180405_b68eab",
+  "created_at": "2026-11-07T18:04:05.157527Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:112 marca vistos[r.ID] antes de validar que el registro corresponde al worktree fuente. Si un worktree anterior trae la copia extranjera de un registro (caso normal tras integrar otra rama) y el worktree dueño aparece después, la copia extranjera se rechaza pero deja el ID en vistos; la copia válida se omite y la ronda desaparece del reporte según el orden léxico de los slugs.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb31fa7d4ebdb5d9",
+  "task": "costo-por-spec"
+}

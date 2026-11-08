@@ -1,0 +1,11 @@
+{
+  "id": "20261107T173235_1f8e8c",
+  "created_at": "2026-11-07T17:32:35.678098Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:37: Build ahora concentra en 134 lineas la enumeracion y lectura de fuentes, deduplicacion y avisos, carga de hallazgos, resolucion de pertenencia de runs, asociacion con registros, seleccion de slugs y armado/orden del reporte. Las reglas nuevas de pertenencia y merge quedan enterradas entre I/O y presentacion, con variables cortas cuyo significado cambia por fase; extraer helpers con nombres de dominio para cargar fuentes y asignar runs haria cada regla local y verificable.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

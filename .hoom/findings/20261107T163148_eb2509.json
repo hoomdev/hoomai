@@ -1,0 +1,11 @@
+{
+  "id": "20261107T163148_eb2509",
+  "created_at": "2026-11-07T16:31:48.848185Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO. internal/costcmd/build.go:29 descarta avisos de reviews, 121 descarta avisos y errores de findings, 218 trata cualquier error de item.Load como si no hubiera hecho_en y 242 descarta avisos y errores de veredictos. Asi, corrupcion o permisos parciales se convierten en hechos negativos: menos rondas, high/medium/low en cero, una tarea aceptada como en curso/cerrada y veredicto ausente; solo los sidecars ilegibles se anuncian. El reporte debe conservar la degradacion como desconocida/aviso en vez de afirmar datos falsos.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

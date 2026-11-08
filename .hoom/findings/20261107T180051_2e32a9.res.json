@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T180051_2e32a9",
+  "as": "corregido",
+  "evidence": "fd7cc29: el callback de listar devuelve error y corta el listado; al encontrar el candidato que pasa el cupo (presupuesto.tomarArchivo) la busqueda termina ahi, sin recorrer ni guardar el resto. Test: internal/providers/hallazgos_costo_d2_test.go TestHallazgo_2e32a9_62deb0_CA541_ElTopeDeArchivosCortaEnElCandidato (3000 candidatos, tope 2: mira menos de 512 entradas)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T18:08:54.325804Z"
+}

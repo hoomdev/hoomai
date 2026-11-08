@@ -1,0 +1,11 @@
+{
+  "id": "20261107T163142_77285c",
+  "created_at": "2026-11-07T16:31:42.244949Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO. internal/costcmd/build.go:289-299 marca conUso por la mera presencia de usage y 322-324 publica nuevos/cache/salida como punteros a cero, aunque ese Usage solo haya informado costo, duracion, turnos o razonamiento. Ante un sidecar viejo/parcial o un cambio degradado del provider, cifras no informadas se presentan como 0 en vez de null/sin dato, contradiciendo la degradacion declarada y produciendo datos falsos.",
+  "author": "reviewer@codex",
+  "fingerprint": "bec409506fe063bd",
+  "task": "costo-por-spec"
+}

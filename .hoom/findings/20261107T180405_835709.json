@@ -1,0 +1,11 @@
+{
+  "id": "20261107T180405_835709",
+  "created_at": "2026-11-07T18:04:05.08821Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/render.go",
+  "description": "INTRODUCIDO — internal/costcmd/render.go:292 exceptúa todo byte LF del escape, pero terminal.Write no puede distinguir el salto final agregado por fmt de un LF contenido en provider, lens o nombre de ventana. Un sidecar o registro degradado con '\\n' puede inyectar líneas adicionales y romper la estructura del reporte humano, pese a que la nueva capa promete que los controles provenientes de evidencia no llegan crudos.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb31fa7d4ebdb5d9",
+  "task": "costo-por-spec"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261108T043831_dbcb9c",
+  "created_at": "2026-11-08T04:38:31.745011Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:128 y :186-191: cada copia rechazada se pasa por huellaDe, que materializa con json.Marshal otro JSON del Record completo antes de conservar solo el SHA-256. Si Task ocupa casi el maxRecord de 256 MiB y no es un slug, ese registro no puede ser aceptado desde ninguna fuente ni coincidir con una copia aceptable; antes, el cortocircuito ok \u0026\u0026 mismoRegistro evitaba serializarlo cuando no había tomado. Ahora una entrada admitida añade un buffer de casi 256 MiB encima del Record decodificado y puede duplicar el pico de memoria hasta hacer fallar hoom costo por OOM. La huella debe omitirse para rechazos que nunca pueden ser idénticos a un registro admisible, o calcularse sin materializar el JSON completo.",
+  "author": "reviewer@codex",
+  "fingerprint": "cc577ba09bc89e96",
+  "task": "costo-por-spec"
+}

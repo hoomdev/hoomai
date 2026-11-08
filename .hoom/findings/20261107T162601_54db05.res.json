@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T162601_54db05",
+  "as": "corregido",
+  "evidence": "Enmienda 2 aprobada (a6b3094f), implementada en 9634899: un run sin task guarda finding_task (la tarea de HOOM_TASK) y hoom costo atribuye un run por task, si no por finding_task, si no por el registro que lo nombra; una review --spec sin --task que termina NO ENTREGABLE suma como reviewer (sin ronda). Tests ciegos CA-549 (792c814): cmd/hoom TestCA549_HoomReviewSpecSinTaskNoEntregableSumaComoReviewerSinRonda, internal/reviewcmd TestCA549_ReviewSpecSinTaskNoEntregableGuardaFindingTask, internal/runcmd TestCA549_RunSinTaskGuardaFindingTask, internal/costcmd TestCA549_PropiedadCadaRunEnUnaSolaTarea",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:04:02.665571Z"
+}

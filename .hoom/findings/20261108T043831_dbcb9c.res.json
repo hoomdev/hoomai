@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T043831_dbcb9c",
+  "as": "corregido",
+  "evidence": "3084870: sin huella ni json.Marshal; las copias se comparan con reflect.DeepEqual contra la tomada mientras se lee su fuente; una tarea no-slug se avisa siempre sin comparar. Test TestHallazgo_dbcb9c_4132e6_CA546_UnaCopiaRechazadaNoSeSerializa (Build pide ~37 KiB mas que leer los registros con una copia de 4 MiB de '\u003c'; con un Marshal, 157 MiB y falla) y ..._LaCopiaAjenaLeidaAntesSeComparaAlFinal",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T04:47:16.006612Z"
+}

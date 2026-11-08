@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T161958_0cc0ae",
+  "as": "corregido",
+  "evidence": "1f3ca19: un run nombrado por un registro que tiene Task de otra tarea no se suma (ni al total ni a la ronda) y se avisa. Test: TestHallazgo_0cc0ae_CA544_RunDeOtraTareaNoSeSuma",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.636453Z"
+}

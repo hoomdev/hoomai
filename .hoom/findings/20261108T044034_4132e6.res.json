@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T044034_4132e6",
+  "as": "corregido",
+  "evidence": "3084870: mismo arreglo que dbcb9c (ninguna copia se serializa). Test TestHallazgo_dbcb9c_4132e6_CA546_UnaCopiaRechazadaNoSeSerializa, que falla si se reintroduce json.Marshal en la copia rechazada",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T04:47:16.043221Z"
+}

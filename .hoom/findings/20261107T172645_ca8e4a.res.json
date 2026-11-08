@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T172645_ca8e4a",
+  "as": "corregido",
+  "evidence": "40ef924: despuesDe compara t.Truncate(time.Second) con hecho_en, que item.MarkDone guarda al segundo: una ronda del mismo segundo es de antes; la del segundo siguiente, de despues. Test: TestHallazgo_ca8e4a_CA544_HechoEnSeComparaAlSegundo",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:40:36.945496Z"
+}

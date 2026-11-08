@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T161944_a6c078",
+  "as": "corregido",
+  "evidence": "1f3ca19: build.go usa finding.ListConIlegibles por fuente; un hallazgo nombrado por el registro que no se lee va a 'hallazgos sin dato n' de la ronda y se avisa, nunca a cero. Test: TestHallazgo_a6c078_CA546_HallazgoIlegibleQuedaSinDato",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.566933Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261108T051215_d4cdf5",
+  "created_at": "2026-11-08T05:12:15.829401Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO: internal/costcmd/build.go:90-98 resume que todo registro de otra tarea se omite y se avisa, pero la politica nueva de las lineas 97-98 y el codigo solo avisan cuando ninguna fuente entrega ese id. Las dos descripciones contradictorias del mismo contrato dificultan saber cual conducta es intencional; actualice el resumen para incluir la excepcion.",
+  "author": "reviewer@codex",
+  "fingerprint": "ce1b0f2477d7f88e",
+  "task": "costo-por-spec"
+}

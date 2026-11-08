@@ -1,0 +1,6 @@
+titulo: Costo por spec aceptado
+tipo: feature
+prioridad: alta
+pedido: 'Spec .hoom/specs/costo-por-spec.md: hoom costo muestra lo que costo cada tarea hasta quedar aceptada (por rol, por ronda de review, ventana del plan y USD cuando el provider los da), sin inventar datos.'
+creado_por: Henry Orellana <henry.orellana@oceansbits.com>
+creado_en: 2026-11-07T15:01:16Z

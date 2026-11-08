@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T173235_a9f313",
+  "as": "corregido",
+  "evidence": "ded410f: el test-writer (autor del test ciego) separo TestCA549_PropiedadCadaRunEnUnaSolaTarea en generador (cfGenerador), oraculo (cfCaso.duenio, cfModelo, rondaEsperada) y comprobaciones (cfVerificacion: lista, tarea, total, roles, rondas, rondasDeUnaSolaTarea, avisos, sinNada), cada una con el invariante que fija; misma semilla 549, mismos 40 casos y mismas comprobaciones. Mutantes del oraculo (regla vieja sin finding_task, sin la regla del registro, finding_task antes que task, ronda con runs ajenos) fallan igual que con la version anterior; y el writer confirmo que con tareaDe sin finding_task falla en 'caso 1: falta la tarea tarea-c en la lista'.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T17:43:48.406135Z"
+}

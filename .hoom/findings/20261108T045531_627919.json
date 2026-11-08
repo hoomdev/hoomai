@@ -1,0 +1,11 @@
+{
+  "id": "20261108T045531_627919",
+  "created_at": "2026-11-08T04:55:31.664485Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:182-188: releer vuelve a llamar RecordsErr para cada fuente pendiente después de que tomados/recs ya retienen todos los registros aceptados. RecordsErr materializa la fuente completa en []Record (internal/reviewcmd/record.go:146-168), no solo los IDs pendientes; si un worktree leído temprano trae muchas copias grandes de tareas cuyos registros propios aparecen después, la segunda pasada mantiene simultáneamente todas esas copias y todos los originales. El pico pasa de estar en el orden de una sola colección a aproximadamente ambas y puede agotar memoria ante evidencia válida (cada archivo admite hasta 256 MiB), precisamente en la ruta de recuperación para copias fusionadas. Hace falta comparar la relectura de forma incremental o leer únicamente los IDs pendientes, sin reconstruir toda la fuente sobre tomados.",
+  "author": "reviewer@codex",
+  "fingerprint": "5ae5185021ad3860",
+  "task": "costo-por-spec"
+}

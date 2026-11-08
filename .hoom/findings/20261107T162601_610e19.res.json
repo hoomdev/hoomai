@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261107T162601_610e19",
+  "as": "corregido",
+  "evidence": "1f3ca19: ventanasDe toma ReiniciaEn del ultimo reporte tal cual (cero = sin dato) y detecta el reinicio contra el ultimo valor conocido. Test: internal/runcmd/hallazgos_costo_r1_test.go TestHallazgo_610e19_CA540_ReiniciaEnEsElDelUltimoReporte",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-07T16:45:19.872145Z"
+}

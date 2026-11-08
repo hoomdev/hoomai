@@ -1,0 +1,11 @@
+{
+  "id": "20261107T172651_85877f",
+  "created_at": "2026-11-07T17:26:51.302405Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/providers/medicion.go",
+  "description": "INTRODUCIDO: internal/providers/medicion.go:240-243 descuenta bytes y consulta el plazo solo despues de que leerLineaAcotada retorna, pero internal/providers/medicion.go:415-427 sigue consumiendo fragmentos hasta encontrar newline o EOF. Una sola linea mayor a 256 MiB rebasa el supuesto tope antes de detectarlo; si el archivo regular sigue creciendo sin newline, el plazo de 10 s nunca se consulta y el cierre del run puede quedar bloqueado indefinidamente. El test nuevo usa muchas lineas cortas y no cubre este caso.",
+  "author": "reviewer@codex",
+  "fingerprint": "10da22a06c3c3865",
+  "task": "costo-por-spec"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T045706_b96090",
+  "as": "corregido",
+  "evidence": "5bb3ba6: el codigo que usaba pend[r.ID] != \"\" como pertenencia (releer) se fue con la decision de Henry de dejar fuera del modelo las copias distintas con el mismo id; pendientes guarda aviso -\u003e id y la pertenencia es tomados[id] (bool)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T05:05:43.807598Z"
+}

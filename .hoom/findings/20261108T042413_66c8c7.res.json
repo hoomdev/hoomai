@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T042413_66c8c7",
+  "as": "corregido",
+  "evidence": "bdfd462: copia guarda solo huella sha256 del JSON, fuente y aviso (nunca el Record); el aviso de tarea no-slug recorta a 64 bytes. Tests TestHallazgo_66c8c7_c05fcb_CA546_UnaCopiaNoRetieneElRegistro (tipo copia sin nada que crezca con el registro; registro grande en 4 worktrees: 1 ronda sin avisos; copias distintas se dicen) y ..._ElAvisoNoCargaLaTareaEntera",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T04:34:24.370153Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261108T041928_a9b269",
+  "created_at": "2026-11-08T04:19:28.863239Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/costcmd/render.go",
+  "description": "INTRODUCIDO: internal/costcmd/render.go:285 nombra linea a un helper que en realidad interpreta el primer argumento como formato de fmt.Sprintf. La interfaz invita a la llamada natural s.linea(texto), pero si texto contiene % la salida se corrompe con diagnosticos de formato; los call sites actuales evitan el problema mediante \"%s\", una convencion fragil y no expresada por el nombre. Separar escritura de texto y escritura formateada (por ejemplo, linea/lineaf) haria explicito el contrato.",
+  "author": "reviewer@codex",
+  "fingerprint": "a21dac9467ebdc43",
+  "task": "costo-por-spec"
+}
