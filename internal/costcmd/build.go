@@ -88,9 +88,10 @@ type fuente struct {
 }
 
 // cargarEvidencia reads the review records of the project and of every task
-// worktree, and the severity of the findings they name. A record that a
-// worktree carries for another task, or with a task that is no slug, is left
-// out and said; what cannot be read is said too.
+// worktree, and the severity of the findings they name. A record with a task
+// that is no slug is left out and said; one that a worktree carries for
+// another task is left out, and said only when no source gives it; what
+// cannot be read is said too.
 //
 // A record is taken from the first source that may give it (the project
 // first). A source that may not give it does not hide it from one that may:
@@ -122,10 +123,17 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 			case por == "" && !tomados[r.ID]:
 				tomados[r.ID] = true
 				recs = append(recs, r)
-			case por == "", ajena && tomados[r.ID]:
+			case por == "":
+				// a later copy of a record already taken: the first counts,
+				// and a copy that differs is outside the model
+			case ajena && tomados[r.ID]:
+				// another task's record that its task's source already gave
 			case ajena:
+				// another task's record no source gave yet: said at the end
+				// unless one does
 				pend[por] = r.ID
 			default:
+				// a task that is no slug: always said
 				c.avisar(por)
 			}
 		}
