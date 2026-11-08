@@ -1,0 +1,24 @@
+ hoom · demo · 9 tarjetas
+ NECESITA TU DECISION
+ > nuc-tenancy              #!-.  te toca aprobar el spec
+   pagos-caidos             ##!-  el trabajo se corto: decide como sigue
+                            interrumpido en el paso 3 de 5 (run): el writer ya no corre
+ EN CURSO
+   infra-api                ##-.  el writer esta trabajando
+                            writer · run 3/6 · 12:41 de 45:00 · narro hace 2s · 3.88 USD
+ BACKLOG 2
+   infra-ci-cd              ----  falta el spec de la tarjeta
+   docs-guia                ----  falta el spec de la tarjeta
+ ARQUITECTO 1
+   precios                  #---  el spec no pasa el lint: le faltan las secciones riesgos y decisi~
+ HECHO 3 >
+
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------
+ NORMAL · sin tarjeta fijada
+ j/k moverse · enter abrir · espacio acciones · n siguiente · / buscar · ? ayuda

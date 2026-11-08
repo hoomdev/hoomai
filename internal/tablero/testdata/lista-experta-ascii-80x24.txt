@@ -1,0 +1,24 @@
+ hoom · demo · 3 tarjetas
+ EN CURSO
+ > infra-api                # spec: aprobado  # pruebas: 27/27 con prueba  - ve~
+                            writer · run 3/6 · 12:41 de 45:00 · narro hace 2s ·~
+ BACKLOG 1
+   docs-guia                - spec: no hay spec  - aprobacion: sin aprobar  - p~
+ ARQUITECTO 1
+   precios                  # item: existe  - spec: le faltan secciones  - prue~
+ HECHO 0 >
+
+
+
+
+
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------
+ EXPERTO · sin tarjeta fijada
+ j/k moverse · enter abrir · espacio acciones · n siguiente · / buscar · ? ayuda

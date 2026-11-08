@@ -1,0 +1,24 @@
+ infra-api · Convenciones de la API
+ [1 Resumen]  2 Spec  3 Sobre  4 Hallazgos  5 Historia
+ columna: Writer
+ el writer esta trabajando
+ falta: verde: sin veredicto verde
+ tira: ##-.
+   # spec: aprobado
+   # pruebas: 27/27 con prueba
+   - verde: sin veredicto verde
+   . review: no hace falta todavia
+ gasto: 3.88 USD de 12.25 USD
+ escribio: claude · reviso: codex
+ rojo: la verificacion dio rojo
+ doctor: el spec cambio despues de aprobarlo: hoom aprobar infra-api
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------
+ NORMAL · sin tarjeta fijada
+ 1-5 pestanas · esc volver · espacio acciones · n siguiente · ? ayuda
