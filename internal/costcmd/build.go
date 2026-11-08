@@ -1,6 +1,8 @@
 package costcmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -95,11 +97,11 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 	// a record is taken from the first source that may give it (the
 	// project first). A source that may not give it does not hide it from
 	// one that may — a worktree that merged another task's branch carries
-	// that task's records — and the refusal is said only when no source
-	// gave the record at all.
-	tomados := map[string]bool{}
-	rechazos := map[string]string{}
-	var rechazados []string
+	// that task's records. Every other copy of a record is said, unless it
+	// is the same as the copy taken: an identical copy is just the merge.
+	tomados := map[string]reviewcmd.Record{}
+	otras := map[string][]copia{}
+	var conOtras []string
 	var recs []reviewcmd.Record
 	sinLeer := 0
 	conHallazgos := false
@@ -113,24 +115,30 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 		}
 		sinLeer += len(warnings)
 		for _, r := range rs {
-			if tomados[r.ID] {
-				continue
-			}
-			if por := rechazo(f, r); por != "" {
-				if _, ya := rechazos[r.ID]; !ya {
-					rechazos[r.ID] = por
-					rechazados = append(rechazados, r.ID)
+			_, ya := tomados[r.ID]
+			por := rechazo(f, r)
+			if ya || por != "" {
+				if len(otras[r.ID]) == 0 {
+					conOtras = append(conOtras, r.ID)
 				}
+				otras[r.ID] = append(otras[r.ID], copia{rec: r, f: f, por: por})
 				continue
 			}
-			tomados[r.ID] = true
+			tomados[r.ID] = r
 			recs = append(recs, r)
 			conHallazgos = conHallazgos || len(r.Findings) > 0
 		}
 	}
-	for _, id := range rechazados {
-		if !tomados[id] {
-			c.avisar(rechazos[id])
+	for _, id := range conOtras {
+		tomado, ok := tomados[id]
+		for _, o := range otras[id] {
+			switch {
+			case ok && mismoRegistro(tomado, o.rec):
+			case o.por != "":
+				c.avisar(o.por)
+			default:
+				c.avisar(fmt.Sprintf("el registro %s tiene otra copia, distinta, en %s: cuenta la primera", id, o.f.nombre()))
+			}
 		}
 	}
 	if sinLeer > 0 {
@@ -140,6 +148,30 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 		c.cargarSeveridades(fuentes)
 	}
 	return recs, nil
+}
+
+// copia is a copy of a record that was not taken: a later one, or one its
+// source may not give (por says why).
+type copia struct {
+	rec reviewcmd.Record
+	f   fuente
+	por string
+}
+
+// nombre is how a source is said in an aviso.
+func (f fuente) nombre() string {
+	if f.tarea == "" {
+		return "el proyecto"
+	}
+	return fmt.Sprintf("el worktree %q", f.tarea)
+}
+
+// mismoRegistro says whether two copies of a record say the same: the same
+// JSON once read.
+func mismoRegistro(a, b reviewcmd.Record) bool {
+	ja, errA := json.Marshal(a)
+	jb, errB := json.Marshal(b)
+	return errA == nil && errB == nil && bytes.Equal(ja, jb)
 }
 
 // rechazo is why source f may not give the record r, "" when it may: a

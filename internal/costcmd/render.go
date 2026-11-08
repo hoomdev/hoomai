@@ -69,10 +69,10 @@ func Render(w io.Writer, r Reporte, detalle bool) {
 		renderLinea(s, t)
 	}
 	if r.Ilegibles > 0 {
-		s.linea("%d runs ilegibles", r.Ilegibles)
+		s.lineaf("%d runs ilegibles", r.Ilegibles)
 	}
 	for _, a := range r.Avisos {
-		s.linea("aviso: %s", a)
+		s.lineaf("aviso: %s", a)
 	}
 }
 
@@ -103,11 +103,11 @@ func renderLinea(s salida, t Tarea) {
 	if conVentana {
 		line += " " + NotaVentana
 	}
-	s.linea("%s", line)
+	s.linea(line)
 }
 
 func renderDetalle(s salida, t Tarea) {
-	s.linea("%s · %s · rondas %d", t.Slug, estadoTexto(t), t.Rondas)
+	s.lineaf("%s · %s · rondas %d", t.Slug, estadoTexto(t), t.Rondas)
 	if t.Estado == EstadoAceptada {
 		v, c := "sin dato", "sin dato"
 		if t.Veredicto != nil {
@@ -116,9 +116,9 @@ func renderDetalle(s salida, t Tarea) {
 		if t.CommitFinal != nil {
 			c = *t.CommitFinal
 		}
-		s.linea("veredicto %s · commit_final %s", v, c)
+		s.lineaf("veredicto %s · commit_final %s", v, c)
 		if f := fueraTexto(t); f != "" {
-			s.linea("%s", f)
+			s.linea(f)
 		}
 	}
 	s.linea("por rol")
@@ -130,7 +130,7 @@ func renderDetalle(s salida, t Tarea) {
 		if rol == "" {
 			rol = "sin rol"
 		}
-		s.linea("  %s · %s: %s", rol, r.Provider, gastoTexto(r.Provider, r.Gasto))
+		s.lineaf("  %s · %s: %s", rol, r.Provider, gastoTexto(r.Provider, r.Gasto))
 	}
 	s.linea("por ronda de review")
 	if len(t.RondasReview) == 0 {
@@ -138,7 +138,7 @@ func renderDetalle(s salida, t Tarea) {
 	}
 	for _, r := range t.RondasReview {
 		if r.SinRonda {
-			s.linea("  reviewer (sin ronda) · %s: %s", r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
+			s.lineaf("  reviewer (sin ronda) · %s: %s", r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
 			continue
 		}
 		id := ""
@@ -153,7 +153,7 @@ func renderDetalle(s salida, t Tarea) {
 		if r.HallazgosSinDato > 0 {
 			hall += fmt.Sprintf(" · hallazgos sin dato %d", r.HallazgosSinDato)
 		}
-		s.linea("  %s · %s · lentes %s · %s · %s: %s", id, cob,
+		s.lineaf("  %s · %s · lentes %s · %s · %s: %s", id, cob,
 			strings.Join(r.Lentes, ","), hall, r.Provider, gastoPtrTexto(r.Provider, r.Gasto))
 	}
 	s.linea("total")
@@ -161,9 +161,9 @@ func renderDetalle(s salida, t Tarea) {
 		s.linea("  sin runs")
 	}
 	for _, p := range provsDe(t.PorProvider) {
-		s.linea("  %s: %s", p, gastoTexto(p, t.PorProvider[p]))
+		s.lineaf("  %s: %s", p, gastoTexto(p, t.PorProvider[p]))
 	}
-	s.linea("%s", NotaVentana)
+	s.linea(NotaVentana)
 }
 
 func estadoTexto(t Tarea) string {
@@ -274,16 +274,22 @@ func plural(n int, uno, varios string) string {
 	return fmt.Sprintf("%d %s", n, varios)
 }
 
-// salida prints the report one line at a time: each line is formatted
-// whole and then escaped whole, so the only newline a terminal gets is the
-// one salida puts at its end. A name that comes from the evidence (a slug, a
+// salida prints the report one line at a time: each line is built whole
+// and then escaped whole, so the only newline a terminal gets is the one
+// salida puts at its end. A name that comes from the evidence (a slug, a
 // lens, a provider, a window) can neither hide text nor make up a line:
 // every control or direction character in it — newline included — and every
 // byte that is no UTF-8 goes out escaped (\n, \x1b, \u202e).
 type salida struct{ w io.Writer }
 
-func (s salida) linea(format string, args ...any) {
-	fmt.Fprintln(s.w, escapar(fmt.Sprintf(format, args...)))
+// linea prints texto as one line, as it is: a % in it is just a %.
+func (s salida) linea(texto string) {
+	fmt.Fprintln(s.w, escapar(texto))
+}
+
+// lineaf prints one line formatted with fmt.Sprintf(format, args...).
+func (s salida) lineaf(format string, args ...any) {
+	s.linea(fmt.Sprintf(format, args...))
 }
 
 // escapar is s with its control and direction characters, and its bytes that
