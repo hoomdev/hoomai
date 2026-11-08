@@ -621,7 +621,51 @@ var marcaDelegacion = []byte(`"agent`)
 // mid-line), are left out. It opens the log like ReadEventsFrom: an id
 // that is not a regular file of root's runs is "run no encontrado".
 func UltimosEventos(root, id string, max int64) ([]Event, error) {
-	return nil, nil
+	f, err := openLog(root, id)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	desde := int64(0)
+	if max > 0 && fi.Size() > max {
+		desde = fi.Size() - max
+	}
+	raw, err := io.ReadAll(io.NewSectionReader(f, desde, fi.Size()-desde))
+	if err != nil {
+		return nil, err
+	}
+	if desde > 0 {
+		// the window starts mid-line unless the byte before it is a newline
+		var antes [1]byte
+		if _, err := f.ReadAt(antes[:], desde-1); err != nil || antes[0] != '\n' {
+			nl := bytes.IndexByte(raw, '\n')
+			if nl < 0 {
+				return nil, nil
+			}
+			raw = raw[nl+1:]
+		}
+	}
+	var out []Event
+	for len(raw) > 0 {
+		nl := bytes.IndexByte(raw, '\n')
+		line := raw
+		if nl >= 0 {
+			line = raw[:nl]
+		}
+		var ev Event
+		if len(bytes.TrimSpace(line)) > 0 && json.Unmarshal(line, &ev) == nil {
+			out = append(out, ev)
+		}
+		if nl < 0 {
+			break
+		}
+		raw = raw[nl+1:]
+	}
+	return out, nil
 }
 
 // ReadEventsFrom reads the narration from a byte offset and returns the

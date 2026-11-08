@@ -1,6 +1,12 @@
 package tablero
 
-import "github.com/hoomdev/hoomai/internal/boardcmd"
+import (
+	"bytes"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/hoomdev/hoomai/internal/boardcmd"
+)
 
 // Tecla is one key as the model gets it: a printable key is its own text
 // (Tecla("j"), Tecla("A"), Tecla(" "), Tecla("ñ")), and the others are the
@@ -38,7 +44,111 @@ const (
 // The buffer is taken as complete: Run waits for the rest of a sequence
 // before it decodes.
 func Decodificar(b []byte) []Tecla {
-	return nil
+	var out []Tecla
+	for i := 0; i < len(b); {
+		c := b[i]
+		switch {
+		case c == 0x1b:
+			t, n := escape(b[i:])
+			if t != "" {
+				out = append(out, t)
+			}
+			i += n
+			continue
+		case c == 0x03:
+			out = append(out, TeclaCtrlC)
+		case c == 0x05:
+			out = append(out, TeclaCtrlE)
+		case c == 0x15:
+			out = append(out, TeclaCtrlU)
+		case c == 0x09:
+			out = append(out, TeclaTab)
+		case c == 0x0d || c == 0x0a:
+			out = append(out, TeclaEnter)
+		case c == 0x7f || c == 0x08:
+			out = append(out, TeclaBorrar)
+		case c < 0x20:
+			// another control byte: no key of the table
+		default:
+			r, n := utf8.DecodeRune(b[i:])
+			if r != utf8.RuneError || n > 1 {
+				if unicode.IsPrint(r) {
+					out = append(out, Tecla(string(r)))
+				}
+			}
+			i += n
+			continue
+		}
+		i++
+	}
+	return out
+}
+
+// escape decodes the sequence that starts at b[0] (an ESC): the key and
+// how many bytes it took. An unknown CSI sequence is no key.
+func escape(b []byte) (Tecla, int) {
+	if len(b) < 2 {
+		return TeclaEsc, 1
+	}
+	switch b[1] {
+	case 'O':
+		if len(b) >= 3 {
+			if t, ok := flechas[b[2]]; ok {
+				return t, 3
+			}
+		}
+		return TeclaEsc, 1
+	case '[':
+		// CSI: parameters and intermediates (0x20-0x3f), then a final byte
+		// (0x40-0x7e)
+		j := 2
+		for j < len(b) && b[j] >= 0x20 && b[j] <= 0x3f {
+			j++
+		}
+		if j >= len(b) || b[j] < 0x40 || b[j] > 0x7e {
+			return TeclaEsc, 1 // not a whole sequence: the ESC alone
+		}
+		if j == 2 {
+			if t, ok := flechas[b[j]]; ok {
+				return t, j + 1
+			}
+			if b[j] == 'Z' {
+				return TeclaShiftTab, j + 1
+			}
+		}
+		return "", j + 1
+	}
+	return TeclaEsc, 1
+}
+
+// flechas are the final bytes of the arrows (CSI and SS3 alike).
+var flechas = map[byte]Tecla{'A': TeclaArriba, 'B': TeclaAbajo, 'C': TeclaDer, 'D': TeclaIzq}
+
+// incompleta says whether b ends inside an escape sequence Decodificar
+// would read as more than an ESC: Run waits a moment for the rest.
+func incompleta(b []byte) bool {
+	i := bytes.LastIndexByte(b, 0x1b)
+	if i < 0 {
+		return false
+	}
+	resto := b[i:]
+	switch {
+	case len(resto) == 1:
+		return true
+	case resto[1] == 'O':
+		return len(resto) == 2
+	case resto[1] == '[':
+		for _, c := range resto[2:] {
+			if c >= 0x40 && c <= 0x7e {
+				return false
+			}
+			if c < 0x20 || c > 0x3f {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // Vista is what the screen shows; keys mean what the Atajos of the current
@@ -184,5 +294,50 @@ var Atajos = []Atajo{
 
 // AtajosDe are the rows of Atajos that work in v, in table order.
 func AtajosDe(v Vista) []Atajo {
-	return nil
+	var out []Atajo
+	for _, a := range Atajos {
+		if contieneVista(a.Vistas, v) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func contieneVista(vs []Vista, v Vista) bool {
+	for _, x := range vs {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// atajo is the row of the table that t has in v: the one that names it or,
+// for a printable key that no row names, the row of TeclaTexto.
+func atajo(v Vista, t Tecla) (Atajo, bool) {
+	filas := AtajosDe(v)
+	for _, a := range filas {
+		for _, k := range a.Teclas {
+			if k == t {
+				return a, true
+			}
+		}
+	}
+	if !imprimible(t) {
+		return Atajo{}, false
+	}
+	for _, a := range filas {
+		for _, k := range a.Teclas {
+			if k == TeclaTexto {
+				return a, true
+			}
+		}
+	}
+	return Atajo{}, false
+}
+
+// imprimible: a key that is one printable rune (the space included).
+func imprimible(t Tecla) bool {
+	r, n := utf8.DecodeRuneInString(string(t))
+	return n == len(t) && n > 0 && r != utf8.RuneError && unicode.IsPrint(r)
 }

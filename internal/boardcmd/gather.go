@@ -624,17 +624,21 @@ func (g *gatherer) telemetry(slug, dir string) ([]EnvelopeState, []RunState) {
 	var envs []EnvelopeState
 	var runs []RunState
 	metaOf := map[string]runcmd.Meta{}
+	placeOf := map[string]string{} // where each run's sidecar (and narration) is
 	for _, place := range places {
 		for _, m := range g.metasOf(place) {
 			if !seenRun[m.ID] {
-				metaOf[m.ID] = m
+				metaOf[m.ID], placeOf[m.ID] = m, place
 			}
 			if m.Task != slug || seenRun[m.ID] {
 				continue
 			}
 			seenRun[m.ID] = true
-			runs = append(runs, RunState{Meta: m,
-				Alive: m.Status == runcmd.StatusRunning && m.PID > 0 && runcmd.Alive(m.PID)})
+			r := RunState{Meta: m, Alive: m.Status == runcmd.StatusRunning && m.PID > 0 && runcmd.Alive(m.PID)}
+			if r.Alive {
+				r.LastEventAt = ultimoEvento(place, m.ID)
+			}
+			runs = append(runs, r)
 		}
 	}
 	for _, place := range places {
@@ -643,12 +647,32 @@ func (g *gatherer) telemetry(slug, dir string) ([]EnvelopeState, []RunState) {
 				continue
 			}
 			seenEnv[rec.ID] = true
-			envs = append(envs, EnvelopeState{Record: rec, Alive: g.envelopeAlive(rec, metaOf)})
+			e := EnvelopeState{Record: rec, Alive: g.envelopeAlive(rec, metaOf)}
+			if m, ok := metaOf[rec.RunID]; ok && e.Alive && rec.RunID != "" {
+				e.TimeoutS = m.TimeoutS
+				e.LastEventAt = ultimoEvento(placeOf[rec.RunID], rec.RunID)
+			}
+			envs = append(envs, e)
 		}
 	}
 	sort.SliceStable(envs, func(i, j int) bool { return envs[i].Record.StartedAt.After(envs[j].Record.StartedAt) })
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].Meta.CreatedAt.After(runs[j].Meta.CreatedAt) })
 	return envs, runs
+}
+
+// ultimaVentana is how much of a live run's narration the board reads to
+// find its last event: the same window as the Sobre tab of hoom tablero.
+const ultimaVentana = 64 << 10
+
+// ultimoEvento is the time of the last event of run id's narration in dir,
+// nil when it has none (or it cannot be read: the card still shows the run).
+func ultimoEvento(dir, id string) *time.Time {
+	evs, err := runcmd.UltimosEventos(dir, id, ultimaVentana)
+	if err != nil || len(evs) == 0 {
+		return nil
+	}
+	t := evs[len(evs)-1].TS
+	return &t
 }
 
 // envelopeAlive: the owner of an open envelope is alive when the sidecar of

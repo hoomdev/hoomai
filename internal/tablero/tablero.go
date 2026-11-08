@@ -1,10 +1,21 @@
 package tablero
 
 import (
+	"errors"
+	"flag"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
+	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/profiles"
 )
 
 // UsageText is the usage block of `hoom tablero`.
@@ -36,7 +47,8 @@ const Intervalo = 2 * time.Second
 // ParseArgs applies cliargs' discipline: a flag or an operand is a
 // *cliargs.UsageError (exit 2); -h and --help are cliargs.ErrHelp.
 func ParseArgs(args []string) error {
-	return nil
+	fs := flag.NewFlagSet("tablero", flag.ContinueOnError)
+	return cliargs.Strict(fs, args, "tablero", UsageText)
 }
 
 // Terminal is the terminal the TUI takes. The real one is the process's
@@ -97,7 +109,15 @@ type Entorno struct {
 
 // Real is the Entorno of the hoom process.
 func Real() Entorno {
-	return Entorno{}
+	return Entorno{
+		Dir:      ".",
+		Out:      os.Stdout,
+		Err:      os.Stderr,
+		Getenv:   os.Getenv,
+		GOOS:     runtime.GOOS,
+		Terminal: terminalDelProceso(),
+		Ahora:    time.Now,
+	}
 }
 
 // Run is hoom tablero, and it returns its exit code. In order: the args
@@ -118,26 +138,110 @@ func Real() Entorno {
 // terminal is given back (SecSalir, restaurar) and taken again after
 // (Crudo, SecEntrar).
 func Run(args []string, e Entorno) int {
-	return 0
+	if e.Out == nil {
+		e.Out = io.Discard
+	}
+	if e.Err == nil {
+		e.Err = io.Discard
+	}
+	if e.Getenv == nil {
+		e.Getenv = os.Getenv
+	}
+	if e.GOOS == "" {
+		e.GOOS = runtime.GOOS
+	}
+	if e.Dir == "" {
+		e.Dir = "."
+	}
+	if e.Ahora == nil {
+		e.Ahora = time.Now
+	}
+	if e.Intervalo <= 0 {
+		e.Intervalo = Intervalo
+	}
+	if err := ParseArgs(args); err != nil {
+		if errors.Is(err, cliargs.ErrHelp) {
+			fmt.Fprintln(e.Out, UsageText)
+			return 0
+		}
+		var ue *cliargs.UsageError
+		if errors.As(err, &ue) {
+			fmt.Fprintln(e.Err, ue.Error())
+			return ue.ExitCode()
+		}
+		fmt.Fprintln(e.Err, "hoom:", err)
+		return 2
+	}
+	if e.Terminal == nil {
+		fmt.Fprintln(e.Err, MsgSinTerminal)
+		return 2
+	}
+	m, err := manifest.Load(e.Dir, profiles.Resolve)
+	if err != nil {
+		fmt.Fprintln(e.Err, "hoom:", err)
+		return 1
+	}
+	if e.Datos == nil {
+		e.Datos = DatosDe(m.Dir, m.BaseBranch, m.FindingsBlockOn())
+	}
+	if e.Lanzador == nil {
+		hoom, err := os.Executable()
+		if err != nil {
+			fmt.Fprintln(e.Err, "hoom:", err)
+			return 1
+		}
+		e.Lanzador = LanzadorDe(hoom, e.Dir, filepath.Join(m.Dir, ".hoom", "cache", "tablero"))
+	}
+	if e.Editor == nil {
+		e.Editor = EditorDe(ComandoEditor(e.Getenv, e.GOOS), e.GOOS)
+	}
+	proyecto := m.Project
+	if proyecto == "" {
+		proyecto = filepath.Base(m.Dir)
+	}
+	b := &bucle{e: e, root: m.Dir, cfg: Config{
+		Proyecto: proyecto,
+		Color:    ConColor(e.Getenv),
+		UTF8:     ConUTF8(e.Getenv),
+		Windows:  e.GOOS == "windows",
+	}}
+	return b.correr()
 }
 
 // ConColor says whether the screen has color: not when NO_COLOR is set to a
 // value that is not empty (no-color.org).
 func ConColor(getenv func(string) string) bool {
-	return false
+	return getenv("NO_COLOR") == ""
 }
 
 // ConUTF8 says whether the screen uses the UTF-8 signs: the locale (the
 // first of LC_ALL, LC_CTYPE and LANG that is not empty) names UTF-8 ("UTF-8"
 // or "utf8", any case), and HOOM_ASCII is not "1".
 func ConUTF8(getenv func(string) string) bool {
+	if getenv("HOOM_ASCII") == "1" {
+		return false
+	}
+	for _, v := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		if l := getenv(v); l != "" {
+			l = strings.ToLower(l)
+			return strings.Contains(l, "utf-8") || strings.Contains(l, "utf8")
+		}
+	}
 	return false
 }
 
 // ComandoEditor is the person's editor: $VISUAL, then $EDITOR, then vi
 // (notepad on Windows), as the capa-1 verbs choose it.
 func ComandoEditor(getenv func(string) string, goos string) string {
-	return ""
+	for _, v := range []string{"VISUAL", "EDITOR"} {
+		if ed := strings.TrimSpace(getenv(v)); ed != "" {
+			return ed
+		}
+	}
+	if goos == "windows" {
+		return "notepad"
+	}
+	return "vi"
 }
 
 // ArgumentosEditor are the arguments that open archivo at linea, after the
@@ -146,7 +250,25 @@ func ComandoEditor(getenv func(string) string, goos string) string {
 // emacs, micro or hx; "-g" and "<archivo>:<linea>" when it is code or
 // cursor; archivo alone with any other editor or with linea 0.
 func ArgumentosEditor(editor, archivo string, linea int) []string {
-	return nil
+	if linea <= 0 {
+		return []string{archivo}
+	}
+	primera := editor
+	if f := strings.Fields(editor); len(f) > 0 {
+		primera = f[0]
+	}
+	// the base name on either separator: a Windows path read on Unix too
+	if i := strings.LastIndexAny(primera, `/\`); i >= 0 {
+		primera = primera[i+1:]
+	}
+	nombre := strings.TrimSuffix(strings.ToLower(primera), ".exe")
+	switch nombre {
+	case "vi", "vim", "nvim", "nano", "emacs", "micro", "hx":
+		return []string{"+" + strconv.Itoa(linea), archivo}
+	case "code", "cursor":
+		return []string{"-g", archivo + ":" + strconv.Itoa(linea)}
+	}
+	return []string{archivo}
 }
 
 // LanzadorDe is the real Lanzador: it runs the binary hoom with the order's
@@ -155,7 +277,7 @@ func ArgumentosEditor(editor, archivo string, linea int) []string {
 // stdout and stderr to two new files in the directory logs (created when
 // missing). Its FinProceso.Ultima comes from those files.
 func LanzadorDe(hoom, dir, logs string) Lanzador {
-	return nil
+	return &lanzadorReal{hoom: hoom, dir: dir, logs: logs}
 }
 
 // DatosDe is the real Datos of the project at root: the board of
@@ -165,7 +287,7 @@ func LanzadorDe(hoom, dir, logs string) Lanzador {
 // card's newest work row (runcmd.UltimosEventos, from root or else from the
 // card's evidence dir).
 func DatosDe(root, base, blockOn string) Datos {
-	return nil
+	return datosReales{root: root, base: base, blockOn: blockOn}
 }
 
 // EditorDe is the real Editor of the editor command (ComandoEditor): it
@@ -173,5 +295,5 @@ func DatosDe(root, base, blockOn string) Datos {
 // Windows), with ArgumentosEditor, on the process's stdin, stdout and
 // stderr.
 func EditorDe(comando, goos string) Editor {
-	return nil
+	return editorReal{comando: comando, goos: goos}
 }

@@ -1,6 +1,7 @@
 package tablero
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
@@ -106,11 +107,82 @@ const (
 // Modelo is the TUI without a terminal: keys and reads in, a screen and
 // orders out. It is not safe for concurrent use: Run calls it from one
 // goroutine.
-type Modelo struct{}
+type Modelo struct {
+	c     Config
+	s     signos
+	ahora time.Time
+
+	leido      bool
+	tablero    boardcmd.Board
+	fijada     string
+	errLectura string
+	experto    bool
+
+	vista Vista
+
+	// the list: the selection is a card (selSlug) or Hecho's line
+	// (selHecho); selIdx is its place among the lines that can be chosen
+	sinSeleccion bool
+	selSlug      string
+	selHecho     bool
+	selIdx       int
+	hechoAbierto bool
+	scrollLista  int
+	filtro       []rune // the search's text, while VistaBusqueda
+
+	// the open card
+	abierta  string
+	pestana  Vista
+	detalle  *Detalle
+	scrolls  map[Vista]int
+	alFinal  bool // Sobre follows its end
+	hallazgo int
+	prefijo  Tecla // "]" or "[" waiting for its second stroke
+
+	// what is over the list or the card
+	menu    *menu
+	form    *formulario
+	conf    *confirmacion
+	ayudaDe Vista
+
+	// the bar's message
+	msg       string
+	msgEstilo estilo
+	msgHasta  time.Time
+
+	// the launches
+	sigID    int
+	lanzados map[int]*lanzado
+	vistos   map[string]visto
+}
+
+// lanzado is a launch the model ordered that did not end yet.
+type lanzado struct {
+	o          Lanzar
+	antes      string // the running id its card had when it was ordered
+	registrado bool
+}
+
+// visto is what a card the model saw with running was running.
+type visto struct {
+	rol, envelope string
+}
 
 // Nuevo is the model before the first read of the board.
 func Nuevo(c Config) *Modelo {
-	return &Modelo{}
+	m := &Modelo{
+		c:            c,
+		s:            signosASCII,
+		vista:        VistaLista,
+		sinSeleccion: true,
+		scrolls:      map[Vista]int{},
+		lanzados:     map[int]*lanzado{},
+		vistos:       map[string]visto{},
+	}
+	if c.UTF8 {
+		m.s = signosUTF8
+	}
+	return m
 }
 
 // Leer takes a read of the board.
@@ -131,12 +203,67 @@ func Nuevo(c Config) *Modelo {
 //     a running whose envelope id (or run id when it has no envelope) the
 //     card did not have when the order was given.
 func (m *Modelo) Leer(l Lectura) []Orden {
+	if !l.Ahora.IsZero() {
+		m.ahora = l.Ahora
+	}
+	m.fijada = l.Fijada
+	if l.Err != nil {
+		m.errLectura = "no se pudo leer el tablero: " + l.Err.Error()
+		m.acomodar()
+		return nil
+	}
+	m.errLectura = ""
+	m.tablero = l.Tablero
+	m.leido = true
+
+	// the cards that stopped running
+	for _, c := range m.todas() {
+		v, ok := m.vistos[c.Slug]
+		if !ok || c.Running != nil {
+			continue
+		}
+		e := verde
+		if c.Red != nil && c.Red.Source == boardcmd.RedEnvelope && v.envelope != "" && c.Red.ID == v.envelope {
+			e = rojo
+		}
+		m.avisar(fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), e, DuracionFin)
+	}
+	m.vistos = map[string]visto{}
+	for _, c := range m.todas() {
+		if r := c.Running; r != nil {
+			m.vistos[c.Slug] = visto{rol: rolDe(r.Role), envelope: r.EnvelopeID}
+		}
+	}
+	// the launches its card now shows running
+	for _, la := range m.lanzados {
+		if la.o.Rol == "" || la.registrado {
+			continue
+		}
+		if c := m.tarjeta(la.o.Slug); c != nil && c.Running != nil {
+			if id := idDe(c.Running); id != "" && id != la.antes {
+				la.registrado = true
+			}
+		}
+	}
+	// the open card (or the one under the menu, the form or the
+	// confirmation) that is no longer on the board
+	if slug := m.slugEnUso(); slug != "" && m.tarjeta(slug) == nil {
+		m.cerrarTodo()
+		m.avisar(fmt.Sprintf("la tarjeta %s ya no existe", slug), normal, DuracionAviso)
+	}
+	m.acomodar()
 	return nil
 }
 
 // LeerDetalle takes the read of the open card; one of another card is
 // ignored.
-func (m *Modelo) LeerDetalle(d Detalle) {}
+func (m *Modelo) LeerDetalle(d Detalle) {
+	if m.abierta == "" || d.Slug != m.abierta {
+		return
+	}
+	m.detalle = &d
+	m.acomodar()
+}
 
 // Tecla takes one key at ahora. What a key does is the Atajos row of the
 // current Vista that has it; a key with no row there does nothing (the
@@ -189,7 +316,33 @@ func (m *Modelo) LeerDetalle(d Detalle) {}
 //
 // q and ctrl-c order Salir.
 func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
-	return nil
+	if !ahora.IsZero() {
+		m.ahora = ahora
+	}
+	v := m.Vista()
+	// ]c and [c: two strokes
+	if v == VistaSpec {
+		if m.prefijo != "" {
+			junta := m.prefijo + t
+			m.prefijo = ""
+			if junta == "]c" || junta == "[c" {
+				t = junta
+			}
+		}
+		if t == "]" || t == "[" {
+			m.prefijo = t
+			return nil
+		}
+	} else {
+		m.prefijo = ""
+	}
+	a, ok := atajo(v, t)
+	if !ok {
+		return nil
+	}
+	ordenes := m.hacer(v, a, t)
+	m.acomodar()
+	return ordenes
 }
 
 // Termino takes the end of a process the model ordered. A launch that ends
@@ -197,45 +350,106 @@ func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
 // DuracionAviso: red when Code is not 0. One that ends after leaves the bar
 // to Leer's notice. usar, guardar, aprobar and integrar put their Ultima in
 // the bar, green with Code 0 and red otherwise.
-func (m *Modelo) Termino(f FinProceso, ahora time.Time) {}
+func (m *Modelo) Termino(f FinProceso, ahora time.Time) {
+	if !ahora.IsZero() {
+		m.ahora = ahora
+	}
+	la, ok := m.lanzados[f.ID]
+	if !ok {
+		return
+	}
+	delete(m.lanzados, f.ID)
+	texto := f.Ultima
+	if texto == "" && f.Code != 0 {
+		texto = fmt.Sprintf("hoom %s salio con %d", palabrasVerbo(la.o.Args), f.Code)
+	}
+	switch {
+	case la.o.Rol != "" && la.registrado:
+		// Leer says how it ended
+	case la.o.Rol != "":
+		e := normal
+		if f.Code != 0 {
+			e = rojo
+		}
+		if texto != "" {
+			m.avisar(texto, e, DuracionAviso)
+		}
+	default:
+		e := verde
+		if f.Code != 0 {
+			e = rojo
+		}
+		if texto != "" {
+			m.avisar(texto, e, DuracionAviso)
+		}
+	}
+	m.acomodar()
+}
 
 // PedidoEditado takes what the editor gave back for the pedido: with err,
 // the pedido stays as it was and the bar says "el editor salio con error";
 // without it, the text is the pedido, cursor at its end.
-func (m *Modelo) PedidoEditado(texto string, err error) {}
+func (m *Modelo) PedidoEditado(texto string, err error) {
+	if m.form == nil {
+		return
+	}
+	if err != nil {
+		m.avisar("el editor salio con error", rojo, DuracionAviso)
+		return
+	}
+	if c := m.form.campo(campoPedido); c != nil {
+		c.poner(texto)
+		m.form.pedidoVacio = false
+	}
+}
 
 // Tamano takes a new size of the terminal.
-func (m *Modelo) Tamano(ancho, alto int) {}
+func (m *Modelo) Tamano(ancho, alto int) {
+	m.c.Ancho, m.c.Alto = ancho, alto
+	m.acomodar()
+}
 
 // Tic moves the clock: the bar's messages expire and the times on screen
 // ("hace <n>s") move.
-func (m *Modelo) Tic(ahora time.Time) {}
-
-// Pantalla is the screen now, as the package's doc describes it.
-func (m *Modelo) Pantalla() []string {
-	return nil
+func (m *Modelo) Tic(ahora time.Time) {
+	m.ahora = ahora
 }
 
 // Vista is the current view.
 func (m *Modelo) Vista() Vista {
-	return ""
+	return m.vista
 }
 
 // Abierta is the slug of the open card and whether its Historia tab is the
 // active one ("" in the list).
 func (m *Modelo) Abierta() (slug string, historia bool) {
-	return "", false
+	if m.abierta == "" {
+		return "", false
+	}
+	return m.abierta, m.pestana == VistaHistoria
 }
 
 // Corriendo is how many role jobs (Lanzar with Rol) the model ordered that
 // did not end yet (Termino).
 func (m *Modelo) Corriendo() int {
-	return 0
+	n := 0
+	for _, la := range m.lanzados {
+		if la.o.Rol != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // MensajeSalida is what hoom tablero prints when it gives the terminal
 // back: "quedan <n> trabajos corriendo: hoom status" ("queda 1 trabajo
 // corriendo: hoom status" for one), or "" when none is left.
 func MensajeSalida(corriendo int) string {
-	return ""
+	switch {
+	case corriendo <= 0:
+		return ""
+	case corriendo == 1:
+		return "queda 1 trabajo corriendo: hoom status"
+	}
+	return fmt.Sprintf("quedan %d trabajos corriendo: hoom status", corriendo)
 }
