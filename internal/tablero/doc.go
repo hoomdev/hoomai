@@ -178,7 +178,11 @@
 // description; 0 without one. enter orders AbrirEditor with the file
 // relative to the project root (evidence.dir + "/" + file, or just file
 // when dir is ".") and that line; on a finding without a file the bar says
-// "el hallazgo no nombra un archivo". Without findings: " sin hallazgos".
+// "el hallazgo no nombra un archivo". A path that leaves the project (an
+// absolute one, or one whose ".." climbs out: filepath.IsLocal says no)
+// orders nothing, here and with the Spec tab's o: the bar says in red
+// "el archivo <path quoted as strconv.Quote> esta fuera del proyecto" for
+// DuracionAviso. Without findings: " sin hallazgos".
 //
 // Historia: one line per timeline entry: " <YYYY-MM-DD HH:MM> <who>
 // <plain>" (summary instead of plain in expert mode). Without entries:
@@ -283,6 +287,16 @@
 // hard, every inner-width cells (its newlines kept as line breaks); the
 // other texts at the spaces (greedy: as many words as fit; a word longer
 // than the line is cut hard).
+//
+// # Controls in the texts
+//
+// Every text the screen shows passes, before it is cut to the width, with
+// its controls neutralized: a tab is a space, and any other control (C0,
+// DEL, C1) and any bidi control (U+200E, U+200F, U+202A..U+202E,
+// U+2066..U+2069) is "?". The texts come from the project and from the
+// agents (titles, plains, specs, findings, events): none of them reaches
+// the terminal as a sequence. The only sequences of a line are the SGR of
+// the color.
 //
 // # What Run writes
 //

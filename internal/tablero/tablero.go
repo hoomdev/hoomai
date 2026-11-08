@@ -125,7 +125,9 @@ func Real() Entorno {
 // and is 0), the terminal (without one: 2 and MsgSinTerminal on Err, and
 // nothing written anywhere else), the project's hoom.yaml
 // (manifest.Load(Dir): an error is 1 with "hoom: <error>" on Err, before
-// the terminal is touched). Then it takes the terminal (Crudo, SecEntrar),
+// the terminal is touched). Then it takes the terminal (Crudo, SecEntrar;
+// when writing SecEntrar fails, the terminal is given back, SecSalir and
+// restaurar, before Run returns 1 with "hoom: <error>" on Err),
 // reads the board at once and then every Intervalo (the open card's
 // Detalle with each read), asks the terminal's size at least every 250 ms
 // (and on SIGWINCH) and draws again when it changes, and gives the
@@ -136,7 +138,11 @@ func Real() Entorno {
 // goroutine). After giving it back it prints MensajeSalida on Out when it
 // is not empty. While the editor is open (AbrirEditor, EditarPedido) the
 // terminal is given back (SecSalir, restaurar) and taken again after
-// (Crudo, SecEntrar).
+// (Crudo, SecEntrar); an Abrir that fails puts "no se pudo abrir el
+// editor: <error>" in red in the bar for DuracionAviso. The keys a read
+// brings that end inside an escape sequence or inside a UTF-8 character
+// wait a moment for the next read before they are decoded: a read may
+// cut a key or a pasted text anywhere.
 func Run(args []string, e Entorno) int {
 	if e.Out == nil {
 		e.Out = io.Discard
@@ -285,15 +291,20 @@ func LanzadorDe(hoom, dir, logs string) Lanzador {
 // boardcmd.DetailFor (without a diff), the timeline of
 // boardcmd.TimelineFor and the last MaxSobre bytes of the narration of the
 // card's newest work row (runcmd.UltimosEventos, from root or else from the
-// card's evidence dir).
+// card's evidence dir). A narration that is in neither (a run of another
+// machine) leaves Sobre without events and without Err; any other failure
+// to read it is Sobre.Err.
 func DatosDe(root, base, blockOn string) Datos {
 	return datosReales{root: root, base: base, blockOn: blockOn}
 }
 
 // EditorDe is the real Editor of the editor command (ComandoEditor): it
-// runs through the shell like the capa-1 verbs (sh -c on Unix, cmd /C on
-// Windows), with ArgumentosEditor, on the process's stdin, stdout and
-// stderr.
+// runs through the shell like the capa-1 verbs (sh -c on Unix, cmd /S /C
+// on Windows), with ArgumentosEditor, on the process's stdin, stdout and
+// stderr. On Windows (goos "windows") each argument goes between double
+// quotes, and one with a double quote, a %, a ! or a control character is
+// refused before anything runs: the error says "cmd no puede citar
+// <argument quoted>".
 func EditorDe(comando, goos string) Editor {
 	return editorReal{comando: comando, goos: goos}
 }
