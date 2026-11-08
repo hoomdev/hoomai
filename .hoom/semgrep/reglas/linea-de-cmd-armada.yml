@@ -1,0 +1,25 @@
+rules:
+  - id: hoom-linea-de-cmd-armada
+    languages: [go]
+    severity: ERROR
+    message: >-
+      La linea de comando de un proceso se arma con datos (SysProcAttr.CmdLine):
+      cmd.exe vuelve a partir la linea entera y lee comillas, %, !, & y |, asi
+      que un dato con uno de esos caracteres sale de sus comillas y ejecuta
+      otro comando. Rechaza antes lo que cmd no puede citar y justifica la
+      excepcion con un nosemgrep que diga donde se rechaza (seguimiento del
+      hallazgo 20261108T225440_f28d31).
+    patterns:
+      - pattern-either:
+          - pattern: |
+              syscall.SysProcAttr{..., CmdLine: $L, ...}
+          - pattern: |
+              $X.CmdLine = $L
+      - metavariable-pattern:
+          metavariable: $L
+          patterns:
+            - pattern-not: |
+                "..."
+    paths:
+      exclude:
+        - "*_test.go"
