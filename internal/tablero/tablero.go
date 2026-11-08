@@ -106,11 +106,17 @@ func Real() Entorno {
 // nothing written anywhere else), the project's hoom.yaml
 // (manifest.Load(Dir): an error is 1 with "hoom: <error>" on Err, before
 // the terminal is touched). Then it takes the terminal (Crudo, SecEntrar),
-// draws, reads the board every Intervalo, and gives the terminal back
-// (SecSalir, restaurar) when it ends: with q or ctrl-c (0), with an error
-// of the terminal (1, the error on Err after giving it back) and with a
-// panic (given back, then the panic goes on). After giving it back it
-// prints MensajeSalida on Out when it is not empty.
+// reads the board at once and then every Intervalo (the open card's
+// Detalle with each read), asks the terminal's size at least every 250 ms
+// (and on SIGWINCH) and draws again when it changes, and gives the
+// terminal back (SecSalir, restaurar) when it ends: with q or ctrl-c (0),
+// with an error reading or writing the terminal, its end of file included
+// (1, "hoom: <error>" on Err after giving it back), and with a panic, in
+// Run or in what it calls (given back, then the panic goes on in Run's
+// goroutine). After giving it back it prints MensajeSalida on Out when it
+// is not empty. While the editor is open (AbrirEditor, EditarPedido) the
+// terminal is given back (SecSalir, restaurar) and taken again after
+// (Crudo, SecEntrar).
 func Run(args []string, e Entorno) int {
 	return 0
 }

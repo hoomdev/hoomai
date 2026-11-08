@@ -171,8 +171,9 @@ func (m *Modelo) LeerDetalle(d Detalle) {}
 // its why; with a Tiempo limite that is not a duration between 1m and 12h,
 // manifest.ParseTimeout's error; with a Presupuesto that is not a number,
 // "el presupuesto no es un numero"; otherwise it orders Lanzar and goes
-// back to where it was opened from, with "lanzando <verbo corto>" in the
-// bar. The order's Args are the verb ({"pedir", <rol>, <slug>}, {"siguiente",
+// back to where it was opened from, with "lanzando hoom <verb>" in the bar
+// for DuracionAviso (e.g. "lanzando hoom pedir writer <slug>", "lanzando
+// hoom siguiente <slug>": the verb's words, without -m and the flags). The order's Args are the verb ({"pedir", <rol>, <slug>}, {"siguiente",
 // <slug>} or {"reanudar", <slug>}), "-m" and the trimmed pedido (not for the
 // reviewer), then, in this order and only when its value differs from the
 // action's proposal: "--provider" <name>, "--model" <text>, "--effort"

@@ -112,9 +112,18 @@
 // spaces and "interrumpido en el paso <step> de <steps> (<stage>): el
 // <rol> ya no corre".
 //
-// The selection moves over the card lines and Hecho's line. At the start it
-// is on the first card line. The body scrolls the least needed to keep the
-// selected line (and its second line) in view.
+// The selection moves over the card lines and Hecho's line (enter, l or →
+// on it opens or closes Hecho). At the start it is on the first card line.
+// The body scrolls the least needed to keep the selected line (and its
+// second line) in view.
+//
+// The search (/, VistaBusqueda) filters while it is typed: only the cards
+// whose slug or title contains the text stay, case-insensitive (Unicode
+// lower case) and with the accents folded (á à â ä ã → a, é è ê ë → e,
+// í ì î ï → i, ó ò ô ö õ → o, ú ù û ü → u, ñ → n, ç → c, upper case too).
+// The sections and their counts are those of the cards that stay (Hecho
+// keeps its line). ↓ and ↑ move the selection; enter opens the selected
+// card; enter and esc close the search and drop the filter.
 //
 // # The open card (VistaTarjeta)
 //
@@ -130,7 +139,7 @@
 //	siguiente: <next>              (expert mode only)
 //	missing: <missing[i]>          (expert mode only, one line each)
 //	falta: <label>: <detail>       (one line per falta segment; "falta: nada" without one)
-//	tira: <tira>                   (the list's tira)
+//	tira: <tira>                   (the list's signs, in both modes)
 //	  <sign> <label>: <detail>     (one line per segment)
 //	gasto: <cost> de <budget>      (see Gasto)
 //	escribio: <writer> · reviso: <reviewer>   ("sin dato" for an empty one)
@@ -151,20 +160,25 @@
 // spec's path and the line number (1-based) of the first line in view.
 //
 // Sobre: its first line is " <rol> · <paso> · <tiempo> · último evento
-// hace <n>s" for the envelope at work or the last one (the same pieces as
-// the list's second line; "último evento hace" left out without an event);
-// then one line per event of Detalle.Sobre: " <HH:MM:SS> <kind> <detail>"
-// (UTC, the detail on one line). Without an envelope: " sin sobres todavia".
-// The content starts scrolled to its end.
+// hace <n>s": with running, rol, paso and tiempo as in the list's second
+// line; without it, those of the card's newest work row (Detalle.Work[0]),
+// its tiempo being its duration_ms (m:ss, h:mm:ss) and its status added
+// after it (" · <status>"). "último evento hace <n>s" counts from the last
+// event of Detalle.Sobre and is left out without one. Then one line per
+// event of Detalle.Sobre: " <HH:MM:SS> <kind> <detail>" (UTC, the detail's
+// newlines as spaces). Without work rows: " sin sobres todavia". The
+// content starts scrolled to its end.
 //
 // Hallazgos: the task's findings, the open ones (status abierto) first, each
 // group in the order Detalle carries them, one line each:
 // " " + M + " " + "<status> <severity> <file>[:<line>] <description>", cut.
-// M marks the selected one (j/k). enter orders AbrirEditor with the file
-// relative to the project root (evidence.dir + "/" + file, or just file when
-// dir is ".") and its line: the number after "<file>:" in the file field
-// or, failing that, in the description; 0 without one. Without findings:
-// " sin hallazgos".
+// M marks the selected one (j/k). <file> is "-" for a finding without a
+// file. Its line is the number after a ":" that ends the file field
+// ("x.go:12") or, failing that, after the first "<file>:" in the
+// description; 0 without one. enter orders AbrirEditor with the file
+// relative to the project root (evidence.dir + "/" + file, or just file
+// when dir is ".") and that line; on a finding without a file the bar says
+// "el hallazgo no nombra un archivo". Without findings: " sin hallazgos".
 //
 // Historia: one line per timeline entry: " <YYYY-MM-DD HH:MM> <who>
 // <plain>" (summary instead of plain in expert mode). Without entries:
@@ -208,9 +222,16 @@
 //	→ <the verb line>
 //	enter lanzar · tab campos · ctrl-e editor · esc cancelar
 //
-// The focused text field shows the text cursor at its cursor. The reviewer
-// has neither Tiempo limite nor Pedido (nor their empty lines); reanudar
-// shows Provider without the arrows (the session is its provider's).
+// The focused text field shows the text cursor at its cursor (the pedido:
+// its wrapped lines with the cursor inserted, the 4 that end at the
+// cursor's line). The reviewer has neither Tiempo limite nor Pedido (nor
+// their empty lines); reanudar shows Provider without the arrows (the
+// session is its provider's: ← and → do nothing there).
+//
+// tab and shift-tab move the focus over the fields in that order, wrapping
+// around; ← and → on Provider choose the previous or next option that can
+// (wrapping around), and in a text field move its cursor; backspace
+// deletes before the cursor; ctrl-u empties the focused text field.
 //
 // # The confirmations (VistaConfirmacion)
 //
@@ -223,7 +244,23 @@
 //
 // # The help (VistaAyuda)
 //
-// It takes the body: " Teclas de <pantalla>" (lista, tarjeta, menu) and one
-// line per Atajo of that Vista: " " + Muestra padded to 14 cells + Hace,
-// and "  " + Verbo when it has one.
+// ? opens it from the list, every tab of the open card and the menu, for the
+// view it was opened from. It takes the body: " Teclas de <vista>" (the
+// Vista's name: lista, resumen, spec, ..., menu) and one line per Atajo of
+// that Vista (AtajosDe): " " + Muestra padded to 14 cells + Hace, and "  " +
+// Verbo when it has one. esc or ? close it.
+//
+// # Wrapping
+//
+// The texts of the boxes are wrapped to the box's inner width: the pedido
+// hard, every inner-width cells (its newlines kept as line breaks); the
+// other texts at the spaces (greedy: as many words as fit; a word longer
+// than the line is cut hard).
+//
+// # What Run writes
+//
+// SecEntrar once, then one frame per change: "\x1b[H" and the Pantalla
+// lines, each followed by "\x1b[K", joined by "\r\n"; with color, the
+// lines carry SGR sequences (bold titles, red and green messages, gray
+// disabled items, reverse on nothing). SecSalir once at the end.
 package tablero
