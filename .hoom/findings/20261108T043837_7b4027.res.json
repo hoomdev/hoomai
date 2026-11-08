@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T043837_7b4027",
+  "as": "corregido",
+  "evidence": "3084870: el aviso de tarea no-slug nombra la fuente de la copia (en el proyecto / en el worktree X); una fuente tiene un solo archivo por id, asi que dos copias distintas dan dos avisos. Test TestHallazgo_7b4027_CA546_DosCopiasRecortadasIgualSeDicenLasDos",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T04:47:16.075218Z"
+}
