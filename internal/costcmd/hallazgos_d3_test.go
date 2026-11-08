@@ -34,11 +34,12 @@ func d3Copiar(t *testing.T, src, dst, id string, cambio func(string) string) {
 	}
 }
 
-// Hallazgos 75b0ce y a503df — CA-546: una copia de un registro se calla
-// solo cuando es la misma que la que cuenta. Una copia distinta se dice,
-// sea porque su fuente no podia darla (otra tarea, tarea que no es slug) o
-// porque llego despues.
-func TestHallazgo_75b0ce_a503df_CA546_UnaCopiaDistintaSeAvisa(t *testing.T) {
+// Hallazgos 75b0ce y a503df — CA-546: una copia cuya tarea no es un slug se
+// dice siempre, aunque otra fuente de una copia buena del registro. Dos
+// copias distintas con el mismo id quedan fuera del modelo (Henry,
+// 2026-11-08: los registros son append-only y su id es unico): no se
+// comparan, cuenta la primera y las demas no dicen nada.
+func TestHallazgo_75b0ce_a503df_CA546_LaTareaQueNoEsUnSlugSeDiceSiempre(t *testing.T) {
 	lente := func(s string) string { return strings.Replace(s, `"risk"`, `"readability"`, 1) }
 
 	// identical copies, in the project and in two worktrees: nothing to say
@@ -56,7 +57,7 @@ func TestHallazgo_75b0ce_a503df_CA546_UnaCopiaDistintaSeAvisa(t *testing.T) {
 		t.Fatalf("copias identicas: una ronda y sin avisos: %q", r.Avisos)
 	}
 
-	// a foreign copy that differs is said, though beta gave the record
+	// a foreign copy that differs says nothing when beta gives the record
 	root = ccRoot(t)
 	ccWorktree(t, root, "alfa")
 	ccWorktree(t, root, "beta")
@@ -70,7 +71,9 @@ func TestHallazgo_75b0ce_a503df_CA546_UnaCopiaDistintaSeAvisa(t *testing.T) {
 	if ta := ccTarea(t, "CA-546", r, "beta"); ta.Rondas != 1 || ta.RondasReview[0].Lentes[0] != "risk" {
 		t.Fatalf("cuenta la copia de beta: %+v", ta.RondasReview)
 	}
-	r1Avisa(t, r, `el worktree "alfa" tiene el registro `+rec.ID)
+	if len(r.Avisos) != 0 {
+		t.Fatalf("copias distintas con el mismo id: fuera del modelo, sin avisos: %q", r.Avisos)
+	}
 
 	// a project copy whose task is no slug is said, though a worktree gives
 	// a good copy
@@ -87,7 +90,7 @@ func TestHallazgo_75b0ce_a503df_CA546_UnaCopiaDistintaSeAvisa(t *testing.T) {
 	}
 	r1Avisa(t, r, "tiene una tarea que no es un slug")
 
-	// a later good copy that differs is said too: the first one counts
+	// a later good copy that differs says nothing either: the first one counts
 	root = ccRoot(t)
 	ccWorktree(t, root, "alfa")
 	wta = filepath.Join(root, ".hoom", "worktrees", "alfa")
@@ -99,7 +102,9 @@ func TestHallazgo_75b0ce_a503df_CA546_UnaCopiaDistintaSeAvisa(t *testing.T) {
 	if ta := ccTarea(t, "CA-546", r, "alfa"); ta.Rondas != 1 || ta.RondasReview[0].Lentes[0] != "risk" {
 		t.Fatalf("cuenta la copia del proyecto: %+v", ta.RondasReview)
 	}
-	r1Avisa(t, r, "tiene otra copia, distinta, en el worktree")
+	if len(r.Avisos) != 0 {
+		t.Fatalf("copias distintas con el mismo id: fuera del modelo, sin avisos: %q", r.Avisos)
+	}
 }
 
 // Hallazgo a9b269 — linea imprime el texto tal cual (un % es un %), y el

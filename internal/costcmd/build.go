@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"time"
 	"unicode/utf8"
@@ -95,21 +94,20 @@ type fuente struct {
 //
 // A record is taken from the first source that may give it (the project
 // first). A source that may not give it does not hide it from one that may:
-// a worktree that merged another task's branch carries that task's records.
-// Every other copy of a record is said, unless it is the same as the copy
-// taken: an identical copy is just the merge. A copy is compared while its
-// source is being read, against the copy taken, and is never kept nor
-// serialized: the memory goes with the records, not with the copies
-// (findings 66c8c7, c05fcb, dbcb9c, 4132e6). Only a copy of another task's
-// record read before any source gave it has nothing to be compared with
-// yet: its source is read again at the end (releer).
+// a worktree that merged another task's branch carries that task's records,
+// and a copy of another task's record is said only when no source gives it.
+// A task that is no slug is always said. Two different copies under one id
+// are outside the model (Henry, 2026-11-08): records are append-only and
+// their id is unique, so another file under the same id is a hand edit;
+// copies are not compared, and the rest of them say nothing. Nothing of a
+// copy is kept but its id and its aviso.
 func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 	fuentes := append([]fuente{{dir: c.root}}, c.worktrees()...)
-	tomados := map[string]reviewcmd.Record{}
+	tomados := map[string]bool{}
 	var recs []reviewcmd.Record
 	pend := pendientes{}
 	sinLeer := 0
-	for i, f := range fuentes {
+	for _, f := range fuentes {
 		rs, warnings, err := reviewcmd.RecordsErr(f.dir)
 		if err != nil {
 			if f.tarea == "" {
@@ -119,26 +117,29 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 		}
 		sinLeer += len(warnings)
 		for _, r := range rs {
-			tomado, ya := tomados[r.ID]
 			ajena, por := rechazo(f, r)
 			switch {
-			case por == "" && !ya:
-				tomados[r.ID] = r
+			case por == "" && !tomados[r.ID]:
+				tomados[r.ID] = true
 				recs = append(recs, r)
-			case ya && mismoRegistro(tomado, r):
-			case por == "":
-				c.avisar(fmt.Sprintf("el registro %s tiene otra copia, distinta, en %s: cuenta la primera", r.ID, f.nombre()))
-			case ajena && !ya:
-				pend.agregar(i, r.ID, por)
+			case por == "", ajena && tomados[r.ID]:
+			case ajena:
+				pend[por] = r.ID
 			default:
 				c.avisar(por)
 			}
 		}
 	}
-	for i, f := range fuentes {
-		if ids := pend[i]; len(ids) > 0 {
-			c.releer(f, ids, tomados)
+	// the copies of another task's records that no source gave
+	var ajenas []string
+	for por, id := range pend {
+		if !tomados[id] {
+			ajenas = append(ajenas, por)
 		}
+	}
+	sort.Strings(ajenas)
+	for _, por := range ajenas {
+		c.avisar(por)
 	}
 	if sinLeer > 0 {
 		c.avisar(fmt.Sprintf("%d registros de review ilegibles: las rondas pueden ser mas", sinLeer))
@@ -152,48 +153,10 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 	return recs, nil
 }
 
-// pendientes are, per source (its index), the copies of another task's
-// records that no source had given when they were read: record id -> the
-// aviso they give if they are not the same as the copy taken. Ids, slugs and
-// a cut text: a few bytes per copy, whatever the size of the record.
-type pendientes map[int]map[string]string
-
-func (p pendientes) agregar(fuente int, id, por string) {
-	if p[fuente] == nil {
-		p[fuente] = map[string]string{}
-	}
-	p[fuente][id] = por
-}
-
-// releer compares the pending copies of source f with the copies taken,
-// reading f again: a copy that is the same as the one taken says nothing;
-// one that differs, one of a record no source gave, and every one of a
-// source that cannot be read again give their aviso.
-func (c *contexto) releer(f fuente, pend map[string]string, tomados map[string]reviewcmd.Record) {
-	ids := make([]string, 0, len(pend))
-	tomadoAlguno := false
-	for id := range pend {
-		ids = append(ids, id)
-		_, ok := tomados[id]
-		tomadoAlguno = tomadoAlguno || ok
-	}
-	sort.Strings(ids)
-	iguales := map[string]bool{}
-	if tomadoAlguno {
-		if rs, _, err := reviewcmd.RecordsErr(f.dir); err == nil {
-			for _, r := range rs {
-				if t, ok := tomados[r.ID]; ok && pend[r.ID] != "" && mismoRegistro(t, r) {
-					iguales[r.ID] = true
-				}
-			}
-		}
-	}
-	for _, id := range ids {
-		if !iguales[id] {
-			c.avisar(pend[id])
-		}
-	}
-}
+// pendientes are the copies of another task's records that no source had
+// given when they were read: their aviso -> the record id. A few bytes per
+// copy, whatever the size of the record.
+type pendientes map[string]string
 
 // nombre is how a source is said in an aviso.
 func (f fuente) nombre() string {
@@ -203,19 +166,10 @@ func (f fuente) nombre() string {
 	return fmt.Sprintf("el worktree %q", f.tarea)
 }
 
-// mismoRegistro says whether two copies of a record say the same, field by
-// field, without serializing either. It is stricter than their JSON (an
-// empty list and a missing one differ): the copy a merge brings is the same
-// file, and a copy that is not is said.
-func mismoRegistro(a, b reviewcmd.Record) bool {
-	return reflect.DeepEqual(a, b)
-}
-
 // rechazo is why source f may not give the record r, "" when it may, and
-// whether it is a record of another task (ajena: a copy that may be the
-// same as that task's own). A task that is no slug never reaches the report
-// and is always said, with where the copy is; a worktree speaks only for its
-// own task.
+// whether it is a record of another task (ajena: said only when no source
+// gives it). A task that is no slug never reaches the report and is always
+// said, with where the copy is; a worktree speaks only for its own task.
 func rechazo(f fuente, r reviewcmd.Record) (ajena bool, por string) {
 	switch {
 	case r.Task != "" && !item.ValidSlug(r.Task):

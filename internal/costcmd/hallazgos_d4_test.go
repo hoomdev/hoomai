@@ -13,7 +13,8 @@ import (
 // guarda; lo unico que queda de ella hasta el final (una copia de otra
 // tarea leida antes que la de su tarea) son ids y su aviso. Los worktrees
 // cargan el mismo historial, asi que la memoria va con los registros, no
-// con las copias. (Delta 5: la huella se fue; lo que queda son pendientes.)
+// con las copias. (Delta 5: la huella se fue; delta 6: las copias ya no se
+// comparan, lo que queda son pendientes.)
 func TestHallazgo_66c8c7_c05fcb_CA546_UnaCopiaNoRetieneElRegistro(t *testing.T) {
 	var mirar func(camino string, ty reflect.Type)
 	mirar = func(camino string, ty reflect.Type) {
@@ -50,16 +51,14 @@ func TestHallazgo_66c8c7_c05fcb_CA546_UnaCopiaNoRetieneElRegistro(t *testing.T) 
 	if ta := ccTarea(t, "CA-546", r, "alfa"); ta.Rondas != 1 || len(ta.RondasReview[0].Lentes) != len(lentes) || len(r.Avisos) != 0 {
 		t.Fatalf("copias identicas de un registro grande: una ronda y sin avisos: rondas %d avisos %q", ta.Rondas, r.Avisos)
 	}
-	// and a copy that differs is still said: a later one of the task, and
-	// one another task's worktree carries
+	// copies that differ under the same id are outside the model (Henry,
+	// 2026-11-08): the project's copy counts and nothing is said
 	cambio := func(s string) string { return strings.Replace(s, `"completa"`, `"delta"`, 1) }
 	d3Copiar(t, root, filepath.Join(root, ".hoom", "worktrees", "alfa"), rec.ID, cambio)
 	d3Copiar(t, root, filepath.Join(root, ".hoom", "worktrees", "gama"), rec.ID, cambio)
 	r = ccBuild(t, root, "alfa")
-	r1Avisa(t, r, `tiene otra copia, distinta, en el worktree "alfa"`)
-	r1Avisa(t, r, `el worktree "gama" tiene el registro `+rec.ID)
-	if len(r.Avisos) != 2 {
-		t.Fatalf("solo las dos copias distintas se dicen: %q", r.Avisos)
+	if ta := ccTarea(t, "CA-546", r, "alfa"); ta.Rondas != 1 || ta.RondasReview[0].Cobertura != "completa" || len(r.Avisos) != 0 {
+		t.Fatalf("cuenta la copia del proyecto, sin avisos: %+v %q", ta.RondasReview, r.Avisos)
 	}
 }
 

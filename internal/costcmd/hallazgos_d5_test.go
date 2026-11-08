@@ -3,6 +3,7 @@
 package costcmd
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -86,10 +87,11 @@ func TestHallazgo_7b4027_CA546_DosCopiasRecortadasIgualSeDicenLasDos(t *testing.
 	r1Avisa(t, r, "en el proyecto tiene una tarea")
 }
 
-// CA-546 (delta 5): la copia de otra tarea que se lee antes que la de su
-// tarea se compara al final, releyendo su fuente: igual no dice nada;
-// distinta se dice. Sin fuente que la de, se dice.
-func TestHallazgo_dbcb9c_CA546_LaCopiaAjenaLeidaAntesSeComparaAlFinal(t *testing.T) {
+// CA-546 (delta 5, y delta 6: hallazgos 627919 y b96090): la copia de otra
+// tarea que se lee antes que la de su tarea no dice nada si alguna fuente da
+// el registro, igual o distinta (fuera del modelo, Henry 2026-11-08), y no
+// se relee nada. Sin fuente que la de, se dice.
+func TestHallazgo_627919_CA546_LaCopiaAjenaLeidaAntesCallaSiSuTareaLaDa(t *testing.T) {
 	for _, distinta := range []bool{false, true} {
 		root := ccRoot(t)
 		// "aaa" is read before "beta", and the project has no copy
@@ -109,11 +111,14 @@ func TestHallazgo_dbcb9c_CA546_LaCopiaAjenaLeidaAntesSeComparaAlFinal(t *testing
 		if ta := ccTarea(t, "CA-546", r, "beta"); ta.Rondas != 1 || ta.RondasReview[0].Lentes[0] != "risk" {
 			t.Fatalf("cuenta la copia de beta: %+v", ta.RondasReview)
 		}
-		switch {
-		case distinta:
-			r1Avisa(t, r, `el worktree "aaa" tiene el registro `+rec.ID)
-		case len(r.Avisos) != 0:
-			t.Fatalf("una copia igual no dice nada: %q", r.Avisos)
+		if len(r.Avisos) != 0 {
+			t.Fatalf("beta da el registro: la copia de aaa no dice nada (distinta %v): %q", distinta, r.Avisos)
 		}
+		// without beta's copy, the one aaa carries is said
+		if err := os.Remove(filepath.Join(wtb, ".hoom", "reviews", rec.ID+".json")); err != nil {
+			t.Fatal(err)
+		}
+		r = ccBuild(t, root, "beta")
+		r1Avisa(t, r, `el worktree "aaa" tiene el registro `+rec.ID)
 	}
 }
