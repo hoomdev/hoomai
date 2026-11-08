@@ -187,8 +187,11 @@ func (b *bucle) bucle() (int, error) {
 
 	tic := time.NewTicker(cadaTic)
 	defer tic.Stop()
-	lecturas := time.NewTicker(b.e.Intervalo)
-	defer lecturas.Stop()
+	// the next read of the board is Intervalo after the last one ended: a
+	// board that takes longer than Intervalo to read is not read without
+	// rest
+	var proxima <-chan time.Time
+	tableroPendiente := false
 	winch, parar := avisosDeTamano()
 	defer parar()
 
@@ -228,9 +231,14 @@ func (b *bucle) bucle() (int, error) {
 					l := *ev.lectura
 					l.Ahora = b.e.Ahora()
 					fin, code, err = b.ordenes(b.m.Leer(l))
+					proxima = time.After(b.e.Intervalo)
 				}
 				if ev.detalle != nil {
 					b.m.LeerDetalle(*ev.detalle)
+				}
+				if tableroPendiente {
+					tableroPendiente = false
+					b.leer(true)
 				}
 			}
 		case <-espera:
@@ -242,8 +250,11 @@ func (b *bucle) bucle() (int, error) {
 			b.mirarTamano()
 		case <-winch:
 			b.mirarTamano()
-		case <-lecturas.C:
-			if !b.enVuelo {
+		case <-proxima:
+			proxima = nil
+			if b.enVuelo {
+				tableroPendiente = true // after the card's read that is running
+			} else {
 				b.leer(true)
 			}
 		}
