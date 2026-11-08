@@ -1,7 +1,7 @@
 package costcmd
 
 import (
-	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/item"
@@ -99,6 +100,9 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 	// one that may — a worktree that merged another task's branch carries
 	// that task's records. Every other copy of a record is said, unless it
 	// is the same as the copy taken: an identical copy is just the merge.
+	// A copy keeps only its huella, never the record: worktrees carry the
+	// same history, and the memory goes with the records, not with the
+	// copies (findings 66c8c7, c05fcb).
 	tomados := map[string]reviewcmd.Record{}
 	otras := map[string][]copia{}
 	var conOtras []string
@@ -121,7 +125,7 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 				if len(otras[r.ID]) == 0 {
 					conOtras = append(conOtras, r.ID)
 				}
-				otras[r.ID] = append(otras[r.ID], copia{rec: r, f: f, por: por})
+				otras[r.ID] = append(otras[r.ID], copia{huella: huellaDe(r), f: f, por: por})
 				continue
 			}
 			tomados[r.ID] = r
@@ -131,9 +135,13 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 	}
 	for _, id := range conOtras {
 		tomado, ok := tomados[id]
+		var h huella
+		if ok {
+			h = huellaDe(tomado)
+		}
 		for _, o := range otras[id] {
 			switch {
-			case ok && mismoRegistro(tomado, o.rec):
+			case ok && h.igual(o.huella):
 			case o.por != "":
 				c.avisar(o.por)
 			default:
@@ -151,11 +159,12 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 }
 
 // copia is a copy of a record that was not taken: a later one, or one its
-// source may not give (por says why).
+// source may not give (por says why). It holds a few bytes whatever the size
+// of the record: its huella, its source and the aviso it may give.
 type copia struct {
-	rec reviewcmd.Record
-	f   fuente
-	por string
+	huella huella
+	f      fuente
+	por    string
 }
 
 // nombre is how a source is said in an aviso.
@@ -166,13 +175,23 @@ func (f fuente) nombre() string {
 	return fmt.Sprintf("el worktree %q", f.tarea)
 }
 
-// mismoRegistro says whether two copies of a record say the same: the same
-// JSON once read.
-func mismoRegistro(a, b reviewcmd.Record) bool {
-	ja, errA := json.Marshal(a)
-	jb, errB := json.Marshal(b)
-	return errA == nil && errB == nil && bytes.Equal(ja, jb)
+// huella is what says whether two copies of a record say the same: the
+// sha256 of the record's JSON once read. ok is false when the record does
+// not marshal: such a copy is the same as no other.
+type huella struct {
+	suma [sha256.Size]byte
+	ok   bool
 }
+
+func huellaDe(r reviewcmd.Record) huella {
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return huella{}
+	}
+	return huella{suma: sha256.Sum256(raw), ok: true}
+}
+
+func (a huella) igual(b huella) bool { return a.ok && b.ok && a.suma == b.suma }
 
 // rechazo is why source f may not give the record r, "" when it may: a
 // task that is no slug never reaches the report, and a worktree speaks only
@@ -180,11 +199,28 @@ func mismoRegistro(a, b reviewcmd.Record) bool {
 func rechazo(f fuente, r reviewcmd.Record) string {
 	switch {
 	case r.Task != "" && !item.ValidSlug(r.Task):
-		return fmt.Sprintf("el registro %s tiene una tarea que no es un slug (%q): no se cuenta", r.ID, r.Task)
+		return fmt.Sprintf("el registro %s tiene una tarea que no es un slug (%q): no se cuenta", r.ID, recortar(r.Task))
 	case f.tarea != "" && r.Task != "" && r.Task != f.tarea:
 		return fmt.Sprintf("el worktree %q tiene el registro %s de la tarea %q: no se cuenta", f.tarea, r.ID, r.Task)
 	}
 	return ""
+}
+
+// maxEnAviso is how much of a text that is no slug an aviso shows: a record
+// may be 256 MiB, and its task with it.
+const maxEnAviso = 64
+
+// recortar is s cut to maxEnAviso bytes, on a rune boundary, with "..." when
+// something was cut.
+func recortar(s string) string {
+	if len(s) <= maxEnAviso {
+		return s
+	}
+	i := maxEnAviso
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return s[:i] + "..."
 }
 
 // cargarSeveridades reads the findings of every source. The project's come
