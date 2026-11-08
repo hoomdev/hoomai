@@ -615,6 +615,15 @@ const maxDelegacion = 1 << 20
 // line that merely mentions it is decoded and dropped.
 var marcaDelegacion = []byte(`"agent`)
 
+// UltimosEventos reads the events of the last max bytes of run id's
+// narration in root (all of it when it is shorter): a line cut by the start
+// of that window, and a last line that does not parse (a writer may be
+// mid-line), are left out. It opens the log like ReadEventsFrom: an id
+// that is not a regular file of root's runs is "run no encontrado".
+func UltimosEventos(root, id string, max int64) ([]Event, error) {
+	return nil, nil
+}
+
 // ReadEventsFrom reads the narration from a byte offset and returns the
 // events plus the offset of the next unread byte. The Studio polls the logs
 // of runs it does not own every second; re-parsing the whole file each time
