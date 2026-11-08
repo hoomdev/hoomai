@@ -127,7 +127,8 @@ func (c *contexto) cargarEvidencia() ([]reviewcmd.Record, error) {
 				// a later copy of a record already taken: the first counts,
 				// and a copy that differs is outside the model
 			case ajena && tomados[r.ID]:
-				// another task's record that its task's source already gave
+				// another task's record that a source already gave (the
+				// project, or that task's worktree): the first copy counts
 			case ajena:
 				// another task's record no source gave yet: said at the end
 				// unless one does
