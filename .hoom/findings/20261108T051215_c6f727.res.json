@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T051215_c6f727",
+  "as": "corregido",
+  "evidence": "dce9bef: la rama vacia se separa en dos casos, cada uno con su comentario (copia posterior de un registro tomado: cuenta la primera, la distinta esta fuera del modelo; registro de otra tarea que su fuente ya dio). Solo forma: la conducta la fijan TestHallazgo_75b0ce_a503df_CA546_LaTareaQueNoEsUnSlugSeDiceSiempre y TestHallazgo_627919_CA546_LaCopiaAjenaLeidaAntesCallaSiSuTareaLaDa, que siguen pasando con -race",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T05:13:25.726511Z"
+}

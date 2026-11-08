@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T051215_d4cdf5",
+  "as": "corregido",
+  "evidence": "dce9bef: el resumen de cargarEvidencia ahora dice que el registro de otra tarea se deja fuera y se dice solo cuando ninguna fuente lo da, igual que el codigo. Solo comentario; la conducta la fija TestHallazgo_627919_CA546_LaCopiaAjenaLeidaAntesCallaSiSuTareaLaDa",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T05:13:25.762925Z"
+}
