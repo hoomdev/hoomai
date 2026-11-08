@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T041928_a9b269",
+  "as": "corregido",
+  "evidence": "a24750c: salida.linea(texto) imprime el texto tal cual y salida.lineaf(format, args...) formatea; los call sites con argumentos usan lineaf. Test: TestHallazgo_a9b269_CA544_LineaNoEsUnFormato (un % en linea y en un provider de la evidencia sale tal cual, sin %!)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T04:22:11.428523Z"
+}

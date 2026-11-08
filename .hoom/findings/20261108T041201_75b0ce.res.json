@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T041201_75b0ce",
+  "as": "corregido",
+  "evidence": "a24750c: cargarEvidencia guarda toda copia no tomada (posterior o rechazada, con su motivo) y al final solo calla la que es igual a la tomada (mismoRegistro: el mismo JSON una vez leido); una copia rechazada distinta da su aviso de rechazo, y una posterior distinta da 'el registro X tiene otra copia, distinta, en ...: cuenta la primera'. Test: internal/costcmd/hallazgos_d3_test.go TestHallazgo_75b0ce_a503df_CA546_UnaCopiaDistintaSeAvisa (copias identicas sin aviso; copia ajena distinta, copia del proyecto con tarea que no es slug y copia posterior distinta, avisadas)",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T04:22:11.369684Z"
+}
