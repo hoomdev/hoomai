@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,11 +71,21 @@ func (d datosReales) Detalle(slug string, historia bool) Detalle {
 // project's .hoom/runs, or else in the card's evidence tree.
 func (d datosReales) narracion(dir, run string) ([]runcmd.Event, error) {
 	ev, err := runcmd.UltimosEventos(d.root, run, MaxSobre)
-	if err == nil || dir == "" || dir == "." {
+	if err == nil {
+		return ev, nil
+	}
+	if dir == "" || dir == "." {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return ev, err
 	}
 	if ev2, err2 := runcmd.UltimosEventos(filepath.Join(d.root, filepath.FromSlash(dir)), run, MaxSobre); err2 == nil {
 		return ev2, nil
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		// a run with no narration on this machine: nothing to show, no error
+		return nil, nil
 	}
 	return ev, err
 }
