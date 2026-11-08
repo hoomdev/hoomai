@@ -1,0 +1,11 @@
+{
+  "id": "20261108T045706_b96090",
+  "created_at": "2026-11-08T04:57:06.562025Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:185: releer decide si un ID está pendiente con pend[r.ID] != \"\", mezclando la pertenencia al mapa con el contenido del aviso. La corrección depende así de la invariante implícita de que todo aviso es no vacío, repartida entre rechazo, agregar y releer; una futura causa vacía omitiría la comparación y acabaría generando un aviso vacío. Conviene usar la consulta comma-ok para expresar la pertenencia explícitamente.",
+  "author": "reviewer@codex",
+  "fingerprint": "5ae5185021ad3860",
+  "task": "costo-por-spec"
+}
