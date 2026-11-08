@@ -1,0 +1,11 @@
+{
+  "id": "20261108T042841_c05fcb",
+  "created_at": "2026-11-08T04:28:41.901297Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO — internal/costcmd/build.go:124 retiene cada reviewcmd.Record duplicado completo en otras hasta terminar de recorrer todos los worktrees (el procesamiento recién ocurre en :132-143). Como los worktrees que integraron otras ramas arrastran normalmente el mismo historial de .hoom/reviews, la memoria ahora crece con copias × worktrees en vez de con registros únicos; RecordsErr conserva strings/slices decodificados y admite archivos de hasta 256 MiB (internal/reviewcmd/record.go:92,157-162). Un proyecto con varios worktrees o registros grandes puede hacer que hoom costo sea terminado por OOM. Comparar/avisar las copias ya tomadas al leerlas, y conservar solo un resumen canónico para las rechazadas que aún no tienen una copia válida, evita retener todos los registros.",
+  "author": "reviewer@codex",
+  "fingerprint": "a2d4275e02de9709",
+  "task": "costo-por-spec"
+}

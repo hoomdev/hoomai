@@ -1,0 +1,11 @@
+{
+  "id": "20261108T042413_66c8c7",
+  "created_at": "2026-11-08T04:24:13.661272Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/costcmd/build.go",
+  "description": "INTRODUCIDO: internal/costcmd/build.go:124 retiene cada copia duplicada como un Record completo hasta terminar de recorrer todos los worktrees, y internal/costcmd/build.go:172-174 vuelve a materializar ambos registros con json.Marshal para compararlos. RecordsErr admite archivos de hasta 256 MiB; una evidencia grande propagada a varios worktrees hace crecer la memoria con todas las copias y suma dos buffers por comparación, pudiendo provocar OOM al ejecutar costo. Antes esta ruta descartaba las copias repetidas al detectar el ID. Conservar solo una huella acotada/canonicalizada de cada copia, o comparar en streaming, evita que evidencia controlable convierta el reporte en una denegacion de servicio.",
+  "author": "reviewer@codex",
+  "fingerprint": "a2d4275e02de9709",
+  "task": "costo-por-spec"
+}
