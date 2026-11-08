@@ -1,0 +1,11 @@
+{
+  "id": "20261108T225440_ecb288",
+  "created_at": "2026-11-08T22:54:40.832025Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/tablero/despacho.go",
+  "description": "INTRODUCIDO. internal/tablero/despacho.go:568-576 congela el texto de firma o las rutas mostradas, pero una relectura reemplaza el tablero sin invalidar esa confirmacion (internal/tablero/modelo.go:205-218) y Enter ejecuta solo por slug aprobar/integrar --si o guardar (internal/tablero/despacho.go:590-605). Si el spec, la identidad o las rutas sin guardar cambian mientras el dialogo esta abierto, el verbo hijo relee y firma/guarda el estado nuevo, no el que la persona vio; en particular approval.Approve firma el contenido vigente. Esto permite obtener una firma humana sobre otro spec mediante una carrera y compromete la autorizacion del gate. La confirmacion debe quedar ligada a la huella/accion confirmada y rechazarse o rehacerse si cambia.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

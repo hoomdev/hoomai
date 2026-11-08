@@ -1,0 +1,11 @@
+{
+  "id": "20261108T225440_f28d31",
+  "created_at": "2026-11-08T22:54:40.975851Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/tablero/reales.go",
+  "description": "INTRODUCIDO. internal/tablero/reales.go:126-133 construye cmd /C concatenando cada argumento del editor entre comillas sin escapar comillas ni metacaracteres. AbrirEditor.Archivo puede venir de finding.File sin validacion (internal/tablero/despacho.go:344-353), por lo que en Windows un hallazgo con un file como x\\\" \u0026 powershell ... \u0026 rem \\\" sale de las comillas y ejecuta comandos al pulsar Enter. La excepcion nosemgrep no vuelve seguro el sink: deben pasarse argumentos con quoting correcto o sin cmd, y validarse/confinarse la ruta. Patronizable: agregar una regla Semgrep propia que rechace exec.Command(\"cmd\", \"/C\", ...) cuando la linea se arma por concatenacion de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

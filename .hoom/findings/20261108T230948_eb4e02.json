@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230948_eb4e02",
+  "created_at": "2026-11-08T23:09:48.432455Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "INTRODUCIDO. internal/tablero/pantalla.go:236-240 calcula la marca de seleccion de la fila Hecho y acto seguido la descarta con _ = marca; el bloque aparenta renderizar una seleccion que nunca consume y deja codigo muerto que oculta la intencion de la fila. El calculo debe eliminarse o formar parte del texto renderizado.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

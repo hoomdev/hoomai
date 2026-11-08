@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230948_50d437",
+  "created_at": "2026-11-08T23:09:48.574022Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/boardcmd/tablero_running_test.go",
+  "description": "INTRODUCIDO. internal/boardcmd/tablero_running_test.go:30-176 replica casi literalmente la construccion del proyecto, el recorrido JSON y las aserciones de internal/itemcmd/tablero_running_test.go:29-174 e internal/servecmd/tablero_running_test.go:29-174. Son cientos de lineas que difieren sobre todo en prefijos; cualquier cambio al fixture o al contrato Running exige tres ediciones sincronizadas y facilita divergencias. Conviene extraer un fixture y un asertor compartidos para estos tests.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

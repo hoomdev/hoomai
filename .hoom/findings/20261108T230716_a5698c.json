@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230716_a5698c",
+  "created_at": "2026-11-08T23:07:16.076205Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/tablero/terminal_windows.go",
+  "description": "INTRODUCIDO. internal/tablero/terminal_windows.go:63-71 descarta todo KEY_EVENT cuyo UnicodeChar es 0. En Windows las flechas producen justamente eventos con caracter 0; aunque x/term.MakeRaw habilita ENABLE_VIRTUAL_TERMINAL_INPUT para convertirlas a secuencias VT al leer el handle, este peek las consume antes con ReadConsoleInputW. Por eso Terminal.Read nunca recibe las flechas (y no puede Decodificarlas), degradando el teclado contractual en Windows; hay que dejar que la lectura VT consuma esos eventos o traducir sus virtual-key codes.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

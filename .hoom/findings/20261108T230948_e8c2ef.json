@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230948_e8c2ef",
+  "created_at": "2026-11-08T23:09:48.717434Z",
+  "severity": "medium",
+  "lens": "readability",
+  "file": "internal/tablero/teclas.go",
+  "description": "INTRODUCIDO. internal/tablero/teclas.go:233-252 declara los verbos visibles en Atajo.Verbo, pero internal/tablero/despacho.go:474-501 vuelve a construir sus argumentos con literales independientes y internal/tablero/pantalla.go:778-783 usa solo el texto de la tabla para el menu. El comando tiene dos fuentes de verdad: una para ayuda/menu y otra para ejecutar/formulario, por lo que entender o cambiar una accion obliga a rastrear varios archivos y permite que el texto derive de lo que se lanza. La representacion visible deberia derivarse del mismo constructor de argumentos.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}
