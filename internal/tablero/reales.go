@@ -120,7 +120,7 @@ func (e editorReal) Editar(texto string) (string, error) {
 		return "", err
 	}
 	raw, err := os.ReadFile(path)
-	return strings.TrimRight(string(raw), "\r\n"), err
+	return string(raw), err
 }
 
 func (e editorReal) correr(args []string) error {

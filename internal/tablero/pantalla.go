@@ -525,13 +525,14 @@ func (m *Modelo) rutaSpec() string {
 	return path.Join(m.dirEvidencia(), p)
 }
 
-// dirEvidencia is the open card's evidence dir, relative to the root.
+// dirEvidencia is the open card's evidence dir, relative to the root: the
+// one of the detail the tabs show, else the board's.
 func (m *Modelo) dirEvidencia() string {
-	if c := m.tarjeta(m.abierta); c != nil && c.Evidence.Dir != "" {
-		return c.Evidence.Dir
-	}
-	if m.detalle != nil {
+	if m.detalle != nil && m.detalle.Detalle.Card.Evidence.Dir != "" {
 		return m.detalle.Detalle.Card.Evidence.Dir
+	}
+	if c := m.tarjeta(m.abierta); c != nil {
+		return c.Evidence.Dir
 	}
 	return ""
 }

@@ -758,16 +758,10 @@ func (m *Modelo) acomodarSeleccion() {
 	m.elegir(m.selIdx)
 }
 
-// alFiltrar keeps the selection when its card stays, else it goes to the
-// first card line.
+// alFiltrar puts the selection on the first card line that stays (Hecho's
+// line when none does): what was typed chooses the first match.
 func (m *Modelo) alFiltrar() {
 	els := m.elegibles()
-	for i, e := range els {
-		if !m.sinSeleccion && e.hecho == m.selHecho && (e.hecho || e.slug == m.selSlug) {
-			m.selIdx = i
-			return
-		}
-	}
 	for i, e := range els {
 		if !e.hecho {
 			m.elegir(i)

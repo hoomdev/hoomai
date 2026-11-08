@@ -203,14 +203,16 @@ func Nuevo(c Config) *Modelo {
 //     a running whose envelope id (or run id when it has no envelope) the
 //     card did not have when the order was given.
 func (m *Modelo) Leer(l Lectura) []Orden {
-	if !l.Ahora.IsZero() {
-		m.ahora = l.Ahora
-	}
 	m.fijada = l.Fijada
 	if l.Err != nil {
+		// the screen stays the last board's, its times included: the clock
+		// moves with Tic and with the reads that work
 		m.errLectura = "no se pudo leer el tablero: " + l.Err.Error()
 		m.acomodar()
 		return nil
+	}
+	if !l.Ahora.IsZero() {
+		m.ahora = l.Ahora
 	}
 	m.errLectura = ""
 	m.tablero = l.Tablero
