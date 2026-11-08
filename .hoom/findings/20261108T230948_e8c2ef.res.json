@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230948_e8c2ef",
+  "as": "corregido",
+  "evidence": "b56e24d: el verbo que corre sale de la misma fila de Atajos que muestran la ayuda y el menu. verboDe (despacho.go) parte Atajo.Verbo en palabras, saca 'hoom' y reemplaza \u003cslug\u003e; accion lo usa para u, la n, las confirmaciones A/I/s y los formularios, y una fila sin verbo dice 'sin verbo en la terminal'. Ya no hay literales de argumentos aparte. La guarda TestCA532_CA525_LoQueCorreEsLoQueSeMuestra (eca8f61) recorre cada Atajo con Accion y exige que los Args del Lanzar empiecen con las palabras de su Verbo: pasa antes y despues, porque el hallazgo es de legibilidad, y fija que no puedan volver a divergir.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:41.134491Z"
+}

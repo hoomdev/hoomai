@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230609_5f48e8",
+  "as": "corregido",
+  "evidence": "b56e24d: el fin de un trabajo es rojo (fallo en modelo.go) si Card.Red es el sobre visto, o si Interrupted es de ese sobre (o del run, cuando el trabajo no tenia sobre). Solo es verde lo que dejo de correr sin ninguna de las dos marcas. Test TestCA530_FinInterrumpidoEsRojo (eca8f61): un sobre visto corriendo que pasa a Interrupted es rojo (con color, \\x1b[31m); un run suelto con Interrupted{RunID} tambien; un fin sin rojo ni interrupcion es verde; rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:41.030235Z"
+}

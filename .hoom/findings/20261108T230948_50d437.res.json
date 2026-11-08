@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230948_50d437",
+  "as": "corregido",
+  "evidence": "eca8f61 (test-writer ciego): el paquete internal/runningtest, solo de tests como gittest o worktreetest, junta el proyecto con las tres tarjetas en curso (Proyecto), la busqueda en el JSON (Running) y lo que se exige (RevisarJSON). Los tests TestCA519 de boardcmd, itemcmd y servecmd lo usan sin cambiar ninguna asercion: mismas claves, mismos valores, mismos slugs. Pasan antes y despues del refactor, y go list -deps confirma que runningtest no importa ninguno de los tres paquetes.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:41.101234Z"
+}

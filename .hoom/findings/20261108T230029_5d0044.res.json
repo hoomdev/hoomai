@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230029_5d0044",
+  "as": "corregido",
+  "evidence": "b56e24d: runcmd.openLog devuelve un error que envuelve su causa (logNoEncontrado.Unwrap), asi errors.Is(err, fs.ErrNotExist) se cumple y un run sin .jsonl es una cinta vacia sin error. El mensaje sigue siendo 'run no encontrado: \u003cid\u003e'. Test TestCA523_DatosDeRunSinNarracion (eca8f61): una tarjeta cuyo run tiene sidecar pero ningun .jsonl da un Sobre sin eventos y con Err nil; rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.932617Z"
+}

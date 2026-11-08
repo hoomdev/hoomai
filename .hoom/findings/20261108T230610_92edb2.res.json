@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230610_92edb2",
+  "as": "corregido",
+  "evidence": "b56e24d. (1) El sentinel: runcmd.openLog envuelve su causa (logNoEncontrado.Unwrap), asi que la ausencia se comprueba con errors.Is(fs.ErrNotExist). (2) narracion (reales.go) ya no descarta el error del fallback: prueba la raiz y luego la carpeta de la evidencia; devuelve el error real de la carpeta, cinta vacia si en los dos lados no existe, y si no el error de la raiz. Test TestCA523_DatosDeRunSinNarracion (eca8f61): rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.964983Z"
+}

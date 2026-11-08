@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230948_eb4e02",
+  "as": "corregido",
+  "evidence": "b56e24d: se borro el calculo muerto de la marca en la fila Hecho (pantalla.go) y el '_ = marca' que lo descartaba; la fila se dibuja igual (dorados de la ronda 0 sin cambios).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:41.168642Z"
+}

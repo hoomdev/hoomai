@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230017_ca8887",
+  "as": "corregido",
+  "evidence": "b56e24d: incompleta (teclas.go) tambien retiene un prefijo UTF-8 incompleto al final de lo leido: busca hacia atras, hasta utf8.UTFMax bytes, el comienzo de una runa y pregunta utf8.FullRune. Asi el bucle espera esperaSecuencia al resto antes de decodificar. Tests TestCA520_RunRunaPartidaEnDosLecturas y TestCA527_RunRunaPartidaEnElPedido (eca8f61): una ñ partida en dos lecturas llega entera a la busqueda y a los Args del pedido; rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.865926Z"
+}

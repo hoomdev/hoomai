@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230035_bc6939",
+  "as": "corregido",
+  "evidence": "b56e24d y 157c08c: el formulario del reviewer trae la linea Tiempo limite con el timeout_s de la accion (CA-527 solo exceptua el Pedido). Se ve en gris, sin marca de foco y con '(de review.timeout)'. Tab la salta y nunca se manda --timeout, porque la capa 1 rechaza --timeout para el reviewer (su tiempo es review.timeout de hoom.yaml); asi el formulario muestra el valor sin ofrecer un cambio que el verbo no acepta (doc.go 'The launch form'). TestCA527_ElReviewerNoTienePedido, reescrito por el test-writer ciego (eca8f61): rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.99701Z"
+}
