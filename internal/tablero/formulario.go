@@ -43,7 +43,7 @@ type formulario struct {
 	accion   boardcmd.Action
 	verbo    []string // {"pedir", <rol>, <slug>}, {"siguiente", <slug>} or {"reanudar", <slug>}
 	desde    Vista
-	revisor  bool // no Tiempo limite and no Pedido
+	revisor  bool // no Pedido, and its Tiempo limite is review.timeout's: shown, never sent
 	reanudar bool // the provider is the session's: it does not change
 
 	opcion, propuesta int // the chosen provider option and the proposed one (-1: none)
@@ -125,8 +125,9 @@ func (m *Modelo) abrirFormulario(c *boardcmd.Card, a boardcmd.Action, verbo []st
 		nuevo(campoEsfuerzo, a.Effort),
 		nuevo(campoPresupuesto, presupuesto),
 	}
+	f.campos = append(f.campos, nuevo(campoTiempo, tiempo))
 	if !f.revisor {
-		f.campos = append(f.campos, nuevo(campoTiempo, tiempo), nuevo(campoPedido, a.Pedido))
+		f.campos = append(f.campos, nuevo(campoPedido, a.Pedido))
 		f.enfocar(campoPedido)
 	} else {
 		f.enfocar(campoProvider)
@@ -279,7 +280,10 @@ func (f *formulario) args() []string {
 	cambio(campoModelo, "--model")
 	cambio(campoEsfuerzo, "--effort")
 	cambio(campoPresupuesto, "--budget-usd")
-	cambio(campoTiempo, "--timeout")
+	if !f.revisor {
+		// the reviewer's timeout is review.timeout: capa 1 takes no --timeout
+		cambio(campoTiempo, "--timeout")
+	}
 	return out
 }
 

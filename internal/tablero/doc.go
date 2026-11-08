@@ -224,9 +224,23 @@
 //
 // The focused text field shows the text cursor at its cursor (the pedido:
 // its wrapped lines with the cursor inserted, the 4 that end at the
-// cursor's line). The reviewer has neither Tiempo limite nor Pedido (nor
-// their empty lines); reanudar shows Provider without the arrows (the
-// session is its provider's: ← and → do nothing there).
+// cursor's line). The reviewer has no Pedido (nor its empty line), and its
+// Tiempo limite is not a field: hoom pedir reviewer takes it from
+// review.timeout and has no --timeout, so the line shows it gray, without
+// the focus mark, as "Tiempo limite  <text> (de review.timeout)" ("de
+// review.timeout" for <text> when the action brings none), tab skips it and
+// no --timeout is ever sent; reanudar shows Provider without the arrows
+// (the session is its provider's: ← and → do nothing there).
+//
+// A box taller than the body (Alto-4 lines, the box's two borders
+// included) leaves out, in this order and only until it fits: the empty
+// lines; the lines of the providers that cannot (the Provider line then
+// ends with "  (<n> no pueden)", gray); the keys line; and the pedido's
+// lines, down to the one with the cursor. The → line always stays.
+// guardar's confirmation that does not fit shows its first paths and
+// "y <n> rutas mas" in a last line; a signature that does not fit whole is
+// never signed: enter on Firmar says "agranda la terminal: la firma no
+// entra entera" in red and runs nothing.
 //
 // tab and shift-tab move the focus over the fields in that order, wrapping
 // around; ← and → on Provider choose the previous or next option that can
@@ -241,6 +255,14 @@
 // one between brackets; Cancelar at the start). guardar: "Se guarda en
 // git:", one line per unsynced path, an empty line and
 // "enter guardar · esc cancelar".
+//
+// A confirmation is tied to what it shows. On every read of the board or of
+// the open card, and on enter before anything runs, it is compared with the
+// data of now: its card must still have the action enabled, the signature's
+// text be the same (and the spec, when the open card's detail showed it),
+// guardar's paths be the same. When they are not, it closes and the bar
+// says in red the action's why or "cambio lo que ibas a confirmar en
+// <slug>: vuelve a abrirlo", and nothing runs.
 //
 // # The help (VistaAyuda)
 //

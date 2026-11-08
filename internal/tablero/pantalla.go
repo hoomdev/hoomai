@@ -233,11 +233,6 @@ func (m *Modelo) cuerpoLista() ([]linea, []lugar) {
 	for _, sc := range m.secciones() {
 		if sc.hecho {
 			pos = append(pos, lugar{len(out), len(out)})
-			marca := " "
-			if !m.sinSeleccion && idx == m.selIdx {
-				marca = m.s.sel
-			}
-			_ = marca
 			out = append(out, linCon(" "+sc.titulo, negrita))
 			idx++
 			if !m.hechoAbierto {
@@ -899,7 +894,6 @@ func (m *Modelo) conCursor(c *campo) string {
 func (m *Modelo) cajaFormulario() []linea {
 	f := m.form
 	foco := f.enfocado()
-	var inner []linea
 	// the provider
 	nombre := ""
 	if f.opcion >= 0 && f.opcion < len(f.accion.Providers) {
@@ -909,10 +903,10 @@ func (m *Modelo) cajaFormulario() []linea {
 	if f.reanudar {
 		prov = nombre
 	}
-	inner = append(inner, lin(m.marca(foco == campoProvider)+rellenar("Provider", 15)+prov))
+	var noPueden []linea
 	for _, o := range f.accion.Providers {
 		if !o.OK {
-			inner = append(inner, linCon(strings.Repeat(" ", 17)+o.Name+": "+o.Why, gris))
+			noPueden = append(noPueden, linCon(strings.Repeat(" ", 17)+o.Name+": "+o.Why, gris))
 		}
 	}
 	texto := func(id int, vacio, sufijo string) string {
@@ -925,31 +919,73 @@ func (m *Modelo) cajaFormulario() []linea {
 		}
 		return c.valor() + sufijo
 	}
-	inner = append(inner,
-		lin(m.marca(foco == campoModelo)+rellenar("Modelo", 15)+texto(campoModelo, "del provider", "")),
-		lin(m.marca(foco == campoEsfuerzo)+rellenar("Esfuerzo", 15)+texto(campoEsfuerzo, "del provider", "")),
-		lin(m.marca(foco == campoPresupuesto)+rellenar("Presupuesto", 15)+texto(campoPresupuesto, "sin tope", " USD")),
-	)
-	if !f.revisor {
-		inner = append(inner, lin(m.marca(foco == campoTiempo)+rellenar("Tiempo limite", 15)+texto(campoTiempo, "", "")))
-		inner = append(inner, nil)
-		etiquetaPedido := lin(m.marca(foco == campoPedido) + "Pedido")
-		if f.pedidoVacio {
-			etiquetaPedido = linCon(m.marca(foco == campoPedido)+"Pedido", rojo)
-		}
-		inner = append(inner, etiquetaPedido)
-		inner = append(inner, m.lineasPedido()...)
+	campos := []linea{
+		lin(m.marca(foco == campoModelo) + rellenar("Modelo", 15) + texto(campoModelo, "del provider", "")),
+		lin(m.marca(foco == campoEsfuerzo) + rellenar("Esfuerzo", 15) + texto(campoEsfuerzo, "del provider", "")),
+		lin(m.marca(foco == campoPresupuesto) + rellenar("Presupuesto", 15) + texto(campoPresupuesto, "sin tope", " USD")),
 	}
-	inner = append(inner, nil)
-	inner = append(inner, lin(m.s.flecha+" "+lineaVerbo(f.args(), m.c.Windows)))
-	inner = append(inner, lin("enter lanzar · tab campos · ctrl-e editor · esc cancelar"))
+	if f.revisor {
+		// shown as the action brings it, not a field: hoom pedir reviewer
+		// takes it from review.timeout and has no --timeout
+		campos = append(campos, linCon(m.marca(false)+rellenar("Tiempo limite", 15)+texto(campoTiempo, "de review.timeout", "")+" (de review.timeout)", gris))
+	} else {
+		campos = append(campos, lin(m.marca(foco == campoTiempo)+rellenar("Tiempo limite", 15)+texto(campoTiempo, "", "")))
+	}
+	verbo := lin(m.s.flecha + " " + lineaVerbo(f.args(), m.c.Windows))
+	ayuda := lin("enter lanzar · tab campos · ctrl-e editor · esc cancelar")
+
+	armar := func(blancos, conNoPueden, conAyuda bool, nPedido int) []linea {
+		linProv := lin(m.marca(foco == campoProvider) + rellenar("Provider", 15) + prov)
+		if !conNoPueden && len(noPueden) > 0 {
+			linProv = linProv.masCon(fmt.Sprintf("  (%d no pueden)", len(noPueden)), gris)
+		}
+		inner := []linea{linProv}
+		if conNoPueden {
+			inner = append(inner, noPueden...)
+		}
+		inner = append(inner, campos...)
+		if !f.revisor {
+			if blancos {
+				inner = append(inner, nil)
+			}
+			etiquetaPedido := lin(m.marca(foco == campoPedido) + "Pedido")
+			if f.pedidoVacio {
+				etiquetaPedido = linCon(m.marca(foco == campoPedido)+"Pedido", rojo)
+			}
+			inner = append(inner, etiquetaPedido)
+			inner = append(inner, m.lineasPedido(nPedido)...)
+		}
+		if blancos {
+			inner = append(inner, nil)
+		}
+		inner = append(inner, verbo)
+		if conAyuda {
+			inner = append(inner, ayuda)
+		}
+		return inner
+	}
+	// what does not fit in the body goes, in this order: the empty lines,
+	// the providers that cannot (their why comes back when one is chosen),
+	// the keys line (the bar has them) and the pedido's lines but the one
+	// with the cursor; the → line always stays
+	cabe := m.c.Alto - 4 - 2
+	inner := armar(true, true, true, 4)
+	for _, paso := range [][3]bool{{false, true, true}, {false, false, true}, {false, false, false}} {
+		if len(inner) <= cabe {
+			break
+		}
+		inner = armar(paso[0], paso[1], paso[2], 4)
+	}
+	for n := 3; n >= 1 && len(inner) > cabe; n-- {
+		inner = armar(false, false, false, n)
+	}
 	return m.caja(f.accion.Label+" · "+f.slug, inner)
 }
 
 // lineasPedido are the pedido's lines in the form: wrapped hard to the
-// inner width, the last 4 (the 4 that end at the cursor's line when it is
-// focused).
-func (m *Modelo) lineasPedido() []linea {
+// inner width, the last n (the n that end at the cursor's line when it is
+// focused; 4 when the box fits).
+func (m *Modelo) lineasPedido(n int) []linea {
 	f := m.form
 	c := f.campo(campoPedido)
 	wi := m.interior()
@@ -966,7 +1002,7 @@ func (m *Modelo) lineasPedido() []linea {
 	if fin > len(lineas) {
 		fin = len(lineas)
 	}
-	ini := fin - 4
+	ini := fin - n
 	if ini < 0 {
 		ini = 0
 	}
@@ -991,11 +1027,24 @@ func (m *Modelo) cajaConfirmacion() []linea {
 		}
 		inner = append(inner, lin(botones))
 	} else {
+		// the paths that do not fit say how many they are; the keys line
+		// always stays
+		cabe := m.c.Alto - 4 - 2 - 3
+		paths := cf.paths
+		if len(paths) > cabe+1 && cabe >= 1 {
+			paths = append(paths[:cabe-1:cabe-1], fmt.Sprintf("y %d rutas mas", len(cf.paths)-(cabe-1)))
+		}
 		inner = append(inner, lin("Se guarda en git:"))
-		for _, p := range cf.paths {
+		for _, p := range paths {
 			inner = append(inner, lin(p))
 		}
 		inner = append(inner, nil, lin("enter guardar · esc cancelar"))
 	}
 	return m.caja(cf.accion.Label+" · "+cf.slug, inner)
+}
+
+// confirmacionCabe says whether the confirmation's box fits in the body
+// whole: a signature is never signed with part of its text out of view.
+func (m *Modelo) confirmacionCabe() bool {
+	return len(m.cajaConfirmacion()) <= m.c.Alto-4
 }

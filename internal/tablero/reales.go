@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
@@ -68,26 +69,27 @@ func (d datosReales) Detalle(slug string, historia bool) Detalle {
 }
 
 // narracion is the last MaxSobre bytes of the run's narration: in the
-// project's .hoom/runs, or else in the card's evidence tree.
+// project's .hoom/runs, or else in the card's evidence tree. A narration
+// that is in neither (a run of another machine) is nothing to show, not an
+// error; any other failure is, the evidence tree's first.
 func (d datosReales) narracion(dir, run string) ([]runcmd.Event, error) {
 	ev, err := runcmd.UltimosEventos(d.root, run, MaxSobre)
 	if err == nil {
 		return ev, nil
 	}
-	if dir == "" || dir == "." {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+	if dir != "" && dir != "." {
+		ev2, err2 := runcmd.UltimosEventos(filepath.Join(d.root, filepath.FromSlash(dir)), run, MaxSobre)
+		if err2 == nil {
+			return ev2, nil
 		}
-		return ev, err
-	}
-	if ev2, err2 := runcmd.UltimosEventos(filepath.Join(d.root, filepath.FromSlash(dir)), run, MaxSobre); err2 == nil {
-		return ev2, nil
+		if !errors.Is(err2, fs.ErrNotExist) {
+			return nil, err2
+		}
 	}
 	if errors.Is(err, fs.ErrNotExist) {
-		// a run with no narration on this machine: nothing to show, no error
 		return nil, nil
 	}
-	return ev, err
+	return nil, err
 }
 
 // ---------------------------------------------------------------- the editor
@@ -126,11 +128,17 @@ func (e editorReal) Editar(texto string) (string, error) {
 func (e editorReal) correr(args []string) error {
 	var cmd *exec.Cmd
 	if e.goos == "windows" {
+		// each argument between quotes, and none that cmd reads inside
+		// them: a quote ends the quoting, % and ! expand variables. The
+		// arguments come from the evidence (a finding's file).
 		linea := e.comando
 		for _, a := range args {
+			if strings.ContainsAny(a, `"%!`) || strings.IndexFunc(a, unicode.IsControl) >= 0 {
+				return fmt.Errorf("cmd no puede citar %q: tiene comillas, porcentaje, ! o un control", a)
+			}
 			linea += ` "` + a + `"`
 		}
-		cmd = exec.Command("cmd", "/C", linea) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el editor es el de la persona ($VISUAL/$EDITOR), como en git y en la capa 1
+		cmd = lineaCmd(linea)
 	} else {
 		cmd = exec.Command("sh", append([]string{"-c", e.comando + ` "$@"`, e.comando}, args...)...) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el editor es el de la persona ($VISUAL/$EDITOR), como en git y en la capa 1
 	}

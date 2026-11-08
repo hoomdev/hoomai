@@ -43,8 +43,10 @@ type registroEntrada struct {
 }
 
 // hayEntrada waits up to d for a key that gives text: the console's other
-// events (focus, the mouse, a key up) are taken out, or the Read that
-// follows would block on them.
+// events (focus, the mouse, a key up, a modifier alone) are taken out, or
+// the Read that follows would block on them. A key with no character of
+// its own (an arrow, Home, End, F1) gives text too: with the raw mode's
+// ENABLE_VIRTUAL_TERMINAL_INPUT the console reads it as its VT sequence.
 func hayEntrada(f *os.File, d time.Duration) (bool, error) {
 	h := windows.Handle(f.Fd())
 	ev, err := windows.WaitForSingleObject(h, uint32(d/time.Millisecond))
@@ -61,7 +63,7 @@ func hayEntrada(f *os.File, d time.Duration) (bool, error) {
 		return false, err
 	}
 	for _, rec := range recs[:n] {
-		if rec.tipo == windows.KEY_EVENT && rec.abajo != 0 && rec.caracter != 0 {
+		if rec.tipo == windows.KEY_EVENT && rec.abajo != 0 && (rec.caracter != 0 || conSecuencia(rec.tecla)) {
 			return true, nil
 		}
 	}
@@ -75,3 +77,11 @@ func hayEntrada(f *os.File, d time.Duration) (bool, error) {
 
 // avisosDeTamano: Windows has no SIGWINCH; the size is asked every 250 ms.
 func avisosDeTamano() (<-chan os.Signal, func()) { return nil, func() {} }
+
+// conSecuencia says whether the virtual key vk, which has no character, is
+// one the console's VT input turns into a sequence: PageUp to Down (0x21 to
+// 0x28: PageUp, PageDown, End, Home and the four arrows), Insert, Delete
+// and F1 to F12.
+func conSecuencia(vk uint16) bool {
+	return (vk >= 0x21 && vk <= 0x28) || vk == 0x2D || vk == 0x2E || (vk >= 0x70 && vk <= 0x7B)
+}

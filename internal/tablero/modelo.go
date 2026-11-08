@@ -149,6 +149,8 @@ type Modelo struct {
 	msg       string
 	msgEstilo estilo
 	msgHasta  time.Time
+	msgFin    bool    // the message is an end notice
+	finales   []aviso // the end notices still to show, oldest first
 
 	// the launches
 	sigID    int
@@ -165,7 +167,13 @@ type lanzado struct {
 
 // visto is what a card the model saw with running was running.
 type visto struct {
-	rol, envelope string
+	rol, envelope, run string
+}
+
+// aviso is a message of the bar waiting for its turn.
+type aviso struct {
+	texto  string
+	estilo estilo
 }
 
 // Nuevo is the model before the first read of the board.
@@ -197,8 +205,13 @@ func Nuevo(c Config) *Modelo {
 //   - A card the model saw with running, read now without it, puts in the
 //     bar for DuracionFin "<rol> termino en <slug>: <plain>" (its plain of
 //     now): red when the card's red is the envelope's (red.source ==
-//     boardcmd.RedEnvelope and red.id == the envelope id it saw running),
-//     green otherwise. It does so whoever launched it.
+//     boardcmd.RedEnvelope and red.id == the envelope id it saw running)
+//     or when the card shows interrupted for the envelope (or, without
+//     one, the run) it saw: the work died, it did not close entregable;
+//     green otherwise. It does so whoever launched it. Several cards that
+//     stopped in one read show one after another, in the board's order,
+//     each for DuracionFin; an end notice takes the bar from a message of
+//     another kind.
 //   - A launch the model is waiting for is "registered" when its card shows
 //     a running whose envelope id (or run id when it has no envelope) the
 //     card did not have when the order was given.
@@ -225,15 +238,16 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 			continue
 		}
 		e := verde
-		if c.Red != nil && c.Red.Source == boardcmd.RedEnvelope && v.envelope != "" && c.Red.ID == v.envelope {
+		if fallo(c, v) {
 			e = rojo
 		}
-		m.avisar(fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), e, DuracionFin)
+		m.finales = append(m.finales, aviso{texto: fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), estilo: e})
 	}
+	m.avanzarAvisos()
 	m.vistos = map[string]visto{}
 	for _, c := range m.todas() {
 		if r := c.Running; r != nil {
-			m.vistos[c.Slug] = visto{rol: rolDe(r.Role), envelope: r.EnvelopeID}
+			m.vistos[c.Slug] = visto{rol: rolDe(r.Role), envelope: r.EnvelopeID, run: r.RunID}
 		}
 	}
 	// the launches its card now shows running
@@ -253,6 +267,7 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 		m.cerrarTodo()
 		m.avisar(fmt.Sprintf("la tarjeta %s ya no existe", slug), normal, DuracionAviso)
 	}
+	m.revisarConfirmacion()
 	m.acomodar()
 	return nil
 }
@@ -264,6 +279,7 @@ func (m *Modelo) LeerDetalle(d Detalle) {
 		return
 	}
 	m.detalle = &d
+	m.revisarConfirmacion()
 	m.acomodar()
 }
 
@@ -304,7 +320,7 @@ func (m *Modelo) LeerDetalle(d Detalle) {
 // for DuracionAviso (e.g. "lanzando hoom pedir writer <slug>", "lanzando
 // hoom siguiente <slug>": the verb's words, without -m and the flags). The order's Args are the verb ({"pedir", <rol>, <slug>}, {"siguiente",
 // <slug>} or {"reanudar", <slug>}), "-m" and the trimmed pedido (not for the
-// reviewer), then, in this order and only when its value differs from the
+// reviewer, nor its --timeout), then, in this order and only when its value differs from the
 // action's proposal: "--provider" <name>, "--model" <text>, "--effort"
 // <text>, "--budget-usd" <text> (an empty Presupuesto is "0", no cap),
 // "--timeout" <text>. The → line is "→ hoom " and those Args, each value
@@ -415,6 +431,36 @@ func (m *Modelo) Tamano(ancho, alto int) {
 // ("hace <n>s") move.
 func (m *Modelo) Tic(ahora time.Time) {
 	m.ahora = ahora
+	m.avanzarAvisos()
+}
+
+// fallo says whether the work the model saw running on c ended without
+// closing entregable: the card's red is its envelope's, or the card shows
+// it interrupted (its owner died).
+func fallo(c *boardcmd.Card, v visto) bool {
+	if c.Red != nil && c.Red.Source == boardcmd.RedEnvelope && v.envelope != "" && c.Red.ID == v.envelope {
+		return true
+	}
+	if i := c.Interrupted; i != nil {
+		if v.envelope != "" {
+			return i.EnvelopeID == v.envelope
+		}
+		return v.run != "" && i.RunID == v.run
+	}
+	return false
+}
+
+// avanzarAvisos puts the next end notice in the bar unless another end
+// notice is still showing: the end notices of one read go one after
+// another, and one takes the bar from a message of another kind.
+func (m *Modelo) avanzarAvisos() {
+	if len(m.finales) == 0 || (m.msgFin && m.msg != "" && m.ahora.Before(m.msgHasta)) {
+		return
+	}
+	a := m.finales[0]
+	m.finales = m.finales[1:]
+	m.avisar(a.texto, a.estilo, DuracionFin)
+	m.msgFin = true
 }
 
 // Vista is the current view.

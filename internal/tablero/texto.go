@@ -128,10 +128,10 @@ func (l linea) cortada(w int, corte string) linea {
 	return out
 }
 
-// dibujar is the line as Pantalla returns it: cut to w, with SGR sequences
-// when color.
+// dibujar is the line as Pantalla returns it: its controls neutralized,
+// cut to w, with SGR sequences when color.
 func (l linea) dibujar(w int, corte string, color bool) string {
-	c := l.cortada(w, corte)
+	c := l.limpia().cortada(w, corte)
 	if !color {
 		return c.plano()
 	}
@@ -144,6 +144,29 @@ func (l linea) dibujar(w int, corte string, color bool) string {
 		b.WriteString(t.texto)
 	}
 	return b.String()
+}
+
+// limpia is the line with no character that the terminal would take as a
+// command: the texts come from the project and from the agents' narration
+// (titles, specs, findings, events), and an ESC, a C1 control or a bidi
+// override there would run as a sequence (the clipboard, the screen) or
+// reorder the line. A tab is a space; any other control, a ?.
+func (l linea) limpia() linea {
+	out := make(linea, len(l))
+	for i, t := range l {
+		out[i] = tramo{texto: strings.Map(neutro, t.texto), estilo: t.estilo}
+	}
+	return out
+}
+
+func neutro(r rune) rune {
+	switch {
+	case r == '\t':
+		return ' '
+	case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r):
+		return '?'
+	}
+	return r
 }
 
 // celdas is how many cells s takes: one per rune (spec, Riesgos).

@@ -125,8 +125,18 @@ func escape(b []byte) (Tecla, int) {
 var flechas = map[byte]Tecla{'A': TeclaArriba, 'B': TeclaAbajo, 'C': TeclaDer, 'D': TeclaIzq}
 
 // incompleta says whether b ends inside an escape sequence Decodificar
-// would read as more than an ESC: Run waits a moment for the rest.
+// would read as more than an ESC, or inside a UTF-8 character (a read can
+// cut a pasted text anywhere): Run waits a moment for the rest.
 func incompleta(b []byte) bool {
+	// the last character's start: at most 3 continuation bytes back
+	for j := len(b) - 1; j >= 0 && j >= len(b)-utf8.UTFMax; j-- {
+		if utf8.RuneStart(b[j]) {
+			if !utf8.FullRune(b[j:]) {
+				return true
+			}
+			break
+		}
+	}
 	i := bytes.LastIndexByte(b, 0x1b)
 	if i < 0 {
 		return false

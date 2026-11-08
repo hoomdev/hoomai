@@ -93,8 +93,13 @@ func (b *bucle) tomar() error {
 	}
 	b.restaurar, b.tomada = restaurar, true
 	b.ultimo = ""
-	_, err = io.WriteString(b.e.Terminal, SecEntrar)
-	return err
+	if _, err = io.WriteString(b.e.Terminal, SecEntrar); err != nil {
+		// the terminal back as it was before returning: no caller is left
+		// holding a raw terminal it does not know it took
+		_ = b.soltar()
+		return err
+	}
+	return nil
 }
 
 // soltar leaves the alternate screen and puts the terminal back.
@@ -294,8 +299,17 @@ func (b *bucle) ordenes(ords []Orden) (bool, int, error) {
 			}
 		case AbrirEditor:
 			archivo := filepath.Join(b.root, filepath.FromSlash(o.Archivo))
-			if err := b.conEditor(func() error { return b.e.Editor.Abrir(archivo, o.Linea) }); err != nil {
+			var errEd error
+			if err := b.conEditor(func() error {
+				errEd = b.e.Editor.Abrir(archivo, o.Linea)
+				return nil
+			}); err != nil {
 				return true, 1, err
+			}
+			if errEd != nil {
+				// the clock moved while the editor had the terminal
+				b.m.Tic(b.e.Ahora())
+				b.m.avisar("no se pudo abrir el editor: "+strings.TrimPrefix(errEd.Error(), "hoom: "), rojo, DuracionAviso)
 			}
 		case EditarPedido:
 			var texto string

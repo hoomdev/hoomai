@@ -527,26 +527,38 @@ func ReadEvents(root, id string) ([]Event, error) {
 // blocking on a FIFO), so what is read is what was checked.
 func openLog(root, id string) (*os.File, error) {
 	if !validID(id) {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id}
 	}
 	// down from root by descriptors: a .hoom or a runs swapped for a symlink
 	// between a look and an open would still be followed by a path
 	// (finding 31a00d)
 	r, err := abrirRuns(root)
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id, causa: err}
 	}
 	defer r.Close()
 	fi, err := r.Lstat(id + ".jsonl")
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id, causa: err}
 	}
 	f, err := hoomfs.AbrirRegularEn(r, id+".jsonl", fi)
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id, causa: err}
 	}
 	return f, nil
 }
+
+// logNoEncontrado is openLog's "run no encontrado". Its text is the same
+// whatever happened; it unwraps to what happened, so a reader can tell a
+// log that is not on this machine (fs.ErrNotExist) from one it could not
+// open.
+type logNoEncontrado struct {
+	id    string
+	causa error
+}
+
+func (e logNoEncontrado) Error() string { return "run no encontrado: " + e.id }
+func (e logNoEncontrado) Unwrap() error { return e.causa }
 
 // ReadDelegations reads only the delegation events of a run (agent and
 // agent_end), line by line: the card's history needs no more, and a log that

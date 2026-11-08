@@ -1,7 +1,12 @@
 package tablero
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -329,7 +334,7 @@ func (m *Modelo) abrirSpec() []Orden {
 	if m.detalle == nil || !tieneSpec(m.detalle) {
 		return nil
 	}
-	return []Orden{AbrirEditor{Archivo: m.rutaSpec(), Linea: m.scrolls[VistaSpec] + 1}}
+	return m.abrirArchivo(m.rutaSpec(), m.scrolls[VistaSpec]+1)
 }
 
 func (m *Modelo) abrirHallazgo() []Orden {
@@ -350,7 +355,19 @@ func (m *Modelo) abrirHallazgo() []Orden {
 	if dir != "" && dir != "." {
 		archivo = dir + "/" + archivo
 	}
-	return []Orden{AbrirEditor{Archivo: archivo, Linea: n}}
+	return m.abrirArchivo(archivo, n)
+}
+
+// abrirArchivo is the order to open archivo (a path of the project, with /) at
+// linea, or a message when the path leaves the project: a path that comes
+// from the evidence (a finding's file, a card's spec) opens nothing outside
+// it.
+func (m *Modelo) abrirArchivo(archivo string, linea int) []Orden {
+	if !filepath.IsLocal(filepath.FromSlash(archivo)) {
+		m.avisar("el archivo "+strconv.Quote(archivo)+" esta fuera del proyecto", rojo, DuracionAviso)
+		return nil
+	}
+	return []Orden{AbrirEditor{Archivo: archivo, Linea: linea}}
 }
 
 // ---------------------------------------------------------------- the menu
@@ -472,13 +489,18 @@ func (m *Modelo) origen() Vista {
 
 // accion runs the row a (one with Accion) on the card c.
 func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
+	verbo := verboDe(a, c.Slug)
+	if len(verbo) == 0 {
+		m.avisar("sin verbo en la terminal", normal, DuracionAviso)
+		return nil
+	}
 	switch a.Accion {
 	case AccionUsar:
-		o := m.lanzar(c.Slug, "", []string{"usar", c.Slug})
+		o := m.lanzar(c.Slug, "", verbo)
 		m.dejarMenu()
 		return []Orden{o}
 	case AccionSiguiente:
-		return m.siguiente(c)
+		return m.siguiente(c, verbo)
 	}
 	act, ok := c.Action(a.Accion)
 	if !ok {
@@ -491,19 +513,36 @@ func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
 	}
 	switch act.ID {
 	case boardcmd.ActAprobar, boardcmd.ActIntegrar:
-		m.abrirConfirmacion(c, act, true)
+		m.abrirConfirmacion(c, act, true, verbo)
 	case boardcmd.ActGuardar:
-		m.abrirConfirmacion(c, act, false)
-	case boardcmd.ActReanudar:
-		m.abrirFormulario(c, act, []string{"reanudar", c.Slug})
+		m.abrirConfirmacion(c, act, false, verbo)
 	default:
-		m.abrirFormulario(c, act, []string{"pedir", act.Role, c.Slug})
+		m.abrirFormulario(c, act, verbo)
 	}
 	return nil
 }
 
+// verboDe is the capa-1 verb that row a runs on slug: its Verbo, the one
+// the help and the menu show, without "hoom" and with <slug> as slug
+// ("hoom pedir writer <slug>" is {"pedir", "writer", slug}). What is shown
+// and what runs are one text.
+func verboDe(a Atajo, slug string) []string {
+	f := strings.Fields(a.Verbo)
+	if len(f) < 2 || f[0] != "hoom" {
+		return nil
+	}
+	out := make([]string, 0, len(f)-1)
+	for _, w := range f[1:] {
+		if w == "<slug>" {
+			w = slug
+		}
+		out = append(out, w)
+	}
+	return out
+}
+
 // siguiente is n: what hoom siguiente does.
-func (m *Modelo) siguiente(c *boardcmd.Card) []Orden {
+func (m *Modelo) siguiente(c *boardcmd.Card, verbo []string) []Orden {
 	switch {
 	case c.Column == boardcmd.ColHecho:
 		m.avisar("la tarjeta ya esta en Hecho", normal, DuracionAviso)
@@ -523,7 +562,7 @@ func (m *Modelo) siguiente(c *boardcmd.Card) []Orden {
 		case boardcmd.IsRoleAction(a.ID) && !a.Enabled:
 			m.avisar(a.Why, normal, DuracionAviso)
 		case boardcmd.IsRoleAction(a.ID):
-			m.abrirFormulario(c, a, []string{"siguiente", c.Slug})
+			m.abrirFormulario(c, a, verbo)
 		case a.ID == boardcmd.ActGuardar:
 			m.avisar("te toca: s guardar", normal, DuracionAviso)
 		default:
@@ -559,21 +598,21 @@ type confirmacion struct {
 	slug   string
 	accion boardcmd.Action
 	desde  Vista
-	firma  bool // aprobar or integrar; false: guardar
-	firmar bool // Firmar is the chosen button
+	firma  bool     // aprobar or integrar; false: guardar
+	firmar bool     // Firmar is the chosen button
+	verbo  []string // what enter runs: the row's Verbo (verboDe)
 	texto  string
 	paths  []string
+	spec   string // sha256 of the spec the open card's detail showed; "" = not read
 }
 
-func (m *Modelo) abrirConfirmacion(c *boardcmd.Card, a boardcmd.Action, firma bool) {
-	cf := &confirmacion{slug: c.Slug, accion: a, desde: m.origen(), firma: firma}
+func (m *Modelo) abrirConfirmacion(c *boardcmd.Card, a boardcmd.Action, firma bool, verbo []string) {
+	cf := &confirmacion{slug: c.Slug, accion: a, desde: m.origen(), firma: firma, verbo: verbo}
 	if firma {
 		cf.texto = tarjetacmd.TextoFirma(*c, a)
+		cf.spec = m.huellaSpec(c.Slug)
 	} else {
-		cf.paths = a.Paths
-		if len(cf.paths) == 0 {
-			cf.paths = c.Unsynced
-		}
+		cf.paths = rutasSinGuardar(c, a)
 	}
 	m.menu = nil
 	m.conf = cf
@@ -592,19 +631,82 @@ func (m *Modelo) enConfirmacion(t Tecla) []Orden {
 			m.cerrarConfirmacion()
 			return nil
 		}
-		args := []string{"guardar", cf.slug}
-		if cf.firma {
-			verbo := "aprobar"
-			if cf.accion.ID == boardcmd.ActIntegrar {
-				verbo = "integrar"
-			}
-			args = []string{verbo, cf.slug, "--si"}
+		if why, ok := m.vigente(cf); !ok {
+			m.cerrarConfirmacion()
+			m.avisar(why, rojo, DuracionAviso)
+			return nil
 		}
-		o := m.lanzar(cf.slug, "", args)
+		if cf.firma && !m.confirmacionCabe() {
+			m.avisar("agranda la terminal: la firma no entra entera", rojo, DuracionAviso)
+			return nil
+		}
+		o := m.lanzar(cf.slug, "", cf.verbo)
 		m.cerrarConfirmacion()
 		return []Orden{o}
 	}
 	return nil
+}
+
+// rutasSinGuardar are the paths guardar would save: the action's, else the
+// card's unsynced ones.
+func rutasSinGuardar(c *boardcmd.Card, a boardcmd.Action) []string {
+	if len(a.Paths) > 0 {
+		return a.Paths
+	}
+	return c.Unsynced
+}
+
+// huellaSpec is the sha256 of slug's spec as the open card's detail has it,
+// "" when that detail is not read.
+func (m *Modelo) huellaSpec(slug string) string {
+	d := m.detalle
+	if d == nil || d.Slug != slug || d.Err != nil || !d.Detalle.Spec.Exists {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(d.Detalle.Spec.Markdown))
+	return hex.EncodeToString(sum[:])
+}
+
+// vigente says whether the confirmation still shows what the data says now:
+// its card has the action enabled, the signature's text is the same (and
+// the spec, when the open card's detail showed it), guardar's paths are the
+// same. When it is not, why is what the bar says: a confirmation never runs
+// on a state the person did not see.
+func (m *Modelo) vigente(cf *confirmacion) (string, bool) {
+	cambio := fmt.Sprintf("cambio lo que ibas a confirmar en %s: vuelve a abrirlo", cf.slug)
+	c := m.tarjeta(cf.slug)
+	if c == nil {
+		return fmt.Sprintf("la tarjeta %s ya no existe", cf.slug), false
+	}
+	a, ok := c.Action(cf.accion.ID)
+	switch {
+	case !ok:
+		return cambio, false
+	case !a.Enabled:
+		return a.Why, false
+	case cf.firma:
+		if tarjetacmd.TextoFirma(*c, a) != cf.texto {
+			return cambio, false
+		}
+		if h := m.huellaSpec(cf.slug); cf.spec != "" && h != "" && h != cf.spec {
+			return cambio, false
+		}
+	case !slices.Equal(rutasSinGuardar(c, a), cf.paths):
+		return cambio, false
+	}
+	return "", true
+}
+
+// revisarConfirmacion closes the open confirmation when the data it was
+// opened on changed.
+func (m *Modelo) revisarConfirmacion() {
+	if m.conf == nil {
+		return
+	}
+	if why, ok := m.vigente(m.conf); !ok {
+		m.cerrarConfirmacion()
+		m.avisar(why, rojo, DuracionAviso)
+	}
 }
 
 func (m *Modelo) cerrarConfirmacion() {
@@ -618,7 +720,7 @@ func (m *Modelo) cerrarConfirmacion() {
 
 // avisar puts a message in the bar for d.
 func (m *Modelo) avisar(texto string, e estilo, d time.Duration) {
-	m.msg, m.msgEstilo, m.msgHasta = texto, e, m.ahora.Add(d)
+	m.msg, m.msgEstilo, m.msgHasta, m.msgFin = texto, e, m.ahora.Add(d), false
 }
 
 // mensaje is the bar's message now: the last one while it lasts, else the
