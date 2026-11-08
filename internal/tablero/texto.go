@@ -277,7 +277,8 @@ var pliegues = func() map[rune]rune {
 	return m
 }()
 
-// unaLinea is s with its newlines as spaces.
+// unaLinea is s with its newlines ("\n", "\r\n") as spaces; a lone "\r" is
+// a control, which the screen shows as "?".
 func unaLinea(s string) string {
-	return strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ").Replace(s)
+	return strings.NewReplacer("\r\n", " ", "\n", " ").Replace(s)
 }

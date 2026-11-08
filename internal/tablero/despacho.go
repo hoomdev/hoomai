@@ -352,7 +352,7 @@ func (m *Modelo) abrirHallazgo() []Orden {
 		return nil
 	}
 	dir := m.dirEvidencia()
-	if dir != "" && dir != "." {
+	if dir != "" && dir != "." && !absoluta(archivo) {
 		archivo = dir + "/" + archivo
 	}
 	return m.abrirArchivo(archivo, n)

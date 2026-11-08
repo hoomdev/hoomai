@@ -3,6 +3,7 @@ package tablero
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -517,7 +518,18 @@ func (m *Modelo) rutaSpec() string {
 			p = c.Evidence.Spec
 		}
 	}
+	if absoluta(p) {
+		// not under the dir: path.Join would make it relative, and o would
+		// open a file the evidence never named
+		return p
+	}
 	return path.Join(m.dirEvidencia(), p)
+}
+
+// absoluta says whether p, a path of the evidence, is absolute on any
+// system: joined under a dir it would stop being so.
+func absoluta(p string) bool {
+	return path.IsAbs(p) || filepath.IsAbs(filepath.FromSlash(p)) || filepath.VolumeName(filepath.FromSlash(p)) != ""
 }
 
 // dirEvidencia is the open card's evidence dir, relative to the root: the
