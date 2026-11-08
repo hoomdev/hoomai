@@ -796,10 +796,48 @@ func (m *Modelo) cuerpoMenu() []linea {
 
 func (m *Modelo) cuerpoAyuda() []linea {
 	out := []linea{lin(" Teclas de " + string(m.ayudaDe))}
-	for _, a := range AtajosDe(m.ayudaDe) {
-		l := " " + rellenar(a.Muestra, 14) + a.Hace
+	filas := AtajosDe(m.ayudaDe)
+	texto := func(a Atajo, ancho int) string {
+		l := rellenar(a.Muestra, ancho) + a.Hace
 		if a.Verbo != "" {
 			l += "  " + a.Verbo
+		}
+		return l
+	}
+	alto := m.c.Alto - 5 // the body without the header line
+	if len(filas) <= alto+1 || alto <= 0 {
+		if len(filas) > alto {
+			out = nil // one row more than the lines: the header gives way
+		}
+		for _, a := range filas {
+			out = append(out, lin(" "+texto(a, 14)))
+		}
+		return out
+	}
+	// more rows than lines: the rows flow down and then across, in columns,
+	// so every key of the view stays on the screen
+	cols := (len(filas) + alto - 1) / alto
+	alto = (len(filas) + cols - 1) / cols // the columns balanced
+	ancho := (m.c.Ancho - 1) / cols
+	muestra := 0
+	for _, a := range filas {
+		if n := celdas(a.Muestra); n > muestra {
+			muestra = n
+		}
+	}
+	muestra += 2
+	for i := 0; i < alto && i < len(filas); i++ {
+		l := " "
+		for c := 0; c < cols; c++ {
+			k := c*alto + i
+			if k >= len(filas) {
+				break
+			}
+			celda := cortar(texto(filas[k], muestra), ancho-1, m.s.corte)
+			if c < cols-1 {
+				celda = rellenar(celda, ancho)
+			}
+			l += celda
 		}
 		out = append(out, lin(l))
 	}

@@ -248,7 +248,12 @@
 // view it was opened from. It takes the body: " Teclas de <vista>" (the
 // Vista's name: lista, resumen, spec, ..., menu) and one line per Atajo of
 // that Vista (AtajosDe): " " + Muestra padded to 14 cells + Hace, and "  " +
-// Verbo when it has one. esc or ? close it.
+// Verbo when it has one. esc or ? close it. When the rows do not fit under
+// the header line but fit in the whole body, the header gives way; when
+// they do not fit at all, they flow down and then across in as many
+// balanced columns as they need, (Ancho-1)/columns cells each, Muestra
+// padded to its longest + 2 and every cell cut with the cut sign: every
+// key stays on the screen.
 //
 // # Wrapping
 //
