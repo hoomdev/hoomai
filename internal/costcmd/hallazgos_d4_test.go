@@ -9,10 +9,11 @@ import (
 	"testing"
 )
 
-// Hallazgos 66c8c7 y c05fcb — CA-546: una copia que no cuenta guarda solo
-// su huella, su fuente y su aviso; nunca el registro. Los worktrees cargan
-// el mismo historial, asi que la memoria va con los registros, no con las
-// copias.
+// Hallazgos 66c8c7 y c05fcb — CA-546: una copia que no cuenta nunca se
+// guarda; lo unico que queda de ella hasta el final (una copia de otra
+// tarea leida antes que la de su tarea) son ids y su aviso. Los worktrees
+// cargan el mismo historial, asi que la memoria va con los registros, no
+// con las copias. (Delta 5: la huella se fue; lo que queda son pendientes.)
 func TestHallazgo_66c8c7_c05fcb_CA546_UnaCopiaNoRetieneElRegistro(t *testing.T) {
 	var mirar func(camino string, ty reflect.Type)
 	mirar = func(camino string, ty reflect.Type) {
@@ -21,14 +22,15 @@ func TestHallazgo_66c8c7_c05fcb_CA546_UnaCopiaNoRetieneElRegistro(t *testing.T) 
 			for i := 0; i < ty.NumField(); i++ {
 				mirar(camino+"."+ty.Field(i).Name, ty.Field(i).Type)
 			}
-		case reflect.Array:
-			mirar(camino+"[]", ty.Elem())
-		case reflect.String, reflect.Bool, reflect.Uint8, reflect.Int, reflect.Int64:
+		case reflect.Map:
+			mirar(camino+"[clave]", ty.Key())
+			mirar(camino+"[valor]", ty.Elem())
+		case reflect.String, reflect.Bool, reflect.Int:
 		default:
-			t.Errorf("%s es %s: una copia no guarda nada que crezca con el registro", camino, ty)
+			t.Errorf("%s es %s: lo que queda de una copia no crece con el registro", camino, ty)
 		}
 	}
-	mirar("copia", reflect.TypeOf(copia{}))
+	mirar("pendientes", reflect.TypeOf(pendientes{}))
 
 	// a big record in the project and the same in four worktrees: one round,
 	// nothing to say
