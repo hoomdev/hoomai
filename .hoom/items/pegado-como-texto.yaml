@@ -1,0 +1,6 @@
+titulo: Lo pegado es texto en el tablero (hoom tablero)
+tipo: seguridad
+prioridad: media
+pedido: 'Spec .hoom/specs/pegado-como-texto.md: hoom tablero pide bracketed paste (\x1b[?2004h) y lo apaga en todos los caminos de salida y alrededor del editor; lo que llega entre ESC [ 200 ~ y ESC [ 201 ~ es un pegado, nunca teclas, y solo entra en el campo de texto con el foco (Pedido, busqueda, otro...); fuera de un campo se ignora con aviso. Modelo.Pegar no devuelve ordenes: un pegado nunca ejecuta un verbo, abre un modal ni mueve el foco o un boton. Cierra el hallazgo 20261109T184531_6ebce5. Depende de tablero-con-paneles.'
+creado_por: hoomdev <dev@volale.com>
+creado_en: 2026-11-09T20:28:16Z
