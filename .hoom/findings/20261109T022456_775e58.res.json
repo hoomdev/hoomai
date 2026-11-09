@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T022456_775e58",
+  "as": "corregido",
+  "evidence": "81aa3de (test-writer ciego, ronda 3b, brief tablero-tw-brief-r3b.txt): ttPedirEditor y ttPedirEditorTras eran dos copias. Ahora hay un solo camino, ttPedirEditorTras en internal/tablero/tt_run_enlaces_unix_test.go, y ttPedirEditor lo llama con un antes que no hace nada; ttTeclaEditor tambien vive ahi. tt_run_enlaces_cierra_unix_test.go ya no los repite. Son las mismas teclas en el mismo orden, las mismas esperas y la misma marca y linea. La primera espera es ahora la mas estricta filaElegida, que arregla tambien una carrera con el primer cuadro antes de leer el tablero. go test -list da los mismos 147 nombres, y el paquete paso 24 veces (-count=8 -cpu=1,2,8) con la maquina cargada.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T02:37:27.484231Z"
+}
