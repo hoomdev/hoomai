@@ -17,8 +17,8 @@
 │ nada corriendo         │┌Registro────────────────────────────────────────────┐
 └────────────────────────┘│ todavia no se ejecuto nada                         │
 ┌[4] Hallazgos───────────┐│                                                    │
-│ leyendo los hallazgos.…││                                                    │
-│                        ││                                                    │
+│ leyendo los            ││                                                    │
+│ hallazgos...           ││                                                    │
 └────────────────────────┘└────────────────────────────────────────────────────┘
 
  ↑↓ elegir · enter ver · espacio acciones · n siguiente paso · ? todas

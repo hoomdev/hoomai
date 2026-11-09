@@ -340,25 +340,35 @@ func TestCA564_CA532_LaAyuda(t *testing.T) {
 			pos = i
 		}
 		todo := "\n" + strings.Join(mc.Textos, "\n") + "\n"
+		// R3: una linea que no entra en las Wm-6 = 66 celdas del texto se parte
+		// por palabras, cada continuacion desde la columna de Hace (20); las de
+		// Mouse, desde sus dos espacios. Nada se pierde.
 		for _, a := range tablero.Atajos {
-			// las lineas del modal tienen Wm-6 = 66 celdas: una fila con su
-			// verbo puede cortarse; su comienzo esta
 			base := "  " + fmt.Sprintf("%-18s", ttAscii(a.Muestra)) + a.Hace
-			if len(base) > 60 {
-				base = base[:60]
+			variantes := []string{base}
+			if a.Verbo != "" {
+				variantes = []string{base + "  " + a.Verbo, base + "  " + strings.ReplaceAll(a.Verbo, "<slug>", "nuc-tenancy")}
 			}
-			if !strings.Contains(todo, "\n"+base) {
-				t.Fatalf("CA-564: toda fila de la tabla esta en la ayuda: %q (+ %q):\n%s", base, a.Verbo, todo)
+			ok := false
+			for _, v := range variantes {
+				ok = ok || strings.Contains(todo, "\n"+strings.Join(ttPartir(v, 66, 20), "\n")+"\n")
+			}
+			if !ok {
+				t.Fatalf("CA-564: toda fila de la tabla esta en la ayuda, entera (partida por palabras si no entra):\n%q\n%s",
+					ttPartir(variantes[0], 66, 20), todo)
 			}
 		}
 		if mouse {
 			for _, s := range []string{"  clic              foco al panel; en una fila, la elige",
-				"  rueda             mueve la seleccion; en [0] y en la ayuda",
+				"  rueda             mueve la seleccion; en [0] y en la ayuda, desplaza",
 				"  clic en un modal  enfoca un campo, elige una opcion o un boton",
-				"  para seleccionar texto con el mouse, manten Option (macOS)"} {
-				if !strings.Contains(todo, "\n"+s) {
-					t.Fatalf("CA-564, CA-575: el grupo Mouse dice %q:\n%s", s, todo)
+				"  para seleccionar texto con el mouse, manten Option (macOS) o Shift"} {
+				if q := strings.Join(ttPartir(s, 66, 2), "\n"); !strings.Contains(todo, "\n"+q+"\n") {
+					t.Fatalf("CA-564, CA-575: el grupo Mouse dice %q:\n%s", q, todo)
 				}
+			}
+			if !strings.Contains(todo, "\n  para seleccionar texto con el mouse, manten Option (macOS) o\n  Shift\n") {
+				t.Fatalf("CA-564 (guarda de ttPartir): la linea de 68 celdas se parte antes de Shift:\n%s", todo)
 			}
 		} else if !strings.Contains(todo, "\nMouse\n  apagado: HOOM_MOUSE=0\n") {
 			t.Fatalf("CA-564, CA-575: sin mouse, el grupo Mouse dice 'apagado: HOOM_MOUSE=0':\n%s", todo)
@@ -432,6 +442,50 @@ func TestCA564_LaAyudaSeDesplaza(t *testing.T) {
 	}
 }
 
+// ttPartir parte una linea de la ayuda que no entra en ancho celdas por sus
+// palabras (R3): la primera conserva sus sangria celdas de comienzo (los dos
+// espacios y la Muestra rellena, o los dos espacios de Mouse) y tantas
+// palabras como entren; cada continuacion empieza con sangria espacios. Los
+// espacios entre dos palabras de una misma linea quedan como estaban.
+func ttPartir(texto string, ancho, sangria int) []string {
+	if ttCeldas(texto) <= ancho {
+		return []string{texto}
+	}
+	lead, rest := texto[:sangria], texto[sangria:]
+	type tok struct{ sep, w string }
+	var toks []tok
+	sep, w := "", ""
+	for _, r := range rest {
+		if r == ' ' {
+			if w != "" {
+				toks = append(toks, tok{sep, w})
+				sep, w = "", ""
+			}
+			sep += " "
+			continue
+		}
+		w += string(r)
+	}
+	if w != "" {
+		toks = append(toks, tok{sep, w})
+	}
+	var out []string
+	linea, nueva := lead, false
+	for i, k := range toks {
+		cand := linea + k.sep + k.w
+		if nueva {
+			cand = linea + k.w
+		}
+		if i == 0 || ttCeldas(cand) <= ancho {
+			linea, nueva = cand, false
+			continue
+		}
+		out = append(out, linea)
+		linea, nueva = strings.Repeat(" ", sangria)+k.w, false
+	}
+	return append(out, linea)
+}
+
 // ---------------------------------------------------------------- los estados para las propiedades
 
 // ttEstado es un modelo en el Lugar l, en un estado donde cada tecla de la
@@ -450,7 +504,11 @@ func ttEstado(t *testing.T, l tablero.Lugar) *tablero.Modelo {
 		p.Problemas = append(p.Problemas, boardcmd.Problem{ID: boardcmd.ProbSinSpec, Slug: fmt.Sprintf("p%02d", i), What: "sin spec", Action: "hoom pedir arquitecto x"})
 	}
 	m.LeerProyecto(p)
-	h := ttHallazgo("h1", finding.StatusOpen, "high", "a.go:3", strings.Repeat("linea de la descripcion\n", 30))
+	var desc strings.Builder
+	for i := 0; i < 30; i++ {
+		fmt.Fprintf(&desc, "linea %02d de la descripcion\n", i) // distintas: desplazar cambia la pantalla
+	}
+	h := ttHallazgo("h1", finding.StatusOpen, "high", "a.go:3", desc.String())
 	m.LeerHallazgos(tablero.Hallazgos{Items: []finding.Item{h, ttHallazgo("h2", finding.StatusOpen, "low", "b.go", "d")}})
 	ttIrA(t, m, c.Slug)
 	m.LeerDetalle(d)
@@ -555,17 +613,14 @@ func ttFoto(m *tablero.Modelo) string {
 // CA-564, propiedad: toda tecla de la ayuda tiene efecto. En cada Lugar, cada
 // tecla de cada una de sus filas (desde un estado donde puede tenerlo)
 // cambia algo: la pantalla, el Lugar, el modal, el foco, el Registro, o da
-// una orden. Re-expresa CA-532. Quedan afuera la tecla del panel que ya
-// tiene el foco y las de desplazar en [0] sin nada que mostrar (pregunta
-// abierta del informe).
+// una orden. Re-expresa CA-532. Queda afuera la tecla del panel que ya tiene
+// el foco. (En [0] sin nada que mostrar las teclas de desplazar ya no estan
+// en sus filas: respuesta del orquestador en doc.go.)
 func TestCA564_CA532_TodaTeclaDeLaAyudaTieneEfecto(t *testing.T) {
 	probadas := 0
 	for _, l := range tablero.LugaresTodos {
 		for _, a := range tablero.AtajosDe(l) {
 			for _, k := range a.Teclas {
-				if l == tablero.LugarVerNada && a.Barra != "esc volver" && len(a.Lugares) == len(tablero.LugaresVer) {
-					continue
-				}
 				m := ttEstado(t, l)
 				if string(k) == fmt.Sprint(int(m.Foco())) && len(a.Lugares) == len(tablero.LugaresPaneles) {
 					continue

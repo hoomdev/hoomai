@@ -61,10 +61,17 @@ func TestCA563_LosEstadosDeUnaEntrada(t *testing.T) {
 	m := ttModelo(ttAncho(), ttTablero(ttTarjetaCon(ttAccionWriter())))
 	t0 := ttAhora.Add(time.Minute)
 	l := ttLanzarWriter(t, m, t0)
+	// D3: Asiento.Comando conserva el texto de CitarPedido tal cual (con
+	// "…"); en la pantalla ASCII, la segunda linea del Registro lo muestra
+	// con el signo del corte "~"
 	comando := "hoom pedir writer tarjeta -m " + tarjetacmd.CitarPedido(ttPedidoWriter, false)
 	r := m.Registro()
 	if len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · lanzando..." || r[0].Comando != comando || !r[0].Hora.Equal(t0) {
 		t.Fatalf("CA-563: la entrada al lanzar: %#v", r)
+	}
+	enPantalla := "       " + ttEnPantalla(comando, false)
+	if reg := ttCajaDe(t, "CA-563", m, "Registro").ttTexto(); len(reg) < 2 || reg[1] != enPantalla {
+		t.Fatalf("CA-563: la segunda linea del Registro es el comando, en ASCII sin '…' (D3):\n got %q\nwant %q", reg, enPantalla)
 	}
 	// registrado: la tarjeta muestra running con un sobre que no tenia
 	m.Leer(tablero.Lectura{Ahora: t0.Add(2 * time.Second), Tablero: ttTablero(ttCorriendoCon("env-nuevo"))})
@@ -98,8 +105,11 @@ func TestCA563_LosEstadosDeUnaEntrada(t *testing.T) {
 	// con UTF-8, "lanzando…"
 	u := ttModelo(ttConfig(200, 40, true), ttTablero(ttTarjetaCon(ttAccionWriter())))
 	ttLanzarWriter(t, u, ttAhora)
-	if r := u.Registro(); len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · lanzando…" {
-		t.Fatalf("CA-563: con UTF-8 'lanzando…': %#v", r)
+	if r := u.Registro(); len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · lanzando…" || r[0].Comando != comando {
+		t.Fatalf("CA-563: con UTF-8 'lanzando…', y el comando con el '…' de CitarPedido (D3): %#v", r)
+	}
+	if reg := ttCajaDe(t, "CA-563", u, "Registro").ttTexto(); len(reg) < 2 || reg[1] != "       "+comando {
+		t.Fatalf("CA-563: con UTF-8 la segunda linea del Registro lleva el '…' de CitarPedido: %q", reg)
 	}
 }
 

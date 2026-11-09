@@ -1294,8 +1294,10 @@ func TestCA560_CA531_LasLineasDeProyecto(t *testing.T) {
 		}, "", []string{" demo · rama main", " check ROJO: " + checkcmd.Motivo(checkcmd.Result{Reason: checkcmd.ReasonDrift, VerdictID: "v9"}),
 			" hoy 0.50 USD en 1 trabajos · 2 sin dato", " sin tarjeta fijada"}},
 	}
+	// a 240 columnas [1] tiene 80 celdas (78 interiores): la linea del check
+	// rojo (68 celdas) entra entera
 	for _, c := range casos {
-		m := tablero.Nuevo(ttConfig(200, 32, false))
+		m := tablero.Nuevo(ttConfig(240, 32, false))
 		m.Leer(tablero.Lectura{Ahora: ttAhora, Tablero: ttTableroPrincipal(), Fijada: c.fijada})
 		m.LeerProyecto(c.p())
 		if got := ttCajaDe(t, "CA-560", m, "[1]").ttTexto(); strings.Join(got, "|") != strings.Join(c.quiere, "|") {
@@ -1451,8 +1453,11 @@ func TestCA578_CA535_LaElegidaDesaparece(t *testing.T) {
 		t.Fatalf("CA-578: la seleccion pasa a la fila siguiente (la de Hecho): %q\n%s", m.Elegida(), ttPantalla(m))
 	}
 	m.Leer(tablero.Lectura{Ahora: ttAhora, Tablero: ttTablero()})
-	if m.Elegida() != "" || !ttTiene(m, `no hay tarjetas: hoom item add "<titulo>"`) {
-		t.Fatalf("CA-578: sin ninguna tarjeta, [2] lo dice y nada esta elegido:\n%s", ttPantalla(m))
+	// D2: a 120x32 [2] tiene 38 celdas interiores y el texto (42 con su
+	// margen) se parte por palabras
+	if got := ttCajaDe(t, "CA-578", m, "[2]").ttTexto(); m.Elegida() != "" || len(got) < 2 ||
+		got[0] != " no hay tarjetas: hoom item add" || got[1] != ` "<titulo>"` {
+		t.Fatalf("CA-578: sin ninguna tarjeta, [2] lo dice (partido por palabras) y nada esta elegido: %q\n%s", got, ttPantalla(m))
 	}
 	// con el foco en [0]
 	m = ttModelo(ttConfig(120, 32, false), b)

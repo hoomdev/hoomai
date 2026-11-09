@@ -229,11 +229,14 @@ func TestCA575_ClicEnUnPlegado(t *testing.T) {
 func TestCA575_LaRueda(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, false))
 	m.Tecla("4", ttAhora)
-	ttRaton(t, m, ttRuedaAbajo(5, ttFilaDe(t, m, "nuc-tenancy")))
+	// la fila elegida de [2] ("> nuc-tenancy"; [1] tambien dice
+	// "fijada: nuc-tenancy")
+	fila2 := ttFilaDe(t, m, "> nuc-tenancy")
+	ttRaton(t, m, ttRuedaAbajo(5, fila2))
 	if m.Foco() != tablero.PanelHallazgos || ttSlugElegido(t, m) != "pagos-caidos" {
 		t.Fatalf("CA-575: la rueda sobre [2] mueve su seleccion sin mover el foco: %d %q", int(m.Foco()), ttSlugElegido(t, m))
 	}
-	ttRaton(t, m, ttRuedaArriba(5, ttFilaDe(t, m, "nuc-tenancy")))
+	ttRaton(t, m, ttRuedaArriba(5, fila2))
 	if ttSlugElegido(t, m) != "nuc-tenancy" {
 		t.Fatalf("CA-575: la rueda arriba la sube: %q", ttSlugElegido(t, m))
 	}
@@ -346,19 +349,22 @@ func TestCA575_ElMouseEnUnModal(t *testing.T) {
 	if m.Lugar() != tablero.LugarPedirLista {
 		t.Fatalf("CA-568: enter abre la lista: %q", m.Lugar())
 	}
-	ml := ttModal(t, "CA-575", m, 120)
+	lista := ttListaDe(t, m)
 	low := -1
-	for i, l := range ml.Textos {
-		if strings.Contains(l, " low ") {
+	for i, l := range lista.Ops {
+		if strings.HasPrefix(l, "   low ") {
 			low = i
 		}
+	}
+	if low < 0 {
+		t.Fatalf("CA-568: la lista de Esfuerzo tiene low: %q", lista.Ops)
 	}
 	antes = ttFoto(m)
 	ttRaton(t, m, ttClic(2, 2))
 	if ttFoto(m) != antes {
 		t.Fatalf("CA-575: con una lista abierta, un clic que no es en una opcion no hace nada")
 	}
-	ttRaton(t, m, ttClic(mc.Col+4+20, ml.Fila+1+low))
+	ttRaton(t, m, ttClic(lista.Col+4, lista.Fila+1+low))
 	if m.Lugar() != tablero.LugarPedirSelector || ttModal(t, "CA-575", m, 120).ttValor("Esfuerzo") != "< low >" {
 		t.Fatalf("CA-575: un clic en una opcion la elige y cierra la lista: %q %q", m.Lugar(), ttModal(t, "CA-575", m, 120).ttValor("Esfuerzo"))
 	}

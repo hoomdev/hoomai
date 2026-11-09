@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -319,6 +320,10 @@ func TestCA534_CA576_SinColorNingunaSecuencia(t *testing.T) {
 	}
 }
 
+// ttSoloConColor es lo que el titulo de [4] suma con color, con los signos
+// de linea que le siguen en el borde: " · <k> high" y su relleno.
+var ttSoloConColor = regexp.MustCompile(` · [0-9]+ high[-─=═]+`)
+
 // CA-534, CA-576: con color la pantalla lleva secuencias SGR (el foco, los
 // titulos de seccion, la seleccion), y sin ellas es la misma pantalla que
 // sin color; las unicas secuencias son SGR, cada pieza con estilo cerrada
@@ -341,7 +346,17 @@ func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 					t.Fatalf("CA-576: con color cada pieza con estilo se cierra con \\x1b[0m: %q", p[i])
 				}
 			}
-			if sin := ttSinSGR(p[i]); strings.TrimRight(sin, " ") != q[i] {
+			sin := ttSinSGR(p[i])
+			// el titulo de [4] suma " · <k> high" solo con color (spec, "[4]
+			// Hallazgos"; TestCA559_CA524_FilasDeHallazgos): fuera de eso, la
+			// misma linea
+			if !strings.Contains(q[i], " high") {
+				sin = ttSoloConColor.ReplaceAllStringFunc(sin, func(x string) string {
+					r := []rune(x)
+					return strings.Repeat(string(r[len(r)-1]), ttCeldas(x))
+				})
+			}
+			if strings.TrimRight(sin, " ") != q[i] {
 				t.Fatalf("CA-576: la linea %d de %q con color, sin sus SGR, es la de sin color:\n con %q\n sin %q", i+1, nombre, p[i], q[i])
 			}
 			if strings.Contains(ttSinSGR(p[i]), "\x1b") {

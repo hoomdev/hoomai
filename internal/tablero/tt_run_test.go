@@ -755,12 +755,14 @@ func TestCA530_CA553_RunReleeElTableroYElDetalle(t *testing.T) {
 func TestCA530_RunLecturaQueFalla(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-530", "el tablero", w, func() bool { return w.marcoCon("infra-ci-cd") })
+	// a 80x24 [2] muestra 6 lineas: NECESITA, nuc-tenancy, pagos-caidos, EN
+	// CURSO, infra-api y BACKLOG 2
+	ttEsperar(t, "CA-530", "el tablero", w, func() bool { return w.marcoCon("pagos-caidos") })
 	w.datos.mu.Lock()
 	w.datos.err = errors.New("disco roto")
 	w.datos.mu.Unlock()
 	ttEsperar(t, "CA-530", "el error de lectura en la linea de mensajes", w, func() bool {
-		return w.marcoCon("no se pudo leer el tablero: disco roto") && w.marcoCon("infra-ci-cd")
+		return w.marcoCon("no se pudo leer el tablero: disco roto") && w.marcoCon("pagos-caidos")
 	})
 	w.term.mandar("q")
 	fin(t)

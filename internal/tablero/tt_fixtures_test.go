@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
@@ -461,6 +462,16 @@ func ttHaceDe(t *testing.T, k tablero.Tecla) string {
 	return ""
 }
 
+// ttEnPantalla es un texto de la capa 1 (CitarPedido, que corta con "…")
+// como lo muestra la pantalla: en ASCII el "…" es el signo del corte, "~"
+// (decision D3 del orquestador: ninguna pantalla ASCII lleva "…").
+func ttEnPantalla(s string, utf bool) string {
+	if utf {
+		return s
+	}
+	return strings.ReplaceAll(s, "…", "~")
+}
+
 // ttFuera es el mensaje de un archivo que sale del proyecto.
 func ttFuera(ruta string) string {
 	return "el archivo " + strconv.Quote(ruta) + " esta fuera del proyecto"
@@ -848,7 +859,10 @@ func ttModal(t *testing.T, ca string, m *tablero.Modelo, ancho int) ttModalCaja 
 			if len(ck) < col+wm {
 				break
 			}
-			if (ck[col] == "#" || ck[col] == "╚") && ttEsLinea(ck[col+1]) {
+			// el borde de abajo lleva los signos de linea del foco (= o ═),
+			// que una lista abierta (signos simples) no usa
+			foco := func(x string) bool { return x == "=" || x == "═" }
+			if (ck[col] == "#" || ck[col] == "╚") && (foco(ck[col+1]) || foco(ck[col+wm-2])) {
 				mc.Abajo = ttTramo(ls[k], col, col+wm)
 				mc.Alto = k - i + 1
 				return mc
@@ -925,37 +939,44 @@ func (mc ttModalCaja) ttCampo(etiqueta string) string {
 	return l
 }
 
-// ttValor es el valor de un selector: lo que sigue a la etiqueta rellena a
-// 15 celdas, hasta dos espacios seguidos (donde empieza el origen) o el
-// final.
-func (mc ttModalCaja) ttValor(etiqueta string) string {
-	l := mc.ttCampo(etiqueta)
-	if l == "" {
-		return ""
-	}
+// ttValorYOrigen parte la linea de un selector, desde la celda 15 (donde
+// empieza el valor: la etiqueta va rellena a 15), en su valor y lo que le
+// sigue (el origen o el why, en la columna 15 + V). Un valor con flechas
+// ("< opus >", "‹ sin tope ›") termina en su flecha de cierre; uno sin
+// flechas (el provider de reanudar, un texto de otro…) termina donde empiezan
+// dos espacios o la linea. Entre el valor y el origen puede haber solo dos
+// espacios (V = max(26, el mas ancho + 2)).
+func ttValorYOrigen(l string) (string, string) {
 	c := ttCeldasDe(l)
 	if len(c) <= 15 {
-		return ""
+		return "", ""
 	}
 	v := strings.Join(c[15:], "")
-	if i := strings.Index(v, "   "); i >= 0 {
-		v = v[:i]
+	if strings.HasPrefix(v, "<") || strings.HasPrefix(v, "‹") {
+		fin := strings.IndexAny(v, ">›")
+		if fin >= 0 {
+			_, n := utf8.DecodeRuneInString(v[fin:])
+			return v[:fin+n], strings.TrimSpace(v[fin+n:])
+		}
+		return strings.TrimSpace(v), ""
 	}
-	return strings.TrimSpace(v)
+	if i := strings.Index(v, "  "); i >= 0 {
+		return v[:i], strings.TrimSpace(v[i:])
+	}
+	return strings.TrimSpace(v), ""
 }
 
-// ttOrigen es lo que sigue al valor de un selector (su origen o su why).
+// ttValor es el valor de un selector (ver ttValorYOrigen).
+func (mc ttModalCaja) ttValor(etiqueta string) string {
+	v, _ := ttValorYOrigen(mc.ttCampo(etiqueta))
+	return v
+}
+
+// ttOrigen es lo que sigue al valor de un selector en su linea (su origen o
+// su why).
 func (mc ttModalCaja) ttOrigen(etiqueta string) string {
-	l := mc.ttCampo(etiqueta)
-	c := ttCeldasDe(l)
-	if len(c) <= 15 {
-		return ""
-	}
-	v := strings.Join(c[15:], "")
-	if i := strings.Index(v, "   "); i >= 0 {
-		return strings.TrimSpace(v[i:])
-	}
-	return ""
+	_, o := ttValorYOrigen(mc.ttCampo(etiqueta))
+	return o
 }
 
 // ---------------------------------------------------------------- dorados y forma

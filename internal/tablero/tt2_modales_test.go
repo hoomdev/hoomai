@@ -81,39 +81,73 @@ func ttWhyDe(mc ttModalCaja, etiqueta string) string {
 	return ""
 }
 
-// ttLista son las opciones de la lista abierta del modal (su caja, desde la
-// columna del valor, 15, hasta la ultima celda del texto), cada una sin el
-// relleno; y su borde de abajo.
-func ttLista(t *testing.T, mc ttModalCaja) ([]string, string) {
+// ttListaBox es la lista de opciones abierta: una caja propia, con signos
+// simples, encima del modal (decision D1 del orquestador): su lugar, sus
+// filas sin el relleno de la derecha y su borde de abajo.
+type ttListaBox struct {
+	Fila, Col, Ancho, Alto int
+	Ops                    []string
+	Abajo                  string
+}
+
+// ttListaDe encuentra en la pantalla la caja de signos simples cuyas lineas
+// interiores son las opciones (una de ellas con la marca " > " o " ▸ ").
+func ttListaDe(t *testing.T, m *tablero.Modelo) ttListaBox {
 	t.Helper()
-	ini := -1
-	for i, l := range mc.Textos {
+	ls := ttLimpia(m)
+	esq := func(x string) bool { return x == "+" || x == "┌" || x == "└" || x == "┐" || x == "┘" }
+	lin := func(x string) bool { return x == "-" || x == "─" }
+	lad := func(x string) bool { return x == "|" || x == "│" }
+	for i, l := range ls {
 		c := ttCeldasDe(l)
-		if len(c) > 16 && (c[15] == "+" || c[15] == "┌") && ttEsLinea(c[16]) {
-			ini = i
-			break
+		for j := 0; j+1 < len(c); j++ {
+			if !esq(c[j]) || !lin(c[j+1]) {
+				continue
+			}
+			k := j + 1
+			for k < len(c) && lin(c[k]) {
+				k++
+			}
+			if k >= len(c) || !esq(c[k]) {
+				continue
+			}
+			w := k - j + 1
+			var ops []string
+			marcada, r := false, i+1
+			for ; r < len(ls); r++ {
+				cr := ttCeldasDe(ls[r])
+				if len(cr) < j+w {
+					ops = nil
+					break
+				}
+				if esq(cr[j]) && lin(cr[j+1]) && esq(cr[j+w-1]) {
+					break
+				}
+				if !lad(cr[j]) || !lad(cr[j+w-1]) {
+					ops = nil
+					break
+				}
+				in := strings.Join(cr[j+1:j+w-1], "")
+				if strings.HasPrefix(in, " > ") || strings.HasPrefix(in, " ▸ ") {
+					marcada = true
+				}
+				ops = append(ops, strings.TrimRight(in, " "))
+			}
+			if len(ops) == 0 || !marcada || r >= len(ls) {
+				continue
+			}
+			return ttListaBox{Fila: i, Col: j, Ancho: w, Alto: r - i + 1, Ops: ops, Abajo: ttTramo(ls[r], j, j+w)}
 		}
 	}
-	if ini < 0 {
-		t.Fatalf("CA-568: el modal tiene una lista abierta (una caja desde la columna 15):\n%s", strings.Join(mc.Textos, "\n"))
-	}
-	var out []string
-	for i := ini + 1; i < len(mc.Textos); i++ {
-		c := ttCeldasDe(mc.Textos[i])
-		if len(c) > 16 && (c[15] == "+" || c[15] == "└") && ttEsLinea(c[16]) {
-			return out, strings.Join(c[15:], "")
-		}
-		if len(c) < 17 {
-			t.Fatalf("CA-568: una linea de la lista: %q", mc.Textos[i])
-		}
-		fin := len(c)
-		if ttEsLado(c[fin-1]) {
-			fin--
-		}
-		out = append(out, strings.TrimRight(strings.Join(c[16:fin], ""), " "))
-	}
-	t.Fatalf("CA-568: la lista tiene su borde de abajo:\n%s", strings.Join(mc.Textos, "\n"))
-	return nil, ""
+	t.Fatalf("CA-568: la pantalla tiene una lista de opciones abierta (una caja con una opcion marcada):\n%s", ttPantalla(m))
+	return ttListaBox{}
+}
+
+// ttLista son las filas de la lista abierta y su borde de abajo.
+func ttLista(t *testing.T, m *tablero.Modelo) ([]string, string) {
+	t.Helper()
+	lb := ttListaDe(t, m)
+	return lb.Ops, lb.Abajo
 }
 
 // ttOpcionElegida es la opcion de la lista con la marca (" > " o " ▸ ").
@@ -626,7 +660,11 @@ func TestCA568_CA527_CA528_LanzarSinCambios(t *testing.T) {
 			t.Fatalf("CA-568: el origen de %s es %q, es %q", et, o, got)
 		}
 	}
-	comando := "hoom pedir writer tarjeta -m " + tarjetacmd.CitarPedido(ttPedidoWriter, false)
+	// D3: el corte de CitarPedido ("…") se ve con el signo ASCII del corte
+	comando := "hoom pedir writer tarjeta -m " + ttEnPantalla(tarjetacmd.CitarPedido(ttPedidoWriter, false), false)
+	if strings.Contains(comando, "…") || !strings.Contains(comando, "~") {
+		t.Fatalf("CA-576 (guarda): en ASCII el comando no lleva '…' y el pedido largo va cortado con '~': %q", comando)
+	}
 	if got := mc.ttComando(); got != comando {
 		t.Fatalf("CA-568: 'Se va a ejecutar:' sin cambios no lleva flags:\n got %q\nwant %q", got, comando)
 	}
@@ -650,7 +688,9 @@ func TestCA568_CA527_CA528_LanzarSinCambios(t *testing.T) {
 	}
 	ttDiceMensaje(t, "CA-528", "tras lanzar", m, false, "lanzando hoom pedir writer tarjeta")
 	r := m.Registro()
-	if len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · lanzando..." || r[0].Comando != comando || !r[0].Hora.Equal(ttAhora.Add(time.Minute)) {
+	// D3: Asiento.Comando conserva el texto de CitarPedido tal cual
+	api := "hoom pedir writer tarjeta -m " + tarjetacmd.CitarPedido(ttPedidoWriter, false)
+	if len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · lanzando..." || r[0].Comando != api || !r[0].Hora.Equal(ttAhora.Add(time.Minute)) {
 		t.Fatalf("CA-563: la entrada del Registro: '<etiqueta> · <slug> · lanzando...' con el comando que mostro: %#v", r)
 	}
 }
@@ -749,11 +789,11 @@ func TestCA568_CA527_CtrlEYEsc(t *testing.T) {
 	m.Tecla(tablero.TeclaCtrlE, ttAhora)
 	m.PedidoEditado("", errors.New("exit status 1"))
 	ttDiceMensaje(t, "CA-568", "el editor con error", m, false, "el editor salio con error")
-	if got := ttMC(t, m).ttComando(); got != "hoom pedir writer tarjeta -m "+tarjetacmd.CitarPedido("pedido original", false) {
+	if got := ttMC(t, m).ttComando(); got != "hoom pedir writer tarjeta -m "+ttEnPantalla(tarjetacmd.CitarPedido("pedido original", false), false) {
 		t.Fatalf("CA-568: con el editor en error el pedido queda como estaba: %q", got)
 	}
 	m.PedidoEditado("pedido del editor\n", nil)
-	if got := ttMC(t, m).ttComando(); got != "hoom pedir writer tarjeta -m "+tarjetacmd.CitarPedido("pedido del editor", false) {
+	if got := ttMC(t, m).ttComando(); got != "hoom pedir writer tarjeta -m "+ttEnPantalla(tarjetacmd.CitarPedido("pedido del editor", false), false) {
 		t.Fatalf("CA-568: lo que dio el editor es el pedido: %q", got)
 	}
 	ttEscribir(m, "!") // el cursor queda al final
@@ -786,7 +826,7 @@ func TestCA568_CA527_SoloLosFlagsCambiados(t *testing.T) {
 	a := ttAccionWriter()
 	a.Pedido = "hola mundo"
 	m := ttPedir(t, "w", a)
-	base := "hoom pedir writer tarjeta -m " + tarjetacmd.CitarPedido("hola mundo", false)
+	base := "hoom pedir writer tarjeta -m " + ttEnPantalla(tarjetacmd.CitarPedido("hola mundo", false), false)
 	cmd := func(quiere string) {
 		t.Helper()
 		if got := ttMC(t, m).ttComando(); got != quiere {
@@ -856,7 +896,7 @@ func TestCA568_LaListaDeOpciones(t *testing.T) {
 		if m.Lugar() != tablero.LugarPedirLista {
 			t.Fatalf("CA-568: %q en un selector abre su lista: %q", abrir, m.Lugar())
 		}
-		ops, _ := ttLista(t, ttMC(t, m))
+		ops, _ := ttLista(t, m)
 		op := func(mk, nombre, l string) string {
 			return strings.TrimRight(fmt.Sprintf(" %s %-24s  %s", mk, nombre, l), " ")
 		}
@@ -875,7 +915,7 @@ func TestCA568_LaListaDeOpciones(t *testing.T) {
 		m.Tecla(tablero.TeclaArriba, ttAhora)
 		m.Tecla(tablero.TeclaArriba, ttAhora)
 		m.Tecla(tablero.TeclaArriba, ttAhora) // la gris
-		if o, _ := ttLista(t, ttMC(t, m)); ttOpcionElegida(o) != "por" {
+		if o, _ := ttLista(t, m); ttOpcionElegida(o) != "por" {
 			t.Fatalf("CA-568: ↑ se mueve por todas, las grises tambien: %q", o)
 		}
 		ttSinOrdenes(t, "CA-568", "enter sobre la gris", m.Tecla(tablero.TeclaEnter, ttAhora))
@@ -900,8 +940,10 @@ func TestCA568_LaListaDeOpciones(t *testing.T) {
 	}
 }
 
-// CA-568, caso limite: una lista de opciones mas larga que el modal se
-// desplaza y su borde dice "<n> de <m>".
+// CA-568, caso limite: una lista de opciones mas larga que su modal se
+// desplaza y su borde dice "<n> de <m>" (D1: solo cuando tiene mas opciones
+// que lineas de texto el modal, y la caja entra entera en el alto del
+// modal).
 func TestCA568_ListaMasLargaQueElModal(t *testing.T) {
 	cfg := ttConfig(80, 24, false)
 	a := ttAccionWriter()
@@ -913,21 +955,116 @@ func TestCA568_ListaMasLargaQueElModal(t *testing.T) {
 	m.Tecla("w", ttAhora)
 	m.Tecla(tablero.TeclaTab, ttAhora)
 	m.Tecla(tablero.TeclaTab, ttAhora)
+	mc := ttModal(t, "CA-568", m, 80) // antes de abrir la lista: abierta, puede tapar los bordes del modal
 	m.Tecla(tablero.TeclaEnter, ttAhora)
-	mc := ttModal(t, "CA-568", m, 80)
-	ops, abajo := ttLista(t, mc)
+	lb := ttListaDe(t, m)
 	total := 1 + 8 + 15 + 1
-	if len(ops) >= total || !strings.Contains(abajo, fmt.Sprintf("3 de %d", total)) {
-		t.Fatalf("CA-568: la lista de %d opciones no entra: se desplaza y su borde dice '3 de %d' (opus elegido): %d lineas, %q", total, total, len(ops), abajo)
+	if len(lb.Ops) >= total || len(lb.Ops) > mc.Alto-2 || !strings.Contains(lb.Abajo, fmt.Sprintf("3 de %d", total)) {
+		t.Fatalf("CA-568: la lista de %d opciones no entra en las %d lineas de texto del modal: se desplaza y su borde dice '3 de %d' (opus elegido): %d lineas, %q",
+			total, mc.Alto-2, total, len(lb.Ops), lb.Abajo)
+	}
+	if lb.Fila < mc.Fila || lb.Fila+lb.Alto > mc.Fila+mc.Alto || lb.Col < 0 || lb.Col+lb.Ancho > 80 {
+		t.Fatalf("CA-568: la lista entra entera en el alto del modal y en la pantalla: lista %+v, modal fila %d alto %d", lb, mc.Fila, mc.Alto)
 	}
 	for i := 0; i < 30; i++ {
 		m.Tecla(tablero.TeclaAbajo, ttAhora)
 	}
-	ops, abajo = ttLista(t, ttModal(t, "CA-568", m, 80))
+	ops, abajo := ttLista(t, m)
 	if !strings.Contains(abajo, fmt.Sprintf("%d de %d", total, total)) || !strings.HasPrefix(ops[len(ops)-1], " > otro...") {
 		t.Fatalf("CA-568: abajo de todo la ultima (otro…) a la vista: %q %q", ops, abajo)
 	}
 	ttForma(t, "CA-568", m, 80, 24, false)
+}
+
+// ttCortaA es s cortado a n celdas como corta la pantalla en ASCII: el
+// comienzo mas largo que entra en n-1 celdas y "~".
+func ttCortaA(s string, n int) string {
+	if ttCeldas(s) <= n {
+		return s
+	}
+	out, c := "", 0
+	for _, r := range s {
+		if c+ttAnchoRuna(r) > n-1 {
+			break
+		}
+		out += string(r)
+		c += ttAnchoRuna(r)
+	}
+	return out + "~"
+}
+
+// CA-568 (decision D1 del orquestador, con sus precisiones): la lista es una
+// caja propia encima del modal. Su ancho es su fila mas larga, mas un espacio
+// de margen a la derecha, mas los dos bordes, con un tope de Ancho-2; su
+// borde izquierdo va en la primera celda del texto del modal (la columna del
+// modal + 4) y se corre a la izquierda solo lo que haga falta para no salir
+// de la pantalla; su alto es sus opciones + 2; su borde de arriba va en la
+// linea del selector y sube lo justo para quedar dentro del alto del modal;
+// no se desplaza si sus opciones entran. Cada fila es " <marca> <nombre a
+// 24>  <linea>", entera si entra y cortada con el signo del modo solo si no
+// entra ni con Ancho-2. Las lineas de codex llegan a 78 celdas: a 120 y 200
+// columnas van enteras; a 80 la caja tiene 78 (75 para la fila) y se cortan
+// las de mas de 75.
+func TestCA568_LaListaEsUnaCajaPropia(t *testing.T) {
+	a := ttAccionWriter()
+	a.Providers = []boardcmd.ProviderOption{ttProvCodex(true), ttProvClaude(false)}
+	a.Model, a.Origen.Model = "", valores.OrigenProvider
+	op := func(mk, nombre, l string) string {
+		return strings.TrimRight(fmt.Sprintf(" %s %-24s  %s", mk, nombre, l), " ")
+	}
+	cat, _ := modelos.De("codex")
+	quiere := []string{op(">", "por defecto del provider", "el que elige codex: su configuracion o tu cuenta")}
+	larga := ttCeldas(quiere[0])
+	for _, o := range cat.Modelos {
+		f := op(" ", o.Nombre, o.Linea)
+		quiere = append(quiere, f)
+		if ttCeldas(f) > larga {
+			larga = ttCeldas(f)
+		}
+	}
+	quiere = append(quiere, op(" ", "otro...", ""))
+	if larga != 78 {
+		t.Fatalf("CA-572 (guarda): la fila mas larga de la lista de codex mide 78 celdas: %d", larga)
+	}
+	for _, tam := range [][2]int{{200, 40}, {120, 32}, {80, 24}} {
+		que := fmt.Sprintf("a %dx%d", tam[0], tam[1])
+		m := ttModelo(ttConfig(tam[0], tam[1], false), ttTablero(ttTarjetaCon(a)))
+		ttTeclas(m, "w", tablero.TeclaTab, tablero.TeclaTab)
+		mc := ttModal(t, "CA-568", m, tam[0]) // antes de abrir la lista
+		_, iSel, _ := mc.ttLineaQueEmpieza("Modelo")
+		filaSel := mc.Fila + 1 + iSel
+		m.Tecla(tablero.TeclaEnter, ttAhora)
+		if m.Lugar() != tablero.LugarPedirLista {
+			t.Fatalf("CA-568: %s enter en Modelo abre la lista: %q", que, m.Lugar())
+		}
+		lb := ttListaDe(t, m)
+		ancho := larga + 1 + 2
+		if ancho > tam[0]-2 {
+			ancho = tam[0] - 2
+		}
+		col := mc.Col + 4
+		if col+ancho > tam[0] {
+			col = tam[0] - ancho
+		}
+		alto := len(quiere) + 2
+		fila := filaSel
+		if fila+alto > mc.Fila+mc.Alto {
+			fila = mc.Fila + mc.Alto - alto
+		}
+		if lb.Ancho != ancho || lb.Col != col || lb.Alto != alto || lb.Fila != fila {
+			t.Fatalf("CA-568: %s la caja de la lista: celda %d, linea %d, %d celdas, %d lineas; esta en %d, %d con %d y %d",
+				que, col, fila+1, ancho, alto, lb.Col, lb.Fila+1, lb.Ancho, lb.Alto)
+		}
+		if strings.Contains(lb.Abajo, " de ") {
+			t.Fatalf("CA-568: %s las opciones entran: la lista no se desplaza: %q", que, lb.Abajo)
+		}
+		util := ancho - 3 // la fila: sin los dos bordes ni el margen de la derecha
+		for i, q := range quiere {
+			if got, w := lb.Ops[i], ttCortaA(q, util); got != w {
+				t.Fatalf("CA-568: %s la fila %d (%d celdas, %d de lugar):\n got %q\nwant %q", que, i, ttCeldas(q), util, got, w)
+			}
+		}
+	}
 }
 
 // CA-568, CA-527: otro… convierte el campo en texto (vacio); enter con texto
@@ -969,7 +1106,7 @@ func TestCA568_CA527_OtroAceptaTexto(t *testing.T) {
 		t.Fatalf("CA-568: enter confirma el texto como el valor elegido: %q %q", mc.ttValor("Modelo"), mc.ttOrigen("Modelo"))
 	}
 	m.Tecla(tablero.TeclaEnter, ttAhora)
-	ops, _ := ttLista(t, ttMC(t, m))
+	ops, _ := ttLista(t, m)
 	if len(ops) < 2 || !strings.HasPrefix(ops[len(ops)-2], " > gpt-x") || !strings.HasPrefix(ops[len(ops)-1], "   otro...") {
 		t.Fatalf("CA-568: el texto queda entre las opciones, antes de otro…: %q", ops)
 	}
@@ -1013,7 +1150,7 @@ func TestCA568_PedidoConSaltos(t *testing.T) {
 	a := ttAccionWriter()
 	a.Pedido = "uno\ndos\r\ntres"
 	m := ttPedir(t, "w", a)
-	if got, quiere := ttMC(t, m).ttComando(), "hoom pedir writer tarjeta -m "+tarjetacmd.CitarPedido(a.Pedido, false); got != quiere ||
+	if got, quiere := ttMC(t, m).ttComando(), "hoom pedir writer tarjeta -m "+ttEnPantalla(tarjetacmd.CitarPedido(a.Pedido, false), false); got != quiere ||
 		strings.Contains(got, "\n") {
 		t.Fatalf("CA-568: los saltos se ven como espacios: %q, se esperaba %q", got, quiere)
 	}
@@ -1115,7 +1252,7 @@ func TestCA568_CA527_Reanudar(t *testing.T) {
 		t.Fatalf("CA-568: tab saltea el Provider gris de reanudar: %q", f)
 	}
 	ttTeclas(m, tablero.TeclaShiftTab, tablero.TeclaIzq, tablero.TeclaDer) // al Pedido: el cursor va y vuelve
-	quiere := "hoom reanudar tarjeta -m " + tarjetacmd.CitarPedido(a.Pedido, false)
+	quiere := "hoom reanudar tarjeta -m " + ttEnPantalla(tarjetacmd.CitarPedido(a.Pedido, false), false)
 	if got := ttMC(t, m).ttComando(); got != quiere {
 		t.Fatalf("CA-568: en reanudar el provider no cambia y no hay --provider: %q", got)
 	}
@@ -1147,7 +1284,7 @@ func TestCA568_CA527_CitaSegunElSistema(t *testing.T) {
 		m.Tecla(tablero.TeclaEnter, ttAhora) // otro…
 		ttEscribir(m, "muy alto")
 		m.Tecla(tablero.TeclaEnter, ttAhora)
-		quiere := "hoom pedir writer tarjeta -m " + tarjetacmd.CitarPedido(a.Pedido, win) + " --effort " + tarjetacmd.Citar("muy alto", "<esfuerzo>", win)
+		quiere := "hoom pedir writer tarjeta -m " + ttEnPantalla(tarjetacmd.CitarPedido(a.Pedido, win), false) + " --effort " + tarjetacmd.Citar("muy alto", "<esfuerzo>", win)
 		if got := ttMC(t, m).ttComando(); got != quiere {
 			t.Fatalf("CA-568 (windows=%v): el comando cita como la capa 1:\n got %q\nwant %q", win, got, quiere)
 		}
@@ -1173,7 +1310,7 @@ func TestCA569_LasOpcionesDeModelo(t *testing.T) {
 	m := ttModelo(cfg, ttTablero(ttTarjetaCon(a)))
 	m.Tecla("w", ttAhora)
 	ttTeclas(m, tablero.TeclaTab, tablero.TeclaTab, tablero.TeclaEnter)
-	ops, _ := ttLista(t, ttMC(t, m))
+	ops, _ := ttLista(t, m)
 	cat := modelos.Modelos("claude", cfg.Modelos["claude"])
 	largo := len("por defecto del provider")
 	for _, o := range cat {
@@ -1196,8 +1333,16 @@ func TestCA569_LasOpcionesDeModelo(t *testing.T) {
 	if strings.Join(ops, "\n") != strings.Join(quiere, "\n") {
 		t.Fatalf("CA-569: la lista de Modelo:\n got %q\nwant %q", ops, quiere)
 	}
-	if strings.Count(strings.Join(ops, "\n"), " opus ") != 1 || !strings.Contains(strings.Join(ops, "\n"), "el de la casa") {
-		t.Fatalf("CA-569: opus de hoom.yaml no se repite y su descripcion es su linea: %q", ops)
+	// las filas cuyo NOMBRE es opus (el primer campo despues de la marca):
+	// una sola, con la descripcion de hoom.yaml como su linea
+	var filasOpus []string
+	for _, o := range ops {
+		if f := strings.Fields(o[3:]); len(f) > 0 && f[0] == "opus" {
+			filasOpus = append(filasOpus, o)
+		}
+	}
+	if len(filasOpus) != 1 || strings.TrimSpace(strings.TrimPrefix(filasOpus[0][3:], "opus")) != "el de la casa" {
+		t.Fatalf("CA-569: opus de hoom.yaml no se repite y su descripcion es su linea: %q", filasOpus)
 	}
 	// el model de la accion que no esta en ninguna lista
 	b := ttAccionWriter()
@@ -1209,7 +1354,7 @@ func TestCA569_LasOpcionesDeModelo(t *testing.T) {
 		t.Fatalf("CA-569: el model de la accion esta elegido al abrir: %q", v)
 	}
 	m.Tecla(tablero.TeclaEnter, ttAhora)
-	ops, _ = ttLista(t, ttMC(t, m))
+	ops, _ = ttLista(t, m)
 	if len(ops) < 2 || !strings.HasPrefix(ops[len(ops)-2], " > un-modelo-raro") || !strings.HasSuffix(ops[len(ops)-2], "  de hoom.yaml") ||
 		!strings.HasPrefix(ops[len(ops)-1], "   otro...") {
 		t.Fatalf("CA-569: un modelo que no esta en ninguna lista va elegido antes de otro…, con 'de hoom.yaml': %q", ops)
@@ -1233,7 +1378,7 @@ func TestCA569_LasOpcionesDeEsfuerzo(t *testing.T) {
 	a.Model, a.Origen.Model, a.Origen.Effort = "", valores.OrigenProvider, valores.OrigenTarjeta
 	m := ttPedir(t, "w", a)
 	ttTeclas(m, tablero.TeclaTab, tablero.TeclaTab, tablero.TeclaTab, tablero.TeclaEnter)
-	ops, _ := ttLista(t, ttMC(t, m))
+	ops, _ := ttLista(t, m)
 	var nombres []string
 	for _, o := range ops {
 		nombres = append(nombres, strings.Fields(o[3:])[0])
@@ -1286,12 +1431,18 @@ func TestCA569_ProviderQueNoRecibeModelo(t *testing.T) {
 				t.Fatalf("CA-569: el why de %s gris no entra en su linea: va en la de abajo desde la columna 15:\n%s", et, strings.Join(mc.Textos, "\n"))
 			}
 		}
+		// un why en su propia linea no cuenta para la regla que deja afuera
+		// todos los origenes (respuesta del orquestador en doc.go): el de
+		// Provider sigue
+		if o := mc.ttOrigen("Provider"); o != "elegido" {
+			t.Fatalf("CA-568: con %s elegido, el origen de Provider dice 'elegido': %q\n%s", p, o, strings.Join(mc.Textos, "\n"))
+		}
 		m.Tecla(tablero.TeclaTab, ttAhora)
 		if f := ttFoco(ttMC(t, m)); f != "Tiempo limite" {
 			t.Fatalf("CA-569: tab saltea Modelo, Esfuerzo y Tope grises: %q", f)
 		}
 		m.Tecla(tablero.TeclaShiftTab, ttAhora)
-		if got := ttMC(t, m).ttComando(); got != "hoom pedir writer tarjeta -m "+tarjetacmd.CitarPedido("hola", false)+" --provider "+p {
+		if got := ttMC(t, m).ttComando(); got != "hoom pedir writer tarjeta -m "+ttEnPantalla(tarjetacmd.CitarPedido("hola", false), false)+" --provider "+p {
 			t.Fatalf("CA-569: Modelo, Esfuerzo y Tope grises no mandan nada: %q", got)
 		}
 	}
@@ -1328,7 +1479,7 @@ func TestCA569_GrisesConColor(t *testing.T) {
 func TestCA570_LoQueFijaHoomYAML(t *testing.T) {
 	m := ttPedir(t, "w", ttAccionWriter())
 	ttTeclas(m, tablero.TeclaTab, tablero.TeclaTab, tablero.TeclaEnter)
-	ops, _ := ttLista(t, ttMC(t, m))
+	ops, _ := ttLista(t, m)
 	if !strings.HasPrefix(ops[0], "   por defecto del provider") || !strings.HasSuffix(ops[0], "hoom.yaml fija opus para el writer") {
 		t.Fatalf("CA-570: con hoom.yaml, 'por defecto del provider' va gris con 'hoom.yaml fija opus para el writer': %q", ops[0])
 	}
@@ -1347,7 +1498,7 @@ func TestCA570_LoQueFijaHoomYAML(t *testing.T) {
 	}
 	m.Tecla(tablero.TeclaTab, ttAhora)
 	m.Tecla(tablero.TeclaEnter, ttAhora)
-	ops, _ = ttLista(t, ttMC(t, m))
+	ops, _ = ttLista(t, m)
 	if len(ops) < 2 || !strings.HasPrefix(ops[len(ops)-2], " > opus") || !strings.HasPrefix(ops[len(ops)-1], "   otro...") {
 		t.Fatalf("CA-570: opus, que no esta en la lista de codex, va antes de otro…: %q", ops)
 	}
@@ -1377,7 +1528,7 @@ func TestCA570_SinHoomYAMLCambiarDeProvider(t *testing.T) {
 	if mc.ttValor("Modelo") != "< sonnet >" || mc.ttValor("Esfuerzo") != "< low >" || mc.ttOrigen("Modelo") != "de la tarjeta" {
 		t.Fatalf("CA-570: volver al provider por defecto devuelve lo propuesto: %q %q %q", mc.ttValor("Modelo"), mc.ttValor("Esfuerzo"), mc.ttOrigen("Modelo"))
 	}
-	if got := mc.ttComando(); got != "hoom pedir writer tarjeta -m "+tarjetacmd.CitarPedido("hola", false) {
+	if got := mc.ttComando(); got != "hoom pedir writer tarjeta -m "+ttEnPantalla(tarjetacmd.CitarPedido("hola", false), false) {
 		t.Fatalf("CA-570: de vuelta a lo propuesto, sin flags: %q", got)
 	}
 }
@@ -1395,7 +1546,7 @@ func ttOpciones(t *testing.T, m *tablero.Modelo, n int) []string {
 		m.Tecla(tablero.TeclaTab, ttAhora)
 	}
 	m.Tecla(tablero.TeclaEnter, ttAhora)
-	ops, _ := ttLista(t, ttMC(t, m))
+	ops, _ := ttLista(t, m)
 	m.Tecla(tablero.TeclaEsc, ttAhora)
 	var out []string
 	for _, o := range ops {
@@ -1445,7 +1596,7 @@ func TestCA571_ToposYTiempos(t *testing.T) {
 		m.Tecla(tablero.TeclaTab, ttAhora)
 	}
 	m.Tecla(tablero.TeclaEnter, ttAhora)
-	ops, _ := ttLista(t, ttMC(t, m))
+	ops, _ := ttLista(t, m)
 	var uno string
 	for _, o := range ops {
 		if strings.HasPrefix(strings.TrimSpace(o[3:]), "1 USD") {
@@ -1923,14 +2074,21 @@ func TestCA574_CA529_LaFirmaQueNoEntraNoSeFirma(t *testing.T) {
 		}
 		ttDiceMensaje(t, "CA-574", que, m, tam.color, msg)
 	}
-	m := ttModelo(ttConfig(200, 40, false), ttTablero(c))
+	// el modal mide min(72, Ancho-4) a cualquier tamano: una firma de unas 20
+	// lineas de 66 celdas entra a 200x40 (B = 38) y no a 200x15 (B = 13)
+	media := ttNucTenancy()
+	media.Item.Titulo = strings.TrimSpace(strings.Repeat("palabra ", 140))
+	m := ttModelo(ttConfig(200, 40, false), ttTablero(media))
 	m.Tecla("A", ttAhora)
 	m.Tecla(tablero.TeclaDer, ttAhora)
 	m.Tamano(200, 15)
 	ttSinOrdenes(t, "CA-574", "enter tras achicar", m.Tecla(tablero.TeclaEnter, ttAhora))
 	ttDiceMensaje(t, "CA-574", "tras achicar", m, false, msg)
-	m = ttModelo(ttConfig(200, 40, false), ttTablero(c))
-	m.Tecla("A", ttAhora)
-	l := ttUnaLanzar(t, "CA-574", "enter sobre la accion a 200x40", firmar(m))
-	ttMismosArgs(t, "CA-574", "aprobar", l.Args, []string{"aprobar", "nuc-tenancy", "--si"})
+	// donde entra, firma: la misma a 200x40, y la de siempre
+	for _, card := range []boardcmd.Card{media, ttNucTenancy()} {
+		m = ttModelo(ttConfig(200, 40, false), ttTablero(card))
+		m.Tecla("A", ttAhora)
+		l := ttUnaLanzar(t, "CA-574", "enter sobre la accion a 200x40", firmar(m))
+		ttMismosArgs(t, "CA-574", "aprobar", l.Args, []string{"aprobar", "nuc-tenancy", "--si"})
+	}
 }
