@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184346_0ee5e4",
+  "created_at": "2026-11-09T18:43:46.399148502Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt_fixtures_test.go",
+  "description": "INTRODUCIDO: los datos de los dorados se contradicen entre lecturas. ttHallazgosDorados (tt_fixtures_test.go:299) trae un hallazgo abierto de nuc-tenancy, que [4] muestra, pero ttDetalleNuc (tt_fixtures_test.go:309) no trae Findings, asi que [0] de nuc-tenancy dice \"Hallazgos\" y \"sin hallazgos\" (testdata/paneles-ascii-120x32.txt:16-17); y la tira dice \"pruebas: 0/5\" junto a \"Spec · 2 criterios\". Es coherente con doc.go (la parte E sale del Detalle), pero quien compara el dorado con el bosquejo del spec (donde [0] dice \"Hallazgos · 1 abierto\") lee un bug, y la parte E queda sin dorado. Correccion minima: poner el hallazgo low en ttDetalleNuc.Findings y rehacer a mano el dorado de 120x32.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184541_aae463",
+  "created_at": "2026-11-09T18:45:41.740589343Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/anchos.go",
+  "description": "INTRODUCIDO: la tabla de anchos (anchos.go:22-31, AnchoDe) da 1 celda a los caracteres de formato Cf que no son bidi (U+200B espacio de ancho cero, U+200C/U+200D ZWNJ/ZWJ, U+2060, U+FEFF BOM, las etiquetas U+E0020..E007F), y neutro (texto.go:157-165) solo neutraliza Cc y Bidi_Control, asi que llegan tal cual a una celda; la terminal los dibuja con 0 columnas. Escenario: [4] -\u003e un hallazgo cuyo archivo empieza con BOM (reales.go:111 deja el U+FEFF en la linea 1) -\u003e la linea \" \u003e 1 \u003cBOM\u003epackage x\" de [0] mide en la terminal una celda menos y su borde derecho cae en W-2; igual con un emoji ZWJ (\"U+1F469 ZWJ U+1F4BB\") en el titulo o el plain: la tabla cuenta 5 celdas y la terminal pinta 4 (o 2 con grafemas), y el borde de [0] se corre, lo que CA-577 quiere evitar. Correccion minima: en neutro mapear todo unicode.Cf a \"?\" (Bidi_Control es un subconjunto, el ancho queda en 1 y coincide), o darles 0 en AnchoDe; extiende la lista de doc.go \"The screen\", decision del orquestador.",
+  "author": "reviewer@claude (tramo T3)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

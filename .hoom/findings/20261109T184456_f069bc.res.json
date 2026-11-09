@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184456_f069bc",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (el modal Pedir cede ayuda, why en su linea y origenes; comando y botones nunca se van; si no entra, enter no lanza y avisa); regresion TestCA565_CA568_ElPedirQueNoEntra (tt3_ronda1_test.go, d1efb59 (ronda 1 del test-writer ciego) y 09d5589), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.703309068Z"
+}

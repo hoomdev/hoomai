@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184152_7849e3",
+  "created_at": "2026-11-09T18:41:52.699886171Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt2_modales_test.go",
+  "description": "INTRODUCIDO. TestCA569_GrisesConColor (tt2_modales_test.go:1451-1470) promete en su comentario 'y los origenes y la linea de ayuda tambien' en gris, pero solo mira '\u003c del provider \u003e' y '\u003c sin tope \u003e'. Ademas sus dos chequeos son un if dentro del recorrido de la pantalla, sin guarda de que la linea exista: si con color la linea cambia de forma, el test pasa sin aseverar nada. El mismo patron esta en el chequeo de color de TestCA567_CA526_ElModalDeAcciones (lineas 588-594). Hoy no son vacuos (las lineas existen), pero el comentario engana. Correccion minima: contar las lineas encontradas y exigir que haya una por chequeo; aseverar el gris de un origen y de la linea de ayuda, o sacarlos del comentario.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184346_f2d7fe",
+  "created_at": "2026-11-09T18:43:46.332352941Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_controles_test.go",
+  "description": "INTRODUCIDO (con parte PRE-EXISTENTE): ttSinControles (tt2_controles_test.go:43-47) quita las SGR antes de buscar controles tambien sin color; main:internal/tablero/tt_controles_test.go:47-53 las quitaba solo con color. Y ttHostil (tt2_controles_test.go:488) no trae ninguna secuencia con forma de SGR (eso ya era asi en la v1). Juntas: un texto de la tarjeta o de un agente con \"\\x1b[31m\" o \"\\x1b[8m\" (texto oculto) que llegue tal cual a la terminal no se detecta en ningun modo. Hoy lienzo.go:67 neutraliza toda linea. Correccion minima: sumar \"\\x1b[7m\" a ttHostil (y \"?[7m\" a ttNeutro) y quitar las SGR solo con color.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

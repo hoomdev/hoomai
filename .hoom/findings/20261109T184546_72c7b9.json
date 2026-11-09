@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184546_72c7b9",
+  "created_at": "2026-11-09T18:45:46.634711222Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/pedir.go",
+  "description": "INTRODUCIDO. pedir.go tiene estado indexado por un numero magico y comentarios que no dicen lo que hace el codigo. (1) pedir.go:83-84: valor, propuesto [7]string y escritos [7][]string se indexan con las constantes campo* (7 = campoBotones+1), aunque solo se usan Modelo, Esfuerzo, Tope y Tiempo; un campo nuevo o un reorden rompe en silencio. (2) pedir.go:315: el comentario dice 'elegir puts...' de elegirOpcion. (3) pedir.go:339: 'hoom.yaml's value stays chosen', pero se queda lo elegido, que puede ser de la persona (ver el hallazgo de CA-570). Correccion minima: [campoBotones + 1] o un tipo con los cuatro valores con nombre, y corregir los dos comentarios.",
+  "author": "reviewer@claude (tramo T2)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

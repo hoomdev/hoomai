@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184521_db18ee",
+  "created_at": "2026-11-09T18:45:21.938899744Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/doc.go",
+  "description": "INTRODUCIDO. \"check VERDE · verify hace \u003ct\u003e\" de [1] mide desde el veredicto equivocado. doc.go:252 toma t de Veredicto.CreatedAt, y Veredicto es el mas nuevo de verdict.LoadAll (statuscmd.go:189-193), que puede ser un parcial (--gate); el check se refiere al ultimo completo (checkcmd.go:83-86, verdict.LatestComplete). Escenario: verify completo verde hace 2h y despues \"hoom verify --gate test\" hace 1 min sin cambiar el arbol (los veredictos no entran en la huella) -\u003e [1] dice \"check VERDE · verify hace 1m\" (izquierda.go:485), aunque el verify que lo deja verde es de hace 2h y un parcial \"no es referencia\". Correccion minima: medir \"verify hace\" desde el veredicto con id Check.VerdictID (p. ej. que CheckYVeredicto devuelva tambien el CreatedAt de verdict.LatestComplete); el [0] de Proyecto sigue con el ultimo, como pide el spec.",
+  "author": "reviewer@claude (tramo T1)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

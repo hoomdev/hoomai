@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184521_d57fc7",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (un prefijo de mouse incompleto nunca se suelta por tiempo como teclas); regresion TestCA575_RunElMousePartidoNoSonTeclas (X10 y SGR partidos con 150 ms), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.713160414Z"
+}

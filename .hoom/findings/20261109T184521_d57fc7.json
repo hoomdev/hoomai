@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184521_d57fc7",
+  "created_at": "2026-11-09T18:45:21.805646099Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/teclas.go",
+  "description": "INTRODUCIDO. Un evento del mouse partido entre dos lecturas termina como teclas de accion (CA-575: 'ningun evento del mouse produce la orden de lanzar ni abre un modal'). incompleta espera un ESC [ M o un ESC [ \u003c sin terminar, pero Run lo decodifica igual a los 30 ms (bucle.go:16 esperaSecuencia, bucle.go:308-311), y escape lo tira entero (teclas.go:145-150 'return \"\", nil, len(b)'; teclas.go:161-163 para SGR). Los bytes que llegan despues se decodifican como teclas: en X10 (una terminal sin 1006) el byte del clic izquierdo 0x20 es TeclaEspacio (abre Acciones) y cada coordenada es 33+columna, asi que la columna 84 es 'u' (hoom usar sin modal), la 80 'q' (Salir), la 77 'n' y la 32 'A' (abren modales); la cola de un SGR ('5;12M') mete digitos en el Pedido o en la busqueda, o mueve el foco con 1-4/0. Pasa por ssh o con una terminal lenta. Correccion minima: no soltar por tiempo un prefijo de mouse incompleto (dejarlo pendiente hasta su byte final o un tope mas largo), o que el decodificador diga cuantos bytes del X10 faltan (siempre 3 - los que llegaron) para que Run los descarte en la lectura siguiente.",
+  "author": "reviewer@claude (tramo T2)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

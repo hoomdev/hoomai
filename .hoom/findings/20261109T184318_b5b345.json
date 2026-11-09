@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184318_b5b345",
+  "created_at": "2026-11-09T18:43:18.307170857Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_paneles_test.go",
+  "description": "INTRODUCIDO: CA-557 (re-expresa CA-522) perdio la guarda de los margenes hostiles al buscar la linea de un criterio. main:internal/tablero/tt_tarjeta_test.go:236-258 (TestCA522_MargenesHostiles) aseveraba que \"- CA-10:\" no es la linea de CA-1, que \"   - CA-1:\" (con sangria) si lo es y que \"-CA-1:\" no. En la v2 la regla de e (doc.go:392-395: la primera linea del markdown que, recortada, empieza con \"- \" + id + \":\") solo se prueba con un markdown limpio (tt2_paneles_test.go:431, usado por TestCA557_SaltosEntreCriteriosYEditor en :820, criterios en las lineas 5..8). Deja de detectarse que e abra el spec en la linea de CA-10 para CA-1 (un prefijo sin \":\") o que no recorte la sangria. Hoy despacho.go:369 lo hace bien: es una regresion sin guarda. Correccion minima: en TestCA557_SaltosEntreCriteriosYEditor, un markdown con \"- CA-10:\" antes de \"- CA-1:\", una linea con sangria y una \"-CA-1:\", y aseverar AbrirEditor.Linea.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184019_7a54a9",
+  "created_at": "2026-11-09T18:40:19.01567418Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_modales_test.go",
+  "description": "INTRODUCIDO. Asercion perdida de CA-527 (re-expresado en CA-568: 'Los que no pueden van en gris con su why' y '\u003c- -\u003e saltan las grises'). En main, internal/tablero/tt_acciones_test.go:447-477 (TestCA527_CA528_SoloLosFlagsCambiados) armaba Providers claude, opencode (OK false) y codex y aseveraba la linea 'opencode: \u003cwhy\u003e', que -\u003e desde claude salta a codex y que da la vuelta. La reescritura tt2_modales_test.go:825-883 usa los providers por defecto (claude y codex, los dos OK) y ningun test tt2_* usa un ProviderOption con OK false: ttProvOpencode (tt_fixtures_test.go:121) quedo sin uso. Deja de detectarse: un provider que no puede elegible con \u003c-, -\u003e o desde la lista (enter sobre el), o sin su why en gris. Correccion minima: en SoloLosFlagsCambiados poner ttProvOpencode() entre claude y codex y aseverar que -\u003e salta a codex, que la lista de Provider lo muestra gris con ttWhyOpencode y que enter sobre el no lo elige.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

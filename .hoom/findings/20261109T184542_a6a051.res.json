@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184542_a6a051",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (Archivo solo lee archivos regulares: 'no es un archivo regular' sin bloquearse); regresion TestCA559_DatosDeArchivoSobreUnFIFO (tt3_run_unix_test.go), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.725961503Z"
+}

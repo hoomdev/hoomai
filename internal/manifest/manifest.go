@@ -15,6 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -95,6 +96,135 @@ func ParseTimeout(campo, v string) (time.Duration, error) {
 		return 0, fmt.Errorf("%s: %q no es una duracion entre 1m y 12h (ej. 45m, 1h30m)", campo, v)
 	}
 	return d, nil
+}
+
+// ModelEntry is one entry of models.<provider> in hoom.yaml: a model the
+// project adds to hoom's catalog (modelos.Propio), with an optional
+// description that becomes its line in the Modelo selector.
+type ModelEntry struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description,omitempty"`
+}
+
+// ModelKeys are the keys an entry of models.<provider> accepts, in the
+// order the error names them.
+var ModelKeys = []string{"name", "description"}
+
+// ModelCatalog is the models: section of hoom.yaml (tablero-con-paneles),
+// keyed by provider, each with its entries in the file's order:
+//
+//	models:
+//	  codex:
+//	    - name: gpt-7-sol
+//	      description: el nuevo de todos los dias
+//
+// It decodes itself so every error names where it is, and Load (and
+// LoadWithoutBaseCheck) refuse the file with "hoom.yaml invalido: " and the
+// error. The texts, with <p> the provider as written, <i> the entry's
+// index in its list counting from 0, and <k> the key:
+//
+//   - a provider that is not in hoom's registry:
+//     `models: provider desconocido "<p>" (validos: claude, codex)`, the
+//     valid ones being modelos.ConModelo joined by ", ";
+//   - a provider of hoom's registry that takes no model (gemini, opencode):
+//     `models.<p>: hoom no le pasa el modelo a <p>`;
+//   - an entry with a key other than name and description:
+//     `models.<p>[<i>]: clave desconocida "<k>" (validas: name, description)`;
+//   - an entry without name, or whose name is empty or only spaces:
+//     `models.<p>[<i>]: falta name`;
+//   - a name that starts with "-" (after trimming its spaces):
+//     `models.<p>[<i>]: el nombre no puede empezar con '-'`.
+//
+// Shapes the spec does not name are refused too: models: that is not a
+// map is "models debe ser un mapa por provider (ej. models: { codex: [ {
+// name: gpt-7-sol } ] })"; models.<p> that is not a list is
+// "models.<p> debe ser una lista de modelos (ej. - name: gpt-7-sol)"; an
+// entry that is not a map is "models.<p>[<i>] debe ser un mapa con name y
+// description"; a provider written twice is `models: el provider "<p>"
+// esta repetido (linea <n>)`. The checks go in the file's order, provider
+// by provider and entry by entry, and within an entry its keys first, then
+// name: the first error found is the one given. Name and description are
+// kept trimmed. A models: that is empty or null declares nothing (nil).
+type ModelCatalog map[string][]ModelEntry
+
+// UnmarshalYAML decodes models: with the rules of ModelCatalog.
+func (c *ModelCatalog) UnmarshalYAML(n *yaml.Node) error {
+	if esNulo(n) {
+		*c = nil
+		return nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("models debe ser un mapa por provider (ej. models: { codex: [ { name: gpt-7-sol } ] })")
+	}
+	validos := modelos.ConModelo()
+	out := ModelCatalog{}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		p := n.Content[i].Value
+		if _, visto := out[p]; visto {
+			return fmt.Errorf("models: el provider %q esta repetido (linea %d)", p, n.Content[i].Line)
+		}
+		if !containsKey(validos, p) {
+			if containsKey(providerNames(), p) {
+				return fmt.Errorf("models.%s: hoom no le pasa el modelo a %s", p, p)
+			}
+			return fmt.Errorf("models: provider desconocido %q (validos: %s)", p, strings.Join(validos, ", "))
+		}
+		lista := n.Content[i+1]
+		entradas := []ModelEntry{}
+		if !esNulo(lista) {
+			if lista.Kind != yaml.SequenceNode {
+				return fmt.Errorf("models.%s debe ser una lista de modelos (ej. - name: gpt-7-sol)", p)
+			}
+			for j, e := range lista.Content {
+				m, err := decodeModel(p, j, e)
+				if err != nil {
+					return err
+				}
+				entradas = append(entradas, m)
+			}
+		}
+		out[p] = entradas
+	}
+	if len(out) == 0 {
+		out = nil
+	}
+	*c = out
+	return nil
+}
+
+// decodeModel is the entry j of models.<p>, with its rules.
+func decodeModel(p string, j int, n *yaml.Node) (ModelEntry, error) {
+	var m ModelEntry
+	donde := fmt.Sprintf("models.%s[%d]", p, j)
+	if n.Kind != yaml.MappingNode {
+		return m, fmt.Errorf("%s debe ser un mapa con name y description", donde)
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		k := n.Content[i].Value
+		if !containsKey(ModelKeys, k) {
+			return m, fmt.Errorf("%s: clave desconocida %q (validas: %s)", donde, k, strings.Join(ModelKeys, ", "))
+		}
+		v := n.Content[i+1]
+		if esNulo(v) {
+			continue
+		}
+		if v.Kind != yaml.ScalarNode {
+			return m, fmt.Errorf("%s.%s debe ser un texto", donde, k)
+		}
+		switch k {
+		case "name":
+			m.Name = strings.TrimSpace(v.Value)
+		case "description":
+			m.Description = strings.TrimSpace(v.Value)
+		}
+	}
+	if m.Name == "" {
+		return m, fmt.Errorf("%s: falta name", donde)
+	}
+	if strings.HasPrefix(m.Name, "-") {
+		return m, fmt.Errorf("%s: el nombre no puede empezar con '-'", donde)
+	}
+	return m, nil
 }
 
 // AgentPolicies are the agents: section, keyed by role slug. It decodes
@@ -303,6 +433,10 @@ type Manifest struct {
 	Findings *FindingsPolicy `yaml:"findings,omitempty"`
 	// Review is the reviewer the project chooses for `hoom review`.
 	Review *ReviewPolicy `yaml:"review,omitempty"`
+	// Models widens hoom's catalog of models (internal/modelos) for the
+	// providers hoom passes a model to (tablero-con-paneles): hoom tablero's
+	// Modelo selector offers them after the catalog's.
+	Models ModelCatalog `yaml:"models,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`

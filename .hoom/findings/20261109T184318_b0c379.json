@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184318_b0c379",
+  "created_at": "2026-11-09T18:43:18.380505654Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt_entorno_test.go",
+  "description": "INTRODUCIDO: la asercion \"cada pieza con estilo se cierra con \\x1b[0m\" de TestCA534_CA576_ConColorEsLaMismaPantallaConSGR (tt_entorno_test.go:345) es casi vacua: falla solo si la linea no termina en \\x1b[0m Y ademas no tiene ningun \\x1b[0m. Una linea con una pieza cerrada y otra abierta al final (por ejemplo \"\\x1b[1;32m#\\x1b[0m ... \\x1b[7mfila\") pasa, y ese estilo abierto sigue en el \"\\x1b[K\" de Run y en la linea de abajo; doc.go:220-224 fija que cada pieza es SGR + texto + \"\\x1b[0m\". Hoy lienzo.go:137 cierra cada pieza: es una regresion sin guarda (ttEstiloDe y ttConColor miran piezas sueltas, no el cierre). Correccion minima: en cada linea con SGR, exigir que despues de la ultima SGR que no es reset haya un \"\\x1b[0m\" (o que haya tantos resets como aperturas).",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

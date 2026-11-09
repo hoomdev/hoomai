@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184331_bed4bf",
+  "created_at": "2026-11-09T18:43:31.997824856Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/tt_fixtures_test.go",
+  "description": "INTRODUCIDO: ttForma (tt_fixtures_test.go:1033) mide \"a lo sumo Ancho celdas\" con tablero.Celdas, la tabla del propio paquete, aunque el mismo archivo tiene ttCeldas, una tabla independiente (:1059-1099). ttForma corre en los cinco dorados y en decenas de tests: con un AnchoDe equivocado (por ejemplo ✋ o 漢 a una celda) no ve una linea que pasa del ancho, porque mide con la misma tabla con la que se dibujo. Lo atenuan los dorados y TestCA577_*, que usan ttCeldas. Correccion minima: medir con ttCeldas (o con las dos, como TestCA577_PropiedadCadaLineaMideAncho).",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184521_140c81",
+  "created_at": "2026-11-09T18:45:21.70086751Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/statuscmd/statuscmd.go",
+  "description": "INTRODUCIDO. hoom tablero escribe texto crudo en la terminal que tiene tomada. reales.go:51 (Proyecto, cada IntervaloProyecto=10s y al terminar cada verbo) llama a statuscmd.CheckYVeredicto (statuscmd.go:181-185), que lee con checkcmd.Run (checkcmd.go:74) y otra vez con verdict.LoadAll (statuscmd.go:185); verdict.LoadAll (verdict.go:195-200) hace fmt.Fprintln(os.Stderr, \"hoom:\", w) por cada aviso, y el aviso lleva el nombre del archivo sin neutralizar (\"veredicto ilegible \u003cnombre\u003e: \u003cerr\u003e\", verdict.go:220 y 225). Con la TUI en crudo y en pantalla alternativa, os.Stderr es esa terminal (tablero.Real: Err os.Stderr; nada lo redirige). Escenario: un .json ilegible en .hoom/verdicts (truncado, un symlink o un FIFO) -\u003e cada 10 s dos lineas \"hoom: veredicto ilegible ...\" se escriben encima de los paneles, sin retorno de carro, y quedan hasta el siguiente cuadro; con un nombre que lleva ESC (p. ej. \"\\x1b]52;c;...\\x07.json\", que puede llegar por git) la secuencia llega cruda a la terminal, contra la regla de doc.go \"none of them reaches the terminal as a sequence\". La v1 no tenia este camino: el tablero lee con LoadAllWithWarnings (boardcmd/gather.go:258), que no imprime. Relacionado con ec7678 (hoom board en la CLI), pero este camino es nuevo y es de la TUI. Correccion minima: que CheckYVeredicto y el check que corre para la TUI lean con verdict.LoadAllWithWarnings (p. ej. una variante de checkcmd.Run que reciba los veredictos ya leidos) y devuelvan los avisos en vez de imprimirlos; la TUI puede mostrarlos neutralizados en la linea de mensajes.",
+  "author": "reviewer@claude (tramo T1)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184152_7849e3",
+  "as": "corregido",
+  "evidence": "corregido en d1efb59 (ronda 1 del test-writer ciego): TestCA569_GrisesConColor y TestCA567_CA526_ElModalDeAcciones (cada linea buscada existe); el refutador lo corroboro con una mutacion que ningun test detectaba; verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.682869194Z"
+}

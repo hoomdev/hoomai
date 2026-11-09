@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184304_da8fe2",
+  "created_at": "2026-11-09T18:43:04.773292916Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_paneles_test.go",
+  "description": "INTRODUCIDO: CA-556 (re-expresa CA-523) queda sin prueba de la Narracion del sobre EN CURSO en [0] de una tarjeta. main:internal/tablero/tt_tarjeta_test.go:267 (TestCA523_SobreEnCurso) aseveraba la cabecera \" writer · run 3/6 · 12:41 de 45:00 · ultimo evento hace 5s\", un evento por linea y que se actualiza con la lectura siguiente (\"hace 1s\" y el evento nuevo); main:...tt_tarjeta_test.go:306 (TestCA523_SobreSinRunning) que sin eventos no va \"ultimo evento\" y el acento \"último\" con UTF-8. En la v2 la unica asercion de la parte G es tt2_paneles_test.go:498, con ttInfraAPI(false) (sin running) y solo HasPrefix/Contains/HasSuffix; ningun test (tampoco de T4) mira \"ultimo evento\" con running, sin eventos ni con UTF-8. Deja de detectarse: una Narracion con running que no usa el rol, el paso y el tiempo de [3] con \" de \u003climite\u003e\" (doc.go:367-369), que no se actualiza al releer el Detalle, que dice \"ultimo evento\" sin eventos o que pierde el acento. Correccion minima: un caso en tt2_paneles_test.go con ttInfraAPI(true) y su Sobre que asevere la linea exacta, una segunda LeerDetalle con un evento mas, el caso sin eventos y uno con UTF-8.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

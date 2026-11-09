@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184521_140c81",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (CheckYVeredicto y checkcmd.RunCon leen con LoadAllWithWarnings, los avisos van a Proyecto.Avisos neutralizados; BuildFor igual que antes); regresiones TestCA562_DatosDeProyectoNoEscribeEnStderr (tt3_run_test.go) y TestCA562_LosAvisosDeLosVeredictos, verde en go test -race -count=1 (HEAD 09d5589); cmd/hoom, checkcmd y statuscmd verdes",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.709757211Z"
+}

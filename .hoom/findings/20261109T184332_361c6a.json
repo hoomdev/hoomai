@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184332_361c6a",
+  "created_at": "2026-11-09T18:43:32.031581085Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_run_test.go",
+  "description": "INTRODUCIDO: CA-562 en Run deja dos cosas sin fijar. (1) Ningun test asevera que tablero.IntervaloProyecto sea 10 s ni que un Entorno.IntervaloProyecto 0 tome ese valor (tablero.go:61 y :226): todos los Run lo pisan con 20 ms o con 1 h (tt2_run_test.go:28, :46, :69). (2) TestCA562_RunLeeOtraVezCuandoTerminaUnVerbo (tt2_run_test.go:44) no distingue \"al terminar el verbo\" de \"al lanzarlo\": ttLanz llama a fin enseguida (tt_run_test.go, campo ttLanz.fin), asi que una implementacion que relee al ordenar Lanzar tambien pasa. Correccion minima: un test de la constante y de su valor por defecto, y un lanzador falso que entregue el FinProceso cuando el test lo pida, aseverando una sola lectura tras lanzar y otra tras el fin.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

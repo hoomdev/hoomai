@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184538_dceff5",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (en el modal del reviewer ctrl-e no esta en la tabla de ese lugar); regresion TestCA564_ElReviewerNoTieneCtrlE, verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.719901395Z"
+}

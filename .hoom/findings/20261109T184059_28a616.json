@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184059_28a616",
+  "created_at": "2026-11-09T18:40:59.972480383Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_modales_test.go",
+  "description": "INTRODUCIDO. TestCA565_CA568_PedirChicoConservaElComandoYLosBotones (tt2_modales_test.go:1965-1995) dice 'dejando afuera, en el orden del contrato, lo que no entra' pero solo asevera que no quedan lineas vacias y que siguen los selectores, el comando y los botones. En main, internal/tablero/tt_cajas_chicas_test.go:84-87 (TestCA527_CA533_FormularioChicoConservaLaFlecha) exigia que del pedido de 120 celdas quedara la linea del cursor ('p[108:]+_') y la anterior y se fuera la primera. La v2 no mira el cuadro del Pedido a 60x15 (doc.go: se va de 4 a 1 linea, y con foco son las que terminan en el cursor), ni que la linea de ayuda y las palabras de origen se vayan primero (CA-565 lo pide; ningun test mira los origenes a menos de 80 columnas). Deja de detectarse: a 60x15 el Pedido muestra su primera linea en vez de la del cursor (la persona escribe a ciegas), o los origenes se quedan y se va otra cosa. Correccion minima: aseverar que el cuadro tiene la linea con el cursor ('..._') y no la primera, y que ttOrigen de cada selector es ''.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,327 +1,354 @@
 package tablero
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/tarjetacmd"
 )
 
-// hacer runs the row a of the view v for the key t.
-func (m *Modelo) hacer(v Vista, a Atajo, t Tecla) []Orden {
-	// the keys that mean the same wherever they work
-	switch {
-	case t == "q" && v != VistaBusqueda && v != VistaFormulario, t == TeclaCtrlC:
+// Tecla takes one key at ahora. What a key does is the row of Atajos that
+// has it in the current Lugar (Modelo.Lugar); a key with no row there does
+// nothing: the screen and the orders stay the same. The package doc says
+// what each row does in each Lugar ("The keys"); in short:
+//
+//   - The keys of an action (a, t, w, r, R, s, A, I and n) never order
+//     Lanzar: when the card has the action and it is enabled, they open its
+//     modal (Pedir for a, t, w, r and R; Firma for A and I; Guardar for s;
+//     n the modal of the next step's action, whatever its kind) and return
+//     no order; when the card does not have it, the message line says for
+//     DuracionAviso "en <column_name> no hay <Hace>"; when it is disabled,
+//     its why. n without a next step says what hoom siguiente would say
+//     (see the package doc, "The next step"). Without a card (Hecho's line,
+//     an empty [3]) they do nothing.
+//   - u orders Lanzar{Rol: "", Args: {"usar", <slug>}} at once (no modal)
+//     and adds its Registro entry ("Fijar para la terminal").
+//   - Only enter on a modal's action button orders Lanzar (Pedir, Firma,
+//     Guardar), with the Args the modal's "Se va a ejecutar" shows, adds
+//     the verb's Registro entry and closes the modal. Pedir, as the v1's
+//     form, also puts "lanzando hoom <verb>" in the message line for
+//     DuracionAviso (the verb's words, without -m and the flags:
+//     "lanzando hoom pedir writer <slug>").
+//   - e orders AbrirEditor (and adds the editor's Registro entry), ctrl-e
+//     in the Pedir modal orders EditarPedido, q and ctrl-c order Salir.
+//
+// A key that opens a modal returns no order: Modal says which one opened.
+func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
+	if !ahora.IsZero() {
+		m.ahora = ahora
+	}
+	if m.pequena() {
+		if t == "q" || t == TeclaCtrlC {
+			return []Orden{Salir{}}
+		}
+		return nil
+	}
+	l := m.Lugar()
+	// ]c and [c: two strokes
+	if l == LugarVerTarjeta {
+		if m.prefijo != "" {
+			junta := m.prefijo + t
+			m.prefijo = ""
+			if junta == "]c" || junta == "[c" {
+				t = junta
+			}
+		}
+		if t == "]" || t == "[" {
+			m.prefijo = t
+			return nil
+		}
+	} else {
+		m.prefijo = ""
+	}
+	a, ok := atajoEn(m.filas(l), t)
+	if !ok {
+		return nil
+	}
+	ords := m.hacer(l, a, t)
+	m.acomodar()
+	return ords
+}
+
+// filas are the rows of l that work now: AtajosDe(l), without ctrl-e in
+// the reviewer's Pedir modal, which has no Pedido (CA-564).
+func (m *Modelo) filas(l Lugar) []Atajo {
+	out := AtajosDe(l)
+	if m.modal != ModalPedir || m.pedir == nil || !m.pedir.revisor {
+		return out
+	}
+	var sin []Atajo
+	for _, a := range out {
+		if !(len(a.Teclas) == 1 && a.Teclas[0] == TeclaCtrlE) {
+			sin = append(sin, a)
+		}
+	}
+	return sin
+}
+
+// atajoEn is the row of filas that t has: the one that names it or, for a
+// printable key that no row names, the row of TeclaTexto.
+func atajoEn(filas []Atajo, t Tecla) (Atajo, bool) {
+	for _, a := range filas {
+		for _, k := range a.Teclas {
+			if k == t {
+				return a, true
+			}
+		}
+	}
+	if !imprimible(t) {
+		return Atajo{}, false
+	}
+	for _, a := range filas {
+		for _, k := range a.Teclas {
+			if k == TeclaTexto {
+				return a, true
+			}
+		}
+	}
+	return Atajo{}, false
+}
+
+// imprimible: a key that is one printable rune (the space included).
+func imprimible(t Tecla) bool {
+	r, n := utf8.DecodeRuneInString(string(t))
+	return n == len(t) && n > 0 && r != utf8.RuneError && unicode.IsPrint(r)
+}
+
+// AtajosDe are the rows of Atajos that work in l, in table order.
+func AtajosDe(l Lugar) []Atajo {
+	var out []Atajo
+	for _, a := range Atajos {
+		if contieneLugar(a.Lugares, l) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func contieneLugar(ls []Lugar, l Lugar) bool {
+	for _, x := range ls {
+		if x == l {
+			return true
+		}
+	}
+	return false
+}
+
+// hacer runs the row a in the Lugar l for the key t.
+func (m *Modelo) hacer(l Lugar, a Atajo, t Tecla) []Orden {
+	if t == TeclaCtrlC || t == "q" && contieneLugar(LugaresPaneles, l) {
 		return []Orden{Salir{}}
-	case t == "x" && esTarjetaVista(v):
-		m.experto = !m.experto
-		return nil
-	case t == "?" && v != VistaAyuda && esTarjetaVista(v):
-		m.ayudaDe = v
-		m.vista = VistaAyuda
-		return nil
-	case a.Accion != "":
-		if c := m.tarjetaDe(v); c != nil {
+	}
+	if a.Accion != "" {
+		if c := m.tarjetaDeLugar(l); c != nil {
 			return m.accion(c, a)
 		}
 		return nil
-	case t == TeclaEspacio && v != VistaBusqueda && v != VistaFormulario:
-		if c := m.tarjetaDe(v); c != nil {
-			m.abrirMenu(c, v)
-		}
-		return nil
 	}
-	switch v {
-	case VistaLista:
-		return m.enLista(t)
-	case VistaBusqueda:
-		return m.enBusqueda(t)
-	case VistaResumen, VistaSpec, VistaSobre, VistaHallazgos, VistaHistoria:
-		return m.enPestana(v, t)
-	case VistaMenu:
-		return m.enMenu(t)
-	case VistaFormulario:
-		return m.enFormulario(t)
-	case VistaConfirmacion:
+	switch l {
+	case LugarPedirSelector, LugarPedirPedido, LugarPedirTexto, LugarPedirLista, LugarPedirBotones:
+		return m.enPedir(l, t)
+	case LugarFirma, LugarGuardar:
 		return m.enConfirmacion(t)
-	case VistaAyuda:
-		m.vista = m.ayudaDe
+	case LugarAcciones:
+		return m.enAcciones(t)
+	case LugarAyuda:
+		m.enAyuda(t)
+		return nil
+	case LugarBusqueda:
+		m.enBusqueda(t)
 		return nil
 	}
-	return nil
-}
-
-func esTarjetaVista(v Vista) bool { return contieneVista(tarjetaVistas, v) }
-
-func esPestana(v Vista) bool { return contieneVista(pestanaVistas, v) }
-
-// tarjetaDe is the card the action keys act on in v: the selected one in
-// the list, the open one in its tabs, the menu's in the menu.
-func (m *Modelo) tarjetaDe(v Vista) *boardcmd.Card {
-	switch {
-	case v == VistaLista:
-		if m.selHecho || m.selSlug == "" {
-			return nil
-		}
-		return m.tarjeta(m.selSlug)
-	case esPestana(v):
-		return m.tarjeta(m.abierta)
-	case v == VistaMenu && m.menu != nil:
-		return m.tarjeta(m.menu.slug)
-	}
-	return nil
-}
-
-// ---------------------------------------------------------------- the list
-
-func (m *Modelo) enLista(t Tecla) []Orden {
+	// the panels
 	switch t {
-	case "j", TeclaAbajo:
-		m.mover(1)
-	case "k", TeclaArriba:
-		m.mover(-1)
-	case "g":
-		m.elegir(0)
-	case "G":
-		m.elegir(len(m.elegibles()) - 1)
-	case TeclaEnter, "l", TeclaDer:
-		m.entrar()
-	case "/":
-		m.vista = VistaBusqueda
-		m.filtro = nil
-	}
-	return nil
-}
-
-func (m *Modelo) enBusqueda(t Tecla) []Orden {
-	switch t {
-	case TeclaAbajo:
-		m.mover(1)
-	case TeclaArriba:
-		m.mover(-1)
-	case TeclaBorrar:
-		if len(m.filtro) > 0 {
-			m.filtro = m.filtro[:len(m.filtro)-1]
-		}
-		m.alFiltrar()
-	case TeclaEsc:
-		m.cerrarBusqueda()
-	case TeclaEnter:
-		abrir := !m.selHecho && m.selSlug != "" && !m.sinSeleccion
-		m.cerrarBusqueda()
-		if abrir {
-			m.abrir(m.selSlug)
-		}
-	default:
-		m.filtro = append(m.filtro, []rune(string(t))...)
-		m.alFiltrar()
-	}
-	return nil
-}
-
-func (m *Modelo) cerrarBusqueda() {
-	m.vista = VistaLista
-	m.filtro = nil
-	m.acomodar()
-}
-
-// mover moves the selection d lines over the ones that can be chosen.
-func (m *Modelo) mover(d int) {
-	els := m.elegibles()
-	if len(els) == 0 {
-		return
-	}
-	m.elegir(m.selIdx + d)
-}
-
-// elegir puts the selection on the i-th line that can be chosen (clamped).
-func (m *Modelo) elegir(i int) {
-	els := m.elegibles()
-	if len(els) == 0 {
-		return
-	}
-	if i < 0 {
-		i = 0
-	}
-	if i >= len(els) {
-		i = len(els) - 1
-	}
-	m.selIdx = i
-	m.selSlug, m.selHecho = els[i].slug, els[i].hecho
-	m.sinSeleccion = false
-}
-
-// entrar is enter on the list: it opens the card, or opens and closes
-// Hecho.
-func (m *Modelo) entrar() {
-	if m.sinSeleccion {
-		return
-	}
-	if m.selHecho {
-		m.hechoAbierto = !m.hechoAbierto
-		return
-	}
-	if m.selSlug != "" {
-		m.abrir(m.selSlug)
-	}
-}
-
-// abrir opens a card on its Resumen.
-func (m *Modelo) abrir(slug string) {
-	if m.tarjeta(slug) == nil {
-		return
-	}
-	if m.abierta != slug {
-		m.detalle = nil
-	}
-	m.abierta = slug
-	m.pestana = VistaResumen
-	m.vista = VistaResumen
-	m.scrolls = map[Vista]int{}
-	m.hallazgo = 0
-	m.alFinal = true
-}
-
-// volver closes the open card: back to the list, the selection on it.
-func (m *Modelo) volver() {
-	if m.abierta != "" {
-		m.selSlug, m.selHecho, m.sinSeleccion = m.abierta, false, false
-	}
-	m.abierta = ""
-	m.detalle = nil
-	m.vista = VistaLista
-}
-
-// cerrarTodo goes back to the list from wherever it is.
-func (m *Modelo) cerrarTodo() {
-	m.menu, m.form, m.conf = nil, nil, nil
-	m.abierta = ""
-	m.detalle = nil
-	m.filtro = nil
-	m.vista = VistaLista
-}
-
-// slugEnUso is the card the screen is about beyond the list: the open one,
-// or the one of the menu, the form or the confirmation ("" in the list).
-func (m *Modelo) slugEnUso() string {
-	switch {
-	case m.form != nil && (m.vista == VistaFormulario || m.vista == VistaAyuda):
-		return m.form.slug
-	case m.conf != nil && m.vista == VistaConfirmacion:
-		return m.conf.slug
-	case m.menu != nil && (m.vista == VistaMenu || m.ayudaDe == VistaMenu && m.vista == VistaAyuda):
-		return m.menu.slug
-	}
-	return m.abierta
-}
-
-// ---------------------------------------------------------------- the tabs
-
-func (m *Modelo) enPestana(v Vista, t Tecla) []Orden {
-	switch t {
-	case "1", "2", "3", "4", "5":
-		m.elegirPestana(Pestanas[int(t[0]-'1')])
-	case TeclaTab:
-		for i, p := range Pestanas {
-			if p == v {
-				m.elegirPestana(Pestanas[(i+1)%len(Pestanas)])
-				break
+	case "1", "2", "3", "4", "0":
+		m.ponerFoco(Panel(t[0] - '0'))
+		return nil
+	case TeclaTab, TeclaShiftTab:
+		orden := []Panel{PanelProyecto, PanelTarjetas, PanelCorriendo, PanelHallazgos, PanelPrincipal}
+		i := 0
+		for j, p := range orden {
+			if p == m.foco {
+				i = j
 			}
 		}
-	case TeclaEsc, "h", TeclaIzq:
-		m.volver()
-	case "j", TeclaAbajo:
-		m.desplazar(v, 1)
-	case "k", TeclaArriba:
-		m.desplazar(v, -1)
-	case "g":
-		if v == VistaHallazgos {
-			m.hallazgo = 0
-		} else {
-			m.scrolls[v] = 0
-			m.alFinal = v != VistaSobre
+		d := 1
+		if t == TeclaShiftTab {
+			d = len(orden) - 1
 		}
-	case "G":
-		if v == VistaHallazgos {
-			m.hallazgo = len(m.hallazgos()) - 1
-		} else {
-			m.scrolls[v] = m.maxScroll(v)
-			m.alFinal = true
+		m.ponerFoco(orden[(i+d)%len(orden)])
+		return nil
+	case "/":
+		m.abrirBusqueda()
+		return nil
+	case "x":
+		m.experto = !m.experto
+		return nil
+	case "?":
+		m.abrirAyuda(l)
+		return nil
+	case TeclaEspacio:
+		if c := m.tarjetaDeLugar(l); c != nil {
+			m.abrirAcciones(c)
 		}
-	case "]c", "[c":
-		m.saltarCriterio(t == "]c")
-	case "o":
-		return m.abrirSpec()
-	case TeclaEnter:
-		return m.abrirHallazgo()
+		return nil
+	case "e":
+		return m.abrirEnEditor(l)
+	}
+	if contieneLugar(LugaresVer, l) {
+		m.enPrincipal(l, t)
+		return nil
+	}
+	m.enIzquierda(t)
+	return nil
+}
+
+// tarjetaDeLugar is the card the card's keys act on in l.
+func (m *Modelo) tarjetaDeLugar(l Lugar) *boardcmd.Card {
+	switch l {
+	case LugarTarjetas, LugarVerTarjeta:
+		return m.tarjeta(m.elegidaDe2())
+	case LugarCorriendo, LugarVerCorriendo:
+		return m.tarjeta(m.elegidaDe3())
+	case LugarAcciones:
+		if m.acciones != nil {
+			return m.tarjeta(m.acciones.slug)
+		}
 	}
 	return nil
 }
 
-func (m *Modelo) elegirPestana(p Vista) {
-	m.pestana = p
-	m.vista = p
-	if p == VistaSobre {
-		m.alFinal = true
-		m.scrolls[p] = m.maxScroll(p)
+// enIzquierda is a key of [1] to [4].
+func (m *Modelo) enIzquierda(t Tecla) {
+	mover := func(d int) {
+		switch m.foco {
+		case PanelTarjetas:
+			if d == 0 {
+				m.elegir2(0)
+			} else if d == 2 {
+				m.elegir2(len(m.filas2()) - 1)
+			} else {
+				m.elegir2(m.sel2.idx + d)
+			}
+		case PanelCorriendo:
+			switch d {
+			case 0:
+				m.elegir3(0)
+			case 2:
+				m.elegir3(len(m.filas3()) - 1)
+			default:
+				m.elegir3(m.idx3 + d)
+			}
+		case PanelHallazgos:
+			switch d {
+			case 0:
+				m.elegir4(0)
+			case 2:
+				m.elegir4(len(m.hallazgos) - 1)
+			default:
+				m.elegir4(m.idx4 + d)
+			}
+		}
+	}
+	switch t {
+	case "j", TeclaAbajo:
+		mover(1)
+	case "k", TeclaArriba:
+		mover(-1)
+	case "g":
+		mover(0)
+	case "G":
+		mover(2)
+	case TeclaEnter, "l", TeclaDer:
+		if m.foco == PanelTarjetas && !m.sel2.nada && m.sel2.hecho {
+			m.hechoAbierto = !m.hechoAbierto
+			return
+		}
+		m.ponerFoco(PanelPrincipal)
 	}
 }
 
-// alto is how many lines of a tab's content are in view.
-func (m *Modelo) alto() int {
-	if h := m.c.Alto - 5; h > 0 {
-		return h
+// enPrincipal is a key of [0].
+func (m *Modelo) enPrincipal(l Lugar, t Tecla) {
+	switch t {
+	case "j", TeclaAbajo:
+		m.desplazar0(1)
+	case "k", TeclaArriba:
+		m.desplazar0(-1)
+	case TeclaPgAbajo:
+		m.desplazar0(max(1, m.alto0()))
+	case TeclaPgArriba:
+		m.desplazar0(-max(1, m.alto0()))
+	case "g":
+		m.desplazar0(-1 << 30)
+	case "G":
+		m.desplazar0(1 << 30)
+	case TeclaEsc, TeclaIzq, "h":
+		m.ponerFoco(m.izq)
+	case "]c", "[c":
+		m.saltarCriterio(t == "]c")
 	}
-	return 1
 }
 
-func (m *Modelo) maxScroll(v Vista) int {
-	if n := len(m.contenido(v)) - m.alto(); n > 0 {
-		return n
+// desplazar0 scrolls [0] d lines (clamped); [0] of [3] follows its end
+// when the view is at it.
+func (m *Modelo) desplazar0(d int) {
+	_, docu, hi := m.doc0()
+	maximo := max(0, len(docu)-hi)
+	s := m.scroll0 + d
+	if d == 1<<30 || s > maximo {
+		s = maximo
 	}
-	return 0
+	if s < 0 {
+		s = 0
+	}
+	m.scroll0 = s
+	m.sigue0 = m.sigueElFinal(s, maximo)
 }
 
-func (m *Modelo) desplazar(v Vista, d int) {
-	if v == VistaHallazgos {
-		m.hallazgo += d
-		return
-	}
-	s := m.scrolls[v]
+// sigueElFinal says whether [0] follows its end at the scroll s of maximo:
+// [0] of [3] when it is at its end; a card's document only when it is longer
+// than the view and it is at its end (its Narración in view). Proyecto and
+// a finding never follow.
+func (m *Modelo) sigueElFinal(s, maximo int) bool {
 	switch {
-	case d > 0 && s < m.maxScroll(v):
-		s++
-	case d < 0 && s > 0:
-		s--
+	case strings.HasPrefix(m.clave0, "c:"):
+		return s >= maximo
+	case strings.HasPrefix(m.clave0, "t:"):
+		return maximo > 0 && s >= maximo
 	}
-	m.scrolls[v] = s
-	if v == VistaSobre {
-		m.alFinal = s >= m.maxScroll(v)
-	}
+	return false
 }
 
 // saltarCriterio makes the next (or previous) criterion without a test the
 // first line in view.
 func (m *Modelo) saltarCriterio(adelante bool) {
-	actual := m.scrolls[VistaSpec]
-	sin := m.sinPrueba()
+	_, docu, hi := m.doc0()
+	actual := m.scroll0
+	var sin []int
+	for i, l := range docu {
+		// the first line of each ✗ criterion
+		if l.sin && (i == 0 || docu[i-1].crit != l.crit) {
+			sin = append(sin, i)
+		}
+	}
+	maximo := max(0, len(docu)-hi)
 	if adelante {
 		for _, i := range sin {
 			if i > actual {
-				m.scrolls[VistaSpec] = i
+				m.scroll0 = min(i, maximo)
 				return
 			}
 		}
 	} else {
 		for j := len(sin) - 1; j >= 0; j-- {
 			if sin[j] < actual {
-				m.scrolls[VistaSpec] = sin[j]
+				m.scroll0 = min(sin[j], maximo)
 				return
 			}
 		}
@@ -329,177 +356,168 @@ func (m *Modelo) saltarCriterio(adelante bool) {
 	m.avisar("no hay mas criterios sin prueba", normal, DuracionAviso)
 }
 
-func (m *Modelo) abrirSpec() []Orden {
-	if m.detalle == nil || !tieneSpec(m.detalle) {
-		return nil
+// abrirEnEditor is e.
+func (m *Modelo) abrirEnEditor(l Lugar) []Orden {
+	switch l {
+	case LugarVerTarjeta:
+		c := m.tarjeta(m.elegidaDe2())
+		det := m.detalle
+		if c == nil || det == nil || det.Slug != c.Slug || det.Err != nil {
+			return nil
+		}
+		if !tieneSpec(det) {
+			m.avisar("sin spec: "+rutaSpec(c, det), normal, DuracionAviso)
+			return nil
+		}
+		return m.abrirArchivo(rutaSpec(c, det), m.lineaCriterioEnVista(det))
+	case LugarHallazgos, LugarVerHallazgo:
+		h, ok := m.hallazgoElegido()
+		if !ok {
+			return nil
+		}
+		archivo, n := m.rutaHallazgo(h)
+		if archivo == "" {
+			m.avisar("el hallazgo no nombra un archivo", normal, DuracionAviso)
+			return nil
+		}
+		return m.abrirArchivo(archivo, n)
 	}
-	return m.abrirArchivo(m.rutaSpec(), m.scrolls[VistaSpec]+1)
+	return nil
 }
 
-func (m *Modelo) abrirHallazgo() []Orden {
-	hs := m.hallazgos()
-	if len(hs) == 0 {
-		return nil
+// lineaCriterioEnVista is the spec's line of the first criterion with a
+// line in [0]'s view, or 1.
+func (m *Modelo) lineaCriterioEnVista(det *Detalle) int {
+	_, docu, hi := m.doc0()
+	for i := m.scroll0; i < len(docu) && i < m.scroll0+hi; i++ {
+		id := docu[i].crit
+		if id == "" {
+			continue
+		}
+		for n, l := range strings.Split(det.Detalle.Spec.Markdown, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(l), "- "+id+":") {
+				return n + 1
+			}
+		}
+		return 1
 	}
-	i := m.hallazgo
-	if i < 0 || i >= len(hs) {
-		return nil
-	}
-	archivo, n := archivoYLinea(hs[i])
-	if archivo == "" {
-		m.avisar("el hallazgo no nombra un archivo", normal, DuracionAviso)
-		return nil
-	}
-	dir := m.dirEvidencia()
-	if dir != "" && dir != "." && !absoluta(archivo) {
-		archivo = dir + "/" + archivo
-	}
-	return m.abrirArchivo(archivo, n)
+	return 1
 }
 
-// abrirArchivo is the order to open archivo (a path of the project, with /) at
-// linea, or a message when the path leaves the project: a path that comes
-// from the evidence (a finding's file, a card's spec) opens nothing outside
-// it.
+// abrirArchivo is the order to open archivo (a path of the project, with /)
+// at linea, or a message when the path leaves the project.
 func (m *Modelo) abrirArchivo(archivo string, linea int) []Orden {
 	if fueraPorLaForma(archivo) {
 		m.avisar("el archivo "+strconv.Quote(archivo)+" esta fuera del proyecto", rojo, DuracionAviso)
 		return nil
 	}
+	m.registrarEditor(archivo, linea)
 	return []Orden{AbrirEditor{Archivo: archivo, Linea: linea}}
 }
 
-// ---------------------------------------------------------------- the menu
-
-// menu is the action menu of a card.
-type menu struct {
-	slug  string
-	desde Vista // the list or a tab
-	sel   int   // index into the card's shown actions
-}
-
-func (m *Modelo) abrirMenu(c *boardcmd.Card, desde Vista) {
-	m.menu = &menu{slug: c.Slug, desde: desde, sel: -1}
-	m.vista = VistaMenu
-	m.acomodarMenu()
-}
-
-// accionesMenu are the card's actions the menu shows: the expert ones only
-// in expert mode.
-func (m *Modelo) accionesMenu(c *boardcmd.Card) []boardcmd.Action {
-	var out []boardcmd.Action
-	for _, a := range c.Actions {
-		if a.Expert && !m.experto {
-			continue
+// enBusqueda is a key of the search.
+func (m *Modelo) enBusqueda(t Tecla) {
+	switch t {
+	case TeclaAbajo:
+		m.elegir2(m.sel2.idx + 1)
+	case TeclaArriba:
+		m.elegir2(m.sel2.idx - 1)
+	case TeclaBorrar:
+		if len(m.filtro) > 0 {
+			m.filtro = m.filtro[:len(m.filtro)-1]
 		}
-		out = append(out, a)
+		m.trasFiltrar()
+	case TeclaEsc, TeclaEnter:
+		m.cerrarBusqueda()
+	default:
+		m.filtro = append(m.filtro, []rune(string(t))...)
+		m.trasFiltrar()
 	}
-	return out
 }
 
-// elegibleMenu: an enabled action with a capa-1 verb.
-func elegibleMenu(a boardcmd.Action) bool {
-	_, ok := filaDeAccion(a.ID)
-	return a.Enabled && ok
+// trasFiltrar keeps the chosen card while it stays, and else goes to the
+// first row that does.
+func (m *Modelo) trasFiltrar() {
+	if m.sel2.hecho {
+		m.acomodar2()
+		return
+	}
+	if c := m.tarjeta(m.sel2.slug); c != nil && m.pasaFiltro(c) {
+		m.acomodar2()
+		return
+	}
+	m.alFiltrar()
 }
 
-// filaDeAccion is the row of Atajos that runs the action id.
+// ---------------------------------------------------------------- the actions
+
+// filaDeAccion is the row of the table that runs the card action id.
 func filaDeAccion(id string) (Atajo, bool) {
 	for _, a := range Atajos {
-		if a.Accion == id && a.Accion != "" {
+		if a.Accion == id && a.Verbo != "" {
 			return a, true
 		}
 	}
 	return Atajo{}, false
 }
 
-func (m *Modelo) acomodarMenu() {
-	if m.menu == nil {
-		return
+// siguientePaso is the card's next step (the package doc, "The next
+// step"): its action and its key's row, or the text n says.
+func (m *Modelo) siguientePaso(c *boardcmd.Card) (*boardcmd.Action, Atajo, string) {
+	nada := fmt.Sprintf("en %s no hay nada que hacer ahora: %s", c.ColumnName, c.Plain)
+	switch {
+	case c.Column == boardcmd.ColHecho:
+		return nil, Atajo{}, "la tarjeta ya esta en Hecho"
+	case c.Running != nil:
+		return nil, Atajo{}, fmt.Sprintf("el %s esta trabajando: espera a que termine", rolDe(c.Running.Role))
+	case c.Interrupted != nil:
+		return nil, Atajo{}, "el trabajo se corto: R reanuda o pide de nuevo"
 	}
-	c := m.tarjeta(m.menu.slug)
-	if c == nil {
-		return
-	}
-	as := m.accionesMenu(c)
-	if m.menu.sel >= 0 && m.menu.sel < len(as) && elegibleMenu(as[m.menu.sel]) {
-		return
-	}
-	m.menu.sel = -1
-	for i, a := range as {
-		if elegibleMenu(a) {
-			m.menu.sel = i
-			return
+	var id string
+	switch {
+	case c.Column == boardcmd.ColTuAprobacion:
+		id = boardcmd.ActAprobar
+	case c.Column == boardcmd.ColTuAceptacion:
+		id = boardcmd.ActIntegrar
+	case len(c.Actions) == 0:
+		return nil, Atajo{}, nada
+	default:
+		a := c.Actions[0]
+		if _, ok := filaDeAccion(a.ID); !ok || !boardcmd.IsRoleAction(a.ID) && a.ID != boardcmd.ActGuardar {
+			return nil, Atajo{}, nada
 		}
+		id = a.ID
 	}
+	fila, _ := filaDeAccion(id)
+	act, ok := c.Action(id)
+	if !ok {
+		return nil, fila, fmt.Sprintf("en %s no hay %s", c.ColumnName, fila.Hace)
+	}
+	if !act.Enabled {
+		return nil, fila, act.Why
+	}
+	return &act, fila, ""
 }
-
-func (m *Modelo) enMenu(t Tecla) []Orden {
-	c := m.tarjeta(m.menu.slug)
-	if c == nil {
-		return nil
-	}
-	as := m.accionesMenu(c)
-	switch t {
-	case "j", TeclaAbajo, "k", TeclaArriba:
-		d := 1
-		if t == "k" || t == TeclaArriba {
-			d = -1
-		}
-		for i := m.menu.sel + d; i >= 0 && i < len(as); i += d {
-			if elegibleMenu(as[i]) {
-				m.menu.sel = i
-				break
-			}
-		}
-	case TeclaEsc:
-		m.cerrarMenu()
-	case TeclaEnter:
-		if m.menu.sel < 0 || m.menu.sel >= len(as) {
-			return nil
-		}
-		fila, ok := filaDeAccion(as[m.menu.sel].ID)
-		if !ok {
-			return nil
-		}
-		return m.accion(c, fila)
-	}
-	return nil
-}
-
-// cerrarMenu goes back to where the menu was opened from.
-func (m *Modelo) cerrarMenu() {
-	if m.menu != nil {
-		m.vista = m.menu.desde
-	}
-	m.menu = nil
-}
-
-// origen is the view a form or a confirmation goes back to: the one under
-// the menu when it came from the menu.
-func (m *Modelo) origen() Vista {
-	if m.vista == VistaMenu && m.menu != nil {
-		return m.menu.desde
-	}
-	return m.vista
-}
-
-// ---------------------------------------------------------------- the actions
 
 // accion runs the row a (one with Accion) on the card c.
 func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
-	verbo := verboDe(a, c.Slug)
-	if len(verbo) == 0 {
-		m.avisar("sin verbo en la terminal", normal, DuracionAviso)
-		return nil
-	}
 	switch a.Accion {
 	case AccionUsar:
-		o := m.lanzar(c.Slug, "", verbo)
-		m.dejarMenu()
-		return []Orden{o}
+		args := verboDe(a, c.Slug)
+		la := m.lanzar(c.Slug, "", args)
+		m.registrarVerbo(la, "Fijar para la terminal", lineaVerbo(args, m.c.Windows))
+		if m.modal == ModalAcciones {
+			m.cerrarModal()
+		}
+		return []Orden{la.o}
 	case AccionSiguiente:
-		return m.siguiente(c, verbo)
+		act, fila, texto := m.siguientePaso(c)
+		if act == nil {
+			m.avisar(texto, normal, DuracionAviso)
+			return nil
+		}
+		m.abrirModalDe(c, *act, fila)
+		return nil
 	}
 	act, ok := c.Action(a.Accion)
 	if !ok {
@@ -510,21 +528,47 @@ func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
 		m.avisar(act.Why, normal, DuracionAviso)
 		return nil
 	}
+	m.abrirModalDe(c, act, a)
+	return nil
+}
+
+// abrirModalDe opens the modal of the action act of the card c, whose key's
+// row is fila.
+func (m *Modelo) abrirModalDe(c *boardcmd.Card, act boardcmd.Action, fila Atajo) {
+	m.cerrarModal()
+	verbo := verboDe(fila, c.Slug)
 	switch act.ID {
 	case boardcmd.ActAprobar, boardcmd.ActIntegrar:
 		m.abrirConfirmacion(c, act, true, verbo)
 	case boardcmd.ActGuardar:
 		m.abrirConfirmacion(c, act, false, verbo)
 	default:
-		m.abrirFormulario(c, act, verbo)
+		m.abrirPedir(c, act, verbo)
 	}
-	return nil
 }
 
-// verboDe is the capa-1 verb that row a runs on slug: its Verbo, the one
-// the help and the menu show, without "hoom" and with <slug> as slug
-// ("hoom pedir writer <slug>" is {"pedir", "writer", slug}). What is shown
-// and what runs are one text.
+// cerrarModal closes the open modal.
+func (m *Modelo) cerrarModal() {
+	m.modal = SinModal
+	m.pedir, m.conf, m.acciones, m.ayuda = nil, nil, nil, nil
+}
+
+// slugDelModal is the card of the open modal ("" without one).
+func (m *Modelo) slugDelModal() string {
+	switch {
+	case m.pedir != nil:
+		return m.pedir.slug
+	case m.conf != nil:
+		return m.conf.slug
+	case m.acciones != nil:
+		return m.acciones.slug
+	}
+	return ""
+}
+
+// verboDe is the capa-1 verb that row a runs on slug: its Verbo without
+// "hoom" and with <slug> as slug ("hoom pedir writer <slug>" is {"pedir",
+// "writer", slug}). What is shown and what runs are one text.
 func verboDe(a Atajo, slug string) []string {
 	f := strings.Fields(a.Verbo)
 	if len(f) < 2 || f[0] != "hoom" {
@@ -540,243 +584,17 @@ func verboDe(a Atajo, slug string) []string {
 	return out
 }
 
-// siguiente is n: what hoom siguiente does.
-func (m *Modelo) siguiente(c *boardcmd.Card, verbo []string) []Orden {
-	switch {
-	case c.Column == boardcmd.ColHecho:
-		m.avisar("la tarjeta ya esta en Hecho", normal, DuracionAviso)
-	case c.Running != nil:
-		m.avisar(fmt.Sprintf("el %s esta trabajando: espera a que termine", rolDe(c.Running.Role)), normal, DuracionAviso)
-	case c.Interrupted != nil:
-		m.avisar("el trabajo se corto: R reanuda o pide de nuevo", normal, DuracionAviso)
-	case c.Column == boardcmd.ColTuAprobacion:
-		m.avisar("te toca: A aprobar", normal, DuracionAviso)
-	case c.Column == boardcmd.ColTuAceptacion:
-		m.avisar("te toca: I integrar", normal, DuracionAviso)
-	case len(c.Actions) == 0:
-		m.avisar(fmt.Sprintf("en %s no hay nada que hacer ahora: %s", c.ColumnName, c.Plain), normal, DuracionAviso)
-	default:
-		a := c.Actions[0]
-		switch {
-		case boardcmd.IsRoleAction(a.ID) && !a.Enabled:
-			m.avisar(a.Why, normal, DuracionAviso)
-		case boardcmd.IsRoleAction(a.ID):
-			m.abrirFormulario(c, a, verbo)
-		case a.ID == boardcmd.ActGuardar:
-			m.avisar("te toca: s guardar", normal, DuracionAviso)
-		default:
-			m.avisar(fmt.Sprintf("en %s no hay nada que hacer ahora: %s", c.ColumnName, c.Plain), normal, DuracionAviso)
-		}
-	}
-	return nil
-}
-
-// dejarMenu closes the menu after it ran an action that opens nothing.
-func (m *Modelo) dejarMenu() {
-	if m.vista == VistaMenu {
-		m.cerrarMenu()
-	}
-}
-
 // lanzar is the order of a launch, remembered until it ends.
-func (m *Modelo) lanzar(slug, rol string, args []string) Lanzar {
+func (m *Modelo) lanzar(slug, rol string, args []string) *lanzado {
 	m.sigID++
 	o := Lanzar{ID: m.sigID, Slug: slug, Rol: rol, Args: args}
 	antes := ""
 	if c := m.tarjeta(slug); c != nil && c.Running != nil {
 		antes = idDe(c.Running)
 	}
-	m.lanzados[o.ID] = &lanzado{o: o, antes: antes}
-	return o
-}
-
-// ---------------------------------------------------------------- the confirmations
-
-// confirmacion is the box of aprobar, integrar or guardar.
-type confirmacion struct {
-	slug   string
-	accion boardcmd.Action
-	desde  Vista
-	firma  bool     // aprobar or integrar; false: guardar
-	firmar bool     // Firmar is the chosen button
-	verbo  []string // what enter runs: the row's Verbo (verboDe)
-	texto  string
-	paths  []string
-	spec   string // sha256 of the spec the open card's detail showed; "" = not read
-}
-
-func (m *Modelo) abrirConfirmacion(c *boardcmd.Card, a boardcmd.Action, firma bool, verbo []string) {
-	cf := &confirmacion{slug: c.Slug, accion: a, desde: m.origen(), firma: firma, verbo: verbo}
-	if firma {
-		cf.texto = tarjetacmd.TextoFirma(*c, a)
-		cf.spec = m.huellaSpec(c.Slug)
-	} else {
-		cf.paths = rutasSinGuardar(c, a)
-	}
-	m.menu = nil
-	m.conf = cf
-	m.vista = VistaConfirmacion
-}
-
-func (m *Modelo) enConfirmacion(t Tecla) []Orden {
-	cf := m.conf
-	switch t {
-	case TeclaIzq, TeclaDer, TeclaTab:
-		cf.firmar = !cf.firmar
-	case TeclaEsc:
-		m.cerrarConfirmacion()
-	case TeclaEnter:
-		if cf.firma && !cf.firmar {
-			m.cerrarConfirmacion()
-			return nil
-		}
-		if why, ok := m.vigente(cf); !ok {
-			m.cerrarConfirmacion()
-			m.avisar(why, rojo, DuracionAviso)
-			return nil
-		}
-		if cf.firma && !m.confirmacionCabe() {
-			m.avisar("agranda la terminal: la firma no entra entera", rojo, DuracionAviso)
-			return nil
-		}
-		o := m.lanzar(cf.slug, "", cf.verbo)
-		m.cerrarConfirmacion()
-		return []Orden{o}
-	}
-	return nil
-}
-
-// rutasSinGuardar are the paths guardar would save: the action's, else the
-// card's unsynced ones.
-func rutasSinGuardar(c *boardcmd.Card, a boardcmd.Action) []string {
-	if len(a.Paths) > 0 {
-		return a.Paths
-	}
-	return c.Unsynced
-}
-
-// huellaSpec is the sha256 of slug's spec as the open card's detail has it,
-// "" when that detail is not read.
-func (m *Modelo) huellaSpec(slug string) string {
-	d := m.detalle
-	if d == nil || d.Slug != slug || d.Err != nil || !d.Detalle.Spec.Exists {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(d.Detalle.Spec.Markdown))
-	return hex.EncodeToString(sum[:])
-}
-
-// vigente says whether the confirmation still shows what the data says now:
-// its card has the action enabled, the signature's text is the same (and
-// the spec, when the open card's detail showed it), guardar's paths are the
-// same. When it is not, why is what the bar says: a confirmation never runs
-// on a state the person did not see.
-func (m *Modelo) vigente(cf *confirmacion) (string, bool) {
-	cambio := fmt.Sprintf("cambio lo que ibas a confirmar en %s: vuelve a abrirlo", cf.slug)
-	c := m.tarjeta(cf.slug)
-	if c == nil {
-		return fmt.Sprintf("la tarjeta %s ya no existe", cf.slug), false
-	}
-	a, ok := c.Action(cf.accion.ID)
-	switch {
-	case !ok:
-		return cambio, false
-	case !a.Enabled:
-		return a.Why, false
-	case cf.firma:
-		if tarjetacmd.TextoFirma(*c, a) != cf.texto {
-			return cambio, false
-		}
-		// a spec that was shown and cannot be read now (a failed read, a
-		// spec gone) is not the one shown: the signature fails closed
-		if cf.spec != "" && m.huellaSpec(cf.slug) != cf.spec {
-			return cambio, false
-		}
-	case !slices.Equal(rutasSinGuardar(c, a), cf.paths):
-		return cambio, false
-	}
-	return "", true
-}
-
-// revisarConfirmacion closes the open confirmation when the data it was
-// opened on changed.
-func (m *Modelo) revisarConfirmacion() {
-	if m.conf == nil {
-		return
-	}
-	if why, ok := m.vigente(m.conf); !ok {
-		m.cerrarConfirmacion()
-		m.avisar(why, rojo, DuracionAviso)
-	}
-}
-
-func (m *Modelo) cerrarConfirmacion() {
-	if m.conf != nil {
-		m.vista = m.conf.desde
-	}
-	m.conf = nil
-}
-
-// ---------------------------------------------------------------- the bar
-
-// avisar puts a message in the bar for d (barra.dar).
-func (m *Modelo) avisar(texto string, e estilo, d time.Duration) {
-	m.barra.dar(texto, e, m.ahora, d)
-}
-
-// mensaje is the bar's message now: the last one while it lasts, else the
-// read error.
-func (m *Modelo) mensaje() (string, estilo) {
-	if m.barra.mostrando(m.ahora) {
-		return m.barra.actual.texto, m.barra.actual.estilo
-	}
-	if m.errLectura != "" {
-		return m.errLectura, rojo
-	}
-	return "", normal
-}
-
-// ---------------------------------------------------------------- the board
-
-// todas are the board's cards, in its order.
-func (m *Modelo) todas() []*boardcmd.Card {
-	var out []*boardcmd.Card
-	for i := range m.tablero.Columns {
-		col := &m.tablero.Columns[i]
-		for j := range col.Cards {
-			out = append(out, &col.Cards[j])
-		}
-	}
-	return out
-}
-
-// tarjeta is the card slug of the board (nil when it is not there).
-func (m *Modelo) tarjeta(slug string) *boardcmd.Card {
-	if slug == "" {
-		return nil
-	}
-	for _, c := range m.todas() {
-		if c.Slug == slug {
-			return c
-		}
-	}
-	return nil
-}
-
-// rolDe is a running's role, "agente" when it has none.
-func rolDe(r string) string {
-	if r == "" {
-		return "agente"
-	}
-	return r
-}
-
-// idDe is what tells one running from another: its envelope, else its run.
-func idDe(r *boardcmd.Running) string {
-	if r.EnvelopeID != "" {
-		return r.EnvelopeID
-	}
-	return r.RunID
+	la := &lanzado{o: o, antes: antes}
+	m.lanzados[o.ID] = la
+	return la
 }
 
 // palabrasVerbo are the verb's words of a launch's Args: up to the first
@@ -792,109 +610,34 @@ func palabrasVerbo(args []string) string {
 	return strings.Join(out, " ")
 }
 
-// ---------------------------------------------------------------- keeping it in order
-
-// acomodar keeps the selection, the scroll and the cursors where the
-// contract says after any change.
-func (m *Modelo) acomodar() {
-	m.acomodarSeleccion()
-	m.acomodarScrollLista()
-	m.acomodarMenu()
-	if m.abierta != "" {
-		n := len(m.hallazgos())
-		if m.hallazgo >= n {
-			m.hallazgo = n - 1
-		}
-		if m.hallazgo < 0 {
-			m.hallazgo = 0
-		}
-		for _, p := range Pestanas {
-			s, max := m.scrolls[p], len(m.contenido(p))-1
-			if p == VistaSobre && m.alFinal {
-				s = m.maxScroll(p)
-			}
-			if p == VistaHallazgos {
-				h := m.alto()
-				if m.hallazgo < s {
-					s = m.hallazgo
-				}
-				if m.hallazgo >= s+h {
-					s = m.hallazgo - h + 1
-				}
-			}
-			if s > max {
-				s = max
-			}
-			if s < 0 {
-				s = 0
-			}
-			m.scrolls[p] = s
-		}
-	}
+// marcadores are the markers tarjetacmd.Citar writes on Windows for a value
+// it cannot quote.
+var marcadores = map[string]string{
+	"--provider": "<provider>", "--model": "<modelo>", "--effort": "<esfuerzo>",
+	"--budget-usd": "<presupuesto>", "--timeout": "<tiempo>",
 }
 
-// acomodarSeleccion keeps the selection on its card or line; when it is no
-// longer there, it takes the line with its index (the last one when there
-// are fewer). At the start it is the first card line.
-func (m *Modelo) acomodarSeleccion() {
-	els := m.elegibles()
-	if len(els) == 0 {
-		m.selIdx = 0
-		return
-	}
-	if m.sinSeleccion {
-		for i, e := range els {
-			if !e.hecho {
-				m.elegir(i)
-				return
-			}
-		}
-		m.elegir(0)
-		return
-	}
-	for i, e := range els {
-		if e.hecho == m.selHecho && (e.hecho || e.slug == m.selSlug) {
-			m.selIdx = i
-			return
+// palabrasComando are the command's words: "hoom" and the Args, each value
+// quoted as the capa-1 verbs do it (the pedido cut to 60 characters).
+func palabrasComando(args []string, windows bool) []string {
+	parts := []string{"hoom"}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "-m" && i+1 < len(args):
+			parts = append(parts, a, tarjetacmd.CitarPedido(args[i+1], windows))
+			i++
+		case strings.HasPrefix(a, "--") && i+1 < len(args) && marcadores[a] != "":
+			parts = append(parts, a, tarjetacmd.Citar(args[i+1], marcadores[a], windows))
+			i++
+		default:
+			parts = append(parts, a)
 		}
 	}
-	m.elegir(m.selIdx)
+	return parts
 }
 
-// alFiltrar puts the selection on the first card line that stays (Hecho's
-// line when none does): what was typed chooses the first match.
-func (m *Modelo) alFiltrar() {
-	els := m.elegibles()
-	for i, e := range els {
-		if !e.hecho {
-			m.elegir(i)
-			return
-		}
-	}
-	m.elegir(0)
-}
-
-// acomodarScrollLista scrolls the list the least needed to show the
-// selected line and its second line.
-func (m *Modelo) acomodarScrollLista() {
-	lineas, pos := m.cuerpoLista()
-	h := m.altoCuerpo()
-	if h <= 0 {
-		return
-	}
-	if m.selIdx >= 0 && m.selIdx < len(pos) {
-		ini, fin := pos[m.selIdx].ini, pos[m.selIdx].fin
-		if ini < m.scrollLista {
-			m.scrollLista = ini
-		}
-		if fin >= m.scrollLista+h {
-			m.scrollLista = fin - h + 1
-		}
-	}
-	if max := len(lineas) - h; m.scrollLista > max {
-		m.scrollLista = max
-	}
-	if m.scrollLista < 0 {
-		m.scrollLista = 0
-	}
+// lineaVerbo is the command on one line.
+func lineaVerbo(args []string, windows bool) string {
+	return strings.Join(palabrasComando(args, windows), " ")
 }

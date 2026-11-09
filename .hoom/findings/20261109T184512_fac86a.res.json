@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184512_fac86a",
+  "as": "corregido",
+  "evidence": "corregido en affe385 y 5076bd8 (nota 'no esta en la lista de \u003cp\u003e: puede rechazarlo' para el modelo elegido; la linea gris no pierde texto); regresion TestCA570_ElModeloElegidoQueNoEstaEnLaLista, verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.708063242Z"
+}

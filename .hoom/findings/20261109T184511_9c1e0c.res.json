@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184511_9c1e0c",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (las marcas combinantes se pegan a su celda base en lienzo.poner); regresion TestCA577_LasMarcasCombinantesVanConSuLetra, verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.706452223Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184521_0d34e9",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (mismo arreglo que f069bc: duplicado desde el tramo T1); regresion TestCA565_CA568_ElPedirQueNoEntra con gemini y opencode a 60x15, 100x15 y 100x16, verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.711608956Z"
+}

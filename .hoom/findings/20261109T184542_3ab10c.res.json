@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184542_3ab10c",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (SIGTERM, SIGHUP y SIGINT terminan como Salir y restauran la terminal, codigo 128+n; os.Interrupt en Windows); regresion TestCA575_CA533_RunTerminaConUnaSenal (unix), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.727409109Z"
+}

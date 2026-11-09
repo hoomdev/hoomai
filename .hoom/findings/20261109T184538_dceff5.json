@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184538_dceff5",
+  "created_at": "2026-11-09T18:45:38.385270084Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/atajos.go",
+  "description": "INTRODUCIDO. En el modal Pedir del reviewer (sin Pedido) la linea de teclas muestra 'ctrl-e editor' y ctrl-e no hace nada (CA-564: 'solo las teclas ... del modal abierto' y 'toda tecla de la ayuda tiene efecto'). La fila de ctrl-e vale en LugarPedirSelector y LugarPedirBotones (atajos.go:203-204), que son los Lugares del reviewer, y enPedir la ignora para el revisor (pedir.go:420-424); pistas (pantalla.go:371-391) solo filtra las filas de tarjeta. Escenario: r sobre una tarjeta en Review -\u003e ultima linea ' tab campo · \u003c\u003e cambiar · enter ver opciones · ctrl-e editor · esc cerrar'; ctrl-e -\u003e sin orden ni mensaje. Correccion minima: no tomar ni mostrar la fila de ctrl-e cuando m.pedir.revisor (en atajo/pistas), o un Lugar propio para los campos del reviewer sin esa fila.",
+  "author": "reviewer@claude (tramo T2)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

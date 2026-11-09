@@ -1,0 +1,32 @@
++[1] Proyecto--------------------------++[0] nuc-tenancy · Tenancy del nucleo------------------------------------------+
+| demo · rama main                     || Que falta?  te toca aprobar el spec                                          |
+| check VERDE · verify hace 2h         || Siguiente paso  Aprobar spec  [A]                                            |
+| hoy 3.88 USD en 4 trabajos           ||                                                                              |
+| fijada: nuc-tenancy                  || Tu aprobacion · gasto sin dato de costo                                      |
++--------------------------------------+|                                                                              |
+#[2] Tarjetas==========================#|  # spec: pasa el lint                                                        |
+# NECESITA TU DECISION                 #|  ! aprobacion: sin tu firma                                                  |
+# > nuc-tenancy                    #!-.#|  - pruebas: 1/2                                                              |
+#   pagos-caidos                   ##!-#|  . codigo: todavia no                                                        |
+# EN CURSO                             #|                                                                              |
+#   infra-api                      ##-.#| Spec · 2 criterios · 1 sin prueba                                            |
+# BACKLOG 2                            #|  + cada tenant ve solo sus filas                                             |
+#   infra-ci-cd                    ----#|  x un tenant sin plan responde 402                                           |
+#   docs-guia                      ----#|                                                                              |
+# ARQUITECTO 1                         #| Hallazgos · 1 abierto                                                        |
+#   precios                        #---#|  low tenant.go:7 el nombre del tenant no se recorta                          |
+# HECHO 3 >                            #|                                                                              |
+#                                      #| Historia                                                                     |
+#======================================#|  sin historia todavia                                                        |
++[3] Corriendo 2-----------------------+|                                                                              |
+| > infra-api writer 12:41 de 45:00    || Narracion                                                                    |
+|   pagos-caidos writer interrumpido   ||  sin sobres todavia                                                          |
++--------------------------------------++------------------------------------------------------------------------------+
++[4] Hallazgos 2-----------------------++Registro----------------------------------------------------------------------+
+| > high   infra-api      router.go:41 || todavia no se ejecuto nada                                                   |
+|   low    nuc-tenancy    tenant.go:7  ||                                                                              |
+|                                      ||                                                                              |
+|                                      ||                                                                              |
++--------------------------------------++------------------------------------------------------------------------------+
+
+ ^v elegir · enter ver · espacio acciones · n siguiente paso · A aprobar spec · ? todas las teclas

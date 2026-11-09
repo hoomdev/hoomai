@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184505_02b9e8",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (el archivo del hallazgo se resuelve contra evidence.dir de la tarjeta de su tarea, en e, [0] y ArchivoElegido); regresion TestCA559_ElArchivoEsDelDirDeLaTarjeta, verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.70478349Z"
+}

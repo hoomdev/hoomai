@@ -50,6 +50,17 @@ func run(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
+// Rama is the branch of dir as Snapshot reads it (the one a verdict
+// keeps), and whether dir is in a git repository: without computing the
+// change set nor its fingerprint.
+func Rama(dir string) (rama string, repo bool) {
+	if _, err := run(dir, "rev-parse", "--is-inside-work-tree"); err != nil {
+		return "", false
+	}
+	rama, _ = run(dir, "rev-parse", "--abbrev-ref", "HEAD")
+	return rama, true
+}
+
 // Snapshot collects Git state for dir. ChangedFiles is the union of
 // (base...HEAD) committed changes plus working-tree modifications plus
 // untracked files: everything the current change touches.

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184012_f4b30e",
+  "as": "corregido",
+  "evidence": "corregido en d1efb59 (ronda 1 del test-writer ciego): TestCA566_CA525_NSinSiguientePaso; el refutador lo corroboro con una mutacion que ningun test detectaba; verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.664037585Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184522_12b48f",
+  "created_at": "2026-11-09T18:45:22.080239027Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "README.md",
+  "description": "INTRODUCIDO. Tres frases del README no coinciden con lo que hace el tablero. (1) README.md:102, fila de hoom tablero: \"Cada accion muestra en un modal el comando que se va a ejecutar\" y nombra usar, que corre sin modal (lo aclara recien README.md:611). (2) README.md:635, fila de e: \"[0] de una tarjeta, [4]\"; falta \"y su [0]\" (spec, tabla de teclas; atajos.go:159-160 incluye LugarVerHallazgo). (3) README.md:657-658: \"para codex, los de codex-cli\" da a entender que salen de la CLI, cuando el catalogo es una lista fija de hoom verificada contra codex-cli 0.160.0 (el spec descarto leer models_cache.json). Correccion minima: \"salvo u\" en la fila; \"[0] de una tarjeta, [4] y su [0]\"; \"para codex, los verificados contra codex-cli 0.160.0\".",
+  "author": "reviewer@claude (tramo T1)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,7 +1,10 @@
-// Run (CA-516, CA-522, CA-527, CA-528, CA-530, CA-533): el borde del
-// proceso con una terminal falsa (ningun pty, ninguna terminal real), datos,
-// lanzador y editor falsos. Run corre en su goroutine; cada espera tiene su
-// tiempo maximo.
+// Run (CA-516, CA-522, CA-527, CA-528, CA-530, CA-533; y de la v2 CA-553,
+// CA-557, CA-562, CA-568, CA-575): el borde del proceso con una terminal
+// falsa (ningun pty, ninguna terminal real), datos, lanzador y editor
+// falsos. Run corre en su goroutine; cada espera tiene su tiempo maximo.
+// Adaptado a la v2 (tablero-con-paneles): los Datos leen ademas el proyecto,
+// los hallazgos y el archivo de un hallazgo, el Detalle ya no pide la
+// Historia aparte, y lo que se espera en pantalla son los paneles.
 package tablero_test
 
 import (
@@ -150,15 +153,23 @@ func (f *ttTerm) mandar(s string) { f.teclas <- []byte(s) }
 
 func (f *ttTerm) cortar() { f.cerrar.Do(func() { close(f.teclas) }) }
 
-// ttDatos es el tablero falso.
+// ttDatos son los datos falsos: el tablero, el proyecto, los hallazgos, el
+// detalle y el archivo de un hallazgo, cada uno con su cuenta de lecturas.
 type ttDatos struct {
 	mu        sync.Mutex
 	tablero   boardcmd.Board
 	err       error
 	panico    bool
 	lecturas  int
-	detalles  []string // "<slug> <historia>"
+	fijada    string
+	detalles  []string // el slug de cada Detalle pedido
 	detalleDe func(slug string) tablero.Detalle
+	proyecto  tablero.Proyecto
+	nProy     int
+	hallazgos tablero.Hallazgos
+	nHall     int
+	archivos  []string // "<ruta>:<linea>" de cada Archivo pedido
+	archivoDe func(ruta string, linea int) tablero.Archivo
 }
 
 func (d *ttDatos) Tablero() (boardcmd.Board, error) {
@@ -173,17 +184,46 @@ func (d *ttDatos) Tablero() (boardcmd.Board, error) {
 	return b, err
 }
 
-func (d *ttDatos) Fijada() string { return "" }
-
-func (d *ttDatos) Detalle(slug string, historia bool) tablero.Detalle {
+func (d *ttDatos) Fijada() string {
 	d.mu.Lock()
-	d.detalles = append(d.detalles, fmt.Sprintf("%s %v", slug, historia))
+	defer d.mu.Unlock()
+	return d.fijada
+}
+
+func (d *ttDatos) Detalle(slug string) tablero.Detalle {
+	d.mu.Lock()
+	d.detalles = append(d.detalles, slug)
 	f := d.detalleDe
 	d.mu.Unlock()
 	if f != nil {
 		return f(slug)
 	}
 	return tablero.Detalle{Slug: slug}
+}
+
+func (d *ttDatos) Proyecto() tablero.Proyecto {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.nProy++
+	return d.proyecto
+}
+
+func (d *ttDatos) Hallazgos() tablero.Hallazgos {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.nHall++
+	return d.hallazgos
+}
+
+func (d *ttDatos) Archivo(ruta string, linea int) tablero.Archivo {
+	d.mu.Lock()
+	d.archivos = append(d.archivos, fmt.Sprintf("%s:%d", ruta, linea))
+	f := d.archivoDe
+	d.mu.Unlock()
+	if f != nil {
+		return f(ruta, linea)
+	}
+	return tablero.Archivo{Ruta: ruta, Linea: linea, Desde: 1, Lineas: []string{"package x"}}
 }
 
 func (d *ttDatos) cuantas() int {
@@ -196,6 +236,12 @@ func (d *ttDatos) pedidos() []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]string(nil), d.detalles...)
+}
+
+func (d *ttDatos) lecturasProyecto() (int, int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.nProy, d.nHall
 }
 
 // ttLanz es el lanzador falso.
@@ -266,7 +312,7 @@ func ttNuevoMundo(t *testing.T, b boardcmd.Board) *ttMundo {
 		t.Fatalf("el hoom.yaml de prueba es valido: %v", err)
 	}
 	r := &ttRegistro{}
-	w := &ttMundo{r: r, term: ttNuevaTerm(r, 80, 24), datos: &ttDatos{tablero: b}, lanz: &ttLanz{}, ed: &ttEd{r: r}}
+	w := &ttMundo{r: r, term: ttNuevaTerm(r, 80, 24), datos: &ttDatos{tablero: b, proyecto: ttProyectoVerde()}, lanz: &ttLanz{}, ed: &ttEd{r: r}}
 	env := map[string]string{"NO_COLOR": "1", "HOOM_ASCII": "1", "LANG": "C"}
 	w.e = tablero.Entorno{
 		Dir: dir, Out: ttEscritor{r, "out"}, Err: ttEscritor{r, "err"},
@@ -366,25 +412,21 @@ func (w *ttMundo) marcoCon(s string) bool {
 	return strings.Contains(strings.Join(w.ultimoMarco(), "\n"), s)
 }
 
-// filaElegida dice si el ultimo cuadro (sin las SGR del color) tiene, al
-// principio de una linea, la fila de la tarjeta slug elegida en la lista:
-// " > " + slug + " " (el ▸ en ASCII, y HOOM_ASCII=1 en todos los mundos de
-// Run; el slug relleno a 24 celdas, o entero y seguido del " " de la tira).
+// filaElegida dice si el ultimo cuadro (sin las SGR del color) tiene la
+// fila de la tarjeta slug elegida en [2] con el foco: el lado del foco en
+// ASCII ("#", HOOM_ASCII=1 en todos los mundos de Run) y " > " + slug + " "
+// (doc.go, "[2] Tarjetas": " " + M + " " + S + " " + tira).
 //
-// Toda espera que deja pasar una tecla sobre el tablero (enter que abre la
-// tarjeta, w que abre su formulario) espera esto, y no un texto cualquiera:
-// antes de la primera lectura Run ya dibujo un cuadro (doc.go, "The list": el
-// cuerpo dice " leyendo el tablero...", el titulo "0 tarjetas" y la barra
-// "sin tarjeta fijada"), y el contrato no dice que una tecla mandada antes de
-// la primera lectura la espere. Un texto como "tarjeta" ya esta en ese primer
-// cuadro: la tecla saldria sobre una lista vacia y no haria nada. La fila
-// elegida solo la muestra el tablero leido, con la seleccion ya en la tarjeta
-// ("At the start it is on the first card line"), que es sobre lo que actuan
-// enter y las teclas de accion. Es mas estricta que marcoCon(slug): un cuadro
-// con esa fila tiene el slug.
+// Toda espera que deja pasar una tecla sobre el tablero (enter que da el foco
+// a [0], w que abre su modal) espera esto, y no un texto cualquiera: antes de
+// la primera lectura Run ya dibujo un cuadro (doc.go: [2] dice " leyendo el
+// tablero..."), y el contrato no dice que una tecla mandada antes de la
+// primera lectura la espere. La fila elegida solo la muestra el tablero
+// leido, con la seleccion ya en la tarjeta ("At the start the selection is on
+// the first card row").
 func (w *ttMundo) filaElegida(slug string) bool {
 	for _, l := range w.ultimoMarco() {
-		if strings.HasPrefix(ttSGR.ReplaceAllString(l, ""), " > "+slug+" ") {
+		if strings.Contains(ttSGR.ReplaceAllString(l, ""), "# > "+slug+" ") {
 			return true
 		}
 	}
@@ -546,36 +588,90 @@ func TestCA533_SalirConQYCtrlC(t *testing.T) {
 	}
 }
 
-// CA-533: cada cuadro es "\x1b[H" y las lineas de Pantalla, cada una con
-// "\x1b[K", unidas por "\r\n": el ultimo es la pantalla del modelo con la
+// ttCuadro es el cuadro de Run para esas lineas (CA-533, hallazgo 55281d,
+// decision del orquestador): "\x1b[H" y las lineas unidas por "\r\n", cada
+// una seguida de "\x1b[K" solo cuando ocupa menos de ancho celdas (sin sus
+// SGR): despues de una que llega a la ultima columna, "\x1b[K" borraria esa
+// celda.
+func ttCuadro(lineas []string, ancho int) string {
+	var b strings.Builder
+	b.WriteString("\x1b[H")
+	for i, l := range lineas {
+		if i > 0 {
+			b.WriteString("\r\n")
+		}
+		b.WriteString(l)
+		if ttCeldas(ttSinSGR(l)) < ancho {
+			b.WriteString("\x1b[K")
+		}
+	}
+	return b.String()
+}
+
+// ttSinBorrarLaUltimaColumna exige que en la salida ninguna linea de un cuadro
+// que ocupa ancho celdas vaya seguida de "\x1b[K" (CA-533, hallazgo 55281d).
+func ttSinBorrarLaUltimaColumna(t *testing.T, salida string, ancho int) {
+	t.Helper()
+	for _, cuadro := range strings.Split(salida, "\x1b[H")[1:] {
+		for _, l := range strings.Split(cuadro, "\r\n") {
+			i := strings.Index(l, "\x1b[K")
+			if i < 0 {
+				continue
+			}
+			if c := ttCeldas(ttSinSGR(l[:i])); c >= ancho {
+				t.Fatalf("CA-533 (hallazgo 55281d): una linea de %d celdas (llega a la ultima columna) no lleva \\x1b[K despues: %q", c, l)
+			}
+		}
+	}
+}
+
+// CA-533: cada cuadro es "\x1b[H" y las lineas de Pantalla unidas por
+// "\r\n", cada una seguida de "\x1b[K" solo cuando ocupa menos de Ancho
+// celdas (CA-533, hallazgo 55281d: despues de una que llega a la ultima
+// columna no va, que en xterm borra esa celda): el ultimo es la pantalla del modelo con la
 // misma configuracion (proyecto del hoom.yaml, tamano de la terminal, sin
-// color con NO_COLOR, ASCII sin locale UTF-8).
+// color con NO_COLOR, ASCII sin locale UTF-8, el mouse pedido sin
+// HOOM_MOUSE, el editor vi sin VISUAL ni EDITOR) y las mismas lecturas (el
+// tablero, el proyecto, los hallazgos y el detalle de la tarjeta elegida:
+// CA-553, CA-562).
 func TestCA533_ElCuadroEsLaPantallaDelModelo(t *testing.T) {
 	b := ttTableroPrincipal()
 	w := ttNuevoMundo(t, b)
 	fin := w.correr(nil)
-	m := tablero.Nuevo(tablero.Config{Proyecto: "demo", Ancho: 80, Alto: 24})
+	m := tablero.Nuevo(tablero.Config{Proyecto: "demo", Ancho: 80, Alto: 24, Mouse: true, Editor: "vi"})
 	m.Leer(tablero.Lectura{Ahora: ttAhora, Tablero: b})
+	m.LeerProyecto(ttProyectoVerde())
+	m.LeerHallazgos(tablero.Hallazgos{})
+	m.LeerDetalle(tablero.Detalle{Slug: m.Elegida()})
 	quiere := m.Pantalla()
 	ttEsperar(t, "CA-533", "un cuadro con el tablero", w, func() bool {
 		return strings.Join(w.ultimoMarco(), "\n") == strings.Join(quiere, "\n")
 	})
 	salida := w.r.texto("escribe")
-	cuadro := "\x1b[H" + strings.Join(quiere, "\x1b[K\r\n") + "\x1b[K"
-	if !strings.Contains(salida, cuadro) {
-		t.Fatalf("CA-533: el cuadro va entero, con \\x1b[K en cada linea y \\r\\n entre lineas")
+	llenas := 0
+	for _, l := range quiere {
+		if ttCeldas(ttSinSGR(l)) == 80 {
+			llenas++
+		}
 	}
+	if llenas < 20 {
+		t.Fatalf("CA-533 (guarda): a 80x24 las lineas de los paneles llegan a la ultima columna: %d", llenas)
+	}
+	if cuadro := ttCuadro(quiere, 80); !strings.Contains(salida, cuadro) {
+		t.Fatalf("CA-533 (hallazgo 55281d): el cuadro va entero, con \\x1b[K solo despues de una linea de menos de 80 celdas y \\r\\n entre lineas:\n%q", ttCola(salida, 600))
+	}
+	ttSinBorrarLaUltimaColumna(t, salida, 80)
 	w.term.mandar("q")
 	fin(t)
 }
 
 // CA-533: redibuja al cambiar el tamano (se pregunta al menos cada 250 ms):
 // por debajo de 60x15, "agranda la terminal (minimo 60x15)"; de vuelta, el
-// tablero.
+// tablero (CA-550: a 100x30, dos columnas con [1] arriba a la izquierda).
 func TestCA533_RedibujaAlCambiarElTamano(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-533", "el primer cuadro", w, func() bool { return w.marcoCon("hoom · demo") })
+	ttEsperar(t, "CA-533", "el primer cuadro", w, func() bool { return w.marcoCon("[2] Tarjetas") })
 	w.term.cambiar(50, 10)
 	limite := time.Now().Add(2 * time.Second)
 	for !strings.Contains(w.r.texto("escribe"), "\x1b[Hagranda la terminal (minimo 60x15)\x1b[K") {
@@ -589,7 +685,7 @@ func TestCA533_RedibujaAlCambiarElTamano(t *testing.T) {
 	ttEsperar(t, "CA-533", "el tablero a 100x30", w, func() bool {
 		s := w.r.texto("escribe")
 		ms := ttMarcos(s[antes:])
-		return len(ms) > 0 && len(ms[len(ms)-1]) == 30 && strings.HasPrefix(ms[len(ms)-1][0], " hoom · demo")
+		return len(ms) > 0 && len(ms[len(ms)-1]) == 30 && strings.HasPrefix(ms[len(ms)-1][0], "+[1] Proyecto")
 	})
 	w.term.mandar("q")
 	if code, _ := fin(t); code != 0 {
@@ -670,26 +766,34 @@ func TestCA533_PanicDevuelveLaTerminal(t *testing.T) {
 
 // ---------------------------------------------------------------- CA-530
 
-// CA-530: el tablero se vuelve a leer cada Intervalo, y el detalle de la
-// tarjeta abierta con cada lectura (la Historia solo con su pestana).
-func TestCA530_RunReleeElTablero(t *testing.T) {
-	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter())))
+// CA-530, CA-553: el tablero se vuelve a leer cada Intervalo, y el detalle
+// de la tarjeta que [0] muestra con cada lectura. Re-expresado por CA-553:
+// [0] sigue a la seleccion sin enter, asi que la tarjeta elegida en [2] ya
+// tiene su detalle leido antes de cualquier tecla (la v1 lo leia solo con la
+// tarjeta abierta, y la Historia solo con su pestana: la v2 no tiene
+// pestanas y el Detalle siempre la trae). Una tecla que cambia la seleccion
+// pide el detalle de la nueva.
+func TestCA530_CA553_RunReleeElTableroYElDetalle(t *testing.T) {
+	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter()), ttBacklog("otra", "Otra")))
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-530", "cinco lecturas con Intervalo 10ms", w, func() bool { return w.datos.cuantas() >= 5 })
-	if len(w.datos.pedidos()) != 0 {
-		t.Fatalf("CA-530: sin tarjeta abierta no se lee ningun detalle: %v", w.datos.pedidos())
+	ttEsperar(t, "CA-553", "el detalle de la tarjeta elegida, sin enter", w, func() bool {
+		ps := w.datos.pedidos()
+		return len(ps) >= 2 && ps[len(ps)-1] == "otra"
+	})
+	for _, p := range w.datos.pedidos() {
+		if p != "otra" {
+			t.Fatalf("CA-553: solo se lee el detalle de la tarjeta que [0] muestra (otra, la primera de [2]): %v", w.datos.pedidos())
+		}
 	}
-	ttEsperar(t, "CA-530", "la tarjeta elegida en la lista", w, func() bool { return w.filaElegida("tarjeta") })
-	w.term.mandar("\r")
-	ttEsperar(t, "CA-530", "el detalle de la tarjeta abierta", w, func() bool {
+	ttEsperar(t, "CA-553", "la tarjeta elegida en [2]", w, func() bool { return w.filaElegida("otra") })
+	w.term.mandar("j")
+	ttEsperar(t, "CA-553", "el detalle de la nueva elegida", w, func() bool {
 		ps := w.datos.pedidos()
-		return len(ps) >= 2 && ps[len(ps)-1] == "tarjeta false"
+		return len(ps) > 0 && ps[len(ps)-1] == "tarjeta"
 	})
-	w.term.mandar("5")
-	ttEsperar(t, "CA-530", "el detalle con la Historia", w, func() bool {
-		ps := w.datos.pedidos()
-		return len(ps) > 0 && ps[len(ps)-1] == "tarjeta true"
-	})
+	antes := len(w.datos.pedidos())
+	ttEsperar(t, "CA-530", "el detalle con cada relectura", w, func() bool { return len(w.datos.pedidos()) >= antes+3 })
 	w.term.mandar("q")
 	fin(t)
 }
@@ -699,12 +803,14 @@ func TestCA530_RunReleeElTablero(t *testing.T) {
 func TestCA530_RunLecturaQueFalla(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-530", "el tablero", w, func() bool { return w.marcoCon("9 tarjetas") })
+	// a 80x24 [2] muestra 6 lineas: NECESITA, nuc-tenancy, pagos-caidos, EN
+	// CURSO, infra-api y BACKLOG 2
+	ttEsperar(t, "CA-530", "el tablero", w, func() bool { return w.marcoCon("pagos-caidos") })
 	w.datos.mu.Lock()
 	w.datos.err = errors.New("disco roto")
 	w.datos.mu.Unlock()
-	ttEsperar(t, "CA-530", "el error de lectura en la barra", w, func() bool {
-		return w.marcoCon("no se pudo leer el tablero: disco roto") && w.marcoCon("9 tarjetas")
+	ttEsperar(t, "CA-530", "el error de lectura en la linea de mensajes", w, func() bool {
+		return w.marcoCon("no se pudo leer el tablero: disco roto") && w.marcoCon("pagos-caidos")
 	})
 	w.term.mandar("q")
 	fin(t)
@@ -714,21 +820,21 @@ func TestCA530_RunLecturaQueFalla(t *testing.T) {
 
 // CA-528: lanzar desde la TUI le pasa al Lanzador la orden exacta; al salir,
 // MensajeSalida dice cuantos trabajos quedan corriendo (despues de devolver
-// la terminal).
+// la terminal). En la v2 se lanza desde el boton del modal (CA-566, CA-568).
 func TestCA528_RunLanzaYAlSalirDiceCuantosQuedan(t *testing.T) {
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter())))
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-528", "la tarjeta en la lista", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
-	ttEsperar(t, "CA-528", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
-	w.term.mandar("\r")
+	ttEsperar(t, "CA-528", "el modal", w, func() bool { return w.marcoCon("Se va a ejecutar:") && w.marcoCon("hoom pedir writer tarjeta -m") })
+	w.term.mandar("\r\r") // CA-568: enter en el Pedido va al boton, y enter en el boton lanza
 	ttEsperar(t, "CA-528", "la orden al lanzador", w, func() bool { return len(w.lanz.lanzadas()) == 1 })
 	l := w.lanz.lanzadas()[0]
 	ttMismosArgs(t, "CA-528", "Run", l.Args, []string{"pedir", "writer", "tarjeta", "-m", strings.TrimSpace(ttPedidoWriter)})
 	if l.ID != 1 || l.Rol != "writer" || l.Slug != "tarjeta" {
 		t.Fatalf("CA-528: la orden lleva su ID, rol y tarjeta: %#v", l)
 	}
-	ttEsperar(t, "CA-528", "lanzando en la barra", w, func() bool { return w.marcoCon("lanzando hoom pedir writer tarjeta") })
+	ttEsperar(t, "CA-528", "lanzando en la linea de mensajes", w, func() bool { return w.marcoCon("lanzando hoom pedir writer tarjeta") })
 	w.term.mandar("q")
 	code, _ := fin(t)
 	if code != 0 {
@@ -752,9 +858,9 @@ func TestCA528_RunTerminaAntesDelRegistro(t *testing.T) {
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-528", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
-	ttEsperar(t, "CA-528", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
-	w.term.mandar("\r")
-	ttEsperar(t, "CA-528", "el error del candado en la barra", w, func() bool {
+	ttEsperar(t, "CA-528", "el modal", w, func() bool { return w.marcoCon("Se va a ejecutar:") && w.marcoCon("hoom pedir writer tarjeta -m") })
+	w.term.mandar("\r\r") // CA-568: enter en el Pedido va al boton, y enter en el boton lanza
+	ttEsperar(t, "CA-528", "el error del candado en la linea de mensajes", w, func() bool {
 		return w.marcoCon("ya se esta lanzando un trabajo en esta tarjeta")
 	})
 	w.term.mandar("q")
@@ -772,9 +878,9 @@ func TestCA528_RunNoPudoArrancar(t *testing.T) {
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-528", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
-	ttEsperar(t, "CA-528", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
-	w.term.mandar("\r")
-	ttEsperar(t, "CA-528", "el error del arranque en la barra", w, func() bool { return w.marcoCon("exec: hoom no encontrado") })
+	ttEsperar(t, "CA-528", "el modal", w, func() bool { return w.marcoCon("Se va a ejecutar:") && w.marcoCon("hoom pedir writer tarjeta -m") })
+	w.term.mandar("\r\r") // CA-568: enter en el Pedido va al boton, y enter en el boton lanza
+	ttEsperar(t, "CA-528", "el error del arranque en la linea de mensajes", w, func() bool { return w.marcoCon("exec: hoom no encontrado") })
 	w.term.mandar("q")
 	fin(t)
 	if got := w.r.texto("out"); got != "" {
@@ -784,10 +890,12 @@ func TestCA528_RunNoPudoArrancar(t *testing.T) {
 
 // ---------------------------------------------------------------- el editor
 
-// CA-522: o abre el editor con la ruta absoluta (Dir + la del spec) y la
-// linea; mientras esta abierto la terminal se devuelve (SecSalir,
-// restaurar) y despues se toma de nuevo (Crudo, SecEntrar).
-func TestCA522_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
+// CA-522, CA-557: e en [0] de una tarjeta abre el editor con la ruta
+// absoluta (Dir + la del spec) y la linea 1 (ningun criterio a la vista);
+// mientras esta abierto la terminal se devuelve (CA-575: SecMouseNo antes de
+// SecSalir, y despues restaurar) y despues se toma de nuevo (Crudo,
+// SecEntrar y SecMouseSi). Re-expresado: en la v1 era o en la pestana Spec.
+func TestCA522_CA557_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
 	c := ttTarjetaCon(ttAccionWriter())
 	w := ttNuevoMundo(t, ttTablero(c))
 	w.datos.detalleDe = func(slug string) tablero.Detalle {
@@ -797,26 +905,32 @@ func TestCA522_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-522", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("\r")
-	ttEsperar(t, "CA-522", "la tarjeta abierta", w, func() bool { return w.marcoCon("[1 Resumen]") })
-	w.term.mandar("2")
-	ttEsperar(t, "CA-522", "la pestana Spec", w, func() bool { return w.marcoCon("una linea") })
+	ttEsperar(t, "CA-553", "el foco en [0] con la tarjeta y su spec", w, func() bool {
+		return w.marcoCon("#[0] tarjeta · Tarjeta de prueba") && w.marcoCon("Spec · 0 criterios")
+	})
 	desde := len(w.r.copia())
-	w.term.mandar("o")
-	ttEsperar(t, "CA-522", "el editor", w, func() bool {
+	w.term.mandar("e")
+	ttEsperar(t, "CA-557", "el editor", w, func() bool {
 		return w.r.indice(desde, func(e ttSuceso) bool { return e.que == "abrir" }) >= 0
 	})
 	abrir := w.r.indice(desde, func(e ttSuceso) bool { return e.que == "abrir" })
 	if got, quiere := w.r.copia()[abrir].dato, filepath.Join(w.e.Dir, ".hoom/specs/tarjeta.md")+":1"; got != quiere {
-		t.Fatalf("CA-522: o abre el spec con su ruta absoluta y la linea: %q, se esperaba %q", got, quiere)
+		t.Fatalf("CA-557: e abre el spec con su ruta absoluta y la linea 1: %q, se esperaba %q", got, quiere)
 	}
+	mouseNo := w.r.indice(desde, func(e ttSuceso) bool { return e.que == "escribe" && strings.Contains(e.dato, tablero.SecMouseNo) })
 	salir := w.r.indice(desde, func(e ttSuceso) bool { return e.que == "escribe" && strings.Contains(e.dato, tablero.SecSalir) })
 	rest := w.r.indice(desde, func(e ttSuceso) bool { return e.que == "restaurar" })
 	if salir < 0 || rest < 0 || !(salir < rest && rest < abrir) {
 		t.Fatalf("CA-522: antes del editor, SecSalir y restaurar: %v", w.r.copia()[desde:])
 	}
+	if mouseNo < 0 || mouseNo > salir || !strings.Contains(w.r.copia()[mouseNo].dato, tablero.SecMouseNo+tablero.SecSalir) {
+		t.Fatalf("CA-575: antes del editor el mouse se apaga en la misma escritura, SecMouseNo y despues SecSalir: %v", w.r.copia()[desde:])
+	}
 	ttEsperar(t, "CA-522", "la terminal tomada de nuevo", w, func() bool {
 		cr := w.r.indice(abrir, func(e ttSuceso) bool { return e.que == "crudo" })
-		en := w.r.indice(abrir, func(e ttSuceso) bool { return e.que == "escribe" && strings.Contains(e.dato, tablero.SecEntrar) })
+		en := w.r.indice(abrir, func(e ttSuceso) bool {
+			return e.que == "escribe" && strings.Contains(e.dato, tablero.SecEntrar+tablero.SecMouseSi)
+		})
 		return cr > abrir && en > cr
 	})
 	w.term.mandar("q")
@@ -825,8 +939,9 @@ func TestCA522_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
 	}
 }
 
-// CA-527: ctrl-e (0x05) en el formulario abre el pedido en el editor (con la
-// terminal devuelta) y lo que da el editor es el pedido que se lanza.
+// CA-527, CA-568: ctrl-e (0x05) en el modal Pedir abre el pedido en el
+// editor (con la terminal devuelta) y lo que da el editor es el pedido que
+// se lanza desde el boton.
 func TestCA527_RunCtrlEEditaElPedido(t *testing.T) {
 	a := ttAccionWriter()
 	a.Pedido = "pedido original"
@@ -835,7 +950,7 @@ func TestCA527_RunCtrlEEditaElPedido(t *testing.T) {
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-527", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
-	ttEsperar(t, "CA-527", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
+	ttEsperar(t, "CA-527", "el modal", w, func() bool { return w.marcoCon("Se va a ejecutar:") && w.marcoCon("hoom pedir writer tarjeta -m") })
 	desde := len(w.r.copia())
 	w.term.mandar("\x05")
 	ttEsperar(t, "CA-527", "el editor del pedido", w, func() bool {
@@ -848,8 +963,8 @@ func TestCA527_RunCtrlEEditaElPedido(t *testing.T) {
 	if rest := w.r.indice(desde, func(e ttSuceso) bool { return e.que == "restaurar" }); rest < 0 || rest > ed {
 		t.Fatalf("CA-527: mientras el editor esta abierto la terminal esta devuelta: %v", w.r.copia()[desde:])
 	}
-	ttEsperar(t, "CA-527", "el pedido editado en el formulario", w, func() bool { return w.marcoCon("pedido del editor") })
-	w.term.mandar("\r")
+	ttEsperar(t, "CA-527", "el pedido editado en el modal", w, func() bool { return w.marcoCon("pedido del editor") })
+	w.term.mandar("\r\r") // CA-568: enter en el Pedido va al boton, y enter en el boton lanza
 	ttEsperar(t, "CA-527", "la orden", w, func() bool { return len(w.lanz.lanzadas()) == 1 })
 	ttMismosArgs(t, "CA-527", "el pedido del editor", w.lanz.lanzadas()[0].Args, []string{"pedir", "writer", "tarjeta", "-m", "pedido del editor"})
 	w.term.mandar("q")

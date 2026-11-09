@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184541_55281d",
+  "created_at": "2026-11-09T18:45:41.890120233Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO (el formato del cuadro es de la v1, CA-533; lo que cambia es el layout): dibujar escribe \"\\x1b[K\" despues de CADA linea (bucle.go:449), y en la v2 casi todas las lineas de los paneles terminan en la ultima columna: en dos columnas el borde derecho y las esquinas de [0] y del Registro estan en la celda W-1 (pantalla.go:69-70), en una columna los de todos los paneles. Tras escribir la ultima columna la terminal deja el cursor EN esa columna con el ajuste pendiente, y EL 0 borra desde el cursor inclusive: en xterm, Alacritty o Windows Terminal el borde derecho de [0] (y las esquinas) no se ve nunca, aunque Pantalla() lo tenga y los dorados pasen; tambien la ultima celda de una linea de teclas que llene W. Correccion minima: escribir \"\\x1b[K\" solo cuando Celdas de la linea sin SGR sea menor que Ancho (o borrar con \"\\x1b[2K\" antes de escribir la linea). Toca el contrato de doc.go \"What Run writes\" y el test de CA-533 (tt_run_test.go:612): decision del orquestador.",
+  "author": "reviewer@claude (tramo T3)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

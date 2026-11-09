@@ -411,15 +411,16 @@ func cmdCheck(args []string) error {
 		}
 		return nil
 	}
+	motivo := checkcmd.Motivo(res)
 	switch res.Reason {
 	case checkcmd.ReasonNoVerdict:
-		fmt.Fprintln(os.Stderr, "hoom check: ROJO - no existe ningun veredicto. Accion: ejecuta 'hoom verify'.")
+		fmt.Fprintf(os.Stderr, "hoom check: ROJO - %s. Accion: ejecuta 'hoom verify'.\n", motivo)
 	case checkcmd.ReasonOnlyPartial:
-		fmt.Fprintln(os.Stderr, "hoom check: ROJO - solo hay veredictos PARCIALES (--gate), que no son referencia. Accion: ejecuta 'hoom verify' completo.")
+		fmt.Fprintf(os.Stderr, "hoom check: ROJO - %s. Accion: ejecuta 'hoom verify' completo.\n", motivo)
 	case checkcmd.ReasonRedVerdict:
-		fmt.Fprintf(os.Stderr, "hoom check: ROJO - el ultimo veredicto (%s) es rojo. Accion: corrige y ejecuta 'hoom verify'.\n", res.VerdictID)
+		fmt.Fprintf(os.Stderr, "hoom check: ROJO - %s. Accion: corrige y ejecuta 'hoom verify'.\n", motivo)
 	case checkcmd.ReasonDrift:
-		fmt.Fprintf(os.Stderr, "hoom check: ROJO - el arbol cambio despues del ultimo veredicto verde (%s).\n", res.VerdictID)
+		fmt.Fprintf(os.Stderr, "hoom check: ROJO - %s.\n", motivo)
 		fmt.Fprintf(os.Stderr, "  huella del veredicto: %s\n  huella actual:        %s\n", res.FingerprintVerdict, res.FingerprintNow)
 		fmt.Fprintln(os.Stderr, "  Accion: ejecuta 'hoom verify' de nuevo sobre el estado actual.")
 	default:

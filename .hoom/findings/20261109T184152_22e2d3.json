@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184152_22e2d3",
+  "created_at": "2026-11-09T18:41:52.613121027Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt2_teclas_test.go",
+  "description": "INTRODUCIDO. Imports sin uso sostenidos con asignaciones en blanco: tt2_teclas_test.go:804-805 ('_ = time.Second', '_ = runcmd.StatusDone') al final de TestCA564_CA566_LoQueCorreEsLoQueSeMuestra, y tt2_raton_test.go:516 ('_ = time.Second') en TestCA575_RunUnClicPorLaTerminal. Ni time ni runcmd se usan en otra linea de esos archivos. Confunden a quien lee el test (parecen parte de lo aseverado). Correccion minima: borrar esas lineas y los imports de time y runcmd que sobran.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

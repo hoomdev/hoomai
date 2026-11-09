@@ -1,0 +1,24 @@
+┌[1] Proyecto────────────┐┌[0] nuc-tenancy · Tenancy del nucleo────────────────┐
+│ demo · rama main       ││ ¿Qué falta?  te toca aprobar el spec               │
+│ check VERDE · verify h…││ Siguiente paso  Aprobar spec  [A]                  │
+│ hoy 3.88 USD en 4 trab…││                                                    │
+│ fijada: nuc-tenancy    ││ Tu aprobacion · gasto sin dato de costo            │
+└────────────────────────┘│                                                    │
+╔[2] Tarjetas════════════╗│  ● spec: pasa el lint                              │
+║ NECESITA TU DECISIÓN   ║│  ✋ aprobacion: sin tu firma                       │
+║ ▸ nuc-tenancy     ●✋○·║│  ○ pruebas: 1/2                                    │
+║   pagos-caidos    ●●✋○║│  · codigo: todavia no                              │
+║ EN CURSO               ║│                                                    │
+║   infra-api        ●●○·║│ Spec · 2 criterios · 1 sin prueba                  │
+║ BACKLOG 2              ║│  ✓ cada tenant ve solo sus filas                   │
+╚═════════════════1 de 7═╝│  ✗ un tenant sin plan responde 402                 │
+┌[3] Corriendo 2─────────┐│                                                    │
+│ ▸ infra-a… writer 12:41│└────────────────────────────────────────────────────┘
+│   … writer interrumpido│┌Registro────────────────────────────────────────────┐
+└────────────────────────┘│ todavia no se ejecuto nada                         │
+┌[4] Hallazgos 2─────────┐│                                                    │
+│ ▸ high   infra-… route…││                                                    │
+│   low    nuc-te… tenan…││                                                    │
+└────────────────────────┘└────────────────────────────────────────────────────┘
+
+ ↑↓ elegir · enter ver · espacio acciones · n siguiente paso · ? todas

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184505_02b9e8",
+  "created_at": "2026-11-09T18:45:05.509751288Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/despacho.go",
+  "description": "INTRODUCIDO. El archivo de un hallazgo perdio el directorio de evidencia de su tarjeta (spec, [4]: 'Las rutas siguen las reglas de la v1'; CA-559: e 'con las reglas de la v1'). La v1 abria evidence.dir + '/' + file (main:internal/tablero/despacho.go:353-356 con dirEvidencia de main:internal/tablero/pantalla.go:528-536; doc de la v1: 'relative to the project root (evidence.dir + \"/\" + file, or just file when dir is \".\")', y TestCA524 lo aseveraba con Dir .hoom/worktrees/infra-api). En la v2 abrirEnEditor (despacho.go:344-354) y ArchivoElegido (estado.go:468-481) usan archivoYLinea(h) tal cual, y doc.go:466 lo fija como 'relative to the project root'. Escenario: hallazgo abierto de la tarea X (tarjeta con Evidence.Dir .hoom/worktrees/X, boardcmd gather.go:466) con file internal/tablero/pedir.go:531 -\u003e e en [4] abre \u003craiz\u003e/internal/tablero/pedir.go, la version de la base (o un archivo nuevo vacio si el archivo solo existe en el worktree), y el [0] del hallazgo lee esas lineas o dice 'no se pudo leer'. Los fixtures v2 usan Dir '.', asi que ningun test lo ve. Correccion minima: buscar la tarjeta cuyo slug es h.Task y, si su Evidence.Dir no es '' ni '.', usar path.Join(dir, archivo) en ArchivoElegido y en abrirEnEditor (antes de fueraPorLaForma), como dirEvidencia de la v1; ajustar doc.go:466.",
+  "author": "reviewer@claude (tramo T2)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

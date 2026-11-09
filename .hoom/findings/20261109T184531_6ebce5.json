@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184531_6ebce5",
+  "created_at": "2026-11-09T18:45:31.732529539Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/tablero/teclas.go",
+  "description": "PRE-EXISTENTE (follow-up). Un texto pegado se vuelve teclas: teclas.go:107-108 decodifica 0x0d y 0x0a como TeclaEnter y 0x09 como TeclaTab, y la TUI no pide bracketed paste. Escenario 1: con Pedir abierto, la persona pega un pedido de dos lineas ('linea1\\rlinea2\\r', o con finales \\r\\n): el primer enter lleva el foco a los botones (pedir.go:428-431), los imprimibles se ignoran ahi, y el segundo enter corre lanzarPedir (pedir.go:452-457): se lanza hoom pedir con -m 'linea1', un pedido que la persona no confirmo. Escenario 2: en [2] sobre una tarjeta en Tu aprobacion, pegar un texto con 'A', un tab y un salto (una fila de una planilla): A abre la Firma, el tab elige el boton de la accion (modales.go:362-363) y el enter corre hoom aprobar --si. La v1 era peor (enter lanzaba desde cualquier campo del formulario: formulario.go enFormulario -\u003e lanzarFormulario), asi que no es del cambio; la decision 'enter en el Pedido no lanza' lo achica pero no lo cierra. Correccion sugerida, en su propio spec: pedir \\x1b[?2004h (y apagarlo con el mouse), y entregar lo que llega entre ESC [ 200 ~ y ESC [ 201 ~ como texto (los saltos como salto o espacio en el Pedido, ignorados fuera de un campo), nunca como TeclaEnter ni TeclaTab.",
+  "author": "reviewer@claude (tramo T2)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

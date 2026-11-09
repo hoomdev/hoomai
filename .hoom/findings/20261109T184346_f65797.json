@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184346_f65797",
+  "created_at": "2026-11-09T18:43:46.366430748Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/wr_fixtures_test.go",
+  "description": "INTRODUCIDO: los tests del writer duplican la infraestructura de tt_*: wrCard/ttCard, wrTablero/ttTablero, wrSeg/ttSeg, wrF/ttF, wrT/ttT, wrTeclas/ttTeclas, wrLanzares/ttLanzares, wrTerm/ttTerm, wrDatos/ttDatos y wrForma/ttForma, y wrForma diverge (wr_fixtures_test.go:134: con color no mide el ancho, y mide con Celdas del paquete). Ademas TestWRVer (wr_ver_test.go:9) no asevera nada (vuelca pantallas y siempre hace Skip); TestWRRunMouse (wr_run_test.go:120) dice probar la relectura \"al terminar un verbo\", pero n \u003e= 3 lo da solo IntervaloProyecto de 20 ms con esperas fijas de 60 ms; y TestWRRunModelosInvalidos y TestWRAnchos repiten TestCA573_CA516_RunModelsInvalido y TestCA577_AnchoDe. Parte de la duplicacion es inevitable (paquete tablero contra tablero_test, test-writer ciego). Correccion minima: sacar TestWRVer de la suite, quitar de TestWRRunMouse lo que no prueba y dejar en wr_* solo lo que mira estado interno.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

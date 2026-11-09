@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184331_bed4bf",
+  "as": "refutado",
+  "evidence": "Mutacion en copia aparte (scratchpad/refutar-tests-*, HEAD 5571ed9), LC_ALL=C.UTF-8 go test -count=1 ./internal/tablero/: (1) anchos.go {0x270A, 0x270B} -\u003e {0x270A, 0x270A} (la mano a 1 celda): caen TestCA577_PropiedadCadaLineaMideAncho (tt2_pantalla_test.go:950 'la linea 8 mide 81 celdas' a 80x24, medido con ttCeldas), TestCA577_AnchoDe, TestCA550_CA555_CA576_DoradoUTF8_80x24, TestCA555_CA518_SeccionesYFilas y TestWRAnchos. (2) AnchoDe devuelve 1 para U+4E00..U+9FFF (漢 a 1 celda): caen TestCA577_PropiedadCadaLineaMideAncho ('la linea 1 mide 83 celdas' a 80x23), TestCA577_DoradoAnchos, TestCA577_ElBordeNoSeCorre, TestCA577_UnAnchoAlBordeDelCorte, TestCA577_AnchoDe y TestWRAnchos. Que ttForma mida con tablero.Celdas es cierto, pero la regresion que describe el hallazgo (una linea que pasa del ancho por un AnchoDe equivocado de ✋ o 漢) la detecta la suite.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-11-09T19:09:37.855750784Z"
+}
