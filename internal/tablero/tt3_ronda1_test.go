@@ -381,6 +381,70 @@ func ttNadaACiegas(t *testing.T, ca string, m *tablero.Modelo, cfg tablero.Confi
 // ttSelectores son las etiquetas de los cinco selectores de Pedir (ASCII).
 var ttSelectores = []string{"Provider", "Modelo", "Esfuerzo", "Tope", "Tiempo limite"}
 
+// ttEsSelector dice si la linea del modal es la de un selector.
+func ttEsSelector(l string) bool {
+	for _, et := range append([]string{"Tiempo límite"}, ttSelectores...) {
+		if strings.HasPrefix(l, et) {
+			return true
+		}
+	}
+	return false
+}
+
+// ttTextosGrises son los textos de la linea de ayuda y de los why de los
+// selectores que el modal Pedir cede primero: las notas, los why grises, los
+// origenes con texto propio y la linea de "por defecto del provider".
+var ttTextosGrises = []string{"no esta en la lista de", "puede rechazarlo", "hoom no le pasa", "no acepta tope", "pide al menos",
+	"la sesion es de", "de review.timeout", "hoom.yaml fija", "el que elige"}
+
+// ttSoloLoQueNoCede exige que en el modal Pedir que no entra, despues de
+// ceder la linea de ayuda, los why que bajan a su linea, las palabras de
+// origen y las lineas vacias, queden solo el Pedido y su cuadro, los cinco
+// selectores, "Se va a ejecutar", el comando y los botones (CA-565, CA-568,
+// hallazgos f069bc, 0d34e9 y 28a616; la ayuda y los why se reconocen por su
+// contenido, no por su sangria: ronda 1c).
+func ttSoloLoQueNoCede(t *testing.T, ca string, mc ttModalCaja, etiqueta string) {
+	t.Helper()
+	todo := strings.Join(mc.Textos, "\n")
+	for _, g := range ttTextosGrises {
+		if strings.Contains(todo, g) {
+			t.Fatalf("%s: la linea de ayuda, los why y los origenes ceden primero: queda %q\n%s", ca, g, todo)
+		}
+	}
+	enComando := false
+	for _, l := range mc.Textos {
+		esBotones := strings.Contains(l, "[ ") && strings.Contains(l, "Cancelar") && strings.Contains(l, etiqueta)
+		switch {
+		case strings.HasPrefix(l, "+") || strings.HasPrefix(l, "┌") || strings.HasPrefix(l, "└") ||
+			strings.HasPrefix(l, "| ") || strings.HasPrefix(l, "│ ") || l == "Pedido":
+			// el Pedido y su cuadro
+		case ttEsSelector(l):
+		case strings.HasPrefix(l, "Se va a ejecutar:"):
+			enComando = true
+		case enComando && !esBotones && (strings.HasPrefix(l, "hoom ") || (strings.HasPrefix(l, "  ") && strings.TrimSpace(l) != "")):
+			// el comando
+		case esBotones:
+			enComando = false
+		default:
+			t.Fatalf("%s: despues de ceder lo que cede, el modal tiene solo el Pedido, los selectores, el comando y los botones: sobra %q\n%s", ca, l, todo)
+		}
+	}
+}
+
+// ttLineaGris es el texto (Wm-6 = c celdas) de una linea gris de los
+// selectores (la de ayuda, o un why en su linea): desde la columna 15 si
+// entra ahi; si no, desde la primera columna del texto del modal; cortada
+// solo si tampoco entra ahi (decision del orquestador, ronda 1c).
+func ttLineaGris(texto string, c int) string {
+	switch {
+	case 15+ttCeldas(texto) <= c:
+		return strings.Repeat(" ", 15) + texto
+	case ttCeldas(texto) <= c:
+		return texto
+	}
+	return ttCortaA(texto, c)
+}
+
 // CA-565, CA-568 ("Nada a ciegas"), hallazgos f069bc y 0d34e9: el modal
 // Pedir que no entra cede, en orden, la linea de ayuda de los selectores, los
 // why grises que bajan a su linea y las palabras de origen (despues, lo de
@@ -425,13 +489,10 @@ func TestCA565_CA568_ElPedirQueNoEntra(t *testing.T) {
 				!strings.Contains(todo, "[ "+c.etiqueta+" ]") {
 				t.Fatalf("%s: con el foco en un selector, el modal entra y muestra 'Se va a ejecutar', el comando y los botones:\n%s", ca, ttPantalla(m))
 			}
-			// lo primero que cede: la linea de ayuda y los why en su linea
-			// (los dos desde la columna 15), y las palabras de origen
-			for _, l := range mc.Textos {
-				if strings.HasPrefix(l, strings.Repeat(" ", 15)) {
-					t.Fatalf("%s: la linea de ayuda y los why que bajan a su linea ceden primero: %q\n%s", ca, l, todo)
-				}
-			}
+			// lo primero que cede: la linea de ayuda y los why en su linea, y
+			// las palabras de origen (ronda 1c: por su contenido y por lo que
+			// queda, no por la sangria; la linea de botones va centrada)
+			ttSoloLoQueNoCede(t, ca, mc, c.etiqueta)
 			for _, et := range ttSelectores {
 				if mc.ttCampo(et) == "" {
 					t.Fatalf("%s: el selector %s queda:\n%s", ca, et, todo)
@@ -562,9 +623,13 @@ func TestCA570_ElModeloElegidoQueNoEstaEnLaLista(t *testing.T) {
 	if got := ttAyudaSel(ttMC(t, m)); got != nota {
 		t.Fatalf("CA-570 (hallazgo fac86a): con el foco en Modelo la linea gris es la nota sola: %q", got)
 	}
+	if mc := ttMC(t, m); !mc.ttTieneLinea(ttLineaGris(nota, 66)) {
+		t.Fatalf("CA-570 (hallazgo fac86a): la nota entera, desde la columna 15 o (si no entra) desde la primera del texto: %q\n%s",
+			ttLineaGris(nota, 66), strings.Join(mc.Textos, "\n"))
+	}
 	gris := 0
 	for _, x := range m.Pantalla() {
-		if strings.Contains(ttSinSGR(x), strings.Repeat(" ", 15)+nota) {
+		if strings.Contains(ttSinSGR(x), ttLineaGris(nota, 66)) {
 			gris++
 			if ttEstiloDe(x, nota) != "\x1b[90m" {
 				t.Fatalf("CA-570 (hallazgo fac86a): la nota va en gris: %q", x)
@@ -822,10 +887,7 @@ func TestCA562_LosAvisosDeLosVeredictos(t *testing.T) {
 	}
 	ttSinControles(t, "CA-562 (hallazgo 140c81)", "[0] del proyecto con avisos", m, false)
 	m.LeerProyecto(ttProyectoVerde())
-	if i := donde(" Avisos"); i >= 0 {
-		t.Fatalf("CA-562: sin avisos no hay ' Avisos'")
-	}
-	for _, l := range ttCajaDe(t, "CA-562", m, "[0]").ttTexto() {
+	for _, l := range ttCajaDe(t, "CA-562", m, "[0]").ttTexto() { // releida despues de la lectura
 		if l == " Avisos" {
 			t.Fatalf("CA-562 (hallazgo 140c81): sin Proyecto.Avisos, [0] no tiene ' Avisos'")
 		}

@@ -65,7 +65,9 @@ func ttAyudaSel(mc ttModalCaja) string {
 }
 
 // ttWhyDe es el why (o el origen) de un selector: en su linea, despues del
-// valor; o, si no entra, en la linea de abajo desde la columna 15.
+// valor; o, si no entra, en la linea de abajo desde la columna 15 (o desde
+// la primera del texto si tampoco entra ahi: la linea gris nunca pierde
+// texto, decision del orquestador de la ronda 1c).
 func ttWhyDe(mc ttModalCaja, etiqueta string) string {
 	if o := mc.ttOrigen(etiqueta); o != "" {
 		return o
@@ -77,6 +79,11 @@ func ttWhyDe(mc ttModalCaja, etiqueta string) string {
 	sig := mc.Textos[i+1]
 	if strings.HasPrefix(sig, strings.Repeat(" ", 15)) {
 		return strings.TrimSpace(sig)
+	}
+	_, se, _ := mc.ttLineaQueEmpieza("Se va a ejecutar:")
+	esAyuda := se >= 2 && i+1 == se-2 && mc.Textos[se-1] == ""
+	if sig != "" && !ttEsSelector(sig) && !esAyuda && !strings.HasPrefix(sig, "Se va a ejecutar:") {
+		return sig
 	}
 	return ""
 }
@@ -1513,7 +1520,7 @@ func TestCA569_ProviderQueNoRecibeModelo(t *testing.T) {
 			if et == "Esfuerzo" {
 				why = "hoom no le pasa el esfuerzo a " + p
 			}
-			if mc.ttOrigen(et) != "" || i+1 >= len(mc.Textos) || mc.Textos[i+1] != strings.Repeat(" ", 15)+why {
+			if mc.ttOrigen(et) != "" || i+1 >= len(mc.Textos) || mc.Textos[i+1] != ttLineaGris(why, 66) {
 				t.Fatalf("CA-569: el why de %s gris no entra en su linea: va en la de abajo desde la columna 15:\n%s", et, strings.Join(mc.Textos, "\n"))
 			}
 		}
@@ -1566,7 +1573,7 @@ func TestCA569_GrisesConColor(t *testing.T) {
 	gris("el selector gris", "Modelo         < del provider >", "< del provider >")
 	gris("el Tope gris", "Tope           < sin tope >", "< sin tope >")
 	gris("el origen de Provider", "Provider       < opencode >", "elegido")
-	gris("el why en su linea", strings.Repeat(" ", 15)+"hoom no le pasa el modelo a opencode", "hoom no le pasa el modelo a opencode")
+	gris("el why en su linea", ttLineaGris("hoom no le pasa el modelo a opencode", 66), "hoom no le pasa el modelo a opencode")
 	// CA-569, hallazgo 7849e3: la linea de ayuda, con el foco en Esfuerzo
 	// de claude, va en gris
 	h := ttAbrirModal(t, cfg, "w", tablero.ModalPedir, ttAccionWriter())
@@ -1577,7 +1584,7 @@ func TestCA569_GrisesConColor(t *testing.T) {
 	}
 	vistas := 0
 	for _, x := range h.Pantalla() {
-		if strings.Contains(ttSinSGR(x), strings.Repeat(" ", 15)+ayuda) {
+		if strings.Contains(ttSinSGR(x), ttLineaGris(ayuda, 66)) {
 			vistas++
 			if ttEstiloDe(x, ayuda) != "\x1b[90m" {
 				t.Fatalf("CA-569 (hallazgo 7849e3): la linea de ayuda va en gris: %q", x)
@@ -2128,12 +2135,11 @@ func TestCA565_CA568_PedirChicoConservaElComandoYLosBotones(t *testing.T) {
 		if l == "" {
 			t.Fatalf("CA-565: las lineas vacias se van antes que el Pedido y los selectores:\n%s", todo)
 		}
-		// CA-565, hallazgo 28a616: la linea de ayuda de los selectores (15
-		// espacios y el texto) es lo primero que se va
-		if strings.HasPrefix(l, strings.Repeat(" ", 15)) {
-			t.Fatalf("CA-565 (hallazgo 28a616): a 60x15 la linea de ayuda de los selectores se va primero: %q\n%s", l, todo)
-		}
 	}
+	// CA-565, hallazgo 28a616: la linea de ayuda de los selectores es lo
+	// primero que se va (reconocida por su contenido y por lo que queda, no
+	// por su sangria: ronda 1c)
+	ttSoloLoQueNoCede(t, "CA-565 (hallazgo 28a616)", mc, "Pedir al writer")
 	// CA-568, hallazgo 28a616: queda la linea del Pedido con el cursor (la
 	// ultima de un pedido de 120 letras partido a 46 celdas, con "_" al final)
 	if !strings.Contains(todo, "| "+a.Pedido[92:]+"_") {
