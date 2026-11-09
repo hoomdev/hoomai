@@ -1,0 +1,6 @@
+titulo: El tablero con paneles (hoom tablero v2)
+tipo: feature
+prioridad: media
+pedido: 'Spec .hoom/specs/tablero-con-paneles.md: rediseno de hoom tablero al estilo lazygit con filosofia Apple. Paneles [1] Proyecto, [2] Tarjetas, [3] Corriendo y [4] Hallazgos a la izquierda; [0] con el contexto vivo de lo elegido y el Registro de comandos a la derecha; modales para pedir, firmar y guardar con selectores (catalogo de modelos de hoom ampliable en hoom.yaml) y ''Se va a ejecutar''; color con significado; mouse para moverse, nunca para ejecutar. Re-expresa 13 criterios de tablero-en-la-terminal. Depende de tablero-en-la-terminal.'
+creado_por: Henry Orellana <henry.orellana@oceansbits.com>
+creado_en: 2026-11-09T05:11:56Z
