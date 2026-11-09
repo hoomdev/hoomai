@@ -473,9 +473,27 @@ func (m *Modelo) ArchivoElegido() (ruta string, linea int) {
 	if !ok {
 		return "", 0
 	}
-	archivo, n := archivoYLinea(h)
+	archivo, n := m.rutaHallazgo(h)
 	if archivo == "" || fueraPorLaForma(archivo) {
 		return "", 0
+	}
+	return archivo, n
+}
+
+// rutaHallazgo is the file of the finding h relative to the project root,
+// and its line: as the v1, the file is under the evidence dir of the card
+// of its task (evidence.dir + "/" + file, or the file alone when the dir is
+// "" or ".", or when the file is absolute: the rules of the paths judge
+// it).
+func (m *Modelo) rutaHallazgo(h finding.Item) (string, int) {
+	archivo, n := archivoYLinea(h)
+	if archivo == "" || absoluta(archivo) {
+		return archivo, n
+	}
+	if c := m.tarjeta(h.Task); c != nil {
+		if dir := c.Evidence.Dir; dir != "" && dir != "." {
+			archivo = dir + "/" + archivo
+		}
 	}
 	return archivo, n
 }

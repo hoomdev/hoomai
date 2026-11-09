@@ -133,12 +133,21 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	s := &Snapshot{Root: root, Now: now, Runs: []RunView{}, Tasks: []taskcmd.TaskInfo{},
 		Envelopes: []EnvelopeView{}}
 
-	check, last, err := CheckYVeredicto(root, base)
+	check, err := checkcmd.Run(root, base)
 	if err != nil {
 		return nil, err
 	}
 	s.Check = check
-	s.Last = last
+
+	all, err := verdict.LoadAll(root)
+	if err != nil {
+		return nil, err
+	}
+	if len(all) > 0 {
+		v := all[len(all)-1]
+		s.Last = &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(),
+			CreatedAt: v.CreatedAt, Summary: v.Summary}
+	}
 
 	st, err := live.Read(root)
 	if err == nil && st != nil && !st.Done {
@@ -174,25 +183,46 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	return s, nil
 }
 
-// CheckYVeredicto is the check and the newest verdict as status reads them
-// (nil without a verdict): the part of the snapshot hoom tablero's [1]
-// shows, read alone.
-func CheckYVeredicto(root, base string) (checkcmd.Result, *LastVerdict, error) {
-	check, err := checkcmd.Run(root, base)
+// Veredictos is the check and the verdicts as hoom tablero's [1] reads them.
+type Veredictos struct {
+	Check checkcmd.Result
+	// Ultimo is the newest verdict (status's last_verdict); nil without one.
+	Ultimo *LastVerdict
+	// DelCheck is the verdict the check refers to (Check.VerdictID, the
+	// newest complete one); nil without one.
+	DelCheck *LastVerdict
+	// Avisos are the verdicts that could not be read, as
+	// verdict.LoadAllWithWarnings says them.
+	Avisos []string
+}
+
+// CheckYVeredicto is the check and the verdicts the way hoom status reads
+// them (checkcmd's rule, the newest verdict), read once and without
+// writing anything: the verdicts that could not be read come back in
+// Avisos instead of going to os.Stderr, which hoom tablero holds. hoom
+// status itself (BuildFor) is not changed by it.
+func CheckYVeredicto(root, base string) (Veredictos, error) {
+	all, avisos, err := verdict.LoadAllWithWarnings(root)
 	if err != nil {
-		return checkcmd.Result{}, nil, err
+		return Veredictos{}, err
 	}
-	all, err := verdict.LoadAll(root)
+	check, err := checkcmd.RunCon(root, base, all)
 	if err != nil {
-		return checkcmd.Result{}, nil, err
+		return Veredictos{}, err
 	}
-	var last *LastVerdict
+	out := Veredictos{Check: check, Avisos: avisos}
+	ver := func(v *verdict.Verdict) *LastVerdict {
+		return &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(), CreatedAt: v.CreatedAt, Summary: v.Summary}
+	}
 	if len(all) > 0 {
-		v := all[len(all)-1]
-		last = &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(),
-			CreatedAt: v.CreatedAt, Summary: v.Summary}
+		out.Ultimo = ver(all[len(all)-1])
 	}
-	return check, last, nil
+	for _, v := range all {
+		if v.ID == check.VerdictID && check.VerdictID != "" {
+			out.DelCheck = ver(v)
+		}
+	}
+	return out, nil
 }
 
 // Ratchet is the quality baseline as status shows it: the single source of

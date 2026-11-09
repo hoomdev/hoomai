@@ -25,16 +25,21 @@
 //
 // Cells are counted with hoom's width table (AnchoDe, Celdas; CA-577): a
 // wide character (East Asian Wide, Fullwidth, an emoji that presents as
-// emoji) takes two cells and a combining mark none. This replaces the v1's
-// "every rune, one cell". Every text cut to a width keeps the longest start
+// emoji) takes two cells and a combining mark none: a mark is drawn with
+// the cell before it, its base, and is not lost ("Cafe" + U+0301 shows
+// "Café"); a variation selector (U+FE00..U+FE0F) is dropped, since a
+// terminal can turn its base two cells wide (the review's decision,
+// 2026-11-09). This replaces the v1's "every rune, one cell". Every text cut to a width keeps the longest start
 // that fits in the width less one cell and then the cut sign ("…", "~" in
 // ASCII): a wide character that would straddle the limit goes out whole,
 // and the cell it leaves is a space when something follows (a border).
 //
 // Every text the screen shows passes, before it is measured and cut, the
 // v1's neutralization of controls: a tab is a space, and any other control
-// (C0, DEL, C1) and any bidi control (U+200E, U+200F, U+202A..U+202E,
-// U+2066..U+2069) is "?". Where a text is said to be "on one line" its
+// (C0, DEL, C1), any bidi control (U+200E, U+200F, U+202A..U+202E,
+// U+2066..U+2069) and any other format character (the category Cf: a zero
+// width space, a joiner, a BOM, the tags) is "?", so the width table and
+// the terminal agree (the review's decision, 2026-11-09). Where a text is said to be "on one line" its
 // newlines ("\n", "\r\n") are spaces first (a lone "\r" is a control). The
 // texts come from the project and from the agents: none of them reaches
 // the terminal as a sequence. The only sequences of a line are the SGR of
@@ -203,7 +208,9 @@
 // action (see The next step), goes that action's hint: the Muestra of its
 // key's row and its label in lower case ("A aprobar spec"). Without a card
 // ([2] on Hecho's line, an empty [3], [0] showing nothing) the hints of the
-// card's rows (espacio, n and the action keys) are left out. When the line
+// card's rows (the rows with DeTarjeta: espacio, n and the action keys) are
+// left out. In the reviewer's Pedir modal, which has no Pedido, the row of
+// ctrl-e is neither on the keys line nor dispatched (CA-564). When the line
 // does not fit in W cells: a last hint "? todas las teclas" becomes
 // "? todas", and then the hints before the last one are left out, from the
 // one right before it backward, until it fits (decision, from the spec's
@@ -249,7 +256,9 @@
 //
 //	1  " <proyecto> · rama <Rama>"         with Git
 //	   " <proyecto> · sin git"             without it
-//	2  " check VERDE · verify hace <t>"    Check.OK, t since Veredicto.CreatedAt
+//	2  " check VERDE · verify hace <t>"    Check.OK, t since the CreatedAt of the verdict the
+//	                                       check refers to (VeredictoDelCheck; Veredicto when it is
+//	                                       that one, Check.VerdictID; the review's decision)
 //	   " check ROJO: <motivo>"             not OK, motivo checkcmd.Motivo(Check)
 //	   " sin veredicto todavia"            Check.Reason is checkcmd.ReasonNoVerdict
 //	3  " hoy <usd> USD en <n> trabajos"    Hoy.Runs = n > 0, usd Hoy.CostoUSD; and
@@ -272,10 +281,17 @@
 //	" Check"
 //	"  <the check line of [1], without its margin>"
 //	""
+//	" Avisos"                            (only with Proyecto.Avisos: the verdicts that could not be read)
+//	"  <aviso>"                          (one each, on one line, neutralized)
+//	""
 //	" Doctor"
 //	"  <slug> · <plain>: <action>"       (one per problem; What when Plain is ""; without "<slug> · " when Slug is "")
 //
-// " Veredicto" is followed by "  sin veredicto todavia" without one, and
+// [0] shows the newest verdict (Veredicto), and [1]'s line 2 counts from the
+// one the check refers to. Nothing of these reads is written to the
+// terminal: the verdicts that could not be read come in Proyecto.Avisos
+// (statuscmd.CheckYVeredicto does not write on os.Stderr). " Veredicto" is
+// followed by "  sin veredicto todavia" without one, and
 // " Doctor" by "  sin problemas" without problems. Before the first
 // Proyecto: " leyendo el proyecto...".
 //
@@ -381,7 +397,11 @@
 // hard), each continuation line starting with the leading spaces of the
 // line it continues; the event lines of G are cut instead (decision).
 //
-// [0] starts at its first line for each new card, and scrolls (with the
+// [0] starts at its first line for each new card, and follows its end only
+// when the document is longer than the view and the person scrolled to its
+// end, where its Narración is: then a read that makes it longer keeps the
+// end in view (the review's decision, 2026-11-09; Proyecto and a finding
+// never follow). It scrolls (with the
 // focus on it: ↑ ↓ k j one line, pgup pgdn its inner height, g G the start
 // and the end; the wheel 3 lines) between its first line and the one that
 // leaves its last line at the bottom (CA-557). ]c and [c make the next and
@@ -421,7 +441,8 @@
 // el sobre: <err>" in red when Sobre.Err; then one line per event of the
 // Detalle's Sobre: " <HH:MM:SS> <kind> <detail>" (UTC, on one line, cut),
 // or " sin eventos todavia". Before its Detalle: " leyendo la tarjeta...".
-// It starts at its end and follows it while the reads bring events, unless
+// It starts at its end and follows it while the reads bring events (it is
+// the view that follows an envelope), unless
 // the person scrolled up: it follows again when the view is back at its
 // end, and G takes it there.
 //
@@ -463,7 +484,13 @@
 // file has neither the empty line before " <file>" nor these lines. The
 // finding's line is the v1's: the number after a ":" that ends the file
 // field ("x.go:12"), or else after the first "<file>:" in the description;
-// 0 without one. The file is relative to the project root.
+// 0 without one. As in the v1, the file is relative to the evidence dir of
+// the card of its task: "<evidence.dir>/<file>" when that card is on the
+// board and its dir is not "" nor ".", the file alone otherwise (and an
+// absolute one as it is, for the rules of the paths to judge); that is the
+// path the context is read from and e opens (the review's decision,
+// 2026-11-09). Datos.Archivo reads only a regular file: a FIFO or a device
+// is "no es un archivo regular", without blocking.
 //
 // e, in [4] and in its [0], orders AbrirEditor with that file and line;
 // without a file the message line says "el hallazgo no nombra un
@@ -584,21 +611,28 @@
 // closes the list only). The modals that run a verb (Pedir, Firma,
 // Guardar) end with a line of two buttons, centered in the text: "<b1>   <b2>",
 // the chosen one as "[ <label> ]" and the other as "  <label>  " (decision);
-// ←, → (and tab in Firma and Guardar) choose the other one, and enter on
-// the buttons runs the chosen one: the action (orders Lanzar, closes the
+// ←, → and tab choose the other one (in Pedir, the action and Cancelar are
+// two stops of tab and shift-tab: CA-565, the review's decision), and enter
+// on the buttons runs the chosen one: the action (orders Lanzar, closes the
 // modal, adds the Registro entry) or Cancelar (closes it). When the size
 // changes the modal is centered again (CA-565).
 //
 // A modal taller than B gives up, in order and only until it fits: the
-// selectors' help line; the empty lines; the Pedido box's lines, from 4
-// down to 1; the "Pedido" line, which goes into the box's top border as
-// "┌ Pedido ─...┐" (its mark on that line); the line "Se va a ejecutar:",
-// which joins the command's first line ("Se va a ejecutar: hoom ...")
-// (decision, the last two, so the modal fits at 60x15). "Se va a
-// ejecutar" and the buttons never go. Guardar's paths that still do not
-// fit show the first ones and "y <n> rutas mas" in a last line (v1). What
-// still does not fit is drawn from the top line and cut at line B. In
-// width, the origin words are the first thing to go (see Pedir).
+// selectors' help line; the gray selectors' whys that went on their own
+// line; the origin words (all of them, the whys beside their selector
+// too); the empty lines; the Pedido box's lines, from 4 down to 1; the
+// "Pedido" line, which goes into the box's top border as "┌ Pedido ─...┐"
+// (its mark on that line); the line "Se va a ejecutar:", which joins the
+// command's first line ("Se va a ejecutar: hoom ...") (decision, the last
+// two, so the modal fits at 60x15; the first three, the review's decision,
+// 2026-11-09). "Se va a ejecutar", the command and the buttons never go.
+// Guardar's paths that still do not fit show the first ones and "y <n>
+// rutas mas" in a last line (v1). What still does not fit is drawn from the
+// top line and cut at line B; then, as a signature that does not fit
+// whole, enter on Pedir's action button runs nothing and the message line
+// says in red "agranda la terminal: el comando no entra entero" for
+// DuracionAviso (the reviewer's and reanudar's too). In width, the origin
+// words are the first thing to go (see Pedir).
 //
 // Pedir (a, t, w, r, R, and n when the next step launches a role; CA-568),
 // title "<label> · <slug>", its text lines (c = Wm-6):
@@ -620,8 +654,10 @@
 //	"[ <label> ]     Cancelar  "               (the buttons: the action, Cancelar)
 //
 // The fields, in tab and shift-tab order (wrapping around): Pedido,
-// Provider, Modelo, Esfuerzo, Tope, Tiempo límite and the buttons; a gray
-// selector is skipped. At the start the focus is on the Pedido with its
+// Provider, Modelo, Esfuerzo, Tope, Tiempo límite, the action's button and
+// Cancelar; a gray selector is skipped; tab into the buttons stops on the
+// action, shift-tab into them (from the first field) on Cancelar, and the
+// stop is the chosen button. At the start the focus is on the Pedido with its
 // cursor at its end (on the first selector that is not gray for the
 // reviewer) and the action's button is the chosen one (decision on the
 // focus, as the v1). The mark "▸ " goes on the line of the field with the
@@ -767,7 +803,10 @@
 // the argument of -m is shortened to its start and "…": the longest start
 // (of the pedido on one line, trimmed) with which, quoted with
 // CitarPedido, it takes at most two lines (decision); when not even one
-// character does, the second line is cut. The pedido's newlines are
+// character does, the second line is cut and the command is not whole:
+// enter on the action's button runs nothing and says in red "agranda la
+// terminal: el comando no entra entero", so no flag that is not on screen
+// is ever sent (the review's decision, 2026-11-09). The pedido's newlines are
 // spaces here and in the Registro (CitarPedido does it); the order's Args
 // keep them.
 //
@@ -883,6 +922,9 @@
 //
 // The sequences of Run (SecEntrar and SecMouseSi when it takes the
 // terminal, SecMouseNo and SecSalir when it gives it back), then one frame
-// per change: "\x1b[H" and the Pantalla lines, each followed by "\x1b[K",
-// joined by "\r\n".
+// per change: "\x1b[H" and the Pantalla lines joined by "\r\n", each line
+// followed by "\x1b[K" only when it takes fewer than Ancho cells (without
+// its SGR): after a line that reaches the last column the cursor stays on
+// that cell, and "\x1b[K" would clear it (the review's decision,
+// 2026-11-09).
 package tablero

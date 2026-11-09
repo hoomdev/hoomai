@@ -53,7 +53,7 @@ const (
 // byte is dropped. The buffer is taken as complete: Run waits for the rest
 // of a sequence before it decodes (an ESC [ M with fewer than three bytes
 // after it, or an ESC [ < sequence without its final M or m, is waited
-// for like any other).
+// for with no time limit: a mouse event never turns into keys).
 func Decodificar(b []byte) []Tecla {
 	var out []Tecla
 	for _, e := range DecodificarEntradas(b) {
@@ -223,6 +223,29 @@ func raton(params string, final byte) *Raton {
 		return &Raton{Accion: RatonRuedaAbajo, X: x, Y: y}
 	}
 	return nil
+}
+
+// prefijoRaton is where a mouse event that did not arrive whole starts at
+// the end of b (ESC [ M with fewer than its three bytes, ESC [ < without
+// its M or m), or -1. Run never decodes it by time: it waits for its tail.
+func prefijoRaton(b []byte) int {
+	i := bytes.LastIndexByte(b, 0x1b)
+	if i < 0 {
+		return -1
+	}
+	resto := b[i:]
+	if len(resto) >= 3 && resto[1] == '[' && resto[2] == 'M' && len(resto) < 6 {
+		return i
+	}
+	if len(resto) >= 3 && resto[1] == '[' && resto[2] == '<' {
+		for _, c := range resto[3:] {
+			if c == 'M' || c == 'm' || c < 0x20 || c >= 0x7f {
+				return -1
+			}
+		}
+		return i
+	}
+	return -1
 }
 
 // flechas are the final bytes of the arrows (CSI and SS3 alike).

@@ -122,6 +122,13 @@ func (m *Modelo) docProyecto(d *doc) {
 	d.vacia()
 	d.poner(lin(" Check"))
 	d.poner(append(lin("  "), m.lineaCheck()...))
+	if len(p.Avisos) > 0 {
+		d.vacia()
+		d.poner(lin(" Avisos"))
+		for _, a := range p.Avisos {
+			d.poner(lin("  " + unaLinea(a)))
+		}
+	}
 	d.vacia()
 	d.poner(lin(" Doctor"))
 	if len(p.Problemas) == 0 {
@@ -301,7 +308,7 @@ func (m *Modelo) docSpec(d *doc, c *boardcmd.Card, det *Detalle) {
 func (m *Modelo) docHallazgosTarea(d *doc, det *Detalle) {
 	var abiertos, otros []finding.Item
 	for _, f := range det.Detalle.Findings {
-		if f.Status == "abierto" {
+		if f.Status == finding.StatusOpen {
 			abiertos = append(abiertos, f)
 		} else {
 			otros = append(otros, f)
@@ -446,8 +453,9 @@ func (m *Modelo) docHallazgo(d *doc, h finding.Item, hi int) {
 	var ctx []linea
 	a := m.archivo
 	ruta, nl := m.ArchivoElegido()
+	resuelto, _ := m.rutaHallazgo(h)
 	switch {
-	case fueraPorLaForma(archivo):
+	case fueraPorLaForma(resuelto):
 		ctx = []linea{linCon(" el archivo "+strconv.Quote(archivo)+" esta fuera del proyecto", rojo)}
 	case a == nil || a.Ruta != ruta || a.Linea != nl:
 		ctx = []linea{lin(" leyendo " + archivo + "...")}

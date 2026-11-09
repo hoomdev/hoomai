@@ -111,8 +111,12 @@ type Atajo struct {
 	Accion string
 	// Barra is their hint on the keys line ("" = not there), with UTF-8
 	// arrows like Muestra.
-	Barra   string
-	Lugares []Lugar
+	Barra string
+	// DeTarjeta marks the rows of the card (espacio, n and the action
+	// keys): without a card ([2] on Hecho's line, an empty [3], the Acciones
+	// of a card gone) their hints are not on the keys line.
+	DeTarjeta bool
+	Lugares   []Lugar
 }
 
 // Atajos is THE key table: the keys line, the help and the dispatch come
@@ -135,27 +139,27 @@ var Atajos = []Atajo{
 		Lugares: LugaresVer},
 	// the card
 	{Teclas: []Tecla{TeclaEspacio}, Muestra: "espacio", Hace: "acciones de la tarjeta", Barra: "espacio acciones",
-		Lugares: LugaresConTarjeta},
+		DeTarjeta: true, Lugares: LugaresConTarjeta},
 	{Teclas: []Tecla{"n"}, Muestra: "n", Hace: "el siguiente paso", Accion: AccionSiguiente, Barra: "n siguiente paso",
-		Lugares: LugaresAccion},
+		DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"a"}, Muestra: "a", Hace: "pedir al arquitecto", Verbo: "hoom pedir arquitecto <slug>",
-		Accion: boardcmd.ActPedirArquitecto, Lugares: LugaresAccion},
+		Accion: boardcmd.ActPedirArquitecto, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"t"}, Muestra: "t", Hace: "pedir al test-writer", Verbo: "hoom pedir test-writer <slug>",
-		Accion: boardcmd.ActPedirTestWriter, Lugares: LugaresAccion},
+		Accion: boardcmd.ActPedirTestWriter, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"w"}, Muestra: "w", Hace: "pedir al writer", Verbo: "hoom pedir writer <slug>",
-		Accion: boardcmd.ActPedirWriter, Lugares: LugaresAccion},
+		Accion: boardcmd.ActPedirWriter, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"r"}, Muestra: "r", Hace: "pedir al reviewer", Verbo: "hoom pedir reviewer <slug>",
-		Accion: boardcmd.ActPedirReviewer, Lugares: LugaresAccion},
+		Accion: boardcmd.ActPedirReviewer, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"R"}, Muestra: "R", Hace: "reanudar", Verbo: "hoom reanudar <slug>", Accion: boardcmd.ActReanudar,
-		Lugares: LugaresAccion},
+		DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"s"}, Muestra: "s", Hace: "guardar", Verbo: "hoom guardar <slug>", Accion: boardcmd.ActGuardar,
-		Lugares: LugaresAccion},
+		DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"A"}, Muestra: "A", Hace: "aprobar el spec", Verbo: "hoom aprobar <slug> --si", Accion: boardcmd.ActAprobar,
-		Lugares: LugaresAccion},
+		DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"I"}, Muestra: "I", Hace: "integrar", Verbo: "hoom integrar <slug> --si", Accion: boardcmd.ActIntegrar,
-		Lugares: LugaresAccion},
+		DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"u"}, Muestra: "u", Hace: "fijar la tarjeta para la terminal", Verbo: "hoom usar <slug>",
-		Accion: AccionUsar, Lugares: LugaresAccion},
+		Accion: AccionUsar, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"e"}, Muestra: "e", Hace: "abrir en el editor", Barra: "e editor",
 		Lugares: []Lugar{LugarVerTarjeta, LugarHallazgos, LugarVerHallazgo}},
 	// ]c is "]" and then "c": a key of two strokes, like in Vim

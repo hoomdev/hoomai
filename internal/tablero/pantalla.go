@@ -373,12 +373,11 @@ func (m *Modelo) pistas() []string {
 	l := m.Lugar()
 	c := m.tarjetaDeLugar(l)
 	var out []string
-	for _, a := range AtajosDe(l) {
+	for _, a := range m.filas(l) {
 		if a.Barra == "" {
 			continue
 		}
-		deTarjeta := a.Accion != "" || a.Barra == "espacio acciones"
-		if deTarjeta && c == nil {
+		if a.DeTarjeta && c == nil {
 			continue
 		}
 		out = append(out, m.s.conFlechas(a.Barra))

@@ -154,28 +154,22 @@ func (m *Modelo) ayudaPedir(p *pedir) string {
 
 // lineasPedir are the Pedir modal's text lines in c cells at the step paso
 // of what does not fit (0: everything).
-func (m *Modelo) lineasPedir(p *pedir, c, paso int) []lineaModal {
+func (m *Modelo) lineasPedir(p *pedir, c int, k compacto) []lineaModal {
 	var out []lineaModal
 	vacia := func() {
-		if paso < 2 {
+		if !k.sinVacias {
 			out = append(out, lm(lin("")))
 		}
 	}
 	if !p.revisor {
-		n := 4
-		switch {
-		case paso >= 5:
-			n = 1
-		case paso >= 3:
-			n = 4 - (paso - 2)
-		}
+		n := k.pedido
 		etiqueta := linCon("Pedido", normal)
 		if p.pedidoVacio {
 			etiqueta = linCon("Pedido", rojo)
 		}
 		foco := p.foco == campoPedido && p.otro == nil && p.lista == nil
 		arriba := lin(m.s.esqSI + strings.Repeat(m.s.linea, max(0, c-2)) + m.s.esqSD)
-		if paso >= 6 {
+		if k.etiquetaEnBorde {
 			arriba = append(append(lin(m.s.esqSI+" "), etiqueta...), tramo{texto: " " + strings.Repeat(m.s.linea, max(0, c-10)) + m.s.esqSD})
 			out = append(out, lineaModal{l: arriba, marca: foco, campo: campoPedido, accion: -1})
 		} else {
@@ -213,7 +207,7 @@ func (m *Modelo) lineasPedir(p *pedir, c, paso int) []lineaModal {
 	}
 	// the origins of the enabled selectors go all or none; a gray one's why
 	// that does not fit goes on its own line under it
-	conOrigen := true
+	conOrigen := !k.sinOrigen
 	for _, s := range sels {
 		if !s.gris && s.origen != "" && 15+v+celdas(s.origen) > c {
 			conOrigen = false
@@ -227,24 +221,24 @@ func (m *Modelo) lineasPedir(p *pedir, c, paso int) []lineaModal {
 		}
 		l := linCon(rellenar(s.etiqueta, 15)+s.valor, e)
 		cabe := 15+v+celdas(s.origen) <= c
-		if s.origen != "" && (s.gris && cabe || !s.gris && conOrigen) {
+		if s.origen != "" && !k.sinOrigen && (s.gris && cabe || !s.gris && conOrigen) {
 			l = l.mas(strings.Repeat(" ", 15+v-celdas(rellenar(s.etiqueta, 15)+s.valor))).masCon(s.origen, gris)
 		}
 		marca := p.foco == campo && p.lista == nil
 		if s.gris {
 			out = append(out, lineaModal{l: l, campo: -1, accion: -1})
-			if s.origen != "" && !cabe {
+			if s.origen != "" && !cabe && !k.sinWhyLinea {
 				out = append(out, lm(linCon(strings.Repeat(" ", 15)+s.origen, gris)))
 			}
 		} else {
 			out = append(out, lineaModal{l: l, marca: marca, campo: campo, accion: -1})
 		}
 	}
-	if paso < 1 {
+	if !k.sinAyuda {
 		out = append(out, lm(linCon(strings.Repeat(" ", 15)+m.ayudaPedir(p), gris)))
 	}
 	vacia()
-	out = append(out, m.lineasEjecutar(m.argsPedir(p), c, paso >= 7)...)
+	out = append(out, m.lineasEjecutar(m.argsPedir(p), c, k.junto)...)
 	vacia()
 	bl, _ := botones([2]string{p.accion.Label, "Cancelar"}, p.boton, c)
 	out = append(out, lineaModal{l: bl, marca: p.foco == campoBotones, botones: true, campo: campoBotones, accion: -1})
@@ -256,20 +250,74 @@ func (m *Modelo) lineasPedir(p *pedir, c, paso int) []lineaModal {
 func (m *Modelo) lineasEjecutar(args []string, c int, junto bool) []lineaModal {
 	if junto {
 		var out []lineaModal
-		for _, l := range lineasComando(args, c, "Se va a ejecutar: ", m.c.Windows, m.s.corte) {
+		ls, _ := lineasComando(args, c, "Se va a ejecutar: ", m.c.Windows, m.s.corte)
+		for _, l := range ls {
 			out = append(out, lm(lin(m.s.enPantalla(l))))
 		}
 		return out
 	}
 	out := []lineaModal{lm(lin("Se va a ejecutar:"))}
-	for _, l := range lineasComando(args, c, "", m.c.Windows, m.s.corte) {
+	ls, _ := lineasComando(args, c, "", m.c.Windows, m.s.corte)
+	for _, l := range ls {
 		out = append(out, lm(lin(m.s.enPantalla(l))))
 	}
 	return out
 }
 
-// pasosPedir is how many steps of what does not fit Pedir has.
-const pasosPedir = 8
+// compacto is what the Pedir modal gives up to fit in B lines.
+type compacto struct {
+	sinAyuda        bool // the selectors' help line
+	sinWhyLinea     bool // the own lines of the gray selectors' whys
+	sinOrigen       bool // the origin words (and the whys beside their selector)
+	sinVacias       bool // the empty lines
+	pedido          int  // the Pedido box's text lines
+	etiquetaEnBorde bool // "Pedido" in the box's top border
+	junto           bool // "Se va a ejecutar:" on the command's first line
+}
+
+// pasosPedir are the steps of what does not fit, in order: "Se va a
+// ejecutar", the command and the buttons never go.
+var pasosPedir = []compacto{
+	{pedido: 4},
+	{sinAyuda: true, pedido: 4},
+	{sinAyuda: true, sinWhyLinea: true, pedido: 4},
+	{sinAyuda: true, sinWhyLinea: true, sinOrigen: true, pedido: 4},
+	{sinAyuda: true, sinWhyLinea: true, sinOrigen: true, sinVacias: true, pedido: 4},
+	{sinAyuda: true, sinWhyLinea: true, sinOrigen: true, sinVacias: true, pedido: 3},
+	{sinAyuda: true, sinWhyLinea: true, sinOrigen: true, sinVacias: true, pedido: 2},
+	{sinAyuda: true, sinWhyLinea: true, sinOrigen: true, sinVacias: true, pedido: 1},
+	{sinAyuda: true, sinWhyLinea: true, sinOrigen: true, sinVacias: true, pedido: 1, etiquetaEnBorde: true},
+	{sinAyuda: true, sinWhyLinea: true, sinOrigen: true, sinVacias: true, pedido: 1, etiquetaEnBorde: true, junto: true},
+}
+
+// pasoPedir is the first step whose lines fit in the modal's B lines, and
+// whether one does.
+func (m *Modelo) pasoPedir(p *pedir) (compacto, bool) {
+	c := m.modalAncho() - 6
+	b := m.c.Alto - 2
+	for _, k := range pasosPedir {
+		if len(m.lineasPedir(p, c, k))+2 <= b {
+			return k, true
+		}
+	}
+	return pasosPedir[len(pasosPedir)-1], false
+}
+
+// pedirEntero says whether the Pedir modal shows its command whole and its
+// buttons: its lines fit at some step and its command fits in its two
+// lines. Only then does its action's button run.
+func (m *Modelo) pedirEntero(p *pedir) bool {
+	k, ok := m.pasoPedir(p)
+	if !ok {
+		return false
+	}
+	prefijo := ""
+	if k.junto {
+		prefijo = "Se va a ejecutar: "
+	}
+	_, entero := lineasComando(m.argsPedir(p), m.modalAncho()-6, prefijo, m.c.Windows, m.s.corte)
+	return entero
+}
 
 // ---------------------------------------------------------------- Firma and Guardar
 
@@ -725,11 +773,8 @@ func (m *Modelo) geometria() (modalEnPantalla, bool) {
 	case ModalPedir:
 		p := m.pedir
 		g.titulo = p.accion.Label + " · " + p.slug
-		for paso := 0; paso < pasosPedir; paso++ {
-			if ls = m.lineasPedir(p, c, paso); len(ls)+2 <= b {
-				break
-			}
-		}
+		k, _ := m.pasoPedir(p)
+		ls = m.lineasPedir(p, c, k)
 	case ModalFirma, ModalGuardar:
 		g.titulo = m.conf.accion.Label + " · " + m.conf.slug
 		ls = m.lineasConfirmacionQueEntran(m.conf, c, b-2)

@@ -48,12 +48,12 @@ func (d datosReales) Detalle(slug string) Detalle {
 func (d datosReales) Proyecto() Proyecto {
 	var p Proyecto
 	p.Rama, p.Git = gitx.Rama(d.root)
-	check, last, err := statuscmd.CheckYVeredicto(d.root, d.base)
+	v, err := statuscmd.CheckYVeredicto(d.root, d.base)
 	if err != nil {
 		p.Err = err
 		return p
 	}
-	p.Check, p.Veredicto = check, last
+	p.Check, p.Veredicto, p.VeredictoDelCheck, p.Avisos = v.Check, v.Ultimo, v.DelCheck, v.Avisos
 	if p.Hoy, err = costcmd.HoyEn(d.root, time.Now()); err != nil {
 		p.Err = err
 		return p
@@ -97,6 +97,17 @@ func (d datosReales) Archivo(ruta string, linea int) Archivo {
 		return a
 	}
 	defer r.Close()
+	// a FIFO or a device would block the read (or never end): only a
+	// regular file is read
+	fi, err := r.Stat(rel)
+	if err != nil {
+		a.Err = err
+		return a
+	}
+	if !fi.Mode().IsRegular() {
+		a.Err = errors.New("no es un archivo regular")
+		return a
+	}
 	f, err := r.Open(rel)
 	if err != nil {
 		a.Err = err

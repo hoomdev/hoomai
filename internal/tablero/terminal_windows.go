@@ -4,6 +4,7 @@ package tablero
 
 import (
 	"os"
+	"os/signal"
 	"time"
 	"unsafe"
 
@@ -74,6 +75,17 @@ func hayEntrada(f *os.File, d time.Duration) (bool, error) {
 	}
 	return false, nil
 }
+
+// avisosDeSalida are the signals that end the TUI as Salir does: on Windows,
+// os.Interrupt (a console's ctrl-break or close).
+func avisosDeSalida() (<-chan os.Signal, func()) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt)
+	return ch, func() { signal.Stop(ch) }
+}
+
+// codigoDeSenal is the exit code of a TUI ended by a signal on Windows.
+func codigoDeSenal(os.Signal) int { return 1 }
 
 // avisosDeTamano: Windows has no SIGWINCH; the size is asked every 250 ms.
 func avisosDeTamano() (<-chan os.Signal, func()) { return nil, func() {} }

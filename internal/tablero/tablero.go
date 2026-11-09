@@ -182,13 +182,18 @@ func Real() Entorno {
 //   - the Archivo of Modelo.ArchivoElegido when it changes, while it is
 //     not "".
 //
+// SIGTERM, SIGHUP and SIGINT (on Windows, os.Interrupt) end it as Salir
+// does, the terminal given back (the mouse off, the normal screen), with
+// 128 + the signal's number as the exit code (1 on Windows).
+//
 // It asks the terminal's size at least every 250 ms (and on SIGWINCH) and
 // draws again when it changes. The bytes it reads go through
 // DecodificarEntradas: the keys to Modelo.Tecla and the mouse events to
 // Modelo.Raton. The bytes a read brings that end inside an escape sequence
 // or inside a UTF-8 character wait a moment for the next read before they
 // are decoded: a read may cut a key, a mouse event or a pasted text
-// anywhere.
+// anywhere. A mouse event cut that way is never decoded by time: it waits
+// for its tail (never turning into keys).
 //
 // An Abrir that fails puts "no se pudo abrir el editor: <error>" in red in
 // the message line for DuracionAviso. An AbrirEditor whose Archivo,
@@ -377,13 +382,16 @@ func LanzadorDe(hoom, dir, logs string) Lanzador {
 //     dir); a narration that is in neither (a run of another machine) leaves
 //     Sobre without events and without Err, any other failure to read it is
 //     Sobre.Err;
-//   - Proyecto: the branch of gitx, the check and the newest verdict of hoom
-//     status's function, costcmd.HoyEn with the local clock, and
-//     boardcmd.Doctor's problems; the first error is Err;
+//   - Proyecto: the branch of gitx, the check, the newest verdict, the
+//     check's verdict and the unreadable verdicts of
+//     statuscmd.CheckYVeredicto (which writes nothing), costcmd.HoyEn with
+//     the local clock, and boardcmd.Doctor's problems; the first error is
+//     Err;
 //   - Hallazgos: finding.List(root, base, true);
 //   - Archivo: the file through os.OpenRoot(root), so a path or a symlink
-//     that leaves the root reads nothing (Fuera); at most its first 4 MiB
-//     are read.
+//     that leaves the root reads nothing (Fuera); only a regular file (a
+//     FIFO or a device is Err "no es un archivo regular", without
+//     blocking); at most its first 4 MiB are read.
 func DatosDe(root, base, blockOn string) Datos {
 	return datosReales{root: root, base: base, blockOn: blockOn}
 }

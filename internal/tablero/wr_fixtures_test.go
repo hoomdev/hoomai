@@ -4,7 +4,6 @@ package tablero
 
 import (
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
@@ -127,22 +126,4 @@ func wrTeclas(m *Modelo, ts ...Tecla) []Orden {
 		out = append(out, m.Tecla(t, wrAhora)...)
 	}
 	return out
-}
-
-// wrForma checks every screen's rules: Alto lines of at most Ancho cells,
-// no trailing spaces.
-func wrForma(t *testing.T, m *Modelo) {
-	t.Helper()
-	p := m.Pantalla()
-	if len(p) != m.c.Alto {
-		t.Fatalf("la pantalla tiene %d lineas, Alto=%d", len(p), m.c.Alto)
-	}
-	for i, l := range p {
-		if strings.TrimRight(l, " ") != l {
-			t.Fatalf("la linea %d termina en espacios: %q", i+1, l)
-		}
-		if !m.c.Color && Celdas(l) > m.c.Ancho {
-			t.Fatalf("la linea %d tiene %d celdas > %d:\n%s", i+1, Celdas(l), m.c.Ancho, wrPantalla(m))
-		}
-	}
 }

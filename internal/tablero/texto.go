@@ -158,7 +158,9 @@ func neutro(r rune) rune {
 	switch {
 	case r == '\t':
 		return ' '
-	case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r):
+	case unicode.IsControl(r), unicode.Is(unicode.Bidi_Control, r), unicode.Is(unicode.Cf, r):
+		// Cf too: a zero width space, a joiner or a BOM takes no column in
+		// the terminal and one in the width table
 		return '?'
 	}
 	return r

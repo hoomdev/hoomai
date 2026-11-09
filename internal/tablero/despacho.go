@@ -65,7 +65,7 @@ func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
 	} else {
 		m.prefijo = ""
 	}
-	a, ok := atajo(l, t)
+	a, ok := atajoEn(m.filas(l), t)
 	if !ok {
 		return nil
 	}
@@ -74,10 +74,25 @@ func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
 	return ords
 }
 
-// atajo is the row of the table that t has in l: the one that names it or,
-// for a printable key that no row names, the row of TeclaTexto.
-func atajo(l Lugar, t Tecla) (Atajo, bool) {
-	filas := AtajosDe(l)
+// filas are the rows of l that work now: AtajosDe(l), without ctrl-e in
+// the reviewer's Pedir modal, which has no Pedido (CA-564).
+func (m *Modelo) filas(l Lugar) []Atajo {
+	out := AtajosDe(l)
+	if m.modal != ModalPedir || m.pedir == nil || !m.pedir.revisor {
+		return out
+	}
+	var sin []Atajo
+	for _, a := range out {
+		if !(len(a.Teclas) == 1 && a.Teclas[0] == TeclaCtrlE) {
+			sin = append(sin, a)
+		}
+	}
+	return sin
+}
+
+// atajoEn is the row of filas that t has: the one that names it or, for a
+// printable key that no row names, the row of TeclaTexto.
+func atajoEn(filas []Atajo, t Tecla) (Atajo, bool) {
 	for _, a := range filas {
 		for _, k := range a.Teclas {
 			if k == t {
@@ -293,7 +308,21 @@ func (m *Modelo) desplazar0(d int) {
 		s = 0
 	}
 	m.scroll0 = s
-	m.sigue0 = s >= maximo
+	m.sigue0 = m.sigueElFinal(s, maximo)
+}
+
+// sigueElFinal says whether [0] follows its end at the scroll s of maximo:
+// [0] of [3] when it is at its end; a card's document only when it is longer
+// than the view and it is at its end (its Narración in view). Proyecto and
+// a finding never follow.
+func (m *Modelo) sigueElFinal(s, maximo int) bool {
+	switch {
+	case strings.HasPrefix(m.clave0, "c:"):
+		return s >= maximo
+	case strings.HasPrefix(m.clave0, "t:"):
+		return maximo > 0 && s >= maximo
+	}
+	return false
 }
 
 // saltarCriterio makes the next (or previous) criterion without a test the
@@ -346,7 +375,7 @@ func (m *Modelo) abrirEnEditor(l Lugar) []Orden {
 		if !ok {
 			return nil
 		}
-		archivo, n := archivoYLinea(h)
+		archivo, n := m.rutaHallazgo(h)
 		if archivo == "" {
 			m.avisar("el hallazgo no nombra un archivo", normal, DuracionAviso)
 			return nil

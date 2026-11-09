@@ -79,8 +79,16 @@ type Proyecto struct {
 	// status).
 	Check checkcmd.Result
 	// Veredicto is the project's newest verdict, as hoom status reads it
-	// (statuscmd's last_verdict); nil without one.
+	// (statuscmd's last_verdict); nil without one. [0] shows it.
 	Veredicto *statuscmd.LastVerdict
+	// VeredictoDelCheck is the verdict Check refers to (Check.VerdictID,
+	// the newest complete one); nil without one. [1]'s "verify hace <t>"
+	// counts from it.
+	VeredictoDelCheck *statuscmd.LastVerdict
+	// Avisos are the verdicts that could not be read (statuscmd's
+	// Veredictos.Avisos): [0] shows them, neutralized; nothing is written
+	// to the terminal.
+	Avisos []string
 	// Hoy is what today's runs cost (costcmd.HoyEn, the function of hoom
 	// costo).
 	Hoy costcmd.Hoy

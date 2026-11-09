@@ -249,6 +249,8 @@ func (b *bucle) bucle() (int, error) {
 	var proxima, proximaProyecto <-chan time.Time
 	winch, parar := avisosDeTamano()
 	defer parar()
+	senales, pararSenales := avisosDeSalida()
+	defer pararSenales()
 
 	go b.leerTeclas()
 	if err := b.dibujar(); err != nil {
@@ -307,13 +309,24 @@ func (b *bucle) bucle() (int, error) {
 			}
 		case <-espera:
 			espera = nil
+			// a mouse event cut by the read waits for its tail: it never
+			// turns into keys
+			resto := []byte(nil)
+			if i := prefijoRaton(pendiente); i >= 0 {
+				resto = append(resto, pendiente[i:]...)
+				pendiente = pendiente[:i]
+			}
 			fin, code, err = b.entradas(pendiente)
-			pendiente = nil
+			pendiente = resto
 		case <-tic.C:
 			b.m.Tic(b.e.Ahora())
 			b.mirarTamano()
 		case <-winch:
 			b.mirarTamano()
+		case s := <-senales:
+			// as Salir: correr gives the terminal back (the mouse off, the
+			// normal screen) before Run returns
+			return codigoDeSenal(s), nil
 		case <-proxima:
 			proxima = nil
 			b.leer(leeTablero)
@@ -436,6 +449,23 @@ func (b *bucle) mirarTamano() {
 	b.m.Tamano(w, h)
 }
 
+// sinSGR is a line of Pantalla without its SGR sequences.
+func sinSGR(l string) string {
+	var b strings.Builder
+	for i := 0; i < len(l); i++ {
+		if l[i] == 0x1b && i+1 < len(l) && l[i+1] == '[' {
+			j := i + 2
+			for j < len(l) && l[j] != 'm' {
+				j++
+			}
+			i = j
+			continue
+		}
+		b.WriteByte(l[i])
+	}
+	return b.String()
+}
+
 // dibujar writes the screen when it changed.
 func (b *bucle) dibujar() error {
 	lineas := b.m.Pantalla()
@@ -446,7 +476,11 @@ func (b *bucle) dibujar() error {
 			sb.WriteString("\r\n")
 		}
 		sb.WriteString(l)
-		sb.WriteString("\x1b[K")
+		// after the last column EL would clear that very cell (the cursor
+		// stays on it): a line that fills the width has nothing to clear
+		if Celdas(sinSGR(l)) < b.m.c.Ancho {
+			sb.WriteString("\x1b[K")
+		}
 	}
 	frame := sb.String()
 	if frame == b.ultimo {

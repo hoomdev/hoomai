@@ -481,8 +481,12 @@ func (m *Modelo) lineaCheck() linea {
 	switch {
 	case p.Check.OK:
 		l := lin("check ").masCon("VERDE", verde)
-		if p.Veredicto != nil {
-			l = l.mas(" · verify hace " + hace(m.ahora.Sub(p.Veredicto.CreatedAt)))
+		v := p.VeredictoDelCheck
+		if v == nil && p.Veredicto != nil && p.Veredicto.ID == p.Check.VerdictID {
+			v = p.Veredicto // the newest is the one the check refers to
+		}
+		if v != nil {
+			l = l.mas(" · verify hace " + hace(m.ahora.Sub(v.CreatedAt)))
 		}
 		return l
 	case p.Check.Reason == checkcmd.ReasonNoVerdict:

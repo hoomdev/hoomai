@@ -79,9 +79,12 @@ type pedir struct {
 	pedido      texto
 	pedidoVacio bool
 
-	prov, provPropuesto int       // the chosen provider option and the proposed one (-1: none)
-	valor, propuesto    [7]string // the chosen and the proposed value of Modelo, Esfuerzo, Tope, Tiempo
-	escritos            [7][]string
+	prov, provPropuesto int // the chosen provider option and the proposed one (-1: none)
+	// the chosen and the proposed value of each selector but Provider
+	// (Modelo, Esfuerzo, Tope, Tiempo), and what otro… wrote in each,
+	// indexed by its campo
+	valor, propuesto [campoBotones + 1]string
+	escritos         [campoBotones + 1][]string
 
 	foco  int
 	boton int // 0: the action, 1: Cancelar
@@ -257,12 +260,19 @@ func (m *Modelo) opciones(p *pedir, campo int) []opcion {
 		for _, o := range lista {
 			agregar(opcion{nombre: o.Nombre, valor: o.Nombre, linea: o.Linea})
 		}
+		nota := func(v string) opcion {
+			return opcion{nombre: v, valor: v, linea: fmt.Sprintf("%s no esta en la lista de %s: puede rechazarlo", v, prov), nota: true}
+		}
 		if propio != "" && !en[propio] {
 			o := opcion{nombre: propio, valor: propio, linea: "de hoom.yaml"}
 			if p.prov != p.provPropuesto {
-				o.linea, o.nota = fmt.Sprintf("%s no esta en la lista de %s: puede rechazarlo", propio, prov), true
+				o = nota(propio)
 			}
 			agregar(o)
+		}
+		// what is chosen and stayed chosen across a change of provider
+		if v := p.valor[campo]; v != "" && !en[v] && p.prov != p.provPropuesto {
+			agregar(nota(v))
 		}
 		escritos(func(s string) string { return s })
 	case campoTope:
@@ -312,7 +322,7 @@ func (m *Modelo) elegida(p *pedir, campo int, ops []opcion) int {
 	return -1
 }
 
-// elegir puts the option o on the selector campo.
+// elegirOpcion puts the option o on the selector campo.
 func (m *Modelo) elegirOpcion(p *pedir, campo int, o opcion) {
 	if campo == campoProvider {
 		i, _ := strconv.Atoi(o.valor)
@@ -336,7 +346,7 @@ func (m *Modelo) cambiarProvider(p *pedir, i int) {
 		}
 		switch {
 		case origen == valores.OrigenHoomYAML && p.propuesto[c] != "":
-			// hoom.yaml's value stays chosen
+			// what is chosen stays chosen (hoom.yaml's, or the person's)
 		case i == p.provPropuesto:
 			p.valor[c] = p.propuesto[c]
 		default:
@@ -404,6 +414,15 @@ func (m *Modelo) enPedir(l Lugar, t Tecla) []Orden {
 		m.cerrarModal()
 		return nil
 	case TeclaTab, TeclaShiftTab:
+		// the action and Cancelar are two stops (CA-565)
+		switch {
+		case t == TeclaTab && p.foco == campoBotones && p.boton == 0:
+			p.boton = 1
+			return nil
+		case t == TeclaShiftTab && p.foco == campoBotones && p.boton == 1:
+			p.boton = 0
+			return nil
+		}
 		fs := m.focosPedir(p)
 		i := 0
 		for j, f := range fs {
@@ -416,6 +435,12 @@ func (m *Modelo) enPedir(l Lugar, t Tecla) []Orden {
 			d = len(fs) - 1
 		}
 		p.foco = fs[(i+d)%len(fs)]
+		if p.foco == campoBotones {
+			p.boton = 0
+			if t == TeclaShiftTab {
+				p.boton = 1
+			}
+		}
 		return nil
 	case TeclaCtrlE:
 		if !p.revisor {
@@ -426,7 +451,7 @@ func (m *Modelo) enPedir(l Lugar, t Tecla) []Orden {
 	switch l {
 	case LugarPedirPedido:
 		if t == TeclaEnter {
-			p.foco = campoBotones
+			p.foco, p.boton = campoBotones, 0
 			return nil
 		}
 		if p.pedido.editar(t) {
@@ -536,6 +561,10 @@ func (m *Modelo) lanzarPedir() []Orden {
 		m.avisar("el pedido esta vacio", rojo, DuracionAviso)
 		return nil
 	}
+	if !m.pedirEntero(p) {
+		m.avisar("agranda la terminal: el comando no entra entero", rojo, DuracionAviso)
+		return nil
+	}
 	args := m.argsPedir(p)
 	la := m.lanzar(p.slug, p.accion.Role, args)
 	m.registrarVerbo(la, p.accion.Label, lineaVerbo(args, m.c.Windows))
@@ -547,8 +576,10 @@ func (m *Modelo) lanzarPedir() []Orden {
 // lineasComando are the command's lines in c cells, the first after
 // prefijo: by words, a continuation starting with two spaces; when it
 // takes more than two lines, the argument of -m is shortened to its start
-// and the cut sign of the mode (corte: "…", "~" in ASCII).
-func lineasComando(args []string, c int, prefijo string, windows bool, corte string) []string {
+// and the cut sign of the mode (corte: "…", "~" in ASCII). entero says
+// whether the whole command is there; when not even that fits, the second
+// line is cut and entero is false (the action's button does not run).
+func lineasComando(args []string, c int, prefijo string, windows bool, corte string) ([]string, bool) {
 	palabras := palabrasComando(args, windows)
 	armar := func(ps []string) []string {
 		var out []string
@@ -576,7 +607,7 @@ func lineasComando(args []string, c int, prefijo string, windows bool, corte str
 	}
 	ls := armar(palabras)
 	if cabe(ls) {
-		return ls
+		return ls, true
 	}
 	im := -1
 	pedido := ""
@@ -596,7 +627,7 @@ func lineasComando(args []string, c int, prefijo string, windows bool, corte str
 		for ; n >= 1; n-- {
 			palabras[im] = tarjetacmd.CitarPedido(string(q[:n])+corte, windows)
 			if ls = armar(palabras); cabe(ls) {
-				return ls
+				return ls, true
 			}
 		}
 	}
@@ -606,5 +637,5 @@ func lineasComando(args []string, c int, prefijo string, windows bool, corte str
 	for i := range ls {
 		ls[i] = cortar(ls[i], c, corte)
 	}
-	return ls
+	return ls, false
 }

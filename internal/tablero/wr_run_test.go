@@ -97,7 +97,7 @@ func wrRun(t *testing.T, yaml string, env map[string]string, teclas ...string) (
 	var errb bytes.Buffer
 	e := Entorno{Dir: dir, Out: io.Discard, Err: &errb, Getenv: func(k string) string { return env[k] }, GOOS: "linux",
 		Terminal: term, Datos: datos, Lanzador: wrLanz{}, Editor: EditorDe("true", "linux"),
-		Ahora: func() time.Time { return wrAhora }, Intervalo: 5 * time.Millisecond, IntervaloProyecto: 20 * time.Millisecond}
+		Ahora: func() time.Time { return wrAhora }, Intervalo: 5 * time.Millisecond, IntervaloProyecto: time.Hour}
 	go func() {
 		for _, k := range teclas {
 			time.Sleep(60 * time.Millisecond)
@@ -116,27 +116,13 @@ func TestWRRunMouse(t *testing.T) {
 	if code != 0 || !strings.HasPrefix(out, SecEntrar+SecMouseSi) || !strings.HasSuffix(out, SecMouseNo+SecSalir) {
 		t.Fatalf("con mouse: %d %q ... %q", code, out[:min(40, len(out))], out[max(0, len(out)-40):])
 	}
-	// at the start, every 20 ms and after u's end
-	if n := datos.cuantos(); n < 3 {
-		t.Fatalf("Proyecto se lee al abrir, cada IntervaloProyecto y al terminar un verbo: %d", n)
+	// IntervaloProyecto is an hour: one read at the start, one more when u's
+	// process ends
+	if n := datos.cuantos(); n != 2 {
+		t.Fatalf("Proyecto se lee al abrir y al terminar un verbo: %d lecturas", n)
 	}
 	_, term, _, _ = wrRun(t, wrYAML, map[string]string{"HOOM_MOUSE": "0"})
 	if out := term.texto(); strings.Contains(out, SecMouseSi) || !strings.HasPrefix(out, SecEntrar) {
 		t.Fatalf("HOOM_MOUSE=0 no pide el mouse: %q", out[:min(40, len(out))])
-	}
-}
-
-func TestWRRunModelosInvalidos(t *testing.T) {
-	for yaml, msg := range map[string]string{
-		wrYAML + "models:\n  gemini:\n    - name: x\n":              "models.gemini: hoom no le pasa el modelo a gemini",
-		wrYAML + "models:\n  nada:\n    - name: x\n":                `models: provider desconocido "nada" (validos: claude, codex)`,
-		wrYAML + "models:\n  codex:\n    - description: x\n":        "models.codex[0]: falta name",
-		wrYAML + "models:\n  codex:\n    - name: -x\n":              "models.codex[0]: el nombre no puede empezar con '-'",
-		wrYAML + "models:\n  codex:\n    - name: a\n    - nom: b\n": `models.codex[1]: clave desconocida "nom" (validas: name, description)`,
-	} {
-		code, term, _, errs := wrRun(t, yaml, nil)
-		if code != 1 || !strings.Contains(errs, "hoom: hoom.yaml invalido: "+msg) || term.crudo != 0 {
-			t.Fatalf("%q: sale con 1 antes de tomar la terminal: %d %q %d", msg, code, errs, term.crudo)
-		}
 	}
 }

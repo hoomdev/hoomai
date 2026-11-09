@@ -75,11 +75,22 @@ func Run(root, base string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	return conGit(git, all), nil
+}
+
+// RunCon is Run on the verdicts all already read (verdict.LoadAll's order,
+// oldest first): it reads none and writes nothing.
+func RunCon(root, base string, all []*verdict.Verdict) (Result, error) {
+	return conGit(gitx.Snapshot(root, base), all), nil
+}
+
+// conGit is the check of the tree git against the verdicts all.
+func conGit(git gitx.Info, all []*verdict.Verdict) Result {
 	res := Result{FingerprintNow: git.ChangeFingerprint}
 	if len(all) == 0 {
 		res.Reason = ReasonNoVerdict
 		res.Action = "ejecuta 'hoom verify'"
-		return res, nil
+		return res
 	}
 	// The reference is the newest COMPLETE verdict: a --gate diagnostic can
 	// never become the reference, neither for a false green nor a false red.
@@ -87,7 +98,7 @@ func Run(root, base string) (Result, error) {
 	if last == nil {
 		res.Reason = ReasonOnlyPartial
 		res.Action = "ejecuta 'hoom verify' completo (sin --gate): los veredictos parciales no son referencia"
-		return res, nil
+		return res
 	}
 	res.VerdictID = last.ID
 	res.LastVerdict = last.Verdict
@@ -95,14 +106,14 @@ func Run(root, base string) (Result, error) {
 	if last.Verdict != "green" {
 		res.Reason = ReasonRedVerdict
 		res.Action = "corrige y ejecuta 'hoom verify'"
-		return res, nil
+		return res
 	}
 	if last.Git.ChangeFingerprint != git.ChangeFingerprint {
 		res.Reason = ReasonDrift
 		res.Action = "ejecuta 'hoom verify' de nuevo sobre el estado actual"
-		return res, nil
+		return res
 	}
 	res.OK = true
 	res.FingerprintMatch = true
-	return res, nil
+	return res
 }

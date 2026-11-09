@@ -70,6 +70,7 @@ func (lz *lienzo) poner(x, y, w int, l linea, rellenoEstilo estilo, rellenar boo
 		for _, r := range t.texto {
 			a := AnchoDe(r)
 			if a == 0 {
+				lz.pegar(x, y, n, r)
 				continue
 			}
 			if n+a > w {
@@ -85,6 +86,24 @@ func (lz *lienzo) poner(x, y, w int, l linea, rellenoEstilo estilo, rellenar boo
 		}
 	}
 	return n
+}
+
+// pegar puts the combining mark r on the cell before the n-th written from
+// (x, y) (the first cell of a wide one): a mark takes no cell, it goes with
+// its base. A variation selector (U+FE00..U+FE0F) is dropped: in a terminal
+// it can turn its base two cells wide.
+func (lz *lienzo) pegar(x, y, n int, r rune) {
+	if n == 0 || y < 0 || y >= lz.h || r >= 0xFE00 && r <= 0xFE0F {
+		return
+	}
+	i := x + n - 1
+	if i >= 0 && i < lz.w && lz.c[y][i].s == "" {
+		i--
+	}
+	if i < 0 || i >= lz.w {
+		return
+	}
+	lz.c[y][i].s += string(r)
 }
 
 // texto writes s at (x, y) in style e, cut to w cells.
