@@ -96,9 +96,9 @@
 // fold in two columns, and the panel with the focus never folds.
 //
 // The right column has [0] on top and the Registro under it: the Registro
-// is 6 lines with Alto >= 24 and 4 lines below (decision: the spec fixes 6
-// "con 24 filas o más" and nothing below; the 100x25 sketch is not taken as
-// the rule), and [0] takes the rest (h0 = B - hRegistro). The Registro
+// is 6 lines with Alto >= 24 and 4 lines below (confirmed by the person on
+// 2026-11-09: the spec fixes 6 "con 24 filas o más"; the 100x25 sketch is
+// not the rule), and [0] takes the rest (h0 = B - hRegistro). The Registro
 // would fold when h0 < 3, which never happens from 15 lines on.
 //
 // One column with 60 <= W <= 79 (CA-550): every panel is W cells wide and
@@ -230,8 +230,10 @@
 //
 // The other columns' titles have no style. The " · <k> high" of [4]'s
 // title is 31 alone, inside the border's style. While a modal is open, every
-// cell outside its box (and outside an open list) is drawn, with color, in
-// gray alone (90), whatever its own style (CA-565).
+// cell of the panels (lines 1..A-2) outside its box (and outside an open
+// list) is drawn, with color, in gray alone (90), whatever its own style
+// (CA-565); the message line and the keys line keep theirs (an error of
+// the modal stays red).
 //
 // # [1] Proyecto
 //
@@ -545,7 +547,8 @@
 //
 // e and ]c [c: see [0] of a card and [4]. / opens the search (see [2]),
 // x toggles the expert mode, ? opens the Ayuda modal, q and ctrl-c order
-// Salir (ctrl-c also in the search and in every modal).
+// Salir (ctrl-c also in the search and in every modal: confirmed by the
+// person on 2026-11-09).
 //
 // A card that disappears from the board (CA-578): see Modelo.Leer.
 //
@@ -616,7 +619,8 @@
 //
 // The Pedido is edited as in the v1 (←, → move the cursor, backspace
 // deletes before it, ctrl-u empties it, ctrl-e orders EditarPedido with
-// it, from any field of the modal) and enter on it gives the focus to the
+// it, from any field of the modal: confirmed by the person on 2026-11-09)
+// and enter on it gives the focus to the
 // buttons, without running. Its box shows the pedido wrapped hard every
 // c-4 cells (its newlines kept as line breaks): with the focus, the 4
 // lines that end at the cursor's line, the cursor shown with the text
@@ -631,8 +635,14 @@
 // selector, where its value came from, by the action's origen ("de
 // hoom.yaml" for hoom.yaml, "de la tarjeta" for tarjeta, "del provider"
 // for provider), or "elegido" when the chosen value is not the proposed
-// one; for a gray one, its why (below). The origins are gray, and they are
-// all left out when one of them does not fit in the line (decision).
+// one; for a gray one, its why (below). The origins of the enabled
+// selectors are gray, and they are all left out when one of them does not
+// fit in the line (decision). A gray selector's why goes at that column when
+// it fits there, and otherwise on a line of its own right under the
+// selector, from column 15, gray: "hoom no le pasa el esfuerzo a opencode"
+// never fits beside its selector in the 66 cells of the modal, and CA-569
+// asks for it (decision). That line is not given up when the modal does
+// not fit.
 //
 // The help line, at column 15 and gray (decision on its form): with the
 // focus on a selector, "<option>: <line>" of its chosen option when that
