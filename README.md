@@ -99,7 +99,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom item save <slug> [--json]` | Guarda en git lo que la tarjeta tiene sin guardar: un commit por arbol (su espacio de trabajo, y el item en el proyecto) con el mensaje fijo `hoom: guardar la tarjeta <slug>`. Solo esas rutas: lo que haya en el indice queda como estaba. Se niega mientras un rol trabaja en la tarjeta |
 | `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
 | `hoom board doctor [--json]` | Donde la evidencia no es coherente, cada problema con su accion exacta: spec editado despues de aprobarlo, espacio de trabajo con cambios sin veredicto para su huella, verde cuya huella ya no es la del arbol, hallazgo high en Tu aceptacion (un bug de hoom, y lo dice), sobres huerfanos, items sin spec hace mas de 14 dias y veredictos o hallazgos de una tarea sin item. Solo lee y sale con 0: los que bloquean son `verify` y `check` |
-| `hoom tablero` | El tablero en la terminal, a pantalla completa y en paneles, con el teclado y el mouse: la misma derivacion que `hoom board --json` y el Studio, releida cada 2 segundos. Cada accion muestra en un modal el comando que se va a ejecutar y ejecuta un verbo de la tarjeta (`hoom pedir`, `aprobar`, `guardar`, `integrar`, `reanudar`, `usar`) como proceso propio. Sin terminal sale con 2 y dice `hoom board`. Ver [El tablero en la terminal](#el-tablero-en-la-terminal) |
+| `hoom tablero` | El tablero en la terminal, a pantalla completa y en paneles, con el teclado y el mouse: la misma derivacion que `hoom board --json` y el Studio, releida cada 2 segundos. Cada accion, salvo `u`, muestra en un modal el comando que se va a ejecutar y ejecuta un verbo de la tarjeta (`hoom pedir`, `aprobar`, `guardar`, `integrar`, `reanudar`, `usar`) como proceso propio. Sin terminal sale con 2 y dice `hoom board`. Ver [El tablero en la terminal](#el-tablero-en-la-terminal) |
 | `hoom costo [<slug>] [--json]` | Lo que costo cada tarea hasta quedar aceptada, solo leyendo la evidencia. Sin slug, primero `hoy: <usd> USD en <n> trabajos` (los runs que empezaron hoy en la hora local; `hoy: sin trabajos` si no hay) y despues una linea por tarea con runs o reviews, de la mas reciente a la mas vieja: estado, rondas de review y, por provider, tokens, USD equivalente API y ventana. Con slug, el desglose por rol y por ronda de review y el total por provider. `--json` emite el mismo reporte (sin slug, con `"hoy"`: runs, costo_usd y sin_costo). Lo que falta dice `sin dato`; un slug sin runs ni reviews sale con 1 |
 | `hoom roles [--role r] [--provider p] [--json]` | Matriz de enforcement: que puede leer, escribir y ejecutar cada rol con cada provider, con que mecanismo (deny de tools, sandbox, arbol ciego, gate post-run) y en que categoria: ENFORCED, POST-VERIFIED, BEST-EFFORT o UNSUPPORTED |
 | `hoom agents` | Instala los 10 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
@@ -632,7 +632,7 @@ mayuscula y abren con `Cancelar` elegido.
 | `A` | con tarjeta | aprobar el spec | `hoom aprobar <slug> --si` |
 | `I` | con tarjeta | integrar | `hoom integrar <slug> --si` |
 | `u` | con tarjeta | fijar la tarjeta para la terminal | `hoom usar <slug>` |
-| `e` | [0] de una tarjeta, [4] | abrir el spec o el archivo del hallazgo en tu editor | |
+| `e` | [0] de una tarjeta, [4] y su [0] | abrir el spec o el archivo del hallazgo en tu editor | |
 | `]c` `[c` | [0] de una tarjeta | el criterio sin prueba siguiente o anterior | |
 | `/` | siempre | buscar tarjetas por slug o titulo, sin mayusculas ni acentos | |
 | `x` | siempre | modo experto (`next`, `missing` y el id de cada criterio) | |
@@ -654,8 +654,8 @@ seleccionar texto con el mouse, manten Option (macOS) o Shift, o arranca con
 
 **Los modelos.** El selector de Modelo ofrece el catalogo de hoom
 (`internal/modelos`): para claude, `fable`, `opus`, `sonnet`, `haiku`,
-`opusplan` y sus variantes de contexto de 1M; para codex, los de
-`codex-cli`; cada uno con una linea que dice para que sirve, y los
+`opusplan` y sus variantes de contexto de 1M; para codex, los
+verificados contra `codex-cli` 0.160.0; cada uno con una linea que dice para que sirve, y los
 esfuerzos de cada provider. El catalogo propone, no prohibe. `hoom.yaml` lo
 amplia con `models`, solo para los providers a los que hoom les pasa el
 modelo (claude y codex):
