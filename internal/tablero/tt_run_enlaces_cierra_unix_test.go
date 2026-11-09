@@ -76,38 +76,6 @@ func ttMundoQueCierra(t *testing.T, archivo string) *ttMundo {
 	return w
 }
 
-// ttTeclaEditor es la tecla que pide el editor desde la pestana de desde.
-func ttTeclaEditor(desde string) string {
-	if desde == "spec" {
-		return "o"
-	}
-	return "\r"
-}
-
-// ttPedirEditorTras es ttPedirEditor con antes, que corre con Run ya
-// arrancado, el cuadro dibujado y la pestana abierta, justo antes de la tecla
-// que pide el editor.
-func ttPedirEditorTras(t *testing.T, ca string, w *ttMundo, desde, archivo string, antes func()) (func(*testing.T) (int, any), int, int) {
-	t.Helper()
-	fin := w.correr(nil)
-	ttEsperar(t, ca, "la tarjeta", w, func() bool { return ttMarcoDice(w, "tarjeta") })
-	w.term.mandar("\r")
-	ttEsperar(t, ca, "la tarjeta abierta", w, func() bool { return ttMarcoDice(w, "[1 Resumen]") })
-	linea := 0
-	if desde == "spec" {
-		w.term.mandar("2")
-		ttEsperar(t, ca, "la pestana Spec", w, func() bool { return ttMarcoDice(w, "una linea") })
-		linea = 1
-	} else {
-		w.term.mandar("4")
-		ttEsperar(t, ca, "la pestana Hallazgos", w, func() bool { return ttMarcoDice(w, "high "+archivo) })
-	}
-	antes()
-	marca := len(w.r.copia())
-	w.term.mandar(ttTeclaEditor(desde))
-	return fin, marca, linea
-}
-
 // ttEscritoDesde es todo lo que Run escribio en la terminal desde marca, sin
 // las SGR del color.
 func ttEscritoDesde(w *ttMundo, marca int) string {

@@ -40,7 +40,7 @@ func TestCA527_RunRunaPartidaEnElPedido(t *testing.T) {
 	a.Pedido = "hola"
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(a)))
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-527", "la tarjeta", w, func() bool { return w.marcoCon("tarjeta") })
+	ttEsperar(t, "CA-527", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
 	ttEsperar(t, "CA-527", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
 	w.term.mandar("\xc3")

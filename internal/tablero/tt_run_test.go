@@ -366,6 +366,31 @@ func (w *ttMundo) marcoCon(s string) bool {
 	return strings.Contains(strings.Join(w.ultimoMarco(), "\n"), s)
 }
 
+// filaElegida dice si el ultimo cuadro (sin las SGR del color) tiene, al
+// principio de una linea, la fila de la tarjeta slug elegida en la lista:
+// " > " + slug + " " (el ▸ en ASCII, y HOOM_ASCII=1 en todos los mundos de
+// Run; el slug relleno a 24 celdas, o entero y seguido del " " de la tira).
+//
+// Toda espera que deja pasar una tecla sobre el tablero (enter que abre la
+// tarjeta, w que abre su formulario) espera esto, y no un texto cualquiera:
+// antes de la primera lectura Run ya dibujo un cuadro (doc.go, "The list": el
+// cuerpo dice " leyendo el tablero...", el titulo "0 tarjetas" y la barra
+// "sin tarjeta fijada"), y el contrato no dice que una tecla mandada antes de
+// la primera lectura la espere. Un texto como "tarjeta" ya esta en ese primer
+// cuadro: la tecla saldria sobre una lista vacia y no haria nada. La fila
+// elegida solo la muestra el tablero leido, con la seleccion ya en la tarjeta
+// ("At the start it is on the first card line"), que es sobre lo que actuan
+// enter y las teclas de accion. Es mas estricta que marcoCon(slug): un cuadro
+// con esa fila tiene el slug.
+func (w *ttMundo) filaElegida(slug string) bool {
+	for _, l := range w.ultimoMarco() {
+		if strings.HasPrefix(ttSGR.ReplaceAllString(l, ""), " > "+slug+" ") {
+			return true
+		}
+	}
+	return false
+}
+
 // ---------------------------------------------------------------- CA-516
 
 // CA-516: un flag o un operando: exit 2 con el bloque de uso en Err, sin
@@ -654,6 +679,7 @@ func TestCA530_RunReleeElTablero(t *testing.T) {
 	if len(w.datos.pedidos()) != 0 {
 		t.Fatalf("CA-530: sin tarjeta abierta no se lee ningun detalle: %v", w.datos.pedidos())
 	}
+	ttEsperar(t, "CA-530", "la tarjeta elegida en la lista", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("\r")
 	ttEsperar(t, "CA-530", "el detalle de la tarjeta abierta", w, func() bool {
 		ps := w.datos.pedidos()
@@ -692,7 +718,7 @@ func TestCA530_RunLecturaQueFalla(t *testing.T) {
 func TestCA528_RunLanzaYAlSalirDiceCuantosQuedan(t *testing.T) {
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter())))
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-528", "la tarjeta en la lista", w, func() bool { return w.marcoCon("tarjeta") })
+	ttEsperar(t, "CA-528", "la tarjeta en la lista", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
 	ttEsperar(t, "CA-528", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
 	w.term.mandar("\r")
@@ -724,7 +750,7 @@ func TestCA528_RunTerminaAntesDelRegistro(t *testing.T) {
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter())))
 	w.lanz.fin = &tablero.FinProceso{Code: 1, Ultima: "ya se esta lanzando un trabajo en esta tarjeta"}
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-528", "la tarjeta", w, func() bool { return w.marcoCon("tarjeta") })
+	ttEsperar(t, "CA-528", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
 	ttEsperar(t, "CA-528", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
 	w.term.mandar("\r")
@@ -744,7 +770,7 @@ func TestCA528_RunNoPudoArrancar(t *testing.T) {
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter())))
 	w.lanz.err = errors.New("exec: hoom no encontrado")
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-528", "la tarjeta", w, func() bool { return w.marcoCon("tarjeta") })
+	ttEsperar(t, "CA-528", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
 	ttEsperar(t, "CA-528", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
 	w.term.mandar("\r")
@@ -769,7 +795,7 @@ func TestCA522_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
 			Spec: boardcmd.SpecDetail{Path: ".hoom/specs/tarjeta.md", Exists: true, Markdown: "# Spec\n\nuna linea\n"}}}
 	}
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-522", "la tarjeta", w, func() bool { return w.marcoCon("tarjeta") })
+	ttEsperar(t, "CA-522", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("\r")
 	ttEsperar(t, "CA-522", "la tarjeta abierta", w, func() bool { return w.marcoCon("[1 Resumen]") })
 	w.term.mandar("2")
@@ -807,7 +833,7 @@ func TestCA527_RunCtrlEEditaElPedido(t *testing.T) {
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(a)))
 	w.ed.editar = "pedido del editor\n"
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-527", "la tarjeta", w, func() bool { return w.marcoCon("tarjeta") })
+	ttEsperar(t, "CA-527", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("w")
 	ttEsperar(t, "CA-527", "el formulario", w, func() bool { return w.marcoCon("-> hoom pedir writer tarjeta") })
 	desde := len(w.r.copia())

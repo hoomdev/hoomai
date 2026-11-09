@@ -26,7 +26,7 @@ func TestCA522_RunEditorQueNoAbreSigueLaTUI(t *testing.T) {
 			Spec: boardcmd.SpecDetail{Path: ".hoom/specs/tarjeta.md", Exists: true, Markdown: "# Spec\n\nuna linea\n"}}}
 	}
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-522", "la tarjeta", w, func() bool { return w.marcoCon("tarjeta") })
+	ttEsperar(t, "CA-522", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("\r")
 	ttEsperar(t, "CA-522", "la tarjeta abierta", w, func() bool { return w.marcoCon("[1 Resumen]") })
 	w.term.mandar("2")

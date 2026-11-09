@@ -84,25 +84,47 @@ func ttMarcoDice(w *ttMundo, s string) bool {
 // ttPedirEditor arranca Run, abre la tarjeta y pide el editor desde la
 // pestana de desde ("hallazgo": enter en Hallazgos; "spec": o en Spec).
 // Devuelve el fin de Run, desde donde mirar el registro y la linea con la que
-// se abriria.
+// se abriria. Es ttPedirEditorTras sin nada antes de la tecla.
 func ttPedirEditor(t *testing.T, ca string, w *ttMundo, desde, archivo string) (func(*testing.T) (int, any), int, int) {
 	t.Helper()
+	return ttPedirEditorTras(t, ca, w, desde, archivo, func() {})
+}
+
+// ttTeclaEditor es la tecla que pide el editor desde la pestana de desde.
+func ttTeclaEditor(desde string) string {
+	if desde == "spec" {
+		return "o"
+	}
+	return "\r"
+}
+
+// ttPedirEditorTras es el unico camino de los tests de Run hasta la tecla
+// que pide el editor (ttPedirEditor lo usa con un antes que no hace nada):
+// arranca Run, espera la tarjeta elegida en la lista (filaElegida: el tablero
+// ya leido), la abre con enter, va a la pestana de desde (2 Spec o 4
+// Hallazgos) y espera su contenido; ahi corre antes (con Run ya arrancado, el
+// cuadro dibujado y la pestana abierta), toma la marca del registro y manda
+// la tecla de ttTeclaEditor. Devuelve el fin de Run, la marca y la linea con
+// la que se abriria (1 en Spec, 0 en Hallazgos).
+func ttPedirEditorTras(t *testing.T, ca string, w *ttMundo, desde, archivo string, antes func()) (func(*testing.T) (int, any), int, int) {
+	t.Helper()
 	fin := w.correr(nil)
-	ttEsperar(t, ca, "la tarjeta", w, func() bool { return ttMarcoDice(w, "tarjeta") })
+	ttEsperar(t, ca, "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("\r")
 	ttEsperar(t, ca, "la tarjeta abierta", w, func() bool { return ttMarcoDice(w, "[1 Resumen]") })
+	linea := 0
 	if desde == "spec" {
 		w.term.mandar("2")
 		ttEsperar(t, ca, "la pestana Spec", w, func() bool { return ttMarcoDice(w, "una linea") })
-		marca := len(w.r.copia())
-		w.term.mandar("o")
-		return fin, marca, 1
+		linea = 1
+	} else {
+		w.term.mandar("4")
+		ttEsperar(t, ca, "la pestana Hallazgos", w, func() bool { return ttMarcoDice(w, "high "+archivo) })
 	}
-	w.term.mandar("4")
-	ttEsperar(t, ca, "la pestana Hallazgos", w, func() bool { return ttMarcoDice(w, "high "+archivo) })
+	antes()
 	marca := len(w.r.copia())
-	w.term.mandar("\r")
-	return fin, marca, 0
+	w.term.mandar(ttTeclaEditor(desde))
+	return fin, marca, linea
 }
 
 // ttNoAbrio exige que no haya ningun Abrir del editor desde marca.
