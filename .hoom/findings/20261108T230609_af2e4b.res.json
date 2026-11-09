@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230609_af2e4b",
+  "as": "corregido",
+  "evidence": "b56e24d: si falla la escritura de SecEntrar, tomar (bucle.go) suelta la terminal antes de devolver el error: intenta SecSalir y llama a restaurar. Asi correr nunca vuelve con la terminal tomada. Test TestCA533_RunFallaAlEscribirSecEntrar (eca8f61): Run da 1, escribe 'hoom: \u003cerror\u003e' en Err, llama a restaurar e intenta SecSalir; rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.702613Z"
+}

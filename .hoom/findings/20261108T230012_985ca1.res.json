@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230012_985ca1",
+  "as": "corregido",
+  "evidence": "b56e24d: hayEntrada (terminal_windows.go) cuenta como legible un KEY_EVENT de tecla abajo que trae caracter o cuya tecla virtual la entrada VT de la consola vuelve secuencia (conSecuencia: 0x21-0x28 de PageUp a las flechas, Insert, Delete, F1-F12). Solo saca de la cola los eventos sin texto, asi el Read con ENABLE_VIRTUAL_TERMINAL_INPUT (que pone x/term.MakeRaw) entrega las flechas como ESC [ A..D, que Decodificar ya lee (TestCA520 de las flechas). El lector no tiene test: es codigo //go:build windows sobre la API de consola, y ni esta Mac ni el CI tienen Windows. GOOS=windows go vet ./internal/tablero pasa.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.800699Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T003952_e7f022",
+  "as": "corregido",
+  "evidence": "51b3584: absoluta y fueraDelProyecto (pantalla.go) reconocen las rutas absolutas de cualquier sistema, sin importar el que lee la evidencia: '/x', '\\x', UNC, 'C:x' y 'C:/x'. Tambien los '..' que salen con \\ como separador. abrirArchivo usa fueraDelProyecto, y rutaSpec no une bajo la carpeta una ruta absoluta. Contrato en doc.go (Hallazgos). Tests TestCA524_HallazgoFueraDelProyectoEnOtroSistema y TestCA522_SpecFueraDelProyectoEnOtroSistema (ef2b903), en este Mac: rojo contra dd8e40d (lo que reviso la delta 1), verde con el fix. sub/../x.go y sub\\..\\x.go siguen abriendo.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.315347Z"
+}

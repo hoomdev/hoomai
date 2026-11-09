@@ -527,26 +527,38 @@ func ReadEvents(root, id string) ([]Event, error) {
 // blocking on a FIFO), so what is read is what was checked.
 func openLog(root, id string) (*os.File, error) {
 	if !validID(id) {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id}
 	}
 	// down from root by descriptors: a .hoom or a runs swapped for a symlink
 	// between a look and an open would still be followed by a path
 	// (finding 31a00d)
 	r, err := abrirRuns(root)
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id, causa: err}
 	}
 	defer r.Close()
 	fi, err := r.Lstat(id + ".jsonl")
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id, causa: err}
 	}
 	f, err := hoomfs.AbrirRegularEn(r, id+".jsonl", fi)
 	if err != nil {
-		return nil, fmt.Errorf("run no encontrado: %s", id)
+		return nil, logNoEncontrado{id: id, causa: err}
 	}
 	return f, nil
 }
+
+// logNoEncontrado is openLog's "run no encontrado". Its text is the same
+// whatever happened; it unwraps to what happened, so a reader can tell a
+// log that is not on this machine (fs.ErrNotExist) from one it could not
+// open.
+type logNoEncontrado struct {
+	id    string
+	causa error
+}
+
+func (e logNoEncontrado) Error() string { return "run no encontrado: " + e.id }
+func (e logNoEncontrado) Unwrap() error { return e.causa }
 
 // ReadDelegations reads only the delegation events of a run (agent and
 // agent_end), line by line: the card's history needs no more, and a log that
@@ -614,6 +626,59 @@ const maxDelegacion = 1 << 20
 // and only lines that have it are decoded; decoding decides by kind, so a
 // line that merely mentions it is decoded and dropped.
 var marcaDelegacion = []byte(`"agent`)
+
+// UltimosEventos reads the events of the last max bytes of run id's
+// narration in root (all of it when it is shorter): a line cut by the start
+// of that window, and a last line that does not parse (a writer may be
+// mid-line), are left out. It opens the log like ReadEventsFrom: an id
+// that is not a regular file of root's runs is "run no encontrado".
+func UltimosEventos(root, id string, max int64) ([]Event, error) {
+	f, err := openLog(root, id)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	desde := int64(0)
+	if max > 0 && fi.Size() > max {
+		desde = fi.Size() - max
+	}
+	raw, err := io.ReadAll(io.NewSectionReader(f, desde, fi.Size()-desde))
+	if err != nil {
+		return nil, err
+	}
+	if desde > 0 {
+		// the window starts mid-line unless the byte before it is a newline
+		var antes [1]byte
+		if _, err := f.ReadAt(antes[:], desde-1); err != nil || antes[0] != '\n' {
+			nl := bytes.IndexByte(raw, '\n')
+			if nl < 0 {
+				return nil, nil
+			}
+			raw = raw[nl+1:]
+		}
+	}
+	var out []Event
+	for len(raw) > 0 {
+		nl := bytes.IndexByte(raw, '\n')
+		line := raw
+		if nl >= 0 {
+			line = raw[:nl]
+		}
+		var ev Event
+		if len(bytes.TrimSpace(line)) > 0 && json.Unmarshal(line, &ev) == nil {
+			out = append(out, ev)
+		}
+		if nl < 0 {
+			break
+		}
+		raw = raw[nl+1:]
+	}
+	return out, nil
+}
 
 // ReadEventsFrom reads the narration from a byte offset and returns the
 // events plus the offset of the next unread byte. The Studio polls the logs

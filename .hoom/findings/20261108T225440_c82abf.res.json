@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T225440_c82abf",
+  "as": "corregido",
+  "evidence": "b56e24d y c806a7e: antes de cortarse, todo tramo pasa por neutro (texto.go limpia; doc.go 'Controls in the texts'). El tab se ve como espacio, y todo control C0, DEL, C1 o bidi (U+200E, U+200F, U+202A-U+202E, U+2066-U+2069) se ve como '?'. Las unicas secuencias de una linea son los SGR del color. Con c806a7e un CR suelto ya no pasa a espacio sino a '?'. Test TestCA534_ControlesEnLosTextos (eca8f61): mete OSC 52, ESC[2J, BEL, CR, U+009B, U+202E, tab, DEL, U+2066 y U+200E en titulos, plains, spec, hallazgos, eventos de Sobre y why, con y sin color; rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.768886Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230029_5d0044",
+  "created_at": "2026-11-08T23:00:29.280463Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/reales.go",
+  "description": "INTRODUCIDO. internal/tablero/reales.go:72-90 intenta tratar un log ausente como narracion vacia mediante errors.Is(err, fs.ErrNotExist), pero runcmd.openLog convierte todos los fallos de apertura en un fmt.Errorf(\"run no encontrado\") sin envolver fs.ErrNotExist (internal/runcmd/runcmd.go:528-547). Por tanto esa rama nunca se cumple: una tarjeta cuyo meta/sobre existe pero cuyo .jsonl no esta en esta maquina muestra siempre \"no se pudo leer el sobre: run no encontrado\" en vez de una cinta vacia, incluso en el caso que el propio codigo declara normal.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

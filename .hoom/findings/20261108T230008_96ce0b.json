@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230008_96ce0b",
+  "created_at": "2026-11-08T23:00:08.677375Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO. internal/tablero/bucle.go:65-67,89-97 deja la terminal en modo crudo si Crudo funciona pero falla la escritura inicial de SecEntrar: tomar marca tomada=true y devuelve el error, pero correr retorna antes de instalar el defer o llamar soltar. Un error de salida al entrar a la pantalla puede dejar el shell sin eco/modo normal, contradiciendo la restauracion obligatoria ante errores.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

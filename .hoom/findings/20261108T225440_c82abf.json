@@ -1,0 +1,11 @@
+{
+  "id": "20261108T225440_c82abf",
+  "created_at": "2026-11-08T22:54:40.685299Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/tablero/texto.go",
+  "description": "INTRODUCIDO. internal/tablero/texto.go:133-145 emite tramo.texto sin neutralizar caracteres C0/ESC, tanto en la rama sin color (linea 136) como con color (linea 144). Esos tramos incluyen evidencia controlada por el proyecto o por agentes; por ejemplo internal/tablero/pantalla.go:663-668 incorpora runcmd.Event.Detail, ademas de titulos, plain, specs y hallazgos. Un repositorio o una narracion con OSC 52, cambios de pantalla alternativa u otras secuencias ANSI se ejecuta al abrir hoom tablero aun con NO_COLOR, permitiendo escritura del portapapeles y suplantacion/manipulacion de la terminal. La salida debe visibilizar o eliminar controles no permitidos antes de dibujar y cubrir entradas hostiles.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

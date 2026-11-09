@@ -1,0 +1,23 @@
+ Acciones · infra-api
+ > w Pedir al writer  hoom pedir writer infra-api
+   s Guardar  hoom guardar infra-api  (no hay nada sin guardar)
+     Volver a lanzar  sin verbo en la terminal
+   A Aprobar spec  hoom aprobar infra-api --si
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------
+ NORMAL · sin tarjeta fijada
+ j/k moverse · n siguiente · enter hacer · esc cerrar · ? ayuda

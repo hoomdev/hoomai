@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230609_8a3a66",
+  "as": "corregido",
+  "evidence": "b56e24d: los avisos de fin se encolan (finales en modelo.go). Una lectura en la que paran varias tarjetas muestra el primero en el orden del tablero, y cada DuracionFin (Tic) pasa al siguiente (avanzarAvisos). Un aviso de fin toma la barra en seguida si lo que habia era un mensaje de otra clase. Tests (eca8f61): TestCA530_DosFinesEnUnaLectura, rojo contra 3a35dd0 (el estado revisado), verde con el fix; TestCA530_ElAvisoDeFinTomaLaBarra.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:41.066115Z"
+}

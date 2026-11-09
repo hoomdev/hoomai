@@ -39,6 +39,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
 	"github.com/hoomdev/hoomai/internal/statuscmd"
+	"github.com/hoomdev/hoomai/internal/tablero"
 	"github.com/hoomdev/hoomai/internal/tarjetacmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -52,7 +53,7 @@ var version = "0.10.0"
 // diverge. Two texts that swear to be equal drift apart; one constant cannot.
 const usage = usageAntesDeVerify + verifycmd.UsageText + "\n" + usageDespuesDeVerify
 
-const usageAntesDeVerify = `hoomAI %s - harness de verificacion agnostico de IA y de stack
+const usageAntesDeVerify = `hoomAI %s - harness de verificacion agnostico de IA y de stack; el tablero en la terminal: hoom tablero
 
 Uso: hoom <comando> [flags]
 
@@ -87,6 +88,11 @@ Comandos:
               (spec editado tras aprobarlo, cambios sin veredicto, verde
               vencido, sobres huerfanos, items sin spec, evidencia sin item),
               cada problema con su accion exacta; solo lee, sale con 0
+  tablero     El tablero en la terminal, a pantalla completa: donde esta cada
+              tarjeta, que le falta, que corre y que se puede hacer; una tecla
+              por accion (? muestra las teclas) y cada accion ejecuta un verbo
+              de la tarjeta (pedir, siguiente, aprobar, guardar, integrar,
+              reanudar, usar); necesita una terminal (sin ella: hoom board)
   costo       Costo por tarea, con la ventana de la cuenta durante los runs:
               tokens por provider (nuevos, cache leido, salida, razonamiento),
               USD equivalente API y movimiento de las ventanas de 5h y de la
@@ -296,6 +302,8 @@ func main() {
 		err = cmdHook(args)
 	case "agents":
 		err = cmdAgents(args)
+	case "tablero":
+		os.Exit(tablero.Run(args, tablero.Real()))
 	case "usar", "pedir", "siguiente", "aprobar", "integrar", "guardar", "reanudar":
 		// the card verbs own their exit codes: 0, 1, 2 or the envelope's
 		os.Exit(tarjetacmd.Run(cmd, args, tarjetacmd.Real()))

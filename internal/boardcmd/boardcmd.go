@@ -75,6 +75,12 @@ const (
 type EnvelopeState struct {
 	Record envelope.Record
 	Alive  bool
+	// tablero-en-la-terminal: what an open envelope's run says, which Gather
+	// reads only for an alive one with a run id: the run's own timeout (its
+	// sidecar's timeout_s; 0 = unknown) and the time of the last event of
+	// its narration (nil = none yet).
+	TimeoutS    int
+	LastEventAt *time.Time
 }
 
 // RunState is one run sidecar of the card plus whether its owner process is
@@ -82,6 +88,9 @@ type EnvelopeState struct {
 type RunState struct {
 	Meta  runcmd.Meta
 	Alive bool
+	// LastEventAt is the time of the last event of the run's narration,
+	// which Gather reads only for an alive running one (nil = none yet).
+	LastEventAt *time.Time
 }
 
 // Evidence is everything Derive needs about one card, already read. Paths are
@@ -331,6 +340,11 @@ type Running struct {
 	Step       int       `json:"step"`
 	Steps      int       `json:"steps"`
 	StartedAt  time.Time `json:"started_at"`
+	// tablero-en-la-terminal: the run's own timeout, from its sidecar (0 =
+	// unknown: before the run starts, or a sidecar of an older hoom), and
+	// the time of the last event of its narration (null = none yet).
+	TimeoutS    int        `json:"timeout_s"`
+	LastEventAt *time.Time `json:"last_event_at"`
 }
 
 // Interrupted: an open envelope whose owner is not alive. hoom labels it; it

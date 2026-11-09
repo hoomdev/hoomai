@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230017_ca8887",
+  "created_at": "2026-11-08T23:00:17.361592Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO. internal/tablero/bucle.go:204-225 solo retiene fragmentos cuando incompleta detecta una secuencia ESC; no retiene un prefijo UTF-8 incompleto. internal/tablero/teclas.go:73-79 descarta cada byte que DecodeRune recibe como RuneError de un fragmento. Si un Read divide una runa multibyte (por ejemplo en un paste que cruza los 512 bytes), la busqueda o el pedido pierde silenciosamente ese caracter y puede lanzar un pedido distinto del escrito.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

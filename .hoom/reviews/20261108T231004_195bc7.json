@@ -1,0 +1,98 @@
+{
+  "id": "20261108T231004_195bc7",
+  "created_at": "2026-11-08T23:10:04.040213Z",
+  "task": "tablero-en-la-terminal",
+  "spec": ".hoom/specs/tablero-en-la-terminal.md",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "verdict_id": "2026-11-08T22-49-15Z_e9fa969e",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261108T225440_c82abf",
+    "20261108T225440_ecb288",
+    "20261108T225440_f28d31",
+    "20261108T230008_96ce0b",
+    "20261108T230012_985ca1",
+    "20261108T230017_ca8887",
+    "20261108T230023_9f25a9",
+    "20261108T230029_5d0044",
+    "20261108T230035_bc6939",
+    "20261108T230609_5f48e8",
+    "20261108T230609_8a3a66",
+    "20261108T230609_af2e4b",
+    "20261108T230610_92edb2",
+    "20261108T230716_a5698c",
+    "20261108T230948_50d437",
+    "20261108T230948_e8c2ef",
+    "20261108T230948_eb4e02"
+  ],
+  "notes": [
+    "el hoom.yaml de la rama dice base_branch main: la review usa 561642ed0264273059a89046aaadb68747297c37, la de --base"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 427944,
+  "evidence_sha256": "002e6bdf94ffba314c0a3ca9a2712e64bb865ebee073d247759f59adda46bc54",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 3176322,
+      "cached_input_tokens": 3003136,
+      "output_tokens": 16288,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 2973614,
+      "cached_input_tokens": 2802560,
+      "output_tokens": 21198,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 2630762,
+      "cached_input_tokens": 2465024,
+      "output_tokens": 16602,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 1050901,
+      "cached_input_tokens": 886528,
+      "output_tokens": 7560,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261108T224942_a05733"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261108T225459_0b88c4"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261108T230149_45637e"
+    },
+    {
+      "lens": "readability",
+      "run": "20261108T230737_a586d4"
+    }
+  ],
+  "desde": "561642ed0264273059a89046aaadb68747297c37",
+  "hasta": "00261770f8ae0f603c2717f7a481795dda6307eb",
+  "cobertura": "completa",
+  "base": "561642ed0264273059a89046aaadb68747297c37"
+}

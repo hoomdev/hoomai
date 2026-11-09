@@ -1,0 +1,11 @@
+{
+  "id": "20261109T022456_775e58",
+  "created_at": "2026-11-09T02:24:56.816076Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt_run_enlaces_cierra_unix_test.go",
+  "description": "INTRODUCIDO — internal/tablero/tt_run_enlaces_cierra_unix_test.go:89: ttPedirEditorTras duplica casi todo el flujo de navegacion de ttPedirEditor (arrancar Run, esperar y abrir la tarjeta, seleccionar Spec/Hallazgos y esperar textos), variando solo el callback previo y el envio final. Las dos copias codifican por separado las mismas transiciones y cadenas de pantalla, de modo que un cambio de navegacion puede actualizar una y dejar la otra obsoleta. Extraer una preparacion comun o hacer que ambos helpers deleguen en un unico flujo.",
+  "author": "reviewer@codex",
+  "fingerprint": "fcbb99dc533d86dc",
+  "task": "tablero-en-la-terminal"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T225440_ecb288",
+  "as": "corregido",
+  "evidence": "b56e24d y 157c08c: la confirmacion queda atada a lo que muestra (despacho.go vigente y revisarConfirmacion; doc.go 'The confirmations'). Guarda el texto de la firma (TextoFirma), el sha256 del markdown del spec del detalle y las rutas sin guardar. Cada Leer y cada LeerDetalle la revisan y la cierran si algo cambio: la barra dice 'cambio lo que ibas a confirmar en \u003cslug\u003e: vuelve a abrirlo', el why si la accion quedo desactivada, o que la tarjeta ya no existe. enter la vuelve a revisar antes de lanzar. Tests TestCA529_LaFirmaEstaAtadaALoQueMuestra, TestCA529_LaFirmaAtadaAlSpecDeLaTarjetaAbierta y TestCA529_GuardarAtadoASusRutas (eca8f61, test-writer ciego): rojo contra 3a35dd0 (el estado revisado), verde con el fix. TestCA529_LaFirmaSinCambiosSigueValiendo es el control. Queda una ventana entre la ultima lectura (Intervalo, 2 s) y el momento en que hoom aprobar --si firma: la capa 1 firma el contenido vigente y no tiene una bandera que exija una huella. Cerrarla pide algo como hoom aprobar --sha256 en la capa 1, fuera de este spec (CA-529 fija hoom aprobar \u003cslug\u003e --si); queda propuesto como seguimiento.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.632712Z"
+}

@@ -1,0 +1,24 @@
+ infra-api · Convenciones de la API
+ 1 Resumen  [2 Spec]  3 Sobre  4 Hallazgos  5 Historia
+  # Spec: convenciones de la API
+
+  ## Criterios de aceptacion
+
+✓ - CA-1: la API usa snake_case.
+✗ - CA-2: los errores son JSON.
+⚑ - CA-3: la version va en la ruta. [verifica: go run ./cmd/check]
+    - CA-9: no es criterio de la tarjeta.
+✗ - CA-4: los ids son ulid.
+
+  Fin.
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+ NORMAL · sin tarjeta fijada
+ 1-5 pestanas · esc volver · ]c [c sin prueba · o editor · espacio acciones · n…

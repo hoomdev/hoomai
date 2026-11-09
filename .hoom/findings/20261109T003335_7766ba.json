@@ -1,0 +1,11 @@
+{
+  "id": "20261109T003335_7766ba",
+  "created_at": "2026-11-09T00:33:35.153982Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/tablero/despacho.go",
+  "description": "PRE-EXISTENTE (follow-up de f28d31): internal/tablero/despacho.go:365-370 usa filepath.IsLocal, que solo prueba la forma lexica de la ruta. Un hallazgo puede nombrar link/archivo donde link es un symlink dentro del proyecto hacia afuera; la ruta pasa IsLocal y internal/tablero/bucle.go:300-305 la entrega al editor, que sigue el symlink y puede leer o modificar archivos fuera del proyecto. La promesa de lineas 361-364 requiere resolver/verificar componentes sin seguir enlaces fuera de la raiz (o rechazar symlinks). La capacidad existia antes de este rango; el nuevo filtro bloquea absolutos y .. pero deja este escape.",
+  "author": "reviewer@codex",
+  "fingerprint": "1685cc7fb779256b",
+  "task": "tablero-en-la-terminal"
+}

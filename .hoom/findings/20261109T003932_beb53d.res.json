@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T003932_beb53d",
+  "as": "corregido",
+  "evidence": "51b3584 y 0be5125: la confirmacion de guardar sigue la regla de toda caja (doc.go 'A box taller than the body'): primero deja afuera su linea vacia y, si aun no entra, muestra las primeras rutas y 'y \u003cn\u003e rutas mas', siempre con el encabezado y la linea de teclas. A 60x15, 7 rutas entran enteras sin la vacia, y con 8 o mas se ven 6 rutas y el resumen; la caja nunca desborda el cuerpo. Test TestCA529_CA533_GuardarAChicoEnElBordeExacto (ef2b903), lineas exactas de la caja con 5, 6, 7, 8, 9 y 20 rutas: rojo contra dd8e40d (lo que reviso la delta 1), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.281886Z"
+}

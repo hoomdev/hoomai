@@ -1,0 +1,11 @@
+{
+  "id": "20261109T004838_6000e4",
+  "created_at": "2026-11-09T00:48:38.232096Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt_r1_modelo_test.go",
+  "description": "INTRODUCIDO — internal/tablero/tt_r1_modelo_test.go:1: el archivo nuevo agrupa 868 lineas y seis areas independientes (confirmaciones, rutas de editor, neutralizacion de controles, layout, avisos de fin y despacho) bajo el nombre temporal r1; los separadores en 40, 266, 343, 476, 677 y 781 evidencian que no hay una sola unidad de comportamiento. Esto dificulta descubrir donde vive una regresion y obliga a tocar/revisar un archivo transversal para cambios no relacionados. Distribuir estas pruebas en archivos nombrados por comportamiento preservaria la trazabilidad de los CA y la navegacion del paquete.",
+  "author": "reviewer@codex",
+  "fingerprint": "1685cc7fb779256b",
+  "task": "tablero-en-la-terminal"
+}

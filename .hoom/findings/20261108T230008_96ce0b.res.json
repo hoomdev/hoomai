@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230008_96ce0b",
+  "as": "corregido",
+  "evidence": "Mismo defecto que 20261108T230609_af2e4b, arreglado por b56e24d: si falla la escritura de SecEntrar, tomar (bucle.go) suelta la terminal (SecSalir y restaurar) antes de devolver el error. Test TestCA533_RunFallaAlEscribirSecEntrar (eca8f61): rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.73504Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T013252_86d3e3",
+  "created_at": "2026-11-09T01:32:52.143779Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO: internal/tablero/bucle.go:350-355 infiere que una ruta sale del proyecto solo si Root.Stat falla y el os.Stat sin contención termina con nil o ErrNotExist. Si Root.Stat rechaza un symlink que escapa pero el stat del destino externo devuelve otro error transitorio/degradado (EIO, EACCES, timeout de un filesystem), la función devuelve false y :311-315 intenta abrirlo igualmente. Un error no concluyente no debe convertir una ruta no validada en segura; debe impedir la apertura y mostrar el fallo.",
+  "author": "reviewer@codex",
+  "fingerprint": "49d0d3614638027c",
+  "task": "tablero-en-la-terminal"
+}

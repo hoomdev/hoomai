@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T230023_9f25a9",
+  "as": "corregido",
+  "evidence": "b56e24d: las cajas se ajustan al cuerpo en vez de recortarse (cajaFormulario y cajaConfirmacion en pantalla.go; regla 'A box taller than the body' de doc.go). El formulario deja caer, en este orden, los blancos, los providers que no pueden (la linea Provider dice entonces '(\u003cn\u003e no pueden)'), la linea de teclas y las lineas de mas del pedido; nunca deja caer la linea -\u003e. La confirmacion de guardar muestra las primeras rutas, luego 'y \u003cn\u003e rutas mas', y conserva su linea de teclas. Una firma que no entra entera no se firma: la barra dice 'agranda la terminal: la firma no entra entera'. A 80x24 las cajas no cambian (dorados de la ronda 0). Tests a 60x15 (eca8f61): TestCA527_CA533_FormularioChicoConservaLaFlecha, TestCA527_CA533_ProvidersQueNoPuedenAChico, TestCA529_CA533_GuardarConMuchasRutasAChico y TestCA529_CA533_FirmaQueNoEntraNoSeFirma; rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.899937Z"
+}

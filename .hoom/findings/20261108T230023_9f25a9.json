@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230023_9f25a9",
+  "created_at": "2026-11-08T23:00:23.674855Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "INTRODUCIDO. internal/tablero/pantalla.go:875-883 recorta cualquier caja a Alto-4 sin scroll ni composicion adaptativa. En el tamano soportado 60x15 solo caben 11 lineas: un formulario normal con un pedido envuelto en dos lineas coloca la linea de verbo de pantalla.go:943-945 fuera del area visible (y con mas providers tampoco se ve el campo enfocado); una confirmacion de guardar con varias rutas pierde las rutas finales y la instruccion. La TUI declara 60x15 como valido, pero en ese tamano no muestra contratos obligatorios de los modales.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

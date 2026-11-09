@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T003335_7766ba",
+  "as": "corregido",
+  "evidence": "51b3584: antes de abrir el editor, Run comprueba con os.Root la ruta siguiendo sus symlinks (saleDelProyecto en bucle.go). Si os.Root la rechaza y una mirada normal no (un symlink del proyecto a un archivo o a una carpeta de afuera, o uno roto que apunta afuera), no llama a Editor.Abrir y la barra dice en rojo 'el archivo \u003cruta\u003e esta fuera del proyecto'. Un symlink que queda adentro y un archivo que todavia no existe se abren. Contrato en el doc de Run (tablero.go). Tests TestCA524_RunEnlaceQueSaleDelProyecto, TestCA524_RunEnlaceQueSaleDelProyectoEnRojo y TestCA524_RunRaizDetrasDeUnEnlace (ef2b903, con enlaces reales de os.Symlink): rojo contra dd8e40d (lo que reviso la delta 1), verde con el fix. Un symlink cambiado entre el chequeo y el editor queda fuera del modelo (hoomai-carreras-fuera-del-modelo).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.348299Z"
+}

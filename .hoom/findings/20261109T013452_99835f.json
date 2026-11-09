@@ -1,0 +1,11 @@
+{
+  "id": "20261109T013452_99835f",
+  "created_at": "2026-11-09T01:34:52.644464Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "[INTRODUCIDO] internal/tablero/pantalla.go:529-548 e internal/tablero/bucle.go:339-355: la política de confinamiento de archivos queda dividida entre fueraDelProyecto y saleDelProyecto, dos nombres casi sinónimos ubicados además en un archivo de renderizado y otro del bucle. Uno valida la forma de la ruta para varios sistemas y el otro su resolución mediante enlaces; esa diferencia esencial solo aparece en comentarios y obliga a saber que ambos controles se ejecutan en fases distintas. Reunirlos en un módulo de rutas y nombrarlos por nivel, por ejemplo rutaLexicamenteFuera y rutaResuelveFuera, haría explícita la invariante.",
+  "author": "reviewer@codex",
+  "fingerprint": "49d0d3614638027c",
+  "task": "tablero-en-la-terminal"
+}

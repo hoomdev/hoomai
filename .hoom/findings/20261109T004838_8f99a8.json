@@ -1,0 +1,11 @@
+{
+  "id": "20261109T004838_8f99a8",
+  "created_at": "2026-11-09T00:48:38.088012Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "INTRODUCIDO — internal/tablero/pantalla.go:949: cajaFormulario codifica las variantes de compactacion con tres booleanos posicionales y luego con tuplas [3]bool en 985-990, mientras el alto disponible usa constantes anonimas en 983. armar(false, false, true, 4) no permite saber en el punto de uso que se ocultan blancos/proveedores pero se conserva la ayuda, y agregar otro elemento opcional obliga a cambiar en paralelo la firma, todas las tuplas y el orden de degradacion. Una opcion con campos nombrados (o pasos de compactacion nombrados) y constantes de layout haria explicita la politica y reduciria errores al mantenerla.",
+  "author": "reviewer@codex",
+  "fingerprint": "1685cc7fb779256b",
+  "task": "tablero-en-la-terminal"
+}

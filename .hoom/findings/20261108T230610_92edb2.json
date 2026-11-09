@@ -1,0 +1,11 @@
+{
+  "id": "20261108T230610_92edb2",
+  "created_at": "2026-11-08T23:06:10.048192Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/tablero/reales.go",
+  "description": "INTRODUCIDO. internal/tablero/reales.go:77-90 intenta degradar la ausencia de una narracion con errors.Is(err, fs.ErrNotExist), pero runcmd.UltimosEventos/openLog convierte toda ausencia en fmt.Errorf(\"run no encontrado\") sin envolver fs.ErrNotExist (internal/runcmd/runcmd.go:528-547). Por ello un log opcional ausente —normal al abrir evidencia de otra maquina— queda como error rojo persistente en Sobre; ademas, si falla el fallback, se descarta err2. Hace falta un sentinel comprobable y conservar el error real del fallback.",
+  "author": "reviewer@codex",
+  "fingerprint": "6d3c07e1611d0dbc",
+  "task": "tablero-en-la-terminal"
+}

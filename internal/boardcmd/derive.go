@@ -391,7 +391,8 @@ func liveness(ev Evidence) (*Running, *Interrupted) {
 		}
 		if e.Alive {
 			cand := &Running{EnvelopeID: rec.ID, RunID: rec.RunID, Role: rolDeHoom(rec.Role), Provider: rec.Provider,
-				Stage: rec.Stage, Step: rec.Step, Steps: rec.Steps, StartedAt: rec.StartedAt}
+				Stage: rec.Stage, Step: rec.Step, Steps: rec.Steps, StartedAt: rec.StartedAt,
+				TimeoutS: e.TimeoutS, LastEventAt: e.LastEventAt}
 			if run == nil || cand.StartedAt.After(run.StartedAt) {
 				run = cand
 			}
@@ -416,7 +417,8 @@ func liveness(ev Evidence) (*Running, *Interrupted) {
 		if m.Status != runcmd.StatusRunning || !r.Alive || own[m.ID] {
 			continue
 		}
-		cand := &Running{RunID: m.ID, Role: rolDeHoom(m.Role), Provider: m.Provider, Stage: "run", StartedAt: m.CreatedAt}
+		cand := &Running{RunID: m.ID, Role: rolDeHoom(m.Role), Provider: m.Provider, Stage: "run", StartedAt: m.CreatedAt,
+			TimeoutS: m.TimeoutS, LastEventAt: r.LastEventAt}
 		if run == nil || cand.StartedAt.After(run.StartedAt) {
 			run = cand
 		}

@@ -765,12 +765,7 @@ func lineaValores(e valores.Elegidos, a boardcmd.Action, req lanzar.Request) str
 // to 60 characters.
 func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido string, windows bool) string {
 	// cita writes a value of the line, or its marker on Windows
-	cita := func(v, marcador string) string {
-		if windows {
-			return enWindows(v, marcador)
-		}
-		return enShell(v)
-	}
+	cita := func(v, marcador string) string { return Citar(v, marcador, windows) }
 	spec := ".hoom/specs/" + slug + ".md"
 	var parts []string
 	if a.Role == "reviewer" {
@@ -800,11 +795,7 @@ func comandoLargo(slug string, a boardcmd.Action, e valores.Elegidos, pedido str
 		if a.ID == boardcmd.ActReanudar && a.ResumeID != "" {
 			parts = append(parts, "--resume", cita(a.ResumeID, "<sesion>"))
 		}
-		if windows {
-			parts = append(parts, entreDoblesEnWindows(recortar(pedido), "<pedido>"))
-		} else {
-			parts = append(parts, pedidoEnShell(recortar(pedido)))
-		}
+		parts = append(parts, CitarPedido(pedido, windows))
 	}
 	return "→ " + strings.Join(parts, " ")
 }
@@ -911,6 +902,27 @@ func entreDoblesEnWindows(v, marcador string) string {
 		return `"` + v + `"`
 	}
 	return marcador
+}
+
+// Citar is a value of a verb line as the → line writes it: one sh word
+// (enShell), or on Windows the value when cmd and PowerShell read it alike
+// and marcador otherwise (enWindows). hoom tablero writes its → line with
+// it.
+func Citar(v, marcador string, windows bool) string {
+	if windows {
+		return enWindows(v, marcador)
+	}
+	return enShell(v)
+}
+
+// CitarPedido is the pedido as the → line writes it: cut to 60 characters
+// and quoted like the capa-1 verbs do (pedidoEnShell; on Windows
+// entreDoblesEnWindows or <pedido>).
+func CitarPedido(p string, windows bool) string {
+	if windows {
+		return entreDoblesEnWindows(recortar(p), "<pedido>")
+	}
+	return pedidoEnShell(recortar(p))
 }
 
 // imprimible: valid UTF-8 where every rune prints (the space included).
@@ -1094,7 +1106,7 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 	if !ok {
 		return code
 	}
-	id, texto := boardcmd.ActAprobar, ""
+	id := boardcmd.ActAprobar
 	if v.nombre == "integrar" {
 		id = boardcmd.ActIntegrar
 	}
@@ -1105,18 +1117,7 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 	if !a.Enabled {
 		return v.falla(a.Why)
 	}
-	if id == boardcmd.ActAprobar {
-		n := c.Evidence.Criteria
-		criterios := fmt.Sprintf("%d criterios", n)
-		if n == 1 {
-			criterios = "1 criterio"
-		}
-		texto = fmt.Sprintf("Vas a aprobar el spec de %q (%s) con tu identidad: %s. Si el spec cambia despues, la aprobacion deja de valer.",
-			c.Item.Titulo, criterios, a.Signer)
-	} else {
-		texto = fmt.Sprintf("Se cierra el trabajo de %q: se comprueba una ultima vez que todo este verde y guardado, y la tarjeta pasa a Hecho. Juntarlo con el proyecto lo haces vos despues.",
-			c.Item.Titulo)
-	}
+	texto := TextoFirma(c, a)
 	if !si && !v.e.Terminal {
 		return v.uso(fmt.Sprintf("sin terminal, %s necesita --si", v.nombre))
 	}
@@ -1150,6 +1151,23 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 	fmt.Fprintln(v.e.Out, "listo: la tarjeta pasa a Hecho")
 	fmt.Fprintf(v.e.Out, "para juntarla: git merge --no-ff hoom/%s\n", d.Slug)
 	return 0
+}
+
+// TextoFirma is what a signature says before it is signed: hoom aprobar's
+// for the aprobar action, hoom integrar's for any other. hoom tablero shows
+// the same text in its confirmation.
+func TextoFirma(c boardcmd.Card, a boardcmd.Action) string {
+	if a.ID == boardcmd.ActAprobar {
+		n := c.Evidence.Criteria
+		criterios := fmt.Sprintf("%d criterios", n)
+		if n == 1 {
+			criterios = "1 criterio"
+		}
+		return fmt.Sprintf("Vas a aprobar el spec de %q (%s) con tu identidad: %s. Si el spec cambia despues, la aprobacion deja de valer.",
+			c.Item.Titulo, criterios, a.Signer)
+	}
+	return fmt.Sprintf("Se cierra el trabajo de %q: se comprueba una ultima vez que todo este verde y guardado, y la tarjeta pasa a Hecho. Juntarlo con el proyecto lo haces vos despues.",
+		c.Item.Titulo)
 }
 
 // ---------------------------------------------------------------- guardar

@@ -1,0 +1,32 @@
+rules:
+  - id: hoom-mirada-fuera-de-root
+    languages: [go]
+    severity: ERROR
+    message: >-
+      Despues de abrir un os.Root, esta llamada mira la ruta por fuera de el
+      (os.Stat, os.Open, filepath.EvalSymlinks...): sigue los enlaces hasta
+      donde apunten, aun a otro sistema de archivos (un automount, un recurso
+      SMB o NFS), justo lo que el os.Root evita. El error de os.Root ya dice
+      si la ruta sale (el mismo que da para ".."); un error que no se entiende
+      falla cerrado (seguimiento de los hallazgos 20261109T012552_08f821 y
+      20261109T013252_86d3e3).
+    patterns:
+      - pattern-either:
+          - pattern: os.Stat(...)
+          - pattern: os.Lstat(...)
+          - pattern: os.Open(...)
+          - pattern: os.OpenFile(...)
+          - pattern: os.ReadFile(...)
+          - pattern: os.ReadDir(...)
+          - pattern: os.Readlink(...)
+          - pattern: filepath.EvalSymlinks(...)
+      - pattern-either:
+          - pattern-inside: |
+              $R, $E := os.OpenRoot(...)
+              ...
+          - pattern-inside: |
+              $R, $E = os.OpenRoot(...)
+              ...
+    paths:
+      exclude:
+        - "*_test.go"

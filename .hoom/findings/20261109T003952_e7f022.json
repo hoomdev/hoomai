@@ -1,0 +1,11 @@
+{
+  "id": "20261109T003952_e7f022",
+  "created_at": "2026-11-09T00:39:52.823093Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "INTRODUCIDO. internal/tablero/pantalla.go:529-532 dice reconocer rutas absolutas de cualquier sistema, pero usa la semantica filepath del host. En Unix, C:/outside/file.go y una UNC con barras invertidas tienen IsAbs=false, VolumeName vacio e IsLocal=true; rutaSpec las antepone al dir de evidencia y internal/tablero/despacho.go:365-370 emite AbrirEditor en vez del aviso de fuera del proyecto. Un hallazgo persistido en Windows y abierto desde macOS/Linux termina abriendo una ruta equivocada bajo la raiz (o permite crearla), por lo que la validacion debe reconocer tambien las formas absolutas de la otra plataforma.",
+  "author": "reviewer@codex",
+  "fingerprint": "1685cc7fb779256b",
+  "task": "tablero-en-la-terminal"
+}

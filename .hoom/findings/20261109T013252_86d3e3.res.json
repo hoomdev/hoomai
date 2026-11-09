@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T013252_86d3e3",
+  "as": "corregido",
+  "evidence": "3675495: ya no hay os.Stat de respaldo. El escape se reconoce por el error que el mismo os.Root da para '..' (escapa en rutas.go), sin seguir el enlace con ninguna API fuera de os.Root; un error que no es ese ni 'no existe' falla cerrado. 0fab64f: regla semgrep propia hoom-mirada-fuera-de-root (.hoom/semgrep/reglas/mirada-fuera-de-root.yml) marca un os.Stat/os.Open/filepath.EvalSymlinks despues de os.OpenRoot; marca bucle.go:354 de d6f211a y no marca nada en el arbol de ahora (gate.sh 0). Un enlace a una carpeta de afuera en 0o000 (EACCES si se mirara afuera) sigue siendo 'el archivo \u003cruta\u003e esta fuera del proyecto' y no abre. Tests de la ronda 3 (e367d5e, test-writer ciego, desde el doc de Run): TestCA524_RunComponenteQueNoSeLeeNoAbre, TestCA524_RunRaizQueNoAbreNoAbre y TestCA524_RunNadaDeAfueraDecide, rojos contra d6f211a (lo que reviso la delta 2: 14 de 28 subtests) y verdes con el fix; su guarda TestCA524_RunArchivoNuevoBajoComponentesDeAdentroAbre (archivo nuevo bajo carpetas de adentro) sigue verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:53:30.735573Z"
+}

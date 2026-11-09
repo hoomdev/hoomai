@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T013452_7c0549",
+  "as": "corregido",
+  "evidence": "3675495: la cola de avisos es el tipo barra (internal/tablero/barra.go), con su protocolo documentado en el tipo y tres movimientos nombrados: dar (un mensaje toma la barra y un aviso de fin suspendido vuelve entero a la cabeza de la cola), encolarFin y avanzar (el aviso de la cabeza toma la barra cuando le toca, segun seq). Leer y Tic llaman a encolarFin y avanzar, y avisar a dar; nadie mas toca seq, msgFin ni la cola. Ya no existe avanzarAvisos. La conducta no cambio: los tests de CA-530 de las rondas 1 y 2 pasan igual.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:53:30.826231Z"
+}

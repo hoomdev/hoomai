@@ -1,0 +1,24 @@
+ hoom · demo · 1 tarjeta
+ + Pedir al writer · infra-api -----------------------------------------------+
+ |   Provider       < claude >                                                |
+ |   Modelo         opus                                                      |
+ |   Esfuerzo       high                                                      |
+ |   Presupuesto    2.75 USD                                                  |
+ |   Tiempo limite  45m                                                       |
+ |                                                                            |
+ | > Pedido                                                                   |
+ | Linea dos del pedido.                                                      |
+ | Linea tres.                                                                |
+ | Linea cuatro.                                                              |
+ | Linea cinco._                                                              |
+ |                                                                            |
+ | -> hoom pedir writer infra-api -m "Implementa .hoom/specs/infra-api.md ha~ |
+ | enter lanzar · tab campos · ctrl-e editor · esc cancelar                   |
+ +----------------------------------------------------------------------------+
+
+
+
+
+--------------------------------------------------------------------------------
+ NORMAL · sin tarjeta fijada
+ enter lanzar · tab campos · ctrl-e editor · esc cancelar

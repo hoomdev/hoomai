@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261108T225440_f28d31",
+  "as": "corregido",
+  "evidence": "b56e24d, c806a7e y 46cdf43. (1) La ruta se confina: abrirArchivo (despacho.go) no ordena AbrirEditor si filepath.IsLocal dice que no (absoluta, o con un .. que sale), y la barra dice en rojo 'el archivo \u003cruta\u003e esta fuera del proyecto', para el enter de Hallazgos y para la o de Spec. c806a7e hace que path.Join ya no vuelva relativa una ruta absoluta. (2) En Windows, editorReal.correr (reales.go) rechaza antes de correr todo argumento con comillas, %, ! o un control ('cmd no puede citar ...'); cada argumento va entre comillas y la linea entera va por SysProcAttr.CmdLine con cmd /S /C (cmd_windows.go), sin el escape de Go que cmd no entiende. (3) La regla semgrep propia hoom-linea-de-cmd-armada (46cdf43) marca un CmdLine armado con datos; la unica excepcion lleva su razon. Tests TestCA524_HallazgoFueraDelProyecto, TestCA522_SpecFueraDelProyecto, TestCA524_EditorDeEnWindowsNoCitaLoQueCmdNoPuede y TestCA522_RunEditorQueNoAbreSigueLaTUI (eca8f61): rojo contra 3a35dd0 (el estado revisado), verde con el fix.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-08T23:55:40.666653Z"
+}

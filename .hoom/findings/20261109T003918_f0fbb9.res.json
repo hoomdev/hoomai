@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T003918_f0fbb9",
+  "as": "corregido",
+  "evidence": "51b3584: vigente (despacho.go) ya no exige que la huella nueva exista. Si la confirmacion capturo la huella del spec (cf.spec) y la lectura de ahora no la da (Detalle.Err, o Spec.Exists false), la confirmacion se cierra con 'cambio lo que ibas a confirmar en \u003cslug\u003e: vuelve a abrirlo' y enter no lanza nada. Contrato en doc.go 'The confirmations'. Test TestCA529_LaFirmaFallaCerradaSiElDetalleNoTraeElSpec (ef2b903, test-writer ciego), con A y con I y con y sin color: rojo contra dd8e40d (lo que reviso la delta 1), verde con el fix. Su guarda, el mismo tablero sin cambios, no la cierra.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.216421Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T012552_08f821",
+  "created_at": "2026-11-09T01:25:52.878743Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO: internal/tablero/bucle.go:350-355, al recibir de os.Root.Stat el error que indica que un symlink sale de la raíz, ejecuta os.Stat(filepath.Join(root, rel)) precisamente sobre ese destino no confiable. Un repositorio puede aportar un enlace a un automount o recurso SMB/NFS externo; pulsar abrir hace que el sistema lo resuelva y potencialmente envíe autenticación o quede bloqueado antes de que la TUI rechace el editor. La detección del escape no debe seguir el enlace con una API fuera de os.Root; debe inspeccionar los componentes/reparse points sin acceder al destino. Es candidato a una regla Semgrep custom que prohíba usar os.Stat como fallback de un error de os.Root sobre la misma ruta.",
+  "author": "reviewer@codex",
+  "fingerprint": "49d0d3614638027c",
+  "task": "tablero-en-la-terminal"
+}

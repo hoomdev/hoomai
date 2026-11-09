@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T003926_08c87c",
+  "as": "corregido",
+  "evidence": "51b3584: ningun aviso de fin se pierde. avisar (despacho.go) devuelve entero a la cabeza de la cola el aviso de fin al que le quita la barra. avanzarAvisos (modelo.go) solo le da la barra al siguiente aviso cuando la barra no muestra otro aviso de fin ni un mensaje dado despues de el; el orden lo da seq. Asi el 'ya no existe' o el 'cambio lo que ibas a confirmar' de la misma lectura se ven su DuracionAviso, y despues vuelve el aviso de fin por un DuracionFin entero. Contrato en el doc de Modelo.Leer. Tests TestCA530_ElFinVuelveDespuesDeYaNoExiste, TestCA530_ElFinVuelveDespuesDeLaConfirmacionCerrada y TestCA530_ElFinVuelveDespuesDelMensajeDeUnaTecla (ef2b903): rojo contra dd8e40d (lo que reviso la delta 1), verde con el fix. TestCA530_ElAvisoDeFinTomaLaBarra (un mensaje dado antes cede en seguida) sigue verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.381749Z"
+}

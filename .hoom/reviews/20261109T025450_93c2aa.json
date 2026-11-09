@@ -1,0 +1,81 @@
+{
+  "id": "20261109T025450_93c2aa",
+  "created_at": "2026-11-09T02:54:50.453401Z",
+  "task": "tablero-en-la-terminal",
+  "spec": ".hoom/specs/tablero-en-la-terminal.md",
+  "fingerprint": "50da311f2a25376e",
+  "verdict_id": "2026-11-09T02-48-49Z_926f0b05",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [],
+  "notes": [
+    "el hoom.yaml de la rama dice base_branch main: la review usa 561642ed0264273059a89046aaadb68747297c37, la de --base"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 33657,
+  "evidence_sha256": "2309ab7db158a4f9b946aeb5c1245349d4e26658aeafb9399b2bbbbcefd0c0b6",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 258548,
+      "cached_input_tokens": 231552,
+      "output_tokens": 2752,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 408224,
+      "cached_input_tokens": 373760,
+      "output_tokens": 3740,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 413852,
+      "cached_input_tokens": 369280,
+      "output_tokens": 3189,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 213461,
+      "cached_input_tokens": 188672,
+      "output_tokens": 2658,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261109T024905_b178b2"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261109T025008_ac21e1"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261109T025236_3cf204"
+    },
+    {
+      "lens": "readability",
+      "run": "20261109T025352_5db5dc"
+    }
+  ],
+  "desde": "61e01a36e78ff4610d47762d99b17a7337df4a63",
+  "hasta": "75a7856ed6e7a7e154270a84a9fdd27bacb4982f",
+  "cobertura": "delta",
+  "desde_review": "20261109T022504_d22386",
+  "base": "561642ed0264273059a89046aaadb68747297c37"
+}

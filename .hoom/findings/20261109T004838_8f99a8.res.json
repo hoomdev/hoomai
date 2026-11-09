@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T004838_8f99a8",
+  "as": "corregido",
+  "evidence": "51b3584: cajaFormulario arma la caja con un compacto de campos nombrados (sinBlancos, sinNoPueden, sinTeclas, pedido). El orden en que cede lo que no entra es la tabla pasosFormulario, con su comentario y la referencia a doc.go. Las constantes son lineasPedidoForm y bordesCaja, y el alto del cuerpo es altoCuerpo(), que tambien usan sobreponer, componer y la confirmacion de guardar. La conducta no cambio: los dorados de la ronda 0 y los tests de cajas chicas de la ronda 1 pasan igual.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.483833Z"
+}

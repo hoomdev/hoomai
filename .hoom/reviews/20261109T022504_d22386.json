@@ -1,0 +1,83 @@
+{
+  "id": "20261109T022504_d22386",
+  "created_at": "2026-11-09T02:25:04.408148Z",
+  "task": "tablero-en-la-terminal",
+  "spec": ".hoom/specs/tablero-en-la-terminal.md",
+  "fingerprint": "fcbb99dc533d86dc",
+  "verdict_id": "2026-11-09T02-14-06Z_69c207a8",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261109T022456_775e58"
+  ],
+  "notes": [
+    "el hoom.yaml de la rama dice base_branch main: la review usa 561642ed0264273059a89046aaadb68747297c37, la de --base"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 52215,
+  "evidence_sha256": "080ac6943e0c9ce30ef1c62abf72f982d6240857b2bce883fdd7aaaddffdddb7",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1265473,
+      "cached_input_tokens": 1196672,
+      "output_tokens": 11071,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 535319,
+      "cached_input_tokens": 474880,
+      "output_tokens": 7892,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 489467,
+      "cached_input_tokens": 452096,
+      "output_tokens": 8247,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 343872,
+      "cached_input_tokens": 313600,
+      "output_tokens": 4203,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261109T021424_a5dc71"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261109T021813_cb856e"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261109T022048_c9dadf"
+    },
+    {
+      "lens": "readability",
+      "run": "20261109T022336_6bf3d6"
+    }
+  ],
+  "desde": "d6f211ab35015a906d254bad1ba29968f155c741",
+  "hasta": "61e01a36e78ff4610d47762d99b17a7337df4a63",
+  "cobertura": "delta",
+  "desde_review": "20261109T013503_41ef09",
+  "base": "561642ed0264273059a89046aaadb68747297c37"
+}
