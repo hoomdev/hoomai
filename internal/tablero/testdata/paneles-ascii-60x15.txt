@@ -1,0 +1,15 @@
+-[1] Proyecto · check VERDE---------------------------------
+#[2] Tarjetas==============================================#
+# NECESITA TU DECISION                                     #
+# > nuc-tenancy                                        #!-.#
+#   pagos-caidos                                       ##!-#
+#===================================================1 de 7=#
+-[3] Corriendo 2--------------------------------------------
+-[4] Hallazgos 2--------------------------------------------
++[0] nuc-tenancy · Tenancy del nucleo----------------------+
+| Que falta?  te toca aprobar el spec                      |
+| Siguiente paso  Aprobar spec  [A]                        |
++----------------------------------------------------------+
+-Registro---------------------------------------------------
+
+ ^v elegir · enter ver · espacio acciones · ? todas

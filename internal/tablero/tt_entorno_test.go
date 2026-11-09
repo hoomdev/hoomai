@@ -1,6 +1,8 @@
-// El entorno (CA-516, CA-518, CA-522, CA-524, CA-534, CA-536): ParseArgs,
-// ConColor, ConUTF8, ComandoEditor, ArgumentosEditor, la pantalla sin color
-// y en ASCII en todas las vistas, y los require de go.mod.
+// El entorno (CA-516, CA-522, CA-524, CA-534, CA-536; en la v2 CA-575 y
+// CA-576): ParseArgs, ConColor, ConUTF8, ConMouse, ComandoEditor,
+// ArgumentosEditor, la pantalla sin color y en ASCII en todos los lugares de
+// la v2 (paneles, busqueda, modales, la ayuda, la pantalla chica), y los
+// require de go.mod.
 package tablero_test
 
 import (
@@ -8,14 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
-	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/tablero"
 )
 
@@ -200,20 +202,58 @@ func TestCA536_RequireDeGoMod(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- sin color y en ASCII
+// CA-575: ConMouse es false solo con HOOM_MOUSE "0"; cualquier otro valor,
+// o ninguno, es si.
+func TestCA575_ConMouse(t *testing.T) {
+	casos := []struct {
+		env    map[string]string
+		quiere bool
+	}{
+		{map[string]string{}, true},
+		{map[string]string{"HOOM_MOUSE": "0"}, false},
+		{map[string]string{"HOOM_MOUSE": "1"}, true},
+		{map[string]string{"HOOM_MOUSE": ""}, true},
+		{map[string]string{"HOOM_MOUSE": "no"}, true},
+		{map[string]string{"HOOM_MOUSE": " 0"}, true},
+		{map[string]string{"HOOM_MOUSE": "00"}, true},
+	}
+	for _, c := range casos {
+		if got := tablero.ConMouse(ttEnv(c.env)); got != c.quiere {
+			t.Fatalf("CA-575: ConMouse(%v) = %v, se esperaba %v", c.env, got, c.quiere)
+		}
+	}
+}
 
-var ttSGR = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+// ---------------------------------------------------------------- sin color y en ASCII (CA-534, CA-576)
 
-// ttPantallas recorre las vistas del contrato con cfg y devuelve cada
-// pantalla con su nombre: la lista, la busqueda, el modo experto, las cinco
-// pestanas, el menu, el formulario, la confirmacion, la de guardar, la ayuda,
-// un aviso en la barra y la pantalla chica.
+// ttPantallas recorre los lugares de la v2 con cfg y devuelve cada pantalla
+// con su nombre: los paneles con el foco en cada uno, [0] de una tarjeta, de
+// lo que corre, de un hallazgo y del proyecto, la busqueda, el modo experto,
+// un aviso, un error de lectura, el modal de acciones, el de pedir (con una
+// lista abierta), el de firma, el de guardar, la ayuda y la pantalla chica.
 func ttPantallas(t *testing.T, cfg tablero.Config) map[string][]string {
 	t.Helper()
 	out := map[string][]string{}
 	foto := func(nombre string, m *tablero.Modelo) { out[nombre] = m.Pantalla() }
-	m := ttModelo(cfg, ttTableroPrincipal())
-	foto("lista", m)
+	m := ttModeloDorado(cfg)
+	foto("paneles", m)
+	for _, k := range []tablero.Tecla{"1", "3", "4", "0", "2"} {
+		m.Tecla(k, ttAhora)
+		foto("foco "+string(k), m)
+	}
+	m.Tecla(tablero.TeclaEnter, ttAhora)
+	foto("[0] de una tarjeta", m)
+	m.Tecla(tablero.TeclaEsc, ttAhora)
+	m.Tecla("3", ttAhora)
+	m.LeerDetalle(tablero.Detalle{Slug: "infra-api", Sobre: tablero.Sobre{EnvelopeID: "env-api", Eventos: []runcmd.Event{ttEvento(-3, "text", "leyendo")}}})
+	foto("[0] de lo que corre", m)
+	m.Tecla("4", ttAhora)
+	m.LeerArchivo(tablero.Archivo{Ruta: "internal/api/router.go", Linea: 41, Desde: 40, Lineas: []string{"a", "b", "c"}})
+	foto("[0] de un hallazgo", m)
+	m.Tecla("1", ttAhora)
+	m.Tecla(tablero.TeclaEnter, ttAhora)
+	foto("[0] del proyecto", m)
+	m.Tecla("2", ttAhora)
 	m.Tecla("x", ttAhora)
 	foto("experto", m)
 	m.Tecla("x", ttAhora)
@@ -221,33 +261,28 @@ func ttPantallas(t *testing.T, cfg tablero.Config) map[string][]string {
 	ttEscribir(m, "inf")
 	foto("busqueda", m)
 	m.Tecla(tablero.TeclaEsc, ttAhora)
-	m.Tecla("w", ttAhora) // la primera tarjeta no tiene writer: aviso en la barra
+	m.Tecla("w", ttAhora) // nuc-tenancy no tiene writer: aviso
 	foto("aviso", m)
 	m.Leer(tablero.Lectura{Ahora: ttAhora, Err: errors.New("disco roto")})
 	foto("error de lectura", m)
-
-	m = ttAbrirInfraAPI(t, cfg)
-	for i, p := range tablero.Pestanas {
-		m.Tecla(tablero.Tecla(string(rune('1'+i))), ttAhora)
-		m.LeerDetalle(ttDetalleInfraAPI(ttInfraAPI(true)))
-		foto("pestana "+string(p), m)
-	}
-	m.Tecla("1", ttAhora)
 	m.Tecla(tablero.TeclaEspacio, ttAhora)
-	foto("menu", m)
-	m.Tecla("x", ttAhora)
-	foto("menu experto", m)
-	m.Tecla(tablero.TeclaEsc, ttAhora)
-	m.Tecla("w", ttAhora)
-	foto("formulario", m)
+	foto("acciones", m)
 	m.Tecla(tablero.TeclaEsc, ttAhora)
 	m.Tecla("A", ttAhora)
-	foto("confirmacion", m)
+	foto("firma", m)
 	m.Tecla(tablero.TeclaDer, ttAhora)
-	foto("confirmacion firmar", m)
+	foto("firma con la accion elegida", m)
 	m.Tecla(tablero.TeclaEsc, ttAhora)
 	m.Tecla("?", ttAhora)
 	foto("ayuda", m)
+
+	p := ttModelo(cfg, ttTablero(ttTarjetaCon(ttAccionWriter())))
+	p.Tecla("w", ttAhora)
+	foto("pedir", p)
+	p.Tecla(tablero.TeclaTab, ttAhora)
+	p.Tecla(tablero.TeclaTab, ttAhora)
+	p.Tecla(tablero.TeclaEnter, ttAhora) // la lista de Modelo
+	foto("pedir con la lista abierta", p)
 
 	g := ttModelo(cfg, ttTablero(ttTarjetaCon(ttAccionGuardar(true, "", "internal/a.go", "b.go"))))
 	g.Tecla("s", ttAhora)
@@ -256,34 +291,39 @@ func ttPantallas(t *testing.T, cfg tablero.Config) map[string][]string {
 	c := cfg
 	c.Ancho, c.Alto = 50, 10
 	foto("chica", ttModelo(c, ttTableroPrincipal()))
+	u := cfg
+	u.Ancho, u.Alto = 70, 24
+	foto("una columna", ttModeloDorado(u))
 	return out
 }
 
-// CA-534: sin color ninguna pantalla lleva una secuencia de escape (y cada
-// una cumple la forma del contrato).
-func TestCA534_SinColorNingunaSecuencia(t *testing.T) {
+// CA-534, CA-576: sin color ninguna pantalla lleva una secuencia de escape
+// (y cada una cumple la forma del contrato: Alto lineas de a lo sumo Ancho
+// celdas, sin espacios al final).
+func TestCA534_CA576_SinColorNingunaSecuencia(t *testing.T) {
 	for _, utf := range []bool{false, true} {
 		cfg := ttConfig(100, 30, utf)
 		for nombre, p := range ttPantallas(t, cfg) {
 			if len(p) == 0 {
-				t.Fatalf("CA-534: la pantalla %q (utf8=%v) esta vacia", nombre, utf)
+				t.Fatalf("CA-576: la pantalla %q (utf8=%v) esta vacia", nombre, utf)
 			}
 			for i, l := range p {
 				if strings.Contains(l, "\x1b") {
-					t.Fatalf("CA-534: sin color, la linea %d de %q (utf8=%v) no lleva secuencias: %q", i+1, nombre, utf, l)
+					t.Fatalf("CA-576: sin color, la linea %d de %q (utf8=%v) no lleva secuencias: %q", i+1, nombre, utf, l)
 				}
 				if strings.TrimRight(l, " ") != l {
-					t.Fatalf("CA-534: la linea %d de %q termina en espacios: %q", i+1, nombre, l)
+					t.Fatalf("CA-576: la linea %d de %q termina en espacios: %q", i+1, nombre, l)
 				}
 			}
 		}
 	}
 }
 
-// CA-534: con color la pantalla lleva secuencias SGR (titulos en negrita, la
-// linea de la interrumpida en rojo), y sin ellas es la misma pantalla que
-// sin color.
-func TestCA534_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
+// CA-534, CA-576: con color la pantalla lleva secuencias SGR (el foco, los
+// titulos de seccion, la seleccion), y sin ellas es la misma pantalla que
+// sin color; las unicas secuencias son SGR, cada pieza con estilo cerrada
+// con "\x1b[0m".
+func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 	plano := ttPantallas(t, ttConfig(100, 30, true))
 	cfg := ttConfig(100, 30, true)
 	cfg.Color = true
@@ -292,68 +332,85 @@ func TestCA534_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 	for nombre, p := range color {
 		q := plano[nombre]
 		if len(p) != len(q) {
-			t.Fatalf("CA-534: la pantalla %q con color tiene %d lineas, sin color %d", nombre, len(p), len(q))
+			t.Fatalf("CA-576: la pantalla %q con color tiene %d lineas, sin color %d", nombre, len(p), len(q))
 		}
 		for i := range p {
 			if ttSGR.MatchString(p[i]) {
 				conSGR++
+				if !strings.HasSuffix(strings.TrimRight(p[i], " "), "\x1b[0m") && strings.Count(p[i], "\x1b[0m") == 0 {
+					t.Fatalf("CA-576: con color cada pieza con estilo se cierra con \\x1b[0m: %q", p[i])
+				}
 			}
-			if sin := ttSGR.ReplaceAllString(p[i], ""); strings.TrimRight(sin, " ") != q[i] {
-				t.Fatalf("CA-534: la linea %d de %q con color, sin sus SGR, es la de sin color:\n con %q\n sin %q", i+1, nombre, p[i], q[i])
+			if sin := ttSinSGR(p[i]); strings.TrimRight(sin, " ") != q[i] {
+				t.Fatalf("CA-576: la linea %d de %q con color, sin sus SGR, es la de sin color:\n con %q\n sin %q", i+1, nombre, p[i], q[i])
 			}
-			if strings.Contains(ttSGR.ReplaceAllString(p[i], ""), "\x1b") {
-				t.Fatalf("CA-534: con color las unicas secuencias son SGR: %q", p[i])
+			if strings.Contains(ttSinSGR(p[i]), "\x1b") {
+				t.Fatalf("CA-576: con color las unicas secuencias son SGR: %q", p[i])
 			}
 		}
 	}
 	if conSGR == 0 {
-		t.Fatalf("CA-534: con color alguna linea lleva una secuencia SGR")
+		t.Fatalf("CA-576: con color alguna linea lleva una secuencia SGR")
 	}
-	lista := 0
-	for _, l := range color["lista"] {
-		if ttSGR.MatchString(l) {
-			lista++
+	for _, nombre := range []string{"paneles", "pedir", "firma", "ayuda"} {
+		n := 0
+		for _, l := range color[nombre] {
+			if strings.Contains(l, "\x1b[1;32m") {
+				n++
+			}
 		}
-	}
-	if lista == 0 {
-		t.Fatalf("CA-534: con color la lista lleva secuencias SGR (titulos en negrita, la interrumpida en rojo)")
+		if n == 0 {
+			t.Fatalf("CA-551, CA-565: con color, en %q el borde del foco (o del modal) va en verde y negrita (1;32)", nombre)
+		}
 	}
 }
 
-// CA-534: en ASCII ninguna pantalla lleva los signos UTF-8 del contrato ni
-// las palabras con acento de la TUI (la barra 2 y la ayuda quedan afuera: sus
-// flechas no estan en la tabla de signos).
-func TestCA534_EnASCIISinSignosUTF8(t *testing.T) {
-	const signos = "●○✋✓✗⚑▸▾─┌┐└┘│‹›▌→…ÓóÍíÁáÉéÚú"
+// CA-576: en ASCII ninguna pantalla lleva los signos UTF-8 del contrato
+// (bordes simples y del foco, la seleccion, Hecho, la tira, los criterios,
+// las flechas de los selectores, el cursor, el corte, las flechas de la
+// linea de teclas y de la ayuda) ni las palabras con acento de la TUI.
+func TestCA576_EnASCIISinSignosUTF8(t *testing.T) {
+	const signos = "●○✋✓✗⚑▸▾─│┌┐└┘═║╔╗╚╝‹›▌…↑↓←→ÓóÍíÁáÉéÚú¿"
 	for nombre, p := range ttPantallas(t, ttConfig(100, 30, false)) {
-		if nombre == "ayuda" {
-			continue
-		}
 		for i, l := range p {
-			if i == len(p)-1 && nombre != "chica" {
-				continue // la barra 2
-			}
 			if j := strings.IndexAny(l, signos); j >= 0 {
 				r, _ := utf8.DecodeRuneInString(l[j:])
-				t.Fatalf("CA-534: en ASCII la linea %d de %q no lleva %q: %q", i+1, nombre, string(r), l)
+				t.Fatalf("CA-576: en ASCII la linea %d de %q no lleva %q: %q", i+1, nombre, string(r), l)
 			}
 		}
 	}
 }
 
-// CA-518, caso limite: titulos y plain con emojis y caracteres de ancho
-// doble pueden desalinear, pero la pantalla sigue siendo Alto lineas de a lo
-// sumo Ancho runas.
-func TestCA518_EmojisYAnchoDoble(t *testing.T) {
-	c := ttCard("cohete-🚀-漢字", "Título 🚀 con 漢字 y ñandú", boardcmd.ColWriter, "plain con 🚀🚀🚀 y 漢字漢字漢字 "+strings.Repeat("ｗ", 80),
-		ttSeg("s", "s", boardcmd.SegHecho, "d"))
-	for _, utf := range []bool{false, true} {
-		m := ttModelo(ttConfig(80, 24, utf), ttTablero(c))
-		ttForma(t, "CA-518", m, 80, 24, false)
-		m.Tecla(tablero.TeclaEnter, ttAhora)
-		ttForma(t, "CA-518", m, 80, 24, false)
-		if l := ttLinea(m, 1); !strings.HasPrefix(l, " cohete-🚀-漢字 · Título 🚀") {
-			t.Fatalf("CA-518: el texto de la tarjeta se imprime como es: %q", l)
-		}
+// CA-576: con UTF-8 el foco usa la linea doble (╔ ═ ╗ ║ ╚ ╝), los otros
+// paneles la simple, la seleccion ▸ y Hecho cerrada ▸; en ASCII, # = para
+// el foco, + - | para los otros y > para la seleccion y Hecho.
+func TestCA576_SignosDeLosDosModos(t *testing.T) {
+	m := ttModeloDorado(ttConfig(120, 32, true))
+	cs := ttCajas(m)
+	if c := cs["[2]"]; !strings.HasPrefix(c.Arriba, "╔[2] Tarjetas═") || !strings.HasSuffix(c.Arriba, "╗") ||
+		!strings.HasPrefix(c.Abajo, "╚") || !strings.HasSuffix(c.Abajo, "╝") {
+		t.Fatalf("CA-576: con UTF-8 el foco va en linea doble: %q / %q", c.Arriba, c.Abajo)
+	}
+	if c := cs["[1]"]; !strings.HasPrefix(c.Arriba, "┌[1] Proyecto─") || !strings.HasSuffix(c.Arriba, "┐") || !strings.HasPrefix(c.Abajo, "└") {
+		t.Fatalf("CA-576: con UTF-8 los otros paneles van en linea simple: %q", c.Arriba)
+	}
+	if !ttTiene(m, "║ ▸ nuc-tenancy") || !ttTiene(m, " HECHO 3 ▸") || !ttTiene(m, "NECESITA TU DECISIÓN") {
+		t.Fatalf("CA-576: con UTF-8, ▸ en la seleccion y en Hecho cerrada, y los titulos con acento:\n%s", ttPantalla(m))
+	}
+	a := ttModeloDorado(ttConfig(120, 32, false))
+	cs = ttCajas(a)
+	if c := cs["[2]"]; !strings.HasPrefix(c.Arriba, "#[2] Tarjetas=") || !strings.HasSuffix(c.Arriba, "#") || !strings.HasPrefix(c.Abajo, "#=") {
+		t.Fatalf("CA-576: en ASCII el borde del foco usa # y =: %q / %q", c.Arriba, c.Abajo)
+	}
+	if c := cs["[1]"]; !strings.HasPrefix(c.Arriba, "+[1] Proyecto-") || !strings.HasSuffix(c.Arriba, "+") || !strings.HasPrefix(c.Dentro[0], " ") {
+		t.Fatalf("CA-576: en ASCII los otros paneles usan + - |: %q", c.Arriba)
+	}
+	if !ttTiene(a, "# > nuc-tenancy") || !ttTiene(a, " HECHO 3 >") || !ttTiene(a, "NECESITA TU DECISION") {
+		t.Fatalf("CA-576: en ASCII, > en la seleccion y en Hecho cerrada, y los titulos sin acento:\n%s", ttPantalla(a))
+	}
+	// guarda: el reloj no mueve nada de esto
+	a.Tic(ttAhora.Add(time.Second))
+	if !ttTiene(a, "# > nuc-tenancy") {
+		t.Fatalf("CA-576: tras un Tic la seleccion sigue:\n%s", ttPantalla(a))
 	}
 }

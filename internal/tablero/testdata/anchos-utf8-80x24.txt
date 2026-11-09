@@ -1,0 +1,24 @@
+┌[1] Proyecto────────────┐┌[0] cohete · Despegue 🚀 del 漢字───────────────────┐
+│ demo                   ││ ¿Qué falta?  lanzar el 🚀 hacia 漢字               │
+│ leyendo el proyecto... ││ Siguiente paso  Pedir al arquitecto  [a]           │
+│                        ││                                                    │
+│ sin tarjeta fijada     ││ Backlog · gasto sin dato de costo                  │
+└────────────────────────┘│                                                    │
+╔[2] Tarjetas════════════╗│  ○ spec: no hay spec                               │
+║ BACKLOG 1              ║│  ○ aprobacion: sin aprobar                         │
+║ ▸ cohete             ○○║│                                                    │
+║ HECHO 0 ▸              ║│ leyendo la tarjeta...                              │
+║                        ║│                                                    │
+║                        ║│                                                    │
+║                        ║│                                                    │
+║                        ║│                                                    │
+╚════════════════════════╝│                                                    │
+┌[3] Corriendo───────────┐└────────────────────────────────────────────────────┘
+│ nada corriendo         │┌Registro────────────────────────────────────────────┐
+└────────────────────────┘│ todavia no se ejecuto nada                         │
+┌[4] Hallazgos───────────┐│                                                    │
+│ leyendo los hallazgos.…││                                                    │
+│                        ││                                                    │
+└────────────────────────┘└────────────────────────────────────────────────────┘
+
+ ↑↓ elegir · enter ver · espacio acciones · n siguiente paso · ? todas
