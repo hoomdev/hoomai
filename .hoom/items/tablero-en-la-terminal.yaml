@@ -4,3 +4,5 @@ prioridad: media
 pedido: 'Spec .hoom/specs/tablero-en-la-terminal.md: TUI a pantalla completa con la lista de tarjetas y su tira de progreso, la tarjeta abierta en cinco pestanas, una tecla por accion y un formulario donde solo se escribe el pedido; cada accion ejecuta un verbo de la capa 1. Depende de verbos-de-la-tarjeta.'
 creado_por: Henry Orellana <henry.orellana@oceansbits.com>
 creado_en: 2026-11-05T22:03:24Z
+hecho_en: 2026-11-09T03:30:08Z
+commit_final: 2613c7611a899b576290105eeefaf8d83265937f
