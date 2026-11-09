@@ -1876,6 +1876,12 @@ func TestCA401_FIFOSinRastrearNoEsParteDeLaEvidencia(t *testing.T) {
 // lineas (y el cambio de app.go con las suyas), y el aviso no entra en la
 // evidencia.
 func TestCA401_AvisoDeCRLFNoRompeLaEvidencia(t *testing.T) {
+	// git en ingles con cualquier locale de la maquina (LC_ALL le gana a LANG,
+	// a los LC_* y a LANGUAGE): el fixture busca el texto del aviso y la
+	// evidencia no debe traer "warning:". Con LANG=es_* git avisa en espanol
+	// ("advertencia: ..."): el fixture fallaba y las aserciones de abajo sobre
+	// el aviso no miraban nada.
+	t.Setenv("LC_ALL", "C")
 	casos := []struct {
 		nombre string
 		armar  func(t *testing.T, root string)
