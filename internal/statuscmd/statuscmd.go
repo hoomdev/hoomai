@@ -133,21 +133,12 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	s := &Snapshot{Root: root, Now: now, Runs: []RunView{}, Tasks: []taskcmd.TaskInfo{},
 		Envelopes: []EnvelopeView{}}
 
-	check, err := checkcmd.Run(root, base)
+	check, last, err := CheckYVeredicto(root, base)
 	if err != nil {
 		return nil, err
 	}
 	s.Check = check
-
-	all, err := verdict.LoadAll(root)
-	if err != nil {
-		return nil, err
-	}
-	if len(all) > 0 {
-		v := all[len(all)-1]
-		s.Last = &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(),
-			CreatedAt: v.CreatedAt, Summary: v.Summary}
-	}
+	s.Last = last
 
 	st, err := live.Read(root)
 	if err == nil && st != nil && !st.Done {
@@ -181,6 +172,27 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 
 	s.Ratchet = Ratchet(root)
 	return s, nil
+}
+
+// CheckYVeredicto is the check and the newest verdict as status reads them
+// (nil without a verdict): the part of the snapshot hoom tablero's [1]
+// shows, read alone.
+func CheckYVeredicto(root, base string) (checkcmd.Result, *LastVerdict, error) {
+	check, err := checkcmd.Run(root, base)
+	if err != nil {
+		return checkcmd.Result{}, nil, err
+	}
+	all, err := verdict.LoadAll(root)
+	if err != nil {
+		return checkcmd.Result{}, nil, err
+	}
+	var last *LastVerdict
+	if len(all) > 0 {
+		v := all[len(all)-1]
+		last = &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(),
+			CreatedAt: v.CreatedAt, Summary: v.Summary}
+	}
+	return check, last, nil
 }
 
 // Ratchet is the quality baseline as status shows it: the single source of
