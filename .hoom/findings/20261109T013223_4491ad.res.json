@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T013223_4491ad",
+  "as": "corregido",
+  "evidence": "3675495: fueraPorLosEnlaces (internal/tablero/rutas.go) falla cerrado. Si os.OpenRoot no abre la raiz, o Root.Stat da un error que no es 'no existe' ni el de escape, devuelve el error y Run (bucle.go, AbrirEditor) no abre el editor: la barra dice en rojo 'no se pudo abrir el editor: \u003cerror\u003e'. Contrato en el doc de Run (tablero.go). Tests de la ronda 3 (e367d5e, test-writer ciego, desde el doc de Run): TestCA524_RunComponenteQueNoSeLeeNoAbre, TestCA524_RunRaizQueNoAbreNoAbre y TestCA524_RunNadaDeAfueraDecide, rojos contra d6f211a (lo que reviso la delta 2: 14 de 28 subtests) y verdes con el fix; su guarda TestCA524_RunArchivoNuevoBajoComponentesDeAdentroAbre (archivo nuevo bajo carpetas de adentro) sigue verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:53:30.702006Z"
+}

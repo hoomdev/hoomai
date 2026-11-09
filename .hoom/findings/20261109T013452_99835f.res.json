@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T013452_99835f",
+  "as": "corregido",
+  "evidence": "3675495: las dos miradas a una ruta viven juntas en internal/tablero/rutas.go, con nombres por nivel: fueraPorLaForma (la del modelo: absoluta en cualquier sistema o con '..' que sale, sin tocar el disco) y fueraPorLosEnlaces (la de Run: siguiendo los enlaces dentro de os.Root). El comentario del archivo dice donde y cuando se aplica cada una (el modelo antes de dar la orden; Run justo antes del editor). pantalla.go y bucle.go ya no las definen. Conducta igual: tt_rutas y tt_run_enlaces pasan sin cambios.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:53:30.855631Z"
+}
