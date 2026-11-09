@@ -99,7 +99,7 @@ hoom serve       # HoomAI Studio: dashboard + cockpit local en 127.0.0.1:4666
 | `hoom item save <slug> [--json]` | Guarda en git lo que la tarjeta tiene sin guardar: un commit por arbol (su espacio de trabajo, y el item en el proyecto) con el mensaje fijo `hoom: guardar la tarjeta <slug>`. Solo esas rutas: lo que haya en el indice queda como estaba. Se niega mientras un rol trabaja en la tarjeta |
 | `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
 | `hoom board doctor [--json]` | Donde la evidencia no es coherente, cada problema con su accion exacta: spec editado despues de aprobarlo, espacio de trabajo con cambios sin veredicto para su huella, verde cuya huella ya no es la del arbol, hallazgo high en Tu aceptacion (un bug de hoom, y lo dice), sobres huerfanos, items sin spec hace mas de 14 dias y veredictos o hallazgos de una tarea sin item. Solo lee y sale con 0: los que bloquean son `verify` y `check` |
-| `hoom tablero` | El tablero en la terminal, a pantalla completa y con el teclado: la misma derivacion que `hoom board --json` y el Studio, releida cada 2 segundos. Cada accion ejecuta un verbo de la tarjeta (`hoom pedir`, `siguiente`, `aprobar`, `guardar`, `integrar`, `reanudar`, `usar`) como proceso propio. Sin terminal sale con 2 y dice `hoom board`. Ver [El tablero en la terminal](#el-tablero-en-la-terminal) |
+| `hoom tablero` | El tablero en la terminal, a pantalla completa y en paneles, con el teclado y el mouse: la misma derivacion que `hoom board --json` y el Studio, releida cada 2 segundos. Cada accion muestra en un modal el comando que se va a ejecutar y ejecuta un verbo de la tarjeta (`hoom pedir`, `aprobar`, `guardar`, `integrar`, `reanudar`, `usar`) como proceso propio. Sin terminal sale con 2 y dice `hoom board`. Ver [El tablero en la terminal](#el-tablero-en-la-terminal) |
 | `hoom roles [--role r] [--provider p] [--json]` | Matriz de enforcement: que puede leer, escribir y ejecutar cada rol con cada provider, con que mecanismo (deny de tools, sandbox, arbol ciego, gate post-run) y en que categoria: ENFORCED, POST-VERIFIED, BEST-EFFORT o UNSUPPORTED |
 | `hoom agents` | Instala los 10 contratos de agentes en `.hoom/agents/` y ata `AGENTS.md` |
 | `hoom agents --target all` | Genera ademas los subagentes NATIVOS de Claude Code, OpenCode, Codex y Gemini CLI |
@@ -549,68 +549,132 @@ estar esperando un permiso interactivo).
 
 ## El tablero en la terminal
 
-`hoom tablero` es el tablero del Studio en la terminal, a pantalla completa
-y manejado con el teclado: donde esta cada tarjeta, que le falta, que esta
-corriendo y que se puede hacer, sin abrir el navegador. Es una piel, como el
-Studio: la columna, las acciones, su motivo cuando no valen, el pedido y los
-valores propuestos salen de la tarjeta (la misma funcion que
-`hoom board --json`), y el tablero se vuelve a leer cada 2 segundos.
+`hoom tablero` es el tablero del Studio en la terminal, a pantalla completa,
+en **paneles**: donde esta cada tarjeta, que le falta, que esta corriendo y
+que se puede hacer, sin abrir el navegador. Es una piel, como el Studio: la
+columna, las acciones, su motivo cuando no valen, el pedido y los valores
+propuestos salen de la tarjeta (la misma funcion que `hoom board --json`),
+releida cada 2 segundos.
 
 ```
- hoom · tienda · 5 tarjetas
- NECESITA TU DECISIÓN
- ▸ login                    ●✋○  aprueba el spec
- EN CURSO
-   api                      ●●○  el writer trabaja
-                            writer · verify 3/5 · 12:41 de 45:00 · narró hace 2s · 3.88 USD
- BACKLOG 1
-   precios                  ○○·  falta el spec
- HECHO 2 ▸
-────────────────────────────────────────────────────────────────────────────
- NORMAL · tarjeta: login (hoom usar)
- j/k moverse · enter abrir · espacio acciones · n siguiente · / buscar · ? ayuda
+┌[1] Proyecto───────────────────┐┌[0] login · Entrar con la cuenta─────────────────────────────────┐
+│ tienda · rama main            ││ ¿Qué falta?  el spec espera tu aprobacion                       │
+│ check VERDE · verify hace 2h  ││ Siguiente paso  Aprobar spec  [A]                               │
+│ hoy 3.88 USD en 4 trabajos    ││                                                                 │
+│ fijada: login                 ││ Tu aprobacion · gasto 0.42 USD de 5.00 USD · escribió claude    │
+└───────────────────────────────┘│                                                                 │
+╔[2] Tarjetas═══════════════════╗│  ● spec: pasa el lint                                           │
+║ NECESITA TU DECISIÓN          ║│  ✋ aprobacion: sin tu firma                                    │
+║ ▸ login                 ●✋○○○║│  ○ pruebas: 0/14                                                │
+║ EN CURSO                      ║│  ○ codigo                                                       │
+║   api                    ●●○○○║│  ○ review                                                       │
+║ BACKLOG 1                     ║│                                                                 │
+║   precios                ○○○○·║│ leyendo la tarjeta...                                           │
+║ HECHO 0 ▸                     ║│                                                                 │
+║                               ║│                                                                 │
+╚═══════════════════════════════╝│                                                                 │
+┌[3] Corriendo 1────────────────┐└─────────────────────────────────────────────────────────────────┘
+│ ▸ api writer 12:41            │┌Registro─────────────────────────────────────────────────────────┐
+└───────────────────────────────┘│ 14:02 Pedir al arquitecto · login · hecho                       │
+┌[4] Hallazgos 1────────────────┐│       hoom pedir arquitecto login -m "Escribe el spec de la tar…│
+│ ▸ high   api        router.go…││                                                                 │
+│                               ││                                                                 │
+└───────────────────────────────┘└─────────────────────────────────────────────────────────────────┘
+
+ ↑↓ elegir · enter ver · espacio acciones · n siguiente paso · A aprobar spec · ? todas las teclas
 ```
 
-Cada tarjeta es una linea con su **tira**: un signo por segmento de la
-evidencia (`●` hecho, `○` falta, `·` no aplica, `✋` lo que espera tu
-decision). Las que corren suman el rol, el paso, el tiempo contra su tiempo
-limite, cuando narro por ultima vez y lo que lleva gastado. `enter` abre la
-tarjeta en cinco pestanas: Resumen, Spec (cada criterio con `✓` con prueba,
-`✗` sin prueba o `⚑` por comando), Sobre (el final de la narracion del
-trabajo en curso o del ultimo), Hallazgos (abiertos primero; `enter` los abre
-en tu editor en su linea) e Historia.
+A la izquierda hay cuatro paneles numerados: **[1] Proyecto** (la rama, el
+check, lo gastado hoy y la tarjeta fijada con `hoom usar`), **[2] Tarjetas**
+(lo que espera tu decision, lo que esta en curso y una seccion por columna,
+cada tarjeta con su **tira**: `●` hecho, `○` falta, `·` no aplica, `✋` lo
+que espera tu decision), **[3] Corriendo** (los trabajos en curso y los
+interrumpidos) y **[4] Hallazgos** (los abiertos de todo el proyecto, los
+high primero). A la derecha, **[0]** muestra lo que elegis en el ultimo panel
+de la izquierda y cambia con cada movimiento, sin `enter`: el documento de la
+tarjeta (que falta, el siguiente paso, la tira, los criterios del spec, sus
+hallazgos, la historia y la narracion), la cola del log de lo que corre, el
+hallazgo con las lineas de su archivo, o el ultimo veredicto y los problemas
+de `hoom board doctor`. Debajo, el **Registro** lista cada comando que el
+tablero ejecuto y como termino. [1] y [4] se releen cada 10 segundos y
+cuando termina un verbo. Entre 60 y 79 columnas los paneles van en una
+columna y los que no tienen el foco se pliegan a su titulo.
+
+**Siempre sabes donde estas, que podes hacer y que se va a ejecutar.**
+
+- El **panel con foco** tiene borde doble (y, con color, verde): ahi van
+  las teclas. La ultima linea muestra, en palabras, solo las teclas del
+  panel con foco; `?` las muestra todas.
+- Nada que lance un trabajo, firme o commitee corre a ciegas: cada tecla de
+  accion abre un **modal** que termina en `Se va a ejecutar:` y el comando
+  exacto, con un boton para ejecutarlo y `Cancelar`. La unica excepcion es
+  `u` (`hoom usar`), que solo fija la tarjeta para la terminal.
+- Despues, el Registro dice que corrio: `lanzando…`, `corriendo`, `hecho` o
+  `fallo: <la ultima linea de su error>`.
 
 **Cada accion es un verbo.** La TUI no decide nada que la tarjeta no decida:
-cada tecla ejecuta el verbo de la capa 1 como proceso propio y desprendido,
+cada boton ejecuta el verbo de la capa 1 como proceso propio y desprendido,
 asi que salir del tablero no corta lo que lanzo. Las firmas van con
-mayuscula y piden confirmar: solo `enter` sobre `Firmar` ejecuta el verbo.
+mayuscula y abren con `Cancelar` elegido.
 
-| Tecla | Hace | Verbo que ejecuta |
-|---|---|---|
-| `j` `k` `↓` `↑` / `g` `G` | moverse / primera, ultima | |
-| `enter` `l` `→` / `esc` `h` `←` | abrir la tarjeta / volver | |
-| `1`-`5` `tab` | elegir la pestana | |
-| `espacio` | menu de acciones de la tarjeta, con su tecla y su verbo | |
-| `n` | el siguiente paso | `hoom siguiente <slug>` |
-| `a` `t` `w` `r` | pedir al arquitecto, test-writer, writer, reviewer | `hoom pedir <rol> <slug>` |
-| `R` | reanudar | `hoom reanudar <slug>` |
-| `s` | guardar | `hoom guardar <slug>` |
-| `A` | aprobar el spec | `hoom aprobar <slug> --si` |
-| `I` | integrar | `hoom integrar <slug> --si` |
-| `u` | fijar la tarjeta para la terminal | `hoom usar <slug>` |
-| `/` | buscar por slug o titulo, sin mayusculas ni acentos | |
-| `x` | modo experto (`next`, `missing` y el detalle de la tira) | |
-| `?` | las teclas de la pantalla actual | |
-| `q` `ctrl-c` | salir | |
+| Tecla | Donde | Hace | Verbo que ejecuta |
+|---|---|---|---|
+| `1` `2` `3` `4` `0` / `tab` `shift-tab` | siempre | foco a ese panel / al siguiente o al anterior | |
+| `↑` `↓` `k` `j` / `g` `G` | un panel | elegir (en [0], desplazar) / primera o ultima | |
+| `pgup` `pgdn` | [0] | desplazar una pagina | |
+| `enter` `→` `l` / `esc` `←` `h` | [1] a [4] / [0] | ver en grande en [0] (en Hecho, abrir o cerrar) / volver | |
+| `espacio` | con tarjeta | las acciones de la tarjeta, con su tecla y su verbo | |
+| `n` | con tarjeta | el siguiente paso | el de su accion |
+| `a` `t` `w` `r` | con tarjeta | pedir al arquitecto, test-writer, writer, reviewer | `hoom pedir <rol> <slug>` |
+| `R` | con tarjeta | reanudar | `hoom reanudar <slug>` |
+| `s` | con tarjeta | guardar | `hoom guardar <slug>` |
+| `A` | con tarjeta | aprobar el spec | `hoom aprobar <slug> --si` |
+| `I` | con tarjeta | integrar | `hoom integrar <slug> --si` |
+| `u` | con tarjeta | fijar la tarjeta para la terminal | `hoom usar <slug>` |
+| `e` | [0] de una tarjeta, [4] | abrir el spec o el archivo del hallazgo en tu editor | |
+| `]c` `[c` | [0] de una tarjeta | el criterio sin prueba siguiente o anterior | |
+| `/` | siempre | buscar tarjetas por slug o titulo, sin mayusculas ni acentos | |
+| `x` | siempre | modo experto (`next`, `missing` y el id de cada criterio) | |
+| `?` | siempre | todas las teclas | |
+| `q` `ctrl-c` | siempre | salir | |
 
-Una tecla cuya accion la tarjeta no tiene, o tiene deshabilitada, no
-ejecuta nada: la barra dice por que. Las teclas que lanzan un rol abren un
-formulario con los valores que propone la tarjeta (provider, modelo,
-esfuerzo, presupuesto, tiempo limite y pedido) y la linea `→` con el verbo
-corto y solo los flags que cambiaste. Con `NO_COLOR` la pantalla no tiene
-color; sin un locale UTF-8, o con `HOOM_ASCII=1`, usa signos ASCII
-(`#` hecho, `-` falta, `.` no aplica, `!` tu decision). Necesita una
-terminal de al menos 60x15; sin terminal, `hoom board`.
+En el modal de pedir, `tab` pasa de campo, `←` `→` cambian la opcion de un
+selector (Provider, Modelo, Esfuerzo, Tope, Tiempo limite), `enter` abre su
+lista y `otro…` deja escribir un valor. Cada selector dice de donde salio su
+valor (`de hoom.yaml`, `de la tarjeta`, `del provider` o `elegido`), y
+`Se va a ejecutar:` muestra solo los flags que cambiaste. `enter` en el
+Pedido lleva al boton; solo `enter` sobre el boton ejecuta.
+
+**El mouse.** Un clic en un panel le da el foco y elige la fila; la rueda
+mueve la seleccion o desplaza [0]. En un modal, un clic enfoca un campo o
+elige un boton, pero nunca ejecuta: ejecutar siempre pide `enter`. Para
+seleccionar texto con el mouse, manten Option (macOS) o Shift, o arranca con
+`HOOM_MOUSE=0`, que deja la terminal sin mouse.
+
+**Los modelos.** El selector de Modelo ofrece el catalogo de hoom
+(`internal/modelos`): para claude, `fable`, `opus`, `sonnet`, `haiku`,
+`opusplan` y sus variantes de contexto de 1M; para codex, los de
+`codex-cli`; cada uno con una linea que dice para que sirve, y los
+esfuerzos de cada provider. El catalogo propone, no prohibe. `hoom.yaml` lo
+amplia con `models`, solo para los providers a los que hoom les pasa el
+modelo (claude y codex):
+
+```yaml
+models:
+  codex:
+    - name: gpt-7-sol
+      description: el nuevo de todos los dias
+```
+
+Un provider que hoom no conoce, uno que no recibe modelo, una entrada sin
+`name`, un nombre que empieza con `-` o una clave que no es `name` ni
+`description` hacen invalido el `hoom.yaml`.
+
+Con `NO_COLOR` la pantalla no tiene color: el foco se ve por el borde doble
+y la seleccion por `▸`. Sin un locale UTF-8, o con `HOOM_ASCII=1`, usa signos
+ASCII (`#` hecho, `-` falta, `.` no aplica, `!` tu decision; el borde del
+foco con `=` y `#`). Necesita una terminal de al menos 60x15; sin terminal,
+`hoom board`.
 
 ## HoomAI Studio (hoom serve)
 
