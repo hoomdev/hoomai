@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -363,7 +362,7 @@ func (m *Modelo) abrirHallazgo() []Orden {
 // from the evidence (a finding's file, a card's spec) opens nothing outside
 // it.
 func (m *Modelo) abrirArchivo(archivo string, linea int) []Orden {
-	if !filepath.IsLocal(filepath.FromSlash(archivo)) {
+	if fueraDelProyecto(archivo) {
 		m.avisar("el archivo "+strconv.Quote(archivo)+" esta fuera del proyecto", rojo, DuracionAviso)
 		return nil
 	}
@@ -688,7 +687,9 @@ func (m *Modelo) vigente(cf *confirmacion) (string, bool) {
 		if tarjetacmd.TextoFirma(*c, a) != cf.texto {
 			return cambio, false
 		}
-		if h := m.huellaSpec(cf.slug); cf.spec != "" && h != "" && h != cf.spec {
+		// a spec that was shown and cannot be read now (a failed read, a
+		// spec gone) is not the one shown: the signature fails closed
+		if cf.spec != "" && m.huellaSpec(cf.slug) != cf.spec {
 			return cambio, false
 		}
 	case !slices.Equal(rutasSinGuardar(c, a), cf.paths):
@@ -718,9 +719,15 @@ func (m *Modelo) cerrarConfirmacion() {
 
 // ---------------------------------------------------------------- the bar
 
-// avisar puts a message in the bar for d.
+// avisar puts a message in the bar for d. An end notice it takes the bar
+// from goes back to the head of the queue, whole: it comes back when this
+// message ends.
 func (m *Modelo) avisar(texto string, e estilo, d time.Duration) {
-	m.msg, m.msgEstilo, m.msgHasta, m.msgFin = texto, e, m.ahora.Add(d), false
+	if m.msgFin && m.msg != "" && m.ahora.Before(m.msgHasta) {
+		m.finales = append([]aviso{{texto: m.msg, estilo: m.msgEstilo, seq: m.msgSeq}}, m.finales...)
+	}
+	m.seq++
+	m.msg, m.msgEstilo, m.msgHasta, m.msgFin, m.msgSeq = texto, e, m.ahora.Add(d), false, m.seq
 }
 
 // mensaje is the bar's message now: the last one while it lasts, else the
@@ -877,7 +884,7 @@ func (m *Modelo) alFiltrar() {
 // selected line and its second line.
 func (m *Modelo) acomodarScrollLista() {
 	lineas, pos := m.cuerpoLista()
-	h := m.c.Alto - 4
+	h := m.altoCuerpo()
 	if h <= 0 {
 		return
 	}

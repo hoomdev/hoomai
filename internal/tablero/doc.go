@@ -178,9 +178,11 @@
 // description; 0 without one. enter orders AbrirEditor with the file
 // relative to the project root (evidence.dir + "/" + file, or just file
 // when dir is ".") and that line; on a finding without a file the bar says
-// "el hallazgo no nombra un archivo". A path that leaves the project (an
-// absolute one, or one whose ".." climbs out: filepath.IsLocal says no)
-// orders nothing, here and with the Spec tab's o: the bar says in red
+// "el hallazgo no nombra un archivo". A path that leaves the project on
+// some system (an absolute one on any of them: rooted as "/x", "\x" or a
+// UNC, or with a drive as "C:x"; or one whose ".." climbs out, with / or \
+// as the separator: filepath.IsLocal says no) orders nothing, here and with
+// the Spec tab's o: the bar says in red
 // "el archivo <path quoted as strconv.Quote> esta fuera del proyecto" for
 // DuracionAviso. Without findings: " sin hallazgos".
 //
@@ -263,7 +265,8 @@
 // A confirmation is tied to what it shows. On every read of the board or of
 // the open card, and on enter before anything runs, it is compared with the
 // data of now: its card must still have the action enabled, the signature's
-// text be the same (and the spec, when the open card's detail showed it),
+// text be the same (and the spec, when the open card's detail showed it: a
+// read of the card that fails or brings no spec counts as a change),
 // guardar's paths be the same. When they are not, it closes and the bar
 // says in red the action's why or "cambio lo que ibas a confirmar en
 // <slug>: vuelve a abrirlo", and nothing runs.

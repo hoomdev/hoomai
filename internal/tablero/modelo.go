@@ -150,7 +150,9 @@ type Modelo struct {
 	msgEstilo estilo
 	msgHasta  time.Time
 	msgFin    bool    // the message is an end notice
+	msgSeq    int     // when the message was given, in the order of seq
 	finales   []aviso // the end notices still to show, oldest first
+	seq       int     // the order of the messages: each one given takes the next
 
 	// the launches
 	sigID    int
@@ -170,10 +172,12 @@ type visto struct {
 	rol, envelope, run string
 }
 
-// aviso is a message of the bar waiting for its turn.
+// aviso is a message of the bar waiting for its turn; seq is when it was
+// given.
 type aviso struct {
 	texto  string
 	estilo estilo
+	seq    int
 }
 
 // Nuevo is the model before the first read of the board.
@@ -208,10 +212,16 @@ func Nuevo(c Config) *Modelo {
 //     boardcmd.RedEnvelope and red.id == the envelope id it saw running)
 //     or when the card shows interrupted for the envelope (or, without
 //     one, the run) it saw: the work died, it did not close entregable;
-//     green otherwise. It does so whoever launched it. Several cards that
+//     green otherwise, when it had an envelope (it closed entregable).
+//     Work without an envelope (a run of hoom run by hand: the roles and
+//     the review always have one) that just stopped is neither: the board
+//     does not say how it ended, and the notice is in the bar's plain
+//     style. It does so whoever launched it. Several cards that
 //     stopped in one read show one after another, in the board's order,
-//     each for DuracionFin; an end notice takes the bar from a message of
-//     another kind.
+//     each for DuracionFin. An end notice takes the bar from a message
+//     given before it; a message given while it shows (this read's "ya no
+//     existe", a closed confirmation, a key) takes the bar for its time and
+//     the end notice comes back after it, whole: none is lost.
 //   - A launch the model is waiting for is "registered" when its card shows
 //     a running whose envelope id (or run id when it has no envelope) the
 //     card did not have when the order was given.
@@ -238,10 +248,16 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 			continue
 		}
 		e := verde
-		if fallo(c, v) {
+		switch {
+		case fallo(c, v):
 			e = rojo
+		case v.envelope == "":
+			// a run without an envelope (hoom run by hand): the board says
+			// nothing of how it ended, so the notice claims neither
+			e = normal
 		}
-		m.finales = append(m.finales, aviso{texto: fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), estilo: e})
+		m.seq++
+		m.finales = append(m.finales, aviso{texto: fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), estilo: e, seq: m.seq})
 	}
 	m.avanzarAvisos()
 	m.vistos = map[string]visto{}
@@ -450,17 +466,20 @@ func fallo(c *boardcmd.Card, v visto) bool {
 	return false
 }
 
-// avanzarAvisos puts the next end notice in the bar unless another end
-// notice is still showing: the end notices of one read go one after
-// another, and one takes the bar from a message of another kind.
+// avanzarAvisos puts the next end notice in the bar unless the bar still
+// shows another end notice or a message given after that one: the end
+// notices of one read go one after another, one takes the bar from a
+// message given before it, and none is lost.
 func (m *Modelo) avanzarAvisos() {
-	if len(m.finales) == 0 || (m.msgFin && m.msg != "" && m.ahora.Before(m.msgHasta)) {
+	if len(m.finales) == 0 {
+		return
+	}
+	if m.msg != "" && m.ahora.Before(m.msgHasta) && (m.msgFin || m.msgSeq > m.finales[0].seq) {
 		return
 	}
 	a := m.finales[0]
 	m.finales = m.finales[1:]
-	m.avisar(a.texto, a.estilo, DuracionFin)
-	m.msgFin = true
+	m.msg, m.msgEstilo, m.msgHasta, m.msgFin, m.msgSeq = a.texto, a.estilo, m.ahora.Add(DuracionFin), true, a.seq
 }
 
 // Vista is the current view.

@@ -79,7 +79,7 @@ func (m *Modelo) componerVista(v Vista) (string, []linea) {
 		return m.tituloTarjeta(), m.cuerpoTarjeta(v)
 	}
 	lineas, _ := m.cuerpoLista()
-	h := m.c.Alto - 4
+	h := m.altoCuerpo()
 	ini := m.scrollLista
 	if ini > len(lineas) {
 		ini = len(lineas)
@@ -526,10 +526,26 @@ func (m *Modelo) rutaSpec() string {
 	return path.Join(m.dirEvidencia(), p)
 }
 
-// absoluta says whether p, a path of the evidence, is absolute on any
-// system: joined under a dir it would stop being so.
+// absoluta says whether p, a path of the evidence, is absolute on some
+// system, whichever one reads it: rooted ("/x", "\x", a UNC "\\h\s") or
+// with a drive ("C:x", "C:/x"). Evidence written on Windows is read on Unix
+// too, and joined under a dir it would stop being absolute.
 func absoluta(p string) bool {
-	return path.IsAbs(p) || filepath.IsAbs(filepath.FromSlash(p)) || filepath.VolumeName(filepath.FromSlash(p)) != ""
+	q := strings.ReplaceAll(p, `\`, "/")
+	if strings.HasPrefix(q, "/") {
+		return true
+	}
+	if len(q) >= 2 && q[1] == ':' && 'a' <= q[0]|0x20 && q[0]|0x20 <= 'z' {
+		return true
+	}
+	return filepath.IsAbs(filepath.FromSlash(p)) || filepath.VolumeName(filepath.FromSlash(p)) != ""
+}
+
+// fueraDelProyecto says whether p, a path of the evidence relative to the
+// root, leaves the project on some system: an absolute one (absoluta), or
+// one whose ".." climbs out with / or \ as the separator.
+func fueraDelProyecto(p string) bool {
+	return absoluta(p) || !filepath.IsLocal(filepath.FromSlash(strings.ReplaceAll(p, `\`, "/")))
 }
 
 // dirEvidencia is the open card's evidence dir, relative to the root: the
@@ -881,7 +897,7 @@ func (m *Modelo) caja(titulo string, inner []linea) []linea {
 
 // sobreponer puts the box over the body, from its first line.
 func (m *Modelo) sobreponer(cuerpo, caja []linea) []linea {
-	h := m.c.Alto - 4
+	h := m.altoCuerpo()
 	out := make([]linea, h)
 	copy(out, cuerpo)
 	for i := 0; i < len(caja) && i < h; i++ {
@@ -946,18 +962,18 @@ func (m *Modelo) cajaFormulario() []linea {
 	verbo := lin(m.s.flecha + " " + lineaVerbo(f.args(), m.c.Windows))
 	ayuda := lin("enter lanzar · tab campos · ctrl-e editor · esc cancelar")
 
-	armar := func(blancos, conNoPueden, conAyuda bool, nPedido int) []linea {
+	armar := func(c compacto) []linea {
 		linProv := lin(m.marca(foco == campoProvider) + rellenar("Provider", 15) + prov)
-		if !conNoPueden && len(noPueden) > 0 {
+		if c.sinNoPueden && len(noPueden) > 0 {
 			linProv = linProv.masCon(fmt.Sprintf("  (%d no pueden)", len(noPueden)), gris)
 		}
 		inner := []linea{linProv}
-		if conNoPueden {
+		if !c.sinNoPueden {
 			inner = append(inner, noPueden...)
 		}
 		inner = append(inner, campos...)
 		if !f.revisor {
-			if blancos {
+			if !c.sinBlancos {
 				inner = append(inner, nil)
 			}
 			etiquetaPedido := lin(m.marca(foco == campoPedido) + "Pedido")
@@ -965,38 +981,66 @@ func (m *Modelo) cajaFormulario() []linea {
 				etiquetaPedido = linCon(m.marca(foco == campoPedido)+"Pedido", rojo)
 			}
 			inner = append(inner, etiquetaPedido)
-			inner = append(inner, m.lineasPedido(nPedido)...)
+			inner = append(inner, m.lineasPedido(c.pedido)...)
 		}
-		if blancos {
+		if !c.sinBlancos {
 			inner = append(inner, nil)
 		}
 		inner = append(inner, verbo)
-		if conAyuda {
+		if !c.sinTeclas {
 			inner = append(inner, ayuda)
 		}
 		return inner
 	}
-	// what does not fit in the body goes, in this order: the empty lines,
-	// the providers that cannot (their why comes back when one is chosen),
-	// the keys line (the bar has them) and the pedido's lines but the one
-	// with the cursor; the → line always stays
-	cabe := m.c.Alto - 4 - 2
-	inner := armar(true, true, true, 4)
-	for _, paso := range [][3]bool{{false, true, true}, {false, false, true}, {false, false, false}} {
-		if len(inner) <= cabe {
+	// the first step that fits in the body; the last one when none does
+	cabe := m.altoCuerpo() - bordesCaja
+	var inner []linea
+	for _, c := range pasosFormulario {
+		if inner = armar(c); len(inner) <= cabe {
 			break
 		}
-		inner = armar(paso[0], paso[1], paso[2], 4)
-	}
-	for n := 3; n >= 1 && len(inner) > cabe; n-- {
-		inner = armar(false, false, false, n)
 	}
 	return m.caja(f.accion.Label+" · "+f.slug, inner)
 }
 
+// compacto is what the form's box gives up to fit in the body.
+type compacto struct {
+	sinBlancos  bool // its empty lines
+	sinNoPueden bool // the providers that cannot, one per line: the Provider line counts them, and a chosen one shows its why
+	sinTeclas   bool // the keys line: the bar has them
+	pedido      int  // how many of the pedido's lines it shows (the one with the cursor among them)
+}
+
+// lineasPedidoForm is how many lines of the pedido the form shows when it
+// fits.
+const lineasPedidoForm = 4
+
+// pasosFormulario is the order in which the form's box gives up what does
+// not fit (doc.go, "A box taller than the body"): the empty lines, the
+// providers that cannot, the keys line and then the pedido's lines down to
+// one. The → line always stays.
+var pasosFormulario = []compacto{
+	{pedido: lineasPedidoForm},
+	{sinBlancos: true, pedido: lineasPedidoForm},
+	{sinBlancos: true, sinNoPueden: true, pedido: lineasPedidoForm},
+	{sinBlancos: true, sinNoPueden: true, sinTeclas: true, pedido: lineasPedidoForm},
+	{sinBlancos: true, sinNoPueden: true, sinTeclas: true, pedido: 3},
+	{sinBlancos: true, sinNoPueden: true, sinTeclas: true, pedido: 2},
+	{sinBlancos: true, sinNoPueden: true, sinTeclas: true, pedido: 1},
+}
+
+// bordesCaja are the lines of a box's top and bottom borders.
+const bordesCaja = 2
+
+// altoCuerpo is how many lines the body has: the screen less the title
+// line and the separator, the bar and the keys line under it.
+func (m *Modelo) altoCuerpo() int {
+	return m.c.Alto - 4
+}
+
 // lineasPedido are the pedido's lines in the form: wrapped hard to the
 // inner width, the last n (the n that end at the cursor's line when it is
-// focused; 4 when the box fits).
+// focused; lineasPedidoForm when the box fits).
 func (m *Modelo) lineasPedido(n int) []linea {
 	f := m.form
 	c := f.campo(campoPedido)
@@ -1040,10 +1084,12 @@ func (m *Modelo) cajaConfirmacion() []linea {
 		inner = append(inner, lin(botones))
 	} else {
 		// the paths that do not fit say how many they are; the keys line
-		// always stays
-		cabe := m.c.Alto - 4 - 2 - 3
+		// always stays. cabe is how many path lines the body has: less the
+		// box's borders, its header, empty and keys lines
+		const sinRutas = 3
+		cabe := m.altoCuerpo() - bordesCaja - sinRutas
 		paths := cf.paths
-		if len(paths) > cabe+1 && cabe >= 1 {
+		if len(paths) > cabe && cabe >= 1 {
 			paths = append(paths[:cabe-1:cabe-1], fmt.Sprintf("y %d rutas mas", len(cf.paths)-(cabe-1)))
 		}
 		inner = append(inner, lin("Se guarda en git:"))
@@ -1058,5 +1104,5 @@ func (m *Modelo) cajaConfirmacion() []linea {
 // confirmacionCabe says whether the confirmation's box fits in the body
 // whole: a signature is never signed with part of its text out of view.
 func (m *Modelo) confirmacionCabe() bool {
-	return len(m.cajaConfirmacion()) <= m.c.Alto-4
+	return len(m.cajaConfirmacion()) <= m.altoCuerpo()
 }
