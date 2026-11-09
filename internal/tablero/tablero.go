@@ -15,6 +15,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/profiles"
 )
 
@@ -222,6 +223,9 @@ func Run(args []string, e Entorno) int {
 	if e.Intervalo <= 0 {
 		e.Intervalo = Intervalo
 	}
+	if e.IntervaloProyecto <= 0 {
+		e.IntervaloProyecto = IntervaloProyecto
+	}
 	if err := ParseArgs(args); err != nil {
 		if errors.Is(err, cliargs.ErrHelp) {
 			fmt.Fprintln(e.Out, UsageText)
@@ -255,18 +259,32 @@ func Run(args []string, e Entorno) int {
 		}
 		e.Lanzador = LanzadorDe(hoom, e.Dir, filepath.Join(m.Dir, ".hoom", "cache", "tablero"))
 	}
+	editor := ComandoEditor(e.Getenv, e.GOOS)
 	if e.Editor == nil {
-		e.Editor = EditorDe(ComandoEditor(e.Getenv, e.GOOS), e.GOOS)
+		e.Editor = EditorDe(editor, e.GOOS)
 	}
 	proyecto := m.Project
 	if proyecto == "" {
 		proyecto = filepath.Base(m.Dir)
 	}
-	b := &bucle{e: e, root: m.Dir, cfg: Config{
+	var propios map[string][]modelos.Propio
+	for p, es := range m.Models {
+		if propios == nil {
+			propios = map[string][]modelos.Propio{}
+		}
+		for _, x := range es {
+			propios[p] = append(propios[p], modelos.Propio{Nombre: x.Name, Descripcion: x.Description})
+		}
+	}
+	mouse := ConMouse(e.Getenv)
+	b := &bucle{e: e, root: m.Dir, mouse: mouse, cfg: Config{
 		Proyecto: proyecto,
 		Color:    ConColor(e.Getenv),
 		UTF8:     ConUTF8(e.Getenv),
 		Windows:  e.GOOS == "windows",
+		Mouse:    mouse,
+		Editor:   editor,
+		Modelos:  propios,
 	}}
 	return b.correr()
 }
@@ -280,7 +298,7 @@ func ConColor(getenv func(string) string) bool {
 // ConMouse says whether Run asks the terminal for the mouse: not when
 // HOOM_MOUSE is "0" (any other value, or none, is yes).
 func ConMouse(getenv func(string) string) bool {
-	return true
+	return getenv("HOOM_MOUSE") != "0"
 }
 
 // ConUTF8 says whether the screen uses the UTF-8 signs: the locale (the

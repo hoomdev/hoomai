@@ -29,17 +29,32 @@ type evento struct {
 	errLeer   error
 	lectura   *Lectura
 	detalle   *Detalle
+	proyecto  *Proyecto
+	hallazgos *Hallazgos
+	archivo   *Archivo
 	fin       *FinProceso
 	panico    any
 	hayPanico bool
+	// what kind of read ended
+	tipo int
 }
+
+// The kinds of reads, each at most one at a time.
+const (
+	leeTablero = iota
+	leeDetalle
+	leeProyecto
+	leeArchivo
+	tiposLectura
+)
 
 // bucle is one run of the TUI.
 type bucle struct {
-	e    Entorno
-	root string
-	cfg  Config
-	m    *Modelo
+	e     Entorno
+	root  string
+	cfg   Config
+	mouse bool
+	m     *Modelo
 
 	restaurar func() error
 	tomada    bool
@@ -48,8 +63,10 @@ type bucle struct {
 	eventos chan evento
 	listo   chan struct{}
 
-	enVuelo      bool   // a read of the data is running
-	abiertaLeida string // the Abierta of the last read asked
+	enVuelo   [tiposLectura]bool
+	pendiente [tiposLectura]bool // read again when the one in flight ends
+	leida     string             // the Elegida of the last Detalle asked
+	leidoArch string             // the ArchivoElegido of the last Archivo asked
 }
 
 // correr takes the terminal, runs the loop and gives the terminal back,
@@ -86,7 +103,8 @@ func (b *bucle) correr() int {
 	return code
 }
 
-// tomar puts the terminal in raw mode and enters the alternate screen.
+// tomar puts the terminal in raw mode, enters the alternate screen and asks
+// for the mouse, in one write.
 func (b *bucle) tomar() error {
 	restaurar, err := b.e.Terminal.Crudo()
 	if err != nil {
@@ -94,7 +112,11 @@ func (b *bucle) tomar() error {
 	}
 	b.restaurar, b.tomada = restaurar, true
 	b.ultimo = ""
-	if _, err = io.WriteString(b.e.Terminal, SecEntrar); err != nil {
+	sec := SecEntrar
+	if b.mouse {
+		sec += SecMouseSi
+	}
+	if _, err = io.WriteString(b.e.Terminal, sec); err != nil {
 		// the terminal back as it was before returning: no caller is left
 		// holding a raw terminal it does not know it took
 		_ = b.soltar()
@@ -103,13 +125,18 @@ func (b *bucle) tomar() error {
 	return nil
 }
 
-// soltar leaves the alternate screen and puts the terminal back.
+// soltar gives the mouse back, leaves the alternate screen, in one write,
+// and puts the terminal back.
 func (b *bucle) soltar() error {
 	if !b.tomada {
 		return nil
 	}
 	b.tomada = false
-	_, errW := io.WriteString(b.e.Terminal, SecSalir)
+	sec := SecSalir
+	if b.mouse {
+		sec = SecMouseNo + SecSalir
+	}
+	_, errW := io.WriteString(b.e.Terminal, sec)
 	var errR error
 	if b.restaurar != nil {
 		errR = b.restaurar()
@@ -155,35 +182,58 @@ func (b *bucle) leerTeclas() {
 	}
 }
 
-// leer reads the data in another goroutine: the board (when conTablero)
-// and the open card.
-func (b *bucle) leer(conTablero bool) {
-	b.enVuelo = true
-	slug, historia := b.m.abiertaV1()
-	b.abiertaLeida = clave(slug, historia)
-	go func() {
-		defer b.reenviar()
-		var ev evento
-		if conTablero {
+// leer starts a read of the kind tipo in another goroutine, or, when one of
+// that kind is in flight, leaves it pending.
+func (b *bucle) leer(tipo int) {
+	if b.enVuelo[tipo] {
+		b.pendiente[tipo] = true
+		return
+	}
+	var f func() evento
+	switch tipo {
+	case leeTablero:
+		f = func() evento {
 			tab, err := b.e.Datos.Tablero()
-			ev.lectura = &Lectura{Tablero: tab, Err: err, Fijada: b.e.Datos.Fijada()}
+			return evento{lectura: &Lectura{Tablero: tab, Err: err, Fijada: b.e.Datos.Fijada()}}
 		}
-		if slug != "" {
+	case leeDetalle:
+		slug := b.m.Elegida()
+		b.leida = slug
+		if slug == "" {
+			return
+		}
+		f = func() evento {
 			d := b.e.Datos.Detalle(slug)
 			if d.Slug == "" {
 				d.Slug = slug
 			}
-			ev.detalle = &d
+			return evento{detalle: &d}
 		}
+	case leeProyecto:
+		f = func() evento {
+			p := b.e.Datos.Proyecto()
+			h := b.e.Datos.Hallazgos()
+			return evento{proyecto: &p, hallazgos: &h}
+		}
+	case leeArchivo:
+		ruta, linea := b.m.ArchivoElegido()
+		b.leidoArch = ruta + "\x00" + strconv.Itoa(linea)
+		if ruta == "" {
+			return
+		}
+		f = func() evento {
+			a := b.e.Datos.Archivo(ruta, linea)
+			a.Ruta, a.Linea = ruta, linea
+			return evento{archivo: &a}
+		}
+	}
+	b.enVuelo[tipo] = true
+	go func() {
+		defer b.reenviar()
+		ev := f()
+		ev.tipo = tipo
 		b.enviar(ev)
 	}()
-}
-
-func clave(slug string, historia bool) string {
-	if historia {
-		return slug + "\x00h"
-	}
-	return slug
 }
 
 func (b *bucle) bucle() (int, error) {
@@ -193,11 +243,10 @@ func (b *bucle) bucle() (int, error) {
 
 	tic := time.NewTicker(cadaTic)
 	defer tic.Stop()
-	// the next read of the board is Intervalo after the last one ended: a
-	// board that takes longer than Intervalo to read is not read without
-	// rest
-	var proxima <-chan time.Time
-	tableroPendiente := false
+	// the next read of the board (and of the project) is its interval after
+	// the last one ended: a read that takes longer than its interval is not
+	// read without rest
+	var proxima, proximaProyecto <-chan time.Time
 	winch, parar := avisosDeTamano()
 	defer parar()
 
@@ -205,7 +254,8 @@ func (b *bucle) bucle() (int, error) {
 	if err := b.dibujar(); err != nil {
 		return 1, err
 	}
-	b.leer(true)
+	b.leer(leeTablero)
+	b.leer(leeProyecto)
 
 	var pendiente []byte
 	var espera <-chan time.Time
@@ -227,29 +277,37 @@ func (b *bucle) bucle() (int, error) {
 					continue
 				}
 				espera = nil
-				fin, code, err = b.teclas(pendiente)
+				fin, code, err = b.entradas(pendiente)
 				pendiente = nil
 			case ev.fin != nil:
 				b.m.Termino(*ev.fin, b.e.Ahora())
+				b.leer(leeProyecto)
 			default:
-				b.enVuelo = false
-				if ev.lectura != nil {
+				b.enVuelo[ev.tipo] = false
+				switch {
+				case ev.lectura != nil:
 					l := *ev.lectura
 					l.Ahora = b.e.Ahora()
 					fin, code, err = b.ordenes(b.m.Leer(l))
 					proxima = time.After(b.e.Intervalo)
-				}
-				if ev.detalle != nil {
+					b.leer(leeDetalle)
+				case ev.detalle != nil:
 					b.m.LeerDetalle(*ev.detalle)
+				case ev.proyecto != nil:
+					b.m.LeerProyecto(*ev.proyecto)
+					b.m.LeerHallazgos(*ev.hallazgos)
+					proximaProyecto = time.After(b.e.IntervaloProyecto)
+				case ev.archivo != nil:
+					b.m.LeerArchivo(*ev.archivo)
 				}
-				if tableroPendiente {
-					tableroPendiente = false
-					b.leer(true)
+				if b.pendiente[ev.tipo] {
+					b.pendiente[ev.tipo] = false
+					b.leer(ev.tipo)
 				}
 			}
 		case <-espera:
 			espera = nil
-			fin, code, err = b.teclas(pendiente)
+			fin, code, err = b.entradas(pendiente)
 			pendiente = nil
 		case <-tic.C:
 			b.m.Tic(b.e.Ahora())
@@ -258,18 +316,20 @@ func (b *bucle) bucle() (int, error) {
 			b.mirarTamano()
 		case <-proxima:
 			proxima = nil
-			if b.enVuelo {
-				tableroPendiente = true // after the card's read that is running
-			} else {
-				b.leer(true)
-			}
+			b.leer(leeTablero)
+		case <-proximaProyecto:
+			proximaProyecto = nil
+			b.leer(leeProyecto)
 		}
 		if fin || err != nil {
 			return code, err
 		}
-		// a card opened, or its Historia: read it now
-		if slug, historia := b.m.abiertaV1(); slug != "" && !b.enVuelo && clave(slug, historia) != b.abiertaLeida {
-			b.leer(false)
+		// what [0] shows changed: read it now
+		if b.m.Elegida() != b.leida {
+			b.leer(leeDetalle)
+		}
+		if ruta, linea := b.m.ArchivoElegido(); ruta+"\x00"+strconv.Itoa(linea) != b.leidoArch {
+			b.leer(leeArchivo)
 		}
 		if err := b.dibujar(); err != nil {
 			return 1, err
@@ -277,10 +337,17 @@ func (b *bucle) bucle() (int, error) {
 	}
 }
 
-// teclas gives the keys to the model and carries out its orders.
-func (b *bucle) teclas(buf []byte) (bool, int, error) {
-	for _, t := range Decodificar(buf) {
-		if fin, code, err := b.ordenes(b.m.Tecla(t, b.e.Ahora())); fin || err != nil {
+// entradas gives the keys and the mouse events to the model and carries
+// out its orders.
+func (b *bucle) entradas(buf []byte) (bool, int, error) {
+	for _, e := range DecodificarEntradas(buf) {
+		var ords []Orden
+		if e.Raton != nil {
+			ords = b.m.Raton(*e.Raton, b.e.Ahora())
+		} else {
+			ords = b.m.Tecla(e.Tecla, b.e.Ahora())
+		}
+		if fin, code, err := b.ordenes(ords); fin || err != nil {
 			return fin, code, err
 		}
 	}
@@ -297,6 +364,7 @@ func (b *bucle) ordenes(ords []Orden) (bool, int, error) {
 			err := b.e.Lanzador.Lanzar(o, func(f FinProceso) { b.enviar(evento{fin: &f}) })
 			if err != nil {
 				b.m.Termino(FinProceso{ID: o.ID, Code: -1, Ultima: strings.TrimPrefix(err.Error(), "hoom: ")}, b.e.Ahora())
+				b.leer(leeProyecto)
 			}
 		case AbrirEditor:
 			// the model looked at the path's form; through a symlink of the

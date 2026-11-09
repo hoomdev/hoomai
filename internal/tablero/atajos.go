@@ -221,8 +221,3 @@ var Atajos = []Atajo{
 	{Teclas: []Tecla{"q"}, Muestra: "q", Hace: "salir", Lugares: LugaresPaneles},
 	{Teclas: []Tecla{TeclaCtrlC}, Muestra: "ctrl-c", Hace: "salir", Lugares: LugaresTodos},
 }
-
-// AtajosDe are the rows of Atajos that work in l, in table order.
-func AtajosDe(l Lugar) []Atajo {
-	return nil
-}

@@ -14,7 +14,11 @@ import (
 	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
+	"github.com/hoomdev/hoomai/internal/costcmd"
+	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/statuscmd"
 	"github.com/hoomdev/hoomai/internal/tarjetacmd"
 )
 
@@ -41,12 +45,84 @@ func (d datosReales) Detalle(slug string) Detalle {
 	return d.detalle(slug, true)
 }
 
-func (d datosReales) Proyecto() Proyecto { return Proyecto{} }
+func (d datosReales) Proyecto() Proyecto {
+	var p Proyecto
+	p.Rama, p.Git = gitx.Rama(d.root)
+	check, last, err := statuscmd.CheckYVeredicto(d.root, d.base)
+	if err != nil {
+		p.Err = err
+		return p
+	}
+	p.Check, p.Veredicto = check, last
+	if p.Hoy, err = costcmd.HoyEn(d.root, time.Now()); err != nil {
+		p.Err = err
+		return p
+	}
+	doc, err := boardcmd.Doctor(d.root, d.base, d.blockOn, time.Now().UTC())
+	if err != nil {
+		p.Err = err
+		return p
+	}
+	p.Problemas = doc.Problems
+	return p
+}
 
-func (d datosReales) Hallazgos() Hallazgos { return Hallazgos{} }
+func (d datosReales) Hallazgos() Hallazgos {
+	items, _, err := finding.List(d.root, d.base, true)
+	return Hallazgos{Items: items, Err: err}
+}
+
+// maxArchivo is how much of a finding's file Archivo reads.
+const maxArchivo = 4 << 20
 
 func (d datosReales) Archivo(ruta string, linea int) Archivo {
-	return Archivo{Ruta: ruta, Linea: linea}
+	a := Archivo{Ruta: ruta, Linea: linea}
+	if fueraPorLaForma(ruta) {
+		a.Fuera = true
+		return a
+	}
+	rel := filepath.FromSlash(ruta)
+	fuera, err := fueraPorLosEnlaces(d.root, rel)
+	switch {
+	case fuera:
+		a.Fuera = true
+		return a
+	case err != nil:
+		a.Err = err
+		return a
+	}
+	r, err := os.OpenRoot(d.root)
+	if err != nil {
+		a.Err = err
+		return a
+	}
+	defer r.Close()
+	f, err := r.Open(rel)
+	if err != nil {
+		a.Err = err
+		return a
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, maxArchivo))
+	if err != nil {
+		a.Err = err
+		return a
+	}
+	lineas := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
+	if n := len(lineas); n > 0 && lineas[n-1] == "" {
+		lineas = lineas[:n-1]
+	}
+	desde, hasta := linea-ContextoArchivo, linea+ContextoArchivo
+	if linea <= 0 {
+		desde, hasta = 1, 2*ContextoArchivo+1
+	}
+	desde = max(1, desde)
+	hasta = min(hasta, len(lineas))
+	a.Desde = desde
+	if desde <= hasta {
+		a.Lineas = append([]string(nil), lineas[desde-1:hasta]...)
+	}
+	return a
 }
 
 func (d datosReales) detalle(slug string, historia bool) Detalle {
