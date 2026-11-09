@@ -219,12 +219,14 @@ func TestCA523_DatosDeRunSinNarracion(t *testing.T) {
 // ---------------------------------------------------------------- v2: proyecto, hallazgos y archivo
 
 // ttRunDeHoy escribe en root el sidecar de un run que empezo ahora (en la
-// hora local), con costo o sin el.
+// hora local), con costo o sin el. (CA-561, hallazgo 27e287: CreatedAt es
+// ahora mismo, no un segundo antes, que entre las 00:00:00 y las 00:00:01
+// caeria ayer.)
 func ttRunDeHoy(t *testing.T, root, id string, costo *float64) {
 	t.Helper()
 	ahora := time.Now()
 	meta := runcmd.Meta{ID: id, Provider: "claude", Role: "writer", Task: "datos", Dir: root,
-		CreatedAt: ahora.Add(-time.Second), EndedAt: ahora, Status: runcmd.StatusDone}
+		CreatedAt: ahora, EndedAt: ahora, Status: runcmd.StatusDone}
 	if costo != nil {
 		meta.Usage = &providers.Usage{InputTokens: 10, OutputTokens: 1, CostUSD: costo, Turns: 1}
 	}

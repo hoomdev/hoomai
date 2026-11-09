@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 	"testing/quick"
-	"time"
 
 	"github.com/hoomdev/hoomai/internal/tablero"
 )
@@ -513,5 +512,4 @@ func TestCA575_RunUnClicPorLaTerminal(t *testing.T) {
 	if code, _ := fin(t); code != 0 {
 		t.Fatalf("CA-575: q sale con 0: %d", code)
 	}
-	_ = time.Second
 }

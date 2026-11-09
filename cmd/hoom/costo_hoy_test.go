@@ -22,7 +22,7 @@ func TestCA561_HoomCostoHoy(t *testing.T) {
 	bin := qcHoom(t)
 	dir := vdtRepo(t, "")
 	costo := 0.5
-	hoy := ahora.Add(-time.Second)
+	hoy := ahora // CA-561, hallazgo 27e287: un segundo antes, entre las 00:00:00 y las 00:00:01, caeria ayer
 	cpsRun(t, dir, hoy.UTC().Format("20060102T150405")+"_c0f001", "alfa", "writer", "claude", hoy,
 		&providers.Usage{InputTokens: 10, OutputTokens: 1, CostUSD: &costo, Turns: 1})
 	cpsRun(t, dir, hoy.UTC().Format("20060102T150405")+"_c0f002", "alfa", "reviewer", "codex", hoy,

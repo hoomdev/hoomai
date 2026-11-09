@@ -6,7 +6,7 @@
 +------------------------+|                                                    |
 #[2] Tarjetas============#|  # spec: pasa el lint                              |
 # NECESITA TU DECISION   #|  ! aprobacion: sin tu firma                        |
-# > nuc-tenancy      #!-.#|  - pruebas: 0/5                                    |
+# > nuc-tenancy      #!-.#|  - pruebas: 1/2                                    |
 #   pagos-caidos     ##!-#|  . codigo: todavia no                              |
 # EN CURSO               #|                                                    |
 #   infra-api        ##-.#| Spec · 2 criterios · 1 sin prueba                  |

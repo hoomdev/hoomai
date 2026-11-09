@@ -238,6 +238,11 @@ func ttPantallas(t *testing.T, cfg tablero.Config) map[string][]string {
 	foto := func(nombre string, m *tablero.Modelo) { out[nombre] = m.Pantalla() }
 	m := ttModeloDorado(cfg)
 	foto("paneles", m)
+	// v1 CA-534, hallazgo b0c379: una fila roja (pagos-caidos, interrumpida)
+	// elegida en el panel con el foco: su slug es la pieza 7;31 entre las 7
+	r := ttModeloDorado(cfg)
+	r.Tecla("j", ttAhora)
+	foto("fila roja elegida", r)
 	for _, k := range []tablero.Tecla{"1", "3", "4", "0", "2"} {
 		m.Tecla(k, ttAhora)
 		foto("foco "+string(k), m)
@@ -342,8 +347,25 @@ func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 		for i := range p {
 			if ttSGR.MatchString(p[i]) {
 				conSGR++
-				if !strings.HasSuffix(strings.TrimRight(p[i], " "), "\x1b[0m") && strings.Count(p[i], "\x1b[0m") == 0 {
-					t.Fatalf("CA-576: con color cada pieza con estilo se cierra con \\x1b[0m: %q", p[i])
+				// v1 CA-534, hallazgo b0c379: cada pieza se abre y se cierra:
+				// en la linea, las SGR alternan apertura y "\x1b[0m", tantos
+				// resets como aperturas, y la linea termina cerrada
+				abierta, aperturas, resets := false, 0, 0
+				for _, sgr := range ttSGR.FindAllString(p[i], -1) {
+					if sgr == "\x1b[0m" {
+						if !abierta {
+							t.Fatalf("CA-576 (hallazgo b0c379): la linea %d de %q cierra una pieza que no abrio: %q", i+1, nombre, p[i])
+						}
+						abierta, resets = false, resets+1
+						continue
+					}
+					if abierta {
+						t.Fatalf("CA-576 (hallazgo b0c379): la linea %d de %q abre una pieza sin cerrar la anterior: %q", i+1, nombre, p[i])
+					}
+					abierta, aperturas = true, aperturas+1
+				}
+				if abierta || aperturas != resets {
+					t.Fatalf("CA-576 (hallazgo b0c379): la linea %d de %q tiene %d aperturas y %d resets: %q", i+1, nombre, aperturas, resets, p[i])
 				}
 			}
 			sin := ttSinSGR(p[i])
@@ -366,6 +388,20 @@ func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 	}
 	if conSGR == 0 {
 		t.Fatalf("CA-576: con color alguna linea lleva una secuencia SGR")
+	}
+	// v1 CA-534, hallazgo b0c379: la fila roja elegida con el foco lleva su
+	// slug como la pieza 7;31 (la barra en video inverso y su color)
+	roja := 0
+	for _, l := range color["fila roja elegida"] {
+		if strings.Contains(ttSinSGR(l), " pagos-caidos ") && strings.Contains(l, "\x1b[7") {
+			roja++
+			if ttEstiloDe(l, "pagos-caidos") != "\x1b[7;31m" {
+				t.Fatalf("CA-552, CA-576 (hallazgo b0c379): la fila roja elegida con el foco lleva el slug en 7;31: %q", l)
+			}
+		}
+	}
+	if roja != 1 {
+		t.Fatalf("CA-552 (hallazgo b0c379): la pantalla tiene una fila elegida de pagos-caidos en video inverso: %d\n%s", roja, strings.Join(color["fila roja elegida"], "\n"))
 	}
 	for _, nombre := range []string{"paneles", "pedir", "firma", "ayuda"} {
 		n := 0

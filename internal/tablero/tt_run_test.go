@@ -588,8 +588,47 @@ func TestCA533_SalirConQYCtrlC(t *testing.T) {
 	}
 }
 
-// CA-533: cada cuadro es "\x1b[H" y las lineas de Pantalla, cada una con
-// "\x1b[K", unidas por "\r\n": el ultimo es la pantalla del modelo con la
+// ttCuadro es el cuadro de Run para esas lineas (CA-533, hallazgo 55281d,
+// decision del orquestador): "\x1b[H" y las lineas unidas por "\r\n", cada
+// una seguida de "\x1b[K" solo cuando ocupa menos de ancho celdas (sin sus
+// SGR): despues de una que llega a la ultima columna, "\x1b[K" borraria esa
+// celda.
+func ttCuadro(lineas []string, ancho int) string {
+	var b strings.Builder
+	b.WriteString("\x1b[H")
+	for i, l := range lineas {
+		if i > 0 {
+			b.WriteString("\r\n")
+		}
+		b.WriteString(l)
+		if ttCeldas(ttSinSGR(l)) < ancho {
+			b.WriteString("\x1b[K")
+		}
+	}
+	return b.String()
+}
+
+// ttSinBorrarLaUltimaColumna exige que en la salida ninguna linea de un cuadro
+// que ocupa ancho celdas vaya seguida de "\x1b[K" (CA-533, hallazgo 55281d).
+func ttSinBorrarLaUltimaColumna(t *testing.T, salida string, ancho int) {
+	t.Helper()
+	for _, cuadro := range strings.Split(salida, "\x1b[H")[1:] {
+		for _, l := range strings.Split(cuadro, "\r\n") {
+			i := strings.Index(l, "\x1b[K")
+			if i < 0 {
+				continue
+			}
+			if c := ttCeldas(ttSinSGR(l[:i])); c >= ancho {
+				t.Fatalf("CA-533 (hallazgo 55281d): una linea de %d celdas (llega a la ultima columna) no lleva \\x1b[K despues: %q", c, l)
+			}
+		}
+	}
+}
+
+// CA-533: cada cuadro es "\x1b[H" y las lineas de Pantalla unidas por
+// "\r\n", cada una seguida de "\x1b[K" solo cuando ocupa menos de Ancho
+// celdas (CA-533, hallazgo 55281d: despues de una que llega a la ultima
+// columna no va, que en xterm borra esa celda): el ultimo es la pantalla del modelo con la
 // misma configuracion (proyecto del hoom.yaml, tamano de la terminal, sin
 // color con NO_COLOR, ASCII sin locale UTF-8, el mouse pedido sin
 // HOOM_MOUSE, el editor vi sin VISUAL ni EDITOR) y las mismas lecturas (el
@@ -609,10 +648,19 @@ func TestCA533_ElCuadroEsLaPantallaDelModelo(t *testing.T) {
 		return strings.Join(w.ultimoMarco(), "\n") == strings.Join(quiere, "\n")
 	})
 	salida := w.r.texto("escribe")
-	cuadro := "\x1b[H" + strings.Join(quiere, "\x1b[K\r\n") + "\x1b[K"
-	if !strings.Contains(salida, cuadro) {
-		t.Fatalf("CA-533: el cuadro va entero, con \\x1b[K en cada linea y \\r\\n entre lineas")
+	llenas := 0
+	for _, l := range quiere {
+		if ttCeldas(ttSinSGR(l)) == 80 {
+			llenas++
+		}
 	}
+	if llenas < 20 {
+		t.Fatalf("CA-533 (guarda): a 80x24 las lineas de los paneles llegan a la ultima columna: %d", llenas)
+	}
+	if cuadro := ttCuadro(quiere, 80); !strings.Contains(salida, cuadro) {
+		t.Fatalf("CA-533 (hallazgo 55281d): el cuadro va entero, con \\x1b[K solo despues de una linea de menos de 80 celdas y \\r\\n entre lineas:\n%q", ttCola(salida, 600))
+	}
+	ttSinBorrarLaUltimaColumna(t, salida, 80)
 	w.term.mandar("q")
 	fin(t)
 }

@@ -263,7 +263,9 @@ func TestCA562_LecturasQueFallan(t *testing.T) {
 
 // CA-530, CA-562: una lectura del tablero que falla deja la ultima pantalla
 // de [2] y la linea de mensajes dice "no se pudo leer el tablero: <error>"
-// hasta que una lectura funcione.
+// hasta que una lectura funcione. (v1 CA-530, hallazgo c91cb9: la pantalla
+// entera menos sus dos ultimas lineas queda igual, con la seleccion de [3] en
+// su segunda fila y el foco ahi.)
 func TestCA530_CA562_LecturaDelTableroQueFalla(t *testing.T) {
 	m := ttModelo(ttConfig(120, 24, false), ttTableroPrincipal())
 	antes := ttCajaDe(t, "CA-530", m, "[2]").ttTexto()
@@ -271,6 +273,21 @@ func TestCA530_CA562_LecturaDelTableroQueFalla(t *testing.T) {
 	ttDiceMensaje(t, "CA-530", "falla", m, false, "no se pudo leer el tablero: disco roto")
 	if got := ttCajaDe(t, "CA-530", m, "[2]").ttTexto(); strings.Join(got, "|") != strings.Join(antes, "|") {
 		t.Fatalf("CA-530: la pantalla se queda con el ultimo tablero: %q", got)
+	}
+	// v1 CA-530, hallazgo c91cb9: la pantalla entera menos sus dos ultimas
+	// lineas (a la misma hora, para que nada cuente tiempo), con el foco en
+	// [2] y con el foco en [3] y su segunda fila elegida
+	for _, ks := range [][]tablero.Tecla{nil, {"3", "j"}} {
+		f := ttModelo(ttConfig(120, 24, false), ttTableroPrincipal())
+		ttTeclas(f, ks...)
+		elegida, foco := f.Elegida(), f.Foco()
+		p0 := f.Pantalla()
+		f.Leer(tablero.Lectura{Ahora: ttAhora, Err: errors.New("disco roto")})
+		p1 := f.Pantalla()
+		if strings.Join(p1[:len(p1)-2], "\n") != strings.Join(p0[:len(p0)-2], "\n") || f.Elegida() != elegida || f.Foco() != foco {
+			t.Fatalf("CA-530 (hallazgo c91cb9, teclas %q): una lectura que falla deja la pantalla entera menos las dos ultimas lineas (elegida %q, era %q); antes:\n%s\ndespues:\n%s",
+				ks, f.Elegida(), elegida, strings.Join(p0, "\n"), strings.Join(p1, "\n"))
+		}
 	}
 	m.Tic(ttAhora.Add(time.Minute))
 	ttDiceMensaje(t, "CA-530", "un minuto despues", m, false, "no se pudo leer el tablero: disco roto")

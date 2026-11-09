@@ -161,13 +161,18 @@ func ttOpcionElegida(ops []string) string {
 }
 
 // ttFoco es la etiqueta del campo del modal Pedir con la marca: Pedido,
-// Provider, Modelo, Esfuerzo, Tope, Tiempo limite, o "botones".
+// Provider, Modelo, Esfuerzo, Tope, Tiempo limite, "botones" (la parada del
+// boton de la accion) o "cancelar" (la de Cancelar: la parada es el boton
+// elegido; CA-565, hallazgo 3aa4be).
 func ttFoco(mc ttModalCaja) string {
 	l := mc.ttMarcada()
 	for _, et := range []string{"Pedido", "Provider", "Modelo", "Esfuerzo", "Tope", "Tiempo limite", "Tiempo límite"} {
 		if strings.HasPrefix(l, et) {
 			return et
 		}
+	}
+	if strings.Contains(l, "[ Cancelar ]") {
+		return "cancelar"
 	}
 	if strings.Contains(l, "[ ") {
 		return "botones"
@@ -256,61 +261,109 @@ func TestCA565_ElFondoGris(t *testing.T) {
 	}
 }
 
+// ttAtras es la pantalla de atras del modal mc: cada linea con las celdas del
+// modal en blanco, sin las dos ultimas (la de mensajes y la de teclas).
+func ttAtras(m *tablero.Modelo, mc ttModalCaja) string {
+	ls := ttLimpia(m)
+	var out []string
+	for i, l := range ls[:len(ls)-2] {
+		c := ttCeldasDe(l)
+		if i >= mc.Fila && i < mc.Fila+mc.Alto {
+			for j := mc.Col; j < mc.Col+mc.Ancho && j < len(c); j++ {
+				c[j] = " "
+			}
+		}
+		out = append(out, strings.Join(c, ""))
+	}
+	return strings.Join(out, "\n")
+}
+
 // CA-565: mientras hay un modal abierto las teclas van solo a el: las de los
 // paneles (1..4, 0, j, k, /, x, q, las de accion) no mueven nada atras; esc
 // lo cierra sin ejecutar nada (con una lista abierta, cierra solo la lista).
+// (CA-565, hallazgo becef7: despues de cada tecla el modal es el mismo y la
+// pantalla de atras no cambio; u lanza solo desde Acciones, donde las teclas
+// de accion hacen lo que hacen afuera; a, R, I y n no abren otro modal
+// encima; ctrl-c con el modal abierto, antes de cerrarlo, sale; y en Pedir,
+// en un selector, en los botones y con la lista abierta, 1 3 4 0 no mueven el
+// foco de atras.)
 func TestCA565_LasTeclasVanAlModal(t *testing.T) {
-	for _, abrir := range []struct {
-		k     tablero.Tecla
-		modal tablero.Modal
-		a     []boardcmd.Action
-	}{
-		{"w", tablero.ModalPedir, []boardcmd.Action{ttAccionWriter()}},
-		{"A", tablero.ModalFirma, []boardcmd.Action{ttAccionAprobar()}},
-		{"s", tablero.ModalGuardar, []boardcmd.Action{ttAccionGuardar(true, "", "a.go")}},
-		{tablero.TeclaEspacio, tablero.ModalAcciones, []boardcmd.Action{ttAccionWriter(), ttAccionAprobar()}},
-		{"?", tablero.ModalAyuda, []boardcmd.Action{ttAccionWriter()}},
-	} {
-		m := ttAbrirModal(t, ttAncho(), abrir.k, abrir.modal, abrir.a...)
-		foco, elegida := m.Foco(), m.Elegida()
-		for _, k := range []tablero.Tecla{"1", "3", "4", "0", "/", "x", "q", "u", "n", "a", "R", "I"} {
-			if abrir.modal == tablero.ModalPedir {
-				break // en el Pedido, las letras son texto
+	type caso struct {
+		nombre string
+		modal  tablero.Modal
+		abrir  func() *tablero.Modelo
+		teclas []tablero.Tecla
+	}
+	todas := []tablero.Tecla{"1", "3", "4", "0", "/", "x", "q", "u", "n", "a", "R", "I"}
+	digitos := []tablero.Tecla{"1", "3", "4", "0"}
+	abrir := func(k tablero.Tecla, modal tablero.Modal, a ...boardcmd.Action) func() *tablero.Modelo {
+		return func() *tablero.Modelo { return ttAbrirModal(t, ttAncho(), k, modal, a...) }
+	}
+	pedirEn := func(ks ...tablero.Tecla) func() *tablero.Modelo {
+		return func() *tablero.Modelo {
+			m := ttPedir(t, "w", ttAccionWriter())
+			ttTeclas(m, ks...)
+			return m
+		}
+	}
+	casos := []caso{
+		{"Firma", tablero.ModalFirma, abrir("A", tablero.ModalFirma, ttAccionAprobar()), todas},
+		{"Guardar", tablero.ModalGuardar, abrir("s", tablero.ModalGuardar, ttAccionGuardar(true, "", "a.go")), todas},
+		{"Acciones", tablero.ModalAcciones, abrir(tablero.TeclaEspacio, tablero.ModalAcciones, ttAccionWriter(), ttAccionAprobar()), todas},
+		{"Ayuda", tablero.ModalAyuda, abrir("?", tablero.ModalAyuda, ttAccionWriter()), todas},
+		{"Pedir, en un selector", tablero.ModalPedir, pedirEn(tablero.TeclaTab, tablero.TeclaTab), digitos},
+		{"Pedir, en los botones", tablero.ModalPedir, pedirEn(tablero.TeclaEnter), digitos},
+		{"Pedir, con la lista abierta", tablero.ModalPedir, pedirEn(tablero.TeclaTab, tablero.TeclaEnter), digitos}, // la de Provider, angosta
+	}
+	for _, c := range casos {
+		ca := "CA-565 (hallazgo becef7, " + c.nombre + ")"
+		m := c.abrir()
+		if c.nombre == "Pedir, con la lista abierta" && m.Lugar() != tablero.LugarPedirLista {
+			t.Fatalf("%s: enter en Provider abre su lista: %q", ca, m.Lugar())
+		}
+		mc := ttModal(t, ca, m, 200)
+		atras, foco, elegida, lugar := ttAtras(m, mc), m.Foco(), m.Elegida(), m.Lugar()
+		for _, k := range c.teclas {
+			if c.modal == tablero.ModalAcciones && (k == "u" || k == "n" || k == "a" || k == "R" || k == "I" || ttEnLaTabla(lugar, k)) {
+				continue // en Acciones la tecla de una accion (y u) hace lo que hace afuera (doc.go)
 			}
 			os := m.Tecla(k, ttAhora)
-			if len(ttLanzares(os)) != 0 && k != "u" {
-				t.Fatalf("CA-565: con %q abierto %q no lanza nada: %#v", abrir.modal, k, os)
+			if len(os) != 0 {
+				t.Fatalf("%s: con el modal abierto %q no da ordenes (q no sale, u no lanza): %#v", ca, k, os)
 			}
-			if k == "q" && len(os) != 0 {
-				t.Fatalf("CA-565: con un modal abierto q no sale: %#v", os)
+			if m.Modal() != c.modal {
+				t.Fatalf("%s: %q no cambia el modal abierto (%q) ni abre otro encima: %q\n%s", ca, k, c.modal, m.Modal(), ttPantalla(m))
+			}
+			if c.modal == tablero.ModalPedir && m.Lugar() != lugar {
+				t.Fatalf("%s: %q no esta en las teclas de %q y la cambio a %q", ca, k, lugar, m.Lugar())
+			}
+			if m.Foco() != foco || m.Elegida() != elegida {
+				t.Fatalf("%s: con el modal abierto %q no mueve nada atras: foco %d, elegida %q", ca, k, int(m.Foco()), m.Elegida())
+			}
+			if a := ttAtras(m, ttModal(t, ca, m, 200)); a != atras {
+				t.Fatalf("%s: con el modal abierto %q no cambia la pantalla de atras; antes:\n%s\ndespues:\n%s", ca, k, atras, a)
 			}
 		}
-		if m.Foco() != foco || m.Elegida() != elegida {
-			t.Fatalf("CA-565: con %q abierto nada se movio atras: foco %d, elegida %q", abrir.modal, int(m.Foco()), m.Elegida())
+		// ctrl-c con el modal abierto, antes del esc: sale
+		if os := m.Tecla(tablero.TeclaCtrlC, ttAhora); len(os) != 1 || os[0] != tablero.Orden(tablero.Salir{}) {
+			t.Fatalf("%s: ctrl-c con el modal abierto sale (sin cerrarlo antes): %#v", ca, os)
 		}
-		ttSinOrdenes(t, "CA-565", "esc", m.Tecla(tablero.TeclaEsc, ttAhora))
-		if m.Modal() != tablero.SinModal || m.Corriendo() != 0 {
-			t.Fatalf("CA-565: esc cierra %q sin ejecutar nada: %q", abrir.modal, m.Modal())
+		// esc, en un modal recien abierto, lo cierra sin ejecutar nada (con
+		// la lista abierta, cierra solo la lista)
+		m = c.abrir()
+		ttSinOrdenes(t, ca, "esc", m.Tecla(tablero.TeclaEsc, ttAhora))
+		if c.nombre == "Pedir, con la lista abierta" {
+			if m.Modal() != tablero.ModalPedir || m.Lugar() != tablero.LugarPedirSelector {
+				t.Fatalf("%s: esc con una lista abierta cierra solo la lista: %q %q", ca, m.Modal(), m.Lugar())
+			}
+			continue
+		}
+		if m.Modal() != tablero.SinModal || m.Corriendo() != 0 || len(m.Registro()) != 0 {
+			t.Fatalf("%s: esc cierra %q sin ejecutar nada: %q", ca, c.modal, m.Modal())
 		}
 		if os := m.Tecla(tablero.TeclaCtrlC, ttAhora); len(os) != 1 || os[0] != tablero.Orden(tablero.Salir{}) {
-			t.Fatalf("CA-565: ctrl-c sale siempre: %#v", os)
+			t.Fatalf("%s: ctrl-c sale siempre: %#v", ca, os)
 		}
-	}
-	// ctrl-c tambien con un modal abierto y con una lista abierta
-	m := ttPedir(t, "w", ttAccionWriter())
-	m.Tecla(tablero.TeclaTab, ttAhora)
-	m.Tecla(tablero.TeclaTab, ttAhora)
-	m.Tecla(tablero.TeclaEnter, ttAhora)
-	if m.Lugar() != tablero.LugarPedirLista {
-		t.Fatalf("CA-568: enter en Modelo abre su lista: %q", m.Lugar())
-	}
-	ttSinOrdenes(t, "CA-565", "esc con la lista abierta", m.Tecla(tablero.TeclaEsc, ttAhora))
-	if m.Modal() != tablero.ModalPedir || m.Lugar() != tablero.LugarPedirSelector {
-		t.Fatalf("CA-565: esc con una lista abierta cierra solo la lista: %q %q", m.Modal(), m.Lugar())
-	}
-	m.Tecla(tablero.TeclaEnter, ttAhora)
-	if os := m.Tecla(tablero.TeclaCtrlC, ttAhora); len(os) != 1 || os[0] != tablero.Orden(tablero.Salir{}) {
-		t.Fatalf("CA-565: ctrl-c con una lista abierta sale: %#v", os)
 	}
 }
 
@@ -585,11 +638,24 @@ func TestCA567_CA526_ElModalDeAcciones(t *testing.T) {
 	cfg.Color = true
 	g := ttModelo(cfg, ttTablero(ttInfraAPI(false)))
 	g.Tecla(tablero.TeclaEspacio, ttAhora)
-	for _, s := range []string{"s Guardar  hoom guardar", "  Volver a lanzar  sin verbo"} {
+	// CA-567, hallazgo 7849e3: cada linea gris tiene que estar (una por
+	// texto) y va en gris; la habilitada no
+	for _, c := range []struct {
+		s    string
+		gris bool
+	}{{"s Guardar  hoom guardar", true}, {"  Volver a lanzar  sin verbo", true}, {"w Pedir al writer  hoom pedir writer", false}} {
+		vistas := 0
 		for _, x := range g.Pantalla() {
-			if strings.Contains(ttSinSGR(x), s) && ttEstiloDe(x, strings.TrimSpace(s)) != "\x1b[90m" {
-				t.Fatalf("CA-567: %q va en gris: %q", s, x)
+			if !strings.Contains(ttSinSGR(x), c.s) {
+				continue
 			}
+			vistas++
+			if gris := ttEstiloDe(x, strings.TrimSpace(c.s)) == "\x1b[90m"; gris != c.gris {
+				t.Fatalf("CA-567: %q va en gris: %v: %q", c.s, c.gris, x)
+			}
+		}
+		if vistas != 1 {
+			t.Fatalf("CA-567 (hallazgo 7849e3): la linea %q esta una vez en Acciones, esta %d:\n%s", c.s, vistas, ttPantalla(g))
 		}
 	}
 }
@@ -696,22 +762,39 @@ func TestCA568_CA527_CA528_LanzarSinCambios(t *testing.T) {
 }
 
 // CA-568, CA-527: tab y shift-tab pasan por Pedido, Provider, Modelo,
-// Esfuerzo, Tope, Tiempo limite y los botones, en ciclo.
+// Esfuerzo, Tope, Tiempo limite, el boton de la accion y Cancelar, en ciclo.
+// (CA-565, hallazgo 3aa4be, decision del orquestador: los dos botones son dos
+// paradas; desde la accion tab elige "[ Cancelar ]" y otro tab vuelve al
+// Pedido; shift-tab desde el primer campo para en Cancelar.)
 func TestCA568_CA527_FocoEnCiclo(t *testing.T) {
 	m := ttPedir(t, "w", ttAccionWriter())
-	orden := []string{"Provider", "Modelo", "Esfuerzo", "Tope", "Tiempo limite", "botones", "Pedido"}
+	orden := []string{"Provider", "Modelo", "Esfuerzo", "Tope", "Tiempo limite", "botones", "cancelar", "Pedido"}
 	for i, q := range orden {
 		ttSinOrdenes(t, "CA-568", "tab", m.Tecla(tablero.TeclaTab, ttAhora))
 		if f := ttFoco(ttMC(t, m)); f != q {
-			t.Fatalf("CA-568: el tab numero %d deja el foco en %q, esta en %q", i+1, q, f)
+			t.Fatalf("CA-568: el tab numero %d deja el foco en %q, esta en %q\n%s", i+1, q, f, ttPantalla(m))
+		}
+		if (q == "botones" || q == "cancelar") && m.Lugar() != tablero.LugarPedirBotones {
+			t.Fatalf("CA-565 (hallazgo 3aa4be): las dos paradas de los botones son LugarPedirBotones: %q", m.Lugar())
 		}
 	}
 	for i := len(orden) - 2; i >= -1; i-- {
 		m.Tecla(tablero.TeclaShiftTab, ttAhora)
 		q := orden[(i+len(orden))%len(orden)]
 		if f := ttFoco(ttMC(t, m)); f != q {
-			t.Fatalf("CA-568: shift-tab deja el foco en %q, esta en %q", q, f)
+			t.Fatalf("CA-568: shift-tab deja el foco en %q, esta en %q\n%s", q, f, ttPantalla(m))
 		}
+	}
+	// CA-565, hallazgo 3aa4be: en la parada de Cancelar, enter cierra sin
+	// ordenes; desde ahi tab vuelve al Pedido
+	m = ttPedir(t, "w", ttAccionWriter())
+	m.Tecla(tablero.TeclaShiftTab, ttAhora)
+	if f := ttFoco(ttMC(t, m)); f != "cancelar" {
+		t.Fatalf("CA-565 (hallazgo 3aa4be): shift-tab desde el Pedido para en [ Cancelar ]: %q\n%s", f, ttPantalla(m))
+	}
+	ttSinOrdenes(t, "CA-565", "enter en Cancelar", m.Tecla(tablero.TeclaEnter, ttAhora))
+	if m.Modal() != tablero.SinModal || len(m.Registro()) != 0 {
+		t.Fatalf("CA-565 (hallazgo 3aa4be): enter en Cancelar cierra el modal sin ejecutar nada: %q", m.Modal())
 	}
 	// los lugares del modal
 	m = ttPedir(t, "w", ttAccionWriter())
@@ -1216,7 +1299,9 @@ func TestCA568_CA527_ElReviewerNoTienePedido(t *testing.T) {
 	if got := mc.ttComando(); got != "hoom pedir reviewer tarjeta" {
 		t.Fatalf("CA-568: el reviewer no lleva -m ni --timeout: %q", got)
 	}
-	for _, q := range []string{"Modelo", "Esfuerzo", "Tope", "botones", "Provider"} {
+	// CA-565, hallazgo 3aa4be: desde el boton de la accion, tab pasa primero
+	// por [ Cancelar ] y despues vuelve al primer campo
+	for _, q := range []string{"Modelo", "Esfuerzo", "Tope", "botones", "cancelar", "Provider"} {
 		m.Tecla(tablero.TeclaTab, ttAhora)
 		if f := ttFoco(ttMC(t, m)); f != q {
 			t.Fatalf("CA-568: en el reviewer tab deja el foco en %q (el Tiempo limite gris se saltea): %q", q, f)
@@ -1224,8 +1309,9 @@ func TestCA568_CA527_ElReviewerNoTienePedido(t *testing.T) {
 	}
 	m.Tecla(tablero.TeclaTab, ttAhora)
 	m.Tecla(tablero.TeclaDer, ttAhora) // Modelo: sonnet
-	m.Tecla(tablero.TeclaShiftTab, ttAhora)
-	m.Tecla(tablero.TeclaShiftTab, ttAhora) // los botones
+	for i := 0; i < 8 && ttFoco(ttMC(t, m)) != "botones"; i++ {
+		m.Tecla(tablero.TeclaTab, ttAhora) // hasta el boton de la accion
+	}
 	l := ttUnaLanzar(t, "CA-568", "enter", m.Tecla(tablero.TeclaEnter, ttAhora))
 	ttMismosArgs(t, "CA-568", "reviewer", l.Args, []string{"pedir", "reviewer", "tarjeta", "--model", "sonnet"})
 	if l.Rol != "reviewer" {
@@ -1458,14 +1544,48 @@ func TestCA569_GrisesConColor(t *testing.T) {
 	m := ttAbrirModal(t, cfg, "w", tablero.ModalPedir, a)
 	m.Tecla(tablero.TeclaTab, ttAhora)
 	m.Tecla(tablero.TeclaDer, ttAhora)
-	for _, x := range m.Pantalla() {
-		s := ttSinSGR(x)
-		if strings.Contains(s, "Modelo         < del provider >") && ttEstiloDe(x, "< del provider >") != "\x1b[90m" {
-			t.Fatalf("CA-569: el selector gris va en gris: %q", x)
+	// CA-569, hallazgo 7849e3: cada linea tiene que estar (una vez), y su
+	// texto va en gris: los selectores grises, el origen de Provider
+	// ("elegido") y el why que baja a su linea
+	gris := func(que, linea, texto string) {
+		t.Helper()
+		vistas := 0
+		for _, x := range m.Pantalla() {
+			if !strings.Contains(ttSinSGR(x), linea) {
+				continue
+			}
+			vistas++
+			if ttEstiloDe(x, texto) != "\x1b[90m" {
+				t.Fatalf("CA-569: %s va en gris: %q", que, x)
+			}
 		}
-		if strings.Contains(s, "Tope           < sin tope >") && ttEstiloDe(x, "< sin tope >") != "\x1b[90m" {
-			t.Fatalf("CA-571: el Tope gris va en gris: %q", x)
+		if vistas != 1 {
+			t.Fatalf("CA-569 (hallazgo 7849e3): %s esta una vez en la pantalla (%q), esta %d:\n%s", que, linea, vistas, ttPantalla(m))
 		}
+	}
+	gris("el selector gris", "Modelo         < del provider >", "< del provider >")
+	gris("el Tope gris", "Tope           < sin tope >", "< sin tope >")
+	gris("el origen de Provider", "Provider       < opencode >", "elegido")
+	gris("el why en su linea", strings.Repeat(" ", 15)+"hoom no le pasa el modelo a opencode", "hoom no le pasa el modelo a opencode")
+	// CA-569, hallazgo 7849e3: la linea de ayuda, con el foco en Esfuerzo
+	// de claude, va en gris
+	h := ttAbrirModal(t, cfg, "w", tablero.ModalPedir, ttAccionWriter())
+	ttTeclas(h, tablero.TeclaTab, tablero.TeclaTab, tablero.TeclaTab) // Esfuerzo: high
+	ayuda := ttAyudaSel(ttMC(t, h))
+	if !strings.HasPrefix(ayuda, "high: ") {
+		t.Fatalf("CA-569 (guarda): con el foco en Esfuerzo la ayuda es 'high: <su linea>': %q", ayuda)
+	}
+	vistas := 0
+	for _, x := range h.Pantalla() {
+		if strings.Contains(ttSinSGR(x), strings.Repeat(" ", 15)+ayuda) {
+			vistas++
+			if ttEstiloDe(x, ayuda) != "\x1b[90m" {
+				t.Fatalf("CA-569 (hallazgo 7849e3): la linea de ayuda va en gris: %q", x)
+			}
+		}
+	}
+	if vistas != 1 {
+		t.Fatalf("CA-569 (hallazgo 7849e3): la linea de ayuda esta una vez: %d\n%s", vistas, ttPantalla(h))
 	}
 }
 
@@ -1717,6 +1837,26 @@ func TestCA574_CA529_Guardar(t *testing.T) {
 	ttMismosArgs(t, "CA-574", "guardar", l.Args, []string{"guardar", "tarjeta"})
 	if l.Rol != "" {
 		t.Fatalf("CA-574: guardar no es un trabajo de rol: %#v", l)
+	}
+	// CA-574, hallazgo 4386e1: → elige [ Cancelar ] (la linea de botones lo
+	// dice) y enter ahi cierra sin ninguna orden; tab tambien elige el otro
+	for _, k := range []tablero.Tecla{tablero.TeclaDer, tablero.TeclaTab} {
+		m = ttModelo(ttAncho(), ttTablero(c))
+		m.Tecla("s", ttAhora)
+		ttSinOrdenes(t, "CA-574", "elegir Cancelar", m.Tecla(k, ttAhora))
+		botones := ""
+		for _, x := range ttMC(t, m).Textos {
+			if strings.Contains(x, "Cancelar") {
+				botones = strings.TrimSpace(x)
+			}
+		}
+		if botones != "Guardar     [ Cancelar ]" {
+			t.Fatalf("CA-574 (hallazgo 4386e1): %q elige Cancelar: la linea de botones es '  Guardar     [ Cancelar ]' centrada: %q", k, botones)
+		}
+		ttSinOrdenes(t, "CA-574 (hallazgo 4386e1)", "enter sobre Cancelar", m.Tecla(tablero.TeclaEnter, ttAhora))
+		if m.Modal() != tablero.SinModal || len(m.Registro()) != 0 || m.Corriendo() != 0 {
+			t.Fatalf("CA-574 (hallazgo 4386e1): enter sobre Cancelar cierra Guardar sin guardar: %q %#v", m.Modal(), m.Registro())
+		}
 	}
 	// sin rutas en la accion: las sin guardar de la tarjeta
 	c = ttTarjetaCon(ttAccionGuardar(true, ""))
@@ -1987,6 +2127,26 @@ func TestCA565_CA568_PedirChicoConservaElComandoYLosBotones(t *testing.T) {
 	for _, l := range mc.Textos {
 		if l == "" {
 			t.Fatalf("CA-565: las lineas vacias se van antes que el Pedido y los selectores:\n%s", todo)
+		}
+		// CA-565, hallazgo 28a616: la linea de ayuda de los selectores (15
+		// espacios y el texto) es lo primero que se va
+		if strings.HasPrefix(l, strings.Repeat(" ", 15)) {
+			t.Fatalf("CA-565 (hallazgo 28a616): a 60x15 la linea de ayuda de los selectores se va primero: %q\n%s", l, todo)
+		}
+	}
+	// CA-568, hallazgo 28a616: queda la linea del Pedido con el cursor (la
+	// ultima de un pedido de 120 letras partido a 46 celdas, con "_" al final)
+	if !strings.Contains(todo, "| "+a.Pedido[92:]+"_") {
+		t.Fatalf("CA-568 (hallazgo 28a616): a 60x15 queda la linea del Pedido con el cursor (%q):\n%s", a.Pedido[92:]+"_", todo)
+	}
+	// CA-568, hallazgo 28a616: las palabras de origen se van antes que los
+	// selectores (ninguno es gris, asi que no queda nada despues del valor)
+	for _, et := range []string{"Provider", "Modelo", "Esfuerzo", "Tope", "Tiempo limite"} {
+		if o := mc.ttOrigen(et); o != "" {
+			t.Fatalf("CA-568 (hallazgo 28a616): a 60x15 el origen de %s no entra y se va: %q\n%s", et, o, todo)
+		}
+		if v := mc.ttValor(et); !strings.HasPrefix(v, "<") {
+			t.Fatalf("CA-568 (hallazgo 28a616): a 60x15 el selector %s conserva su valor con flechas: %q", et, v)
 		}
 	}
 	m.Tecla(tablero.TeclaEnter, ttAhora)

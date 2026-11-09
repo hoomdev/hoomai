@@ -20,12 +20,14 @@ import (
 )
 
 // ttHostil lleva lo que una tarjeta o un agente puede meter en un texto:
-// OSC 52, CSI 2J, BEL, CR, un C1 (U+009B), U+202E, un tab, DEL, U+2066 y
-// U+200E. ttNeutro es como lo muestra la pantalla: el tab es un espacio y
-// cada otro control un "?".
+// OSC 52, CSI 2J, BEL, CR, un C1 (U+009B), U+202E, un tab, DEL, U+2066,
+// U+200E y una secuencia con forma de SGR (\x1b[7m, que una pantalla con
+// color no puede confundir con las suyas; CA-534, CA-576, hallazgo f2d7fe).
+// ttNeutro es como lo muestra la pantalla: el tab es un espacio y cada otro
+// control un "?".
 const (
-	ttHostil = "a\x1b]52;c;aGk=\ab\x1b[2Jc\x07d\re\u009bf\u202eg\th\x7fi\u2066j\u200ek"
-	ttNeutro = "a?]52;c;aGk=?b?[2Jc?d?e?f?g h?i?j?k"
+	ttHostil = "a\x1b]52;c;aGk=\ab\x1b[2Jc\x07d\re\u009bf\u202eg\th\x7fi\u2066j\u200ekl\x1b[7mm"
+	ttNeutro = "a?]52;c;aGk=?b?[2Jc?d?e?f?g h?i?j?kl?[7mm"
 )
 
 func ttEsControl(r rune) bool {
@@ -39,12 +41,16 @@ func ttEsControl(r rune) bool {
 }
 
 // ttSinControles exige que ninguna linea lleve un control (con color, fuera
-// de las SGR) y devuelve la pantalla sin las SGR.
-func ttSinControles(t *testing.T, ca, donde string, m *tablero.Modelo) string {
+// de las SGR; sin color, ni una SGR) y devuelve la pantalla sin las SGR
+// (CA-534, CA-576, hallazgo f2d7fe: las SGR se quitan solo cuando la
+// pantalla es con color).
+func ttSinControles(t *testing.T, ca, donde string, m *tablero.Modelo, color bool) string {
 	t.Helper()
 	var ls []string
 	for i, l := range m.Pantalla() {
-		l = ttSinSGR(l)
+		if color {
+			l = ttSinSGR(l)
+		}
 		for _, r := range l {
 			if ttEsControl(r) {
 				t.Fatalf("%s: %s: la linea %d lleva el control %U (solo puede haber SGR): %q", ca, donde, i+1, r, l)
@@ -94,7 +100,7 @@ func TestCA534_ControlesEnLosTextos(t *testing.T) {
 			ca := fmt.Sprintf("CA-534 (color=%v, utf8=%v)", color, utf)
 			ver := func(m *tablero.Modelo, donde string, quiere ...string) {
 				t.Helper()
-				s := ttSinControles(t, ca, donde, m)
+				s := ttSinControles(t, ca, donde, m, color)
 				for _, q := range quiere {
 					if !strings.Contains(s, q) {
 						t.Fatalf("%s: %s muestra %q (el tab como espacio, los controles como ?):\n%s", ca, donde, q, s)
@@ -213,8 +219,13 @@ func TestCA559_CA524_HallazgoFueraDelProyecto(t *testing.T) {
 				}
 				ords := m.Tecla("e", ttAhora)
 				if local == `sub\..\x.go` {
+					// CA-559, CA-534, hallazgo d31956: la unica orden es un
+					// AbrirEditor (la ruta, tal cual o limpia segun el sistema)
 					if len(ords) != 1 {
 						t.Fatalf("CA-559: %q es local: e lo abre: %#v", local, ords)
+					}
+					if a, ok := ords[0].(tablero.AbrirEditor); !ok || (a.Archivo != local && a.Archivo != "x.go") || a.Linea != 0 {
+						t.Fatalf("CA-559 (hallazgo d31956): %q es local: la unica orden es AbrirEditor en la linea 0: %#v", local, ords[0])
 					}
 					continue
 				}

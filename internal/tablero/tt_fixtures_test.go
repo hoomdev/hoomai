@@ -196,9 +196,11 @@ func ttNucTenancy() boardcmd.Card {
 	c := ttCard("nuc-tenancy", "Tenancy del nucleo", boardcmd.ColTuAprobacion, "te toca aprobar el spec",
 		ttSeg("spec", "spec", boardcmd.SegHecho, "pasa el lint"),
 		ttSeg("aprobacion", "aprobacion", boardcmd.SegFalta, "sin tu firma"),
-		ttSeg("pruebas", "pruebas", boardcmd.SegFalta, "0/5"),
+		ttSeg("pruebas", "pruebas", boardcmd.SegFalta, "1/2"),
 		ttSeg("codigo", "codigo", boardcmd.SegNoAplica, "todavia no"))
-	c.Evidence.Criteria = 5
+	// hallazgo 0ee5e4: la tira, los criterios del spec (2, uno sin prueba) y
+	// su hallazgo en [4] dicen lo mismo
+	c.Evidence.Criteria = 2
 	c.Actions = []boardcmd.Action{ttAccionAprobar()}
 	return c
 }
@@ -294,22 +296,31 @@ func ttProyectoVerde() tablero.Proyecto {
 		Veredicto: v, Hoy: costcmd.Hoy{Runs: 4, CostoUSD: 3.88}, Problemas: []boardcmd.Problem{}}
 }
 
+// ttHallazgoNuc es el hallazgo low abierto de nuc-tenancy de los dorados: el
+// que [4] lista y el que [0] de la tarjeta muestra en su parte Hallazgos.
+func ttHallazgoNuc() finding.Item {
+	low := ttHallazgo("h-low", finding.StatusOpen, "low", "internal/tenant/tenant.go:7", "el nombre del tenant no se recorta")
+	low.Task = "nuc-tenancy"
+	return low
+}
+
 // ttHallazgosDorados son los dos hallazgos abiertos de los dorados: uno low
 // de nuc-tenancy y uno high de infra-api (en ese orden de lectura).
 func ttHallazgosDorados() tablero.Hallazgos {
-	low := ttHallazgo("h-low", finding.StatusOpen, "low", "internal/tenant/tenant.go:7", "el nombre del tenant no se recorta")
-	low.Task = "nuc-tenancy"
+	low := ttHallazgoNuc()
 	high := ttHallazgo("h-high", finding.StatusOpen, "high", "internal/api/router.go:41", "el router acepta rutas sin version")
 	return tablero.Hallazgos{Items: []finding.Item{low, high}}
 }
 
 // ttDetalleNuc es el detalle de nuc-tenancy de los dorados: su spec con dos
-// criterios (CA-1 con prueba, CA-2 sin prueba), sin hallazgos, sin historia y
-// sin sobres.
+// criterios (CA-1 con prueba, CA-2 sin prueba, como dice la tira: "1/2"), el
+// hallazgo low de su tarea (el mismo que lista [4]), sin historia y sin
+// sobres (hallazgo 0ee5e4: los fixtures no se contradicen).
 func ttDetalleNuc() tablero.Detalle {
 	c := ttNucTenancy()
 	c.Evidence.Untraced = []string{"CA-2"}
 	return tablero.Detalle{Slug: c.Slug, Detalle: boardcmd.Detail{Card: c,
+		Findings: []finding.Item{ttHallazgoNuc()},
 		Spec: boardcmd.SpecDetail{Path: ".hoom/specs/nuc-tenancy.md", Exists: true,
 			Markdown: "# Spec\n\n## Criterios de aceptacion\n\n- CA-1: cada tenant ve solo sus filas\n- CA-2: un tenant sin plan responde 402\n"},
 		Criteria: []boardcmd.CriterionTrace{

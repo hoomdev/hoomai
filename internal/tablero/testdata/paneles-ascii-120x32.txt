@@ -6,15 +6,15 @@
 +--------------------------------------+|                                                                              |
 #[2] Tarjetas==========================#|  # spec: pasa el lint                                                        |
 # NECESITA TU DECISION                 #|  ! aprobacion: sin tu firma                                                  |
-# > nuc-tenancy                    #!-.#|  - pruebas: 0/5                                                              |
+# > nuc-tenancy                    #!-.#|  - pruebas: 1/2                                                              |
 #   pagos-caidos                   ##!-#|  . codigo: todavia no                                                        |
 # EN CURSO                             #|                                                                              |
 #   infra-api                      ##-.#| Spec · 2 criterios · 1 sin prueba                                            |
 # BACKLOG 2                            #|  + cada tenant ve solo sus filas                                             |
 #   infra-ci-cd                    ----#|  x un tenant sin plan responde 402                                           |
 #   docs-guia                      ----#|                                                                              |
-# ARQUITECTO 1                         #| Hallazgos                                                                    |
-#   precios                        #---#|  sin hallazgos                                                               |
+# ARQUITECTO 1                         #| Hallazgos · 1 abierto                                                        |
+#   precios                        #---#|  low tenant.go:7 el nombre del tenant no se recorta                          |
 # HECHO 3 >                            #|                                                                              |
 #                                      #| Historia                                                                     |
 #======================================#|  sin historia todavia                                                        |

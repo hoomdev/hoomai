@@ -13,13 +13,11 @@ import (
 	"strings"
 	"testing"
 	"testing/quick"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
-	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/tablero"
 )
 
@@ -199,8 +197,8 @@ func ttLineaTeclasQuiere(l tablero.Lugar, conTarjeta bool, sig string, ancho int
 		if a.Barra == "" {
 			continue
 		}
-		if !conTarjeta && (a.Accion != "" || (len(a.Teclas) == 1 && a.Teclas[0] == tablero.TeclaEspacio)) {
-			continue
+		if !conTarjeta && a.DeTarjeta {
+			continue // las filas de la tarjeta (DeTarjeta: espacio, n y las de accion)
 		}
 		b := a.Barra
 		if !utf {
@@ -269,6 +267,23 @@ func TestCA564_CA532_LaLineaDeTeclas(t *testing.T) {
 		if got, q := ttLineaTeclas(m), ttLineaTeclasQuiere(c.lugar, c.tarj, c.sig, 200, false); got != q {
 			t.Fatalf("CA-564: la linea de teclas de %q es\n %q\nse esperaba\n %q", c.lugar, got, q)
 		}
+	}
+	// CA-564, hallazgo 403795: tambien en [0] de lo que corre y en Guardar
+	v := ttModeloDorado(ttConfig(200, 50, false))
+	ttTeclas(v, "3", tablero.TeclaEnter)
+	if v.Lugar() != tablero.LugarVerCorriendo {
+		t.Fatalf("CA-564 (guarda): 3 y enter llevan a LugarVerCorriendo: %q", v.Lugar())
+	}
+	if got, q := ttLineaTeclas(v), ttLineaTeclasQuiere(tablero.LugarVerCorriendo, true, "", 200, false); got != q {
+		t.Fatalf("CA-564 (hallazgo 403795): la linea de teclas de %q es\n %q\nse esperaba\n %q", tablero.LugarVerCorriendo, got, q)
+	}
+	g := ttModelo(ttConfig(200, 50, false), ttTablero(ttTarjetaCon(ttAccionGuardar(true, "", "a.go"))))
+	g.Tecla("s", ttAhora)
+	if g.Lugar() != tablero.LugarGuardar {
+		t.Fatalf("CA-564 (guarda): s lleva a LugarGuardar: %q", g.Lugar())
+	}
+	if got, q := ttLineaTeclas(g), ttLineaTeclasQuiere(tablero.LugarGuardar, true, "", 200, false); got != q {
+		t.Fatalf("CA-564 (hallazgo 403795): la linea de teclas de %q es\n %q\nse esperaba\n %q", tablero.LugarGuardar, got, q)
 	}
 	// el modal Pedir: el dibujo del spec
 	p := ttPedir(t, "w", ttAccionWriter())
@@ -661,10 +676,18 @@ var ttTeclasEspeciales = []tablero.Tecla{tablero.TeclaEnter, tablero.TeclaEsc, t
 	tablero.TeclaArriba, tablero.TeclaAbajo, tablero.TeclaIzq, tablero.TeclaDer, tablero.TeclaBorrar, tablero.TeclaCtrlC,
 	tablero.TeclaCtrlU, tablero.TeclaCtrlE, tablero.TeclaPgArriba, tablero.TeclaPgAbajo, tablero.TeclaEspacio}
 
+// ttRunasV1 son las runas de la propiedad negativa de la v1: todas las letras,
+// los digitos (0-4 mueven el foco en los paneles y en un modal no), "[" y "]"
+// (el primer golpe de ]c y [c, que solo tiene la vista de una tarjeta) y la
+// puntuacion (CA-564, hallazgo d95bb0).
+const ttRunasV1 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&()*+,-.:;<=>@[]^_{|}~ñé"
+
 // CA-564, propiedad negativa: toda tecla con efecto esta en la ayuda. En cada
 // Lugar, una tecla que no esta en ninguna de sus filas no cambia nada ni da
-// ordenes: las especiales todas, y runas imprimibles al azar. Re-expresa
-// CA-532.
+// ordenes: las especiales todas, las runas de la v1 y runas imprimibles al
+// azar. Re-expresa CA-532. (CA-564, hallazgo d95bb0: con la lista de la v1,
+// "u" en Firma, Guardar o Ayuda, "]" o "[" en [0] del proyecto, de lo que
+// corre o de un hallazgo, y 0-4 dentro de un modal se prueban.)
 func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 	sinEfecto := func(l tablero.Lugar, k tablero.Tecla) error {
 		m := ttEstado(t, l)
@@ -686,7 +709,7 @@ func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 			}
 			probadas++
 		}
-		for _, r := range "bcdfimoprvyzBCDEFHJKLMNOPQSTUVWXYZ56789!#$%&()*+,-.:;<=>@^_{|}~ñé" {
+		for _, r := range ttRunasV1 { // CA-564, hallazgo d95bb0
 			k := tablero.Tecla(string(r))
 			if ttEnLaTabla(l, k) {
 				continue
@@ -697,8 +720,51 @@ func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 			probadas++
 		}
 	}
-	if probadas < 200 {
+	if probadas < 400 {
 		t.Fatalf("CA-564: se probaron solo %d teclas fuera de la tabla", probadas)
+	}
+	// CA-564, hallazgo d95bb0: "]" y "[" tampoco desplazan [0] del proyecto,
+	// de lo que corre ni de un hallazgo desde el medio de su documento (donde
+	// un desplazamiento se veria para los dos lados).
+	for _, l := range []tablero.Lugar{tablero.LugarVerProyecto, tablero.LugarVerCorriendo, tablero.LugarVerHallazgo} {
+		for _, k := range []tablero.Tecla{"]", "["} {
+			if ttEnLaTabla(l, k) {
+				t.Fatalf("CA-564: %q no tiene ]c ni [c (son de la vista de una tarjeta)", l)
+			}
+			m := ttEstado(t, l)
+			ttTeclas(m, "g", "j", "j", "j")
+			if l == tablero.LugarVerCorriendo {
+				ttTeclas(m, "G", "k", "k", "k")
+			}
+			antes := ttFoto(m)
+			if os := ttTeclas(m, k, k); len(os) != 0 || ttFoto(m) != antes {
+				t.Fatalf("CA-564: en %q %q no esta en la tabla y desplazo [0] (ordenes %#v):\n%s", l, k, os, ttPantalla(m))
+			}
+		}
+	}
+	// CA-564, hallazgo d95bb0: x con un modal abierto no cambia el modo
+	// experto (que el modal tapa): cerrado el modal, la pantalla es la misma
+	// que sin la x.
+	for _, l := range tablero.LugaresTodos {
+		if ttEnLaTabla(l, "x") {
+			continue
+		}
+		cerrado := func(conX bool) string {
+			m := ttEstado(t, l)
+			if m.Modal() == tablero.SinModal {
+				return ""
+			}
+			if conX {
+				m.Tecla("x", ttAhora)
+			}
+			for i := 0; i < 5 && m.Modal() != tablero.SinModal; i++ {
+				m.Tecla(tablero.TeclaEsc, ttAhora)
+			}
+			return ttPantalla(m)
+		}
+		if sin, con := cerrado(false), cerrado(true); sin != con {
+			t.Fatalf("CA-564: en %q x no esta en la tabla y cambio el modo experto; sin x:\n%s\ncon x:\n%s", l, sin, con)
+		}
 	}
 	for _, l := range []tablero.Lugar{tablero.LugarTarjetas, tablero.LugarVerTarjeta, tablero.LugarAcciones, tablero.LugarAyuda, tablero.LugarFirma} {
 		prop := func(r rune) bool {
@@ -801,6 +867,4 @@ func TestCA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
 	if vistas != 9 {
 		t.Fatalf("CA-564: la tabla tiene las nueve teclas de accion con verbo del spec, tiene %d", vistas)
 	}
-	_ = time.Second
-	_ = runcmd.StatusDone
 }

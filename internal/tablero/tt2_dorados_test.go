@@ -18,7 +18,10 @@ import (
 )
 
 // CA-550, CA-555, CA-576: 120x32 en ASCII: dos columnas, sin pliegues,
-// [0] con el documento entero de nuc-tenancy.
+// [0] con el documento entero de nuc-tenancy. (CA-556, hallazgo 0ee5e4: los
+// fixtures ya no se contradicen: la tira dice "pruebas: 1/2" como los dos
+// criterios del spec, uno sin prueba, y la parte Hallazgos de [0] lista el
+// hallazgo low de nuc-tenancy que [4] muestra.)
 func TestCA550_CA555_CA576_DoradoASCII120x32(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, false))
 	ttForma(t, "CA-550", m, 120, 32, false)

@@ -1172,6 +1172,35 @@ func TestCA559_CeroDeUnHallazgo(t *testing.T) {
 	}
 }
 
+// ttLineaFueraEnCero exige que [0] del hallazgo tenga la linea exacta del
+// mensaje de la v1 para una ruta fuera del proyecto, " " + ttFuera(ruta)
+// (strconv.Quote), y que vaya en rojo (CA-559, hallazgo 00f2e0).
+func ttLineaFueraEnCero(t *testing.T, m *tablero.Modelo, ruta string) {
+	t.Helper()
+	quiere := " " + ttFuera(ruta)
+	vistas := 0
+	for _, l := range ttCajaDe(t, "CA-559", m, "[0]").ttTexto() {
+		if strings.Contains(l, "fuera del proyecto") {
+			vistas++
+			if l != quiere {
+				t.Fatalf("CA-559 (hallazgo 00f2e0): [0] dice %q, dice %q", quiere, l)
+			}
+		}
+	}
+	if vistas != 1 {
+		t.Fatalf("CA-559 (hallazgo 00f2e0): [0] tiene una linea %q:\n%s", quiere, ttPantalla(m))
+	}
+	rojo := false
+	for _, x := range m.Pantalla() {
+		if strings.Contains(ttSinSGR(x), quiere) && ttConColor(ttRojo, x, ttFuera(ruta)) {
+			rojo = true
+		}
+	}
+	if !rojo {
+		t.Fatalf("CA-559 (hallazgo 00f2e0): la linea %q va en rojo:\n%s", quiere, strings.Join(m.Pantalla(), "\n"))
+	}
+}
+
 // CA-559, casos limite: un hallazgo sin archivo (su [0] va sin lineas y e
 // dice "el hallazgo no nombra un archivo"); el archivo que no se puede leer
 // ([0] dice en rojo "no se pudo leer <archivo>: <error>"); una ruta fuera
@@ -1212,11 +1241,10 @@ func TestCA559_CasosLimiteDelHallazgo(t *testing.T) {
 	if l == "" || !ttConColor(ttRojo, l, "no se pudo leer x/y.go") {
 		t.Fatalf("CA-559: un archivo que no se lee: ' no se pudo leer <archivo>: <error>' en rojo: %q\n%s", l, ttPantalla(m))
 	}
-	// fuera por un enlace (Archivo.Fuera)
+	// fuera por un enlace (Archivo.Fuera): la linea exacta, en rojo (CA-559,
+	// hallazgo 00f2e0)
 	m.LeerArchivo(tablero.Archivo{Ruta: "x/y.go", Linea: 3, Fuera: true})
-	if !ttTiene(m, ` el archivo "x/y.go" esta fuera del proyecto`) {
-		t.Fatalf("CA-559: Archivo.Fuera: [0] dice que esta fuera del proyecto:\n%s", ttPantalla(m))
-	}
+	ttLineaFueraEnCero(t, m, "x/y.go")
 	// fuera por su forma: no se lee (ArchivoElegido "") ni se abre
 	for _, file := range []string{"../fuera.go:3", "/etc/passwd", `C:\x.go`, `..\..\x.go`, `\\srv\r\x.go`} {
 		m = abrir(ttHallazgo("f", finding.StatusOpen, "high", file, "d"))
@@ -1224,9 +1252,7 @@ func TestCA559_CasosLimiteDelHallazgo(t *testing.T) {
 			t.Fatalf("CA-559: %q sale del proyecto por su forma: ArchivoElegido es \"\": %q", file, r)
 		}
 		ruta := strings.TrimSuffix(file, ":3")
-		if !ttTiene(m, ` el archivo "`+strings.ReplaceAll(ruta, `\`, `\\`)+`" esta fuera del proyecto`) && !ttTiene(m, "esta fuera del proyecto") {
-			t.Fatalf("CA-559: [0] de %q dice que esta fuera del proyecto:\n%s", file, ttPantalla(m))
-		}
+		ttLineaFueraEnCero(t, m, ruta) // CA-559, hallazgo 00f2e0: sin la alternativa que dejaba muerta a la primera
 		ttSinOrdenes(t, "CA-559", "e en "+file, m.Tecla("e", ttAhora))
 		ttDiceMensaje(t, "CA-559", "e en "+file, m, true, ttFuera(ruta))
 	}
