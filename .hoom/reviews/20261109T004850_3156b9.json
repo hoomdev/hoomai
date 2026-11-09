@@ -1,0 +1,91 @@
+{
+  "id": "20261109T004850_3156b9",
+  "created_at": "2026-11-09T00:48:50.209622Z",
+  "task": "tablero-en-la-terminal",
+  "spec": ".hoom/specs/tablero-en-la-terminal.md",
+  "fingerprint": "1685cc7fb779256b",
+  "verdict_id": "2026-11-09T00-28-08Z_9a8e03ec",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261109T003335_4581a6",
+    "20261109T003335_7766ba",
+    "20261109T003918_f0fbb9",
+    "20261109T003926_08c87c",
+    "20261109T003932_beb53d",
+    "20261109T003952_e7f022",
+    "20261109T004627_48bfb7",
+    "20261109T004838_6000e4",
+    "20261109T004838_8f99a8"
+  ],
+  "notes": [
+    "el hoom.yaml de la rama dice base_branch main: la review usa 561642ed0264273059a89046aaadb68747297c37, la de --base"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 156089,
+  "evidence_sha256": "98211c795187d49230dacaaf0030d1d2fdef09899afab1ad10efe7810c0067bc",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1612886,
+      "cached_input_tokens": 1523328,
+      "output_tokens": 14855,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 3400293,
+      "cached_input_tokens": 3277056,
+      "output_tokens": 19076,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 4576326,
+      "cached_input_tokens": 4450816,
+      "output_tokens": 17280,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 385323,
+      "cached_input_tokens": 304000,
+      "output_tokens": 4403,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261109T002848_d81e00"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261109T003352_a9d293"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261109T004023_626569"
+    },
+    {
+      "lens": "readability",
+      "run": "20261109T004714_a1d7e1"
+    }
+  ],
+  "desde": "00261770f8ae0f603c2717f7a481795dda6307eb",
+  "hasta": "dd8e40d6a3e9b0d797383892ddc66e88d7fd608f",
+  "cobertura": "delta",
+  "desde_review": "20261108T231004_195bc7",
+  "base": "561642ed0264273059a89046aaadb68747297c37"
+}

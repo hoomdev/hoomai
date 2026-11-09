@@ -1,0 +1,11 @@
+{
+  "id": "20261109T003335_4581a6",
+  "created_at": "2026-11-09T00:33:35.02398Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/tablero/despacho.go",
+  "description": "PRE-EXISTENTE (follow-up de ecb288): internal/tablero/despacho.go:691 valida la huella del spec solo cuando la huella nueva no esta vacia. Si la confirmacion capturo cf.spec y una lectura posterior devuelve Detalle.Err o Spec.Exists=false, huellaSpec (lineas 661-664) da vacio, vigente acepta la firma y Enter ejecuta hoom aprobar --si. El bucle aplica primero el tablero y despues el detalle (internal/tablero/bucle.go:235-243), asi que borrar o reemplazar el spec entre ambas lecturas puede dejar la accion anterior habilitada y permitir firmar contenido que no fue el mostrado. Debe fallar cerrado cuando cf.spec no esta vacio y la huella actual no esta disponible. El escenario ya era posible antes de este rango; esta remediacion no lo cierra.",
+  "author": "reviewer@codex",
+  "fingerprint": "1685cc7fb779256b",
+  "task": "tablero-en-la-terminal"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T003932_beb53d",
+  "created_at": "2026-11-09T00:39:32.268008Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "INTRODUCIDO. internal/tablero/pantalla.go:1044-1047 tiene un limite corrido en uno para la confirmacion de guardar. A 60x15 cabe vale 6; con exactamente 7 rutas la condicion len(paths) \u003e cabe+1 es falsa, la caja mide 12 lineas aunque el cuerpo solo admite 11 y sobreponer recorta su borde inferior. Con 6 rutas entra y con 8 se resume, de modo que solo el caso limite de 7 rompe la caja completa exigida por CA-529/CA-533; debe resumirse desde len(paths) \u003e cabe.",
+  "author": "reviewer@codex",
+  "fingerprint": "1685cc7fb779256b",
+  "task": "tablero-en-la-terminal"
+}

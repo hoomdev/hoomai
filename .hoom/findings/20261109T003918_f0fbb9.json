@@ -1,0 +1,11 @@
+{
+  "id": "20261109T003918_f0fbb9",
+  "created_at": "2026-11-09T00:39:18.123636Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/tablero/despacho.go",
+  "description": "INTRODUCIDO. internal/tablero/despacho.go:691 deja vigente una firma cuando la lectura detallada posterior no produce huella: huellaSpec devuelve vacio ante Detalle.Err o un spec inexistente (internal/tablero/despacho.go:661-665), pero vigente solo compara si la huella nueva tambien es no vacia. Desde una tarjeta abierta, un refresco puede conservar el mismo texto de firma y traer un detalle fallido (por ejemplo al leer Historia); Enter entonces ejecuta aprobar o integrar sobre el spec actual sin comprobar que sea el que la persona vio. Si cf.spec era no vacio, una huella nueva no disponible debe invalidar la confirmacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "1685cc7fb779256b",
+  "task": "tablero-en-la-terminal"
+}
