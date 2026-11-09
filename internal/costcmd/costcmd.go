@@ -158,7 +158,14 @@ type Hoy struct {
 // when Runs is 0. "<n> trabajos" is written as the spec writes it, for
 // every n ("en 1 trabajos" too).
 func LineaHoy(h Hoy) string {
-	return ""
+	if h.Runs == 0 {
+		return "hoy: sin trabajos"
+	}
+	s := fmt.Sprintf("hoy: %.2f USD en %d trabajos", h.CostoUSD, h.Runs)
+	if h.SinCosto > 0 {
+		s += fmt.Sprintf(", %d sin dato de costo", h.SinCosto)
+	}
+	return s
 }
 
 // Tarea is one task's cost. Sin slug the report carries every task (newest

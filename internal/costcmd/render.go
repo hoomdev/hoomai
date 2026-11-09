@@ -58,6 +58,9 @@ func JSONBytes(r Reporte) ([]byte, error) {
 // reviews" included).
 func Render(w io.Writer, r Reporte, detalle bool) {
 	s := salida{w}
+	if r.Hoy != nil {
+		s.linea(LineaHoy(*r.Hoy))
+	}
 	if len(r.Tareas) == 0 {
 		s.linea("ninguna tarea tiene runs ni reviews")
 	}
