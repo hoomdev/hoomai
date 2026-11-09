@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184541_a28cdb",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (seguir el final solo en la vista de un sobre, o en el documento si la persona bajo hasta la Narracion); regresion TestCA557_CA558_SeguirElFinal, verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.724471811Z"
+}

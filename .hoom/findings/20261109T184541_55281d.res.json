@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184541_55281d",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (decision del orquestador: Run escribe \\x1b[K solo despues de una linea de menos de Ancho celdas; doc.go 'What Run writes'); TestCA533_ElCuadroEsLaPantallaDelModelo adaptado en d1efb59 (ronda 1 del test-writer ciego), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.722896255Z"
+}

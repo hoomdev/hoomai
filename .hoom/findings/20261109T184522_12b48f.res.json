@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184522_12b48f",
+  "as": "corregido",
+  "evidence": "corregido en 8afe767 (las tres frases del README: u sin modal, e en [4] y su [0], el catalogo fijo); CA-579 [verifica] sigue pasando",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.718563341Z"
+}

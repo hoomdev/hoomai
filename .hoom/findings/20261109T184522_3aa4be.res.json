@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184522_3aa4be",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (decision del orquestador por el texto de CA-565: la accion y Cancelar son dos paradas de tab; doc.go corregido); TestCA568_CA527_FocoEnCiclo y TestCA568_CA527_ElReviewerNoTienePedido adaptados en d1efb59 (ronda 1 del test-writer ciego), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.717286711Z"
+}

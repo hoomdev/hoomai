@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184654_95edcf",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (principal.go usa finding.StatusOpen); readability, sin test",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.732712659Z"
+}

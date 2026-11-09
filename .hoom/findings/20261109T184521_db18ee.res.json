@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184521_db18ee",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (decision del orquestador: la linea 2 de [1] mide desde Proyecto.VeredictoDelCheck; [0] muestra el ultimo; en doc.go); regresion TestCA560_ElCheckMideDesdeSuVeredicto, verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.715924211Z"
+}

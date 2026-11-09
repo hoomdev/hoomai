@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184346_f65797",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (los wr_* duplicados de los tt_* se borraron, TestWRVer incluido; TestWRRunMouse prueba la relectura con IntervaloProyecto de una hora: dos lecturas exactas), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.70017295Z"
+}

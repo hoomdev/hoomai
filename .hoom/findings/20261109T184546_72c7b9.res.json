@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184546_72c7b9",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (los arreglos usan [campoBotones + 1] y los dos comentarios de pedir.go dicen lo que hace el codigo); readability, sin test",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.72919096Z"
+}

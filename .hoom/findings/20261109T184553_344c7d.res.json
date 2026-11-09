@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T184553_344c7d",
+  "as": "corregido",
+  "evidence": "corregido en affe385 (campo Atajo.DeTarjeta en la tabla en vez del texto de Barra); TestCA564_CA532_LaLineaDeTeclas usa Atajo.DeTarjeta (d1efb59 (ronda 1 del test-writer ciego)), verde en go test -race -count=1 (HEAD 09d5589)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-09T20:08:46.730701407Z"
+}
