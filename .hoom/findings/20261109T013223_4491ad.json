@@ -1,0 +1,11 @@
+{
+  "id": "20261109T013223_4491ad",
+  "created_at": "2026-11-09T01:32:23.804714Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO: internal/tablero/bucle.go:345-347 trata cualquier fallo de os.OpenRoot(root) como si la ruta fuera segura (return false); ordenes continúa en :311-315 y abre filepath.Join(root, rel) sin comprobar symlinks. Ante degradación transitoria del filesystem o recursos (p. ej. EMFILE/EIO), se omite la única contención agregada y el editor puede recibir una ruta que sale del proyecto. La validación debe fallar cerrada y devolver/mostrar el error, no habilitar la apertura.",
+  "author": "reviewer@codex",
+  "fingerprint": "49d0d3614638027c",
+  "task": "tablero-en-la-terminal"
+}

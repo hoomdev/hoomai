@@ -1,0 +1,11 @@
+{
+  "id": "20261109T013452_7c0549",
+  "created_at": "2026-11-09T01:34:52.508638Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/modelo.go",
+  "description": "[INTRODUCIDO] internal/tablero/modelo.go:253-254,461-474 e internal/tablero/despacho.go:725-730: la nueva cola de avisos reparte su máquina de estados entre Leer, avisar y avanzarAvisos; los tres manipulan directamente seq/msgSeq/msgFin/finales y dos asignan en bloque el mensaje actual. No hay operaciones nombradas para encolar un fin, suspenderlo o mostrar el siguiente, por lo que la precedencia y la invariante de secuencia deben reconstruirse cruzando archivos. Encapsular esas transiciones en helpers o un tipo pequeño haría el protocolo legible y menos frágil ante cambios.",
+  "author": "reviewer@codex",
+  "fingerprint": "49d0d3614638027c",
+  "task": "tablero-en-la-terminal"
+}

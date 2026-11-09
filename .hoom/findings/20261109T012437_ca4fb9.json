@@ -1,0 +1,11 @@
+{
+  "id": "20261109T012437_ca4fb9",
+  "created_at": "2026-11-09T01:24:37.710189Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO: internal/tablero/bucle.go:305-314 comprueba la contención con os.Root.Stat pero luego descarta esa resolución y entrega al editor un filepath.Join resuelto de nuevo por nombre. Un writer concurrente puede crear o cambiar un symlink después del Stat (especialmente para una ruta que aún no existe) y hacer que el editor abra o modifique un archivo fuera del proyecto; además, si os.OpenRoot falla en internal/tablero/bucle.go:345-348 la comprobación falla abierta. La validación y el uso deben quedar ligados al mismo destino estable o abortar cuando no pueda garantizarse la contención. Es candidato a una regla Semgrep custom para check-then-use de rutas fuera de os.Root.",
+  "author": "reviewer@codex",
+  "fingerprint": "49d0d3614638027c",
+  "task": "tablero-en-la-terminal"
+}
