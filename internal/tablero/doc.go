@@ -481,8 +481,10 @@
 // ("Pedir al writer", "Aprobar spec", "Guardar"); u's is "Fijar para la
 // terminal". estado is "lanzando…" until its launch is registered (a role
 // whose card shows running with a new envelope: "corriendo") or its
-// process ends: "hecho" with code 0, "fallo: <Ultima>" in red otherwise
-// (FinProceso; "hoom <verb> salio con <code>" when Ultima is empty). The
+// process ends: `hecho` with code 0, `fallo: <Ultima>` in red otherwise
+// (FinProceso; `hoom <verb> salio con <code>` when Ultima is empty, the
+// verb being the first word of the order's Args: "hoom guardar salio con
+// 3"). The
 // command is the one "Se va a ejecutar" showed, on one line (its -m with
 // tarjetacmd.CitarPedido's cut to 60 characters, not shortened further),
 // cut to the panel. The editor's command is Config.Editor and
@@ -511,7 +513,9 @@
 // In [1]: enter, → and l give the focus to [0] (Proyecto).
 //
 // In [0]: ↑ ↓ k j, pgup pgdn, g G scroll it (see each [0]); esc ← h
-// back. With a card (LugaresConTarjeta) the card's keys work on [2]'s
+// back. In [0] with nothing to show (LugarVerNada) only esc ← h work: the
+// keys that scroll are not in its rows of Atajos, since there they would
+// have no effect (LugaresVerAlgo; the orchestrator's answer, 2026-11-09). With a card (LugaresConTarjeta) the card's keys work on [2]'s
 // chosen card, [3]'s row's card or the card [0] shows.
 //
 // The action keys (CA-566): a, t, w, r, R, s, A, I and n never order
@@ -642,7 +646,8 @@
 // selector, from column 15, gray: "hoom no le pasa el esfuerzo a opencode"
 // never fits beside its selector in the 66 cells of the modal, and CA-569
 // asks for it (decision). That line is not given up when the modal does
-// not fit.
+// not fit, and a why that goes on its own line does not count for the rule
+// that leaves all the origins out (the orchestrator's answer, 2026-11-09).
 //
 // The help line, at column 15 and gray (decision on its form): with the
 // focus on a selector, "<option>: <line>" of its chosen option when that
@@ -668,7 +673,10 @@
 // otro… turns the field into text, empty: enter with text makes it the
 // chosen value (origin "elegido"; it stays among the options, before
 // otro…); esc, or enter with the text empty, goes back to the option
-// chosen before. The TUI does not validate what is written (CA-568).
+// chosen before. The TUI does not validate what is written (CA-568). The
+// text is a part of its selector, like an open list: ctrl-e does nothing
+// in it (LugarPedirTexto has no row of ctrl-e; the orchestrator's answer,
+// 2026-11-09).
 //
 // The options of each selector (CA-569, CA-570, CA-571), p being the chosen
 // provider:
@@ -700,7 +708,10 @@
 //     puede rechazarlo"; without hoom.yaml's value, Modelo goes back to
 //     "por defecto del provider", and back to the proposed provider it
 //     goes back to the proposed model. Esfuerzo follows the same three
-//     rules with origen.effort.
+//     rules with origen.effort. Without hoom.yaml's value the proposal is
+//     what the card brings ("" being "por defecto del provider"): back at
+//     it, no --model nor --effort goes (the orchestrator's answer,
+//     2026-11-09).
 //   - Tope: when p takes no cap (its option's budget false) it is gray,
 //     "‹ sin tope ›", with "<p> no acepta tope". Otherwise: first the
 //     proposal (the action's budget_usd as "<x> USD", x with
@@ -768,12 +779,17 @@
 // over the enabled ones that have a row (the first of them at the start);
 // enter opens the modal of the chosen one (Acciones closes), and the key of
 // an action does what it does outside (opens its modal, runs u, or says
-// its why with Acciones still open).
+// its why with Acciones still open). u is not listed, since it is not an
+// action of the card, but its key runs hoom usar there (the orchestrator's
+// answer, 2026-11-09).
 //
 // Ayuda (?; CA-564): title "Todas las teclas", its text lines in groups,
 // one empty line between groups, each group a line with its title and one
 // line per row: "  " + Muestra padded to 18 cells + Hace, and "  " + Verbo
-// after it when the row has one. The groups, in this order: the group of
+// after it when the row has one. A line that does not fit in the modal is
+// wrapped at its words, each continuation from the column of Hace (20; the
+// Mouse lines, from their own two spaces): no text is lost (the
+// orchestrator's answer, 2026-11-09). The groups, in this order: the group of
 // the Lugar it was opened from; "En todas partes" (the rows whose Lugares
 // include all of LugaresPaneles); the other panels' groups, in the order
 // [1] Proyecto, [2] Tarjetas, [3] Corriendo, [4] Hallazgos, [0] el
