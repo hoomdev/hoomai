@@ -64,7 +64,7 @@ func (a *asiento) lineas(s signos) []linea {
 	if a.tipo == asientoFin {
 		return []linea{uno.todaCon(a.estilo)}
 	}
-	return []linea{uno, lin("       " + unaLinea(a.comando))}
+	return []linea{uno, lin("       " + s.enPantalla(unaLinea(a.comando)))}
 }
 
 // contenidoRegistro is the Registro's content for h inner lines: the newest

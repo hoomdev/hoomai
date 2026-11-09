@@ -53,6 +53,7 @@
 //	text cursor                            ▌          _
 //	cut                                    …          ~
 //	"…" of the TUI's own words             …          ...  (lanzando…, otro…: decision)
+//	"…" of CitarPedido's cut in a command  …          ~    (decision of the orchestrator)
 //	arrows of the keys line and the help   ↑ ↓ ← →    ^ v < >  (decision)
 //
 // The separator " · " is the same in both modes (as in the v1).
@@ -127,7 +128,14 @@
 // "┌[1] Proyecto─────┐". Each inner line is the panel's content line cut
 // to w-2 cells and padded with spaces to w-2. Every content line starts
 // with a margin of one space; the content has no right margin (the tira
-// of [2] touches the right side).
+// of [2] touches the right side). The text of an empty panel or of one that
+// is reading (` no hay tarjetas: hoom item add "<titulo>"`, " leyendo el
+// tablero...", " nada corriendo", " leyendo los hallazgos...", " sin
+// hallazgos abiertos", the Registro's " todavia no se ejecuto nada") that
+// does not fit in one line is wrapped at its words, each continuation with
+// its margin, when its lines fit in the panel's inner height; only when they
+// do not is it one line, cut (the orchestrator's decision, 2026-11-09). In
+// one column, [2]'s natural height counts those lines.
 //
 // The panel with the focus has the focus signs (═ ║ ╔ ╗ ╚ ╝; = and # in
 // ASCII) and, with color, its border (the title included) is green and
@@ -486,8 +494,9 @@
 // verb being the first word of the order's Args: "hoom guardar salio con
 // 3"). The
 // command is the one "Se va a ejecutar" showed, on one line (its -m with
-// tarjetacmd.CitarPedido's cut to 60 characters, not shortened further),
-// cut to the panel. The editor's command is Config.Editor and
+// tarjetacmd.CitarPedido's cut to 60 characters, not shortened further;
+// in ASCII with "~" for that cut's "…", as the modal shows it), cut to the
+// panel. The editor's command is Config.Editor and
 // ArgumentosEditor(Config.Editor, <file>, <linea>) joined by spaces, the
 // file relative to the root (decision). Ctrl-e adds no entry.
 //
@@ -658,17 +667,31 @@
 //
 // In a selector ← and → choose the previous and the next option, wrapping
 // around and skipping the gray ones and otro…; enter and espacio open its
-// list. The list (decision on its place): a box with the simple signs over
-// the modal, from the value's column to the text's last cell, its top
-// border on the line under the selector and as tall as its options + 2,
-// at most down to the modal's last text line (when less than 3 lines are
-// left there, it ends on the modal's last text line instead, going up);
-// one line per option, " " + M + " " + name padded to the longest name +
-// "  " + its line (a gray one all gray, with its why as its line); it
-// scrolls like a panel with "<n> de <m>". At the start the chosen option
-// is the highlighted one; ↑ and ↓ move over every option, enter chooses
-// the highlighted one and closes the list (on a gray one it does
-// nothing), esc closes it without changing (CA-568).
+// list. The list (the orchestrator's decision, 2026-11-09, from the spec's
+// "una linea por opcion con su nombre y su linea", "encima del modal" and
+// "una lista de opciones mas larga que su modal: se desplaza") is a box of
+// its own with the simple signs, drawn over the modal:
+//
+//   - its rows, one per option: " " + M + " " + name padded to the longest
+//     name + "  " + its line (a gray one all gray, with its why as its
+//     line; without a line, nothing after the name), M the selection sign
+//     on the highlighted option;
+//   - its width: its longest row + 1 (its margin on the right) + 2 (its
+//     borders), at most Ancho-2; each inner line is the row padded (or, only
+//     when the row does not fit even at Ancho-2, cut with the cut sign of
+//     the mode) to width-3 cells, then the margin's space;
+//   - its left border on the modal's first text cell (the modal's left
+//     border + 4), moved left just enough when it would leave the screen;
+//   - its height: its options + 2, and at most the modal's height (its text
+//     lines + 2); its top border on the selector's line, moved up just
+//     enough for its bottom border to be inside the modal's height;
+//   - it scrolls, with "<n> de <m>" on its bottom border (n the highlighted
+//     option's place), only when it has more options than the modal has
+//     text lines.
+//
+// At the start the chosen option is the highlighted one; ↑ and ↓ move over
+// every option, enter chooses the highlighted one and closes the list (on
+// a gray one it does nothing), esc closes it without changing (CA-568).
 //
 // otro… turns the field into text, empty: enter with text makes it the
 // chosen value (origin "elegido"; it stays among the options, before
@@ -734,7 +757,10 @@
 // reviewer); "por defecto del provider" is the empty value and a gray
 // Modelo, Esfuerzo or Tope sends nothing. Each value is quoted as the v1's
 // → line (tarjetacmd.Citar, the pedido with tarjetacmd.CitarPedido; on
-// Windows with their markers). It is laid out by words, an argument being
+// Windows with their markers). In ASCII the screen writes the "…" of
+// CitarPedido's cut with the ASCII cut sign "~" (no screen in ASCII carries
+// "…"; the orchestrator's decision, 2026-11-09); the order's Args do not
+// change. It is laid out by words, an argument being
 // one word: the first line from the text's first cell, each next word on
 // the same line after a space when it fits in c cells and else on a new
 // line that starts with two spaces. When that takes more than two lines,

@@ -52,6 +52,13 @@ func (s signos) conFlechas(t string) string {
 	return strings.NewReplacer("↑", s.flechas[0], "↓", s.flechas[1], "←", s.flechas[2], "→", s.flechas[3]).Replace(t)
 }
 
+// enPantalla is a command as the screen writes it: in ASCII the "…" of
+// tarjetacmd.CitarPedido's cut is the ASCII cut sign ("~"); with UTF-8 it
+// stays. The order's Args and the Registro's Comando keep it.
+func (s signos) enPantalla(comando string) string {
+	return strings.ReplaceAll(comando, "…", s.corte)
+}
+
 // estilo is how a piece of a line is drawn when the screen has color: bold
 // and reverse, and one color.
 type estilo uint8

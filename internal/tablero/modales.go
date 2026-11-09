@@ -257,13 +257,13 @@ func (m *Modelo) lineasEjecutar(args []string, c int, junto bool) []lineaModal {
 	if junto {
 		var out []lineaModal
 		for _, l := range lineasComando(args, c, "Se va a ejecutar: ", m.c.Windows, m.s.corte) {
-			out = append(out, lm(lin(l)))
+			out = append(out, lm(lin(m.s.enPantalla(l))))
 		}
 		return out
 	}
 	out := []lineaModal{lm(lin("Se va a ejecutar:"))}
 	for _, l := range lineasComando(args, c, "", m.c.Windows, m.s.corte) {
-		out = append(out, lm(lin(l)))
+		out = append(out, lm(lin(m.s.enPantalla(l))))
 	}
 	return out
 }
@@ -758,7 +758,12 @@ func (m *Modelo) geometria() (modalEnPantalla, bool) {
 	return g, true
 }
 
-// geometriaLista places the open list over the Pedir modal.
+// geometriaLista places the open list over the Pedir modal: a box of its
+// own, as wide as its longest row, its margin and its borders (at most
+// Ancho-2), its left border on the modal's first text cell (further left
+// when it would leave the screen); its top border on the selector's line,
+// going up as much as it needs to fit in the modal's height; it scrolls
+// only when it has more options than the modal has text lines.
 func (m *Modelo) geometriaLista(g *modalEnPantalla) {
 	p := m.pedir
 	ops := m.opciones(p, p.lista.campo)
@@ -768,22 +773,30 @@ func (m *Modelo) geometriaLista(g *modalEnPantalla) {
 			fila = i
 		}
 	}
-	if fila < 0 {
+	if fila < 0 || len(ops) == 0 {
 		return
 	}
 	ySel := g.r.y + 1 + fila
-	ultima := g.r.y + g.r.h - 2 // the modal's last text line
-	x := g.r.x + 4 + 15
-	w := g.r.x + g.r.w - 2 - x
-	alto := min(len(ops)+2, ultima-ySel)
-	y := ySel + 1
-	if alto < 3 {
-		alto = min(len(ops)+2, g.r.h-2)
-		y = ultima - alto + 1
+	ancho := 0
+	for i, o := range ops {
+		ancho = max(ancho, celdas(m.filaLista(ops, i, o).plano()))
 	}
-	g.lista = rect{x: x, y: y, w: w, h: alto}
+	w := min(ancho+3, m.c.Ancho-2)
+	x := g.r.x + 4
+	if x+w > m.c.Ancho {
+		x = m.c.Ancho - w
+	}
+	x = max(0, x)
+	texto := g.r.h - 2
+	h := min(len(ops), texto) + 2
+	y := ySel
+	if y+h > g.r.y+g.r.h {
+		y = g.r.y + g.r.h - h
+	}
+	y = max(g.r.y, y)
+	g.lista = rect{x: x, y: y, w: w, h: h}
 	g.listaOps = ops
-	dentro := alto - 2
+	dentro := h - 2
 	if p.lista.idx < p.lista.scroll {
 		p.lista.scroll = p.lista.idx
 	}
@@ -792,6 +805,32 @@ func (m *Modelo) geometriaLista(g *modalEnPantalla) {
 	}
 	p.lista.scroll = max(0, min(p.lista.scroll, len(ops)-dentro))
 	g.listaDesde = p.lista.scroll
+}
+
+// filaLista is the row of the option o (the i-th of ops) in the open list:
+// " " + its mark + " " + its name padded to the longest name + "  " + its
+// line (a gray one, all gray, with its why as its line).
+func (m *Modelo) filaLista(ops []opcion, i int, o opcion) linea {
+	ancho := 0
+	for _, x := range ops {
+		ancho = max(ancho, celdas(x.nombre))
+	}
+	marca := " "
+	if i == m.pedir.lista.idx {
+		marca = m.s.sel
+	}
+	texto := o.linea
+	if o.gris {
+		texto = o.why
+	}
+	t := " " + marca + " " + rellenar(o.nombre, ancho)
+	if texto != "" {
+		t += "  " + texto
+	}
+	if o.gris {
+		return linCon(t, gris)
+	}
+	return lin(strings.TrimRight(t, " "))
 }
 
 // dibujarModal draws the open modal (and its list) over the panels; with
@@ -857,36 +896,16 @@ func (m *Modelo) dibujarLista(lz *lienzo, g modalEnPantalla) {
 	lz.fijar(r.x, r.y, s.esqSI, 1, normal)
 	lz.repetir(r.x+1, r.y, r.w-2, s.linea, normal)
 	lz.fijar(r.x+r.w-1, r.y, s.esqSD, 1, normal)
-	ancho := 0
-	for _, o := range g.listaOps {
-		ancho = max(ancho, celdas(o.nombre))
-	}
 	for i := 0; i < r.h-2; i++ {
 		y := r.y + 1 + i
 		k := g.listaDesde + i
 		lz.fijar(r.x, y, s.lado, 1, normal)
 		var l linea
 		if k < len(g.listaOps) {
-			o := g.listaOps[k]
-			marca := " "
-			if k == p.lista.idx {
-				marca = s.sel
-			}
-			texto := o.linea
-			if o.gris {
-				texto = o.why
-			}
-			t := " " + marca + " " + rellenar(o.nombre, ancho)
-			if texto != "" {
-				t += "  " + texto
-			}
-			e := normal
-			if o.gris {
-				e = gris
-			}
-			l = linCon(t, e)
+			l = m.filaLista(g.listaOps, k, g.listaOps[k])
 		}
-		lz.poner(r.x+1, y, r.w-2, l, normal, true)
+		lz.poner(r.x+1, y, r.w-3, l, normal, true)
+		lz.texto(r.x+r.w-2, y, 1, " ", normal)
 		lz.fijar(r.x+r.w-1, y, s.lado, 1, normal)
 	}
 	pos := ""

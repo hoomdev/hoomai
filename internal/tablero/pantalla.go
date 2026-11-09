@@ -77,6 +77,9 @@ func (m *Modelo) disponer() []cajaPanel {
 		PanelHallazgos: max(3, max(1, len(m.hallazgos))+2),
 	}
 	l2, _ := m.contenido2(w - 2)
+	if m.esAviso(PanelTarjetas) && len(l2) == 1 {
+		l2 = avisoEnvuelto(l2[0], w-2, b)
+	}
 	natural[PanelTarjetas] = len(l2) + 2
 	alturas := map[Panel]int{PanelProyecto: 1, PanelTarjetas: 1, PanelCorriendo: 1, PanelHallazgos: 1}
 	if m.foco != PanelPrincipal {
@@ -118,9 +121,45 @@ func (m *Modelo) doc0() (string, []docLinea, int) {
 // alto0 is [0]'s inner height.
 func (m *Modelo) alto0() int { return max(1, m.caja(PanelPrincipal).r.h-2) }
 
-// contenido is panel p's content for its box: its lines, the line of its
-// chosen row (-1: none) and its "<n> de <m>" when its lines do not fit.
+// avisoEnvuelto is the text of an empty panel, or of one that is reading, for an
+// inner width wi and an inner height hi: wrapped at its words when it does
+// not fit in one line and the panel has the height for it; else one line
+// (cut by the panel).
+func avisoEnvuelto(l linea, wi, hi int) []linea {
+	ls := envolverLinea(l, wi)
+	if len(ls) <= 1 || len(ls) > hi {
+		return []linea{l}
+	}
+	return ls
+}
+
+// esAviso says whether the content of panel p is its text of empty or of
+// reading.
+func (m *Modelo) esAviso(p Panel) bool {
+	switch p {
+	case PanelTarjetas:
+		return !m.leido || len(m.todas()) == 0
+	case PanelCorriendo:
+		return len(m.filas3()) == 0
+	case PanelHallazgos:
+		return !m.hallLeidos || len(m.hallazgos) == 0
+	case panelRegistro:
+		return len(m.registro) == 0
+	}
+	return false
+}
+
+// contenido is panel p's content for its box: its lines and the line of its
+// chosen row (-1: none).
 func (m *Modelo) contenido(c cajaPanel) ([]linea, int) {
+	ls, sel := m.contenidoSinAviso(c)
+	if m.esAviso(c.p) && len(ls) == 1 {
+		return avisoEnvuelto(ls[0], c.r.w-2, max(1, c.r.h-2)), -1
+	}
+	return ls, sel
+}
+
+func (m *Modelo) contenidoSinAviso(c cajaPanel) ([]linea, int) {
 	wi := c.r.w - 2
 	switch c.p {
 	case PanelProyecto:

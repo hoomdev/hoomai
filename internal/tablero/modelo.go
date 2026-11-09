@@ -138,7 +138,8 @@ type Asiento struct {
 	Texto string
 	// Comando is its second line after the six spaces: the verb's command
 	// as "Se va a ejecutar" showed it, or the editor's; "" for the end of a
-	// job, which takes one line.
+	// job, which takes one line. It keeps tarjetacmd.CitarPedido's "…" in
+	// both modes: in ASCII the screen writes it "~".
 	Comando string
 }
 
