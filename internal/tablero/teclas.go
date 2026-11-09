@@ -148,6 +148,21 @@ func escape(b []byte) (Tecla, *Raton, int) {
 			}
 			return "", nil, len(b)
 		}
+		// the SGR mouse: ESC [ < and its numbers up to M or m, whole (a
+		// number that does not read drops it too)
+		if len(b) >= 3 && b[2] == '<' {
+			j := 3
+			for j < len(b) && b[j] != 'M' && b[j] != 'm' && b[j] >= 0x20 && b[j] < 0x7f {
+				j++
+			}
+			if j < len(b) && (b[j] == 'M' || b[j] == 'm') {
+				return "", raton(string(b[3:j]), b[j]), j + 1
+			}
+			if j >= len(b) {
+				return "", nil, len(b)
+			}
+			return "", nil, j
+		}
 		// CSI: parameters and intermediates (0x20-0x3f), then a final byte
 		// (0x40-0x7e)
 		j := 2
@@ -159,9 +174,6 @@ func escape(b []byte) (Tecla, *Raton, int) {
 		}
 		params := string(b[2:j])
 		final := b[j]
-		if strings.HasPrefix(params, "<") && (final == 'M' || final == 'm') {
-			return "", raton(params[1:], final), j + 1
-		}
 		if j == 2 {
 			if t, ok := flechas[final]; ok {
 				return t, nil, j + 1
@@ -243,6 +255,14 @@ func incompleta(b []byte) bool {
 	case resto[1] == '[':
 		if len(resto) >= 3 && resto[2] == 'M' {
 			return len(resto) < 6
+		}
+		if len(resto) >= 3 && resto[2] == '<' {
+			for _, c := range resto[3:] {
+				if c == 'M' || c == 'm' || c < 0x20 || c >= 0x7f {
+					return false
+				}
+			}
+			return true
 		}
 		for _, c := range resto[2:] {
 			if c >= 0x40 && c <= 0x7e {

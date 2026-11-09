@@ -70,6 +70,9 @@ var (
 		LugarVerProyecto, LugarVerTarjeta, LugarVerCorriendo, LugarVerHallazgo, LugarVerNada}
 	// LugaresVer are [0]'s.
 	LugaresVer = []Lugar{LugarVerProyecto, LugarVerTarjeta, LugarVerCorriendo, LugarVerHallazgo, LugarVerNada}
+	// LugaresVerAlgo are [0]'s with something to show: the keys that
+	// scroll it work there (in LugarVerNada they would have no effect).
+	LugaresVerAlgo = []Lugar{LugarVerProyecto, LugarVerTarjeta, LugarVerCorriendo, LugarVerHallazgo}
 	// LugaresConTarjeta are "con tarjeta" in the spec: [2] on a card, [3]
 	// (the card of the row) and [0] showing a card (chosen in [2] or in
 	// [3]). In [2] on Hecho's line and in an empty [3] there is no card:
@@ -125,9 +128,9 @@ var Atajos = []Atajo{
 		Barra: "enter ver", Lugares: []Lugar{LugarProyecto, LugarTarjetas, LugarCorriendo, LugarHallazgos}},
 	// [0]
 	{Teclas: []Tecla{TeclaArriba, TeclaAbajo, "k", "j"}, Muestra: "↑ ↓ k j", Hace: "desplazar", Barra: "↑↓ desplazar",
-		Lugares: LugaresVer},
-	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "principio o final", Lugares: LugaresVer},
-	{Teclas: []Tecla{TeclaPgArriba, TeclaPgAbajo}, Muestra: "pgup pgdn", Hace: "desplazar una pagina", Lugares: LugaresVer},
+		Lugares: LugaresVerAlgo},
+	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "principio o final", Lugares: LugaresVerAlgo},
+	{Teclas: []Tecla{TeclaPgArriba, TeclaPgAbajo}, Muestra: "pgup pgdn", Hace: "desplazar una pagina", Lugares: LugaresVerAlgo},
 	{Teclas: []Tecla{TeclaEsc, TeclaIzq, "h"}, Muestra: "esc ← h", Hace: "volver al panel de donde vino", Barra: "esc volver",
 		Lugares: LugaresVer},
 	// the card

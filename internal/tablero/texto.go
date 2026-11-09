@@ -186,7 +186,7 @@ func cortar(s string, w int, corte string) string {
 	if n < 0 {
 		return prefijo(corte, w)
 	}
-	return prefijo(s, n) + corte
+	return rellenar(prefijo(s, n)+corte, w)
 }
 
 // cortada is the line cut to w cells (its last cell the cut sign when it
@@ -224,7 +224,12 @@ func (l linea) cortada(w int, corte string) linea {
 	} else if len(l) > 0 {
 		e = l[0].estilo
 	}
-	return append(out, tramo{texto: corte, estilo: e})
+	out = append(out, tramo{texto: corte, estilo: e})
+	// a wide character that did not fit leaves its cell as a space
+	if n := w - celdas(out.plano()); n > 0 {
+		out = append(out, tramo{texto: strings.Repeat(" ", n), estilo: e})
+	}
+	return out
 }
 
 // rellenar pads s with spaces to w cells (a longer s goes whole).
@@ -270,6 +275,16 @@ func envolverPalabras(s string, w int) []string {
 			}
 		}
 		out = append(out, actual)
+	}
+	return out
+}
+
+// envolverPalabrasEspacios is envolverPalabras keeping the spaces between
+// the words of each line.
+func envolverPalabrasEspacios(s string, w int) []string {
+	var out []string
+	for _, l := range envolverLinea(lin(s), w) {
+		out = append(out, l.plano())
 	}
 	return out
 }

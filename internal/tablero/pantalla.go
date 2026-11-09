@@ -387,14 +387,6 @@ func (m *Modelo) acomodar() {
 		m.clave0 = clave
 		m.scroll0 = 0
 		m.sigue0 = strings.HasPrefix(clave, "c:")
-		if !strings.HasPrefix(clave, "t:") && !strings.HasPrefix(clave, "c:") {
-			m.detalle = nil
-		} else if m.detalle != nil && m.detalle.Slug != m.Elegida() {
-			m.detalle = nil
-		}
-		if !strings.HasPrefix(clave, "h:") {
-			m.archivo = nil
-		}
 	}
 	if m.pequena() {
 		return

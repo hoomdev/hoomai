@@ -87,8 +87,11 @@ func (m *Modelo) selectoresPedir(p *pedir) []selector {
 			continue
 		}
 		if p.otro != nil && p.otroCampo == c {
+			// the text being written has no origin yet
 			t := p.otro
 			s.valor = string(t.r[:t.cursor]) + m.s.cursor + string(t.r[t.cursor:])
+			out = append(out, s)
+			continue
 		} else {
 			ops := m.opciones(p, c)
 			nombre := p.valor[c]
@@ -580,23 +583,36 @@ func enTodasPartes(a Atajo) bool {
 	return true
 }
 
-func (m *Modelo) filaAyuda(a Atajo) linea {
-	t := "  " + rellenar(m.s.conFlechas(a.Muestra), 18) + a.Hace
+// filasAyuda are a row's lines in the help, c cells wide: wrapped at the
+// words, each continuation from the Hace column (20), so no text is lost.
+func (m *Modelo) filasAyuda(a Atajo, c int) []lineaModal {
+	t := a.Hace
 	if a.Verbo != "" {
 		t += "  " + a.Verbo
 	}
-	return lin(t)
+	cabeza := "  " + rellenar(m.s.conFlechas(a.Muestra), 18)
+	ancho := max(10, c-celdas(cabeza))
+	var out []lineaModal
+	for i, l := range envolverPalabrasEspacios(t, ancho) {
+		if i == 0 {
+			out = append(out, lm(lin(cabeza+l)))
+		} else {
+			out = append(out, lm(lin(strings.Repeat(" ", celdas(cabeza))+l)))
+		}
+	}
+	return out
 }
 
 func (m *Modelo) lineasAyuda() []lineaModal {
 	var out []lineaModal
+	c := m.modalAncho() - 6
 	grupo := func(titulo string, filas []Atajo) {
 		if len(out) > 0 {
 			out = append(out, lm(lin("")))
 		}
 		out = append(out, lm(lin(titulo)))
 		for _, a := range filas {
-			out = append(out, lm(m.filaAyuda(a)))
+			out = append(out, m.filasAyuda(a, c)...)
 		}
 	}
 	delPanel := func(l Lugar) []Atajo {
@@ -649,7 +665,9 @@ func (m *Modelo) lineasAyuda() []lineaModal {
 			"  clic en un modal  enfoca un campo, elige una opcion o un boton",
 			"  para seleccionar texto con el mouse, manten Option (macOS) o Shift",
 		} {
-			out = append(out, lm(lin(l)))
+			for _, p := range envolverLinea(lin(l), c) {
+				out = append(out, lm(p))
+			}
 		}
 	} else {
 		out = append(out, lm(lin("  apagado: HOOM_MOUSE=0")))

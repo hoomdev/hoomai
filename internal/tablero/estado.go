@@ -302,8 +302,9 @@ func (m *Modelo) LeerArchivo(a Archivo) {
 }
 
 // Termino takes the end of a process the model ordered. Its Registro entry
-// says "hecho" when Code is 0 and "fallo: <Ultima>" otherwise (Ultima
-// empty: "hoom <verb> salio con <Code>"). As in the v1, the message line
+// says `hecho` when Code is 0 and `fallo: <Ultima>` otherwise (Ultima
+// empty: `hoom <verb> salio con <Code>`, the verb being the first of the
+// order's Args). As in the v1, the message line
 // also says it: a role launch that ends before it was registered (see
 // Leer) puts its Ultima there for DuracionAviso, red when Code is not 0;
 // one that ends after leaves the line to Leer's notice; usar, guardar,
@@ -320,7 +321,11 @@ func (m *Modelo) Termino(f FinProceso, ahora time.Time) {
 	delete(m.lanzados, f.ID)
 	texto := f.Ultima
 	if texto == "" && f.Code != 0 {
-		texto = fmt.Sprintf("hoom %s salio con %d", palabrasVerbo(la.o.Args), f.Code)
+		verbo := ""
+		if len(la.o.Args) > 0 {
+			verbo = la.o.Args[0]
+		}
+		texto = fmt.Sprintf("hoom %s salio con %d", verbo, f.Code)
 	}
 	if a := la.asiento; a != nil {
 		if f.Code == 0 {

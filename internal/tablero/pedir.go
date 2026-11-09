@@ -547,7 +547,7 @@ func (m *Modelo) lanzarPedir() []Orden {
 // lineasComando are the command's lines in c cells, the first after
 // prefijo: by words, a continuation starting with two spaces; when it
 // takes more than two lines, the argument of -m is shortened to its start
-// and "…".
+// and the cut sign of the mode (corte: "…", "~" in ASCII).
 func lineasComando(args []string, c int, prefijo string, windows bool, corte string) []string {
 	palabras := palabrasComando(args, windows)
 	armar := func(ps []string) []string {
@@ -594,7 +594,7 @@ func lineasComando(args []string, c int, prefijo string, windows bool, corte str
 		q := []rune(strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ").Replace(strings.TrimSpace(pedido)))
 		n := min(len(q), 60) - 1
 		for ; n >= 1; n-- {
-			palabras[im] = tarjetacmd.CitarPedido(string(q[:n])+"…", windows)
+			palabras[im] = tarjetacmd.CitarPedido(string(q[:n])+corte, windows)
 			if ls = armar(palabras); cabe(ls) {
 				return ls
 			}

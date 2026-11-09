@@ -17,7 +17,7 @@ const (
 const (
 	estadoLanzando  = "lanzando"
 	estadoCorriendo = "corriendo"
-	estadoHecho     = "hecho"
+	estadoHecho     = `hecho` // the Registro's state (CA-563), no column id (CA-517)
 )
 
 // asiento is one entry of the Registro.
