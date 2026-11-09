@@ -3,7 +3,6 @@ package tablero
 import (
 	"fmt"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -524,28 +523,6 @@ func (m *Modelo) rutaSpec() string {
 		return p
 	}
 	return path.Join(m.dirEvidencia(), p)
-}
-
-// absoluta says whether p, a path of the evidence, is absolute on some
-// system, whichever one reads it: rooted ("/x", "\x", a UNC "\\h\s") or
-// with a drive ("C:x", "C:/x"). Evidence written on Windows is read on Unix
-// too, and joined under a dir it would stop being absolute.
-func absoluta(p string) bool {
-	q := strings.ReplaceAll(p, `\`, "/")
-	if strings.HasPrefix(q, "/") {
-		return true
-	}
-	if len(q) >= 2 && q[1] == ':' && 'a' <= q[0]|0x20 && q[0]|0x20 <= 'z' {
-		return true
-	}
-	return filepath.IsAbs(filepath.FromSlash(p)) || filepath.VolumeName(filepath.FromSlash(p)) != ""
-}
-
-// fueraDelProyecto says whether p, a path of the evidence relative to the
-// root, leaves the project on some system: an absolute one (absoluta), or
-// one whose ".." climbs out with / or \ as the separator.
-func fueraDelProyecto(p string) bool {
-	return absoluta(p) || !filepath.IsLocal(filepath.FromSlash(strings.ReplaceAll(p, `\`, "/")))
 }
 
 // dirEvidencia is the open card's evidence dir, relative to the root: the

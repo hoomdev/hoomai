@@ -145,14 +145,8 @@ type Modelo struct {
 	conf    *confirmacion
 	ayudaDe Vista
 
-	// the bar's message
-	msg       string
-	msgEstilo estilo
-	msgHasta  time.Time
-	msgFin    bool    // the message is an end notice
-	msgSeq    int     // when the message was given, in the order of seq
-	finales   []aviso // the end notices still to show, oldest first
-	seq       int     // the order of the messages: each one given takes the next
+	// the bar's message and the end notices waiting for it
+	barra barra
 
 	// the launches
 	sigID    int
@@ -170,14 +164,6 @@ type lanzado struct {
 // visto is what a card the model saw with running was running.
 type visto struct {
 	rol, envelope string
-}
-
-// aviso is a message of the bar waiting for its turn; seq is when it was
-// given.
-type aviso struct {
-	texto  string
-	estilo estilo
-	seq    int
 }
 
 // Nuevo is the model before the first read of the board.
@@ -250,10 +236,9 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 		if fallo(c, v) {
 			e = rojo
 		}
-		m.seq++
-		m.finales = append(m.finales, aviso{texto: fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), estilo: e, seq: m.seq})
+		m.barra.encolarFin(fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), e)
 	}
-	m.avanzarAvisos()
+	m.barra.avanzar(m.ahora)
 	m.vistos = map[string]visto{}
 	for _, c := range m.todas() {
 		if r := c.Running; r != nil {
@@ -441,7 +426,7 @@ func (m *Modelo) Tamano(ancho, alto int) {
 // ("hace <n>s") move.
 func (m *Modelo) Tic(ahora time.Time) {
 	m.ahora = ahora
-	m.avanzarAvisos()
+	m.barra.avanzar(m.ahora)
 }
 
 // fallo says whether the work the model saw running on c ended without
@@ -456,22 +441,6 @@ func fallo(c *boardcmd.Card, v visto) bool {
 		return true
 	}
 	return c.Interrupted != nil && c.Interrupted.EnvelopeID == v.envelope
-}
-
-// avanzarAvisos puts the next end notice in the bar unless the bar still
-// shows another end notice or a message given after that one: the end
-// notices of one read go one after another, one takes the bar from a
-// message given before it, and none is lost.
-func (m *Modelo) avanzarAvisos() {
-	if len(m.finales) == 0 {
-		return
-	}
-	if m.msg != "" && m.ahora.Before(m.msgHasta) && (m.msgFin || m.msgSeq > m.finales[0].seq) {
-		return
-	}
-	a := m.finales[0]
-	m.finales = m.finales[1:]
-	m.msg, m.msgEstilo, m.msgHasta, m.msgFin, m.msgSeq = a.texto, a.estilo, m.ahora.Add(DuracionFin), true, a.seq
 }
 
 // Vista is the current view.

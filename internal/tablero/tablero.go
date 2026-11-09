@@ -140,10 +140,15 @@ func Real() Entorno {
 // terminal is given back (SecSalir, restaurar) and taken again after
 // (Crudo, SecEntrar); an Abrir that fails puts "no se pudo abrir el
 // editor: <error>" in red in the bar for DuracionAviso. An AbrirEditor
-// whose Archivo, followed through its symlinks, leaves the project root (a
-// symlink of the project to a file or a directory outside it) opens no
-// editor: the bar says in red "el archivo <Archivo quoted as
-// strconv.Quote> esta fuera del proyecto" for DuracionAviso. The keys a read
+// whose Archivo, followed through its symlinks inside os.Root, leaves the
+// project root (a symlink of the project to a file or a directory outside
+// it) opens no editor: the bar says in red "el archivo <Archivo quoted as
+// strconv.Quote> esta fuera del proyecto" for DuracionAviso. The check
+// fails closed: when it cannot be made (the root does not open, a
+// component cannot be read) no editor opens either, and the bar says in
+// red "no se pudo abrir el editor: <error>"; a file that is not there yet,
+// under components inside the root, opens. Nothing outside os.Root is
+// looked at to decide. The keys a read
 // brings that end inside an escape sequence or inside a UTF-8 character
 // wait a moment for the next read before they are decoded: a read may
 // cut a key or a pasted text anywhere.

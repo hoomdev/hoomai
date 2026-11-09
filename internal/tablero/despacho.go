@@ -362,7 +362,7 @@ func (m *Modelo) abrirHallazgo() []Orden {
 // from the evidence (a finding's file, a card's spec) opens nothing outside
 // it.
 func (m *Modelo) abrirArchivo(archivo string, linea int) []Orden {
-	if fueraDelProyecto(archivo) {
+	if fueraPorLaForma(archivo) {
 		m.avisar("el archivo "+strconv.Quote(archivo)+" esta fuera del proyecto", rojo, DuracionAviso)
 		return nil
 	}
@@ -719,22 +719,16 @@ func (m *Modelo) cerrarConfirmacion() {
 
 // ---------------------------------------------------------------- the bar
 
-// avisar puts a message in the bar for d. An end notice it takes the bar
-// from goes back to the head of the queue, whole: it comes back when this
-// message ends.
+// avisar puts a message in the bar for d (barra.dar).
 func (m *Modelo) avisar(texto string, e estilo, d time.Duration) {
-	if m.msgFin && m.msg != "" && m.ahora.Before(m.msgHasta) {
-		m.finales = append([]aviso{{texto: m.msg, estilo: m.msgEstilo, seq: m.msgSeq}}, m.finales...)
-	}
-	m.seq++
-	m.msg, m.msgEstilo, m.msgHasta, m.msgFin, m.msgSeq = texto, e, m.ahora.Add(d), false, m.seq
+	m.barra.dar(texto, e, m.ahora, d)
 }
 
 // mensaje is the bar's message now: the last one while it lasts, else the
 // read error.
 func (m *Modelo) mensaje() (string, estilo) {
-	if m.msg != "" && m.ahora.Before(m.msgHasta) {
-		return m.msg, m.msgEstilo
+	if m.barra.mostrando(m.ahora) {
+		return m.barra.actual.texto, m.barra.actual.estilo
 	}
 	if m.errLectura != "" {
 		return m.errLectura, rojo

@@ -1,11 +1,8 @@
 package tablero
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -302,10 +299,14 @@ func (b *bucle) ordenes(ords []Orden) (bool, int, error) {
 				b.m.Termino(FinProceso{ID: o.ID, Code: -1, Ultima: strings.TrimPrefix(err.Error(), "hoom: ")}, b.e.Ahora())
 			}
 		case AbrirEditor:
-			if saleDelProyecto(b.root, filepath.FromSlash(o.Archivo)) {
-				// the model looked at the path's form; through a symlink of
-				// the project it may still leave it
-				b.m.avisar("el archivo "+strconv.Quote(o.Archivo)+" esta fuera del proyecto", rojo, DuracionAviso)
+			// the model looked at the path's form; through a symlink of the
+			// project it may still leave it
+			if fuera, err := fueraPorLosEnlaces(b.root, filepath.FromSlash(o.Archivo)); fuera || err != nil {
+				msg := "el archivo " + strconv.Quote(o.Archivo) + " esta fuera del proyecto"
+				if !fuera {
+					msg = "no se pudo abrir el editor: " + err.Error()
+				}
+				b.m.avisar(msg, rojo, DuracionAviso)
 				continue
 			}
 			archivo := filepath.Join(b.root, filepath.FromSlash(o.Archivo))
@@ -334,25 +335,6 @@ func (b *bucle) ordenes(ords []Orden) (bool, int, error) {
 		}
 	}
 	return false, 0, nil
-}
-
-// saleDelProyecto says whether rel, followed through its symlinks, leaves
-// root: os.Root refuses it where a plain look does not (a symlink of the
-// project to a file or a directory outside). A path that cannot be looked
-// at either way (not there yet, unreadable) is the editor's to open or to
-// report.
-func saleDelProyecto(root, rel string) bool {
-	r, err := os.OpenRoot(root)
-	if err != nil {
-		return false
-	}
-	defer r.Close()
-	_, err = r.Stat(rel)
-	if err == nil || errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
-	_, err = os.Stat(filepath.Join(root, rel))
-	return err == nil || errors.Is(err, fs.ErrNotExist)
 }
 
 // conEditor gives the terminal to the editor while f runs and takes it
