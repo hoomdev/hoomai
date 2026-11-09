@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T004627_48bfb7",
+  "as": "corregido",
+  "evidence": "0be5125: el color sigue el spec (tablero-en-la-terminal.md:222-225, 'en verde si el sobre cerró entregable y en rojo si no'). Un trabajo sin sobre (un run de hoom run a mano; los roles y la review siempre tienen sobre, reviewcmd.go escribe el suyo) no cerro ningun sobre entregable, asi que su aviso va en rojo: fallo (modelo.go) da true sin envelope. Se borra la rama Interrupted{RunID}, que el tablero nunca produce, y visto ya no guarda el run. Contrato en el doc de Modelo.Leer. Test TestCA530_ElFinDeUnRunSinSobreEsRojo (ef2b903; el test-writer ciego lo corrigio en su ronda 2b citando el spec): rojo contra dd8e40d (lo que reviso la delta 1), verde con el fix. Su guarda, con sobre, sigue verde.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.415583Z"
+}

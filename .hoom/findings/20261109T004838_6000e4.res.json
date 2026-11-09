@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261109T004838_6000e4",
+  "as": "corregido",
+  "evidence": "ef2b903 (test-writer ciego): tt_r1_modelo_test.go, tt_r1_run_test.go y tt_r1_editor_unix_test.go se reparten en archivos por comportamiento: tt_avisos, tt_confirmaciones, tt_rutas, tt_controles, tt_cajas_chicas, tt_verbos, tt_run_terminal_muda, tt_run_editor, tt_run_teclas_partidas y tt_editor_cmd_unix. go test -list da los mismos 132 nombres antes y despues, mas los 11 nuevos de la ronda 2, y las 36 declaraciones movidas son identicas byte a byte (comprobado por el test-writer con go/parser y por el writer comparando el texto).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-09T01:19:56.449581Z"
+}
