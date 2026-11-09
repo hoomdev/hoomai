@@ -15,6 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
 
@@ -148,7 +149,82 @@ type ModelCatalog map[string][]ModelEntry
 
 // UnmarshalYAML decodes models: with the rules of ModelCatalog.
 func (c *ModelCatalog) UnmarshalYAML(n *yaml.Node) error {
+	if esNulo(n) {
+		*c = nil
+		return nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("models debe ser un mapa por provider (ej. models: { codex: [ { name: gpt-7-sol } ] })")
+	}
+	validos := modelos.ConModelo()
+	out := ModelCatalog{}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		p := n.Content[i].Value
+		if _, visto := out[p]; visto {
+			return fmt.Errorf("models: el provider %q esta repetido (linea %d)", p, n.Content[i].Line)
+		}
+		if !containsKey(validos, p) {
+			if containsKey(providerNames(), p) {
+				return fmt.Errorf("models.%s: hoom no le pasa el modelo a %s", p, p)
+			}
+			return fmt.Errorf("models: provider desconocido %q (validos: %s)", p, strings.Join(validos, ", "))
+		}
+		lista := n.Content[i+1]
+		entradas := []ModelEntry{}
+		if !esNulo(lista) {
+			if lista.Kind != yaml.SequenceNode {
+				return fmt.Errorf("models.%s debe ser una lista de modelos (ej. - name: gpt-7-sol)", p)
+			}
+			for j, e := range lista.Content {
+				m, err := decodeModel(p, j, e)
+				if err != nil {
+					return err
+				}
+				entradas = append(entradas, m)
+			}
+		}
+		out[p] = entradas
+	}
+	if len(out) == 0 {
+		out = nil
+	}
+	*c = out
 	return nil
+}
+
+// decodeModel is the entry j of models.<p>, with its rules.
+func decodeModel(p string, j int, n *yaml.Node) (ModelEntry, error) {
+	var m ModelEntry
+	donde := fmt.Sprintf("models.%s[%d]", p, j)
+	if n.Kind != yaml.MappingNode {
+		return m, fmt.Errorf("%s debe ser un mapa con name y description", donde)
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		k := n.Content[i].Value
+		if !containsKey(ModelKeys, k) {
+			return m, fmt.Errorf("%s: clave desconocida %q (validas: %s)", donde, k, strings.Join(ModelKeys, ", "))
+		}
+		v := n.Content[i+1]
+		if esNulo(v) {
+			continue
+		}
+		if v.Kind != yaml.ScalarNode {
+			return m, fmt.Errorf("%s.%s debe ser un texto", donde, k)
+		}
+		switch k {
+		case "name":
+			m.Name = strings.TrimSpace(v.Value)
+		case "description":
+			m.Description = strings.TrimSpace(v.Value)
+		}
+	}
+	if m.Name == "" {
+		return m, fmt.Errorf("%s: falta name", donde)
+	}
+	if strings.HasPrefix(m.Name, "-") {
+		return m, fmt.Errorf("%s: el nombre no puede empezar con '-'", donde)
+	}
+	return m, nil
 }
 
 // AgentPolicies are the agents: section, keyed by role slug. It decodes
