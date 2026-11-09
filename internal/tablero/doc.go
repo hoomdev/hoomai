@@ -242,11 +242,12 @@
 // included) leaves out, in this order and only until it fits: the empty
 // lines; the lines of the providers that cannot (the Provider line then
 // ends with "  (<n> no pueden)", gray); the keys line; and the pedido's
-// lines, down to the one with the cursor. The → line always stays.
-// guardar's confirmation that does not fit shows its first paths and
-// "y <n> rutas mas" in a last line; a signature that does not fit whole is
-// never signed: enter on Firmar says "agranda la terminal: la firma no
-// entra entera" in red and runs nothing.
+// lines, down to the one with the cursor. The → line always stays. The
+// confirmations follow the same rule: their empty line goes first;
+// guardar's that still does not fit shows its first paths and "y <n>
+// rutas mas" in a last line, its header and keys line kept; a signature
+// that does not fit whole is never signed: enter on Firmar says "agranda
+// la terminal: la firma no entra entera" in red and runs nothing.
 //
 // tab and shift-tab move the focus over the fields in that order, wrapping
 // around; ← and → on Provider choose the previous or next option that can

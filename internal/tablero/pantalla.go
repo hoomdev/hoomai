@@ -1071,32 +1071,45 @@ func (m *Modelo) lineasPedido(n int) []linea {
 
 func (m *Modelo) cajaConfirmacion() []linea {
 	cf := m.conf
-	var inner []linea
-	if cf.firma {
-		for _, l := range envolverPalabras(cf.texto, m.interior()) {
-			inner = append(inner, lin(l))
-		}
-		inner = append(inner, nil)
-		botones := "[ Cancelar ]   Firmar "
-		if cf.firmar {
-			botones = "  Cancelar   [ Firmar ]"
-		}
-		inner = append(inner, lin(botones))
-	} else {
-		// the paths that do not fit say how many they are; the keys line
-		// always stays. cabe is how many path lines the body has: less the
-		// box's borders, its header, empty and keys lines
-		const sinRutas = 3
-		cabe := m.altoCuerpo() - bordesCaja - sinRutas
-		paths := cf.paths
-		if len(paths) > cabe && cabe >= 1 {
-			paths = append(paths[:cabe-1:cabe-1], fmt.Sprintf("y %d rutas mas", len(cf.paths)-(cabe-1)))
+	cabe := m.altoCuerpo() - bordesCaja
+	// as every box (doc.go, "A box taller than the body"), the empty line
+	// is the first thing left out, and only when the box does not fit
+	armar := func(vacia bool, paths []string) []linea {
+		var inner []linea
+		if cf.firma {
+			for _, l := range envolverPalabras(cf.texto, m.interior()) {
+				inner = append(inner, lin(l))
+			}
+			if vacia {
+				inner = append(inner, nil)
+			}
+			botones := "[ Cancelar ]   Firmar "
+			if cf.firmar {
+				botones = "  Cancelar   [ Firmar ]"
+			}
+			return append(inner, lin(botones))
 		}
 		inner = append(inner, lin("Se guarda en git:"))
 		for _, p := range paths {
 			inner = append(inner, lin(p))
 		}
-		inner = append(inner, nil, lin("enter guardar · esc cancelar"))
+		if vacia {
+			inner = append(inner, nil)
+		}
+		return append(inner, lin("enter guardar · esc cancelar"))
+	}
+	inner := armar(true, cf.paths)
+	if len(inner) > cabe {
+		inner = armar(false, cf.paths)
+	}
+	if !cf.firma && len(inner) > cabe {
+		// the paths that still do not fit say how many they are; the
+		// header and the keys line always stay
+		const sinRutas = 2
+		if n := cabe - sinRutas; n >= 1 && len(cf.paths) > n {
+			paths := append(cf.paths[:n-1:n-1], fmt.Sprintf("y %d rutas mas", len(cf.paths)-(n-1)))
+			inner = armar(false, paths)
+		}
 	}
 	return m.caja(cf.accion.Label+" · "+cf.slug, inner)
 }

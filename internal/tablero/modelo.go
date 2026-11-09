@@ -169,7 +169,7 @@ type lanzado struct {
 
 // visto is what a card the model saw with running was running.
 type visto struct {
-	rol, envelope, run string
+	rol, envelope string
 }
 
 // aviso is a message of the bar waiting for its turn; seq is when it was
@@ -208,15 +208,14 @@ func Nuevo(c Config) *Modelo {
 //     DuracionAviso.
 //   - A card the model saw with running, read now without it, puts in the
 //     bar for DuracionFin "<rol> termino en <slug>: <plain>" (its plain of
-//     now): red when the card's red is the envelope's (red.source ==
-//     boardcmd.RedEnvelope and red.id == the envelope id it saw running)
-//     or when the card shows interrupted for the envelope (or, without
-//     one, the run) it saw: the work died, it did not close entregable;
-//     green otherwise, when it had an envelope (it closed entregable).
-//     Work without an envelope (a run of hoom run by hand: the roles and
-//     the review always have one) that just stopped is neither: the board
-//     does not say how it ended, and the notice is in the bar's plain
-//     style. It does so whoever launched it. Several cards that
+//     now): green when its envelope closed entregable, red when not (the
+//     spec: "en verde si el sobre cerró entregable y en rojo si no"). Red
+//     is: the card's red is the envelope's (red.source ==
+//     boardcmd.RedEnvelope and red.id == the envelope id it saw running),
+//     the card shows interrupted for that envelope (the work died), or the
+//     work had no envelope at all (a run of hoom run by hand: the roles and
+//     the review always have one; without an envelope nothing closed
+//     entregable). Green otherwise. It does so whoever launched it. Several cards that
 //     stopped in one read show one after another, in the board's order,
 //     each for DuracionFin. An end notice takes the bar from a message
 //     given before it; a message given while it shows (this read's "ya no
@@ -248,13 +247,8 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 			continue
 		}
 		e := verde
-		switch {
-		case fallo(c, v):
+		if fallo(c, v) {
 			e = rojo
-		case v.envelope == "":
-			// a run without an envelope (hoom run by hand): the board says
-			// nothing of how it ended, so the notice claims neither
-			e = normal
 		}
 		m.seq++
 		m.finales = append(m.finales, aviso{texto: fmt.Sprintf("%s termino en %s: %s", v.rol, c.Slug, c.Plain), estilo: e, seq: m.seq})
@@ -263,7 +257,7 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 	m.vistos = map[string]visto{}
 	for _, c := range m.todas() {
 		if r := c.Running; r != nil {
-			m.vistos[c.Slug] = visto{rol: rolDe(r.Role), envelope: r.EnvelopeID, run: r.RunID}
+			m.vistos[c.Slug] = visto{rol: rolDe(r.Role), envelope: r.EnvelopeID}
 		}
 	}
 	// the launches its card now shows running
@@ -451,19 +445,17 @@ func (m *Modelo) Tic(ahora time.Time) {
 }
 
 // fallo says whether the work the model saw running on c ended without
-// closing entregable: the card's red is its envelope's, or the card shows
-// it interrupted (its owner died).
+// closing entregable: it had no envelope (a run of hoom run by hand closes
+// none), the card's red is its envelope's, or the card shows its envelope
+// interrupted (its owner died).
 func fallo(c *boardcmd.Card, v visto) bool {
-	if c.Red != nil && c.Red.Source == boardcmd.RedEnvelope && v.envelope != "" && c.Red.ID == v.envelope {
+	if v.envelope == "" {
 		return true
 	}
-	if i := c.Interrupted; i != nil {
-		if v.envelope != "" {
-			return i.EnvelopeID == v.envelope
-		}
-		return v.run != "" && i.RunID == v.run
+	if c.Red != nil && c.Red.Source == boardcmd.RedEnvelope && c.Red.ID == v.envelope {
+		return true
 	}
-	return false
+	return c.Interrupted != nil && c.Interrupted.EnvelopeID == v.envelope
 }
 
 // avanzarAvisos puts the next end notice in the bar unless the bar still
