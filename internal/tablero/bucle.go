@@ -159,7 +159,7 @@ func (b *bucle) leerTeclas() {
 // and the open card.
 func (b *bucle) leer(conTablero bool) {
 	b.enVuelo = true
-	slug, historia := b.m.Abierta()
+	slug, historia := b.m.abiertaV1()
 	b.abiertaLeida = clave(slug, historia)
 	go func() {
 		defer b.reenviar()
@@ -169,7 +169,7 @@ func (b *bucle) leer(conTablero bool) {
 			ev.lectura = &Lectura{Tablero: tab, Err: err, Fijada: b.e.Datos.Fijada()}
 		}
 		if slug != "" {
-			d := b.e.Datos.Detalle(slug, historia)
+			d := b.e.Datos.Detalle(slug)
 			if d.Slug == "" {
 				d.Slug = slug
 			}
@@ -268,7 +268,7 @@ func (b *bucle) bucle() (int, error) {
 			return code, err
 		}
 		// a card opened, or its Historia: read it now
-		if slug, historia := b.m.Abierta(); slug != "" && !b.enVuelo && clave(slug, historia) != b.abiertaLeida {
+		if slug, historia := b.m.abiertaV1(); slug != "" && !b.enVuelo && clave(slug, historia) != b.abiertaLeida {
 			b.leer(false)
 		}
 		if err := b.dibujar(); err != nil {

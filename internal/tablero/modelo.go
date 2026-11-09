@@ -5,39 +5,54 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
+	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/costcmd"
+	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/statuscmd"
 )
 
 // Config is what the model knows from the start.
 type Config struct {
-	Proyecto string // the project's name (hoom.yaml's project), for the title
+	Proyecto string // the project's name (hoom.yaml's project, else the root's base name), for [1]
 	Ancho    int    // the terminal's size, in cells
 	Alto     int
 	Color    bool // false with NO_COLOR (see ConColor)
 	UTF8     bool // false without a UTF-8 locale or with HOOM_ASCII=1 (see ConUTF8)
-	// Windows makes the → line quote for Windows, as the capa-1 verbs do
-	// there (tarjetacmd.Citar).
+	// Windows makes the commands of the modals and of the Registro quote
+	// for Windows, as the capa-1 verbs do there (tarjetacmd.Citar).
 	Windows bool
+	// Mouse says that Run asked the terminal for the mouse (ConMouse): the
+	// help's "Mouse" group says what it does, or that it is off.
+	Mouse bool
+	// Editor is the editor's command (ComandoEditor): the Registro writes
+	// what e opens with it (see the package doc, "The Registro").
+	Editor string
+	// Modelos are hoom.yaml's models: (manifest.Manifest.Models), by
+	// provider, as modelos.Propio: the Modelo selector offers them after the
+	// catalog's (modelos.Modelos). nil = none.
+	Modelos map[string][]modelos.Propio
 }
 
-// Lectura is one read of the board: Run reads it every 2 seconds.
+// Lectura is one read of the board: Run reads it every Intervalo.
 type Lectura struct {
 	Ahora   time.Time
 	Tablero boardcmd.Board // the same as hoom board --json
-	// Err: the read failed. The model keeps the last board and the bar says
-	// "no se pudo leer el tablero: <Err>" until a read works.
+	// Err: the read failed. The model keeps the last board and the message
+	// line says "no se pudo leer el tablero: <Err>" until a read works.
 	Err    error
-	Fijada string // the card hoom usar fixed ("" = none)
+	Fijada string // the card hoom usar fixed ("" = none): [1]'s fourth line
 }
 
-// Detalle is the open card as Run reads it with every Lectura while a card
-// is open (Modelo.Abierta).
+// Detalle is the read of the card [0] shows (Modelo.Elegida): Run reads it
+// when Elegida changes and with every Lectura while it is not "".
 type Detalle struct {
 	Slug     string
 	Detalle  boardcmd.Detail   // spec, criteria, findings, work
-	Historia boardcmd.Timeline // only read while the Historia tab is active
+	Historia boardcmd.Timeline // the card's timeline (boardcmd.TimelineFor)
 	Sobre    Sobre
-	Err      error // the read failed: the tab says so and keeps nothing stale
+	Err      error // the read failed: [0] says so and keeps nothing stale
 }
 
 // Sobre is the narration of the card's envelope at work or, without one,
@@ -49,8 +64,84 @@ type Sobre struct {
 	Err        error
 }
 
-// MaxSobre is how much of a narration the Sobre tab reads: its last bytes.
+// MaxSobre is how much of a narration [0] reads: its last bytes.
 const MaxSobre = 64 << 10
+
+// Proyecto is one read of what [1] and its [0] show (spec, "Los datos"):
+// Run reads it at the start, every IntervaloProyecto and when a process the
+// TUI launched ends.
+type Proyecto struct {
+	// Git says whether the root is in a git repository; without one [1]
+	// says "sin git".
+	Git bool
+	// Rama is the branch gitx reads (the one a verdict keeps).
+	Rama string
+	// Check is hoom check's result (checkcmd.Run, the function of hoom
+	// status).
+	Check checkcmd.Result
+	// Veredicto is the project's newest verdict, as hoom status reads it
+	// (statuscmd's last_verdict); nil without one.
+	Veredicto *statuscmd.LastVerdict
+	// Hoy is what today's runs cost (costcmd.HoyEn, the function of hoom
+	// costo).
+	Hoy costcmd.Hoy
+	// Problemas are hoom board doctor's (boardcmd.Doctor).
+	Problemas []boardcmd.Problem
+	// Err: the read failed. The model keeps the last Proyecto and the
+	// message line says "no se pudo leer el proyecto: <Err>" until a read
+	// works.
+	Err error
+}
+
+// Hallazgos is one read of the project's open findings ([4] and its [0]),
+// from the function of hoom finding list --open (finding.List with
+// openOnly), oldest first as it gives them. Run reads it with Proyecto.
+type Hallazgos struct {
+	Items []finding.Item
+	// Err: the read failed. The model keeps the last list and the message
+	// line says "no se pudieron leer los hallazgos: <Err>" until a read
+	// works.
+	Err error
+}
+
+// ContextoArchivo is how many lines Datos.Archivo reads before and after a
+// finding's line.
+const ContextoArchivo = 10
+
+// Archivo is the read of the file a finding names, for its [0]
+// (Modelo.ArchivoElegido): Run reads it, through the project's os.Root,
+// when ArchivoElegido changes.
+type Archivo struct {
+	Ruta  string // as ArchivoElegido gave it: relative to the project root, with /
+	Linea int    // as ArchivoElegido gave it (0 = the finding names no line)
+	// Desde is the number (from 1) of the first line of Lineas.
+	Desde int
+	// Lineas are the file's lines from max(1, Linea-ContextoArchivo) to
+	// Linea+ContextoArchivo (fewer at the end of the file), without their
+	// line ends; with Linea 0, its first 2*ContextoArchivo+1 lines.
+	Lineas []string
+	// Fuera: a symlink of the project takes the path out of it; nothing
+	// was read.
+	Fuera bool
+	// Err: it could not be read ([0] says "no se pudo leer <Ruta>: <Err>").
+	Err error
+}
+
+// Asiento is one entry of the Registro, as the screen writes it (see the
+// package doc, "The Registro").
+type Asiento struct {
+	// Hora is when it was added: the model's clock then.
+	Hora time.Time
+	// Texto is its first line after "<HH:MM> ": "<etiqueta> · <slug> ·
+	// <estado>" for a verb, "Abrir en el editor · <archivo>[:<linea>]" for
+	// the editor, "<rol> termino en <slug>: <plain>" for the end of a job.
+	// A verb's entry changes its estado in place.
+	Texto string
+	// Comando is its second line after the six spaces: the verb's command
+	// as "Se va a ejecutar" showed it, or the editor's; "" for the end of a
+	// job, which takes one line.
+	Comando string
+}
 
 // FinProceso is a process the TUI launched that ended (or could not start).
 type FinProceso struct {
@@ -98,15 +189,16 @@ func (AbrirEditor) orden()  {}
 func (EditarPedido) orden() {}
 func (Salir) orden()        {}
 
-// How long the bar keeps a message.
+// How long the message line keeps a message.
 const (
 	DuracionAviso = 5 * time.Second // a why, a key with nothing to do, a card that no longer exists
 	DuracionFin   = 8 * time.Second // "<rol> termino en <slug>: <plain>"
 )
 
-// Modelo is the TUI without a terminal: keys and reads in, a screen and
-// orders out. It is not safe for concurrent use: Run calls it from one
-// goroutine.
+// Modelo is the TUI without a terminal: keys, mouse events and reads in, a
+// screen and orders out (the package doc is the contract of its screen and
+// of what every key does). It is not safe for concurrent use: Run calls it
+// from one goroutine.
 type Modelo struct {
 	c     Config
 	s     signos
@@ -118,7 +210,7 @@ type Modelo struct {
 	errLectura string
 	experto    bool
 
-	vista Vista
+	vista vistaV1
 
 	// the list: the selection is a card (selSlug) or Hecho's line
 	// (selHecho); selIdx is its place among the lines that can be chosen
@@ -128,13 +220,13 @@ type Modelo struct {
 	selIdx       int
 	hechoAbierto bool
 	scrollLista  int
-	filtro       []rune // the search's text, while VistaBusqueda
+	filtro       []rune // the search's text, while vistaBusqueda
 
 	// the open card
 	abierta  string
-	pestana  Vista
+	pestana  vistaV1
 	detalle  *Detalle
-	scrolls  map[Vista]int
+	scrolls  map[vistaV1]int
 	alFinal  bool // Sobre follows its end
 	hallazgo int
 	prefijo  Tecla // "]" or "[" waiting for its second stroke
@@ -143,7 +235,7 @@ type Modelo struct {
 	menu    *menu
 	form    *formulario
 	conf    *confirmacion
-	ayudaDe Vista
+	ayudaDe vistaV1
 
 	// the bar's message and the end notices waiting for it
 	barra barra
@@ -166,14 +258,16 @@ type visto struct {
 	rol, envelope string
 }
 
-// Nuevo is the model before the first read of the board.
+// Nuevo is the model before the first read of the board: the focus on [2]
+// (which says "leyendo el tablero..."), no modal, the Registro empty, the
+// normal mode.
 func Nuevo(c Config) *Modelo {
 	m := &Modelo{
 		c:            c,
 		s:            signosASCII,
-		vista:        VistaLista,
+		vista:        vistaLista,
 		sinSeleccion: true,
-		scrolls:      map[Vista]int{},
+		scrolls:      map[vistaV1]int{},
 		lanzados:     map[int]*lanzado{},
 		vistos:       map[string]visto{},
 	}
@@ -185,31 +279,36 @@ func Nuevo(c Config) *Modelo {
 
 // Leer takes a read of the board.
 //
-//   - A read with Err keeps the screen of the last board and puts the bar's
-//     read error (see Lectura).
-//   - The selection stays on its card. When that card is no longer on the
-//     board, it moves to the line that now has its index (the last one if
-//     there are fewer); when the card was open, the view goes back to the
-//     list and the bar says "la tarjeta <slug> ya no existe" for
-//     DuracionAviso.
-//   - A card the model saw with running, read now without it, puts in the
-//     bar for DuracionFin "<rol> termino en <slug>: <plain>" (its plain of
-//     now): green when its envelope closed entregable, red when not (the
-//     spec: "en verde si el sobre cerró entregable y en rojo si no"). Red
-//     is: the card's red is the envelope's (red.source ==
+//   - A read with Err keeps the screen of the last board and puts the
+//     message line's read error (see Lectura).
+//   - Each left panel's selection stays on its row (a card, Hecho's line).
+//     When the card chosen in [2] is no longer on the board, the selection
+//     moves to the row that now has its index (the last one if there are
+//     fewer) and [0] shows it; when the focus was on [0] showing that card,
+//     or a modal of that card was open, the modal closes, the focus goes
+//     back to [2] and the message line says "la tarjeta <slug> ya no
+//     existe" for DuracionAviso (CA-578). [3]'s selection follows the same
+//     index rule without a message: a card that stops running leaves [3].
+//   - A card the model saw with running, read now without it, adds to the
+//     Registro the entry "<rol> termino en <slug>: <plain>" (its plain of
+//     now) and puts the same text in the message line for DuracionFin,
+//     green when its envelope closed entregable and red when not, by the
+//     v1 rule: red is the card's red being the envelope's (red.source ==
 //     boardcmd.RedEnvelope and red.id == the envelope id it saw running),
-//     the card shows interrupted for that envelope (the work died), or the
-//     work had no envelope at all (a run of hoom run by hand: the roles and
-//     the review always have one; without an envelope nothing closed
-//     entregable). Green otherwise. It does so whoever launched it. Several cards that
-//     stopped in one read show one after another, in the board's order,
-//     each for DuracionFin. An end notice takes the bar from a message
-//     given before it; a message given while it shows (this read's "ya no
-//     existe", a closed confirmation, a key) takes the bar for its time and
-//     the end notice comes back after it, whole: none is lost.
-//   - A launch the model is waiting for is "registered" when its card shows
-//     a running whose envelope id (or run id when it has no envelope) the
-//     card did not have when the order was given.
+//     the card showing interrupted for that envelope, or the work having
+//     had no envelope at all. It does so whoever launched it. Several cards
+//     that stopped in one read show one after another in the message line,
+//     in the board's order, each for DuracionFin; an end notice takes the
+//     line from a message given before it, and a message given while it
+//     shows takes the line for its time and the end notice comes back
+//     after it, whole: none is lost.
+//   - A launch the model is waiting for is "registered" when its card
+//     shows a running whose envelope id (or run id when it has no envelope)
+//     the card did not have when the order was given: its Registro entry
+//     says "corriendo".
+//   - A Firma or Guardar modal open on a card is checked against the read
+//     (the v1 rule that ties a confirmation to what it shows; see the
+//     package doc, "The Firma modal").
 func (m *Modelo) Leer(l Lectura) []Orden {
 	m.fijada = l.Fijada
 	if l.Err != nil {
@@ -267,8 +366,8 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 	return nil
 }
 
-// LeerDetalle takes the read of the open card; one of another card is
-// ignored.
+// LeerDetalle takes the read of the card [0] shows (Elegida); one of
+// another card is ignored. It checks an open Firma modal again (its spec).
 func (m *Modelo) LeerDetalle(d Detalle) {
 	if m.abierta == "" || d.Slug != m.abierta {
 		return
@@ -278,63 +377,39 @@ func (m *Modelo) LeerDetalle(d Detalle) {
 	m.acomodar()
 }
 
-// Tecla takes one key at ahora. What a key does is the Atajos row of the
-// current Vista that has it; a key with no row there does nothing (the
-// screen and the orders stay the same). In the views where the card's
-// action keys work (the list, the open card, the menu), on the selected or
-// open card:
+// Tecla takes one key at ahora. What a key does is the row of Atajos that
+// has it in the current Lugar (Modelo.Lugar); a key with no row there does
+// nothing: the screen and the orders stay the same. The package doc says
+// what each row does in each Lugar ("The keys"); in short:
 //
-//   - a, t, w, r, R, s, A, I: when the card has the Accion of the row and
-//     it is enabled, they open its form (a, t, w, r, R), its confirmation
-//     (A, I, s); when it does not have it, the bar says for DuracionAviso
-//     "en <column_name> no hay <hace>" (Hace of the row); when it is
-//     disabled, its why. Nothing runs.
-//   - n: what hoom siguiente does. When the card is in Hecho, the bar says
-//     "la tarjeta ya esta en Hecho"; with running, "el <rol> esta
-//     trabajando: espera a que termine"; with interrupted, "el trabajo se
-//     corto: R reanuda o pide de nuevo"; in Tu aprobacion, "te toca: A
-//     aprobar"; in Tu aceptacion, "te toca: I integrar"; without actions,
-//     "en <column_name> no hay nada que hacer ahora: <plain>". Otherwise,
-//     when the first action is a role action: its form if it is enabled,
-//     its why if not; when the first action is guardar: "te toca: s
-//     guardar". The form of n runs `hoom siguiente <slug>`.
-//   - u: orders Lanzar{Args: {"usar", <slug>}}.
-//   - Without a selected card (the selection on Hecho's line), these keys
-//     do nothing.
+//   - The keys of an action (a, t, w, r, R, s, A, I and n) never order
+//     Lanzar: when the card has the action and it is enabled, they open its
+//     modal (Pedir for a, t, w, r and R; Firma for A and I; Guardar for s;
+//     n the modal of the next step's action, whatever its kind) and return
+//     no order; when the card does not have it, the message line says for
+//     DuracionAviso "en <column_name> no hay <Hace>"; when it is disabled,
+//     its why. n without a next step says what hoom siguiente would say
+//     (see the package doc, "The next step"). Without a card (Hecho's line,
+//     an empty [3]) they do nothing.
+//   - u orders Lanzar{Rol: "", Args: {"usar", <slug>}} at once (no modal)
+//     and adds its Registro entry ("Fijar para la terminal").
+//   - Only enter on a modal's action button orders Lanzar (Pedir, Firma,
+//     Guardar), with the Args the modal's "Se va a ejecutar" shows, adds
+//     the verb's Registro entry and closes the modal. Pedir, as the v1's
+//     form, also puts "lanzando hoom <verb>" in the message line for
+//     DuracionAviso (the verb's words, without -m and the flags:
+//     "lanzando hoom pedir writer <slug>").
+//   - e orders AbrirEditor (and adds the editor's Registro entry), ctrl-e
+//     in the Pedir modal orders EditarPedido, q and ctrl-c order Salir.
 //
-// The form (VistaFormulario) takes the action's values: the provider
-// options, the default one chosen (the first that can when none is
-// default), model, effort, budget_usd (empty without one), timeout_s
-// (valores.Duracion) and pedido, the focus on Pedido (on Provider for the
-// reviewer) with the cursor at its end. enter with an empty pedido marks it
-// and the bar says "el pedido esta vacio"; with a provider that cannot,
-// its why; with a Tiempo limite that is not a duration between 1m and 12h,
-// manifest.ParseTimeout's error; with a Presupuesto that is not a number,
-// "el presupuesto no es un numero"; otherwise it orders Lanzar and goes
-// back to where it was opened from, with "lanzando hoom <verb>" in the bar
-// for DuracionAviso (e.g. "lanzando hoom pedir writer <slug>", "lanzando
-// hoom siguiente <slug>": the verb's words, without -m and the flags). The order's Args are the verb ({"pedir", <rol>, <slug>}, {"siguiente",
-// <slug>} or {"reanudar", <slug>}), "-m" and the trimmed pedido (not for the
-// reviewer, nor its --timeout), then, in this order and only when its value differs from the
-// action's proposal: "--provider" <name>, "--model" <text>, "--effort"
-// <text>, "--budget-usd" <text> (an empty Presupuesto is "0", no cap),
-// "--timeout" <text>. The → line is "→ hoom " and those Args, each value
-// quoted as tarjetacmd.Citar does it (the pedido as tarjetacmd.CitarPedido:
-// cut to 60 characters), cut to the box.
-//
-// A confirmation of A or I orders Lanzar{Args: {"aprobar"|"integrar",
-// <slug>, "--si"}} only with enter on Firmar; enter on Cancelar or esc
-// close it. The one of s orders Lanzar{Args: {"guardar", <slug>}} with
-// enter.
-//
-// q and ctrl-c order Salir.
+// A key that opens a modal returns no order: Modal says which one opened.
 func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
 	if !ahora.IsZero() {
 		m.ahora = ahora
 	}
-	v := m.Vista()
+	v := m.vistaV1()
 	// ]c and [c: two strokes
-	if v == VistaSpec {
+	if v == vistaSpec {
 		if m.prefijo != "" {
 			junta := m.prefijo + t
 			m.prefijo = ""
@@ -358,11 +433,14 @@ func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
 	return ordenes
 }
 
-// Termino takes the end of a process the model ordered. A launch that ends
-// before it was registered (see Leer) puts its Ultima in the bar for
-// DuracionAviso: red when Code is not 0. One that ends after leaves the bar
-// to Leer's notice. usar, guardar, aprobar and integrar put their Ultima in
-// the bar, green with Code 0 and red otherwise.
+// Termino takes the end of a process the model ordered. Its Registro entry
+// says "hecho" when Code is 0 and "fallo: <Ultima>" otherwise (Ultima
+// empty: "hoom <verb> salio con <Code>"). As in the v1, the message line
+// also says it: a role launch that ends before it was registered (see
+// Leer) puts its Ultima there for DuracionAviso, red when Code is not 0;
+// one that ends after leaves the line to Leer's notice; usar, guardar,
+// aprobar and integrar put their Ultima there, green with Code 0 and red
+// otherwise.
 func (m *Modelo) Termino(f FinProceso, ahora time.Time) {
 	if !ahora.IsZero() {
 		m.ahora = ahora
@@ -399,9 +477,10 @@ func (m *Modelo) Termino(f FinProceso, ahora time.Time) {
 	m.acomodar()
 }
 
-// PedidoEditado takes what the editor gave back for the pedido: with err,
-// the pedido stays as it was and the bar says "el editor salio con error";
-// without it, the text is the pedido, cursor at its end.
+// PedidoEditado takes what the editor gave back for the pedido of the open
+// Pedir modal: with err, the pedido stays as it was and the message line
+// says "el editor salio con error" in red for DuracionAviso; without it,
+// the text is the pedido, its cursor at its end.
 func (m *Modelo) PedidoEditado(texto string, err error) {
 	if m.form == nil {
 		return
@@ -416,17 +495,83 @@ func (m *Modelo) PedidoEditado(texto string, err error) {
 	}
 }
 
-// Tamano takes a new size of the terminal.
+// Tamano takes a new size of the terminal: the panels are laid out again
+// and an open modal is centered again, with the rule of what does not fit.
 func (m *Modelo) Tamano(ancho, alto int) {
 	m.c.Ancho, m.c.Alto = ancho, alto
 	m.acomodar()
 }
 
-// Tic moves the clock: the bar's messages expire and the times on screen
-// ("hace <n>s") move.
+// Tic moves the clock: the message line's messages expire and the times on
+// screen ("hace <n>s", "12:41 de 45:00") move.
 func (m *Modelo) Tic(ahora time.Time) {
 	m.ahora = ahora
 	m.barra.avanzar(m.ahora)
+}
+
+// LeerProyecto takes a read of the project ([1] and its [0]). A read with
+// Err keeps what the last one showed and puts the message line's
+// "no se pudo leer el proyecto: <Err>" until a read works (CA-562).
+func (m *Modelo) LeerProyecto(p Proyecto) {}
+
+// LeerHallazgos takes a read of the project's open findings ([4] and its
+// [0]). A read with Err keeps the last list and puts the message line's
+// "no se pudieron leer los hallazgos: <Err>" until a read works (CA-562).
+// [4]'s selection stays on its finding (by id); when that finding is gone,
+// it moves to the row that now has its index (the last one if there are
+// fewer).
+func (m *Modelo) LeerHallazgos(h Hallazgos) {}
+
+// LeerArchivo takes the read of the file of the finding [0] shows; one
+// whose Ruta and Linea are not ArchivoElegido's now is ignored.
+func (m *Modelo) LeerArchivo(a Archivo) {}
+
+// Raton takes one mouse event at ahora (see the package doc, "The mouse").
+// It moves the focus, chooses rows, options and buttons and scrolls; it
+// never orders Lanzar nor opens a modal, so it returns no order (CA-575).
+func (m *Modelo) Raton(r Raton, ahora time.Time) []Orden {
+	return nil
+}
+
+// Foco is the panel with the focus: PanelTarjetas at the start. There is
+// always one, also while a modal is open (the panel under it).
+func (m *Modelo) Foco() Panel {
+	return 0
+}
+
+// Modal is the open modal (SinModal when none).
+func (m *Modelo) Modal() Modal {
+	return SinModal
+}
+
+// Lugar is where the keys are now: the Lugar whose rows of Atajos the
+// next key is looked up in.
+func (m *Modelo) Lugar() Lugar {
+	return ""
+}
+
+// Elegida is the slug of the card [0] shows, the one whose Detalle Run
+// reads: the card chosen in [2] or in [3] when that panel is the last left
+// panel that had the focus; "" when [0] shows Proyecto, a finding or
+// nothing.
+func (m *Modelo) Elegida() string {
+	return ""
+}
+
+// ArchivoElegido is the file of the finding [0] shows, relative to the
+// project root with /, and its line (0 when the finding names none), the
+// one whose Archivo Run reads; "" when [0] shows no finding, the finding
+// names no file, or its path leaves the project by its form (see the
+// package doc, "Paths").
+func (m *Modelo) ArchivoElegido() (ruta string, linea int) {
+	return "", 0
+}
+
+// Registro is the Registro's entries, oldest first: every verb the TUI
+// ran, every e, and every end of a job (see the package doc, "The
+// Registro"). It lives while the model does.
+func (m *Modelo) Registro() []Asiento {
+	return nil
 }
 
 // fallo says whether the work the model saw running on c ended without
@@ -443,18 +588,18 @@ func fallo(c *boardcmd.Card, v visto) bool {
 	return c.Interrupted != nil && c.Interrupted.EnvelopeID == v.envelope
 }
 
-// Vista is the current view.
-func (m *Modelo) Vista() Vista {
+// vistaV1 is the current view.
+func (m *Modelo) vistaV1() vistaV1 {
 	return m.vista
 }
 
 // Abierta is the slug of the open card and whether its Historia tab is the
 // active one ("" in the list).
-func (m *Modelo) Abierta() (slug string, historia bool) {
+func (m *Modelo) abiertaV1() (slug string, historia bool) {
 	if m.abierta == "" {
 		return "", false
 	}
-	return m.abierta, m.pestana == VistaHistoria
+	return m.abierta, m.pestana == vistaHistoria
 }
 
 // Corriendo is how many role jobs (Lanzar with Rol) the model ordered that

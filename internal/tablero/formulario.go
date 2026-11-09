@@ -42,7 +42,7 @@ type formulario struct {
 	rol      string
 	accion   boardcmd.Action
 	verbo    []string // {"pedir", <rol>, <slug>}, {"siguiente", <slug>} or {"reanudar", <slug>}
-	desde    Vista
+	desde    vistaV1
 	revisor  bool // no Pedido, and its Tiempo limite is review.timeout's: shown, never sent
 	reanudar bool // the provider is the session's: it does not change
 
@@ -134,7 +134,7 @@ func (m *Modelo) abrirFormulario(c *boardcmd.Card, a boardcmd.Action, verbo []st
 	}
 	m.menu = nil
 	m.form = f
-	m.vista = VistaFormulario
+	m.vista = vistaFormulario
 }
 
 func (m *Modelo) enFormulario(t Tecla) []Orden {

@@ -14,65 +14,65 @@ import (
 )
 
 // hacer runs the row a of the view v for the key t.
-func (m *Modelo) hacer(v Vista, a Atajo, t Tecla) []Orden {
+func (m *Modelo) hacer(v vistaV1, a atajoV1, t Tecla) []Orden {
 	// the keys that mean the same wherever they work
 	switch {
-	case t == "q" && v != VistaBusqueda && v != VistaFormulario, t == TeclaCtrlC:
+	case t == "q" && v != vistaBusqueda && v != vistaFormulario, t == TeclaCtrlC:
 		return []Orden{Salir{}}
 	case t == "x" && esTarjetaVista(v):
 		m.experto = !m.experto
 		return nil
-	case t == "?" && v != VistaAyuda && esTarjetaVista(v):
+	case t == "?" && v != vistaAyuda && esTarjetaVista(v):
 		m.ayudaDe = v
-		m.vista = VistaAyuda
+		m.vista = vistaAyuda
 		return nil
 	case a.Accion != "":
 		if c := m.tarjetaDe(v); c != nil {
 			return m.accion(c, a)
 		}
 		return nil
-	case t == TeclaEspacio && v != VistaBusqueda && v != VistaFormulario:
+	case t == TeclaEspacio && v != vistaBusqueda && v != vistaFormulario:
 		if c := m.tarjetaDe(v); c != nil {
 			m.abrirMenu(c, v)
 		}
 		return nil
 	}
 	switch v {
-	case VistaLista:
+	case vistaLista:
 		return m.enLista(t)
-	case VistaBusqueda:
+	case vistaBusqueda:
 		return m.enBusqueda(t)
-	case VistaResumen, VistaSpec, VistaSobre, VistaHallazgos, VistaHistoria:
+	case vistaResumen, vistaSpec, vistaSobre, vistaHallazgos, vistaHistoria:
 		return m.enPestana(v, t)
-	case VistaMenu:
+	case vistaMenu:
 		return m.enMenu(t)
-	case VistaFormulario:
+	case vistaFormulario:
 		return m.enFormulario(t)
-	case VistaConfirmacion:
+	case vistaConfirmacion:
 		return m.enConfirmacion(t)
-	case VistaAyuda:
+	case vistaAyuda:
 		m.vista = m.ayudaDe
 		return nil
 	}
 	return nil
 }
 
-func esTarjetaVista(v Vista) bool { return contieneVista(tarjetaVistas, v) }
+func esTarjetaVista(v vistaV1) bool { return contieneVista(tarjetaVistas, v) }
 
-func esPestana(v Vista) bool { return contieneVista(pestanaVistas, v) }
+func esPestana(v vistaV1) bool { return contieneVista(pestanaVistas, v) }
 
 // tarjetaDe is the card the action keys act on in v: the selected one in
 // the list, the open one in its tabs, the menu's in the menu.
-func (m *Modelo) tarjetaDe(v Vista) *boardcmd.Card {
+func (m *Modelo) tarjetaDe(v vistaV1) *boardcmd.Card {
 	switch {
-	case v == VistaLista:
+	case v == vistaLista:
 		if m.selHecho || m.selSlug == "" {
 			return nil
 		}
 		return m.tarjeta(m.selSlug)
 	case esPestana(v):
 		return m.tarjeta(m.abierta)
-	case v == VistaMenu && m.menu != nil:
+	case v == vistaMenu && m.menu != nil:
 		return m.tarjeta(m.menu.slug)
 	}
 	return nil
@@ -93,7 +93,7 @@ func (m *Modelo) enLista(t Tecla) []Orden {
 	case TeclaEnter, "l", TeclaDer:
 		m.entrar()
 	case "/":
-		m.vista = VistaBusqueda
+		m.vista = vistaBusqueda
 		m.filtro = nil
 	}
 	return nil
@@ -126,7 +126,7 @@ func (m *Modelo) enBusqueda(t Tecla) []Orden {
 }
 
 func (m *Modelo) cerrarBusqueda() {
-	m.vista = VistaLista
+	m.vista = vistaLista
 	m.filtro = nil
 	m.acomodar()
 }
@@ -181,9 +181,9 @@ func (m *Modelo) abrir(slug string) {
 		m.detalle = nil
 	}
 	m.abierta = slug
-	m.pestana = VistaResumen
-	m.vista = VistaResumen
-	m.scrolls = map[Vista]int{}
+	m.pestana = vistaResumen
+	m.vista = vistaResumen
+	m.scrolls = map[vistaV1]int{}
 	m.hallazgo = 0
 	m.alFinal = true
 }
@@ -195,7 +195,7 @@ func (m *Modelo) volver() {
 	}
 	m.abierta = ""
 	m.detalle = nil
-	m.vista = VistaLista
+	m.vista = vistaLista
 }
 
 // cerrarTodo goes back to the list from wherever it is.
@@ -204,18 +204,18 @@ func (m *Modelo) cerrarTodo() {
 	m.abierta = ""
 	m.detalle = nil
 	m.filtro = nil
-	m.vista = VistaLista
+	m.vista = vistaLista
 }
 
 // slugEnUso is the card the screen is about beyond the list: the open one,
 // or the one of the menu, the form or the confirmation ("" in the list).
 func (m *Modelo) slugEnUso() string {
 	switch {
-	case m.form != nil && (m.vista == VistaFormulario || m.vista == VistaAyuda):
+	case m.form != nil && (m.vista == vistaFormulario || m.vista == vistaAyuda):
 		return m.form.slug
-	case m.conf != nil && m.vista == VistaConfirmacion:
+	case m.conf != nil && m.vista == vistaConfirmacion:
 		return m.conf.slug
-	case m.menu != nil && (m.vista == VistaMenu || m.ayudaDe == VistaMenu && m.vista == VistaAyuda):
+	case m.menu != nil && (m.vista == vistaMenu || m.ayudaDe == vistaMenu && m.vista == vistaAyuda):
 		return m.menu.slug
 	}
 	return m.abierta
@@ -223,14 +223,14 @@ func (m *Modelo) slugEnUso() string {
 
 // ---------------------------------------------------------------- the tabs
 
-func (m *Modelo) enPestana(v Vista, t Tecla) []Orden {
+func (m *Modelo) enPestana(v vistaV1, t Tecla) []Orden {
 	switch t {
 	case "1", "2", "3", "4", "5":
-		m.elegirPestana(Pestanas[int(t[0]-'1')])
+		m.elegirPestana(pestanasV1[int(t[0]-'1')])
 	case TeclaTab:
-		for i, p := range Pestanas {
+		for i, p := range pestanasV1 {
 			if p == v {
-				m.elegirPestana(Pestanas[(i+1)%len(Pestanas)])
+				m.elegirPestana(pestanasV1[(i+1)%len(pestanasV1)])
 				break
 			}
 		}
@@ -241,14 +241,14 @@ func (m *Modelo) enPestana(v Vista, t Tecla) []Orden {
 	case "k", TeclaArriba:
 		m.desplazar(v, -1)
 	case "g":
-		if v == VistaHallazgos {
+		if v == vistaHallazgos {
 			m.hallazgo = 0
 		} else {
 			m.scrolls[v] = 0
-			m.alFinal = v != VistaSobre
+			m.alFinal = v != vistaSobre
 		}
 	case "G":
-		if v == VistaHallazgos {
+		if v == vistaHallazgos {
 			m.hallazgo = len(m.hallazgos()) - 1
 		} else {
 			m.scrolls[v] = m.maxScroll(v)
@@ -264,10 +264,10 @@ func (m *Modelo) enPestana(v Vista, t Tecla) []Orden {
 	return nil
 }
 
-func (m *Modelo) elegirPestana(p Vista) {
+func (m *Modelo) elegirPestana(p vistaV1) {
 	m.pestana = p
 	m.vista = p
-	if p == VistaSobre {
+	if p == vistaSobre {
 		m.alFinal = true
 		m.scrolls[p] = m.maxScroll(p)
 	}
@@ -281,15 +281,15 @@ func (m *Modelo) alto() int {
 	return 1
 }
 
-func (m *Modelo) maxScroll(v Vista) int {
+func (m *Modelo) maxScroll(v vistaV1) int {
 	if n := len(m.contenido(v)) - m.alto(); n > 0 {
 		return n
 	}
 	return 0
 }
 
-func (m *Modelo) desplazar(v Vista, d int) {
-	if v == VistaHallazgos {
+func (m *Modelo) desplazar(v vistaV1, d int) {
+	if v == vistaHallazgos {
 		m.hallazgo += d
 		return
 	}
@@ -301,7 +301,7 @@ func (m *Modelo) desplazar(v Vista, d int) {
 		s--
 	}
 	m.scrolls[v] = s
-	if v == VistaSobre {
+	if v == vistaSobre {
 		m.alFinal = s >= m.maxScroll(v)
 	}
 }
@@ -309,19 +309,19 @@ func (m *Modelo) desplazar(v Vista, d int) {
 // saltarCriterio makes the next (or previous) criterion without a test the
 // first line in view.
 func (m *Modelo) saltarCriterio(adelante bool) {
-	actual := m.scrolls[VistaSpec]
+	actual := m.scrolls[vistaSpec]
 	sin := m.sinPrueba()
 	if adelante {
 		for _, i := range sin {
 			if i > actual {
-				m.scrolls[VistaSpec] = i
+				m.scrolls[vistaSpec] = i
 				return
 			}
 		}
 	} else {
 		for j := len(sin) - 1; j >= 0; j-- {
 			if sin[j] < actual {
-				m.scrolls[VistaSpec] = sin[j]
+				m.scrolls[vistaSpec] = sin[j]
 				return
 			}
 		}
@@ -333,7 +333,7 @@ func (m *Modelo) abrirSpec() []Orden {
 	if m.detalle == nil || !tieneSpec(m.detalle) {
 		return nil
 	}
-	return m.abrirArchivo(m.rutaSpec(), m.scrolls[VistaSpec]+1)
+	return m.abrirArchivo(m.rutaSpec(), m.scrolls[vistaSpec]+1)
 }
 
 func (m *Modelo) abrirHallazgo() []Orden {
@@ -374,13 +374,13 @@ func (m *Modelo) abrirArchivo(archivo string, linea int) []Orden {
 // menu is the action menu of a card.
 type menu struct {
 	slug  string
-	desde Vista // the list or a tab
-	sel   int   // index into the card's shown actions
+	desde vistaV1 // the list or a tab
+	sel   int     // index into the card's shown actions
 }
 
-func (m *Modelo) abrirMenu(c *boardcmd.Card, desde Vista) {
+func (m *Modelo) abrirMenu(c *boardcmd.Card, desde vistaV1) {
 	m.menu = &menu{slug: c.Slug, desde: desde, sel: -1}
-	m.vista = VistaMenu
+	m.vista = vistaMenu
 	m.acomodarMenu()
 }
 
@@ -403,14 +403,14 @@ func elegibleMenu(a boardcmd.Action) bool {
 	return a.Enabled && ok
 }
 
-// filaDeAccion is the row of Atajos that runs the action id.
-func filaDeAccion(id string) (Atajo, bool) {
-	for _, a := range Atajos {
+// filaDeAccion is the row of atajosV1 that runs the action id.
+func filaDeAccion(id string) (atajoV1, bool) {
+	for _, a := range atajosV1 {
 		if a.Accion == id && a.Accion != "" {
 			return a, true
 		}
 	}
-	return Atajo{}, false
+	return atajoV1{}, false
 }
 
 func (m *Modelo) acomodarMenu() {
@@ -477,8 +477,8 @@ func (m *Modelo) cerrarMenu() {
 
 // origen is the view a form or a confirmation goes back to: the one under
 // the menu when it came from the menu.
-func (m *Modelo) origen() Vista {
-	if m.vista == VistaMenu && m.menu != nil {
+func (m *Modelo) origen() vistaV1 {
+	if m.vista == vistaMenu && m.menu != nil {
 		return m.menu.desde
 	}
 	return m.vista
@@ -487,7 +487,7 @@ func (m *Modelo) origen() Vista {
 // ---------------------------------------------------------------- the actions
 
 // accion runs the row a (one with Accion) on the card c.
-func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
+func (m *Modelo) accion(c *boardcmd.Card, a atajoV1) []Orden {
 	verbo := verboDe(a, c.Slug)
 	if len(verbo) == 0 {
 		m.avisar("sin verbo en la terminal", normal, DuracionAviso)
@@ -525,7 +525,7 @@ func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
 // the help and the menu show, without "hoom" and with <slug> as slug
 // ("hoom pedir writer <slug>" is {"pedir", "writer", slug}). What is shown
 // and what runs are one text.
-func verboDe(a Atajo, slug string) []string {
+func verboDe(a atajoV1, slug string) []string {
 	f := strings.Fields(a.Verbo)
 	if len(f) < 2 || f[0] != "hoom" {
 		return nil
@@ -573,7 +573,7 @@ func (m *Modelo) siguiente(c *boardcmd.Card, verbo []string) []Orden {
 
 // dejarMenu closes the menu after it ran an action that opens nothing.
 func (m *Modelo) dejarMenu() {
-	if m.vista == VistaMenu {
+	if m.vista == vistaMenu {
 		m.cerrarMenu()
 	}
 }
@@ -596,7 +596,7 @@ func (m *Modelo) lanzar(slug, rol string, args []string) Lanzar {
 type confirmacion struct {
 	slug   string
 	accion boardcmd.Action
-	desde  Vista
+	desde  vistaV1
 	firma  bool     // aprobar or integrar; false: guardar
 	firmar bool     // Firmar is the chosen button
 	verbo  []string // what enter runs: the row's Verbo (verboDe)
@@ -615,7 +615,7 @@ func (m *Modelo) abrirConfirmacion(c *boardcmd.Card, a boardcmd.Action, firma bo
 	}
 	m.menu = nil
 	m.conf = cf
-	m.vista = VistaConfirmacion
+	m.vista = vistaConfirmacion
 }
 
 func (m *Modelo) enConfirmacion(t Tecla) []Orden {
@@ -808,12 +808,12 @@ func (m *Modelo) acomodar() {
 		if m.hallazgo < 0 {
 			m.hallazgo = 0
 		}
-		for _, p := range Pestanas {
+		for _, p := range pestanasV1 {
 			s, max := m.scrolls[p], len(m.contenido(p))-1
-			if p == VistaSobre && m.alFinal {
+			if p == vistaSobre && m.alFinal {
 				s = m.maxScroll(p)
 			}
-			if p == VistaHallazgos {
+			if p == vistaHallazgos {
 				h := m.alto()
 				if m.hallazgo < s {
 					s = m.hallazgo

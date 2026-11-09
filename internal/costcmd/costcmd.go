@@ -8,6 +8,11 @@
 // Text output (the strings a reader and a test can rely on; layout and
 // spacing around them are not part of the contract):
 //
+//   - without a slug, the first line is what today's runs cost
+//     (tablero-con-paneles, CA-561): "hoy: <usd> USD en <n> trabajos",
+//     with ", <k> sin dato de costo" when some of them reported no cost, or
+//     "hoy: sin trabajos" (LineaHoy; today in the computer's local time);
+//     with a slug there is no such line;
 //   - state of a task: "aceptada <fecha>" (fecha = "2006-01-02 15:04 UTC"),
 //     "cerrada sin aceptar" or "en curso"; "rondas <n>";
 //   - token figures, per provider: "nuevos <n>", "cache leido <n>",
@@ -119,6 +124,41 @@ type Reporte struct {
 	// run): a figure that comes out of a partial reading says so here
 	// instead of passing for a fact. Text: one "aviso: <...>" line each.
 	Avisos []string `json:"avisos"`
+	// Hoy is what the runs that started today cost (tablero-con-paneles,
+	// CA-561): only in the report of every task (`hoom costo` without a
+	// slug); nil, and absent from the JSON, in the report of one slug, which
+	// does not change. In the JSON it is
+	// "hoy": {"runs": <n>, "costo_usd": <x>, "sin_costo": <k>}, after
+	// "avisos"; in the text it is the first line (LineaHoy).
+	Hoy *Hoy `json:"hoy,omitempty"`
+}
+
+// Hoy is what the runs that started today cost. Today is the day of the
+// clock BuildEn gets, in that clock's location (hoom costo: the computer's
+// local time).
+type Hoy struct {
+	// Runs counts the project's run sidecars (.hoom/runs at the root, the
+	// same ones the rest of hoom costo reads) whose created_at falls on
+	// today, whatever task they belong to, or none; still running ones
+	// included. The unreadable sidecars, whose start is unknown, are not
+	// counted (the report counts them in Ilegibles).
+	Runs int `json:"runs"`
+	// CostoUSD adds the cost those runs reported, by the rule of the rest of
+	// hoom costo (the provider's figure: USD equivalent API); 0 when none
+	// reported one, never null.
+	CostoUSD float64 `json:"costo_usd"`
+	// SinCosto counts those runs that reported no cost (a running one has
+	// none yet).
+	SinCosto int `json:"sin_costo"`
+}
+
+// LineaHoy is the first line of `hoom costo` without a slug:
+// "hoy: <usd> USD en <n> trabajos" (usd with two decimals), followed by
+// ", <k> sin dato de costo" when SinCosto is not 0; or "hoy: sin trabajos"
+// when Runs is 0. "<n> trabajos" is written as the spec writes it, for
+// every n ("en 1 trabajos" too).
+func LineaHoy(h Hoy) string {
+	return ""
 }
 
 // Tarea is one task's cost. Sin slug the report carries every task (newest

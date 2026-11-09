@@ -52,7 +52,10 @@ func JSONBytes(r Reporte) ([]byte, error) {
 }
 
 // Render writes the report for humans: one line per task, or the breakdown
-// of each task when the report was built for one slug (detalle).
+// of each task when the report was built for one slug (detalle). When the
+// report has Hoy (the report of every task), its first line is
+// LineaHoy(*r.Hoy), before everything else ("ninguna tarea tiene runs ni
+// reviews" included).
 func Render(w io.Writer, r Reporte, detalle bool) {
 	s := salida{w}
 	if len(r.Tareas) == 0 {

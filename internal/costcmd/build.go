@@ -36,7 +36,33 @@ func (e *SinNada) Error() string { return fmt.Sprintf(ErrSinNada, e.Slug) }
 // The review records and findings are also read from every task worktree:
 // while a task is in course they live in its worktree (they reach the
 // project with the merge). A worktree only speaks for its own task.
+//
+// Build is BuildEn(root, slug, time.Now()): the report of every task
+// carries Hoy for today in the computer's local time.
 func Build(root, slug string) (Reporte, error) {
+	return buildV1(root, slug)
+}
+
+// BuildEn is Build with the clock: when slug is "", the report's Hoy is
+// HoyEn(root, ahora); for a slug the report is the same as before
+// tablero-con-paneles (Hoy nil). The location of ahora is the one "today"
+// is counted in: hoom costo passes time.Now() (local), tests their own.
+func BuildEn(root, slug string, ahora time.Time) (Reporte, error) {
+	return buildV1(root, slug)
+}
+
+// HoyEn is Hoy for ahora: the project's run sidecars (.hoom/runs at root)
+// whose created_at, read in ahora's location, falls on ahora's date (year,
+// month and day in that location). It only reads; a .hoom/runs that is not
+// there is a Hoy of zeros, and an error reading it is the error
+// runcmd.MetasConIlegibles gives. hoom tablero's [1] reads it every ten
+// seconds: it reads the sidecars only, not the reviews nor the worktrees.
+func HoyEn(root string, ahora time.Time) (Hoy, error) {
+	return Hoy{}, nil
+}
+
+// buildV1 is the report as it was before tablero-con-paneles.
+func buildV1(root, slug string) (Reporte, error) {
 	ctx := &contexto{root: root, porID: map[string]runcmd.Meta{}, severidad: map[string]string{}}
 	if err := ctx.cargarRuns(); err != nil {
 		return Reporte{}, err

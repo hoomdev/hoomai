@@ -27,22 +27,33 @@ const (
 	TeclaCtrlC    Tecla = "ctrl-c"
 	TeclaCtrlU    Tecla = "ctrl-u"
 	TeclaCtrlE    Tecla = "ctrl-e"
+	// TeclaPgArriba and TeclaPgAbajo are page up and page down.
+	TeclaPgArriba Tecla = "pgup"
+	TeclaPgAbajo  Tecla = "pgdn"
 	// TeclaEspacio is the space bar: a printable key like any other.
 	TeclaEspacio Tecla = " "
 	// TeclaTexto stands, in Atajos only, for any printable key that a text
-	// field takes. The model never gets it.
+	// field takes (the search, the Pedido, a selector turned text). The
+	// model never gets it.
 	TeclaTexto Tecla = "texto"
 )
 
-// Decodificar turns the bytes a terminal in raw mode sends into keys. It
+// Decodificar turns the bytes a terminal in raw mode sends into keys: the
+// keys of DecodificarEntradas, in order, without its mouse events. It
 // knows: 0x03 ctrl-c, 0x05 ctrl-e, 0x15 ctrl-u, 0x09 tab, 0x0d and 0x0a
 // enter, 0x7f and 0x08 backspace; ESC [ A/B/C/D and ESC O A/B/C/D the
-// arrows, ESC [ Z shift-tab; an ESC that starts no sequence it knows is
-// TeclaEsc (a lone ESC at the end included), and the rest of an unknown
-// CSI sequence (ESC [ ... final byte) is dropped; any other control byte is
-// dropped; valid UTF-8 runes are themselves; an invalid byte is dropped.
-// The buffer is taken as complete: Run waits for the rest of a sequence
-// before it decodes.
+// arrows, ESC [ Z shift-tab, ESC [ 5 ~ pgup and ESC [ 6 ~ pgdn; an ESC
+// that starts no sequence it knows is TeclaEsc (a lone ESC at the end
+// included), and the rest of an unknown CSI sequence (ESC [ ... final
+// byte) is dropped; a mouse event in the SGR format (ESC [ < ... M or m,
+// see DecodificarEntradas) is no key; ESC [ M and the three bytes after it
+// (a mouse event in the old X10 format, from a terminal that does not speak
+// SGR) are dropped whole, so a click there never reads as keys; any other
+// control byte is dropped; valid UTF-8 runes are themselves; an invalid
+// byte is dropped. The buffer is taken as complete: Run waits for the rest
+// of a sequence before it decodes (an ESC [ M with fewer than three bytes
+// after it, or an ESC [ < sequence without its final M or m, is waited
+// for like any other).
 func Decodificar(b []byte) []Tecla {
 	var out []Tecla
 	for i := 0; i < len(b); {
@@ -161,38 +172,40 @@ func incompleta(b []byte) bool {
 	return false
 }
 
-// Vista is what the screen shows; keys mean what the Atajos of the current
-// Vista say.
-type Vista string
+// vistaV1 is what the screen shows; keys mean what the atajosV1 of the current
+// vistaV1 say.
+type vistaV1 string
 
 // The views. The open card is one view per tab.
 const (
-	VistaLista        Vista = "lista"
-	VistaBusqueda     Vista = "busqueda" // the list while / is open
-	VistaResumen      Vista = "resumen"
-	VistaSpec         Vista = "spec"
-	VistaSobre        Vista = "sobre"
-	VistaHallazgos    Vista = "hallazgos"
-	VistaHistoria     Vista = "historia"
-	VistaMenu         Vista = "menu"
-	VistaFormulario   Vista = "formulario"
-	VistaConfirmacion Vista = "confirmacion"
-	VistaAyuda        Vista = "ayuda"
+	vistaLista        vistaV1 = "lista"
+	vistaBusqueda     vistaV1 = "busqueda" // the list while / is open
+	vistaResumen      vistaV1 = "resumen"
+	vistaSpec         vistaV1 = "spec"
+	vistaSobre        vistaV1 = "sobre"
+	vistaHallazgos    vistaV1 = "hallazgos"
+	vistaHistoria     vistaV1 = "historia"
+	vistaMenu         vistaV1 = "menu"
+	vistaFormulario   vistaV1 = "formulario"
+	vistaConfirmacion vistaV1 = "confirmacion"
+	vistaAyuda        vistaV1 = "ayuda"
 )
 
-// Pestanas are the open card's views, in tab order (keys 1 to 5).
-var Pestanas = []Vista{VistaResumen, VistaSpec, VistaSobre, VistaHallazgos, VistaHistoria}
+// pestanasV1 are the open card's views, in tab order (keys 1 to 5).
+var pestanasV1 = []vistaV1{vistaResumen, vistaSpec, vistaSobre, vistaHallazgos, vistaHistoria}
 
-// AccionSiguiente is the Accion of n: the card's primary action, as hoom
-// siguiente takes it (see Modelo.Tecla).
+// AccionSiguiente is the Accion of n: the card's next step (see the
+// package doc, "The next step"). n opens the modal of that action and runs
+// that action's verb.
 const AccionSiguiente = "siguiente"
 
-// AccionUsar is the Accion of u: hoom usar, which every card has.
+// AccionUsar is the Accion of u: hoom usar, which every card has. It is the
+// only action key that runs without a modal.
 const AccionUsar = "usar"
 
-// Atajo is one row of the key table: the keys, how the help writes them,
+// atajoV1 is one row of the key table: the keys, how the help writes them,
 // what they do, the verb they run and where they work.
-type Atajo struct {
+type atajoV1 struct {
 	Teclas  []Tecla
 	Muestra string // the keys as the help writes them
 	Hace    string // what they do, as the help says it
@@ -201,45 +214,45 @@ type Atajo struct {
 	// AccionSiguiente or AccionUsar ("" = none).
 	Accion string
 	Barra  string // its hint in bar 2 ("" = not in the bar)
-	Vistas []Vista
+	Vistas []vistaV1
 }
 
 // tarjetaVistas are the views where the card's action keys work: the list,
 // every tab of the open card and the menu.
-var tarjetaVistas = []Vista{VistaLista, VistaResumen, VistaSpec, VistaSobre, VistaHallazgos, VistaHistoria, VistaMenu}
+var tarjetaVistas = []vistaV1{vistaLista, vistaResumen, vistaSpec, vistaSobre, vistaHallazgos, vistaHistoria, vistaMenu}
 
 // pestanaVistas are the open card's tabs.
-var pestanaVistas = []Vista{VistaResumen, VistaSpec, VistaSobre, VistaHallazgos, VistaHistoria}
+var pestanaVistas = []vistaV1{vistaResumen, vistaSpec, vistaSobre, vistaHallazgos, vistaHistoria}
 
-// Atajos is THE key table: the help lists it and the model dispatches from
+// atajosV1 is THE key table: the help lists it and the model dispatches from
 // it, so no key works without being in the help, nor the other way round
 // (CA-532). Its order is the help's and the bar's.
-var Atajos = []Atajo{
+var atajosV1 = []atajoV1{
 	// the list
 	{Teclas: []Tecla{"j", TeclaAbajo, "k", TeclaArriba}, Muestra: "j k ↓ ↑", Hace: "moverse", Barra: "j/k moverse",
-		Vistas: []Vista{VistaLista, VistaMenu}},
-	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "primera, ultima", Vistas: []Vista{VistaLista}},
+		Vistas: []vistaV1{vistaLista, vistaMenu}},
+	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "primera, ultima", Vistas: []vistaV1{vistaLista}},
 	{Teclas: []Tecla{TeclaEnter, "l", TeclaDer}, Muestra: "enter l →", Hace: "abrir la tarjeta", Barra: "enter abrir",
-		Vistas: []Vista{VistaLista}},
+		Vistas: []vistaV1{vistaLista}},
 	// the open card
 	{Teclas: []Tecla{"1", "2", "3", "4", "5", TeclaTab}, Muestra: "1-5 tab", Hace: "elegir la pestana", Barra: "1-5 pestanas",
 		Vistas: pestanaVistas},
 	{Teclas: []Tecla{"j", TeclaAbajo, "k", TeclaArriba}, Muestra: "j k ↓ ↑", Hace: "desplazarse",
-		Vistas: []Vista{VistaResumen, VistaSpec, VistaSobre, VistaHistoria}},
+		Vistas: []vistaV1{vistaResumen, vistaSpec, vistaSobre, vistaHistoria}},
 	{Teclas: []Tecla{"j", TeclaAbajo, "k", TeclaArriba}, Muestra: "j k ↓ ↑", Hace: "moverse entre los hallazgos",
-		Vistas: []Vista{VistaHallazgos}},
+		Vistas: []vistaV1{vistaHallazgos}},
 	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "principio, final", Vistas: pestanaVistas},
 	{Teclas: []Tecla{TeclaEsc, "h", TeclaIzq}, Muestra: "esc h ←", Hace: "volver a la lista", Barra: "esc volver",
 		Vistas: pestanaVistas},
 	// ]c is "]" and then "c": a key of two strokes, like in Vim
 	{Teclas: []Tecla{"]c", "[c"}, Muestra: "]c [c", Hace: "siguiente y anterior criterio sin prueba", Barra: "]c [c sin prueba",
-		Vistas: []Vista{VistaSpec}},
-	{Teclas: []Tecla{"o"}, Muestra: "o", Hace: "abrir el spec en el editor", Barra: "o editor", Vistas: []Vista{VistaSpec}},
+		Vistas: []vistaV1{vistaSpec}},
+	{Teclas: []Tecla{"o"}, Muestra: "o", Hace: "abrir el spec en el editor", Barra: "o editor", Vistas: []vistaV1{vistaSpec}},
 	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "abrir el hallazgo en el editor", Barra: "enter editor",
-		Vistas: []Vista{VistaHallazgos}},
+		Vistas: []vistaV1{vistaHallazgos}},
 	// the card's actions
 	{Teclas: []Tecla{TeclaEspacio}, Muestra: "espacio", Hace: "menu de acciones de la tarjeta", Barra: "espacio acciones",
-		Vistas: []Vista{VistaLista, VistaResumen, VistaSpec, VistaSobre, VistaHallazgos, VistaHistoria}},
+		Vistas: []vistaV1{vistaLista, vistaResumen, vistaSpec, vistaSobre, vistaHallazgos, vistaHistoria}},
 	{Teclas: []Tecla{"n"}, Muestra: "n", Hace: "el siguiente paso", Verbo: "hoom siguiente <slug>", Accion: AccionSiguiente,
 		Barra: "n siguiente", Vistas: tarjetaVistas},
 	{Teclas: []Tecla{"a"}, Muestra: "a", Hace: "pedir al arquitecto", Verbo: "hoom pedir arquitecto <slug>",
@@ -262,50 +275,50 @@ var Atajos = []Atajo{
 		Accion: AccionUsar, Vistas: tarjetaVistas},
 	// the menu
 	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "hacer la accion elegida", Barra: "enter hacer",
-		Vistas: []Vista{VistaMenu}},
-	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cerrar el menu", Barra: "esc cerrar", Vistas: []Vista{VistaMenu}},
+		Vistas: []vistaV1{vistaMenu}},
+	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cerrar el menu", Barra: "esc cerrar", Vistas: []vistaV1{vistaMenu}},
 	// the search
-	{Teclas: []Tecla{"/"}, Muestra: "/", Hace: "buscar", Barra: "/ buscar", Vistas: []Vista{VistaLista}},
+	{Teclas: []Tecla{"/"}, Muestra: "/", Hace: "buscar", Barra: "/ buscar", Vistas: []vistaV1{vistaLista}},
 	{Teclas: []Tecla{TeclaTexto, TeclaBorrar}, Muestra: "texto", Hace: "filtrar por slug o titulo",
-		Vistas: []Vista{VistaBusqueda}},
+		Vistas: []vistaV1{vistaBusqueda}},
 	{Teclas: []Tecla{TeclaAbajo, TeclaArriba}, Muestra: "↓ ↑", Hace: "moverse", Barra: "↓/↑ moverse",
-		Vistas: []Vista{VistaBusqueda}},
+		Vistas: []vistaV1{vistaBusqueda}},
 	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "abrir la tarjeta", Barra: "enter abrir",
-		Vistas: []Vista{VistaBusqueda}},
-	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cerrar la busqueda", Barra: "esc cerrar", Vistas: []Vista{VistaBusqueda}},
+		Vistas: []vistaV1{vistaBusqueda}},
+	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cerrar la busqueda", Barra: "esc cerrar", Vistas: []vistaV1{vistaBusqueda}},
 	// the launch form
-	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "lanzar", Barra: "enter lanzar", Vistas: []Vista{VistaFormulario}},
+	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "lanzar", Barra: "enter lanzar", Vistas: []vistaV1{vistaFormulario}},
 	{Teclas: []Tecla{TeclaTab, TeclaShiftTab}, Muestra: "tab shift-tab", Hace: "siguiente y anterior campo",
-		Barra: "tab campos", Vistas: []Vista{VistaFormulario}},
+		Barra: "tab campos", Vistas: []vistaV1{vistaFormulario}},
 	{Teclas: []Tecla{TeclaIzq, TeclaDer}, Muestra: "← →", Hace: "en Provider, cambiar la opcion; en un texto, mover el cursor",
-		Vistas: []Vista{VistaFormulario}},
-	{Teclas: []Tecla{TeclaTexto, TeclaBorrar}, Muestra: "texto", Hace: "escribir en el campo", Vistas: []Vista{VistaFormulario}},
-	{Teclas: []Tecla{TeclaCtrlU}, Muestra: "ctrl-u", Hace: "vaciar el campo", Vistas: []Vista{VistaFormulario}},
+		Vistas: []vistaV1{vistaFormulario}},
+	{Teclas: []Tecla{TeclaTexto, TeclaBorrar}, Muestra: "texto", Hace: "escribir en el campo", Vistas: []vistaV1{vistaFormulario}},
+	{Teclas: []Tecla{TeclaCtrlU}, Muestra: "ctrl-u", Hace: "vaciar el campo", Vistas: []vistaV1{vistaFormulario}},
 	{Teclas: []Tecla{TeclaCtrlE}, Muestra: "ctrl-e", Hace: "abrir el pedido en el editor", Barra: "ctrl-e editor",
-		Vistas: []Vista{VistaFormulario}},
+		Vistas: []vistaV1{vistaFormulario}},
 	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cancelar sin lanzar", Barra: "esc cancelar",
-		Vistas: []Vista{VistaFormulario}},
+		Vistas: []vistaV1{vistaFormulario}},
 	// the confirmations
 	{Teclas: []Tecla{TeclaIzq, TeclaDer, TeclaTab}, Muestra: "← → tab", Hace: "elegir Firmar o Cancelar", Barra: "←/→ elegir",
-		Vistas: []Vista{VistaConfirmacion}},
-	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "confirmar", Barra: "enter confirmar", Vistas: []Vista{VistaConfirmacion}},
-	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cancelar", Barra: "esc cancelar", Vistas: []Vista{VistaConfirmacion}},
+		Vistas: []vistaV1{vistaConfirmacion}},
+	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "confirmar", Barra: "enter confirmar", Vistas: []vistaV1{vistaConfirmacion}},
+	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cancelar", Barra: "esc cancelar", Vistas: []vistaV1{vistaConfirmacion}},
 	// the help
-	{Teclas: []Tecla{TeclaEsc, "?"}, Muestra: "esc ?", Hace: "cerrar la ayuda", Barra: "esc cerrar", Vistas: []Vista{VistaAyuda}},
+	{Teclas: []Tecla{TeclaEsc, "?"}, Muestra: "esc ?", Hace: "cerrar la ayuda", Barra: "esc cerrar", Vistas: []vistaV1{vistaAyuda}},
 	// everywhere
-	{Teclas: []Tecla{"x"}, Muestra: "x", Hace: "modo experto", Vistas: []Vista{VistaLista, VistaResumen, VistaSpec, VistaSobre,
-		VistaHallazgos, VistaHistoria, VistaMenu}},
-	{Teclas: []Tecla{"?"}, Muestra: "?", Hace: "ayuda", Barra: "? ayuda", Vistas: []Vista{VistaLista, VistaResumen, VistaSpec,
-		VistaSobre, VistaHallazgos, VistaHistoria, VistaMenu}},
-	{Teclas: []Tecla{"q", TeclaCtrlC}, Muestra: "q ctrl-c", Hace: "salir", Vistas: []Vista{VistaLista, VistaResumen, VistaSpec,
-		VistaSobre, VistaHallazgos, VistaHistoria, VistaMenu, VistaAyuda}},
-	{Teclas: []Tecla{TeclaCtrlC}, Muestra: "ctrl-c", Hace: "salir", Vistas: []Vista{VistaBusqueda, VistaFormulario, VistaConfirmacion}},
+	{Teclas: []Tecla{"x"}, Muestra: "x", Hace: "modo experto", Vistas: []vistaV1{vistaLista, vistaResumen, vistaSpec, vistaSobre,
+		vistaHallazgos, vistaHistoria, vistaMenu}},
+	{Teclas: []Tecla{"?"}, Muestra: "?", Hace: "ayuda", Barra: "? ayuda", Vistas: []vistaV1{vistaLista, vistaResumen, vistaSpec,
+		vistaSobre, vistaHallazgos, vistaHistoria, vistaMenu}},
+	{Teclas: []Tecla{"q", TeclaCtrlC}, Muestra: "q ctrl-c", Hace: "salir", Vistas: []vistaV1{vistaLista, vistaResumen, vistaSpec,
+		vistaSobre, vistaHallazgos, vistaHistoria, vistaMenu, vistaAyuda}},
+	{Teclas: []Tecla{TeclaCtrlC}, Muestra: "ctrl-c", Hace: "salir", Vistas: []vistaV1{vistaBusqueda, vistaFormulario, vistaConfirmacion}},
 }
 
-// AtajosDe are the rows of Atajos that work in v, in table order.
-func AtajosDe(v Vista) []Atajo {
-	var out []Atajo
-	for _, a := range Atajos {
+// atajosV1De are the rows of atajosV1 that work in v, in table order.
+func atajosV1De(v vistaV1) []atajoV1 {
+	var out []atajoV1
+	for _, a := range atajosV1 {
 		if contieneVista(a.Vistas, v) {
 			out = append(out, a)
 		}
@@ -313,7 +326,7 @@ func AtajosDe(v Vista) []Atajo {
 	return out
 }
 
-func contieneVista(vs []Vista, v Vista) bool {
+func contieneVista(vs []vistaV1, v vistaV1) bool {
 	for _, x := range vs {
 		if x == v {
 			return true
@@ -324,8 +337,8 @@ func contieneVista(vs []Vista, v Vista) bool {
 
 // atajo is the row of the table that t has in v: the one that names it or,
 // for a printable key that no row names, the row of TeclaTexto.
-func atajo(v Vista, t Tecla) (Atajo, bool) {
-	filas := AtajosDe(v)
+func atajo(v vistaV1, t Tecla) (atajoV1, bool) {
+	filas := atajosV1De(v)
 	for _, a := range filas {
 		for _, k := range a.Teclas {
 			if k == t {
@@ -334,7 +347,7 @@ func atajo(v Vista, t Tecla) (Atajo, bool) {
 		}
 	}
 	if !imprimible(t) {
-		return Atajo{}, false
+		return atajoV1{}, false
 	}
 	for _, a := range filas {
 		for _, k := range a.Teclas {
@@ -343,7 +356,7 @@ func atajo(v Vista, t Tecla) (Atajo, bool) {
 			}
 		}
 	}
-	return Atajo{}, false
+	return atajoV1{}, false
 }
 
 // imprimible: a key that is one printable rune (the space included).

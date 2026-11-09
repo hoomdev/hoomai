@@ -37,7 +37,19 @@ func (d datosReales) Fijada() string {
 	return strings.TrimSpace(string(raw))
 }
 
-func (d datosReales) Detalle(slug string, historia bool) Detalle {
+func (d datosReales) Detalle(slug string) Detalle {
+	return d.detalle(slug, true)
+}
+
+func (d datosReales) Proyecto() Proyecto { return Proyecto{} }
+
+func (d datosReales) Hallazgos() Hallazgos { return Hallazgos{} }
+
+func (d datosReales) Archivo(ruta string, linea int) Archivo {
+	return Archivo{Ruta: ruta, Linea: linea}
+}
+
+func (d datosReales) detalle(slug string, historia bool) Detalle {
 	now := time.Now().UTC()
 	det, err := boardcmd.DetailFor(d.root, d.base, d.blockOn, slug, now, false)
 	out := Detalle{Slug: slug, Detalle: det, Err: err}

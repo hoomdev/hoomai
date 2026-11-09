@@ -30,6 +30,23 @@ type Result struct {
 	Action             string `json:"action,omitempty"` // exact next command, in-band
 }
 
+// Motivo is why a failing check is red, in the words of `hoom check` (what
+// its line says after "hoom check: ROJO - ", without the period that ends
+// it and what follows): one source for the CLI and for hoom tablero's [1]
+// ("check ROJO: <motivo>"). By Reason:
+//
+//   - ReasonNoVerdict: "no existe ningun veredicto";
+//   - ReasonOnlyPartial: "solo hay veredictos PARCIALES (--gate), que no
+//     son referencia";
+//   - ReasonRedVerdict: "el ultimo veredicto (<VerdictID>) es rojo";
+//   - ReasonDrift: "el arbol cambio despues del ultimo veredicto verde
+//     (<VerdictID>)";
+//
+// and "" for a check that is OK or a Reason it does not know.
+func Motivo(r Result) string {
+	return ""
+}
+
 // ExitCode mirrors the strict policy: a failing check exits 1 in every mode.
 func (r Result) ExitCode() int {
 	if r.OK {

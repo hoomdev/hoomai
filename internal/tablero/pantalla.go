@@ -51,18 +51,18 @@ func (m *Modelo) Pantalla() []string {
 // componer is the title and the body (Alto-4 lines) of the current view.
 func (m *Modelo) componer() (string, []linea) {
 	switch v := m.vista; {
-	case v == VistaMenu:
+	case v == vistaMenu:
 		titulo, _ := m.componerVista(m.menu.desde)
 		return titulo, m.cuerpoMenu()
-	case v == VistaFormulario:
+	case v == vistaFormulario:
 		titulo, cuerpo := m.componerVista(m.form.desde)
 		return titulo, m.sobreponer(cuerpo, m.cajaFormulario())
-	case v == VistaConfirmacion:
+	case v == vistaConfirmacion:
 		titulo, cuerpo := m.componerVista(m.conf.desde)
 		return titulo, m.sobreponer(cuerpo, m.cajaConfirmacion())
-	case v == VistaAyuda:
+	case v == vistaAyuda:
 		base := m.ayudaDe
-		if base == VistaMenu && m.menu != nil {
+		if base == vistaMenu && m.menu != nil {
 			base = m.menu.desde
 		}
 		titulo, _ := m.componerVista(base)
@@ -73,7 +73,7 @@ func (m *Modelo) componer() (string, []linea) {
 }
 
 // componerVista is the title and body of the list or of a tab.
-func (m *Modelo) componerVista(v Vista) (string, []linea) {
+func (m *Modelo) componerVista(v vistaV1) (string, []linea) {
 	if esPestana(v) && m.abierta != "" {
 		return m.tituloTarjeta(), m.cuerpoTarjeta(v)
 	}
@@ -97,7 +97,7 @@ func (m *Modelo) barra1() linea {
 	if m.experto {
 		modo = "EXPERTO"
 	}
-	if m.vista == VistaBusqueda {
+	if m.vista == vistaBusqueda {
 		modo = "/" + string(m.filtro) + m.s.cursor
 	}
 	fijada := "sin tarjeta fijada"
@@ -113,7 +113,7 @@ func (m *Modelo) barra1() linea {
 
 func (m *Modelo) barra2() linea {
 	var hints []string
-	for _, a := range AtajosDe(m.vista) {
+	for _, a := range atajosV1De(m.vista) {
 		if a.Barra != "" {
 			hints = append(hints, a.Barra)
 		}
@@ -140,7 +140,7 @@ type seccion struct {
 
 // pasaFiltro: the card stays while the search filters.
 func (m *Modelo) pasaFiltro(c *boardcmd.Card) bool {
-	if m.vista != VistaBusqueda || len(m.filtro) == 0 {
+	if m.vista != vistaBusqueda || len(m.filtro) == 0 {
 		return true
 	}
 	q := plegar(string(m.filtro))
@@ -395,13 +395,13 @@ func (m *Modelo) tituloTarjeta() string {
 	return " " + c.Slug + " · " + c.Item.Titulo
 }
 
-var nombresPestana = map[Vista]string{
-	VistaResumen: "Resumen", VistaSpec: "Spec", VistaSobre: "Sobre", VistaHallazgos: "Hallazgos", VistaHistoria: "Historia",
+var nombresPestana = map[vistaV1]string{
+	vistaResumen: "Resumen", vistaSpec: "Spec", vistaSobre: "Sobre", vistaHallazgos: "Hallazgos", vistaHistoria: "Historia",
 }
 
-func (m *Modelo) cuerpoTarjeta(v Vista) []linea {
+func (m *Modelo) cuerpoTarjeta(v vistaV1) []linea {
 	var tabs []string
-	for i, p := range Pestanas {
+	for i, p := range pestanasV1 {
 		t := fmt.Sprintf("%d %s", i+1, nombresPestana[p])
 		if p == v {
 			t = "[" + t + "]"
@@ -422,12 +422,12 @@ func (m *Modelo) cuerpoTarjeta(v Vista) []linea {
 }
 
 // contenido is the whole content of a tab of the open card.
-func (m *Modelo) contenido(v Vista) []linea {
+func (m *Modelo) contenido(v vistaV1) []linea {
 	c := m.tarjeta(m.abierta)
 	if c == nil {
 		return nil
 	}
-	if v == VistaResumen {
+	if v == vistaResumen {
 		return m.resumen(c)
 	}
 	d := m.detalle
@@ -438,14 +438,14 @@ func (m *Modelo) contenido(v Vista) []linea {
 		return []linea{linCon(" no se pudo leer la tarjeta: "+d.Err.Error(), rojo)}
 	}
 	switch v {
-	case VistaSpec:
+	case vistaSpec:
 		lineas, _ := m.spec()
 		return lineas
-	case VistaSobre:
+	case vistaSobre:
 		return m.sobre(c)
-	case VistaHallazgos:
+	case vistaHallazgos:
 		return m.lineasHallazgos()
-	case VistaHistoria:
+	case vistaHistoria:
 		return m.historia()
 	}
 	return nil
@@ -796,8 +796,8 @@ func (m *Modelo) cuerpoMenu() []linea {
 
 func (m *Modelo) cuerpoAyuda() []linea {
 	out := []linea{lin(" Teclas de " + string(m.ayudaDe))}
-	filas := AtajosDe(m.ayudaDe)
-	texto := func(a Atajo, ancho int) string {
+	filas := atajosV1De(m.ayudaDe)
+	texto := func(a atajoV1, ancho int) string {
 		l := rellenar(a.Muestra, ancho) + a.Hace
 		if a.Verbo != "" {
 			l += "  " + a.Verbo
