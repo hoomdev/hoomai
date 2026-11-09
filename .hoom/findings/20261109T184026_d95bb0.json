@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184026_d95bb0",
+  "created_at": "2026-11-09T18:40:26.776995731Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_teclas_test.go",
+  "description": "INTRODUCIDO. La propiedad negativa de CA-532/CA-564 ('toda tecla con efecto esta en la ayuda') perdio casi todas las letras. En main, internal/tablero/tt_teclas_test.go:422 probaba en cada vista 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789...[]...' (ttEnLaTabla ya saltea las que estan en la tabla de cada vista). tt2_teclas_test.go:689 prueba 'bcdfimoprvyzBCDEF...' y deja afuera a e g h j k l n q s t u w x A G I R 0 1 2 3 4 [ ]. La parte con quick (lineas 703-718, r % 0x3000, 40 runas por Lugar) casi nunca cae en ASCII. Deja de detectarse: una tecla de accion, u, q, x, / o un numero de panel con efecto en LugarFirma, LugarGuardar, LugarAyuda, [1], [4], [0] del proyecto o de un hallazgo (por ejemplo u que lanza hoom usar con la firma abierta). Correccion minima: volver a la lista de la v1 (con 0-4, [ y ]); ttEnLaTabla ya filtra las que valen en cada Lugar.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

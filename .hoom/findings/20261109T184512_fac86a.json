@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184512_fac86a",
+  "created_at": "2026-11-09T18:45:12.755033201Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/pedir.go",
+  "description": "INTRODUCIDO. CA-570: el modelo que la persona eligio y queda elegido al cambiar de provider no lleva la linea '\u003cmodelo\u003e no esta en la lista de \u003cprovider\u003e: puede rechazarlo'. cambiarProvider (pedir.go:337-339) con origen hoom.yaml deja p.valor tal cual (el comentario dice 'hoom.yaml's value', pero es lo elegido), y opciones (pedir.go:260-266) solo suma con la nota a propio, el model de la accion. Escenario: hoom.yaml fija opus para el writer; w; Modelo -\u003e fable (elegido); Provider -\u003e codex: Modelo muestra '\u003c fable \u003e elegido' sin opcion en la lista (elegida -1; la lista abre en 'por defecto del provider', gris), ayudaPedir (modales.go:124-127 y 139-141) devuelve '' y la linea gris queda vacia, mientras el comando manda --provider codex --model fable (tt2_modales_test.go:876-878 asevera que fable sigue, sin mirar la nota). La persona no ve el aviso que el spec pide y codex rechaza el modelo. Lo mismo vale para Esfuerzo. Correccion minima: en opciones, cuando origen es hoom.yaml, p.prov != p.provPropuesto y p.valor[campo] no es '' ni esta en las listas, sumarlo antes de otro... con la misma nota que propio.",
+  "author": "reviewer@claude (tramo T2)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

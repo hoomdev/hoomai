@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184012_f4b30e",
+  "created_at": "2026-11-09T18:40:12.26667361Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_modales_test.go",
+  "description": "INTRODUCIDO. Asercion perdida de CA-525 (sigue igual) / CA-566 para n sin siguiente paso. En main, internal/tablero/tt_acciones_test.go:184-222 (TestCA525_NSiguiente) apretaba n en 8 casos y aseveraba sin ordenes, vista sin cambio y la barra con el texto: 'la tarjeta ya esta en Hecho', 'el trabajo se corto: R reanuda o pide de nuevo', 'en Writer no hay nada que hacer ahora: \u003cplain\u003e' y el why de la primera accion de rol deshabilitada. La reescritura tt2_modales_test.go:464-472 (TestCA566_CA528_NAbreElModalDelSiguientePaso) solo prueba 'con running'; ningun otro test aprieta n (grep Tecla(\"n\"). TestCA556_CA566_SiguientePaso (tt2_paneles) mira solo la linea de [0], no la tecla. Deja de detectarse: n que abre el modal Pedir de una accion deshabilitada (y su boton la lanza), o que no avisa en Hecho, interrumpida o sin acciones. Correccion minima: llevar esos casos de la v1 (mas 'en Tu aprobacion sin la accion') a la parte 'sin siguiente paso' con ttSinOrdenes, Modal()==SinModal y ttDiceMensaje.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

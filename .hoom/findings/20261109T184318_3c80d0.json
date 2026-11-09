@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184318_3c80d0",
+  "created_at": "2026-11-09T18:43:18.347757952Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_paneles_test.go",
+  "description": "INTRODUCIDO: CA-578 (re-expresa CA-535) perdio la asercion de que la seleccion sigue a su tarjeta cuando otra aparece antes. main:internal/tablero/tt_lista_test.go:503-510 (TestCA535_LaElegidaDesaparece) leia un tablero con \"x\" antes de a, b, c y aseveraba que la seleccion seguia en b. El contrato no cambio (estado.go:138, doc de Leer: \"Each left panel's selection stays on its row (a card, Hecho's line)\"), pero tt2_paneles_test.go:1438 (TestCA578_CA535_LaElegidaDesaparece) solo prueba tarjetas que desaparecen, y tt2_registro_test.go:481 solo un tablero de una tarjeta. Deja de detectarse una seleccion que se queda en el indice: con una tarjeta nueva arriba, [2] y [0] pasan a otra tarjeta sin que la persona se mueva y la siguiente tecla de accion abre el modal de esa otra. Correccion minima: al principio de TestCA578_CA535_LaElegidaDesaparece, un Leer con ttBacklog(\"x\", \"X\") antes de a, b y c que asevere Elegida() == \"b\" y ttSlugElegido == \"b\" (y lo mismo para la fila de [3]).",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184542_a6a051",
+  "created_at": "2026-11-09T18:45:42.034121345Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/reales.go",
+  "description": "INTRODUCIDO: datosReales.Archivo abre el archivo del hallazgo con r.Open(rel) (reales.go:100) sin mirar su tipo; fueraPorLosEnlaces solo hace Stat. Con un FIFO dentro del proyecto (o un dispositivo de caracteres) el open bloquea hasta que aparezca un escritor, y la goroutine de lectura no vuelve nunca: b.enVuelo[leeArchivo] queda en true para toda la sesion (bucle.go:188-189, 230), cada lectura de archivo posterior queda pendiente y TODO hallazgo que se elija despues muestra \" leyendo \u003carchivo\u003e...\" para siempre, sin error en la linea de mensajes. Escenario: hoom finding add --file tmp/pipe (un mkfifo del proyecto; el --file lo escribe un agente) -\u003e [4] en ese hallazgo -\u003e [0] de cualquier otro hallazgo no vuelve a leer su archivo. Correccion minima: antes de r.Open, r.Stat(rel) y si !fi.Mode().IsRegular() devolver a.Err (\"no es un archivo regular\"), o abrir con O_NONBLOCK via r.OpenFile en unix.",
+  "author": "reviewer@claude (tramo T3)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

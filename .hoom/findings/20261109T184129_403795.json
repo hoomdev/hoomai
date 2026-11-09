@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184129_403795",
+  "created_at": "2026-11-09T18:41:29.312170697Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_teclas_test.go",
+  "description": "INTRODUCIDO. La linea de teclas ya no se compara en todos los lugares. En main, internal/tablero/tt_teclas_test.go:510-522 (TestCA532_LaBarra2SaleDeLaTabla) recorria todas las vistas (VistaConfirmacion incluida, la de s). TestCA564_CA532_LaLineaDeTeclas (tt2_teclas_test.go:243-299) cubre 17 de los 19 Lugares: faltan LugarGuardar y LugarVerCorriendo, y ningun otro test llama a ttLineaTeclas. Deja de detectarse que la ultima linea del modal Guardar o de [0] de lo que corre no salga de la tabla, o muestre teclas de otro lugar (CA-564: 'solo las teclas del panel con foco o del modal abierto'). Correccion minima: sumar a los casos {LugarVerCorriendo, '3' y enter, con tarjeta} y LugarGuardar (con una tarjeta que tenga guardar), o recorrer tablero.LugaresTodos con ttEstado como hace la propiedad.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

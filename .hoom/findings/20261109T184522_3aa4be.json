@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184522_3aa4be",
+  "created_at": "2026-11-09T18:45:22.007711409Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/doc.go",
+  "description": "INTRODUCIDO. En el modal Pedir, tab no pasa de boton. doc.go:587 limita \"tab elige el otro boton\" a Firma y Guardar, sin marcarlo como decision; en Pedir los dos botones son una sola parada (focosPedir, pedir.go:348-361; enPedir, pedir.go:406-418). CA-565 dice \"←, → y tab pasan de boton\" para los modales con botones, y la tabla del spec da tab en un modal como \"campo o boton siguiente o anterior\"; la fila de atajos.go:172 lo anuncia asi en LugarPedirBotones pero no lo hace. Escenario: w, tab seis veces (los botones, \"[ Pedir al writer ]\" elegido), tab -\u003e el foco vuelve al Pedido en vez de pasar a Cancelar; con tab nunca se llega a Cancelar. TestCA568_CA527_FocoEnCiclo (tt2_modales_test.go:699) fija la lectura de doc.go, asi que lo decide el orquestador contra el texto de CA-565. Correccion minima: en Pedir, la accion y Cancelar como dos paradas de tab antes de volver al Pedido.",
+  "author": "reviewer@claude (tramo T1)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

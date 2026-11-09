@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184521_0d34e9",
+  "created_at": "2026-11-09T18:45:21.7786451Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/tablero/doc.go",
+  "description": "INTRODUCIDO. El modal Pedir lanza aunque sus botones o su \"Se va a ejecutar\" no se dibujen. doc.go:592-600 cierra la regla de lo que no entra con \"What still does not fit is drawn from the top line and cut at line B\", y doc.go:653-658 no cede nunca la linea propia del why de un selector gris; asi lo hace modales.go:731-751 (tras los 8 pasos, ls = ls[:hm-2] corta por abajo) y lanzarPedir (pedir.go:531-545) no mira si se dibujo. Contradice el texto del spec (\"Se va a ejecutar y los botones nunca se van\") y el principio rector. Escenario 1: a 120x15 (B=13, 11 lineas de texto), w con el pedido que propone la tarjeta, tab, -\u003e (codex, sin Budget: providers/codex.go:29): Tope queda gris y \"codex no acepta tope\" va en su propia linea (15+30+22=67 \u003e 66 con Modelo en \"por defecto del provider\"); en el paso 7 son 12 lineas y se corta la de los botones; tab hasta ellos y enter -\u003e Lanzar{pedir writer \u003cslug\u003e -m ... --provider codex} sobre un boton que no se ve. Escenario 2: a 60x15 con gemini u opencode, Modelo, Esfuerzo y Tope grises suman 3 lineas (14 para 11): se cortan \"Se va a ejecutar: ...\", su segunda linea y los botones, y shift-tab, enter, enter lanza sin que se vea el comando. Pasa en cualquier ancho con 15 a 17 filas. El test de 60x15 (tt2_modales_test.go:1969) usa solo claude. Correccion minima, como la firma: si el comando o los botones no se dibujan enteros, enter sobre la accion no lanza y la linea de mensajes dice en rojo \"agranda la terminal: el comando no entra entero\" (o ceder tambien las lineas propias de los why antes de cortar).",
+  "author": "reviewer@claude (tramo T1)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

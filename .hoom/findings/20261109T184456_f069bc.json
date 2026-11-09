@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184456_f069bc",
+  "created_at": "2026-11-09T18:44:56.430617574Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/tablero/modales.go",
+  "description": "INTRODUCIDO. El modal Pedir puede perder los botones y 'Se va a ejecutar' y su boton igual lanza (spec, Los modales: 'Se va a ejecutar y los botones nunca se van'; CA-565, CA-568, Nada a ciegas). modales.go:236-238 pone el why de un selector gris en su propia linea cuando no cabe al lado (y doc.go:657 dice que esa linea nunca se va); geometria (modales.go:728-731) prueba los 8 pasos y, si al ultimo sigue sin entrar, modales.go:749-752 corta las ultimas lineas (ls[:hm-2]): el comando y los botones. lanzarPedir (pedir.go:531-545) no tiene la guarda que tiene la Firma (modales.go:376-379). Escenario: 60x15 (c=50, 11 lineas de texto), writer con codex como provider propuesto: Pedido 3 + 5 selectores + 'codex no acepta tope' en su linea (15+26+20 \u003e 50) + comando 2 + botones 1 = 12 -\u003e la linea de botones no se dibuja; enter (Pedido -\u003e botones) y enter lanza hoom pedir writer ... sin ver el boton. Igual R con claude a menos de 73 columnas ('la sesion es de claude' en su linea). Con gemini u opencode (Modelo y Esfuerzo grises, 2-3 lineas de why) se cortan tambien las lineas del comando, a 15-17 filas y aun con 80+ columnas: se lanza sin ver el comando. El test de 60x15 (tt2_modales_test.go:1969) solo usa claude, donde entran exactas 11. Correccion minima: cuando el paso 7 no entra, sacar lo que sobra de la zona de selectores (el why gris al lado y cortado, o sin su linea propia) y nunca del comando ni de los botones; y como respaldo, que lanzarPedir no lance (como firmaCabe: 'agranda la terminal') si los botones o el comando no estan en g.lineas.",
+  "author": "reviewer@claude (tramo T2)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

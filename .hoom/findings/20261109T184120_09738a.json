@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184120_09738a",
+  "created_at": "2026-11-09T18:41:20.663699952Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_modales_test.go",
+  "description": "INTRODUCIDO. Las teclas de accion desde [3] no se prueban. El spec define 'con tarjeta' como [2], [3] (la tarjeta de la fila) o [0] mostrando una tarjeta, y pone las interrumpidas en [3] 'porque esperan R'. TestCA566_CA525_TeclasDeAccionAbrenSuModal (tt2_modales_test.go:366) recorre solo LugarTarjetas, LugarVerTarjeta y LugarAcciones; desde [3] solo se prueba u (TestCA560_CA531_UFijaSinModal, tt2_paneles). La propiedad TestCA566_PropiedadNingunaTeclaDeAccionLanza aprieta 3 pero solo mira que no haya Lanzar. Deja de detectarse: R (o w, A, n) en LugarCorriendo o LugarVerCorriendo que abre el modal de la tarjeta elegida en [2] en vez de la fila de [3], o que no abre nada. Correccion minima: un caso con [2] en una tarjeta y [3] en pagos-caidos (interrumpida): R abre Pedir con titulo 'Reanudar · pagos-caidos' y su boton lanza reanudar pagos-caidos; lo mismo desde [0] tras enter en [3].",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

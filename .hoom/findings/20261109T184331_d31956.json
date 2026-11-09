@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184331_d31956",
+  "created_at": "2026-11-09T18:43:31.963022011Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_controles_test.go",
+  "description": "INTRODUCIDO: en TestCA559_CA524_HallazgoFueraDelProyecto (tt2_controles_test.go:215-219) el hallazgo local `sub\\..\\x.go` solo exige len(ords) == 1; main:internal/tablero/tt_rutas_test.go:165-170 (TestCA524_HallazgoFueraDelProyectoEnOtroSistema) exigia ademas que la orden fuera tablero.AbrirEditor. Deja de detectarse que e sobre ese hallazgo de otra orden. Correccion minima: el type assert a tablero.AbrirEditor (o ttAbreLocal aceptando la ruta con \\ o con /).",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

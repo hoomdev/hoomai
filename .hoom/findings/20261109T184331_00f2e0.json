@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184331_00f2e0",
+  "created_at": "2026-11-09T18:43:31.926104125Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_paneles_test.go",
+  "description": "INTRODUCIDO: en TestCA559_CasosLimiteDelHallazgo (tt2_paneles_test.go:1227) la asercion de [0] para una ruta fuera por su forma es `!ttTiene(m, \u003clinea exacta\u003e) \u0026\u0026 !ttTiene(m, \"esta fuera del proyecto\")`: la segunda alternativa deja muerta a la primera, asi que ni la ruta ni el formato de doc.go:461-462 (` el archivo \"\u003cfile\u003e\" esta fuera del proyecto`, en rojo) quedan fijados; el caso Archivo.Fuera (:1216) tampoco mira el rojo. Deja de detectarse un [0] con otra ruta, sin comillas o sin rojo (la linea de mensajes si se fija, con ttDiceMensaje). La duda viene de doc.go (\"\u003cfile\u003e\" literal en [0] contra strconv.Quote en el mensaje). Correccion minima: que el orquestador fije uno de los dos formatos y aseverar esa linea exacta con ttConColor(ttRojo, ...), tambien para Archivo.Fuera.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

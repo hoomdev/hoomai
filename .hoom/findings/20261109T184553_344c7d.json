@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184553_344c7d",
+  "created_at": "2026-11-09T18:45:53.996529931Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "INTRODUCIDO: pistas reconoce las filas \"de la tarjeta\" por su texto de la barra: deTarjeta := a.Accion != \"\" || a.Barra == \"espacio acciones\" (pantalla.go:380). La regla de doc.go (\"Without a card ... the hints of the card's rows (espacio, n and the action keys) are left out\") queda atada a una cadena de presentacion de atajos.go:137: si alguien cambia esa Barra (o agrega otra fila de tarjeta sin Accion), la pista aparece sin tarjeta ([2] en la linea de Hecho, [3] vacio) y ningun compilador lo avisa; Atajos es la tabla unica de CA-564. Correccion minima: decidirlo por la fila (por ejemplo, sus Lugares iguales a LugaresConTarjeta, o un campo booleano DeTarjeta en Atajo) en vez de comparar el texto.",
+  "author": "reviewer@claude (tramo T3)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

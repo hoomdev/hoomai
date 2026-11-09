@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184051_c91cb9",
+  "created_at": "2026-11-09T18:40:51.623636134Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_registro_test.go",
+  "description": "INTRODUCIDO. CA-530 sigue igual ('una lectura que falla deja la ultima pantalla') y la reescritura asevera menos. En main, internal/tablero/tt_acciones_test.go:984 y 989 (TestCA530_LecturaQueFalla) comparaba el cuerpo entero (ttCuerpo) antes y despues de la lectura con Err. tt2_registro_test.go:269 y 272 (TestCA530_CA562_LecturaDelTableroQueFalla) compara solo el texto de [2]. Con ttTableroPrincipal hay un running (infra-api) y un interrupted (pagos-caidos), asi que una lectura fallida que vacia [3] ('nada corriendo'), [0] o el titulo de [4] ya no se detecta. Correccion minima: guardar m.Pantalla() sin las dos ultimas lineas antes de m.Leer con Err y exigir que quede igual (la linea de mensajes se mira aparte, como hoy).",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184511_9c1e0c",
+  "created_at": "2026-11-09T18:45:11.335941619Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/lienzo.go",
+  "description": "INTRODUCIDO: lienzo.go:72-74 (poner) descarta toda runa de ancho 0 ('if a == 0 { continue }'), asi que las marcas combinantes nunca llegan a la pantalla: CA-577 pide que no ocupen celdas, no que desaparezcan. Escenario: titulo, plain, ruta de spec o linea de archivo en NFD (comun en nombres de archivo de macOS) 'Café' o 'mañana' -\u003e [0] muestra 'Cafe' y 'manana' (se pierde la tilde de la enie y cambia el sentido); la v1 los dibujaba. Los tests miden solo anchos (TestCA577_ElBordeNoSeCorre), por eso no lo ven; su propio helper ttCeldasDe (tt_fixtures_test.go:588) modela 'una marca combinante se pega a la celda anterior'. Correccion minima: en poner, con a == 0 y n \u003e 0, sumar la runa al s de la celda anterior (la x+n-2 si la x+n-1 es la mitad \"\" de una ancha), salvo los selectores de variacion U+FE00..U+FE0F, que en la terminal pueden pasar el caracter base a 2 celdas.",
+  "author": "reviewer@claude (tramo T3)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

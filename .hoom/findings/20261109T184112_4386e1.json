@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184112_4386e1",
+  "created_at": "2026-11-09T18:41:12.938320813Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_modales_test.go",
+  "description": "INTRODUCIDO. El boton Cancelar del modal Guardar nunca se ejercita. CA-574 pide los botones 'Guardar, elegido, y Cancelar' y CA-565 que 'enter sobre un boton lo ejecuta o cancela'. TestCA574_CA529_Guardar (tt2_modales_test.go:1701-1729) solo prueba enter sobre Guardar y esc; ningun test aprieta \u003c-, -\u003e o tab en Guardar y despues enter (grep de Tecla(\"s\") seguido de TeclaDer/TeclaIzq/TeclaTab: nada). La propiedad TestCA564_CA532_TodaTeclaDeLaAyudaTieneEfecto solo exige que enter tenga algun efecto. Pedir (CtrlEYEsc) y Firma (AprobarSoloConElBoton) si lo prueban. Deja de detectarse: enter sobre Cancelar en Guardar que ordena Lanzar{guardar} y commitea contra la eleccion de la persona, o que -\u003e no cambia de boton. Correccion minima: en TestCA574_CA529_Guardar, s, -\u003e (y tab), aseverar '  Guardar     [ Cancelar ]' y que enter cierra con ttSinOrdenes.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

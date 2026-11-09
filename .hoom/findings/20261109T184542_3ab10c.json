@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184542_3ab10c",
+  "created_at": "2026-11-09T18:45:42.104925248Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/bucle.go",
+  "description": "INTRODUCIDO en parte (el modo crudo y la pantalla alternativa sin restaurar ante una senal ya eran de la v1; el mouse prendido es nuevo): correr solo restaura con recover y con el fin normal del bucle (bucle.go:87-104), y la unica senal que se escucha es SIGWINCH (terminal_unix.go:126). Con SIGTERM (kill, pkill hoom desde otra terminal) o un SIGINT/SIGHUP enviado por kill (en modo crudo ctrl-c es un byte, no una senal) el proceso muere con la accion por defecto y la terminal queda cruda, en la pantalla alternativa y con \\x1b[?1000h\\x1b[?1006h pedidos: cada clic o giro de rueda en la shell imprime secuencias \"\u003c0;12;5M\". CA-575 lista q, ctrl-c, error, panic y el editor; esto no lo cubre ningun CA. Correccion minima: en el bucle, signal.Notify de SIGTERM, SIGHUP y SIGINT a un canal y tratarlo como Salir (soltar escribe SecMouseNo+SecSalir y restaura) y salir con 128+n, o al menos escribir SecMouseNo+SecSalir y restaurar antes de re-lanzar la senal.",
+  "author": "reviewer@claude (tramo T3)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

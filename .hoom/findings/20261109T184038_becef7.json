@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184038_becef7",
+  "created_at": "2026-11-09T18:40:38.546783927Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/tt2_modales_test.go",
+  "description": "INTRODUCIDO. TestCA565_LasTeclasVanAlModal (tt2_modales_test.go:262-298) casi no prueba que 'mientras hay uno abierto las teclas van solo a el' (CA-565). (1) Linea 281: exime a u del chequeo de Lanzar en todos los modales, no solo en Acciones; en Firma, Guardar o Ayuda u podria lanzar hoom usar y pasa. (2) Solo mira Lanzar, q, Foco y Elegida: nunca que el modal siga siendo el mismo ni que la pantalla no cambie, asi que a, R o I que abren Pedir encima de la Firma, o x que cambia el modo experto detras, pasan (el esc de la linea 291 cierra lo que haya). (3) En Acciones, la u de la lista ejecuta y cierra el modal (doc.go), y n, a, R, I se aprietan ya sin modal. (4) Linea 277: Pedir no prueba ninguna tecla. (5) Lineas 295-297: 'ctrl-c sale siempre' se aprieta despues del esc, sin modal; con Firma, Guardar, Acciones o Ayuda abiertos nunca se prueba (doc.go: ctrl-c en cada modal). Con el hallazgo de la lista de runas de tt2_teclas_test.go:689, ningun test cubre estas teclas dentro de un modal. Correccion minima: tras cada tecla aseverar m.Modal()==abrir.modal y ttFoto sin cambio (salvo u en Acciones, probada aparte), y apretar ctrl-c antes del esc.",
+  "author": "reviewer@claude (tramo T4)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

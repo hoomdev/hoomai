@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184521_48a4a2",
+  "created_at": "2026-11-09T18:45:21.852934277Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/tablero/doc.go",
+  "description": "INTRODUCIDO. \"Se va a ejecutar\" puede esconder flags que se van a pasar. doc.go:765-770: cuando el comando no entra en dos lineas ni con el -m acortado a un caracter, \"the second line is cut\"; pedir.go:603-608 junta el resto en la segunda linea y la corta con el signo de corte, y lanzarPedir lanza igual. El spec solo acorta el argumento de -m, \"porque el pedido entero esta en su cuadro\" (CA-568: el comando con solo los flags cambiados, en hasta dos lineas); los flags no estan en ningun otro lugar del comando. Escenario: a 60x24 (c=50), t en infra-api-convenciones (el slug del spec, claude) con Modelo opus, Esfuerzo xhigh, Tope 10 USD y Tiempo limite 2h: la linea 1 es \"hoom pedir test-writer infra-api-convenciones -m\" (48) y el resto pide 65 celdas; se ve \"  \\\"I…\\\" --model opus --effort xhigh --budget-usd 1…\" y enter lanza con --budget-usd 10 --timeout 2h sin que el comando lo diga. Como Wm = min(72, W-4), el texto tiene a lo sumo 66 celdas: con un slug largo pasa en cualquier ancho. Correccion minima: la misma guarda que la firma (si el comando no se dibuja entero, enter sobre la accion no lanza y lo dice en rojo), o dejar que el comando use las lineas que necesite.",
+  "author": "reviewer@claude (tramo T1)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

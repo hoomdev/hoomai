@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184541_a28cdb",
+  "created_at": "2026-11-09T18:45:41.962501927Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/pantalla.go",
+  "description": "INTRODUCIDO: acomodar aplica \"seguir el final\" a cualquier [0] (pantalla.go:442-444, \"if m.sigue0 { m.scroll0 = maximo }\"), y desplazar0 (despacho.go:296, tramo T2) pone sigue0 = s \u003e= maximo para todo [0]: con un documento que entra entero (maximo 0) cualquier j, k, g, pgup o la rueda (raton.go:82) lo deja en true. Escenario: [2] con una tarjeta cuyo [0] entra en la vista, enter, j (no mueve nada) -\u003e la siguiente lectura del Detalle trae una entrada mas de historia o un evento de la narracion y el documento pasa la vista -\u003e [0] salta solo al final (se pierden de vista \"Que falta?\" y \"Siguiente paso\") y desde ahi sigue el final en cada lectura. doc.go (\"[0] of a card\", CA-557) dice que [0] de una tarjeta empieza en su primera linea y se desplaza con las teclas; seguir el final es solo de [0] de [3] (clave \"c:\", pantalla.go:428). Correccion minima: en pantalla.go:442 condicionar a strings.HasPrefix(m.clave0, \"c:\"), o en despacho.go:296 calcular sigue0 solo para esa clave.",
+  "author": "reviewer@claude (tramo T3)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261109T184346_27e287",
+  "created_at": "2026-11-09T18:43:46.296734073Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/tablero/tt_datos_test.go",
+  "description": "INTRODUCIDO: TestCA560_CA562_DatosDeProyecto (tt_datos_test.go:243) se salta solo a las 23:59 locales, pero ttRunDeHoy pone CreatedAt = ahora - 1 s (tt_datos_test.go:227): entre las 00:00:00 y las 00:00:01 locales el run cae en el dia anterior, costcmd.HoyEn no lo cuenta y \"p.Hoy.Runs \u003c 1\" falla. Dependencia del reloj real, un segundo por dia. Correccion minima: saltar tambien cuando ahora - 1 s es de otro dia local, o crear el run con CreatedAt = ahora.",
+  "author": "reviewer@claude (tramo T5)",
+  "fingerprint": "e9d5d7c6735db3f8",
+  "task": "tablero-con-paneles"
+}
