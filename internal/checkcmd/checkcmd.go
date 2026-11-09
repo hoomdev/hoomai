@@ -44,6 +44,19 @@ type Result struct {
 //
 // and "" for a check that is OK or a Reason it does not know.
 func Motivo(r Result) string {
+	if r.OK {
+		return ""
+	}
+	switch r.Reason {
+	case ReasonNoVerdict:
+		return "no existe ningun veredicto"
+	case ReasonOnlyPartial:
+		return "solo hay veredictos PARCIALES (--gate), que no son referencia"
+	case ReasonRedVerdict:
+		return "el ultimo veredicto (" + r.VerdictID + ") es rojo"
+	case ReasonDrift:
+		return "el arbol cambio despues del ultimo veredicto verde (" + r.VerdictID + ")"
+	}
 	return ""
 }
 
