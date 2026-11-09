@@ -10,6 +10,7 @@
 package runcmd
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -25,6 +26,7 @@ func TestHallazgo_7a04de_LockArbolConGitFallandoEsError(t *testing.T) {
 	t.Setenv("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
 	cmd := exec.Command("git", "rev-parse", "--git-common-dir")
 	cmd.Dir = root
+	cmd.Env = gitSinTraducir()
 	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "dubious ownership") {
 		t.Skipf("este git no simula dubious ownership con GIT_TEST_ASSUME_DIFFERENT_OWNER: %v %s", err, out)
 	}
@@ -50,6 +52,7 @@ func TestHallazgo_7a04de_GuardaFueraDeUnRepoNoFalla(t *testing.T) {
 			dir := t.TempDir()
 			cmd := exec.Command("git", "rev-parse", "--git-common-dir")
 			cmd.Dir = dir
+			cmd.Env = gitSinTraducir()
 			if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "not a git repository") {
 				t.Skipf("el directorio temporal esta dentro de un repo: %v %s", err, out)
 			}
@@ -66,4 +69,12 @@ func TestHallazgo_7a04de_GuardaFueraDeUnRepoNoFalla(t *testing.T) {
 			suelta()
 		})
 	}
+}
+
+// gitSinTraducir es el entorno del proceso con git en ingles (LC_ALL le gana
+// a LANG, a los LC_* y a LANGUAGE): las guardas de arriba buscan el mensaje
+// de git ("dubious ownership", "not a git repository") y con LANG=es_* git
+// lo traduce; la guarda no lo reconocia y el test se saltaba sin probar nada.
+func gitSinTraducir() []string {
+	return append(os.Environ(), "LC_ALL=C")
 }
