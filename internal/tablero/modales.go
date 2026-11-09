@@ -235,7 +235,7 @@ func (m *Modelo) lineasPedir(p *pedir, c int, k compacto) []lineaModal {
 		}
 	}
 	if !k.sinAyuda {
-		out = append(out, lm(linCon(strings.Repeat(" ", 15)+m.ayudaPedir(p), gris)))
+		out = append(out, lm(linCon(lineaDeAyuda(m.ayudaPedir(p), c), gris)))
 	}
 	vacia()
 	out = append(out, m.lineasEjecutar(m.argsPedir(p), c, k.junto)...)
@@ -243,6 +243,16 @@ func (m *Modelo) lineasPedir(p *pedir, c int, k compacto) []lineaModal {
 	bl, _ := botones([2]string{p.accion.Label, "Cancelar"}, p.boton, c)
 	out = append(out, lineaModal{l: bl, marca: p.foco == campoBotones, botones: true, campo: campoBotones, accion: -1})
 	return out
+}
+
+// lineaDeAyuda is the selectors' help line t in c cells: from column 15
+// when it fits there, else from the text's first column, and cut only when
+// it does not fit even there (it never loses text otherwise).
+func lineaDeAyuda(t string, c int) string {
+	if 15+celdas(t) <= c {
+		return strings.Repeat(" ", 15) + t
+	}
+	return t
 }
 
 // lineasEjecutar are "Se va a ejecutar:" and the command's lines; junto

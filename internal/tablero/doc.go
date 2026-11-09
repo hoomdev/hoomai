@@ -690,12 +690,18 @@
 // it fits there, and otherwise on a line of its own right under the
 // selector, from column 15, gray: "hoom no le pasa el esfuerzo a opencode"
 // never fits beside its selector in the 66 cells of the modal, and CA-569
-// asks for it (decision). That line is not given up when the modal does
-// not fit, and a why that goes on its own line does not count for the rule
-// that leaves all the origins out (the orchestrator's answer, 2026-11-09).
+// asks for it (decision). When the modal does not fit, that line is the
+// second thing it gives up (see the modals' rule of what does not fit), and
+// a why that goes on its own line does not count for the rule that leaves
+// all the origins out (the orchestrator's answer, 2026-11-09).
 //
-// The help line, at column 15 and gray (decision on its form): with the
-// focus on a selector, "<option>: <line>" of its chosen option when that
+// The help line, gray, at column 15 (decision on its form); when its text
+// does not fit from column 15 it starts at the text's first column, and it
+// is cut only when it does not fit even there: it never loses text
+// otherwise, whatever it says (the option's line, its why, a note; the
+// orchestrator's decision, 2026-11-09). The modal's height does not change,
+// and the line is still the first thing to give up when the modal does not
+// fit. With the focus on a selector, "<option>: <line>" of its chosen option when that
 // option has a line, the note alone when it has a note (below), its why
 // alone when it is gray, empty otherwise; with the focus on Provider, the
 // note of Modelo's chosen option, or else Esfuerzo's, when they have one;
