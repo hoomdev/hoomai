@@ -222,6 +222,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	var beforeReal Snapshot
 	if role.Isolated {
 		seguir("aislar", 2)
+		// before anything touches the disk: a provider that cannot drop the
+		// user's config would read what the blind tree hides (CA-592)
+		if err := IsolationFor(prov, role); err != nil {
+			return cerrar(w, root, &rec, res, "aislar", 1, err.Error()), nil
+		}
 		if why := blindPrechecks(mgr, dir, specPath, PolicyFor(m, role)); why != "" {
 			return cerrar(w, root, &rec, res, "aislar", 1, why), nil
 		}
@@ -508,6 +513,10 @@ func startOptions(prov providers.Provider, role agents.Role, contract string, op
 		// CLI's prompts, so the role gets its tools up front and the scope
 		// gate, not a denied Write, is what bounds it.
 		Unattended: true,
+		// A blind role runs without the user's personal provider config:
+		// the blind tree only hides the disk (CA-588). Every other role
+		// keeps the CLI the way its user knows it (CA-400).
+		Isolated: role.Isolated,
 	}
 	var warn bool
 	so.ReadOnly, so.Exec, warn = ReadOnlyFor(prov, role)
@@ -545,11 +554,24 @@ func NoExecFor(p providers.Provider, role agents.Role) (noExec, warn bool) {
 	return true, false
 }
 
-// IsolationFor says whether provider p can run role r: a blind role needs a
-// provider that runs without the user's personal config (spec
-// ciego-sin-config-personal). SKELETON: no behavior yet.
+// IsolationFor says whether provider p can run role r. A blind role needs a
+// provider that runs without the user's personal config: the blind tree hides
+// the implementation on disk, but the user's MCP servers (Engram) and the
+// CLI's auto memory would hand it back through the context. Unlike
+// ReadOnlyFor there is no warn: a blind role that is not blind is not the
+// role, so the envelope refuses (spec ciego-sin-config-personal).
 func IsolationFor(p providers.Provider, r agents.Role) error {
-	return nil
+	if !r.Isolated || p.Capabilities().Isolation {
+		return nil
+	}
+	var aislables []string
+	for _, q := range providers.All() {
+		if q.Capabilities().Isolation {
+			aislables = append(aislables, q.Name())
+		}
+	}
+	return fmt.Errorf("%s no puede correr sin tu configuracion personal (MCP, memoria, hooks): un rol ciego no corre ahi.\n  Accion: usa un provider que pueda aislarse: %s",
+		p.Name(), strings.Join(aislables, ", "))
 }
 
 // IsPlaceholder reports a pedido that says nothing: empty once every blank is

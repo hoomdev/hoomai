@@ -92,6 +92,13 @@ func row(m *manifest.Manifest, r agents.Role, p providers.Provider) Row {
 		out.Read, out.Write, out.Exec = cell, cell, cell
 		return out
 	}
+	if err := agentcmd.IsolationFor(p, r); err != nil {
+		// 'hoom agent' refuses a blind role there before the blind tree
+		gap, _, _ := strings.Cut(err.Error(), "\n")
+		cell := Cell{Allows: "no corre el rol ciego", Mechanisms: []string{MechNoIsolation}, Category: Unsupported, Gap: gap}
+		out.Read, out.Write, out.Exec = cell, cell, cell
+		return out
+	}
 	readOnly, exec, _ := agentcmd.ReadOnlyFor(p, r)
 	noExec, _ := agentcmd.NoExecFor(p, r)
 	// how THIS provider imposes read-only: by tool name if it names tools,

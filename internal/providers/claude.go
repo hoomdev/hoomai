@@ -101,8 +101,11 @@ func (c claude) Command(req Request) (Invocation, error) {
 	}
 	if p.isolated {
 		// no MCP server and only the project's committed settings: the
-		// user's hooks, plugins and personal permissions stay out
-		args = append(args, "--strict-mcp-config", "--setting-sources", "project")
+		// user's hooks, plugins and personal permissions stay out. The auto
+		// memory is shared by every worktree of the repo, and the setting
+		// sources do not cover it: it goes off by name, in the argv (CA-589)
+		args = append(args, "--strict-mcp-config", "--setting-sources", "project",
+			"--settings", `{"autoMemoryEnabled":false}`)
 	}
 	if p.effort != "" {
 		args = append(args, "--effort", p.effort)

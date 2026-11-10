@@ -213,7 +213,7 @@ type Request struct {
 	// provider's default.
 	Effort string
 	// Isolated: the session loads none of the user's personal provider
-	// config (MCP servers, hooks, plugins, profile).
+	// config (MCP servers, hooks, plugins, profile, auto memory).
 	Isolated bool
 	// PromptStdin: the prompt travels by stdin at any size, never in argv
 	// (an argv is readable by any user of the machine with ps).
