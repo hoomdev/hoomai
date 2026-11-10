@@ -1,0 +1,11 @@
+{
+  "id": "20261110T162949_846f4f",
+  "created_at": "2026-11-10T16:29:49.913136Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:225: el comentario afirma que IsolationFor corre 'before anything touches the disk', pero antes ya se escribio el registro del sobre (lineas 188-194) y EnsureIgnored puede modificar .hoom/.gitignore (lineas 200-204). Esa garantia falsa dificulta entender que orden protege CA-592; el comentario deberia nombrar el limite real: antes de blindPrechecks/isolate.Open y de lanzar el CLI.",
+  "author": "reviewer@codex",
+  "fingerprint": "b3c1d48823d2502f",
+  "task": "ciego-sin-config-personal"
+}

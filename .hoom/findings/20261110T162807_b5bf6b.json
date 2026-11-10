@@ -1,0 +1,11 @@
+{
+  "id": "20261110T162807_b5bf6b",
+  "created_at": "2026-11-10T16:28:07.561198Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: internal/agentcmd/agentcmd.go:228 envia el error accionable de IsolationFor a cerrar, pero Result no tiene campo Note (lineas 63-84) y finish solo lo imprime; con hoom agent --json la salida humana se descarta y el consumidor recibe stage=aislar/exit=1 sin la causa ni la accion. Esto incumple CA-592 (la nota debe estar en Result y en el registro) y dificulta recuperar de un provider degradado; el test nuevo internal/agentcmd/ciego_sin_config_personal_test.go:401-427 solo valida out y envelope, no la nota del Result.",
+  "author": "reviewer@codex",
+  "fingerprint": "b3c1d48823d2502f",
+  "task": "ciego-sin-config-personal"
+}
