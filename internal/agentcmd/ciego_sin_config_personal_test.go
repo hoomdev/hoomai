@@ -11,6 +11,7 @@ package agentcmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -429,6 +430,12 @@ func cscCorteEnAislar(t *testing.T, root string, res Result, out string, veredic
 	if rec.EndedAt.IsZero() {
 		t.Fatalf("CA-592: el registro queda cerrado: %+v", rec)
 	}
+	// CA-592 (hallazgo b5bf6b): la nota de CA-591 viaja tambien en el Result,
+	// literal, y es la misma que guarda el registro del sobre.
+	cscNotaComoElRegistro(t, res, rec.Note)
+	if res.Note != want {
+		t.Fatalf("CA-592: el Result trae la nota de CA-591, literal:\nquiere %q\nfue    %q", want, res.Note)
+	}
 	if existeEn(t, filepath.Join(root, ".hoom", "isolated")) && len(filesIn(t, filepath.Join(root, ".hoom", "isolated"))) != 0 {
 		t.Fatalf("CA-592: nada en .hoom/isolated/: %v", filesIn(t, filepath.Join(root, ".hoom", "isolated")))
 	}
@@ -440,6 +447,31 @@ func cscCorteEnAislar(t *testing.T, root string, res Result, out string, veredic
 	}
 	if existeEn(t, dump) {
 		t.Fatal("CA-592: el CLI del provider sin Isolation nunca se lanza")
+	}
+}
+
+// cscNotaComoElRegistro: CA-592 — res.Note es exactamente la nota del registro
+// del sobre (no vacia), y el JSON del Result (lo que lee `hoom agent --json`)
+// la trae en la clave "note", con el mismo texto.
+func cscNotaComoElRegistro(t *testing.T, res Result, recNote string) {
+	t.Helper()
+	if strings.TrimSpace(recNote) == "" {
+		t.Fatalf("CA-592: fixture: el registro del sobre guarda una nota: %q", recNote)
+	}
+	if res.Note != recNote {
+		t.Fatalf("CA-592: el Result trae la misma nota que su registro:\nregistro %q\nresult   %q", recNote, res.Note)
+	}
+	raw, err := json.Marshal(res)
+	if err != nil {
+		t.Fatalf("CA-592: el Result se serializa: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("CA-592: el JSON del Result es un objeto: %v\n%s", err, raw)
+	}
+	got, ok := m["note"].(string)
+	if !ok || got != recNote {
+		t.Fatalf("CA-592: el JSON del Result trae \"note\" con la nota del registro:\nquiere %q\nfue    %v (%s)", recNote, m["note"], raw)
 	}
 }
 
@@ -510,11 +542,71 @@ func TestCA592_IsolationForVaAntesQueLosOtrosChequeosDeAislar(t *testing.T) {
 	if len(recs) != 1 || strings.TrimSpace(recs[0].Note) != cscError(cscSinAislarNombre, "claude, codex") {
 		t.Fatalf("CA-592: la nota es la de IsolationFor, no la del run activo: %+v", recs)
 	}
+	cscNotaComoElRegistro(t, res, recs[0].Note)
+	if want := cscError(cscSinAislarNombre, "claude, codex"); res.Note != want {
+		t.Fatalf("CA-592: el Result trae la nota de IsolationFor, no la del run activo:\nquiere %q\nfue    %q", want, res.Note)
+	}
 	if existeEn(t, filepath.Join(root, ".hoom", "isolated")) && len(filesIn(t, filepath.Join(root, ".hoom", "isolated"))) != 0 {
 		t.Fatal("CA-592: nada en .hoom/isolated/")
 	}
 	if existeEn(t, dump) {
 		t.Fatal("CA-592: el CLI nunca se lanza")
+	}
+}
+
+// CA-592 (hostil: la regla es "la misma nota que guarda su registro", no un
+// caso aparte de IsolationFor): con claude, que SI se aisla, el sobre del
+// test-writer corta en aislar por OTROS chequeos (sin git, sin commits, con un
+// run activo), y en cada uno res.Note es la nota del registro del sobre, y el
+// JSON del Result la trae en "note". Ninguna es la de IsolationFor.
+func TestCA592_OtraNegativaDeAislarTambienViajaEnElResult(t *testing.T) {
+	hoomYAML := "schema: hoom/v1\nproject: demo\nbase_branch: main\ngates:\n" +
+		"  test:\n    required: true\n    cmd: \"true\"\n"
+	casos := map[string]func(t *testing.T) string{
+		"sin git": func(t *testing.T) string {
+			d := t.TempDir()
+			write(t, d, "hoom.yaml", hoomYAML)
+			return d
+		},
+		"sin commits": func(t *testing.T) string {
+			d := t.TempDir()
+			write(t, d, "hoom.yaml", hoomYAML)
+			git(t, d, "init", "-b", "main")
+			return d
+		},
+		"run activo": func(t *testing.T) string {
+			d := repoCiego(t)
+			write(t, d, ".hoom/runs/20260905T000000_aaaaaa.meta.json",
+				`{"id":"20260905T000000_aaaaaa","provider":"claude","dir":`+
+					jsonStr(d)+`,"status":"running","exit_code":-1}`)
+			return d
+		},
+	}
+	for nombre, armar := range casos {
+		t.Run(nombre, func(t *testing.T) {
+			dump := filepath.Join(t.TempDir(), "lanzado.txt")
+			fakeProvider(t, "claude", "printf '%s\\n' \"$@\" > '"+dump+"'\nexit 0\n")
+			root := armar(t)
+			var out bytes.Buffer
+			res, err := Run(root, "main", Options{Role: "test-writer", Provider: "claude", Prompt: "tests"}, &out)
+			if err != nil {
+				t.Fatalf("CA-592: el sobre reporta, no explota (%s): %v\n%s", nombre, err, out.String())
+			}
+			if res.Stage != "aislar" || res.ExitCode != 1 || res.RunID != "" {
+				t.Fatalf("CA-592: fixture: %s corta en aislar con exit 1, sin run: %+v\n%s", nombre, res, out.String())
+			}
+			recs := sobres(t, root)
+			if len(recs) != 1 {
+				t.Fatalf("CA-592: un sobre, un registro (%s): %+v", nombre, recs)
+			}
+			if strings.Contains(recs[0].Note, "no puede correr sin tu configuracion personal") {
+				t.Fatalf("CA-592: claude se aisla: la negativa (%s) no es la de IsolationFor: %q", nombre, recs[0].Note)
+			}
+			cscNotaComoElRegistro(t, res, recs[0].Note)
+			if existeEn(t, dump) {
+				t.Fatalf("CA-592: el CLI nunca se lanza (%s)", nombre)
+			}
+		})
 	}
 }
 
