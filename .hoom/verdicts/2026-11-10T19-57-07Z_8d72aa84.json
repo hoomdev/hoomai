@@ -1,0 +1,108 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-11-10T19-57-07Z_8d72aa84",
+  "created_at": "2026-11-10T19:57:07.844811Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "1680e12394c6",
+    "branch": "docs/readme-portada",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      "README.en.md",
+      "README.md",
+      "docs/tutorial.md"
+    ],
+    "change_fingerprint": "645382f29b9d3c7d",
+    "insertions": 652,
+    "deletions": 409
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 318,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 11 medium, 14 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 542
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 1157,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 1619
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 20609
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go test -race -timeout 20m ./...",
+      "exit_code": 0,
+      "duration_ms": 834593,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/cmd/hoom\t37.996s\nok  \tgithub.com/hoomdev/hoomai/internal/agentcmd\t296.784s\nok  \tgithub.com/hoomdev/hoomai/internal/agents\t1.367s\nok  \tgithub.com/hoomdev/hoomai/internal/approval\t1.605s\nok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t628.164s\nok  \tgithub.com/hoomdev/hoomai/internal/carreratest\t1.202s\nok  \tgithub.com/hoomdev/hoomai/internal/checkcmd\t6.520s\nok  \tgithub.com/hoomdev/hoomai/internal/cierretmuxtest\t1.105s\nok  \tgithub.com/hoomdev/hoomai/internal/cliargs\t1.118s\nok  \tgithub.com/hoomdev/hoomai/internal/cockpitcmd\t35.384s\nok  \tgithub.com/hoomdev/hoomai/internal/contextcmd\t1.495s\nok  \tgithub.com/hoomdev/hoomai/internal/costcmd\t5.514s\nok  \tgithub.com/hoomdev/hoomai/internal/envelope\t124.441s\nok  \tgithub.com/hoomdev/hoomai/internal/filesearch\t1.459s\nok  \tgithub.com/hoomdev/hoomai/internal/finding\t37.646s\nok  \tgithub.com/hoomdev/hoomai/internal/gates\t72.500s\nok  \tgithub.com/hoomdev/hoomai/internal/gittest\t6.112s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t49.820s\nok  \tgithub.com/hoomdev/hoomai/internal/hoomfs\t43.661s\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t1.150s\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t5.814s\nok  \tgithub.com/hoomdev/hoomai/internal/item\t101.038s\nok  \tgithub.com/hoomdev/hoomai/internal/itemcmd\t223.882s\nok  \tgithub.com/hoomdev/hoomai/internal/lanzar\t5.051s\n?   \tgithub.com/hoomdev/hoomai/internal/live\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t1.881s\nok  \tgithub.com/hoomdev/hoomai/internal/modelos\t1.168s\n?   \tgithub.com/hoomdev/hoomai/internal/procesos\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/profiles\t1.154s\nok  \tgithub.com/hoomdev/hoomai/internal/providers\t7.037s\nok  \tgithub.com/hoomdev/hoomai/internal/ratchet\t1.240s\nok  \tgithub.com/hoomdev/hoomai/internal/report\t1.144s\nok  \tgithub.com/hoomdev/hoomai/internal/reviewcmd\t790.030s\nok  \tgithub.com/hoomdev/hoomai/internal/rolescmd\t1.979s\nok  \tgithub.com/hoomdev/hoomai/internal/runcmd\t276.558s\n?   \tgithub.com/hoomdev/hoomai/internal/runningtest\t[no test files]\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t380.988s\nok  \tgithub.com/hoomdev/hoomai/internal/spec\t2.312s\nok  \tgithub.com/hoomdev/hoomai/internal/statuscmd\t24.698s\nok  \tgithub.com/hoomdev/hoomai/internal/tablero\t362.152s\nok  \tgithub.com/hoomdev/hoomai/internal/tarjetacmd\t529.340s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t232.283s\nok  \tgithub.com/hoomdev/hoomai/internal/valores\t1.147s\nok  \tgithub.com/hoomdev/hoomai/internal/verdict\t19.479s\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t54.621s\n?   \tgithub.com/hoomdev/hoomai/internal/worktreetest\t[no test files]"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "green"
+}
