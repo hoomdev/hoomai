@@ -545,6 +545,13 @@ func NoExecFor(p providers.Provider, role agents.Role) (noExec, warn bool) {
 	return true, false
 }
 
+// IsolationFor says whether provider p can run role r: a blind role needs a
+// provider that runs without the user's personal config (spec
+// ciego-sin-config-personal). SKELETON: no behavior yet.
+func IsolationFor(p providers.Provider, r agents.Role) error {
+	return nil
+}
+
 // IsPlaceholder reports a pedido that says nothing: empty once every blank is
 // gone, made only of '.' and '…', or exactly "<pedido>" — the placeholder the
 // envelope itself prints in its resume hint. Burning a run on it is paying a

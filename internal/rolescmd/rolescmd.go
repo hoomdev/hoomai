@@ -43,6 +43,7 @@ const (
 	MechQuarantine     = "arbol ciego (cuarentena)"
 	MechContract       = "contrato"
 	MechNoSystemPrompt = "sin system_prompt"
+	MechNoIsolation    = "sin aislamiento"
 )
 
 // Cell is one dimension (read, write or exec) of one role on one provider.
