@@ -83,7 +83,8 @@ type Result struct {
 	ExitCode   int              `json:"exit_code"`
 	// Note is why the envelope closed where it did: the same text its record
 	// keeps, so a --json consumer reads the cause and the action without
-	// parsing the terminal (CA-592, finding b5bf6b). SKELETON: never set yet.
+	// parsing the terminal (CA-592, finding b5bf6b). registrar sets it on
+	// every close that answers with a Result; roto answers with the error.
 	Note string `json:"note,omitempty"`
 }
 
@@ -394,6 +395,7 @@ func sinEntrega(w io.Writer, root string, rec *envelope.Record, res Result, role
 
 // registrar writes the closing record from the Result it closes with.
 func registrar(root string, rec *envelope.Record, res Result, note string) Result {
+	res.Note = note
 	rec.Stage, rec.Status, rec.ExitCode, rec.Note = res.Stage, res.Status, res.ExitCode, note
 	rec.EndedAt = time.Now().UTC()
 	_ = envelope.Cerrar(root, *rec) // best-effort (CA-202), retried until it lands (finding de4843)
