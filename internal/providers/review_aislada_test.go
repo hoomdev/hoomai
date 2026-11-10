@@ -315,6 +315,11 @@ func TestCA398_ClaudeAisladoYConEsfuerzo(t *testing.T) {
 }
 
 // CA-398: cada campo agrega solo lo suyo y, sin ellos, CA-113 tal cual.
+//
+// CA-398 re-expresado por CA-589 (.hoom/specs/ciego-sin-config-personal.md):
+// Isolated ya no agrega tres argumentos sino cinco, seguidos y en este orden:
+// --strict-mcp-config --setting-sources project --settings
+// {"autoMemoryEnabled":false}. Lo de Effort y el argv de CA-113 no cambian.
 func TestCA398_ClaudeCadaCampoAgregaSoloLoSuyo(t *testing.T) {
 	want := []string{"-p", "--output-format", "stream-json", "--verbose", "hola"}
 	if got := raCmd(t, "claude", Request{Prompt: "hola"}).Args; !reflect.DeepEqual(got, want) {
@@ -329,8 +334,8 @@ func TestCA398_ClaudeCadaCampoAgregaSoloLoSuyo(t *testing.T) {
 		iso := base
 		iso.Isolated = true
 		extra, ok := raSobrantes(plano, raCmd(t, "claude", iso).Args)
-		if !ok || !reflect.DeepEqual(extra, []string{"--strict-mcp-config", "--setting-sources", "project"}) {
-			t.Fatalf("CA-398: Isolated solo agrega --strict-mcp-config --setting-sources project a %v: extra=%v", plano, extra)
+		if !ok || !reflect.DeepEqual(extra, []string{"--strict-mcp-config", "--setting-sources", "project", "--settings", `{"autoMemoryEnabled":false}`}) {
+			t.Fatalf(`CA-398/CA-589: Isolated solo agrega --strict-mcp-config --setting-sources project --settings {"autoMemoryEnabled":false} a %v: extra=%v`, plano, extra)
 		}
 		ef := base
 		ef.Effort = "high"

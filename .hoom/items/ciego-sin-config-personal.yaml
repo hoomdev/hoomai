@@ -1,0 +1,6 @@
+titulo: El rol ciego corre sin tu configuracion personal
+tipo: seguridad
+prioridad: alta
+pedido: 'Spec .hoom/specs/ciego-sin-config-personal.md: hoom agent corre al rol ciego (test-writer) con el Isolated del provider, como la review; en claude, Isolated suma --settings {"autoMemoryEnabled":false} a --strict-mcp-config --setting-sources project, asi el rol ciego no ve Engram ni la memoria automatica del proyecto. Un provider que no puede aislarse no corre un rol ciego (IsolationFor) y hoom roles lo muestra UNSUPPORTED. Re-expresa CA-398 y CA-400.'
+creado_por: Henry Orellana <henry.orellana@oceansbits.com>
+creado_en: 2026-11-10T15:57:23Z

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261110T162807_b5bf6b",
+  "as": "corregido",
+  "evidence": "Result suma Note (json note,omitempty) y registrar la llena con la misma nota que guarda el registro del sobre (commit 122ec96). Tests del test-writer ciego (commit e7c408c): TestCA592_HoomAgentTestWriterSinIsolationCierraEnAislar y TestCA592_IsolationForVaAntesQueLosOtrosChequeosDeAislar exigen res.Note igual al error de CA-591, al registro y a la clave note del JSON; TestCA592_OtraNegativaDeAislarTambienViajaEnElResult lo exige para las otras negativas de aislar. Rojos contra el esqueleto c87bbfc, verdes con go test -race ./internal/agentcmd/.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-10T16:40:46.943282Z"
+}

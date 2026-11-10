@@ -43,6 +43,7 @@ const (
 	MechQuarantine     = "arbol ciego (cuarentena)"
 	MechContract       = "contrato"
 	MechNoSystemPrompt = "sin system_prompt"
+	MechNoIsolation    = "sin aislamiento"
 )
 
 // Cell is one dimension (read, write or exec) of one role on one provider.
@@ -88,6 +89,13 @@ func row(m *manifest.Manifest, r agents.Role, p providers.Provider) Row {
 		// 'hoom agent' and 'hoom review' refuse it before any run
 		cell := Cell{Allows: "no corre el rol", Mechanisms: []string{MechNoSystemPrompt}, Category: Unsupported,
 			Gap: p.Name() + " no soporta system_prompt: 'hoom agent' no puede darle el contrato del rol"}
+		out.Read, out.Write, out.Exec = cell, cell, cell
+		return out
+	}
+	if err := agentcmd.IsolationFor(p, r); err != nil {
+		// 'hoom agent' refuses a blind role there before the blind tree
+		gap, _, _ := strings.Cut(err.Error(), "\n")
+		cell := Cell{Allows: "no corre el rol ciego", Mechanisms: []string{MechNoIsolation}, Category: Unsupported, Gap: gap}
 		out.Read, out.Write, out.Exec = cell, cell, cell
 		return out
 	}

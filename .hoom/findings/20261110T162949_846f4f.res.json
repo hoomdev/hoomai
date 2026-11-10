@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261110T162949_846f4f",
+  "as": "corregido",
+  "evidence": "El comentario de agentcmd.go ahora nombra el limite real: IsolationFor es el primer chequeo del arbol ciego, antes de blindPrechecks, la cuarentena (isolate.Open) y el run, y aclara que el registro del sobre ya esta en disco, como en cualquier negativa (commit c87bbfc).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-10T16:40:47.223791Z"
+}
