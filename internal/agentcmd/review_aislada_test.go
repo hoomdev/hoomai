@@ -4,6 +4,10 @@
 // lleva Isolated ni Effort, aunque hoom.yaml tenga una seccion review: que
 // los pida (CA-155: un rol de escritura no pisa la config del usuario).
 //
+// CA-400 re-expresado por CA-588 (.hoom/specs/ciego-sin-config-personal.md):
+// la excepcion es el rol ciego, que corre siempre con Isolated; el esfuerzo
+// sigue siendo solo de la review.
+//
 // Guardas: el esqueleto ya las cumple (no hay aislamiento en ningun lado); lo
 // que prueban es que la implementacion no lo derrame fuera de la review.
 //
@@ -55,15 +59,21 @@ func raSinAislamiento(t *testing.T, que string, args []string) {
 	for _, a := range args {
 		switch {
 		case a == "--ignore-user-config", a == "--strict-mcp-config", a == "--setting-sources", a == "--effort",
+			// CA-589: el aislamiento de claude suma --settings {"autoMemoryEnabled":false}
+			a == "--settings", a == `{"autoMemoryEnabled":false}`,
 			strings.HasPrefix(a, "model_reasoning_effort="), a == "xhigh":
 			t.Fatalf("CA-400: %s no lleva aislamiento ni esfuerzo (%q): %v", que, a, args)
 		}
 	}
 }
 
-// CA-400: startOptions nunca pide Isolated ni Effort, para ningun rol y con
-// los dos providers que los soportan.
-func TestCA400_ElSobreNuncaPideAislamientoNiEsfuerzo(t *testing.T) {
+// CA-400: startOptions nunca pide Effort, para ningun rol, y no pide Isolated
+// para ningun rol que no sea ciego, con los dos providers que los soportan.
+//
+// CA-400 re-expresado por CA-588 (.hoom/specs/ciego-sin-config-personal.md):
+// el rol ciego (Role.Isolated, hoy solo el test-writer) SI corre con
+// Isolated; el resto de CA-400 sigue igual.
+func TestCA400_ElSobreSoloAislaAlRolCiegoYNuncaPideEsfuerzo(t *testing.T) {
 	for _, name := range []string{"codex", "claude"} {
 		prov, err := providers.Lookup(name)
 		if err != nil {
@@ -71,8 +81,12 @@ func TestCA400_ElSobreNuncaPideAislamientoNiEsfuerzo(t *testing.T) {
 		}
 		for _, role := range agents.Roles() {
 			so, _ := startOptions(prov, role, "C", Options{Prompt: "trabaja", Model: "m"})
-			if so.Isolated || so.Effort != "" {
-				t.Fatalf("CA-400: el rol %s en %s no lleva Isolated ni Effort: %+v", role.Slug, name, so)
+			if so.Effort != "" {
+				t.Fatalf("CA-400: el rol %s en %s no lleva Effort: %+v", role.Slug, name, so)
+			}
+			if so.Isolated != role.Isolated {
+				t.Fatalf("CA-400/CA-588: el rol %s en %s lleva Isolated=%v solo si es ciego (%v): %+v",
+					role.Slug, name, so.Isolated, role.Isolated, so)
 			}
 		}
 	}
