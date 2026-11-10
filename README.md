@@ -28,9 +28,7 @@ rol como ENFORCED, POST-VERIFIED, BEST-EFFORT o UNSUPPORTED. Por ejemplo, la
 lectura del test-writer ciego es BEST-EFFORT: el object DB de git es compartido
 y `git show HEAD:<ruta>` todavía llega a la implementación.
 
-<!-- Demo: descomentar cuando exista docs/demo.gif
-![hoom verify sobre el cambio de un agente](docs/demo.gif)
--->
+![El agente dice «listo»: hoom verify da ROJO por un test que falla, se aplica el arreglo y da VERDE](docs/demo.gif)
 
 ## Instalación en un comando
 

@@ -33,9 +33,7 @@ as ENFORCED, POST-VERIFIED, BEST-EFFORT or UNSUPPORTED. For example, the blind
 test-writer's read limit is BEST-EFFORT: git's object database is shared, and
 `git show HEAD:<path>` still reaches the implementation.
 
-<!-- Demo: uncomment once docs/demo.gif exists
-![hoom verify on an agent's change](docs/demo.gif)
--->
+![The agent says "done": hoom verify comes back RED on a failing test, the fix is applied and it comes back GREEN](docs/demo.gif)
 
 ## One-command install
 
