@@ -81,6 +81,10 @@ type Result struct {
 	Stage      string           `json:"stage"`  // spec | aislar | run | scope | verify | check | ok
 	Status     string           `json:"status"` // entregable | no-entregable | sin-entrega
 	ExitCode   int              `json:"exit_code"`
+	// Note is why the envelope closed where it did: the same text its record
+	// keeps, so a --json consumer reads the cause and the action without
+	// parsing the terminal (CA-592, finding b5bf6b). SKELETON: never set yet.
+	Note string `json:"note,omitempty"`
 }
 
 // Isolation is what the envelope did with the blind tree, and what came back
@@ -222,8 +226,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	var beforeReal Snapshot
 	if role.Isolated {
 		seguir("aislar", 2)
-		// before anything touches the disk: a provider that cannot drop the
-		// user's config would read what the blind tree hides (CA-592)
+		// first of the blind tree's checks, before blindPrechecks, the
+		// quarantine (isolate.Open) and the run: a provider that cannot drop
+		// the user's config would read what the blind tree hides (CA-592).
+		// The envelope's own record is already on disk, as in any refusal.
 		if err := IsolationFor(prov, role); err != nil {
 			return cerrar(w, root, &rec, res, "aislar", 1, err.Error()), nil
 		}
