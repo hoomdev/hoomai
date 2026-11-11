@@ -1,15 +1,18 @@
 package costcmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/providers"
@@ -398,6 +401,7 @@ func (c *contexto) avisar(s string) {
 func (c *contexto) tarea(slug string, runs []runcmd.Meta, recs []reviewcmd.Record) Tarea {
 	t := Tarea{Slug: slug, PorProvider: map[string]Gasto{}, PorRol: []GastoRol{}, RondasReview: []Ronda{}}
 	c.estado(&t)
+	c.reloj(&t)
 	// the cost is until the task was accepted: what came after hecho_en is
 	// counted apart and left out
 	if t.AceptadaEn != nil {
@@ -527,6 +531,46 @@ func tareaDe(m runcmd.Meta) string {
 		return m.Task
 	}
 	return m.FindingTask
+}
+
+// reloj fills firmada_en (the oldest approval of the task's spec: an
+// amendment does not restart the clock) and reloj_ms (from it to
+// aceptada_en), each null without its data.
+func (c *contexto) reloj(t *Tarea) {
+	t.FirmadaEn, t.RelojMS = firmadaEn(c.root, t.Slug), nil
+	if t.FirmadaEn != nil && t.AceptadaEn != nil {
+		ms := t.AceptadaEn.Sub(*t.FirmadaEn).Milliseconds()
+		t.RelojMS = &ms
+	}
+}
+
+// firmadaEn is the oldest approved_at among the records of root's
+// .hoom/approvals/ whose spec is .hoom/specs/<slug>.md; nil without one. A
+// record that cannot be read is not an approval.
+func firmadaEn(root, slug string) *time.Time {
+	entries, err := os.ReadDir(filepath.Join(root, ".hoom", "approvals"))
+	if err != nil {
+		return nil
+	}
+	spec := ".hoom/specs/" + slug + ".md"
+	var out *time.Time
+	for _, e := range entries {
+		if !e.Type().IsRegular() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(root, ".hoom", "approvals", e.Name()))
+		if err != nil {
+			continue
+		}
+		var rec approval.Record
+		if json.Unmarshal(raw, &rec) != nil || rec.Spec != spec || rec.ApprovedAt.IsZero() {
+			continue
+		}
+		if at := rec.ApprovedAt.UTC(); out == nil || at.Before(*out) {
+			out = &at
+		}
+	}
+	return out
 }
 
 // estado: aceptada when the item has hecho_en; otherwise en curso while the
