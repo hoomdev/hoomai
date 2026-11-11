@@ -1,0 +1,11 @@
+{
+  "id": "20261111T220246_8df3e2",
+  "created_at": "2026-11-11T22:02:46.112250549Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea este delta): internal/itemcmd/itemcmd.go:161 comprueba que la tarjeta no esté en Hecho antes de llamar a item.SetRiesgo en :168, pero esa comprobación no comparte el lock del item. Si task done ejecuta MarkDone entre ambas operaciones, SetRiesgo vuelve a leer el item ya cerrado bajo lock y aun así cambia riesgo, por lo que item set termina escribiendo y reportando éxito sobre una tarjeta en Hecho, contra CA-617. Es una carrera improbable y no pierde ni expone datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "9ca140b8a7d62208",
+  "task": "ciclo-de-review-acotado"
+}
