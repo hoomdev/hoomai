@@ -941,14 +941,16 @@ func cmdFinding(args []string) error {
 			if it.CodeChanged {
 				changed = "  [el codigo cambio desde el hallazgo]"
 			}
-			fmt.Printf("  %-22s %-9s %-7s %s%s\n", it.ID, strings.ToUpper(it.Status), it.Severity, it.Description, changed)
+			// an open finding says on its own line whether it blocks and why,
+			// or that it is pendiente (CA-628)
+			juicio := ""
 			if it.Status == finding.StatusOpen {
+				juicio = "  - pendiente"
 				if it.Bloquea {
-					fmt.Printf("      bloquea: %s\n", it.Motivo)
-				} else {
-					fmt.Println("      pendiente")
+					juicio = "  - bloquea: " + it.Motivo
 				}
 			}
+			fmt.Printf("  %-22s %-9s %-7s %s%s%s\n", it.ID, strings.ToUpper(it.Status), it.Severity, it.Description, changed, juicio)
 			if it.Resolution != nil {
 				fmt.Printf("      evidencia: %s\n", it.Resolution.Evidence)
 			}
