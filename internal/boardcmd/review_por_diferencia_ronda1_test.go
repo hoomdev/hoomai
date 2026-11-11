@@ -187,8 +187,9 @@ func TestCA428_SeguirElSiguientePasoSaleDeReview(t *testing.T) {
 // encadenable): R1 de 4 lentes, codigo despues (el cambio sigue de mas de
 // 400 lineas): la tarjeta vuelve a Review con `la review R1 cubre hasta
 // <hasta12> y el codigo cambio despues` y el siguiente paso --delta; el
-// --delta de hoom review encadena con R1, lleva las 4 lentes (la regla
-// sobre el cambio entero) y la tarjeta pasa a Tu aceptacion.
+// --delta de hoom review encadena con R1, lleva las 4 lentes de la regla
+// sobre el cambio entero menos readability (CA-620, ciclo-de-review-acotado)
+// y la tarjeta pasa a Tu aceptacion.
 func TestCA428_CadenaDeCuatroConCodigoDespuesPideElDeltaYElDeltaAlcanza(t *testing.T) {
 	r1Codex(t)
 	tj := rdGrande(t)
@@ -205,8 +206,11 @@ func TestCA428_CadenaDeCuatroConCodigoDespuesPideElDeltaYElDeltaAlcanza(t *testi
 		t.Fatalf("CA-428: el siguiente paso es %q, fue %q", rdNextDelta, c.Next)
 	}
 	r2, out := tj.review(t, "CA-428", true)
-	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID || !reflect.DeepEqual(r2.Lenses, reviewcmd.Lentes) {
-		t.Fatalf("CA-428/CA-424: el --delta encadena con R1 y lleva las 4 lentes: %+v\n%s", r2, out)
+	// CA-620 re-expresa CA-424: la delta cuya regla da las 4 corre risk,
+	// reliability y resilience; CA-622 re-expresa CA-428: ese delta cuenta en
+	// la cadena (trae las lentes que la regla pide para la tarjeta).
+	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID || !reflect.DeepEqual(r2.Lenses, []string{"risk", "reliability", "resilience"}) {
+		t.Fatalf("CA-428/CA-424/CA-620: el --delta encadena con R1 y lleva las 4 de la regla menos readability: %+v\n%s", r2, out)
 	}
 	rdCuenta(t, "CA-428", "despues del delta", tj.card(t), r2.RecordID)
 }
