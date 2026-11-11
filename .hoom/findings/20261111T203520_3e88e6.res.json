@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261111T203520_3e88e6",
+  "as": "corregido",
+  "evidence": "commit 01aa514: item.RiesgosDe falla cerrado (devuelve los slugs ilegibles), Contexto.Ilegibles hace bloquear y el gate da ERROR. Test de regresion TestHallazgo_3e88e6_ItemInvalidoEnElPrincipalNoCaeANormal (internal/boardcmd, commit 551d54b) fallaba en a42af11 y pasa en 4f22a02.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-11T21:16:21.387499217Z"
+}

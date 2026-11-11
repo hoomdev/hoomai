@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261111T203520_04b283",
+  "as": "corregido",
+  "evidence": "commit 0eaa17a: finding.Bloquea escapa autor, file e id de registro en el motivo (strconv.Quote con controles o bidi). Test de regresion TestHallazgo_04b283_MotivosConControlesSalenEscapados (internal/boardcmd, commits 551d54b/4f22a02) fallaba en a42af11 y pasa en 4f22a02.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-11T21:16:21.383359454Z"
+}
