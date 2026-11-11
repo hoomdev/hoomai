@@ -149,7 +149,8 @@ type Draft struct {
 	Titulo    string
 	Tipo      string
 	Prioridad string
-	// Riesgo (`--riesgo`): "" takes riesgo.Normal. Validate trims it and
+	// Riesgo (`--riesgo`): "" is the absence of the flag and stays "" in
+	// the Draft; the item Add returns has riesgo.Normal. Validate trims it and
 	// rejects a value outside riesgo.Vocabulario with Parse's text,
 	// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`; Add writes
 	// the key only for Bajo and Alto.
@@ -251,9 +252,6 @@ func Validate(d Draft) (Draft, error) {
 	if err := riesgo.Validar(d.Riesgo); err != nil {
 		return d, err
 	}
-	if d.Riesgo == "" {
-		d.Riesgo = riesgo.Normal
-	}
 	d.Auto = strings.TrimSpace(d.Auto)
 	if d.Auto != "" && !contains(Autos, d.Auto) {
 		return d, fmt.Errorf("auto %q fuera del vocabulario (%s)", d.Auto, strings.Join(Autos, ", "))
@@ -288,7 +286,7 @@ func Add(root string, d Draft) (Item, error) {
 		return Item{}, err
 	}
 	it := Item{
-		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad, Riesgo: d.Riesgo,
+		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad, Riesgo: riesgoONormal(d.Riesgo),
 		Pedido: strings.TrimSpace(d.Pedido), CreadoPor: gitx.Identity(root),
 		CreadoEn: time.Now().UTC().Truncate(time.Second), PresupuestoUSD: d.PresupuestoUSD,
 		Auto: d.Auto, Historico: d.Historico,
@@ -599,3 +597,12 @@ func AddSession(root, slug, provider string, at time.Time) (bool, error) {
 		return true
 	})
 }
+
+// riesgoONormal is r, or riesgo.Normal when r is "" (no --riesgo).
+func riesgoONormal(r string) string {
+	if r == "" {
+		return riesgo.Normal
+	}
+	return r
+}
+
