@@ -126,8 +126,10 @@ func edrIntegrar(t *testing.T, tj *rdTarjeta) {
 // --delta, y ese --delta lo revisa con lentes, no con SIN REVISAR". De punta
 // a punta: R1 de 4 lentes con hoom review; un commit solo de gate.sh (y su
 // verde): la tarjeta vuelve a Review con el motivo del delta; el --delta
-// revisa (las 4 lentes de la regla sobre el cambio entero) y su evidencia es
-// el diff de gate.sh; despues, la tarjeta pasa a Tu aceptacion.
+// revisa (las lentes de la regla sobre el cambio entero menos readability:
+// risk, reliability y resilience, re-expresado por CA-620 y CA-622 de
+// ciclo-de-review-acotado) y su evidencia es el diff de gate.sh; despues, la
+// tarjeta pasa a Tu aceptacion.
 func TestCA483_UnCommitSoloDeSemgrepDevuelveLaTarjetaAReview(t *testing.T) {
 	pedidos := edrCodex(t)
 	tj := rdGrande(t)
@@ -146,8 +148,12 @@ func TestCA483_UnCommitSoloDeSemgrepDevuelveLaTarjetaAReview(t *testing.T) {
 
 	r1Esperar()
 	r2, out := tj.review(t, "CA-483", true)
-	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID || len(r2.Lenses) != 4 || len(r2.Passes) != 4 {
-		t.Fatalf("CA-483: el --delta revisa el commit de gate.sh con lentes (las 4 de la regla sobre el cambio entero), no SIN REVISAR: %+v\n%s", r2, out)
+	// CA-620/CA-622 (ciclo-de-review-acotado): la regla da las 4 sobre el
+	// cambio entero, y una delta no corre readability: risk, reliability y
+	// resilience, una pasada por lente.
+	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID ||
+		strings.Join(r2.Lenses, " ") != "risk reliability resilience" || len(r2.Passes) != 3 {
+		t.Fatalf("CA-483 (CA-620): el --delta revisa el commit de gate.sh con lentes (las de la regla sobre el cambio entero menos readability: risk reliability resilience), no SIN REVISAR: %+v\n%s", r2, out)
 	}
 	p := edrPedido(t, pedidos, 5)
 	if !strings.Contains(p, "diff --git a/.hoom/semgrep/gate.sh b/.hoom/semgrep/gate.sh") || !strings.Contains(p, "+# GATE-QUE-YA-NO-CORRE-NADA") {

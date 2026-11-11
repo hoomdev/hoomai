@@ -49,7 +49,18 @@ func TestCA623_BloqueaSeveridadYRuta(t *testing.T) {
 		crBloquea(t, "CA-623", crF("a", "low", "internal/auth/login.go", ""), c, false, "") // el caso 3 es solo de medium
 		crBloquea(t, "CA-623", crF("a", "critical", "app.go", ""), c, true, `severidad desconocida "critical"`)
 		crBloquea(t, "CA-623", crF("a", "", "app.go", ""), c, true, `severidad desconocida ""`)
-		crBloquea(t, "CA-623", crF("a", "High", "app.go", ""), c, true, `severidad desconocida "High"`)
+		crBloquea(t, "CA-623", crF("a", "urgent", "app.go", ""), c, true, `severidad desconocida "urgent"`)
+		// "High" o " high " estan en el vocabulario: hoom compara las
+		// severidades sin distinguir mayusculas ni espacios, como hoy; bloquea
+		// por el caso 1 (sin fijar la forma de <sev> en el texto)
+		for _, sev := range []string{"High", " high ", "HIGH"} {
+			b, m := Bloquea(crF("a", sev, "app.go", ""), c)
+			if !b || !strings.HasPrefix(m, "severidad ") || strings.Contains(m, "desconocida") || !strings.EqualFold(strings.TrimSpace(strings.TrimPrefix(m, "severidad ")), "high") {
+				t.Fatalf("CA-623: %q es high: bloquea con `severidad high`: (%v, %q)", sev, b, m)
+			}
+		}
+		// "Medium" fuera de ruta de riesgo es un medium: no bloquea con high
+		crBloquea(t, "CA-623", crF("a", "Medium", "app.go", ""), c, false, "")
 	}
 }
 
