@@ -427,7 +427,17 @@ type FindingsPolicy struct {
 // checked). taskcmd.Ready uses it on the hoom.yaml of the task's tree. nil =
 // no section.
 func ParseFindings(raw []byte) (*FindingsPolicy, error) {
-	return nil, nil
+	var doc struct {
+		Findings *FindingsPolicy `yaml:"findings"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	m := Manifest{Findings: doc.Findings}
+	if err := m.validateFindings(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	return m.Findings, nil
 }
 
 // Manifest is the parsed hoom.yaml after profile inheritance is resolved.
@@ -614,7 +624,10 @@ func (m *Manifest) FindingsBlockOn() string {
 // FindingsMaxPendientes is findings.max_pendientes: (n, true) when the
 // project declares the cap, (0, false) when it does not (no cap).
 func (m *Manifest) FindingsMaxPendientes() (n int, ok bool) {
-	return 0, false
+	if m == nil || m.Findings == nil || m.Findings.MaxPendientes == nil {
+		return 0, false
+	}
+	return *m.Findings.MaxPendientes, true
 }
 
 // Severities are the values block_on accepts, mildest first. They are the
@@ -629,8 +642,18 @@ func (p *FindingsPolicy) UnmarshalYAML(n *yaml.Node) error {
 		return fmt.Errorf("findings debe ser un mapa (ej. findings: { block_on: high })")
 	}
 	for i := 0; i+1 < len(n.Content); i += 2 {
-		if key := n.Content[i].Value; key != "block_on" {
-			return fmt.Errorf("findings: clave desconocida %q (la unica valida es block_on)", key)
+		switch key, v := n.Content[i].Value, n.Content[i+1]; key {
+		case "block_on":
+		case "max_pendientes":
+			if v.Kind == yaml.ScalarNode && v.Tag == "!!null" {
+				continue // como block_on: nulo = sin la clave
+			}
+			var x int
+			if v.Kind != yaml.ScalarNode || v.Tag != "!!int" || v.Decode(&x) != nil || x < 0 {
+				return fmt.Errorf("findings: max_pendientes tiene que ser un entero mayor o igual a 0")
+			}
+		default:
+			return fmt.Errorf("findings: clave desconocida %q (validas: block_on, max_pendientes)", key)
 		}
 	}
 	type plain FindingsPolicy // sin el metodo: evita la recursion
