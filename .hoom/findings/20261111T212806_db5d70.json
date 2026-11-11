@@ -1,0 +1,11 @@
+{
+  "id": "20261111T212806_db5d70",
+  "created_at": "2026-11-11T21:28:06.280525686Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:156 resuelve una vez si el destino es el item principal o el del worktree y internal/itemcmd/itemcmd.go:167 lo escribe mas tarde bajo el lock de ese arbol solamente. Si una tarjeta existe solo en la rama y entre ambos pasos se crea el item homonimo en el principal, SetRiesgo modifica la copia de la rama pero RiesgoDe pasa a preferir la nueva copia principal; el comando informa exito aunque el riesgo efectivo no cambio. Es una carrera entre arboles sin revalidacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "7683c7e1a49eb118",
+  "task": "ciclo-de-review-acotado"
+}

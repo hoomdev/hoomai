@@ -1,0 +1,11 @@
+{
+  "id": "20261111T212806_321462",
+  "created_at": "2026-11-11T21:28:06.147279116Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:444-449 agrega al resultado textual normal de item set un sufijo con la ruta del proyecto cuando se ejecuta desde el worktree. CA-617 fija exactamente riesgo de \u003cslug\u003e: \u003cantes\u003e -\u003e \u003cdespues\u003e - guardalo con: hoom item save \u003cslug\u003e; el camino cubierto desde worktree ahora produce una salida distinta y rompe consumidores del contrato textual.",
+  "author": "reviewer@codex",
+  "fingerprint": "7683c7e1a49eb118",
+  "task": "ciclo-de-review-acotado"
+}
