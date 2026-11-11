@@ -66,8 +66,8 @@ func wSet(t *testing.T, root, slug, r string) (string, error) {
 }
 
 // Findings aee796 and f91dcf: `hoom item set` run from the task's worktree
-// writes the item the riesgo is read from, the main checkout's, and says
-// where to save it.
+// writes the item the riesgo is read from, the main checkout's, and prints
+// the exact CA-617 line (Henry's decision on finding 321462).
 func TestSetEscribeElItemDelPrincipal(t *testing.T) {
 	principal, wt := wProyecto(t, true, "bajo")
 	out, err := wSet(t, wt, "legit", "alto")
@@ -83,8 +83,8 @@ func TestSetEscribeElItemDelPrincipal(t *testing.T) {
 	if r, _ := item.RiesgoDe(wt, "legit"); r != "alto" {
 		t.Fatalf("lo que set escribe es lo que se lee: %q", r)
 	}
-	if !strings.Contains(out, "guardalo con: hoom item save legit") || !strings.Contains(out, principal) {
-		t.Fatalf("la linea dice desde donde guardarlo: %q", out)
+	if strings.TrimSpace(out) != "riesgo de legit: bajo -> alto - guardalo con: hoom item save legit" {
+		t.Fatalf("desde el worktree, la linea exacta de CA-617: %q", out)
 	}
 	// from the main checkout, the line is the plain one
 	out, err = wSet(t, principal, "legit", "bajo")

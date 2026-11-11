@@ -646,9 +646,6 @@ func ArbolDelRiesgo(arbol, slug string) (string, bool) {
 	return "", false
 }
 
-// EsOtroArbol says whether a and b are different trees (symlinks resolved).
-func EsOtroArbol(a, b string) bool { return !mismoArbol(a, b) }
-
 // RiesgosDe is RiesgoDe for every card arbol and the main checkout know, by
 // slug: the main checkout's items over arbol's. It fails closed like
 // RiesgoDe: an item that is there and cannot be read (or a .hoom/items/ that

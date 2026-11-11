@@ -17,7 +17,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -443,12 +442,7 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 			fmt.Fprintf(stdout, "riesgo de %s: ya es %s\n", res.Slug, res.Riesgo)
 			return nil
 		}
-		donde := ""
-		if dest, ok := item.ArbolDelRiesgo(root, res.Slug); ok && item.EsOtroArbol(dest, root) {
-			// Set wrote the project's item: save it from there
-			donde = " (desde el proyecto, " + strconv.Quote(dest) + ": es su item)"
-		}
-		fmt.Fprintf(stdout, "riesgo de %s: %s -> %s - guardalo con: hoom item save %s%s\n", res.Slug, res.Antes, res.Riesgo, res.Slug, donde)
+		fmt.Fprintf(stdout, "riesgo de %s: %s -> %s - guardalo con: hoom item save %s\n", res.Slug, res.Antes, res.Riesgo, res.Slug)
 		return nil
 	case SubBackfill:
 		res, err := Backfill(root, base, blockOn, req.DryRun, now)
