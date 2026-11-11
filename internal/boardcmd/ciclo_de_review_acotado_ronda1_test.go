@@ -56,7 +56,12 @@ func TestHallazgo_04b283_MotivosConControlesSalenEscapados(t *testing.T) {
 			t.Fatalf("hallazgo 04b283 (CA-627): un motivo de la tarjeta lleva el control %U crudo: %q", r, m)
 		}
 		subida = subida || (strings.Contains(m, "subido a mano por ") && strings.Contains(m, "PWN"))
-		ruta = ruta || (strings.Contains(m, "medium en ruta de riesgo: internal/auth/") && strings.Contains(m, ".go"))
+		// sin fijar la forma del escape (con o sin comillas): despues de
+		// "medium en ruta de riesgo: " viene la ruta
+		if i := strings.Index(m, "medium en ruta de riesgo: "); i >= 0 {
+			resto := m[i+len("medium en ruta de riesgo: "):]
+			ruta = ruta || (strings.Contains(resto, "internal/auth/") && strings.Contains(resto, ".go"))
+		}
 	}
 	if !subida || !ruta {
 		t.Fatalf("04b283: los motivos siguen nombrando la subida y la ruta, escapadas: %q", c.Missing)
