@@ -22,7 +22,7 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
    el problema es de diseno: se vuelve al spec, no se improvisa una reescritura.
    Si sigue rojo tras el ciclo, se escala a Hoom explicando el bloqueo exacto.
 4b. El veredicto trae el tamano del cambio (+ins/-del). Mas de 400 lineas
-   cambiadas = review con las 4 lentes, sin excepciones. Antes de entregar,
+   cambiadas = review con las 4 lentes, salvo riesgo bajo en la tarjeta (reliability); con riesgo alto, las 4 siempre. Antes de entregar,
    `hoom check` debe dar VERDE: veredicto verde Y huella coincidente con el
    arbol actual (verificar A y entregar B es fraude de veredicto).
 5. Al cerrar: guardar resumen de sesion en Engram (topic: session/<proyecto>/<fecha>)
