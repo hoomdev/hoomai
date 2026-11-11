@@ -150,6 +150,8 @@ func DetailFor(root, base, blockOn, slug string, now time.Time, withDiff bool) (
 			d.Paths.Findings = append(d.Paths.Findings, join(".hoom", "findings", f.ID+".res.json"))
 		}
 	}
+	// each finding says whether it blocks, with the card's own Contexto
+	d.Findings = finding.Juzgar(d.Findings, contextoDe(ev))
 	if withDiff {
 		diff := gitx.Diff{Base: base, Files: []gitx.DiffFile{}, Note: NoDiffNote}
 		if ev.Source == SourceWorktree {

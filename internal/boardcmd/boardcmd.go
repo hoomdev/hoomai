@@ -366,6 +366,10 @@ type CardEvidence struct {
 	ReviewRequired   bool     `json:"review_required"`
 	ReviewID         string   `json:"review_id"`
 	BlockingFindings []string `json:"blocking_findings"`
+	// Riesgo is the card's effective riesgo (riesgo.Efectivo of its item's
+	// riesgo over the verdict's changed files): what decides its lenses and
+	// whether it requires a review.
+	Riesgo string `json:"riesgo"`
 }
 
 // Running: an envelope or run of the card whose owner is alive.

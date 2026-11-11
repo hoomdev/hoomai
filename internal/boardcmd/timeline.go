@@ -149,6 +149,7 @@ type entryData struct {
 	criteria     []string // commit entries: CA tokens its test lines add
 	verdict      *verdict.Verdict
 	lenses       []string
+	cobertura    string // the review record's, with lenses
 }
 
 type history struct {
@@ -362,9 +363,9 @@ func (h *history) fileEntries(c gitCommit, prefix string, kindOf func(string) st
 		case KindReview:
 			e.Plain = "quedo registrada una revision"
 			if r, ok := reviews[f.path]; ok {
-				d.lenses = r.Lenses
-				if containsAll(r.Lenses, reviewcmd.Lentes) {
-					e.Plain = "quedo registrada la revision de 4 lentes"
+				d.lenses, d.cobertura = r.Lenses, r.Cobertura
+				if containsAll(r.Lenses, lentesPedidas(efectivoEv(h.ev), r.Cobertura)) {
+					e.Plain = "quedo registrada la revision de " + textoLentes(efectivoEv(h.ev))
 				}
 			}
 			if deleted {
@@ -714,11 +715,13 @@ func (h *history) effects(e TimelineEntry, d *entryData, criteria []string, isCr
 				put(g, SegFalta)
 			}
 		}
-		if _, required := reviewRequired(v); !required {
+		if _, required := reviewRequired(v, efectivoDe(h.ev.Item, v)); !required {
 			put("review", SegNoAplica)
 		}
 	case KindReview:
-		if containsAll(d.lenses, reviewcmd.Lentes) {
+		// a record that counts in the chain: the lenses the rule asks for
+		// the card, or more
+		if len(d.lenses) > 0 && containsAll(d.lenses, lentesPedidas(efectivoEv(h.ev), d.cobertura)) {
 			put("review", SegHecho)
 		}
 	}

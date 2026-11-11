@@ -163,6 +163,10 @@ func (m *Modelo) docTarjeta(d *doc, c *boardcmd.Card) {
 	} else {
 		d.poner(lin(" Siguiente paso  " + unaLinea(texto)))
 	}
+	// what does not block, in sight when accepting (ciclo-de-review-acotado)
+	if c.Pendientes.Texto != "" {
+		d.poner(lin(" " + unaLinea(c.Pendientes.Texto)))
+	}
 	// B
 	d.vacia()
 	g := gasto(c.Spend)

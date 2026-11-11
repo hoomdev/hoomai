@@ -408,6 +408,7 @@ function pintarDetalle(forzar) {
     ${ex
       ? `<ul>${c.missing.map(m => `<li>${esc(m)}</li>`).join("")}</ul>${c.next ? `<div class="next" style="font:12px var(--mono);color:var(--text-3)">siguiente: ${esc(c.next)}</div>` : ""}`
       : `<div class="why">${esc(c.plain)}</div>`}
+    ${c.pendientes && c.pendientes.texto ? `<div class="pendientes" style="font-size:12px;color:var(--text-3)">${esc(c.pendientes.texto)}</div>` : ""}
     ${tb.derr ? `<div class="tberr">${esc(tb.derr)}</div>` : ""}`;
   $("tb-que").innerHTML = paneQue(d, ex);
   $("tb-diff").style.display = ex ? "" : "none";

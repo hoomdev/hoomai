@@ -73,17 +73,18 @@ func meterOf(ev Evidence, col string, m CardEvidence) []Segment {
 		}
 	}
 
-	lines, required := reviewRequired(v)
+	lines, required := reviewRequired(v, m.Riesgo)
+	lentes := textoLentes(m.Riesgo)
 	switch {
 	case m.ReviewID != "":
-		out = append(out, seg("review", "review", SegHecho, "revision de 4 lentes registrada"))
+		out = append(out, seg("review", "review", SegHecho, "revision de "+lentes+" registrada"))
 	case v == nil:
 		out = append(out, seg("review", "review", SegFalta, "todavia no hay veredicto"))
 	case !required:
 		out = append(out, seg("review", "review", SegNoAplica,
-			fmt.Sprintf("el cambio es chico (%d lineas): no exige la revision de 4 lentes", lines)))
+			fmt.Sprintf("el cambio es chico (%d lineas): no exige la revision de %s", lines, lentes)))
 	default:
-		out = append(out, seg("review", "review", SegFalta, "falta la revision de 4 lentes"))
+		out = append(out, seg("review", "review", SegFalta, "falta la revision de "+lentes))
 	}
 	return out
 }
@@ -115,6 +116,8 @@ func plainReady(kind string) string {
 		return "la ultima verificacion del espacio de trabajo dio rojo"
 	case taskcmd.ReadyHuella:
 		return "el espacio de trabajo cambio despues del ultimo verde"
+	case taskcmd.ReadyTopePendientes:
+		return "aceptarla dejaria demasiados medium abiertos en el proyecto"
 	}
 	return "el espacio de trabajo no esta listo para cerrar"
 }

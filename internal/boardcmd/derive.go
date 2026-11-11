@@ -14,6 +14,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -53,6 +54,7 @@ func Derive(ev Evidence) Card {
 	c.Ghost = ghostOf(c)
 	c.Doctor = DoctorOf(ev, c)
 	c.Historica = ev.Item.HechoEn == nil && ev.Item.Historico != "" && ev.HistoricaSostenida
+	c.Pendientes = pendientesDe(ev)
 	return c
 }
 
@@ -135,7 +137,7 @@ func column(ev Evidence) (string, []string, string, string) {
 			next = cmd
 		}
 	}
-	if lines, required := reviewRequired(v); required {
+	if lines, required := reviewRequired(v, efectivoEv(ev)); required {
 		switch id, atrasada := reviewState(ev); {
 		case id != "":
 		case atrasada != nil:
@@ -143,9 +145,8 @@ func column(ev Evidence) (string, []string, string, string) {
 				"falta revisar lo nuevo desde la ultima review",
 				"hoom review"+task+" --spec "+spec+" --delta")
 		default:
-			fail(fmt.Sprintf("la review exige las 4 lentes (%d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
-				fmt.Sprintf("falta la revision de 4 lentes (%d lineas)", lines),
-				"hoom review"+task+" --spec "+spec)
+			motivo, plain := faltaReview(efectivoEv(ev), lines)
+			fail(motivo, plain, "hoom review"+task+" --spec "+spec)
 		}
 	}
 	if ids := blocking(ev); len(ids) > 0 {
@@ -153,7 +154,13 @@ func column(ev Evidence) (string, []string, string, string) {
 		if len(ids) == 1 {
 			plain = "hay 1 hallazgo que bloquea"
 		}
-		fail("hallazgos abiertos que bloquean: "+strings.Join(ids, ", "), plain,
+		var nombrados []string
+		for _, f := range juzgadas(ev) {
+			if f.Bloquea {
+				nombrados = append(nombrados, conMotivo(f))
+			}
+		}
+		fail("hallazgos abiertos que bloquean: "+strings.Join(nombrados, ", "), plain,
 			"hoom finding resolve "+ids[0]+` --as corregido|refutado --evidence "..."`)
 	}
 	if len(ev.UnreadableFindings) > 0 {
@@ -180,7 +187,11 @@ func column(ev Evidence) (string, []string, string, string) {
 	case !withTask:
 		fail("cerrar exige la tarea: hoom task start "+s, "falta el espacio de trabajo de la tarjeta", "hoom task start "+s)
 	case ev.ReadyErr != "":
-		fail(ev.ReadyErr, plainReady(ev.ReadyKind), readyAction(ev.ReadyErr, s))
+		accion := readyAction(ev.ReadyErr, s)
+		if ev.ReadyKind == taskcmd.ReadyTopePendientes {
+			accion = "hoom finding list --open"
+		}
+		fail(ev.ReadyErr, plainReady(ev.ReadyKind), accion)
 	}
 	if len(missing) > 0 {
 		plain := plains[0]
@@ -201,17 +212,6 @@ func specOf(ev Evidence) string {
 }
 
 func hasTask(ev Evidence) bool { return ev.Worktree || ev.Source == SourceWorktree }
-
-// reviewRequired is contract 06's size rule read from the verdict itself:
-// more than UmbralLineas changed lines is exactly when the verdict already
-// prints "la review exige las 4 lentes".
-func reviewRequired(v *verdict.Verdict) (int, bool) {
-	if v == nil {
-		return 0, false
-	}
-	n := v.Git.Insertions + v.Git.Deletions
-	return n, n > reviewcmd.UmbralLineas
-}
 
 // reviewOf returns the newest review record that covers the card's code.
 func reviewOf(ev Evidence) string {
@@ -248,7 +248,7 @@ func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 		if reviewcmd.Encadenable(r) && (delta < 0 || at >= deltaAt) {
 			delta, deltaAt = i, at
 		}
-		if tail.Codigo || !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug) {
+		if tail.Codigo || !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug, efectivoEv(ev)) {
 			continue
 		}
 		if id == "" || at >= bestAt {
@@ -259,19 +259,21 @@ func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 		return id, nil
 	}
 	p := ev.Reviews[delta]
-	if green[p.VerdictID] && cadenaValida(p, byID, ev.Item.Slug) {
+	if green[p.VerdictID] && cadenaValida(p, byID, ev.Item.Slug, efectivoEv(ev)) {
 		return "", &ev.Reviews[delta]
 	}
 	return "", nil
 }
 
 // cadenaValida follows desde_review back to a completa: every record on the
-// way is of the card's task, has the four lenses and a hasta, and each delta
+// way is of the card's task, has the lenses the rule asks for the card (its
+// effective riesgo, lentesPedidas) or more, and a hasta, and each delta
 // starts exactly where the record it continues ended. A missing link breaks
-// it.
-func cadenaValida(r reviewcmd.Record, byID map[string]reviewcmd.Record, slug string) bool {
+// it. A record older than ciclo-de-review-acotado (no riesgo) counts with
+// its lenses like any other.
+func cadenaValida(r reviewcmd.Record, byID map[string]reviewcmd.Record, slug, efectivo string) bool {
 	for pasos := 0; pasos <= len(byID); pasos++ {
-		if r.Task != slug || r.Hasta == "" || !containsAll(r.Lenses, reviewcmd.Lentes) {
+		if r.Task != slug || r.Hasta == "" || !containsAll(r.Lenses, lentesPedidas(efectivo, r.Cobertura)) {
 			return false
 		}
 		switch r.Cobertura {
@@ -298,19 +300,12 @@ func short12(sha string) string {
 	return sha
 }
 
-// blocking lists the open findings of the card that block under the
-// threshold, with the ONE definition of blocking (finding.Blocks).
+// blocking lists the open findings of the card that block, with the ONE
+// definition of blocking (finding.Bloquea).
 func blocking(ev Evidence) []string {
 	out := []string{}
-	threshold := ev.BlockOn
-	if threshold == "" {
-		threshold = "high"
-	}
-	for _, f := range ev.Findings {
-		if f.Status != finding.StatusOpen || f.Task != ev.Item.Slug {
-			continue
-		}
-		if finding.Blocks(f.Severity, threshold) {
+	for _, f := range juzgadas(ev) {
+		if f.Bloquea {
 			out = append(out, f.ID)
 		}
 	}
@@ -372,9 +367,10 @@ func meter(ev Evidence) CardEvidence {
 	if v := ev.Verdict; v != nil {
 		m.VerdictID, m.Verdict = v.ID, v.Verdict
 		m.FingerprintMatch = ev.Fingerprint != "" && v.Git.ChangeFingerprint == ev.Fingerprint
-		_, m.ReviewRequired = reviewRequired(v)
+		_, m.ReviewRequired = reviewRequired(v, efectivoEv(ev))
 	}
 	m.ReviewID = reviewOf(ev)
+	m.Riesgo = efectivoEv(ev)
 	return m
 }
 

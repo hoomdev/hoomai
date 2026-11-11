@@ -128,6 +128,7 @@ type gatherer struct {
 	metas               map[string][]runcmd.Meta
 	providers           []providers.Info // detected once per Build
 	detected            bool
+	riesgos             map[string]string // the items' riesgo by slug, read once (historic cards)
 	// fallas: what it could not read, each one once — a directory of
 	// envelopes, runs, verdicts, findings or reviews that could not be
 	// listed, a file in it that could not be read, or a piece of evidence
@@ -214,6 +215,7 @@ type tree struct {
 	// findings among them whose state nobody knows (see UnreadableFindings)
 	findingWarnings []string
 	unreadable      []string
+	subidas         map[string]finding.Subida // the valid raises of the tree
 	reviews         []reviewcmd.Record
 	head            string   // HEAD's sha, resolved once; "" = git could not
 	base            string   // the base's sha, resolved once; "" = git could not
@@ -270,8 +272,8 @@ func (t *tree) allVerdicts() []*verdict.Verdict {
 
 func (t *tree) allFindings(base string) []finding.Item {
 	t.once("findings", func() {
-		items, ilegibles, warnings, err := finding.ListConIlegibles(t.dir, base, false)
-		t.findings, t.findingWarnings, t.unreadable = items, warnings, ilegibles
+		items, ilegibles, warnings, subidas, err := finding.ListConSubidas(t.dir, base, false)
+		t.findings, t.findingWarnings, t.unreadable, t.subidas = items, warnings, ilegibles, subidas
 		if err != nil {
 			t.findingWarnings = append(t.findingWarnings, "no se pudieron leer los hallazgos: "+err.Error())
 			t.unreadable = append(t.unreadable, err.Error())
@@ -381,7 +383,7 @@ func colasDe(t *tree, base string, ev Evidence) map[string]ReviewTail {
 			out = map[string]ReviewTail{}
 		}
 		out[r.ID] = *rt
-		if rt.Ancestro && !rt.Codigo && green[r.VerdictID] && cadenaValida(r, byID, ev.Item.Slug) {
+		if rt.Ancestro && !rt.Codigo && green[r.VerdictID] && cadenaValida(r, byID, ev.Item.Slug, efectivoEv(ev)) {
 			break
 		}
 	}
@@ -552,6 +554,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 		}
 	}
 	ev.UnreadableFindings = t.unreadable
+	ev.Subidas = t.subidas
 	// a card from before the cabin: whether its historico still holds it
 	g.sostenHistorica(&ev, dir)
 
