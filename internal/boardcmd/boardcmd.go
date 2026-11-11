@@ -128,6 +128,9 @@ type Evidence struct {
 	// records of Reviews, the Contexto Derive judges Findings with
 	// (finding.Bloquea). nil = none.
 	Subidas map[string]finding.Subida
+	// RiesgoIlegible is why the riesgo of the card's item cannot be read
+	// ("" when it can): its mediums block (finding.Contexto.Ilegibles).
+	RiesgoIlegible string `json:"-"`
 	// UnreadableFindings: finding files of E that could not be read. Their
 	// task and severity are unknown, so they block every card of E, as they
 	// fail the findings_open gate.

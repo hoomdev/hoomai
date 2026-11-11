@@ -313,7 +313,8 @@ func (g *gatherer) porQueNoSostienenHallazgos(s string, dirs []string) string {
 // raises and completa records, and the riesgo the project's item of s
 // declares (normal without one).
 func (g *gatherer) contextoHistorico(t *tree, s string) finding.Contexto {
-	c := finding.Contexto{BlockOn: g.blockOn, Subidas: t.subidas, Riesgos: map[string]string{s: g.riesgosDe()[s]}}
+	c := finding.Contexto{BlockOn: g.blockOn, Subidas: t.subidas, Riesgos: map[string]string{s: g.riesgosDe()[s]},
+		Ilegibles: g.ilegibles}
 	for _, r := range t.allReviews() {
 		if r.Cobertura == reviewcmd.CoberturaCompleta {
 			c.Completas = append(c.Completas, finding.RevisionCompleta{ID: r.ID, Task: r.Task, Findings: r.Findings})
@@ -442,7 +443,7 @@ func tituloDeSpec(sp specEn, s string) (string, error) {
 // checkout's items over the board's tree (item.RiesgosDe).
 func (g *gatherer) riesgosDe() map[string]string {
 	if g.riesgos == nil {
-		g.riesgos = finding.Riesgos(g.root)
+		g.riesgos, g.ilegibles = finding.Riesgos(g.root)
 	}
 	return g.riesgos
 }

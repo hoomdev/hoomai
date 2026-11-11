@@ -20,6 +20,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
@@ -129,6 +130,7 @@ type gatherer struct {
 	providers           []providers.Info // detected once per Build
 	detected            bool
 	riesgos             map[string]string // the items' riesgo by slug, read once (historic cards)
+	ilegibles           map[string]string // the items whose riesgo cannot be read, with it
 	// fallas: what it could not read, each one once — a directory of
 	// envelopes, runs, verdicts, findings or reviews that could not be
 	// listed, a file in it that could not be read, or a piece of evidence
@@ -462,8 +464,17 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	if r, ok := g.riesgosDe()[s]; ok {
 		it.Riesgo = r
 	}
+	ilegible := g.ilegibles[s]
+	if ilegible == "" {
+		ilegible = g.ilegibles["*"]
+	}
+	if ilegible != "" {
+		// the main checkout's item cannot be read: the card does not take
+		// the tree's riesgo, it fails closed to the strictest (finding 3e88e6)
+		it.Riesgo = riesgo.Alto
+	}
 	ev := Evidence{Item: it, Now: g.now, Source: SourceArbol, Dir: ".",
-		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn}
+		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn, RiesgoIlegible: ilegible}
 	if ev.BlockOn == "" {
 		ev.BlockOn = "high"
 	}

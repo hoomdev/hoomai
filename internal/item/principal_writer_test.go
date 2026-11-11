@@ -60,7 +60,8 @@ func TestRiesgoDeGanaElPrincipal(t *testing.T) {
 		if r, err := RiesgoDe(arbol, "legit"); err != nil || r != "alto" {
 			t.Fatalf("desde %s: RiesgoDe = %q %v, quiero alto (el del principal)", arbol, r, err)
 		}
-		if r := RiesgosDe(arbol)["legit"]; r != "alto" {
+		if rs, _ := RiesgosDe(arbol); rs["legit"] != "alto" {
+			r := rs["legit"]
 			t.Fatalf("desde %s: RiesgosDe = %q, quiero alto", arbol, r)
 		}
 	}
@@ -83,10 +84,28 @@ func TestRiesgoDeSinItemEnElPrincipal(t *testing.T) {
 	if r, err := RiesgoDe(wt, "legit"); err != nil || r != "alto" {
 		t.Fatalf("item solo en la rama: %q %v, quiero alto", r, err)
 	}
-	if r := RiesgosDe(wt)["legit"]; r != "alto" {
+	if rs, _ := RiesgosDe(wt); rs["legit"] != "alto" {
+		r := rs["legit"]
 		t.Fatalf("RiesgosDe con item solo en la rama: %q", r)
 	}
 	if r, err := RiesgoDe(principal, "legit"); err != nil || r != "normal" {
 		t.Fatalf("desde el principal no se mira la rama: %q %v", r, err)
+	}
+}
+
+// Finding 3e88e6: an item of the main checkout that is there and cannot be
+// read fails closed: the slug is unreadable and does not inherit the
+// riesgo of the task's tree.
+func TestRiesgosDePrincipalIlegibleNoHereda(t *testing.T) {
+	principal, wt := wProyecto(t, true, "bajo")
+	if err := os.WriteFile(Path(principal, "legit"), []byte("titulo: [roto\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rs, ileg := RiesgosDe(wt)
+	if _, hay := rs["legit"]; hay || ileg["legit"] == "" {
+		t.Fatalf("legit queda ilegible y sin riesgo: %v %v", rs, ileg)
+	}
+	if _, err := RiesgoDe(wt, "legit"); err == nil {
+		t.Fatal("RiesgoDe tambien falla cerrado")
 	}
 }

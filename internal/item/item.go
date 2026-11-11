@@ -630,18 +630,40 @@ func RiesgoDe(arbol, slug string) (string, error) {
 }
 
 // RiesgosDe is RiesgoDe for every card arbol and the main checkout know, by
-// slug: the main checkout's items over arbol's. An item that cannot be read
-// is left out (List's warnings), and its card is judged as normal.
-func RiesgosDe(arbol string) map[string]string {
-	out := map[string]string{}
-	arboles := arbolesDeRiesgo(arbol)
-	for i := len(arboles) - 1; i >= 0; i-- {
-		items, _, _ := List(arboles[i])
-		for _, it := range items {
-			out[it.Slug] = riesgoONormal(it.Riesgo)
+// slug: the main checkout's items over arbol's. It fails closed like
+// RiesgoDe: an item that is there and cannot be read (or a .hoom/items/ that
+// cannot be listed) puts its slug in ilegibles with the reason, and the slug
+// does not inherit the riesgo of the next tree (finding 3e88e6).
+func RiesgosDe(arbol string) (riesgos map[string]string, ilegibles map[string]string) {
+	riesgos, ilegibles = map[string]string{}, map[string]string{}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		entries, err := os.ReadDir(Dir(root))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				ilegibles["*"] = fmt.Sprintf("no se puede listar %s: %v", Dir(root), err)
+			}
+			continue
+		}
+		for _, e := range entries {
+			slug, ok := strings.CutSuffix(e.Name(), ".yaml")
+			if !ok || !ValidSlug(slug) {
+				continue
+			}
+			if _, hay := riesgos[slug]; hay {
+				continue
+			}
+			if _, hay := ilegibles[slug]; hay {
+				continue
+			}
+			it, err := Load(root, slug)
+			if err != nil {
+				ilegibles[slug] = err.Error()
+				continue
+			}
+			riesgos[slug] = riesgoONormal(it.Riesgo)
 		}
 	}
-	return out
+	return riesgos, ilegibles
 }
 
 // arbolesDeRiesgo are the trees a card's riesgo is read from, in order: the

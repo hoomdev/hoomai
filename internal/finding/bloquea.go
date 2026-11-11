@@ -28,6 +28,11 @@ type Contexto struct {
 	// (riesgo.Vocabulario), by task slug. A task that is not there, an empty
 	// value and a finding without task are judged as riesgo.Normal.
 	Riesgos map[string]string
+	// Ilegibles are the tasks whose item is there and cannot be read, with
+	// the reason (item.RiesgosDe; "*" = no item of the project can be
+	// listed): their riesgo is not known, so a medium of theirs blocks, and
+	// the gate is ERROR for any open finding of theirs.
+	Ilegibles map[string]string
 	// Completas are the review records with cobertura completa, oldest
 	// first; a record with any other cobertura (delta, parcial, none) is
 	// never one of them.
@@ -86,6 +91,9 @@ func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
 	if file := strings.TrimSpace(f.File); file != "" && riesgo.Ruta([]string{file}) != "" {
 		return true, "medium en ruta de riesgo: " + seguro(file)
 	}
+	if motivo, ok := c.riesgoIlegible(f.Task); ok {
+		return true, motivo
+	}
 	if f.Task != "" && c.Riesgos[f.Task] == riesgo.Alto {
 		for _, rc := range c.Completas {
 			if rc.Task != f.Task {
@@ -114,13 +122,36 @@ func ContextoDe(arbol, proyecto, blockOn string) (Contexto, error) {
 	if err != nil {
 		return Contexto{BlockOn: blockOn}, err
 	}
-	return contextoDesde(sc, arbol, proyecto, blockOn), nil
+	c := contextoDesde(sc, arbol, proyecto, blockOn)
+	for _, it := range sc.items {
+		if motivo, ok := c.riesgoIlegible(it.Task); ok && it.Status == StatusOpen {
+			return c, fmt.Errorf("hallazgo %s: %s", it.ID, motivo)
+		}
+	}
+	return c, nil
+}
+
+// riesgoIlegible says whether the riesgo of task is unknown because its
+// item cannot be read, and the motivo that says so.
+func (c Contexto) riesgoIlegible(task string) (string, bool) {
+	if task == "" {
+		return "", false
+	}
+	why, ok := c.Ilegibles[task]
+	if !ok {
+		why, ok = c.Ilegibles["*"]
+	}
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("el item de la tarea %s no se puede leer (%s): no se sabe su riesgo", seguro(task), seguro(why)), true
 }
 
 // contextoDesde completes, around an existing scan of arbol, the Contexto
 // ContextoDe gives.
 func contextoDesde(sc scanned, arbol, proyecto, blockOn string) Contexto {
-	c := Contexto{BlockOn: blockOn, Subidas: sc.subidas, Riesgos: Riesgos(proyecto),
+	riesgos, ilegibles := item.RiesgosDe(proyecto)
+	c := Contexto{BlockOn: blockOn, Subidas: sc.subidas, Riesgos: riesgos, Ilegibles: ilegibles,
 		Completas: RevisionesCompletas(arbol)}
 	if c.Subidas == nil {
 		c.Subidas = map[string]Subida{}
@@ -128,9 +159,10 @@ func contextoDesde(sc scanned, arbol, proyecto, blockOn string) Contexto {
 	return c
 }
 
-// Riesgos is the riesgo each valid item of root's .hoom/items/ declares, by
-// slug: Contexto.Riesgos as ContextoDe reads it. No items is an empty map.
-func Riesgos(root string) map[string]string {
+// Riesgos is the riesgo each item declares, by slug, and the items that
+// cannot be read: Contexto.Riesgos and Contexto.Ilegibles as ContextoDe
+// reads them (item.RiesgosDe).
+func Riesgos(root string) (riesgos, ilegibles map[string]string) {
 	return item.RiesgosDe(root)
 }
 

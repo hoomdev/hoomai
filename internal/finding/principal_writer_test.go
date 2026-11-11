@@ -87,3 +87,23 @@ func TestGateLeeElRiesgoDelPrincipal(t *testing.T) {
 		t.Fatalf("ContextoDe desde el worktree: %+v %v", c.Riesgos, err)
 	}
 }
+
+// Finding 3e88e6: with the main checkout's item unreadable, the gate run
+// from the worktree is ERROR for an open finding of that task, and
+// ContextoDe says why; it does not judge with the worktree's riesgo.
+func TestGatePrincipalIlegibleEsError(t *testing.T) {
+	principal, wt := wProyecto(t, true, "bajo")
+	if _, err := Register(wt, "main", Draft{Severity: "medium", Lens: "reliability", File: "app.go",
+		Description: "medium", Author: "Ana", Task: "legit"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(item.Path(principal, "legit"), []byte("titulo: [roto\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if res := Gate(wt, "main", "high", ""); res.Status != "error" || !strings.Contains(res.Notes, "no se sabe su riesgo") {
+		t.Fatalf("el gate falla cerrado: %+v", res)
+	}
+	if _, err := ContextoDe(wt, wt, "high"); err == nil {
+		t.Fatal("ContextoDe da error")
+	}
+}

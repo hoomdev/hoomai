@@ -84,6 +84,10 @@ func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
 			others++
 			continue
 		}
+		if motivo, ok := ctx.riesgoIlegible(it.Task); ok {
+			broken = append(broken, it.ID+".json: "+motivo)
+			continue
+		}
 		sev := strings.ToLower(strings.TrimSpace(it.Severity))
 		if _, ok := severityRank[sev]; !ok {
 			broken = append(broken, fmt.Sprintf("%s.json: severidad desconocida %q (low|medium|high)", it.ID, it.Severity))

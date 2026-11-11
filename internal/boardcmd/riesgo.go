@@ -92,6 +92,9 @@ func faltaReview(efectivo string, lines int) (motivo, plain string) {
 func contextoDe(ev Evidence) finding.Contexto {
 	c := finding.Contexto{BlockOn: ev.BlockOn, Subidas: ev.Subidas,
 		Riesgos: map[string]string{ev.Item.Slug: declaradoDe(ev.Item)}}
+	if ev.RiesgoIlegible != "" {
+		c.Ilegibles = map[string]string{ev.Item.Slug: ev.RiesgoIlegible}
+	}
 	for _, r := range ev.Reviews {
 		if r.Cobertura == reviewcmd.CoberturaCompleta {
 			c.Completas = append(c.Completas, finding.RevisionCompleta{ID: r.ID, Task: r.Task, Findings: r.Findings})
