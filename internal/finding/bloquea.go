@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
@@ -76,13 +78,13 @@ func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
 		return true, "severidad " + sev
 	}
 	if s, ok := c.Subidas[f.ID]; ok {
-		return true, "subido a mano por " + s.Author
+		return true, "subido a mano por " + seguro(s.Author)
 	}
 	if sev != "medium" {
 		return false, ""
 	}
 	if file := strings.TrimSpace(f.File); file != "" && riesgo.Ruta([]string{file}) != "" {
-		return true, "medium en ruta de riesgo: " + file
+		return true, "medium en ruta de riesgo: " + seguro(file)
 	}
 	if f.Task != "" && c.Riesgos[f.Task] == riesgo.Alto {
 		for _, rc := range c.Completas {
@@ -91,7 +93,7 @@ func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
 			}
 			for _, id := range rc.Findings {
 				if id == f.ID {
-					return true, fmt.Sprintf("medium de la review completa %s: riesgo alto", rc.ID)
+					return true, fmt.Sprintf("medium de la review completa %s: riesgo alto", seguro(rc.ID))
 				}
 			}
 		}
@@ -248,4 +250,18 @@ func CuentaPendientes(medium, low int) string {
 		partes = append(partes, fmt.Sprintf("%d low", low))
 	}
 	return strings.Join(partes, ", ")
+}
+
+// seguro is a value written by a person or a model (a raise's author, a
+// finding's file, a record id) as it goes into a motivo, which the gate, the
+// list and the card print on a terminal: as it is when it is plain text,
+// quoted with its control and direction characters (ESC, U+202E) escaped
+// when it is not. The board's textoSeguro, for the motivos (finding 04b283).
+func seguro(v string) string {
+	if strings.IndexFunc(v, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r)
+	}) >= 0 {
+		return strconv.Quote(v)
+	}
+	return v
 }
