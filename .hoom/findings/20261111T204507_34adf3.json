@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204507_34adf3",
+  "created_at": "2026-11-11T20:45:07.539642662Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "internal/taskcmd/taskcmd.go:394 INTRODUCIDO: topePendientes usa List y descarta sus avisos de hallazgos ilegibles, y ante cualquier error retorna nil; con max_pendientes activo, evidencia ilegible reduce el conteo o desactiva el tope y Ready acepta sin poder demostrar que esta bajo el limite.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

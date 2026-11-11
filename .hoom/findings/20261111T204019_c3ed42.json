@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204019_c3ed42",
+  "created_at": "2026-11-11T20:40:19.314476557Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "internal/itemcmd/itemcmd.go:156: la comprobacion de que la tarjeta no esta en Hecho ocurre antes y fuera del lock de item.SetRiesgo; un task done concurrente puede marcarla Hecho entre esa lectura y la escritura de la linea 163, y item set termina cambiando un item que ya esta en Hecho.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

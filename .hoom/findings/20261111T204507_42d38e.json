@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204507_42d38e",
+  "created_at": "2026-11-11T20:45:07.544449282Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/costcmd/build.go",
+  "description": "internal/costcmd/build.go:551 INTRODUCIDO: el reloj trata cualquier fallo al listar, leer o decodificar aprobaciones como si no existieran; una aprobacion antigua temporalmente ilegible produce firmada_en null o elige una enmienda posterior, acortando reloj_ms sin aviso aunque el reporte ya tiene canal de avisos.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

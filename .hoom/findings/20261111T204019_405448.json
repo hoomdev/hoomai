@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204019_405448",
+  "created_at": "2026-11-11T20:40:19.232956225Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "internal/reviewcmd/reviewcmd.go:553: lentesDe ya calcula el riesgo efectivo con los archivos del cambio entero, pero vuelve a pasarlo por LentesConRiesgo sobre el rango; si una delta revierte la unica ruta de riesgo, el cambio entero queda bajo pero el rango lo reeleva a normal y ejecuta tres lentes en vez de reliability.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}
