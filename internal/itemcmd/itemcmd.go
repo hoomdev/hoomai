@@ -157,7 +157,9 @@ func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
 	if !ok {
 		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
 	}
-	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+	// Hecho is judged on the card of the tree Set writes in, the same item
+	// (findings 822b51, c55dde): a historic card stays Hecho as before
+	c, err := boardcmd.CardFor(dest, base, blockOn, slug, time.Now().UTC())
 	if err != nil {
 		return SetResult{}, err
 	}

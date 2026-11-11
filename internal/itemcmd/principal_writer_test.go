@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/item"
 )
 
@@ -106,5 +107,69 @@ func TestSetItemSoloEnLaRama(t *testing.T) {
 	}
 	if _, err := os.Lstat(item.Path(principal, "legit")); !os.IsNotExist(err) {
 		t.Fatalf("no se crea en el principal: %v", err)
+	}
+}
+
+// wConHecho writes hecho_en into the item slug of root, as task done does.
+func wConHecho(t *testing.T, root, slug string) {
+	t.Helper()
+	raw, err := os.ReadFile(item.Path(root, slug))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append(raw, []byte("hecho_en: 2026-01-01T00:00:00Z\n")...)
+	if err := os.WriteFile(item.Path(root, slug), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Findings 822b51 and c55dde: Set judges Hecho on the card of the tree it
+// writes in. The main checkout's item is closed and the worktree's copy is
+// not: from the worktree, set refuses and writes nothing.
+func TestSetHechoEnElArbolDeDestino(t *testing.T) {
+	principal, wt := wProyecto(t, true, "bajo")
+	wConHecho(t, principal, "legit")
+	antes, _ := os.ReadFile(item.Path(principal, "legit"))
+	if _, err := wSet(t, wt, "legit", "alto"); err == nil || !strings.Contains(err.Error(), "la tarjeta ya esta en Hecho") {
+		t.Fatalf("el item cerrado del principal no cambia: %v", err)
+	}
+	if despues, _ := os.ReadFile(item.Path(principal, "legit")); !bytes.Equal(antes, despues) {
+		t.Fatal("no escribe el item cerrado")
+	}
+}
+
+// The mirror case: the worktree's copy says hecho_en, the main checkout's
+// item (the one set writes) is open: set changes it.
+func TestSetHechoSoloEnLaCopiaDelWorktree(t *testing.T) {
+	principal, wt := wProyecto(t, true, "bajo")
+	wConHecho(t, wt, "legit")
+	if _, err := wSet(t, wt, "legit", "alto"); err != nil {
+		t.Fatalf("la tarjeta del principal esta abierta: %v", err)
+	}
+	if it, err := item.Load(principal, "legit"); err != nil || it.Riesgo != "alto" {
+		t.Fatalf("%+v %v", it, err)
+	}
+}
+
+// A historic card of the main checkout (historico: hallazgos, held by a
+// finding of its task that does not block) still counts as Hecho, also run
+// from the worktree, whose copy has no historico.
+func TestSetHistoricaDelPrincipalSigueEnHecho(t *testing.T) {
+	principal, wt := wProyecto(t, true, "bajo")
+	raw, err := os.ReadFile(item.Path(principal, "legit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(item.Path(principal, "legit"), append(raw, []byte("historico: hallazgos\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := finding.Register(principal, "main", finding.Draft{Severity: "low", Lens: "readability",
+		File: "app.go", Description: "low", Author: "Ana", Task: "legit"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, arbol := range []string{principal, wt} {
+		if _, err := wSet(t, arbol, "legit", "alto"); err == nil || !strings.Contains(err.Error(), "la tarjeta ya esta en Hecho") {
+			t.Fatalf("desde %s la historica sigue en Hecho: %v", arbol, err)
+		}
 	}
 }
