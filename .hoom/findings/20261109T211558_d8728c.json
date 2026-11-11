@@ -1,0 +1,10 @@
+{
+  "id": "20261109T211558_d8728c",
+  "created_at": "2026-11-09T21:15:58.816750449Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/principal.go",
+  "description": "INTRODUCIDO (tablero-con-paneles, visto al probar la v2 en main aa4fa00) — internal/tablero/principal.go:291-300 dibuja cada criterio del spec como \"\u003csigno\u003e \u003ctexto\u003e\" y solo pone el id en modo experto. Un CA que el spec solo menciona (pegado-como-texto dice \"Amplia CA-533 y CA-575\"; boardcmd lo cuenta como criterio igual que spec_trace) llega con Text vacio y se ve como un \"✓\" solo, sin decir a que se refiere: hoom tablero en este repo, [0] de pegado-como-texto, \"Spec · 10 criterios\" con dos lineas \"  ✓\". La v1 mostraba el id. Correccion minima: con Text vacio, mostrar el id tambien fuera del modo experto (por ejemplo \"✓ CA-533\"), con su test.",
+  "author": "orquestador@claude (prueba de la persona tras el merge)",
+  "fingerprint": "0c0c46537a4d18fd"
+}
