@@ -606,3 +606,60 @@ func riesgoONormal(r string) string {
 	return r
 }
 
+// RiesgoDe is the riesgo the card slug declares, seen from the tree arbol:
+// the item of the project's main checkout (gitx.CheckoutPrincipal) when it
+// has one, so a `hoom item set` + `save` in the project after `task start`
+// counts the same in the gate, the review and the board; else the item of
+// arbol (a card created only on the task's branch); else riesgo.Normal. An
+// item that is there and cannot be read is an error.
+func RiesgoDe(arbol, slug string) (string, error) {
+	if !ValidSlug(slug) {
+		return riesgo.Normal, nil
+	}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		if _, err := os.Lstat(Path(root, slug)); os.IsNotExist(err) {
+			continue
+		}
+		it, err := Load(root, slug)
+		if err != nil {
+			return "", err
+		}
+		return riesgoONormal(it.Riesgo), nil
+	}
+	return riesgo.Normal, nil
+}
+
+// RiesgosDe is RiesgoDe for every card arbol and the main checkout know, by
+// slug: the main checkout's items over arbol's. An item that cannot be read
+// is left out (List's warnings), and its card is judged as normal.
+func RiesgosDe(arbol string) map[string]string {
+	out := map[string]string{}
+	arboles := arbolesDeRiesgo(arbol)
+	for i := len(arboles) - 1; i >= 0; i-- {
+		items, _, _ := List(arboles[i])
+		for _, it := range items {
+			out[it.Slug] = riesgoONormal(it.Riesgo)
+		}
+	}
+	return out
+}
+
+// arbolesDeRiesgo are the trees a card's riesgo is read from, in order: the
+// main checkout of arbol's repository, then arbol (only arbol when it is the
+// main checkout or there is none).
+func arbolesDeRiesgo(arbol string) []string {
+	p, ok := gitx.CheckoutPrincipal(arbol)
+	if !ok || mismoArbol(p, arbol) {
+		return []string{arbol}
+	}
+	return []string{p, arbol}
+}
+
+func mismoArbol(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	if errA != nil || errB != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
+}

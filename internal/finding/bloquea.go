@@ -129,16 +129,7 @@ func contextoDesde(sc scanned, arbol, proyecto, blockOn string) Contexto {
 // Riesgos is the riesgo each valid item of root's .hoom/items/ declares, by
 // slug: Contexto.Riesgos as ContextoDe reads it. No items is an empty map.
 func Riesgos(root string) map[string]string {
-	out := map[string]string{}
-	items, _, _ := item.List(root)
-	for _, it := range items {
-		r := it.Riesgo
-		if r == "" {
-			r = riesgo.Normal
-		}
-		out[it.Slug] = r
-	}
-	return out
+	return item.RiesgosDe(root)
 }
 
 // RevisionesCompletas are the review records of root's .hoom/reviews/ with

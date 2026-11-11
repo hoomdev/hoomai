@@ -1188,17 +1188,11 @@ func riesgoDeclarado(root, task string) (string, error) {
 	if strings.TrimSpace(task) == "" || !item.ValidSlug(task) {
 		return riesgo.Normal, nil
 	}
-	if _, err := os.Lstat(item.Path(root, task)); os.IsNotExist(err) {
-		return riesgo.Normal, nil
-	}
-	it, err := item.Load(root, task)
+	r, err := item.RiesgoDe(root, task)
 	if err != nil {
 		return "", fmt.Errorf("el item de la tarea %q no se puede leer (%v): sin el, no se sabe su riesgo. Accion: arreglalo y vuelve a revisar", task, err)
 	}
-	if it.Riesgo == "" {
-		return riesgo.Normal, nil
-	}
-	return it.Riesgo, nil
+	return r, nil
 }
 
 // taskOf is the task a review belongs to: --task, or the task of its spec.

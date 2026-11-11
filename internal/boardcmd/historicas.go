@@ -313,10 +313,7 @@ func (g *gatherer) porQueNoSostienenHallazgos(s string, dirs []string) string {
 // raises and completa records, and the riesgo the project's item of s
 // declares (normal without one).
 func (g *gatherer) contextoHistorico(t *tree, s string) finding.Contexto {
-	if g.riesgos == nil {
-		g.riesgos = finding.Riesgos(g.root)
-	}
-	c := finding.Contexto{BlockOn: g.blockOn, Subidas: t.subidas, Riesgos: map[string]string{s: g.riesgos[s]}}
+	c := finding.Contexto{BlockOn: g.blockOn, Subidas: t.subidas, Riesgos: map[string]string{s: g.riesgosDe()[s]}}
 	for _, r := range t.allReviews() {
 		if r.Cobertura == reviewcmd.CoberturaCompleta {
 			c.Completas = append(c.Completas, finding.RevisionCompleta{ID: r.ID, Task: r.Task, Findings: r.Findings})
@@ -439,4 +436,13 @@ func tituloDeSpec(sp specEn, s string) (string, error) {
 		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
 	}
 	return s, nil
+}
+
+// riesgosDe are the cards' declared riesgo by slug, read once: the main
+// checkout's items over the board's tree (item.RiesgosDe).
+func (g *gatherer) riesgosDe() map[string]string {
+	if g.riesgos == nil {
+		g.riesgos = finding.Riesgos(g.root)
+	}
+	return g.riesgos
 }

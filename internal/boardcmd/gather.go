@@ -457,6 +457,11 @@ func (g *gatherer) gather(it item.Item) Evidence {
 // which the detail needs to read the rest of the card.
 func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	s := it.Slug
+	// the riesgo the card declares is the main checkout's item, when it
+	// has one (item.RiesgoDe): the same the gate and the review read
+	if r, ok := g.riesgosDe()[s]; ok {
+		it.Riesgo = r
+	}
 	ev := Evidence{Item: it, Now: g.now, Source: SourceArbol, Dir: ".",
 		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn}
 	if ev.BlockOn == "" {
