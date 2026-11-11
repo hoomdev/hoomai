@@ -18,6 +18,7 @@ package item
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -74,7 +76,7 @@ type Item struct {
 	// leave the key out for it). Only a person changes it (`hoom item add
 	// --riesgo`, `hoom item set`); the envelope's floor already forbids any
 	// change under .hoom/items/ to a role.
-	Riesgo         string     `yaml:"riesgo,omitempty" json:"riesgo"`
+	Riesgo         string     `yaml:"riesgo,omitempty" json:"riesgo,omitempty"`
 	Pedido         string     `yaml:"pedido,omitempty" json:"pedido"`
 	CreadoPor      string     `yaml:"creado_por" json:"creado_por"`
 	CreadoEn       time.Time  `yaml:"creado_en" json:"creado_en"`
@@ -97,6 +99,16 @@ type Item struct {
 	// moves the card by itself: the board puts the card in Hecho while that
 	// evidence still holds (historia-en-el-tablero).
 	Historico string `yaml:"historico,omitempty" json:"historico,omitempty"`
+}
+
+// MarshalJSON emits the item with its riesgo left out when it is
+// riesgo.Normal: normal is the absence of the key, in JSON as in the file.
+func (it Item) MarshalJSON() ([]byte, error) {
+	type plano Item // sin el metodo: evita la recursion
+	if it.Riesgo == riesgo.Normal {
+		it.Riesgo = ""
+	}
+	return json.Marshal(plano(it))
 }
 
 // HistoricoHallazgos is the Historico of a task without spec held by its
@@ -235,6 +247,13 @@ func Validate(d Draft) (Draft, error) {
 	if d.PresupuestoUSD != nil && !finitePositive(*d.PresupuestoUSD) {
 		return d, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0 (para no declarar tope, no lo pases)")
 	}
+	d.Riesgo = strings.TrimSpace(d.Riesgo)
+	if err := riesgo.Validar(d.Riesgo); err != nil {
+		return d, err
+	}
+	if d.Riesgo == "" {
+		d.Riesgo = riesgo.Normal
+	}
 	d.Auto = strings.TrimSpace(d.Auto)
 	if d.Auto != "" && !contains(Autos, d.Auto) {
 		return d, fmt.Errorf("auto %q fuera del vocabulario (%s)", d.Auto, strings.Join(Autos, ", "))
@@ -269,7 +288,7 @@ func Add(root string, d Draft) (Item, error) {
 		return Item{}, err
 	}
 	it := Item{
-		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad,
+		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad, Riesgo: d.Riesgo,
 		Pedido: strings.TrimSpace(d.Pedido), CreadoPor: gitx.Identity(root),
 		CreadoEn: time.Now().UTC().Truncate(time.Second), PresupuestoUSD: d.PresupuestoUSD,
 		Auto: d.Auto, Historico: d.Historico,
@@ -296,7 +315,7 @@ func Add(root string, d Draft) (Item, error) {
 func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 
 // claves are the only keys an item may carry, in the order hoom writes them.
-var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "creado_en",
+var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "pedido", "creado_por", "creado_en",
 	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
@@ -340,6 +359,8 @@ func Parse(slug string, raw []byte) (Item, error) {
 		return Item{}, fmt.Errorf("falta creado_en")
 	case it.PresupuestoUSD != nil && !finitePositive(*it.PresupuestoUSD):
 		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser un numero mayor que 0")
+	case riesgo.Validar(it.Riesgo) != nil:
+		return Item{}, riesgo.Validar(it.Riesgo)
 	case it.Auto != "" && !contains(Autos, it.Auto):
 		return Item{}, fmt.Errorf("auto %q fuera del vocabulario (%s)", it.Auto, strings.Join(Autos, ", "))
 	case it.Historico != "" && !historicoValido(it.Historico):
@@ -353,6 +374,9 @@ func Parse(slug string, raw []byte) (Item, error) {
 			return Item{}, fmt.Errorf("sesiones[%d]: falta abierta_en", i)
 		}
 		it.Sesiones[i].AbiertaEn = s.AbiertaEn.UTC()
+	}
+	if it.Riesgo == "" {
+		it.Riesgo = riesgo.Normal
 	}
 	it.CreadoEn = it.CreadoEn.UTC()
 	if it.HechoEn != nil {
@@ -461,7 +485,38 @@ func UnmarkDone(root, slug, commit string) (bool, error) {
 // os.ErrNotExist; an unreadable or invalid one is an error; neither writes
 // anything.
 func SetRiesgo(root, slug, r string) (antes string, cambio bool, err error) {
-	return "", false, nil
+	if r == "" {
+		return "", false, fmt.Errorf("falta el riesgo (%s)", strings.Join(riesgo.Vocabulario, ", "))
+	}
+	if err := riesgo.Validar(r); err != nil {
+		return "", false, err
+	}
+	if !ValidSlug(slug) {
+		return "", false, fmt.Errorf("slug invalido %q", slug)
+	}
+	if _, err := os.Stat(Path(root, slug)); err != nil {
+		if os.IsNotExist(err) {
+			return "", false, fmt.Errorf("no existe el item %q: %w", slug, os.ErrNotExist)
+		}
+		return "", false, err
+	}
+	existia := false
+	cambio, err = update(root, slug, func(it *Item) bool {
+		existia = true
+		antes = it.Riesgo
+		if antes == "" {
+			antes = riesgo.Normal
+		}
+		if antes == r {
+			return false
+		}
+		it.Riesgo = r
+		return true
+	})
+	if err == nil && !existia {
+		return "", false, fmt.Errorf("no existe el item %q: %w", slug, os.ErrNotExist)
+	}
+	return antes, cambio, err
 }
 
 // update is the one read-modify-write of an item, under the item's lock
@@ -506,6 +561,9 @@ func update(root, slug string, change func(it *Item) bool) (bool, error) {
 
 // encode writes an item in the canonical key order (the struct's).
 func encode(it Item) ([]byte, error) {
+	if it.Riesgo == riesgo.Normal {
+		it.Riesgo = "" // normal es la ausencia de la clave
+	}
 	var b bytes.Buffer
 	enc := yaml.NewEncoder(&b)
 	enc.SetIndent(2)

@@ -24,6 +24,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
@@ -49,14 +50,19 @@ const (
 
 // UsageText is the exact usage block of `hoom item` and the single source of
 // that text.
-const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x] [--pedido "<texto>"] [--slug s] [--auto hasta-humano] [--json]
+const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--riesgo r] [--presupuesto-usd x] [--pedido "<texto>"] [--slug s] [--auto hasta-humano] [--json]
      hoom item list [--json]
      hoom item show <slug> [--json]
      hoom item save <slug> [--json]
+     hoom item set <slug> --riesgo r [--json]
      hoom item backfill [--dry-run] [--json]
 
   --tipo t             feature|bug|refactor|seguridad|docs|test (default feature)
   --prioridad p        alta|media|baja (default media)
+  --riesgo r           bajo|normal|alto (default normal): cuanta review pide
+                       la tarjeta (bajo: 1 lente salvo ruta de riesgo; alto:
+                       las 4 siempre y sus medium de la review completa
+                       bloquean)
   --presupuesto-usd x  Tope de gasto de la tarjeta en USD (> 0; opcional)
   --pedido "<texto>"   Lo que va a recibir el arquitecto (opcional)
   --slug s             Slug del item (default: derivado del titulo); es el
@@ -79,6 +85,9 @@ hecho_en. Lo que no califica sale con su motivo; --dry-run no escribe nada.
 
 El item es un archivo en .hoom/items/<slug>.yaml que viaja en git. Nunca
 guarda una columna: la columna sale de la evidencia ('hoom board').
+
+'hoom item set' cambia el riesgo de la tarjeta y nada mas; no commitea
+(guardalo con 'hoom item save <slug>'). Lo cambia una persona, nunca un rol.
 Un titulo que empieza con '-' va despues de '--': hoom item add -- "-titulo"`
 
 // Request is one parsed `hoom item` invocation. `hoom item add --riesgo r`
@@ -132,7 +141,33 @@ type SetResult struct {
 // and for a card that already had it `riesgo de <slug>: ya es <r>`; with
 // --json, the SetResult in both cases.
 func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
-	return SetResult{}, nil
+	if strings.TrimSpace(rol) != "" {
+		return SetResult{}, fmt.Errorf("el riesgo de una tarjeta lo cambia una persona, no un rol")
+	}
+	if err := riesgo.Validar(r); err != nil || r == "" {
+		if err == nil {
+			err = fmt.Errorf("falta el riesgo (bajo|normal|alto)")
+		}
+		return SetResult{}, err
+	}
+	if _, err := os.Lstat(item.Path(root, slug)); os.IsNotExist(err) || !item.ValidSlug(slug) {
+		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
+	}
+	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+	if err != nil {
+		return SetResult{}, err
+	}
+	if c.Column == boardcmd.ColHecho {
+		return SetResult{}, fmt.Errorf("la tarjeta ya esta en Hecho")
+	}
+	antes, cambio, err := item.SetRiesgo(root, slug, r)
+	if errors.Is(err, os.ErrNotExist) {
+		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
+	}
+	if err != nil {
+		return SetResult{}, err
+	}
+	return SetResult{Slug: slug, Antes: antes, Riesgo: r, Cambio: cambio}, nil
 }
 
 // BackfillResult is what `hoom item backfill` did, or would do with
@@ -201,7 +236,7 @@ func quedan(n int) string {
 // understand and cliargs.ErrHelp for -h/--help.
 func Parse(args []string) (Request, error) {
 	if len(args) == 0 {
-		return Request{}, uso("item", "falta el subcomando (add|list|show|save|backfill)")
+		return Request{}, uso("item", "falta el subcomando (add|list|show|save|set|backfill)")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -238,6 +273,25 @@ func Parse(args []string) (Request, error) {
 			return Request{}, uso("item save", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
 		}
 		return Request{Sub: SubSave, Slug: ops[0], JSON: *asJSON}, nil
+	case SubSet:
+		fs := flag.NewFlagSet("item set", flag.ContinueOnError)
+		r := fs.String("riesgo", "", "riesgo de la tarjeta: bajo|normal|alto")
+		asJSON := fs.Bool("json", false, "emitir el resultado como JSON")
+		ops, err := cliargs.Operands(fs, rest, "item set", UsageText, 1)
+		if err != nil {
+			return Request{}, err
+		}
+		if !item.ValidSlug(ops[0]) {
+			return Request{}, uso("item set", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
+		}
+		v := strings.TrimSpace(*r)
+		if v == "" {
+			return Request{}, uso("item set", "falta --riesgo (bajo|normal|alto): es lo unico que set cambia")
+		}
+		if err := riesgo.Validar(v); err != nil {
+			return Request{}, uso("item set", err.Error())
+		}
+		return Request{Sub: SubSet, Slug: ops[0], Riesgo: v, JSON: *asJSON}, nil
 	case SubBackfill:
 		fs := flag.NewFlagSet("item backfill", flag.ContinueOnError)
 		dryRun := fs.Bool("dry-run", false, "lista lo que crearia sin escribir nada")
@@ -247,13 +301,14 @@ func Parse(args []string) (Request, error) {
 		}
 		return Request{Sub: SubBackfill, DryRun: *dryRun, JSON: *asJSON}, nil
 	}
-	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|backfill)", sub))
+	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|set|backfill)", sub))
 }
 
 func parseAdd(args []string) (Request, error) {
 	fs := flag.NewFlagSet("item add", flag.ContinueOnError)
 	tipo := fs.String("tipo", "", "tipo del item")
 	prioridad := fs.String("prioridad", "", "prioridad del item")
+	rsg := fs.String("riesgo", "", "riesgo de la tarjeta: bajo|normal|alto")
 	presupuesto := fs.Float64("presupuesto-usd", 0, "tope de gasto en USD")
 	pedido := fs.String("pedido", "", "pedido para el arquitecto")
 	slug := fs.String("slug", "", "slug del item")
@@ -263,7 +318,7 @@ func parseAdd(args []string) (Request, error) {
 	if err != nil {
 		return Request{}, err
 	}
-	d := item.Draft{Titulo: ops[0], Tipo: *tipo, Prioridad: *prioridad, Pedido: *pedido, Slug: *slug, Auto: *auto}
+	d := item.Draft{Titulo: ops[0], Tipo: *tipo, Prioridad: *prioridad, Riesgo: *rsg, Pedido: *pedido, Slug: *slug, Auto: *auto}
 	// Only a WRITTEN budget is one: its absence means "no cap", never 0.
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "presupuesto-usd" {
@@ -370,6 +425,20 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 			fmt.Fprintf(stdout, "  %s: %s (%s)\n", cm.Dir, short(cm.SHA), n)
 		}
 		return nil
+	case SubSet:
+		res, err := Set(root, base, blockOn, req.Slug, req.Riesgo, os.Getenv(runcmd.EnvRole))
+		if err != nil {
+			return err
+		}
+		if req.JSON {
+			return emit(stdout, res)
+		}
+		if !res.Cambio {
+			fmt.Fprintf(stdout, "riesgo de %s: ya es %s\n", res.Slug, res.Riesgo)
+			return nil
+		}
+		fmt.Fprintf(stdout, "riesgo de %s: %s -> %s - guardalo con: hoom item save %s\n", res.Slug, res.Antes, res.Riesgo, res.Slug)
+		return nil
 	case SubBackfill:
 		res, err := Backfill(root, base, blockOn, req.DryRun, now)
 		if err != nil && len(res.Creados) == 0 {
@@ -385,7 +454,7 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 		}
 		return err
 	}
-	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|backfill)", req.Sub))
+	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|set|backfill)", req.Sub))
 }
 
 func emit(w io.Writer, v any) error {

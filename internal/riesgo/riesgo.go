@@ -1,5 +1,10 @@
 package riesgo
 
+import (
+	"fmt"
+	"strings"
+)
+
 // The three riesgos a card may declare.
 const (
 	// Bajo: one lens (reliability) whatever the size of the change, unless
@@ -30,6 +35,14 @@ var Marcas = []string{
 // contains one of Marcas, returned as it was given; "" when none does (an
 // empty or nil files included).
 func Ruta(files []string) string {
+	for _, f := range files {
+		l := strings.ToLower(f)
+		for _, m := range Marcas {
+			if strings.Contains(l, m) {
+				return f
+			}
+		}
+	}
 	return ""
 }
 
@@ -44,7 +57,15 @@ func Ruta(files []string) string {
 // returned as they are, with or without a risk path. A declarado outside
 // Vocabulario is returned as it is too: validating it is Validar's job.
 func Efectivo(declarado string, files []string) (efectivo, motivo string) {
-	return "", ""
+	if declarado == "" {
+		return Normal, ""
+	}
+	if declarado == Bajo {
+		if p := Ruta(files); p != "" {
+			return Normal, fmt.Sprintf("el cambio toca %s: riesgo normal", p)
+		}
+	}
+	return declarado, ""
 }
 
 // Validar says whether r is a riesgo a card may declare: nil for "" (the
@@ -53,5 +74,13 @@ func Efectivo(declarado string, files []string) (efectivo, motivo string) {
 // `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)` (r quoted as %q
 // quotes it), the text item.Parse gives.
 func Validar(r string) error {
-	return nil
+	if r == "" {
+		return nil
+	}
+	for _, v := range Vocabulario {
+		if r == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("riesgo %q fuera del vocabulario (%s)", r, strings.Join(Vocabulario, ", "))
 }
