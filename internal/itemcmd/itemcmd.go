@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -150,7 +151,10 @@ func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
 		}
 		return SetResult{}, err
 	}
-	if _, err := os.Lstat(item.Path(root, slug)); os.IsNotExist(err) || !item.ValidSlug(slug) {
+	// the item written is the one the riesgo is read from: the main
+	// checkout's when it has it, else this tree's (findings aee796, f91dcf)
+	dest, ok := item.ArbolDelRiesgo(root, slug)
+	if !ok {
 		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
 	}
 	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
@@ -160,7 +164,7 @@ func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
 	if c.Column == boardcmd.ColHecho {
 		return SetResult{}, fmt.Errorf("la tarjeta ya esta en Hecho")
 	}
-	antes, cambio, err := item.SetRiesgo(root, slug, r)
+	antes, cambio, err := item.SetRiesgo(dest, slug, r)
 	if errors.Is(err, os.ErrNotExist) {
 		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
 	}
@@ -437,7 +441,12 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 			fmt.Fprintf(stdout, "riesgo de %s: ya es %s\n", res.Slug, res.Riesgo)
 			return nil
 		}
-		fmt.Fprintf(stdout, "riesgo de %s: %s -> %s - guardalo con: hoom item save %s\n", res.Slug, res.Antes, res.Riesgo, res.Slug)
+		donde := ""
+		if dest, ok := item.ArbolDelRiesgo(root, res.Slug); ok && item.EsOtroArbol(dest, root) {
+			// Set wrote the project's item: save it from there
+			donde = " (desde el proyecto, " + strconv.Quote(dest) + ": es su item)"
+		}
+		fmt.Fprintf(stdout, "riesgo de %s: %s -> %s - guardalo con: hoom item save %s%s\n", res.Slug, res.Antes, res.Riesgo, res.Slug, donde)
 		return nil
 	case SubBackfill:
 		res, err := Backfill(root, base, blockOn, req.DryRun, now)

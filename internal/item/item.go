@@ -629,6 +629,26 @@ func RiesgoDe(arbol, slug string) (string, error) {
 	return riesgo.Normal, nil
 }
 
+// ArbolDelRiesgo is the tree whose item slug RiesgoDe reads from arbol: the
+// main checkout when its item is there, else arbol when its item is there.
+// ok is false when neither has it. `hoom item set` writes there, so what it
+// writes is what the gate, the review and the board read (findings aee796,
+// f91dcf).
+func ArbolDelRiesgo(arbol, slug string) (string, bool) {
+	if !ValidSlug(slug) {
+		return "", false
+	}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		if _, err := os.Lstat(Path(root, slug)); err == nil || !os.IsNotExist(err) {
+			return root, true
+		}
+	}
+	return "", false
+}
+
+// EsOtroArbol says whether a and b are different trees (symlinks resolved).
+func EsOtroArbol(a, b string) bool { return !mismoArbol(a, b) }
+
 // RiesgosDe is RiesgoDe for every card arbol and the main checkout know, by
 // slug: the main checkout's items over arbol's. It fails closed like
 // RiesgoDe: an item that is there and cannot be read (or a .hoom/items/ that
