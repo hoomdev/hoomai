@@ -67,6 +67,14 @@ type Record struct {
 	// desde, when the range left out what it brought (a synthetic merge of
 	// desde with it: spec evidencia-de-la-review).
 	BaseIntegrada string `json:"base_integrada,omitempty"`
+	// Riesgo is the effective riesgo the lenses were chosen with
+	// (riesgo.Efectivo of the item's riesgo over the whole change), and
+	// RiesgoDeclarado the item's, only when it differs from Riesgo (a bajo
+	// whose change touches a risk path). Records older than
+	// ciclo-de-review-acotado have neither: they count with their lenses
+	// like any other.
+	Riesgo          string `json:"riesgo"`
+	RiesgoDeclarado string `json:"riesgo_declarado,omitempty"`
 }
 
 // LensRun pairs a lens with the run that applied it.

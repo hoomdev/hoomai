@@ -710,6 +710,13 @@ type Result struct {
 	// project's base_branch. BaseIntegrada as in the record.
 	Base          string `json:"base"`
 	BaseIntegrada string `json:"base_integrada,omitempty"`
+	// Riesgo and RiesgoDeclarado as in the record: the effective riesgo,
+	// and the item's only when it differs. The text output of `hoom review`
+	// carries the line `riesgo: <efectivo>`, or, when they differ,
+	// `riesgo: <motivo> (declarado <declarado>)` with riesgo.Efectivo's
+	// motivo.
+	Riesgo          string `json:"riesgo"`
+	RiesgoDeclarado string `json:"riesgo_declarado,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
@@ -735,6 +742,40 @@ func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
 		return Lentes, fmt.Sprintf("%d lineas cambiadas (>%d): las 4 lentes", n, UmbralLineas), nil
 	}
 	return []string{LenteDominante}, "cambio estandar: la lente dominante", nil
+}
+
+// LentesConRiesgo is Lenses with the card's riesgo (spec
+// ciclo-de-review-acotado): the rule runs with the effective riesgo,
+// riesgo.Efectivo(riesgo, git.ChangedFiles), so a bajo whose change touches
+// a risk path gets the lenses of normal; "" is normal. Before the riesgo, as
+// in Lenses: a lens given by hand (explicit) wins, and an empty change or one
+// of only documentation gets no lens, whatever the riesgo. Then:
+//
+//   - bajo: [reliability], motivo `riesgo bajo: la lente dominante`, even past
+//     UmbralLineas;
+//   - normal: exactly what Lenses(git, explicit) gives, motivo included;
+//   - alto: the 4 Lentes, motivo `riesgo alto: las 4 lentes`, even under
+//     UmbralLineas.
+//
+// A riesgo outside riesgo.Vocabulario is the error of riesgo.Validar; an
+// unknown explicit lens is Lenses' error.
+//
+// `hoom review` applies it with the riesgo of the task's item (the one it
+// already reads for the declared writers; normal without an item) over the
+// files of the whole change, also in a delta. In a delta the rule runs over
+// the range and over the whole change with that same effective riesgo and the
+// stricter wins, as before; when that gives the 4 lenses, the delta runs
+// risk, reliability and resilience, in that order, and its motivo ends in
+// `; una delta no corre readability` (cobertura delta).
+func LentesConRiesgo(git gitx.Info, explicit, riesgo string) ([]string, string, error) {
+	return nil, "", nil
+}
+
+// SoloDocs says whether every one of files is documentation (a .md, .txt,
+// .rst or .adoc file, anything under a docs/ folder, a LICENSE or a NOTICE,
+// in any case): the change no review is invoked for. An empty files is true.
+func SoloDocs(files []string) bool {
+	return false
 }
 
 // docExts and docDirs decide what "only documentation" means. A change that

@@ -62,10 +62,19 @@ const (
 // hecho_en and commit_final are written by `hoom task done`, never by an
 // agent (the envelope's floor forbids any change under .hoom/items/).
 type Item struct {
-	Slug           string     `yaml:"-" json:"slug"`
-	Titulo         string     `yaml:"titulo" json:"titulo"`
-	Tipo           string     `yaml:"tipo" json:"tipo"`
-	Prioridad      string     `yaml:"prioridad" json:"prioridad"`
+	Slug      string `yaml:"-" json:"slug"`
+	Titulo    string `yaml:"titulo" json:"titulo"`
+	Tipo      string `yaml:"tipo" json:"tipo"`
+	Prioridad string `yaml:"prioridad" json:"prioridad"`
+	// Riesgo is the riesgo a person declares for the card: one of
+	// riesgo.Vocabulario (see package riesgo). The key is optional: Parse
+	// gives riesgo.Normal when it is missing, and "" in an Item built by
+	// hand reads as Normal too. Normal is the absence of the key: hoom never
+	// writes `riesgo: normal` (Add, SetRiesgo and every rewrite of the file
+	// leave the key out for it). Only a person changes it (`hoom item add
+	// --riesgo`, `hoom item set`); the envelope's floor already forbids any
+	// change under .hoom/items/ to a role.
+	Riesgo         string     `yaml:"riesgo,omitempty" json:"riesgo"`
 	Pedido         string     `yaml:"pedido,omitempty" json:"pedido"`
 	CreadoPor      string     `yaml:"creado_por" json:"creado_por"`
 	CreadoEn       time.Time  `yaml:"creado_en" json:"creado_en"`
@@ -125,9 +134,14 @@ type Sesion struct {
 // Draft is what `hoom item add` asks for before hoom stamps it (identity,
 // time). Empty Tipo/Prioridad take the defaults; empty Slug is Slugify(Titulo).
 type Draft struct {
-	Titulo         string
-	Tipo           string
-	Prioridad      string
+	Titulo    string
+	Tipo      string
+	Prioridad string
+	// Riesgo (`--riesgo`): "" takes riesgo.Normal. Validate trims it and
+	// rejects a value outside riesgo.Vocabulario with Parse's text,
+	// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`; Add writes
+	// the key only for Bajo and Alto.
+	Riesgo         string
 	Pedido         string
 	Slug           string
 	PresupuestoUSD *float64
@@ -286,7 +300,10 @@ var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "cr
 	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
-// field or a value outside its vocabulary is an error.
+// field or a value outside its vocabulary is an error. The optional key
+// `riesgo` takes bajo, normal or alto; a missing key gives Riesgo
+// riesgo.Normal, and any other value is the error
+// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`.
 func Parse(slug string, raw []byte) (Item, error) {
 	if !ValidSlug(slug) {
 		return Item{}, fmt.Errorf("el nombre %q no es un slug (minusculas, numeros y guiones)", slug)
@@ -429,6 +446,22 @@ func UnmarkDone(root, slug, commit string) (bool, error) {
 		it.HechoEn, it.CommitFinal = nil, ""
 		return true
 	})
+}
+
+// SetRiesgo changes only the riesgo of the item slug of root, under the
+// item's lock (the same read-modify-write as MarkDone and AddSession): every
+// other key keeps its value, and the file is rewritten the way hoom writes
+// it. r riesgo.Normal leaves the file without the key. It commits nothing.
+//
+// antes is the riesgo the item had (riesgo.Normal when it had no key);
+// cambio says whether it wrote: an item that already had r is (antes, false,
+// nil) and its file is not touched. A riesgo outside riesgo.Vocabulario is
+// the error of riesgo.Validar and writes nothing; so is "" (it names no
+// riesgo). An item that does not exist is an error that wraps
+// os.ErrNotExist; an unreadable or invalid one is an error; neither writes
+// anything.
+func SetRiesgo(root, slug, r string) (antes string, cambio bool, err error) {
+	return "", false, nil
 }
 
 // update is the one read-modify-write of an item, under the item's lock

@@ -876,6 +876,24 @@ func cmdFinding(args []string) error {
 		}
 		fmt.Printf("hoom finding: %s -> %s\n  evidencia: %s\n", r.FindingID, strings.ToUpper(r.As), r.Evidence)
 		return nil
+	case "raise":
+		// sube un hallazgo a mano (ciclo-de-review-acotado); el id va primero
+		if len(rest) < 1 || strings.HasPrefix(rest[0], "-") {
+			return fmt.Errorf("uso: hoom finding raise <id> --reason \"...\"")
+		}
+		id := rest[0]
+		fs := flag.NewFlagSet("finding raise", flag.ExitOnError)
+		reason := fs.String("reason", "", "por que bloquea (obligatoria)")
+		_ = fs.Parse(rest[1:])
+		corrida := finding.Corrida{Role: os.Getenv(runcmd.EnvRole), Run: os.Getenv(runcmd.EnvRun),
+			Provider: os.Getenv(runcmd.EnvProvider)}
+		_, _, err := finding.RaiseEnCorrida(m.Dir, id, *reason, corrida)
+		var noSube finding.NoSube
+		if errors.As(err, &noSube) {
+			fmt.Fprintln(os.Stderr, "hoom finding: "+noSube.Error())
+			os.Exit(1)
+		}
+		return err
 	case "list":
 		openOnly, asJSON := false, false
 		for _, a := range rest {

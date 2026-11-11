@@ -93,6 +93,12 @@ type Item struct {
 	Status      string      `json:"status"` // abierto | corregido | refutado
 	Resolution  *Resolution `json:"resolution,omitempty"`
 	CodeChanged bool        `json:"code_changed"` // la huella ya no coincide con el arbol
+	// Bloquea and Motivo are Bloquea's answer for an open finding of a
+	// judged listing (Juzgar, ListConUmbral, JSONBytesConUmbral, JSONBytes);
+	// false and "" for a closed one, and in a listing nobody judged (List,
+	// ListConIlegibles).
+	Bloquea bool   `json:"bloquea"`
+	Motivo  string `json:"motivo"`
 }
 
 func dir(root string) string { return filepath.Join(root, ".hoom", "findings") }
@@ -369,7 +375,10 @@ func scan(root string) (scanned, error) {
 // List derives the current state of every finding, oldest first. Corrupt
 // files are skipped and reported as warnings — never fatal, like verdicts.
 // A resolution that closes nothing (unreadable, no evidence, unknown state)
-// leaves its finding OPEN and says so in a warning.
+// leaves its finding OPEN and says so in a warning. A .raise.json is a raise,
+// never a finding (see Subida): one that raises nothing leaves its warning
+// here too. List does not judge: Bloquea and Motivo stay false and "" (see
+// ListConUmbral).
 func List(root, base string, openOnly bool) ([]Item, []string, error) {
 	items, _, warnings, err := ListConIlegibles(root, base, openOnly)
 	return items, warnings, err
@@ -413,6 +422,8 @@ type ListView struct {
 	Findings []Item   `json:"findings"`
 }
 
+// JSONBytes is JSONBytesConUmbral with blockOn "": the findings judged with
+// the threshold high.
 func JSONBytes(root, base string, openOnly bool) ([]byte, error) {
 	items, warnings, err := List(root, base, openOnly)
 	if err != nil {

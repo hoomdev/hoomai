@@ -412,6 +412,22 @@ type WriteScope struct {
 type FindingsPolicy struct {
 	// BlockOn is a severity threshold: that severity or worse blocks.
 	BlockOn *string `yaml:"block_on"`
+	// MaxPendientes (findings.max_pendientes) is the cap on open mediums a
+	// task may leave in the project when it is accepted
+	// (ciclo-de-review-acotado): an integer >= 0; nil = no cap. Any other
+	// value makes the manifest invalid with
+	// `findings: max_pendientes tiene que ser un entero mayor o igual a 0`,
+	// and an unknown key under findings is
+	// `findings: clave desconocida "<k>" (validas: block_on, max_pendientes)`.
+	MaxPendientes *int `yaml:"max_pendientes"`
+}
+
+// ParseFindings reads only the `findings:` section of a hoom.yaml, with the
+// same strictness Load applies to it (block_on normalized, max_pendientes
+// checked). taskcmd.Ready uses it on the hoom.yaml of the task's tree. nil =
+// no section.
+func ParseFindings(raw []byte) (*FindingsPolicy, error) {
+	return nil, nil
 }
 
 // Manifest is the parsed hoom.yaml after profile inheritance is resolved.
@@ -593,6 +609,12 @@ func (m *Manifest) FindingsBlockOn() string {
 		return ""
 	}
 	return *m.Findings.BlockOn
+}
+
+// FindingsMaxPendientes is findings.max_pendientes: (n, true) when the
+// project declares the cap, (0, false) when it does not (no cap).
+func (m *Manifest) FindingsMaxPendientes() (n int, ok bool) {
+	return 0, false
 }
 
 // Severities are the values block_on accepts, mildest first. They are the

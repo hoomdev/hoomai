@@ -45,6 +45,14 @@ const descMax = 160
 // with a severity hoom does not know, is an ERROR — the gate cannot tell
 // whether it blocks, so it does not assume it does not. base is taken for
 // parity with List; counting states needs no tree fingerprint.
+//
+// Whether an in-scope open finding blocks is Bloquea under
+// ContextoDe(root, root, blockOn): its severity, its raise, its file and the
+// riesgo and complete reviews of its task. The gate fails exactly for the
+// findings Bloquea says block, and its detail (OutputTail) names the motivo
+// of each one that blocks by a raise, by a risk path or by riesgo alto; one
+// that blocks by its severity reads as before. A raise that raises nothing
+// is a warning in OutputTail, never an ERROR.
 func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
 	start := time.Now()
 	res = verdict.GateResult{Name: GateName, Required: true, Scope: "full"}

@@ -195,6 +195,11 @@ func taskState(wt, base string) (state, verdictID string) {
 // task's item (when this tree has one) and removes the worktree, leaving the
 // branch ready to merge. --force skips the checks and force-removes, and
 // never marks the item done: a card does not earn Hecho without evidence.
+//
+// Right after its closing line it prints the task's pendientes (open
+// findings of the task that do not block, finding.Bloquea):
+// `pendientes: 3 medium, 5 low abiertos (hoom finding list --open)`, naming
+// only the severities present, or `sin pendientes`.
 func Done(root, slug, base string, force bool) error {
 	if err := checkSlug(slug); err != nil {
 		return err
@@ -296,6 +301,17 @@ func short(sha string) string {
 // exists, its tree is clean, it has a complete verdict, the latest complete
 // one is green and its fingerprint matches — with the same messages. nil
 // means task done would close it.
+//
+// Last, the cap of findings.max_pendientes, read from the task's tree (its
+// hoom.yaml and its .hoom/findings/: what the project would have once
+// integrated): with a cap n, when the task has at least one open medium of
+// its own and the tree has more than n open mediums (of any task or none),
+// it fails with kind ReadyTopePendientes and the message
+// `aceptar "<slug>" dejaria <m> medium abiertos en el proyecto (tope <n>): corrige o refuta alguno (hoom finding list --open) o sube findings.max_pendientes`.
+// A task without open mediums of its own passes even over the cap; without
+// the key there is no cap. The board shows it as
+// `aceptarla dejaria demasiados medium abiertos en el proyecto` with the
+// action `hoom finding list --open`; --force skips it.
 func Ready(root, slug, base string) error {
 	wt, err := runcmd.TaskDir(root, slug)
 	if err != nil {

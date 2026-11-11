@@ -1,6 +1,7 @@
-// Package itemcmd implements `hoom item add | list | show | save | backfill`:
-// the verbs of the card as a file (backfill gives an item to the tasks from
-// before the cabin that the evidence holds). Parsing is pure and strict from day one (cliargs), so a
+// Package itemcmd implements `hoom item add | list | show | save | set |
+// backfill`: the verbs of the card as a file (backfill gives an item to the
+// tasks from before the cabin that the evidence holds; set changes the
+// card's riesgo). Parsing is pure and strict from day one (cliargs), so a
 // request hoom does not understand is answered before the project is read,
 // and it never leaves a half-written item behind.
 package itemcmd
@@ -35,6 +36,15 @@ const (
 	// SubBackfill creates the items of the tasks that predate the cabin
 	// (historia-en-el-tablero).
 	SubBackfill = "backfill"
+	// SubSet is `hoom item set <slug> --riesgo r [--json]`: it changes the
+	// card's riesgo and nothing else (ciclo-de-review-acotado). --riesgo is
+	// the only flag that changes something, so it is required: Parse answers
+	// a usage error (exit 2) without it, with an empty one, or with a value
+	// outside riesgo.Vocabulario (that one with item.Parse's text,
+	// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`), and for a
+	// slug that is not one, as show and save do. What Execute does is Set's
+	// contract.
+	SubSet = "set"
 )
 
 // UsageText is the exact usage block of `hoom item` and the single source of
@@ -71,13 +81,58 @@ El item es un archivo en .hoom/items/<slug>.yaml que viaja en git. Nunca
 guarda una columna: la columna sale de la evidencia ('hoom board').
 Un titulo que empieza con '-' va despues de '--': hoom item add -- "-titulo"`
 
-// Request is one parsed `hoom item` invocation.
+// Request is one parsed `hoom item` invocation. `hoom item add --riesgo r`
+// travels in Draft.Riesgo: a value outside riesgo.Vocabulario is a usage
+// error of Parse (exit 2, like --tipo) with item.Parse's text, and no item
+// is created; without the flag, or with --riesgo normal, the file has no
+// `riesgo` key.
 type Request struct {
-	Sub    string     // SubAdd | SubList | SubShow | SubSave | SubBackfill
-	Draft  item.Draft // add
-	Slug   string     // show, save
+	Sub   string     // SubAdd | SubList | SubShow | SubSave | SubSet | SubBackfill
+	Draft item.Draft // add
+	Slug  string     // show, save, set
+	// Riesgo is set's --riesgo, already checked against riesgo.Vocabulario.
+	Riesgo string
 	JSON   bool
 	DryRun bool // backfill
+}
+
+// SetResult is what `hoom item set` did, identical in text and JSON
+// (`{"slug": ..., "antes": ..., "riesgo": ...}`). Antes is the riesgo the
+// card had (riesgo.Normal when its item had no key) and Riesgo the one it
+// has now; they are equal when the card already had it.
+type SetResult struct {
+	Slug   string `json:"slug"`
+	Antes  string `json:"antes"`
+	Riesgo string `json:"riesgo"`
+	// Cambio says whether the item's file was written (false when the card
+	// already had that riesgo). Not part of the JSON.
+	Cambio bool `json:"-"`
+}
+
+// Set is `hoom item set <slug> --riesgo r`: it changes only the riesgo of
+// the item slug of the project at root (item.SetRiesgo: every other key
+// keeps its value, the file is rewritten the way hoom writes it) and commits
+// nothing. rol is the role of the run the process runs inside (Execute
+// passes $HOOM_ROLE; "" = not inside one).
+//
+// It refuses, writing nothing, with these errors (exit 1 in the CLI), in
+// this order:
+//
+//   - rol not empty: `el riesgo de una tarjeta lo cambia una persona, no un rol`;
+//   - no item slug: `no existe el item "<slug>"`;
+//   - the card (boardcmd.CardFor with base and blockOn) in Hecho:
+//     `la tarjeta ya esta en Hecho`, the text the board and `hoom integrar`
+//     use.
+//
+// A card that already has r is a SetResult with Antes == Riesgo == r, Cambio
+// false and nothing written.
+//
+// Execute prints, for a change,
+// `riesgo de <slug>: <antes> -> <despues> - guardalo con: hoom item save <slug>`,
+// and for a card that already had it `riesgo de <slug>: ya es <r>`; with
+// --json, the SetResult in both cases.
+func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
+	return SetResult{}, nil
 }
 
 // BackfillResult is what `hoom item backfill` did, or would do with

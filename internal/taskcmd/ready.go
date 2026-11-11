@@ -10,6 +10,9 @@ const (
 	ReadySoloParciales = "solo-parciales" // only partial (--gate) verdicts
 	ReadyRojo          = "rojo"           // the latest complete verdict is red
 	ReadyHuella        = "huella"         // the tree changed after the green
+	// ReadyTopePendientes: accepting would leave more open mediums in the
+	// project than findings.max_pendientes (ciclo-de-review-acotado).
+	ReadyTopePendientes = "tope-pendientes"
 )
 
 // ReadyError is what Ready returns: the same message as always, plus the
