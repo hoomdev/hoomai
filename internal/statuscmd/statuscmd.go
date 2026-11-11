@@ -166,14 +166,16 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	// Same definition of "open" the findings_open gate applies (finding.List
 	// is its single source). Status has no spec, so its scope is "all".
 	s.Findings.BlockOn = blockOn
-	items, _, err := finding.List(root, base, true)
+	items, _, err := finding.ListConUmbral(root, base, blockOn, true)
 	if err == nil {
 		s.Findings.Open = len(items)
 		for _, it := range items {
 			if it.Severity == "high" {
 				s.Findings.OpenHigh++
 			}
-			if finding.Blocks(it.Severity, blockOn) {
+			// the one definition (finding.Bloquea); without block_on
+			// nothing blocks, as the gate does not run
+			if blockOn != "" && it.Bloquea {
 				s.Findings.Blocking++
 			}
 		}

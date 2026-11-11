@@ -249,7 +249,7 @@ func (s *Server) handler() (*http.ServeMux, []string) {
 	})
 
 	handle("GET /api/findings", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := finding.JSONBytes(s.m.Dir, s.m.BaseBranch, r.URL.Query().Get("open") == "1")
+		raw, err := finding.JSONBytesConUmbral(s.m.Dir, s.m.BaseBranch, s.m.FindingsBlockOn(), r.URL.Query().Get("open") == "1")
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

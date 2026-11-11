@@ -1,5 +1,17 @@
 package finding
 
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/riesgo"
+)
+
 // Contexto is everything besides the finding itself that decides whether an
 // open finding blocks (Bloquea).
 type Contexto struct {
@@ -52,6 +64,38 @@ type RevisionCompleta struct {
 //
 // When none holds it does not block: (false, "").
 func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
+	sev := strings.ToLower(strings.TrimSpace(f.Severity))
+	if _, ok := severityRank[sev]; !ok {
+		return true, fmt.Sprintf("severidad desconocida %q", f.Severity)
+	}
+	umbral := c.BlockOn
+	if strings.TrimSpace(umbral) == "" {
+		umbral = "high"
+	}
+	if Blocks(sev, umbral) {
+		return true, "severidad " + sev
+	}
+	if s, ok := c.Subidas[f.ID]; ok {
+		return true, "subido a mano por " + s.Author
+	}
+	if sev != "medium" {
+		return false, ""
+	}
+	if file := strings.TrimSpace(f.File); file != "" && riesgo.Ruta([]string{file}) != "" {
+		return true, "medium en ruta de riesgo: " + file
+	}
+	if f.Task != "" && c.Riesgos[f.Task] == riesgo.Alto {
+		for _, rc := range c.Completas {
+			if rc.Task != f.Task {
+				continue
+			}
+			for _, id := range rc.Findings {
+				if id == f.ID {
+					return true, fmt.Sprintf("medium de la review completa %s: riesgo alto", rc.ID)
+				}
+			}
+		}
+	}
 	return false, ""
 }
 
@@ -64,13 +108,108 @@ func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
 // and proyecto are the same directory. Only a .hoom/findings/ that exists
 // and cannot be read is an error.
 func ContextoDe(arbol, proyecto, blockOn string) (Contexto, error) {
-	return Contexto{}, nil
+	sc, err := scan(arbol)
+	if err != nil {
+		return Contexto{BlockOn: blockOn}, err
+	}
+	return contextoDesde(sc, arbol, proyecto, blockOn), nil
+}
+
+// contextoDesde completes, around an existing scan of arbol, the Contexto
+// ContextoDe gives.
+func contextoDesde(sc scanned, arbol, proyecto, blockOn string) Contexto {
+	c := Contexto{BlockOn: blockOn, Subidas: sc.subidas, Riesgos: Riesgos(proyecto),
+		Completas: RevisionesCompletas(arbol)}
+	if c.Subidas == nil {
+		c.Subidas = map[string]Subida{}
+	}
+	return c
+}
+
+// Riesgos is the riesgo each valid item of root's .hoom/items/ declares, by
+// slug: Contexto.Riesgos as ContextoDe reads it. No items is an empty map.
+func Riesgos(root string) map[string]string {
+	out := map[string]string{}
+	items, _, _ := item.List(root)
+	for _, it := range items {
+		r := it.Riesgo
+		if r == "" {
+			r = riesgo.Normal
+		}
+		out[it.Slug] = r
+	}
+	return out
+}
+
+// RevisionesCompletas are the review records of root's .hoom/reviews/ with
+// cobertura completa, oldest first: Contexto.Completas as ContextoDe reads
+// it. It reads the same records reviewcmd.Records trusts (a regular file
+// whose id is its name and has the shape of a record id), and only the
+// fields Bloquea needs; one it cannot read is left out.
+func RevisionesCompletas(root string) []RevisionCompleta {
+	type registro struct {
+		ID        string    `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		Task      string    `json:"task"`
+		Findings  []string  `json:"findings"`
+		Cobertura string    `json:"cobertura"`
+	}
+	var regs []registro
+	_ = hoomfs.RecorrerDirectorio(root, []string{".hoom", "reviews"},
+		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxArchivo,
+		func(e hoomfs.Entrada) {
+			if e.Err != nil {
+				return
+			}
+			var r registro
+			if json.Unmarshal(e.Contenido, &r) != nil || r.ID != strings.TrimSuffix(e.Nombre, ".json") || !idDeRegistro(r.ID) {
+				return
+			}
+			if r.Cobertura == "completa" {
+				regs = append(regs, r)
+			}
+		})
+	sort.SliceStable(regs, func(i, j int) bool { return regs[i].CreatedAt.Before(regs[j].CreatedAt) })
+	out := []RevisionCompleta{}
+	for _, r := range regs {
+		out = append(out, RevisionCompleta{ID: r.ID, Task: r.Task, Findings: append([]string{}, r.Findings...)})
+	}
+	return out
+}
+
+// idDeRegistro is the shape reviewcmd gives a record id: 20060102T150405_
+// plus 6 lowercase letters or digits (reviewcmd's validRecordID; a test of
+// reviewcmd checks that the two readings agree).
+func idDeRegistro(id string) bool {
+	if len(id) != len("20060102T150405_")+6 || id[8] != 'T' || id[15] != '_' {
+		return false
+	}
+	for i, c := range id {
+		switch {
+		case i == 8 || i == 15:
+		case i < 15:
+			if c < '0' || c > '9' {
+				return false
+			}
+		default:
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'z') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // Juzgar fills Bloquea and Motivo of every item of items with Bloquea under
 // c: an open one gets Bloquea(it.Finding, c), a closed one false and "". It
 // returns items, judged in place.
 func Juzgar(items []Item, c Contexto) []Item {
+	for i := range items {
+		items[i].Bloquea, items[i].Motivo = false, ""
+		if items[i].Status == StatusOpen {
+			items[i].Bloquea, items[i].Motivo = Bloquea(items[i].Finding, c)
+		}
+	}
 	return items
 }
 
@@ -79,7 +218,15 @@ func Juzgar(items []Item, c Contexto) []Item {
 // `bloquea: <motivo>` or `pendiente` on each open finding. The warnings are
 // List's, the ones about raises that raise nothing included.
 func ListConUmbral(root, base, blockOn string, openOnly bool) ([]Item, []string, error) {
-	return nil, nil, nil
+	items, warnings, err := List(root, base, openOnly)
+	if err != nil {
+		return items, warnings, err
+	}
+	c, err := ContextoDe(root, root, blockOn)
+	if err != nil {
+		return items, warnings, err
+	}
+	return Juzgar(items, c), warnings, nil
 }
 
 // JSONBytesConUmbral renders what `hoom finding list --json` and GET
@@ -87,5 +234,27 @@ func ListConUmbral(root, base, blockOn string, openOnly bool) ([]Item, []string,
 // bloquea and motivo (false and "" on a closed one), and the warnings
 // (never null) carry the ones about raises.
 func JSONBytesConUmbral(root, base, blockOn string, openOnly bool) ([]byte, error) {
-	return nil, nil
+	items, warnings, err := ListConUmbral(root, base, blockOn, openOnly)
+	if err != nil {
+		return nil, err
+	}
+	if warnings == nil {
+		warnings = []string{}
+	}
+	return json.MarshalIndent(ListView{Warnings: warnings, Findings: items}, "", "  ")
+}
+
+// CuentaPendientes is the count of the pendientes as their lines say it:
+// "3 medium, 5 low", naming only the severities with a count above 0,
+// medium first; "" when both are 0. The card's texto (boardcmd) and the line of
+// `hoom task done` are built on it.
+func CuentaPendientes(medium, low int) string {
+	var partes []string
+	if medium > 0 {
+		partes = append(partes, fmt.Sprintf("%d medium", medium))
+	}
+	if low > 0 {
+		partes = append(partes, fmt.Sprintf("%d low", low))
+	}
+	return strings.Join(partes, ", ")
 }

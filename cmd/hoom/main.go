@@ -76,11 +76,12 @@ Comandos:
               (done registra hecho_en y commit_final en el item de la tarea)
               | discard <slug> [--yes]: vuelve a HEAD lo sin guardar fuera de .hoom/
   item        La tarjeta como archivo (.hoom/items/<slug>.yaml, viaja en git):
-              add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x]
-              [--pedido "..."] [--slug s] | list | show <slug>
+              add "<titulo>" [--tipo t] [--prioridad p] [--riesgo r]
+              [--presupuesto-usd x] [--pedido "..."] [--slug s] | list | show <slug>
               [--auto hasta-humano] (piloto automatico en el Studio; exige
               --presupuesto-usd)
-              | save <slug> (commitea lo que la tarjeta tiene sin guardar)   [--json]
+              | save <slug> (commitea lo que la tarjeta tiene sin guardar)
+              | set <slug> --riesgo bajo|normal|alto (lo cambia una persona)   [--json]
   board       El tablero: la columna de cada item sale de su evidencia
               (spec, aprobacion, tests, veredicto, review, cierre); nadie la
               escribe y nada se guarda [--json]
@@ -109,7 +110,9 @@ Comandos:
               add --sev low|medium|high [--lens l] [--file f] [--task slug] "<descripcion>"
                 (sin --task toma HOOM_TASK, que hoom pone en cada run con tarea)
               resolve <id> --as corregido|refutado --evidence "<por que>"
-              list [--open] [--json]   (cerrar SIN evidencia esta prohibido)
+              raise <id> --reason "<por que>"   (una persona lo hace bloquear)
+              list [--open] [--json]   (cerrar SIN evidencia esta prohibido;
+                cada abierto dice 'bloquea: <motivo>' o 'pendiente')
               Con 'findings: { block_on: low|medium|high }' en hoom.yaml,
               verify suma el gate findings_open: ROJO con hallazgos abiertos
               de esa severidad o mayor (con --spec: los de la tarea del spec
@@ -820,7 +823,7 @@ func cmdReview(args []string) error {
 // record + single terminal resolution with mandatory evidence.
 func cmdFinding(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("uso: hoom finding add|resolve|list (mira 'hoom help')")
+		return fmt.Errorf("uso: hoom finding add|resolve|raise|list (mira 'hoom help')")
 	}
 	m, err := manifest.Load(".", profiles.Resolve)
 	if err != nil {
@@ -887,13 +890,22 @@ func cmdFinding(args []string) error {
 		_ = fs.Parse(rest[1:])
 		corrida := finding.Corrida{Role: os.Getenv(runcmd.EnvRole), Run: os.Getenv(runcmd.EnvRun),
 			Provider: os.Getenv(runcmd.EnvProvider)}
-		_, _, err := finding.RaiseEnCorrida(m.Dir, id, *reason, corrida)
+		_, nueva, err := finding.RaiseEnCorrida(m.Dir, id, *reason, corrida)
 		var noSube finding.NoSube
 		if errors.As(err, &noSube) {
+			// dentro de un run: ningun rol sube hallazgos; nada se escribio
 			fmt.Fprintln(os.Stderr, "hoom finding: "+noSube.Error())
 			os.Exit(1)
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		if nueva {
+			fmt.Printf("hallazgo %s subido: ahora bloquea\n", id)
+		} else {
+			fmt.Printf("hallazgo %s ya estaba subido\n", id)
+		}
+		return nil
 	case "list":
 		openOnly, asJSON := false, false
 		for _, a := range rest {
@@ -905,14 +917,14 @@ func cmdFinding(args []string) error {
 			}
 		}
 		if asJSON {
-			raw, err := finding.JSONBytes(m.Dir, m.BaseBranch, openOnly)
+			raw, err := finding.JSONBytesConUmbral(m.Dir, m.BaseBranch, m.FindingsBlockOn(), openOnly)
 			if err != nil {
 				return err
 			}
 			fmt.Println(string(raw))
 			return nil
 		}
-		items, warnings, err := finding.List(m.Dir, m.BaseBranch, openOnly)
+		items, warnings, err := finding.ListConUmbral(m.Dir, m.BaseBranch, m.FindingsBlockOn(), openOnly)
 		if err != nil {
 			return err
 		}
@@ -930,13 +942,20 @@ func cmdFinding(args []string) error {
 				changed = "  [el codigo cambio desde el hallazgo]"
 			}
 			fmt.Printf("  %-22s %-9s %-7s %s%s\n", it.ID, strings.ToUpper(it.Status), it.Severity, it.Description, changed)
+			if it.Status == finding.StatusOpen {
+				if it.Bloquea {
+					fmt.Printf("      bloquea: %s\n", it.Motivo)
+				} else {
+					fmt.Println("      pendiente")
+				}
+			}
 			if it.Resolution != nil {
 				fmt.Printf("      evidencia: %s\n", it.Resolution.Evidence)
 			}
 		}
 		return nil
 	default:
-		return fmt.Errorf("subcomando desconocido %q (add|resolve|list)", sub)
+		return fmt.Errorf("subcomando desconocido %q (add|resolve|raise|list)", sub)
 	}
 }
 

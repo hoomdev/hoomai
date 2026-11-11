@@ -111,6 +111,7 @@ const maxArchivo = 256 << 20
 
 func findingPath(root, id string) string { return filepath.Join(dir(root), id+".json") }
 func resPath(root, id string) string     { return filepath.Join(dir(root), id+".res.json") }
+func raisePath(root, id string) string   { return filepath.Join(dir(root), id+".raise.json") }
 
 // The id newID gives a finding: its UTC second written in idFecha, "_", and
 // idHex random hex digits. EsNombre checks a name against the same two, so
@@ -312,8 +313,9 @@ func parseResolution(raw []byte) (Resolution, string) {
 // closed on them) and the warnings about resolutions that close nothing.
 type scanned struct {
 	items    []Item
-	broken   []string // "<archivo>: <motivo>" de hallazgos ilegibles
-	warnings []string // resoluciones ilegibles o invalidas
+	broken   []string          // "<archivo>: <motivo>" de hallazgos ilegibles
+	warnings []string          // resoluciones y subidas ilegibles o invalidas
+	subidas  map[string]Subida // las subidas validas, por id de hallazgo
 }
 
 func scan(root string) (scanned, error) {
@@ -324,9 +326,32 @@ func scan(root string) (scanned, error) {
 	// they come and joined after the walk (finding c85840)
 	resolutions := map[string]*Resolution{}
 	var findings []Finding
+	type leida struct {
+		nombre string
+		s      Subida
+	}
+	var subidas []leida
 	err := hoomfs.RecorrerDirectorio(root, []string{".hoom", "findings"},
 		func(n string) bool { return strings.HasSuffix(n, ".json") }, maxArchivo,
 		func(e hoomfs.Entrada) {
+			if id, ok := strings.CutSuffix(e.Nombre, ".raise.json"); ok {
+				// a raise, never a finding: one that raises nothing warns
+				// and never breaks the reading
+				if e.Err != nil {
+					out.warnings = append(out.warnings, fmt.Sprintf("subida ilegible %s: %v", e.Nombre, e.Err))
+					return
+				}
+				sub, motivo := parseSubida(e.Contenido, id)
+				switch {
+				case motivo == "ilegible":
+					out.warnings = append(out.warnings, "subida ilegible "+e.Nombre)
+				case motivo != "":
+					out.warnings = append(out.warnings, fmt.Sprintf("subida invalida %s: %s; el hallazgo %s no sube", e.Nombre, motivo, id))
+				default:
+					subidas = append(subidas, leida{e.Nombre, sub})
+				}
+				return
+			}
 			if strings.HasSuffix(e.Nombre, ".res.json") {
 				if e.Err != nil {
 					out.warnings = append(out.warnings, fmt.Sprintf("resolucion ilegible %s: %v", e.Nombre, e.Err))
@@ -359,6 +384,18 @@ func scan(root string) (scanned, error) {
 	if err != nil {
 		return out, err
 	}
+	existe := map[string]bool{}
+	for _, f := range findings {
+		existe[f.ID] = true
+	}
+	out.subidas = map[string]Subida{}
+	for _, l := range subidas {
+		if !existe[l.s.FindingID] {
+			out.warnings = append(out.warnings, fmt.Sprintf("subida huerfana %s: no existe el hallazgo %s", l.nombre, l.s.FindingID))
+			continue
+		}
+		out.subidas[l.s.FindingID] = l.s
+	}
 	for _, f := range findings {
 		it := Item{Finding: f, Status: StatusOpen}
 		if r := resolutions[f.ID]; r != nil {
@@ -389,9 +426,21 @@ func List(root, base string, openOnly bool) ([]Item, []string, error) {
 // (boardcmd.Evidence.UnreadableFindings) the way the gate fails closed. The
 // warnings name them too, but only to be shown (finding 6b3eb7).
 func ListConIlegibles(root, base string, openOnly bool) (items []Item, ilegibles, warnings []string, err error) {
+	items, ilegibles, warnings, _, err = ListConSubidas(root, base, openOnly)
+	return items, ilegibles, warnings, err
+}
+
+// ListConSubidas is ListConIlegibles that also gives the valid raises it
+// read, by finding id (never nil): what the board judges its cards with,
+// from one reading of .hoom/findings/.
+func ListConSubidas(root, base string, openOnly bool) (items []Item, ilegibles, warnings []string, subidas map[string]Subida, err error) {
 	sc, err := scan(root)
+	subidas = sc.subidas
+	if subidas == nil {
+		subidas = map[string]Subida{}
+	}
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, subidas, err
 	}
 	ilegibles = append([]string{}, sc.broken...)
 	for _, b := range sc.broken {
@@ -399,7 +448,7 @@ func ListConIlegibles(root, base string, openOnly bool) (items []Item, ilegibles
 	}
 	warnings = append(warnings, sc.warnings...)
 	if len(sc.items) == 0 {
-		return []Item{}, ilegibles, warnings, nil
+		return []Item{}, ilegibles, warnings, subidas, nil
 	}
 
 	current := gitx.Snapshot(root, base).ChangeFingerprint
@@ -413,7 +462,7 @@ func ListConIlegibles(root, base string, openOnly bool) (items []Item, ilegibles
 		}
 		items = append(items, it)
 	}
-	return items, ilegibles, warnings, nil
+	return items, ilegibles, warnings, subidas, nil
 }
 
 // ListJSON renders exactly what both the CLI and the Studio emit.
@@ -425,12 +474,5 @@ type ListView struct {
 // JSONBytes is JSONBytesConUmbral with blockOn "": the findings judged with
 // the threshold high.
 func JSONBytes(root, base string, openOnly bool) ([]byte, error) {
-	items, warnings, err := List(root, base, openOnly)
-	if err != nil {
-		return nil, err
-	}
-	if warnings == nil {
-		warnings = []string{}
-	}
-	return json.MarshalIndent(ListView{Warnings: warnings, Findings: items}, "", "  ")
+	return JSONBytesConUmbral(root, base, "", openOnly)
 }
