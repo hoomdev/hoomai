@@ -143,11 +143,12 @@ func TestsProtegidos(root, task string) ([]string, error) {
 
 // sinTocarProtegidos applies RuleTestsDelTestWriter: for a role of shape
 // codigo, every protected test whose content in dir is no longer the one
-// photographed before the run (changed, removed or renamed) is a violation,
+// photographed before the run (changed, removed or renamed), or whose index or HEAD entry changed or got
+// hidden from git (enGit, cambioEnGit), is a violation,
 // whatever the role's Allow says. It replaces an out-of-scope violation of
 // the same path (this one cuts, that one does not) and leaves a tampering
 // or isolation one alone.
-func sinTocarProtegidos(sc ScopeResult, dir string, role agents.Role, prot Protegidos) ScopeResult {
+func sinTocarProtegidos(sc ScopeResult, dir string, role agents.Role, prot Protegidos, enGit ProtegidosGit) ScopeResult {
 	if role.Scope != agents.ScopeCodigo || len(prot) == 0 {
 		return sc
 	}
@@ -161,6 +162,16 @@ func sinTocarProtegidos(sc ScopeResult, dir string, role agents.Role, prot Prote
 	for _, p := range rutas {
 		if ahora[p] != prot[p] {
 			tocadas[p] = true
+		}
+	}
+	// and in git: the index and HEAD, each against its own state before the
+	// run (finding 123262)
+	if enGit != nil {
+		gitAhora := fotoGit(dir, rutas)
+		for _, p := range rutas {
+			if antes, ok := enGit[p]; ok && cambioEnGit(antes, gitAhora[p]) {
+				tocadas[p] = true
+			}
 		}
 	}
 	if len(tocadas) == 0 {
@@ -434,6 +445,11 @@ type Policy struct {
 	// shape ignores it. PolicyFor never fills it: whoever runs the envelope
 	// does (agentcmd.Run, with TestsProtegidos); nil = nothing protected.
 	Protegidos Protegidos
+	// ProtegidosGit are the same tests in git before the run
+	// (FotoGitProtegidos): Gate also compares the index and HEAD of dir
+	// with them, and a path marked skip-worktree or assume-unchanged during
+	// the run is a change. nil = the disk alone.
+	ProtegidosGit ProtegidosGit
 }
 
 // defaultAllow / defaultDeny per scope shape. The test globs cover the usual
@@ -574,7 +590,7 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	sc = sinSubidas(sc, role, arboles...)
 	sc = pisoEnDisco(sc, arboles...)
 	sc = sinListado(sc, arboles...)
-	sc = sinTocarProtegidos(sc, dir, role, pol.Protegidos)
+	sc = sinTocarProtegidos(sc, dir, role, pol.Protegidos, pol.ProtegidosGit)
 	// one fingerprint dates every finding of the gate: computed once, and
 	// not even tried when git already did not answer the photographs
 	// (finding f472ee)

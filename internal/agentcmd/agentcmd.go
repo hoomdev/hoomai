@@ -304,6 +304,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			return res, roto(root, &rec, err)
 		}
 		pol.Protegidos = FotoProtegidos(dir, rutas)
+		pol.ProtegidosGit = FotoGitProtegidos(dir, rutas, pol.Protegidos)
 	}
 	before := Take(runDir, base)
 	info, err := mgr.Start(so)
