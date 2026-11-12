@@ -237,6 +237,12 @@ func (s *Server) belt(slug string, before boardcmd.Card, envelopeID string, log 
 
 // approveCard is "Aprobar spec" from the card: `hoom spec approve` run in
 // the card's evidence tree, signed by the git identity of that tree.
+//
+// autonomia-entre-firmas: with `auto: hasta-humano` on the card, approving
+// runs the pilot's turn (pilotocmd.Avanzar), which launches the
+// test-writer, and the answer gains `piloto`: the line of that first
+// decision. Without auto it launches nothing and the answer is
+// `{"approval": ..., "already": ...}` as before.
 func (s *Server) approveCard(w http.ResponseWriter, name, slug string) {
 	if slug != name {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("la tarjeta %q no es la del spec %q", slug, name))

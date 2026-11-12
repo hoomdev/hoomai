@@ -278,6 +278,12 @@ func ResolveEnCorrida(root, id, as, evidence, author string, c Corrida) (Resolut
 // as refutado (contract 09).
 const RolQueRefuta = "refutador"
 
+// AutorPiloto is the author of the resolutions the pilot writes in its step
+// cerrar-hallazgos (autonomia-entre-firmas): Resolve outside a run, as
+// corregido, never inside one. What the agent does alone is signed by a
+// rule, never by a person.
+const AutorPiloto = "hoom piloto"
+
 // NoCierra is the refusal of a resolve inside a role's run: the role may not
 // close that finding, or not that way, or not in that name.
 type NoCierra string

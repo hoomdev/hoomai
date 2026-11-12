@@ -69,6 +69,9 @@ type Run struct {
 	// every CLI verified reports per invocation (measured on a --resume,
 	// which reported its own turn and its own cost, not the session total).
 	Usage *providers.Usage `json:"usage,omitempty"`
+	// Corte is CorteTiempo once the run died by its timeout, as its sidecar
+	// says (Meta.Corte); "" otherwise.
+	Corte string `json:"corte,omitempty"`
 }
 
 // accumulate sums one invocation's usage into the run's total. A cost that
@@ -301,7 +304,15 @@ type Meta struct {
 	// whether a run another process owns is still alive uses it (plus 5
 	// minutes); 0 = an older sidecar, which uses the Manager's.
 	TimeoutS int `json:"timeout_s,omitempty"`
+	// Corte is CorteTiempo when the run died by its timeout
+	// (autonomia-entre-firmas): `"corte": "tiempo"` in the sidecar, written
+	// with the close. Omitted for any other end (done, error, canceled).
+	Corte string `json:"corte,omitempty"`
 }
+
+// CorteTiempo is Meta.Corte (and Run.Corte) of a run that died by its
+// timeout. Same value as envelope.CorteTiempo.
+const CorteTiempo = "tiempo"
 
 // vivo says whether the run of meta still has someone working: its owner, or
 // the provider its owner left behind while its PID is still that provider

@@ -57,6 +57,19 @@ type Options struct {
 	Started func()
 	// Pilot marks an envelope the cabin's belt launched: its record says so.
 	Pilot bool
+
+	// autonomia-entre-firmas: what the envelope's record keeps for the
+	// pilot. Columna is the card's column at the launch (lanzar sets it);
+	// with it the record carries `columna` and `pedido` (Prompt, the text
+	// the role received). Regla, Intento, Ronda, Hallazgos and Bloqueantes
+	// go to the record's keys of the same name (envelope.Record) as given;
+	// only the pilot sets them. None of them changes what the envelope does.
+	Columna     string
+	Regla       string
+	Intento     int
+	Ronda       int
+	Hallazgos   []string
+	Bloqueantes int
 }
 
 // Result is the envelope's answer, identical in text and in JSON.
@@ -105,6 +118,17 @@ type Isolation struct {
 // envelope is MEANT to report (an unapproved spec, a failing run, a violated
 // scope, a red verdict) come back as a Result with an exit code; only a
 // broken setup returns an error.
+//
+// autonomia-entre-firmas: for a role of shape codigo (today only the
+// writer), Run reads the task's protected tests (TestsProtegidos of root)
+// and photographs them in the task's tree (FotoProtegidos) BEFORE the run,
+// and the scope gate judges them through Policy.Protegidos (see
+// RuleTestsDelTestWriter); a test-writer envelope never protects against
+// itself. For a blind role the record keeps the paths its transplant
+// applied (envelope.Record.Trasplantados), also when it then closes red in
+// verify or check, or in scope for fuera-de-scope. A run that died by its
+// timeout leaves `corte: "tiempo"` in the record (envelope.CorteTiempo), and
+// the envelope closes as always (stage run, no-entregable).
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup(opt.Role)
 	if err != nil {

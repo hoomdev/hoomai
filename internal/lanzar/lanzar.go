@@ -51,6 +51,23 @@ type Request struct {
 	// terminal's valores: and → lines, the Studio's dialog). nil = nothing
 	// was shown (the belt).
 	Vista *Propuesta
+
+	// autonomia-entre-firmas: only the pilot sets these; the body of POST
+	// /launch does not change.
+	//
+	// Resume is the provider's session id the role's run resumes (the
+	// pilot's relevo-por-tiempo); "" = a new session. Delta asks the review
+	// to start where the task's newest chainable review ended (reviewcmd
+	// Options.Delta); only for the reviewer.
+	Resume string
+	Delta  bool
+	// Regla, Intento, Ronda, Hallazgos and Bloqueantes go to the launched
+	// envelope's record (envelope.Record) as given.
+	Regla       string
+	Intento     int
+	Ronda       int
+	Hallazgos   []string
+	Bloqueantes int
 }
 
 // Propuesta is what a card's action proposes: the role it launches, its
@@ -304,6 +321,15 @@ func tomarCandados(p Params, slug string) (func(), error) {
 // record is on disk, with a *Rechazo when the launch did not happen, or when
 // ctx is done (the job then goes on by itself). A job that ended before its
 // first record comes back too, already ended, next to its *Rechazo.
+//
+// autonomia-entre-firmas: every envelope Lanzar launches has in its record
+// the card's column at the launch (envelope.Record.Columna) and the pedido
+// the role received (Record.Pedido), plus req's Regla, Intento, Ronda,
+// Hallazgos and Bloqueantes. A req with Pilot may name an action the card
+// does not offer a person (boardcmd.ActPedirRefutador, or a role action
+// outside the card's column inside a round of findings): Lanzar takes it
+// from boardcmd.Card.PilotAction, with the same checks as any other. A
+// provider without a USD cap launches without a budget, as today.
 func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, error) {
 	fail := func(code int, format string, args ...any) (*Trabajo, error) {
 		return nil, &Rechazo{Code: code, Motivo: fmt.Sprintf(format, args...)}

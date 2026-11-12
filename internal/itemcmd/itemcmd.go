@@ -46,8 +46,20 @@ const (
 	// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`), and for a
 	// slug that is not one, as show and save do. What Execute does is Set's
 	// contract.
+	//
+	// autonomia-entre-firmas: set also takes `--auto hasta-humano|no` and
+	// `--presupuesto-usd x`, combinable with --riesgo (Request.Auto,
+	// Request.PresupuestoUSD). Without any of the three it is the usage error
+	// `falta --riesgo, --auto o --presupuesto-usd: es lo que set cambia`
+	// (exit 2); a --presupuesto-usd that is not a number above 0 is the usage
+	// error `--presupuesto-usd tiene que ser un numero mayor que 0` (exit 2).
+	// What Execute does with them is SetCambios' contract.
 	SubSet = "set"
 )
+
+// AutoNo is the value of `hoom item set --auto` that removes the card's
+// `auto` key (the item never stores it).
+const AutoNo = "no"
 
 // UsageText is the exact usage block of `hoom item` and the single source of
 // that text.
@@ -102,8 +114,14 @@ type Request struct {
 	Slug  string     // show, save, set
 	// Riesgo is set's --riesgo, already checked against riesgo.Vocabulario.
 	Riesgo string
-	JSON   bool
-	DryRun bool // backfill
+	// Auto is set's --auto: item.AutoHastaHumano or AutoNo, "" = not given
+	// (autonomia-entre-firmas).
+	Auto string
+	// PresupuestoUSD is set's --presupuesto-usd, already checked to be a
+	// finite number above 0; nil = not given.
+	PresupuestoUSD *float64
+	JSON           bool
+	DryRun         bool // backfill
 }
 
 // SetResult is what `hoom item set` did, identical in text and JSON
@@ -117,6 +135,16 @@ type SetResult struct {
 	// Cambio says whether the item's file was written (false when the card
 	// already had that riesgo). Not part of the JSON.
 	Cambio bool `json:"-"`
+	// autonomia-entre-firmas: the card's auto and presupuesto_usd AFTER the
+	// set (SetCambios), in the JSON only when the card has them: `"auto":
+	// "hasta-humano"` and `"presupuesto_usd": <x>`. A set of --riesgo alone
+	// emits exactly the JSON of before.
+	Auto           string   `json:"auto,omitempty"`
+	PresupuestoUSD *float64 `json:"presupuesto_usd,omitempty"`
+	// AutoAntes and PresupuestoAntes are the values before the set; not part
+	// of the JSON.
+	AutoAntes        string   `json:"-"`
+	PresupuestoAntes *float64 `json:"-"`
 }
 
 // Set is `hoom item set <slug> --riesgo r`: it changes only the riesgo of
@@ -174,6 +202,32 @@ func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
 		return SetResult{}, err
 	}
 	return SetResult{Slug: slug, Antes: antes, Riesgo: r, Cambio: cambio}, nil
+}
+
+// SetCambios is `hoom item set <slug>` with any combination of --riesgo,
+// --auto and --presupuesto-usd (autonomia-entre-firmas): Set's contract for
+// all three keys, in ONE write of the same item Set writes in
+// (item.ArbolDelRiesgo: the main checkout's when it has the item, else this
+// tree's), committing nothing. c carries what was given (nil fields are not
+// changed; Auto "" removes the key, the item side of `--auto no`).
+//
+// It refuses, writing nothing, with these errors (exit 1 in the CLI), in
+// this order:
+//
+//   - rol not empty and c changes auto or presupuesto_usd:
+//     `el piloto automatico y el presupuesto de una tarjeta los cambia una persona, no un rol`;
+//     rol not empty and c changes only the riesgo: Set's
+//     `el riesgo de una tarjeta lo cambia una persona, no un rol`;
+//   - no item slug: `no existe el item "<slug>"`;
+//   - the card in Hecho: `la tarjeta ya esta en Hecho`;
+//   - auto hasta-humano on an item that would stay without presupuesto_usd
+//     (it has none and c brings none): item.ErrAutoSinPresupuesto,
+//     `--auto necesita --presupuesto-usd: el piloto automatico no corre sin tope`.
+//
+// The SetResult carries the riesgo before and after (as Set's), the auto
+// and presupuesto_usd after, the ones before, and Cambio.
+func SetCambios(root, base, blockOn, slug string, c item.Cambios, rol string) (SetResult, error) {
+	return SetResult{}, nil
 }
 
 // BackfillResult is what `hoom item backfill` did, or would do with
@@ -611,6 +665,24 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 		res.Commits = append(res.Commits, SaveCommit{Dir: tr.rel, SHA: sha, Paths: tr.paths})
 	}
 	return res, nil
+}
+
+// SaveTarea is the pilot's save (autonomia-entre-firmas): it commits what the
+// card's task worktree has unsaved, everything in it, in that worktree on its
+// branch hoom/<slug>, with SaveMessage(slug), and nothing else. root is the
+// project (the main checkout). It never commits in the main checkout (the
+// item changed with `hoom item set` stays for `hoom item save`) and never
+// pushes. With nothing to save it commits nothing: a SaveResult with no
+// Commits. Its one commit, when there is one, is SaveResult.Commits[0], with
+// Dir relative to root.
+//
+// It refuses, committing nothing, with Save's errors: a card without its
+// task's worktree, a worktree off its branch or with a detached HEAD
+// (runcmd.TaskDir's error), a job running on the card
+// (`espera a que termine <quien> que esta trabajando`) or an agent starting
+// in it.
+func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
+	return SaveResult{}, nil
 }
 
 // tareaDe is the task whose worktree root is (<principal>/.hoom/worktrees/

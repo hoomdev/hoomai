@@ -92,6 +92,12 @@ func build(g *gatherer) (Board, error) {
 }
 
 // CardFor derives the card of one item.
+//
+// The card's item takes riesgo, auto and presupuesto_usd from the item of
+// the project's main checkout when it has one, and from the item of root
+// otherwise (autonomia-entre-firmas: `auto` and `presupuesto_usd` are read
+// like the riesgo, item.ArbolDelRiesgo), so a `hoom item set` the pilot has
+// not saved counts at once from the task's worktree too.
 func CardFor(root, base, blockOn, slug string, now time.Time) (Card, error) {
 	it, err := loadItem(root, slug)
 	if err != nil {

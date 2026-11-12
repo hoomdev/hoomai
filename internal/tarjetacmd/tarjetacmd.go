@@ -1143,6 +1143,8 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 			return v.falla(err.Error())
 		}
 		fmt.Fprintf(v.e.Out, "aprobado: %s (sha256 %s)\n", spec, corto(rec.SHA256, 8))
+		// autonomia-entre-firmas: signing launches nothing; a card with a
+		// pilot gets the line of pilotocmd.AvisoDeFirma here
 		return 0
 	}
 	if err := taskcmd.Done(d.Root, d.Slug, m.BaseBranch, false); err != nil {

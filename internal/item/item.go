@@ -517,6 +517,39 @@ func SetRiesgo(root, slug, r string) (antes string, cambio bool, err error) {
 	return antes, cambio, err
 }
 
+// Cambios are the keys `hoom item set` changes, in one write
+// (autonomia-entre-firmas). A nil field is left as it is.
+type Cambios struct {
+	// Riesgo is one of riesgo.Vocabulario; riesgo.Normal removes the key.
+	Riesgo *string
+	// Auto is AutoHastaHumano, or "" to remove the key (`--auto no`).
+	Auto *string
+	// PresupuestoUSD is the card's cap in USD: a finite number above 0.
+	PresupuestoUSD *float64
+}
+
+// ErrAutoSinPresupuesto is Cambiar's refusal to leave `auto: hasta-humano`
+// on an item without presupuesto_usd: its text is item add's,
+// `--auto necesita --presupuesto-usd: el piloto automatico no corre sin tope`.
+var ErrAutoSinPresupuesto = errors.New("--auto necesita --presupuesto-usd: el piloto automatico no corre sin tope")
+
+// Cambiar applies c to the item slug of root in ONE read-modify-write, under
+// the item's lock, keeping every other key (the file is rewritten the way
+// hoom writes it). antes and despues are the item before and after; cambio
+// says whether the file was written (false when c changes nothing). It
+// refuses, writing nothing:
+//
+//   - a value outside its vocabulary (Riesgo: riesgo.Validar's error; Auto:
+//     Validate's `auto "<a>" fuera del vocabulario (hasta-humano)`) or a
+//     PresupuestoUSD that is not a finite number above 0;
+//   - with ErrAutoSinPresupuesto, when the item would end with Auto set and
+//     no presupuesto_usd (it had none and c brings none);
+//   - an item that does not exist: an error that wraps os.ErrNotExist; an
+//     unreadable or invalid one: its error.
+func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, err error) {
+	return Item{}, Item{}, false, nil
+}
+
 // update is the one read-modify-write of an item, under the item's lock
 // (hoomfs.Lock: CLI and Studio alike), so a close and a session written at
 // once never lose each other. change says whether there is anything to

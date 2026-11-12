@@ -42,7 +42,55 @@ const (
 	// manipulacion, y por la misma razon: certificar un arbol donde el rol
 	// pudo mirar lo que no debia seria certificar la trampa.
 	RuleIsolation = "aislamiento"
+	// RuleTestsDelTestWriter (autonomia-entre-firmas): a role of shape
+	// codigo (the writer) changed, removed or renamed a protected test of
+	// its task (Policy.Protegidos). It cuts like RuleTampering: the envelope
+	// closes in scope, no-entregable, exit 1, with no verify, and its note
+	// is NotaTestsDelTestWriter — or the tampering note when the same run
+	// also tampered with the evidence. Its Violation.Detail is
+	// DetalleTestsDelTestWriter, so its finding (high, author
+	// `hoom gate de scope`, the gate's usual format) says
+	// `tests-del-test-writer: el rol <rol> escribio <ruta> - los tests del test-writer no los cambia el writer: pide de nuevo al test-writer`.
+	RuleTestsDelTestWriter = "tests-del-test-writer"
 )
+
+// NotaTestsDelTestWriter is the note of an envelope cut by
+// RuleTestsDelTestWriter.
+const NotaTestsDelTestWriter = "el writer toco los tests del test-writer: no se emite veredicto sobre este arbol"
+
+// DetalleTestsDelTestWriter is the Detail of a RuleTestsDelTestWriter
+// violation.
+const DetalleTestsDelTestWriter = "los tests del test-writer no los cambia el writer: pide de nuevo al test-writer"
+
+// Protegidos are a task's protected tests as the envelope read them from the
+// task's tree BEFORE the run (FotoProtegidos): path relative to that tree,
+// with "/" -> what the gate compares, the same Huellas the disk floor uses
+// (the sha256 of a regular file's content, HuellaNoRegular or
+// HuellaIlegible), or ProtegidoAusente for a path that was not on disk.
+type Protegidos map[string]string
+
+// ProtegidoAusente is the Protegidos entry of a protected test that was not
+// on disk when it was photographed.
+const ProtegidoAusente = "-"
+
+// FotoProtegidos photographs the protected tests rutas in the tree dir: one
+// entry per path, read from the disk (never from git), without following a
+// symlink. An empty rutas is an empty Protegidos.
+func FotoProtegidos(dir string, rutas []string) Protegidos {
+	return Protegidos{}
+}
+
+// TestsProtegidos are the protected tests of task in the project root: the
+// union, sorted and without repeats, of Trasplantados of every envelope
+// record of role test-writer whose Task is task (envelope.Record,
+// .hoom/envelopes/ of root). Records without the key (older than
+// autonomia-entre-firmas) add nothing, so a task whose test-writer
+// envelopes have none protects nothing. task "" protects nothing. The error
+// is ListErr's: an envelopes directory hoom cannot read, or a record it
+// could not read, is not "nothing protected".
+func TestsProtegidos(root, task string) ([]string, error) {
+	return nil, nil
+}
 
 // Blind is the evidence of an isolated run: what the blind tree gave back and
 // what the role wrote outside its quarantine.
@@ -71,7 +119,7 @@ const ratchetPath = ".hoom/" + ratchet.FileName
 // Violation is one path the role should not have written.
 type Violation struct {
 	Path      string `json:"path"`
-	Rule      string `json:"rule"` // manipulacion | fuera-de-scope
+	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer
 	Detail    string `json:"detail"`
 	FindingID string `json:"finding_id,omitempty"`
 }
@@ -86,7 +134,8 @@ type ScopeResult struct {
 
 // Cuts reports whether the tree does not deserve a verdict at all. Writing
 // outside the role's territory is information; moving the demand itself, or
-// undoing the blindfold, is not.
+// undoing the blindfold, is not. Neither is changing the test-writer's tests
+// (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too.
 func (s ScopeResult) Cuts() bool { return s.Tampering || s.Broken() }
 
 // Delivered is what the run changed that counts as the role's work: Touched
@@ -277,7 +326,18 @@ func hoomOwn(p string) bool { return hoomfs.IsLocal(p) }
 
 // Policy is where a role may write, already resolved: the shape's defaults
 // re-aimed by the project's manifest.
-type Policy struct{ Allow, Deny []string }
+type Policy struct {
+	Allow, Deny []string
+	// Protegidos (autonomia-entre-firmas) are the task's protected tests,
+	// photographed before the run (FotoProtegidos). For a role of shape
+	// codigo, Gate compares each one with the disk of dir after the run: one
+	// that changed or is gone (removed or renamed, committed or not) is a
+	// RuleTestsDelTestWriter violation on that path, whatever Allow says
+	// (agents.<rol>.write of hoom.yaml cannot lift it). A role of any other
+	// shape ignores it. PolicyFor never fills it: whoever runs the envelope
+	// does (agentcmd.Run, with TestsProtegidos); nil = nothing protected.
+	Protegidos Protegidos
+}
 
 // defaultAllow / defaultDeny per scope shape. The test globs cover the usual
 // layouts of the four profiles; a project with another one declares its own

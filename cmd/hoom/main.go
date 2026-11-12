@@ -30,6 +30,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/initcmd"
 	"github.com/hoomdev/hoomai/internal/itemcmd"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/pilotocmd"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/ratchet"
@@ -310,6 +311,10 @@ func main() {
 	case "usar", "pedir", "siguiente", "aprobar", "integrar", "guardar", "reanudar":
 		// the card verbs own their exit codes: 0, 1, 2 or the envelope's
 		os.Exit(tarjetacmd.Run(cmd, args, tarjetacmd.Real()))
+	case "piloto":
+		// the pilot of a card in the foreground (autonomia-entre-firmas): it
+		// owns its exit code, 0 in a human column or Hecho, 1 otherwise
+		os.Exit(pilotocmd.Run(args, pilotocmd.Real()))
 	case "profiles":
 		for _, line := range profiles.Describe() {
 			fmt.Println(line)
@@ -1127,6 +1132,9 @@ func cmdSpec(args []string) error {
 	sub, path := args[0], args[1]
 	switch sub {
 	case "approve":
+		// autonomia-entre-firmas: approving launches nothing; when the card
+		// of this spec has a pilot, the line pilotocmd.AvisoDeFirma gives
+		// goes after the approval's own lines
 		rec, already, err := approval.Approve(m.Dir, path)
 		if err != nil {
 			return err

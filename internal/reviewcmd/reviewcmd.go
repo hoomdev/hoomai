@@ -112,6 +112,17 @@ type Options struct {
 	// Delta (--delta) starts where the task's newest chainable review ended
 	// (its hasta). Never together with Desde.
 	Delta bool
+
+	// autonomia-entre-firmas: the same contract as the fields of the same
+	// name of agentcmd.Options. They go to the review's envelope record
+	// (envelope.Record) as given and change nothing the review does; a lens
+	// run that dies by its timeout leaves `corte: "tiempo"` in that record.
+	Columna     string
+	Regla       string
+	Intento     int
+	Ronda       int
+	Hallazgos   []string
+	Bloqueantes int
 }
 
 // The coverage a review record claims: what the chain of reviews it belongs

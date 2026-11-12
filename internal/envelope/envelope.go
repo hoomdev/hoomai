@@ -84,7 +84,44 @@ type Record struct {
 	// envelope, not a person.
 	Pilot   bool      `json:"piloto,omitempty"`
 	EndedAt time.Time `json:"ended_at,omitempty"`
+
+	// spec autonomia-entre-firmas: what the record keeps so the pilot
+	// (boardcmd.Piloto) decides from the disk alone. Every key is omitted
+	// when empty: a record of an older hoom has none of them.
+
+	// Trasplantados are the paths the transplant of a blind role (the
+	// test-writer) APPLIED to the task's tree: sorted, with "/", relative to
+	// that tree. The paths it removed are not here. Written whenever there
+	// was a transplant, also when the envelope then closed red in verify or
+	// check, or in scope for fuera-de-scope. An envelope without a transplant
+	// (the run failed, the scope cut, nothing to transplant) has no key. The
+	// union over a task's test-writer envelopes is the task's protected
+	// tests (agentcmd.TestsProtegidos).
+	Trasplantados []string `json:"trasplantados,omitempty"`
+	// Corte is CorteTiempo when the role's run died by its timeout (the
+	// close does not change: stage run, no-entregable); "" for any other
+	// end.
+	Corte string `json:"corte,omitempty"`
+	// Columna is the card's column when lanzar launched the envelope, and
+	// Pedido the text the role received. Every envelope lanzar launches
+	// carries both; a direct `hoom agent` has no Columna.
+	Columna string `json:"columna,omitempty"`
+	Pedido  string `json:"pedido,omitempty"`
+	// Regla is the rule of the pilot that launched it (boardcmd.Regla*), and
+	// Intento, Ronda and Hallazgos the attempt, the round of findings and the
+	// finding ids that step received, when the rule has them. Bloqueantes
+	// is how many findings blocked when a round started, only in the first
+	// envelope of each round. Only envelopes the pilot launches carry them.
+	Regla       string   `json:"regla,omitempty"`
+	Intento     int      `json:"intento,omitempty"`
+	Ronda       int      `json:"ronda,omitempty"`
+	Hallazgos   []string `json:"hallazgos,omitempty"`
+	Bloqueantes int      `json:"bloqueantes,omitempty"`
 }
+
+// CorteTiempo is Record.Corte (and runcmd.Meta.Corte) of a run that died by
+// its timeout: `"corte": "tiempo"`.
+const CorteTiempo = "tiempo"
 
 // Done reports a record that reached an end. Anything else is still "en
 // curso" — which does NOT mean alive: whoever reads it decides how much to
