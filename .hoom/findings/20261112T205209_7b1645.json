@@ -1,0 +1,11 @@
+{
+  "id": "20261112T205209_7b1645",
+  "created_at": "2026-11-12T20:52:09.970822237Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1165: correrConTope captura stdout y stderr por pipes y goroutines separados y luego ambos escriben en la misma cola; ese orden depende del scheduler, no del orden en que el proceso emitio los bytes. En un git/filtro ruidoso que escribe el diagnostico final a stderr, bytes anteriores aun pendientes en stdout pueden entrar despues y expulsarlo de los ultimos 64 KiB, dejando al piloto sin la causa del fallo. Evidencia reproducible: go test ./internal/itemcmd -run 'TestWriterD49489GitTopeConservaElFinalDeLaSalida$' -count=100 falla porque la salida de 65535 bytes termina en ruido y perdio 'el diagnostico del final'.",
+  "author": "reviewer@codex",
+  "fingerprint": "d40ade54db36cd4c",
+  "task": "autonomia-entre-firmas"
+}

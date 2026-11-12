@@ -1,0 +1,84 @@
+{
+  "id": "20261112T205403_ec8cf3",
+  "created_at": "2026-11-12T20:54:03.751449496Z",
+  "task": "autonomia-entre-firmas",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md",
+  "fingerprint": "d40ade54db36cd4c",
+  "verdict_id": "2026-11-12T20-32-35Z_3ed88031",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261112T203544_64fc3f",
+    "20261112T204029_1d9e67",
+    "20261112T205209_7b1645",
+    "20261112T205346_bdf339",
+    "20261112T205353_d6b391"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 91570,
+  "evidence_sha256": "862b02ec3189c59d2f791617e306ef1b6d264d443983aec5bb32e61ee8806b8e",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 365147,
+      "cached_input_tokens": 312448,
+      "output_tokens": 7850,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 1714961,
+      "cached_input_tokens": 1635328,
+      "output_tokens": 16619,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1770862,
+      "cached_input_tokens": 1691520,
+      "output_tokens": 17374,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 484465,
+      "cached_input_tokens": 437504,
+      "output_tokens": 4508,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261112T203325_c1f75a"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261112T203600_2587dc"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261112T204131_988105"
+    },
+    {
+      "lens": "readability",
+      "run": "20261112T205228_cfdd1c"
+    }
+  ],
+  "desde": "b72f54b9c8433a1c036595a324164982e5265a65",
+  "hasta": "33eeda70829c67cbdc20a0ec8351e71a54049bf2",
+  "cobertura": "parcial",
+  "base": "main",
+  "riesgo": "normal"
+}

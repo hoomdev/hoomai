@@ -1,0 +1,11 @@
+{
+  "id": "20261112T205346_bdf339",
+  "created_at": "2026-11-12T20:53:46.961641137Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:825 y :843 conservan base y blockOn en SaveTarea y SaveTareaBajoCandado aunque la nueva implementacion no los usa (el propio comentario en :824 lo reconoce). Los tres llamadores deben seguir pasando valores irrelevantes, lo que hace parecer que la configuracion del manifest afecta el guardado y deja una API obsoleta; elimina esos parametros y actualiza los llamadores.",
+  "author": "reviewer@codex",
+  "fingerprint": "d40ade54db36cd4c",
+  "task": "autonomia-entre-firmas"
+}
