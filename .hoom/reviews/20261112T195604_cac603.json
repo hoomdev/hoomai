@@ -1,0 +1,87 @@
+{
+  "id": "20261112T195604_cac603",
+  "created_at": "2026-11-12T19:56:04.420510975Z",
+  "task": "autonomia-entre-firmas",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md",
+  "fingerprint": "bd8198506f559f43",
+  "verdict_id": "2026-11-12T19-40-30Z_f538c393",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261112T194423_54fa4e",
+    "20261112T194429_6a9759",
+    "20261112T194857_ce5f39",
+    "20261112T195146_5c3780",
+    "20261112T195211_d49489",
+    "20261112T195251_ccf2ee",
+    "20261112T195553_094f00",
+    "20261112T195553_64eb6d"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 68529,
+  "evidence_sha256": "65a080714dbe947b42b4f01a9363ff3d149b5fa5b90abb6137c4dc5a54c3b0fa",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 760398,
+      "cached_input_tokens": 695552,
+      "output_tokens": 12885,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 1225476,
+      "cached_input_tokens": 1152768,
+      "output_tokens": 12452,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1077067,
+      "cached_input_tokens": 1010432,
+      "output_tokens": 14794,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 328061,
+      "cached_input_tokens": 289152,
+      "output_tokens": 5165,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261112T194052_c44f5a"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261112T194503_e51d8f"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261112T194926_20407c"
+    },
+    {
+      "lens": "readability",
+      "run": "20261112T195416_16954c"
+    }
+  ],
+  "desde": "669fa6b751c9900f95d09dcdf5a5b1829ba169f3",
+  "hasta": "b72f54b9c8433a1c036595a324164982e5265a65",
+  "cobertura": "parcial",
+  "base": "main",
+  "riesgo": "normal"
+}

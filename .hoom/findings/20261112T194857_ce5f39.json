@@ -1,0 +1,11 @@
+{
+  "id": "20261112T194857_ce5f39",
+  "created_at": "2026-11-12T19:48:57.261274559Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO — internal/pilotocmd/pilotocmd.go:443: si la relectura de cerrar-hallazgos encuentra que una persona movio la tarjeta a una columna humana o a Hecho, PilotoNoSigue devuelve esa causa pero linea 444 la envuelve con parada(), que deja Caso=0; detener solo asigna exit 0 a Caso=3 (lineas 262-272), por lo que hoom piloto termina con exit 1 aunque CA-647 exige exit 0 al detenerse en una columna humana o en Hecho. El test nuevo solo cubre --auto no y no alcanza estas dos ramas.",
+  "author": "reviewer@codex",
+  "fingerprint": "bd8198506f559f43",
+  "task": "autonomia-entre-firmas"
+}

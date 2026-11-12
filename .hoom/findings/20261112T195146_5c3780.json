@@ -1,0 +1,11 @@
+{
+  "id": "20261112T195146_5c3780",
+  "created_at": "2026-11-12T19:51:46.99788244Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:445 convierte el resultado de PilotoNoSigue en parada(why), que deja Caso=0; detener (lineas 264-273) solo asigna exit 0 cuando Caso==3. Si, entre la decision de cerrar-hallazgos y esta relectura bajo candado, una persona cierra/resuelve lo necesario y la tarjeta llega a Tu aceptacion o Hecho, el paso se detiene sin tocar hallazgos pero hoom piloto sale 1, aunque CA-647 exige exit 0 para una detencion en columna humana o Hecho. Es una carrera rara sin perdida de datos; el helper devuelve solo texto y el llamador pierde la clase de detencion.",
+  "author": "reviewer@codex",
+  "fingerprint": "bd8198506f559f43",
+  "task": "autonomia-entre-firmas"
+}

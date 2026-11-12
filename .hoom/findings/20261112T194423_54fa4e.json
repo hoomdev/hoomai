@@ -1,0 +1,11 @@
+{
+  "id": "20261112T194423_54fa4e",
+  "created_at": "2026-11-12T19:44:23.752877767Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este rango): internal/itemcmd/itemcmd.go:1019-1029 reconoce que algo puede salir del grupo y limita solo la lectura, mientras ArrancarConGracia mata por grupo de procesos. Un hook puede lanzar 'setsid sh -c ... \u0026' y sobrevivir al timeout; gitTope retorna y libera los candados aunque ese hijo siga escribiendo el worktree. Esto incumple CA-644 y permite corrupción o pérdida de trabajo después de que el guardado ya informó el fallo.",
+  "author": "reviewer@codex",
+  "fingerprint": "bd8198506f559f43",
+  "task": "autonomia-entre-firmas"
+}

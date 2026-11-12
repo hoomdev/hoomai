@@ -1,0 +1,11 @@
+{
+  "id": "20261112T194429_6a9759",
+  "created_at": "2026-11-12T19:44:29.925261835Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este rango): internal/pilotocmd/pilotocmd.go:438-447 relee la tarjeta y comprueba PilotoNoSigue, pero no mantiene el candado item-\u003cslug\u003e que usa hoom item set. Una persona puede ejecutar --auto no justo después de esa comprobación y antes del primer finding.Resolve; el piloto cerrará hallazgos y continuará verify/save pese a que se apagó el control automático. Es una carrera provocable que salta la autoridad humana sobre auto y altera evidencia append-only.",
+  "author": "reviewer@codex",
+  "fingerprint": "bd8198506f559f43",
+  "task": "autonomia-entre-firmas"
+}
