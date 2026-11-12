@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T195251_ccf2ee",
+  "as": "corregido",
+  "evidence": "commit d680690; test TestHallazgos54fa4e_ccf2ee_CA644_ElGuardadoDelPilotoNoCorreHooks (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T20:27:52.676257735Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T194857_ce5f39",
+  "as": "corregido",
+  "evidence": "commit f617870; test TestHallazgosCe5f39_5c3780_CA647_CA656_SiLaTarjetaPasaAUnaColumnaHumanaSaleCon0 (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T20:27:52.66684648Z"
+}
