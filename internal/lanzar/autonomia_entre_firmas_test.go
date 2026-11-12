@@ -27,6 +27,18 @@ func aelLanzar(t *testing.T, req lanzar.Request) (map[string]any, envelope.Recor
 	t.Helper()
 	r1Claude(t)
 	root, m := vdtProyecto(t)
+	if req.Pilot {
+		// aclaracion 13: el piloto solo lanza sobre un item con
+		// `auto: hasta-humano` (y su presupuesto_usd).
+		item := filepath.Join(root, ".hoom", "items", "precios.yaml")
+		raw, err := os.ReadFile(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vdtEscribir(t, root, ".hoom/items/precios.yaml", string(raw)+"presupuesto_usd: 5\nauto: hasta-humano\n")
+		vdtGit(t, root, "add", "-A")
+		vdtGit(t, root, "commit", "-q", "-m", "piloto automatico en precios")
+	}
 	antes, err := boardcmd.CardFor(root, "main", "", "precios", time.Now().UTC())
 	if err != nil || antes.Column != boardcmd.ColBacklog {
 		t.Fatalf("fixture: la tarjeta precios esta en Backlog: %q %v", antes.Column, err)
