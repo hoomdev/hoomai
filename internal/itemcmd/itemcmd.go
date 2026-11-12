@@ -441,7 +441,8 @@ func parseSet(args []string) (Request, error) {
 	auto := fs.String("auto", "", "piloto automatico: hasta-humano|no")
 	presupuesto := fs.String("presupuesto-usd", "", "tope de gasto en USD")
 	asJSON := fs.Bool("json", false, "emitir el resultado como JSON")
-	ops, err := cliargs.Operands(fs, args, "item set", UsageText, 1)
+	// an empty --presupuesto-usd is not a number above 0: set says so
+	ops, err := cliargs.OperandsVacios(fs, args, "item set", UsageText, 1, "presupuesto-usd")
 	if err != nil {
 		return Request{}, err
 	}
