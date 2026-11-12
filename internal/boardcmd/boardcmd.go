@@ -234,6 +234,11 @@ type Card struct {
 // PilotAction returns the card's pilot action with that id (one of
 // PilotActions), if it has it.
 func (c Card) PilotAction(id string) (Action, bool) {
+	for _, a := range c.PilotActions {
+		if a.ID == id {
+			return a, true
+		}
+	}
 	return Action{}, false
 }
 

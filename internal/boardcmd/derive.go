@@ -50,6 +50,7 @@ func Derive(ev Evidence) Card {
 	c.Providers = crewOf(ev, c.Evidence.ReviewID)
 	c.Providers.Declared = declaredOf(ev)
 	c.Actions = actionsOf(ev, c)
+	c.PilotActions = pilotActionsOf(ev, c)
 	c.Drops = dropsOf(c)
 	c.Ghost = ghostOf(c)
 	c.Doctor = DoctorOf(ev, c)

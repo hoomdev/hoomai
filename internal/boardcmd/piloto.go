@@ -1,10 +1,15 @@
 package boardcmd
 
 import (
+	"fmt"
+	"math"
+	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
@@ -152,7 +157,582 @@ type Sobre struct {
 // or the `pedido` of the envelope it repeats. Lists inside a Why or a pedido
 // (<gates>, <ids>, <rutas>) are joined with ", ".
 func Piloto(e Estado) PilotDecision {
-	return PilotDecision{}
+	p := piloto{e: e, c: e.Tarjeta}
+	return p.decidir()
+}
+
+// tablaPiloto is the pilot's table of columns (autonomia-entre-firmas):
+// PilotTable without the Arquitecto column.
+var tablaPiloto = map[string]string{
+	ColTestWriter: ActPedirTestWriter,
+	ColWriter:     ActPedirWriter,
+	ColReview:     ActPedirReviewer,
+}
+
+// accionDeRol is the pedir-* action that launches each role the pilot
+// launches.
+var accionDeRol = map[string]string{
+	"test-writer": ActPedirTestWriter,
+	"writer":      ActPedirWriter,
+	"reviewer":    ActPedirReviewer,
+	"refutador":   ActPedirRefutador,
+}
+
+// The gates of the expected red of the test-writer.
+var gatesDelSpec = []string{"spec_lint", "spec_trace", "spec_approved"}
+
+// gateHallazgos is the gate a round of findings closes (finding.GateName).
+const gateHallazgos = finding.GateName
+
+// piloto is one decision of Piloto: the Estado and its card.
+type piloto struct {
+	e Estado
+	c Card
+}
+
+// lanzamiento is what a launch of the pilot asks, before cases 12 to 14.
+type lanzamiento struct {
+	caso        int
+	accion      string
+	provider    string // "" = the cadena's choice
+	regla       string
+	pedido      string
+	intento     int
+	ronda       int
+	resume      string
+	delta       bool
+	hallazgos   []string
+	bloqueantes int
+}
+
+func parar(caso int, why string) PilotDecision {
+	return PilotDecision{Paso: PasoDetenerse, Why: why, Caso: caso}
+}
+
+func (p piloto) nombreColumna() string {
+	for _, col := range Columns {
+		if col.ID == p.c.Column {
+			return col.Name
+		}
+	}
+	return p.c.Column
+}
+
+func (p piloto) ultimo() (Sobre, bool) {
+	if len(p.e.Sobres) == 0 {
+		return Sobre{}, false
+	}
+	return p.e.Sobres[len(p.e.Sobres)-1], true
+}
+
+func rolDe(rec envelope.Record) string {
+	if rec.Role == "" {
+		return "rol"
+	}
+	return rec.Role
+}
+
+// noEntregable is the Why of Pilot's case 2 (the spec's case 8).
+func noEntregable(rec envelope.Record) string {
+	status := rec.Status
+	if status == "" {
+		status = "sin cerrar"
+	}
+	return "el trabajo del " + rolDe(rec) + " no cerro entregable (" + status + "): el piloto se detiene ante un rojo"
+}
+
+func (p piloto) decidir() PilotDecision {
+	c := p.c
+	if c.Item.Auto != item.AutoHastaHumano {
+		return parar(1, "el piloto automatico no esta activado en la tarjeta")
+	}
+	if c.Running != nil || c.Interrupted != nil {
+		return parar(2, "la tarjeta tiene otro trabajo en curso o interrumpido")
+	}
+	if c.Column == ColHecho {
+		return parar(3, "la tarjeta llego a Hecho: no queda trabajo")
+	}
+	if isHumanColumn(c.Column) {
+		return parar(3, "la tarjeta llego a "+p.nombreColumna()+": le toca a una persona")
+	}
+	if c.Evidence.Source != SourceWorktree {
+		return parar(4, "el piloto corre en el espacio de trabajo de la tarjeta: abre la tarea con hoom task start "+c.Slug)
+	}
+	last, hay := p.ultimo()
+	// the newest envelope counts as entregable and leaves the card out of
+	// red for cases 8 to 11: the test-writer's expected red, or the one
+	// that ends a round
+	pasa := false
+	if hay {
+		if last.Record.Corte == envelope.CorteTiempo {
+			return p.relevo(last)
+		}
+		if p.e.Politica.ReintentosAnteRojo == 1 && last.Record.Role == "writer" && last.Record.Ronda == 0 &&
+			enVerifyOCheck(last.Record) && rojo(last) {
+			return p.reintento(last)
+		}
+		if p.e.Politica.RondasDeHallazgos > 0 &&
+			((last.Record.Role == "reviewer" && len(p.e.Bloqueantes) > 0) || last.Record.Ronda > 0) {
+			d, sigue := p.ronda(last)
+			if !sigue {
+				return d
+			}
+			pasa = true
+		}
+		pasa = pasa || rojoEsperado(last)
+		if !pasa && last.Record.Status != envelope.StatusDeliverable {
+			return parar(8, noEntregable(last.Record))
+		}
+	}
+	if c.Red != nil && !pasa {
+		return parar(9, "la tarjeta esta en rojo: "+c.Red.Plain)
+	}
+	name := p.nombreColumna()
+	if hay && last.Record.Columna != "" && columnIndex(c.Column) <= columnIndex(last.Record.Columna) {
+		return parar(10, "la tarjeta no avanzo (sigue en "+name+"): el piloto no reintenta")
+	}
+	want, enTabla := tablaPiloto[c.Column]
+	if !enTabla || len(c.Actions) == 0 || c.Actions[0].ID != want {
+		return parar(11, "lo que sigue en "+name+" no esta en la tabla del piloto: le toca a una persona")
+	}
+	a := c.Actions[0]
+	if hay && a.Role == last.Record.Role {
+		return parar(11, "seria volver a pedirle al "+rolDe(last.Record)+": el piloto no reintenta")
+	}
+	if !a.Enabled {
+		return parar(11, a.Why)
+	}
+	l := lanzamiento{accion: a.ID, regla: ReglaCadena, pedido: a.Pedido}
+	if a.Role == "reviewer" {
+		l.pedido = ""
+		l.delta = strings.Contains(c.Next, "--delta")
+	}
+	return p.lanzar(l, a)
+}
+
+// accion is the card's action id: the one it offers a person or, if not,
+// its pilot action — the same lookup lanzar does.
+func (p piloto) accion(id string) (Action, bool) {
+	if a, ok := p.c.Action(id); ok {
+		return a, true
+	}
+	return p.c.PilotAction(id)
+}
+
+// lanzarRol launches l with the card's action of l.accion: a launch from
+// the cases 5, 6 and 7, which name their role and provider.
+func (p piloto) lanzarRol(l lanzamiento) PilotDecision {
+	a, ok := p.accion(l.accion)
+	if !ok {
+		return parar(11, "lo que sigue en "+p.nombreColumna()+" no esta en la tabla del piloto: le toca a una persona")
+	}
+	if !a.Enabled {
+		return parar(11, a.Why)
+	}
+	return p.lanzar(l, a)
+}
+
+// lanzar takes every launch through cases 12, 13 and 14.
+func (p piloto) lanzar(l lanzamiento, a Action) PilotDecision {
+	c := p.c
+	if c.Item.PresupuestoUSD == nil || a.BudgetUSD == nil {
+		return parar(12, "la tarjeta no tiene presupuesto: el piloto automatico solo corre con un tope")
+	}
+	ventana := p.e.Politica.VentanaMax != nil
+	conTope := func(o ProviderOption) bool { return o.OK && (o.Budget || ventana) }
+	var elegido *ProviderOption
+	elegir := func(name string) {
+		for i := range a.Providers {
+			if o := a.Providers[i]; elegido == nil && conTope(o) && o.Name == name {
+				elegido = &a.Providers[i]
+			}
+		}
+	}
+	if l.provider != "" {
+		elegir(l.provider)
+	} else {
+		if last, hay := p.ultimo(); hay {
+			elegir(last.Record.Provider)
+		}
+		for i := range a.Providers {
+			if elegido == nil && conTope(a.Providers[i]) {
+				elegido = &a.Providers[i]
+			}
+		}
+	}
+	if elegido == nil {
+		return parar(13, "ningun proveedor con tope de presupuesto puede tomar este trabajo")
+	}
+	if why := p.ventanaLlena(elegido.Name); why != "" {
+		return parar(14, why)
+	}
+	d := PilotDecision{
+		Launch: true, Paso: PasoLanzar, Action: a.ID, Role: a.Role, Provider: elegido.Name,
+		Pedido: l.pedido, Regla: l.regla, Intento: l.intento, Ronda: l.ronda, Resume: l.resume,
+		Delta: l.delta, Hallazgos: l.hallazgos, Bloqueantes: l.bloqueantes, Caso: l.caso,
+	}
+	if elegido.Budget {
+		d.BudgetUSD = *a.BudgetUSD
+	}
+	return d
+}
+
+// ventanaLlena is case 14: the newest current 5 h datum of provider at or
+// above ventana_max. A datum without its reset time, or whose reset already
+// passed, is not current: without one it launches.
+func (p piloto) ventanaLlena(provider string) string {
+	tope := p.e.Politica.VentanaMax
+	if tope == nil {
+		return ""
+	}
+	v, ok := p.e.Ventanas[provider]
+	if !ok || v.ReiniciaEn.IsZero() || !v.ReiniciaEn.After(p.e.Hora) {
+		return ""
+	}
+	if v.Fin < float64(*tope) {
+		return ""
+	}
+	return fmt.Sprintf("la ventana de 5h de %s va en %d%% (tope %d%%): el piloto espera; reinicia %s",
+		provider, int(math.Round(v.Fin)), *tope, v.ReiniciaEn.UTC().Format(time.RFC3339))
+}
+
+// relevo is case 5: the newest envelope's run died by its timeout.
+func (p piloto) relevo(last Sobre) PilotDecision {
+	rec := last.Record
+	rol := rolDe(rec)
+	k := 0
+	for _, s := range p.e.Sobres {
+		if s.Record.Role == rec.Role && s.Record.Corte == envelope.CorteTiempo {
+			k++
+		}
+	}
+	if k >= 2 {
+		clave := "agents." + rol + ".timeout"
+		if rec.Role == "reviewer" {
+			clave = "review.timeout"
+		}
+		return parar(5, "el "+rol+" se corto por tiempo dos veces: sube "+clave+" o parte la tarea")
+	}
+	accion, ok := accionDeRol[rec.Role]
+	if !ok {
+		return parar(5, noEntregable(rec))
+	}
+	l := lanzamiento{caso: 5, accion: accion, provider: rec.Provider, regla: ReglaRelevoPorTiempo,
+		intento: rec.Intento, ronda: rec.Ronda, hallazgos: copia(rec.Hallazgos)}
+	switch {
+	case rec.Role == "reviewer":
+		l.delta = rec.Delta
+	case !ciego(rec) && p.retoma(rec.Provider) && last.SesionID != "":
+		l.resume, l.pedido = last.SesionID, PedidoRelevo
+	case strings.TrimSpace(rec.Pedido) == "":
+		return parar(5, noEntregable(rec))
+	default:
+		l.pedido = rec.Pedido
+	}
+	return p.lanzarRol(l)
+}
+
+// ciego says whether the envelope's role runs blind.
+func ciego(rec envelope.Record) bool {
+	if rec.Isolated {
+		return true
+	}
+	r, err := agents.Lookup(rec.Role)
+	return err == nil && r.Isolated
+}
+
+// retoma says whether the provider declares Resume on this machine.
+func (p piloto) retoma(name string) bool {
+	for _, info := range p.e.Proveedores {
+		if info.Name == name {
+			return info.Capabilities.Resume
+		}
+	}
+	return false
+}
+
+// reintento is case 6: the writer's red, out of a round.
+func (p piloto) reintento(last Sobre) PilotDecision {
+	v := veredictoDe(last)
+	if v != nil {
+		for _, g := range v.Gates {
+			if g.Required && g.Status == verdict.StatusError {
+				return parar(6, "entorno: el gate "+g.Name+" no pudo correr: no se reintenta con modelos")
+			}
+		}
+	}
+	n := 0
+	for _, s := range p.e.Sobres {
+		if s.Record.Role == "writer" && s.Record.Ronda == 0 {
+			n++
+		}
+	}
+	id := last.Record.VerdictID
+	if v != nil && v.ID != "" {
+		id = v.ID
+	}
+	gates := gatesEnRojo(v)
+	if n >= 2 {
+		return parar(6, fmt.Sprintf("rojo final: %d intentos del writer y el veredicto %s sigue rojo en %s",
+			n, id, strings.Join(gates, ", ")))
+	}
+	return p.lanzarRol(lanzamiento{caso: 6, accion: ActPedirWriter, provider: last.Record.Provider,
+		regla: ReglaReintento, intento: 2, pedido: PedidoReintento(p.c.Slug, id, gates)})
+}
+
+// ronda is case 7. sigue is true when the round ends and the table goes
+// on (cases 8 onward, with the newest envelope counting as entregable).
+func (p piloto) ronda(last Sobre) (d PilotDecision, sigue bool) {
+	rec := last.Record
+	n := rec.Ronda
+	switch rec.Role {
+	case "reviewer":
+		if rec.Status != envelope.StatusDeliverable {
+			return parar(7, noEntregable(rec)), false
+		}
+		if len(p.e.Bloqueantes) > 0 {
+			return p.empezarRonda(), false
+		}
+		return PilotDecision{}, true
+	case "refutador":
+		if rec.Status != envelope.StatusDeliverable {
+			return parar(7, noEntregable(rec)), false
+		}
+		if len(p.e.Bloqueantes) == 0 {
+			return PilotDecision{}, true
+		}
+		return p.testWriterDeRonda(n, 0), false
+	case "test-writer":
+		if rojoEsperado(last) {
+			return p.lanzarConProvider(lanzamiento{caso: 7, accion: ActPedirWriter, regla: ReglaRondaWriter,
+				ronda: n, pedido: PedidoRondaWriter(n, p.c.Slug, rec.Trasplantados)}, "writer"), false
+		}
+		if v := veredictoDe(last); rec.Status == envelope.StatusDeliverable && v != nil && v.Verdict == "green" {
+			return parar(7, fmt.Sprintf("los tests de la ronda %d no fallan: los hallazgos no se reproducen: te toca", n)), false
+		}
+		return parar(7, noEntregable(rec)), false
+	case "writer":
+		return p.writerDeRonda(last), false
+	}
+	return parar(7, noEntregable(rec)), false
+}
+
+// empezarRonda starts round n: the newest envelope is the reviewer's and
+// findings block.
+func (p piloto) empezarRonda() PilotDecision {
+	n := 1
+	for _, s := range p.e.Sobres {
+		if s.Record.Ronda+1 > n {
+			n = s.Record.Ronda + 1
+		}
+	}
+	k := len(p.e.Bloqueantes)
+	if n > p.e.Politica.RondasDeHallazgos {
+		return parar(7, fmt.Sprintf("se hicieron %d rondas de hallazgos y quedan %d que bloquean: te toca", n-1, k))
+	}
+	if n >= 2 {
+		if kAntes, ok := p.bloqueantesAlEmpezar(n - 1); ok && k >= kAntes {
+			return parar(7, fmt.Sprintf("los hallazgos que bloquean no bajan (%d -> %d): te toca", kAntes, k))
+		}
+	}
+	refutados := map[string]bool{}
+	for _, s := range p.e.Sobres {
+		if s.Record.Role == "refutador" && s.Record.Stage != "run" {
+			for _, id := range s.Record.Hallazgos {
+				refutados[id] = true
+			}
+		}
+	}
+	var ids []string
+	for _, f := range p.e.Bloqueantes {
+		if !refutados[f.ID] {
+			ids = append(ids, f.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return p.testWriterDeRonda(n, k)
+	}
+	return p.lanzarConProvider(lanzamiento{caso: 7, accion: ActPedirRefutador, regla: ReglaRondaRefutador,
+		ronda: n, hallazgos: ids, bloqueantes: k, pedido: PedidoRondaRefutador(n, p.c.Slug, ids)}, "refutador")
+}
+
+// bloqueantesAlEmpezar is k of round n: the bloqueantes of its first
+// envelope that has them.
+func (p piloto) bloqueantesAlEmpezar(n int) (int, bool) {
+	for _, s := range p.e.Sobres {
+		if s.Record.Ronda == n && s.Record.Bloqueantes > 0 {
+			return s.Record.Bloqueantes, true
+		}
+	}
+	return 0, false
+}
+
+// testWriterDeRonda launches the round's test-writer with the findings
+// that block now; bloqueantes > 0 when it is the round's first launch.
+func (p piloto) testWriterDeRonda(n, bloqueantes int) PilotDecision {
+	ids := make([]string, 0, len(p.e.Bloqueantes))
+	for _, f := range p.e.Bloqueantes {
+		ids = append(ids, f.ID)
+	}
+	return p.lanzarConProvider(lanzamiento{caso: 7, accion: ActPedirTestWriter, regla: ReglaRondaTestWriter,
+		ronda: n, hallazgos: ids, bloqueantes: bloqueantes,
+		pedido: PedidoRondaTestWriter(n, p.c.Slug, p.e.Bloqueantes)}, "test-writer")
+}
+
+// writerDeRonda is the step after the round's writer.
+func (p piloto) writerDeRonda(last Sobre) PilotDecision {
+	rec := last.Record
+	n := rec.Ronda
+	if !enVerifyOCheck(rec) && rec.Stage != "ok" {
+		return parar(7, noEntregable(rec))
+	}
+	v := p.e.Veredicto
+	if v == nil {
+		v = last.Veredicto
+	}
+	if v == nil {
+		return parar(7, noEntregable(rec))
+	}
+	if v.Verdict == "green" {
+		return p.lanzarConProvider(lanzamiento{caso: 7, accion: ActPedirReviewer, regla: ReglaRondaReview,
+			ronda: n, delta: true}, "reviewer")
+	}
+	if !rojoSoloPorHallazgos(v) {
+		return parar(7, fmt.Sprintf("el arreglo de la ronda %d quedo rojo en %s: te toca", n, strings.Join(gatesEnRojo(v), ", ")))
+	}
+	deLaRonda := map[string]bool{}
+	antes := ""
+	for _, s := range p.e.Sobres {
+		if s.Record.Role == "test-writer" && s.Record.Ronda == n {
+			for _, r := range s.Record.Trasplantados {
+				deLaRonda[r] = true
+			}
+			if s.Record.VerdictID != "" {
+				antes = s.Record.VerdictID
+			}
+			if s.Veredicto != nil && s.Veredicto.ID != "" {
+				antes = s.Veredicto.ID
+			}
+		}
+	}
+	var ids, sinTest []string
+	evidencias := map[string]string{}
+	for _, f := range p.e.Bloqueantes {
+		ruta := ""
+		for _, r := range p.e.Citas[f.ID] {
+			if ruta == "" && deLaRonda[r] {
+				ruta = r
+			}
+		}
+		if ruta == "" {
+			sinTest = append(sinTest, f.ID)
+			continue
+		}
+		ids = append(ids, f.ID)
+		evidencias[f.ID] = fmt.Sprintf("ronda %d: el test %s cita el hallazgo; veredicto %s rojo antes del arreglo; despues, veredicto %s con todos los demas gates en pass",
+			n, ruta, antes, v.ID)
+	}
+	if len(ids) == 0 {
+		return parar(7, fmt.Sprintf("quedan hallazgos sin test en la ronda %d: %s: te toca", n, strings.Join(sinTest, ", ")))
+	}
+	return PilotDecision{Paso: PasoCerrarHallazgos, Regla: ReglaRondaCierre, Ronda: n, Hallazgos: ids,
+		Evidencias: evidencias, Caso: 7}
+}
+
+// lanzarConProvider launches a step of a round with the provider the disk
+// says: the newest review record's for the refutador and the reviewer, the
+// newest envelope of the role's for the test-writer and the writer.
+func (p piloto) lanzarConProvider(l lanzamiento, rol string) PilotDecision {
+	switch rol {
+	case "refutador", "reviewer":
+		if len(p.e.Reviews) > 0 {
+			l.provider = p.e.Reviews[len(p.e.Reviews)-1].Provider
+		}
+	default:
+		for _, s := range p.e.Sobres {
+			if s.Record.Role == rol {
+				l.provider = s.Record.Provider
+			}
+		}
+	}
+	if l.provider == "" {
+		return parar(7, "la tarjeta no tiene un sobre de "+rol+": el piloto no elige provider por su cuenta")
+	}
+	return p.lanzarRol(l)
+}
+
+func enVerifyOCheck(rec envelope.Record) bool { return rec.Stage == "verify" || rec.Stage == "check" }
+
+// veredictoDe is the envelope's verdict, nil when it emitted none.
+func veredictoDe(s Sobre) *verdict.Verdict { return s.Veredicto }
+
+// rojo says whether the envelope's verdict is red.
+func rojo(s Sobre) bool {
+	if s.Veredicto != nil {
+		return s.Veredicto.Verdict == "red"
+	}
+	return s.Record.Verdict == "red"
+}
+
+// rojoEsperado is the test-writer's expected red: closed in verify or check
+// with a red verdict (so with no scope violation: those close in scope) in
+// which the spec's gates are pass.
+func rojoEsperado(s Sobre) bool {
+	if s.Record.Role != "test-writer" || !enVerifyOCheck(s.Record) || s.Veredicto == nil || s.Veredicto.Verdict != "red" {
+		return false
+	}
+	for _, name := range gatesDelSpec {
+		if estadoDe(s.Veredicto, name) != verdict.StatusPass {
+			return false
+		}
+	}
+	return true
+}
+
+func estadoDe(v *verdict.Verdict, name string) string {
+	for _, g := range v.Gates {
+		if g.Name == name {
+			return g.Status
+		}
+	}
+	return ""
+}
+
+// rojoSoloPorHallazgos: findings_open in fail and every other required gate
+// in pass.
+func rojoSoloPorHallazgos(v *verdict.Verdict) bool {
+	hallazgos := false
+	for _, g := range v.Gates {
+		switch {
+		case g.Name == gateHallazgos:
+			hallazgos = g.Status == verdict.StatusFail
+		case g.Required && g.Status != verdict.StatusPass:
+			return false
+		}
+	}
+	return hallazgos
+}
+
+// gatesEnRojo are the required gates that make v red (fail, or error), in
+// the verdict's order.
+func gatesEnRojo(v *verdict.Verdict) []string {
+	if v == nil {
+		return nil
+	}
+	var out []string
+	for _, g := range v.Gates {
+		if g.Required && (g.Status == verdict.StatusFail || g.Status == verdict.StatusError) {
+			out = append(out, g.Name)
+		}
+	}
+	return out
+}
+
+func copia(s []string) []string {
+	if len(s) == 0 {
+		return nil
+	}
+	return append([]string(nil), s...)
 }
 
 // PedidoRelevo is the pedido of a relevo-por-tiempo that resumes the role's
@@ -165,7 +745,8 @@ const PedidoRelevo = "Te cortaste por tiempo. Continua donde quedaste y termina 
 //
 // with gates joined with ", ".
 func PedidoReintento(slug, veredicto string, gates []string) string {
-	return ""
+	return fmt.Sprintf("Intento 2 de %s. El veredicto %s quedo ROJO en: %s. La salida de cada gate esta en .hoom/verdicts/%s.json. Corrige sobre el arbol actual hasta que verify quede verde. No toques los tests del test-writer.",
+		slug, veredicto, strings.Join(gates, ", "), veredicto)
 }
 
 // PedidoRondaRefutador is the refutador's pedido of round n
@@ -173,7 +754,8 @@ func PedidoReintento(slug, veredicto string, gates []string) string {
 //
 //	Ronda <n> de hallazgos de <slug>. Revisa estos hallazgos y cierra como refutado, con evidencia deterministica, los que no se sostienen: <ids>. No edites codigo.
 func PedidoRondaRefutador(n int, slug string, ids []string) string {
-	return ""
+	return fmt.Sprintf("Ronda %d de hallazgos de %s. Revisa estos hallazgos y cierra como refutado, con evidencia deterministica, los que no se sostienen: %s. No edites codigo.",
+		n, slug, strings.Join(ids, ", "))
 }
 
 // PedidoRondaTestWriter is the test-writer's pedido of round n
@@ -183,7 +765,12 @@ func PedidoRondaRefutador(n int, slug string, ids []string) string {
 //	Ronda <n> de hallazgos de <slug>. Por cada hallazgo escribe un test que falle hoy y cita su id en el test.
 //	<id> [<severidad>] <file>: <descripcion>
 func PedidoRondaTestWriter(n int, slug string, hallazgos []finding.Item) string {
-	return ""
+	var b strings.Builder
+	fmt.Fprintf(&b, "Ronda %d de hallazgos de %s. Por cada hallazgo escribe un test que falle hoy y cita su id en el test.", n, slug)
+	for _, f := range hallazgos {
+		fmt.Fprintf(&b, "\n%s [%s] %s: %s", f.ID, f.Severity, f.File, f.Description)
+	}
+	return b.String()
 }
 
 // PedidoRondaWriter is the writer's pedido of round n (ReglaRondaWriter),
@@ -191,5 +778,6 @@ func PedidoRondaTestWriter(n int, slug string, hallazgos []finding.Item) string 
 //
 //	Ronda <n> de hallazgos de <slug>. Estos tests fallan y cada uno cita su hallazgo: <rutas>. Corrige el codigo hasta que pasen. No toques esos tests.
 func PedidoRondaWriter(n int, slug string, rutas []string) string {
-	return ""
+	return fmt.Sprintf("Ronda %d de hallazgos de %s. Estos tests fallan y cada uno cita su hallazgo: %s. Corrige el codigo hasta que pasen. No toques esos tests.",
+		n, slug, strings.Join(rutas, ", "))
 }
