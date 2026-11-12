@@ -803,11 +803,61 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 //
 // It refuses, committing nothing, with Save's errors: a card without its
 // task's worktree, a worktree off its branch or with a detached HEAD
-// (runcmd.TaskDir's error), a job running on the card
-// (`espera a que termine <quien> que esta trabajando`) or an agent starting
-// in it.
+// (runcmd.TaskDir's error), a job running on the card while the worktree
+// has something to save (`espera a que termine <quien> que esta
+// trabajando`) or an agent starting in it.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
-	return SaveResult{}, nil
+	dir, err := runcmd.TaskDir(root, slug)
+	if err != nil {
+		return SaveResult{}, err
+	}
+	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+	if err != nil {
+		return SaveResult{}, err
+	}
+	if c.Evidence.Source != boardcmd.SourceWorktree {
+		return SaveResult{}, fmt.Errorf("la tarjeta %s no tiene el espacio de trabajo de su tarea: hoom task start %s", slug, slug)
+	}
+	// under the task tree's lock, like Save: a run that starts meanwhile
+	// waits until the commit is done (finding ac2feb)
+	unlock, err := runcmd.LockArbol(dir, runcmd.EsperaArbol)
+	if err != nil {
+		if errors.Is(err, hoomfs.ErrLocked) {
+			return SaveResult{}, fmt.Errorf("un agente esta arrancando en la tarjeta %s: guardar ahora commitearia su trabajo a medias. Accion: espera a que termine", slug)
+		}
+		return SaveResult{}, err
+	}
+	defer unlock()
+	if c, err = boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC()); err != nil {
+		return SaveResult{}, err
+	}
+	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
+	wt := c.Evidence.Dir
+	var paths, local []string
+	for _, p := range c.Unsynced {
+		if wt != "" && strings.HasPrefix(p, wt+"/") {
+			paths = append(paths, p)
+			local = append(local, strings.TrimPrefix(p, wt+"/"))
+		}
+	}
+	// nothing to save is never a refusal: the pilot then sees the job
+	// running in its own case
+	if len(paths) == 0 {
+		return res, nil
+	}
+	if r := c.Running; r != nil {
+		quien := "el agente"
+		if r.Role != "" {
+			quien = "el " + r.Role
+		}
+		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
+	}
+	sha, err := commitPaths(dir, res.Message, local)
+	if err != nil {
+		return res, err
+	}
+	res.Commits = append(res.Commits, SaveCommit{Dir: wt, SHA: sha, Paths: paths})
+	return res, nil
 }
 
 // tareaDe is the task whose worktree root is (<principal>/.hoom/worktrees/
