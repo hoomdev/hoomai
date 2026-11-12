@@ -304,8 +304,9 @@ func (r *corrida) vuelta(ctx context.Context) (boardcmd.PilotDecision, *lanzar.T
 		return boardcmd.PilotDecision{}, nil, err
 	}
 	r.log = r.logDelUltimo(slug)
-	// 1. save, only with auto and the task open
-	if c.Item.Auto == item.AutoHastaHumano && c.Evidence.Source == boardcmd.SourceWorktree {
+	// 1. save, only with auto and the task open: a worktree off its branch
+	// is an open task that cannot be saved, and SaveTarea says why
+	if c.Item.Auto == item.AutoHastaHumano && (c.Evidence.Source == boardcmd.SourceWorktree || fueraDeSuRama(root, slug)) {
 		g, err := itemcmd.SaveTarea(root, m.BaseBranch, m.FindingsBlockOn(), slug)
 		if err != nil {
 			d := parada("no pudo guardar el trabajo de la tarjeta: " + err.Error())
@@ -338,6 +339,13 @@ func (r *corrida) vuelta(ctx context.Context) (boardcmd.PilotDecision, *lanzar.T
 	}
 	r.detener(d)
 	return d, nil, nil
+}
+
+// fueraDeSuRama says whether the task's worktree exists but is not on its
+// branch hoom/<slug> (detached HEAD or another branch).
+func fueraDeSuRama(root, slug string) bool {
+	_, err := runcmd.TaskDir(root, slug)
+	return errors.Is(err, runcmd.ErrOtraRama)
 }
 
 // logDelUltimo is the log of the card's newest closed envelope.
