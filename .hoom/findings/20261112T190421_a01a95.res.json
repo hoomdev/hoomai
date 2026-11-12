@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T190421_a01a95",
+  "as": "corregido",
+  "evidence": "commit 5e5e7c4 (mismo arreglo que 272465: git en su propio grupo, SIGTERM y SIGKILL al grupo); test TestHallazgo272465_CA644_ElTopeDelGuardadoTerminaTodoElHook (variante del hijo en segundo plano)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-12T19:35:23.308184815Z"
+}

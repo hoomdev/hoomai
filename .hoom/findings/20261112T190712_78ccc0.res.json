@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T190712_78ccc0",
+  "as": "corregido",
+  "evidence": "commit 08e850d: el gate arma la descripcion con agentcmd.DescripcionViolacion y el piloto la reconoce con agentcmd.DeTestsDelTestWriter; test TestWriterDeTestsDelTestWriter (internal/agentcmd)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-12T19:35:23.316507046Z"
+}
