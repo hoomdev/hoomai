@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T040826_65fbb7",
+  "as": "corregido",
+  "evidence": "eca299e: Save corrido desde el worktree de una tarea X pasa antes por runcmd.TaskDir(principal, X), sea cual sea la tarjeta y con o sin rutas; fuera de hoom/X o con HEAD separado devuelve ErrOtraRama (409 en el Studio) y no commitea. Regresion TestHallazgo_65fbb7_68644c_* (f974a5b, fallan en 4a16f72) y save_otra_tarjeta_writer_test.go",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-12T04:28:09.765632003Z"
+}
