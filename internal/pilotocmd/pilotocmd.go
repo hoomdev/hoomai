@@ -411,7 +411,9 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		r.detener(parada(err.Error()))
 		return false
 	}
-	v, _, err := verifycmd.Run(tm, verifycmd.Options{Spec: filepath.Join(dir, ".hoom", "specs", slug+".md")})
+	// the spec as `hoom verify --spec .hoom/specs/<slug>.md` names it from the
+	// worktree: the verdict is the card's
+	v, _, err := verifycmd.Run(tm, verifycmd.Options{Spec: ".hoom/specs/" + slug + ".md"})
 	if err != nil {
 		r.detener(parada(err.Error()))
 		return false
