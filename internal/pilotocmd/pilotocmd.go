@@ -676,7 +676,8 @@ func Run(args []string, e Entorno) int {
 	}
 	res, err := Correr(context.Background(), o)
 	if err != nil {
-		fmt.Fprintf(e.Err, "hoom: %v\n", err)
+		// el slug ya paso por item.ValidSlug: el mensaje no lleva saltos ni ANSI
+		fmt.Fprintln(e.Err, "hoom: "+err.Error())
 		return 1
 	}
 	if *asJSON {
