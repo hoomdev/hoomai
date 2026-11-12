@@ -6,8 +6,9 @@
 //     es exclusivo hasta que guarda;
 //   - hallazgo 20261112T173402_24e6e0 (CA-638, CA-652, aclaracion 15): el
 //     writer que toco un test protegido y vencio no se releva;
-//   - hallazgo 20261112T174304_8c4407 (CA-644, aclaracion 17): un hook que no
-//     termina no cuelga al piloto (itemcmd.TopeGit achicado en el test).
+//   - hallazgo 20261112T174304_8c4407 (CA-644, aclaracion 17): un comando
+//     git del guardado que no termina (un filtro clean desde la aclaracion
+//     21) no cuelga al piloto (itemcmd.TopeGit achicado en el test).
 //
 // Reusa los helpers de autonomia_entre_firmas_test.go (apPATH, apProyecto,
 // apRun, apTrasCerrar, apCerrado...).
@@ -410,12 +411,17 @@ func TestHallazgo24e6e0_CA638_CA652_ElWriterQueTocoUnProtegidoYSeCortoNoSeReleva
 	}
 }
 
-// Hallazgo 20261112T174304_8c4407 (CA-644, aclaracion 17): con un hook
-// pre-commit que no termina en el repo de la tarea y cambios sin guardar en
-// el espacio de trabajo, el piloto termina en un tiempo acotado (TopeGit
+// Hallazgo 20261112T174304_8c4407 (CA-644, aclaracion 17): con algo que
+// no termina en un comando git del guardado y cambios sin guardar en el
+// espacio de trabajo, el piloto termina en un tiempo acotado (TopeGit
 // achicado a 2 s), con exit 1 y `piloto automatico: se detiene: no pudo
 // guardar el trabajo de la tarjeta: <error>`, sin commitear, y suelta su
 // candado: otro piloto lo toma (no le dice que ya corre otro).
+//
+// Re-expresado por la aclaracion 21 (el guardado del piloto no corre hooks):
+// lo que no termina ya no es un hook pre-commit sino un filtro clean de git
+// configurado en el repo de la tarea para app.go (apr3Filtro). Las
+// exigencias son las mismas.
 func TestHallazgo8c4407_CA644_UnHookQueNoTerminaNoCuelgaAlPiloto(t *testing.T) {
 	const ca = "8c4407/CA-644"
 	f := apPATH(t)
@@ -427,20 +433,11 @@ func TestHallazgo8c4407_CA644_UnHookQueNoTerminaNoCuelgaAlPiloto(t *testing.T) {
 	root := apProyecto(t, "")
 	const slug = "hook-colgado"
 	wt := apTuAprobacion(t, root, slug, apConAuto, true)
+	pids := filepath.Join(t.TempDir(), "pids")
+	apr3Filtro(t, wt, "#!/bin/sh\necho $$ >> '"+pids+"'\nexec sleep 60\n") // aclaracion 21: antes, un hook pre-commit
 	apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
 	head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
 
-	hook := apGit(t, wt, "rev-parse", "--git-path", "hooks/pre-commit")
-	if !filepath.IsAbs(hook) {
-		hook = filepath.Join(wt, hook)
-	}
-	pids := filepath.Join(t.TempDir(), "pids")
-	if err := os.MkdirAll(filepath.Dir(hook), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(hook, []byte("#!/bin/sh\necho $$ >> '"+pids+"'\nexec sleep 60\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	matar := func() {
 		raw, _ := os.ReadFile(pids)
 		for _, l := range strings.Fields(string(raw)) {
@@ -459,7 +456,7 @@ func TestHallazgo8c4407_CA644_UnHookQueNoTerminaNoCuelgaAlPiloto(t *testing.T) {
 		if !p.esperar(30 * time.Second) {
 			matar()
 			p.esperar(2 * time.Minute)
-			t.Fatalf("%s: (vuelta %d) con un hook que no termina, el piloto termina en un tiempo acotado (TopeGit 2 s); a los 30 s seguia:\n%s", ca, vuelta, p.salida())
+			t.Fatalf("%s: (vuelta %d) con un filtro clean que no termina, el piloto termina en un tiempo acotado (TopeGit 2 s); a los 30 s seguia:\n%s", ca, vuelta, p.salida())
 		}
 		s := p.salida()
 		ls := apSoloLineasDelPiloto(t, ca, s)
@@ -476,7 +473,7 @@ func TestHallazgo8c4407_CA644_UnHookQueNoTerminaNoCuelgaAlPiloto(t *testing.T) {
 			}
 		}
 		if raw, _ := os.ReadFile(pids); strings.TrimSpace(string(raw)) == "" {
-			t.Fatalf("%s: fixture: el guardado corrio el hook pre-commit de %s", ca, hook)
+			t.Fatalf("%s: fixture: el guardado corrio el filtro clean de app.go", ca)
 		}
 		if h, r := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug); h != head || r != rama {
 			t.Fatalf("%s: (vuelta %d) no commitea nada: HEAD %s -> %s, hoom/%s %s -> %s", ca, vuelta, head, h, slug, rama, r)
@@ -487,6 +484,7 @@ func TestHallazgo8c4407_CA644_UnHookQueNoTerminaNoCuelgaAlPiloto(t *testing.T) {
 		}
 		soltar()
 	}
+	apr3SinFiltro(t, wt) // que git status no corra el filtro que no termina
 	if st := apGit(t, wt, "status", "--porcelain"); !strings.Contains(st, "app.go") {
 		t.Fatalf("%s: lo no guardado sigue ahi: %q", ca, st)
 	}

@@ -7,7 +7,8 @@
 //     toco un test protegido y vencio no se releva aunque una persona cierre
 //     el hallazgo de tests-del-test-writer;
 //   - problema B, hallazgo 20261112T185130_272465 (CA-644, aclaracion 19): el
-//     tope del guardado termina todo el comando, hooks e hijos incluidos;
+//     tope del guardado termina todo el comando, hijos incluidos (con un
+//     filtro clean de git desde la aclaracion 21);
 //   - problema C, hallazgo 20261112T185130_5774db (CA-656, aclaracion 20):
 //     cerrar-hallazgos vuelve a mirar la tarjeta bajo sus candados.
 //
@@ -140,13 +141,19 @@ func TestHallazgosEa20f8E49304_84d9de_CA638_CA652_CerrarElHallazgoNoHabilitaElRe
 }
 
 // Problema B, hallazgo 20261112T185130_272465 (CA-644, aclaracion 19): con
-// un hook pre-commit que no termina en el repo de la tarea, cambios sin
-// guardar y itemcmd.TopeGit en 1 s, el guardado de la tarjeta
-// (itemcmd.SaveTarea) devuelve un error sin commitear, y para entonces no
-// queda vivo ningun proceso del comando: un rato despues nada escribio en el
-// worktree (el archivo marca que el hook, o su hijo, escribiria a los 3 s si
-// siguiera vivo) y no hay index.lock. Tres hooks: uno que solo duerme, uno
-// que ignora la interrupcion y uno que deja un hijo en segundo plano.
+// algo que no termina en un comando git del guardado, cambios sin guardar y
+// itemcmd.TopeGit en 1 s, el guardado de la tarjeta (itemcmd.SaveTarea)
+// devuelve un error sin commitear, y para entonces no queda vivo ningun
+// proceso del comando: un rato despues nada escribio en el worktree (el
+// archivo marca que el proceso, o su hijo, escribiria a los 3 s si siguiera
+// vivo) y no hay index.lock. Tres variantes: uno que solo duerme, uno que
+// ignora la interrupcion y uno que deja un hijo en segundo plano dentro de su
+// grupo.
+//
+// Re-expresado por la aclaracion 21 (el guardado del piloto no corre hooks):
+// lo que no termina ya no es un hook pre-commit sino un filtro clean de git
+// configurado en el repo de la tarea para app.go (apr3Filtro), con las
+// mismas tres variantes. Las exigencias son las mismas.
 func TestHallazgo272465_CA644_ElTopeDelGuardadoTerminaTodoElHook(t *testing.T) {
 	const ca = "272465/CA-644"
 	tope := itemcmd.TopeGit
@@ -157,13 +164,13 @@ func TestHallazgo272465_CA644_ElTopeDelGuardadoTerminaTodoElHook(t *testing.T) {
 		nombre string
 		cuerpo func(marca, pids string) string
 	}{
-		{"un hook que solo duerme", func(marca, pids string) string {
+		{"un filtro que solo duerme", func(marca, pids string) string {
 			return "sleep 3\n: > '" + marca + "'\n"
 		}},
-		{"un hook que ignora la interrupcion", func(marca, pids string) string {
+		{"un filtro que ignora la interrupcion", func(marca, pids string) string {
 			return "trap '' HUP INT TERM QUIT\nsleep 3\n: > '" + marca + "'\n"
 		}},
-		{"un hook que deja un hijo en segundo plano", func(marca, pids string) string {
+		{"un filtro que deja un hijo en segundo plano", func(marca, pids string) string {
 			return "( sleep 3; : > '" + marca + "' ) &\necho $! >> '" + pids + "'\nexec sleep 30\n"
 		}},
 	} {
@@ -171,26 +178,17 @@ func TestHallazgo272465_CA644_ElTopeDelGuardadoTerminaTodoElHook(t *testing.T) {
 		root := apProyecto(t, "")
 		const slug = "hook-colgado"
 		wt := apTuAprobacion(t, root, slug, apConAuto, true)
-		apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
-		head := apHead(t, wt)
 		lock := apGit(t, wt, "rev-parse", "--git-path", "index.lock")
 		if !filepath.IsAbs(lock) {
 			lock = filepath.Join(wt, lock)
 		}
-		hook := apGit(t, wt, "rev-parse", "--git-path", "hooks/pre-commit")
-		if !filepath.IsAbs(hook) {
-			hook = filepath.Join(wt, hook)
-		}
 		aparte := t.TempDir()
 		pids, arranco := filepath.Join(aparte, "pids"), filepath.Join(aparte, "arranco")
 		marca := filepath.Join(wt, "marca-del-hook")
-		s := "#!/bin/sh\necho $$ >> '" + pids + "'\n: > '" + arranco + "'\n" + c.cuerpo(marca, pids)
-		if err := os.MkdirAll(filepath.Dir(hook), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(hook, []byte(s), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		// aclaracion 21: antes, un hook pre-commit con este mismo cuerpo
+		apr3Filtro(t, wt, "#!/bin/sh\necho $$ >> '"+pids+"'\n: > '"+arranco+"'\n"+c.cuerpo(marca, pids))
+		apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
+		head := apHead(t, wt)
 		t.Cleanup(func() {
 			raw, _ := os.ReadFile(pids)
 			for _, l := range strings.Fields(string(raw)) {
@@ -222,12 +220,12 @@ func TestHallazgo272465_CA644_ElTopeDelGuardadoTerminaTodoElHook(t *testing.T) {
 			t.Fatalf("%s: %s: el guardado vencido por TopeGit devuelve un error: %+v", ca, c.nombre, g.res)
 		}
 		if !apr1Existe(arranco) {
-			t.Fatalf("%s: %s: fixture: el guardado corrio el hook pre-commit de %s (%v)", ca, c.nombre, hook, g.err)
+			t.Fatalf("%s: %s: fixture: el guardado corrio el filtro clean de app.go (%v)", ca, c.nombre, g.err)
 		}
 		if h := apHead(t, wt); h != head {
 			t.Fatalf("%s: %s: el guardado que fallo no commitea: HEAD %s -> %s", ca, c.nombre, head, h)
 		}
-		// el hook (o su hijo) escribiria la marca a los 3 s de arrancar
+		// el filtro (o su hijo) escribiria la marca a los 3 s de arrancar
 		for time.Since(desde) < 7*time.Second {
 			if apr1Existe(marca) {
 				break
@@ -235,7 +233,7 @@ func TestHallazgo272465_CA644_ElTopeDelGuardadoTerminaTodoElHook(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 		}
 		if apr1Existe(marca) {
-			t.Fatalf("%s: %s: despues del error no queda vivo ningun proceso del hook: algo escribio %s en el worktree (error: %v)", ca, c.nombre, marca, g.err)
+			t.Fatalf("%s: %s: despues del error no queda vivo ningun proceso del filtro: algo escribio %s en el worktree (error: %v)", ca, c.nombre, marca, g.err)
 		}
 		if apr1Existe(lock) {
 			t.Fatalf("%s: %s: despues del error no queda %s (error: %v)", ca, c.nombre, lock, g.err)
