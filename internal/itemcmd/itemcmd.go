@@ -793,6 +793,11 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 	return res, nil
 }
 
+// TopeGit acota cada comando git del guardado de la tarjeta (SaveTarea): un
+// comando, con sus hooks, que no termina en ese tiempo se mata y el guardado
+// falla con un error. Los tests lo achican.
+var TopeGit = 5 * time.Minute
+
 // SaveTarea is the pilot's save (autonomia-entre-firmas): it commits what the
 // card's task worktree has unsaved, everything in it, in that worktree on its
 // branch hoom/<slug>, with SaveMessage(slug), and nothing else. root is the
