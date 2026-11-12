@@ -361,6 +361,10 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 		return fail(http.StatusNotFound, "%s", err.Error())
 	}
 	a, ok := c.Action(req.Action)
+	if !ok && req.Pilot {
+		// the actions only the pilot launches (autonomia-entre-firmas)
+		a, ok = c.PilotAction(req.Action)
+	}
 	if !ok {
 		return fail(http.StatusConflict, "la tarjeta ya no esta donde la viste: ahora esta en %s (%s)", c.ColumnName, c.Plain)
 	}
@@ -450,6 +454,8 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 			res, f.Err = reviewcmd.Run(p.Root, m.BaseBranch, reviewcmd.Options{
 				Provider: opt.Name, Task: slug, Spec: spec, Model: v.Model, Effort: v.Effort, BudgetUSD: budget,
 				Timeout: v.Timeout, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
+				Delta: req.Delta, Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
+				Hallazgos: req.Hallazgos, Bloqueantes: req.Bloqueantes,
 			}, out)
 			f.Nota = res.Nota
 			if f.Err == nil {
@@ -460,12 +466,17 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: v.Model,
 				Effort: v.Effort, Timeout: v.Timeout, BudgetUSD: budget, BudgetSet: true,
 				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
+				Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
+				Hallazgos: req.Hallazgos, Bloqueantes: req.Bloqueantes,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec
 			}
 			if a.ID == boardcmd.ActReanudar {
 				o.ResumeID = a.ResumeID
+			}
+			if r := strings.TrimSpace(req.Resume); r != "" {
+				o.ResumeID = r
 			}
 			var res agentcmd.Result
 			res, f.Err = agentcmd.Run(p.Root, m.BaseBranch, o, out)
