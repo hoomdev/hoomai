@@ -200,6 +200,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Dir: dir, Stage: "spec", Step: 1, Steps: steps,
 		Status: envelope.StatusRunning, ExitCode: -1, StartedAt: time.Now().UTC(),
 		PID: os.Getpid(), Pilot: opt.Pilot,
+		Columna: opt.Columna, Regla: opt.Regla, Intento: opt.Intento, Ronda: opt.Ronda,
+		Hallazgos: opt.Hallazgos, Bloqueantes: opt.Bloqueantes,
+	}
+	if opt.Columna != "" {
+		rec.Pedido = opt.Prompt
 	}
 	res.EnvelopeID = rec.ID
 	// Una sola transicion mueve los dos estados que el sobre mantiene: el
@@ -289,6 +294,17 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if _, sinShell := NoExecFor(prov, role); sinShell {
 		fmt.Fprintf(w, "  aviso: %s no puede quitarle el shell a un rol que escribe; su escritura se verifica solo despues del run\n", prov.Name())
 	}
+	// the protected tests are read and photographed BEFORE the run: what
+	// the gate compares is what the test-writer left, not what the writer
+	// says it left (autonomia-entre-firmas)
+	pol := PolicyFor(m, role)
+	if role.Scope == agents.ScopeCodigo {
+		rutas, err := TestsProtegidos(root, opt.Task)
+		if err != nil {
+			return res, roto(root, &rec, err)
+		}
+		pol.Protegidos = FotoProtegidos(dir, rutas)
+	}
 	before := Take(runDir, base)
 	info, err := mgr.Start(so)
 	if err != nil {
@@ -312,6 +328,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	})
 	res.RunStatus, res.SessionID = st.Status, st.ProviderSessionID
 	res.Usage, rec.Usage = st.Usage, st.Usage
+	rec.Corte = st.Corte
 	if !st.Usage.Empty() {
 		fmt.Fprintf(w, "    gasto: %s\n", st.Usage.Summary())
 	}
@@ -330,7 +347,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// exactly like a finished one's — blind or not, with the real tree's
 		// photograph — because a resolution closes a finding whether the run
 		// ended well or not (CA-438). What it cannot give is a tree to verify.
-		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), PolicyFor(m, role), cegado(tree, beforeReal, dir, base))
+		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
 		printScope(w, res.Scope, role, step(steps-2, steps))
 		keepQuarantine(w, tree, res.Isolation, "el run fallo")
 		return cerrar(w, root, &rec, res, "run", code, "el run fallo: su territorio se midio; no se emite veredicto"), nil
@@ -339,12 +356,17 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
 	// blind tree lets us ask — is the blindfold still on?
 	seguir("scope", steps-2)
-	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), PolicyFor(m, role), cegado(tree, beforeReal, dir, base))
+	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
 	printScope(w, res.Scope, role, step(steps-2, steps))
 	if res.Scope.Cuts() {
 		note := "manipulacion de la evidencia: no se emite veredicto sobre este arbol"
-		if res.Scope.Broken() {
+		switch {
+		case res.Scope.Broken():
 			note = "el aislamiento se rompio: no se emite veredicto sobre este arbol"
+		case !res.Scope.Tampering:
+			// only the test-writer's tests: with the evidence also moved,
+			// the note stays the tampering one
+			note = NotaTestsDelTestWriter
 		}
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
 		return cerrar(w, root, &rec, res, "scope", 1, note), nil
@@ -356,6 +378,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			keepQuarantine(w, tree, res.Isolation, "el trasplante fallo a mitad de camino")
 			return res, roto(root, &rec, err)
 		}
+		rec.Trasplantados = trasplantados(res.Isolation.Applied)
 	}
 	// A role that writes and delivered nothing leaves no new tree to certify.
 	// Checked AFTER the cut (tampering always wins) and after the transplant
@@ -396,6 +419,20 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return cerrar(w, root, &rec, res, "check", 1, cr.Reason), nil
 	}
 	return cerrar(w, root, &rec, res, "ok", 0, ""), nil
+}
+
+// trasplantados is the record's copy of what a transplant applied: sorted,
+// with "/", nil when nothing was applied (the record then has no key).
+func trasplantados(applied []string) []string {
+	if len(applied) == 0 {
+		return nil
+	}
+	out := make([]string, len(applied))
+	for i, p := range applied {
+		out[i] = filepath.ToSlash(p)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // cerrar cierra el sobre y su registro con la misma verdad: el paso donde

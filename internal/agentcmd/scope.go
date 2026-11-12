@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -69,6 +70,9 @@ const DetalleTestsDelTestWriter = "los tests del test-writer no los cambia el wr
 // HuellaIlegible), or ProtegidoAusente for a path that was not on disk.
 type Protegidos map[string]string
 
+// rolTestWriter is the role whose transplanted tests a task protects.
+const rolTestWriter = "test-writer"
+
 // ProtegidoAusente is the Protegidos entry of a protected test that was not
 // on disk when it was photographed.
 const ProtegidoAusente = "-"
@@ -77,7 +81,31 @@ const ProtegidoAusente = "-"
 // entry per path, read from the disk (never from git), without following a
 // symlink. An empty rutas is an empty Protegidos.
 func FotoProtegidos(dir string, rutas []string) Protegidos {
-	return Protegidos{}
+	foto := Protegidos{}
+	if len(rutas) == 0 {
+		return foto
+	}
+	r, err := os.OpenRoot(dir)
+	if err != nil {
+		for _, p := range rutas {
+			foto[p] = HuellaIlegible
+		}
+		return foto
+	}
+	defer r.Close()
+	for _, p := range rutas {
+		name := filepath.FromSlash(p)
+		fi, err := r.Lstat(name)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			foto[p] = ProtegidoAusente
+		case err != nil:
+			foto[p] = HuellaIlegible
+		default:
+			foto[p] = huella(r, name, fi)
+		}
+	}
+	return foto
 }
 
 // TestsProtegidos are the protected tests of task in the project root: the
@@ -89,7 +117,74 @@ func FotoProtegidos(dir string, rutas []string) Protegidos {
 // is ListErr's: an envelopes directory hoom cannot read, or a record it
 // could not read, is not "nothing protected".
 func TestsProtegidos(root, task string) ([]string, error) {
-	return nil, nil
+	if task == "" {
+		return nil, nil
+	}
+	recs, err := envelope.ListErr(root)
+	if err != nil {
+		return nil, err
+	}
+	vistos := map[string]bool{}
+	var out []string
+	for _, rec := range recs {
+		if rec.Role != rolTestWriter || rec.Task != task {
+			continue
+		}
+		for _, p := range rec.Trasplantados {
+			if p != "" && !vistos[p] {
+				vistos[p] = true
+				out = append(out, p)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// sinTocarProtegidos applies RuleTestsDelTestWriter: for a role of shape
+// codigo, every protected test whose content in dir is no longer the one
+// photographed before the run (changed, removed or renamed) is a violation,
+// whatever the role's Allow says. It replaces an out-of-scope violation of
+// the same path (this one cuts, that one does not) and leaves a tampering
+// or isolation one alone.
+func sinTocarProtegidos(sc ScopeResult, dir string, role agents.Role, prot Protegidos) ScopeResult {
+	if role.Scope != agents.ScopeCodigo || len(prot) == 0 {
+		return sc
+	}
+	rutas := make([]string, 0, len(prot))
+	for p := range prot {
+		rutas = append(rutas, p)
+	}
+	sort.Strings(rutas)
+	ahora := FotoProtegidos(dir, rutas)
+	tocadas := map[string]bool{}
+	for _, p := range rutas {
+		if ahora[p] != prot[p] {
+			tocadas[p] = true
+		}
+	}
+	if len(tocadas) == 0 {
+		return sc
+	}
+	kept := sc.Violations[:0]
+	for _, v := range sc.Violations {
+		if tocadas[v.Path] && v.Rule == RuleOutOfScope {
+			continue
+		}
+		if tocadas[v.Path] {
+			delete(tocadas, v.Path)
+		}
+		kept = append(kept, v)
+	}
+	sc.Violations = kept
+	for _, p := range rutas {
+		if tocadas[p] {
+			sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTestsDelTestWriter, Detail: DetalleTestsDelTestWriter})
+		}
+	}
+	sortViolations(sc.Violations)
+	sc.OK = false
+	return sc
 }
 
 // Blind is the evidence of an isolated run: what the blind tree gave back and
@@ -136,7 +231,9 @@ type ScopeResult struct {
 // outside the role's territory is information; moving the demand itself, or
 // undoing the blindfold, is not. Neither is changing the test-writer's tests
 // (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too.
-func (s ScopeResult) Cuts() bool { return s.Tampering || s.Broken() }
+func (s ScopeResult) Cuts() bool {
+	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter)
+}
 
 // Delivered is what the run changed that counts as the role's work: Touched
 // minus what hoom's own commands generate (a verdict from `hoom verify`, a
@@ -477,6 +574,7 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	sc = sinSubidas(sc, role, arboles...)
 	sc = pisoEnDisco(sc, arboles...)
 	sc = sinListado(sc, arboles...)
+	sc = sinTocarProtegidos(sc, dir, role, pol.Protegidos)
 	// one fingerprint dates every finding of the gate: computed once, and
 	// not even tried when git already did not answer the photographs
 	// (finding f472ee)
@@ -557,7 +655,7 @@ func ruleRank(rule string) int {
 	switch rule {
 	case RuleIsolation:
 		return 0
-	case RuleTampering:
+	case RuleTampering, RuleTestsDelTestWriter:
 		return 1
 	default:
 		return 2
