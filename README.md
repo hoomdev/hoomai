@@ -163,9 +163,10 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 | `hoom task list --json` | El mismo estado como JSON en stdout |
 | `hoom task discard <slug> [--yes] [--json]` | Descarta lo que el espacio de trabajo de la tarea tiene sin guardar FUERA de `.hoom/`: lo que `HEAD` tiene vuelve a como estaba, lo nuevo se borra. La evidencia (veredictos, hallazgos, aprobaciones, registros) nunca se descarta. Sin `--yes` solo lista y sale con 1; se niega con un run activo en el arbol |
 | `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado. Si el arbol donde corre tiene el item de la tarea, le escribe `hecho_en` y `commit_final` (la punta de `hoom/<slug>`); con `--force` nunca lo marca hecho |
-| `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--auto hasta-humano` (el piloto automatico del Studio; exige `--presupuesto-usd`), `--riesgo bajo\|normal\|alto` (cuanta review exige la tarjeta; sin el flag, normal), `--json`. El slug es tambien el del spec y el de la tarea |
+| `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--auto hasta-humano` (el piloto automatico: el Studio y `hoom piloto`; exige `--presupuesto-usd`), `--riesgo bajo\|normal\|alto` (cuanta review exige la tarjeta; sin el flag, normal), `--json`. El slug es tambien el del spec y el de la tarea |
 | `hoom item list [--json]` / `hoom item show <slug> [--json]` | Los items del arbol actual; `show` suma su tarjeta (columna, que falta, siguiente paso, subestados y, en `--json`, las acciones validas, adonde se puede soltar y el fantasma) |
-| `hoom item set <slug> --riesgo bajo\|normal\|alto [--json]` | Cambia el riesgo de la tarjeta, lo unico que `set` cambia. Lo hace una persona (un rol se niega) y no en una tarjeta en Hecho; el cambio queda en el item sin guardar: se guarda con `hoom item save` |
+| `hoom item set <slug> [--riesgo bajo\|normal\|alto] [--auto hasta-humano\|no] [--presupuesto-usd x] [--json]` | Cambia el riesgo, el piloto automatico (`--auto no` lo quita) o el tope en USD de la tarjeta; sin ninguno de los tres es un error de uso (exit 2). `--auto hasta-humano` en una tarjeta que queda sin presupuesto se niega (exit 1), y `--presupuesto-usd` acepta solo un numero mayor que 0 (si no, exit 2). Lo hace una persona (con `$HOOM_ROLE` se niega) y no en una tarjeta en Hecho; escribe en el item del checkout principal si lo tiene, que es de donde la tarjeta lo lee, y queda sin guardar: se guarda con `hoom item save` |
+| `hoom piloto <slug> [--json]` | El piloto automatico de la tarjeta en primer plano: guarda el espacio de trabajo de la tarea, decide con las reglas escritas y lanza (o cierra hallazgos con su test), una linea por decision, hasta que se detiene. Sale con 0 si se detuvo en una columna tuya o en Hecho y con 1 en cualquier otra detencion; con otro piloto corriendo sobre la misma tarjeta sale con 1 (`el piloto de <slug> ya corre en otro proceso`). Nunca aprueba ni integra. Ver [El piloto automatico](#el-piloto-automatico-hoom-piloto) |
 | `hoom item save <slug> [--json]` | Guarda en git lo que la tarjeta tiene sin guardar: un commit por arbol (su espacio de trabajo, y el item en el proyecto) con el mensaje fijo `hoom: guardar la tarjeta <slug>`. Solo esas rutas: lo que haya en el indice queda como estaba. Se niega mientras un rol trabaja en la tarjeta |
 | `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
 | `hoom board doctor [--json]` | Donde la evidencia no es coherente, cada problema con su accion exacta: spec editado despues de aprobarlo, espacio de trabajo con cambios sin veredicto para su huella, verde cuya huella ya no es la del arbol, hallazgo high en Tu aceptacion (un bug de hoom, y lo dice), sobres huerfanos, items sin spec hace mas de 14 dias y veredictos o hallazgos de una tarea sin item. Solo lee y sale con 0: los que bloquean son `verify` y `check` |
@@ -242,6 +243,22 @@ de `hoom.yaml` nunca pasa lo que le queda a la tarjeta, y un provider que no
 acepta tope (codex) no lo recibe. Los valores salen siempre del `hoom.yaml`
 del proyecto, nunca del de la rama de la tarjeta: una rama no se sube su
 propio presupuesto ni su tiempo limite.
+
+La politica del piloto automatico, tambien a nivel proyecto (se lee del
+`hoom.yaml` del checkout principal, como `agents` y `review`). La seccion es
+estricta: una clave desconocida o un valor fuera de rango hacen invalido el
+`hoom.yaml`, y las rondas necesitan `findings.block_on`:
+
+```yaml
+autonomia:
+  reintentos_ante_rojo: 1   # 0 o 1: un intento mas del writer ante un rojo
+  rondas_de_hallazgos: 2    # de 0 a 5: rondas para corregir lo que bloquea
+  ventana_max: 80           # de 1 a 100: tope de la ventana de 5 h, en %
+```
+
+Sin la seccion (o sin una clave) los contadores valen 0 y `ventana_max` no
+esta declarada: el piloto no reintenta, no hace rondas y solo le pide
+trabajo a un provider con tope en USD.
 
 Variables de template: `{base}` (rama base), `{files}` (archivos cambiados),
 `{packages}` (paquetes Go derivados de los .go cambiados). Si un `diff_cmd` expande a
@@ -650,6 +667,48 @@ Cuando se cumple el tiempo limite, el detalle del run dice si la CLI seguia
 narrando (subi el tiempo limite o pedi menos por run) o estaba muda (puede
 estar esperando un permiso interactivo).
 
+## El piloto automatico (hoom piloto)
+
+Entras dos veces: firmas el spec y aceptas la tarjeta. Entre las dos, una
+tarjeta con `auto: hasta-humano` y presupuesto corre sola: el modelo hace,
+hoom decide si se avanza mirando el disco, y firmar y aceptar son tuyos.
+
+```bash
+hoom item set infra-ci-cd --auto hasta-humano --presupuesto-usd 20
+hoom aprobar infra-ci-cd   # firma y dice: sigue con: hoom piloto infra-ci-cd
+hoom piloto infra-ci-cd    # corre hasta Tu aceptacion o un tope
+```
+
+El mismo piloto corre en el Studio (al cerrar un trabajo que lanzo el Studio
+y al aprobar el spec desde la tarjeta) y en la terminal. Cada vuelta:
+
+1. guarda lo que el espacio de trabajo de la tarea tiene sin guardar, en su
+   rama `hoom/<slug>` (`hoom: guardar la tarjeta <slug>`); nunca commitea en
+   el checkout principal ni hace push;
+2. decide con una tabla fija: el rojo esperado del test-writer deja pasar al
+   writer; un rojo del writer se reintenta una vez en una sesion nueva
+   (`reintentos_ante_rojo`); un run cortado por su tiempo limite se releva
+   una vez; los hallazgos que bloquean se corrigen por rondas
+   (`rondas_de_hallazgos`): refutador, test que falla, arreglo, cierre por
+   evidencia y review de la diferencia;
+3. lanza con la misma funcion que el Studio y `hoom pedir`, o se detiene y
+   dice por que.
+
+Se detiene en las columnas tuyas, ante un rojo que no se reintenta, cuando
+se acaba el presupuesto y cuando la ventana de 5 h del provider llega a
+`ventana_max`. Con `ventana_max` declarada tambien le pide trabajo a un
+provider sin tope en USD (codex), sin presupuesto en USD. Cada decision
+queda en el log del ultimo sobre de la tarjeta, y cada sobre que lanza el
+piloto dice `"piloto": true` y su `regla`.
+
+**El writer no toca los tests del test-writer.** Los tests que el
+trasplante del test-writer aplico (`trasplantados` en su sobre) quedan
+protegidos: si un run del writer cambia, borra o renombra uno, su sobre
+corta como la manipulacion (`tests-del-test-writer`), sin veredicto, con un
+hallazgo high. Con reintentos, aflojar el test seria la salida mas barata.
+`agents.writer.write` no levanta la regla; crear tests nuevos o cambiar uno
+que no esta protegido no la viola.
+
 ## El tablero en la terminal
 
 `hoom tablero` es el tablero del Studio en la terminal, a pantalla completa,
@@ -876,14 +935,14 @@ Que trae:
 - **Trinquete**: la pestaña Cockpit dibuja la curva de cada metrica de la
   linea base (sus movimientos: congelada, apretada, aflojada en otro color)
   desde `GET /api/ratchet`, la misma vista que la seccion de `hoom status`.
-- **Piloto automatico** (`auto: hasta-humano` en el item): es
-  una cinta transportadora, no un orquestador. Despues de un trabajo que lanzo el
-  Studio y cerro entregable, pide el trabajo del rol siguiente segun el orden
-  fijo de las columnas (test-writer, writer, reviewer), con el presupuesto y
-  el pedido que propone la tarjeta y un provider con tope. No juzga ni
-  reintenta: se detiene ante cualquier rojo, cuando la tarjeta no avanzo, en
-  las columnas moradas y cuando el presupuesto del item se agota, y deja por
-  que en el log del sobre. Un sobre que lanzo la cinta dice `"piloto": true`.
+- **Piloto automatico** (`auto: hasta-humano` en el item): el mismo piloto
+  que `hoom piloto`. Corre al cerrar un trabajo que lanzo el Studio y al
+  aprobar el spec desde la tarjeta (la respuesta trae `piloto`, la linea de
+  la primera decision): guarda, decide con las reglas escritas y pide el
+  trabajo siguiente (test-writer, writer, reviewer y, dentro de una ronda de
+  hallazgos, el refutador), o se detiene y deja por que en el log del sobre.
+  Ver [El piloto automatico](#el-piloto-automatico-hoom-piloto). Un sobre
+  que lanzo el piloto dice `"piloto": true`.
 - **Token de acciones**: toda accion (POST) exige el token que `serve`
   imprime UNA vez al arrancar. Solo lectura sin token; loopback por
   default; exponer con `--addr` es una decision consciente con advertencia.
@@ -957,9 +1016,8 @@ de `hoom serve`, y las dos formas de mirar el harness conviven.
 
 - Escribir en la terminal de la tarjeta desde el navegador (hoy el espejo es
   de solo lectura) y verificar de nuevo desde la tarjeta.
-- Activar y apagar el piloto automatico desde la tarjeta (hoy se activa en
-  el item), y que la cinta siga tambien despues de un `hoom agent` de la
-  terminal.
+- Activar y apagar el piloto automatico desde la tarjeta (hoy se activa con
+  `hoom item set --auto`).
 
 ### Harness
 
