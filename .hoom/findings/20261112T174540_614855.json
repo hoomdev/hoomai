@@ -1,0 +1,11 @@
+{
+  "id": "20261112T174540_614855",
+  "created_at": "2026-11-12T17:45:40.754794118Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/lanzar/lanzar.go:454 copia manualmente Columna, Regla, Intento, Ronda, Hallazgos y Bloqueantes a reviewcmd.Options y vuelve a copiar el mismo bloque a agentcmd.Options en la linea 465; el mismo grupo esta declarado ademas en Request y envelope.Record. La metadata de un lanzamiento autonomo queda dispersa entre varias estructuras y asignaciones, por lo que agregar o renombrar una clave exige sincronizar todos esos puntos; un valor/estructura comun haria explicito el contrato.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T173435_b6fadf",
+  "created_at": "2026-11-12T17:34:35.089491346Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: internal/agentcmd/agentcmd.go:376-381 y 424-429 dejan Trasplantados en nil cuando un trasplante solo aplicó borrados (Isolation.Removed no vacío, Isolation.Applied vacío); además envelope.Record usa json omitempty. Ese sobre sí tuvo trasplante, por lo que CA-637 exige que escriba la clave trasplantados (vacía, porque las rutas borradas no entran), reservando la ausencia de la clave para sobres sin trasplante. El registro resultante pierde esa distinción aunque no cambie hoy la unión de tests protegidos.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

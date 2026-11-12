@@ -1,0 +1,11 @@
+{
+  "id": "20261112T173443_86de5a",
+  "created_at": "2026-11-12T17:34:43.728307139Z",
+  "severity": "low",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:997-1003 construye el envelope.Record del reviewer con Columna y los metadatos del piloto, pero nunca asigna Pedido. Como lanzar deriva las reviews por esta rama, todos los sobres de reviewer lanzados por lanzar omiten pedido (el campo también tiene json omitempty), contradiciendo CA-661 y el contrato de que todo sobre lanzado por lanzar persiste columna y el texto recibido. La telemetría queda incompleta aunque el relevo actual del reviewer use Delta en vez de Pedido.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

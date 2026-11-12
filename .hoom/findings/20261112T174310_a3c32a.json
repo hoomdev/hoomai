@@ -1,0 +1,11 @@
+{
+  "id": "20261112T174310_a3c32a",
+  "created_at": "2026-11-12T17:43:10.027577045Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:248-259 ignora los errores al abrir, escribir y cerrar el log, y tambien los de Salida. Con disco lleno, permisos degradados o stdout cerrado, el piloto sigue lanzando trabajos y consumiendo presupuesto aunque no pudo persistir ni entregar las lineas requeridas; en el Studio Salida es nil, por lo que no queda ninguna senal del fallo. La E/S del registro debe propagarse para detener la cadena.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

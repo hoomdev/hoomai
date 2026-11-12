@@ -1,0 +1,11 @@
+{
+  "id": "20261112T174258_30fa2c",
+  "created_at": "2026-11-12T17:42:58.376942013Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:512 descarta tanto los warnings como el error de LoadAllWithWarnings y arma el Estado sin el veredicto ilegible. Luego internal/boardcmd/piloto.go:270-272 y 455-480 acepta el resumen rojo del sobre; con v nil no puede ver gates en error y lanza el reintento con una lista de gates vacia. Un veredicto truncado o ilegible por un fallo parcial de disco hace que el piloto avance en vez de detenerse por evidencia no disponible; debe fallar cerrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

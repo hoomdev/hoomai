@@ -1,0 +1,82 @@
+{
+  "id": "20261112T172718_28436f",
+  "created_at": "2026-11-12T17:27:18.699861253Z",
+  "task": "autonomia-entre-firmas",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md",
+  "fingerprint": "e4df350a5ff8c82a",
+  "verdict_id": "2026-11-12T17-12-19Z_ad4b6d48",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261112T172115_96b675",
+    "20261112T172708_1050f0",
+    "20261112T172708_41b8f0"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 363734,
+  "evidence_sha256": "f78653d7dbf7670004ecc0b34387ca82851bd82b77b9262ccf82842fbfb8815e",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1582397,
+      "cached_input_tokens": 1419904,
+      "output_tokens": 6798,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 3526889,
+      "cached_input_tokens": 3339392,
+      "output_tokens": 12002,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 3007680,
+      "cached_input_tokens": 2832512,
+      "output_tokens": 9317,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 1239121,
+      "cached_input_tokens": 1078272,
+      "output_tokens": 4973,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261112T171516_187972"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261112T171740_ccbef0"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261112T172144_8476d1"
+    },
+    {
+      "lens": "readability",
+      "run": "20261112T172504_1519d0"
+    }
+  ],
+  "desde": "2c6d111a3553e853cfbad08e4e38fe7de052a9e8",
+  "hasta": "9cad5a312b732e2cb26727dbb00e61e0870f3cd0",
+  "cobertura": "parcial",
+  "base": "main",
+  "riesgo": "normal"
+}

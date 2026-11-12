@@ -1,0 +1,11 @@
+{
+  "id": "20261112T174304_8c4407",
+  "created_at": "2026-11-12T17:43:04.352203403Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:855 hace obligatorio commitPaths al guardar cada vuelta sucia del piloto, y internal/itemcmd/itemcmd.go:945-958 ejecuta git commit (incluidos sus hooks) mediante exec.Command y CombinedOutput sin contexto ni timeout. Un hook o una dependencia del hook que se bloquea deja hoom piloto y approveCard colgados mientras conservan los candados del piloto y del arbol, en vez de producir no pudo guardar; el guardado automatico necesita ser acotado o cancelable.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

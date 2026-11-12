@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172115_96b675",
+  "created_at": "2026-11-12T17:21:15.403530886Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/piloto.go",
+  "description": "INTRODUCIDO: internal/boardcmd/piloto.go:287 ahora decide la cadena leyendo PilotTable, que internal/boardcmd/pilot.go:7 expone como map mutable. Un consumidor puede cambiar o agregar entradas entre dos llamadas (por ejemplo ColArquitecto -\u003e ActPedirArquitecto), haciendo que el mismo Estado produzca otra decision y que Piloto llegue a lanzar al arquitecto, contra la pureza y CA-642. La tabla usada por Piloto debe quedar fuera de mutacion externa (switch/lookup inmutable o copia privada).",
+  "author": "reviewer@codex",
+  "fingerprint": "e4df350a5ff8c82a",
+  "task": "autonomia-entre-firmas"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172708_1050f0",
+  "created_at": "2026-11-12T17:27:08.699043648Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/autonomia_entre_firmas_test.go",
+  "description": "INTRODUCIDO: internal/boardcmd/autonomia_entre_firmas_test.go:1575-1606 representa nueve cierres de la simulacion con enteros magicos de rand.Intn(9), y la transicion de columna repite el mismo patron opaco en la linea 1741. Constantes tipadas o una tabla de escenarios permitirian entender y extender la simulacion sin reconstruir el significado de 0..8 y de la distribucion literal.",
+  "author": "reviewer@codex",
+  "fingerprint": "e4df350a5ff8c82a",
+  "task": "autonomia-entre-firmas"
+}
