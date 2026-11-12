@@ -7,6 +7,7 @@
 package itemcmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -775,7 +776,7 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 				local[i] = strings.TrimPrefix(p, tr.rel+"/")
 			}
 		}
-		sha, err := commitPaths(dir, res.Message, local)
+		sha, err := commitPaths(dir, res.Message, local, 0)
 		if err != nil {
 			if len(res.Commits) > 0 {
 				// the workspace is already saved: say so, with its commit
@@ -896,7 +897,9 @@ func guardarTarea(root, base, blockOn, slug, dir string) (SaveResult, error) {
 		}
 		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
 	}
-	sha, err := commitPaths(dir, res.Message, local)
+	// bounded, hooks included: a hook that never ends must not hang the
+	// pilot with its locks taken (finding 8c4407)
+	sha, err := commitPaths(dir, res.Message, local, TopeGit)
 	if err != nil {
 		return res, err
 	}
@@ -960,11 +963,12 @@ func lockArboles(root string, c boardcmd.Card) (func(), error) {
 
 // commitPaths stages exactly paths and commits only them: whatever else sits
 // in the index stays there, uncommitted. The repository's hooks run.
-func commitPaths(dir, msg string, paths []string) (string, error) {
+func commitPaths(dir, msg string, paths []string, tope time.Duration) (string, error) {
 	// what is on disk is added; what is not (a deletion, also one a git rm
 	// or a git mv already staged) leaves the index: git add stops at a name
 	// that is in neither (finding 186524). The paths are names, never
-	// patterns (finding a26f9d).
+	// patterns (finding a26f9d). tope > 0 bounds each git command, its
+	// hooks included (TopeGit); 0 = unbounded.
 	var presentes, ausentes []string
 	for _, p := range paths {
 		if _, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(p))); os.IsNotExist(err) {
@@ -973,33 +977,77 @@ func commitPaths(dir, msg string, paths []string) (string, error) {
 			presentes = append(presentes, p)
 		}
 	}
+	fallo := func(que, out string, err error) error {
+		if errors.Is(err, errTopeGit) {
+			return err
+		}
+		return fmt.Errorf("git %s fallo: %s", que, out)
+	}
 	if len(presentes) > 0 {
-		if out, err := git(dir, append([]string{"--literal-pathspecs", "add", "-A", "--"}, presentes...)...); err != nil {
-			return "", fmt.Errorf("git add fallo: %s", out)
+		if out, err := gitTope(dir, tope, nil, append([]string{"--literal-pathspecs", "add", "-A", "--"}, presentes...)...); err != nil {
+			return "", fallo("add", out, err)
 		}
 	}
 	if len(ausentes) > 0 {
-		cmd := exec.Command("git", "update-index", "--remove", "-z", "--stdin")
-		cmd.Dir = dir
-		cmd.Stdin = strings.NewReader(strings.Join(ausentes, "\x00") + "\x00")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("git update-index fallo: %s", strings.TrimSpace(string(out)))
+		in := strings.NewReader(strings.Join(ausentes, "\x00") + "\x00")
+		if out, err := gitTope(dir, tope, in, "update-index", "--remove", "-z", "--stdin"); err != nil {
+			return "", fallo("update-index", out, err)
 		}
 	}
-	if out, err := git(dir, append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
-		return "", fmt.Errorf("git commit fallo: %s", out)
+	if out, err := gitTope(dir, tope, nil, append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
+		return "", fallo("commit", out, err)
 	}
-	sha, err := git(dir, "rev-parse", "HEAD")
+	sha, err := gitTope(dir, tope, nil, "rev-parse", "HEAD")
 	if err != nil {
-		return "", fmt.Errorf("git rev-parse fallo: %s", sha)
+		return "", fallo("rev-parse", sha, err)
 	}
 	return sha, nil
 }
 
-func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+// errTopeGit marks a git command of the save that did not end within its
+// bound (TopeGit).
+var errTopeGit = errors.New("no termino a tiempo")
+
+// gitTope runs git in dir with stdin (nil = none), its combined output
+// trimmed. With tope > 0 the command is killed once tope passes (its hooks'
+// pipes are dropped WaitDelay later), and the error, wrapping errTopeGit,
+// says which command and its bound.
+func gitTope(dir string, tope time.Duration, stdin io.Reader, args ...string) (string, error) {
+	ctx, cancel := context.Background(), context.CancelFunc(func() {})
+	if tope > 0 {
+		ctx, cancel = context.WithTimeout(ctx, tope)
+	}
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
+	cmd.Stdin = stdin
+	if tope > 0 {
+		// an interrupt first, so git drops its index.lock (a kill would leave
+		// the repository locked for the next save); WaitDelay later Wait kills
+		// it and drops the pipes a hook's child keeps open
+		cmd.Cancel = func() error {
+			if err := cmd.Process.Signal(os.Interrupt); err != nil {
+				return cmd.Process.Kill()
+			}
+			return nil
+		}
+		cmd.WaitDelay = 2 * time.Second
+	}
 	out, err := cmd.CombinedOutput()
+	if tope > 0 && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		que := "git"
+		for _, a := range args {
+			if !strings.HasPrefix(a, "-") {
+				que = "git " + a
+				break
+			}
+		}
+		return "", fmt.Errorf("%s %w: se corto a los %s, con sus hooks", que, errTopeGit, tope)
+	}
+	if errors.Is(err, exec.ErrWaitDelay) {
+		// git ended well; a hook's child kept the output open
+		err = nil
+	}
 	return strings.TrimSpace(string(out)), err
 }
 
