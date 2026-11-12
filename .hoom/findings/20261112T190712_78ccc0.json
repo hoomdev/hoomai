@@ -1,0 +1,11 @@
+{
+  "id": "20261112T190712_78ccc0",
+  "created_at": "2026-11-12T19:07:12.892985445Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:624 reconstruye TocoProtegidos analizando el prefijo en espanol de finding.Description que otro paquete arma en internal/agentcmd/scope.go:646. Ese protocolo entre paquetes no esta tipado ni centralizado: una correccion de redaccion del hallazgo puede desactivar silenciosamente la regla que evita relevar o reintentar ese sobre. Conviene exponer metadata estructurada de la violacion o, como minimo, un constructor/predicado compartido.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

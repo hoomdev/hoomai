@@ -1,0 +1,11 @@
+{
+  "id": "20261112T185130_272465",
+  "created_at": "2026-11-12T18:51:30.033803577Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1028: al vencer TopeGit, Cancel envia SIGINT/Kill solo a cmd.Process (git); WaitDelay tampoco termina el grupo de procesos. Un hook o filtro que ignore SIGINT o deje un hijo puede seguir ejecutandose despues de que gitTope devuelve error y se sueltan los candados del arbol y la tarjeta, y modificar o borrar el worktree fuera de cualquier run, contaminando la siguiente vuelta. Hay que cancelar y recolectar el grupo completo. Patronizable: agregar una regla Semgrep custom que marque exec.CommandContext con Cancel limitado a cmd.Process.Signal/Kill cuando el comando puede ejecutar hooks o procesos hijos.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

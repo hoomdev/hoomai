@@ -1,0 +1,11 @@
+{
+  "id": "20261112T190139_84d9de",
+  "created_at": "2026-11-12T19:01:39.663729739Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:618 reconstruye TocoProtegidos con finding.List(..., true), pero ese true excluye los hallazgos ya resueltos. Si el high tests-del-test-writer de un writer cortado por tiempo se resuelve antes de la siguiente vuelta, el sobre queda con TocoProtegidos=false y Piloto lo releva por el caso 5, saltándose la regla de que un sobre que tocó tests protegidos nunca se releva ni reintenta. La consulta histórica debe incluir también hallazgos resueltos.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

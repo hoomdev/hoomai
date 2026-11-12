@@ -1,0 +1,11 @@
+{
+  "id": "20261112T190718_c06e95",
+  "created_at": "2026-11-12T19:07:18.835306617Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:800 convierte el timeout de git en una variable global exportada y mutable solo para que la prueba la reduzca. SaveTarea queda con una dependencia ambiental no visible en su firma, y cada prueba debe mutarla y restaurarla manualmente, lo que vuelve fragiles futuras pruebas concurrentes. Mantener el valor de produccion constante e inyectar el timeout en un helper u opciones de prueba haria explicita la dependencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

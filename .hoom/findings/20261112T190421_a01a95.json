@@ -1,0 +1,11 @@
+{
+  "id": "20261112T190421_a01a95",
+  "created_at": "2026-11-12T19:04:21.941821879Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:1028-1034 acota el guardado señalando o matando solo cmd.Process (el PID de git). WaitDelay cierra los pipes, pero no termina hijos o nietos que un hook haya dejado vivos; un hook que arranque un proceso en background o que ignore la señal puede seguir tocando el worktree o consumiendo recursos después de que gitTope devuelve, el piloto informa la detencion y libera sus candados. El siguiente piloto/run puede entonces competir con ese proceso huérfano; el timeout debe terminar el grupo/arbol de procesos o no liberar como si el hook hubiera cesado.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

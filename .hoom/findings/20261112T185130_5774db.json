@@ -1,0 +1,11 @@
+{
+  "id": "20261112T185130_5774db",
+  "created_at": "2026-11-12T18:51:30.110865344Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este rango) — internal/pilotocmd/pilotocmd.go:418: cerrarHallazgos toma el candado de lanzamiento pero, a diferencia de Lanzar, no vuelve a derivar la tarjeta ni comprueba auto/columna humana bajo ese candado. Si la persona apaga auto despues de la decision de Piloto y antes de Reservar, cerrarHallazgos igual resuelve hallazgos como hoom piloto y commitea; la desactivacion humana no gana la carrera.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

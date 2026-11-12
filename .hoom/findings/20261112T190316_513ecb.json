@@ -1,0 +1,11 @@
+{
+  "id": "20261112T190316_513ecb",
+  "created_at": "2026-11-12T19:03:16.180339114Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:618 usa finding.List y descarta sus warnings para decidir TocoProtegidos. Esa API omite los archivos de hallazgo ilegibles; si el high tests-del-test-writer del sobre queda truncado, sobredimensionado o no se puede leer, protegidosTocados devuelve exito con TocoProtegidos=false y el piloto puede relevar un writer cortado por tiempo. En ese estado degradado la evidencia es desconocida y esta ruta debe detenerse/fallar cerrada, no convertir la ausencia de un item legible en ausencia de manipulacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

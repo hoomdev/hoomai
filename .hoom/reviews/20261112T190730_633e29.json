@@ -1,0 +1,88 @@
+{
+  "id": "20261112T190730_633e29",
+  "created_at": "2026-11-12T19:07:30.195803283Z",
+  "task": "autonomia-entre-firmas",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md",
+  "fingerprint": "2dfb494dd07aeceb",
+  "verdict_id": "2026-11-12T18-43-11Z_90da0fa6",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261112T185129_ea20f8",
+    "20261112T185130_272465",
+    "20261112T185130_5774db",
+    "20261112T185626_e49304",
+    "20261112T190139_84d9de",
+    "20261112T190316_513ecb",
+    "20261112T190421_a01a95",
+    "20261112T190712_78ccc0",
+    "20261112T190718_c06e95"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 110204,
+  "evidence_sha256": "ad69093ca695dbbaea8bf72c250aca4ad0df51f66bd0c5f050f9602ea2cf930b",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1915936,
+      "cached_input_tokens": 1816448,
+      "output_tokens": 21581,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 1655779,
+      "cached_input_tokens": 1568640,
+      "output_tokens": 17933,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1391464,
+      "cached_input_tokens": 1299712,
+      "output_tokens": 18504,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 628064,
+      "cached_input_tokens": 562688,
+      "output_tokens": 5463,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261112T184504_a70aaf"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261112T185203_b75665"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261112T185810_cc7ca3"
+    },
+    {
+      "lens": "readability",
+      "run": "20261112T190535_7f1d6c"
+    }
+  ],
+  "desde": "62e71cfd2e0c2092593c164015917114097b271c",
+  "hasta": "43dbf28bb2aee686322248bae0fef557ad2e693b",
+  "cobertura": "parcial",
+  "base": "main",
+  "riesgo": "normal"
+}
