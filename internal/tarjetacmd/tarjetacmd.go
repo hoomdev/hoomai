@@ -32,6 +32,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/itemcmd"
 	"github.com/hoomdev/hoomai/internal/lanzar"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/pilotocmd"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/valores"
@@ -1144,7 +1145,10 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 		}
 		fmt.Fprintf(v.e.Out, "aprobado: %s (sha256 %s)\n", spec, corto(rec.SHA256, 8))
 		// autonomia-entre-firmas: signing launches nothing; a card with a
-		// pilot gets the line of pilotocmd.AvisoDeFirma here
+		// pilot says how to go on
+		if aviso := pilotocmd.AvisoDeFirma(d.Root, filepath.Join(dir, filepath.FromSlash(spec))); aviso != "" {
+			fmt.Fprintln(v.e.Out, aviso)
+		}
 		return 0
 	}
 	if err := taskcmd.Done(d.Root, d.Slug, m.BaseBranch, false); err != nil {

@@ -79,10 +79,11 @@ Comandos:
   item        La tarjeta como archivo (.hoom/items/<slug>.yaml, viaja en git):
               add "<titulo>" [--tipo t] [--prioridad p] [--riesgo r]
               [--presupuesto-usd x] [--pedido "..."] [--slug s] | list | show <slug>
-              [--auto hasta-humano] (piloto automatico en el Studio; exige
+              [--auto hasta-humano] (piloto automatico; exige
               --presupuesto-usd)
               | save <slug> (commitea lo que la tarjeta tiene sin guardar)
-              | set <slug> --riesgo bajo|normal|alto (lo cambia una persona)   [--json]
+              | set <slug> [--riesgo bajo|normal|alto] [--auto hasta-humano|no]
+              [--presupuesto-usd x] (lo cambia una persona)   [--json]
   board       El tablero: la columna de cada item sale de su evidencia
               (spec, aprobacion, tests, veredicto, review, cierre); nadie la
               escribe y nada se guarda [--json]
@@ -95,6 +96,10 @@ Comandos:
               por accion (? muestra las teclas) y cada accion ejecuta un verbo
               de la tarjeta (pedir, siguiente, aprobar, guardar, integrar,
               reanudar, usar); necesita una terminal (sin ella: hoom board)
+  piloto      El piloto automatico de una tarjeta en primer plano: guarda,
+              decide y lanza hasta tu proxima columna o un tope; una linea por
+              decision; nunca aprueba ni integra (auto: hasta-humano)
+              <slug> [--json]
   costo       Costo por tarea, con la ventana de la cuenta durante los runs:
               tokens por provider (nuevos, cache leido, salida, razonamiento),
               USD equivalente API y movimiento de las ventanas de 5h y de la
@@ -1139,14 +1144,21 @@ func cmdSpec(args []string) error {
 		if err != nil {
 			return err
 		}
+		aviso := ""
+		if abs, err := filepath.Abs(path); err == nil {
+			aviso = pilotocmd.AvisoDeFirma(m.Dir, abs)
+		}
 		if already {
 			fmt.Printf("hoom spec: %s ya estaba aprobado con este contenido exacto (sha256 %s, por %s) - sin cambios\n",
 				rec.Spec, rec.SHA256[:8], rec.ApprovedBy)
-			return nil
+		} else {
+			fmt.Printf("hoom spec: APROBADO %s\n  sha256:   %s\n  aprobado: %s (%s)\n  registro: .hoom/approvals/ (append-only, viaja en Git)\n",
+				rec.Spec, rec.SHA256, rec.ApprovedBy, rec.ApprovedAt.Format("2006-01-02 15:04 UTC"))
+			fmt.Println("  editar el spec ahora INVALIDA esta aprobacion (hash de contenido)")
 		}
-		fmt.Printf("hoom spec: APROBADO %s\n  sha256:   %s\n  aprobado: %s (%s)\n  registro: .hoom/approvals/ (append-only, viaja en Git)\n",
-			rec.Spec, rec.SHA256, rec.ApprovedBy, rec.ApprovedAt.Format("2006-01-02 15:04 UTC"))
-		fmt.Println("  editar el spec ahora INVALIDA esta aprobacion (hash de contenido)")
+		if aviso != "" {
+			fmt.Println(aviso)
+		}
 		return nil
 	case "status":
 		state, rec, err := approval.Status(m.Dir, path)

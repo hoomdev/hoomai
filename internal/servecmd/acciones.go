@@ -27,6 +27,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/itemcmd"
 	"github.com/hoomdev/hoomai/internal/lanzar"
+	"github.com/hoomdev/hoomai/internal/pilotocmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 )
 
@@ -195,11 +196,12 @@ func (s *Server) candado(slug string) (func(), bool) {
 	}, true
 }
 
-// belt is the autopilot of a card with `auto: hasta-humano`: a conveyor
-// belt, not an orchestrator. When a job the Studio launched returns, it asks
-// boardcmd.Pilot (pure) what comes next and, if anything, launches it with
-// the SAME function as the endpoint. What it decided goes to the log of the
-// job that closed.
+// belt is the autopilot of a card with `auto: hasta-humano`. When a job the
+// Studio launched returns, it runs the pilot's turns (pilotocmd.Avanzar,
+// over the pure boardcmd.Piloto), which launch through the SAME function
+// as the endpoint; what it decided goes to the log of the job that closed.
+// A job that never reached its first record, or a card without auto,
+// leaves nothing in the log, as before.
 func (s *Server) belt(slug string, before boardcmd.Card, envelopeID string, log io.Writer) {
 	var closed *envelope.Record
 	for _, dir := range []string{s.m.Dir, s.evidenceDir(before)} {
@@ -220,19 +222,35 @@ func (s *Server) belt(slug string, before boardcmd.Card, envelopeID string, log 
 	if err != nil || after.Item.Auto != item.AutoHastaHumano {
 		return
 	}
-	d := boardcmd.Pilot(before, after, *closed)
-	if !d.Launch {
-		fmt.Fprintf(log, "piloto automatico: se detiene: %s\n", d.Why)
-		return
+	if _, err := pilotocmd.Avanzar(context.Background(), s.piloto(slug)); err != nil {
+		fmt.Fprintf(log, "piloto automatico: se detiene: %s\n", err)
 	}
-	budget := d.BudgetUSD
-	resp, _, err := s.start(context.Background(), slug, launchReq{Action: d.Action, Provider: d.Provider, BudgetUSD: &budget,
-		Pedido: d.Pedido, Pilot: true})
-	if err != nil {
-		fmt.Fprintf(log, "piloto automatico: no pudo lanzar al %s: %s\n", d.Role, err)
-		return
+}
+
+// piloto is the Studio's skin of the pilot of a card: its launches go
+// through start's same Params, and the job they launch runs the next turn
+// when it ends.
+func (s *Server) piloto(slug string) pilotocmd.Opciones {
+	return pilotocmd.Opciones{Root: s.m.Dir, Manifest: s.m, Slug: slug, Lanzar: lanzar.Params{
+		Root: s.m.Dir, Manifest: s.m, Runs: s.runs, Grupo: &s.launches, ProviderExplicito: true,
+		Candado: s.candado,
+		Despues: func(antes boardcmd.Card, envelopeID string, log io.Writer) { s.belt(slug, antes, envelopeID, log) },
+	}}
+}
+
+// lineaDeDecision is the line of the pilot's first decision among its
+// lines: the launch, the stop, the failed launch or the closing of
+// findings — never the rule or the save that come before it.
+func lineaDeDecision(lineas []string) string {
+	for _, l := range lineas {
+		for _, pre := range []string{"piloto automatico: pide al ", "piloto automatico: se detiene: ",
+			"piloto automatico: no pudo lanzar al ", "piloto automatico: cierra "} {
+			if strings.HasPrefix(l, pre) {
+				return l
+			}
+		}
 	}
-	fmt.Fprintf(log, "piloto automatico: pide al %s con %s (%s USD): sobre %s\n", d.Role, d.Provider, lanzar.USD(budget), resp.EnvelopeID)
+	return ""
 }
 
 // approveCard is "Aprobar spec" from the card: `hoom spec approve` run in
@@ -266,7 +284,16 @@ func (s *Server) approveCard(w http.ResponseWriter, name, slug string) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, map[string]any{"approval": rec, "already": already})
+	resp := map[string]any{"approval": rec, "already": already}
+	if c.Item.Auto == item.AutoHastaHumano {
+		res, err := pilotocmd.Avanzar(context.Background(), s.piloto(slug))
+		linea := lineaDeDecision(res.Lineas)
+		if err != nil {
+			linea = "piloto automatico: se detiene: " + err.Error()
+		}
+		resp["piloto"] = linea
+	}
+	writeJSON(w, resp)
 }
 
 // pathsBody is the body of save and discard: the paths the person saw.
