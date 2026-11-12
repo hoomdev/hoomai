@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T034738_13bba6",
+  "as": "corregido",
+  "evidence": "e0e9fcb: Save corrido desde el worktree de la propia tarea pasa antes por runcmd.TaskDir(principal, slug), con o sin rutas; fuera de hoom/\u003cslug\u003e o con HEAD separado devuelve ErrOtraRama (409 en el Studio) y no commitea. Regresion TestHallazgo_13bba6_68644c_* (fac494e, fallan en c32a33c) y save_rama_writer_test.go",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-12T04:02:33.273584008Z"
+}
