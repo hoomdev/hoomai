@@ -547,7 +547,78 @@ var ErrAutoSinPresupuesto = errors.New("--auto necesita --presupuesto-usd: el pi
 //   - an item that does not exist: an error that wraps os.ErrNotExist; an
 //     unreadable or invalid one: its error.
 func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, err error) {
-	return Item{}, Item{}, false, nil
+	if c.Riesgo != nil {
+		if *c.Riesgo == "" {
+			return Item{}, Item{}, false, fmt.Errorf("falta el riesgo (%s)", strings.Join(riesgo.Vocabulario, ", "))
+		}
+		if err := riesgo.Validar(*c.Riesgo); err != nil {
+			return Item{}, Item{}, false, err
+		}
+	}
+	if c.Auto != nil && *c.Auto != "" && !contains(Autos, *c.Auto) {
+		return Item{}, Item{}, false, fmt.Errorf("auto %q fuera del vocabulario (%s)", *c.Auto, strings.Join(Autos, ", "))
+	}
+	if c.PresupuestoUSD != nil && !finitePositive(*c.PresupuestoUSD) {
+		return Item{}, Item{}, false, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0 (para no declarar tope, no lo pases)")
+	}
+	if !ValidSlug(slug) {
+		return Item{}, Item{}, false, fmt.Errorf("slug invalido %q", slug)
+	}
+	noExiste := fmt.Errorf("no existe el item %q: %w", slug, os.ErrNotExist)
+	if _, err := os.Stat(Path(root, slug)); err != nil {
+		if os.IsNotExist(err) {
+			return Item{}, Item{}, false, noExiste
+		}
+		return Item{}, Item{}, false, err
+	}
+	existia := false
+	var rechazo error
+	cambio, err = update(root, slug, func(it *Item) bool {
+		existia = true
+		antes = *it
+		if antes.Riesgo == "" {
+			antes.Riesgo = riesgo.Normal
+		}
+		nuevo := antes
+		if c.Riesgo != nil {
+			nuevo.Riesgo = *c.Riesgo
+		}
+		if c.Auto != nil {
+			nuevo.Auto = *c.Auto
+		}
+		if c.PresupuestoUSD != nil {
+			v := *c.PresupuestoUSD
+			nuevo.PresupuestoUSD = &v
+		}
+		if nuevo.Auto != "" && nuevo.PresupuestoUSD == nil {
+			rechazo = ErrAutoSinPresupuesto
+			return false
+		}
+		despues = nuevo
+		if nuevo.Riesgo == antes.Riesgo && nuevo.Auto == antes.Auto && mismoPresupuesto(nuevo.PresupuestoUSD, antes.PresupuestoUSD) {
+			return false
+		}
+		*it = nuevo
+		return true
+	})
+	switch {
+	case err != nil:
+		return Item{}, Item{}, false, err
+	case !existia:
+		return Item{}, Item{}, false, noExiste
+	case rechazo != nil:
+		return Item{}, Item{}, false, rechazo
+	}
+	return antes, despues, cambio, nil
+}
+
+// mismoPresupuesto says whether two caps are the same: both absent, or the
+// same amount.
+func mismoPresupuesto(a, b *float64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // update is the one read-modify-write of an item, under the item's lock

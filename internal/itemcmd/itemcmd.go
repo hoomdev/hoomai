@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,7 +68,7 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--r
      hoom item list [--json]
      hoom item show <slug> [--json]
      hoom item save <slug> [--json]
-     hoom item set <slug> --riesgo r [--json]
+     hoom item set <slug> [--riesgo r] [--auto hasta-humano|no] [--presupuesto-usd x] [--json]
      hoom item backfill [--dry-run] [--json]
 
   --tipo t             feature|bug|refactor|seguridad|docs|test (default feature)
@@ -80,10 +81,10 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--r
   --pedido "<texto>"   Lo que va a recibir el arquitecto (opcional)
   --slug s             Slug del item (default: derivado del titulo); es el
                        nombre del spec (.hoom/specs/<slug>.md) y de la tarea
-  --auto hasta-humano  Activa el piloto automatico de la tarjeta en el Studio
-                       (exige --presupuesto-usd): despues de un trabajo que
-                       cierra bien, pide el del rol siguiente hasta la proxima
-                       columna tuya, un rojo o el fin del presupuesto
+  --auto hasta-humano  Activa el piloto automatico de la tarjeta (en el Studio
+                       y con 'hoom piloto <slug>'; exige --presupuesto-usd):
+                       despues de cada trabajo pide el del rol siguiente
+                       hasta la proxima columna tuya o un tope
   --json               Emite el resultado como JSON en stdout
 
 'hoom item save' commitea lo que la tarjeta tiene sin guardar (en su espacio
@@ -99,8 +100,9 @@ hecho_en. Lo que no califica sale con su motivo; --dry-run no escribe nada.
 El item es un archivo en .hoom/items/<slug>.yaml que viaja en git. Nunca
 guarda una columna: la columna sale de la evidencia ('hoom board').
 
-'hoom item set' cambia el riesgo de la tarjeta y nada mas; no commitea
-(guardalo con 'hoom item save <slug>'). Lo cambia una persona, nunca un rol.
+'hoom item set' cambia el riesgo, el piloto automatico (--auto no lo quita)
+y el presupuesto de la tarjeta; no commitea (guardalo con 'hoom item save
+<slug>'). Lo cambia una persona, nunca un rol.
 Un titulo que empieza con '-' va despues de '--': hoom item add -- "-titulo"`
 
 // Request is one parsed `hoom item` invocation. `hoom item add --riesgo r`
@@ -227,7 +229,90 @@ func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
 // The SetResult carries the riesgo before and after (as Set's), the auto
 // and presupuesto_usd after, the ones before, and Cambio.
 func SetCambios(root, base, blockOn, slug string, c item.Cambios, rol string) (SetResult, error) {
-	return SetResult{}, nil
+	if strings.TrimSpace(rol) != "" {
+		if c.Auto != nil || c.PresupuestoUSD != nil {
+			return SetResult{}, fmt.Errorf("el piloto automatico y el presupuesto de una tarjeta los cambia una persona, no un rol")
+		}
+		return SetResult{}, fmt.Errorf("el riesgo de una tarjeta lo cambia una persona, no un rol")
+	}
+	if c.Riesgo == nil && c.Auto == nil && c.PresupuestoUSD == nil {
+		return SetResult{}, fmt.Errorf("falta --riesgo, --auto o --presupuesto-usd: es lo que set cambia")
+	}
+	// the item written is the one the card is read from, like Set's
+	dest, ok := item.ArbolDelRiesgo(root, slug)
+	if !ok {
+		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
+	}
+	card, err := boardcmd.CardFor(dest, base, blockOn, slug, time.Now().UTC())
+	if err != nil {
+		return SetResult{}, err
+	}
+	if card.Column == boardcmd.ColHecho {
+		return SetResult{}, fmt.Errorf("la tarjeta ya esta en Hecho")
+	}
+	antes, despues, cambio, err := item.Cambiar(dest, slug, c)
+	if errors.Is(err, os.ErrNotExist) {
+		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
+	}
+	if err != nil {
+		return SetResult{}, err
+	}
+	return SetResult{Slug: slug, Antes: antes.Riesgo, Riesgo: despues.Riesgo, Cambio: cambio,
+		Auto: despues.Auto, PresupuestoUSD: despues.PresupuestoUSD,
+		AutoAntes: antes.Auto, PresupuestoAntes: antes.PresupuestoUSD}, nil
+}
+
+// cambiosDe is what a parsed `hoom item set` asks to change.
+func cambiosDe(req Request) item.Cambios {
+	var c item.Cambios
+	if req.Riesgo != "" {
+		r := req.Riesgo
+		c.Riesgo = &r
+	}
+	switch req.Auto {
+	case item.AutoHastaHumano:
+		a := item.AutoHastaHumano
+		c.Auto = &a
+	case AutoNo:
+		a := ""
+		c.Auto = &a
+	}
+	if req.PresupuestoUSD != nil {
+		v := *req.PresupuestoUSD
+		c.PresupuestoUSD = &v
+	}
+	return c
+}
+
+// renderSet prints what a set of auto or presupuesto_usd did, one line per
+// key it changed.
+func renderSet(w io.Writer, res SetResult) {
+	if !res.Cambio {
+		fmt.Fprintf(w, "tarjeta %s: ya tenia esos valores\n", res.Slug)
+		return
+	}
+	guardar := " - guardalo con: hoom item save " + res.Slug
+	if res.Antes != res.Riesgo {
+		fmt.Fprintf(w, "riesgo de %s: %s -> %s%s\n", res.Slug, res.Antes, res.Riesgo, guardar)
+	}
+	autoDe := func(a string) string {
+		if a == "" {
+			return AutoNo
+		}
+		return a
+	}
+	if res.AutoAntes != res.Auto {
+		fmt.Fprintf(w, "auto de %s: %s -> %s%s\n", res.Slug, autoDe(res.AutoAntes), autoDe(res.Auto), guardar)
+	}
+	topeDe := func(v *float64) string {
+		if v == nil {
+			return "sin tope"
+		}
+		return strconv.FormatFloat(*v, 'f', -1, 64) + " USD"
+	}
+	if topeDe(res.PresupuestoAntes) != topeDe(res.PresupuestoUSD) {
+		fmt.Fprintf(w, "presupuesto de %s: %s -> %s%s\n", res.Slug, topeDe(res.PresupuestoAntes), topeDe(res.PresupuestoUSD), guardar)
+	}
 }
 
 // BackfillResult is what `hoom item backfill` did, or would do with
@@ -334,24 +419,7 @@ func Parse(args []string) (Request, error) {
 		}
 		return Request{Sub: SubSave, Slug: ops[0], JSON: *asJSON}, nil
 	case SubSet:
-		fs := flag.NewFlagSet("item set", flag.ContinueOnError)
-		r := fs.String("riesgo", "", "riesgo de la tarjeta: bajo|normal|alto")
-		asJSON := fs.Bool("json", false, "emitir el resultado como JSON")
-		ops, err := cliargs.Operands(fs, rest, "item set", UsageText, 1)
-		if err != nil {
-			return Request{}, err
-		}
-		if !item.ValidSlug(ops[0]) {
-			return Request{}, uso("item set", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
-		}
-		v := strings.TrimSpace(*r)
-		if v == "" {
-			return Request{}, uso("item set", "falta --riesgo (bajo|normal|alto): es lo unico que set cambia")
-		}
-		if err := riesgo.Validar(v); err != nil {
-			return Request{}, uso("item set", err.Error())
-		}
-		return Request{Sub: SubSet, Slug: ops[0], Riesgo: v, JSON: *asJSON}, nil
+		return parseSet(rest)
 	case SubBackfill:
 		fs := flag.NewFlagSet("item backfill", flag.ContinueOnError)
 		dryRun := fs.Bool("dry-run", false, "lista lo que crearia sin escribir nada")
@@ -362,6 +430,52 @@ func Parse(args []string) (Request, error) {
 		return Request{Sub: SubBackfill, DryRun: *dryRun, JSON: *asJSON}, nil
 	}
 	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|set|backfill)", sub))
+}
+
+// parseSet is `hoom item set <slug> [--riesgo r] [--auto hasta-humano|no]
+// [--presupuesto-usd x] [--json]`: at least one of the three, each checked
+// against its vocabulary.
+func parseSet(args []string) (Request, error) {
+	fs := flag.NewFlagSet("item set", flag.ContinueOnError)
+	r := fs.String("riesgo", "", "riesgo de la tarjeta: bajo|normal|alto")
+	auto := fs.String("auto", "", "piloto automatico: hasta-humano|no")
+	presupuesto := fs.String("presupuesto-usd", "", "tope de gasto en USD")
+	asJSON := fs.Bool("json", false, "emitir el resultado como JSON")
+	ops, err := cliargs.Operands(fs, args, "item set", UsageText, 1)
+	if err != nil {
+		return Request{}, err
+	}
+	if !item.ValidSlug(ops[0]) {
+		return Request{}, uso("item set", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
+	}
+	req := Request{Sub: SubSet, Slug: ops[0], JSON: *asJSON}
+	conPresupuesto := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "presupuesto-usd" {
+			conPresupuesto = true
+		}
+	})
+	req.Riesgo = strings.TrimSpace(*r)
+	req.Auto = strings.TrimSpace(*auto)
+	if req.Riesgo == "" && req.Auto == "" && !conPresupuesto {
+		return Request{}, uso("item set", "falta --riesgo, --auto o --presupuesto-usd: es lo que set cambia")
+	}
+	if req.Riesgo != "" {
+		if err := riesgo.Validar(req.Riesgo); err != nil {
+			return Request{}, uso("item set", err.Error())
+		}
+	}
+	if req.Auto != "" && req.Auto != item.AutoHastaHumano && req.Auto != AutoNo {
+		return Request{}, uso("item set", fmt.Sprintf("--auto tiene que ser %s o %s", item.AutoHastaHumano, AutoNo))
+	}
+	if conPresupuesto {
+		v, err := strconv.ParseFloat(strings.TrimSpace(*presupuesto), 64)
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) || !(v > 0) {
+			return Request{}, uso("item set", "--presupuesto-usd tiene que ser un numero mayor que 0")
+		}
+		req.PresupuestoUSD = &v
+	}
+	return req, nil
 }
 
 func parseAdd(args []string) (Request, error) {
@@ -486,6 +600,17 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 		}
 		return nil
 	case SubSet:
+		if req.Auto != "" || req.PresupuestoUSD != nil {
+			res, err := SetCambios(root, base, blockOn, req.Slug, cambiosDe(req), os.Getenv(runcmd.EnvRole))
+			if err != nil {
+				return err
+			}
+			if req.JSON {
+				return emit(stdout, res)
+			}
+			renderSet(stdout, res)
+			return nil
+		}
 		res, err := Set(root, base, blockOn, req.Slug, req.Riesgo, os.Getenv(runcmd.EnvRole))
 		if err != nil {
 			return err
