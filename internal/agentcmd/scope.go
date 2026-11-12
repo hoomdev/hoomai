@@ -102,10 +102,49 @@ func FotoProtegidos(dir string, rutas []string) Protegidos {
 		case err != nil:
 			foto[p] = HuellaIlegible
 		default:
-			foto[p] = huella(r, name, fi)
+			switch ok, err := nombreExacto(r, name); {
+			case err != nil:
+				foto[p] = HuellaIlegible
+			case !ok:
+				// on a filesystem that ignores case, the old spelling still
+				// resolves after a rename that only changes case: the file
+				// is no longer there with its name (finding 11bfc2)
+				foto[p] = ProtegidoAusente
+			default:
+				foto[p] = huella(r, name, fi)
+			}
 		}
 	}
 	return foto
+}
+
+// nombreExacto says whether every element of name is in its parent
+// directory of r with exactly those bytes.
+func nombreExacto(r *os.Root, name string) (bool, error) {
+	dir := "."
+	for _, el := range strings.Split(name, string(filepath.Separator)) {
+		f, err := r.Open(dir)
+		if err != nil {
+			return false, err
+		}
+		nombres, err := f.Readdirnames(-1)
+		f.Close()
+		if err != nil {
+			return false, err
+		}
+		esta := false
+		for _, n := range nombres {
+			if n == el {
+				esta = true
+				break
+			}
+		}
+		if !esta {
+			return false, nil
+		}
+		dir = filepath.Join(dir, el)
+	}
+	return true, nil
 }
 
 // TestsProtegidos are the protected tests of task in the project root: the
@@ -143,7 +182,8 @@ func TestsProtegidos(root, task string) ([]string, error) {
 
 // sinTocarProtegidos applies RuleTestsDelTestWriter: for a role of shape
 // codigo, every protected test whose content in dir is no longer the one
-// photographed before the run (changed, removed or renamed), or whose index or HEAD entry changed or got
+// photographed before the run (changed, removed or renamed, also a rename
+// that only changes case), or whose index or HEAD entry changed or got
 // hidden from git (enGit, cambioEnGit), is a violation,
 // whatever the role's Allow says. It replaces an out-of-scope violation of
 // the same path (this one cuts, that one does not) and leaves a tampering
