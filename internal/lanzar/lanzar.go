@@ -336,6 +336,14 @@ func pilotoNoLanza(c boardcmd.Card) string {
 	return ""
 }
 
+// Reservar takes the card's launch locks (the file lock and p.Candado) as
+// Lanzar does, so no launch of the card starts until soltar: the pilot's
+// cerrar-hallazgos holds them from the first resolution until it saves
+// (finding 8f4011). A taken lock is a *Rechazo with MsgLanzando.
+func Reservar(p Params, slug string) (soltar func(), err error) {
+	return tomarCandados(p, slug)
+}
+
 // Lanzar launches req on the card slug. It answers when the envelope's first
 // record is on disk, with a *Rechazo when the launch did not happen, or when
 // ctx is done (the job then goes on by itself). A job that ended before its

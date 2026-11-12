@@ -811,30 +811,68 @@ var TopeGit = 5 * time.Minute
 // task's worktree, a worktree off its branch or with a detached HEAD
 // (runcmd.TaskDir's error), a job running on the card while the worktree
 // has something to save (`espera a que termine <quien> que esta
-// trabajando`) or an agent starting in it.
+// trabajando`) or an agent starting in it. Each git command of the save,
+// hooks included, is bounded by TopeGit.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
-	dir, err := runcmd.TaskDir(root, slug)
+	dir, err := tareaGuardable(root, base, blockOn, slug)
 	if err != nil {
 		return SaveResult{}, err
-	}
-	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
-	if err != nil {
-		return SaveResult{}, err
-	}
-	if c.Evidence.Source != boardcmd.SourceWorktree {
-		return SaveResult{}, fmt.Errorf("la tarjeta %s no tiene el espacio de trabajo de su tarea: hoom task start %s", slug, slug)
 	}
 	// under the task tree's lock, like Save: a run that starts meanwhile
 	// waits until the commit is done (finding ac2feb)
-	unlock, err := runcmd.LockArbol(dir, runcmd.EsperaArbol)
+	unlock, err := TomarArbol(dir, slug)
 	if err != nil {
-		if errors.Is(err, hoomfs.ErrLocked) {
-			return SaveResult{}, fmt.Errorf("un agente esta arrancando en la tarjeta %s: guardar ahora commitearia su trabajo a medias. Accion: espera a que termine", slug)
-		}
 		return SaveResult{}, err
 	}
 	defer unlock()
-	if c, err = boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC()); err != nil {
+	return guardarTarea(root, base, blockOn, slug, dir)
+}
+
+// SaveTareaBajoCandado is SaveTarea for a caller that already holds the
+// task tree's lock (TomarArbol): the pilot's cerrar-hallazgos, which holds it
+// from its first resolution until it saves (finding 8f4011).
+func SaveTareaBajoCandado(root, base, blockOn, slug string) (SaveResult, error) {
+	dir, err := tareaGuardable(root, base, blockOn, slug)
+	if err != nil {
+		return SaveResult{}, err
+	}
+	return guardarTarea(root, base, blockOn, slug, dir)
+}
+
+// TomarArbol takes runcmd.LockArbol of the task tree dir of the card slug,
+// with Save's error when an agent is starting in it.
+func TomarArbol(dir, slug string) (func(), error) {
+	unlock, err := runcmd.LockArbol(dir, runcmd.EsperaArbol)
+	if err != nil {
+		if errors.Is(err, hoomfs.ErrLocked) {
+			return nil, fmt.Errorf("un agente esta arrancando en la tarjeta %s: guardar ahora commitearia su trabajo a medias. Accion: espera a que termine", slug)
+		}
+		return nil, err
+	}
+	return unlock, nil
+}
+
+// tareaGuardable is the task tree of the card slug, when the card has its
+// task's worktree.
+func tareaGuardable(root, base, blockOn, slug string) (string, error) {
+	dir, err := runcmd.TaskDir(root, slug)
+	if err != nil {
+		return "", err
+	}
+	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+	if err != nil {
+		return "", err
+	}
+	if c.Evidence.Source != boardcmd.SourceWorktree {
+		return "", fmt.Errorf("la tarjeta %s no tiene el espacio de trabajo de su tarea: hoom task start %s", slug, slug)
+	}
+	return dir, nil
+}
+
+// guardarTarea is SaveTarea under the task tree's lock.
+func guardarTarea(root, base, blockOn, slug, dir string) (SaveResult, error) {
+	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+	if err != nil {
 		return SaveResult{}, err
 	}
 	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}

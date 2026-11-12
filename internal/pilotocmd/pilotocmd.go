@@ -394,8 +394,10 @@ func (r *corrida) lanzar(ctx context.Context, m *manifest.Manifest, d boardcmd.P
 	return t, true
 }
 
-// cerrarHallazgos carries out a PasoCerrarHallazgos: it closes each finding
-// with its evidence, runs the card's verify, saves, and stops when the new
+// cerrarHallazgos carries out a PasoCerrarHallazgos: holding the card's
+// launch locks (lanzar.Reservar) and its tree's lock, with no run active, it
+// closes each finding with its evidence, runs the card's verify, saves
+// (itemcmd.SaveTareaBajoCandado), and stops when the new
 // verdict is not green: with the card's blocking findings no protected test
 // of the round cites when any is left, else with the gates still red. ok is
 // false when the pilot stopped.
@@ -406,6 +408,29 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 	if err != nil {
 		r.detener(parada(err.Error()))
 		return false
+	}
+	// exclusive until it saves (finding 8f4011): no launch of the card and no
+	// run on its tree starts meanwhile, and none is running when it begins
+	noGuarda := func(err error) bool {
+		r.detener(parada("no pudo guardar el trabajo de la tarjeta: " + err.Error()))
+		return false
+	}
+	soltar, err := lanzar.Reservar(r.o.Lanzar, slug)
+	if err != nil {
+		return noGuarda(err)
+	}
+	defer soltar()
+	unlock, err := itemcmd.TomarArbol(dir, slug)
+	if err != nil {
+		return noGuarda(err)
+	}
+	defer unlock()
+	id, busy := runcmd.Active(root, dir)
+	if rs := r.o.Lanzar.Runs; rs != nil {
+		id, busy = rs.Busy(dir)
+	}
+	if busy {
+		return noGuarda(fmt.Errorf("hay un run activo (%s) en el espacio de trabajo de la tarjeta: espera a que termine", id))
 	}
 	for _, id := range d.Hallazgos {
 		if _, err := finding.Resolve(dir, id, finding.StatusCorrected, d.Evidencias[id], finding.AutorPiloto); err != nil {
@@ -426,10 +451,9 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		r.detener(parada(err.Error()))
 		return false
 	}
-	g, err := itemcmd.SaveTarea(root, m.BaseBranch, m.FindingsBlockOn(), slug)
+	g, err := itemcmd.SaveTareaBajoCandado(root, m.BaseBranch, m.FindingsBlockOn(), slug)
 	if err != nil {
-		r.detener(parada("no pudo guardar el trabajo de la tarjeta: " + err.Error()))
-		return false
+		return noGuarda(err)
 	}
 	for _, cm := range g.Commits {
 		r.linea("piloto automatico: guarda el trabajo de la tarjeta: %s", cm.SHA)
