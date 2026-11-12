@@ -1,0 +1,11 @@
+{
+  "id": "20261112T041312_75f9a1",
+  "created_at": "2026-11-12T04:13:12.963477304Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:516-521: la nueva puerta omite la validacion si gitx.CheckoutPrincipal devuelve ok=false. Ese helper tambien devuelve false ante cualquier fallo de git rev-parse (internal/gitx/worktree.go:161-164), no solo cuando no hay checkout principal; si esa consulta falla transitoriamente y Git se recupera para las operaciones siguientes, POST save sigue desde el worktree en una rama ajena y puede commitear alli. La dependencia Git degradada hace que la defensa falle abierta en vez de devolver no pude comprobar.",
+  "author": "reviewer@codex",
+  "fingerprint": "9b6d64fb1dc90b9d",
+  "task": "ciclo-de-review-acotado"
+}
