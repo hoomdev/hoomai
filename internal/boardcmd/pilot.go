@@ -2,26 +2,26 @@ package boardcmd
 
 import "github.com/hoomdev/hoomai/internal/item"
 
-// PilotoNoSigue is why the pilot must not act on the card c, read again under
-// its locks after Piloto decided: its item no longer has auto hasta-humano,
-// or it is in a human column or in Hecho (aclaraciones 13 and 20). "" when it
-// may. lanzar.Lanzar checks it for a launch with Pilot, and the pilot's
-// cerrar-hallazgos before its first resolution.
-func PilotoNoSigue(c Card) string {
+// PilotoNoSigue is the stop of the pilot on the card c, read again under its
+// locks after Piloto decided, when it must not act on it: its item no longer
+// has auto hasta-humano (caso 1, with case 1's Why), or it is in Hecho or in
+// a human column (caso 3, with case 3's Why: `hoom piloto` exits 0)
+// (aclaraciones 13, 20 and 22). caso 0 and "" when it may. lanzar.Lanzar
+// checks it for a launch with Pilot, and the pilot's cerrar-hallazgos before
+// its first resolution.
+func PilotoNoSigue(c Card) (caso int, why string) {
 	if c.Item.Auto != item.AutoHastaHumano {
-		return "el piloto automatico ya no esta activado en la tarjeta: el piloto no sigue"
+		return 1, "el piloto automatico no esta activado en la tarjeta"
 	}
 	if c.Column == ColHecho {
-		return "la tarjeta llego a Hecho: el piloto no sigue"
+		return 3, "la tarjeta llego a Hecho: no queda trabajo"
 	}
-	if isHumanColumn(c.Column) {
-		for _, col := range Columns {
-			if col.ID == c.Column {
-				return "la tarjeta esta en " + col.Name + ": le toca a una persona, el piloto no sigue"
-			}
+	for _, col := range Columns {
+		if col.ID == c.Column && col.Human {
+			return 3, "la tarjeta llego a " + col.Name + ": le toca a una persona"
 		}
 	}
-	return ""
+	return 0, ""
 }
 
 // PilotTable is the fixed order of C1 for the role columns a card can

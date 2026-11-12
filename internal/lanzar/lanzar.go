@@ -371,8 +371,8 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if req.Pilot {
 		// the pilot decided on a card read before this lock: what a person
 		// changed meanwhile wins (findings 8c69af, a3e8d2)
-		if why := boardcmd.PilotoNoSigue(c); why != "" {
-			return fail(http.StatusConflict, "%s", why)
+		if _, why := boardcmd.PilotoNoSigue(c); why != "" {
+			return fail(http.StatusConflict, "%s: el piloto no lanza nada", why)
 		}
 	}
 	a, ok := c.Action(req.Action)

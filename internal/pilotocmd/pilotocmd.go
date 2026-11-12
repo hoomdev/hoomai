@@ -396,11 +396,11 @@ func (r *corrida) lanzar(ctx context.Context, m *manifest.Manifest, d boardcmd.P
 
 // cerrarHallazgos carries out a PasoCerrarHallazgos: holding the card's
 // launch locks (lanzar.Reservar) and its tree's lock, with no run active and
-// the card read again (boardcmd.PilotoNoSigue), it closes each finding with its evidence, runs the card's verify, saves
-// (itemcmd.SaveTareaBajoCandado), and stops when the new
-// verdict is not green: with the card's blocking findings no protected test
-// of the round cites when any is left, else with the gates still red. ok is
-// false when the pilot stopped.
+// the card read again (boardcmd.PilotoNoSigue), it closes each finding with
+// its evidence, runs the card's verify, saves (itemcmd.SaveTareaBajoCandado),
+// and stops when the new verdict is not green: with the card's blocking
+// findings no protected test of the round cites when any is left, else with
+// the gates still red. ok is false when the pilot stopped.
 func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision) bool {
 	r.res.Decisiones = append(r.res.Decisiones, d)
 	root, slug := r.o.Root, r.o.Slug
@@ -440,8 +440,10 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		r.detener(parada(err.Error()))
 		return false
 	}
-	if why := boardcmd.PilotoNoSigue(c); why != "" {
-		r.detener(parada(why))
+	if caso, why := boardcmd.PilotoNoSigue(c); why != "" {
+		// as case 3 in Hecho or a human column (exit 0), as case 1 without
+		// auto (aclaracion 22, findings ce5f39, 5c3780)
+		r.detener(boardcmd.PilotDecision{Paso: boardcmd.PasoDetenerse, Caso: caso, Why: why})
 		return false
 	}
 	for _, id := range d.Hallazgos {
