@@ -1,0 +1,11 @@
+{
+  "id": "20261112T024355_f4d55b",
+  "created_at": "2026-11-12T02:43:55.988587195Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:506: Save redirige del worktree al checkout principal pero reenvía expect sin traducir sus rutas. Si hoom serve se inició dentro del worktree, la acción Guardar manda rutas relativas a ese árbol (por ejemplo .hoom/specs/x.md), mientras la llamada recursiva recalcula Unsynced desde el principal como .hoom/worktrees/x/.hoom/specs/x.md; sameSet las considera distintas y responde ErrChanged aunque el estado no cambió. Por ello Guardar en git falla para una tarjeta cuyo item existe en el principal.",
+  "author": "reviewer@codex",
+  "fingerprint": "8fa666c9f815e7d5",
+  "task": "ciclo-de-review-acotado"
+}

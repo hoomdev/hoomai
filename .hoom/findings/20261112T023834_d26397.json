@@ -1,0 +1,11 @@
+{
+  "id": "20261112T023834_d26397",
+  "created_at": "2026-11-12T02:38:34.520942254Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:505 redirige Save del worktree al checkout principal pero reenvia expect sin convertir sus rutas. Si una persona inicia hoom serve desde el worktree, GET /api/board entrega unsynced relativo a ese arbol (por ejemplo .hoom/specs/x.md), mientras Save(dest, ..., expect) lo recalcula relativo al principal (por ejemplo .hoom/worktrees/x/.hoom/specs/x.md); sameSet falla y Guardar responde ErrChanged/409 aunque nada haya cambiado. El caller con expect no nil debe conservar el mismo espacio de nombres o traducirlo al redirigir.",
+  "author": "reviewer@codex",
+  "fingerprint": "8fa666c9f815e7d5",
+  "task": "ciclo-de-review-acotado"
+}
