@@ -63,6 +63,25 @@ const NotaTestsDelTestWriter = "el writer toco los tests del test-writer: no se 
 // one per violation: `<regla>: el rol <rol> escribio <ruta> - <detalle>`.
 const AutorGateDeScope = "hoom gate de scope"
 
+// DescripcionViolacion is the description of the high finding the scope gate
+// registers for v in a run of role rol:
+// `<regla>: el rol <rol> escribio <ruta> - <detalle>`.
+func DescripcionViolacion(v Violation, rol string) string {
+	return fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, rol, v.Path, v.Detail)
+}
+
+// DeTestsDelTestWriter says whether f is the finding the scope gate
+// registered for a RuleTestsDelTestWriter violation in a run of role rol
+// (DescripcionViolacion, author AutorGateDeScope, severity high), whatever
+// its path. The pilot reads with it which envelopes touched a protected test
+// (finding 78ccc0).
+func DeTestsDelTestWriter(f finding.Finding, rol string) bool {
+	pre, suf, _ := strings.Cut(DescripcionViolacion(Violation{Rule: RuleTestsDelTestWriter, Path: "\x00",
+		Detail: DetalleTestsDelTestWriter}, rol), "\x00")
+	return f.Author == AutorGateDeScope && f.Severity == "high" &&
+		len(f.Description) > len(pre)+len(suf) && strings.HasPrefix(f.Description, pre) && strings.HasSuffix(f.Description, suf)
+}
+
 // DetalleTestsDelTestWriter is the Detail of a RuleTestsDelTestWriter
 // violation.
 const DetalleTestsDelTestWriter = "los tests del test-writer no los cambia el writer: pide de nuevo al test-writer"
@@ -643,7 +662,7 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 		huella, _ = gitx.HuellaConTope(dir, gitx.TopeListado)
 	}
 	for i, v := range sc.Violations {
-		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
+		desc := DescripcionViolacion(v, role.Slug)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
 			Description: desc, Author: AutorGateDeScope, Task: task, Huella: &huella}); err == nil {
 			sc.Violations[i].FindingID = f.ID

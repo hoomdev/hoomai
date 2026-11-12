@@ -123,3 +123,23 @@ func TestWriterGateTestsDelTestWriter(t *testing.T) {
 		t.Fatalf("un test-writer no se protege de si mismo: %+v", res)
 	}
 }
+
+func TestWriterDeTestsDelTestWriter(t *testing.T) {
+	v := Violation{Rule: RuleTestsDelTestWriter, Path: "a_test.go", Detail: DetalleTestsDelTestWriter}
+	f := finding.Finding{Author: AutorGateDeScope, Severity: "high", Description: DescripcionViolacion(v, "writer")}
+	if !DeTestsDelTestWriter(f, "writer") {
+		t.Fatalf("el hallazgo del gate: %q", f.Description)
+	}
+	otro := f
+	otro.Description = DescripcionViolacion(Violation{Rule: RuleOutOfScope, Path: "a_test.go", Detail: "x"}, "writer")
+	persona := f
+	persona.Author = "alguien"
+	for _, c := range []struct {
+		f   finding.Finding
+		rol string
+	}{{f, "reviewer"}, {otro, "writer"}, {persona, "writer"}} {
+		if DeTestsDelTestWriter(c.f, c.rol) {
+			t.Fatalf("no es el de tests-del-test-writer de %s: %+v", c.rol, c.f)
+		}
+	}
+}

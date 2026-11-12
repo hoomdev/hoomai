@@ -610,26 +610,29 @@ func Armar(o Opciones) (boardcmd.Estado, error) {
 }
 
 // protegidosTocados marks the envelopes whose run changed a protected test
-// (Sobre.TocoProtegidos): a tests-del-test-writer finding of the scope gate,
-// on the card's task and the envelope's role, registered between the
-// envelope's start and its end. Its status does not matter: the run touched
-// the tests either way.
+// (Sobre.TocoProtegidos): a tests-del-test-writer finding of the scope gate
+// (agentcmd.DeTestsDelTestWriter), on the card's task and the envelope's
+// role, registered between the envelope's start and its end. Its status does
+// not matter: open, corregido or refutado, the run touched the tests
+// (aclaracion 18, findings ea20f8, e49304, 84d9de). A finding file it cannot
+// read is an error, never "not touched" (finding 513ecb).
 func protegidosTocados(dir, base, slug string, sobres []boardcmd.Sobre) error {
-	items, _, err := finding.List(dir, base, true)
+	items, ilegibles, _, err := finding.ListConIlegibles(dir, base, false)
 	if err != nil {
 		return err
 	}
+	if len(ilegibles) > 0 {
+		return fmt.Errorf("hay hallazgos que hoom no puede leer (%s): el piloto no sabe si un sobre toco los tests protegidos", strings.Join(ilegibles, ", "))
+	}
 	for i := range sobres {
 		rec := sobres[i].Record
-		pre := agentcmd.RuleTestsDelTestWriter + ": el rol " + rec.Role + " escribio "
 		fin := rec.EndedAt
 		if fin.IsZero() {
 			fin = rec.UpdatedAt
 		}
 		for _, it := range items {
-			if it.Task != slug || it.Author != agentcmd.AutorGateDeScope || it.Severity != "high" ||
-				!strings.HasPrefix(it.Description, pre) || it.CreatedAt.Before(rec.StartedAt) ||
-				(!fin.IsZero() && it.CreatedAt.After(fin)) {
+			if it.Task != slug || !agentcmd.DeTestsDelTestWriter(it.Finding, rec.Role) ||
+				it.CreatedAt.Before(rec.StartedAt) || (!fin.IsZero() && it.CreatedAt.After(fin)) {
 				continue
 			}
 			sobres[i].TocoProtegidos = true
