@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T172636_a3e8d2",
+  "as": "corregido",
+  "evidence": "commit f4e0568; test TestHallazgoa3e8d2_CA642_ElPilotoNoLanzaEnUnaColumnaHumana (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T18:37:55.90140278Z"
+}

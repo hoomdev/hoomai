@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T174304_8c4407",
+  "as": "corregido",
+  "evidence": "commit 1bc3f74; test TestHallazgo8c4407_CA644_UnHookQueNoTerminaNoCuelgaAlPiloto (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T18:37:55.910181001Z"
+}

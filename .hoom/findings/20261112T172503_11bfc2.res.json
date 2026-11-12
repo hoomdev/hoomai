@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T172503_11bfc2",
+  "as": "corregido",
+  "evidence": "commit f6c63b7; test TestHallazgo11bfc2_CA638_RenombrarSoloConMayusculasCorta (se salta en Linux: el sistema de archivos distingue mayusculas; no se pudo ver rojo ni verde aca)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T18:37:55.906043428Z"
+}
