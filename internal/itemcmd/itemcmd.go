@@ -508,14 +508,13 @@ const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: rev
 // shows, in root: the main checkout's item stays for `hoom item save`
 // (findings d26397, f4d55b).
 //
-// Run from inside the card's own worktree, with or without expect, it goes
-// through the gate it goes through from the main checkout (runcmd.TaskDir):
-// on another branch or with a detached HEAD it commits nothing (findings
-// 68644c, 13bba6).
+// Run from inside a task's worktree, for any card and with or without
+// expect, it first goes through the gate of that worktree, the one the main
+// checkout uses (runcmd.TaskDir): off its branch hoom/<task>, or with a
+// detached HEAD, it commits nothing (findings 68644c, 13bba6, 65fbb7).
 func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error) {
-	if p, ok := gitx.CheckoutPrincipal(root); ok && item.ValidSlug(slug) && !mismoArbol(p, root) &&
-		mismoArbol(root, filepath.Join(p, ".hoom", "worktrees", slug)) {
-		if _, err := runcmd.TaskDir(p, slug); err != nil {
+	if p, tarea, ok := tareaDe(root, slug); ok {
+		if _, err := runcmd.TaskDir(p, tarea); err != nil {
 			return SaveResult{}, err
 		}
 	}
@@ -612,6 +611,26 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 		res.Commits = append(res.Commits, SaveCommit{Dir: tr.rel, SHA: sha, Paths: tr.paths})
 	}
 	return res, nil
+}
+
+// tareaDe is the task whose worktree root is (<principal>/.hoom/worktrees/
+// <tarea>) and its main checkout, whatever card is being saved; ok is false
+// when root is not a task's worktree.
+func tareaDe(root, slug string) (principal, tarea string, ok bool) {
+	p, ok := gitx.CheckoutPrincipal(root)
+	if !ok || mismoArbol(p, root) {
+		return "", "", false
+	}
+	nombres := []string{slug, filepath.Base(root)}
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		nombres = append(nombres, filepath.Base(r))
+	}
+	for _, x := range nombres {
+		if item.ValidSlug(x) && mismoArbol(root, filepath.Join(p, ".hoom", "worktrees", x)) {
+			return p, x, true
+		}
+	}
+	return "", "", false
 }
 
 // arbolesDe are the trees saving card c commits in: its workspace (when it
