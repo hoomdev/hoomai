@@ -600,13 +600,10 @@ func (p piloto) writerDeRonda(last Sobre) PilotDecision {
 	if !rojoSoloPorHallazgos(v) {
 		return parar(7, fmt.Sprintf("el arreglo de la ronda %d quedo rojo en %s: te toca", n, strings.Join(gatesEnRojo(v), ", ")))
 	}
-	deLaRonda := map[string]bool{}
+	deLaRonda := trasplantadosDeRonda(p.e, n)
 	antes := ""
 	for _, s := range p.e.Sobres {
 		if s.Record.Role == "test-writer" && s.Record.Ronda == n {
-			for _, r := range s.Record.Trasplantados {
-				deLaRonda[r] = true
-			}
 			if s.Record.VerdictID != "" {
 				antes = s.Record.VerdictID
 			}
@@ -618,12 +615,7 @@ func (p piloto) writerDeRonda(last Sobre) PilotDecision {
 	var ids, sinTest []string
 	evidencias := map[string]string{}
 	for _, f := range p.e.Bloqueantes {
-		ruta := ""
-		for _, r := range p.e.Citas[f.ID] {
-			if ruta == "" && deLaRonda[r] {
-				ruta = r
-			}
-		}
+		ruta := citaDeRonda(p.e, f.ID, deLaRonda)
 		if ruta == "" {
 			sinTest = append(sinTest, f.ID)
 			continue
@@ -637,6 +629,47 @@ func (p piloto) writerDeRonda(last Sobre) PilotDecision {
 	}
 	return PilotDecision{Paso: PasoCerrarHallazgos, Regla: ReglaRondaCierre, Ronda: n, Hallazgos: ids,
 		Evidencias: evidencias, Caso: 7}
+}
+
+// SinTestDeRonda are the ids of the card's blocking findings
+// (e.Bloqueantes) that no protected test of round n cites: none of the
+// paths in e.Citas[id] is among the trasplantados of the round's test-writer.
+// After cerrar-hallazgos, a red verdict with any of them stops with
+// `quedan hallazgos sin test en la ronda <n>: <ids>: te toca`.
+func SinTestDeRonda(e Estado, n int) []string {
+	deLaRonda := trasplantadosDeRonda(e, n)
+	var out []string
+	for _, f := range e.Bloqueantes {
+		if citaDeRonda(e, f.ID, deLaRonda) == "" {
+			out = append(out, f.ID)
+		}
+	}
+	return out
+}
+
+// trasplantadosDeRonda are the paths the test-writer of round n
+// transplanted: the round's protected tests.
+func trasplantadosDeRonda(e Estado, n int) map[string]bool {
+	out := map[string]bool{}
+	for _, s := range e.Sobres {
+		if s.Record.Role == "test-writer" && s.Record.Ronda == n {
+			for _, r := range s.Record.Trasplantados {
+				out[r] = true
+			}
+		}
+	}
+	return out
+}
+
+// citaDeRonda is the first test in e.Citas[id] that is among deLaRonda; ""
+// when none is.
+func citaDeRonda(e Estado, id string, deLaRonda map[string]bool) string {
+	for _, r := range e.Citas[id] {
+		if deLaRonda[r] {
+			return r
+		}
+	}
+	return ""
 }
 
 // lanzarConProvider launches a step of a round with the provider the disk

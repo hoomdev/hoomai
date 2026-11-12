@@ -159,3 +159,20 @@ func TestWriterPilotoRonda(t *testing.T) {
 		t.Fatalf("ventana llena: %+v", d)
 	}
 }
+
+func TestWriterSinTestDeRonda(t *testing.T) {
+	tw := wpSobre("test-writer", "claude", "ok", envelope.StatusDeliverable, ColWriter, nil)
+	tw.Record.Ronda, tw.Record.Trasplantados = 1, []string{"x_test.go"}
+	viejo := wpSobre("test-writer", "claude", "ok", envelope.StatusDeliverable, ColWriter, nil)
+	viejo.Record.Trasplantados = []string{"y_test.go"}
+	f := func(id string) finding.Item { return finding.Item{Finding: finding.Finding{ID: id, Task: "t"}} }
+	e := Estado{Sobres: []Sobre{viejo, tw}, Bloqueantes: []finding.Item{f("f1"), f("f2"), f("f3")},
+		Citas: map[string][]string{"f1": {"x_test.go"}, "f2": {"y_test.go"}}}
+	if got := SinTestDeRonda(e, 1); strings.Join(got, ",") != "f2,f3" {
+		t.Fatalf("un test de otra ronda no cuenta y sin cita no hay test: %v", got)
+	}
+	e.Bloqueantes = e.Bloqueantes[:1]
+	if got := SinTestDeRonda(e, 1); got != nil {
+		t.Fatalf("todo bloqueante citado por la ronda: %v", got)
+	}
+}

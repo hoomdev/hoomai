@@ -25,7 +25,11 @@
 //     outside a run, then runs the card's verify as `hoom verify --spec`
 //     does and saves the workspace (it is left with nothing to commit);
 //     when the new verdict is not green it then stops with
-//     `despues de cerrar los hallazgos de la ronda <n>, el veredicto <id> sigue rojo en <gates>: te toca`;
+//     `quedan hallazgos sin test en la ronda <n>: <ids>: te toca` if blocking
+//     findings of the card are left that no protected test of the round
+//     cites, and with
+//     `despues de cerrar los hallazgos de la ronda <n>, el veredicto <id> sigue rojo en <gates>: te toca`
+//     if none is (for instance, red by a finding without a task);
 //     detenerse stops.
 //
 // The pilot's lines go to the log of the card's newest closed envelope

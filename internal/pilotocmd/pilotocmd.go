@@ -388,7 +388,9 @@ func (r *corrida) lanzar(ctx context.Context, m *manifest.Manifest, d boardcmd.P
 
 // cerrarHallazgos carries out a PasoCerrarHallazgos: it closes each finding
 // with its evidence, runs the card's verify, saves, and stops when the new
-// verdict is not green. ok is false when the pilot stopped.
+// verdict is not green: with the card's blocking findings no protected test
+// of the round cites when any is left, else with the gates still red. ok is
+// false when the pilot stopped.
 func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision) bool {
 	r.res.Decisiones = append(r.res.Decisiones, d)
 	root, slug := r.o.Root, r.o.Slug
@@ -423,6 +425,16 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		r.linea("piloto automatico: guarda el trabajo de la tarjeta: %s", cm.SHA)
 	}
 	if v.Verdict != "green" {
+		e, err := Armar(r.o)
+		if err != nil {
+			r.detener(parada(err.Error()))
+			return false
+		}
+		if ids := boardcmd.SinTestDeRonda(e, d.Ronda); len(ids) > 0 {
+			r.detener(boardcmd.PilotDecision{Paso: boardcmd.PasoDetenerse, Caso: 7, Ronda: d.Ronda,
+				Why: fmt.Sprintf("quedan hallazgos sin test en la ronda %d: %s: te toca", d.Ronda, strings.Join(ids, ", "))})
+			return false
+		}
 		var gates []string
 		for _, gr := range v.Gates {
 			if gr.Required && (gr.Status == verdict.StatusFail || gr.Status == verdict.StatusError) {
