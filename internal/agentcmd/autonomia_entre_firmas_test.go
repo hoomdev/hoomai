@@ -360,22 +360,35 @@ func TestCA639_AgentsWriterWriteNoLevantaLaRegla(t *testing.T) {
 // ---------------------------------------------------------------- CA-639
 
 // CA-639: el writer que crea un test nuevo, cambia uno no protegido o
-// reescribe el protegido con el mismo contenido no viola la regla.
+// reescribe el protegido con el mismo contenido no viola la regla. Cuando el
+// run entrega algo, el sobre no corta y verify corre. Un run que solo
+// reescribe el protegido con su mismo contenido (y touch) no entrega nada:
+// cierra sin-entrega por el contrato de arquitecto-bajo-el-sobre (aclaracion
+// 11), y ahi lo que se fija es que no hay violacion ni la nota de la regla.
 func TestCA639_NoEsViolacionLoQueNoTocaUnTestProtegido(t *testing.T) {
+	const mismo = "printf 'package app\\n\\n// CA-1 precios\\n' > " + aeaProtegido + "\ntouch " + aeaProtegido + "\n"
 	for _, c := range []struct {
 		nombre, script string
+		entrega        bool
 	}{
-		{"test nuevo", "printf 'package app\\n// CA-1 del writer\\n' > nuevo_test.go\n"},
-		{"test no protegido", "printf 'package app\\n\\n// CA-1 cambiado\\n' > app_test.go\n"},
-		{"mismo contenido", "printf 'package app\\n\\n// CA-1 precios\\n' > " + aeaProtegido + "\ntouch " + aeaProtegido + "\n"},
-		{"solo codigo", "printf 'package app // implementado\\n' > app.go\n"},
+		{"test nuevo", "printf 'package app\\n// CA-1 del writer\\n' > nuevo_test.go\n", true},
+		{"test no protegido", "printf 'package app\\n\\n// CA-1 cambiado\\n' > app_test.go\n", true},
+		{"mismo contenido, con codigo", mismo + "printf 'package app // implementado\\n' > app.go\n", true},
+		{"solo codigo", "printf 'package app // implementado\\n' > app.go\n", true},
+		{"mismo contenido, nada mas", mismo, false},
 	} {
 		root, wt := aeaProtegida(t, true, "")
 		res, out := aeaCorrer(t, root, "writer", c.script+"exit 0\n", Options{})
 		if v, ok := aeaViolacion(res.Scope, RuleTestsDelTestWriter, ""); ok {
 			t.Fatalf("CA-639: %s: no es violacion de %s: %+v\n%s", c.nombre, RuleTestsDelTestWriter, v, out)
 		}
-		if res.Scope.Cuts() || res.Note == NotaTestsDelTestWriter || res.VerdictID == "" {
+		if res.Note == NotaTestsDelTestWriter {
+			t.Fatalf("CA-639: %s: la nota no es la de %s: %+v\n%s", c.nombre, RuleTestsDelTestWriter, res, out)
+		}
+		if r := aeaRegistro(t, root, res.EnvelopeID); r.Note == NotaTestsDelTestWriter {
+			t.Fatalf("CA-639: %s: el registro no lleva la nota de %s: %+v", c.nombre, RuleTestsDelTestWriter, r)
+		}
+		if c.entrega && (res.Scope.Cuts() || res.VerdictID == "") {
 			t.Fatalf("CA-639: %s: el sobre no corta y verify corre: %+v\n%s", c.nombre, res, out)
 		}
 		raw, _ := os.ReadFile(filepath.Join(wt, aeaProtegido))
@@ -563,13 +576,23 @@ func TestCA638_ElGateJuzgaLosProtegidos(t *testing.T) {
 // ---------------------------------------------------------------- CA-651
 
 // CA-651: un run del sobre que muere por su timeout deja corte tiempo en el
-// registro y en su sidecar, con el cierre de siempre (run, no-entregable);
-// un run que falla de otra forma no lleva la clave.
+// registro y en su sidecar, con el cierre de siempre (run, no-entregable,
+// sin veredicto, exit distinto de 0); un run que falla de otra forma sale
+// con su exit N (CA-143, aclaracion 12) y no lleva la clave.
 func TestCA651_ElSobreCortadoPorTiempoLoDice(t *testing.T) {
-	root, _ := aeaProyecto(t, "true", "")
+	// aeaMeta lee el sidecar del run de la raiz o del arbol de la tarea.
+	aeaMeta := func(id string, dirs ...string) (runcmd.Meta, bool) {
+		for _, d := range dirs {
+			if m, ok := runcmd.ReadMeta(d, id); ok {
+				return m, true
+			}
+		}
+		return runcmd.Meta{}, false
+	}
+	root, wt := aeaProyecto(t, "true", "")
 	res, out := aeaCorrer(t, root, "writer", "exec sleep 60\n", Options{Timeout: 2 * time.Second})
-	if res.Stage != "run" || res.Status != envelope.StatusNotDeliverable || res.ExitCode != 1 || res.VerdictID != "" {
-		t.Fatalf("CA-651: el cierre no cambia: run, no-entregable: %+v\n%s", res, out)
+	if res.Stage != "run" || res.Status != envelope.StatusNotDeliverable || res.ExitCode == 0 || res.VerdictID != "" {
+		t.Fatalf("CA-651: el cierre no cambia: run, no-entregable, sin veredicto, exit distinto de 0: %+v\n%s", res, out)
 	}
 	if v, ok := aeaClaves(t, root, res.EnvelopeID)["corte"]; !ok || v != envelope.CorteTiempo {
 		t.Fatalf("CA-651: el registro del sobre trae \"corte\": \"tiempo\": %v (%v)", v, ok)
@@ -580,17 +603,26 @@ func TestCA651_ElSobreCortadoPorTiempoLoDice(t *testing.T) {
 	if res.RunID == "" {
 		t.Fatalf("CA-651: fixture: el sobre corrio un run: %+v", res)
 	}
-	if m, ok := runcmd.ReadMeta(root, res.RunID); !ok || m.Corte != runcmd.CorteTiempo {
+	if m, ok := aeaMeta(res.RunID, root, wt); !ok || m.Corte != runcmd.CorteTiempo {
 		t.Fatalf("CA-651: el sidecar del run trae corte tiempo: %+v (%v)", m, ok)
 	}
 
-	root, _ = aeaProyecto(t, "true", "")
+	root, wt = aeaProyecto(t, "true", "")
 	res, out = aeaCorrer(t, root, "writer", "printf 'algo salio mal\\n' >&2\nexit 2\n", Options{Timeout: 20 * time.Second})
-	if res.Stage != "run" || res.ExitCode != 1 {
-		t.Fatalf("CA-651: fixture: el run que falla cierra en run: %+v\n%s", res, out)
+	if res.Stage != "run" || res.Status != envelope.StatusNotDeliverable || res.ExitCode != 2 || res.VerdictID != "" {
+		t.Fatalf("CA-651/CA-143: el run que sale con 2 cierra en run, no-entregable, sin veredicto, y el sobre sale con 2: %+v\n%s", res, out)
 	}
 	if v, ok := aeaClaves(t, root, res.EnvelopeID)["corte"]; ok {
 		t.Fatalf("CA-651: un run que falla sin timeout no lleva corte: %v", v)
+	}
+	if r := aeaRegistro(t, root, res.EnvelopeID); r.Corte != "" {
+		t.Fatalf("CA-651: Record.Corte vacio en un run que falla sin timeout: %+v", r)
+	}
+	if res.RunID == "" {
+		t.Fatalf("CA-651: fixture: el sobre corrio un run: %+v", res)
+	}
+	if m, ok := aeaMeta(res.RunID, root, wt); !ok || m.Corte != "" {
+		t.Fatalf("CA-651: el sidecar de un run que falla sin timeout no lleva corte: %+v (%v)", m, ok)
 	}
 }
 
