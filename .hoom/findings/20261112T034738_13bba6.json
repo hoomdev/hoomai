@@ -1,0 +1,11 @@
+{
+  "id": "20261112T034738_13bba6",
+  "created_at": "2026-11-12T03:47:38.022501044Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:510 usa expect != nil para saltar la redireccion al checkout principal, pero con ella tambien salta la validacion de runcmd.TaskDir que exige que el worktree registrado siga en hoom/\u003cslug\u003e. Si una persona deja el worktree de la tarea en otra rama o con HEAD separado y usa el Studio servido desde ahi, CardFor(root) lo trata como un arbol ordinario y Save termina commiteando las rutas mostradas en esa rama equivocada, en vez de negarse con ErrOtraRama como hacia antes; los tests agregados solo parten de la rama correcta.",
+  "author": "reviewer@codex",
+  "fingerprint": "e9b1663242ef03e1",
+  "task": "ciclo-de-review-acotado"
+}
