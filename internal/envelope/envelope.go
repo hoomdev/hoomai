@@ -117,6 +117,10 @@ type Record struct {
 	Ronda       int      `json:"ronda,omitempty"`
 	Hallazgos   []string `json:"hallazgos,omitempty"`
 	Bloqueantes int      `json:"bloqueantes,omitempty"`
+	// Delta says a reviewer's envelope ran its review with --delta: with it
+	// the pilot repeats a review cut by time with the same options. Only a
+	// reviewer's record carries it.
+	Delta bool `json:"delta,omitempty"`
 }
 
 // CorteTiempo is Record.Corte (and runcmd.Meta.Corte) of a run that died by

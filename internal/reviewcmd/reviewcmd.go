@@ -992,6 +992,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		ID: id, Role: role.Slug, Provider: prov.Name(), Task: taskOf(opt), Dir: dir, Spec: opt.Spec,
 		Stage: "run", Step: 1, Steps: len(lentes), Status: envelope.StatusRunning, ExitCode: -1,
 		StartedAt: time.Now().UTC(), PID: os.Getpid(), Pilot: opt.Pilot,
+		Columna: opt.Columna, Regla: opt.Regla, Intento: opt.Intento, Ronda: opt.Ronda,
+		Hallazgos: opt.Hallazgos, Bloqueantes: opt.Bloqueantes, Delta: opt.Delta,
 	}
 	if err := envelope.Write(root, rec); err != nil && opt.Started != nil {
 		// el Studio espera el registro para responder: sin el, no hay sobre
@@ -1052,6 +1054,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		st := stream(mgr, info.ID, w)
 		pass.RunStatus, pass.SessionID = st.Status, st.ProviderSessionID
 		pass.Usage = anotarGasto(lens, st.Usage, &usos, &total)
+		rec.Corte = st.Corte
 
 		if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 			fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
