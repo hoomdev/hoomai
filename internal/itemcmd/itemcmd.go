@@ -22,6 +22,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/riesgo"
@@ -506,7 +507,18 @@ const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: rev
 // With a non-nil expect (the Studio) it saves exactly what the board of root
 // shows, in root: the main checkout's item stays for `hoom item save`
 // (findings d26397, f4d55b).
+//
+// Run from inside the card's own worktree, with or without expect, it goes
+// through the gate it goes through from the main checkout (runcmd.TaskDir):
+// on another branch or with a detached HEAD it commits nothing (findings
+// 68644c, 13bba6).
 func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error) {
+	if p, ok := gitx.CheckoutPrincipal(root); ok && item.ValidSlug(slug) && !mismoArbol(p, root) &&
+		mismoArbol(root, filepath.Join(p, ".hoom", "worktrees", slug)) {
+		if _, err := runcmd.TaskDir(p, slug); err != nil {
+			return SaveResult{}, err
+		}
+	}
 	if dest, ok := item.ArbolDelRiesgo(root, slug); ok && expect == nil && !mismoArbol(dest, root) {
 		return Save(dest, base, blockOn, slug, expect)
 	}
