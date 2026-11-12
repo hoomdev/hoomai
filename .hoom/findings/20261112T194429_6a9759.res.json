@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T194429_6a9759",
+  "as": "refutado",
+  "evidence": "La spec firmada lo acepta: .hoom/specs/autonomia-entre-firmas.md:462 'La persona apaga auto mientras corre un trabajo: al cerrar, el caso 1 detiene el piloto'. cerrar-hallazgos vuelve a mirar auto, columna humana y Hecho bajo sus candados antes del primer Resolve (internal/pilotocmd/pilotocmd.go:443, boardcmd.PilotoNoSigue, commit b8b3ca9; test TestHallazgo5774db_CA656_CerrarHallazgosVuelveAMirarLaTarjeta). Pasado ese chequeo, el paso es trabajo en curso: apagar auto lo detiene en la decision siguiente, como dice la spec. Tercer ciclo del tema (8c69af, 5774db): desempate humano de hoomdev el 2026-11-12 por la regla 4 de 09-refutador.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-12T19:58:44.254959331Z"
+}
