@@ -7,6 +7,7 @@
 package itemcmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
@@ -27,6 +29,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/procesos"
 	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 )
@@ -1008,33 +1011,84 @@ func commitPaths(dir, msg string, paths []string, tope time.Duration) (string, e
 // bound (TopeGit).
 var errTopeGit = errors.New("no termino a tiempo")
 
+// graciaGit is how long the group of a save's git command that passed
+// TopeGit has between its SIGTERM (git drops its index.lock) and the SIGKILL
+// of whatever is left: a hook that ignores the signal, or its children.
+const graciaGit = 500 * time.Millisecond
+
+// finDeLecturaGit bounds the reading of a save's git command output once its
+// group is dead: something that left the group and still holds the output
+// does not keep the save waiting.
+const finDeLecturaGit = time.Second
+
 // gitTope runs git in dir with stdin (nil = none), its combined output
-// trimmed. With tope > 0 the command is killed once tope passes (its hooks'
-// pipes are dropped WaitDelay later), and the error, wrapping errTopeGit,
-// says which command and its bound.
+// trimmed. tope 0 runs it as always (hoom item save). With tope > 0 git runs
+// in a process group of its own (procesos.ArrancarConGracia): once tope
+// passes the whole group, hooks and their children included, gets SIGTERM
+// and, graciaGit later, SIGKILL, and nothing of the command is alive when it
+// returns (procesos.Liberar, aclaracion 19). The error then wraps errTopeGit
+// and says which command and its bound.
 func gitTope(dir string, tope time.Duration, stdin io.Reader, args ...string) (string, error) {
-	ctx, cancel := context.Background(), context.CancelFunc(func() {})
-	if tope > 0 {
-		ctx, cancel = context.WithTimeout(ctx, tope)
+	if tope <= 0 {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Stdin = stdin
+		out, err := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out)), err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), tope)
 	defer cancel()
+	// the output goes through a pipe of our own, so Wait returns when git
+	// ends even if a hook's child still holds it
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
+	defer pr.Close()
+	var mu sync.Mutex
+	var buf bytes.Buffer
+	leido := make(chan struct{})
+	go func() {
+		defer close(leido)
+		chunk := make([]byte, 4096)
+		for {
+			n, err := pr.Read(chunk)
+			mu.Lock()
+			if buf.Len() < 64<<10 {
+				buf.Write(chunk[:n])
+			}
+			mu.Unlock()
+			if err != nil {
+				return
+			}
+		}
+	}()
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Stdin = stdin
-	if tope > 0 {
-		// an interrupt first, so git drops its index.lock (a kill would leave
-		// the repository locked for the next save); WaitDelay later Wait kills
-		// it and drops the pipes a hook's child keeps open
-		cmd.Cancel = func() error {
-			if err := cmd.Process.Signal(os.Interrupt); err != nil {
-				return cmd.Process.Kill()
-			}
-			return nil
-		}
-		cmd.WaitDelay = 2 * time.Second
+	cmd.Stdout, cmd.Stderr = pw, pw
+	cmd.WaitDelay = graciaGit + time.Second
+	err = procesos.ArrancarConGracia(cmd, graciaGit)
+	pw.Close() // git keeps its copy: EOF comes when the group's are closed
+	if err != nil {
+		return "", err
 	}
-	out, err := cmd.CombinedOutput()
-	if tope > 0 && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+	err = cmd.Wait()
+	vencio := errors.Is(ctx.Err(), context.DeadlineExceeded)
+	if vencio {
+		procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGit))
+	}
+	procesos.Liberar(cmd.Process.Pid)
+	select {
+	case <-leido:
+	case <-time.After(finDeLecturaGit):
+		pr.Close()
+		select {
+		case <-leido:
+		case <-time.After(finDeLecturaGit):
+		}
+	}
+	if vencio {
 		que := "git"
 		for _, a := range args {
 			if !strings.HasPrefix(a, "-") {
@@ -1045,10 +1099,13 @@ func gitTope(dir string, tope time.Duration, stdin io.Reader, args ...string) (s
 		return "", fmt.Errorf("%s %w: se corto a los %s, con sus hooks", que, errTopeGit, tope)
 	}
 	if errors.Is(err, exec.ErrWaitDelay) {
-		// git ended well; a hook's child kept the output open
+		// git ended well; its stdin took longer to drop
 		err = nil
 	}
-	return strings.TrimSpace(string(out)), err
+	mu.Lock()
+	out := strings.TrimSpace(buf.String())
+	mu.Unlock()
+	return out, err
 }
 
 func sameSet(a, b []string) bool {
