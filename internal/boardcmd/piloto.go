@@ -97,7 +97,7 @@ type Sobre struct {
 	SesionID string
 }
 
-// Piloto is the pilot's decision (autonomia-entre-firmas): it replaces Pilot.
+// Piloto is the pilot's decision (autonomia-entre-firmas).
 // It is pure — the same Estado gives the same decision, and it reads neither
 // the disk nor the clock (e.Hora is its time) — and it never decides to sign
 // the spec, to integrate, or to launch the arquitecto: for no Estado is the
@@ -105,7 +105,7 @@ type Sobre struct {
 //
 // It decides by the first case of the spec's table that holds ("La tabla del
 // piloto"), and Caso says which. The cases that say "como hoy" stop with
-// Pilot's exact Why:
+// the belt's Why of before this spec:
 //
 //  1. auto is not hasta-humano: `el piloto automatico no esta activado en la tarjeta`;
 //  2. a job running or interrupted: `la tarjeta tiene otro trabajo en curso o interrumpido`;
@@ -119,13 +119,14 @@ type Sobre struct {
 //  7. rondas_de_hallazgos above 0 and either the newest envelope is the
 //     reviewer's with blocking findings, or it carries `ronda`: the round of
 //     findings (ReglaRonda*);
-//  8. the newest envelope did not close entregable: Pilot's case 2,
+//  8. the newest envelope did not close entregable:
 //     `el trabajo del <rol> no cerro entregable (<status>): el piloto se detiene ante un rojo`;
 //  9. the card in red: `la tarjeta esta en rojo: <plain>`;
 //  10. the column is not after the newest envelope's `columna`:
 //     `la tarjeta no avanzo (sigue en <Columna>): el piloto no reintenta`;
 //  11. the primary action is not the table's, its role is the newest
-//     envelope's, or it is disabled: Pilot's cases 7, 8 and 9;
+//     envelope's, or it is disabled: `lo que sigue en <Columna> no esta en la tabla del piloto: le toca a una persona`,
+//     `seria volver a pedirle al <rol>: el piloto no reintenta`, or the action's Why;
 //  12. no presupuesto_usd: `la tarjeta no tiene presupuesto: el piloto automatico solo corre con un tope`;
 //  13. no provider of the action is ok and has a cap:
 //     `ningun proveedor con tope de presupuesto puede tomar este trabajo`;
@@ -159,14 +160,6 @@ type Sobre struct {
 func Piloto(e Estado) PilotDecision {
 	p := piloto{e: e, c: e.Tarjeta}
 	return p.decidir()
-}
-
-// tablaPiloto is the pilot's table of columns (autonomia-entre-firmas):
-// PilotTable without the Arquitecto column.
-var tablaPiloto = map[string]string{
-	ColTestWriter: ActPedirTestWriter,
-	ColWriter:     ActPedirWriter,
-	ColReview:     ActPedirReviewer,
 }
 
 // accionDeRol is the pedir-* action that launches each role the pilot
@@ -232,7 +225,7 @@ func rolDe(rec envelope.Record) string {
 	return rec.Role
 }
 
-// noEntregable is the Why of Pilot's case 2 (the spec's case 8).
+// noEntregable is the Why of the spec's case 8.
 func noEntregable(rec envelope.Record) string {
 	status := rec.Status
 	if status == "" {
@@ -291,7 +284,7 @@ func (p piloto) decidir() PilotDecision {
 	if hay && last.Record.Columna != "" && columnIndex(c.Column) <= columnIndex(last.Record.Columna) {
 		return parar(10, "la tarjeta no avanzo (sigue en "+name+"): el piloto no reintenta")
 	}
-	want, enTabla := tablaPiloto[c.Column]
+	want, enTabla := PilotTable[c.Column]
 	if !enTabla || len(c.Actions) == 0 || c.Actions[0].ID != want {
 		return parar(11, "lo que sigue en "+name+" no esta en la tabla del piloto: le toca a una persona")
 	}
