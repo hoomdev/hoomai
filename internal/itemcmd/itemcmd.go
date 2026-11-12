@@ -7,7 +7,6 @@
 package itemcmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -779,7 +778,7 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 				local[i] = strings.TrimPrefix(p, tr.rel+"/")
 			}
 		}
-		sha, err := commitPaths(dir, res.Message, local, 0)
+		sha, err := commitPaths(dir, res.Message, local, gitDelGuardado{})
 		if err != nil {
 			if len(res.Commits) > 0 {
 				// the workspace is already saved: say so, with its commit
@@ -798,8 +797,9 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 }
 
 // TopeGit acota cada comando git del guardado de la tarjeta (SaveTarea): un
-// comando, con sus hooks, que no termina en ese tiempo se mata y el guardado
-// falla con un error. Los tests lo achican.
+// comando, con lo que corre (un filtro de git), que no termina en ese tiempo
+// se mata con todo su grupo y el guardado falla con un error. Los tests lo
+// achican.
 var TopeGit = 5 * time.Minute
 
 // SaveTarea is the pilot's save (autonomia-entre-firmas): it commits what the
@@ -815,10 +815,15 @@ var TopeGit = 5 * time.Minute
 // task's worktree, a worktree off its branch or with a detached HEAD
 // (runcmd.TaskDir's error), a job running on the card while the worktree
 // has something to save (`espera a que termine <quien> que esta
-// trabajando`) or an agent starting in it. Each git command of the save,
-// hooks included, is bounded by TopeGit.
+// trabajando`) or an agent starting in it.
+//
+// It reads the card with boardcmd.PulsoDe, which runs no git that reads the
+// working tree, and each git command that does (status, add, update-index,
+// commit, rev-parse HEAD) runs bounded by TopeGit in a process group of its
+// own (aclaraciones 17 y 19) and without any of the repository's hooks
+// (sinHooks, aclaracion 21). base and blockOn are not needed for that.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
-	dir, err := tareaGuardable(root, base, blockOn, slug)
+	dir, err := tareaGuardable(root, slug)
 	if err != nil {
 		return SaveResult{}, err
 	}
@@ -829,18 +834,18 @@ func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
 		return SaveResult{}, err
 	}
 	defer unlock()
-	return guardarTarea(root, base, blockOn, slug, dir)
+	return guardarTarea(root, slug, dir)
 }
 
 // SaveTareaBajoCandado is SaveTarea for a caller that already holds the
 // task tree's lock (TomarArbol): the pilot's cerrar-hallazgos, which holds it
 // from its first resolution until it saves (finding 8f4011).
 func SaveTareaBajoCandado(root, base, blockOn, slug string) (SaveResult, error) {
-	dir, err := tareaGuardable(root, base, blockOn, slug)
+	dir, err := tareaGuardable(root, slug)
 	if err != nil {
 		return SaveResult{}, err
 	}
-	return guardarTarea(root, base, blockOn, slug, dir)
+	return guardarTarea(root, slug, dir)
 }
 
 // TomarArbol takes runcmd.LockArbol of the task tree dir of the card slug,
@@ -858,56 +863,80 @@ func TomarArbol(dir, slug string) (func(), error) {
 
 // tareaGuardable is the task tree of the card slug, when the card has its
 // task's worktree.
-func tareaGuardable(root, base, blockOn, slug string) (string, error) {
+func tareaGuardable(root, slug string) (string, error) {
 	dir, err := runcmd.TaskDir(root, slug)
 	if err != nil {
 		return "", err
 	}
-	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+	p, err := boardcmd.PulsoDe(root, slug, time.Now().UTC())
 	if err != nil {
 		return "", err
 	}
-	if c.Evidence.Source != boardcmd.SourceWorktree {
+	if p.Source != boardcmd.SourceWorktree {
 		return "", fmt.Errorf("la tarjeta %s no tiene el espacio de trabajo de su tarea: hoom task start %s", slug, slug)
 	}
 	return dir, nil
 }
 
 // guardarTarea is SaveTarea under the task tree's lock.
-func guardarTarea(root, base, blockOn, slug, dir string) (SaveResult, error) {
-	c, err := boardcmd.CardFor(root, base, blockOn, slug, time.Now().UTC())
+func guardarTarea(root, slug, dir string) (SaveResult, error) {
+	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
+	p, err := boardcmd.PulsoDe(root, slug, time.Now().UTC())
 	if err != nil {
 		return SaveResult{}, err
 	}
-	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
-	wt := c.Evidence.Dir
-	var paths, local []string
-	for _, p := range c.Unsynced {
-		if wt != "" && strings.HasPrefix(p, wt+"/") {
-			paths = append(paths, p)
-			local = append(local, strings.TrimPrefix(p, wt+"/"))
-		}
+	if p.Source != boardcmd.SourceWorktree {
+		return res, nil
+	}
+	vacio, err := os.MkdirTemp("", "hoom-sin-hooks-")
+	if err != nil {
+		return res, fmt.Errorf("no pude preparar el guardado sin hooks: %w", err)
+	}
+	defer os.RemoveAll(vacio)
+	g := sinHooks(vacio)
+	local, err := sinGuardar(dir, g)
+	if err != nil {
+		return res, err
 	}
 	// nothing to save is never a refusal: the pilot then sees the job
 	// running in its own case
-	if len(paths) == 0 {
+	if len(local) == 0 {
 		return res, nil
 	}
-	if r := c.Running; r != nil {
+	if r := p.Running; r != nil {
 		quien := "el agente"
 		if r.Role != "" {
 			quien = "el " + r.Role
 		}
 		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
 	}
-	// bounded, hooks included: a hook that never ends must not hang the
-	// pilot with its locks taken (finding 8c4407)
-	sha, err := commitPaths(dir, res.Message, local, TopeGit)
+	sha, err := commitPaths(dir, res.Message, local, g)
 	if err != nil {
 		return res, err
 	}
-	res.Commits = append(res.Commits, SaveCommit{Dir: wt, SHA: sha, Paths: paths})
+	paths := make([]string, len(local))
+	for i, l := range local {
+		paths[i] = p.Dir + "/" + l
+	}
+	res.Commits = append(res.Commits, SaveCommit{Dir: p.Dir, SHA: sha, Paths: paths})
 	return res, nil
+}
+
+// sinGuardar is what the task tree dir has unsaved, sorted, as the card's
+// Unsynced lists it (gitx.Rutas of git status: every uncommitted path,
+// untracked directories expanded, and the origin of a rename), from a git
+// status of the save's own: bounded, in its group and without hooks, like
+// its other git commands. It takes no optional lock (--no-optional-locks):
+// reading what there is to save writes nothing.
+func sinGuardar(dir string, g gitDelGuardado) ([]string, error) {
+	out, err := g.listado(dir, "--no-optional-locks", "-c", "core.quotePath=false",
+		"status", "--porcelain", "--untracked-files=all", "-z")
+	if err != nil {
+		return nil, err
+	}
+	paths := gitx.Rutas(gitx.LeerCambios(out))
+	sort.Strings(paths)
+	return paths, nil
 }
 
 // tareaDe is the task whose worktree root is (<principal>/.hoom/worktrees/
@@ -964,14 +993,54 @@ func lockArboles(root string, c boardcmd.Card) (func(), error) {
 	return release, nil
 }
 
+// gitDelGuardado is how commitPaths runs its git commands: hoom item save's
+// (the zero value: unbounded, and the repository's hooks run) or SaveTarea's
+// (sinHooks).
+type gitDelGuardado struct {
+	tope     time.Duration // > 0 bounds each command (gitTope); 0 = unbounded
+	opciones []string      // git options before the subcommand
+	noVerify bool          // commit with --no-verify
+}
+
+// sinHooks is the git of SaveTarea. With core.hooksPath at vacio, an empty
+// directory of its own, git finds none of the repository's hooks: not the
+// commit's (pre-commit, prepare-commit-msg, commit-msg, post-commit), nor
+// the ones writing the index or a ref run; and commit also goes with
+// --no-verify (aclaracion 21). Neither the fsmonitor hook nor an automatic
+// gc or maintenance runs: a gc that detaches would leave a process of the
+// command alive once it returned (aclaracion 19). What does run, a git
+// filter, is bounded by TopeGit with its whole group.
+func sinHooks(vacio string) gitDelGuardado {
+	return gitDelGuardado{tope: TopeGit, noVerify: true, opciones: []string{
+		"-c", "core.hooksPath=" + filepath.ToSlash(vacio),
+		"-c", "core.fsmonitor=false",
+		"-c", "gc.auto=0",
+		"-c", "maintenance.auto=false",
+	}}
+}
+
+func (g gitDelGuardado) con(args []string) []string {
+	return append(append([]string{}, g.opciones...), args...)
+}
+
+// correr is gitTope with g's bound and options.
+func (g gitDelGuardado) correr(dir string, stdin io.Reader, args ...string) (string, error) {
+	return gitTope(dir, g.tope, stdin, g.con(args)...)
+}
+
+// listado is listadoGit with g's bound and options.
+func (g gitDelGuardado) listado(dir string, args ...string) ([]byte, error) {
+	return listadoGit(dir, g.tope, g.con(args)...)
+}
+
 // commitPaths stages exactly paths and commits only them: whatever else sits
-// in the index stays there, uncommitted. The repository's hooks run.
-func commitPaths(dir, msg string, paths []string, tope time.Duration) (string, error) {
+// in the index stays there, uncommitted. With hoom item save's git the
+// repository's hooks run; with SaveTarea's none does.
+func commitPaths(dir, msg string, paths []string, g gitDelGuardado) (string, error) {
 	// what is on disk is added; what is not (a deletion, also one a git rm
 	// or a git mv already staged) leaves the index: git add stops at a name
 	// that is in neither (finding 186524). The paths are names, never
-	// patterns (finding a26f9d). tope > 0 bounds each git command, its
-	// hooks included (TopeGit); 0 = unbounded.
+	// patterns (finding a26f9d).
 	var presentes, ausentes []string
 	for _, p := range paths {
 		if _, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(p))); os.IsNotExist(err) {
@@ -987,20 +1056,25 @@ func commitPaths(dir, msg string, paths []string, tope time.Duration) (string, e
 		return fmt.Errorf("git %s fallo: %s", que, out)
 	}
 	if len(presentes) > 0 {
-		if out, err := gitTope(dir, tope, nil, append([]string{"--literal-pathspecs", "add", "-A", "--"}, presentes...)...); err != nil {
+		if out, err := g.correr(dir, nil, append([]string{"--literal-pathspecs", "add", "-A", "--"}, presentes...)...); err != nil {
 			return "", fallo("add", out, err)
 		}
 	}
 	if len(ausentes) > 0 {
 		in := strings.NewReader(strings.Join(ausentes, "\x00") + "\x00")
-		if out, err := gitTope(dir, tope, in, "update-index", "--remove", "-z", "--stdin"); err != nil {
+		if out, err := g.correr(dir, in, "update-index", "--remove", "-z", "--stdin"); err != nil {
 			return "", fallo("update-index", out, err)
 		}
 	}
-	if out, err := gitTope(dir, tope, nil, append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)...); err != nil {
+	commit := []string{"--literal-pathspecs", "commit", "-q"}
+	if g.noVerify {
+		commit = append(commit, "--no-verify")
+	}
+	commit = append(append(commit, "-m", msg, "--"), paths...)
+	if out, err := g.correr(dir, nil, commit...); err != nil {
 		return "", fallo("commit", out, err)
 	}
-	sha, err := gitTope(dir, tope, nil, "rev-parse", "HEAD")
+	sha, err := g.correr(dir, nil, "rev-parse", "HEAD")
 	if err != nil {
 		return "", fallo("rev-parse", sha, err)
 	}
@@ -1013,7 +1087,7 @@ var errTopeGit = errors.New("no termino a tiempo")
 
 // graciaGit is how long the group of a save's git command that passed
 // TopeGit has between its SIGTERM (git drops its index.lock) and the SIGKILL
-// of whatever is left: a hook that ignores the signal, or its children.
+// of whatever is left: a filter that ignores the signal, or its children.
 const graciaGit = 500 * time.Millisecond
 
 // finDeLecturaGit bounds the reading of a save's git command output once its
@@ -1021,13 +1095,15 @@ const graciaGit = 500 * time.Millisecond
 // does not keep the save waiting.
 const finDeLecturaGit = time.Second
 
+// colaGit is how much of a save's git command output gitTope keeps: its
+// last 64 KiB.
+const colaGit = 64 << 10
+
 // gitTope runs git in dir with stdin (nil = none), its combined output
-// trimmed. tope 0 runs it as always (hoom item save). With tope > 0 git runs
-// in a process group of its own (procesos.ArrancarConGracia): once tope
-// passes the whole group, hooks and their children included, gets SIGTERM
-// and, graciaGit later, SIGKILL, and nothing of the command is alive when it
-// returns (procesos.Liberar, aclaracion 19). The error then wraps errTopeGit
-// and says which command and its bound.
+// trimmed. tope 0 runs it as always (hoom item save). With tope > 0 it runs
+// as correrConTope says, and of a long output it keeps the end, the last
+// colaGit bytes: where git, or what it ran, says why it failed (finding
+// d49489).
 func gitTope(dir string, tope time.Duration, stdin io.Reader, args ...string) (string, error) {
 	if tope <= 0 {
 		cmd := exec.Command("git", args...)
@@ -1036,42 +1112,83 @@ func gitTope(dir string, tope time.Duration, stdin io.Reader, args ...string) (s
 		out, err := cmd.CombinedOutput()
 		return strings.TrimSpace(string(out)), err
 	}
+	salida := &salidaGit{limite: colaGit}
+	err := correrConTope(dir, tope, stdin, salida, salida, args...)
+	return strings.TrimSpace(string(salida.bytes())), err
+}
+
+// listadoGit is git's stdout, whole and untrimmed: a listing the save reads
+// (what there is to save), run like gitTope. When git fails the error says
+// which command and carries the end of its stderr.
+func listadoGit(dir string, tope time.Duration, args ...string) ([]byte, error) {
+	out, stderr := &salidaGit{}, &salidaGit{limite: colaGit}
+	var err error
+	if tope <= 0 {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Stdout, cmd.Stderr = out, stderr
+		err = cmd.Run()
+	} else {
+		err = correrConTope(dir, tope, nil, out, stderr, args...)
+	}
+	if errors.Is(err, errTopeGit) {
+		return nil, err
+	}
+	if err != nil {
+		msg := strings.TrimSpace(string(stderr.bytes()))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("%s fallo: %s", subcomandoGit(args), msg)
+	}
+	return out.bytes(), nil
+}
+
+// correrConTope runs git in dir in a process group of its own
+// (procesos.ArrancarConGracia), stdout to stdout and stderr to stderr through
+// pipes of our own: Wait returns when git ends even if something it ran
+// still holds them. Once tope passes, the whole group, whatever git ran and
+// its children included, gets SIGTERM and, graciaGit later, SIGKILL, and
+// nothing of the command is alive when it returns (procesos.Liberar,
+// aclaracion 19). The error then wraps errTopeGit and says which command and
+// its bound.
+func correrConTope(dir string, tope time.Duration, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tope)
 	defer cancel()
-	// the output goes through a pipe of our own, so Wait returns when git
-	// ends even if a hook's child still holds it
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		return "", err
-	}
-	defer pr.Close()
-	var mu sync.Mutex
-	var buf bytes.Buffer
-	leido := make(chan struct{})
-	go func() {
-		defer close(leido)
-		chunk := make([]byte, 4096)
-		for {
-			n, err := pr.Read(chunk)
-			mu.Lock()
-			if buf.Len() < 64<<10 {
-				buf.Write(chunk[:n])
-			}
-			mu.Unlock()
-			if err != nil {
-				return
-			}
+	var lecturas, escrituras []*os.File
+	var leidos []chan struct{}
+	defer func() {
+		for _, f := range lecturas {
+			f.Close()
 		}
 	}()
+	for _, w := range []io.Writer{stdout, stderr} {
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			for _, f := range escrituras {
+				f.Close()
+			}
+			return err
+		}
+		lecturas, escrituras = append(lecturas, pr), append(escrituras, pw)
+		leido := make(chan struct{})
+		leidos = append(leidos, leido)
+		go func() {
+			defer close(leido)
+			_, _ = io.Copy(w, pr)
+		}()
+	}
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Stdin = stdin
-	cmd.Stdout, cmd.Stderr = pw, pw
+	cmd.Stdout, cmd.Stderr = escrituras[0], escrituras[1]
 	cmd.WaitDelay = graciaGit + time.Second
-	err = procesos.ArrancarConGracia(cmd, graciaGit)
-	pw.Close() // git keeps its copy: EOF comes when the group's are closed
+	err := procesos.ArrancarConGracia(cmd, graciaGit)
+	for _, f := range escrituras {
+		f.Close() // git keeps its copies: EOF comes when the group's are closed
+	}
 	if err != nil {
-		return "", err
+		return err // the deferred Close ends the reading
 	}
 	err = cmd.Wait()
 	vencio := errors.Is(ctx.Err(), context.DeadlineExceeded)
@@ -1079,33 +1196,78 @@ func gitTope(dir string, tope time.Duration, stdin io.Reader, args ...string) (s
 		procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGit))
 	}
 	procesos.Liberar(cmd.Process.Pid)
-	select {
-	case <-leido:
-	case <-time.After(finDeLecturaGit):
-		pr.Close()
-		select {
-		case <-leido:
-		case <-time.After(finDeLecturaGit):
-		}
-	}
-	if vencio {
-		que := "git"
-		for _, a := range args {
-			if !strings.HasPrefix(a, "-") {
-				que = "git " + a
-				break
+	leyeron := func(hasta <-chan time.Time) bool {
+		for _, l := range leidos {
+			select {
+			case <-l:
+			case <-hasta:
+				return false
 			}
 		}
-		return "", fmt.Errorf("%s %w: se corto a los %s, con sus hooks", que, errTopeGit, tope)
+		return true
+	}
+	if !leyeron(time.After(finDeLecturaGit)) {
+		// someone outside the group holds the output: stop reading. On
+		// Windows a pending read may outlive its Close, so this wait is
+		// bounded too
+		for _, f := range lecturas {
+			f.Close()
+		}
+		leyeron(time.After(finDeLecturaGit))
+	}
+	if vencio {
+		return fmt.Errorf("%s %w: se corto a los %s, con lo que corria", subcomandoGit(args), errTopeGit, tope)
 	}
 	if errors.Is(err, exec.ErrWaitDelay) {
 		// git ended well; its stdin took longer to drop
 		err = nil
 	}
-	mu.Lock()
-	out := strings.TrimSpace(buf.String())
-	mu.Unlock()
-	return out, err
+	return err
+}
+
+// subcomandoGit is "git <subcommand>" of args, past git's own options and
+// the value of each -c and -C.
+func subcomandoGit(args []string) string {
+	for i := 0; i < len(args); i++ {
+		switch a := args[i]; {
+		case a == "-c" || a == "-C":
+			i++
+		case !strings.HasPrefix(a, "-"):
+			return "git " + a
+		}
+	}
+	return "git"
+}
+
+// salidaGit keeps what a git command of the save writes, safe for the
+// readers of its two pipes: everything with limite 0, otherwise its last
+// limite bytes. To copy less it lets its buffer grow up to 2*limite before
+// dropping the oldest part, like the gate runner's colaAcotada.
+type salidaGit struct {
+	mu     sync.Mutex
+	limite int
+	buf    []byte
+}
+
+func (s *salidaGit) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.buf = append(s.buf, p...)
+	if s.limite > 0 && len(s.buf) > 2*s.limite {
+		s.buf = append(s.buf[:0], s.buf[len(s.buf)-s.limite:]...)
+	}
+	return len(p), nil
+}
+
+// bytes is a copy of what it kept: the last limite bytes, or everything.
+func (s *salidaGit) bytes() []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b := s.buf
+	if s.limite > 0 && len(b) > s.limite {
+		b = b[len(b)-s.limite:]
+	}
+	return append([]byte(nil), b...)
 }
 
 func sameSet(a, b []string) bool {

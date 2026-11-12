@@ -299,14 +299,17 @@ func (r *corrida) vuelta(ctx context.Context) (boardcmd.PilotDecision, *lanzar.T
 		return boardcmd.PilotDecision{}, nil, err
 	}
 	root, slug := r.o.Root, r.o.Slug
-	c, err := boardcmd.CardFor(root, m.BaseBranch, m.FindingsBlockOn(), slug, r.o.Ahora())
+	// the card's pulse, not the whole card: no git that reads the working
+	// tree runs before the save, where each one is bounded by TopeGit
+	// (aclaraciones 19 y 21)
+	c, err := boardcmd.PulsoDe(root, slug, r.o.Ahora())
 	if err != nil {
 		return boardcmd.PilotDecision{}, nil, err
 	}
 	r.log = r.logDelUltimo(slug)
 	// 1. save, only with auto and the task open: a worktree off its branch
 	// is an open task that cannot be saved, and SaveTarea says why
-	if c.Item.Auto == item.AutoHastaHumano && (c.Evidence.Source == boardcmd.SourceWorktree || fueraDeSuRama(root, slug)) {
+	if c.Item.Auto == item.AutoHastaHumano && (c.Source == boardcmd.SourceWorktree || fueraDeSuRama(root, slug)) {
 		g, err := itemcmd.SaveTarea(root, m.BaseBranch, m.FindingsBlockOn(), slug)
 		if err != nil {
 			d := parada("no pudo guardar el trabajo de la tarjeta: " + err.Error())
