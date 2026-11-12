@@ -495,14 +495,19 @@ const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: rev
 // Save commits exactly the card's unsynced paths, one commit per tree. A
 // non-nil expect must equal them as a set.
 //
-// It saves the card from the tree `hoom item set` writes its item in
-// (item.ArbolDelRiesgo): run from a task's worktree, when the project's main
-// checkout has the item, it saves exactly as `hoom item save` run from the
-// project does (the workspace and the project's item, one commit each), and
-// the commits' Dir are relative to the project. With the item only in the
-// task's tree, it saves there (finding 42ffc0).
+// With expect nil (`hoom item save`) it saves the card from the tree `hoom
+// item set` writes its item in (item.ArbolDelRiesgo): run from a task's
+// worktree, when the project's main checkout has the item, it saves exactly
+// as `hoom item save` run from the project does (the workspace and the
+// project's item, one commit each), and the commits' Dir are relative to the
+// project. With the item only in the task's tree, it saves there (finding
+// 42ffc0).
+//
+// With a non-nil expect (the Studio) it saves exactly what the board of root
+// shows, in root: the main checkout's item stays for `hoom item save`
+// (findings d26397, f4d55b).
 func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error) {
-	if dest, ok := item.ArbolDelRiesgo(root, slug); ok && !mismoArbol(dest, root) {
+	if dest, ok := item.ArbolDelRiesgo(root, slug); ok && expect == nil && !mismoArbol(dest, root) {
 		return Save(dest, base, blockOn, slug, expect)
 	}
 	// something under the card's workspace name that is not its worktree (a
