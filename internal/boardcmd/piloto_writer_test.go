@@ -123,6 +123,12 @@ func TestWriterPilotoRelevo(t *testing.T) {
 	if d := Piloto(e); d.Why != "el writer se corto por tiempo dos veces: sube agents.writer.timeout o parte la tarea" {
 		t.Fatalf("dos cortes: %+v", d)
 	}
+	// el que toco un test protegido no se releva: el Why del caso 8
+	s.TocoProtegidos = true
+	e.Sobres = []Sobre{s}
+	if d := Piloto(e); d.Launch || d.Caso != 8 || d.Why != "el trabajo del writer no cerro entregable (no-entregable): el piloto se detiene ante un rojo" {
+		t.Fatalf("toco un protegido: %+v", d)
+	}
 }
 
 func TestWriterPilotoRonda(t *testing.T) {

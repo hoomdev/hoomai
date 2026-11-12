@@ -568,6 +568,9 @@ func Armar(o Opciones) (boardcmd.Estado, error) {
 		}
 		e.Sobres = append(e.Sobres, s)
 	}
+	if err := protegidosTocados(dir, base, slug, e.Sobres); err != nil {
+		return boardcmd.Estado{}, err
+	}
 	if id := c.Evidence.VerdictID; id != "" {
 		e.Veredicto = veredictos[id]
 	}
@@ -604,6 +607,35 @@ func Armar(o Opciones) (boardcmd.Estado, error) {
 	}
 	e.Ventanas = ventanas(metas, slug)
 	return e, nil
+}
+
+// protegidosTocados marks the envelopes whose run changed a protected test
+// (Sobre.TocoProtegidos): a tests-del-test-writer finding of the scope gate,
+// on the card's task and the envelope's role, registered between the
+// envelope's start and its end. Its status does not matter: the run touched
+// the tests either way.
+func protegidosTocados(dir, base, slug string, sobres []boardcmd.Sobre) error {
+	items, _, err := finding.List(dir, base, true)
+	if err != nil {
+		return err
+	}
+	for i := range sobres {
+		rec := sobres[i].Record
+		pre := agentcmd.RuleTestsDelTestWriter + ": el rol " + rec.Role + " escribio "
+		fin := rec.EndedAt
+		if fin.IsZero() {
+			fin = rec.UpdatedAt
+		}
+		for _, it := range items {
+			if it.Task != slug || it.Author != agentcmd.AutorGateDeScope || it.Severity != "high" ||
+				!strings.HasPrefix(it.Description, pre) || it.CreatedAt.Before(rec.StartedAt) ||
+				(!fin.IsZero() && it.CreatedAt.After(fin)) {
+				continue
+			}
+			sobres[i].TocoProtegidos = true
+		}
+	}
+	return nil
 }
 
 // citas are, by finding id, the protected tests whose text contains it.

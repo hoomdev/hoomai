@@ -95,6 +95,12 @@ type Sobre struct {
 	// SesionID is the provider's session id the sidecar of the envelope's
 	// run kept (runcmd.Meta.ProviderSessionID); "" = none.
 	SesionID string
+	// TocoProtegidos says the envelope's run changed a protected test: the
+	// scope gate registered its tests-del-test-writer finding while the
+	// envelope ran, also when the run then failed or timed out. Piloto
+	// neither relieves (case 5) nor retries (case 6) such an envelope
+	// (finding 24e6e0).
+	TocoProtegidos bool
 }
 
 // Piloto is the pilot's decision (autonomia-entre-firmas).
@@ -257,11 +263,13 @@ func (p piloto) decidir() PilotDecision {
 	// that ends a round
 	pasa := false
 	if hay {
-		if last.Record.Corte == envelope.CorteTiempo {
+		// touching the protected tests is not retried: such an envelope
+		// goes on to its stop (finding 24e6e0)
+		if last.Record.Corte == envelope.CorteTiempo && !last.TocoProtegidos {
 			return p.relevo(last)
 		}
 		if p.e.Politica.ReintentosAnteRojo == 1 && last.Record.Role == "writer" && last.Record.Ronda == 0 &&
-			enVerifyOCheck(last.Record) && rojo(last) {
+			!last.TocoProtegidos && enVerifyOCheck(last.Record) && rojo(last) {
 			return p.reintento(last)
 		}
 		if p.e.Politica.RondasDeHallazgos > 0 &&

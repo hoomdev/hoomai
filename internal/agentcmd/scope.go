@@ -59,6 +59,10 @@ const (
 // RuleTestsDelTestWriter.
 const NotaTestsDelTestWriter = "el writer toco los tests del test-writer: no se emite veredicto sobre este arbol"
 
+// AutorGateDeScope is the author of the findings the scope gate registers,
+// one per violation: `<regla>: el rol <rol> escribio <ruta> - <detalle>`.
+const AutorGateDeScope = "hoom gate de scope"
+
 // DetalleTestsDelTestWriter is the Detail of a RuleTestsDelTestWriter
 // violation.
 const DetalleTestsDelTestWriter = "los tests del test-writer no los cambia el writer: pide de nuevo al test-writer"
@@ -641,7 +645,7 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	for i, v := range sc.Violations {
 		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
-			Description: desc, Author: "hoom gate de scope", Task: task, Huella: &huella}); err == nil {
+			Description: desc, Author: AutorGateDeScope, Task: task, Huella: &huella}); err == nil {
 			sc.Violations[i].FindingID = f.ID
 		}
 	}
