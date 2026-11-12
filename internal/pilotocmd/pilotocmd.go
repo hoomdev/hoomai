@@ -395,8 +395,8 @@ func (r *corrida) lanzar(ctx context.Context, m *manifest.Manifest, d boardcmd.P
 }
 
 // cerrarHallazgos carries out a PasoCerrarHallazgos: holding the card's
-// launch locks (lanzar.Reservar) and its tree's lock, with no run active, it
-// closes each finding with its evidence, runs the card's verify, saves
+// launch locks (lanzar.Reservar) and its tree's lock, with no run active and
+// the card read again (boardcmd.PilotoNoSigue), it closes each finding with its evidence, runs the card's verify, saves
 // (itemcmd.SaveTareaBajoCandado), and stops when the new
 // verdict is not green: with the card's blocking findings no protected test
 // of the round cites when any is left, else with the gates still red. ok is
@@ -431,6 +431,18 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 	}
 	if busy {
 		return noGuarda(fmt.Errorf("hay un run activo (%s) en el espacio de trabajo de la tarjeta: espera a que termine", id))
+	}
+	// what a person changed since the decision wins: the same check as a
+	// launch with Pilot, before anything is closed (aclaracion 20, finding
+	// 5774db)
+	c, err := boardcmd.CardFor(root, m.BaseBranch, m.FindingsBlockOn(), slug, r.o.Ahora())
+	if err != nil {
+		r.detener(parada(err.Error()))
+		return false
+	}
+	if why := boardcmd.PilotoNoSigue(c); why != "" {
+		r.detener(parada(why))
+		return false
 	}
 	for _, id := range d.Hallazgos {
 		if _, err := finding.Resolve(dir, id, finding.StatusCorrected, d.Evidencias[id], finding.AutorPiloto); err != nil {

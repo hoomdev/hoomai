@@ -26,7 +26,6 @@ import (
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
-	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
@@ -318,24 +317,6 @@ func tomarCandados(p Params, slug string) (func(), error) {
 	}, nil
 }
 
-// pilotoNoLanza is why a launch of the pilot cannot go on the card c, read
-// under the launch lock: its item no longer has auto hasta-humano, or it is
-// in a human column or in Hecho. "" when it can.
-func pilotoNoLanza(c boardcmd.Card) string {
-	if c.Item.Auto != item.AutoHastaHumano {
-		return "el piloto automatico ya no esta activado en la tarjeta: el piloto no lanza nada"
-	}
-	if c.Column == boardcmd.ColHecho {
-		return "la tarjeta llego a Hecho: el piloto no lanza nada"
-	}
-	for _, col := range boardcmd.Columns {
-		if col.ID == c.Column && col.Human {
-			return "la tarjeta esta en " + col.Name + ": le toca a una persona, el piloto no lanza nada"
-		}
-	}
-	return ""
-}
-
 // Reservar takes the card's launch locks (the file lock and p.Candado) as
 // Lanzar does, so no launch of the card starts until soltar: the pilot's
 // cerrar-hallazgos holds them from the first resolution until it saves
@@ -390,7 +371,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if req.Pilot {
 		// the pilot decided on a card read before this lock: what a person
 		// changed meanwhile wins (findings 8c69af, a3e8d2)
-		if why := pilotoNoLanza(c); why != "" {
+		if why := boardcmd.PilotoNoSigue(c); why != "" {
 			return fail(http.StatusConflict, "%s", why)
 		}
 	}

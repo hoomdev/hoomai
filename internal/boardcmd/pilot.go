@@ -1,5 +1,29 @@
 package boardcmd
 
+import "github.com/hoomdev/hoomai/internal/item"
+
+// PilotoNoSigue is why the pilot must not act on the card c, read again under
+// its locks after Piloto decided: its item no longer has auto hasta-humano,
+// or it is in a human column or in Hecho (aclaraciones 13 and 20). "" when it
+// may. lanzar.Lanzar checks it for a launch with Pilot, and the pilot's
+// cerrar-hallazgos before its first resolution.
+func PilotoNoSigue(c Card) string {
+	if c.Item.Auto != item.AutoHastaHumano {
+		return "el piloto automatico ya no esta activado en la tarjeta: el piloto no sigue"
+	}
+	if c.Column == ColHecho {
+		return "la tarjeta llego a Hecho: el piloto no sigue"
+	}
+	if isHumanColumn(c.Column) {
+		for _, col := range Columns {
+			if col.ID == c.Column {
+				return "la tarjeta esta en " + col.Name + ": le toca a una persona, el piloto no sigue"
+			}
+		}
+	}
+	return ""
+}
+
 // PilotTable is the fixed order of C1 for the role columns a card can
 // advance to: the ONLY column actions the pilot may launch. Arquitecto is not
 // in it: a spec that goes back to that column is fixed by a person
