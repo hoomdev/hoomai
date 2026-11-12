@@ -4,3 +4,5 @@ prioridad: alta
 pedido: 'Spec .hoom/specs/ciclo-de-review-acotado.md: una sola definicion de que bloquea (finding.Bloquea) con subida por ruta de riesgo y a mano (hoom finding raise); los pendientes a la vista en la tarjeta y al aceptar, con tope (findings.max_pendientes); riesgo declarado por tarjeta (bajo|normal|alto, hoom item set) del que salen las lentes; la delta sin readability; reloj en hoom costo; severidades en el contrato del reviewer. Re-expresa CA-424, CA-427, CA-428 y CA-547.'
 creado_por: hoomdev <dev@volale.com>
 creado_en: 2026-11-11T17:40:39Z
+hecho_en: 2026-11-12T05:08:13Z
+commit_final: 7254a5f6911ccebf6539e3538f83b0ff8a500b62
