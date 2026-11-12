@@ -812,12 +812,5 @@ func porcelain(dir string) []string {
 	if err != nil {
 		return nil
 	}
-	var paths []string
-	for _, c := range cambios {
-		paths = append(paths, c.Ruta)
-		if c.XY[0] == 'R' && c.Origen != "" {
-			paths = append(paths, c.Origen)
-		}
-	}
-	return paths
+	return gitx.Rutas(cambios)
 }
