@@ -1,0 +1,11 @@
+{
+  "id": "20261112T040826_65fbb7",
+  "created_at": "2026-11-12T04:08:26.416572676Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo de este delta) — internal/itemcmd/itemcmd.go:516-517: el guard de rama solo se ejecuta cuando root coincide con .hoom/worktrees/\u003cslug\u003e, pero el Studio pasa el slug de la URL (internal/servecmd/acciones.go:287,299). Si el servidor corre en .hoom/worktrees/precios fuera de hoom/precios y la persona guarda otra tarjeta visible, por ejemplo /api/board/otro/save, la coincidencia falla; con expect no nil tampoco hay redireccion en 522-523, y Save puede commitear los cambios del worktree en la rama equivocada o en HEAD separado. Es un caso provocable desde la UI que produce un resultado incorrecto y puede dejar un commit huerfano; el chequeo debe validar la rama del worktree que contiene root independientemente del slug solicitado.",
+  "author": "reviewer@codex",
+  "fingerprint": "9b6d64fb1dc90b9d",
+  "task": "ciclo-de-review-acotado"
+}

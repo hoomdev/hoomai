@@ -1,0 +1,11 @@
+{
+  "id": "20261111T212806_c55dde",
+  "created_at": "2026-11-11T21:28:06.080893717Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:156 selecciona para escribir el item del checkout principal, pero internal/itemcmd/itemcmd.go:160 comprueba Hecho con CardFor(root), que desde un worktree carga la copia antigua del item. Si el principal ya tiene hecho_en y el worktree fue creado antes del cierre, item set desde el worktree no ve Hecho y internal/itemcmd/itemcmd.go:167 modifica la tarjeta terminada, contra CA-617 que exige exit 1 y no escribir.",
+  "author": "reviewer@codex",
+  "fingerprint": "7683c7e1a49eb118",
+  "task": "ciclo-de-review-acotado"
+}

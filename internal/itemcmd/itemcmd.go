@@ -1,6 +1,7 @@
-// Package itemcmd implements `hoom item add | list | show | save | backfill`:
-// the verbs of the card as a file (backfill gives an item to the tasks from
-// before the cabin that the evidence holds). Parsing is pure and strict from day one (cliargs), so a
+// Package itemcmd implements `hoom item add | list | show | save | set |
+// backfill`: the verbs of the card as a file (backfill gives an item to the
+// tasks from before the cabin that the evidence holds; set changes the
+// card's riesgo). Parsing is pure and strict from day one (cliargs), so a
 // request hoom does not understand is answered before the project is read,
 // and it never leaves a half-written item behind.
 package itemcmd
@@ -21,8 +22,10 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
@@ -35,18 +38,32 @@ const (
 	// SubBackfill creates the items of the tasks that predate the cabin
 	// (historia-en-el-tablero).
 	SubBackfill = "backfill"
+	// SubSet is `hoom item set <slug> --riesgo r [--json]`: it changes the
+	// card's riesgo and nothing else (ciclo-de-review-acotado). --riesgo is
+	// the only flag that changes something, so it is required: Parse answers
+	// a usage error (exit 2) without it, with an empty one, or with a value
+	// outside riesgo.Vocabulario (that one with item.Parse's text,
+	// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`), and for a
+	// slug that is not one, as show and save do. What Execute does is Set's
+	// contract.
+	SubSet = "set"
 )
 
 // UsageText is the exact usage block of `hoom item` and the single source of
 // that text.
-const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--presupuesto-usd x] [--pedido "<texto>"] [--slug s] [--auto hasta-humano] [--json]
+const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--riesgo r] [--presupuesto-usd x] [--pedido "<texto>"] [--slug s] [--auto hasta-humano] [--json]
      hoom item list [--json]
      hoom item show <slug> [--json]
      hoom item save <slug> [--json]
+     hoom item set <slug> --riesgo r [--json]
      hoom item backfill [--dry-run] [--json]
 
   --tipo t             feature|bug|refactor|seguridad|docs|test (default feature)
   --prioridad p        alta|media|baja (default media)
+  --riesgo r           bajo|normal|alto (default normal): cuanta review pide
+                       la tarjeta (bajo: 1 lente salvo ruta de riesgo; alto:
+                       las 4 siempre y sus medium de la review completa
+                       bloquean)
   --presupuesto-usd x  Tope de gasto de la tarjeta en USD (> 0; opcional)
   --pedido "<texto>"   Lo que va a recibir el arquitecto (opcional)
   --slug s             Slug del item (default: derivado del titulo); es el
@@ -69,15 +86,94 @@ hecho_en. Lo que no califica sale con su motivo; --dry-run no escribe nada.
 
 El item es un archivo en .hoom/items/<slug>.yaml que viaja en git. Nunca
 guarda una columna: la columna sale de la evidencia ('hoom board').
+
+'hoom item set' cambia el riesgo de la tarjeta y nada mas; no commitea
+(guardalo con 'hoom item save <slug>'). Lo cambia una persona, nunca un rol.
 Un titulo que empieza con '-' va despues de '--': hoom item add -- "-titulo"`
 
-// Request is one parsed `hoom item` invocation.
+// Request is one parsed `hoom item` invocation. `hoom item add --riesgo r`
+// travels in Draft.Riesgo: a value outside riesgo.Vocabulario is a usage
+// error of Parse (exit 2, like --tipo) with item.Parse's text, and no item
+// is created; without the flag, or with --riesgo normal, the file has no
+// `riesgo` key.
 type Request struct {
-	Sub    string     // SubAdd | SubList | SubShow | SubSave | SubBackfill
-	Draft  item.Draft // add
-	Slug   string     // show, save
+	Sub   string     // SubAdd | SubList | SubShow | SubSave | SubSet | SubBackfill
+	Draft item.Draft // add
+	Slug  string     // show, save, set
+	// Riesgo is set's --riesgo, already checked against riesgo.Vocabulario.
+	Riesgo string
 	JSON   bool
 	DryRun bool // backfill
+}
+
+// SetResult is what `hoom item set` did, identical in text and JSON
+// (`{"slug": ..., "antes": ..., "riesgo": ...}`). Antes is the riesgo the
+// card had (riesgo.Normal when its item had no key) and Riesgo the one it
+// has now; they are equal when the card already had it.
+type SetResult struct {
+	Slug   string `json:"slug"`
+	Antes  string `json:"antes"`
+	Riesgo string `json:"riesgo"`
+	// Cambio says whether the item's file was written (false when the card
+	// already had that riesgo). Not part of the JSON.
+	Cambio bool `json:"-"`
+}
+
+// Set is `hoom item set <slug> --riesgo r`: it changes only the riesgo of
+// the item slug of the project at root (item.SetRiesgo: every other key
+// keeps its value, the file is rewritten the way hoom writes it) and commits
+// nothing. rol is the role of the run the process runs inside (Execute
+// passes $HOOM_ROLE; "" = not inside one).
+//
+// It refuses, writing nothing, with these errors (exit 1 in the CLI), in
+// this order:
+//
+//   - rol not empty: `el riesgo de una tarjeta lo cambia una persona, no un rol`;
+//   - no item slug: `no existe el item "<slug>"`;
+//   - the card (boardcmd.CardFor with base and blockOn) in Hecho:
+//     `la tarjeta ya esta en Hecho`, the text the board and `hoom integrar`
+//     use.
+//
+// A card that already has r is a SetResult with Antes == Riesgo == r, Cambio
+// false and nothing written.
+//
+// Execute prints, for a change,
+// `riesgo de <slug>: <antes> -> <despues> - guardalo con: hoom item save <slug>`,
+// and for a card that already had it `riesgo de <slug>: ya es <r>`; with
+// --json, the SetResult in both cases.
+func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
+	if strings.TrimSpace(rol) != "" {
+		return SetResult{}, fmt.Errorf("el riesgo de una tarjeta lo cambia una persona, no un rol")
+	}
+	if err := riesgo.Validar(r); err != nil || r == "" {
+		if err == nil {
+			err = fmt.Errorf("falta el riesgo (bajo|normal|alto)")
+		}
+		return SetResult{}, err
+	}
+	// the item written is the one the riesgo is read from: the main
+	// checkout's when it has it, else this tree's (findings aee796, f91dcf)
+	dest, ok := item.ArbolDelRiesgo(root, slug)
+	if !ok {
+		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
+	}
+	// Hecho is judged on the card of the tree Set writes in, the same item
+	// (findings 822b51, c55dde): a historic card stays Hecho as before
+	c, err := boardcmd.CardFor(dest, base, blockOn, slug, time.Now().UTC())
+	if err != nil {
+		return SetResult{}, err
+	}
+	if c.Column == boardcmd.ColHecho {
+		return SetResult{}, fmt.Errorf("la tarjeta ya esta en Hecho")
+	}
+	antes, cambio, err := item.SetRiesgo(dest, slug, r)
+	if errors.Is(err, os.ErrNotExist) {
+		return SetResult{}, fmt.Errorf("no existe el item %q", slug)
+	}
+	if err != nil {
+		return SetResult{}, err
+	}
+	return SetResult{Slug: slug, Antes: antes, Riesgo: r, Cambio: cambio}, nil
 }
 
 // BackfillResult is what `hoom item backfill` did, or would do with
@@ -146,7 +242,7 @@ func quedan(n int) string {
 // understand and cliargs.ErrHelp for -h/--help.
 func Parse(args []string) (Request, error) {
 	if len(args) == 0 {
-		return Request{}, uso("item", "falta el subcomando (add|list|show|save|backfill)")
+		return Request{}, uso("item", "falta el subcomando (add|list|show|save|set|backfill)")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -183,6 +279,25 @@ func Parse(args []string) (Request, error) {
 			return Request{}, uso("item save", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
 		}
 		return Request{Sub: SubSave, Slug: ops[0], JSON: *asJSON}, nil
+	case SubSet:
+		fs := flag.NewFlagSet("item set", flag.ContinueOnError)
+		r := fs.String("riesgo", "", "riesgo de la tarjeta: bajo|normal|alto")
+		asJSON := fs.Bool("json", false, "emitir el resultado como JSON")
+		ops, err := cliargs.Operands(fs, rest, "item set", UsageText, 1)
+		if err != nil {
+			return Request{}, err
+		}
+		if !item.ValidSlug(ops[0]) {
+			return Request{}, uso("item set", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
+		}
+		v := strings.TrimSpace(*r)
+		if v == "" {
+			return Request{}, uso("item set", "falta --riesgo (bajo|normal|alto): es lo unico que set cambia")
+		}
+		if err := riesgo.Validar(v); err != nil {
+			return Request{}, uso("item set", err.Error())
+		}
+		return Request{Sub: SubSet, Slug: ops[0], Riesgo: v, JSON: *asJSON}, nil
 	case SubBackfill:
 		fs := flag.NewFlagSet("item backfill", flag.ContinueOnError)
 		dryRun := fs.Bool("dry-run", false, "lista lo que crearia sin escribir nada")
@@ -192,13 +307,14 @@ func Parse(args []string) (Request, error) {
 		}
 		return Request{Sub: SubBackfill, DryRun: *dryRun, JSON: *asJSON}, nil
 	}
-	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|backfill)", sub))
+	return Request{}, uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|set|backfill)", sub))
 }
 
 func parseAdd(args []string) (Request, error) {
 	fs := flag.NewFlagSet("item add", flag.ContinueOnError)
 	tipo := fs.String("tipo", "", "tipo del item")
 	prioridad := fs.String("prioridad", "", "prioridad del item")
+	rsg := fs.String("riesgo", "", "riesgo de la tarjeta: bajo|normal|alto")
 	presupuesto := fs.Float64("presupuesto-usd", 0, "tope de gasto en USD")
 	pedido := fs.String("pedido", "", "pedido para el arquitecto")
 	slug := fs.String("slug", "", "slug del item")
@@ -208,7 +324,7 @@ func parseAdd(args []string) (Request, error) {
 	if err != nil {
 		return Request{}, err
 	}
-	d := item.Draft{Titulo: ops[0], Tipo: *tipo, Prioridad: *prioridad, Pedido: *pedido, Slug: *slug, Auto: *auto}
+	d := item.Draft{Titulo: ops[0], Tipo: *tipo, Prioridad: *prioridad, Riesgo: *rsg, Pedido: *pedido, Slug: *slug, Auto: *auto}
 	// Only a WRITTEN budget is one: its absence means "no cap", never 0.
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "presupuesto-usd" {
@@ -315,6 +431,20 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 			fmt.Fprintf(stdout, "  %s: %s (%s)\n", cm.Dir, short(cm.SHA), n)
 		}
 		return nil
+	case SubSet:
+		res, err := Set(root, base, blockOn, req.Slug, req.Riesgo, os.Getenv(runcmd.EnvRole))
+		if err != nil {
+			return err
+		}
+		if req.JSON {
+			return emit(stdout, res)
+		}
+		if !res.Cambio {
+			fmt.Fprintf(stdout, "riesgo de %s: ya es %s\n", res.Slug, res.Riesgo)
+			return nil
+		}
+		fmt.Fprintf(stdout, "riesgo de %s: %s -> %s - guardalo con: hoom item save %s\n", res.Slug, res.Antes, res.Riesgo, res.Slug)
+		return nil
 	case SubBackfill:
 		res, err := Backfill(root, base, blockOn, req.DryRun, now)
 		if err != nil && len(res.Creados) == 0 {
@@ -330,7 +460,7 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 		}
 		return err
 	}
-	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|backfill)", req.Sub))
+	return uso("item", fmt.Sprintf("subcomando desconocido %q (add|list|show|save|set|backfill)", req.Sub))
 }
 
 func emit(w io.Writer, v any) error {
@@ -365,7 +495,32 @@ const ErrChanged = "los cambios de la tarjeta cambiaron desde que los viste: rev
 
 // Save commits exactly the card's unsynced paths, one commit per tree. A
 // non-nil expect must equal them as a set.
+//
+// With expect nil (`hoom item save`) it saves the card from the tree `hoom
+// item set` writes its item in (item.ArbolDelRiesgo): run from a task's
+// worktree, when the project's main checkout has the item, it saves exactly
+// as `hoom item save` run from the project does (the workspace and the
+// project's item, one commit each), and the commits' Dir are relative to the
+// project. With the item only in the task's tree, it saves there (finding
+// 42ffc0).
+//
+// With a non-nil expect (the Studio) it saves exactly what the board of root
+// shows, in root: the main checkout's item stays for `hoom item save`
+// (findings d26397, f4d55b).
+//
+// Run from inside a task's worktree, for any card and with or without
+// expect, it first goes through the gate of that worktree, the one the main
+// checkout uses (runcmd.TaskDir): off its branch hoom/<task>, or with a
+// detached HEAD, it commits nothing (findings 68644c, 13bba6, 65fbb7).
 func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error) {
+	if p, tarea, ok := tareaDe(root, slug); ok {
+		if _, err := runcmd.TaskDir(p, tarea); err != nil {
+			return SaveResult{}, err
+		}
+	}
+	if dest, ok := item.ArbolDelRiesgo(root, slug); ok && expect == nil && !mismoArbol(dest, root) {
+		return Save(dest, base, blockOn, slug, expect)
+	}
 	// something under the card's workspace name that is not its worktree (a
 	// symlink, a plain folder, another clone) is not "no workspace": saving
 	// would commit the card without the work it claims to have, so it
@@ -456,6 +611,26 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 		res.Commits = append(res.Commits, SaveCommit{Dir: tr.rel, SHA: sha, Paths: tr.paths})
 	}
 	return res, nil
+}
+
+// tareaDe is the task whose worktree root is (<principal>/.hoom/worktrees/
+// <tarea>) and its main checkout, whatever card is being saved; ok is false
+// when root is not a task's worktree.
+func tareaDe(root, slug string) (principal, tarea string, ok bool) {
+	p, ok := gitx.CheckoutPrincipal(root)
+	if !ok || mismoArbol(p, root) {
+		return "", "", false
+	}
+	nombres := []string{slug, filepath.Base(root)}
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		nombres = append(nombres, filepath.Base(r))
+	}
+	for _, x := range nombres {
+		if item.ValidSlug(x) && mismoArbol(root, filepath.Join(p, ".hoom", "worktrees", x)) {
+			return p, x, true
+		}
+	}
+	return "", "", false
 }
 
 // arbolesDe are the trees saving card c commits in: its workspace (when it
@@ -578,4 +753,14 @@ func renderBackfill(w io.Writer, res BackfillResult) {
 	for _, s := range res.ConItem {
 		fmt.Fprintf(w, "  %-9s %-36s ya tiene item: no se toca\n", "intacto", s)
 	}
+}
+
+// mismoArbol says whether a and b name the same tree, symlinks resolved.
+func mismoArbol(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	if errA != nil || errB != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
 }

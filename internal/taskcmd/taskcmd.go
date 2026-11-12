@@ -19,9 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -195,6 +197,11 @@ func taskState(wt, base string) (state, verdictID string) {
 // task's item (when this tree has one) and removes the worktree, leaving the
 // branch ready to merge. --force skips the checks and force-removes, and
 // never marks the item done: a card does not earn Hecho without evidence.
+//
+// Right after its closing line it prints the task's pendientes (open
+// findings of the task that do not block, finding.Bloquea):
+// `pendientes: 3 medium, 5 low abiertos (hoom finding list --open)`, naming
+// only the severities present, or `sin pendientes`.
 func Done(root, slug, base string, force bool) error {
 	if err := checkSlug(slug); err != nil {
 		return err
@@ -221,6 +228,8 @@ func Done(root, slug, base string, force bool) error {
 			return err
 		}
 	}
+	// the task's pendientes are read from its tree, which the close removes
+	pendientes := lineaPendientes(root, wt, slug)
 
 	// The item is read BEFORE touching the worktree: an invalid item stops
 	// the close with everything still in place.
@@ -278,11 +287,46 @@ func Done(root, slug, base string, force bool) error {
 	} else {
 		fmt.Printf("hoom: tarea %q cerrada con veredicto verde y huella coincidente\n", slug)
 	}
+	fmt.Println(pendientes)
 	fmt.Println(itemNote)
 	fmt.Printf("  la rama %s queda lista para integrar:\n", branch)
 	fmt.Printf("    git merge --no-ff %s\n", branch)
 	fmt.Printf("    git branch -d %s   (despues del merge)\n", branch)
 	return nil
+}
+
+// lineaPendientes is the line `hoom task done` prints right after its
+// closing line: the open findings of task slug in its tree wt that do not
+// block (finding.Bloquea, with the project's block_on, the riesgo of the
+// project's item and the tree's raises and complete reviews).
+func lineaPendientes(root, wt, slug string) string {
+	blockOn := ""
+	if raw, err := os.ReadFile(filepath.Join(root, manifest.FileName)); err == nil {
+		if pol, err := manifest.ParseFindings(raw); err == nil && pol != nil && pol.BlockOn != nil {
+			blockOn = *pol.BlockOn
+		}
+	}
+	items, _, err := finding.List(wt, "", true)
+	if err != nil {
+		return "pendientes: no se pudieron leer los hallazgos (hoom finding list --open)"
+	}
+	c, _ := finding.ContextoDe(wt, root, blockOn)
+	medium, low := 0, 0
+	for _, it := range finding.Juzgar(items, c) {
+		if it.Task != slug || it.Bloquea {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(it.Severity)) {
+		case "medium":
+			medium++
+		case "low":
+			low++
+		}
+	}
+	if cuenta := finding.CuentaPendientes(medium, low); cuenta != "" {
+		return "pendientes: " + cuenta + " abiertos (hoom finding list --open)"
+	}
+	return "sin pendientes"
 }
 
 func short(sha string) string {
@@ -296,6 +340,17 @@ func short(sha string) string {
 // exists, its tree is clean, it has a complete verdict, the latest complete
 // one is green and its fingerprint matches — with the same messages. nil
 // means task done would close it.
+//
+// Last, the cap of findings.max_pendientes, read from the task's tree (its
+// hoom.yaml and its .hoom/findings/: what the project would have once
+// integrated): with a cap n, when the task has at least one open medium of
+// its own and the tree has more than n open mediums (of any task or none),
+// it fails with kind ReadyTopePendientes and the message
+// `aceptar "<slug>" dejaria <m> medium abiertos en el proyecto (tope <n>): corrige o refuta alguno (hoom finding list --open) o sube findings.max_pendientes`.
+// A task without open mediums of its own passes even over the cap; without
+// the key there is no cap. The board shows it as
+// `aceptarla dejaria demasiados medium abiertos en el proyecto` with the
+// action `hoom finding list --open`; --force skips it.
 func Ready(root, slug, base string) error {
 	wt, err := runcmd.TaskDir(root, slug)
 	if err != nil {
@@ -318,6 +373,40 @@ func Ready(root, slug, base string) error {
 	g := gitx.Snapshot(wt, base)
 	if g.ChangeFingerprint != last.Git.ChangeFingerprint {
 		return notReady(ReadyHuella, "el arbol de %q cambio despues del ultimo veredicto verde (huella %s vs %s).\n  Accion: re-ejecuta 'hoom verify' dentro del worktree y commitea", slug, g.ChangeFingerprint, last.Git.ChangeFingerprint)
+	}
+	return topePendientes(wt, slug, base)
+}
+
+// topePendientes is Ready's last check: findings.max_pendientes of the
+// task's tree wt, over the open mediums of that tree (what the project
+// would have once integrated). A hoom.yaml it cannot read leaves no cap
+// here: verify already refuses an invalid manifest.
+func topePendientes(wt, slug, base string) error {
+	raw, err := os.ReadFile(filepath.Join(wt, manifest.FileName))
+	if err != nil {
+		return nil
+	}
+	pol, err := manifest.ParseFindings(raw)
+	if err != nil || pol == nil || pol.MaxPendientes == nil {
+		return nil
+	}
+	tope := *pol.MaxPendientes
+	items, _, err := finding.List(wt, base, true)
+	if err != nil {
+		return nil
+	}
+	total, propios := 0, 0
+	for _, it := range items {
+		if strings.ToLower(strings.TrimSpace(it.Severity)) != "medium" {
+			continue
+		}
+		total++
+		if it.Task == slug {
+			propios++
+		}
+	}
+	if propios > 0 && total > tope {
+		return notReady(ReadyTopePendientes, "aceptar %q dejaria %d medium abiertos en el proyecto (tope %d): corrige o refuta alguno (hoom finding list --open) o sube findings.max_pendientes", slug, total, tope)
 	}
 	return nil
 }

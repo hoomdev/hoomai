@@ -151,3 +151,20 @@ func mismaRuta(a, b string) bool {
 	rb, errB := filepath.EvalSymlinks(b)
 	return errA == nil && errB == nil && ra == rb
 }
+
+// CheckoutPrincipal is the main checkout of the repository dir belongs to:
+// the folder holding its common git dir (`<principal>/.git`). From the main
+// checkout it is dir itself; from a linked worktree, the project it was
+// added to. ok is false when dir is not in a git repository or its common
+// dir is not a `.git` folder (a bare repository): there is no main checkout.
+func CheckoutPrincipal(dir string) (principal string, ok bool) {
+	comun, err := gitLimpio(dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", false
+	}
+	comun = filepath.Clean(rutaDeGit(dir, strings.TrimSpace(comun)))
+	if filepath.Base(comun) != ".git" {
+		return "", false
+	}
+	return filepath.Dir(comun), true
+}

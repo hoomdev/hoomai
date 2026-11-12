@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204507_3bbb73",
+  "created_at": "2026-11-11T20:45:07.552717134Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/finding/bloquea.go",
+  "description": "internal/finding/bloquea.go:149 INTRODUCIDO: RevisionesCompletas descarta tanto el error de recorrer .hoom/reviews como cada registro ilegible; en riesgo alto, perder temporalmente la completa hace que sus medium dejen de bloquear y findings_open puede quedar verde en vez de fallar cerrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

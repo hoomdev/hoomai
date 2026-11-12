@@ -1,0 +1,11 @@
+{
+  "id": "20261112T041048_07ea23",
+  "created_at": "2026-11-12T04:10:48.67707111Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:516: la nueva guarda de rama falla abierta cuando gitx.CheckoutPrincipal no puede ejecutar : ese helper devuelve ok=false ante cualquier error (internal/gitx/worktree.go:161-163), y Save interpreta false como que el control no aplica. Si esa consulta falla transitoriamente pero las operaciones Git posteriores funcionan, un Save servido desde el worktree ya puesto en otra rama omite runcmd.TaskDir y commitPaths guarda en la rama equivocada. Es un fallo real de entorno degradado; la comprobacion de seguridad debe distinguir «no es un checkout aplicable» de «no pude comprobarlo» y propagar el error.",
+  "author": "reviewer@codex",
+  "fingerprint": "9b6d64fb1dc90b9d",
+  "task": "ciclo-de-review-acotado"
+}

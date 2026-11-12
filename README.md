@@ -146,7 +146,8 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 | `hoom context` | Salud del contexto: fuentes de intake, vision/backlog, preguntas abiertas y staleness por fechas. Amarillos honestos; informa, nunca bloquea. `--json` |
 | `hoom finding add --sev <s> "<desc>"` | Registra un hallazgo de review como artefacto INMUTABLE en `.hoom/findings/`, atado a la huella del arbol. `--task <slug>` lo ata a una tarea; sin el flag toma `HOOM_TASK`, que hoom pone en cada run con tarea, asi que lo que un rol registra dentro de `hoom agent --task` queda en su tarjeta. En `hoom review` es la tarea de la review: `--task`, o si no la del `--spec`; el reviewer recibe la ruta absoluta del hoom que lo lanzo (el del PATH de un shell de login puede ser otra version; en Windows, `hoom` a secas), y un hallazgo nuevo fuera de esa tarea (sin tarea o con otra) queda avisado en la salida y anotado en `notes` del registro de review y del `--json` |
 | `hoom finding resolve <id> --as corregido\|refutado --evidence "..."` | Cierra un hallazgo (transicion terminal unica); SIN evidencia el binario se niega |
-| `hoom finding list [--open] [--json]` | Estado derivado de cada hallazgo; marca los que quedaron atras del codigo. Una resolucion sin evidencia, con un estado inventado o ilegible NO cierra nada: el hallazgo sigue abierto (y lo dice un aviso) |
+| `hoom finding raise <id> --reason "..."` | Sube a mano un hallazgo abierto: desde ese momento bloquea, sea cual sea su severidad. Deja `.hoom/findings/<id>.raise.json` (autor, razon, fecha); sin razon el binario se niega, un hallazgo ya cerrado no se sube y no hay bajada (para eso esta refutar). Lo hace una persona: un rol que lo intenta dentro de un run se niega y el gate de scope lo marca como manipulacion |
+| `hoom finding list [--open] [--json]` | Estado derivado de cada hallazgo; marca los que quedaron atras del codigo. Una resolucion sin evidencia, con un estado inventado o ilegible NO cierra nada: el hallazgo sigue abierto (y lo dice un aviso). Cada abierto dice si bloquea (y por que) o si queda pendiente; en `--json`, `bloquea` y `motivo` |
 | `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) y las capacidades que declara cada una (stream, continue, resume, session_id, model, system_prompt, tools, read_only, max_turns, budget). `--json` |
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git). Opciones: `--resume <id>` (reanuda la sesion del provider que imprimio un run anterior), `--model <m>`, `--system-prompt <texto\|@ruta>` (se AGREGA al del provider; `@ruta` lee un contrato de rol), `--allow-tools a,b`, `--deny-tools a,b`, `--max-turns n`, `--budget-usd x`. Lo que el provider no soporta se ignora CON aviso en el log; `--strict` lo vuelve error. `--unattended`: nadie responde prompts, el CLI recibe de entrada las herramientas para leer, escribir y ejecutar |
 | `hoom agent --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"` | El SOBRE determinista de un rol: le da su contrato como system prompt, le impone su limite de escritura con el mecanismo que el provider declare (deny de herramientas en Claude, sandbox en Codex), corre el CLI UNA vez y cierra con evidencia en orden fijo — **scope** (que toco el rol, comparando el arbol antes y despues), **verify** y **check**. El gate de scope responde lo que ningun prompt puede responder: si el rol escribio solo donde le correspondia y dejo la evidencia intacta. Piso no aflojable: veredictos y hallazgos existentes son inmutables, las aprobaciones no las firma un agente, `hoom.yaml` no se toca, el trinquete solo sube, y los items y los registros de review (`.hoom/items/`, `.hoom/reviews/`) no los toca un rol; violarlo corta ANTES de emitir veredicto. Cada violacion se registra como hallazgo `high`. El **test-writer** corre ademas en un **arbol ciego**: un worktree disperso (`git sparse-checkout`) de UN commit que contiene lo que el rol puede leer —el spec, los tests, los archivos con los que el perfil reconoce el stack— y ni un archivo de implementacion, asi que la anti-circularidad deja de ser una regla de prompt. Ese arbol es tambien una cuarentena: solo se trasplantan al arbol real las rutas que el gate aprobo, y si el aislamiento se rompe (un archivo escondido que vuelve al disco, o una escritura en el arbol real) no se emite veredicto. El rol ciego corre ademas sin la configuracion personal del CLI, igual que `hoom review`: en claude, sin los servidores MCP del usuario (Engram incluido), sin sus hooks, plugins ni permisos y sin la memoria automatica del proyecto, que comparten todos los worktrees del repo; en codex, sin su `config.toml`. Un provider que no puede aislarse no corre un rol ciego: el sobre se niega en el paso aislar, antes de armar el arbol. Los autores de specs (**arquitecto**, **designer**, **analista**) escriben solo en `.hoom/specs/**` y sin shell, y no reciben `--spec`: escriben el spec, no se verifican contra el. Un rol que escribe y termina sin entregar nada (salvo la evidencia que genera hoom) cierra **SIN ENTREGA**, exit 1, sin verify ni check: no hay arbol nuevo que certificar. Un pedido de relleno (`...`, espacios, `<pedido>`) se rechaza antes de gastar un token. Opciones: `--provider <p>` (default: el primero instalado que soporte system prompt), `--model`, `--resume <id>`, `--max-turns n`, `--budget-usd x`, `--json`. Exit 0 solo con todos los pasos verdes (cinco; seis con un rol ciego) |
@@ -162,8 +163,9 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 | `hoom task list --json` | El mismo estado como JSON en stdout |
 | `hoom task discard <slug> [--yes] [--json]` | Descarta lo que el espacio de trabajo de la tarea tiene sin guardar FUERA de `.hoom/`: lo que `HEAD` tiene vuelve a como estaba, lo nuevo se borra. La evidencia (veredictos, hallazgos, aprobaciones, registros) nunca se descarta. Sin `--yes` solo lista y sale con 1; se niega con un run activo en el arbol |
 | `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado. Si el arbol donde corre tiene el item de la tarea, le escribe `hecho_en` y `commit_final` (la punta de `hoom/<slug>`); con `--force` nunca lo marca hecho |
-| `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--auto hasta-humano` (el piloto automatico del Studio; exige `--presupuesto-usd`), `--json`. El slug es tambien el del spec y el de la tarea |
+| `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--auto hasta-humano` (el piloto automatico del Studio; exige `--presupuesto-usd`), `--riesgo bajo\|normal\|alto` (cuanta review exige la tarjeta; sin el flag, normal), `--json`. El slug es tambien el del spec y el de la tarea |
 | `hoom item list [--json]` / `hoom item show <slug> [--json]` | Los items del arbol actual; `show` suma su tarjeta (columna, que falta, siguiente paso, subestados y, en `--json`, las acciones validas, adonde se puede soltar y el fantasma) |
+| `hoom item set <slug> --riesgo bajo\|normal\|alto [--json]` | Cambia el riesgo de la tarjeta, lo unico que `set` cambia. Lo hace una persona (un rol se niega) y no en una tarjeta en Hecho; el cambio queda en el item sin guardar: se guarda con `hoom item save` |
 | `hoom item save <slug> [--json]` | Guarda en git lo que la tarjeta tiene sin guardar: un commit por arbol (su espacio de trabajo, y el item en el proyecto) con el mensaje fijo `hoom: guardar la tarjeta <slug>`. Solo esas rutas: lo que haya en el indice queda como estaba. Se niega mientras un rol trabaja en la tarjeta |
 | `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
 | `hoom board doctor [--json]` | Donde la evidencia no es coherente, cada problema con su accion exacta: spec editado despues de aprobarlo, espacio de trabajo con cambios sin veredicto para su huella, verde cuya huella ya no es la del arbol, hallazgo high en Tu aceptacion (un bug de hoom, y lo dice), sobres huerfanos, items sin spec hace mas de 14 dias y veredictos o hallazgos de una tarea sin item. Solo lee y sale con 0: los que bloquean son `verify` y `check` |
@@ -209,6 +211,7 @@ Opcional, a nivel proyecto (los perfiles no lo traen):
 ```yaml
 findings:
   block_on: high   # low | medium | high: esa severidad o mayor pone ROJO a verify
+  max_pendientes: 20   # opcional: tope de medium abiertos del arbol al aceptar una tarea
 ```
 
 Los valores con que se lanza cada rol, tambien a nivel proyecto. Todas las
@@ -360,6 +363,37 @@ puede decidir que si: con `findings: { block_on: <severidad> }` en
 
 `hoom check` sigue comparando la huella: un hallazgo registrado DESPUES de un
 verde se ve en el proximo `verify`, no antes.
+
+### Que bloquea y que queda pendiente
+
+Una sola regla decide si un hallazgo abierto bloquea, la misma en `verify`,
+el tablero, `hoom finding list`, `hoom status` y el Studio. Bloquea cuando:
+
+- su severidad llega al umbral (`block_on`), o es desconocida;
+- una persona lo subio con `hoom finding raise <id> --reason "..."`;
+- es un medium en una ruta de riesgo (auth, pagos, firma, secretos...);
+- es un medium de la review completa de una tarjeta de riesgo alto.
+
+El resto son **pendientes**: no bloquean, la tarjeta los muestra
+(`pendientes: 3 medium, 5 low (no bloquean)`) y `hoom task done` los cuenta
+al cerrar. Un pendiente es un defecto conocido que entra al proyecto; se
+toma despues con una tarjeta normal.
+
+**Riesgo de la tarjeta** (`riesgo:` en el item, `--riesgo` en `hoom item add`,
+`hoom item set` para cambiarlo; lo declara una persona):
+
+| Riesgo | Review que exige |
+|--------|------------------|
+| `bajo` | la lente reliability, con mas de 400 lineas; si el cambio toca una ruta de riesgo, cuenta como normal |
+| `normal` | lo de siempre: una lente, las 4 con una ruta de riesgo o mas de 400 lineas |
+| `alto` | las 4 lentes siempre, y sus medium de la review completa bloquean |
+
+Una delta (la review de los arreglos) no corre readability: risk,
+reliability y resilience.
+
+**Tope de pendientes**: `findings: { max_pendientes: <n> }` en `hoom.yaml`
+hace que `hoom task ready` se niegue a aceptar una tarea si dejaria mas de
+`n` medium abiertos en el arbol. Sin la clave no hay tope.
 
 ## Veredictos parciales (verify --gate)
 

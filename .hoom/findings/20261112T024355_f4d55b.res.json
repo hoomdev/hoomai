@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T024355_f4d55b",
+  "as": "corregido",
+  "evidence": "386391c: con rutas esperadas (Studio) Save ya no redirige al principal: compara expect con la tarjeta del arbol donde corre y commitea exactamente eso ahi; sin rutas (hoom item save) sigue la redireccion de 42ffc0 (decision del usuario). Regresion TestHallazgo_d26397_f4d55b_* (43398b5, fallan en 439cc7e) y save_expect_writer_test.go, save_desde_worktree_writer_test.go",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-12T03:39:00.419316353Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T041048_866582",
+  "created_at": "2026-11-12T04:10:48.752694364Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:516-520: la rama del worktree se comprueba solo al entrar a Save, antes de CardFor y antes de adquirir lockArboles (linea 541); no se vuelve a validar bajo el candado antes de commitPaths (lineas 667-680). Un  concurrente despues de TaskDir hace que Guardar termine creando el commit en otra rama, justo el resultado que esta correccion promete impedir. LockArbol solo excluye runs de hoom y no impide un checkout Git; por ser una carrera improbable sin perdida/exposicion de datos corresponde medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "9b6d64fb1dc90b9d",
+  "task": "ciclo-de-review-acotado"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204737_800574",
+  "created_at": "2026-11-11T20:47:37.020033385Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/principal_writer_test.go",
+  "description": "INTRODUCIDO — internal/boardcmd/principal_writer_test.go:15-52 copia literalmente wGit/wProyecto de internal/finding/principal_writer_test.go:15-52 e internal/reviewcmd/principal_writer_test.go:14-51 (y casi igual en internal/item/principal_writer_test.go:12-49). Son varias fuentes para la misma fixture de checkout principal/worktree; extraer un helper de prueba parametrizado dejaria en cada paquete solo la asercion de dominio.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

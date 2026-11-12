@@ -412,6 +412,9 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	if role.Slug != finding.RolQueRefuta {
 		sc = sinCierres(sc, role, arboles...)
 	}
+	// raises: no role raises a finding, the refutador included; one
+	// violation per file that says so, before the disk floor adds another
+	sc = sinSubidas(sc, role, arboles...)
 	sc = pisoEnDisco(sc, arboles...)
 	sc = sinListado(sc, arboles...)
 	// one fingerprint dates every finding of the gate: computed once, and
@@ -738,6 +741,73 @@ func sinCierres(sc ScopeResult, role agents.Role, arboles ...Fotos) ScopeResult 
 	for _, p := range rutas {
 		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering,
 			Detail: fmt.Sprintf("un %s no cierra hallazgos: los cierra el refutador (refutado) o una persona", role.Slug)})
+		if !contains(sc.Touched, p) {
+			sc.Touched = append(sc.Touched, p)
+		}
+		sc.Tampering, sc.OK = true, false
+	}
+	sort.Strings(sc.Touched)
+	sortViolations(sc.Violations)
+	return sc
+}
+
+// esSubida says whether p is a raise of a finding (.hoom/findings/<x>.raise.json).
+func esSubida(p string) bool {
+	return strings.HasPrefix(p, ".hoom/findings/") && strings.HasSuffix(p, ".raise.json")
+}
+
+// sinSubidas marks every raise (.raise.json) the run created, changed or
+// deleted, in any of the trees it could write to, whatever the role: a
+// raise is a person's (spec ciclo-de-review-acotado). It is ONE violation
+// per file, with the text that says what the role did: it replaces any other
+// violation of the same path.
+func sinSubidas(sc ScopeResult, role agents.Role, arboles ...Fotos) ScopeResult {
+	tocadas := map[string]bool{}
+	for _, f := range arboles {
+		for p := range f.Despues.Evidence {
+			if esSubida(p) && !f.Antes.Evidence[p] {
+				tocadas[p] = true
+			}
+		}
+		for p := range f.Antes.Evidence {
+			if esSubida(p) && !f.Despues.Evidence[p] {
+				tocadas[p] = true
+			}
+		}
+		for p, h := range f.Antes.Huellas {
+			if d, ok := f.Despues.Huellas[p]; esSubida(p) && f.Despues.Huellas != nil && (!ok || d != h) {
+				tocadas[p] = true
+			}
+		}
+		for p, d := range f.Despues.Huellas {
+			if _, ok := f.Antes.Huellas[p]; esSubida(p) && f.Antes.Huellas != nil && !ok && d != "" {
+				tocadas[p] = true
+			}
+		}
+		for p, h := range f.Despues.Touched {
+			if esSubida(p) && f.Antes.Touched[p] != h {
+				tocadas[p] = true
+			}
+		}
+	}
+	if len(tocadas) == 0 {
+		return sc
+	}
+	kept := sc.Violations[:0:0]
+	for _, v := range sc.Violations {
+		if !tocadas[v.Path] {
+			kept = append(kept, v)
+		}
+	}
+	sc.Violations = kept
+	rutas := make([]string, 0, len(tocadas))
+	for p := range tocadas {
+		rutas = append(rutas, p)
+	}
+	sort.Strings(rutas)
+	for _, p := range rutas {
+		sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTampering,
+			Detail: fmt.Sprintf("un %s no sube hallazgos: lo hace una persona", role.Slug)})
 		if !contains(sc.Touched, p) {
 			sc.Touched = append(sc.Touched, p)
 		}

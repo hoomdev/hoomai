@@ -96,6 +96,9 @@ func fueraTexto(t Tarea) string {
 // the list stays one line per task.
 func renderLinea(s salida, t Tarea) {
 	parts := []string{t.Slug, estadoTexto(t), fmt.Sprintf("rondas %d", t.Rondas)}
+	if r := relojTexto(t); r != "" {
+		parts = append(parts, r)
+	}
 	conVentana := false
 	for _, p := range provsDe(t.PorProvider) {
 		g := t.PorProvider[p]
@@ -112,8 +115,26 @@ func renderLinea(s salida, t Tarea) {
 	s.linea(line)
 }
 
+// relojTexto is "reloj <duracion>" of a task with clock: total hours and
+// truncated minutes (19h4m, 50h0m), or only minutes under an hour (45m);
+// "" without data.
+func relojTexto(t Tarea) string {
+	if t.RelojMS == nil {
+		return ""
+	}
+	minutos := *t.RelojMS / 60000
+	if minutos < 60 {
+		return fmt.Sprintf("reloj %dm", minutos)
+	}
+	return fmt.Sprintf("reloj %dh%dm", minutos/60, minutos%60)
+}
+
 func renderDetalle(s salida, t Tarea) {
-	s.lineaf("%s · %s · rondas %d", t.Slug, estadoTexto(t), t.Rondas)
+	if r := relojTexto(t); r != "" {
+		s.lineaf("%s · %s · rondas %d · %s", t.Slug, estadoTexto(t), t.Rondas, r)
+	} else {
+		s.lineaf("%s · %s · rondas %d", t.Slug, estadoTexto(t), t.Rondas)
+	}
 	if t.Estado == EstadoAceptada {
 		v, c := "sin dato", "sin dato"
 		if t.Veredicto != nil {

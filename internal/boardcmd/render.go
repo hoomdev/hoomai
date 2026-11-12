@@ -116,10 +116,13 @@ func RenderCard(w io.Writer, c Card) {
 		if e.ReviewID != "" {
 			rev = ".hoom/reviews/" + e.ReviewID + ".json"
 		}
-		fmt.Fprintf(w, "    review de 4 lentes: %s\n", rev)
+		fmt.Fprintf(w, "    review de %s: %s\n", textoLentes(e.Riesgo), rev)
 	}
 	if len(e.BlockingFindings) > 0 {
 		fmt.Fprintf(w, "    hallazgos que bloquean: %s\n", strings.Join(e.BlockingFindings, ", "))
+	}
+	if c.Pendientes.Texto != "" {
+		fmt.Fprintf(w, "    %s\n", c.Pendientes.Texto)
 	}
 	for _, l := range substateLines(c) {
 		fmt.Fprintf(w, "  %s\n", l)

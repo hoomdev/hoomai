@@ -1,0 +1,11 @@
+{
+  "id": "20261111T212403_822b51",
+  "created_at": "2026-11-11T21:24:03.607884185Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:160 comprueba si la tarjeta esta en Hecho con CardFor(root), pero internal/itemcmd/itemcmd.go:156 y :167 resuelven y escriben dest, que desde un worktree puede ser el checkout principal. Si el item principal ya tiene hecho_en y la copia del worktree no, hoom item set pasa la prohibicion de CA-617 y cambia el riesgo de una tarjeta cerrada; la validacion de estado y la mutacion operan sobre items distintos.",
+  "author": "reviewer@codex",
+  "fingerprint": "7683c7e1a49eb118",
+  "task": "ciclo-de-review-acotado"
+}

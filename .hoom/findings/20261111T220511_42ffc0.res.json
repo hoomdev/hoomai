@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261111T220511_42ffc0",
+  "as": "corregido",
+  "evidence": "a5de30d: item save resuelve el arbol como item set (item.ArbolDelRiesgo) y desde el worktree commitea el item en el principal; regresion TestHallazgo_42ffc0_* (a087398) y save_principal_writer_test.go",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-11T22:23:52.443894797Z"
+}

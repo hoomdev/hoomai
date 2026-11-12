@@ -1,0 +1,11 @@
+{
+  "id": "20261112T041312_1b038c",
+  "created_at": "2026-11-12T04:13:12.960560219Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:516-521: la rama se valida antes de tomar los locks; incluso la segunda derivacion termina en internal/itemcmd/itemcmd.go:547 y no se vuelve a comprobar antes de commitPaths en internal/itemcmd/itemcmd.go:599. LockArbol solo serializa procesos de hoom, de modo que un git checkout externo en esa ventana puede llevar el worktree a otra rama y el commit se crea alli, contradiciendo la garantia de internal/itemcmd/itemcmd.go:511-514 de no commitear fuera de hoom/\u003cslug\u003e.",
+  "author": "reviewer@codex",
+  "fingerprint": "9b6d64fb1dc90b9d",
+  "task": "ciclo-de-review-acotado"
+}

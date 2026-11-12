@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204736_c55d3b",
+  "created_at": "2026-11-11T20:47:36.865549085Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/riesgo.go",
+  "description": "INTRODUCIDO — internal/boardcmd/riesgo.go:55 vuelve a codificar en lentesPedidas la matriz que posee reviewcmd (bajo=reliability, delta=sin readability, completa=4). Como boardcmd ya importa reviewcmd, mantener una segunda regla obliga a sincronizar selector, validacion de la cadena y textos cada vez que cambien las lentes; conviene exponer desde reviewcmd una unica consulta de lentes requeridas por riesgo/cobertura.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

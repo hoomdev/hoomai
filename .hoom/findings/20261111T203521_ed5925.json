@@ -1,0 +1,11 @@
+{
+  "id": "20261111T203521_ed5925",
+  "created_at": "2026-11-11T20:35:21.128285724Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/finding/subida.go",
+  "description": "INTRODUCIDO internal/finding/subida.go:79: RaiseEnCorrida comprueba la resolucion antes de crear el `.raise.json` en la linea 104, sin candado compartido con Resolve. Una resolucion concurrente puede entrar entre ambas y raise termina exitosamente dejando subido un hallazgo ya cerrado, contra la negativa y el ciclo append-only del contrato. Serializar comprobacion y publicacion con resolve.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

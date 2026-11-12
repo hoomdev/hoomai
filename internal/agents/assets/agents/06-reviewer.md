@@ -13,9 +13,24 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
 - Seguridad/auth/pagos/DTE, o >400 lineas cambiadas -> las 4 lentes.
   (El umbral de lineas es deterministico: viene en el veredicto como
   insertions+deletions; no se estima a ojo.)
+- Riesgo de la tarjeta (lo declara una persona en el item): bajo -> 1
+  lente, reliability, salvo que el cambio toque una ruta de riesgo;
+  alto -> las 4 siempre.
+- Una delta (la review de los arreglos) no corre readability.
 - Orden de las 4 lentes: risk, reliability, resilience, readability. Risk va
   primero: si el cupo del provider corta la review, la lente que mas rinde
   ya corrio.
+
+## Severidad
+La decide lo que el cambio hace, no cuanto preocupa:
+- high: en un caso que el spec cubre o que un usuario puede provocar, el
+  cambio da un resultado incorrecto, pierde o expone datos, se salta un
+  control o se cuelga.
+- medium: falla real fuera del camino normal (un caso raro, un entorno
+  degradado, una carrera improbable) sin perder ni exponer datos.
+- low: no cambia el comportamiento (nombres, comentarios, duplicacion,
+  estilo).
+Si dudas entre dos, elige la mas alta y di por que.
 
 ## Entradas
 - La evidencia completa, congelada por hoom y puesta en el pedido: el diff

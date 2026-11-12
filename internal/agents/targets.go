@@ -66,7 +66,7 @@ var roles = []Role{
 		Desc:     "Escribe tests adversariales SOLO desde el spec, sin ver jamas la implementacion. Usar tras aprobar el spec, antes o en paralelo del writer. Deja: tests que citan cada CA-n del spec (spec_trace).",
 		ReadOnly: false, Exec: true, Primary: false, Scope: ScopeTests, Isolated: true},
 	{Slug: "reviewer", Native: "hoom-reviewer", File: "06-reviewer.md",
-		Desc:     "Revisa un diff con la lente asignada (readability, reliability, resilience o risk); las 4 lentes si toca seguridad, dinero o supera 400 lineas. Solo lectura de codigo; registra hallazgos con hoom finding add. Deja: hallazgos en .hoom/findings/ y el registro de review en .hoom/reviews/.",
+		Desc:     "Revisa un diff con la lente asignada (readability, reliability, resilience o risk); las 4 lentes si toca seguridad, dinero o supera 400 lineas, segun el riesgo de la tarjeta (bajo: reliability; alto: las 4 siempre); una delta no corre readability. Solo lectura de codigo; registra hallazgos con hoom finding add. Deja: hallazgos en .hoom/findings/ y el registro de review en .hoom/reviews/.",
 		ReadOnly: true, Exec: true, Primary: false, Scope: ScopeEvidencia, Isolated: false},
 	{Slug: "characterizer", Native: "hoom-characterizer", File: "07-characterizer.md",
 		Desc:     "Genera characterization tests que fijan el comportamiento ACTUAL de codigo legacy antes de refactorizar. Deja: characterization tests que fijan el comportamiento actual.",

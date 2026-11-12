@@ -15,6 +15,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -279,10 +280,6 @@ func specAprobado(v *verdict.Verdict) bool {
 // knows (finding 1d6b30). It is the rule backfill qualifies by and the one
 // the board holds the card by.
 func (g *gatherer) porQueNoSostienenHallazgos(s string, dirs []string) string {
-	umbral := g.blockOn
-	if umbral == "" {
-		umbral = "high"
-	}
 	testigo := false
 	for _, d := range dirs {
 		t := g.tree(d)
@@ -299,7 +296,7 @@ func (g *gatherer) porQueNoSostienenHallazgos(s string, dirs []string) string {
 				continue
 			}
 			testigo = true
-			if f.Status == finding.StatusOpen && bloquea(f.Severity, umbral) {
+			if b, _ := finding.Bloquea(f.Finding, g.contextoHistorico(t, s)); f.Status == finding.StatusOpen && b {
 				return fmt.Sprintf("el hallazgo %s (%s) sigue abierto", textoSeguro(f.ID), textoSeguro(f.Severity))
 			}
 		}
@@ -310,11 +307,20 @@ func (g *gatherer) porQueNoSostienenHallazgos(s string, dirs []string) string {
 	return ""
 }
 
-// bloquea is finding.Blocks failing closed: a severity outside the
-// vocabulary blocks, as the findings_open gate refuses it (finding eda92d).
-// Blocks(sev, "low") is true exactly for the severities it knows.
-func bloquea(sev, umbral string) bool {
-	return !finding.Blocks(sev, "low") || finding.Blocks(sev, umbral)
+// contextoHistorico is the Contexto the findings of task s on tree t are
+// judged with (finding.Bloquea, the one definition; a severity outside the
+// vocabulary blocks, finding eda92d): the board's threshold, the tree's
+// raises and completa records, and the riesgo the project's item of s
+// declares (normal without one).
+func (g *gatherer) contextoHistorico(t *tree, s string) finding.Contexto {
+	c := finding.Contexto{BlockOn: g.blockOn, Subidas: t.subidas, Riesgos: map[string]string{s: g.riesgosDe()[s]},
+		Ilegibles: g.ilegibles}
+	for _, r := range t.allReviews() {
+		if r.Cobertura == reviewcmd.CoberturaCompleta {
+			c.Completas = append(c.Completas, finding.RevisionCompleta{ID: r.ID, Task: r.Task, Findings: r.Findings})
+		}
+	}
+	return c
 }
 
 // relDe is dir relative to root, for a message; dir itself when it is not
@@ -431,4 +437,13 @@ func tituloDeSpec(sp specEn, s string) (string, error) {
 		return "", fmt.Errorf("no se pudo leer el spec de %s: %w", s, err)
 	}
 	return s, nil
+}
+
+// riesgosDe are the cards' declared riesgo by slug, read once: the main
+// checkout's items over the board's tree (item.RiesgosDe).
+func (g *gatherer) riesgosDe() map[string]string {
+	if g.riesgos == nil {
+		g.riesgos, g.ilegibles = finding.Riesgos(g.root)
+	}
+	return g.riesgos
 }

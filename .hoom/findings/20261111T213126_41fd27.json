@@ -1,0 +1,11 @@
+{
+  "id": "20261111T213126_41fd27",
+  "created_at": "2026-11-11T21:31:26.875744873Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/finding/bloquea.go",
+  "description": "INTRODUCIDO — internal/finding/bloquea.go:126 e internal/finding/gate.go:87: un item ilegible hace error por cualquier hallazgo abierto de su tarea, aunque el riesgo solo puede cambiar el bloqueo de un medium. Con un low, Bloquea lo deja pendiente pero Gate da ERROR y ListConUmbral aborta el listado completo; una degradacion de un item rompe la paridad con la tarjeta y tambien impide listar los hallazgos sanos de otras tareas para recuperarse.",
+  "author": "reviewer@codex",
+  "fingerprint": "7683c7e1a49eb118",
+  "task": "ciclo-de-review-acotado"
+}

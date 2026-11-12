@@ -36,6 +36,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -527,24 +528,38 @@ func ultimaEncadenable(dir, task, hasta, head string) (Record, bool) {
 // change is never reviewed in small slices with one lens. It also says the
 // lenses the rule asks for, which a hand-picked lens must cover for the
 // review not to be parcial.
-func lentesDe(rng rango, git gitx.Info, explicit string) (lentes []string, motivo string, regla []string, err error) {
+func lentesDe(rng rango, git gitx.Info, explicit, r string) (lentes []string, motivo string, regla []string, err error) {
+	if err := riesgo.Validar(r); err != nil {
+		return nil, "", nil, err
+	}
+	// the effective riesgo is measured over the whole change, also in a
+	// delta: a delta that does not touch the risk path does not bring a bajo
+	// back
+	efectivo, _ := riesgo.Efectivo(r, git.ChangedFiles)
 	if !rng.conRango {
-		regla, _, _ = Lenses(git, "")
-		lentes, motivo, err = Lenses(git, explicit)
+		regla, _, _ = LentesConRiesgo(git, "", efectivo)
+		lentes, motivo, err = LentesConRiesgo(git, explicit, efectivo)
 		return lentes, motivo, regla, err
 	}
 	d12 := rng.desde[:12]
 	switch {
 	case len(rng.medida.ChangedFiles) == 0:
 		motivo = fmt.Sprintf("no hay cambios desde %s: no hay nada que revisar", d12)
-	case soloDocs(rng.medida.ChangedFiles):
+	case SoloDocs(rng.medida.ChangedFiles):
 		motivo = fmt.Sprintf("lo que cambio desde %s es solo documentacion: no se invoca review", d12)
 	default:
-		lr, mr, _ := Lenses(rng.medida, "")
-		lw, mw, _ := Lenses(git, "")
+		// the range is measured with the riesgo of the whole change: a bajo
+		// that the whole change turned normal stays normal on the range
+		lr, mr, _ := LentesConRiesgo(rng.medida, "", efectivo)
+		lw, mw, _ := LentesConRiesgo(git, "", efectivo)
 		regla, motivo = lr, mr+" (sobre el rango)"
 		if len(lw) > len(lr) {
 			regla, motivo = lw, mw+" (sobre el cambio entero)"
+		}
+		// only a delta (the review of the fixes) drops readability; a
+		// --desde review is parcial and keeps the 4
+		if len(regla) == len(Lentes) && rng.cobertura == CoberturaDelta {
+			regla, motivo = LentesDeUnaDelta, motivo+sufijoDelta
 		}
 	}
 	if strings.TrimSpace(explicit) != "" {
@@ -588,7 +603,7 @@ func CambioDespues(dir, base, hasta, head string) (ancestro, codigo bool, err er
 	if err != nil {
 		return true, false, err
 	}
-	return true, len(files) > 0 && !soloDocs(files), nil
+	return true, len(files) > 0 && !SoloDocs(files), nil
 }
 
 // politicaEnMergeBase reads the `review:` section of the hoom.yaml of the
@@ -710,6 +725,13 @@ type Result struct {
 	// project's base_branch. BaseIntegrada as in the record.
 	Base          string `json:"base"`
 	BaseIntegrada string `json:"base_integrada,omitempty"`
+	// Riesgo and RiesgoDeclarado as in the record: the effective riesgo,
+	// and the item's only when it differs. The text output of `hoom review`
+	// carries the line `riesgo: <efectivo>`, or, when they differ,
+	// `riesgo: <motivo> (declarado <declarado>)` with riesgo.Efectivo's
+	// motivo.
+	Riesgo          string `json:"riesgo"`
+	RiesgoDeclarado string `json:"riesgo_declarado,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
@@ -725,10 +747,10 @@ func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
 	if len(git.ChangedFiles) == 0 {
 		return nil, "no hay cambios contra la base: no hay nada que revisar", nil
 	}
-	if soloDocs(git.ChangedFiles) {
+	if SoloDocs(git.ChangedFiles) {
 		return nil, "el cambio es solo documentacion: no se invoca review", nil
 	}
-	if p := rutaDeRiesgo(git.ChangedFiles); p != "" {
+	if p := riesgo.Ruta(git.ChangedFiles); p != "" {
 		return Lentes, fmt.Sprintf("el cambio toca %s: las 4 lentes", p), nil
 	}
 	if n := git.Insertions + git.Deletions; n > UmbralLineas {
@@ -737,12 +759,60 @@ func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
 	return []string{LenteDominante}, "cambio estandar: la lente dominante", nil
 }
 
+// LentesConRiesgo is Lenses with the card's riesgo (spec
+// ciclo-de-review-acotado): the rule runs with the effective riesgo,
+// riesgo.Efectivo(riesgo, git.ChangedFiles), so a bajo whose change touches
+// a risk path gets the lenses of normal; "" is normal. Before the riesgo, as
+// in Lenses: a lens given by hand (explicit) wins, and an empty change or one
+// of only documentation gets no lens, whatever the riesgo. Then:
+//
+//   - bajo: [reliability], motivo `riesgo bajo: la lente dominante`, even past
+//     UmbralLineas;
+//   - normal: exactly what Lenses(git, explicit) gives, motivo included;
+//   - alto: the 4 Lentes, motivo `riesgo alto: las 4 lentes`, even under
+//     UmbralLineas.
+//
+// A riesgo outside riesgo.Vocabulario is the error of riesgo.Validar; an
+// unknown explicit lens is Lenses' error.
+//
+// `hoom review` applies it with the riesgo of the task's item (the one it
+// already reads for the declared writers; normal without an item) over the
+// files of the whole change, also in a delta. In a delta the rule runs over
+// the range and over the whole change with that same effective riesgo and the
+// stricter wins, as before; when that gives the 4 lenses, the delta runs
+// risk, reliability and resilience, in that order, and its motivo ends in
+// `; una delta no corre readability` (cobertura delta).
+func LentesConRiesgo(git gitx.Info, explicit, r string) ([]string, string, error) {
+	if err := riesgo.Validar(r); err != nil {
+		return nil, "", err
+	}
+	efectivo, _ := riesgo.Efectivo(r, git.ChangedFiles)
+	if efectivo == riesgo.Normal || strings.TrimSpace(explicit) != "" ||
+		len(git.ChangedFiles) == 0 || SoloDocs(git.ChangedFiles) {
+		return Lenses(git, explicit)
+	}
+	if efectivo == riesgo.Bajo {
+		return []string{LenteDominante}, "riesgo bajo: la lente dominante", nil
+	}
+	return Lentes, "riesgo alto: las 4 lentes", nil
+}
+
+// LentesDeUnaDelta are the lenses a delta runs when its rule gives the 4:
+// all but readability, in Lentes' order.
+var LentesDeUnaDelta = []string{"risk", "reliability", "resilience"}
+
+// sufijoDelta ends the motivo of a delta whose rule gave the 4 lenses.
+const sufijoDelta = "; una delta no corre readability"
+
 // docExts and docDirs decide what "only documentation" means. A change that
 // only touches prose has 0 lenses: the contract says the reviewer is not
 // invoked, and not burning a session is part of respecting that.
 var docExts = map[string]bool{".md": true, ".txt": true, ".rst": true, ".adoc": true}
 
-func soloDocs(files []string) bool {
+// SoloDocs says whether every one of files is documentation (a .md, .txt,
+// .rst or .adoc file, anything under a docs/ folder, a LICENSE or a NOTICE,
+// in any case): the change no review is invoked for. An empty files is true.
+func SoloDocs(files []string) bool {
 	for _, f := range files {
 		l := strings.ToLower(f)
 		switch {
@@ -754,28 +824,6 @@ func soloDocs(files []string) bool {
 		}
 	}
 	return true
-}
-
-// marcasDeRiesgo is the deterministic reading of "security, auth, payments":
-// a coarse list of path substrings. It errs on the side of MORE review, and
-// the noise is honest — the alternative is letting the model pick its own
-// lens, which contract 06 forbids.
-var marcasDeRiesgo = []string{
-	"auth", "login", "password", "passwd", "secret", "token", "cred",
-	"crypt", "sign", "pago", "payment", "billing", "invoice", "dte",
-	"permission", "permiso", "sandbox", "sudo",
-}
-
-func rutaDeRiesgo(files []string) string {
-	for _, f := range files {
-		l := strings.ToLower(f)
-		for _, mark := range marcasDeRiesgo {
-			if strings.Contains(l, mark) {
-				return f
-			}
-		}
-	}
-	return ""
 }
 
 // Run executes the review. Failures the review is MEANT to report (a refusal
@@ -791,7 +839,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return Result{}, err
 	}
 	defer rng.cerrar()
-	lentes, motivo, regla, err := lentesDe(rng, git, opt.Lens)
+	declarado, err := riesgoDeclarado(root, taskOf(opt))
+	if err != nil {
+		return Result{}, err
+	}
+	efectivo, motivoRiesgo := riesgo.Efectivo(declarado, git.ChangedFiles)
+	lentes, motivo, regla, err := lentesDe(rng, git, opt.Lens, declarado)
 	if err != nil {
 		return Result{}, err
 	}
@@ -808,6 +861,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		WritersDeclared: declarados}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
 	res.Base, res.BaseIntegrada = rng.baseNombre, rng.integrada
+	res.Riesgo = efectivo
+	if declarado != efectivo {
+		res.RiesgoDeclarado = declarado
+	}
 	var notas []string
 
 	if rng.conRango {
@@ -827,6 +884,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "hoom review: %s, +%d/-%d lineas contra %s\n",
 			plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
 			git.Insertions, git.Deletions, rng.baseNombre)
+	}
+	if res.RiesgoDeclarado != "" {
+		fmt.Fprintf(w, "  riesgo: %s (declarado %s)\n", motivoRiesgo, res.RiesgoDeclarado)
+	} else {
+		fmt.Fprintf(w, "  riesgo: %s\n", efectivo)
 	}
 	for _, aviso := range []string{rng.avisoBase, rng.avisoSeparacion} {
 		if aviso != "" {
@@ -1026,6 +1088,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos, Runs: corridas,
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
 		Base: rng.baseNombre, BaseIntegrada: rng.integrada,
+		Riesgo: res.Riesgo, RiesgoDeclarado: res.RiesgoDeclarado,
 	})
 	res.Notes = notas
 	if len(usos) == 0 {
@@ -1115,6 +1178,21 @@ func declaredWriters(root, task string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// riesgoDeclarado is the riesgo the task's item declares in root: normal
+// without a task or without an item. One that exists and cannot be read is
+// an error, as for the declared writers: it could declare the very riesgo
+// that asks for more review.
+func riesgoDeclarado(root, task string) (string, error) {
+	if strings.TrimSpace(task) == "" || !item.ValidSlug(task) {
+		return riesgo.Normal, nil
+	}
+	r, err := item.RiesgoDe(root, task)
+	if err != nil {
+		return "", fmt.Errorf("el item de la tarea %q no se puede leer (%v): sin el, no se sabe su riesgo. Accion: arreglalo y vuelve a revisar", task, err)
+	}
+	return r, nil
 }
 
 // taskOf is the task a review belongs to: --task, or the task of its spec.

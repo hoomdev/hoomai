@@ -1,0 +1,95 @@
+{
+  "id": "20261111T204755_73a837",
+  "created_at": "2026-11-11T20:47:55.326665549Z",
+  "task": "ciclo-de-review-acotado",
+  "spec": ".hoom/specs/ciclo-de-review-acotado.md",
+  "fingerprint": "e43e55f0ccb52799",
+  "verdict_id": "2026-11-11T20-20-58Z_1a38d936",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261111T203520_04b283",
+    "20261111T203520_3e88e6",
+    "20261111T203520_aee796",
+    "20261111T203521_71e667",
+    "20261111T203521_ed5925",
+    "20261111T204019_405448",
+    "20261111T204019_984640",
+    "20261111T204019_c3ed42",
+    "20261111T204019_f91dcf",
+    "20261111T204507_34adf3",
+    "20261111T204507_3bbb73",
+    "20261111T204507_42d38e",
+    "20261111T204507_ac3626",
+    "20261111T204507_e5ed93",
+    "20261111T204736_b001d6",
+    "20261111T204736_c55d3b",
+    "20261111T204737_800574"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 359181,
+  "evidence_sha256": "0875dd38ecdc4d969cdf644352855d53f3badcd3648ae5b0626c3c17fa031f3e",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 3935259,
+      "cached_input_tokens": 3747456,
+      "output_tokens": 16533,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 2437870,
+      "cached_input_tokens": 2275200,
+      "output_tokens": 18348,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1202301,
+      "cached_input_tokens": 1063040,
+      "output_tokens": 12241,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 1341749,
+      "cached_input_tokens": 1187840,
+      "output_tokens": 7430,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261111T203005_0a75ae"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261111T203536_1983d6"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261111T204130_90a74d"
+    },
+    {
+      "lens": "readability",
+      "run": "20261111T204524_dccdd7"
+    }
+  ],
+  "desde": "0237ef478acae06fa4c1fd898f4c34ed1a4529fa",
+  "hasta": "be1f035b1b6bf969cebb737c130b8f68c27d65d3",
+  "cobertura": "completa",
+  "base": "main"
+}

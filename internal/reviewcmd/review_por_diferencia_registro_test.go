@@ -193,7 +193,8 @@ func rdRamaGrandeYChica(t *testing.T, root string) (grande string) {
 // CA-424: "un delta de menos de 400 lineas sin rutas de riesgo en una rama
 // de mas de 400 lleva las 4": con --desde el commit grande y con --delta
 // despues de una review completa, las 4 lentes, en orden, y el motivo es el
-// de la regla sobre el cambio entero.
+// de la regla sobre el cambio entero. CA-620 (ciclo-de-review-acotado)
+// re-expresa CA-424 en el --delta: corre las 4 menos readability.
 func TestCA424_DeltaChicoEnUnaRamaGrandeLlevaLasCuatro(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "")
@@ -219,8 +220,15 @@ func TestCA424_DeltaChicoEnUnaRamaGrandeLlevaLasCuatro(t *testing.T) {
 	rdEsperarSegundo()
 	rdCommit(t, root, "otro chico", map[string]string{"otro.go": "package app\n\nfunc Otro() {}\n"})
 	res, out = rdRevisar(t, "CA-424", root, Options{Provider: "codex", Spec: spec, Delta: true})
-	if !reflect.DeepEqual(res.Lenses, Lentes) || res.Cobertura != CoberturaDelta {
-		t.Fatalf("CA-424: un --delta chico de una rama grande lleva las 4 y queda delta: %+v\n%s", res, out)
+	// CA-620 re-expresa CA-424 solo en que la delta ya no corre readability:
+	// la regla da las 4 (sobre el cambio entero) y la delta corre risk,
+	// reliability y resilience, con el motivo terminado en
+	// "; una delta no corre readability".
+	if !reflect.DeepEqual(res.Lenses, []string{"risk", "reliability", "resilience"}) || res.Cobertura != CoberturaDelta {
+		t.Fatalf("CA-424/CA-620: un --delta chico de una rama grande lleva las 4 de la regla menos readability y queda delta: %+v\n%s", res, out)
+	}
+	if !strings.Contains(res.Reason, " (sobre el cambio entero)") || !strings.HasSuffix(res.Reason, "; una delta no corre readability") {
+		t.Fatalf("CA-424/CA-620: el motivo es el de la regla sobre el cambio entero y termina en '; una delta no corre readability': %q", res.Reason)
 	}
 }
 

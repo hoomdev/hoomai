@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261111T212806_c55dde",
+  "as": "corregido",
+  "evidence": "d842ea2: mismo defecto que 822b51 por el binario; regresion TestHallazgo_c55dde_ItemSetPorElBinarioMiraHechoEnElItemQueEscribe (50422c3): exit 1 y nada escrito con el principal cerrado",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-11T21:56:14.317401228Z"
+}

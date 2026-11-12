@@ -1,0 +1,11 @@
+{
+  "id": "20261111T203520_3e88e6",
+  "created_at": "2026-11-11T20:35:20.893838437Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/item/item.go",
+  "description": "INTRODUCIDO internal/item/item.go:639: RiesgosDe descarta tanto el error como los warnings de List. Si el item principal existe pero queda invalido/ilegible, conserva el riesgo obsoleto del worktree (o normal) y findings_open deja de bloquear los medium de una tarjeta alto; un verify puede emitir verde con el control degradado y reparar luego el item principal no invalida la huella del worktree. La lectura usada por gates debe fallar cerrada cuando el item autoritativo no puede leerse.",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}

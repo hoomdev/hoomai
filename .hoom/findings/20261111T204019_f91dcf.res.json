@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261111T204019_f91dcf",
+  "as": "corregido",
+  "evidence": "commit ba1d151 (mismo defecto que aee796): hoom item set desde el worktree escribe el item del checkout principal. Test de regresion TestHallazgo_f91dcf_ItemSetPorElBinarioDesdeElWorktree (internal/itemcmd, commit 551d54b) fallaba en a42af11 y pasa en 4f22a02.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-11T21:16:21.395467436Z"
+}

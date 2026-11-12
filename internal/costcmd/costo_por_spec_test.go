@@ -1258,7 +1258,8 @@ func TestCA546_SlugSinRunsNiReviewsEsError(t *testing.T) {
 
 // CA-547: el esquema: arriba tareas (lista); por tarea exactamente slug,
 // estado, aceptada_en, veredicto, commit_final, rondas, por_provider,
-// por_rol y rondas_review.
+// por_rol y rondas_review. CA-634 re-expresa CA-547 solo en que cada tarea
+// suma firmada_en y reloj_ms (ciclo-de-review-acotado).
 func TestCA547_EsquemaDelJSON(t *testing.T) {
 	fx := ccAlfa(t)
 	ccRun(t, fx.root, ccMeta("beta", "writer", "codex", ccT0.Add(ccMin(500)), ccMin(5)))
@@ -1268,7 +1269,7 @@ func TestCA547_EsquemaDelJSON(t *testing.T) {
 		if !ok || len(tareas) == 0 {
 			t.Fatalf("CA-547: arriba hay tareas (lista): %v", m)
 		}
-		claves := []string{"aceptada_en", "commit_final", "estado", "por_provider", "por_rol", "rondas", "rondas_review", "slug", "veredicto"}
+		claves := []string{"aceptada_en", "commit_final", "estado", "firmada_en", "por_provider", "por_rol", "reloj_ms", "rondas", "rondas_review", "slug", "veredicto"} // CA-634
 		for _, e := range tareas {
 			ta := e.(map[string]any)
 			var got []string

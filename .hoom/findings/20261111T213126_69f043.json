@@ -1,0 +1,11 @@
+{
+  "id": "20261111T213126_69f043",
+  "created_at": "2026-11-11T21:31:26.864826367Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:158 y internal/itemcmd/itemcmd.go:164: Set resuelve dest al item del checkout principal, pero comprueba si la tarjeta esta en Hecho con CardFor(root), que desde un worktree carga la copia de la rama. Si un cierre parcial o concurrente deja el item principal en Hecho y el worktree aun presente con su copia sin cerrar, la validacion pasa y SetRiesgo muta el item ya terminado; el lock del destino no revalida esa precondicion.",
+  "author": "reviewer@codex",
+  "fingerprint": "7683c7e1a49eb118",
+  "task": "ciclo-de-review-acotado"
+}

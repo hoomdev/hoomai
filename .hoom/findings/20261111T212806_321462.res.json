@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261111T212806_321462",
+  "as": "corregido",
+  "evidence": "ecea8cd: sin sufijo, la linea es exactamente la de CA-617 desde worktree y principal; regresion TestHallazgo_321462_LaLineaDesdeElWorktreeEsLaDelContrato (50422c3)",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-11T21:56:14.3210477Z"
+}

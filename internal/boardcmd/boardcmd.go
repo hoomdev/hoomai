@@ -11,6 +11,7 @@
 package boardcmd
 
 import (
+	"encoding/json"
 	"flag"
 	"time"
 
@@ -122,6 +123,14 @@ type Evidence struct {
 	// no entry, and Derive treats a missing entry as "does not cover".
 	ReviewTails map[string]ReviewTail
 	Findings    []finding.Item // OPEN findings of E with task == slug
+	// Subidas are the valid raises of E's .hoom/findings/, by finding id
+	// (finding.Subida): with BlockOn, the item's riesgo and the completa
+	// records of Reviews, the Contexto Derive judges Findings with
+	// (finding.Bloquea). nil = none.
+	Subidas map[string]finding.Subida
+	// RiesgoIlegible is why the riesgo of the card's item cannot be read
+	// ("" when it can): its mediums block (finding.Contexto.Ilegibles).
+	RiesgoIlegible string `json:"-"`
 	// UnreadableFindings: finding files of E that could not be read. Their
 	// task and severity are unknown, so they block every card of E, as they
 	// fail the findings_open gate.
@@ -207,6 +216,38 @@ type Card struct {
 	// Historica: the card is in Hecho because its historico still holds,
 	// not because `task done` closed it (historia-en-el-tablero).
 	Historica bool `json:"historica,omitempty"`
+
+	// Pendientes are the card's open findings that do not block
+	// (ciclo-de-review-acotado), always present, in every column, Hecho
+	// included.
+	Pendientes Pendientes `json:"pendientes"`
+}
+
+// Pendientes are the open findings of the card's task that do not block
+// under finding.Bloquea: what is left to a person, in sight when accepting.
+// A high is never one (it always reaches the threshold), nor is a finding of
+// unknown severity (it blocks).
+type Pendientes struct {
+	Medium int `json:"medium"`
+	Low    int `json:"low"`
+	// IDs are the ids of those findings, in the order of the card's
+	// findings (oldest first). Never null in JSON: [] when there are none.
+	IDs []string `json:"ids"`
+	// Texto is the line `pendientes: 3 medium, 5 low (no bloquean)`, naming
+	// only the severities with a count above 0, medium before low (e.g.
+	// `pendientes: 2 low (no bloquean)`); "" when there are none.
+	// RenderCard, the card's detail in `hoom tablero` and the Studio's show
+	// it only when it is not empty, as text.
+	Texto string `json:"texto"`
+}
+
+// MarshalJSON emits p with ids [] instead of null when it has none.
+func (p Pendientes) MarshalJSON() ([]byte, error) {
+	type plano Pendientes // sin el metodo: evita la recursion
+	if p.IDs == nil {
+		p.IDs = []string{}
+	}
+	return json.Marshal(plano(p))
 }
 
 // Action ids.
@@ -328,6 +369,10 @@ type CardEvidence struct {
 	ReviewRequired   bool     `json:"review_required"`
 	ReviewID         string   `json:"review_id"`
 	BlockingFindings []string `json:"blocking_findings"`
+	// Riesgo is the card's effective riesgo (riesgo.Efectivo of its item's
+	// riesgo over the verdict's changed files): what decides its lenses and
+	// whether it requires a review.
+	Riesgo string `json:"riesgo"`
 }
 
 // Running: an envelope or run of the card whose owner is alive.

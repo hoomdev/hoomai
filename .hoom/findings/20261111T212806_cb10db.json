@@ -1,0 +1,11 @@
+{
+  "id": "20261111T212806_cb10db",
+  "created_at": "2026-11-11T21:28:06.212538726Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/finding/gate.go",
+  "description": "INTRODUCIDO: internal/finding/gate.go:84-88 convierte en ERROR cualquier hallazgo abierto cuya tarjeta tenga riesgo ilegible antes de mirar su severidad. Para un low, finding.Bloquea retorna pendiente en internal/finding/bloquea.go:88-89 porque el riesgo nunca puede hacerlo bloquear, mientras la tarjeta lo deja pendiente y el gate falla; esto rompe la definicion unica y la equivalencia de CA-627 en el estado degradado que este cambio intenta manejar.",
+  "author": "reviewer@codex",
+  "fingerprint": "7683c7e1a49eb118",
+  "task": "ciclo-de-review-acotado"
+}

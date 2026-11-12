@@ -1,0 +1,11 @@
+{
+  "id": "20261111T220511_42ffc0",
+  "created_at": "2026-11-11T22:05:11.410370162Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:445 imprime desde un worktree `guardalo con: hoom item save \u003cslug\u003e` aunque Set acaba de modificar el item del checkout principal. Ejecutar literalmente ese comando en el mismo worktree responde que la tarjeta no tiene nada sin guardar y deja `.hoom/items/\u003cslug\u003e.yaml` modificado y sin commit en el principal; la persona puede creer que guardo el cambio. Reproduccion con una tarea cuyo item existe en ambos arboles: desde `.hoom/worktrees/legit`, `hoom item set legit --riesgo alto` seguido de `hoom item save legit`; el segundo no crea commit y `git -C \u003cprincipal\u003e status --short -- .hoom/items/legit.yaml` sigue mostrando ` M`.",
+  "author": "reviewer@codex",
+  "fingerprint": "9ca140b8a7d62208",
+  "task": "ciclo-de-review-acotado"
+}

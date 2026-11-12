@@ -178,6 +178,15 @@ type Tarea struct {
 	Veredicto   *string    `json:"veredicto"`    // id of the latest green verdict of .hoom/specs/<slug>.md, if accepted
 	CommitFinal *string    `json:"commit_final"` // the item's commit_final, if accepted
 	Rondas      int        `json:"rondas"`       // review records of the task
+	// FirmadaEn is the oldest approved_at among the records of
+	// .hoom/approvals/ whose spec is .hoom/specs/<slug>.md (an amendment
+	// does not restart the clock); null without one.
+	FirmadaEn *time.Time `json:"firmada_en"`
+	// RelojMS is aceptada_en - firmada_en in milliseconds; null when either
+	// is missing. The task's line adds `reloj <duracion>` after the rounds:
+	// total hours and truncated minutes (`19h4m`, `50h0m`), or only minutes
+	// under an hour (`45m`); nothing without it.
+	RelojMS *int64 `json:"reloj_ms"`
 	// PorProvider is the total per provider, keyed by provider name. Tokens
 	// of two providers are never added together anywhere.
 	PorProvider map[string]Gasto `json:"por_provider"`

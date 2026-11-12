@@ -45,6 +45,14 @@ const descMax = 160
 // with a severity hoom does not know, is an ERROR — the gate cannot tell
 // whether it blocks, so it does not assume it does not. base is taken for
 // parity with List; counting states needs no tree fingerprint.
+//
+// Whether an in-scope open finding blocks is Bloquea under
+// ContextoDe(root, root, blockOn): its severity, its raise, its file and the
+// riesgo and complete reviews of its task. The gate fails exactly for the
+// findings Bloquea says block, and its detail (OutputTail) names the motivo
+// of each one that blocks by a raise, by a risk path or by riesgo alto; one
+// that blocks by its severity reads as before. A raise that raises nothing
+// is a warning in OutputTail, never an ERROR.
 func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
 	start := time.Now()
 	res = verdict.GateResult{Name: GateName, Required: true, Scope: "full"}
@@ -62,8 +70,10 @@ func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
 		return res
 	}
 
+	ctx := contextoDesde(sc, root, root, blockOn)
 	var blocking []Item
-	quiet := map[string]int{} // abiertos que no bloquean, por severidad
+	motivos := map[string]string{} // los de los casos 2, 3 y 4 de Bloquea
+	quiet := map[string]int{}      // abiertos que no bloquean, por severidad
 	others := 0
 	broken := append([]string{}, sc.broken...)
 	for _, it := range sc.items {
@@ -74,13 +84,20 @@ func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
 			others++
 			continue
 		}
+		if motivo, ok := ctx.riesgoIlegible(it.Task); ok {
+			broken = append(broken, it.ID+".json: "+motivo)
+			continue
+		}
 		sev := strings.ToLower(strings.TrimSpace(it.Severity))
 		if _, ok := severityRank[sev]; !ok {
 			broken = append(broken, fmt.Sprintf("%s.json: severidad desconocida %q (low|medium|high)", it.ID, it.Severity))
 			continue
 		}
-		if Blocks(sev, blockOn) {
+		if b, motivo := Bloquea(it.Finding, ctx); b {
 			blocking = append(blocking, it)
+			if !strings.HasPrefix(motivo, "severidad ") {
+				motivos[it.ID] = motivo
+			}
 		} else {
 			quiet[sev]++
 		}
@@ -132,7 +149,11 @@ func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
 			if it.File != "" {
 				where = " " + it.File
 			}
-			tail = append(tail, fmt.Sprintf("%s %s [%s]%s: %s", it.ID, it.Severity, lensOf(it), where, recortar(it.Description)))
+			por := ""
+			if m := motivos[it.ID]; m != "" {
+				por = " (bloquea: " + m + ")"
+			}
+			tail = append(tail, fmt.Sprintf("%s %s [%s]%s%s: %s", it.ID, it.Severity, lensOf(it), where, por, recortar(it.Description)))
 		}
 		tail = append(tail, "Accion: corrige y cierra cada uno con evidencia, o refutalo con la evidencia que lo tumba:")
 		for _, it := range blocking {

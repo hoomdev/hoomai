@@ -18,6 +18,7 @@ package item
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,10 +64,19 @@ const (
 // hecho_en and commit_final are written by `hoom task done`, never by an
 // agent (the envelope's floor forbids any change under .hoom/items/).
 type Item struct {
-	Slug           string     `yaml:"-" json:"slug"`
-	Titulo         string     `yaml:"titulo" json:"titulo"`
-	Tipo           string     `yaml:"tipo" json:"tipo"`
-	Prioridad      string     `yaml:"prioridad" json:"prioridad"`
+	Slug      string `yaml:"-" json:"slug"`
+	Titulo    string `yaml:"titulo" json:"titulo"`
+	Tipo      string `yaml:"tipo" json:"tipo"`
+	Prioridad string `yaml:"prioridad" json:"prioridad"`
+	// Riesgo is the riesgo a person declares for the card: one of
+	// riesgo.Vocabulario (see package riesgo). The key is optional: Parse
+	// gives riesgo.Normal when it is missing, and "" in an Item built by
+	// hand reads as Normal too. Normal is the absence of the key: hoom never
+	// writes `riesgo: normal` (Add, SetRiesgo and every rewrite of the file
+	// leave the key out for it). Only a person changes it (`hoom item add
+	// --riesgo`, `hoom item set`); the envelope's floor already forbids any
+	// change under .hoom/items/ to a role.
+	Riesgo         string     `yaml:"riesgo,omitempty" json:"riesgo,omitempty"`
 	Pedido         string     `yaml:"pedido,omitempty" json:"pedido"`
 	CreadoPor      string     `yaml:"creado_por" json:"creado_por"`
 	CreadoEn       time.Time  `yaml:"creado_en" json:"creado_en"`
@@ -88,6 +99,16 @@ type Item struct {
 	// moves the card by itself: the board puts the card in Hecho while that
 	// evidence still holds (historia-en-el-tablero).
 	Historico string `yaml:"historico,omitempty" json:"historico,omitempty"`
+}
+
+// MarshalJSON emits the item with its riesgo left out when it is
+// riesgo.Normal: normal is the absence of the key, in JSON as in the file.
+func (it Item) MarshalJSON() ([]byte, error) {
+	type plano Item // sin el metodo: evita la recursion
+	if it.Riesgo == riesgo.Normal {
+		it.Riesgo = ""
+	}
+	return json.Marshal(plano(it))
 }
 
 // HistoricoHallazgos is the Historico of a task without spec held by its
@@ -125,9 +146,15 @@ type Sesion struct {
 // Draft is what `hoom item add` asks for before hoom stamps it (identity,
 // time). Empty Tipo/Prioridad take the defaults; empty Slug is Slugify(Titulo).
 type Draft struct {
-	Titulo         string
-	Tipo           string
-	Prioridad      string
+	Titulo    string
+	Tipo      string
+	Prioridad string
+	// Riesgo (`--riesgo`): "" is the absence of the flag and stays "" in
+	// the Draft; the item Add returns has riesgo.Normal. Validate trims it and
+	// rejects a value outside riesgo.Vocabulario with Parse's text,
+	// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`; Add writes
+	// the key only for Bajo and Alto.
+	Riesgo         string
 	Pedido         string
 	Slug           string
 	PresupuestoUSD *float64
@@ -221,6 +248,10 @@ func Validate(d Draft) (Draft, error) {
 	if d.PresupuestoUSD != nil && !finitePositive(*d.PresupuestoUSD) {
 		return d, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0 (para no declarar tope, no lo pases)")
 	}
+	d.Riesgo = strings.TrimSpace(d.Riesgo)
+	if err := riesgo.Validar(d.Riesgo); err != nil {
+		return d, err
+	}
 	d.Auto = strings.TrimSpace(d.Auto)
 	if d.Auto != "" && !contains(Autos, d.Auto) {
 		return d, fmt.Errorf("auto %q fuera del vocabulario (%s)", d.Auto, strings.Join(Autos, ", "))
@@ -255,7 +286,7 @@ func Add(root string, d Draft) (Item, error) {
 		return Item{}, err
 	}
 	it := Item{
-		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad,
+		Slug: d.Slug, Titulo: d.Titulo, Tipo: d.Tipo, Prioridad: d.Prioridad, Riesgo: riesgoONormal(d.Riesgo),
 		Pedido: strings.TrimSpace(d.Pedido), CreadoPor: gitx.Identity(root),
 		CreadoEn: time.Now().UTC().Truncate(time.Second), PresupuestoUSD: d.PresupuestoUSD,
 		Auto: d.Auto, Historico: d.Historico,
@@ -282,11 +313,14 @@ func Add(root string, d Draft) (Item, error) {
 func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 
 // claves are the only keys an item may carry, in the order hoom writes them.
-var claves = []string{"titulo", "tipo", "prioridad", "pedido", "creado_por", "creado_en",
+var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "pedido", "creado_por", "creado_en",
 	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
-// field or a value outside its vocabulary is an error.
+// field or a value outside its vocabulary is an error. The optional key
+// `riesgo` takes bajo, normal or alto; a missing key gives Riesgo
+// riesgo.Normal, and any other value is the error
+// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`.
 func Parse(slug string, raw []byte) (Item, error) {
 	if !ValidSlug(slug) {
 		return Item{}, fmt.Errorf("el nombre %q no es un slug (minusculas, numeros y guiones)", slug)
@@ -323,6 +357,8 @@ func Parse(slug string, raw []byte) (Item, error) {
 		return Item{}, fmt.Errorf("falta creado_en")
 	case it.PresupuestoUSD != nil && !finitePositive(*it.PresupuestoUSD):
 		return Item{}, fmt.Errorf("presupuesto_usd tiene que ser un numero mayor que 0")
+	case riesgo.Validar(it.Riesgo) != nil:
+		return Item{}, riesgo.Validar(it.Riesgo)
 	case it.Auto != "" && !contains(Autos, it.Auto):
 		return Item{}, fmt.Errorf("auto %q fuera del vocabulario (%s)", it.Auto, strings.Join(Autos, ", "))
 	case it.Historico != "" && !historicoValido(it.Historico):
@@ -336,6 +372,9 @@ func Parse(slug string, raw []byte) (Item, error) {
 			return Item{}, fmt.Errorf("sesiones[%d]: falta abierta_en", i)
 		}
 		it.Sesiones[i].AbiertaEn = s.AbiertaEn.UTC()
+	}
+	if it.Riesgo == "" {
+		it.Riesgo = riesgo.Normal
 	}
 	it.CreadoEn = it.CreadoEn.UTC()
 	if it.HechoEn != nil {
@@ -431,6 +470,53 @@ func UnmarkDone(root, slug, commit string) (bool, error) {
 	})
 }
 
+// SetRiesgo changes only the riesgo of the item slug of root, under the
+// item's lock (the same read-modify-write as MarkDone and AddSession): every
+// other key keeps its value, and the file is rewritten the way hoom writes
+// it. r riesgo.Normal leaves the file without the key. It commits nothing.
+//
+// antes is the riesgo the item had (riesgo.Normal when it had no key);
+// cambio says whether it wrote: an item that already had r is (antes, false,
+// nil) and its file is not touched. A riesgo outside riesgo.Vocabulario is
+// the error of riesgo.Validar and writes nothing; so is "" (it names no
+// riesgo). An item that does not exist is an error that wraps
+// os.ErrNotExist; an unreadable or invalid one is an error; neither writes
+// anything.
+func SetRiesgo(root, slug, r string) (antes string, cambio bool, err error) {
+	if r == "" {
+		return "", false, fmt.Errorf("falta el riesgo (%s)", strings.Join(riesgo.Vocabulario, ", "))
+	}
+	if err := riesgo.Validar(r); err != nil {
+		return "", false, err
+	}
+	if !ValidSlug(slug) {
+		return "", false, fmt.Errorf("slug invalido %q", slug)
+	}
+	if _, err := os.Stat(Path(root, slug)); err != nil {
+		if os.IsNotExist(err) {
+			return "", false, fmt.Errorf("no existe el item %q: %w", slug, os.ErrNotExist)
+		}
+		return "", false, err
+	}
+	existia := false
+	cambio, err = update(root, slug, func(it *Item) bool {
+		existia = true
+		antes = it.Riesgo
+		if antes == "" {
+			antes = riesgo.Normal
+		}
+		if antes == r {
+			return false
+		}
+		it.Riesgo = r
+		return true
+	})
+	if err == nil && !existia {
+		return "", false, fmt.Errorf("no existe el item %q: %w", slug, os.ErrNotExist)
+	}
+	return antes, cambio, err
+}
+
 // update is the one read-modify-write of an item, under the item's lock
 // (hoomfs.Lock: CLI and Studio alike), so a close and a session written at
 // once never lose each other. change says whether there is anything to
@@ -473,6 +559,9 @@ func update(root, slug string, change func(it *Item) bool) (bool, error) {
 
 // encode writes an item in the canonical key order (the struct's).
 func encode(it Item) ([]byte, error) {
+	if it.Riesgo == riesgo.Normal {
+		it.Riesgo = "" // normal es la ausencia de la clave
+	}
 	var b bytes.Buffer
 	enc := yaml.NewEncoder(&b)
 	enc.SetIndent(2)
@@ -507,4 +596,109 @@ func AddSession(root, slug, provider string, at time.Time) (bool, error) {
 		it.Sesiones = append(it.Sesiones, s)
 		return true
 	})
+}
+
+// riesgoONormal is r, or riesgo.Normal when r is "" (no --riesgo).
+func riesgoONormal(r string) string {
+	if r == "" {
+		return riesgo.Normal
+	}
+	return r
+}
+
+// RiesgoDe is the riesgo the card slug declares, seen from the tree arbol:
+// the item of the project's main checkout (gitx.CheckoutPrincipal) when it
+// has one, so a `hoom item set` + `save` in the project after `task start`
+// counts the same in the gate, the review and the board; else the item of
+// arbol (a card created only on the task's branch); else riesgo.Normal. An
+// item that is there and cannot be read is an error.
+func RiesgoDe(arbol, slug string) (string, error) {
+	if !ValidSlug(slug) {
+		return riesgo.Normal, nil
+	}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		if _, err := os.Lstat(Path(root, slug)); os.IsNotExist(err) {
+			continue
+		}
+		it, err := Load(root, slug)
+		if err != nil {
+			return "", err
+		}
+		return riesgoONormal(it.Riesgo), nil
+	}
+	return riesgo.Normal, nil
+}
+
+// ArbolDelRiesgo is the tree whose item slug RiesgoDe reads from arbol: the
+// main checkout when its item is there, else arbol when its item is there.
+// ok is false when neither has it. `hoom item set` writes there, so what it
+// writes is what the gate, the review and the board read (findings aee796,
+// f91dcf).
+func ArbolDelRiesgo(arbol, slug string) (string, bool) {
+	if !ValidSlug(slug) {
+		return "", false
+	}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		if _, err := os.Lstat(Path(root, slug)); err == nil || !os.IsNotExist(err) {
+			return root, true
+		}
+	}
+	return "", false
+}
+
+// RiesgosDe is RiesgoDe for every card arbol and the main checkout know, by
+// slug: the main checkout's items over arbol's. It fails closed like
+// RiesgoDe: an item that is there and cannot be read (or a .hoom/items/ that
+// cannot be listed) puts its slug in ilegibles with the reason, and the slug
+// does not inherit the riesgo of the next tree (finding 3e88e6).
+func RiesgosDe(arbol string) (riesgos map[string]string, ilegibles map[string]string) {
+	riesgos, ilegibles = map[string]string{}, map[string]string{}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		entries, err := os.ReadDir(Dir(root))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				ilegibles["*"] = fmt.Sprintf("no se puede listar %s: %v", Dir(root), err)
+			}
+			continue
+		}
+		for _, e := range entries {
+			slug, ok := strings.CutSuffix(e.Name(), ".yaml")
+			if !ok || !ValidSlug(slug) {
+				continue
+			}
+			if _, hay := riesgos[slug]; hay {
+				continue
+			}
+			if _, hay := ilegibles[slug]; hay {
+				continue
+			}
+			it, err := Load(root, slug)
+			if err != nil {
+				ilegibles[slug] = err.Error()
+				continue
+			}
+			riesgos[slug] = riesgoONormal(it.Riesgo)
+		}
+	}
+	return riesgos, ilegibles
+}
+
+// arbolesDeRiesgo are the trees a card's riesgo is read from, in order: the
+// main checkout of arbol's repository, then arbol (only arbol when it is the
+// main checkout or there is none).
+func arbolesDeRiesgo(arbol string) []string {
+	p, ok := gitx.CheckoutPrincipal(arbol)
+	if !ok || mismoArbol(p, arbol) {
+		return []string{arbol}
+	}
+	return []string{p, arbol}
+}
+
+func mismoArbol(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	if errA != nil || errB != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
 }

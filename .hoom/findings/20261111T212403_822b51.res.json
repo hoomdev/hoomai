@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261111T212403_822b51",
+  "as": "corregido",
+  "evidence": "d842ea2: Set juzga Hecho con CardFor(dest), el arbol que escribe; regresion TestHallazgo_822b51_SetMiraHechoEnElItemQueEscribe (50422c3) y tests del writer en principal_writer_test.go",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-11T21:56:14.313064381Z"
+}

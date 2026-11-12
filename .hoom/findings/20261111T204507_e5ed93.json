@@ -1,0 +1,11 @@
+{
+  "id": "20261111T204507_e5ed93",
+  "created_at": "2026-11-11T20:45:07.524034119Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/finding/subida.go",
+  "description": "internal/finding/subida.go:104 INTRODUCIDO: la subida se publica abriendo directamente el nombre final; si el proceso muere entre O_EXCL y Close queda un .raise.json truncado que las lecturas consideran ilegible y que bloquea futuros raise hasta reparacion manual. Debe publicarse de forma atomica (todo o nada).",
+  "author": "reviewer@codex",
+  "fingerprint": "e43e55f0ccb52799",
+  "task": "ciclo-de-review-acotado"
+}
