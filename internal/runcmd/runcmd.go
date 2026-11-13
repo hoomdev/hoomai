@@ -137,10 +137,11 @@ type StartOptions struct {
 	Timeout time.Duration
 	// Encierro (contencion-del-writer) is the plan each invocation of the
 	// run starts under (encierro.Envolver and encierro.Arrancar): nil = as
-	// today. Its Info goes to the sidecar (Meta.Encierro). Whoever runs a
-	// role that executes with a task, in a project with the section
-	// `encierro`, sets it (agentcmd.Run, reviewcmd.Run); `hoom run` never
-	// does.
+	// today. Its Info goes to the sidecar (Meta.Encierro); a plan with no
+	// mechanism (level ninguno) only does that, and the run starts as
+	// today. Whoever runs a role that executes, in a project with the
+	// section `encierro`, sets it (agentcmd.Run, reviewcmd.Run); `hoom run`
+	// never does.
 	Encierro *encierro.Plan
 }
 
@@ -1414,7 +1415,12 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	// with a plan (a role that executes, with a task, in a project with the
 	// section encierro) the provider runs enclosed: bwrap around it, and
 	// the run's gracia (none) kept (contencion-del-writer)
+	// a plan with no mechanism (level ninguno) only carries its level to the
+	// sidecar: the run starts as today
 	plan := r.opts.Encierro
+	if plan != nil && plan.Info.Mecanismo == "" {
+		plan = nil
+	}
 	if plan != nil {
 		if err := encierro.Envolver(cmd, *plan); err != nil {
 			m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo encerrar el provider %s: %v", r.provider.Name(), err))

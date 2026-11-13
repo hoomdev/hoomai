@@ -334,6 +334,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		if aviso := encierro.Aviso(info, role.Slug); aviso != "" {
 			fmt.Fprintf(w, "    %s\n", aviso)
 		}
+		// with ninguno the plan only carries the level to the run's sidecar
+		plan = &encierro.Plan{Info: info}
 		if opt.Task != "" && info.Nivel != encierro.NivelNinguno {
 			vista, err := encierro.VistaDe(encierro.Lugar{Principal: root, Tarea: opt.Task, Arbol: runDir, Quien: role.Slug,
 				Estado: EstadoDe(prov), Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
@@ -341,7 +343,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 				keepQuarantine(w, tree, res.Isolation, "el encierro no se pudo armar")
 				return res, roto(root, &rec, err)
 			}
-			plan = &encierro.Plan{Info: info, Vista: vista}
+			plan.Vista = vista
 		}
 	}
 	so, warn := startOptions(prov, role, contract, opt)
