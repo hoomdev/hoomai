@@ -3,6 +3,8 @@ package providers
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -21,7 +23,7 @@ func (codex) Bin() string  { return "codex" }
 
 // Estado declares what Codex CLI keeps on the machine (ConEstado,
 // contencion-del-writer):
-//   - Escribe: `~/.codex`, whole;
+//   - Escribe: `~/.codex` ($CODEX_HOME when it is set, as CodexHome), whole;
 //   - EnArbol: `.codex/`;
 //   - Corre: `~/.codex/config.toml`, the whole file (hoom has no TOML
 //     parser), and `~/.codex/hooks.json`, the whole file (codex's hooks).
@@ -47,12 +49,16 @@ func (codex) Bin() string  { return "codex" }
 // forge them (a risk the spec accepts). The probe also found
 // `~/.codex/hooks.json`, codex's hooks: code that runs in the next session.
 func (codex) Estado() Estado {
+	dir := "~/.codex"
+	if h := os.Getenv("CODEX_HOME"); h != "" && filepath.IsAbs(h) {
+		dir = filepath.Clean(h) // CodexHome: where codex really keeps it
+	}
 	return Estado{
-		Escribe: []string{"~/.codex"},
+		Escribe: []string{dir},
 		EnArbol: []string{".codex/"},
 		Corre: []Corre{
-			{Archivo: "~/.codex/config.toml"},
-			{Archivo: "~/.codex/hooks.json"},
+			{Archivo: dir + "/config.toml"},
+			{Archivo: dir + "/hooks.json"},
 		},
 	}
 }

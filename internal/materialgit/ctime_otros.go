@@ -9,3 +9,7 @@ import "io/fs"
 func CtimeDe(fs.FileInfo) (int64, bool) {
 	return 0, false
 }
+
+// InodoDe is the inode number of fi: this system's stat is not read for it,
+// so there is none (0).
+func InodoDe(fs.FileInfo) uint64 { return 0 }

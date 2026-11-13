@@ -15,3 +15,12 @@ func CtimeDe(fi fs.FileInfo) (int64, bool) {
 	}
 	return st.Ctim.Nano(), true
 }
+
+// InodoDe is the inode number of fi, from its stat; 0 when it has none.
+func InodoDe(fi fs.FileInfo) uint64 {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0
+	}
+	return uint64(st.Ino)
+}

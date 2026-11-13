@@ -1,6 +1,21 @@
 package agentcmd
 
-import "github.com/hoomdev/hoomai/internal/finding"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/materialgit"
+	"github.com/hoomdev/hoomai/internal/providers"
+)
 
 // RuleConfigDeAgentes (contencion-del-writer, "La config de los agentes"): a
 // role that executes changed what makes code run in the next session of an
@@ -32,7 +47,7 @@ const DetalleConfigDeAgentes = "la config de los agentes hace correr codigo en l
 // RuleConfigDeAgentes:
 // `el <rol> cambio la config de los agentes: no se emite veredicto sobre este arbol`.
 func NotaConfigDeAgentes(rol string) string {
-	return ""
+	return "el " + rol + " cambio la config de los agentes: no se emite veredicto sobre este arbol"
 }
 
 // DeConfigDeAgentes says whether f is the finding the scope gate registered
@@ -42,7 +57,7 @@ func NotaConfigDeAgentes(rol string) string {
 // and treats them as the ones that changed the git material
 // (boardcmd.Sobre).
 func DeConfigDeAgentes(f finding.Finding, rol string) bool {
-	return false
+	return deRegla(f, rol, RuleConfigDeAgentes, DetalleConfigDeAgentes)
 }
 
 // ConfigAgentes is the agents' config of a tree as RuleConfigDeAgentes
@@ -59,13 +74,231 @@ type ConfigAgentes map[string]string
 // tree, `.claude/`, `.codex/`, `.mcp.json` and the EnArbol of every provider
 // of providers.Default that implements providers.ConEstado; outside it, the
 // Corre of each of them ("~/" being this process's $HOME). It reads files
-// only, never follows a symlink, and runs no git.
+// only, never follows a symlink, and runs no git. A JSON value that is null,
+// an empty object or an empty list reads as absent: claude writes
+// `"mcpServers": {}` for each new project, which makes nothing run.
 func FotoConfigAgentes(dir string) ConfigAgentes {
-	return nil
+	foto := ConfigAgentes{}
+	enArbol := []string{".claude/", ".codex/", ".mcp.json"}
+	var corre []providers.Corre
+	for _, p := range providers.Default.All() {
+		ce, ok := p.(providers.ConEstado)
+		if !ok {
+			continue
+		}
+		e := ce.Estado()
+		enArbol = append(enArbol, e.EnArbol...)
+		corre = append(corre, e.Corre...)
+	}
+	vistos := map[string]bool{}
+	for _, rel := range enArbol {
+		rel = strings.TrimPrefix(filepath.ToSlash(rel), "./")
+		if rel == "" || vistos[rel] {
+			continue
+		}
+		vistos[rel] = true
+		fotoEnArbol(foto, dir, rel)
+	}
+	home, _ := os.UserHomeDir()
+	porArchivo := map[string][]string{}
+	enteros := map[string]bool{}
+	var orden []string
+	for _, c := range corre {
+		a := expandirHome(c.Archivo, home)
+		if a == "" {
+			continue
+		}
+		if _, ok := porArchivo[a]; !ok && !enteros[a] {
+			orden = append(orden, a)
+		}
+		if len(c.Claves) == 0 {
+			enteros[a] = true
+			continue
+		}
+		porArchivo[a] = append(porArchivo[a], c.Claves...)
+	}
+	for _, a := range orden {
+		if enteros[a] {
+			foto[filepath.ToSlash(a)] = materialgit.Huella(a)
+			continue
+		}
+		foto[filepath.ToSlash(a)] = huellaDeClaves(a, porArchivo[a])
+	}
+	return foto
+}
+
+// fotoEnArbol adds to foto the entry rel of the tree dir: a directory (rel
+// ending in "/") with itself and everything under it, each by its path
+// relative to dir; a file by itself. Never followed.
+func fotoEnArbol(foto ConfigAgentes, dir, rel string) {
+	esDir := strings.HasSuffix(rel, "/")
+	p := filepath.Join(dir, filepath.FromSlash(strings.TrimSuffix(rel, "/")))
+	fi, err := os.Lstat(p)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		foto[rel] = ProtegidoAusente
+		return
+	case err != nil:
+		foto[rel] = HuellaIlegible
+		return
+	case !esDir || !fi.IsDir():
+		foto[strings.TrimSuffix(rel, "/")] = materialgit.Huella(p)
+		return
+	}
+	foto[rel] = "dir"
+	_ = filepath.WalkDir(p, func(q string, e fs.DirEntry, err error) error {
+		r, rerr := filepath.Rel(dir, q)
+		if rerr != nil {
+			return nil
+		}
+		n := filepath.ToSlash(r)
+		if err != nil {
+			foto[n+"/"] = HuellaIlegible
+			return nil
+		}
+		if q == p {
+			return nil
+		}
+		if e.IsDir() {
+			foto[n+"/"] = "dir"
+			return nil
+		}
+		foto[n] = materialgit.Huella(q)
+		return nil
+	})
+}
+
+// expandirHome makes a path of providers.Estado absolute: "~/" is home; a
+// relative one, or "~/" without a home, is "".
+func expandirHome(p, home string) string {
+	if rest, ok := strings.CutPrefix(p, "~/"); ok {
+		if home == "" {
+			return ""
+		}
+		return filepath.Join(home, filepath.FromSlash(rest))
+	}
+	if !filepath.IsAbs(p) {
+		return ""
+	}
+	return filepath.Clean(p)
+}
+
+// huellaDeClaves is the Huella of the JSON file a restricted to claves
+// (providers.Corre.Claves): the sha256 of the canonical JSON of each concrete
+// key path that matches and holds something (null, {} and [] are nothing),
+// sorted. A file that is not there, or holds none of them, is the Huella of
+// nothing; one that is not a regular file is materialgit's Huella; one that
+// is not valid JSON is the whole file's.
+func huellaDeClaves(a string, claves []string) string {
+	fi, err := os.Lstat(a)
+	if errors.Is(err, fs.ErrNotExist) {
+		return huellaDeValores(nil)
+	}
+	if err != nil {
+		return HuellaIlegible
+	}
+	if !fi.Mode().IsRegular() {
+		return materialgit.Huella(a)
+	}
+	r, err := os.OpenRoot(filepath.Dir(a))
+	if err != nil {
+		return HuellaIlegible
+	}
+	defer r.Close()
+	f, err := hoomfs.AbrirRegularEn(r, filepath.Base(a), fi)
+	if err != nil {
+		return HuellaIlegible
+	}
+	defer f.Close()
+	var doc any
+	dec := json.NewDecoder(f)
+	dec.UseNumber()
+	if err := dec.Decode(&doc); err != nil {
+		return "json-invalido:" + materialgit.Huella(a)
+	}
+	valores := map[string]string{}
+	for _, c := range claves {
+		extraer(doc, strings.Split(c, "."), "", valores)
+	}
+	return huellaDeValores(valores)
+}
+
+// extraer walks v along the keys camino ("*" = any one key), and keeps in out,
+// by the concrete path it took, the canonical JSON of each value it reaches
+// that holds something.
+func extraer(v any, camino []string, hecho string, out map[string]string) {
+	if len(camino) == 0 {
+		if vacio(v) {
+			return
+		}
+		b, err := json.Marshal(v) // maps are marshalled with sorted keys
+		if err != nil {
+			out[hecho] = HuellaIlegible
+			return
+		}
+		out[hecho] = string(b)
+		return
+	}
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return
+	}
+	k := camino[0]
+	if k != "*" {
+		if hijo, ok := obj[k]; ok {
+			extraer(hijo, camino[1:], hecho+"\x00"+k, out)
+		}
+		return
+	}
+	for kk, hijo := range obj {
+		extraer(hijo, camino[1:], hecho+"\x00"+kk, out)
+	}
+}
+
+// vacio says whether a JSON value makes nothing run: null, {} or [].
+func vacio(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return true
+	case map[string]any:
+		return len(x) == 0
+	case []any:
+		return len(x) == 0
+	}
+	return false
+}
+
+// huellaDeValores is the sha256 of the sorted key paths and values.
+func huellaDeValores(valores map[string]string) string {
+	ks := make([]string, 0, len(valores))
+	for k := range valores {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	h := sha256.New()
+	for _, k := range ks {
+		h.Write([]byte(k))
+		h.Write([]byte{0})
+		h.Write([]byte(valores[k]))
+		h.Write([]byte{0})
+	}
+	return "claves:" + hex.EncodeToString(h.Sum(nil))
 }
 
 // CambiosConfigAgentes lists, sorted, the paths whose entry is not the same
 // in antes and despues: changed, appeared or gone. nil when none.
 func CambiosConfigAgentes(antes, despues ConfigAgentes) []string {
-	return nil
+	var out []string
+	for p, h := range antes {
+		if d, ok := despues[p]; !ok || d != h {
+			out = append(out, p)
+		}
+	}
+	for p := range despues {
+		if _, ok := antes[p]; !ok {
+			out = append(out, p)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
