@@ -111,7 +111,10 @@ func Adoptar(cmd *exec.Cmd) {
 // (contencion-del-writer: `parcial` with mechanism `job` only when the job
 // was created).
 func EnJob(pid int) bool {
-	return false
+	jobs.Lock()
+	defer jobs.Unlock()
+	_, ok := jobs.porPID[pid]
+	return ok
 }
 
 // Soltar closes the Job Object of pid, once its process has ended.

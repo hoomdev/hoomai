@@ -43,8 +43,57 @@ var grupos = struct {
 	once sync.Once
 }{pids: map[int]*grupo{}}
 
-// grupo is one registration of a process group.
-type grupo struct{ gracia time.Duration }
+// grupo is one registration of a process group. term and matar, when set
+// (ArrancarCon), are how its polite signal and its end reach what it runs
+// besides the group itself.
+type grupo struct {
+	gracia time.Duration
+	term   func() bool
+	matar  func()
+}
+
+// Terminacion is how ArrancarCon ends a command whose work does not live in
+// its own process group: an encierro of bubblewrap, whose main process inside
+// is in another group (encierro.Arrancar).
+type Terminacion struct {
+	// Term sends the polite signal (SIGTERM) to what must get it, and says
+	// whether someone was there to get it; false makes the end come at once.
+	Term func() bool
+	// Matar ends everything at once, besides the SIGKILL to the group. It
+	// must not block, and it is called with the registry's lock held.
+	Matar func()
+	// AlCancelar, when set, is called first thing when cmd's context ends
+	// (its Cancel): the caller learns when the gracia started.
+	AlCancelar func()
+}
+
+// ArrancarCon is ArrancarConGracia (gracia 0: Arrancar) for a command that
+// is ended through t: where today SIGTERM goes to the group, t.Term is
+// called (on cmd's Cancel, and on a signal to hoom); wherever the group gets
+// its SIGKILL (its gracia passed, Liberar, a signal to hoom, a group without
+// gracia), t.Matar is called too.
+func ArrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
+	return arrancarCon(cmd, gracia, t)
+}
+
+// matarRegistrado kills the group of pid if someone is still in it, and
+// whatever its registration g ends besides it. The registry's lock is held.
+func matarRegistrado(pid int, g *grupo) {
+	matarSiQueda(pid)
+	if g != nil && g.matar != nil {
+		g.matar()
+	}
+}
+
+// termRegistrado sends the polite signal to the group of pid as its
+// registration says, and says whether someone was there to get it. The
+// registry's lock is held.
+func termRegistrado(pid int) bool {
+	if g := grupos.pids[pid]; g != nil && g.term != nil {
+		return g.term()
+	}
+	return senalarTerm(pid)
+}
 
 func prepararSenales() {
 	grupos.once.Do(func() {
@@ -65,12 +114,15 @@ func prepararSenales() {
 					conGracia = append(conGracia, p)
 				} else {
 					MatarGrupo(p)
+					if g.matar != nil {
+						g.matar()
+					}
 				}
 			}
 			// only the gates still there at the end of their gracia get
 			// the SIGKILL
 			for _, p := range terminarConGracia(conGracia, ch) {
-				matarSiQueda(p)
+				matarRegistrado(p, grupos.pids[p])
 			}
 			Terminar(s)
 		}()
@@ -87,8 +139,8 @@ func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 	hasta := time.Now()
 	var vivos []int
 	for _, p := range pids {
-		if !senalarTerm(p) {
-			matarSiQueda(p)
+		if !termRegistrado(p) {
+			matarRegistrado(p, grupos.pids[p])
 			continue
 		}
 		vivos = append(vivos, p)
@@ -136,10 +188,43 @@ func ArrancarConGracia(cmd *exec.Cmd, gracia time.Duration) error {
 }
 
 func arrancar(cmd *exec.Cmd, gracia time.Duration) error {
+	return arrancarCon(cmd, gracia, Terminacion{})
+}
+
+func arrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
+	term, matar := t.Term, t.Matar
 	prepararSenales()
 	EnGrupo(cmd)
-	if gracia > 0 {
+	switch {
+	case term != nil && gracia > 0:
+		cmd.Cancel = func() error {
+			pid := cmd.Process.Pid
+			grupos.Lock()
+			g := grupos.pids[pid]
+			ok := g != nil && termRegistrado(pid)
+			if g != nil && !ok {
+				matarRegistrado(pid, g)
+			}
+			grupos.Unlock()
+			if ok {
+				matarTrasGracia(pid, gracia)
+			}
+			return nil
+		}
+	case matar != nil:
+		cmd.Cancel = func() error {
+			err := MatarGrupo(cmd.Process.Pid)
+			matar()
+			return err
+		}
+	case gracia > 0:
 		cmd.Cancel = func() error { return TerminarGrupo(cmd.Process.Pid, gracia) }
+	}
+	if al, cancel := t.AlCancelar, cmd.Cancel; al != nil && cancel != nil {
+		cmd.Cancel = func() error {
+			al()
+			return cancel()
+		}
 	}
 	grupos.Lock()
 	defer grupos.Unlock()
@@ -147,7 +232,7 @@ func arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 		return err
 	}
 	Adoptar(cmd) // Windows: its Job Object (finding d24626)
-	grupos.pids[cmd.Process.Pid] = &grupo{gracia: gracia}
+	grupos.pids[cmd.Process.Pid] = &grupo{gracia: gracia, term: term, matar: matar}
 	return nil
 }
 
@@ -161,7 +246,7 @@ func arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 // 710266, 2f4af2).
 func Liberar(pid int) {
 	grupos.Lock()
-	matarSiQueda(pid)
+	matarRegistrado(pid, grupos.pids[pid])
 	delete(grupos.pids, pid)
 	grupos.Unlock()
 	Soltar(pid)
@@ -185,7 +270,7 @@ func matarTrasGracia(pid int, gracia time.Duration) {
 		grupos.Lock()
 		defer grupos.Unlock()
 		if grupos.pids[pid] == esta {
-			matarSiQueda(pid)
+			matarRegistrado(pid, esta)
 		}
 	}()
 }

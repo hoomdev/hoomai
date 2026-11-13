@@ -93,11 +93,13 @@
 // the encierro ends. Liberar is the end once the command ended. Time bounds
 // do not change.
 //
-// # The step of Landlock
+// # The step
 //
-// With Landlock ABI 6 or more, a step of hoom inside the encierro, before the
-// command, forbids it to connect to an abstract socket outside its domain
-// (X11's way to the graphical session). The step is the same binary
+// A step of hoom inside the encierro, before the command, makes the command
+// the leader of a session of its own, without a controlling terminal, and,
+// with Landlock ABI 6 or more (level completo), forbids it to connect to an
+// abstract socket outside its domain (X11's way to the graphical session).
+// The step is the same binary
 // (os.Executable), which is seen inside because the root is mounted: hoom
 // itself, or, in the tests, the test binary. Paso is that step: when the
 // process is the step it applies Landlock and executes the command, and never
