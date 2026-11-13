@@ -643,7 +643,10 @@ func (e *SinJob) Error() string {
 // p, right after it started: it returns the level the launch really has
 // (p.Info, or on Windows without the job, ninguno with MotivoSinJob) and,
 // when TrasAdoptar says so, kills cmd's process tree at once and returns a
-// *SinJob. Whoever calls it still waits for cmd and calls Liberar.
+// *SinJob. It only ever lowers p.Info, never raises it (ronda 2, 59fa6c): a
+// plan already ninguno (no task, a provider without state) stays as it is,
+// with its motive, job or no job. Whoever calls it still waits for cmd and
+// calls Liberar.
 func Comprobar(cmd *exec.Cmd, p Plan) (Info, error) {
 	if cmd == nil || cmd.Process == nil {
 		return p.Info, nil
@@ -658,6 +661,9 @@ func Comprobar(cmd *exec.Cmd, p Plan) (Info, error) {
 	if info.Nivel == "" {
 		return p.Info, nil // not Windows: nothing to correct
 	}
+	if rango(info.Nivel) >= rango(p.Info.Nivel) {
+		info = p.Info // the job makes up for nothing the plan lacked
+	}
 	if matar {
 		// no job and the project demands one: its tree dies at once, and
 		// whoever launched it closes as a refusal of exigir (decision 22)
@@ -665,6 +671,20 @@ func Comprobar(cmd *exec.Cmd, p Plan) (Info, error) {
 		return info, &SinJob{Info: info, Exigir: p.Exigir}
 	}
 	return info, nil
+}
+
+// rango orders the levels: ninguno under parcial under completo; any other
+// value (none) above them all, so that a known level always lowers it.
+func rango(nivel string) int {
+	switch nivel {
+	case NivelNinguno:
+		return 0
+	case NivelParcial:
+		return 1
+	case NivelCompleto:
+		return 2
+	}
+	return 3
 }
 
 // adopcion is ReemplazarAdopcion's replacement of the system and of
