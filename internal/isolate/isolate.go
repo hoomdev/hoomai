@@ -44,7 +44,7 @@ type Tree struct {
 }
 
 func run(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", sinFsmonitor(args)...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
@@ -156,7 +156,7 @@ func ensureIgnored(root string) error {
 // arm writes the sparse patterns and materializes the tree. The patterns
 // travel by stdin so one that starts with '-' or '!' is never read as a flag.
 func (t *Tree) arm() (string, error) {
-	cmd := exec.Command("git", "sparse-checkout", "set", "--no-cone", "--stdin")
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "sparse-checkout", "set", "--no-cone", "--stdin")
 	cmd.Dir = t.Dir
 	cmd.Stdin = strings.NewReader(strings.Join(t.Patterns, "\n") + "\n")
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -170,7 +170,7 @@ func (t *Tree) arm() (string, error) {
 // set with its own matcher, so hoom never has to re-implement globbing and
 // cannot disagree with it.
 func (t *Tree) indexTags() (hidden []string, visible int, err error) {
-	cmd := exec.Command("git", "-c", "core.quotePath=false", "ls-files", "-t", "-z")
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "-c", "core.quotePath=false", "ls-files", "-t", "-z")
 	cmd.Dir = t.Dir
 	out, err := cmd.Output()
 	if err != nil {
@@ -323,7 +323,7 @@ func (t *Tree) Apply(dest string, paths []string) (applied, removed []string, er
 // from, and whether it existed there. Exact bytes: this is a comparison, not
 // a display.
 func (t *Tree) baseContent(dest, rel string) ([]byte, bool) {
-	cmd := exec.Command("git", "show", t.Commit+":"+filepath.ToSlash(rel))
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "show", t.Commit+":"+filepath.ToSlash(rel))
 	cmd.Dir = dest
 	out, err := cmd.Output()
 	if err != nil {
@@ -386,4 +386,11 @@ func (t *Tree) Close() error {
 		return fmt.Errorf("no se pudo cerrar la cuarentena %s: %s", t.Dir, out)
 	}
 	return nil
+}
+
+// sinFsmonitor puts core.fsmonitor=false before args: no git of hoom over a
+// blind tree runs the fsmonitor a role may have left in a config
+// (contencion-del-writer, CA-693).
+func sinFsmonitor(args []string) []string {
+	return append([]string{"-c", "core.fsmonitor=false"}, args...)
 }

@@ -162,9 +162,16 @@ const topeGitProtegidos = 30 * time.Second
 func gitEn(dir string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), topeGitProtegidos)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", sinFsmonitor(args)...)
 	cmd.WaitDelay = 5 * time.Second
 	cmd.Dir = dir
 	cmd.Env = append(cmd.Environ(), "LC_ALL=C", "LANGUAGE=C")
 	return cmd.Output()
+}
+
+// sinFsmonitor puts core.fsmonitor=false before args: no git of hoom over
+// the tree of a role that executes runs the fsmonitor the role may have left
+// in a config (contencion-del-writer, CA-693).
+func sinFsmonitor(args []string) []string {
+	return append([]string{"-c", "core.fsmonitor=false"}, args...)
 }

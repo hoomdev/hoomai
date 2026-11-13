@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -28,6 +27,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/materialgit"
 	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -95,7 +95,7 @@ const rolTestWriter = "test-writer"
 
 // ProtegidoAusente is the Protegidos entry of a protected test that was not
 // on disk when it was photographed.
-const ProtegidoAusente = "-"
+const ProtegidoAusente = materialgit.Ausente
 
 // FotoProtegidos photographs the protected tests rutas in the tree dir: one
 // entry per path, read from the disk (never from git), without following a
@@ -805,9 +805,9 @@ const (
 	// a symlink would point it elsewhere), and no evidence hoom writes is one.
 	// A symlink's adds ":" and the sha256 of its target text (readlink does
 	// not follow it), so pointing it elsewhere changes it.
-	HuellaNoRegular = "no-regular:"
+	HuellaNoRegular = materialgit.NoRegular
 	// HuellaIlegible marks an entry hoom could not open or read.
-	HuellaIlegible = "ilegible"
+	HuellaIlegible = materialgit.Ilegible
 )
 
 // huella is what the disk floor compares for the entry name of r, which fi
@@ -816,27 +816,7 @@ const (
 // unwatched), read only if the descriptor shows that same regular file —
 // the entry can change between the Lstat and the open.
 func huella(r *os.Root, name string, fi fs.FileInfo) string {
-	switch t := fi.Mode().Type(); {
-	case t&fs.ModeSymlink != 0:
-		destino, err := r.Readlink(name)
-		if err != nil {
-			return HuellaIlegible
-		}
-		sum := sha256.Sum256([]byte(destino))
-		return HuellaNoRegular + t.String() + ":" + hex.EncodeToString(sum[:])
-	case !t.IsRegular():
-		return HuellaNoRegular + t.String()
-	}
-	f, err := hoomfs.AbrirRegularEn(r, name, fi)
-	if err != nil {
-		return HuellaIlegible
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return HuellaIlegible
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	return materialgit.HuellaEn(r, name, fi)
 }
 
 // conForma says whether a file a run created under the evidence has the

@@ -886,7 +886,7 @@ func specInHead(dir, specPath string) error {
 		return fmt.Errorf("el spec %s vive fuera del arbol de trabajo y no puede viajar al arbol ciego", specPath)
 	}
 	rel = filepath.ToSlash(rel)
-	cmd := exec.Command("git", "show", "HEAD:"+rel)
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "show", "HEAD:"+rel)
 	cmd.Dir = dir
 	head, err := cmd.Output()
 	if err != nil {
