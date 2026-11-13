@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/cockpitcmd"
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/costcmd"
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/initcmd"
@@ -257,6 +258,10 @@ solo cuenta la evidencia. Gates ausentes se declaran en amarillo, jamas se ocult
 `
 
 func main() {
+	// the step of the encierro, before anything else: when this hoom is that
+	// step (contencion-del-writer) it never returns (the package's init
+	// already did it; this call says so where main starts)
+	encierro.Paso()
 	// git must answer for the directory hoom names, never for the one a
 	// hook or a shell points it at (finding 1e4b3e)
 	gitx.LimpiarEntorno()

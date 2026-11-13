@@ -832,6 +832,28 @@ var TopeGit = 5 * time.Minute
 // one a hook slips in or takes out, or a protected test of the task that
 // changes meanwhile, fails it (revisarCommit, aclaraciones 24 y 26). base
 // and blockOn are not needed for that.
+//
+// contencion-del-writer:
+//   - before its first git it refuses, committing nothing, with
+//     ErrVeredictoConMaterial when the newest complete verdict of the task's
+//     tree has verifycmd.GateMaterialDeGit in fail, and, in a project whose
+//     hoom.yaml (root's) has the section `encierro`, with
+//     ErrExigirDelGuardado when the level (encierro.Nivel with a task and no
+//     provider) does not meet encierro.exigir;
+//   - with the section, each of its git commands runs enclosed (encierro),
+//     with the writer's view of the task's tree, the cache `guardado`
+//     (encierro.Cache(root, slug, encierro.QuienGuardado)), TopeGit and the
+//     gracia of graciaGit (SIGTERM to what runs inside, so git drops its
+//     index.lock, and only then the end of the encierro), and with
+//     commit.gpgsign=false (no gpg nor ssh agent inside to sign);
+//   - with the section or without it, it photographs the git material of the
+//     task's tree (agentcmd.FotoMaterialGit) before its first git and after
+//     its last, and git-ajeno (agentcmd.FotoGitAjeno) around itself: a change
+//     fails the save, which undoes its commit as today (deshacer) and returns
+//     ErrHookCambioMaterial or ErrGitAjeno with what changed. hoom restores
+//     nothing else.
+//
+// `hoom item save` (Save) never runs enclosed.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
 	dir, err := tareaGuardable(root, slug)
 	if err != nil {
@@ -845,6 +867,37 @@ func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
 	}
 	defer unlock()
 	return guardarTarea(root, slug, dir)
+}
+
+// ErrVeredictoConMaterial is what SaveTarea (and SaveTareaBajoCandado)
+// answers, committing nothing, when the newest complete verdict of the task's
+// tree has the gate verifycmd.GateMaterialDeGit in fail.
+const ErrVeredictoConMaterial = "el ultimo veredicto de la tarea encontro el material de git cambiado: no guardo"
+
+// ErrHookCambioMaterial is what SaveTarea answers, once it undid its commit,
+// when the git material of the task's tree changed between its first git and
+// its last (a hook, or what it ran):
+// `un hook del guardado cambio el material de git: <ruta>: no guardo`,
+// <ruta> being the paths, as agentcmd.CambiosMaterialGit names them, joined
+// with ", ".
+func ErrHookCambioMaterial(rutas []string) string {
+	return ""
+}
+
+// ErrGitAjeno is what SaveTarea of the card slug answers, once it undid its
+// commit, when git changed outside its branch around it
+// (agentcmd.RuleGitAjeno):
+// `el guardado cambio git fuera de hoom/<slug>: <ruta>: no guardo`, <ruta>
+// being the paths, as agentcmd.CambiosGitAjeno names them, joined with ", ".
+func ErrGitAjeno(slug string, rutas []string) string {
+	return ""
+}
+
+// ErrExigirDelGuardado is what SaveTarea answers, committing nothing, when
+// the level of its encierro (nivel) does not meet encierro.exigir (exigir):
+// `el encierro de este sistema es <nivel> y hoom.yaml exige <exigir>: no guardo`.
+func ErrExigirDelGuardado(nivel, exigir string) string {
+	return ""
 }
 
 // SaveTareaBajoCandado is SaveTarea for a caller that already holds the

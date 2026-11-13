@@ -29,6 +29,31 @@ func (claude) Bin() string  { return "claude" }
 // money is lost.
 func (claude) MinBudgetUSD() float64 { return 0.5 }
 
+// Estado declares what Claude Code keeps on the machine (ConEstado,
+// contencion-del-writer):
+//   - Escribe: `~/.claude/projects`, where its session lives (--resume, and
+//     so the relief by time, needs it);
+//   - EnArbol: `.claude/` and `.mcp.json`;
+//   - Corre: the key `hooks` of `~/.claude/settings.json` and of
+//     `~/.claude/settings.local.json`, and the keys `mcpServers` and
+//     `projects.*.mcpServers` of `~/.claude.json`.
+//
+// The probe that fixes these lists (Claude Code 2.1.322, 2026-11-13: `claude
+// -p --output-format stream-json --verbose --max-turns 1`, with $HOME and
+// /tmp in an overlay and TMPDIR/XDG_CACHE_HOME in a cache) saw it write, in
+// $HOME, `~/.claude.json` (and a copy in `~/.claude/backups/`),
+// `~/.claude/projects/<proyecto>/<sesion>.jsonl`, `~/.claude/cache/`,
+// `~/.claude/mcp-needs-auth-cache.json`, `~/.claude/plugins/` and
+// `~/.claude/skills/synced/`; in XDG_CACHE_HOME,
+// `claude-cli-nodejs/<proyecto>/mcp-logs-*`; in TMPDIR,
+// `claude-<uid>/cache-break-state-*.json`; nothing in /tmp outside TMPDIR.
+// With $HOME read-only and only `~/.claude/projects` writable it ran (exit
+// 0) and left its session: a read-only `~/.claude.json` does not break it,
+// it just does not update it (it rewrites it with a temporary file and a
+// rename in its directory). A credential refresh could not be forced: one
+// that happens in an enclosed run is not kept.
+func (claude) Estado() Estado { return Estado{} }
+
 func (claude) Capabilities() Capabilities {
 	return Capabilities{
 		Structured: true, Continue: true, Resume: true, SessionID: true,

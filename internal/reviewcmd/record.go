@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
@@ -75,6 +76,11 @@ type Record struct {
 	// like any other.
 	Riesgo          string `json:"riesgo"`
 	RiesgoDeclarado string `json:"riesgo_declarado,omitempty"`
+	// Encierro is the level of the encierro the passes had
+	// (contencion-del-writer, encierro.Info): only in a project whose
+	// hoom.yaml has the section `encierro`; without it the record has no
+	// key.
+	Encierro *encierro.Info `json:"encierro,omitempty"`
 }
 
 // LensRun pairs a lens with the run that applied it.

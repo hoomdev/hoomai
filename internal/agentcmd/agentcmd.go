@@ -129,6 +129,38 @@ type Isolation struct {
 // verify or check, or in scope for fuera-de-scope. A run that died by its
 // timeout leaves `corte: "tiempo"` in the record (envelope.CorteTiempo), and
 // the envelope closes as always (stage run, no-entregable).
+//
+// contencion-del-writer: in a project whose hoom.yaml (root's,
+// manifest.LoadRoles) has the section `encierro`, the envelope of a role that
+// executes (agents.Role.Exec) computes its level (encierro.Nivel, with its
+// provider; ninguno with the motive `sin tarea` without opt.Task) and keeps
+// it in its record (envelope.Record.Encierro). Inside its step run, before
+// launching, it refuses with exit 1, no run in .hoom/runs/, no verdict and
+// the usual steps (five, or six with aislar) when encierro.Validar breaks
+// (its error is the note) or the level does not meet encierro.exigir
+// (encierro.NotaExigir is the note). Otherwise its log carries
+// encierro.Linea and, under completo, encierro.Aviso with the role, and with
+// a task the run starts enclosed (runcmd.StartOptions.Encierro): its run tree
+// is the task's tree (the blind tree for the test-writer), its cache the
+// role's (encierro.Cache), plus its provider's Escribe and
+// encierro.escribibles. Without the section, or for a role that does not
+// execute, none of this happens and the record has no `encierro`.
+//
+// In any project, after the run of a role that executes, the envelope
+// compares the agents' config (FotoConfigAgentes, RuleConfigDeAgentes) and,
+// for the writer, the git material (RuleMaterialDeGit), BEFORE Take or any
+// other git of its own on the tree: when they changed it cuts in scope
+// without running git status. It also compares git-ajeno (FotoGitAjeno,
+// RuleGitAjeno), which cuts the same way. The note of a cut is the first that
+// applies of: the tampering note, the isolation note, NotaTestsDelTestWriter,
+// NotaMaterialDeGit, NotaConfigDeAgentes(rol), NotaGitAjeno(rol). Every git
+// of hoom on the tree of a role that executes carries core.fsmonitor=false.
+// Its verify runs with verifycmd.Options.Sobre (the role's view, the cache
+// `verify`, the git material photographed around the gates): when that
+// verdict has verifycmd.GateMaterialDeGit in fail, the writer's envelope
+// also registers the high finding of RuleMaterialDeGit with each path and
+// closes in verify, no-entregable, exit 1; another role's closes as any red
+// verdict.
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup(opt.Role)
 	if err != nil {

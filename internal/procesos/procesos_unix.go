@@ -25,6 +25,9 @@ func Adoptar(cmd *exec.Cmd) {}
 // Soltar does nothing on Unix: a group has nothing to close.
 func Soltar(pid int) {}
 
+// EnJob is false on Unix: there are no Job Objects.
+func EnJob(pid int) bool { return false }
+
 // MismoProceso says whether pid is still the process that started at
 // arranco, by the start time ps reports (one-second resolution): a pid that
 // another process reused started later. When ps cannot say, it answers true,

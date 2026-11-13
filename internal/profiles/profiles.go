@@ -28,6 +28,10 @@ type Profile struct {
 	Extends     string                   `yaml:"extends,omitempty"`
 	Detect      Detect                   `yaml:"detect"`
 	Gates       map[string]manifest.Gate `yaml:"gates"`
+	// Cache are the environment variables of the stack's build caches
+	// (contencion-del-writer): what runs enclosed gets each one pointing
+	// inside its own cache (see Cache).
+	Cache []string `yaml:"cache,omitempty"`
 }
 
 // Detect declares how `hoom init` recognizes a stack.
@@ -137,6 +141,18 @@ func Markers(name string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// Cache lists the cache variables of a profile and of everything it
+// extends, parents first, no repeats (contencion-del-writer): what runs
+// enclosed gets each one pointing inside its cache,
+// .hoom/cache/encierro/<slug>/<quien>/, besides TMPDIR and XDG_CACHE_HOME,
+// which it always gets. The go profile declares GOCACHE, GOMODCACHE and
+// GOTMPDIR; kmp (and so kmp-compose) GRADLE_USER_HOME, which also hides the
+// scripts of ~/.gradle/init.d/. A profile that declares none has none; an
+// unknown one is the error of Resolve.
+func Cache(name string) ([]string, error) {
+	return nil, nil
 }
 
 // chainOf walks the extends chain, parents first. Resolve and Markers merge

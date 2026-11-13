@@ -23,6 +23,14 @@ import (
 // core.hooksPath's, inside or outside the tree), its content, its execute
 // permission or a symlink's target, created or removed; the common config;
 // the tree's config.worktree; or the common info/attributes (MaterialGit).
+// contencion-del-writer adds the pieces FotoMaterialGit lists (the git
+// config the tree reads outside the repository, info/exclude,
+// objects/info/alternates, objects/info/grafts, shallow, the tree's .git
+// file and the hook managers of the tree), which count as this same rule,
+// and two more moments: around the gates of verifycmd.Run with
+// verifycmd.Options.Sobre (the gate verifycmd.GateMaterialDeGit; in the
+// writer's envelope also this rule's finding, and the envelope closes in
+// verify) and around the pilot's save (itemcmd.ErrHookCambioMaterial).
 // A photograph of it that does not end within its bound counts as changed
 // (FotoSinTerminar, aclaracion 28). It cuts like RuleTestsDelTestWriter: the envelope closes in scope,
 // no-entregable, exit 1, with no verify, and its note is NotaMaterialDeGit
@@ -81,6 +89,28 @@ const FotoSinTerminar = "el material de git (su foto no termino a tiempo)"
 // empty MaterialGit. When git does not say where it is, the entry "git" is
 // HuellaIlegible. A photograph that does not end within
 // topeFotoMaterialGit is FotoSinTerminar alone (aclaracion 28).
+//
+// contencion-del-writer (CA-686) adds, with the same Huellas and the same
+// bound:
+//   - the git config the tree reads outside the repository: each file `git
+//     config --list --show-origin` names as an origin in the tree, except
+//     under /etc (~/.gitconfig, $XDG_CONFIG_HOME/git/config, GIT_CONFIG_GLOBAL,
+//     and what an include.path or an includeIf reaches), the file of
+//     core.attributesFile and $XDG_CONFIG_HOME/git/attributes;
+//   - of the common directory: info/exclude, objects/info/alternates,
+//     objects/info/grafts and shallow; never the rest of objects/info/
+//     (commit-graphs, which git's maintenance writes after each commit);
+//   - the tree's .git file;
+//   - the hook managers of the tree: when the effective hooks directory is
+//     inside the tree, the entries right inside its parent directory (husky
+//     calls .husky/<hook> from .husky/_/); always .pre-commit-config.yaml,
+//     lefthook.yml, lefthook.yaml, .lefthook.yml, .lefthook.yaml and
+//     lefthook-local.yml of the tree's root, and the directory .lefthook/.
+//
+// Each piece is named as RuleMaterialDeGit names it (relative to the tree
+// when inside it, absolute otherwise), and one that is not there is
+// ProtegidoAusente, so creating it is a change. The git it runs carries
+// core.fsmonitor=false.
 func FotoMaterialGit(dir string) MaterialGit {
 	limite := time.Now().Add(topeFotoMaterialGit)
 	listo := make(chan MaterialGit, 1)
@@ -168,6 +198,14 @@ func huellaMaterial(p string) string {
 		h += ":x"
 	}
 	return h
+}
+
+// CambiosMaterialGit lists, sorted, the paths whose entry is not the same in
+// antes and despues (FotoMaterialGit): changed, appeared or gone. When either
+// photograph is FotoSinTerminar it is FotoSinTerminar alone (a photograph that
+// did not end proves nothing). nil when none.
+func CambiosMaterialGit(antes, despues MaterialGit) []string {
+	return nil
 }
 
 // sinTocarMaterialGit applies RuleMaterialDeGit: for a role of shape

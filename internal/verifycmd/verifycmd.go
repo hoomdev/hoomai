@@ -28,7 +28,45 @@ type Options struct {
 	Gates []string // empty = all
 	Spec  string   // spec path, relative to the manifest's Dir or absolute; adds spec_lint + spec_trace
 	JSON  bool     // emit the verdict as JSON (rendering is the caller's job)
+	// Sobre (contencion-del-writer) is the option only the verify of the
+	// envelope of a role that executes (agentcmd.Run) and the pilot's
+	// cerrar-hallazgos use; `hoom verify` and POST /api/verify never set it
+	// (ParseArgs never does). nil = as today.
+	Sobre *Sobre
 }
+
+// Sobre is the verify of an envelope of a role that executes, or of the
+// pilot's cerrar-hallazgos (Options.Sobre). With it:
+//   - in a project whose hoom.yaml (Root's, manifest.LoadRoles) has the
+//     section `encierro`, each gate runs enclosed (encierro), with the view of
+//     role Rol in the manifest's tree and the cache `verify`
+//     (encierro.Cache(Root, Task, encierro.QuienVerify)), nested user
+//     namespaces allowed and the gate's gracia kept; the gates of
+//     encierro.gates_sin_encierro run as today. Without the section the gates
+//     run as today;
+//   - with the section or without it, the git material of the manifest's tree
+//     (agentcmd.FotoMaterialGit) is photographed before the first gate and
+//     after the last, gates_sin_encierro included. When it changed, the
+//     verdict carries one more gate, GateMaterialDeGit.
+type Sobre struct {
+	// Root is the project's main checkout: its hoom.yaml's policy, and where
+	// the cache lives.
+	Root string
+	// Task is the task's slug.
+	Task string
+	// Rol is the role of the envelope whose view the gates get: "writer" in
+	// cerrar-hallazgos.
+	Rol string
+}
+
+// GateMaterialDeGit is the gate a verify with Options.Sobre adds to its
+// verdict when the git material of its tree changed during its gates:
+// required, status fail, scope full, its output (OutputTail) the paths that
+// changed, one per line, as agentcmd.RuleMaterialDeGit names them. The
+// verdict is then red, and no reader of verdicts (verdict.LatestComplete,
+// hoom task done, check, the review) takes it as green. A verify whose
+// material did not change has no such gate.
+const GateMaterialDeGit = "material_de_git"
 
 // Run executes the verification and writes the verdict. It returns the
 // finalized verdict and the path of its artifact.

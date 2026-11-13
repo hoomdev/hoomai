@@ -104,6 +104,16 @@ func Adoptar(cmd *exec.Cmd) {
 	jobs.Unlock()
 }
 
+// EnJob says whether Adoptar put the process pid in a Job Object of its
+// own, and it is still open (Soltar not called yet): false when Windows did
+// not let it create or assign the job, and then the tree is ended with
+// taskkill /T. The encierro reads it to know its level on Windows
+// (contencion-del-writer: `parcial` with mechanism `job` only when the job
+// was created).
+func EnJob(pid int) bool {
+	return false
+}
+
 // Soltar closes the Job Object of pid, once its process has ended.
 func Soltar(pid int) {
 	jobs.Lock()

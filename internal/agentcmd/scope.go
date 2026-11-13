@@ -285,7 +285,7 @@ const ratchetPath = ".hoom/" + ratchet.FileName
 // Violation is one path the role should not have written.
 type Violation struct {
 	Path      string `json:"path"`
-	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer | material-de-git
+	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer | material-de-git | git-ajeno | config-de-agentes
 	Detail    string `json:"detail"`
 	FindingID string `json:"finding_id,omitempty"`
 }

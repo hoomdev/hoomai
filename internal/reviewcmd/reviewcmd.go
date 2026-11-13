@@ -139,6 +139,32 @@ const (
 	CoberturaParcial = "parcial"
 )
 
+// PasadaConGitAjeno is the error of a review whose pass Pasada (1 for the
+// first, as its output numbers it) committed the violation git-ajeno
+// (agentcmd.RuleGitAjeno): a ref under refs/replace/ created, moved or
+// removed, or an object, a pack or its index that existed rewritten. Rutas
+// are what changed, as agentcmd.CambiosGitAjeno names them. Its text:
+// `la pasada <n> del reviewer cambio git fuera de la rama de su tarea: <ruta>: no registro la review`,
+// <ruta> being Rutas joined with ", ".
+type PasadaConGitAjeno struct {
+	Pasada int
+	Rutas  []string
+}
+
+func (e PasadaConGitAjeno) Error() string { return "" }
+
+// PasadaConConfigDeAgentes is the error of a review whose pass Pasada
+// changed the agents' config (agentcmd.RuleConfigDeAgentes), Rutas being
+// what changed, as agentcmd.CambiosConfigAgentes names them. Its text:
+// `la pasada <n> del reviewer cambio la config de los agentes: <ruta>: no registro la review`,
+// <ruta> being Rutas joined with ", ".
+type PasadaConConfigDeAgentes struct {
+	Pasada int
+	Rutas  []string
+}
+
+func (e PasadaConConfigDeAgentes) Error() string { return "" }
+
 // Pass is one lens: one session, its scope gate and the findings hoom saw
 // appear while it ran.
 type Pass struct {
@@ -840,6 +866,24 @@ func SoloDocs(files []string) bool {
 // Run executes the review. Failures the review is MEANT to report (a refusal
 // for not being cross, a failed run, a violated scope) come back as a Result
 // with an exit code; only a broken setup returns an error.
+//
+// contencion-del-writer: in a project whose hoom.yaml (root's,
+// manifest.LoadRoles) has the section `encierro`, each pass of a review with
+// --task runs enclosed (encierro), writing in the task's tree, where
+// `hoom finding add` leaves its findings, and not in the main checkout; the
+// review's envelope record and its record in .hoom/reviews/ carry the level
+// (encierro.Info) and its output carries encierro.Aviso with role reviewer
+// when the level is under completo. A review without --task reviews the main
+// checkout unenclosed, with the motive `sin tarea`. Before its first pass,
+// with no record in .hoom/reviews/ and exit 1, it refuses with
+// encierro.NotaExigir (role reviewer) when the level is under
+// encierro.exigir, and with encierro.Validar's error when the policy breaks
+// one of its rules against the tree. In any project, with encierro or
+// without it, git-ajeno and config-de-agentes are compared around each pass
+// (agentcmd.FotoGitAjeno, agentcmd.FotoConfigAgentes): a pass that breaks
+// one makes Run return PasadaConGitAjeno or PasadaConConfigDeAgentes as its
+// error, with no record in .hoom/reviews/ (exit 1, like a dirty tree); the
+// findings that pass left stay in the tree.
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup("reviewer")
 	if err != nil {

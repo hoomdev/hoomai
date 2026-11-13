@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
@@ -133,6 +134,13 @@ type StartOptions struct {
 	// Timeout bounds each invocation of THIS run; 0 = the Manager's (30
 	// minutes by default). The sidecar records it (timeout_s).
 	Timeout time.Duration
+	// Encierro (contencion-del-writer) is the plan each invocation of the
+	// run starts under (encierro.Envolver and encierro.Arrancar): nil = as
+	// today. Its Info goes to the sidecar (Meta.Encierro). Whoever runs a
+	// role that executes with a task, in a project with the section
+	// `encierro`, sets it (agentcmd.Run, reviewcmd.Run); `hoom run` never
+	// does.
+	Encierro *encierro.Plan
 }
 
 // VentanaNarrando is how recent the provider's last narration must be, when
@@ -311,6 +319,13 @@ type Meta struct {
 	// (autonomia-entre-firmas): `"corte": "tiempo"` in the sidecar, written
 	// with the close. Omitted for any other end (done, error, canceled).
 	Corte string `json:"corte,omitempty"`
+	// Encierro is the level of the encierro the run had
+	// (contencion-del-writer): `"encierro": {...}` (encierro.Info), the one
+	// of StartOptions.Encierro, except on Windows, where it is ninguno when
+	// procesos.Adoptar could not create the job. Omitted for a run started
+	// without a Plan (`hoom run`, a role that does not execute, a project
+	// without the section `encierro`).
+	Encierro *encierro.Info `json:"encierro,omitempty"`
 }
 
 // CorteTiempo is Meta.Corte (and Run.Corte) of a run that died by its
