@@ -101,6 +101,25 @@ type Sobre struct {
 	// neither relieves (case 5) nor retries (case 6) such an envelope
 	// (finding 24e6e0).
 	TocoProtegidos bool
+	// TocoMaterialGit says the envelope's run changed the git material of
+	// its task: the scope gate registered its material-de-git finding while
+	// the envelope ran (agentcmd.DeMaterialDeGit), whatever its status, also
+	// when the run then failed or timed out. When it is the card's newest
+	// envelope, Piloto stops with case 8, and the pilot does so before its
+	// save (ParadaAntesDeGuardar, aclaracion 25).
+	TocoMaterialGit bool
+}
+
+// ParadaAntesDeGuardar is the pilot's stop before it saves the card, when
+// the newest of sobres (oldest first) changed the git material of its task
+// (Sobre.TocoMaterialGit): case 8, with its Why. The save runs the
+// repository's hooks and config (aclaracion 23), and a writer that changed
+// them is not followed by any git that runs them (aclaracion 25).
+func ParadaAntesDeGuardar(sobres []Sobre) (PilotDecision, bool) {
+	if len(sobres) == 0 || !sobres[len(sobres)-1].TocoMaterialGit {
+		return PilotDecision{}, false
+	}
+	return parar(8, noEntregable(sobres[len(sobres)-1].Record)), true
 }
 
 // Piloto is the pilot's decision (autonomia-entre-firmas).
@@ -263,6 +282,11 @@ func (p piloto) decidir() PilotDecision {
 	// that ends a round
 	pasa := false
 	if hay {
+		// an envelope that changed the git material of its task stops the
+		// pilot, whatever its status, round or finding (aclaracion 25)
+		if d, para := ParadaAntesDeGuardar(p.e.Sobres); para {
+			return d
+		}
 		// touching the protected tests is not retried: such an envelope
 		// goes on to its stop (finding 24e6e0)
 		if last.Record.Corte == envelope.CorteTiempo && !last.TocoProtegidos {

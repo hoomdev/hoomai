@@ -310,6 +310,14 @@ func (r *corrida) vuelta(ctx context.Context) (boardcmd.PilotDecision, *lanzar.T
 	// 1. save, only with auto and the task open: a worktree off its branch
 	// is an open task that cannot be saved, and SaveTarea says why
 	if c.Item.Auto == item.AutoHastaHumano && (c.Source == boardcmd.SourceWorktree || fueraDeSuRama(root, slug)) {
+		// not after an envelope that changed the git material of the task:
+		// the save would run the hooks it left (aclaracion 25)
+		if d, para, err := paradaAntesDeGuardar(root, m.BaseBranch, slug); err != nil {
+			return boardcmd.PilotDecision{}, nil, err
+		} else if para {
+			r.detener(d)
+			return d, nil, nil
+		}
 		g, err := itemcmd.SaveTarea(root, m.BaseBranch, m.FindingsBlockOn(), slug)
 		if err != nil {
 			d := parada("no pudo guardar el trabajo de la tarjeta: " + err.Error())
@@ -585,7 +593,7 @@ func Armar(o Opciones) (boardcmd.Estado, error) {
 		}
 		e.Sobres = append(e.Sobres, s)
 	}
-	if err := protegidosTocados(dir, base, slug, e.Sobres); err != nil {
+	if err := cortesDelGate(dir, base, slug, e.Sobres); err != nil {
 		return boardcmd.Estado{}, err
 	}
 	if id := c.Evidence.VerdictID; id != "" {
@@ -626,20 +634,42 @@ func Armar(o Opciones) (boardcmd.Estado, error) {
 	return e, nil
 }
 
-// protegidosTocados marks the envelopes whose run changed a protected test
-// (Sobre.TocoProtegidos): a tests-del-test-writer finding of the scope gate
-// (agentcmd.DeTestsDelTestWriter), on the card's task and the envelope's
-// role, registered between the envelope's start and its end. Its status does
-// not matter: open, corregido or refutado, the run touched the tests
-// (aclaracion 18, findings ea20f8, e49304, 84d9de). A finding file it cannot
-// read is an error, never "not touched" (finding 513ecb).
-func protegidosTocados(dir, base, slug string, sobres []boardcmd.Sobre) error {
+// paradaAntesDeGuardar is boardcmd.ParadaAntesDeGuardar over the card's
+// closed envelopes, read with cortesDelGate in the task's tree (the
+// project's without one). It reads files only: no git command runs before
+// it decides.
+func paradaAntesDeGuardar(root, base, slug string) (boardcmd.PilotDecision, bool, error) {
+	dir := root
+	if d, err := runcmd.TaskDir(root, slug); err == nil {
+		dir = d
+	}
+	var sobres []boardcmd.Sobre
+	for _, rec := range sobresCerrados(root, slug) {
+		sobres = append(sobres, boardcmd.Sobre{Record: rec})
+	}
+	if err := cortesDelGate(dir, base, slug, sobres); err != nil {
+		return boardcmd.PilotDecision{}, false, err
+	}
+	d, para := boardcmd.ParadaAntesDeGuardar(sobres)
+	return d, para, nil
+}
+
+// cortesDelGate marks the envelopes whose run changed a protected test
+// (Sobre.TocoProtegidos) or the git material of its task
+// (Sobre.TocoMaterialGit): a tests-del-test-writer or material-de-git
+// finding of the scope gate (agentcmd.DeTestsDelTestWriter,
+// agentcmd.DeMaterialDeGit), on the card's task and the envelope's role,
+// registered between the envelope's start and its end. Its status does not
+// matter: open, corregido or refutado, the run did it (aclaraciones 18 y
+// 25, findings ea20f8, e49304, 84d9de). A finding file it cannot read is an
+// error, never "not touched" (finding 513ecb).
+func cortesDelGate(dir, base, slug string, sobres []boardcmd.Sobre) error {
 	items, ilegibles, _, err := finding.ListConIlegibles(dir, base, false)
 	if err != nil {
 		return err
 	}
 	if len(ilegibles) > 0 {
-		return fmt.Errorf("hay hallazgos que hoom no puede leer (%s): el piloto no sabe si un sobre toco los tests protegidos", strings.Join(ilegibles, ", "))
+		return fmt.Errorf("hay hallazgos que hoom no puede leer (%s): el piloto no sabe si un sobre toco los tests protegidos o el material de git", strings.Join(ilegibles, ", "))
 	}
 	for i := range sobres {
 		rec := sobres[i].Record
@@ -648,11 +678,15 @@ func protegidosTocados(dir, base, slug string, sobres []boardcmd.Sobre) error {
 			fin = rec.UpdatedAt
 		}
 		for _, it := range items {
-			if it.Task != slug || !agentcmd.DeTestsDelTestWriter(it.Finding, rec.Role) ||
-				it.CreatedAt.Before(rec.StartedAt) || (!fin.IsZero() && it.CreatedAt.After(fin)) {
+			if it.Task != slug || it.CreatedAt.Before(rec.StartedAt) || (!fin.IsZero() && it.CreatedAt.After(fin)) {
 				continue
 			}
-			sobres[i].TocoProtegidos = true
+			if agentcmd.DeTestsDelTestWriter(it.Finding, rec.Role) {
+				sobres[i].TocoProtegidos = true
+			}
+			if agentcmd.DeMaterialDeGit(it.Finding, rec.Role) {
+				sobres[i].TocoMaterialGit = true
+			}
 		}
 	}
 	return nil
