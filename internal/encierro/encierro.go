@@ -884,9 +884,18 @@ func Arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 		}
 		l.mu.Unlock()
 	}
+	// the gracia of an encierro whose SIGTERM had to wait for bwrap to say
+	// its init counts from that SIGTERM (ronda 1, 69b8a2)
+	alTerm := func() {
+		l.mu.Lock()
+		if !l.cancelado.IsZero() {
+			l.cancelado = time.Now()
+		}
+		l.mu.Unlock()
+	}
 	var err error
 	if e != nil {
-		err = arrancarEnvuelto(cmd, gracia, e, alCancelar)
+		err = arrancarEnvuelto(cmd, gracia, e, alCancelar, alTerm)
 	} else {
 		err = procesos.ArrancarCon(cmd, gracia, procesos.Terminacion{AlCancelar: alCancelar})
 	}

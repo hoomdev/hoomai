@@ -112,6 +112,16 @@ type envuelto struct {
 	// pid is the outside pid of bwrap's init (pid 1 inside); 0 until bwrap
 	// reports it. pidfd is a pidfd of it, -1 when there is none.
 	pid, pidfd int
+	// dicho is closed once Arrancar decided pid (bwrap said it, or ended or
+	// took too long without saying): a cancel or a signal that comes before
+	// waits for it, so the polite end keeps its gracia (ronda 1, 69b8a2).
+	dicho     chan struct{}
+	dichoOnce sync.Once
+}
+
+// decidido closes e.dicho, once.
+func (e *envuelto) decidido() {
+	e.dichoOnce.Do(func() { close(e.dicho) })
 }
 
 // pidInit is the outside pid of bwrap's init, 0 when unknown.
@@ -190,7 +200,7 @@ func envolver(cmd *exec.Cmd, p Plan) error {
 	if home == "" {
 		home, _ = os.UserHomeDir()
 	}
-	e := &envuelto{pidfd: -1}
+	e := &envuelto{pidfd: -1, dicho: make(chan struct{})}
 	ok := false
 	defer func() {
 		if !ok {
@@ -322,23 +332,36 @@ func socketsTapados() []string {
 // arrancarEnvuelto starts cmd, prepared by Envolver, in a process group of
 // its own registered with procesos, whose polite signal goes to the group of
 // the main process inside (the group of bwrap's init) and whose end kills
-// bwrap's init; then it waits for bwrap to report that init.
-func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, e *envuelto, alCancelar func()) error {
+// bwrap's init; then it waits for bwrap to report that init. A cancel or a
+// signal to hoom that comes before bwrap reported it waits for the report
+// (topeInfo at most) and then sends the SIGTERM: the gracia is kept, and
+// counts from there (alTerm); only an encierro whose init never got reported
+// ends at once (ronda 1, 69b8a2).
+func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, e *envuelto, alCancelar, alTerm func()) error {
+	defer e.decidido()
 	term := func() bool {
 		pid := e.pidInit()
 		if pid <= 0 {
-			return false
+			// before bwrap said its init: wait for it, bounded (it is read
+			// with topeInfo once the start returns)
+			select {
+			case <-e.dicho:
+			case <-time.After(topeInfo + time.Second):
+			}
+			if pid = e.pidInit(); pid > 0 && alTerm != nil {
+				alTerm()
+			}
 		}
-		ok := false
-		// the main process inside leads a group of its own (the step's
-		// setsid); before that, it is in its init's group
-		if c := comandoDe(pid); c > 0 && syscall.Kill(-c, syscall.SIGTERM) == nil {
-			ok = true
+		if pid <= 0 || !e.initVivo() {
+			return false // nothing inside to be polite to
 		}
-		if syscall.Kill(-pid, syscall.SIGTERM) == nil {
-			ok = true
+		if e.termComando(pid) {
+			return true
 		}
-		return ok
+		// bwrap's init has not started the main process yet: it gets its
+		// SIGTERM as soon as it is there, within the gracia
+		go e.termAlComando(pid, time.Now().Add(gracia))
+		return true
 	}
 	err := procesos.ArrancarCon(cmd, gracia, procesos.Terminacion{Term: term, Matar: e.matarInit, AlCancelar: alCancelar})
 	e.mu.Lock()
@@ -370,6 +393,46 @@ func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, e *envuelto, alCancel
 	e.pid, e.pidfd = pid, fd
 	e.mu.Unlock()
 	return nil
+}
+
+// termAlComando sends SIGTERM to the main process of the encierro whose init
+// is pid (and to its init's group) as soon as that process is there, until
+// hasta or until the init ends: a cancel that came right after the start,
+// before the init started it, still reaches it (ronda 1, 69b8a2).
+func (e *envuelto) termAlComando(pid int, hasta time.Time) {
+	for time.Now().Before(hasta) && e.initVivo() {
+		if e.termComando(pid) {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// termComando sends SIGTERM to the main process of the encierro whose init
+// is pid: to its group once it leads one (the step's setsid), to the process
+// itself before that (and to its init's group, when there is one). false
+// when it is not there yet.
+func (e *envuelto) termComando(pid int) bool {
+	c := comandoDe(pid)
+	if c <= 0 {
+		return false
+	}
+	ok := syscall.Kill(-c, syscall.SIGTERM) == nil
+	if !ok {
+		ok = syscall.Kill(c, syscall.SIGTERM) == nil
+	}
+	if syscall.Kill(-pid, syscall.SIGTERM) == nil {
+		ok = true
+	}
+	return ok
+}
+
+// initVivo says whether bwrap's init is still there (through its pidfd: a
+// pid reused by someone else is not it).
+func (e *envuelto) initVivo() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.pidfd >= 0 && unix.PidfdSendSignal(e.pidfd, 0, nil, 0) == nil
 }
 
 // leerInfo reads bwrap's --info-fd: the outside pid of its init

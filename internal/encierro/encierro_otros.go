@@ -24,6 +24,6 @@ func envolver(*exec.Cmd, Plan) error { return errSinBwrap }
 
 // arrancarEnvuelto is never reached outside Linux (nothing is envuelto); it
 // starts cmd as procesos does.
-func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, _ *envuelto, alCancelar func()) error {
+func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, _ *envuelto, alCancelar, _ func()) error {
 	return procesos.ArrancarCon(cmd, gracia, procesos.Terminacion{AlCancelar: alCancelar})
 }
