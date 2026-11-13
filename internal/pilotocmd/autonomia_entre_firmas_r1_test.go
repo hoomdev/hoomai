@@ -7,8 +7,9 @@
 //   - hallazgo 20261112T173402_24e6e0 (CA-638, CA-652, aclaracion 15): el
 //     writer que toco un test protegido y vencio no se releva;
 //   - hallazgo 20261112T174304_8c4407 (CA-644, aclaracion 17): un comando
-//     git del guardado que no termina (un filtro clean desde la aclaracion
-//     21) no cuelga al piloto (itemcmd.TopeGit achicado en el test).
+//     git del guardado que no termina (un filtro clean o un hook pre-commit,
+//     aclaraciones 21 y 23) no cuelga al piloto (itemcmd.TopeGit achicado en
+//     el test).
 //
 // Reusa los helpers de autonomia_entre_firmas_test.go (apPATH, apProyecto,
 // apRun, apTrasCerrar, apCerrado...).
@@ -418,75 +419,87 @@ func TestHallazgo24e6e0_CA638_CA652_ElWriterQueTocoUnProtegidoYSeCortoNoSeReleva
 // guardar el trabajo de la tarjeta: <error>`, sin commitear, y suelta su
 // candado: otro piloto lo toma (no le dice que ya corre otro).
 //
-// Re-expresado por la aclaracion 21 (el guardado del piloto no corre hooks):
-// lo que no termina ya no es un hook pre-commit sino un filtro clean de git
-// configurado en el repo de la tarea para app.go (apr3Filtro). Las
-// exigencias son las mismas.
+// La aclaracion 21 lo re-expreso con un filtro clean de git configurado en
+// el repo de la tarea para app.go (apr3Filtro), en lugar del hook
+// pre-commit. La aclaracion 23 (el guardado vuelve a correr los hooks;
+// hallazgo low 20261112T205353_d6b391 sobre el nombre) lo re-expresa otra
+// vez: corre con los dos mecanismos, el filtro y el mismo hook pre-commit
+// que no termina, con las mismas exigencias en cada uno.
 func TestHallazgo8c4407_CA644_UnHookQueNoTerminaNoCuelgaAlPiloto(t *testing.T) {
-	const ca = "8c4407/CA-644"
-	f := apPATH(t)
-	f.cli(t, "claude")
 	tope := itemcmd.TopeGit
 	itemcmd.TopeGit = 2 * time.Second
 	t.Cleanup(func() { itemcmd.TopeGit = tope })
 
-	root := apProyecto(t, "")
-	const slug = "hook-colgado"
-	wt := apTuAprobacion(t, root, slug, apConAuto, true)
-	pids := filepath.Join(t.TempDir(), "pids")
-	apr3Filtro(t, wt, "#!/bin/sh\necho $$ >> '"+pids+"'\nexec sleep 60\n") // aclaracion 21: antes, un hook pre-commit
-	apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
-	head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
+	for _, m := range []struct {
+		nombre   string
+		instalar func(t *testing.T, wt, script string)
+	}{
+		{"un filtro clean", apr3Filtro},
+		{"un hook pre-commit", func(t *testing.T, wt, script string) { apr4Hook(t, wt, "pre-commit", script) }},
+	} {
+		ca := "8c4407/CA-644 (" + m.nombre + ")"
+		f := apPATH(t)
+		f.cli(t, "claude")
+		root := apProyecto(t, "")
+		const slug = "hook-colgado"
+		wt := apTuAprobacion(t, root, slug, apConAuto, true)
+		pids := filepath.Join(t.TempDir(), "pids")
+		m.instalar(t, wt, "#!/bin/sh\necho $$ >> '"+pids+"'\nexec sleep 60\n")
+		apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
+		head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
 
-	matar := func() {
-		raw, _ := os.ReadFile(pids)
-		for _, l := range strings.Fields(string(raw)) {
-			if pid, err := strconv.Atoi(l); err == nil {
-				if pr, err := os.FindProcess(pid); err == nil {
-					_ = pr.Kill()
+		matar := func() {
+			raw, _ := os.ReadFile(pids)
+			for _, l := range strings.Fields(string(raw)) {
+				if pid, err := strconv.Atoi(l); err == nil {
+					if pr, err := os.FindProcess(pid); err == nil {
+						_ = pr.Kill()
+					}
 				}
 			}
 		}
-	}
-	t.Cleanup(matar)
+		t.Cleanup(matar)
 
-	for vuelta := 1; vuelta <= 2; vuelta++ {
-		desde := time.Now()
-		p := apr1Arrancar(root, slug)
-		if !p.esperar(30 * time.Second) {
-			matar()
-			p.esperar(2 * time.Minute)
-			t.Fatalf("%s: (vuelta %d) con un filtro clean que no termina, el piloto termina en un tiempo acotado (TopeGit 2 s); a los 30 s seguia:\n%s", ca, vuelta, p.salida())
-		}
-		s := p.salida()
-		ls := apSoloLineasDelPiloto(t, ca, s)
-		pre := apDetiene + "no pudo guardar el trabajo de la tarjeta: "
-		if s.code != 1 || !strings.HasPrefix(apUltima(ls), pre) || strings.TrimSpace(strings.TrimPrefix(apUltima(ls), pre)) == "" {
-			t.Fatalf("%s: (vuelta %d) se detiene con `%s<error>` y exit 1 (en %s):\n%s", ca, vuelta, pre, time.Since(desde), s)
-		}
-		if strings.Contains(s.out+s.err, pilotocmd.MsgYaCorre(slug)) {
-			t.Fatalf("%s: (vuelta %d) el piloto anterior solto su candado: este no dice que ya corre otro:\n%s", ca, vuelta, s)
-		}
-		for _, l := range ls {
-			if apGuarda.MatchString(l) {
-				t.Fatalf("%s: (vuelta %d) no dice que guardo: %q", ca, vuelta, l)
+		for vuelta := 1; vuelta <= 2; vuelta++ {
+			desde := time.Now()
+			p := apr1Arrancar(root, slug)
+			if !p.esperar(30 * time.Second) {
+				matar()
+				p.esperar(2 * time.Minute)
+				t.Fatalf("%s: (vuelta %d) con %s que no termina, el piloto termina en un tiempo acotado (TopeGit 2 s); a los 30 s seguia:\n%s", ca, vuelta, m.nombre, p.salida())
 			}
+			s := p.salida()
+			ls := apSoloLineasDelPiloto(t, ca, s)
+			pre := apDetiene + "no pudo guardar el trabajo de la tarjeta: "
+			if s.code != 1 || !strings.HasPrefix(apUltima(ls), pre) || strings.TrimSpace(strings.TrimPrefix(apUltima(ls), pre)) == "" {
+				t.Fatalf("%s: (vuelta %d) se detiene con `%s<error>` y exit 1 (en %s):\n%s", ca, vuelta, pre, time.Since(desde), s)
+			}
+			if strings.Contains(s.out+s.err, pilotocmd.MsgYaCorre(slug)) {
+				t.Fatalf("%s: (vuelta %d) el piloto anterior solto su candado: este no dice que ya corre otro:\n%s", ca, vuelta, s)
+			}
+			for _, l := range ls {
+				if apGuarda.MatchString(l) {
+					t.Fatalf("%s: (vuelta %d) no dice que guardo: %q", ca, vuelta, l)
+				}
+			}
+			if raw, _ := os.ReadFile(pids); strings.TrimSpace(string(raw)) == "" {
+				t.Fatalf("%s: fixture: el guardado corrio %s", ca, m.nombre)
+			}
+			if h, r := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug); h != head || r != rama {
+				t.Fatalf("%s: (vuelta %d) no commitea nada: HEAD %s -> %s, hoom/%s %s -> %s", ca, vuelta, head, h, slug, rama, r)
+			}
+			soltar, err := hoomfs.Lock(pilotocmd.Candado(root, slug), 0)
+			if err != nil {
+				t.Fatalf("%s: (vuelta %d) al detenerse, el piloto suelta su candado: %v", ca, vuelta, err)
+			}
+			soltar()
 		}
-		if raw, _ := os.ReadFile(pids); strings.TrimSpace(string(raw)) == "" {
-			t.Fatalf("%s: fixture: el guardado corrio el filtro clean de app.go", ca)
+		if m.nombre == "un filtro clean" {
+			apr3SinFiltro(t, wt) // que git status no corra el filtro que no termina
 		}
-		if h, r := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug); h != head || r != rama {
-			t.Fatalf("%s: (vuelta %d) no commitea nada: HEAD %s -> %s, hoom/%s %s -> %s", ca, vuelta, head, h, slug, rama, r)
+		if st := apGit(t, wt, "status", "--porcelain"); !strings.Contains(st, "app.go") {
+			t.Fatalf("%s: lo no guardado sigue ahi: %q", ca, st)
 		}
-		soltar, err := hoomfs.Lock(pilotocmd.Candado(root, slug), 0)
-		if err != nil {
-			t.Fatalf("%s: (vuelta %d) al detenerse, el piloto suelta su candado: %v", ca, vuelta, err)
-		}
-		soltar()
+		f.ninguna(t, ca, "un piloto que no pudo guardar")
 	}
-	apr3SinFiltro(t, wt) // que git status no corra el filtro que no termina
-	if st := apGit(t, wt, "status", "--porcelain"); !strings.Contains(st, "app.go") {
-		t.Fatalf("%s: lo no guardado sigue ahi: %q", ca, st)
-	}
-	f.ninguna(t, ca, "un piloto que no pudo guardar")
 }

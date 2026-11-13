@@ -8,7 +8,7 @@
 //     el hallazgo de tests-del-test-writer;
 //   - problema B, hallazgo 20261112T185130_272465 (CA-644, aclaracion 19): el
 //     tope del guardado termina todo el comando, hijos incluidos (con un
-//     filtro clean de git desde la aclaracion 21);
+//     filtro clean de git y con un hook pre-commit, aclaraciones 21 y 23);
 //   - problema C, hallazgo 20261112T185130_5774db (CA-656, aclaracion 20):
 //     cerrar-hallazgos vuelve a mirar la tarjeta bajo sus candados.
 //
@@ -148,97 +148,107 @@ func TestHallazgosEa20f8E49304_84d9de_CA638_CA652_CerrarElHallazgoNoHabilitaElRe
 // archivo marca que el proceso, o su hijo, escribiria a los 3 s si siguiera
 // vivo) y no hay index.lock. Tres variantes: uno que solo duerme, uno que
 // ignora la interrupcion y uno que deja un hijo en segundo plano dentro de su
-// grupo.
+// grupo (sin setsid).
 //
-// Re-expresado por la aclaracion 21 (el guardado del piloto no corre hooks):
-// lo que no termina ya no es un hook pre-commit sino un filtro clean de git
-// configurado en el repo de la tarea para app.go (apr3Filtro), con las
-// mismas tres variantes. Las exigencias son las mismas.
+// La aclaracion 21 lo re-expreso con un filtro clean de git configurado en
+// el repo de la tarea para app.go (apr3Filtro), en lugar del hook
+// pre-commit. La aclaracion 23 (el guardado vuelve a correr los hooks;
+// hallazgo low 20261112T205353_d6b391 sobre el nombre) lo re-expresa otra
+// vez: las tres variantes corren con los dos mecanismos, el filtro y el
+// hook pre-commit, con las mismas exigencias en cada una.
 func TestHallazgo272465_CA644_ElTopeDelGuardadoTerminaTodoElHook(t *testing.T) {
 	const ca = "272465/CA-644"
 	tope := itemcmd.TopeGit
 	itemcmd.TopeGit = time.Second
 	t.Cleanup(func() { itemcmd.TopeGit = tope })
 
-	for _, c := range []struct {
-		nombre string
-		cuerpo func(marca, pids string) string
+	for _, m := range []struct {
+		nombre   string
+		instalar func(t *testing.T, wt, script string)
 	}{
-		{"un filtro que solo duerme", func(marca, pids string) string {
-			return "sleep 3\n: > '" + marca + "'\n"
-		}},
-		{"un filtro que ignora la interrupcion", func(marca, pids string) string {
-			return "trap '' HUP INT TERM QUIT\nsleep 3\n: > '" + marca + "'\n"
-		}},
-		{"un filtro que deja un hijo en segundo plano", func(marca, pids string) string {
-			return "( sleep 3; : > '" + marca + "' ) &\necho $! >> '" + pids + "'\nexec sleep 30\n"
-		}},
+		{"un filtro clean", apr3Filtro},
+		{"un hook pre-commit", func(t *testing.T, wt, script string) { apr4Hook(t, wt, "pre-commit", script) }},
 	} {
-		f := apPATH(t)
-		root := apProyecto(t, "")
-		const slug = "hook-colgado"
-		wt := apTuAprobacion(t, root, slug, apConAuto, true)
-		lock := apGit(t, wt, "rev-parse", "--git-path", "index.lock")
-		if !filepath.IsAbs(lock) {
-			lock = filepath.Join(wt, lock)
-		}
-		aparte := t.TempDir()
-		pids, arranco := filepath.Join(aparte, "pids"), filepath.Join(aparte, "arranco")
-		marca := filepath.Join(wt, "marca-del-hook")
-		// aclaracion 21: antes, un hook pre-commit con este mismo cuerpo
-		apr3Filtro(t, wt, "#!/bin/sh\necho $$ >> '"+pids+"'\n: > '"+arranco+"'\n"+c.cuerpo(marca, pids))
-		apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
-		head := apHead(t, wt)
-		t.Cleanup(func() {
-			raw, _ := os.ReadFile(pids)
-			for _, l := range strings.Fields(string(raw)) {
-				if pid, err := strconv.Atoi(l); err == nil {
-					if pr, err := os.FindProcess(pid); err == nil {
-						_ = pr.Kill()
+		for _, c := range []struct {
+			nombre string
+			cuerpo func(marca, pids string) string
+		}{
+			{"que solo duerme", func(marca, pids string) string {
+				return "sleep 3\n: > '" + marca + "'\n"
+			}},
+			{"que ignora la interrupcion", func(marca, pids string) string {
+				return "trap '' HUP INT TERM QUIT\nsleep 3\n: > '" + marca + "'\n"
+			}},
+			{"que deja un hijo en segundo plano", func(marca, pids string) string {
+				return "( sleep 3; : > '" + marca + "' ) &\necho $! >> '" + pids + "'\nexec sleep 30\n"
+			}},
+		} {
+			nombre := m.nombre + " " + c.nombre
+			f := apPATH(t)
+			root := apProyecto(t, "")
+			const slug = "hook-colgado"
+			wt := apTuAprobacion(t, root, slug, apConAuto, true)
+			lock := apGit(t, wt, "rev-parse", "--git-path", "index.lock")
+			if !filepath.IsAbs(lock) {
+				lock = filepath.Join(wt, lock)
+			}
+			aparte := t.TempDir()
+			pids, arranco := filepath.Join(aparte, "pids"), filepath.Join(aparte, "arranco")
+			marca := filepath.Join(wt, "marca-del-hook")
+			m.instalar(t, wt, "#!/bin/sh\necho $$ >> '"+pids+"'\n: > '"+arranco+"'\n"+c.cuerpo(marca, pids))
+			apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
+			head := apHead(t, wt)
+			t.Cleanup(func() {
+				raw, _ := os.ReadFile(pids)
+				for _, l := range strings.Fields(string(raw)) {
+					if pid, err := strconv.Atoi(l); err == nil {
+						if pr, err := os.FindProcess(pid); err == nil {
+							_ = pr.Kill()
+						}
 					}
 				}
-			}
-		})
+			})
 
-		desde := time.Now()
-		type guardado struct {
-			res itemcmd.SaveResult
-			err error
-		}
-		listo := make(chan guardado, 1)
-		go func() {
-			res, err := itemcmd.SaveTarea(root, apBase, apBlockOn, slug)
-			listo <- guardado{res, err}
-		}()
-		var g guardado
-		select {
-		case g = <-listo:
-		case <-time.After(30 * time.Second):
-			t.Fatalf("%s: %s: con TopeGit en 1 s el guardado termina en un tiempo acotado; a los 30 s seguia", ca, c.nombre)
-		}
-		if g.err == nil {
-			t.Fatalf("%s: %s: el guardado vencido por TopeGit devuelve un error: %+v", ca, c.nombre, g.res)
-		}
-		if !apr1Existe(arranco) {
-			t.Fatalf("%s: %s: fixture: el guardado corrio el filtro clean de app.go (%v)", ca, c.nombre, g.err)
-		}
-		if h := apHead(t, wt); h != head {
-			t.Fatalf("%s: %s: el guardado que fallo no commitea: HEAD %s -> %s", ca, c.nombre, head, h)
-		}
-		// el filtro (o su hijo) escribiria la marca a los 3 s de arrancar
-		for time.Since(desde) < 7*time.Second {
-			if apr1Existe(marca) {
-				break
+			desde := time.Now()
+			type guardado struct {
+				res itemcmd.SaveResult
+				err error
 			}
-			time.Sleep(100 * time.Millisecond)
+			listo := make(chan guardado, 1)
+			go func() {
+				res, err := itemcmd.SaveTarea(root, apBase, apBlockOn, slug)
+				listo <- guardado{res, err}
+			}()
+			var g guardado
+			select {
+			case g = <-listo:
+			case <-time.After(30 * time.Second):
+				t.Fatalf("%s: %s: con TopeGit en 1 s el guardado termina en un tiempo acotado; a los 30 s seguia", ca, nombre)
+			}
+			if g.err == nil {
+				t.Fatalf("%s: %s: el guardado vencido por TopeGit devuelve un error: %+v", ca, nombre, g.res)
+			}
+			if !apr1Existe(arranco) {
+				t.Fatalf("%s: %s: fixture: el guardado corrio %s (%v)", ca, nombre, m.nombre, g.err)
+			}
+			if h := apHead(t, wt); h != head {
+				t.Fatalf("%s: %s: el guardado que fallo no commitea: HEAD %s -> %s", ca, nombre, head, h)
+			}
+			// el proceso (o su hijo) escribiria la marca a los 3 s de arrancar
+			for time.Since(desde) < 7*time.Second {
+				if apr1Existe(marca) {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			if apr1Existe(marca) {
+				t.Fatalf("%s: %s: despues del error no queda vivo ningun proceso del comando: algo escribio %s en el worktree (error: %v)", ca, nombre, marca, g.err)
+			}
+			if apr1Existe(lock) {
+				t.Fatalf("%s: %s: despues del error no queda %s (error: %v)", ca, nombre, lock, g.err)
+			}
+			f.ninguna(t, ca, "el guardado de la tarjeta")
 		}
-		if apr1Existe(marca) {
-			t.Fatalf("%s: %s: despues del error no queda vivo ningun proceso del filtro: algo escribio %s en el worktree (error: %v)", ca, c.nombre, marca, g.err)
-		}
-		if apr1Existe(lock) {
-			t.Fatalf("%s: %s: despues del error no queda %s (error: %v)", ca, c.nombre, lock, g.err)
-		}
-		f.ninguna(t, ca, "el guardado de la tarjeta")
 	}
 }
 
