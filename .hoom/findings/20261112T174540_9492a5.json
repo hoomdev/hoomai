@@ -1,0 +1,11 @@
+{
+  "id": "20261112T174540_9492a5",
+  "created_at": "2026-11-12T17:45:40.621777491Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/pilot.go",
+  "description": "INTRODUCIDO: internal/boardcmd/pilot.go:72 conserva la implementacion legacy Pilot y PilotTable, incluida la ruta del arquitecto, aunque la nueva Piloto la reemplaza y las unicas referencias restantes son tests. Esto obliga tambien a PilotDecision a representar los dos protocolos (Launch/Why y Paso/Regla) y deja dos algoritmos/tablas del mismo piloto para mantener; eliminar la implementacion muerta o aislar expresamente la compatibilidad reduciria la ambiguedad.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

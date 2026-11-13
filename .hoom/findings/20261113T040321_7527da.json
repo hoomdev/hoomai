@@ -1,0 +1,11 @@
+{
+  "id": "20261113T040321_7527da",
+  "created_at": "2026-11-13T04:03:21.667715422Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este rango) — internal/itemcmd/itemcmd.go:1007-1024,943-947: revisarCommit rechaza rutas adicionales, pero nunca comprueba que cada ruta de pedidas siga apareciendo en el commit. Con dos archivos sin guardar, un pre-commit puede ejecutar git reset HEAD -- sobre uno; Git crea un commit valido solo con el otro, la revision pasa y SaveResult informa ambos paths como guardados. El piloto entonces avanza aunque parte del trabajo siga en el indice/worktree, justo el estado degradado que el guardado previo a cada decision debe eliminar. Hay que comparar tambien las rutas faltantes (o las entradas/blobs esperados) antes de declarar exito.",
+  "author": "reviewer@codex",
+  "fingerprint": "fc41075f656eb916",
+  "task": "autonomia-entre-firmas"
+}

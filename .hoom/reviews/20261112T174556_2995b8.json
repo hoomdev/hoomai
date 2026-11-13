@@ -1,0 +1,96 @@
+{
+  "id": "20261112T174556_2995b8",
+  "created_at": "2026-11-12T17:45:56.172714932Z",
+  "task": "autonomia-entre-firmas",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "verdict_id": "2026-11-12T14-51-03Z_db74e63f",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261112T172019_8f4011",
+    "20261112T172149_8c69af",
+    "20261112T172318_123262",
+    "20261112T172503_11bfc2",
+    "20261112T172636_a3e8d2",
+    "20261112T173402_24e6e0",
+    "20261112T173415_33635a",
+    "20261112T173426_756bf3",
+    "20261112T173435_b6fadf",
+    "20261112T173443_86de5a",
+    "20261112T174258_30fa2c",
+    "20261112T174304_8c4407",
+    "20261112T174310_a3c32a",
+    "20261112T174540_203d04",
+    "20261112T174540_614855",
+    "20261112T174540_6b617f",
+    "20261112T174540_9492a5"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 206842,
+  "evidence_sha256": "6d4b41460056da557f441cbbe915b2d9fcec604909be3fccbe1bedee6059f7ba",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 4000542,
+      "cached_input_tokens": 3877632,
+      "output_tokens": 25688,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 3491489,
+      "cached_input_tokens": 3347968,
+      "output_tokens": 30148,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 2429240,
+      "cached_input_tokens": 2320384,
+      "output_tokens": 20469,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 848318,
+      "cached_input_tokens": 755200,
+      "output_tokens": 5842,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261112T171509_e8bcea"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261112T172735_1f913d"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261112T173710_b90c26"
+    },
+    {
+      "lens": "readability",
+      "run": "20261112T174355_aff233"
+    }
+  ],
+  "desde": "2e909a4cd3b7949a4b393c30b098aefdcb997c0a",
+  "hasta": "2c6d111a3553e853cfbad08e4e38fe7de052a9e8",
+  "cobertura": "completa",
+  "base": "main",
+  "riesgo": "normal"
+}

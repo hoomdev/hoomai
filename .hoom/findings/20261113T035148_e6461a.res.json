@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T035148_e6461a",
+  "as": "corregido",
+  "evidence": "commit f2de6f5; test TestHallazgoE6461a_CA644_LaVueltaAtrasNoMueveOtraRama (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T04:49:15.52035418Z"
+}

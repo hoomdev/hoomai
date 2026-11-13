@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T030408_1a9510",
+  "as": "corregido",
+  "evidence": "commit 91034d0; test TestHallazgos1a9510_a808f9_CA644_UnPostCommitColgadoNoDejaElCommit (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T03:30:58.234983595Z"
+}

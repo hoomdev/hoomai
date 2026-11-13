@@ -1,0 +1,6 @@
+titulo: La tarjeta corre sola entre la firma y la aceptacion
+tipo: feature
+prioridad: alta
+pedido: 'Spec .hoom/specs/autonomia-entre-firmas.md: la tarjeta corre sola entre la firma y la aceptacion. boardcmd.Piloto pura sobre un Estado (14 casos), hoom piloto en la terminal y el piloto al aprobar desde el Studio; guardar antes de decidir; rojo esperado del test-writer; reintento ante un rojo y relevo por tiempo; rondas de hallazgos (refutador, test-writer, writer, cerrar-hallazgos, review delta); tope por ventana de 5 h (autonomia.ventana_max); el writer no toca los tests del test-writer (trasplantados, regla tests-del-test-writer); hoom item set --auto y --presupuesto-usd. Re-expresa CA-379, CA-380, CA-381, CA-416 y CA-497.'
+creado_por: hoomdev <dev@volale.com>
+creado_en: 2026-11-12T15:12:15Z

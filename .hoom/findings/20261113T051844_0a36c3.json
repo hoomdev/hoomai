@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051844_0a36c3",
+  "created_at": "2026-11-13T05:18:44.003373955Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:315-321 comprueba los sobres con material-de-git antes de que SaveTarea tome el candado del arbol. Si el piloto se invoca mientras un writer esta terminando, paradaAntesDeGuardar puede ver el sobre aun abierto; si este cierra dejando un hook antes de que SaveTarea adquiera el candado, los pulsos internos ya lo ven cerrado y el guardado continua sin repetir la comprobacion, ejecutando el hook. Es una carrera provocable que salta el caso 2 y puede causar efectos arbitrarios o perdida de datos; la lectura de sobres y la decision de guardar deben quedar bajo el mismo candado.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

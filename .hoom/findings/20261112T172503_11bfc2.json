@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172503_11bfc2",
+  "created_at": "2026-11-12T17:25:03.651816423Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:159-163 no verifica que la ruta protegida conserve exactamente su nombre; vuelve a hacer Lstat por la grafia vieja y compara solo la huella. En un filesystem case-insensitive (macOS/Windows), el writer puede renombrar app_test.go a app_test.GO sin cambiar bytes: la ruta vieja sigue resolviendo y la regla no corta, pero herramientas como go test dejan de descubrir el archivo. Con agents.writer.write que permita tests, el scope general tampoco salva este control. La foto debe incluir/verificar la identidad exacta de la entrada para que todo renombre, incluso solo de mayusculas, viole tests-del-test-writer.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

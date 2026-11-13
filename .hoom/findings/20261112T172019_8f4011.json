@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172019_8f4011",
+  "created_at": "2026-11-12T17:20:19.904051296Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:402-419 ejecuta cerrar-hallazgos sin tomar runcmd.LockArbol ni volver a comprobar que no haya un run activo antes de escribir resoluciones append-only y correr verify. Una persona puede lanzar otro trabajo despues de que Piloto arma la decision y antes/durante este bloque; el piloto entonces puede cerrar hallazgos y emitir un veredicto sobre un arbol que el nuevo run esta modificando, y SaveTarea detecta el conflicto recien despues de que esas escrituras irreversibles ya ocurrieron. El cierre/verify debe excluir el registro de runs y comprobar actividad bajo el mismo candado antes de mutar.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

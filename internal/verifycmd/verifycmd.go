@@ -6,6 +6,7 @@ package verifycmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -25,7 +26,7 @@ import (
 type Options struct {
 	Full  bool
 	Gates []string // empty = all
-	Spec  string   // spec path; adds spec_lint + spec_trace
+	Spec  string   // spec path, relative to the manifest's Dir or absolute; adds spec_lint + spec_trace
 	JSON  bool     // emit the verdict as JSON (rendering is the caller's job)
 }
 
@@ -40,6 +41,12 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		return nil, "", err
 	}
 	git := gitx.Snapshot(m.Dir, m.BaseBranch)
+	// a relative spec is the project's (the verdict keeps it as given): read
+	// from m.Dir, so a caller in another directory verifies the same file
+	specFile := opt.Spec
+	if specFile != "" && !filepath.IsAbs(specFile) {
+		specFile = filepath.Join(m.Dir, specFile)
+	}
 
 	// Live narration: best-effort by contract — a broken cache never touches
 	// the run. The file is truncated per run; artifacts remain the history.
@@ -87,7 +94,7 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		for _, name := range []string{"spec_lint", "spec_trace", "spec_approved"} {
 			lw.Emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: "spec"})
 		}
-		specResults := append(spec.Gates(m.Dir, opt.Spec), approvedGate(m.Dir, opt.Spec))
+		specResults := append(spec.Gates(m.Dir, specFile), approvedGate(m.Dir, specFile))
 		for _, r := range specResults {
 			lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: r.Name, Status: r.Status,
 				DurationMS: r.DurationMS, ExitCode: r.ExitCode})
@@ -101,7 +108,7 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 			scope = "spec"
 		}
 		lw.Emit(live.Event{Kind: live.KindGateStart, Gate: finding.GateName, Scope: scope})
-		fres := finding.Gate(m.Dir, m.BaseBranch, blockOn, opt.Spec)
+		fres := finding.Gate(m.Dir, m.BaseBranch, blockOn, specFile)
 		lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: fres.Name, Status: fres.Status,
 			DurationMS: fres.DurationMS, ExitCode: fres.ExitCode})
 		results = append(results, fres)

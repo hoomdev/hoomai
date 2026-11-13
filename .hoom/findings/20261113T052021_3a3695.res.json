@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T052021_3a3695",
+  "as": "corregido",
+  "evidence": "commit da2ae9e: la rama de NotaMaterialDeGit exige res.Scope.has(RuleMaterialDeGit); TestHallazgos8e2d38_* y TestWriter192f73LaFotoQueNoTerminaCortaElSobre verdes",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T05:47:48.007743654Z"
+}

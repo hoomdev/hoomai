@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T030054_048c45",
+  "as": "corregido",
+  "evidence": "commit e562b0a; test TestHallazgo048c45_CA638_CA644_UnHookNoCuelaNadaEnElGuardado y TestHallazgo048c45_CA638_CA644_ElHookQueDejaUnWriterNoCuelaElTestProtegido (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T03:30:58.227244803Z"
+}

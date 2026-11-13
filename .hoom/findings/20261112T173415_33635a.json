@@ -1,0 +1,11 @@
+{
+  "id": "20261112T173415_33635a",
+  "created_at": "2026-11-12T17:34:15.361816958Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/piloto.go",
+  "description": "INTRODUCIDO: internal/boardcmd/piloto.go:456-461 solo trata como error de entorno los gates con Required=true. El contrato del caso 6 dice que cualquier gate del veredicto en status error detiene el reintento. Con, por ejemplo, un gate requerido en fail y un gate opcional en error por herramienta ausente, el veredicto es rojo pero Piloto lanza otro writer en vez de detenerse con 'entorno: el gate ... no pudo correr', gastando un intento de modelo ante una falla de entorno.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

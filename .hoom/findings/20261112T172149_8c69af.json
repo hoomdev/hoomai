@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172149_8c69af",
+  "created_at": "2026-11-12T17:21:49.277601048Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/pilotocmd.go:320-328 decide con una tarjeta leida antes del lanzamiento, pero internal/lanzar/lanzar.go:359-367, aunque vuelve a derivarla bajo el candado de launch, acepta PilotAction sin comprobar que el item actual siga con auto: hasta-humano. Como hoom item set usa otro candado, una persona puede ejecutar --auto no entre la decision y Lanzar y aun asi se inicia un trabajo autonomo (y gasto) despues de revocar el piloto. La validacion final de un Request.Pilot debe fallar cerrada si el auto vigente ya no esta activo (y revalidar cualquier control del piloto que pueda cambiar).",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

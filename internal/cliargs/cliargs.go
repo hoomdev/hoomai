@@ -237,6 +237,13 @@ func Operands(fs *flag.FlagSet, args []string, verb, usage string, n int) ([]str
 	return parseOperands(fs, args, verb, usage, n, n, nil, false)
 }
 
+// OperandsVacios is Operands where the flags named in vacios may be written
+// with an empty value: the verb judges that value with its own message
+// (`--presupuesto-usd=` is not a number above 0).
+func OperandsVacios(fs *flag.FlagSet, args []string, verb, usage string, n int, vacios ...string) ([]string, error) {
+	return parseOperands(fs, args, verb, usage, n, n, vacios, false)
+}
+
 // OperandsRango is Operands for a verb that takes between min and max
 // operands (`hoom pedir <rol> [<slug>]`). The flags named in vacios may be
 // written with an empty value (`-m ""` is an empty pedido, not a typo). An

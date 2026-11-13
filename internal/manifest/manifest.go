@@ -378,6 +378,12 @@ func (m *Manifest) RoleDefaults(role string) RoleDefaults {
 // with the strictness Load applies to them: the values of the PROJECT, which
 // the board and the launches read whatever the card's branch says. A root
 // without hoom.yaml declares nothing (an empty manifest, no error).
+//
+// It reads autonomia: the same way (autonomia-entre-firmas): the pilot's
+// policy is the project's, never the branch's. The result's Autonomia is the
+// declared section (nil without it), and an invalid one is the error of
+// AutonomiaPolicy's contract, wrapped as `hoom.yaml invalido: ...`; the rule
+// that rounds need findings.block_on is judged against this same file.
 func LoadRoles(root string) (*Manifest, error) {
 	raw, err := os.ReadFile(filepath.Join(root, FileName))
 	if os.IsNotExist(err) {
@@ -387,8 +393,10 @@ func LoadRoles(root string) (*Manifest, error) {
 		return nil, err
 	}
 	var doc struct {
-		Agents AgentPolicies `yaml:"agents"`
-		Review *ReviewPolicy `yaml:"review"`
+		Agents    AgentPolicies    `yaml:"agents"`
+		Review    *ReviewPolicy    `yaml:"review"`
+		Autonomia *AutonomiaPolicy `yaml:"autonomia"`
+		Findings  yaml.Node        `yaml:"findings"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
@@ -396,7 +404,134 @@ func LoadRoles(root string) (*Manifest, error) {
 	if err := doc.Review.validate(); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	return &Manifest{Agents: doc.Agents, Review: doc.Review, Dir: root}, nil
+	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings)); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Dir: root}, nil
+}
+
+// AutonomiaPolicy is the optional `autonomia:` section of the PROJECT's
+// hoom.yaml (autonomia-entre-firmas): how far the pilot goes alone between a
+// person's signature and a person's acceptance.
+//
+//	autonomia:
+//	  reintentos_ante_rojo: 1   # 0 o 1
+//	  rondas_de_hallazgos: 2    # de 0 a 5
+//	  ventana_max: 80           # de 1 a 100: porcentaje de la ventana de 5 h
+//
+// Without the section, or without a key, both counters are 0 and VentanaMax
+// is nil (not declared). The section is strict; the rest of the top level
+// stays as lenient as always. Load (and LoadWithoutBaseCheck) and LoadRoles
+// reject an invalid section, wrapped as `hoom.yaml invalido: <error>`, and
+// the errors are exactly:
+//
+//   - `autonomia: clave desconocida "<k>" (validas: reintentos_ante_rojo, rondas_de_hallazgos, ventana_max)`;
+//   - `autonomia: reintentos_ante_rojo tiene que ser 0 o 1`;
+//   - `autonomia: rondas_de_hallazgos tiene que ser un entero de 0 a 5`;
+//   - `autonomia: ventana_max tiene que ser un entero de 1 a 100`;
+//   - `autonomia: rondas_de_hallazgos necesita findings.block_on`, when the
+//     rounds are more than 0 and the same hoom.yaml has no findings.block_on
+//     (without it findings_open never runs and no round could close).
+type AutonomiaPolicy struct {
+	// ReintentosAnteRojo: 0 or 1 retries of the writer after a red verdict.
+	ReintentosAnteRojo int `yaml:"reintentos_ante_rojo"`
+	// RondasDeHallazgos: 0 to 5 rounds of findings after a review.
+	RondasDeHallazgos int `yaml:"rondas_de_hallazgos"`
+	// VentanaMax: 1 to 100, the percent of the 5 h window at which the pilot
+	// stops launching on a provider; nil = not declared.
+	VentanaMax *int `yaml:"ventana_max"`
+}
+
+// AutonomiaKeys are the keys `autonomia:` accepts, in the order its error
+// lists them.
+var AutonomiaKeys = []string{"reintentos_ante_rojo", "rondas_de_hallazgos", "ventana_max"}
+
+// UnmarshalYAML decodes `autonomia:` strictly: an unknown key or a value out
+// of range is the error of AutonomiaPolicy's contract. The rule that needs
+// findings.block_on is checked by the loaders, which see the whole file.
+func (p *AutonomiaPolicy) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("autonomia debe ser un mapa (ej. autonomia: { reintentos_ante_rojo: 1 })")
+	}
+	var out AutonomiaPolicy
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, v := n.Content[i].Value, n.Content[i+1]
+		if !containsKey(AutonomiaKeys, key) {
+			return fmt.Errorf("autonomia: clave desconocida %q (validas: %s)", key, strings.Join(AutonomiaKeys, ", "))
+		}
+		if esNulo(v) {
+			continue // como en findings: nulo = sin la clave
+		}
+		x, ok := enteroYAML(v)
+		switch key {
+		case "reintentos_ante_rojo":
+			if !ok || x < 0 || x > 1 {
+				return fmt.Errorf("autonomia: reintentos_ante_rojo tiene que ser 0 o 1")
+			}
+			out.ReintentosAnteRojo = x
+		case "rondas_de_hallazgos":
+			if !ok || x < 0 || x > 5 {
+				return fmt.Errorf("autonomia: rondas_de_hallazgos tiene que ser un entero de 0 a 5")
+			}
+			out.RondasDeHallazgos = x
+		case "ventana_max":
+			if !ok || x < 1 || x > 100 {
+				return fmt.Errorf("autonomia: ventana_max tiene que ser un entero de 1 a 100")
+			}
+			out.VentanaMax = &x
+		}
+	}
+	*p = out
+	return nil
+}
+
+// enteroYAML is the integer a scalar node holds, when it holds one (an int
+// tag: "1.0", "uno" or true are not).
+func enteroYAML(v *yaml.Node) (int, bool) {
+	var x int
+	if v.Kind != yaml.ScalarNode || v.Tag != "!!int" || v.Decode(&x) != nil {
+		return 0, false
+	}
+	return x, true
+}
+
+// validarAutonomia is the rule of autonomia that needs the rest of the file:
+// rounds of findings close only through findings_open, which runs only with
+// findings.block_on.
+func validarAutonomia(a *AutonomiaPolicy, blockOn bool) error {
+	if a != nil && a.RondasDeHallazgos > 0 && !blockOn {
+		return fmt.Errorf("autonomia: rondas_de_hallazgos necesita findings.block_on")
+	}
+	return nil
+}
+
+// blockOnDeclarado says whether a findings: node declares a block_on, valid
+// or not (Load judges its value).
+func blockOnDeclarado(n yaml.Node) bool {
+	if n.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if n.Content[i].Value == "block_on" && !esNulo(n.Content[i+1]) {
+			return true
+		}
+	}
+	return false
+}
+
+// AutonomiaOrDefault is the project's autonomia policy: the declared section,
+// or the zero policy (0 retries, 0 rounds, VentanaMax nil) without it. A nil
+// manifest declares nothing.
+func (m *Manifest) AutonomiaOrDefault() AutonomiaPolicy {
+	if m == nil || m.Autonomia == nil {
+		return AutonomiaPolicy{}
+	}
+	a := *m.Autonomia
+	if a.VentanaMax != nil {
+		v := *a.VentanaMax
+		a.VentanaMax = &v
+	}
+	return a
 }
 
 // WriteScope re-aims where a role may write. A declared Allow REPLACES the
@@ -463,6 +598,9 @@ type Manifest struct {
 	// providers hoom passes a model to (tablero-con-paneles): hoom tablero's
 	// Modelo selector offers them after the catalog's.
 	Models ModelCatalog `yaml:"models,omitempty"`
+	// Autonomia is the pilot's policy (autonomia-entre-firmas): nil = no
+	// section. Read it with AutonomiaOrDefault.
+	Autonomia *AutonomiaPolicy `yaml:"autonomia,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`
@@ -777,6 +915,9 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	if err := m.validateReview(); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
+	if err := validarAutonomia(m.Autonomia, m.FindingsBlockOn() != ""); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	if m.BaseBranch == "" {

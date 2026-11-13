@@ -69,6 +69,9 @@ type Run struct {
 	// every CLI verified reports per invocation (measured on a --resume,
 	// which reported its own turn and its own cost, not the session total).
 	Usage *providers.Usage `json:"usage,omitempty"`
+	// Corte is CorteTiempo once the run died by its timeout, as its sidecar
+	// says (Meta.Corte); "" otherwise.
+	Corte string `json:"corte,omitempty"`
 }
 
 // accumulate sums one invocation's usage into the run's total. A cost that
@@ -211,6 +214,9 @@ type run struct {
 	// ran with (spec costo-por-spec). Under the Manager's mu.
 	muestras [][]providers.Ventana
 	modelo   string
+	// corte is the cut of the invocation that is settling (CorteTiempo or
+	// ""), which settle writes in the sidecar. Under the Manager's mu.
+	corte string
 }
 
 // normalizerFor is the normalizer of one run of p: a Correlating provider
@@ -301,7 +307,15 @@ type Meta struct {
 	// whether a run another process owns is still alive uses it (plus 5
 	// minutes); 0 = an older sidecar, which uses the Manager's.
 	TimeoutS int `json:"timeout_s,omitempty"`
+	// Corte is CorteTiempo when the run died by its timeout
+	// (autonomia-entre-firmas): `"corte": "tiempo"` in the sidecar, written
+	// with the close. Omitted for any other end (done, error, canceled).
+	Corte string `json:"corte,omitempty"`
 }
+
+// CorteTiempo is Meta.Corte (and Run.Corte) of a run that died by its
+// timeout. Same value as envelope.CorteTiempo.
+const CorteTiempo = "tiempo"
 
 // vivo says whether the run of meta still has someone working: its owner, or
 // the provider its owner left behind while its PID is still that provider
@@ -1192,13 +1206,14 @@ func (m *Manager) Input(id, prompt string) (Run, error) {
 	// again, so without it the run does not continue, and the refusal leaves
 	// it exactly as it was (finding 1da9c4)
 	meta := r.meta
-	meta.Status, meta.ExitCode = StatusRunning, -1
+	meta.Status, meta.ExitCode, meta.Corte = StatusRunning, -1, ""
 	if err := writeMeta(m.root, meta); err != nil {
 		m.mu.Unlock()
 		return Run{}, fmt.Errorf("no se pudo registrar la continuacion del run: %v", err)
 	}
 	r.info.Status = StatusRunning
 	r.info.ExitCode = -1
+	r.info.Corte = ""
 	r.canceled = false
 	r.meta = meta
 	m.byDir[r.dir] = id
@@ -1480,10 +1495,12 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	exit := 0
 	status := StatusDone
 	detail := "invocacion completada"
+	corte := ""
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
 		status, exit = StatusError, -1
 		detail = detalleTimeout(timeout, inicio, ultimo.Load(), r.opts.Role)
+		corte = CorteTiempo
 	case m.wasCanceled(r):
 		status, exit = StatusCanceled, -1
 		detail = "cancelado por el operador"
@@ -1499,6 +1516,7 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	if errPID != nil {
 		status, exit = StatusError, -1
 		detail = fmt.Sprintf("no se pudo registrar el PID del provider (%v): el run se corto", errPID)
+		corte = ""
 	}
 	if escrito != nil {
 		// Wait ya cerro el pipe: la escritura termino, bien o mal
@@ -1516,7 +1534,11 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		// the cut is the log's, whatever the provider did after it
 		status, exit = StatusError, -1
 		detail = detalleLogRoto(r.info.ID, lerr)
+		corte = ""
 	}
+	m.mu.Lock()
+	r.corte = corte
+	m.mu.Unlock()
 	m.settle(r, status, exit, detail)
 }
 
@@ -1606,6 +1628,10 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	r.cancel = nil
 	r.meta.Status, r.meta.ExitCode = status, exit
 	r.meta.ProviderSessionID, r.meta.EndedAt = r.info.ProviderSessionID, time.Now().UTC()
+	// the timeout's cut is said in the sidecar and in the public state, and
+	// only by the close that had it (autonomia-entre-firmas)
+	r.info.Corte, r.meta.Corte = r.corte, r.corte
+	r.corte = ""
 	medir(r, sesion)
 	if m.byDir[r.dir] == r.info.ID {
 		delete(m.byDir, r.dir)

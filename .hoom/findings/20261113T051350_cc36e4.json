@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051350_cc36e4",
+  "created_at": "2026-11-13T05:13:50.425710288Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/material_git.go",
+  "description": "INTRODUCIDO. internal/agentcmd/material_git.go:104-107 reduce los permisos de un hook regular a un unico sufijo :x cuando cualquier bit 0111 esta puesto. Cambiar un hook propiedad del usuario de 0100 a 0001 conserva la misma huella aunque access(X_OK) para el propietario pasa de permitido a denegado; Git deja de ejecutar el hook y el writer evade RuleMaterialDeGit. Debe compararse el modo ejecutable relevante, no solo si algun bit x existe.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

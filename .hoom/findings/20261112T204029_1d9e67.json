@@ -1,0 +1,11 @@
+{
+  "id": "20261112T204029_1d9e67",
+  "created_at": "2026-11-12T20:40:29.458346189Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:932 ejecuta el nuevo git status del guardado sin GIT_NO_REPLACE_OBJECTS ni GIT_GRAFT_FILE. Un refs/replace puede hacer que un cambio ya staged parezca limpio (reproducido: status normal vacío y status con GIT_NO_REPLACE_OBJECTS=1 muestra 'M  a.txt'); sinGuardar devuelve una lista vacía y guardarTarea sale por la línea 903 sin crear el commit exigido por CA-644. Es un caso raro y no pierde el cambio, por eso medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "d40ade54db36cd4c",
+  "task": "autonomia-entre-firmas"
+}

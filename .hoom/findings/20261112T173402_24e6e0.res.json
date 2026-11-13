@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T173402_24e6e0",
+  "as": "corregido",
+  "evidence": "commit 3cf4b4b; test TestHallazgo24e6e0_CA638_CA652_ElWriterQueTocoUnProtegidoYSeCortoNoSeReleva (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T18:37:55.908227277Z"
+}

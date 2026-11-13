@@ -1,0 +1,11 @@
+{
+  "id": "20261112T205353_d6b391",
+  "created_at": "2026-11-12T20:53:53.378958072Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/pilotocmd/autonomia_entre_firmas_r1_test.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/autonomia_entre_firmas_r1_test.go:425 y internal/pilotocmd/autonomia_entre_firmas_r2_test.go:157 reexpresan los escenarios para un filtro clean, pero sus nombres siguen diciendo UnHook y TodoElHook (y los fixtures en :434, r2:179 y r2:187 tambien conservan hook). Esto vuelve enganoso buscar o ejecutar estas regresiones por nombre; renombra las pruebas y los identificadores locales para describir el filtro que realmente ejercitan.",
+  "author": "reviewer@codex",
+  "fingerprint": "d40ade54db36cd4c",
+  "task": "autonomia-entre-firmas"
+}

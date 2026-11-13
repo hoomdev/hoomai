@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172636_a3e8d2",
+  "created_at": "2026-11-12T17:26:36.990578016Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/lanzar/lanzar.go:359-367 vuelve a derivar la tarjeta, pero para Request.Pilot acepta la accion stale mediante PilotAction, que existe en cualquier columna, sin comprobar que la decision de Piloto siga siendo valida para ese estado. Si la persona u otro proceso hace avanzar/acepta la tarjeta entre boardcmd.Piloto y Lanzar, el request viejo todavia puede iniciar el rol anterior incluso en una columna humana o Hecho (pilotActionsOf solo exige un worktree usable). Eso salta el limite humano y puede modificar/gastar sobre una tarjeta ya aceptada; el lanzamiento debe ligar la decision a la huella/estado observado o reevaluar Piloto atomicamente bajo el candado.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

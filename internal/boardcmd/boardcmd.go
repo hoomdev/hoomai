@@ -221,6 +221,25 @@ type Card struct {
 	// (ciclo-de-review-acotado), always present, in every column, Hecho
 	// included.
 	Pendientes Pendientes `json:"pendientes"`
+
+	// PilotActions (autonomia-entre-firmas) are the role actions the pilot
+	// may launch from ANY column, built by Derive exactly like the ones in
+	// Actions (role, pedido, budget, provider options with their ok and
+	// budget, enabled and why): pedir-test-writer, pedir-writer,
+	// pedir-reviewer and pedir-refutador, in that order. Never in the JSON:
+	// the card does not offer them to a person.
+	PilotActions []Action `json:"-"`
+}
+
+// PilotAction returns the card's pilot action with that id (one of
+// PilotActions), if it has it.
+func (c Card) PilotAction(id string) (Action, bool) {
+	for _, a := range c.PilotActions {
+		if a.ID == id {
+			return a, true
+		}
+	}
+	return Action{}, false
 }
 
 // Pendientes are the open findings of the card's task that do not block
@@ -264,6 +283,11 @@ const (
 	ActGuardar         = "guardar"
 	ActSesion          = "sesion"
 	ActTerminal        = "terminal"
+	// ActPedirRefutador launches the refutador (autonomia-entre-firmas). Only
+	// the pilot uses it, inside a round of findings: no column offers it to
+	// a person (it is never in Card.Actions, Studio or `hoom pedir`), only in
+	// Card.PilotActions.
+	ActPedirRefutador = "pedir-refutador"
 )
 
 // Action is one thing a person can do with the card now.

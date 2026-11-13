@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T052022_8fdef2",
+  "as": "corregido",
+  "evidence": "commit f13a049: el error de entradasDe dice 'no pude leer las entradas de lo que guarda'",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T05:47:48.014541907Z"
+}

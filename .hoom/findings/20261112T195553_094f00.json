@@ -1,0 +1,11 @@
+{
+  "id": "20261112T195553_094f00",
+  "created_at": "2026-11-12T19:55:53.509012545Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:78: DeTestsDelTestWriter no comunica que es un predicado sobre un hallazgo y su contrato se implementa construyendo una descripcion ficticia con un NUL para partirla en prefijo y sufijo; en el consumidor hay que reconstruir ese truco para entender que acepta. Renombrarlo como EsHallazgoTestsDelTestWriter y encapsular explicitamente la gramatica del formato haria legible el contrato sin el valor centinela.",
+  "author": "reviewer@codex",
+  "fingerprint": "bd8198506f559f43",
+  "task": "autonomia-entre-firmas"
+}

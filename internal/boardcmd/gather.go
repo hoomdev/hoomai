@@ -92,6 +92,12 @@ func build(g *gatherer) (Board, error) {
 }
 
 // CardFor derives the card of one item.
+//
+// The card's item takes riesgo, auto and presupuesto_usd from the item of
+// the project's main checkout when it has one, and from the item of root
+// otherwise (autonomia-entre-firmas: `auto` and `presupuesto_usd` are read
+// like the riesgo, item.ArbolDelRiesgo), so a `hoom item set` the pilot has
+// not saved counts at once from the task's worktree too.
 func CardFor(root, base, blockOn, slug string, now time.Time) (Card, error) {
 	it, err := loadItem(root, slug)
 	if err != nil {
@@ -146,6 +152,52 @@ type gatherer struct {
 	// card branch's), read once per gatherer
 	defaults     map[string]manifest.RoleDefaults
 	defaultsRead bool
+	// principal: the main checkout of root when it is another tree ("" when
+	// root is the main checkout or there is none), read once
+	// (autonomia-entre-firmas)
+	principal     string
+	principalRead bool
+}
+
+// principalDe is the main checkout of g.root when root is another tree (a
+// task's worktree), "" otherwise. Read once per gatherer.
+func (g *gatherer) principalDe() string {
+	if g.principalRead {
+		return g.principal
+	}
+	g.principalRead = true
+	p, ok := gitx.CheckoutPrincipal(g.root)
+	if !ok {
+		return ""
+	}
+	ra, errA := filepath.EvalSymlinks(p)
+	rb, errB := filepath.EvalSymlinks(g.root)
+	if errA == nil && errB == nil && ra == rb || filepath.Clean(p) == filepath.Clean(g.root) {
+		return ""
+	}
+	g.principal = p
+	return p
+}
+
+// pilotoDelPrincipal takes auto and presupuesto_usd of the card from the
+// main checkout's item when it has one, like the riesgo
+// (autonomia-entre-firmas): a `hoom item set` there counts at once from a
+// task's worktree. One that is there and cannot be read turns the pilot
+// off: what hoom cannot read does not run alone.
+func (g *gatherer) pilotoDelPrincipal(it *item.Item) {
+	p := g.principalDe()
+	if p == "" {
+		return
+	}
+	if _, err := os.Lstat(item.Path(p, it.Slug)); os.IsNotExist(err) {
+		return
+	}
+	pi, err := item.Load(p, it.Slug)
+	if err != nil {
+		it.Auto = ""
+		return
+	}
+	it.Auto, it.PresupuestoUSD = pi.Auto, pi.PresupuestoUSD
 }
 
 // roleDefaults reads agents: and review: of the project's hoom.yaml once.
@@ -464,6 +516,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	if r, ok := g.riesgosDe()[s]; ok {
 		it.Riesgo = r
 	}
+	g.pilotoDelPrincipal(&it)
 	ilegible := g.ilegibles[s]
 	if ilegible == "" {
 		ilegible = g.ilegibles["*"]
@@ -759,12 +812,5 @@ func porcelain(dir string) []string {
 	if err != nil {
 		return nil
 	}
-	var paths []string
-	for _, c := range cambios {
-		paths = append(paths, c.Ruta)
-		if c.XY[0] == 'R' && c.Origen != "" {
-			paths = append(paths, c.Origen)
-		}
-	}
-	return paths
+	return gitx.Rutas(cambios)
 }

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T173402_24e6e0",
+  "created_at": "2026-11-12T17:34:02.128710888Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: internal/agentcmd/agentcmd.go:340-353 calcula el gate aun cuando el run falla o vence, pero cierra siempre en stage run sin respetar Scope.Cuts. Si un writer modifica un test protegido y luego vence su timeout, el sobre queda con corte: tiempo; boardcmd.Piloto entra al relevo antes del caso de scope, SaveTarea commitea la modificación y el siguiente writer fotografía ese contenido manipulado como base. Así se elude tests-del-test-writer y el piloto puede continuar sobre un test aflojado; el cierre debe conservar scope/no-entregable para esta violación aun en el camino de run fallido.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

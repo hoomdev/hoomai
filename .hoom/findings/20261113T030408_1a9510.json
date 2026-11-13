@@ -1,0 +1,11 @@
+{
+  "id": "20261113T030408_1a9510",
+  "created_at": "2026-11-13T03:04:08.526336284Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:1062-1064 vuelve acotado el git commit que ahora ejecuta hooks, pero si el hook post-commit excede TopeGit, Git ya creo el commit y movio HEAD antes de que correrConTope devuelva errTopeGit; guardarTarea retorna error con Commits vacio y el piloto anuncia que no pudo guardar aunque el arbol quedo guardado y la rama avanzo. Es un fallo real en un entorno degradado con post-commit colgado: el resultado y el registro contradicen el estado persistido (un reintento incluso ve el arbol limpio).",
+  "author": "reviewer@codex",
+  "fingerprint": "c88c4d7132b3a7bd",
+  "task": "autonomia-entre-firmas"
+}

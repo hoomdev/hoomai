@@ -1,0 +1,11 @@
+{
+  "id": "20261113T035222_88ed5f",
+  "created_at": "2026-11-13T03:52:22.261263283Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:940-941,1102-1113: cuando revisarCommit detecta que un hook cambió un test protegido, la recuperación solo rebobina la referencia; no restaura ni el archivo en disco ni su entrada del índice. Un pre-commit de un solo uso instalado por el writer puede editar/stagear el test y deshabilitarse: el primer guardado se detiene, pero deja esos bytes en disco/índice; al reintentar, fotoProtegidos los toma como estado inicial, la ruta entra en pedidas y el blob adulterado pasa las comparaciones y se commitea. Así el writer todavía puede cambiar un test protegido tras dos invocaciones, saltándose el control de CA-638; las pruebas nuevas solo comprueban HEAD (internal/pilotocmd/autonomia_entre_firmas_r5_test.go:171 e internal/pilotocmd/guardado_protegido_writer_test.go:31-35), no el estado residual que alimenta el siguiente guardado.",
+  "author": "reviewer@codex",
+  "fingerprint": "fc41075f656eb916",
+  "task": "autonomia-entre-firmas"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T173426_756bf3",
+  "created_at": "2026-11-12T17:34:26.6895413Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/piloto.go",
+  "description": "INTRODUCIDO: internal/boardcmd/piloto.go:485-495 exige StatusDeliverable antes de empezar una ronda desde el último reviewer, incluso cuando ese sobre tiene Ronda=0. La tabla pone 'último sobre reviewer y hay bloqueantes' en el caso 7 antes del caso 8, y la sección Empezar una ronda no exige que ese reviewer sea entregable; la regla de detener cierres anómalos aplica dentro de una ronda. Si el reviewer registra un hallazgo bloqueante y luego su CLI termina con error no temporal, Piloto se detiene como no-entregable en vez de lanzar el refutador/test-writer de la ronda.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

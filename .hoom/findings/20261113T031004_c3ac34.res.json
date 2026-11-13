@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T031004_c3ac34",
+  "as": "corregido",
+  "evidence": "commit dffdc6d (tests de la ronda 5): TestHallazgos54fa4e_ccf2ee_CA644_UnHookDelGuardadoQueNoTerminaSeCorta pasa a un caso por hook, cada uno con su marca corrio-\u003chook\u003e; verde con 91034d0",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T03:30:58.248849725Z"
+}

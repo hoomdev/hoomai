@@ -112,6 +112,17 @@ type Options struct {
 	// Delta (--delta) starts where the task's newest chainable review ended
 	// (its hasta). Never together with Desde.
 	Delta bool
+
+	// autonomia-entre-firmas: the same contract as the fields of the same
+	// name of agentcmd.Options. They go to the review's envelope record
+	// (envelope.Record) as given and change nothing the review does; a lens
+	// run that dies by its timeout leaves `corte: "tiempo"` in that record.
+	Columna     string
+	Regla       string
+	Intento     int
+	Ronda       int
+	Hallazgos   []string
+	Bloqueantes int
 }
 
 // The coverage a review record claims: what the chain of reviews it belongs
@@ -981,6 +992,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		ID: id, Role: role.Slug, Provider: prov.Name(), Task: taskOf(opt), Dir: dir, Spec: opt.Spec,
 		Stage: "run", Step: 1, Steps: len(lentes), Status: envelope.StatusRunning, ExitCode: -1,
 		StartedAt: time.Now().UTC(), PID: os.Getpid(), Pilot: opt.Pilot,
+		Columna: opt.Columna, Regla: opt.Regla, Intento: opt.Intento, Ronda: opt.Ronda,
+		Hallazgos: opt.Hallazgos, Bloqueantes: opt.Bloqueantes, Delta: opt.Delta,
 	}
 	if err := envelope.Write(root, rec); err != nil && opt.Started != nil {
 		// el Studio espera el registro para responder: sin el, no hay sobre
@@ -1041,6 +1054,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		st := stream(mgr, info.ID, w)
 		pass.RunStatus, pass.SessionID = st.Status, st.ProviderSessionID
 		pass.Usage = anotarGasto(lens, st.Usage, &usos, &total)
+		rec.Corte = st.Corte
 
 		if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 			fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)

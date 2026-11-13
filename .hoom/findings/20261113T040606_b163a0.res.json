@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T040606_b163a0",
+  "as": "corregido",
+  "evidence": "commit f9f91bd (tests de la ronda 6): apr5NoGuardo recibe un apr5Antes de apr5Mirar y la comprobacion del protegido es apr5ProtegidoIntacto aparte",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T04:49:15.54698651Z"
+}

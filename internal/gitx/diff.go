@@ -299,6 +299,13 @@ func Cambios(dir string) ([]Cambio, error) {
 		}
 		return nil, fmt.Errorf("git status: %v", err)
 	}
+	return LeerCambios(out), nil
+}
+
+// LeerCambios parses the output of `git status --porcelain -z` (Cambios'
+// listing) into its entries, for a caller that ran that git itself: the
+// pilot's save runs it bounded (itemcmd.TopeGit).
+func LeerCambios(out []byte) []Cambio {
 	var cambios []Cambio
 	fields := strings.Split(string(out), "\x00")
 	for i := 0; i < len(fields); i++ {
@@ -315,7 +322,20 @@ func Cambios(dir string) ([]Cambio, error) {
 		}
 		cambios = append(cambios, c)
 	}
-	return cambios, nil
+	return cambios
+}
+
+// Rutas are the paths of cambios as the card's Unsynced lists them: each
+// entry's path and, for a rename, the path it came from.
+func Rutas(cambios []Cambio) []string {
+	var paths []string
+	for _, c := range cambios {
+		paths = append(paths, c.Ruta)
+		if c.XY[0] == 'R' && c.Origen != "" {
+			paths = append(paths, c.Origen)
+		}
+	}
+	return paths
 }
 
 // CambioSinCommitear is the first path of the evidence's (everything but

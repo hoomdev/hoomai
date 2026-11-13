@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T204029_1d9e67",
+  "as": "corregido",
+  "evidence": "commit 291114a; test TestWriter1d9e67ElGuardadoNoSeEnganaConUnReemplazo (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T02:51:02.314824213Z"
+}

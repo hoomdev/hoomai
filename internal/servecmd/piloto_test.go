@@ -2,9 +2,17 @@
 // (CA-381 y CA-383): el piloto automatico dentro del Studio. Es una cinta
 // transportadora, no un orquestador: cuando la funcion de un trabajo que
 // lanzo el Studio vuelve, el Studio lee el registro del sobre, vuelve a
-// derivar la tarjeta, llama a boardcmd.Pilot y, si la tarjeta tiene
+// derivar la tarjeta, llama a boardcmd.Piloto y, si la tarjeta tiene
 // auto: hasta-humano, escribe su decision en el log del sobre que cerro y
 // lanza (o no) el rol siguiente con la MISMA funcion que POST .../launch.
+//
+// Re-expresados por .hoom/specs/autonomia-entre-firmas.md (CA-644, CA-661):
+// la vuelta del piloto primero guarda lo que el worktree de la tarea tiene
+// sin guardar (y lo dice en una linea `guarda el trabajo de la tarjeta`
+// cuando commiteo), y antes de cada lanzamiento escribe
+// `piloto automatico: regla <regla>`. Con el spec sin guardar (CA-381,
+// CA-497) o el codigo del writer sin commitear (CA-416) la cinta ya no se
+// detiene: guarda y sigue.
 //
 // Los CLIs de IA son falsos, en el PATH minimo de lanzar_test.go (lnPATH):
 // anotan sus argumentos y hacen lo justo para que el sobre cierre como el
@@ -21,6 +29,7 @@ package servecmd
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -320,6 +329,102 @@ func spPersona(t *testing.T, ca, root, id string) {
 	}
 }
 
+// spGuarda es la linea del piloto despues de un guardado que commiteo
+// (autonomia-entre-firmas, CA-644): `guarda el trabajo de la tarjeta: <commit>`.
+var spGuarda = regexp.MustCompile(`^piloto automatico: guarda el trabajo de la tarjeta: ([0-9a-f]{7,40})$`)
+
+// spDecision espera, en el log del sobre id, la linea de la decision del
+// piloto (pide al, se detiene, no pudo lanzar al) y devuelve las lineas del
+// piloto de esa vuelta sin la de guardar, que si esta va primero y una sola
+// vez (CA-644); el commit que nombra es el segundo valor ("" sin ella).
+func spDecision(t *testing.T, ca, root, id, que string) ([]string, string) {
+	t.Helper()
+	esDecision := func(l string) bool {
+		for _, p := range []string{"pide al ", "se detiene: ", "no pudo lanzar al "} {
+			if strings.HasPrefix(l, spPrefijo+p) {
+				return true
+			}
+		}
+		return false
+	}
+	if !spEsperar(20*time.Second, func() bool {
+		for _, l := range spLineas(root, id) {
+			if esDecision(l) {
+				return true
+			}
+		}
+		return false
+	}) {
+		t.Fatalf("%s: %s: el log del sobre %s no gano la linea de una decision del piloto: %q\nlog:\n%s", ca, que, id, spLineas(root, id), spLog(root, id))
+	}
+	ls, commit := spLineas(root, id), ""
+	if len(ls) > 0 {
+		if m := spGuarda.FindStringSubmatch(ls[0]); m != nil {
+			ls, commit = ls[1:], m[1]
+		}
+	}
+	for _, l := range ls {
+		if strings.Contains(l, "guarda el trabajo de la tarjeta") {
+			t.Fatalf("%s: %s: la linea de guardar va antes de decidir, una vez y con su commit: %q", ca, que, spLineas(root, id))
+		}
+	}
+	return ls, commit
+}
+
+// spLanzo exige que la vuelta del sobre id haya lanzado con la regla regla:
+// `regla <regla>` y despues la linea de pedir (CA-661), y devuelve esta.
+func spLanzo(t *testing.T, ca, root, id, que, regla string) string {
+	t.Helper()
+	ls, _ := spDecision(t, ca, root, id, que)
+	if len(ls) != 2 || ls[0] != spPrefijo+"regla "+regla {
+		t.Fatalf("%s: %s: antes de lanzar el piloto escribe %q y despues la linea de pedir: %q", ca, que, spPrefijo+"regla "+regla, spLineas(root, id))
+	}
+	return ls[1]
+}
+
+// spSeDetuvo exige que la vuelta del sobre id se haya detenido, con una sola
+// linea de decision, y la devuelve.
+func spSeDetuvo(t *testing.T, ca, root, id, que string) string {
+	t.Helper()
+	ls, _ := spDecision(t, ca, root, id, que)
+	if len(ls) != 1 || !strings.HasPrefix(ls[0], spPrefijo+"se detiene: ") {
+		t.Fatalf("%s: %s: el piloto se detiene y lo escribe una vez: %q", ca, que, spLineas(root, id))
+	}
+	return ls[0]
+}
+
+// spGit corre git en dir y devuelve su salida.
+func spGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// spGuardado exige que commit sea el guardado del piloto (CA-644): en la rama
+// hoom/<slug> del worktree, con el mensaje fijo, y que traiga ruta.
+func spGuardado(t *testing.T, ca, wt, slug, commit, ruta string) {
+	t.Helper()
+	if commit == "" {
+		t.Fatalf("%s: el piloto guarda lo que habia sin guardar y lo dice: `guarda el trabajo de la tarjeta: <commit>`", ca)
+	}
+	full := spGit(t, wt, "rev-parse", commit+"^{commit}")
+	if !strings.HasPrefix(full, commit) {
+		t.Fatalf("%s: el commit de la linea %s es %s", ca, commit, full)
+	}
+	if msg := spGit(t, wt, "log", "-1", "--format=%s", full); msg != "hoom: guardar la tarjeta "+slug {
+		t.Fatalf("%s: el guardado lleva el mensaje %q, lleva %q", ca, "hoom: guardar la tarjeta "+slug, msg)
+	}
+	if !strings.Contains("\n"+spGit(t, wt, "branch", "--contains", full, "--format=%(refname:short)")+"\n", "\nhoom/"+slug+"\n") {
+		t.Fatalf("%s: el guardado %s esta en la rama hoom/%s", ca, full, slug)
+	}
+	if archivos := spGit(t, wt, "show", "--name-only", "--format=", full); !strings.Contains("\n"+archivos+"\n", "\n"+ruta+"\n") {
+		t.Fatalf("%s: el guardado %s trae %s: %q", ca, full, ruta, archivos)
+	}
+}
+
 // ---------------------------------------------------------------------------
 
 // CA-381: una persona pide al writer (codex, sin tope) sobre una tarjeta con
@@ -331,6 +436,10 @@ func spPersona(t *testing.T, ca, root, id string) {
 // "piloto automatico: pide al reviewer con claude (1.25 USD): sobre <id>".
 // Cuando la review termina, la cinta vuelve a mirar y se detiene (lo escribe
 // en el log de la review); nada mas se lanza.
+//
+// Re-expresado por autonomia-entre-firmas (CA-644, CA-661): la linea de
+// pedir va despues de `piloto automatico: regla cadena`, y cada vuelta
+// puede abrir con la de guardar (el veredicto del writer, la review).
 func TestCA381_LaCintaPideAlReviewerSinOtroPOST(t *testing.T) {
 	f := lnPATH(t)
 	spCLI(t, f, "codex", spEscribeCodigo, false)
@@ -355,8 +464,8 @@ func TestCA381_LaCintaPideAlReviewerSinOtroPOST(t *testing.T) {
 	}
 	spPiloto(t, "CA-381", root, segundo)
 
-	spEsperarLinea(t, "CA-381", root, r.EnvelopeID, "la cinta lanzo al reviewer")
-	spRevisarPide(t, "CA-381", spUnaLinea(t, "CA-381", root, r.EnvelopeID), "reviewer", "claude", 1.25, segundo.ID)
+	spRevisarPide(t, "CA-381", spLanzo(t, "CA-381", root, r.EnvelopeID, "la cinta lanzo al reviewer", boardcmd.ReglaCadena),
+		"reviewer", "claude", 1.25, segundo.ID)
 
 	// la review corre con el tope que propone la accion (lo que queda / 4)
 	ll := f.llamadas(t, "claude")
@@ -373,32 +482,31 @@ func TestCA381_LaCintaPideAlReviewerSinOtroPOST(t *testing.T) {
 	}
 
 	// la review tambien pasa por la cinta cuando termina: se detiene
-	l := spEsperarLinea(t, "CA-381", root, segundo.ID, "la review que lanzo la cinta termino")
+	spSeDetuvo(t, "CA-381", root, segundo.ID, "la review que lanzo la cinta termino")
 	lnEsperarLanzamientos(t, "CA-381", s)
-	if !strings.HasPrefix(l, spPrefijo+"se detiene: ") || spUnaLinea(t, "CA-381", root, segundo.ID) != l {
-		t.Fatalf("CA-381: despues de la review la cinta se detiene y lo escribe una vez: %q", spLineas(root, segundo.ID))
-	}
 	if otros := spOtros(root, r.EnvelopeID, segundo.ID); len(otros) != 0 {
 		t.Fatalf("CA-381: la cinta no lanza nada despues de la review: %+v", otros)
 	}
 }
 
-// CA-416 (caso limite del spec review-aislada-y-modelo-elegido, enmienda 4:
-// "La cinta del Studio que lanza la review sobre lo que dejo el writer sin
-// commitear: la review se niega y la cinta se detiene hasta que alguien
-// commitee") sobre la cinta de CA-381: el mismo writer entregable que en
-// TestCA381_LaCintaPideAlReviewerSinOtroPOST, pero que deja cinta.go SIN
-// commitear. La cinta intenta pedir al reviewer, la review se niega por
-// arbol sucio antes de su primera pasada: claude nunca corre, ningun sobre
-// de reviewer llega a una pasada, y el log del writer dice que no se pudo
-// lanzar al reviewer con el texto de la negativa (la ruta cinta.go).
-func TestCA416_LaCintaSeDetieneSiElWriterNoCommitea(t *testing.T) {
+// CA-416 (caso limite del spec review-aislada-y-modelo-elegido, enmienda 4),
+// re-expresado por autonomia-entre-firmas (CA-644): "La cinta del Studio que
+// lanza la review sobre lo que dejo el writer sin commitear" ya no se
+// detiene: guarda y sigue. El mismo writer entregable que en
+// TestCA381_LaCintaPideAlReviewerSinOtroPOST deja cinta.go SIN commitear; al
+// cerrar, la vuelta del piloto commitea lo no guardado del worktree en
+// hoom/<slug> con `hoom: guardar la tarjeta <slug>` (nada en el checkout
+// principal), lo dice en el log del writer, y pide al reviewer con la regla
+// cadena: la review corre sobre lo commiteado, sin la negativa del arbol
+// sucio.
+func TestCA416_CA644_LaCintaGuardaLoDelWriterYPideLaReview(t *testing.T) {
 	f := lnPATH(t)
 	spCLI(t, f, "codex", spEscribeCodigoSinCommitear, false)
 	f.cli(t, "claude", false)
 	root := tbProyecto(t)
 	const slug = "sin-commitear"
-	spCartaWriter(t, "CA-416", root, slug, spPresupuesto+spAuto)
+	wt := spCartaWriter(t, "CA-416", root, slug, spPresupuesto+spAuto)
+	headPrincipal := spGit(t, root, "rev-parse", "HEAD")
 	s := lnServidor(t, root, f)
 
 	r := lnAceptado(t, "CA-416", lnLaunch(t, s, slug, s.Token(),
@@ -409,29 +517,37 @@ func TestCA416_LaCintaSeDetieneSiElWriterNoCommitea(t *testing.T) {
 	}
 	spPersona(t, "CA-416", root, r.EnvelopeID)
 
-	const sucio = "la review revisa solo lo commiteado y hay cambios sin commitear (cinta.go)"
-	if !spEsperar(20*time.Second, func() bool {
-		for _, l := range spLineas(root, r.EnvelopeID) {
-			if strings.Contains(l, sucio) {
-				return true
-			}
-		}
-		return false
-	}) {
-		t.Fatalf("CA-416: la cinta se detiene y el log del writer dice que no pudo lanzar al reviewer con %q; lineas del piloto: %q\nlog:\n%s",
-			sucio, spLineas(root, r.EnvelopeID), spLog(root, r.EnvelopeID))
+	segundo := spEsperarOtro(t, "CA-416", root, "el piloto guardo lo del writer y pide la review", r.EnvelopeID)
+	ls, commit := spDecision(t, "CA-416", root, r.EnvelopeID, "el writer dejo cinta.go sin commitear")
+	spGuardado(t, "CA-644", wt, slug, commit, "cinta.go")
+	if len(ls) != 2 || ls[0] != spPrefijo+"regla "+boardcmd.ReglaCadena {
+		t.Fatalf("CA-416: despues de guardar, regla cadena y la linea de pedir: %q", spLineas(root, r.EnvelopeID))
 	}
+	segundo = spCerrado(t, "CA-416", root, segundo.ID)
+	spRevisarPide(t, "CA-416", ls[1], "reviewer", "claude", 1.25, segundo.ID)
+	if segundo.Role != "reviewer" || segundo.Provider != "claude" || segundo.Task != slug {
+		t.Fatalf("CA-416: la cinta pide al reviewer de la tabla con claude: %+v", segundo)
+	}
+	spPiloto(t, "CA-416", root, segundo)
 	lnEsperarLanzamientos(t, "CA-416", s)
-	if n := len(f.llamadas(t, "claude")); n != 0 {
-		t.Fatalf("CA-416: con lo del writer sin commitear la review no llega a ninguna pasada: claude corrio %d veces", n)
-	}
-	for _, otro := range spOtros(root, r.EnvelopeID) {
-		if otro.Role == "reviewer" && (otro.RunID != "" || otro.Status == envelope.StatusDeliverable) {
-			t.Fatalf("CA-416: ningun sobre de reviewer llega a una pasada: %+v", otro)
+
+	const sucio = "la review revisa solo lo commiteado y hay cambios sin commitear (cinta.go)"
+	for _, id := range []string{r.EnvelopeID, segundo.ID} {
+		if strings.Contains(spLog(root, id), sucio) {
+			t.Fatalf("CA-416: con lo del writer guardado la review no se niega por el arbol sucio:\n%s", spLog(root, id))
 		}
+	}
+	if n := len(f.llamadas(t, "claude")); n == 0 {
+		t.Fatal("CA-416: la review que pidio la cinta corre sus pasadas con claude")
 	}
 	if n := len(f.llamadas(t, "codex")); n != 1 {
 		t.Fatalf("CA-416: la cinta no reintenta al writer: codex corrio %d veces", n)
+	}
+	if h := spGit(t, root, "rev-parse", "HEAD"); h != headPrincipal {
+		t.Fatalf("CA-644: el piloto no commitea en el checkout principal: HEAD %s -> %s", headPrincipal, h)
+	}
+	if b := spGit(t, root, "rev-parse", "--abbrev-ref", "HEAD"); b != "main" {
+		t.Fatalf("CA-644: el checkout principal sigue en main: %s", b)
 	}
 }
 
@@ -468,6 +584,12 @@ func spEscribeYGuardaSpec(fuente, slug string) string {
 // test-writer con el Why del contrato (caso 2) y no relanza: claude corrio
 // una vez como arquitecto y una como test-writer (con el spec en el commit,
 // el arbol ciego se arma y su CLI llega a correr), y nada mas.
+//
+// Re-expresado por autonomia-entre-firmas (CA-642, CA-644, CA-661): el corte
+// es el caso 8 de la tabla nueva, con el Why exacto de hoy; la linea de pedir
+// va despues de `regla cadena` y cada vuelta puede abrir con la de guardar.
+// Que la cinta deje pasar el rojo ESPERADO del test-writer (un veredicto
+// rojo de un sobre entregable) lo fijan los tests de boardcmd (CA-643).
 func TestCA381_LaCintaPideAlTestWriterYSeDetieneAnteSuRojo(t *testing.T) {
 	f := lnPATH(t)
 	root := tbProyecto(t)
@@ -490,16 +612,16 @@ func TestCA381_LaCintaPideAlTestWriterYSeDetieneAnteSuRojo(t *testing.T) {
 		t.Fatalf("CA-381: la cinta pide al test-writer de la tabla con el provider del arquitecto: %+v", segundo)
 	}
 	spPiloto(t, "CA-381", root, segundo)
-	spEsperarLinea(t, "CA-381", root, r.EnvelopeID, "la cinta lanzo al test-writer")
-	spRevisarPide(t, "CA-381", spUnaLinea(t, "CA-381", root, r.EnvelopeID), "test-writer", "claude", 5, segundo.ID)
+	spRevisarPide(t, "CA-381", spLanzo(t, "CA-381", root, r.EnvelopeID, "la cinta lanzo al test-writer", boardcmd.ReglaCadena),
+		"test-writer", "claude", 5, segundo.ID)
 
 	if segundo.Status != envelope.StatusNotDeliverable {
 		t.Fatalf("CA-381: fixture: el test-writer cuyo run sale 1 cierra no-entregable: %+v\n%s", segundo, spLog(root, segundo.ID))
 	}
 	const quiere = spPrefijo + "se detiene: el trabajo del test-writer no cerro entregable (no-entregable): el piloto se detiene ante un rojo"
-	l := spEsperarLinea(t, "CA-381", root, segundo.ID, "el test-writer que lanzo la cinta cerro no-entregable")
+	l := spSeDetuvo(t, "CA-381", root, segundo.ID, "el test-writer que lanzo la cinta cerro no-entregable")
 	lnEsperarLanzamientos(t, "CA-381", s)
-	if l != quiere || spUnaLinea(t, "CA-381", root, segundo.ID) != quiere {
+	if l != quiere {
 		t.Fatalf("CA-381: ante un rojo la cinta escribe\n  %q\nfue\n  %q", quiere, spLineas(root, segundo.ID))
 	}
 	if otros := spOtros(root, r.EnvelopeID, segundo.ID); len(otros) != 0 {
@@ -525,21 +647,22 @@ func TestCA381_LaCintaPideAlTestWriterYSeDetieneAnteSuRojo(t *testing.T) {
 }
 
 // CA-381 y CA-497 (verbos-de-la-tarjeta re-expresa el tramo arquitecto ->
-// test-writer de CA-381): el mismo arquitecto desde Backlog, pero deja el spec
-// en su espacio de trabajo SIN guardarlo. La tarjeta salta a Test-writer y
-// pedir-test-writer queda deshabilitada, porque el test-writer trabaja con lo
-// guardado. La cinta, ante esa accion deshabilitada (caso 9 de la tabla de
-// Pilot: su why), no pide al test-writer: se detiene, y el log del sobre del
-// arquitecto gana exactamente una linea del piloto,
-// "piloto automatico: se detiene: el spec tiene cambios sin guardar y el
-// test-writer trabaja con lo guardado: guarda primero". No hay sobre de
-// test-writer y claude corrio una sola vez (el arquitecto).
-func TestCA381_CA497_LaCintaSeDetieneConElSpecSinGuardar(t *testing.T) {
+// test-writer de CA-381), re-expresados por autonomia-entre-firmas (CA-644):
+// el mismo arquitecto desde Backlog deja el spec en su espacio de trabajo SIN
+// guardarlo. Antes la cinta se detenia ("el spec tiene cambios sin
+// guardar..."); ahora la vuelta del piloto guarda primero: commitea el spec en
+// hoom/<slug> con `hoom: guardar la tarjeta <slug>` (nada en el checkout
+// principal), la tarjeta queda en Test-writer con pedir-test-writer
+// habilitada, y el piloto pide al test-writer con la regla cadena, el provider
+// del arquitecto y lo que queda (5 USD). El log del arquitecto gana, en orden,
+// la linea de guardar, `regla cadena` y la de pedir.
+func TestCA381_CA497_CA644_LaCintaGuardaElSpecYPideAlTestWriter(t *testing.T) {
 	f := lnPATH(t)
 	root := tbProyecto(t)
 	const slug = "sin-guardar"
 	fuente := spCartaBacklogAprobada(t, "CA-497", root, slug, spPresupuesto+spAuto)
 	spCLI(t, f, "claude", spEscribeSpec(fuente, slug), false)
+	headPrincipal := spGit(t, root, "rev-parse", "HEAD")
 	s := lnServidor(t, root, f)
 
 	r := lnAceptado(t, "CA-497", lnLaunch(t, s, slug, s.Token(),
@@ -550,25 +673,38 @@ func TestCA381_CA497_LaCintaSeDetieneConElSpecSinGuardar(t *testing.T) {
 	}
 	spPersona(t, "CA-497", root, r.EnvelopeID)
 
-	const why = "el spec tiene cambios sin guardar y el test-writer trabaja con lo guardado: guarda primero"
-	const quiere = spPrefijo + "se detiene: " + why
-	l := spEsperarLinea(t, "CA-497", root, r.EnvelopeID, "el arquitecto dejo el spec sin guardar")
+	segundo := spEsperarOtro(t, "CA-497", root, "el piloto guardo el spec y pide al test-writer", r.EnvelopeID)
+	ls, commit := spDecision(t, "CA-497", root, r.EnvelopeID, "el arquitecto dejo el spec sin guardar")
+	wt := filepath.Join(root, ".hoom", "worktrees", slug)
+	spGuardado(t, "CA-644", wt, slug, commit, ".hoom/specs/"+slug+".md")
+	if len(ls) != 2 || ls[0] != spPrefijo+"regla "+boardcmd.ReglaCadena {
+		t.Fatalf("CA-497: despues de guardar, regla cadena y la linea de pedir: %q", spLineas(root, r.EnvelopeID))
+	}
+	segundo = spCerrado(t, "CA-497", root, segundo.ID)
+	spRevisarPide(t, "CA-497", ls[1], "test-writer", "claude", 5, segundo.ID)
+	if segundo.Role != "test-writer" || segundo.Provider != "claude" || segundo.Task != slug {
+		t.Fatalf("CA-497: con el spec guardado la cinta pide al test-writer con el provider del arquitecto: %+v", segundo)
+	}
+	spPiloto(t, "CA-497", root, segundo)
+	if crudo := spCrudo(t, root, segundo.ID); strings.TrimSpace(string(crudo["regla"])) != `"`+boardcmd.ReglaCadena+`"` ||
+		strings.TrimSpace(string(crudo["columna"])) != `"`+boardcmd.ColTestWriter+`"` {
+		t.Fatalf("CA-661: el sobre que lanzo el piloto lleva su regla y la columna al lanzar: %s %s", crudo["regla"], crudo["columna"])
+	}
 	lnEsperarLanzamientos(t, "CA-497", s)
-	if l != quiere || spUnaLinea(t, "CA-497", root, r.EnvelopeID) != quiere {
-		t.Fatalf("CA-497: con el spec sin guardar la cinta no pide al test-writer: se detiene y escribe\n  %q\nfue\n  %q", quiere, spLineas(root, r.EnvelopeID))
-	}
-	if otros := spOtros(root, r.EnvelopeID); len(otros) != 0 {
-		t.Fatalf("CA-497: con el spec sin guardar la cinta no lanza ningun sobre (tampoco el del test-writer): %+v", otros)
-	}
-	if n := len(f.llamadas(t, "claude")); n != 1 {
-		t.Fatalf("CA-497: con el spec sin guardar solo corre el arquitecto: claude corrio %d veces", n)
-	}
 
-	// la tarjeta quedo en Test-writer con pedir-test-writer deshabilitada
-	// por ese mismo why
-	c := spColumna(t, "CA-497", root, slug, boardcmd.ColTestWriter)
-	if a, ok := lnAccion(c, boardcmd.ActPedirTestWriter); !ok || a.Enabled || a.Why != why {
-		t.Fatalf("CA-497: con el spec sin guardar pedir-test-writer esta deshabilitada con %q: %+v (ok=%v)", why, a, ok)
+	// el spec guardado ya no es "cambios sin guardar"
+	const why = "el spec tiene cambios sin guardar y el test-writer trabaja con lo guardado: guarda primero"
+	if strings.Contains(spLog(root, r.EnvelopeID), why) {
+		t.Fatalf("CA-497: con el spec guardado por el piloto la cinta no se detiene por el spec sin guardar:\n%s", spLog(root, r.EnvelopeID))
+	}
+	if st := spGit(t, wt, "status", "--porcelain", "--", ".hoom/specs/"+slug+".md"); st != "" {
+		t.Fatalf("CA-644: el spec queda guardado en la rama de la tarea: %q", st)
+	}
+	if n := len(f.llamadas(t, "claude")); n != 2 {
+		t.Fatalf("CA-497: claude corrio como arquitecto y como el test-writer que pidio la cinta: %d veces", n)
+	}
+	if h := spGit(t, root, "rev-parse", "HEAD"); h != headPrincipal {
+		t.Fatalf("CA-644: el piloto no commitea en el checkout principal: HEAD %s -> %s", headPrincipal, h)
 	}
 }
 
@@ -679,6 +815,10 @@ func TestCA381_SinAutoLaCintaNoHaceNada(t *testing.T) {
 // "piloto automatico: no pudo lanzar al reviewer: <error>". El candado es el
 // del endpoint launch: la cinta lanza con la misma funcion y sus mismas
 // validaciones.
+//
+// Re-expresado por autonomia-entre-firmas (CA-644, CA-661): la vuelta puede
+// abrir con la linea de guardar y escribir `regla cadena` antes de intentar
+// el lanzamiento; la linea de la decision sigue siendo una y es la de hoy.
 func TestCA381_LaCintaQueChocaConElCandadoLoEscribe(t *testing.T) {
 	f := lnPATH(t)
 	spCLI(t, f, "codex", spEscribeCodigo, true)
@@ -711,11 +851,14 @@ func TestCA381_LaCintaQueChocaConElCandadoLoEscribe(t *testing.T) {
 	if primero.Status != envelope.StatusDeliverable {
 		t.Fatalf("CA-381: fixture: el writer de codex cierra entregable: %+v\n%s", primero, spLog(root, r.EnvelopeID))
 	}
-	l := spEsperarLinea(t, "CA-381", root, r.EnvelopeID, "la cinta choco con el candado de la tarjeta")
+	ls, _ := spDecision(t, "CA-381", root, r.EnvelopeID, "la cinta choco con el candado de la tarjeta")
 	soltar()
 	lnEsperarLanzamientos(t, "CA-381", s)
 	const pre = spPrefijo + "no pudo lanzar al reviewer: "
-	if !strings.HasPrefix(l, pre) || strings.TrimSpace(strings.TrimPrefix(l, pre)) == "" || spUnaLinea(t, "CA-381", root, r.EnvelopeID) != l {
+	if len(ls) == 2 && ls[0] == spPrefijo+"regla "+boardcmd.ReglaCadena {
+		ls = ls[1:]
+	}
+	if len(ls) != 1 || !strings.HasPrefix(ls[0], pre) || strings.TrimSpace(strings.TrimPrefix(ls[0], pre)) == "" {
 		t.Fatalf("CA-381: con el candado tomado la cinta escribe %q con el error, una vez: %q", pre+"<error>", spLineas(root, r.EnvelopeID))
 	}
 	if otros := spOtros(root, r.EnvelopeID); len(otros) != 0 {

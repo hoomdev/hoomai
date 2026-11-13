@@ -77,6 +77,17 @@ y aceptar son de una persona.
 - Que la cinta siga sola después de un `hoom pedir` de la terminal: para eso
   está `hoom piloto`.
 - Sesiones vencidas de las CLI, Antigravity, contenedores y el remoto.
+- Contener a un writer que se propone burlar los controles dejando código
+  que corra después de su run. Por ejemplo:
+  - un hook de git;
+  - un script o programa que un hook o un filtro de git llama;
+  - un symlink o un cambio de permisos;
+  - un include o la config global de git;
+  - un proceso que escapa de su grupo.
+  Esta spec cubre al writer que se pasa de celo, como el que corrige un test
+  protegido "porque estaba mal": se mira lo que cambió el run y lo que
+  commitea el guardado. Contenerlo es una spec aparte: que escriba solo
+  dentro del worktree y que ningún proceso suyo sobreviva al run.
 
 ## Contratos
 
@@ -592,3 +603,7 @@ repetir un lanzamiento, el `pedido` guardado en su registro.
   acepta.
 - **Sin aviso al terminar.** Hay que mirar el tablero para saber que la
   tarjeta llegó a Tu aceptación o que se detuvo.
+- **El guardado del piloto corre los hooks del repo.** Son controles del
+  proyecto, como un detector de secretos, y corren como en cualquier commit.
+  Un writer que deja código para que un hook lo ejecute después de su run
+  queda fuera de esta spec hasta la spec de contención (ver No-goals).

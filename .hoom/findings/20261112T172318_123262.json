@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172318_123262",
+  "created_at": "2026-11-12T17:23:18.658548081Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: internal/agentcmd/scope.go:159-163 aplica tests-del-test-writer comparando solo los bytes actuales del worktree contra la foto previa, sin comparar el blob commiteado/indexado del test protegido. Un writer con shell puede commitear un test debilitado, restaurar en el worktree los bytes originales para que FotoProtegidos coincida y marcar la ruta skip-worktree/assume-unchanged; el scope ve el cambio de rama como permitido si agents.writer.write incluye tests, verify ejecuta la copia original y el arbol queda aparentemente limpio, pero HEAD conserva el test debilitado. Esto contradice la garantia para cambios commiteados y permite saltarse el control deterministico; la regla debe comparar tambien el contenido protegido en HEAD/indice (y detectar bits que oculten diferencias), independientemente de Allow.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T203544_64fc3f",
+  "created_at": "2026-11-12T20:35:44.514592348Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1005 y internal/itemcmd/itemcmd.go:1069: SaveTarea fuerza core.hooksPath a un directorio vacio para todos sus git y agrega --no-verify al commit. Por eso el piloto commitea cambios que los controles del repositorio (por ejemplo un pre-commit detector de secretos, un commit-msg de politica o un reference-transaction) habrian rechazado; el spec autoriza guardar el trabajo, pero no saltarse esos controles. Es un bypass determinista en cada guardado automatico y puede dejar datos o cambios prohibidos en la historia aun si un gate posterior falla. Patronizable: agregar una regla Semgrep custom que marque --no-verify o core.hooksPath en el guardado salvo una excepcion aprobada explicitamente.",
+  "author": "reviewer@codex",
+  "fingerprint": "d40ade54db36cd4c",
+  "task": "autonomia-entre-firmas"
+}

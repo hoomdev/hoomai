@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T203544_64fc3f",
+  "as": "corregido",
+  "evidence": "commit e45b59f; test TestHallazgo64fc3f_CA644_UnHookQueRechazaHaceFallarElGuardado (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T02:51:02.300533451Z"
+}

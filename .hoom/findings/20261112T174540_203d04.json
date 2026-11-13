@@ -1,0 +1,11 @@
+{
+  "id": "20261112T174540_203d04",
+  "created_at": "2026-11-12T17:45:40.830666205Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/piloto.go",
+  "description": "INTRODUCIDO: internal/boardcmd/piloto.go:140 afirma que una review con Delta ocurre siempre dentro de una ronda, pero la ruta normal cadena tambien calcula Delta desde Card.Next en las lineas 305-308, tal como exige CA-645. El comentario extenso que documenta Piloto contradice su propia implementacion y puede inducir a mantener mal esa condicion; debe describir por separado Delta de cadena y Delta de ronda.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

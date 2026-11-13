@@ -1,0 +1,11 @@
+{
+  "id": "20261113T035148_e6461a",
+  "created_at": "2026-11-13T03:51:48.21244996Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1103-1111: deshacer trata cualquier HEAD distinto de antes como si fuera exclusivamente el commit fallido y ejecuta update-ref sobre el HEAD actual. El candado de SaveTarea solo coordina procesos de hoom y cada comando git libera sus propios locks; por eso un commit concurrente entre comandos puede ser rebobinado hasta antes, y un hook que cambie o desprenda HEAD puede hacer que se mueva la referencia equivocada mientras la rama de la tarea conserva el commit rechazado. Es pérdida/alteración de trabajo provocable: el rollback debe comprobar la identidad de la referencia y que el valor a retirar sea el SHA creado por este guardado.",
+  "author": "reviewer@codex",
+  "fingerprint": "fc41075f656eb916",
+  "task": "autonomia-entre-firmas"
+}

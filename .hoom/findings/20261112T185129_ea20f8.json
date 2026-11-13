@@ -1,0 +1,11 @@
+{
+  "id": "20261112T185129_ea20f8",
+  "created_at": "2026-11-12T18:51:29.952700023Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO — internal/pilotocmd/pilotocmd.go:618: protegidosTocados llama finding.List(..., true), que excluye hallazgos ya resueltos aunque la regla y el comentario dicen que su estado no importa. Si un writer toca un test protegido, vence por timeout y el hallazgo del gate se cierra antes de la siguiente vuelta, TocoProtegidos queda false; el caso 5 lo releva sobre el arbol cuyo test ya fue alterado y el segundo run toma esa alteracion como baseline. Asi el piloto puede continuar despues de una manipulacion que CA-638/CA-652 exige no reintentar.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

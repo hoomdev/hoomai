@@ -1,0 +1,11 @@
+{
+  "id": "20261113T052022_8fdef2",
+  "created_at": "2026-11-13T05:20:22.08515887Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1146: entradasDe ahora inspecciona todas las rutas pedidas del guardado, no solo tests protegidos (llamadas en 938, 1096 y 1100), pero su error sigue diciendo 'tests protegidos'. Si falla sobre un archivo de codigo ordinario, el diagnostico dirige al mantenedor a una invariante distinta; conviene generalizar el texto del error para reflejar el contrato actual del helper.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

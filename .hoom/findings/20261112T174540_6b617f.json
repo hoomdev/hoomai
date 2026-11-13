@@ -1,0 +1,11 @@
+{
+  "id": "20261112T174540_6b617f",
+  "created_at": "2026-11-12T17:45:40.68890166Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:603 divide el mismo comando item set entre SetCambios y el Set legacy segun los flags; ambas rutas repiten la autorizacion, la seleccion del item principal, la derivacion de la tarjeta y el control de Hecho (vease tambien lineas 174 y 231). Una correccion futura de esas invariantes debe aplicarse en dos flujos; conviene que la ruta de riesgo solo delegue en la operacion general.",
+  "author": "reviewer@codex",
+  "fingerprint": "c30fe260a3cd9bd1",
+  "task": "autonomia-entre-firmas"
+}

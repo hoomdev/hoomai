@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T205209_7b1645",
+  "as": "corregido",
+  "evidence": "commit e973c52; test TestWriterD49489GitTopeConservaElFinalDeLaSalida con -count=200 (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T02:51:02.307560756Z"
+}

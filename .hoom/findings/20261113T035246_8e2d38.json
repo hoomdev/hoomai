@@ -1,0 +1,11 @@
+{
+  "id": "20261113T035246_8e2d38",
+  "created_at": "2026-11-13T03:52:46.556510354Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1096-1113: la única recuperación de un commit que revisarCommit rechaza es git update-ref y el propio código reconoce que allí corre el hook reference-transaction del repositorio. El writer puede instalar ese hook fuera del piso de scope (la prueba nueva ya demuestra esa capacidad para pre-commit), permitir la transacción del commit y rechazar solo la transacción posterior de rollback; deshacer devuelve error pero deja en la rama el commit que coló el test protegido o rutas extra. Esto permite saltarse directamente el control de tests protegidos y contradice que un guardado fallido no deje commit; la operación de recuperación no puede depender de un hook controlable por el mismo writer del que se protege.",
+  "author": "reviewer@codex",
+  "fingerprint": "fc41075f656eb916",
+  "task": "autonomia-entre-firmas"
+}

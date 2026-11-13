@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T172149_8c69af",
+  "as": "corregido",
+  "evidence": "commit f4e0568; test TestHallazgo8c69af_CA642_ElPilotoNoLanzaSiSeApagoElAuto (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T18:37:55.898700588Z"
+}

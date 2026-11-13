@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -42,7 +43,220 @@ const (
 	// manipulacion, y por la misma razon: certificar un arbol donde el rol
 	// pudo mirar lo que no debia seria certificar la trampa.
 	RuleIsolation = "aislamiento"
+	// RuleTestsDelTestWriter (autonomia-entre-firmas): a role of shape
+	// codigo (the writer) changed, removed or renamed a protected test of
+	// its task (Policy.Protegidos). It cuts like RuleTampering: the envelope
+	// closes in scope, no-entregable, exit 1, with no verify, and its note
+	// is NotaTestsDelTestWriter — or the tampering note when the same run
+	// also tampered with the evidence. Its Violation.Detail is
+	// DetalleTestsDelTestWriter, so its finding (high, author
+	// `hoom gate de scope`, the gate's usual format) says
+	// `tests-del-test-writer: el rol <rol> escribio <ruta> - los tests del test-writer no los cambia el writer: pide de nuevo al test-writer`.
+	RuleTestsDelTestWriter = "tests-del-test-writer"
 )
+
+// NotaTestsDelTestWriter is the note of an envelope cut by
+// RuleTestsDelTestWriter.
+const NotaTestsDelTestWriter = "el writer toco los tests del test-writer: no se emite veredicto sobre este arbol"
+
+// AutorGateDeScope is the author of the findings the scope gate registers,
+// one per violation: `<regla>: el rol <rol> escribio <ruta> - <detalle>`.
+const AutorGateDeScope = "hoom gate de scope"
+
+// DescripcionViolacion is the description of the high finding the scope gate
+// registers for v in a run of role rol:
+// `<regla>: el rol <rol> escribio <ruta> - <detalle>`.
+func DescripcionViolacion(v Violation, rol string) string {
+	return fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, rol, v.Path, v.Detail)
+}
+
+// DeTestsDelTestWriter says whether f is the finding the scope gate
+// registered for a RuleTestsDelTestWriter violation in a run of role rol
+// (DescripcionViolacion, author AutorGateDeScope, severity high), whatever
+// its path. The pilot reads with it which envelopes touched a protected test
+// (finding 78ccc0).
+func DeTestsDelTestWriter(f finding.Finding, rol string) bool {
+	return deRegla(f, rol, RuleTestsDelTestWriter, DetalleTestsDelTestWriter)
+}
+
+// DetalleTestsDelTestWriter is the Detail of a RuleTestsDelTestWriter
+// violation.
+const DetalleTestsDelTestWriter = "los tests del test-writer no los cambia el writer: pide de nuevo al test-writer"
+
+// Protegidos are a task's protected tests as the envelope read them from the
+// task's tree BEFORE the run (FotoProtegidos): path relative to that tree,
+// with "/" -> what the gate compares, the same Huellas the disk floor uses
+// (the sha256 of a regular file's content, HuellaNoRegular or
+// HuellaIlegible), or ProtegidoAusente for a path that was not on disk.
+type Protegidos map[string]string
+
+// rolTestWriter is the role whose transplanted tests a task protects.
+const rolTestWriter = "test-writer"
+
+// ProtegidoAusente is the Protegidos entry of a protected test that was not
+// on disk when it was photographed.
+const ProtegidoAusente = "-"
+
+// FotoProtegidos photographs the protected tests rutas in the tree dir: one
+// entry per path, read from the disk (never from git), without following a
+// symlink. An empty rutas is an empty Protegidos.
+func FotoProtegidos(dir string, rutas []string) Protegidos {
+	foto := Protegidos{}
+	if len(rutas) == 0 {
+		return foto
+	}
+	r, err := os.OpenRoot(dir)
+	if err != nil {
+		for _, p := range rutas {
+			foto[p] = HuellaIlegible
+		}
+		return foto
+	}
+	defer r.Close()
+	for _, p := range rutas {
+		name := filepath.FromSlash(p)
+		fi, err := r.Lstat(name)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			foto[p] = ProtegidoAusente
+		case err != nil:
+			foto[p] = HuellaIlegible
+		default:
+			switch ok, err := nombreExacto(r, name); {
+			case err != nil:
+				foto[p] = HuellaIlegible
+			case !ok:
+				// on a filesystem that ignores case, the old spelling still
+				// resolves after a rename that only changes case: the file
+				// is no longer there with its name (finding 11bfc2)
+				foto[p] = ProtegidoAusente
+			default:
+				foto[p] = huella(r, name, fi)
+			}
+		}
+	}
+	return foto
+}
+
+// nombreExacto says whether every element of name is in its parent
+// directory of r with exactly those bytes.
+func nombreExacto(r *os.Root, name string) (bool, error) {
+	dir := "."
+	for _, el := range strings.Split(name, string(filepath.Separator)) {
+		f, err := r.Open(dir)
+		if err != nil {
+			return false, err
+		}
+		nombres, err := f.Readdirnames(-1)
+		f.Close()
+		if err != nil {
+			return false, err
+		}
+		esta := false
+		for _, n := range nombres {
+			if n == el {
+				esta = true
+				break
+			}
+		}
+		if !esta {
+			return false, nil
+		}
+		dir = filepath.Join(dir, el)
+	}
+	return true, nil
+}
+
+// TestsProtegidos are the protected tests of task in the project root: the
+// union, sorted and without repeats, of Trasplantados of every envelope
+// record of role test-writer whose Task is task (envelope.Record,
+// .hoom/envelopes/ of root). Records without the key (older than
+// autonomia-entre-firmas) add nothing, so a task whose test-writer
+// envelopes have none protects nothing. task "" protects nothing. The error
+// is ListErr's: an envelopes directory hoom cannot read, or a record it
+// could not read, is not "nothing protected".
+func TestsProtegidos(root, task string) ([]string, error) {
+	if task == "" {
+		return nil, nil
+	}
+	recs, err := envelope.ListErr(root)
+	if err != nil {
+		return nil, err
+	}
+	vistos := map[string]bool{}
+	var out []string
+	for _, rec := range recs {
+		if rec.Role != rolTestWriter || rec.Task != task {
+			continue
+		}
+		for _, p := range rec.Trasplantados {
+			if p != "" && !vistos[p] {
+				vistos[p] = true
+				out = append(out, p)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// sinTocarProtegidos applies RuleTestsDelTestWriter: for a role of shape
+// codigo, every protected test whose content in dir is no longer the one
+// photographed before the run (changed, removed or renamed, also a rename
+// that only changes case), or whose index or HEAD entry changed or got
+// hidden from git (enGit, cambioEnGit), is a violation,
+// whatever the role's Allow says. It replaces an out-of-scope violation of
+// the same path (this one cuts, that one does not) and leaves a tampering
+// or isolation one alone.
+func sinTocarProtegidos(sc ScopeResult, dir string, role agents.Role, prot Protegidos, enGit ProtegidosGit) ScopeResult {
+	if role.Scope != agents.ScopeCodigo || len(prot) == 0 {
+		return sc
+	}
+	rutas := make([]string, 0, len(prot))
+	for p := range prot {
+		rutas = append(rutas, p)
+	}
+	sort.Strings(rutas)
+	ahora := FotoProtegidos(dir, rutas)
+	tocadas := map[string]bool{}
+	for _, p := range rutas {
+		if ahora[p] != prot[p] {
+			tocadas[p] = true
+		}
+	}
+	// and in git: the index and HEAD, each against its own state before the
+	// run (finding 123262)
+	if enGit != nil {
+		gitAhora := fotoGit(dir, rutas)
+		for _, p := range rutas {
+			if antes, ok := enGit[p]; ok && cambioEnGit(antes, gitAhora[p]) {
+				tocadas[p] = true
+			}
+		}
+	}
+	if len(tocadas) == 0 {
+		return sc
+	}
+	kept := sc.Violations[:0]
+	for _, v := range sc.Violations {
+		if tocadas[v.Path] && v.Rule == RuleOutOfScope {
+			continue
+		}
+		if tocadas[v.Path] {
+			delete(tocadas, v.Path)
+		}
+		kept = append(kept, v)
+	}
+	sc.Violations = kept
+	for _, p := range rutas {
+		if tocadas[p] {
+			sc.Violations = append(sc.Violations, Violation{Path: p, Rule: RuleTestsDelTestWriter, Detail: DetalleTestsDelTestWriter})
+		}
+	}
+	sortViolations(sc.Violations)
+	sc.OK = false
+	return sc
+}
 
 // Blind is the evidence of an isolated run: what the blind tree gave back and
 // what the role wrote outside its quarantine.
@@ -71,7 +285,7 @@ const ratchetPath = ".hoom/" + ratchet.FileName
 // Violation is one path the role should not have written.
 type Violation struct {
 	Path      string `json:"path"`
-	Rule      string `json:"rule"` // manipulacion | fuera-de-scope
+	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer | material-de-git
 	Detail    string `json:"detail"`
 	FindingID string `json:"finding_id,omitempty"`
 }
@@ -86,8 +300,11 @@ type ScopeResult struct {
 
 // Cuts reports whether the tree does not deserve a verdict at all. Writing
 // outside the role's territory is information; moving the demand itself, or
-// undoing the blindfold, is not.
-func (s ScopeResult) Cuts() bool { return s.Tampering || s.Broken() }
+// undoing the blindfold, is not. Neither is changing the test-writer's tests
+// (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too.
+func (s ScopeResult) Cuts() bool {
+	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter) || s.has(RuleMaterialDeGit)
+}
 
 // Delivered is what the run changed that counts as the role's work: Touched
 // minus what hoom's own commands generate (a verdict from `hoom verify`, a
@@ -277,7 +494,30 @@ func hoomOwn(p string) bool { return hoomfs.IsLocal(p) }
 
 // Policy is where a role may write, already resolved: the shape's defaults
 // re-aimed by the project's manifest.
-type Policy struct{ Allow, Deny []string }
+type Policy struct {
+	Allow, Deny []string
+	// Protegidos (autonomia-entre-firmas) are the task's protected tests,
+	// photographed before the run (FotoProtegidos). For a role of shape
+	// codigo, Gate compares each one with the disk of dir after the run: one
+	// that changed or is gone (removed or renamed, committed or not) is a
+	// RuleTestsDelTestWriter violation on that path, whatever Allow says
+	// (agents.<rol>.write of hoom.yaml cannot lift it). A role of any other
+	// shape ignores it. PolicyFor never fills it: whoever runs the envelope
+	// does (agentcmd.Run, with TestsProtegidos); nil = nothing protected.
+	Protegidos Protegidos
+	// ProtegidosGit are the same tests in git before the run
+	// (FotoGitProtegidos): Gate also compares the index and HEAD of dir
+	// with them, and a path marked skip-worktree or assume-unchanged during
+	// the run is a change. nil = the disk alone.
+	ProtegidosGit ProtegidosGit
+	// MaterialGit (aclaracion 25) is the git material of the task's tree,
+	// photographed before the run (FotoMaterialGit). For a role of shape
+	// codigo, Gate compares it with the same material after the run: an
+	// entry that changed, appeared or is gone is a RuleMaterialDeGit
+	// violation, whatever Allow says. PolicyFor never fills it: agentcmd.Run
+	// does; nil = nothing compared.
+	MaterialGit MaterialGit
+}
 
 // defaultAllow / defaultDeny per scope shape. The test globs cover the usual
 // layouts of the four profiles; a project with another one declares its own
@@ -417,6 +657,8 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	sc = sinSubidas(sc, role, arboles...)
 	sc = pisoEnDisco(sc, arboles...)
 	sc = sinListado(sc, arboles...)
+	sc = sinTocarProtegidos(sc, dir, role, pol.Protegidos, pol.ProtegidosGit)
+	sc = sinTocarMaterialGit(sc, dir, role, pol.MaterialGit)
 	// one fingerprint dates every finding of the gate: computed once, and
 	// not even tried when git already did not answer the photographs
 	// (finding f472ee)
@@ -425,9 +667,9 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 		huella, _ = gitx.HuellaConTope(dir, gitx.TopeListado)
 	}
 	for i, v := range sc.Violations {
-		desc := fmt.Sprintf("%s: el rol %s escribio %s - %s", v.Rule, role.Slug, v.Path, v.Detail)
+		desc := DescripcionViolacion(v, role.Slug)
 		if f, err := finding.Register(dir, base, finding.Draft{Severity: "high", Lens: "risk", File: v.Path,
-			Description: desc, Author: "hoom gate de scope", Task: task, Huella: &huella}); err == nil {
+			Description: desc, Author: AutorGateDeScope, Task: task, Huella: &huella}); err == nil {
 			sc.Violations[i].FindingID = f.ID
 		}
 	}
@@ -497,7 +739,7 @@ func ruleRank(rule string) int {
 	switch rule {
 	case RuleIsolation:
 		return 0
-	case RuleTampering:
+	case RuleTampering, RuleTestsDelTestWriter, RuleMaterialDeGit:
 		return 1
 	default:
 		return 2

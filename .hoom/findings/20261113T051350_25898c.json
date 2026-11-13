@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051350_25898c",
+  "created_at": "2026-11-13T05:13:50.167486223Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/material_git.go",
+  "description": "INTRODUCIDO. internal/agentcmd/material_git.go:135-143 elimina una ruta de tocadas cuando ya existe cualquier violacion distinta de fuera-de-scope y por eso no agrega RuleMaterialDeGit. Con core.hooksPath apuntando a un test protegido (o a evidencia), cambiar ese hook queda solo como tests-del-test-writer/manipulacion; cortesDelGate no pone TocoMaterialGit y la vuelta del piloto guarda antes de decidir, ejecutando el hook modificado. Una misma ruta debe conservar tambien el hecho de que es material de Git.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

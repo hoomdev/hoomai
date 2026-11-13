@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T060451_77ecf8",
+  "as": "corregido",
+  "evidence": "commit fd44100: el reflog se lee con un git del guardado acotado por TopeGit (git log --walk-reflogs --grep-reflog), sin Lstat/Open/ReadAt; tests del guardado (TestHallazgosC3e30e_*, TestHallazgos6dee36_*, TestHallazgoE6461a_*, TestHallazgo897491_*) verdes",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T06:21:32.108356125Z"
+}

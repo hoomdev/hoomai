@@ -1,0 +1,11 @@
+{
+  "id": "20261112T172708_41b8f0",
+  "created_at": "2026-11-12T17:27:08.610819543Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/verifycmd/verifycmd.go",
+  "description": "INTRODUCIDO: internal/verifycmd/verifycmd.go:44-49 crea dos representaciones simultaneas del spec, opt.Spec (referencia que se persiste) y specFile (ruta resuelta que se lee), pero el nombre specFile no expresa esa diferencia y ambas se alternan hasta las lineas 139-140. Renombrarlas como specRef/specPath o encapsular la resolucion haria visible cual debe usar cada consumidor.",
+  "author": "reviewer@codex",
+  "fingerprint": "e4df350a5ff8c82a",
+  "task": "autonomia-entre-firmas"
+}

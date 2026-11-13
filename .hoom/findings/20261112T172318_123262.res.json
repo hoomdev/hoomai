@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T172318_123262",
+  "as": "corregido",
+  "evidence": "commit ebf615e; test TestHallazgo123262_CA638_ElWriterQueEscondeElCambioDeUnProtegidoCorta (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T18:37:55.903712745Z"
+}

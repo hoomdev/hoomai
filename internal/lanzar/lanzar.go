@@ -51,6 +51,23 @@ type Request struct {
 	// terminal's valores: and → lines, the Studio's dialog). nil = nothing
 	// was shown (the belt).
 	Vista *Propuesta
+
+	// autonomia-entre-firmas: only the pilot sets these; the body of POST
+	// /launch does not change.
+	//
+	// Resume is the provider's session id the role's run resumes (the
+	// pilot's relevo-por-tiempo); "" = a new session. Delta asks the review
+	// to start where the task's newest chainable review ended (reviewcmd
+	// Options.Delta); only for the reviewer.
+	Resume string
+	Delta  bool
+	// Regla, Intento, Ronda, Hallazgos and Bloqueantes go to the launched
+	// envelope's record (envelope.Record) as given.
+	Regla       string
+	Intento     int
+	Ronda       int
+	Hallazgos   []string
+	Bloqueantes int
 }
 
 // Propuesta is what a card's action proposes: the role it launches, its
@@ -300,10 +317,27 @@ func tomarCandados(p Params, slug string) (func(), error) {
 	}, nil
 }
 
+// Reservar takes the card's launch locks (the file lock and p.Candado) as
+// Lanzar does, so no launch of the card starts until soltar: the pilot's
+// cerrar-hallazgos holds them from the first resolution until it saves
+// (finding 8f4011). A taken lock is a *Rechazo with MsgLanzando.
+func Reservar(p Params, slug string) (soltar func(), err error) {
+	return tomarCandados(p, slug)
+}
+
 // Lanzar launches req on the card slug. It answers when the envelope's first
 // record is on disk, with a *Rechazo when the launch did not happen, or when
 // ctx is done (the job then goes on by itself). A job that ended before its
 // first record comes back too, already ended, next to its *Rechazo.
+//
+// autonomia-entre-firmas: every envelope Lanzar launches has in its record
+// the card's column at the launch (envelope.Record.Columna) and the pedido
+// the role received (Record.Pedido), plus req's Regla, Intento, Ronda,
+// Hallazgos and Bloqueantes. A req with Pilot may name an action the card
+// does not offer a person (boardcmd.ActPedirRefutador, or a role action
+// outside the card's column inside a round of findings): Lanzar takes it
+// from boardcmd.Card.PilotAction, with the same checks as any other. A
+// provider without a USD cap launches without a budget, as today.
 func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, error) {
 	fail := func(code int, format string, args ...any) (*Trabajo, error) {
 		return nil, &Rechazo{Code: code, Motivo: fmt.Sprintf(format, args...)}
@@ -334,7 +368,18 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if err != nil {
 		return fail(http.StatusNotFound, "%s", err.Error())
 	}
+	if req.Pilot {
+		// the pilot decided on a card read before this lock: what a person
+		// changed meanwhile wins (findings 8c69af, a3e8d2)
+		if _, why := boardcmd.PilotoNoSigue(c); why != "" {
+			return fail(http.StatusConflict, "%s: el piloto no lanza nada", why)
+		}
+	}
 	a, ok := c.Action(req.Action)
+	if !ok && req.Pilot {
+		// the actions only the pilot launches (autonomia-entre-firmas)
+		a, ok = c.PilotAction(req.Action)
+	}
 	if !ok {
 		return fail(http.StatusConflict, "la tarjeta ya no esta donde la viste: ahora esta en %s (%s)", c.ColumnName, c.Plain)
 	}
@@ -424,6 +469,8 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 			res, f.Err = reviewcmd.Run(p.Root, m.BaseBranch, reviewcmd.Options{
 				Provider: opt.Name, Task: slug, Spec: spec, Model: v.Model, Effort: v.Effort, BudgetUSD: budget,
 				Timeout: v.Timeout, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
+				Delta: req.Delta, Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
+				Hallazgos: req.Hallazgos, Bloqueantes: req.Bloqueantes,
 			}, out)
 			f.Nota = res.Nota
 			if f.Err == nil {
@@ -434,12 +481,17 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 				Role: a.Role, Provider: opt.Name, Task: slug, Prompt: pedido, Model: v.Model,
 				Effort: v.Effort, Timeout: v.Timeout, BudgetUSD: budget, BudgetSet: true,
 				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
+				Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
+				Hallazgos: req.Hallazgos, Bloqueantes: req.Bloqueantes,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec
 			}
 			if a.ID == boardcmd.ActReanudar {
 				o.ResumeID = a.ResumeID
+			}
+			if r := strings.TrimSpace(req.Resume); r != "" {
+				o.ResumeID = r
 			}
 			var res agentcmd.Result
 			res, f.Err = agentcmd.Run(p.Root, m.BaseBranch, o, out)

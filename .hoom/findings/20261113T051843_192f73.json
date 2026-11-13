@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051843_192f73",
+  "created_at": "2026-11-13T05:18:43.873173233Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/material_git.go",
+  "description": "INTRODUCIDO: internal/agentcmd/material_git.go:70-104 enumera el directorio efectivo core.hooksPath, incluso fuera del worktree, y calcula la huella leyendo completo cada archivo regular sin limite de tamano, deadline ni contexto. Un proyecto o writer puede apuntar core.hooksPath a un directorio con un archivo enorme o un filesystem que bloquea y FotoMaterialGit deja colgado agentcmd.Run antes o despues del provider, fuera del timeout del run. El git rev-parse esta acotado, pero la enumeracion y el hashing nuevos no lo estan.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T185626_e49304",
+  "created_at": "2026-11-12T18:56:26.443315127Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO — internal/pilotocmd/pilotocmd.go:618: protegidosTocados dice que el estado no importa, pero llama finding.List(..., true), que filtra y devuelve solo hallazgos abiertos. Si el hallazgo tests-del-test-writer del sobre se resuelve antes de la siguiente vuelta (por ejemplo, una persona lo cierra), TocoProtegidos queda false; un writer que toco el test y ademas termino con corte: tiempo entra otra vez al caso 5 y el piloto lo releva, en vez de detenerse en el caso 8 como exige CA-638/CA-652. Debe consultar tambien los hallazgos resueltos o persistir el hecho en el sobre.",
+  "author": "reviewer@codex",
+  "fingerprint": "2dfb494dd07aeceb",
+  "task": "autonomia-entre-firmas"
+}

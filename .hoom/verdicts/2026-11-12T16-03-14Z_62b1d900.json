@@ -1,0 +1,163 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-11-12T16-03-14Z_62b1d900",
+  "created_at": "2026-11-12T16:03:14.106890677Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "a847d26f50fe",
+    "branch": "hoom/autonomia-entre-firmas",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/autonomia-entre-firmas_ea4ff1d1.json",
+      "README.md",
+      "cmd/hoom/main.go",
+      "internal/agentcmd/agentcmd.go",
+      "internal/agentcmd/protegidos_writer_test.go",
+      "internal/agentcmd/scope.go",
+      "internal/boardcmd/acciones.go",
+      "internal/boardcmd/boardcmd.go",
+      "internal/boardcmd/derive.go",
+      "internal/boardcmd/gather.go",
+      "internal/boardcmd/pilot.go",
+      "internal/boardcmd/piloto.go",
+      "internal/boardcmd/piloto_writer_test.go",
+      "internal/envelope/envelope.go",
+      "internal/finding/finding.go",
+      "internal/item/item.go",
+      "internal/itemcmd/itemcmd.go",
+      "internal/itemcmd/set_auto_writer_test.go",
+      "internal/lanzar/lanzar.go",
+      "internal/manifest/autonomia_writer_test.go",
+      "internal/manifest/manifest.go",
+      "internal/pilotocmd/doc.go",
+      "internal/pilotocmd/pilotocmd.go",
+      "internal/pilotocmd/pilotocmd_writer_test.go",
+      "internal/reviewcmd/reviewcmd.go",
+      "internal/runcmd/runcmd.go",
+      "internal/servecmd/acciones.go",
+      "internal/tarjetacmd/tarjetacmd.go"
+    ],
+    "change_fingerprint": "a9af8af408164881",
+    "insertions": 3233,
+    "deletions": 79
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "31 criterios (CA-*), 1 con [verifica:]"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "fail",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 25,
+      "output_tail": "criterios SIN test que los referencie: CA-637, CA-638, CA-639, CA-640, CA-641, CA-642, CA-643, CA-644, CA-645, CA-646, CA-647, CA-648, CA-649, CA-650, CA-651, CA-652, CA-653, CA-654, CA-655, CA-656, CA-657, CA-658, CA-659, CA-660, CA-661\nAccion: el test-writer debe crear tests que mencionen cada CA-n (en el nombre o un comentario), o el spec declarar [verifica: \u003ccomando\u003e] si el criterio se verifica por comando.",
+      "notes": "571 archivos de test escaneados"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por hoomdev \u003cdev@volale.com\u003e (2026-11-12, sha ea4ff1d1)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 28,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea autonomia-entre-firmas + sin tarea (43 de otras tareas no cuentan) · no bloquean: 2 medium, 3 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 495
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 476,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 971
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "fail",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 1,
+      "duration_ms": 15698,
+      "output_tail": "┌────────────────┐\n│ 1 Code Finding │\n└────────────────┘\n                                   \n    internal/pilotocmd/pilotocmd.go\n   ❯❯❱ hoom.semgrep.reglas.hoom-argv-crudo-en-mensaje\n          ❰❰ Blocking ❱❱\n          Un token de argv entra crudo a un mensaje: un salto de linea o una secuencia ANSI en el argumento  \n          falsifica la salida que lee una persona o un CI. Citalo con %q o con strconv.Quote (seguimiento del\n          hallazgo 20260907T064538_12fe7a).                                                                  \n                                                                                                             \n          679┆ fmt.Fprintf(e.Err, \"hoom: %v\\n\", err)"
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "fail",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./cmd/hoom ./internal/agentcmd ./internal/boardcmd ./internal/envelope ./internal/finding ./internal/item ./internal/itemcmd ./internal/lanzar ./internal/manifest ./internal/pilotocmd ./internal/reviewcmd ./internal/runcmd ./internal/servecmd ./internal/tarjetacmd",
+      "exit_code": 1,
+      "duration_ms": 258114,
+      "output_tail": "...[truncado]...\ns) y ejecuta 'hoom task done sin-provider' desde el proyecto principal\nhoom: tarea \"poca-plata\" creada\n  rama:     hoom/poca-plata (desde main)\n  worktree: /tmp/TestCA504_MismoMotivoEnLasDosPieles617110793/004/.hoom/worktrees/poca-plata\n  siguiente paso:\n    cd /tmp/TestCA504_MismoMotivoEnLasDosPieles617110793/004/.hoom/worktrees/poca-plata\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done poca-plata' desde el proyecto principal\nhoom: tarea \"ocupada\" creada\n  rama:     hoom/ocupada (desde main)\n  worktree: /tmp/TestCA504_MismoMotivoEnLasDosPieles617110793/004/.hoom/worktrees/ocupada\n  siguiente paso:\n    cd /tmp/TestCA504_MismoMotivoEnLasDosPieles617110793/004/.hoom/worktrees/ocupada\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done ocupada' desde el proyecto principal\nhoom: tarea \"relleno\" creada\n  rama:     hoom/relleno (desde main)\n  worktree: /tmp/TestCA504_MismoMotivoEnLasDosPieles617110793/004/.hoom/worktrees/relleno\n  siguiente paso:\n    cd /tmp/TestCA504_MismoMotivoEnLasDosPieles617110793/004/.hoom/worktrees/relleno\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done relleno' desde el proyecto principal\nhoom: tarea \"en-writer\" creada\n  rama:     hoom/en-writer (desde main)\n  worktree: /tmp/TestCA504_SinLaAccion324419764/004/.hoom/worktrees/en-writer\n  siguiente paso:\n    cd /tmp/TestCA504_SinLaAccion324419764/004/.hoom/worktrees/en-writer\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done en-writer' desde el proyecto principal\nhoom: tarea \"desde-studio\" creada\n  rama:     hoom/desde-studio (desde main)\n  worktree: /tmp/TestCA504_BacklogCreaLaTareaEnLasDosPieles2702289633/004/.hoom/worktrees/desde-studio\n  siguiente paso:\n    cd /tmp/TestCA504_BacklogCreaLaTareaEnLasDosPieles2702289633/004/.hoom/worktrees/desde-studio\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done desde-studio' desde el proyecto principal\nhoom: tarea \"desde-terminal\" creada\n  rama:     hoom/desde-terminal (desde main)\n  worktree: /tmp/TestCA504_BacklogCreaLaTareaEnLasDosPieles2702289633/004/.hoom/worktrees/desde-terminal\n  siguiente paso:\n    cd /tmp/TestCA504_BacklogCreaLaTareaEnLasDosPieles2702289633/004/.hoom/worktrees/desde-terminal\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done desde-terminal' desde el proyecto principal\nhoom: tarea \"a-implementar\" creada\n  rama:     hoom/a-implementar (desde main)\n  worktree: /tmp/TestCA505_CandadoDeArchivoEnElStudio3048113322/004/.hoom/worktrees/a-implementar\n  siguiente paso:\n    cd /tmp/TestCA505_CandadoDeArchivoEnElStudio3048113322/004/.hoom/worktrees/a-implementar\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done a-implementar' desde el proyecto principal\nhoom: tarea \"a-implementar\" creada\n  rama:     hoom/a-implementar (desde main)\n  worktree: /tmp/TestCA505_OtroProcesoTieneElCandado2862559002/004/.hoom/worktrees/a-implementar\n  siguiente paso:\n    cd /tmp/TestCA505_OtroProcesoTieneElCandado2862559002/004/.hoom/worktrees/a-implementar\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done a-implementar' desde el proyecto principal\nFAIL\nFAIL\tgithub.com/hoomdev/hoomai/internal/servecmd\t106.496s\nok  \tgithub.com/hoomdev/hoomai/internal/tarjetacmd\t79.352s\nFAIL"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 3,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "red",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md"
+}

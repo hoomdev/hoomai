@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T172019_8f4011",
+  "as": "corregido",
+  "evidence": "commit d428736; test TestHallazgo8f4011_CA656_CerrarHallazgosEsExclusivo (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-12T18:37:55.895962446Z"
+}

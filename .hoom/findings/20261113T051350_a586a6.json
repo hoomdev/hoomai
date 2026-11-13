@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051350_a586a6",
+  "created_at": "2026-11-13T05:13:50.036617661Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO. internal/pilotocmd/pilotocmd.go:666-689 reconstruye TocoMaterialGit exclusivamente desde el finding material-de-git; pero Gate ignora cualquier error de finding.Register en internal/agentcmd/scope.go:669-674. Si .hoom/findings no admite la escritura (o el artefacto fue retirado), el sobre igual corta y se cierra, pero la parada previa no ve la marca y SaveTarea ejecuta el hook/config que el writer cambio. La proteccion falla abierta en un estado de disco provocable por el usuario.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

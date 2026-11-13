@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T190316_513ecb",
+  "as": "corregido",
+  "evidence": "commit 08e850d: protegidosTocados lee con finding.ListConIlegibles y un hallazgo ilegible es error del armado (el piloto se detiene); sin test propio de regresion",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-12T19:35:23.31406651Z"
+}

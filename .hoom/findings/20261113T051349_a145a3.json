@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051349_a145a3",
+  "created_at": "2026-11-13T05:13:49.907695419Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/boardcmd/piloto.go",
+  "description": "INTRODUCIDO. internal/boardcmd/piloto.go:118-122 solo mira el sobre mas nuevo para decidir la parada previa al guardado. Si un writer deja un hook y su sobre corta, pero despues una persona corre cualquier otro sobre que no vuelve a tocar ese hook, el segundo sobre pasa a ser el ultimo y hoom piloto llama SaveTarea (internal/pilotocmd/pilotocmd.go:312-321), que ejecuta el hook aun presente. Es una secuencia permitida de trabajos manuales y salta precisamente la barrera que este cambio agrega antes de git.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

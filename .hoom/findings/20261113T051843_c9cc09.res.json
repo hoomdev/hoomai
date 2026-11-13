@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T051843_c9cc09",
+  "as": "refutado",
+  "evidence": "Fuera del alcance de la spec firmada: .hoom/specs/autonomia-entre-firmas.md:80-90 (No-goals: \"Contener a un writer que se propone burlar los controles dejando codigo que corra despues de su run\" ... \"Contenerlo es una spec aparte\") y :606-609 (Riesgos), aprobada por hoomdev el 2026-11-13 (sha256 0d575e3f, commit 00364cb). Lo que si cubre la spec sigue: el gate corta al writer que cambia los hooks, la config o info/attributes durante su run (c121afa) y el guardado revisa lo que commitea (aclaraciones 24 a 26). Este hallazgo: mismo caso que 25898c.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-13T05:31:23.17446714Z"
+}

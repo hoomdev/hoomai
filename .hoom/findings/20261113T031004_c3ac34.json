@@ -1,0 +1,11 @@
+{
+  "id": "20261113T031004_c3ac34",
+  "created_at": "2026-11-13T03:10:04.988342303Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/pilotocmd/autonomia_entre_firmas_r3_test.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/autonomia_entre_firmas_r3_test.go:197 instala pre-commit, prepare-commit-msg, commit-msg y post-commit como hooks colgados, pero pre-commit bloquea antes de que Git pueda alcanzar los otros tres y la unica asercion de ejecucion comprueba solo corrio-pre-commit en la linea 221. El comentario y el fixture hacen parecer que el test cubre el corte en las cuatro fases cuando en realidad solo ejercita pre-commit; dejar solo ese hook o separar las fases en casos explicitos haria visible el alcance real.",
+  "author": "reviewer@codex",
+  "fingerprint": "c88c4d7132b3a7bd",
+  "task": "autonomia-entre-firmas"
+}

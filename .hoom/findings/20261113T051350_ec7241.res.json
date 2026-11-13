@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T051350_ec7241",
+  "as": "corregido",
+  "evidence": "commit 8ff96a1 (el guardado reconoce su commit por el reflog de la rama); test TestHallazgos6dee36_ec7241_4785a1_CA644_UnCommitMsgQueReescribeElMensajeNoHaceFallarElGuardado, TestHallazgos6dee36_ec7241_4785a1_CA644_ConElMensajeReescritoLaRamaVuelve y TestHallazgos6dee36_ec7241_4785a1_CA644_UnCommitDeReemplazoNoSeRetira (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T05:47:47.98541023Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261112T195251_ccf2ee",
+  "created_at": "2026-11-12T19:52:51.594471243Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:1071-1085 solo contiene y libera el grupo de procesos cuyo lider es git. En Unix, un hook puede arrancar un hijo en una sesion/grupo nuevo (por ejemplo, setsid sh -c 'sleep 3; escribir-en-el-worktree') y esperar; al vencer TopeGit mueren git y el grupo original, pero ese hijo no recibe SIGTERM/SIGKILL. El cierre del pipe tras finDeLecturaGit permite que SaveTarea ya haya devuelto cuando el hijo sigue vivo y luego modifica el arbol, contradiciendo la garantia nueva de que hooks e hijos terminaron antes del retorno. Es un fallo raro de contencion de procesos, pero deja mutaciones asincronas despues de que el piloto reporto que no pudo guardar.",
+  "author": "reviewer@codex",
+  "fingerprint": "bd8198506f559f43",
+  "task": "autonomia-entre-firmas"
+}

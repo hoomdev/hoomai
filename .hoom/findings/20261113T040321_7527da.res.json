@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T040321_7527da",
+  "as": "corregido",
+  "evidence": "commit f2de6f5; test TestHallazgo7527da_CA644_ElGuardadoTraeTodasLasRutasPedidas (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T04:49:15.533818124Z"
+}

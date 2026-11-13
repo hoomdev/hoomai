@@ -1,0 +1,11 @@
+{
+  "id": "20261113T060147_f835e8",
+  "created_at": "2026-11-13T06:01:47.888385154Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/material_git.go",
+  "description": "INTRODUCIDO: internal/agentcmd/material_git.go:146 reemplaza la huella de contenido de todo archivo regular mayor de 1 MiB por solo tamano, modo y mtime. Si un writer sobrescribe en sitio un hook, config o info/attributes con otros bytes del mismo largo y conserva/restaura el mtime (tambien puede ocurrir dentro del mismo tick en un filesystem de timestamps gruesos), las fotos antes/despues quedan iguales, sinTocarMaterialGit no corta y el guardado posterior puede ejecutar el material cambiado. Es una regresion del control que exige detectar cambios de contenido.",
+  "author": "reviewer@codex",
+  "fingerprint": "55d4ca66312ca470",
+  "task": "autonomia-entre-firmas"
+}

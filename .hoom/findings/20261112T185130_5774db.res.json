@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261112T185130_5774db",
+  "as": "corregido",
+  "evidence": "commit b8b3ca9; test TestHallazgo5774db_CA656_CerrarHallazgosVuelveAMirarLaTarjeta (internal/pilotocmd; rojo contra 669fa6b, verde en b8b3ca9)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-12T19:35:23.310918997Z"
+}

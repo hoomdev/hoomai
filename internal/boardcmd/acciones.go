@@ -42,6 +42,7 @@ var acciones = map[string]accion{
 	ActPedirTestWriter: {label: "Pedir al test-writer", role: "test-writer"},
 	ActPedirWriter:     {label: "Pedir al writer", role: "writer"},
 	ActPedirReviewer:   {label: "Pedir al reviewer", role: "reviewer"},
+	ActPedirRefutador:  {label: "Pedir al refutador", role: "refutador"},
 	ActAprobar:         {label: "Aprobar spec"},
 	ActIntegrar:        {label: "Integrar"},
 	ActReanudar:        {label: "Reanudar"},
@@ -110,6 +111,23 @@ func columnActions(c Card) []string {
 		return []string{ActIntegrar}
 	}
 	return nil
+}
+
+// pilotActions are the role actions only the pilot launches from any
+// column (Card.PilotActions), built like the card's own.
+var pilotActions = []string{ActPedirTestWriter, ActPedirWriter, ActPedirReviewer, ActPedirRefutador}
+
+// pilotActionsOf is Card.PilotActions: none when the card's work cannot be
+// found, like its own actions.
+func pilotActionsOf(ev Evidence, c Card) []Action {
+	if ev.WorktreeInusable != "" {
+		return nil
+	}
+	out := make([]Action, 0, len(pilotActions))
+	for _, id := range pilotActions {
+		out = append(out, buildAction(ev, c, id))
+	}
+	return out
 }
 
 // actionsOf is the card's action list: its column's, then the ones any card

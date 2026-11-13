@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T035246_8e2d38",
+  "as": "corregido",
+  "evidence": "commit c121afa (gate: el writer no cambia el material de git) y bebad74 (el piloto se detiene antes de guardar tras ese sobre, aclaracion 25); test TestHallazgos8e2d38_88ed5f_d908ff_CA638_CA644_ElWriterNoCambiaElMaterialDeGit, TestHallazgos8e2d38_88ed5f_d908ff_CA638_CambiarYRestaurarNoCorta y TestHallazgos8e2d38_88ed5f_d908ff_CA638_CA644_ElPilotoNoGuardaDespuesDeUnHookDelWriter (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T04:49:15.498940579Z"
+}
