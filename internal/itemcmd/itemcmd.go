@@ -1244,7 +1244,7 @@ func entradasDe(dir string, g gitDelGuardado, arbol string, rutas []string) (map
 	}
 	raw, err := g.listado(dir, append(args, rutas...)...)
 	if err != nil {
-		return nil, fmt.Errorf("no pude leer los tests protegidos que guarda: %w", err)
+		return nil, fmt.Errorf("no pude leer las entradas de lo que guarda: %w", err)
 	}
 	for _, e := range strings.Split(string(raw), "\x00") {
 		meta, ruta, ok := strings.Cut(e, "\t")
