@@ -1,0 +1,11 @@
+{
+  "id": "20261113T063339_ce21bc",
+  "created_at": "2026-11-13T06:33:39.249019514Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1007: guardado.con reemplaza GIT_REFLOG_ACTION por un nonce y guardarTarea usa ese entorno para git commit; los hooks del commit heredan hoom-guardado-\u003cnonce\u003e en vez de la accion normal commit. Un pre-commit de seguridad que condiciona su detector a GIT_REFLOG_ACTION=commit (por ejemplo, para distinguir commits ordinarios de operaciones internas) se ejecuta pero salta el control, y el piloto puede commitear secretos u otro material que un git commit normal rechazaria. El contrato dice que los hooks del repo son controles y corren como en cualquier commit; la marca de atribucion no debe alterar la semantica que observan esos hooks.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0b898bfe317054d",
+  "task": "autonomia-entre-firmas"
+}

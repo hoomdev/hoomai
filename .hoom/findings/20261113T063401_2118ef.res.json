@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T063401_2118ef",
+  "as": "refutado",
+  "evidence": "Fuera del alcance de la spec firmada (0d575e3f): .hoom/specs/autonomia-entre-firmas.md:80-90 (No-goals: \"Contener a un writer que se propone burlar los controles dejando codigo que corra despues de su run\", con un hook de git, un symlink o un cambio de permisos entre los ejemplos). El escenario es un writer en Windows que sobrescribe un hook de mas de 1 MiB con bytes del mismo largo y restaura su LastWriteTime a proposito para que el gate no lo vea: es burlar el control a proposito. El propio hallazgo lo marca PRE-EXISTENTE. En Linux y macOS la huella lleva el ctime (54e2f6e).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-13T06:49:57.933743487Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261113T063401_2118ef",
+  "created_at": "2026-11-13T06:34:01.833077662Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/material_ctime_otros.go",
+  "description": "PRE-EXISTENTE (follow-up; no bloquea este rango) — internal/agentcmd/material_ctime_otros.go:10 y internal/agentcmd/material_git.go:154-159: Windows, que el proyecto distribuye como plataforma soportada (README.md:41-46), cae en !linux\u0026\u0026!darwin y ctimeDe siempre devuelve false. Para cualquier hook/config regular de mas de 1 MiB la huella sigue siendo solo largo, modo y mtime; un writer en Windows puede sobrescribirlo con bytes del mismo largo y restaurar LastWriteTime para que el gate de scope no vea el cambio, saltandose la proteccion del material de Git. El defecto ya existia en 12d45a020f5a porque la huella anterior tampoco tenia ctime; este rango lo corrige solo en Linux/macOS.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0b898bfe317054d",
+  "task": "autonomia-entre-firmas"
+}

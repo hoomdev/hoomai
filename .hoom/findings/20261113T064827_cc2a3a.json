@@ -1,0 +1,11 @@
+{
+  "id": "20261113T064827_cc2a3a",
+  "created_at": "2026-11-13T06:48:27.557525056Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1005: el metodo guardado.con oculta que agrega GIT_REFLOG_ACTION y comparte nombre con gitDelGuardado.con (linea 1352), que hace otra transformacion (prefijar opciones). En el flujo de guardado, g = s.con(g) (linea 929) obliga a saltar a la definicion para saber que invariante se activa; un nombre especifico como conAccionReflog haria explicita la operacion y eliminaria la colision.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0b898bfe317054d",
+  "task": "autonomia-entre-firmas"
+}

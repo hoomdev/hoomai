@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T063339_ce21bc",
+  "as": "refutado",
+  "evidence": "El escenario no ocurre en un commit normal. Reproduccion con git 2.56.1: un repo con pre-commit y commit-msg que imprimen ${GIT_REFLOG_ACTION-\u003cunset\u003e} y un git commit normal (env -u GIT_REFLOG_ACTION git commit -m uno) imprimen \"\u003cunset\u003e\" en los dos hooks. git no exporta GIT_REFLOG_ACTION a los hooks de un commit comun, asi que un pre-commit que condiciona su detector a GIT_REFLOG_ACTION=commit no lo corre en ningun commit normal: el guardado del piloto (fd44100) no salta un control que un commit normal si corra. La spec (Riesgos, .hoom/specs/autonomia-entre-firmas.md:606-609) pide que los hooks corran como en cualquier commit, y corren. La diferencia que queda, que los hooks del guardado ven GIT_REFLOG_ACTION=hoom-guardado-\u003cnonce\u003e, va al PR como riesgo conocido.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-13T06:49:57.926627259Z"
+}

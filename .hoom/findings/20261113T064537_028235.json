@@ -1,0 +1,11 @@
+{
+  "id": "20261113T064537_028235",
+  "created_at": "2026-11-13T06:45:37.944596269Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:1027 reemplaza la lectura acotada del tramo nuevo del reflog por git log --walk-reflogs sin limite de entradas, que recorre el historial completo de la rama cada vez. Con un reflog suficientemente grande o lento, esta inspeccion puede vencer TopeGit despues de que git commit ya movio la rama; deshacer repite la misma inspeccion en internal/itemcmd/itemcmd.go:1232 y, si vuelve a vencer, deja ese commit en hoom/\u003cslug\u003e aunque SaveTarea devuelve error. Es una falla real de atomicidad en un repositorio degradado o de larga vida, sin perdida de datos, por eso la severidad es medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0b898bfe317054d",
+  "task": "autonomia-entre-firmas"
+}
