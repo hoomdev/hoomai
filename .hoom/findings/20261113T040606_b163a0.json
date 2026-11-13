@@ -1,0 +1,11 @@
+{
+  "id": "20261113T040606_b163a0",
+  "created_at": "2026-11-13T04:06:06.446991996Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/pilotocmd/autonomia_entre_firmas_r5_test.go",
+  "description": "INTRODUCIDO — internal/pilotocmd/autonomia_entre_firmas_r5_test.go:63: apr5NoGuardo recibe nueve argumentos escalares, varios string del mismo tipo, y usa protegido == \"\" como bandera mientras fija precios_test.go dentro de la ayuda. Los llamados no expresan qué comprobación opcional activan y un cambio de fixture obliga a conocer ese acoplamiento oculto; una estructura de fixture/opciones o ayudas separadas harían los casos legibles y menos frágiles.",
+  "author": "reviewer@codex",
+  "fingerprint": "fc41075f656eb916",
+  "task": "autonomia-entre-firmas"
+}

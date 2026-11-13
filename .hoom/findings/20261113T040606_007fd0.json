@@ -1,0 +1,11 @@
+{
+  "id": "20261113T040606_007fd0",
+  "created_at": "2026-11-13T04:06:06.184508163Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:932: protegidosDelGuardado nace en fotoProtegidos sin stageados y se completa después mutando foto desde el callback opcional de commitPaths; revisarCommit depende de ese orden implícito. La misma estructura mezcla la instantánea previa con estado posterior al staging y admite una instancia incompleta, dejando una precondición temporal oculta en la validación y el rollback. Separar la instantánea previa del mapa stageado, o pasarlo explícitamente, haría visible esa dependencia.",
+  "author": "reviewer@codex",
+  "fingerprint": "fc41075f656eb916",
+  "task": "autonomia-entre-firmas"
+}
