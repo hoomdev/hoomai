@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -823,7 +824,10 @@ var TopeGit = 5 * time.Minute
 // own (aclaraciones 17 y 19). The repository's hooks run, as in any commit
 // of it (aclaracion 23): one that refuses fails the save, one that never
 // ends is cut with its group. A save that fails leaves the branch where it
-// was (deshacer, aclaracion 24). base and blockOn are not needed for that.
+// was (deshacer), and the commit holds exactly the paths that were unsaved
+// when it started: one a hook slips in, or a protected test of the task
+// that changes meanwhile, fails it (revisarCommit, aclaracion 24). base and
+// blockOn are not needed for that.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
 	dir, err := tareaGuardable(root, slug)
 	if err != nil {
@@ -907,12 +911,24 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 		}
 		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
 	}
-	// where the branch was, to leave it there if the save fails
+	// what the save checks its commit against (aclaracion 24): where the
+	// branch was and the task's protected tests, on disk and in the index
+	prot, err := agentcmd.TestsProtegidos(root, slug)
+	if err != nil {
+		return res, fmt.Errorf("no pude leer los tests protegidos de la tarea: %w", err)
+	}
 	antes, err := g.correr(dir, nil, "rev-parse", "--verify", "HEAD")
 	if err != nil {
 		return res, fmt.Errorf("no pude ver HEAD antes de guardar: %s", motivoGit(antes, err))
 	}
+	foto, err := fotoProtegidos(dir, g, prot)
+	if err != nil {
+		return res, err
+	}
 	sha, err := commitPaths(dir, res.Message, local, g)
+	if err == nil {
+		err = revisarCommit(dir, g, antes, sha, local, foto)
+	}
 	if err != nil {
 		return res, deshacer(dir, g, antes, err)
 	}
@@ -922,6 +938,89 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	}
 	res.Commits = append(res.Commits, SaveCommit{Dir: p.Dir, SHA: sha, Paths: paths})
 	return res, nil
+}
+
+// protegidosDelGuardado photographs the task's protected tests for the save:
+// their disk (agentcmd.FotoProtegidos, never git) and their index entries
+// (indiceDe).
+type protegidosDelGuardado struct {
+	rutas  []string
+	disco  agentcmd.Protegidos
+	indice map[string]string
+}
+
+func fotoProtegidos(dir string, g gitDelGuardado, rutas []string) (protegidosDelGuardado, error) {
+	idx, err := indiceDe(dir, g, rutas)
+	if err != nil {
+		return protegidosDelGuardado{}, err
+	}
+	return protegidosDelGuardado{rutas: rutas, disco: agentcmd.FotoProtegidos(dir, rutas), indice: idx}, nil
+}
+
+// indiceDe is the index entry of each path of rutas in dir (`git ls-files -s
+// -v`: tag, mode, blob and stage; one per stage of a conflict), from a git
+// of the save. It reads the index only: no hook, no filter.
+func indiceDe(dir string, g gitDelGuardado, rutas []string) (map[string]string, error) {
+	idx := map[string]string{}
+	if len(rutas) == 0 {
+		return idx, nil
+	}
+	out, err := g.listado(dir, append([]string{"--literal-pathspecs", "-c", "core.quotePath=false",
+		"ls-files", "-s", "-v", "-z", "--"}, rutas...)...)
+	if err != nil {
+		return nil, fmt.Errorf("no pude leer los tests protegidos en el indice: %w", err)
+	}
+	for _, e := range strings.Split(string(out), "\x00") {
+		if meta, ruta, ok := strings.Cut(e, "\t"); ok {
+			idx[ruta] += meta + ";"
+		}
+	}
+	return idx, nil
+}
+
+// revisarCommit checks that the save's commit sha holds what the save asked
+// for and nothing a hook slipped in (aclaracion 24): its one parent is antes,
+// every path it changes is one of pedidas, and no protected test of the task
+// changed during the save: on disk, nor in the index unless it is one of
+// pedidas (staging those is the save's own doing; what it commits of them is
+// checked on disk).
+func revisarCommit(dir string, g gitDelGuardado, antes, sha string, pedidas []string, foto protegidosDelGuardado) error {
+	padres, err := g.correr(dir, nil, "rev-list", "--parents", "-n", "1", sha)
+	if err != nil {
+		return fmt.Errorf("no pude revisar el commit del guardado: %s", motivoGit(padres, err))
+	}
+	if f := strings.Fields(padres); len(f) != 2 || f[1] != antes {
+		return fmt.Errorf("el commit del guardado %s no sale de %s", short(sha), short(antes))
+	}
+	out, err := g.listado(dir, "-c", "core.quotePath=false", "diff-tree", "-r", "--no-commit-id",
+		"--name-only", "--no-renames", "-z", antes, sha)
+	if err != nil {
+		return fmt.Errorf("no pude revisar el commit del guardado: %w", err)
+	}
+	pedida := map[string]bool{}
+	for _, p := range pedidas {
+		pedida[p] = true
+	}
+	var extra []string
+	for _, p := range strings.Split(string(out), "\x00") {
+		if p != "" && !pedida[p] {
+			extra = append(extra, p)
+		}
+	}
+	if len(extra) > 0 {
+		return fmt.Errorf("el commit del guardado trae rutas que no pidio: %q", extra)
+	}
+	disco := agentcmd.FotoProtegidos(dir, foto.rutas)
+	idx, err := indiceDe(dir, g, foto.rutas)
+	if err != nil {
+		return err
+	}
+	for _, p := range foto.rutas {
+		if disco[p] != foto.disco[p] || !pedida[p] && idx[p] != foto.indice[p] {
+			return fmt.Errorf("durante el guardado cambio el test protegido %q", p)
+		}
+	}
+	return nil
 }
 
 // deshacer leaves the task's branch where it was when the save failed with
