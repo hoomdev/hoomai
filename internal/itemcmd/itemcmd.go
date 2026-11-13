@@ -28,12 +28,16 @@ import (
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/procesos"
+	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 // Subcommands.
@@ -881,7 +885,7 @@ const ErrVeredictoConMaterial = "el ultimo veredicto de la tarea encontro el mat
 // <ruta> being the paths, as agentcmd.CambiosMaterialGit names them, joined
 // with ", ".
 func ErrHookCambioMaterial(rutas []string) string {
-	return ""
+	return "un hook del guardado cambio el material de git: " + strings.Join(rutas, ", ") + ": no guardo"
 }
 
 // ErrGitAjeno is what SaveTarea of the card slug answers, once it undid its
@@ -890,14 +894,14 @@ func ErrHookCambioMaterial(rutas []string) string {
 // `el guardado cambio git fuera de hoom/<slug>: <ruta>: no guardo`, <ruta>
 // being the paths, as agentcmd.CambiosGitAjeno names them, joined with ", ".
 func ErrGitAjeno(slug string, rutas []string) string {
-	return ""
+	return "el guardado cambio git fuera de hoom/" + slug + ": " + strings.Join(rutas, ", ") + ": no guardo"
 }
 
 // ErrExigirDelGuardado is what SaveTarea answers, committing nothing, when
 // the level of its encierro (nivel) does not meet encierro.exigir (exigir):
 // `el encierro de este sistema es <nivel> y hoom.yaml exige <exigir>: no guardo`.
 func ErrExigirDelGuardado(nivel, exigir string) string {
-	return ""
+	return "el encierro de este sistema es " + nivel + " y hoom.yaml exige " + exigir + ": no guardo"
 }
 
 // SaveTareaBajoCandado is SaveTarea for a caller that already holds the
@@ -941,48 +945,114 @@ func tareaGuardable(root, slug string) (string, error) {
 	return dir, nil
 }
 
-// guardarTarea is SaveTarea under the task tree's lock.
+// guardarTarea is SaveTarea under the task tree's lock: its refusals before
+// any git, then the save between the photographs of the git material and
+// git-ajeno (contencion-del-writer).
 func guardarTarea(root, slug, dir string) (SaveResult, error) {
-	res := SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
-	p, err := boardcmd.PulsoDe(root, slug, time.Now().UTC())
+	if materialEnElVeredicto(dir) {
+		return SaveResult{}, errors.New(ErrVeredictoConMaterial)
+	}
+	g := delGuardado()
+	roles, err := manifest.LoadRoles(root)
 	if err != nil {
 		return SaveResult{}, err
 	}
-	if p.Source != boardcmd.SourceWorktree {
-		return res, nil
+	if pol := roles.Encierro; pol != nil {
+		info := encierro.Nivel(true, nil)
+		if !encierro.Alcanza(info.Nivel, pol.Exigir) {
+			return SaveResult{}, errors.New(ErrExigirDelGuardado(info.Nivel, pol.Exigir))
+		}
+		if info.Mecanismo == encierro.MecanismoBwrap {
+			perfil := ""
+			if m, err := manifest.Load(dir, profiles.Resolve); err == nil {
+				perfil = m.Profile
+			}
+			vista, err := encierro.VistaDe(encierro.Lugar{Principal: root, Tarea: slug, Arbol: dir, Quien: encierro.QuienGuardado,
+				Escribibles: pol.Escribibles, Perfil: perfil})
+			if err != nil {
+				return SaveResult{}, err
+			}
+			g.plan = &encierro.Plan{Info: info, Vista: vista}
+			// no gpg nor ssh agent inside to sign: the person signs when
+			// integrating (contencion-del-writer, decision 7)
+			g.opciones = append(g.opciones, "-c", "commit.gpgsign=false")
+		}
 	}
-	g := delGuardado()
+	material := agentcmd.FotoMaterialGit(dir)
+	ajeno := agentcmd.FotoGitAjeno(dir)
+	res, s, hecho, err := guardarEntre(root, slug, dir, g)
+	if cambios := agentcmd.CambiosMaterialGit(material, agentcmd.FotoMaterialGit(dir)); len(cambios) > 0 {
+		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrHookCambioMaterial(cambios)))
+	}
+	if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
+		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrGitAjeno(slug, cambios)))
+	}
+	return res, err
+}
+
+// deshacerSi is the end of a save that changed what it must not: when its
+// commit stands (hecho, with no error of its own), it is undone (deshacer)
+// with motivo; otherwise motivo is the error (what failed was undone
+// already).
+func deshacerSi(dir string, g gitDelGuardado, s guardado, hecho bool, err, motivo error) (SaveResult, error) {
+	if hecho && err == nil {
+		return SaveResult{}, deshacer(dir, g, s, motivo)
+	}
+	return SaveResult{}, motivo
+}
+
+// materialEnElVeredicto says whether the newest complete verdict of the tree
+// dir has the gate material_de_git in fail (verifycmd.GateMaterialDeGit).
+func materialEnElVeredicto(dir string) bool {
+	all, err := verdict.LoadAll(dir)
+	if err != nil {
+		return false
+	}
+	return len(agentcmd.MaterialDelVeredicto(verdict.LatestComplete(all))) > 0
+}
+
+// guardarEntre is the save itself, with g: its commit (s, hecho) when it
+// made one that stands.
+func guardarEntre(root, slug, dir string, g gitDelGuardado) (res SaveResult, s guardado, hecho bool, err error) {
+	res = SaveResult{Slug: slug, Message: SaveMessage(slug), Commits: []SaveCommit{}}
+	p, err := boardcmd.PulsoDe(root, slug, time.Now().UTC())
+	if err != nil {
+		return SaveResult{}, s, false, err
+	}
+	if p.Source != boardcmd.SourceWorktree {
+		return res, s, false, nil
+	}
 	local, err := sinGuardar(dir, g)
 	if err != nil {
-		return res, err
+		return res, s, false, err
 	}
 	// nothing to save is never a refusal: the pilot then sees the job
 	// running in its own case
 	if len(local) == 0 {
-		return res, nil
+		return res, s, false, nil
 	}
 	if r := p.Running; r != nil {
 		quien := "el agente"
 		if r.Role != "" {
 			quien = "el " + r.Role
 		}
-		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
+		return SaveResult{}, s, false, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
 	}
 	// what the save checks its commit against (aclaraciones 24 y 26): the
 	// branch HEAD names before any hook runs and where it was, and the
 	// task's protected tests, on disk and in the index
 	prot, err := agentcmd.TestsProtegidos(root, slug)
 	if err != nil {
-		return res, fmt.Errorf("no pude leer los tests protegidos de la tarea: %w", err)
+		return res, s, false, fmt.Errorf("no pude leer los tests protegidos de la tarea: %w", err)
 	}
-	s, err := empezarGuardado(dir, g, slug)
+	s, err = empezarGuardado(dir, g, slug)
 	if err != nil {
-		return res, err
+		return res, s, false, err
 	}
 	g = s.con(g)
 	foto, err := fotoProtegidos(dir, g, prot)
 	if err != nil {
-		return res, err
+		return res, s, false, err
 	}
 	// the index entry the save itself staged for each path it asks for,
 	// once staged and before its commit: the commit must bring every one
@@ -998,14 +1068,14 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 		err = revisarCommit(dir, g, s, sha, local, stageados, foto)
 	}
 	if err != nil {
-		return res, deshacer(dir, g, s, err)
+		return res, s, false, deshacer(dir, g, s, err)
 	}
 	paths := make([]string, len(local))
 	for i, l := range local {
 		paths[i] = p.Dir + "/" + l
 	}
 	res.Commits = append(res.Commits, SaveCommit{Dir: p.Dir, SHA: sha, Paths: paths})
-	return res, nil
+	return res, s, true, nil
 }
 
 // protegidosDelGuardado photographs the task's protected tests for the save:
@@ -1381,6 +1451,10 @@ type gitDelGuardado struct {
 	tope     time.Duration // > 0 bounds each command (gitTope); 0 = unbounded
 	opciones []string      // git options before the subcommand
 	env      []string      // added to the environment; nil = inherited as is
+	// plan is the encierro each command runs under (contencion-del-writer);
+	// nil = as today. Only SaveTarea, in a project with the section
+	// encierro, sets it.
+	plan *encierro.Plan
 }
 
 // delGuardado is the git of SaveTarea: each command bounded by TopeGit in
@@ -1406,14 +1480,22 @@ func (g gitDelGuardado) con(args []string) []string {
 	return append(append([]string{}, g.opciones...), args...)
 }
 
-// correr is gitTope with g's bound and options.
+// correr is gitTope with g's bound and options, under g's encierro when it
+// has one (gitTopeEn).
 func (g gitDelGuardado) correr(dir string, stdin io.Reader, args ...string) (string, error) {
-	return gitTope(dir, g.tope, g.env, stdin, g.con(args)...)
+	if g.plan == nil {
+		return gitTope(dir, g.tope, g.env, stdin, g.con(args)...)
+	}
+	return gitTopeEn(dir, g.tope, g.env, g.plan, stdin, g.con(args)...)
 }
 
-// listado is listadoGit with g's bound and options.
+// listado is listadoGit with g's bound and options, under g's encierro when
+// it has one (listadoGitEn).
 func (g gitDelGuardado) listado(dir string, args ...string) ([]byte, error) {
-	return listadoGit(dir, g.tope, g.env, g.con(args)...)
+	if g.plan == nil {
+		return listadoGit(dir, g.tope, g.env, g.con(args)...)
+	}
+	return listadoGitEn(dir, g.tope, g.env, g.plan, g.con(args)...)
 }
 
 // commitPaths stages exactly paths and commits only them: whatever else sits
@@ -1491,6 +1573,12 @@ const colaGit = 64 << 10
 // colaGit bytes: where git, or what it ran, says why it failed (finding
 // d49489).
 func gitTope(dir string, tope time.Duration, env []string, stdin io.Reader, args ...string) (string, error) {
+	return gitTopeEn(dir, tope, env, nil, stdin, args...)
+}
+
+// gitTopeEn is gitTope under the encierro plan (nil = as today), which only
+// a bounded git takes (SaveTarea's).
+func gitTopeEn(dir string, tope time.Duration, env []string, plan *encierro.Plan, stdin io.Reader, args ...string) (string, error) {
 	if tope <= 0 {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
@@ -1500,7 +1588,7 @@ func gitTope(dir string, tope time.Duration, env []string, stdin io.Reader, args
 		return strings.TrimSpace(string(out)), err
 	}
 	salida := &salidaGit{limite: colaGit}
-	err := correrConTope(dir, tope, env, stdin, salida, salida, args...)
+	err := correrConTope(dir, tope, env, plan, stdin, salida, salida, args...)
 	return strings.TrimSpace(string(salida.bytes())), err
 }
 
@@ -1508,6 +1596,11 @@ func gitTope(dir string, tope time.Duration, env []string, stdin io.Reader, args
 // (what there is to save), run like gitTope. When git fails the error says
 // which command and carries the end of its stderr.
 func listadoGit(dir string, tope time.Duration, env []string, args ...string) ([]byte, error) {
+	return listadoGitEn(dir, tope, env, nil, args...)
+}
+
+// listadoGitEn is listadoGit under the encierro plan (nil = as today).
+func listadoGitEn(dir string, tope time.Duration, env []string, plan *encierro.Plan, args ...string) ([]byte, error) {
 	out, stderr := &salidaGit{}, &salidaGit{limite: colaGit}
 	var err error
 	if tope <= 0 {
@@ -1517,7 +1610,7 @@ func listadoGit(dir string, tope time.Duration, env []string, args ...string) ([
 		cmd.Stdout, cmd.Stderr = out, stderr
 		err = cmd.Run()
 	} else {
-		err = correrConTope(dir, tope, env, nil, out, stderr, args...)
+		err = correrConTope(dir, tope, env, plan, nil, out, stderr, args...)
 	}
 	if errors.Is(err, errTopeGit) {
 		return nil, err
@@ -1543,7 +1636,12 @@ func listadoGit(dir string, tope time.Duration, env []string, args ...string) ([
 // nothing of the command is alive when it returns (procesos.Liberar,
 // aclaracion 19). The error then wraps errTopeGit and says which command and
 // its bound.
-func correrConTope(dir string, tope time.Duration, env []string, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
+//
+// With an encierro plan (nil = as today) git runs enclosed
+// (encierro.Envolver) with the same bound and gracia (encierro.Arrancar):
+// SIGTERM to what runs inside, graciaGit, and then the end of the encierro
+// with everything in it (encierro.Liberar).
+func correrConTope(dir string, tope time.Duration, env []string, plan *encierro.Plan, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tope)
 	defer cancel()
 	var lecturas, escrituras []*os.File
@@ -1579,7 +1677,14 @@ func correrConTope(dir string, tope time.Duration, env []string, stdin io.Reader
 	cmd.Stdin = stdin
 	cmd.Stdout, cmd.Stderr = escrituras[0], escrituras[len(escrituras)-1]
 	cmd.WaitDelay = graciaGit + time.Second
-	err := procesos.ArrancarConGracia(cmd, graciaGit)
+	var err error
+	if plan != nil {
+		if err = encierro.Envolver(cmd, *plan); err == nil {
+			err = encierro.Arrancar(cmd, graciaGit)
+		}
+	} else {
+		err = procesos.ArrancarConGracia(cmd, graciaGit)
+	}
 	for _, f := range escrituras {
 		f.Close() // git keeps its copies: EOF comes when the group's are closed
 	}
@@ -1588,10 +1693,14 @@ func correrConTope(dir string, tope time.Duration, env []string, stdin io.Reader
 	}
 	err = cmd.Wait()
 	vencio := errors.Is(ctx.Err(), context.DeadlineExceeded)
-	if vencio {
-		procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGit))
+	if plan != nil {
+		encierro.Liberar(cmd) // the rest of its gracia, then the whole encierro
+	} else {
+		if vencio {
+			procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGit))
+		}
+		procesos.Liberar(cmd.Process.Pid)
 	}
-	procesos.Liberar(cmd.Process.Pid)
 	leyeron := func(hasta <-chan time.Time) bool {
 		for _, l := range leidos {
 			select {
