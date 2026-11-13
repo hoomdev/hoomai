@@ -429,18 +429,16 @@ func (e *envuelto) termAlComando(pid int, hasta time.Time, alTerm func()) {
 }
 
 // termComando sends SIGTERM to the main process of the encierro whose init
-// is pid, hoom's step, which passes it on to the command's group (paso): to
-// the step's group (bwrap's --new-session makes it lead one), or to the step
-// itself. false while the step has not started the command yet: until then a
-// SIGTERM would end the step instead of reaching the command (it handles
-// SIGTERM from before it starts the command).
+// is pid, hoom's step, which passes it on to the command's group (paso). To
+// the step alone, never to its group: the command's child, between its fork
+// and its setsid, is still in the step's group with its signals blocked, and
+// a SIGTERM to the group would stay pending there and kill it before its
+// exec, with the default action, so the command would never run its trap
+// (ronda 2, f1f7f5). false while the step has not started the command yet.
 func (e *envuelto) termComando(pid int) bool {
 	c := comandoDe(pid)
 	if c <= 0 || !conHijos(c) {
 		return false
-	}
-	if syscall.Kill(-c, syscall.SIGTERM) == nil {
-		return true
 	}
 	return syscall.Kill(c, syscall.SIGTERM) == nil
 }
