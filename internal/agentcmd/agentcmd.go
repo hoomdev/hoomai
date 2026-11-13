@@ -305,6 +305,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		}
 		pol.Protegidos = FotoProtegidos(dir, rutas)
 		pol.ProtegidosGit = FotoGitProtegidos(dir, rutas, pol.Protegidos)
+		// and what the pilot's save runs of git: the writer does not change
+		// it (aclaracion 25)
+		pol.MaterialGit = FotoMaterialGit(dir)
 	}
 	before := Take(runDir, base)
 	info, err := mgr.Start(so)
@@ -364,10 +367,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		switch {
 		case res.Scope.Broken():
 			note = "el aislamiento se rompio: no se emite veredicto sobre este arbol"
-		case !res.Scope.Tampering:
-			// only the test-writer's tests: with the evidence also moved,
-			// the note stays the tampering one
+		case !res.Scope.Tampering && res.Scope.has(RuleTestsDelTestWriter):
+			// the test-writer's tests: with the evidence also moved, the
+			// note stays the tampering one
 			note = NotaTestsDelTestWriter
+		case !res.Scope.Tampering:
+			note = NotaMaterialDeGit
 		}
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
 		return cerrar(w, root, &rec, res, "scope", 1, note), nil

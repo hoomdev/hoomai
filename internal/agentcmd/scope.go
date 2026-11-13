@@ -76,10 +76,7 @@ func DescripcionViolacion(v Violation, rol string) string {
 // its path. The pilot reads with it which envelopes touched a protected test
 // (finding 78ccc0).
 func DeTestsDelTestWriter(f finding.Finding, rol string) bool {
-	pre, suf, _ := strings.Cut(DescripcionViolacion(Violation{Rule: RuleTestsDelTestWriter, Path: "\x00",
-		Detail: DetalleTestsDelTestWriter}, rol), "\x00")
-	return f.Author == AutorGateDeScope && f.Severity == "high" &&
-		len(f.Description) > len(pre)+len(suf) && strings.HasPrefix(f.Description, pre) && strings.HasSuffix(f.Description, suf)
+	return deRegla(f, rol, RuleTestsDelTestWriter, DetalleTestsDelTestWriter)
 }
 
 // DetalleTestsDelTestWriter is the Detail of a RuleTestsDelTestWriter
@@ -288,7 +285,7 @@ const ratchetPath = ".hoom/" + ratchet.FileName
 // Violation is one path the role should not have written.
 type Violation struct {
 	Path      string `json:"path"`
-	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer
+	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer | material-de-git
 	Detail    string `json:"detail"`
 	FindingID string `json:"finding_id,omitempty"`
 }
@@ -306,7 +303,7 @@ type ScopeResult struct {
 // undoing the blindfold, is not. Neither is changing the test-writer's tests
 // (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too.
 func (s ScopeResult) Cuts() bool {
-	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter)
+	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter) || s.has(RuleMaterialDeGit)
 }
 
 // Delivered is what the run changed that counts as the role's work: Touched
@@ -513,6 +510,13 @@ type Policy struct {
 	// with them, and a path marked skip-worktree or assume-unchanged during
 	// the run is a change. nil = the disk alone.
 	ProtegidosGit ProtegidosGit
+	// MaterialGit (aclaracion 25) is the git material of the task's tree,
+	// photographed before the run (FotoMaterialGit). For a role of shape
+	// codigo, Gate compares it with the same material after the run: an
+	// entry that changed, appeared or is gone is a RuleMaterialDeGit
+	// violation, whatever Allow says. PolicyFor never fills it: agentcmd.Run
+	// does; nil = nothing compared.
+	MaterialGit MaterialGit
 }
 
 // defaultAllow / defaultDeny per scope shape. The test globs cover the usual
@@ -654,6 +658,7 @@ func Gate(dir, base, task string, role agents.Role, before, after Snapshot, pol 
 	sc = pisoEnDisco(sc, arboles...)
 	sc = sinListado(sc, arboles...)
 	sc = sinTocarProtegidos(sc, dir, role, pol.Protegidos, pol.ProtegidosGit)
+	sc = sinTocarMaterialGit(sc, dir, role, pol.MaterialGit)
 	// one fingerprint dates every finding of the gate: computed once, and
 	// not even tried when git already did not answer the photographs
 	// (finding f472ee)
@@ -734,7 +739,7 @@ func ruleRank(rule string) int {
 	switch rule {
 	case RuleIsolation:
 		return 0
-	case RuleTampering, RuleTestsDelTestWriter:
+	case RuleTampering, RuleTestsDelTestWriter, RuleMaterialDeGit:
 		return 1
 	default:
 		return 2
