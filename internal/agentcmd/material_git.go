@@ -2,12 +2,14 @@ package agentcmd
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/finding"
@@ -20,7 +22,8 @@ import (
 // core.hooksPath's, inside or outside the tree), its content, its execute
 // permission or a symlink's target, created or removed; the common config;
 // the tree's config.worktree; or the common info/attributes (MaterialGit).
-// It cuts like RuleTestsDelTestWriter: the envelope closes in scope,
+// A photograph of it that does not end within its bound counts as changed
+// (FotoSinTerminar, aclaracion 28). It cuts like RuleTestsDelTestWriter: the envelope closes in scope,
 // no-entregable, exit 1, with no verify, and its note is NotaMaterialDeGit
 // (the tampering note when the same run also tampered with the evidence,
 // NotaTestsDelTestWriter when it also touched a protected test). Its
@@ -39,16 +42,56 @@ const NotaMaterialDeGit = "el writer cambio el material de git de su tarea: no s
 // MaterialGit is the git material of a task's tree as the envelope read it
 // BEFORE the run (FotoMaterialGit): by path as RuleMaterialDeGit names it,
 // the same Huellas the disk floor uses (a regular file's adds whether it can
-// be executed), or ProtegidoAusente for one that was not there.
+// be executed; a large one's is HuellaGrande), or ProtegidoAusente for one
+// that was not there; FotoSinTerminar alone when the photograph did not end.
 type MaterialGit map[string]string
+
+// maxLeidoMaterialGit is the largest regular file of the git material the
+// photograph reads (aclaracion 28): a larger one is not read, its Huella is
+// HuellaGrande.
+const maxLeidoMaterialGit = 1 << 20
+
+// HuellaGrande prefixes the Huella of a regular file of the git material
+// larger than maxLeidoMaterialGit: its size, its mode and its modification
+// time, never its content. Changing its size, mode or time changes it.
+const HuellaGrande = "grande:"
+
+// topeFotoMaterialGit bounds a whole FotoMaterialGit (aclaracion 28): a
+// photograph that does not end by then is FotoSinTerminar. Tests shrink it.
+var topeFotoMaterialGit = 5 * time.Second
+
+// FotoSinTerminar is the one entry of the MaterialGit of a photograph that
+// did not end within its bound: as a path it says so, and against any other
+// photograph, itself included, it counts as changed git material.
+const FotoSinTerminar = "el material de git (su foto no termino a tiempo)"
 
 // FotoMaterialGit photographs the git material of the tree dir: the
 // effective hooks directory and each entry right inside it (the ones git
 // runs), the common config, the tree's config.worktree and the common
-// info/attributes, read from the disk, never followed. Outside a git
-// repository there is none: an empty MaterialGit. When git does not say
-// where it is, the entry "git" is HuellaIlegible.
+// info/attributes, read from the disk, never followed, a file larger than
+// maxLeidoMaterialGit not read. Outside a git repository there is none: an
+// empty MaterialGit. When git does not say where it is, the entry "git" is
+// HuellaIlegible. A photograph that does not end within
+// topeFotoMaterialGit is FotoSinTerminar alone (aclaracion 28).
 func FotoMaterialGit(dir string) MaterialGit {
+	limite := time.Now().Add(topeFotoMaterialGit)
+	listo := make(chan MaterialGit, 1)
+	go func() { listo <- fotoMaterialGit(dir, limite) }()
+	t := time.NewTimer(time.Until(limite))
+	defer t.Stop()
+	select {
+	case foto := <-listo:
+		if foto != nil {
+			return foto
+		}
+	case <-t.C:
+	}
+	return MaterialGit{FotoSinTerminar: HuellaIlegible}
+}
+
+// fotoMaterialGit is FotoMaterialGit without its bound; nil once it passes
+// limite.
+func fotoMaterialGit(dir string, limite time.Time) MaterialGit {
 	foto := MaterialGit{}
 	out, err := gitEn(dir, "rev-parse", "--path-format=absolute", "--git-path", "hooks", "--git-common-dir", "--git-dir")
 	lineas := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
@@ -67,27 +110,31 @@ func FotoMaterialGit(dir string) MaterialGit {
 		}
 		return filepath.ToSlash(p)
 	}
-	foto[nombre(hooks)] = huellaMaterial(hooks)
+	rutas := []string{hooks}
 	if st, err := os.Stat(hooks); err == nil && st.IsDir() {
 		entradas, err := os.ReadDir(hooks)
 		if err != nil {
 			foto[nombre(hooks)+"/"] = HuellaIlegible
 		}
 		for _, e := range entradas {
-			p := filepath.Join(hooks, e.Name())
-			foto[nombre(p)] = huellaMaterial(p)
+			rutas = append(rutas, filepath.Join(hooks, e.Name()))
 		}
 	}
-	for _, p := range []string{filepath.Join(comun, "config"), filepath.Join(gitDir, "config.worktree"),
-		filepath.Join(comun, "info", "attributes")} {
+	rutas = append(rutas, filepath.Join(comun, "config"), filepath.Join(gitDir, "config.worktree"),
+		filepath.Join(comun, "info", "attributes"))
+	for _, p := range rutas {
+		if time.Now().After(limite) {
+			return nil
+		}
 		foto[nombre(p)] = huellaMaterial(p)
 	}
 	return foto
 }
 
 // huellaMaterial is the Huella of the entry at p: ProtegidoAusente when it
-// is not there, a regular file's content hash with ":x" when someone can
-// execute it, the disk floor's for the rest.
+// is not there, HuellaGrande for a regular file larger than
+// maxLeidoMaterialGit, a regular file's content hash with ":x" when someone
+// can execute it, the disk floor's for the rest.
 func huellaMaterial(p string) string {
 	fi, err := os.Lstat(p)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -95,6 +142,9 @@ func huellaMaterial(p string) string {
 	}
 	if err != nil {
 		return HuellaIlegible
+	}
+	if fi.Mode().IsRegular() && fi.Size() > maxLeidoMaterialGit {
+		return fmt.Sprintf("%s%d:%s:%d", HuellaGrande, fi.Size(), fi.Mode(), fi.ModTime().UnixNano())
 	}
 	r, err := os.OpenRoot(filepath.Dir(p))
 	if err != nil {
@@ -119,14 +169,22 @@ func sinTocarMaterialGit(sc ScopeResult, dir string, role agents.Role, antes Mat
 	}
 	ahora := FotoMaterialGit(dir)
 	tocadas := map[string]bool{}
-	for p, h := range antes {
-		if ahora[p] != h {
-			tocadas[p] = true
+	_, antesSin := antes[FotoSinTerminar]
+	_, ahoraSin := ahora[FotoSinTerminar]
+	switch {
+	case antesSin || ahoraSin:
+		// a photograph that did not end proves nothing: fail closed
+		tocadas[FotoSinTerminar] = true
+	default:
+		for p, h := range antes {
+			if ahora[p] != h {
+				tocadas[p] = true
+			}
 		}
-	}
-	for p := range ahora {
-		if _, ok := antes[p]; !ok {
-			tocadas[p] = true
+		for p := range ahora {
+			if _, ok := antes[p]; !ok {
+				tocadas[p] = true
+			}
 		}
 	}
 	if len(tocadas) == 0 {
