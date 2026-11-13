@@ -779,7 +779,7 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 				local[i] = strings.TrimPrefix(p, tr.rel+"/")
 			}
 		}
-		sha, err := commitPaths(dir, res.Message, local, gitDelGuardado{})
+		sha, err := commitPaths(dir, res.Message, local, gitDelGuardado{}, nil)
 		if err != nil {
 			if len(res.Commits) > 0 {
 				// the workspace is already saved: say so, with its commit
@@ -925,7 +925,15 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	if err != nil {
 		return res, err
 	}
-	sha, err := commitPaths(dir, res.Message, local, g)
+	// the index entry the save itself staged for each protected test it
+	// asks for, which its commit must keep (aclaracion 24): a hook may
+	// stage another blob for it without touching the disk
+	pedidos := enComun(prot, local)
+	sha, err := commitPaths(dir, res.Message, local, g, func() error {
+		var err error
+		foto.stageados, err = entradasDe(dir, g, "", pedidos)
+		return err
+	})
 	if err == nil {
 		err = revisarCommit(dir, g, antes, sha, local, foto)
 	}
@@ -947,6 +955,9 @@ type protegidosDelGuardado struct {
 	rutas  []string
 	disco  agentcmd.Protegidos
 	indice map[string]string
+	// stageados is entradasDe of the protected tests the save asks for, in
+	// the index once the save staged them and before its commit
+	stageados map[string]string
 }
 
 func fotoProtegidos(dir string, g gitDelGuardado, rutas []string) (protegidosDelGuardado, error) {
@@ -982,8 +993,9 @@ func indiceDe(dir string, g gitDelGuardado, rutas []string) (map[string]string, 
 // for and nothing a hook slipped in (aclaracion 24): its one parent is antes,
 // every path it changes is one of pedidas, and no protected test of the task
 // changed during the save: on disk, nor in the index unless it is one of
-// pedidas (staging those is the save's own doing; what it commits of them is
-// checked on disk).
+// pedidas (staging those is the save's own doing). For those, the commit
+// keeps the mode and blob the save staged (foto.stageados): another one is
+// a hook's, whatever the disk says.
 func revisarCommit(dir string, g gitDelGuardado, antes, sha string, pedidas []string, foto protegidosDelGuardado) error {
 	padres, err := g.correr(dir, nil, "rev-list", "--parents", "-n", "1", sha)
 	if err != nil {
@@ -1020,7 +1032,65 @@ func revisarCommit(dir string, g gitDelGuardado, antes, sha string, pedidas []st
 			return fmt.Errorf("durante el guardado cambio el test protegido %q", p)
 		}
 	}
+	pedidos := enComun(foto.rutas, pedidas)
+	enCommit, err := entradasDe(dir, g, sha, pedidos)
+	if err != nil {
+		return err
+	}
+	for _, p := range pedidos {
+		if enCommit[p] != foto.stageados[p] {
+			return fmt.Errorf("el commit del guardado no trae el test protegido %q que stageo el guardado", p)
+		}
+	}
 	return nil
+}
+
+// entradasDe is the mode and blob of each path of rutas in dir: in the index
+// (arbol "") or in the tree of the commit arbol, from a git of the save; a
+// path that has none is not in the map. It reads the index or the objects
+// only: no hook, no filter, nothing from the disk.
+func entradasDe(dir string, g gitDelGuardado, arbol string, rutas []string) (map[string]string, error) {
+	out := map[string]string{}
+	if len(rutas) == 0 {
+		return out, nil
+	}
+	args := []string{"--literal-pathspecs", "-c", "core.quotePath=false", "ls-files", "-s", "-z", "--"}
+	if arbol != "" {
+		args = []string{"--literal-pathspecs", "-c", "core.quotePath=false", "ls-tree", "-r", "-z", arbol, "--"}
+	}
+	raw, err := g.listado(dir, append(args, rutas...)...)
+	if err != nil {
+		return nil, fmt.Errorf("no pude leer los tests protegidos que guarda: %w", err)
+	}
+	for _, e := range strings.Split(string(raw), "\x00") {
+		meta, ruta, ok := strings.Cut(e, "\t")
+		f := strings.Fields(meta)
+		if !ok || len(f) != 3 {
+			continue
+		}
+		// ls-files -s: <mode> <blob> <stage>; ls-tree: <mode> <type> <blob>
+		blob := f[1]
+		if arbol != "" {
+			blob = f[2]
+		}
+		out[ruta] += f[0] + " " + blob + ";"
+	}
+	return out, nil
+}
+
+// enComun are the paths of a that are also in b, in a's order.
+func enComun(a, b []string) []string {
+	en := map[string]bool{}
+	for _, p := range b {
+		en[p] = true
+	}
+	var out []string
+	for _, p := range a {
+		if en[p] {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // deshacer leaves the task's branch where it was when the save failed with
@@ -1162,7 +1232,9 @@ func (g gitDelGuardado) listado(dir string, args ...string) ([]byte, error) {
 
 // commitPaths stages exactly paths and commits only them: whatever else sits
 // in the index stays there, uncommitted. The repository's hooks run.
-func commitPaths(dir, msg string, paths []string, g gitDelGuardado) (string, error) {
+// antesDelCommit (nil = none) runs once the paths are staged and before git
+// commit: a failure there stops the save before the commit.
+func commitPaths(dir, msg string, paths []string, g gitDelGuardado, antesDelCommit func() error) (string, error) {
 	// what is on disk is added; what is not (a deletion, also one a git rm
 	// or a git mv already staged) leaves the index: git add stops at a name
 	// that is in neither (finding 186524). The paths are names, never
@@ -1190,6 +1262,11 @@ func commitPaths(dir, msg string, paths []string, g gitDelGuardado) (string, err
 		in := strings.NewReader(strings.Join(ausentes, "\x00") + "\x00")
 		if out, err := g.correr(dir, in, "update-index", "--remove", "-z", "--stdin"); err != nil {
 			return "", fallo("update-index", out, err)
+		}
+	}
+	if antesDelCommit != nil {
+		if err := antesDelCommit(); err != nil {
+			return "", err
 		}
 	}
 	commit := append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)
