@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192045_425a75",
+  "created_at": "2026-11-13T19:20:45.812612071Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/providers/codex.go",
+  "description": "INTRODUCIDO: internal/providers/codex.go:51-57 acepta cualquier CODEX_HOME absoluto como Estado.Escribe, internal/encierro/encierro.go:461-465 lo incorpora sin validar y internal/encierro/encierro_linux.go:218-222 lo monta escribible. Con CODEX_HOME=/, o apuntando al checkout principal o al Git comun, el writer recupera escritura sobre esos destinos y evade por completo la promesa de escribir solo en su tarea.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

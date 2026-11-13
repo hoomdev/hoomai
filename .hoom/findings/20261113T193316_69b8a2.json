@@ -1,0 +1,11 @@
+{
+  "id": "20261113T193316_69b8a2",
+  "created_at": "2026-11-13T19:33:16.141486331Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/encierro/encierro_linux.go",
+  "description": "INTRODUCIDO: hay una carrera entre el arranque y la gracia. procesos.ArrancarCon registra el comando antes de que leerInfo/PidfdOpen publique e.pid; si vence el contexto o llega SIGINT en esa ventana, Term ve pidInit==0, devuelve false y procesos mata inmediatamente el grupo/bwrap, sin enviar SIGTERM al proceso principal ni esperar la gracia. Un guardado cancelado justo al arrancar puede saltarse la limpieza que debe soltar index.lock; los tests cancelan solo despues de observar los hijos y no cubren esta ventana (internal/encierro/encierro_linux.go:327).",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

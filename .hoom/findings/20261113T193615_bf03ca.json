@@ -1,0 +1,11 @@
+{
+  "id": "20261113T193615_bf03ca",
+  "created_at": "2026-11-13T19:36:15.00995963Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/encierro.go",
+  "description": "INTRODUCIDO: registrarViolaciones ignora cualquier error de finding.Register. Para git-ajeno y config-de-agentes ese hallazgo es la unica evidencia que cortesDelGate convierte en TocoGitAjeno/TocoConfigDeAgentes; si .hoom/findings no se puede escribir pero el registro del sobre si, el sobre actual corta pero un corte: tiempo posterior queda sin la marca y el piloto puede relevar o reintentar codigo que ya violo el control, contra CA-692 (internal/agentcmd/encierro.go:195).",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

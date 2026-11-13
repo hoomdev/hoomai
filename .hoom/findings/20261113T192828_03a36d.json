@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192828_03a36d",
+  "created_at": "2026-11-13T19:28:28.014501583Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/providers/codex.go",
+  "description": "INTRODUCIDO: internal/providers/codex.go:53 acepta cualquier CODEX_HOME absoluto y lo declara completo en Escribe; VistaDe lo monta escribible sin aplicar la validacion de encierro.escribibles. Con CODEX_HOME=/, el checkout principal o otro worktree, un run de Codex recupera escritura fuera de su tarea y viola CA-678/CA-690.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

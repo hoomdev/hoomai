@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192045_c5790e",
+  "created_at": "2026-11-13T19:20:45.736128841Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/encierro/encierro.go",
+  "description": "INTRODUCIDO: internal/encierro/encierro.go:227 evalua Windows suponiendo Job=true antes de lanzar, pero internal/runcmd/runcmd.go:1451-1455, si Adoptar no pudo crear el Job Object, solo baja el nivel del sidecar a ninguno y deja correr el provider. Con exigir: parcial el control ya paso y un run sin contencion de procesos continua, de modo que sus hijos pueden sobrevivir pese a la politica.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

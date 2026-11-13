@@ -1,0 +1,11 @@
+{
+  "id": "20261113T193306_7adc7b",
+  "created_at": "2026-11-13T19:33:06.752220372Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: si guardarEntre falla despues de crear el commit, llama a deshacer y devuelve hecho=false con un error que explica si la rama no pudo volver. Pero si el mismo hook tambien cambio material-de-git o git-ajeno, deshacerSi ignora por completo ese error porque hecho es false y devuelve solo el nuevo mensaje terminado en no guardo. Un hook puede impedir el update-ref compensatorio y dejar el commit en la rama mientras el piloto recibe un error que afirma lo contrario, sin la evidencia de recuperacion fallida (internal/itemcmd/itemcmd.go:997).",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

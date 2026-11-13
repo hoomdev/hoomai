@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192046_02b2f7",
+  "created_at": "2026-11-13T19:20:46.053123436Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/git_ajeno.go",
+  "description": "INTRODUCIDO: internal/agentcmd/git_ajeno.go:93-95 presenta un tope de 10 s, pero internal/agentcmd/git_ajeno.go:103-118 recorre todos los objetos fuera de ese tope y internal/agentcmd/git_ajeno.go:342-352 hace io.Copy sin limite. Como CambiosGitAjeno ignora objetos nuevos, un writer puede dejar un objeto suelto disperso y enorme con nombre valido; la siguiente foto previa al guardado o al run lo lee completo y puede colgar hoom.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}
