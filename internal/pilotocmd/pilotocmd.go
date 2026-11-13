@@ -16,6 +16,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/cliargs"
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -457,6 +458,19 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		r.detener(boardcmd.PilotDecision{Paso: boardcmd.PasoDetenerse, Caso: caso, Why: why})
 		return false
 	}
+	// with a level under encierro.exigir neither its verify nor its save
+	// runs: the stop carries the save's refusal, before anything is closed
+	// (contencion-del-writer)
+	roles, err := manifest.LoadRoles(root)
+	if err != nil {
+		r.detener(parada(err.Error()))
+		return false
+	}
+	if pol := roles.Encierro; pol != nil {
+		if info := encierro.Nivel(true, nil); !encierro.Alcanza(info.Nivel, pol.Exigir) {
+			return noGuarda(errors.New(itemcmd.ErrExigirDelGuardado(info.Nivel, pol.Exigir)))
+		}
+	}
 	for _, id := range d.Hallazgos {
 		if _, err := finding.Resolve(dir, id, finding.StatusCorrected, d.Evidencias[id], finding.AutorPiloto); err != nil {
 			r.detener(parada("no pudo cerrar el hallazgo " + id + ": " + err.Error()))
@@ -470,10 +484,19 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		return false
 	}
 	// the spec as `hoom verify --spec .hoom/specs/<slug>.md` names it from the
-	// worktree: the verdict is the card's
-	v, _, err := verifycmd.Run(tm, verifycmd.Options{Spec: ".hoom/specs/" + slug + ".md"})
+	// worktree: the verdict is the card's. Its gates run with the writer's
+	// view (enclosed when the project asks) and the git material is
+	// photographed around them (contencion-del-writer)
+	v, _, err := verifycmd.Run(tm, verifycmd.Options{Spec: ".hoom/specs/" + slug + ".md",
+		Sobre: &verifycmd.Sobre{Root: root, Task: slug, Rol: "writer"}})
 	if err != nil {
 		r.detener(parada(err.Error()))
+		return false
+	}
+	if len(agentcmd.MaterialDelVeredicto(v)) > 0 {
+		// a gate changed the git material: no git of hoom runs it, so the
+		// stop comes before the save, with the text of a red verdict
+		r.detener(rojoTrasCerrar(v, d.Ronda))
 		return false
 	}
 	g, err := itemcmd.SaveTareaBajoCandado(root, m.BaseBranch, m.FindingsBlockOn(), slug)
@@ -494,18 +517,24 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 				Why: fmt.Sprintf("quedan hallazgos sin test en la ronda %d: %s: te toca", d.Ronda, strings.Join(ids, ", "))})
 			return false
 		}
-		var gates []string
-		for _, gr := range v.Gates {
-			if gr.Required && (gr.Status == verdict.StatusFail || gr.Status == verdict.StatusError) {
-				gates = append(gates, gr.Name)
-			}
-		}
-		r.detener(boardcmd.PilotDecision{Paso: boardcmd.PasoDetenerse, Caso: 7, Ronda: d.Ronda,
-			Why: fmt.Sprintf("despues de cerrar los hallazgos de la ronda %d, el veredicto %s sigue rojo en %s: te toca",
-				d.Ronda, v.ID, strings.Join(gates, ", "))})
+		r.detener(rojoTrasCerrar(v, d.Ronda))
 		return false
 	}
 	return true
+}
+
+// rojoTrasCerrar is the stop of cerrar-hallazgos whose verdict v is red in
+// round ronda: case 7, naming the required gates in fail or error.
+func rojoTrasCerrar(v *verdict.Verdict, ronda int) boardcmd.PilotDecision {
+	var gates []string
+	for _, gr := range v.Gates {
+		if gr.Required && (gr.Status == verdict.StatusFail || gr.Status == verdict.StatusError) {
+			gates = append(gates, gr.Name)
+		}
+	}
+	return boardcmd.PilotDecision{Paso: boardcmd.PasoDetenerse, Caso: 7, Ronda: ronda,
+		Why: fmt.Sprintf("despues de cerrar los hallazgos de la ronda %d, el veredicto %s sigue rojo en %s: te toca",
+			ronda, v.ID, strings.Join(gates, ", "))}
 }
 
 // sobresCerrados are the card's closed envelope records of the project,
@@ -655,10 +684,13 @@ func paradaAntesDeGuardar(root, base, slug string) (boardcmd.PilotDecision, bool
 }
 
 // cortesDelGate marks the envelopes whose run changed a protected test
-// (Sobre.TocoProtegidos) or the git material of its task
-// (Sobre.TocoMaterialGit): a tests-del-test-writer or material-de-git
-// finding of the scope gate (agentcmd.DeTestsDelTestWriter,
-// agentcmd.DeMaterialDeGit), on the card's task and the envelope's role,
+// (Sobre.TocoProtegidos), the git material of its task
+// (Sobre.TocoMaterialGit), git outside its branch (Sobre.TocoGitAjeno) or the
+// agents' config (Sobre.TocoConfigDeAgentes): a tests-del-test-writer,
+// material-de-git, git-ajeno or config-de-agentes finding of the scope gate
+// (agentcmd.DeTestsDelTestWriter, agentcmd.DeMaterialDeGit,
+// agentcmd.DeGitAjeno, agentcmd.DeConfigDeAgentes), on the card's task and
+// the envelope's role,
 // registered between the envelope's start and its end. Its status does not
 // matter: open, corregido or refutado, the run did it (aclaraciones 18 y
 // 25, findings ea20f8, e49304, 84d9de). A finding file it cannot read is an
@@ -686,6 +718,12 @@ func cortesDelGate(dir, base, slug string, sobres []boardcmd.Sobre) error {
 			}
 			if agentcmd.DeMaterialDeGit(it.Finding, rec.Role) {
 				sobres[i].TocoMaterialGit = true
+			}
+			if agentcmd.DeGitAjeno(it.Finding, rec.Role) {
+				sobres[i].TocoGitAjeno = true
+			}
+			if agentcmd.DeConfigDeAgentes(it.Finding, rec.Role) {
+				sobres[i].TocoConfigDeAgentes = true
 			}
 		}
 	}

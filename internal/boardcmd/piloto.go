@@ -130,7 +130,10 @@ type Sobre struct {
 // repository's hooks and config (aclaracion 23), and a writer that changed
 // them is not followed by any git that runs them (aclaracion 25).
 func ParadaAntesDeGuardar(sobres []Sobre) (PilotDecision, bool) {
-	if len(sobres) == 0 || !sobres[len(sobres)-1].TocoMaterialGit {
+	if len(sobres) == 0 {
+		return PilotDecision{}, false
+	}
+	if last := sobres[len(sobres)-1]; !last.TocoMaterialGit && !last.TocoGitAjeno && !last.TocoConfigDeAgentes {
 		return PilotDecision{}, false
 	}
 	return parar(8, noEntregable(sobres[len(sobres)-1].Record)), true
@@ -296,8 +299,10 @@ func (p piloto) decidir() PilotDecision {
 	// that ends a round
 	pasa := false
 	if hay {
-		// an envelope that changed the git material of its task stops the
-		// pilot, whatever its status, round or finding (aclaracion 25)
+		// an envelope that changed the git material of its task, git
+		// outside its branch or the agents' config stops the pilot, whatever
+		// its status, round or finding (aclaracion 25, contencion-del-writer):
+		// it is neither relieved nor retried
 		if d, para := ParadaAntesDeGuardar(p.e.Sobres); para {
 			return d
 		}
