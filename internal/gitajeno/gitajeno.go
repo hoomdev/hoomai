@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -139,7 +140,9 @@ func Tomar(dir string, tope time.Duration, maxLeido int64) Foto {
 // common directory antes photographed and lists, sorted, what breaks
 // git-ajeno since then: each ref under refs/replace/ created, moved or
 // removed, loose or packed, named `<comun>/refs/replace/<nombre>`
-// (absolute, the same name whether it is loose or packed), and each loose
+// (absolute, the same name whether it is loose or packed), a line of
+// packed-refs too long to be a ref that changed, appeared or went as
+// `<comun>/packed-refs`, and each loose
 // object, pack or index that existed in antes and now has other bytes, by its
 // absolute path. Only the files whose ctime, mtime, size or inode changed are
 // read. A file it cannot read, or that would pass maxLeido, counts as
@@ -161,14 +164,25 @@ func Cambios(antes Foto, tope time.Duration, maxLeido int64) []string {
 	case err != nil:
 		out = append(out, filepath.Join(antes.comun, "refs", "replace")+string(filepath.Separator))
 	default:
+		vistas := map[string]bool{}
+		nombrar := func(n string) {
+			p := filepath.Join(antes.comun, filepath.FromSlash(n))
+			if strings.HasPrefix(n, clavePackedLarga) {
+				p = filepath.Join(antes.comun, "packed-refs") // a long line of it
+			}
+			if !vistas[p] {
+				vistas[p] = true
+				out = append(out, p)
+			}
+		}
 		for n, v := range antes.refs {
-			if ahora[n] != v {
-				out = append(out, filepath.Join(antes.comun, filepath.FromSlash(n)))
+			if w, ok := ahora[n]; !ok || w != v {
+				nombrar(n)
 			}
 		}
 		for n := range ahora {
 			if _, ok := antes.refs[n]; !ok {
-				out = append(out, filepath.Join(antes.comun, filepath.FromSlash(n)))
+				nombrar(n)
 			}
 		}
 	}
@@ -299,21 +313,31 @@ func refsDeReemplazo(comun string, pr *presupuesto) (map[string]string, error) {
 	return refs, nil
 }
 
-// maxPackedRefs is the most of packed-refs a photograph reads, and
-// maxLineaPacked the longest line: past either, the photograph fails closed
-// (it never reads, nor holds, GBs).
+// maxLineaRef is the longest line of packed-refs that can be a ref: a hash
+// (64 hex digits at most), a space, a name of up to 4096 bytes and its end of
+// line. bufPacked is the reading buffer: all the reading of packed-refs
+// holds at a time, whatever its lines (ronda 2, d91180).
 const (
-	maxPackedRefs  = 256 << 20
-	maxLineaPacked = 64 << 10
+	maxLineaRef = 64 + 1 + 4096 + 2
+	bufPacked   = 64 << 10
 )
 
+// clavePackedLarga starts the name, in a photograph's refs, of a line of
+// packed-refs longer than maxLineaRef, followed by its offset: it is not a
+// ref, and it is not dropped either.
+const clavePackedLarga = "packed-refs:linea-larga@"
+
 // packedDeReemplazo adds to refs the refs under refs/replace/ of the
-// packed-refs of the common directory comun, read line by line (ronda 2,
-// d91180): its bytes come out of pr, it looks at pr's time at every line,
-// and it holds one line at a time. errVencido when pr's time passes; another
-// error (it fails closed) when packed-refs is not a regular file, passes
-// maxPackedRefs or pr's bytes, has a line over maxLineaPacked, or cannot be
-// read. No packed-refs adds nothing.
+// packed-refs of the common directory comun, read as a stream (ronda 2,
+// d91180): its bytes come out of pr, it looks at pr's time at every line and
+// every bufPacked of a long one, and it never holds more than bufPacked of
+// it. A line longer than maxLineaRef cannot be a ref: it is photographed by
+// its length and the sha256 of its bytes, under clavePackedLarga and its
+// offset, so that any change to it counts and never shares a value with
+// another state, and the lines after it are still read. errVencido when pr's
+// time passes; another error (it fails closed) when packed-refs is not a
+// regular file, passes pr's bytes, or cannot be read. No packed-refs adds
+// nothing.
 func packedDeReemplazo(comun string, refs map[string]string, pr *presupuesto) error {
 	f, err := abrir(filepath.Join(comun, "packed-refs"), true)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -330,35 +354,57 @@ func packedDeReemplazo(comun string, refs map[string]string, pr *presupuesto) er
 	if !fi.Mode().IsRegular() {
 		return errors.New("gitajeno: packed-refs no es un archivo regular")
 	}
-	tope := min(int64(maxPackedRefs), pr.bytes)
+	tope := pr.bytes
+	errTope := errors.New("gitajeno: packed-refs pasa el tope de bytes")
 	if fi.Size() > tope {
-		return errors.New("gitajeno: packed-refs pasa el tope de bytes")
+		return errTope
 	}
-	r := bufio.NewReaderSize(io.LimitReader(f, tope+1), maxLineaPacked)
+	r := bufio.NewReaderSize(io.LimitReader(f, tope+1), bufPacked)
 	var leidos int64
 	defer func() { pr.bytes -= leidos }()
-	for {
+	leer := func() ([]byte, error) {
 		if pr.vencido() {
-			return errVencido
+			return nil, errVencido
 		}
 		linea, err := r.ReadSlice('\n')
 		leidos += int64(len(linea))
-		switch {
-		case errors.Is(err, bufio.ErrBufferFull):
-			return errors.New("gitajeno: packed-refs tiene una linea que pasa el tope")
-		case leidos > tope:
-			return errors.New("gitajeno: packed-refs pasa el tope de bytes")
-		case err != nil && !errors.Is(err, io.EOF):
+		if leidos > tope {
+			return nil, errTope
+		}
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, bufio.ErrBufferFull) {
+			return nil, err
+		}
+		return linea, err
+	}
+	reemplazo := []byte("refs/replace/")
+	for {
+		inicio := leidos
+		linea, err := leer()
+		if errors.Is(err, errVencido) || errors.Is(err, errTope) {
 			return err
 		}
-		l := strings.TrimRight(string(linea), "\r\n")
-		if l != "" && l[0] != '#' && l[0] != '^' {
-			if v, n, ok := strings.Cut(l, " "); ok && strings.HasPrefix(n, "refs/replace/") {
-				refs[n] = v
+		if errors.Is(err, bufio.ErrBufferFull) || len(linea) > maxLineaRef {
+			h := sha256.New()
+			h.Write(linea)
+			for errors.Is(err, bufio.ErrBufferFull) {
+				if linea, err = leer(); errors.Is(err, errVencido) || errors.Is(err, errTope) {
+					return err
+				}
+				h.Write(linea)
+			}
+			if err != nil && !errors.Is(err, io.EOF) {
+				return err
+			}
+			refs[clavePackedLarga+strconv.FormatInt(inicio, 10)] = strconv.FormatInt(leidos-inicio, 10) + ":" + hex.EncodeToString(h.Sum(nil))
+		} else if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		} else if l := bytes.TrimRight(linea, "\r\n"); len(l) > 0 && l[0] != '#' && l[0] != '^' {
+			if v, n, ok := bytes.Cut(l, []byte(" ")); ok && bytes.HasPrefix(n, reemplazo) {
+				refs[string(n)] = string(v)
 			}
 		}
-		if err != nil {
-			return nil // io.EOF: all of it
+		if errors.Is(err, io.EOF) {
+			return nil
 		}
 	}
 }
