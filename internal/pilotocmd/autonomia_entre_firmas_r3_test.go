@@ -168,76 +168,84 @@ func TestHallazgosCe5f39_5c3780_CA647_CA656_SiLaTarjetaPasaAUnaColumnaHumanaSale
 // Re-expresado por la aclaracion 23, que reemplaza la 21: el guardado del
 // piloto vuelve a correr los hooks de git, asi que lo que fijaba este test
 // (que los hooks no corren) ya no vale y el nombre cambia con lo que fija.
-// Ahora fija lo que la aclaracion 23 dice de un hook que no termina: con los
-// cuatro hooks instalados (pre-commit, prepare-commit-msg, commit-msg y
-// post-commit) colgados y cambios sin guardar en Tu aprobacion, `hoom piloto`
-// corre el pre-commit, termina en un tiempo acotado (TopeGit en 2 s), sale
-// con exit 1 y `no pudo guardar el trabajo de la tarjeta: <error>`, no
-// commitea, suelta su candado y no queda vivo ningun proceso del grupo del
-// hook: la marca que el hook escribiria en el worktree a los 4 s no aparece.
-// La variante del hijo que el hook saca de su grupo con setsid se quito: la
-// aclaracion 23 dice que no se fija ni en un sentido ni en el otro.
+// Fija lo que la aclaracion 23 dice de un hook que no termina: con un hook
+// colgado y cambios sin guardar en Tu aprobacion, `hoom piloto` corre ese
+// hook, termina en un tiempo acotado (TopeGit en 2 s), sale con exit 1 y
+// `no pudo guardar el trabajo de la tarjeta: <error>`, no commitea (HEAD y
+// la rama quedan donde estaban), suelta su candado y no queda vivo ningun
+// proceso del grupo del hook: la marca que el hook escribiria en el worktree
+// a los 4 s no aparece. La variante del hijo que el hook saca de su grupo
+// con setsid se quito: la aclaracion 23 dice que no se fija ni en un sentido
+// ni en el otro.
+//
+// Separado en casos por el hallazgo low 20261113T031004_c3ac34: antes
+// instalaba los cuatro hooks colgados a la vez y solo ejercitaba pre-commit.
+// Ahora cada caso instala un solo hook colgado (pre-commit,
+// prepare-commit-msg, commit-msg o post-commit) y exige que ese hook corrio.
+// En el caso post-commit, git ya movio HEAD cuando el hook se cuelga: la
+// exigencia de HEAD igual al de antes es la de la aclaracion 24 (hallazgos
+// 20261113T030408_1a9510 y 20261113T030719_a808f9).
 func TestHallazgos54fa4e_ccf2ee_CA644_UnHookDelGuardadoQueNoTerminaSeCorta(t *testing.T) {
-	const ca = "54fa4e/ccf2ee/CA-644"
 	tope := itemcmd.TopeGit
 	itemcmd.TopeGit = 2 * time.Second
 	t.Cleanup(func() { itemcmd.TopeGit = tope })
 
-	f := apPATH(t)
-	f.cli(t, "claude")
-	root := apProyecto(t, "")
-	const slug = "con-hooks"
-	wt := apTuAprobacion(t, root, slug, apConAuto, true)
-	apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
-	head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
-
-	aparte := t.TempDir()
-	pids := filepath.Join(aparte, "pids")
-	marca := filepath.Join(wt, "marca-del-hook")
 	for _, h := range []string{"pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"} {
-		apr4Hook(t, wt, h, "#!/bin/sh\necho $$ >> '"+pids+"'\n: > '"+filepath.Join(aparte, "corrio-"+h)+"'\n"+
-			"sleep 4\n: > '"+marca+"'\nexec sleep 60\n")
-	}
-	t.Cleanup(func() { apr3Matar(pids) })
+		ca := "54fa4e/ccf2ee/c3ac34/CA-644 (" + h + ")"
+		f := apPATH(t)
+		f.cli(t, "claude")
+		root := apProyecto(t, "")
+		const slug = "con-hooks"
+		wt := apTuAprobacion(t, root, slug, apConAuto, true)
+		apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
+		head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
 
-	desde := time.Now()
-	p := apr1Arrancar(root, slug)
-	if !p.esperar(30 * time.Second) {
-		apr3Matar(pids)
-		p.esperar(2 * time.Minute)
-		t.Fatalf("%s: con un hook que no termina, el piloto termina en un tiempo acotado (TopeGit 2 s); a los 30 s seguia:\n%s", ca, p.salida())
-	}
-	s := p.salida()
-	ls := apSoloLineasDelPiloto(t, ca, s)
-	pre := apDetiene + "no pudo guardar el trabajo de la tarjeta: "
-	if s.code != 1 || !strings.HasPrefix(apUltima(ls), pre) || strings.TrimSpace(strings.TrimPrefix(apUltima(ls), pre)) == "" {
-		t.Fatalf("%s: se detiene con `%s<error>` y exit 1 (en %s):\n%s", ca, pre, time.Since(desde), s)
-	}
-	for _, l := range ls {
-		if apGuarda.MatchString(l) {
-			t.Fatalf("%s: no dice que guardo: %q", ca, l)
+		aparte := t.TempDir()
+		pids, corrio := filepath.Join(aparte, "pids"), filepath.Join(aparte, "corrio-"+h)
+		marca := filepath.Join(wt, "marca-del-hook")
+		apr4Hook(t, wt, h, "#!/bin/sh\necho $$ >> '"+pids+"'\n: > '"+corrio+"'\n"+
+			"sleep 4\n: > '"+marca+"'\nexec sleep 60\n")
+		t.Cleanup(func() { apr3Matar(pids) })
+
+		desde := time.Now()
+		p := apr1Arrancar(root, slug)
+		if !p.esperar(30 * time.Second) {
+			apr3Matar(pids)
+			p.esperar(2 * time.Minute)
+			t.Fatalf("%s: con un hook que no termina, el piloto termina en un tiempo acotado (TopeGit 2 s); a los 30 s seguia:\n%s", ca, p.salida())
 		}
-	}
-	if !apr1Existe(filepath.Join(aparte, "corrio-pre-commit")) {
-		t.Fatalf("%s: el guardado del piloto corre el hook pre-commit (aclaracion 23):\n%s", ca, s)
-	}
-	if h, r := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug); h != head || r != rama {
-		t.Fatalf("%s: no commitea nada: HEAD %s -> %s, hoom/%s %s -> %s", ca, head, h, slug, rama, r)
-	}
-	soltar, err := hoomfs.Lock(pilotocmd.Candado(root, slug), 0)
-	if err != nil {
-		t.Fatalf("%s: al detenerse, el piloto suelta su candado: %v", ca, err)
-	}
-	soltar()
-	// el hook escribiria la marca a los 4 s de arrancar si siguiera vivo
-	for time.Since(desde) < 8*time.Second {
+		s := p.salida()
+		ls := apSoloLineasDelPiloto(t, ca, s)
+		pre := apDetiene + "no pudo guardar el trabajo de la tarjeta: "
+		if s.code != 1 || !strings.HasPrefix(apUltima(ls), pre) || strings.TrimSpace(strings.TrimPrefix(apUltima(ls), pre)) == "" {
+			t.Fatalf("%s: se detiene con `%s<error>` y exit 1 (en %s):\n%s", ca, pre, time.Since(desde), s)
+		}
+		for _, l := range ls {
+			if apGuarda.MatchString(l) {
+				t.Fatalf("%s: no dice que guardo: %q", ca, l)
+			}
+		}
+		if !apr1Existe(corrio) {
+			t.Fatalf("%s: el guardado del piloto corre el hook %s (aclaracion 23):\n%s", ca, h, s)
+		}
+		if hh, r := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug); hh != head || r != rama {
+			t.Fatalf("%s: no commitea nada (aclaracion 24: la rama queda donde estaba): HEAD %s -> %s, hoom/%s %s -> %s", ca, head, hh, slug, rama, r)
+		}
+		soltar, err := hoomfs.Lock(pilotocmd.Candado(root, slug), 0)
+		if err != nil {
+			t.Fatalf("%s: al detenerse, el piloto suelta su candado: %v", ca, err)
+		}
+		soltar()
+		// el hook escribiria la marca a los 4 s de arrancar si siguiera vivo
+		for time.Since(desde) < 8*time.Second {
+			if apr1Existe(marca) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 		if apr1Existe(marca) {
-			break
+			t.Fatalf("%s: no queda vivo ningun proceso del grupo del hook: algo escribio %s en el worktree", ca, marca)
 		}
-		time.Sleep(100 * time.Millisecond)
+		f.ninguna(t, ca, "un piloto que no pudo guardar")
 	}
-	if apr1Existe(marca) {
-		t.Fatalf("%s: no queda vivo ningun proceso del grupo del hook: algo escribio %s en el worktree", ca, marca)
-	}
-	f.ninguna(t, ca, "un piloto que no pudo guardar")
 }
