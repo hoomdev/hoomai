@@ -216,14 +216,14 @@ func envolver(cmd *exec.Cmd, p Plan) error {
 	}
 
 	args := []string{"--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"}
-	for _, w := range ordenar(append(append([]string(nil), v.Escribibles...), v.Cache)) {
-		if existe(w) {
-			args = append(args, "--bind", w, w)
+	for _, m := range montajes(v) {
+		if !existe(m.ruta) {
+			continue
 		}
-	}
-	for _, r := range ordenar(v.SoloLectura) {
-		if existe(r) {
-			args = append(args, "--ro-bind", r, r)
+		if m.escribe {
+			args = append(args, "--bind", m.ruta, m.ruta)
+		} else {
+			args = append(args, "--ro-bind", m.ruta, m.ruta)
 		}
 	}
 	// the known secrets: an empty directory or an empty file, read-only
@@ -484,11 +484,32 @@ func dirsDeEntorno(v Vista) []string {
 	return out
 }
 
-// ordenar sorts paths so a directory comes before what is inside it.
-func ordenar(ps []string) []string {
-	out := append([]string(nil), ps...)
+// montaje is one bind of the view: writable or read-only.
+type montaje struct {
+	ruta    string
+	escribe bool
+}
+
+// montajes are the binds of v in the order bwrap applies them: the
+// shallower first, so what is inside a path keeps its own mode (the git
+// material read-only inside the writable common directory, a worktree's own
+// administration writable inside the read-only worktrees/); at the same
+// depth the writable ones first, so a path in both lists stays read-only.
+func montajes(v Vista) []montaje {
+	var out []montaje
+	for _, w := range append(append([]string(nil), v.Escribibles...), v.Cache) {
+		out = append(out, montaje{ruta: w, escribe: true})
+	}
+	for _, r := range v.SoloLectura {
+		out = append(out, montaje{ruta: r})
+	}
+	sep := string(filepath.Separator)
 	sort.SliceStable(out, func(i, j int) bool {
-		return strings.Count(out[i], string(filepath.Separator)) < strings.Count(out[j], string(filepath.Separator))
+		di, dj := strings.Count(filepath.Clean(out[i].ruta), sep), strings.Count(filepath.Clean(out[j].ruta), sep)
+		if di != dj {
+			return di < dj
+		}
+		return out[i].escribe && !out[j].escribe
 	})
 	return out
 }

@@ -420,7 +420,9 @@ type Vista struct {
 	// Escribibles are writable inside (besides Cache). One that does not
 	// exist is not mounted.
 	Escribibles []string
-	// SoloLectura stay read-only even when they are inside an Escribible:
+	// SoloLectura stay read-only even when they are inside an Escribible
+	// (and an Escribible deeper inside one of them is writable again: Envolver
+	// mounts both lists by depth, the shallower first):
 	// the git material that exists, the agents' config in the run tree, the
 	// tree's `.git` file, the admin directories of the other worktrees, and
 	// for the test-writer the task's tree outside its blind tree. One that
@@ -435,7 +437,10 @@ type Vista struct {
 
 // VistaDe builds the Vista of l: Arbol as Dir; writable Arbol, the git
 // common directory of Arbol (minus the git material and the admin
-// directories of the other worktrees, which go to SoloLectura), each path of
+// directories of the other worktrees, which go to SoloLectura; when Arbol is
+// a linked worktree, minus too the main checkout's administration that
+// exists, AdministracionPrincipal, and the whole `worktrees/` but for
+// Arbol's own administration, which is writable), each path of
 // l.Estado.Escribe and of l.Escribibles ("~/" expanded with this process's
 // $HOME); read-only the git material that exists, the agents' config in
 // Arbol (`.claude/`, `.codex/`, `.mcp.json` and l.Estado.EnArbol) and Arbol's
@@ -503,10 +508,24 @@ func VistaDe(l Lugar) (Vista, error) {
 			soloLectura(filepath.Join(l.Arbol, filepath.FromSlash(rel)))
 		}
 	}
-	if es, err := os.ReadDir(filepath.Join(lg.Comun, "worktrees")); err == nil {
-		propio := filepath.Clean(lg.GitDir)
+	comun, propio := filepath.Clean(lg.Comun), filepath.Clean(lg.GitDir)
+	worktrees := filepath.Join(comun, "worktrees")
+	if propio != comun && dentroDe(propio, worktrees) {
+		// a linked worktree (ronda 1, fab30f): the main checkout's own
+		// administration and the whole worktrees/ are read-only, so nothing
+		// enclosed moves or blocks the main checkout nor creates another
+		// worktree's administration; its own administration is writable
+		// again (Envolver mounts the deeper path later)
+		for _, rel := range AdministracionPrincipal {
+			soloLectura(filepath.Join(comun, filepath.FromSlash(rel)))
+		}
+		soloLectura(worktrees)
+		escribible(propio)
+	}
+	// each other worktree's administration, by name too
+	if es, err := os.ReadDir(worktrees); err == nil {
 		for _, e := range es {
-			if p := filepath.Join(lg.Comun, "worktrees", e.Name()); filepath.Clean(p) != propio {
+			if p := filepath.Join(worktrees, e.Name()); filepath.Clean(p) != propio {
 				soloLectura(p)
 			}
 		}
