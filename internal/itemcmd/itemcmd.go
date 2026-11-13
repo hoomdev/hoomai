@@ -822,7 +822,8 @@ var TopeGit = 5 * time.Minute
 // commit, rev-parse HEAD) runs bounded by TopeGit in a process group of its
 // own (aclaraciones 17 y 19). The repository's hooks run, as in any commit
 // of it (aclaracion 23): one that refuses fails the save, one that never
-// ends is cut with its group. base and blockOn are not needed for that.
+// ends is cut with its group. A save that fails leaves the branch where it
+// was (deshacer, aclaracion 24). base and blockOn are not needed for that.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
 	dir, err := tareaGuardable(root, slug)
 	if err != nil {
@@ -906,9 +907,14 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 		}
 		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
 	}
+	// where the branch was, to leave it there if the save fails
+	antes, err := g.correr(dir, nil, "rev-parse", "--verify", "HEAD")
+	if err != nil {
+		return res, fmt.Errorf("no pude ver HEAD antes de guardar: %s", motivoGit(antes, err))
+	}
 	sha, err := commitPaths(dir, res.Message, local, g)
 	if err != nil {
-		return res, err
+		return res, deshacer(dir, g, antes, err)
 	}
 	paths := make([]string, len(local))
 	for i, l := range local {
@@ -916,6 +922,34 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	}
 	res.Commits = append(res.Commits, SaveCommit{Dir: p.Dir, SHA: sha, Paths: paths})
 	return res, nil
+}
+
+// deshacer leaves the task's branch where it was when the save failed with
+// err (aclaracion 24): if HEAD is no longer antes (git had made the commit,
+// or more), it moves it back with an update-ref conditioned on the value it
+// has now, bounded and in its group like every git of the save (the
+// reference-transaction hook runs there too). The error is err, and says
+// whether the branch went back or why it could not.
+func deshacer(dir string, g gitDelGuardado, antes string, err error) error {
+	ahora, rerr := g.correr(dir, nil, "rev-parse", "--verify", "HEAD")
+	if rerr != nil {
+		return fmt.Errorf("%w; y no pude ver donde quedo la rama: %s", err, motivoGit(ahora, rerr))
+	}
+	if ahora == antes {
+		return err
+	}
+	if out, uerr := g.correr(dir, nil, "update-ref", "-m", "hoom: deshace un guardado que fallo", "HEAD", antes, ahora); uerr != nil {
+		return fmt.Errorf("%w; y no pude devolver la rama de %s a %s: %s", err, short(ahora), short(antes), motivoGit(out, uerr))
+	}
+	return fmt.Errorf("%w; la rama vuelve a %s", err, short(antes))
+}
+
+// motivoGit is why a git of the save failed: its bound, or what it said.
+func motivoGit(out string, err error) string {
+	if errors.Is(err, errTopeGit) || out == "" {
+		return err.Error()
+	}
+	return out
 }
 
 // sinGuardar is what the task tree dir has unsaved, sorted, as the card's
