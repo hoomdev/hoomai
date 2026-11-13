@@ -37,6 +37,14 @@ import (
 // materialgit's mark (agentcmd.FotoSinTerminar).
 const SinTerminar = materialgit.SinTerminar
 
+// Tope and MaxLeido are the bounds of one photograph or one comparison
+// that its callers use (agentcmd.TopeFotoGitAjeno and
+// agentcmd.MaxLeidoGitAjeno): its time, and the bytes it hashes.
+const (
+	Tope           = 10 * time.Second
+	MaxLeido int64 = 1 << 30
+)
+
 // Ilegible is the value of a loose ref that could not be read.
 const Ilegible = materialgit.Ilegible
 

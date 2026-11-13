@@ -157,11 +157,12 @@ type Isolation struct {
 // NotaMaterialDeGit, NotaConfigDeAgentes(rol), NotaGitAjeno(rol). Every git
 // of hoom on the tree of a role that executes carries core.fsmonitor=false.
 // Its verify runs with verifycmd.Options.Sobre (the role's view, the cache
-// `verify`, the git material photographed around the gates): when that
-// verdict has verifycmd.GateMaterialDeGit in fail, the writer's envelope
-// also registers the high finding of RuleMaterialDeGit with each path and
-// closes in verify, no-entregable, exit 1; another role's closes as any red
-// verdict.
+// `verify`, the git material and git-ajeno photographed around the gates):
+// when that verdict has verifycmd.GateMaterialDeGit or verifycmd.GateGitAjeno
+// in fail, the writer's envelope also registers the high finding of
+// RuleMaterialDeGit or RuleGitAjeno with each path and closes in verify,
+// no-entregable, exit 1, with NotaMaterialDeGit or NotaGitAjeno; another
+// role's closes as any red verdict.
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup(opt.Role)
 	if err != nil {
@@ -483,11 +484,24 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res.VerdictID, res.Verdict = v.ID, v.Verdict
 	rec.VerdictID, rec.Verdict = v.ID, v.Verdict
 	fmt.Fprintf(w, "  %s verify  %s (veredicto %s)\n", step(steps-1, steps), color(v.Verdict == "green"), v.ID)
-	if rutas := MaterialDelVeredicto(v); len(rutas) > 0 && role.Scope == agents.ScopeCodigo {
-		// the writer's code changed the git material during its own verify:
-		// the finding of always, and the envelope stops here
-		res.Scope = registrarCorte(dir, opt.Task, role, res.Scope, rutas, RuleMaterialDeGit, DetalleMaterialDeGit)
-		return cerrar(w, root, &rec, res, "verify", 1, NotaMaterialDeGit), nil
+	if role.Scope == agents.ScopeCodigo {
+		// the writer's code changed the git material, or git outside its
+		// branch (aclaracion 20), during its own verify: the finding of
+		// always, and the envelope stops here. Another role's envelope goes
+		// on like any red verdict
+		material, ajeno := MaterialDelVeredicto(v), GitAjenoDelVeredicto(v)
+		if len(material) > 0 {
+			res.Scope = registrarCorte(dir, opt.Task, role, res.Scope, material, RuleMaterialDeGit, DetalleMaterialDeGit)
+		}
+		if len(ajeno) > 0 {
+			res.Scope = registrarCorte(dir, opt.Task, role, res.Scope, ajeno, RuleGitAjeno, DetalleGitAjeno)
+		}
+		switch {
+		case len(material) > 0:
+			return cerrar(w, root, &rec, res, "verify", 1, NotaMaterialDeGit), nil
+		case len(ajeno) > 0:
+			return cerrar(w, root, &rec, res, "verify", 1, NotaGitAjeno(role.Slug)), nil
+		}
 	}
 
 	// [N/N] check

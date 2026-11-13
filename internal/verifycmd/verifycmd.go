@@ -15,6 +15,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gates"
+	"github.com/hoomdev/hoomai/internal/gitajeno"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -181,8 +182,10 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 			DurationMS: fres.DurationMS, ExitCode: fres.ExitCode})
 		results = append(results, fres)
 	}
+	var ajeno gitajeno.Foto
 	if opt.Sobre != nil {
 		antes = materialgit.TomarConTope(m.Dir, topeFotoMaterial)
+		ajeno = gitajeno.Tomar(m.Dir, gitajeno.Tope, gitajeno.MaxLeido)
 	}
 	results = append(results, gates.Run(m, git, gopt)...)
 	if opt.Sobre != nil {
@@ -190,6 +193,12 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 			results = append(results, verdict.GateResult{Name: GateMaterialDeGit, Required: true, Status: verdict.StatusFail,
 				Scope: "full", ExitCode: 1, OutputTail: strings.Join(cambios, "\n"),
 				Notes: "el codigo que corrieron los gates cambio el material de git de la tarea"})
+		}
+		// git outside the task's branch, around the same gates (aclaracion 20)
+		if cambios := gitajeno.Cambios(ajeno, gitajeno.Tope, gitajeno.MaxLeido); len(cambios) > 0 {
+			results = append(results, verdict.GateResult{Name: GateGitAjeno, Required: true, Status: verdict.StatusFail,
+				Scope: "full", ExitCode: 1, OutputTail: strings.Join(cambios, "\n"),
+				Notes: "el codigo que corrieron los gates cambio git fuera de la rama de la tarea"})
 		}
 	}
 

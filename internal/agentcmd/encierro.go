@@ -211,11 +211,18 @@ func registrarCorte(dir, task string, role agents.Role, sc ScopeResult, rutas []
 // MaterialDelVeredicto lists the paths of the gate verifycmd.GateMaterialDeGit
 // of v when it is in fail (one per line of its output), nil otherwise.
 func MaterialDelVeredicto(v *verdict.Verdict) []string {
+	return rutasDelGate(v, verifycmd.GateMaterialDeGit)
+}
+
+// rutasDelGate lists the paths of the gate named gate of v when it is in
+// fail (one per line of its output; FotoSinTerminar when it has none), nil
+// otherwise.
+func rutasDelGate(v *verdict.Verdict, gate string) []string {
 	if v == nil {
 		return nil
 	}
 	for _, g := range v.Gates {
-		if g.Name != verifycmd.GateMaterialDeGit || g.Status != verdict.StatusFail {
+		if g.Name != gate || g.Status != verdict.StatusFail {
 			continue
 		}
 		var out []string
@@ -239,7 +246,7 @@ func MaterialDelVeredicto(v *verdict.Verdict) []string {
 // the pilot's cerrar-hallazgos stops with its red-verdict text before its
 // save.
 func GitAjenoDelVeredicto(v *verdict.Verdict) []string {
-	return nil
+	return rutasDelGate(v, verifycmd.GateGitAjeno)
 }
 
 // unir is the sorted union of a and b, without repeats.

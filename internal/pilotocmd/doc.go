@@ -72,10 +72,11 @@
 //     the pilot then stops with `no pudo guardar el trabajo de la tarjeta: <error>`;
 //   - cerrar-hallazgos runs its verify with verifycmd.Options.Sobre (role
 //     writer): its gates run enclosed with the writer's view and the cache
-//     `verify` when the project has the section, and the git material is
-//     photographed around them. A verdict with verifycmd.GateMaterialDeGit in
-//     fail stops the pilot with its usual text for a red verdict, which names
-//     material_de_git. With a level under encierro.exigir that verify does
+//     `verify` when the project has the section, and the git material and
+//     git-ajeno are photographed around them. A verdict with
+//     verifycmd.GateMaterialDeGit or verifycmd.GateGitAjeno in fail stops the
+//     pilot before its save with its usual text for a red verdict, which names
+//     the gate. With a level under encierro.exigir that verify does
 //     not run, and the pilot stops with a Why that carries
 //     itemcmd.ErrExigirDelGuardado's text;
 //   - an envelope cut by git-ajeno or config-de-agentes

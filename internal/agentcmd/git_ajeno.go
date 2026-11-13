@@ -64,8 +64,8 @@ type GitAjeno = gitajeno.Foto
 // touched); a comparison that passes its time adds FotoSinTerminar, and a
 // changed file beyond its bytes counts as changed, by its path. Never hangs.
 const (
-	TopeFotoGitAjeno       = 10 * time.Second
-	MaxLeidoGitAjeno int64 = 1 << 30
+	TopeFotoGitAjeno = gitajeno.Tope
+	MaxLeidoGitAjeno = gitajeno.MaxLeido
 )
 
 // FotoGitAjeno photographs, for the tree dir, its git common directory's

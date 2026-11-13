@@ -493,9 +493,10 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		r.detener(parada(err.Error()))
 		return false
 	}
-	if len(agentcmd.MaterialDelVeredicto(v)) > 0 {
-		// a gate changed the git material: no git of hoom runs it, so the
-		// stop comes before the save, with the text of a red verdict
+	if len(agentcmd.MaterialDelVeredicto(v)) > 0 || len(agentcmd.GitAjenoDelVeredicto(v)) > 0 {
+		// a gate changed the git material, or git outside the task's branch
+		// (aclaracion 20): no git of hoom runs on it, so the stop comes
+		// before the save, with the text of a red verdict
 		r.detener(rojoTrasCerrar(v, d.Ronda))
 		return false
 	}
