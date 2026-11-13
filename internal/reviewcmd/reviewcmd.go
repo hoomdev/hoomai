@@ -870,9 +870,16 @@ func SoloDocs(files []string) bool {
 	return true
 }
 
-// Run executes the review. Failures the review is MEANT to report (a refusal
-// for not being cross, a failed run, a violated scope) come back as a Result
-// with an exit code; only a broken setup returns an error.
+// Run executes the review. Most failures the review is MEANT to report (a
+// refusal for not being cross, a refusal of the encierro, evidence over its
+// cap, a failed run, a reviewer that wrote outside its territory) come back
+// as a Result with an exit code and a nil error. Three refusals come back as
+// the error instead, with no record in .hoom/reviews/: a dirty tree
+// (gitx.ArbolSucio, before any pass), and a pass that changed the agents'
+// config (PasadaConConfigDeAgentes) or git outside the task's branch
+// (PasadaConGitAjeno). Any other error is a setup that could not be done (a
+// policy, contract or territory that does not load, no reviewer to choose, a
+// run that does not start).
 //
 // contencion-del-writer: in a project whose hoom.yaml (root's,
 // manifest.LoadRoles) has the section `encierro`, each pass of a review with

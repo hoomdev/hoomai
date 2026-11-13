@@ -175,15 +175,21 @@ func tomarSinGit(root string, before Snapshot) Snapshot {
 	return s
 }
 
+// notaManipulacion is the note of a cut whose run tampered with the
+// evidence.
+const notaManipulacion = "manipulacion de la evidencia: no se emite veredicto sobre este arbol"
+
 // notaDelCorte is the note of an envelope whose scope cuts (Cuts): the first
-// that applies of the tampering note, the isolation note,
-// NotaTestsDelTestWriter, NotaMaterialDeGit, NotaConfigDeAgentes(rol) and
-// NotaGitAjeno(rol).
+// that applies of the isolation note (a broken blind tree), the tampering
+// note (notaManipulacion, which wins over the rest), NotaTestsDelTestWriter,
+// NotaMaterialDeGit, NotaConfigDeAgentes(rol) and NotaGitAjeno(rol); the
+// tampering note when none applies.
 func notaDelCorte(sc ScopeResult, rol string) string {
 	switch {
 	case sc.Broken():
 		return "el aislamiento se rompio: no se emite veredicto sobre este arbol"
 	case sc.Tampering:
+		return notaManipulacion
 	case sc.has(RuleTestsDelTestWriter):
 		// the test-writer's tests: with the evidence also moved, the note
 		// stays the tampering one
@@ -195,7 +201,7 @@ func notaDelCorte(sc ScopeResult, rol string) string {
 	case sc.has(RuleGitAjeno):
 		return NotaGitAjeno(rol)
 	}
-	return "manipulacion de la evidencia: no se emite veredicto sobre este arbol"
+	return notaManipulacion
 }
 
 // registrarViolaciones registers, for each violation of sc that has no

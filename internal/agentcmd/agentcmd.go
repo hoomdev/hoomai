@@ -158,7 +158,7 @@ type Isolation struct {
 // other git of its own on the tree: when they changed it cuts in scope
 // without running git status. It also compares git-ajeno (FotoGitAjeno,
 // RuleGitAjeno), which cuts the same way. The note of a cut is the first that
-// applies of: the tampering note, the isolation note, NotaTestsDelTestWriter,
+// applies of: the isolation note, the tampering note, NotaTestsDelTestWriter,
 // NotaMaterialDeGit, NotaConfigDeAgentes(rol), NotaGitAjeno(rol). Every git
 // of hoom on the tree of a role that executes carries core.fsmonitor=false.
 // Its verify runs with verifycmd.Options.Sobre (the role's view, the cache
