@@ -2,7 +2,9 @@
 
 Estado: BORRADOR — pendiente de aprobación humana. Falta la firma de la
 persona; nadie más la pone. Revisado contra el código de main (2cdb3c0) el
-2026-11-13.
+2026-11-13. Ese mismo día la persona contestó las ocho preguntas de la
+versión anterior; sus respuestas están en el contrato y en Decisiones. Esas
+respuestas no son la firma.
 Tarea: `hoom task start contencion-del-writer` (rama
 `hoom/contencion-del-writer`).
 Origen: el No-goal que la persona agregó el 2026-11-13 a
@@ -14,13 +16,19 @@ Depende de: `autonomia-entre-firmas.md`, en main desde los PR 82, 83 y 84:
 el guardado del piloto (`itemcmd.SaveTarea`), el gate de material de git
 (`agentcmd.RuleMaterialDeGit`, aclaración 25), los tests protegidos y
 `boardcmd.ParadaAntesDeGuardar`.
-Re-expresa: depende de la pregunta 1.
-- Con la recomendación (el encierro se activa solo con la sección `encierro`
-  de `hoom.yaml`), ningún criterio ni test firmado cambia: los tests de
-  `autonomia-entre-firmas` usan proyectos sin esa sección.
-- Si el encierro se activa solo, hay que re-expresar la lista de tests de la
-  pregunta 1 y el riesgo firmado de que los hooks del guardado "corren como
-  en cualquier commit".
+Re-expresa: ningún criterio. El encierro se activa solo en un proyecto cuyo
+`hoom.yaml` trae la sección `encierro` (lo decidió la persona el
+2026-11-13), y ningún test firmado usa un proyecto con esa sección, que es
+nueva. Eso incluye los de `autonomia-entre-firmas`, los del test-writer
+ciego (`test-writer-en-arbol-ciego`, `ciego-sin-config-personal`), los de la
+review (`review-aislada-y-modelo-elegido`, `evidencia-de-la-review`,
+`hallazgos-y-refutador`) y los del sobre (`hoom-agent-sobre-determinista`).
+`material-de-git` sigue siendo del writer, como lo firmó la aclaración 25.
+Las reglas nuevas, que valen sin la sección, no cambian ningún resultado de
+esos tests, leídos el 2026-11-13: sus CLIs falsos no tocan `refs/replace/`,
+ni objetos que ya existían, ni la config de los agentes. El único test que
+crea una ref de reemplazo (`internal/itemcmd/reemplazos_writer_test.go`) la
+crea antes del guardado, y `git-ajeno` compara lo que cambia mientras corre.
 
 ## Objetivo
 
@@ -70,24 +78,32 @@ un script, el script a `npm`, `npm` a `package.json`. Por eso este spec
 encierra en vez de enumerar, y mantiene el gate para lo que sí se puede
 fotografiar.
 
-Con este spec, en un proyecto que pide el encierro (pregunta 1), **lo que
-corre código del writer bajo su sobre o el piloto corre encerrado**: su run,
-los gates del verify que lo juzga (pregunta 2) y el git del guardado.
+Con este spec, en un proyecto que pide el encierro, **lo que corre código
+del writer bajo un sobre, la review o el piloto corre encerrado**:
+
+- el run de cada rol que ejecuta (writer, test-writer, reviewer,
+  characterizer y refutador), porque todos corren los tests del writer;
+- los gates del verify que juzga ese código;
+- el git del guardado.
+
 Encerrado quiere decir que escribe solo en su tarea, no ve ni señala procesos
-de afuera, y nada suyo sigue vivo cuando termina. Los demás roles que corren
-los tests del writer dependen de la pregunta 3. Donde el sistema no deja
-encerrar, el sobre lo dice y la persona decide si el writer corre igual. El
-gate de material de git se amplía para todos los proyectos, con encierro o
-sin él.
+de afuera, no lee los secretos conocidos de la persona, y nada suyo sigue
+vivo cuando termina. Donde el sistema no deja encerrar, el sobre lo dice y la
+persona decide si el rol corre igual. El gate de material de git se amplía
+para todos los proyectos, con encierro o sin él.
 
 **Regla.** Lo que se puede encerrar se encierra; lo que no, se fotografía; y
 lo que tampoco se puede fotografiar se declara.
 
 ## No-goals
 
-- **Ocultar lecturas.** El writer sigue leyendo todo el disco de la persona,
-  `~/.ssh` incluido (ver Riesgos y la pregunta 8).
-- **La red.** El writer sigue con red porque la CLI la necesita. Llevarse un
+- **Ocultar lecturas**, con una excepción. Lo encerrado sigue leyendo todo
+  el disco de la persona, salvo los secretos conocidos: `~/.ssh`,
+  `~/.gnupg`, `~/.config/gh`, `~/.aws` y `~/.docker/config.json`, que el
+  encierro tapa (punto 2). La persona aceptó esa excepción el 2026-11-13.
+  Las credenciales de las CLI, el resto de `$HOME` y lo que se lea sin
+  encierro siguen a la vista (Riesgos).
+- **La red.** Lo encerrado sigue con red porque la CLI la necesita. Llevarse un
   secreto o bajar algo queda fuera.
 - **Lo que la persona corre a mano**: `hoom verify`, `POST /api/verify` del
   Studio, `hoom task done`, `hoom item save`, un `git commit` en el worktree,
@@ -98,9 +114,12 @@ lo que tampoco se puede fotografiar se declara.
 - **Inyectar instrucciones en archivos del árbol** (comentarios, `AGENTS.md`,
   `CLAUDE.md`) dirigidas a la review o a otro rol. No es código que corre.
 - **El encierro en macOS y las escrituras en Windows.** Se evalúan en
-  Decisiones y quedan para su propia spec (pregunta 6).
-- **Root, otra cuenta de usuario, contenedores o máquinas virtuales** para el
-  writer.
+  Decisiones y quedan para su propia spec (macOS lo decidió la persona el
+  2026-11-13).
+- **Los roles que no ejecutan** (`Exec: false`: analista, arquitecto,
+  designer, scout y los demás) siguen como hoy: no corren código del writer.
+- **Root, otra cuenta de usuario, contenedores o máquinas virtuales** para
+  los roles que ejecutan.
 - **Un tope de memoria o de procesos** (cgroups, `pids.max`).
 - **Revalidar los sobres anteriores a este spec.**
 - **Mostrar el nivel del encierro en la tarjeta o en el Studio.**
@@ -110,23 +129,33 @@ lo que tampoco se puede fotografiar se declara.
 
 ### Qué corre encerrado
 
-Solo en un proyecto cuyo `hoom.yaml` trae la sección `encierro` (pregunta 1),
-y solo para un writer con tarea (`--task`):
+Solo en un proyecto cuyo `hoom.yaml` trae la sección `encierro`, y solo para
+un rol con tarea (`--task`). La persona decidió el 2026-11-13 que el encierro
+se activa con la sección y no solo, y que los roles que ejecutan también se
+encierran, en este spec. **Rol que ejecuta** es uno con `Exec: true` en
+`internal/agents/targets.go`: writer, test-writer, reviewer, characterizer y
+refutador. El orquestador también tiene `Exec: true`; ver "Preguntas para la
+firma".
 
 | Qué | Hoy | Con este spec |
 |---|---|---|
-| el run de un rol de forma `codigo` (hoy solo el writer) con tarea, lo lance `hoom agent`, `hoom tablero`, el Studio, `hoom pedir` o el piloto | su grupo de procesos | encierro |
-| los gates del verify que corre ese mismo sobre | su grupo, con gracia | encierro, con la vista del writer (pregunta 2) |
-| los gates del verify del paso `cerrar-hallazgos` | su grupo, con gracia | encierro, con la vista del writer (pregunta 2) |
-| cada git del guardado del piloto: `SaveTarea` y `SaveTareaBajoCandado`, que pasan por `guardarTarea` y `delGuardado()`, con sus hooks y filtros | su grupo, con `TopeGit` | encierro, con `TopeGit` |
-| un writer sin `--task`, que corre en el checkout principal | — | como hoy, con nivel `ninguno` y motivo `sin tarea` |
-| test-writer, reviewer, characterizer y refutador, que ejecutan (`Exec: true`) | — | como hoy (pregunta 3) |
+| el run del writer o del characterizer, con tarea, lo lance `hoom agent`, `hoom tablero`, el Studio, `hoom pedir` o el piloto | su grupo de procesos | encierro; escribe en el árbol de la tarea |
+| el run del test-writer, con tarea | su grupo, en su árbol ciego (`.hoom/isolated/<nombre>`, dentro del árbol de la tarea) | encierro; escribe solo en su árbol ciego, y el resto del árbol de la tarea queda de solo lectura |
+| el run del refutador, con tarea | su grupo de procesos | encierro; escribe en el árbol de la tarea, donde `hoom finding resolve` deja su resolución |
+| cada pasada del reviewer de `hoom review --task` (`reviewcmd.Run`), la lance la persona, el tablero o el piloto | su grupo de procesos | encierro; escribe en el árbol de la tarea, donde `hoom finding add` deja sus hallazgos |
+| los gates del verify que corre el sobre de un rol que ejecuta, cuando lo corre | su grupo, con gracia | encierro, con la vista de ese rol y una caché propia del verify |
+| los gates del verify del paso `cerrar-hallazgos` | su grupo, con gracia | encierro, con la vista del writer y una caché propia del verify |
+| cada git del guardado del piloto: `SaveTarea` y `SaveTareaBajoCandado`, que pasan por `guardarTarea` y `delGuardado()`, con sus hooks y filtros | su grupo, con `TopeGit` | encierro, con `TopeGit`, la vista del writer y una caché propia del guardado |
+| un rol que ejecuta sin `--task`, que corre en el checkout principal | — | como hoy, con nivel `ninguno` y motivo `sin tarea` |
 | `hoom verify` de la persona, `POST /api/verify`, `hoom item save`, `hoom run` | — | como hoy |
+
+Los gates del verify se encierran con espacios de usuario anidados
+permitidos: lo decidió la persona el 2026-11-13 (punto 1).
 
 Sin la sección `encierro`, nada de esto cambia. Solo aplica lo de "El gate
 amplía" y las reglas nuevas.
 
-### 1. Ningún proceso del writer sobrevive a lo que lo lanzó
+### 1. Ningún proceso de lo encerrado sobrevive a lo que lo lanzó
 
 **Por qué.** Un proceso vivo después del run hace lo que quiera cuando ya
 pasó el gate: reescribe un test protegido después de la foto, espera al
@@ -161,7 +190,8 @@ En Linux, el encierro es un espacio de procesos propio:
   puede abrir `/dev/tty` ni escribirle a la terminal de la persona.
 - **Sin privilegios nuevos.** `no_new_privs` hace que `crontab`, `at`, `sudo`,
   `su` y cualquier binario setuid no ganen nada.
-- **Espacios de usuario anidados**: se permiten (pregunta 2). El gate `test`
+- **Espacios de usuario anidados**: se permiten (lo decidió la persona el
+  2026-11-13). El gate `test`
   de hoomai, y el sandbox propio de cada CLI, crean el suyo adentro. Un
   montaje que cruza a un espacio de usuario anidado queda bloqueado por el
   kernel (`MNT_LOCKED`), así que adentro no se puede volver escribible lo
@@ -192,13 +222,16 @@ no anida), hoy `Adoptar` sigue sin avisar y cae a `taskkill /T`. Con este spec,
 ese run queda en nivel `ninguno` con el motivo. En macOS no hay forma de
 contener procesos con este spec (ver Decisiones).
 
-### 2. El writer escribe solo en su tarea
+### 2. Cada rol que ejecuta escribe solo en su tarea
 
 **Por qué.** Todo lo que está fuera del árbol y corre después escapa a los
 gates: la config global de git, el PATH de la persona, la config de las CLI,
 los archivos de inicio del shell, la política del piloto en el checkout
-principal. La lista no se puede cerrar. En cambio, lo que el writer necesita
-escribir es corto.
+principal. La lista no se puede cerrar. En cambio, lo que un rol que ejecuta
+necesita escribir es corto. Los roles que no son el writer corren su código
+igual: el test-writer y el characterizer corren los tests, la review y el
+refutador también, para buscar o refutar un hallazgo. Algo escondido en un
+`_test.go` corre en cada uno de ellos.
 
 **La vista del encierro**, en Linux:
 
@@ -206,15 +239,29 @@ escribir es corto.
   lectura, `/tmp` incluido, con un `/proc` y un `/dev` propios. Así las CLI,
   los repos y los scripts que viven en `/tmp`, como los de los tests en
   `t.TempDir()`, se siguen viendo.
+- **Los secretos conocidos se tapan**, solo si existen: `~/.ssh`, `~/.gnupg`,
+  `~/.config/gh` y `~/.aws` con un directorio vacío, y
+  `~/.docker/config.json` con un archivo vacío, los dos de solo lectura. Es
+  la excepción al primer No-goal que aceptó la persona el 2026-11-13. Las
+  credenciales de las CLI (`~/.claude`, `~/.codex`) no se tapan: el CLI las
+  necesita para correr.
 - **Escritura**, solo en:
-  1. el árbol de la tarea (`.hoom/worktrees/<slug>`), menos el material de git
-     y la config de los agentes que están adentro (punto 3) y su archivo
-     `.git`, que quedan de solo lectura;
+  1. **su árbol de run**: el árbol de la tarea (`.hoom/worktrees/<slug>`)
+     para el writer, el characterizer, el reviewer y el refutador; su árbol
+     ciego (`.hoom/isolated/<nombre>`, dentro del árbol de la tarea) para el
+     test-writer, que no escribe en el resto del árbol de la tarea. Quedan de
+     solo lectura el material de git y la config de los agentes que están
+     adentro (punto 3) y el archivo `.git` del árbol;
   2. el directorio común de git, menos el material de git y los directorios de
      administración de los otros worktrees. El writer sigue pudiendo commitear
      en `hoom/<slug>` (ver "Git ajeno");
-  3. `.hoom/cache/encierro/<slug>/` del checkout principal: las cachés y los
-     temporales de la tarea, que hoom crea si no existen;
+  3. **su caché**: `.hoom/cache/encierro/<slug>/<quien>/` del checkout
+     principal, donde `<quien>` es el rol del run, `verify` para los gates del
+     verify y `guardado` para el git del guardado. hoom la crea si no existe.
+     Cada cosa encerrada escribe solo en la suya y no ve escribibles las de
+     las otras: así, la caché que llena el writer (los resultados de
+     `go test`, los módulos bajados) no la usa el verify que lo juzga, ni el
+     test-writer, ni la review;
   4. lo que la CLI del provider necesita escribir, que declara su adaptador
      (ver "El estado del provider");
   5. lo que el proyecto agrega en `encierro.escribibles`.
@@ -225,7 +272,8 @@ escribir es corto.
 - **El entorno** es el de hoy, menos `SSH_AUTH_SOCK`, `GPG_AGENT_INFO`,
   `DBUS_SESSION_BUS_ADDRESS`, `DISPLAY`, `WAYLAND_DISPLAY` y
   `XDG_RUNTIME_DIR`, que apuntarían a lo tapado. Le agrega:
-  - las variables de caché, todas dentro de `.hoom/cache/encierro/<slug>/`:
+  - las variables de caché, todas dentro de su caché
+    (`.hoom/cache/encierro/<slug>/<quien>/`):
     `TMPDIR` y `XDG_CACHE_HOME` siempre, más las que declara el perfil del
     proyecto. En el perfil go son `GOCACHE`, `GOMODCACHE` y `GOTMPDIR`. Cada
     perfil declara las suyas; con gradle, `GRADLE_USER_HOME` también tapa los
@@ -237,7 +285,7 @@ escribir es corto.
     `--detach`, y moriría a medias al terminar el encierro.
 
 **Qué se bloquea, qué se detecta y qué no se puede.** "Sin encierro" es
-macOS, Windows en lo que toca a escrituras, Linux sin bwrap, un writer sin
+macOS, Windows en lo que toca a escrituras, Linux sin bwrap, un rol sin
 tarea, o un proyecto sin la sección `encierro`.
 
 | Destino | Ejemplos | Linux, encierro completo | Sin encierro |
@@ -246,10 +294,13 @@ tarea, o un proyecto sin la sección `encierro`.
 | la config de las CLI | `hooks` en `~/.claude/settings.json`, `mcpServers` en `~/.claude.json`, `~/.codex/config.toml` | se bloquea, salvo lo que el adaptador declara escribible; lo que hace correr código se detecta | se detecta (`config-de-agentes`) |
 | el checkout principal | `hoom.yaml`, `.hoom/items/<slug>.yaml`, `.hoom/envelopes/`, `.hoom/approvals/` | se bloquea | no se ve, como hoy |
 | otros worktrees | `.hoom/worktrees/<otra>/` | se bloquea | no se ve |
+| el árbol de la tarea, para el test-writer | la implementación, fuera de su árbol ciego | se bloquea | no se ve |
+| la caché de otro rol o del verify | `.hoom/cache/encierro/<slug>/verify/` desde el run del writer | se bloquea | no hay caché propia: todos usan la de la persona |
+| los secretos conocidos (lectura) | `~/.ssh`, `~/.gnupg`, `~/.config/gh`, `~/.aws`, `~/.docker/config.json` | se tapan: se ven vacíos | se leen |
 | el material de git que existe | la carpeta de hooks, `config`, `info/` (`attributes`, `exclude`), `objects/info/alternates`, `objects/info/grafts`, el `.git` del árbol | se bloquea | se detecta |
 | el material de git que no existe | `shallow`, `config.worktree` | se detecta | se detecta |
 | el resto del directorio común | `refs/replace/`, objetos que ya existían | se detecta (`git-ajeno`) | se detecta |
-| otras refs | mover `main` u otra rama | no se ve (pregunta 4) | no se ve |
+| otras refs | mover `main` u otra rama | no se ve (Riesgos) | no se ve |
 | `/tmp` | sockets de tmux, X11 y ssh | se bloquea | no se ve |
 | daemons y setuid | `systemd-run --user`, tmux, docker, `crontab`, `at` | se bloquea | no se ve |
 | un socket del sistema que el encierro no tapa | un servicio que hace algo a pedido | no se puede (Riesgos) | no se puede |
@@ -261,7 +312,8 @@ ejemplo, usa `git stash`. Comparar todas las refs daría falsos positivos,
 porque mientras corre el writer también las mueven, con razón, otras tareas,
 `hoom task start`, `isolate.Open`, la persona, un `git fetch` del writer y el
 mantenimiento de git. Por eso la regla nueva `git-ajeno` mira solo lo que
-nadie cambia con razón (pregunta 4):
+nadie cambia con razón. Lo decidió la persona el 2026-11-13; que el writer
+mueva otra rama queda en Riesgos.
 
 - **`refs/replace/`**: una ref creada, movida o borrada ahí, suelta o
   empaquetada. Una ref de reemplazo cambia lo que git muestra de un objeto en
@@ -271,16 +323,23 @@ nadie cambia con razón (pregunta 4):
   archivos con fecha de cambio posterior al arranque. Borrar un objeto
   (`gc`, `prune`) o crear uno nuevo no cuenta, porque el nombre de un objeto
   y el de un pack salen de su contenido.
-- hoom compara después del run del writer y alrededor de cada guardado.
+- hoom compara después del run de cada rol que ejecuta, alrededor de cada
+  pasada de la review y alrededor de cada guardado.
 - En el sobre, `git-ajeno` corta como `material-de-git`: cierra en `scope`,
   `no-entregable`, exit 1, sin verify, con la nota
-  `el writer cambio git fuera de la rama de su tarea: no se emite veredicto sobre este arbol`
+  `el <rol> cambio git fuera de la rama de su tarea: no se emite veredicto sobre este arbol`
   y un hallazgo high del gate de scope con el detalle
-  `el writer solo cambia la rama de su tarea: las refs de reemplazo y los objetos que ya existian no los toca`.
+  `un rol solo cambia la rama de su tarea: las refs de reemplazo y los objetos que ya existian no los toca`.
+- En la review, la pasada que la comete hace fallar `hoom review` con exit 1,
+  sin escribir registro, como el árbol sucio de hoy, con el error
+  `la pasada <n> del reviewer cambio git fuera de la rama de su tarea: <ruta>: no registro la review`.
+  Los hallazgos que esa pasada haya dejado quedan en el árbol: la persona
+  decide qué hacer con ellos.
 - En el guardado, falla y deshace su commit como hoy, con el error
   `el guardado cambio git fuera de hoom/<slug>: <ruta>: no guardo`. hoom no
   restaura nada: eso lo decide la persona.
-- `git-ajeno` aplica con encierro o sin él, y en cualquier proyecto.
+- `git-ajeno` aplica con encierro o sin él, y en cualquier proyecto, a todo
+  rol que ejecuta.
 
 ### 3. Lo que queda para correr después: el gate amplía, no se reemplaza
 
@@ -320,29 +379,34 @@ un orden y una regla nueva.
 `--exclude-standard`. Un `zz_test.go` excluido ahí no lo vería el gate ni lo
 commitearía el guardado, pero verify lo correría.
 
-**El orden después del run.** Después del run, el sobre compara el material y
-la config de agentes **antes** de correr cualquier otro git suyo sobre el
-árbol (`Take`, `gitx.TouchedErr`). Si cambiaron, corta sin correr
-`git status`. Así, un fsmonitor o un filtro que dejó el writer no corre dentro
-de hoom antes de que el gate lo vea. Además, todo git de hoom sobre el árbol de
-un writer (`Take`, el `gitx.Snapshot` de verify, check) lleva
-`-c core.fsmonitor=false`.
+**El orden después del run.** Después del run, el sobre de un rol que
+ejecuta compara la config de agentes, y en el del writer también el material,
+**antes** de correr cualquier otro git suyo sobre el árbol (`Take`,
+`gitx.TouchedErr`). Si cambiaron, corta sin correr `git status`. Así, un
+fsmonitor o un filtro que dejó el código del writer no corre dentro de hoom
+antes de que el gate lo vea. Además, todo git de hoom sobre el árbol de un rol
+que ejecuta (`Take`, el `gitx.Snapshot` de verify, check, la evidencia de la
+review) lleva `-c core.fsmonitor=false`.
 
 **Más momentos.** Hoy el material se fotografía antes del run y se compara
 después. Se suman tres comparaciones:
 
 - **Dentro del verify del sobre y del de `cerrar-hallazgos`.**
-  - `verifycmd.Run` gana una opción que solo usan esos dos: correr los gates
-    encerrados con la vista del writer y fotografiar el material antes y
-    después de los gates. `hoom verify` y `POST /api/verify` no la usan.
+  - `verifycmd.Run` gana una opción que solo usan esos dos: el verify que
+    corre el sobre de un rol que ejecuta, y el de `cerrar-hallazgos`. Con
+    ella, los gates corren encerrados, con la vista del rol del sobre (la del
+    writer en `cerrar-hallazgos`) y la caché del verify, y el material se
+    fotografía antes y después de los gates. `hoom verify` y
+    `POST /api/verify` no la usan.
   - Si el material cambió, el veredicto suma el gate `material_de_git` en
     `fail`, con las rutas en su salida: queda rojo, y ningún lector de
     veredictos (`verdict.LatestComplete`, `hoom task done`, check, review) lo
     toma como verde.
-  - En el sobre, además, queda el hallazgo high de siempre de
+  - En el sobre del writer, además, queda el hallazgo high de siempre de
     `material-de-git`, con la ruta, y el sobre cierra en `verify`. Así, el
     piloto se detiene antes del próximo guardado, como hoy
-    (`ParadaAntesDeGuardar`).
+    (`ParadaAntesDeGuardar`). En el sobre de otro rol, el veredicto rojo lo
+    cierra como lo cierra hoy un veredicto rojo.
   - En `cerrar-hallazgos`, el piloto se detiene con su texto de veredicto
     rojo de siempre, que nombra `material_de_git`.
   - Sin la sección `encierro`, la opción igual fotografía el material, pero
@@ -358,12 +422,21 @@ después. Se suman tres comparaciones:
   `encierro.gates_sin_encierro` corren como hoy, pero la foto de antes y
   después los incluye.
 
-**La config de los agentes.** Regla nueva, `config-de-agentes`, para un rol
-de forma `codigo`, con encierro o sin él. Corta como `material-de-git`, con la
-nota
-`el writer cambio la config de los agentes: no se emite veredicto sobre este arbol`
+**`material-de-git` sigue siendo del writer.** La aclaración 25 la firmó para
+un rol de forma `codigo`, y este spec no la re-expresa. Para los otros roles
+que ejecutan, el encierro deja de solo lectura el material que existe, y lo
+que creen en el árbol fuera de su alcance lo corta su gate de scope, como hoy.
+Lo que queda sin ver está en Riesgos.
+
+**La config de los agentes.** Regla nueva, `config-de-agentes`, para todo rol
+que ejecuta, con encierro o sin él. En el sobre corta como `material-de-git`,
+con la nota
+`el <rol> cambio la config de los agentes: no se emite veredicto sobre este arbol`
 y el detalle
-`la config de los agentes hace correr codigo en la proxima sesion: el writer no la cambia`.
+`la config de los agentes hace correr codigo en la proxima sesion: ningun rol que ejecuta la cambia`.
+En la review, hoom compara alrededor de cada pasada, y la pasada que la
+comete hace fallar `hoom review` como `git-ajeno`, con el error
+`la pasada <n> del reviewer cambio la config de los agentes: <ruta>: no registro la review`.
 Cubre:
 
 - **en el árbol**: `.claude/`, `.codex/`, `.mcp.json` y lo que declare cada
@@ -395,14 +468,15 @@ vista del writer, con `TopeGit` y con la gracia de `graciaGit`. Un hook, o el
 script que llama, puede hacer en el árbol y en git lo mismo que el writer en
 su run, y el guardado lo revisa como hoy (`revisarCommit`, aclaraciones 24 a
 30), más el material y `git-ajeno`. El git del guardado lleva además
-`-c commit.gpgsign=false`: adentro no hay agente de gpg ni de ssh para firmar
-(pregunta 7).
+`-c commit.gpgsign=false`: adentro no hay agente de gpg ni de ssh para firmar.
+La persona decidió el 2026-11-13 que el guardado corra sin firma, en vez de
+fallar en un repo que firma: la persona firma al integrar.
 
 ### El nivel del encierro
 
-- Cada sobre de un rol de forma `codigo`, en un proyecto con la sección
-  `encierro`, calcula un **nivel**, con su **mecanismo** y lo que **falta**
-  (`procesos`, `escrituras`, `ipc`):
+- Cada sobre de un rol que ejecuta y cada review, en un proyecto con la
+  sección `encierro`, calcula un **nivel**, con su **mecanismo** y lo que
+  **falta** (`procesos`, `escrituras`, `ipc`):
 
   | Sistema | Nivel | Mecanismo | Falta |
   |---|---|---|---|
@@ -412,7 +486,7 @@ su run, y el guardado lo revisa como hoy (`revisarCommit`, aclaraciones 24 a
   | Windows, con el job creado | `parcial` | `job` | `escrituras`, `ipc` |
   | Windows, sin job | `ninguno` | — | `procesos`, `escrituras`, `ipc` |
   | macOS | `ninguno` | — | `procesos`, `escrituras`, `ipc` |
-  | un writer sin `--task`, en cualquier sistema | `ninguno` | — | `procesos`, `escrituras`, `ipc` |
+  | un rol que ejecuta sin `--task`, en cualquier sistema | `ninguno` | — | `procesos`, `escrituras`, `ipc` |
   | un provider que no declara su estado | `ninguno` | — | `procesos`, `escrituras`, `ipc` |
 
 - En Linux, hoom lo averigua una vez por proceso con una sonda: corre bwrap con
@@ -421,17 +495,19 @@ su run, y el guardado lo revisa como hoy (`revisarCommit`, aclaraciones 24 a
   (por ejemplo, el rechazo de AppArmor en Ubuntu 24.04), `landlock ABI <n>`,
   `sin tarea` o `<provider> no declara su estado`. En Windows el nivel se sabe
   al arrancar el run, cuando `Adoptar` crea o no el job.
-- **El registro del sobre** y el sidecar del run ganan
-  `encierro: {nivel, mecanismo, falta, motivo}`. Con `completo`, `falta` es la
-  lista vacía y `motivo` no va. En un proyecto sin la sección, o en un sobre
-  de otra forma, la clave no va.
-- Con nivel menor que `completo`, el log del sobre suma
-  `aviso: encierro <nivel> (falta: <lista>): lo que el writer deje fuera de su arbol no se ve`.
+- **El registro del sobre**, el registro de la review (`.hoom/reviews/`) y el
+  sidecar de cada run ganan `encierro: {nivel, mecanismo, falta, motivo}`.
+  Con `completo`, `falta` es la lista vacía y `motivo` no va. En un proyecto
+  sin la sección, o en el sobre de un rol que no ejecuta, la clave no va.
+- Con nivel menor que `completo`, el log del sobre, o la salida de la review,
+  suma
+  `aviso: encierro <nivel> (falta: <lista>): lo que el <rol> deje fuera de su arbol no se ve`.
 
 ### La política `encierro`
 
 Sección nueva y opcional de `hoom.yaml`, leída del checkout principal como
-`autonomia`. Su presencia activa el encierro (pregunta 1):
+`autonomia`. Su presencia activa el encierro: sin ella, nada se encierra
+(lo decidió la persona el 2026-11-13):
 
 ```yaml
 encierro:
@@ -442,14 +518,18 @@ encierro:
     - e2e
 ```
 
-- **`exigir`** (pregunta 5). Si el nivel es menor:
-  - el sobre del writer se niega **dentro del paso `run`**, antes de lanzar,
-    con exit 1, sin run ni veredicto, y la nota
-    `el encierro de este sistema es <nivel> (falta: <lista>) y hoom.yaml exige <exigir>: el writer no corre`.
-    Los pasos siguen siendo cinco: no se agrega un paso como `aislar`, así que
-    no cambia el criterio de los cinco pasos de `hoom-agent-sobre-determinista`
-    ni el texto del tablero (`stageGloss`). Para el piloto es un cierre no
-    entregable, su caso 8;
+- **`exigir`**, por defecto `no`: lo decidió la persona el 2026-11-13, para
+  que un `hoom.yaml` compartido con quien trabaja en una Mac no deje de correr
+  ahí. Si el nivel es menor:
+  - el sobre de un rol que ejecuta se niega **dentro del paso `run`**, antes
+    de lanzar, con exit 1, sin run ni veredicto, y la nota
+    `el encierro de este sistema es <nivel> (falta: <lista>) y hoom.yaml exige <exigir>: el <rol> no corre`.
+    Los pasos siguen siendo los de siempre (cinco, seis con `aislar` para el
+    test-writer): no se agrega uno, así que no cambia el criterio de los
+    pasos de `hoom-agent-sobre-determinista` ni el texto del tablero
+    (`stageGloss`). Para el piloto es un cierre no entregable, su caso 8;
+  - la review se niega antes de su primera pasada, con exit 1, sin registro,
+    con la misma nota;
   - el guardado se niega con
     `el encierro de este sistema es <nivel> y hoom.yaml exige <exigir>: no guardo`,
     y el piloto se detiene con su texto de "no pudo guardar";
@@ -475,8 +555,10 @@ encierro:
   - `encierro: gates_sin_encierro: el gate <g> no esta en los gates de este arbol`.
     Se valida contra los gates ya mezclados con el perfil, del `hoom.yaml` del
     árbol, que es el que corre verify.
+- Las validaciones de "Al empezar el sobre" valen igual al empezar la review,
+  que se niega antes de su primera pasada, con exit 1 y sin registro.
 - Con encierro, el `hoom.yaml` del checkout principal es de solo lectura para
-  el writer. Sin encierro, el writer puede cambiar esta sección como puede
+  todo lo encerrado. Sin encierro, el writer puede cambiar esta sección como puede
   cambiar `autonomia` (Riesgos). El piso del gate de scope cubre el
   `hoom.yaml` del árbol, no el del checkout principal.
 
@@ -503,7 +585,7 @@ encierro:
 
 ### Lo que queda escrito
 
-- El registro del sobre gana `encierro`.
+- El registro del sobre y el de la review ganan `encierro`.
 - Las reglas nuevas `git-ajeno` y `config-de-agentes` registran su hallazgo con
   el formato de siempre del gate de scope, y tienen sus funciones
   `DeGitAjeno` y `DeConfigDeAgentes`, como `DeMaterialDeGit`.
@@ -521,6 +603,9 @@ encierro:
 - Los tests usan los CLIs falsos de siempre, en `t.TempDir()`, que con `/tmp`
   de solo lectura se siguen viendo. También usan un provider falso que
   implementa `ConEstado`. Ninguno llama a un CLI real.
+- Los secretos se prueban con un `$HOME` del test que tiene `~/.ssh`,
+  `~/.gnupg`, `~/.config/gh`, `~/.aws` y `~/.docker/config.json` con
+  contenido: el CLI falso los ve vacíos y lee el resto de ese `$HOME`.
 - Los tests del encierro son solo de Linux (etiqueta de compilación), porque el
   mantenedor también corre los tests en una Mac.
 - **El CI** (`.github/workflows/ci.yml`, `ubuntu-latest`) hoy no instala
@@ -550,9 +635,23 @@ encierro:
   con el error del sistema. El veredicto que cuenta es el que corre el sobre.
 - **El writer commitea** en `hoom/<slug>`: funciona. Crear una ref de
   reemplazo o reescribir un objeto es `git-ajeno`. Mover `main` no se ve
-  (pregunta 4).
-- **El writer necesita una dependencia nueva**: la baja a la caché de la
-  tarea. La primera vez, cada tarea arranca con la caché vacía y tarda más.
+  (Riesgos).
+- **El writer necesita una dependencia nueva**: la baja a su caché. La
+  primera vez, cada tarea arranca con las cachés vacías, y el verify, el
+  test-writer y la review la vuelven a bajar a la suya: tarda más.
+- **El test-writer intenta escribir en la implementación** (el árbol de la
+  tarea fuera de su árbol ciego): falla dentro del encierro. Hoy no lo ve el
+  gate de scope, que fotografía solo el árbol ciego.
+- **El reviewer registra un hallazgo** con `hoom finding add`: ese hoom corre
+  dentro del encierro de la pasada y escribe `.hoom/findings/` del árbol de
+  la tarea, que es su árbol de run. Funciona igual que hoy. El refutador, con
+  `hoom finding resolve`, igual.
+- **Una review sin `--task`**: revisa el checkout principal, sin encierro y
+  con el motivo `sin tarea`. Con `exigir`, no corre.
+- **Un gate o un hook que usa las credenciales de `gh`, de ssh o de la nube**
+  (bajar un módulo privado, `aws s3 cp`) falla encerrado, porque esos
+  secretos se ven vacíos. Va en `gates_sin_encierro`, o la persona guarda con
+  `hoom item save`.
 - **Un gate que escribe en `$HOME`** (semgrep escribe `~/.semgrep/`) falla
   encerrado. La persona agrega la ruta a `escribibles` o el gate a
   `gates_sin_encierro`.
@@ -565,7 +664,7 @@ encierro:
   con `no pudo guardar el trabajo de la tarjeta: <error>`. La persona guarda
   con `hoom item save`, que no corre encerrado.
 - **Un repo con `commit.gpgsign=true`**: los guardados del piloto quedan sin
-  firma. La persona firma al integrar (pregunta 7).
+  firma. La persona firma al integrar (lo decidió el 2026-11-13).
 - **lint-staged o pre-commit en el guardado**: escriben `refs/stash` y la
   restauran. No es `git-ajeno`, que no mira esa ref.
 - **Una tarea que necesita cambiar `.husky/`, `.claude/` o
@@ -583,44 +682,87 @@ encierro:
 - **Dos sobres de writer de tareas distintas a la vez**: cada uno tiene su
   encierro y su caché, y cada uno mueve su rama. `git-ajeno` no mira las
   ramas, así que no se cruzan.
-- **Un writer sin `--task`**: corre en el checkout principal, sin encierro y
-  con el motivo `sin tarea`. Con `exigir`, no corre.
+- **Un rol que ejecuta sin `--task`**: corre en el checkout principal, sin
+  encierro y con el motivo `sin tarea`. Con `exigir`, no corre.
 - **Linux con bwrap pero sin espacios de usuario** (Ubuntu 24.04 sin el perfil
   de AppArmor): nivel `ninguno`, con la salida de bwrap como motivo. Con
-  `exigir: no`, el writer corre como hoy, con el aviso.
+  `exigir: no`, el rol corre como hoy, con el aviso.
 - **El verify del sobre sobre hoomai mismo**: el gate `test`
   (`go test -race ./...`) corre los tests del encierro adentro del encierro
-  del writer, y esos tests crean su propio espacio de usuario anidado. Por eso
-  hacen falta los espacios anidados (pregunta 2).
+  del verify, y esos tests crean su propio espacio de usuario anidado. Por eso
+  hacen falta los espacios anidados, que la persona aceptó el 2026-11-13.
 - **Un proyecto sin la sección `encierro`**: todo corre como hoy, salvo el gate
   ampliado, `git-ajeno` y `config-de-agentes`.
 - **Un sobre anterior a este spec**: no lleva `encierro`, y nada lo revalida.
 
 ## Criterios de aceptación
 
-- CA-674: en un proyecto con la sección `encierro`, el registro de un sobre de forma `codigo` y el sidecar de su run llevan `encierro` con `nivel` (`completo`, `parcial` o `ninguno`), `mecanismo`, `falta` (vacía con `completo`) y `motivo` (ausente con `completo`); sin la sección, o en un sobre de otra forma, no llevan la clave; con nivel menor que `completo`, el log trae la línea de aviso del contrato.
+- CA-674: en un proyecto con la sección `encierro`, el registro del sobre de un rol que ejecuta (writer, test-writer, reviewer, characterizer o refutador), el registro de la review y el sidecar de cada run llevan `encierro` con `nivel` (`completo`, `parcial` o `ninguno`), `mecanismo`, `falta` (vacía con `completo`) y `motivo` (ausente con `completo`); sin la sección, o en el sobre de un rol que no ejecuta, no llevan la clave; con nivel menor que `completo`, el log del sobre o la salida de la review trae la línea de aviso del contrato con el rol.
 - CA-675: el `hoom.yaml` del proyecto acepta la sección `encierro` con `exigir`, `escribibles` y `gates_sin_encierro`; sin la sección no hay encierro, y sin `exigir` vale `no`; `LoadRoles` rechaza con el texto del contrato, sin correr git, una clave desconocida, un `exigir` fuera de la lista, una ruta escribible relativa, vacía o nula, y `/` o `~/`; al empezar el sobre, una ruta escribible que contiene o está dentro del checkout principal o del directorio común de git, o un gate de `gates_sin_encierro` que no está en los gates del árbol, cierra el sobre en `run` con exit 1, sin run.
-- CA-676: con un nivel menor que `exigir`, el sobre del writer cierra en `run` con exit 1 y la nota `el encierro de este sistema es <nivel> (falta: <lista>) y hoom.yaml exige <exigir>: el writer no corre`, sin ningún run en `.hoom/runs/`, sin veredicto nuevo y con los cinco pasos de siempre; el guardado se niega con su texto del contrato y el verify de `cerrar-hallazgos` no corre; con `exigir: no`, todo corre con el nivel que haya.
-- CA-677: el nivel sale de la tabla del contrato para cada combinación de sistema y resultado de la sonda (bwrap ausente, espacio de usuario rechazado, Landlock por debajo de ABI 6, todo disponible), con su mecanismo, lo que falta y el motivo; un writer sin `--task` y un provider que no implementa `ConEstado` dan `ninguno` con su motivo; en macOS es `ninguno`, y en Windows `parcial` con mecanismo `job` solo si el job se creó.
+- CA-676: con un nivel menor que `exigir`, el sobre de un rol que ejecuta cierra en `run` con exit 1 y la nota `el encierro de este sistema es <nivel> (falta: <lista>) y hoom.yaml exige <exigir>: el <rol> no corre`, sin ningún run en `.hoom/runs/`, sin veredicto nuevo y con los pasos de siempre; la review se niega antes de su primera pasada con la misma nota, exit 1 y sin registro; el guardado se niega con su texto del contrato y el verify de `cerrar-hallazgos` no corre; con `exigir: no`, todo corre con el nivel que haya.
+- CA-677: el nivel sale de la tabla del contrato para cada combinación de sistema y resultado de la sonda (bwrap ausente, espacio de usuario rechazado, Landlock por debajo de ABI 6, todo disponible), con su mecanismo, lo que falta y el motivo; un rol que ejecuta sin `--task` y un provider que no implementa `ConEstado` dan `ninguno` con su motivo; en macOS es `ninguno`, y en Windows `parcial` con mecanismo `job` solo si el job se creó.
 - CA-678: en Linux con encierro, un CLI falso que vive en `t.TempDir()` corre, y lo que intenta escribir en `$HOME`, en `hoom.yaml` y en `.hoom/items/<slug>.yaml` del checkout principal, en el worktree de otra tarea o en `/tmp` fuera de su árbol no deja nada en el disco; lo que escribe en el árbol de la tarea, en `.hoom/cache/encierro/<slug>/`, en una ruta de `Escribe` de su provider y en una de `escribibles` queda.
-- CA-679: en Linux con encierro, un CLI falso que deja un proceso con `setsid` y otro con doble fork, y termina, no deja ninguno vivo cuando cierra el sobre; tampoco cuando el run muere por su timeout, ni cuando hoom cancela el run; al vencer un tope, el grupo principal recibe SIGTERM y tiene la gracia de hoy antes de que termine el encierro.
-- CA-680: en Linux con encierro, el CLI falso no ve el pid de hoom ni puede señalarlo, no tiene terminal de control (`tty_nr` 0 y es líder de su sesión), no recibe `SSH_AUTH_SOCK`, `GPG_AGENT_INFO`, `DBUS_SESSION_BUS_ADDRESS`, `DISPLAY`, `WAYLAND_DISPLAY` ni `XDG_RUNTIME_DIR`, ve vacío el directorio que hace de `/run/user/<uid>` cuando existe, recibe `gc.auto=0`, `maintenance.auto=false` y `core.fsmonitor=false` en la config de git del entorno, y con Landlock ABI 6 o más no se conecta a un socket abstracto que escucha fuera del encierro; con un ABI menor, el nivel es `parcial` con falta `ipc`.
+- CA-679: en Linux con encierro, un CLI falso de cualquier rol que ejecuta que deja un proceso con `setsid` y otro con doble fork, y termina, no deja ninguno vivo cuando cierra el sobre o la pasada de la review; tampoco cuando el run muere por su timeout, ni cuando hoom cancela el run; al vencer un tope, el grupo principal recibe SIGTERM y tiene la gracia de hoy antes de que termine el encierro.
+- CA-680: en Linux con encierro, el CLI falso de cualquier rol que ejecuta no ve el pid de hoom ni puede señalarlo, no tiene terminal de control (`tty_nr` 0 y es líder de su sesión), no recibe `SSH_AUTH_SOCK`, `GPG_AGENT_INFO`, `DBUS_SESSION_BUS_ADDRESS`, `DISPLAY`, `WAYLAND_DISPLAY` ni `XDG_RUNTIME_DIR`, ve vacío el directorio que hace de `/run/user/<uid>` cuando existe, recibe `gc.auto=0`, `maintenance.auto=false` y `core.fsmonitor=false` en la config de git del entorno, y con Landlock ABI 6 o más no se conecta a un socket abstracto que escucha fuera del encierro; con un ABI menor, el nivel es `parcial` con falta `ipc`.
 - CA-681: en Linux con encierro, escribir en la carpeta de hooks efectiva, en el `config` común, en `info/attributes`, en `info/exclude`, en `objects/info/alternates` o en el archivo `.git` del árbol falla dentro del encierro, cuando existen; un `git commit` del writer en `hoom/<slug>` funciona; y crear una pieza del material que no existía es la violación `material-de-git`.
-- CA-682: todo lo encerrado recibe `TMPDIR` y `XDG_CACHE_HOME` dentro de `.hoom/cache/encierro/<slug>/`, que hoom crea si no existe, y las variables de caché de su perfil (`GOCACHE`, `GOMODCACHE` y `GOTMPDIR` en el perfil go) dentro del mismo directorio.
-- CA-683: con la opción nueva de `verifycmd.Run`, que usan el sobre del writer y `cerrar-hallazgos`, los gates corren encerrados con la vista del writer: un gate falso que escribe en `$HOME` no deja nada afuera, y uno que deja un proceso con `setsid` no lo deja vivo; un gate de `gates_sin_encierro` corre como hoy; `hoom verify` de la persona y `POST /api/verify` no usan la opción y corren como hoy.
+- CA-682: todo lo encerrado recibe `TMPDIR` y `XDG_CACHE_HOME` dentro de su caché, `.hoom/cache/encierro/<slug>/<quien>/` (el rol del run, `verify` o `guardado`), que hoom crea si no existe, y las variables de caché de su perfil (`GOCACHE`, `GOMODCACHE` y `GOTMPDIR` en el perfil go) dentro del mismo directorio; lo que el run del writer intenta escribir en la caché `verify`, en la de otro rol o en la `guardado` no deja nada en el disco.
+- CA-683: con la opción nueva de `verifycmd.Run`, que usan el sobre de un rol que ejecuta y `cerrar-hallazgos`, los gates corren encerrados con la vista del rol del sobre (la del writer en `cerrar-hallazgos`) y la caché `verify`: un gate falso que escribe en `$HOME` no deja nada afuera, y uno que deja un proceso con `setsid` no lo deja vivo; un gate de `gates_sin_encierro` corre como hoy; `hoom verify` de la persona y `POST /api/verify` no usan la opción y corren como hoy.
 - CA-684: cada git de `guardarTarea` corre encerrado, con `TopeGit`, la gracia de `graciaGit` y `commit.gpgsign=false`: un hook que escribe en `$HOME` o deja un proceso con `setsid` no deja nada afuera ni vivo; un hook que pasa el tope recibe SIGTERM, tiene su gracia, termina con todo lo que lanzó, no queda `index.lock`, y el guardado falla como hoy; `hoom item save` no corre encerrado.
-- CA-685: después del run del writer, y alrededor de cada guardado, una ref creada, movida o borrada bajo `refs/replace/` (suelta o empaquetada), o un objeto suelto, un pack o su índice que ya existía y sigue existiendo con otro contenido, es la violación `git-ajeno`: el sobre cierra en `scope`, `no-entregable`, exit 1, sin verify, con la nota y un hallazgo high con el detalle del contrato; el guardado falla, deshace su commit y devuelve `el guardado cambio git fuera de hoom/<slug>: <ruta>: no guardo`; vale igual sin encierro; mover otra rama, `refs/stash`, crear objetos nuevos o borrarlos (`gc`) no es violación.
+- CA-685: después del run de cada rol que ejecuta, alrededor de cada pasada de la review y alrededor de cada guardado, una ref creada, movida o borrada bajo `refs/replace/` (suelta o empaquetada), o un objeto suelto, un pack o su índice que ya existía y sigue existiendo con otro contenido, es la violación `git-ajeno`: el sobre cierra en `scope`, `no-entregable`, exit 1, sin verify, con la nota (que nombra el rol) y un hallazgo high con el detalle del contrato; la review falla con exit 1, sin registro y con su error del contrato; el guardado falla, deshace su commit y devuelve `el guardado cambio git fuera de hoom/<slug>: <ruta>: no guardo`; vale igual sin encierro; mover otra rama, `refs/stash`, crear objetos nuevos o borrarlos (`gc`) no es violación.
 - CA-686: `FotoMaterialGit` incluye cada archivo que `git config --list --show-origin` nombra en el árbol fuera de `/etc`, `core.attributesFile`, `$XDG_CONFIG_HOME/git/attributes`, `info/exclude`, `objects/info/alternates`, `objects/info/grafts`, `shallow`, el archivo `.git` del árbol, las entradas directas de la carpeta padre de la carpeta de hooks efectiva cuando está dentro del árbol, y los archivos de pre-commit y lefthook del contrato, y no incluye `objects/info/commit-graphs`; un writer que cambia, crea o borra cualquiera de ellos, sin encierro, comete la violación `material-de-git` con esa ruta.
 - CA-687: con la opción nueva de `verifycmd.Run`, un gate que cambia el material de git deja el veredicto rojo con el gate `material_de_git` en `fail` y las rutas en su salida; el sobre del writer cierra en `verify`, `no-entregable`, exit 1, con un hallazgo high `material-de-git: el rol writer escribio <ruta> - ...`; `verdict.LatestComplete` no lo da como verde; en `cerrar-hallazgos` el piloto se detiene con su texto de veredicto rojo, que nombra `material_de_git`.
 - CA-688: `guardarTarea` fotografía el material de git antes de su primer git y después del último; un hook que lo cambia hace fallar el guardado, que deshace su commit y devuelve `un hook del guardado cambio el material de git: <ruta>: no guardo`; el guardado se niega antes de empezar si el último veredicto del árbol tiene `material_de_git` en `fail`; un hook que no cambia el material guarda como hoy.
-- CA-689: para un rol de forma `codigo`, con encierro o sin él, cambiar `.claude/`, `.codex/`, `.mcp.json` o la config en el árbol que declara su adaptador, las claves `hooks` de los settings de claude, `mcpServers` global o de un proyecto en `~/.claude.json`, o el archivo `~/.codex/config.toml`, es la violación `config-de-agentes`, que corta con su nota y su detalle; que claude cambie otras claves de sus archivos JSON no lo es; `agents.writer.write` no la levanta.
+- CA-689: para todo rol que ejecuta, con encierro o sin él, cambiar `.claude/`, `.codex/`, `.mcp.json` o la config en el árbol que declara su adaptador, las claves `hooks` de los settings de claude, `mcpServers` global o de un proyecto en `~/.claude.json`, o el archivo `~/.codex/config.toml`, es la violación `config-de-agentes`, que corta el sobre con su nota (que nombra el rol) y su detalle, y hace fallar la review con su error del contrato, exit 1 y sin registro; que claude cambie otras claves de sus archivos JSON no lo es; `agents.<rol>.write` no la levanta.
 - CA-690: con un provider falso que implementa `ConEstado`, el encierro deja escribir fuera del árbol y de la caché de la tarea solo las rutas de `Escribe`, y `config-de-agentes` compara lo que declaran `EnArbol` y `Corre`; los proveedores falsos que no la implementan siguen compilando y corriendo, con nivel `ninguno`.
 - CA-691: el README documenta el encierro, sus niveles, la sección `encierro` y que `gates_sin_encierro` lo debilita. [verifica: grep -q "encierro:" README.md && grep -q "gates_sin_encierro" README.md && grep -q "nivel del encierro" README.md]
 - CA-692: el piloto trata un sobre cortado por `git-ajeno` o por `config-de-agentes` como uno cortado por `material-de-git`: no lo releva aunque traiga `corte: tiempo`, no lo reintenta, y se detiene antes del próximo guardado con el `Why` del caso 8.
-- CA-693: después del run del writer, el sobre compara el material de git y la config de agentes antes de correr `Take` o cualquier otro git sobre el árbol, y si cambiaron corta sin correr `git status`; todo git de hoom sobre el árbol de un writer lleva `core.fsmonitor=false`: un `core.fsmonitor` que el writer dejó en la config global no corre dentro de hoom.
+- CA-693: después del run de un rol que ejecuta, el sobre compara la config de agentes, y en el del writer también el material de git, antes de correr `Take` o cualquier otro git sobre el árbol, y si cambiaron corta sin correr `git status`; todo git de hoom sobre el árbol de un rol que ejecuta lleva `core.fsmonitor=false`: un `core.fsmonitor` que el writer dejó en la config global no corre dentro de hoom.
+- CA-694: en Linux con encierro, con un `$HOME` del test que tiene `~/.ssh`, `~/.gnupg`, `~/.config/gh`, `~/.aws` y `~/.docker/config.json` con contenido, el CLI falso de cualquier rol que ejecuta, un gate encerrado y un hook del guardado ven esos directorios vacíos y ese archivo vacío, no pueden escribirlos, y leen el resto de ese `$HOME`; sin encierro, se leen como hoy.
+- CA-695: en Linux con encierro, el CLI falso del test-writer escribe en su árbol ciego, y lo que intenta escribir en el árbol de la tarea fuera de él no deja nada en el disco; el del characterizer, el del refutador y el de cada pasada del reviewer escriben en el árbol de la tarea; un `hoom finding add` corrido desde la pasada del reviewer y un `hoom finding resolve` corrido desde el refutador dejan su archivo en `.hoom/findings/` del árbol de la tarea, como hoy.
 
 ## Decisiones
 
+- **Lo que decidió la persona el 2026-11-13.** Contestó las ocho preguntas
+  de la versión anterior con "Como recomienda". Esas respuestas no son la
+  firma. Quedan así en el contrato:
+  1. **El encierro se activa solo con la sección `encierro` de `hoom.yaml`**,
+     no solo cuando el sistema puede. Así ningún criterio ni test firmado
+     cambia, y hoomai se suma a la sección en un cambio aparte, cuando el
+     encierro haya corrido con las CLI reales.
+  2. **Los gates del verify del sobre y del de `cerrar-hallazgos` se
+     encierran**, con espacios de usuario anidados permitidos. Sin encerrarlos,
+     el código del writer corre libre en su propio verify (la salida 3 del
+     Objetivo). Sin espacios anidados se rompen el gate `test` de hoomai y el
+     sandbox propio de cada CLI. Los montajes que cruzan quedan bloqueados.
+  3. **Los roles que ejecutan también se encierran, en este spec**: el
+     test-writer, el reviewer, el characterizer y el refutador, con su árbol
+     de run como lo escribible. Los criterios que decían "writer" dicen "rol
+     que ejecuta" donde corresponde: CA-674, CA-676, CA-677, CA-679, CA-680,
+     CA-682, CA-683, CA-685, CA-689 y CA-693, más CA-695, que es nuevo.
+  4. **`git-ajeno` mira solo `refs/replace/` y los objetos reescritos.**
+     Mirar todas las refs daría falsos positivos. Que el writer mueva otra
+     rama va a Riesgos.
+  5. **`exigir` por defecto en `no`**, para que un `hoom.yaml` compartido con
+     quien trabaja en una Mac no deje de correr ahí.
+  6. **macOS va en su propia spec**, con un runner de macOS.
+  7. **El guardado corre sin firma** (`commit.gpgsign=false`), en vez de
+     fallar en un repo que firma. La persona firma al integrar.
+  8. **Los secretos conocidos se tapan** (`~/.ssh`, `~/.gnupg`,
+     `~/.config/gh`, `~/.aws`, `~/.docker/config.json`), como excepción
+     explícita al primer No-goal. CA-694 es nuevo.
+- **Las reglas nuevas valen para todo rol que ejecuta; `material-de-git`
+  sigue siendo del writer.** `git-ajeno` y `config-de-agentes` son de este
+  spec, así que alcanzan a los roles que la respuesta 3 encierra. Extender
+  `material-de-git` cambiaría el alcance de la aclaración 25, que está
+  firmada, y la persona pidió no re-expresar ningún criterio. Con encierro, el
+  material que existe ya es de solo lectura para todos. Ver la pregunta de
+  abajo.
+- **Una caché por cada cosa encerrada.** Una caché es código que corre
+  después (ver "Cachés por tarea"). Si el verify usara la caché que llena el
+  run del writer, el writer podría dejar ahí el resultado de un `go test` que
+  pasa, o un módulo cambiado, y su propio verify lo tomaría. Por eso cada rol,
+  el verify y el guardado tienen la suya, y ninguno escribe la de otro. Las
+  cachés se llenan una vez por tarea y por cada uno, y eso es más lento.
 - **Encerrar en vez de enumerar.** Un hook llama a un script, el script a una
   herramienta, la herramienta lee una config del árbol. Ninguna foto cubre esa
   cadena. El encierro no necesita saber qué va a correr: le alcanza con saber
@@ -676,7 +818,7 @@ encierro:
   subreaper, ni cgroups, ni espacio de PID, y `NOTE_TRACK` de kqueue no
   existe ahí. Un proceso que hace `setsid` sigue vivo, aunque encerrado en las
   mismas escrituras. `sandbox-exec` está deprecado y el CI no tiene runner de
-  macOS. Ver la pregunta 6.
+  macOS. La persona decidió el 2026-11-13 que macOS vaya en su propia spec.
 - **Windows: los procesos ya, las escrituras no.** El Job Object con
   `KILL_ON_JOB_CLOSE` y sin breakaway ya contiene a los hijos. Para las
   escrituras habría que correr con integridad baja o en AppContainer, y
@@ -704,76 +846,41 @@ encierro:
 
 ### Preguntas para la firma
 
-1. **¿El encierro se activa solo cuando hay con qué, o solo en un proyecto
-   cuyo `hoom.yaml` trae la sección `encierro`?**
-   - Si se activa solo, hay que re-expresar estos tests firmados de
-     `autonomia-entre-firmas`, que hoy esperan que el writer escriba el
-     material de git y quede cortado, o que el hook del guardado o un gate
-     escriba fuera del árbol:
-     - `internal/agentcmd/autonomia_entre_firmas_r6_test.go:110`, `_r7_test.go:100` y `:121`, `_r8_test.go:36`;
-     - `internal/agentcmd/hallazgos_c1_test.go:108`;
-     - `internal/pilotocmd/autonomia_entre_firmas_r1_test.go:248` y `:428`;
-     - `internal/pilotocmd/autonomia_entre_firmas_r2_test.go:159`;
-     - `internal/pilotocmd/autonomia_entre_firmas_r4_test.go:43`;
-     - `internal/pilotocmd/autonomia_entre_firmas_r5_test.go:125` y `:175`;
-     - `internal/pilotocmd/autonomia_entre_firmas_r6_test.go:89`, `:186` y `:263`;
-     - `internal/pilotocmd/autonomia_entre_firmas_r7_test.go:45`;
-     - `internal/pilotocmd/autonomia_entre_firmas_r8_test.go:58`.
-     La re-expresión sería que cada uno fije el nivel `ninguno` con la sonda
-     de prueba y cite los ids que re-expresa. Los tests del encierro serían
-     nuevos. El riesgo firmado de que los hooks del guardado "corren como en
-     cualquier commit" también cambiaría.
-   - **Recomendación:** solo con la sección. Ningún test firmado cambia, el
-     gate ampliado y las reglas nuevas valen para todos, y hoomai se suma a
-     la sección en un cambio aparte, cuando el encierro haya corrido con las
-     CLI reales.
-2. **¿Se encierran los gates del verify del sobre y del de
-   `cerrar-hallazgos`? Si sí, ¿se permiten espacios de usuario anidados
-   dentro del encierro?**
-   - Sin encerrar esos gates, el código del writer corre libre en su propio
-     verify, que es la salida 3 del Objetivo.
-   - Encerrarlos sin espacios anidados rompe el gate `test` del propio
-     hoomai, cuyos tests del encierro crean el suyo, y los sandbox propios de
-     las CLI (codex escritor corre con `sandbox_mode="workspace-write"`).
-   - Los espacios anidados agrandan la superficie del kernel, pero no abren
-     la vista: los montajes que cruzan quedan bloqueados.
-   - **Recomendación:** encerrarlos, con espacios anidados.
-3. **¿Se encierran también los roles que ejecutan?** test-writer, reviewer,
-   characterizer y refutador tienen `Exec: true`
-   (`internal/agents/targets.go`) y el piloto los lanza: corren los tests del
-   writer sin encierro, así que algo escondido en un `_test.go` sale en la
-   review.
-   - **Recomendación:** sí, en esta misma spec, con el mismo encierro y el
-     árbol de su run como lo escribible. Si la persona dice que sí, los
-     criterios que dicen "writer" pasan a decir "rol que ejecuta" donde
-     corresponda.
-4. **¿`git-ajeno` mira solo `refs/replace/` y los objetos reescritos, o todas
-   las refs?** Mirar todas daría falsos positivos con otras tareas, la
-   persona, `git fetch` y el mantenimiento de git. Mirar solo esas dos cosas
-   deja sin ver que el writer mueva `main` u otra rama.
-   - **Recomendación:** solo esas dos. Que el writer mueva otra rama se ve en
-     el historial de esa rama, y queda en Riesgos.
-5. **Con la sección, ¿`exigir` por defecto en `no` o en `completo`?**
-   - **Recomendación:** `no`, por ahora: un `hoom.yaml` compartido con quien
-     trabaja en una Mac dejaría de correr al writer ahí.
-6. **¿macOS en esta spec (Seatbelt, sin CI) o en la suya, con un runner de
-   macOS?**
-   - **Recomendación:** la suya.
-7. **¿El guardado sin firma (`commit.gpgsign=false`), o que falle en un repo
-   que firma?**
-   - **Recomendación:** sin firma.
-8. **¿Tapar también los secretos conocidos** (`~/.ssh`, `~/.gnupg`,
-   `~/.config/gh`, `~/.aws`, `~/.docker/config.json`) con el mismo encierro?
-   Cuesta casi nada, pero es lectura y contradice el primer No-goal.
-   - **Recomendación:** en esta spec, como excepción explícita a ese
-     No-goal, si la persona lo acepta.
+Las ocho preguntas de la versión anterior las contestó la persona el
+2026-11-13 (ver arriba). Al pasar esas respuestas al contrato salieron dos
+nuevas:
+
+1. **¿Se encierra también el orquestador cuando lo lanza un sobre?** Tiene
+   `Exec: true` y `Primary` (`internal/agents/targets.go`), pero no está en
+   la lista de la respuesta 3. Casi siempre es la sesión principal de la
+   persona, o el proceso de `hoom run`, que siguen fuera (No-goals). Pero
+   nada en `agentcmd` impide `hoom agent --role orquestador --task <slug>`, y
+   ese run corre con tarea y puede correr los tests del writer.
+   - **Recomendación:** sí, con la misma regla: todo rol que ejecuta lanzado
+     por un sobre con tarea. No cuesta nada más y la regla queda sin
+     excepciones. Mientras la persona no lo diga, el orquestador sigue como
+     hoy.
+2. **¿`material-de-git` alcanza también a los otros roles que ejecutan?** Hoy,
+   y en este spec, es solo del writer (aclaración 25). Con encierro, el
+   material que existe ya es de solo lectura para todos. Lo que el
+   test-writer, el characterizer o el refutador creen en el árbol fuera de su
+   alcance lo corta su gate de scope. Quedan sin ver dos cosas:
+   - que el reviewer cree en el árbol una pieza del material que no existía,
+     porque la review no tiene gate de scope;
+   - que cualquiera de ellos cree `shallow` o un `config.worktree` en el
+     directorio común. Un `config.worktree` solo se lee si el `config` común
+     lo habilita, y ese archivo es de solo lectura.
+   - **Recomendación:** no, en este spec. Extenderla cambia el alcance de un
+     criterio firmado, y lo que queda sin ver es chico. Queda en Riesgos.
 
 ## Riesgos y deuda aceptada
 
-- **El writer puede llevarse secretos.** Lee `~/.ssh`, las credenciales de las
-  CLI y el token de `gh`, y tiene red. El encierro no protege secretos
-  (pregunta 8).
-- **Mover otra rama no se ve** (pregunta 4). Un writer que mueve `main` en el
+- **Lo encerrado puede llevarse otros secretos.** Con encierro, los secretos
+  conocidos se ven vacíos, pero siguen a la vista las credenciales de las CLI
+  (`~/.claude`, `~/.codex`), los `.env` y el resto de `$HOME`, y hay red. Sin
+  encierro se lee todo, `~/.ssh` incluido.
+- **Mover otra rama no se ve** (lo decidió la persona el 2026-11-13). Un
+  writer que mueve `main` en el
   directorio común no deja hallazgo; la persona lo ve en el historial de esa
   rama.
 - **Los sockets del sistema que el encierro no tapa** siguen visibles: el bus
@@ -790,8 +897,18 @@ encierro:
   writer sin encierro. Es el riesgo de siempre de correr código ajeno.
 - **Los scripts del árbol que llama un hook** corren encerrados cuando los
   corre el guardado, y sin encierro cuando la persona commitea a mano.
-- **Los roles que ejecutan** corren los tests del writer sin encierro mientras
-  la pregunta 3 no diga lo contrario.
+- **Los roles que ejecutan sin encierro** (un proyecto sin la sección, o un
+  sistema que no deja encerrar) corren los tests del writer como hoy.
+- **Lo que `material-de-git` no ve de los otros roles.** Con encierro, el
+  reviewer puede crear en el árbol de la tarea una pieza del material que no
+  existía, y cualquiera de los otros roles `shallow` o un `config.worktree` en
+  el directorio común (pregunta 2 de arriba).
+- **El orquestador lanzado por un sobre** corre sin encierro mientras la
+  persona no conteste la pregunta 1 de arriba.
+- **La caché del verify la escriben los gates.** El código del writer corre en
+  los gates del verify, así que puede dejar algo en la caché `verify` para el
+  verify siguiente. La caché propia separa el run del writer de su verify, no
+  un verify del siguiente.
 - **Windows**: entre que arranca el proceso y `procesos.Adoptar` lo mete en su
   job, un hijo creado en ese instante queda afuera. Tampoco se contiene lo que
   lanza otro servicio a pedido: el programador de tareas, WMI o un servidor
