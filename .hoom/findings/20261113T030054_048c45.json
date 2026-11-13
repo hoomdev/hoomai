@@ -1,0 +1,11 @@
+{
+  "id": "20261113T030054_048c45",
+  "created_at": "2026-11-13T03:00:54.503051363Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1062: el guardado automatico ejecuta el pre-commit del repositorio y luego confia en git commit -- \u003cpaths\u003e sin volver a validar el arbol ni el commit. Un writer puede dejar un hook en el gitdir comun, fuera de lo que inspecciona el gate; despues de que su sobre paso tests-del-test-writer, el hook puede editar y hacer git add de un test protegido. Git incluye esa ruta adicional aunque no estuviera en paths (reproduccion: al commitear solo app.txt, un pre-commit que agrego protected_test.txt produjo un commit con ambas rutas). Asi el writer cambia tests del test-writer sin cierre scope/no-entregable ni hallazgo, saltandose CA-638 y el control central de la autonomia. Hay que aislar esos hooks o rechazar cualquier mutacion del hook antes de aceptar el commit.",
+  "author": "reviewer@codex",
+  "fingerprint": "c88c4d7132b3a7bd",
+  "task": "autonomia-entre-firmas"
+}

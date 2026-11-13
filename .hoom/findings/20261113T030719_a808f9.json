@@ -1,0 +1,11 @@
+{
+  "id": "20261113T030719_a808f9",
+  "created_at": "2026-11-13T03:07:19.324141366Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1062: el git commit acotado vuelve a ejecutar post-commit, pero ese hook corre despues de que Git ya actualizo HEAD. Si post-commit no termina, g.correr vence y guardarTarea devuelve error (internal/itemcmd/itemcmd.go:909-912) sin reconciliar HEAD; el piloto informa que no pudo guardar y se detiene aunque el commit ya existe, y ese commit tampoco queda en SaveResult ni en la linea de guardado. Es un exito parcial reproducible con un hook degradado; tras un timeout de commit hay que comprobar el HEAD/arbol resultante antes de declarar que el guardado fallo.",
+  "author": "reviewer@codex",
+  "fingerprint": "c88c4d7132b3a7bd",
+  "task": "autonomia-entre-firmas"
+}
