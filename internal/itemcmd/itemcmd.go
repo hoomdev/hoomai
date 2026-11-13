@@ -995,15 +995,18 @@ func lockArboles(root string, c boardcmd.Card) (func(), error) {
 type gitDelGuardado struct {
 	tope     time.Duration // > 0 bounds each command (gitTope); 0 = unbounded
 	opciones []string      // git options before the subcommand
+	env      []string      // added to the environment; nil = inherited as is
 }
 
 // delGuardado is the git of SaveTarea: each command bounded by TopeGit in
 // its group, the repository's hooks and filters included (aclaraciones 19 y
 // 23). It runs no fsmonitor nor any automatic gc or maintenance, which
 // check nothing: a gc that detaches would leave a process of the command
-// alive once it returned (aclaracion 19).
+// alive once it returned (aclaracion 19). It reads the repository's own
+// objects (gitx.SinReemplazos): a refs/replace or a grafts file must not
+// make a staged change look already saved (finding 1d9e67).
 func delGuardado() gitDelGuardado {
-	return gitDelGuardado{tope: TopeGit, opciones: []string{
+	return gitDelGuardado{tope: TopeGit, env: gitx.SinReemplazos(), opciones: []string{
 		"-c", "core.fsmonitor=false",
 		"-c", "gc.auto=0",
 		"-c", "maintenance.auto=false",
@@ -1016,12 +1019,12 @@ func (g gitDelGuardado) con(args []string) []string {
 
 // correr is gitTope with g's bound and options.
 func (g gitDelGuardado) correr(dir string, stdin io.Reader, args ...string) (string, error) {
-	return gitTope(dir, g.tope, stdin, g.con(args)...)
+	return gitTope(dir, g.tope, g.env, stdin, g.con(args)...)
 }
 
 // listado is listadoGit with g's bound and options.
 func (g gitDelGuardado) listado(dir string, args ...string) ([]byte, error) {
-	return listadoGit(dir, g.tope, g.con(args)...)
+	return listadoGit(dir, g.tope, g.env, g.con(args)...)
 }
 
 // commitPaths stages exactly paths and commits only them: whatever else sits
@@ -1091,32 +1094,34 @@ const colaGit = 64 << 10
 // as correrConTope says, and of a long output it keeps the end, the last
 // colaGit bytes: where git, or what it ran, says why it failed (finding
 // d49489).
-func gitTope(dir string, tope time.Duration, stdin io.Reader, args ...string) (string, error) {
+func gitTope(dir string, tope time.Duration, env []string, stdin io.Reader, args ...string) (string, error) {
 	if tope <= 0 {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
+		cmd.Env = entornoGit(env)
 		cmd.Stdin = stdin
 		out, err := cmd.CombinedOutput()
 		return strings.TrimSpace(string(out)), err
 	}
 	salida := &salidaGit{limite: colaGit}
-	err := correrConTope(dir, tope, stdin, salida, salida, args...)
+	err := correrConTope(dir, tope, env, stdin, salida, salida, args...)
 	return strings.TrimSpace(string(salida.bytes())), err
 }
 
 // listadoGit is git's stdout, whole and untrimmed: a listing the save reads
 // (what there is to save), run like gitTope. When git fails the error says
 // which command and carries the end of its stderr.
-func listadoGit(dir string, tope time.Duration, args ...string) ([]byte, error) {
+func listadoGit(dir string, tope time.Duration, env []string, args ...string) ([]byte, error) {
 	out, stderr := &salidaGit{}, &salidaGit{limite: colaGit}
 	var err error
 	if tope <= 0 {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
+		cmd.Env = entornoGit(env)
 		cmd.Stdout, cmd.Stderr = out, stderr
 		err = cmd.Run()
 	} else {
-		err = correrConTope(dir, tope, nil, out, stderr, args...)
+		err = correrConTope(dir, tope, env, nil, out, stderr, args...)
 	}
 	if errors.Is(err, errTopeGit) {
 		return nil, err
@@ -1142,7 +1147,7 @@ func listadoGit(dir string, tope time.Duration, args ...string) ([]byte, error) 
 // nothing of the command is alive when it returns (procesos.Liberar,
 // aclaracion 19). The error then wraps errTopeGit and says which command and
 // its bound.
-func correrConTope(dir string, tope time.Duration, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
+func correrConTope(dir string, tope time.Duration, env []string, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tope)
 	defer cancel()
 	var lecturas, escrituras []*os.File
@@ -1174,6 +1179,7 @@ func correrConTope(dir string, tope time.Duration, stdin io.Reader, stdout, stde
 	}
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
+	cmd.Env = entornoGit(env)
 	cmd.Stdin = stdin
 	cmd.Stdout, cmd.Stderr = escrituras[0], escrituras[len(escrituras)-1]
 	cmd.WaitDelay = graciaGit + time.Second
@@ -1217,6 +1223,15 @@ func correrConTope(dir string, tope time.Duration, stdin io.Reader, stdout, stde
 		err = nil
 	}
 	return err
+}
+
+// entornoGit is the environment of a git of the save: the inherited one
+// plus env, or nil (inherited as is) without env.
+func entornoGit(env []string) []string {
+	if len(env) == 0 {
+		return nil
+	}
+	return append(os.Environ(), env...)
 }
 
 // subcomandoGit is "git <subcommand>" of args, past git's own options and

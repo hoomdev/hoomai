@@ -312,7 +312,15 @@ func esOID(s string) bool {
 // the branch integrated, and the synthetic merge, which never sees them,
 // reads the same objects as everything else (findings 4acfc8, 8d0272).
 func soloLectura() []string {
-	return append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", sinGrafts)
+	return append(append(os.Environ(), "GIT_OPTIONAL_LOCKS=0"), SinReemplazos()...)
+}
+
+// SinReemplazos is what soloLectura adds so that git reads the repository's
+// own objects: no refs/replace and no grafts file. The pilot's save runs its
+// git with it too: a replacement must not make a staged change look saved
+// (finding 1d9e67).
+func SinReemplazos() []string {
+	return []string{"GIT_NO_REPLACE_OBJECTS=1", sinGrafts}
 }
 
 // sinGrafts points git's graft file at a path that cannot exist (a name

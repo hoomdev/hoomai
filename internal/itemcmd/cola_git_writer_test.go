@@ -14,7 +14,7 @@ func TestWriterD49489GitTopeConservaElFinalDeLaSalida(t *testing.T) {
 	alias := "alias.ruido=!f() { i=0; while [ $i -lt 3000 ]; do " +
 		"echo 'ruido ruido ruido ruido ruido ruido ruido'; i=$((i+1)); done; " +
 		"echo '" + diagnostico + "' >&2; exit 1; }; f"
-	out, err := gitTope(t.TempDir(), time.Minute, nil, "-c", alias, "ruido")
+	out, err := gitTope(t.TempDir(), time.Minute, nil, nil, "-c", alias, "ruido")
 	if err == nil {
 		t.Fatalf("d49489: el git que sale con 1 es un error: %q", out)
 	}
