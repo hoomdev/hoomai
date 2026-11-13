@@ -155,6 +155,25 @@ func Tomar(dir string, limite time.Time) Foto {
 	return foto
 }
 
+// TomarConTope is Tomar bounded by tope: a photograph that does not end by
+// then is SinTerminar alone (aclaracion 28), which against any other
+// photograph counts as changed.
+func TomarConTope(dir string, tope time.Duration) Foto {
+	limite := time.Now().Add(tope)
+	listo := make(chan Foto, 1)
+	go func() { listo <- Tomar(dir, limite) }()
+	t := time.NewTimer(time.Until(limite))
+	defer t.Stop()
+	select {
+	case foto := <-listo:
+		if foto != nil {
+			return foto
+		}
+	case <-t.C:
+	}
+	return Foto{SinTerminar: Ilegible}
+}
+
 // Rutas are the absolute paths of the pieces of the git material of l that
 // encierro keeps read-only when they exist: the effective hooks directory
 // and DirGestor whole, the husky parent directory whole when it counts, and

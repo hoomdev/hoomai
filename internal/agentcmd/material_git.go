@@ -103,19 +103,7 @@ const FotoSinTerminar = materialgit.SinTerminar
 // is the tree's root or a git directory. The git it runs carries
 // core.fsmonitor=false. It is materialgit.Tomar within its bound.
 func FotoMaterialGit(dir string) MaterialGit {
-	limite := time.Now().Add(topeFotoMaterialGit)
-	listo := make(chan MaterialGit, 1)
-	go func() { listo <- MaterialGit(materialgit.Tomar(dir, limite)) }()
-	t := time.NewTimer(time.Until(limite))
-	defer t.Stop()
-	select {
-	case foto := <-listo:
-		if foto != nil {
-			return foto
-		}
-	case <-t.C:
-	}
-	return MaterialGit{FotoSinTerminar: HuellaIlegible}
+	return MaterialGit(materialgit.TomarConTope(dir, topeFotoMaterialGit))
 }
 
 // CambiosMaterialGit lists, sorted, the paths whose entry is not the same in

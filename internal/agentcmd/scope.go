@@ -301,9 +301,12 @@ type ScopeResult struct {
 // Cuts reports whether the tree does not deserve a verdict at all. Writing
 // outside the role's territory is information; moving the demand itself, or
 // undoing the blindfold, is not. Neither is changing the test-writer's tests
-// (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too.
+// (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too, and so do
+// the git material, the agents' config and git outside the task's branch
+// (RuleMaterialDeGit, RuleConfigDeAgentes, RuleGitAjeno).
 func (s ScopeResult) Cuts() bool {
-	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter) || s.has(RuleMaterialDeGit)
+	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter) || s.has(RuleMaterialDeGit) ||
+		s.has(RuleConfigDeAgentes) || s.has(RuleGitAjeno)
 }
 
 // Delivered is what the run changed that counts as the role's work: Touched
@@ -739,7 +742,7 @@ func ruleRank(rule string) int {
 	switch rule {
 	case RuleIsolation:
 		return 0
-	case RuleTampering, RuleTestsDelTestWriter, RuleMaterialDeGit:
+	case RuleTampering, RuleTestsDelTestWriter, RuleMaterialDeGit, RuleConfigDeAgentes, RuleGitAjeno:
 		return 1
 	default:
 		return 2

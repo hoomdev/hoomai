@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/approval"
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/materialgit"
 	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -45,9 +47,14 @@ type Options struct {
 //     encierro.gates_sin_encierro run as today. Without the section the gates
 //     run as today;
 //   - with the section or without it, the git material of the manifest's tree
-//     (agentcmd.FotoMaterialGit) is photographed before the first gate and
-//     after the last, gates_sin_encierro included. When it changed, the
-//     verdict carries one more gate, GateMaterialDeGit.
+//     (materialgit.TomarConTope, the photograph of agentcmd.FotoMaterialGit)
+//     is photographed before the first gate and after the last,
+//     gates_sin_encierro included. When it changed, the verdict carries one
+//     more gate, GateMaterialDeGit.
+//
+// The gates' view adds no provider's state: they have no provider. Their
+// level is the system's (encierro.Nivel without a provider): ninguno without
+// Task. It does not judge encierro.exigir: whoever calls it already did.
 type Sobre struct {
 	// Root is the project's main checkout: its hoom.yaml's policy, and where
 	// the cache lives.
@@ -92,6 +99,14 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	defer lw.Close()
 
 	gopt := gates.Options{Full: opt.Full, Emit: lw.Emit}
+	var antes materialgit.Foto
+	if opt.Sobre != nil {
+		plan, sin, err := planDelSobre(m, *opt.Sobre)
+		if err != nil {
+			return nil, "", err
+		}
+		gopt.Encierro, gopt.SinEncierro = plan, sin
+	}
 	if len(opt.Gates) > 0 {
 		gopt.Only = map[string]bool{}
 		for _, g := range opt.Gates {
@@ -151,7 +166,17 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 			DurationMS: fres.DurationMS, ExitCode: fres.ExitCode})
 		results = append(results, fres)
 	}
+	if opt.Sobre != nil {
+		antes = materialgit.TomarConTope(m.Dir, topeFotoMaterial)
+	}
 	results = append(results, gates.Run(m, git, gopt)...)
+	if opt.Sobre != nil {
+		if cambios := materialgit.Cambios(antes, materialgit.TomarConTope(m.Dir, topeFotoMaterial)); len(cambios) > 0 {
+			results = append(results, verdict.GateResult{Name: GateMaterialDeGit, Required: true, Status: verdict.StatusFail,
+				Scope: "full", ExitCode: 1, OutputTail: strings.Join(cambios, "\n"),
+				Notes: "el codigo que corrieron los gates cambio el material de git de la tarea"})
+		}
+	}
 
 	if includeRatchet {
 		lw.Emit(live.Event{Kind: live.KindGateStart, Gate: "ratchet", Scope: "full"})
@@ -196,6 +221,39 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	}
 	lw.Emit(live.Event{Kind: live.KindVerifyEnd, Verdict: v.Verdict, VerdictID: v.ID, Partial: v.Partial})
 	return v, path, nil
+}
+
+// topeFotoMaterial bounds each photograph of the git material of a verify
+// with Options.Sobre (aclaracion 28): one that does not end counts as
+// changed.
+const topeFotoMaterial = 5 * time.Second
+
+// planDelSobre is the encierro of the gates of a verify with Sobre s: nil
+// (as today) without the section `encierro` in s.Root's hoom.yaml, or with
+// a level ninguno; otherwise the view of role s.Rol in the manifest's tree
+// with the cache `verify`. sin are encierro.gates_sin_encierro.
+func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]bool, error) {
+	roles, err := manifest.LoadRoles(s.Root)
+	if err != nil {
+		return nil, nil, err
+	}
+	if roles.Encierro == nil {
+		return nil, nil, nil
+	}
+	sin := map[string]bool{}
+	for _, g := range roles.Encierro.GatesSinEncierro {
+		sin[g] = true
+	}
+	info := encierro.Nivel(s.Task != "", nil)
+	if info.Mecanismo != encierro.MecanismoBwrap {
+		return nil, sin, nil
+	}
+	vista, err := encierro.VistaDe(encierro.Lugar{Principal: s.Root, Tarea: s.Task, Arbol: m.Dir, Quien: encierro.QuienVerify,
+		Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
+	if err != nil {
+		return nil, nil, err
+	}
+	return &encierro.Plan{Info: info, Vista: vista}, sin, nil
 }
 
 // approvedGate enforces the human control point: a spec bound to a verify

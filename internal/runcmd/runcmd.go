@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -1131,6 +1132,10 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		Model:    strings.TrimSpace(opts.Model), Effort: strings.TrimSpace(opts.Effort),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
+	if opts.Encierro != nil {
+		info := opts.Encierro.Info
+		r.meta.Encierro = &info
+	}
 	// a run with no task (a review with --spec and no --task, at the root)
 	// keeps the task of its findings: the only fact that ties its cost to
 	// the task when it ends with no record (costo-por-spec, amendment 2)
@@ -1406,17 +1411,43 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipes")
 		return
 	}
-	if err := arrancar(cmd); err != nil {
+	// with a plan (a role that executes, with a task, in a project with the
+	// section encierro) the provider runs enclosed: bwrap around it, and
+	// the run's gracia (none) kept (contencion-del-writer)
+	plan := r.opts.Encierro
+	if plan != nil {
+		if err := encierro.Envolver(cmd, *plan); err != nil {
+			m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo encerrar el provider %s: %v", r.provider.Name(), err))
+			return
+		}
+	}
+	var errArranque error
+	if plan != nil {
+		errArranque = encierro.Arrancar(cmd, 0)
+	} else {
+		errArranque = arrancar(cmd)
+	}
+	if errArranque != nil {
 		// the cause matters: a missing binary and an argv too large (E2BIG
 		// with a huge --system-prompt) look the same otherwise
-		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), err))
+		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), errArranque))
 		return
 	}
-	defer soltarGrupo(cmd.Process.Pid)
+	if plan != nil {
+		defer encierro.Liberar(cmd)
+	} else {
+		defer soltarGrupo(cmd.Process.Pid)
+	}
 	// the provider's PID keeps the run alive for other processes if this
 	// one dies: without it on disk the run is not protected, so it does not
 	// go on (finding da369a)
 	m.mu.Lock()
+	if plan != nil && runtime.GOOS == "windows" && !procesos.EnJob(cmd.Process.Pid) {
+		// the level the run really had: Windows did not let Adoptar create
+		// the job, so nothing contains its processes
+		info := encierro.NivelDe(encierro.Caso{Sistema: "windows", Tarea: true, Job: false})
+		r.meta.Encierro = &info
+	}
 	r.meta.ChildPID, r.meta.ChildStartedAt = cmd.Process.Pid, time.Now().UTC()
 	errPID := writeMeta(m.root, r.meta)
 	m.mu.Unlock()

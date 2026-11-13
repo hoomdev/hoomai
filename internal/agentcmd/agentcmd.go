@@ -18,6 +18,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/isolate"
@@ -318,8 +319,34 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [N-3/N] run
 	seguir("run", steps-3)
+	// the encierro (contencion-del-writer): only a role that executes, in a
+	// project whose hoom.yaml asks for it; its refusals are inside this step,
+	// before launching
+	var plan *encierro.Plan
+	if role.Exec && roles.Encierro != nil {
+		info := encierro.Nivel(opt.Task != "", prov)
+		rec.Encierro = &info
+		if why := encierroNiega(root, dir, m, *roles.Encierro, info, role.Slug); why != "" {
+			keepQuarantine(w, tree, res.Isolation, "el encierro no dejo correr el rol")
+			return cerrar(w, root, &rec, res, "run", 1, why), nil
+		}
+		fmt.Fprintf(w, "    %s\n", encierro.Linea(info))
+		if aviso := encierro.Aviso(info, role.Slug); aviso != "" {
+			fmt.Fprintf(w, "    %s\n", aviso)
+		}
+		if opt.Task != "" && info.Nivel != encierro.NivelNinguno {
+			vista, err := encierro.VistaDe(encierro.Lugar{Principal: root, Tarea: opt.Task, Arbol: runDir, Quien: role.Slug,
+				Estado: EstadoDe(prov), Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
+			if err != nil {
+				keepQuarantine(w, tree, res.Isolation, "el encierro no se pudo armar")
+				return res, roto(root, &rec, err)
+			}
+			plan = &encierro.Plan{Info: info, Vista: vista}
+		}
+	}
 	so, warn := startOptions(prov, role, contract, opt)
 	so.Dir = runDir
+	so.Encierro = plan
 	if warn {
 		fmt.Fprintf(w, "  aviso: %s no puede imponer un rol de solo lectura; el limite se verifica solo despues del run\n", prov.Name())
 	}
@@ -340,6 +367,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// and what the pilot's save runs of git: the writer does not change
 		// it (aclaracion 25)
 		pol.MaterialGit = FotoMaterialGit(dir)
+	}
+	// what runs code in the next session, and git outside the task's
+	// branch: photographed for every role that executes, compared after the
+	// run before any git of hoom on the tree (contencion-del-writer)
+	var previo *fotosPrevias
+	if role.Exec {
+		previo = tomarPrevias(runDir, dir)
 	}
 	before := Take(runDir, base)
 	info, err := mgr.Start(so)
@@ -373,6 +407,23 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "    sesion %s - reanudar: hoom agent --role %s --provider %s --resume %s \"<pedido>\"\n",
 			st.ProviderSessionID, role.Slug, prov.Name(), st.ProviderSessionID)
 	}
+	if rec.Encierro != nil && plan != nil {
+		// the level the run really had (on Windows, without the job: ninguno)
+		if meta, ok := runcmd.ReadMeta(root, info.ID); ok && meta.Encierro != nil {
+			rec.Encierro = meta.Encierro
+		}
+	}
+	// BEFORE Take or any other git of hoom on the tree: a fsmonitor or a
+	// filter the run left does not run inside hoom before the gate sees it
+	if previo != nil {
+		if sc, corta := previo.comparar(dir, opt.Task, role, before, beforeReal, tree != nil, pol); corta {
+			seguir("scope", steps-2)
+			res.Scope = sc
+			printScope(w, res.Scope, role, step(steps-2, steps))
+			keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
+			return cerrar(w, root, &rec, res, "scope", 1, notaDelCorte(sc, role.Slug)), nil
+		}
+	}
 	if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 		code := st.ExitCode
 		if code == 0 {
@@ -395,19 +446,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
 	printScope(w, res.Scope, role, step(steps-2, steps))
 	if res.Scope.Cuts() {
-		note := "manipulacion de la evidencia: no se emite veredicto sobre este arbol"
-		switch {
-		case res.Scope.Broken():
-			note = "el aislamiento se rompio: no se emite veredicto sobre este arbol"
-		case !res.Scope.Tampering && res.Scope.has(RuleTestsDelTestWriter):
-			// the test-writer's tests: with the evidence also moved, the
-			// note stays the tampering one
-			note = NotaTestsDelTestWriter
-		case !res.Scope.Tampering && res.Scope.has(RuleMaterialDeGit):
-			note = NotaMaterialDeGit
-		}
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
-		return cerrar(w, root, &rec, res, "scope", 1, note), nil
+		return cerrar(w, root, &rec, res, "scope", 1, notaDelCorte(res.Scope, role.Slug)), nil
 	}
 	// Solo viaja lo que el gate aprobo: la cuarentena es la unica vez que el
 	// gate llega ANTES de que el arbol certificable reciba la escritura.
@@ -427,13 +467,26 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [N-1/N] verify
 	seguir("verify", steps-1)
-	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath})
+	// a role that executes: its verify's gates run with its view (enclosed
+	// when the project asks) and the git material is photographed around
+	// them (contencion-del-writer)
+	var sobre *verifycmd.Sobre
+	if role.Exec {
+		sobre = &verifycmd.Sobre{Root: root, Task: opt.Task, Rol: role.Slug}
+	}
+	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath, Sobre: sobre})
 	if err != nil {
 		return res, roto(root, &rec, err)
 	}
 	res.VerdictID, res.Verdict = v.ID, v.Verdict
 	rec.VerdictID, rec.Verdict = v.ID, v.Verdict
 	fmt.Fprintf(w, "  %s verify  %s (veredicto %s)\n", step(steps-1, steps), color(v.Verdict == "green"), v.ID)
+	if rutas := MaterialDelVeredicto(v); len(rutas) > 0 && role.Scope == agents.ScopeCodigo {
+		// the writer's code changed the git material during its own verify:
+		// the finding of always, and the envelope stops here
+		res.Scope = registrarCorte(dir, opt.Task, role, res.Scope, rutas, RuleMaterialDeGit, DetalleMaterialDeGit)
+		return cerrar(w, root, &rec, res, "verify", 1, NotaMaterialDeGit), nil
+	}
 
 	// [N/N] check
 	seguir("check", steps)
