@@ -1134,7 +1134,10 @@ func listadoGit(dir string, tope time.Duration, args ...string) ([]byte, error) 
 // correrConTope runs git in dir in a process group of its own
 // (procesos.ArrancarConGracia), stdout to stdout and stderr to stderr through
 // pipes of our own: Wait returns when git ends even if something it ran
-// still holds them. Once tope passes, the whole group, whatever git ran and
+// still holds them. When stdout and stderr are the same writer (gitTope)
+// both go through ONE pipe, so the output keeps the order the kernel gave
+// it: with two pipes read by two goroutines the order of what both wrote
+// would depend on the scheduler (finding 7b1645). Once tope passes, the whole group, whatever git ran and
 // its children included, gets SIGTERM and, graciaGit later, SIGKILL, and
 // nothing of the command is alive when it returns (procesos.Liberar,
 // aclaracion 19). The error then wraps errTopeGit and says which command and
@@ -1149,7 +1152,11 @@ func correrConTope(dir string, tope time.Duration, stdin io.Reader, stdout, stde
 			f.Close()
 		}
 	}()
-	for _, w := range []io.Writer{stdout, stderr} {
+	salidas := []io.Writer{stdout, stderr}
+	if stdout == stderr {
+		salidas = salidas[:1]
+	}
+	for _, w := range salidas {
 		pr, pw, err := os.Pipe()
 		if err != nil {
 			for _, f := range escrituras {
@@ -1168,7 +1175,7 @@ func correrConTope(dir string, tope time.Duration, stdin io.Reader, stdout, stde
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	cmd.Stdin = stdin
-	cmd.Stdout, cmd.Stderr = escrituras[0], escrituras[1]
+	cmd.Stdout, cmd.Stderr = escrituras[0], escrituras[len(escrituras)-1]
 	cmd.WaitDelay = graciaGit + time.Second
 	err := procesos.ArrancarConGracia(cmd, graciaGit)
 	for _, f := range escrituras {
