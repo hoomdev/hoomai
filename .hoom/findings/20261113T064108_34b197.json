@@ -1,0 +1,11 @@
+{
+  "id": "20261113T064108_34b197",
+  "created_at": "2026-11-13T06:41:08.319180316Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/autonomia_entre_firmas_r8_test.go",
+  "description": "INTRODUCIDO — internal/agentcmd/autonomia_entre_firmas_r8_test.go:57 arma el CLI falso con touch -m -d '@\u003cepoch\u003e'. En Darwin, touch -d acepta una fecha ISO-8601, no la sintaxis GNU @epoch: ese comando falla, el script oculta el fallo con exit 0 y la asercion de internal/agentcmd/autonomia_entre_firmas_r8_test.go:62 falla porque el mtime no volvio a fecha. El archivo no tiene build tag y este mismo cambio agrega material_ctime_darwin.go, asi que go test falla en un target que la correccion pretende cubrir. Usa una fecha ISO-8601 portable o restaura el mtime sin depender de GNU touch.",
+  "author": "reviewer@codex",
+  "fingerprint": "f0b898bfe317054d",
+  "task": "autonomia-entre-firmas"
+}

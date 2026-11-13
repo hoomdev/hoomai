@@ -1,0 +1,84 @@
+{
+  "id": "20261113T064838_cc1da0",
+  "created_at": "2026-11-13T06:48:38.798228984Z",
+  "task": "autonomia-entre-firmas",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md",
+  "fingerprint": "f0b898bfe317054d",
+  "verdict_id": "2026-11-13T06-27-33Z_d1e37b31",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261113T063339_ce21bc",
+    "20261113T063401_2118ef",
+    "20261113T064108_34b197",
+    "20261113T064537_028235",
+    "20261113T064827_cc2a3a"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 63751,
+  "evidence_sha256": "15d50e241c5151153a7f62ff6c9b7afc1be4577a55bfe1b0b8e2c8d21469354d",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1257638,
+      "cached_input_tokens": 1208064,
+      "output_tokens": 18021,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 1825527,
+      "cached_input_tokens": 1752448,
+      "output_tokens": 22758,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1486853,
+      "cached_input_tokens": 1421056,
+      "output_tokens": 16320,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 317565,
+      "cached_input_tokens": 285056,
+      "output_tokens": 3919,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261113T062821_a060ff"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261113T063419_769a7f"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261113T064145_de94ea"
+    },
+    {
+      "lens": "readability",
+      "run": "20261113T064711_5e9bfd"
+    }
+  ],
+  "desde": "12d45a020f5a9e0a1376b1cf15b2c259011be05a",
+  "hasta": "38e356486ece809970883ef669de9cde756cc433",
+  "cobertura": "parcial",
+  "base": "main",
+  "riesgo": "normal"
+}
