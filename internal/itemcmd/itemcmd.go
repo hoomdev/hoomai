@@ -848,7 +848,10 @@ var TopeGit = 5 * time.Minute
 //     with the writer's view of the task's tree, the cache `guardado`
 //     (encierro.Cache(root, slug, encierro.QuienGuardado)), TopeGit and the
 //     gracia of graciaGit (SIGTERM to what runs inside, so git drops its
-//     index.lock, and only then the end of the encierro); with the section,
+//     index.lock, and only then the end of the encierro); on Windows each
+//     one goes in its job, and one left out of it, with exigir above
+//     ninguno, dies on start and the save answers ErrExigirDelGuardado with
+//     the real level (ronda 1, decision 22); with the section,
 //     at any level, every git of the save carries commit.gpgsign=false (no
 //     gpg nor ssh agent inside to sign: the pilot's saves stay unsigned);
 //   - with the section or without it, it photographs the git material of the
@@ -914,6 +917,10 @@ func ErrGitAjeno(slug string, rutas []string) string {
 // ErrExigirDelGuardado is what SaveTarea answers, committing nothing, when
 // the level of its encierro (nivel) does not meet encierro.exigir (exigir):
 // `el encierro de este sistema es <nivel> y hoom.yaml exige <exigir>: no guardo`.
+// It is also its answer, with the real level (ninguno), when a git of the
+// save was left out of its job on Windows and encierro.Comprobar killed it on
+// start (ronda 1, decision 22); then, after `; ademas: `, what else happened
+// (a failure that followed, whether its commit went back).
 func ErrExigirDelGuardado(nivel, exigir string) string {
 	return "el encierro de este sistema es " + nivel + " y hoom.yaml exige " + exigir + ": no guardo"
 }
@@ -980,7 +987,8 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 		// is reachable from inside, and the person signs when integrating
 		// (contencion-del-writer, decision 7; ronda 1, f83160)
 		g.opciones = append(g.opciones, "-c", "commit.gpgsign=false")
-		if info.Mecanismo == encierro.MecanismoBwrap {
+		switch info.Mecanismo {
+		case encierro.MecanismoBwrap:
 			perfil := ""
 			if m, err := manifest.Load(dir, profiles.Resolve); err == nil {
 				perfil = m.Profile
@@ -990,8 +998,13 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 			if err != nil {
 				return SaveResult{}, err
 			}
-			g.plan = &encierro.Plan{Info: info, Vista: vista}
+			g.plan = &encierro.Plan{Info: info, Vista: vista, Exigir: pol.Exigir}
+		case encierro.MecanismoJob:
+			// no view: each git goes in its job (procesos.Adoptar), and
+			// encierro.Comprobar kills the one Windows left out of it
+			g.plan = &encierro.Plan{Info: info, Exigir: pol.Exigir}
 		}
+		g.negado = &negadoDelGuardado{}
 	}
 	material := agentcmd.FotoMaterialGit(dir)
 	config := agentcmd.FotoConfigAgentes(dir)
@@ -1006,6 +1019,16 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	}
 	if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
 		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrGitAjeno(slug, cambios)))
+	}
+	// a git of the save that Windows left out of its job, with exigir above
+	// ninguno: hoom killed it on start, and the save is the refusal of
+	// exigir with the real level (ronda 1, decision 22), plus what else
+	// happened (an undo, a failure that followed)
+	if sj := g.negado.sinJob(); sj != nil {
+		if err != nil && err.Error() == sj.Error() {
+			err = nil // that git's failure is the refusal itself
+		}
+		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrExigirDelGuardado(sj.Info.Nivel, sj.Exigir)))
 	}
 	return res, err
 }
@@ -1136,7 +1159,7 @@ func empezarGuardado(dir string, g gitDelGuardado, slug string) (guardado, error
 	}
 	s.accion = "hoom-guardado-" + hex.EncodeToString(nonce)
 	ref, err := g.correr(dir, nil, "symbolic-ref", "-q", "HEAD")
-	if errors.Is(err, errTopeGit) || err != nil && ref != "" {
+	if cortado(err) || err != nil && ref != "" {
 		return guardado{}, fmt.Errorf("no pude ver la rama de la tarea antes de guardar: %s", motivoGit(ref, err))
 	}
 	if ref != s.rama {
@@ -1243,7 +1266,7 @@ func revisarCommit(dir string, g gitDelGuardado, s guardado, sha string, pedidas
 		return fmt.Errorf("el commit del guardado %s no sale de %s", short(sha), short(s.antes))
 	}
 	ref, err := g.correr(dir, nil, "symbolic-ref", "-q", "HEAD")
-	if errors.Is(err, errTopeGit) || err != nil && ref != "" {
+	if cortado(err) || err != nil && ref != "" {
 		return fmt.Errorf("no pude revisar el commit del guardado: %s", motivoGit(ref, err))
 	}
 	if ref != s.rama {
@@ -1391,12 +1414,21 @@ func deshacer(dir string, g gitDelGuardado, s guardado, err error) error {
 	return fmt.Errorf("%w; %s vuelve a %s", err, s.nombre(), short(s.antes))
 }
 
-// motivoGit is why a git of the save failed: its bound, or what it said.
+// motivoGit is why a git of the save failed: its bound, the refusal of
+// encierro.Comprobar, or what it said.
 func motivoGit(out string, err error) string {
-	if errors.Is(err, errTopeGit) || out == "" {
+	if cortado(err) || out == "" {
 		return err.Error()
 	}
 	return out
+}
+
+// cortado says whether err is a git of the save that hoom cut: by its bound
+// (errTopeGit) or on start, Windows without the job (*encierro.SinJob,
+// ronda 1, decision 22). What it printed is not why it failed.
+func cortado(err error) bool {
+	var sj *encierro.SinJob
+	return errors.Is(err, errTopeGit) || errors.As(err, &sj)
 }
 
 // sinGuardar is what the task tree dir has unsaved, sorted, as the card's
@@ -1481,6 +1513,40 @@ type gitDelGuardado struct {
 	// nil = as today. Only SaveTarea, in a project with the section
 	// encierro, sets it.
 	plan *encierro.Plan
+	// negado (with plan) keeps the refusal of the first command that
+	// encierro.Comprobar killed on start (ronda 1, decision 22), whatever
+	// its caller made of its error: the save ends with ErrExigirDelGuardado.
+	negado *negadoDelGuardado
+}
+
+// negadoDelGuardado is gitDelGuardado.negado.
+type negadoDelGuardado struct {
+	mu sync.Mutex
+	sj *encierro.SinJob
+}
+
+// anotar keeps err's *encierro.SinJob, if it is one and none was kept, and
+// returns err.
+func (n *negadoDelGuardado) anotar(err error) error {
+	var sj *encierro.SinJob
+	if n != nil && errors.As(err, &sj) {
+		n.mu.Lock()
+		if n.sj == nil {
+			n.sj = sj
+		}
+		n.mu.Unlock()
+	}
+	return err
+}
+
+// sinJob is the refusal anotar kept; nil if none.
+func (n *negadoDelGuardado) sinJob() *encierro.SinJob {
+	if n == nil {
+		return nil
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.sj
 }
 
 // delGuardado is the git of SaveTarea: each command bounded by TopeGit in
@@ -1512,7 +1578,8 @@ func (g gitDelGuardado) correr(dir string, stdin io.Reader, args ...string) (str
 	if g.plan == nil {
 		return gitTope(dir, g.tope, g.env, stdin, g.con(args)...)
 	}
-	return gitTopeEn(dir, g.tope, g.env, g.plan, stdin, g.con(args)...)
+	out, err := gitTopeEn(dir, g.tope, g.env, g.plan, stdin, g.con(args)...)
+	return out, g.negado.anotar(err)
 }
 
 // listado is listadoGit with g's bound and options, under g's encierro when
@@ -1521,7 +1588,8 @@ func (g gitDelGuardado) listado(dir string, args ...string) ([]byte, error) {
 	if g.plan == nil {
 		return listadoGit(dir, g.tope, g.env, g.con(args)...)
 	}
-	return listadoGitEn(dir, g.tope, g.env, g.plan, g.con(args)...)
+	out, err := listadoGitEn(dir, g.tope, g.env, g.plan, g.con(args)...)
+	return out, g.negado.anotar(err)
 }
 
 // commitPaths stages exactly paths and commits only them: whatever else sits
@@ -1542,7 +1610,7 @@ func commitPaths(dir, msg string, paths []string, g gitDelGuardado, antesDelComm
 		}
 	}
 	fallo := func(que, out string, err error) error {
-		if errors.Is(err, errTopeGit) {
+		if cortado(err) {
 			return err
 		}
 		return fmt.Errorf("git %s fallo: %s", que, out)
@@ -1638,7 +1706,7 @@ func listadoGitEn(dir string, tope time.Duration, env []string, plan *encierro.P
 	} else {
 		err = correrConTope(dir, tope, env, plan, nil, out, stderr, args...)
 	}
-	if errors.Is(err, errTopeGit) {
+	if cortado(err) {
 		return nil, err
 	}
 	if err != nil {
@@ -1666,7 +1734,9 @@ func listadoGitEn(dir string, tope time.Duration, env []string, plan *encierro.P
 // With an encierro plan (nil = as today) git runs enclosed
 // (encierro.Envolver) with the same bound and gracia (encierro.Arrancar):
 // SIGTERM to what runs inside, graciaGit, and then the end of the encierro
-// with everything in it (encierro.Liberar).
+// with everything in it (encierro.Liberar). When encierro.Comprobar kills it
+// on start (Windows without the job, Plan.Exigir above ninguno), the error is
+// its *encierro.SinJob.
 func correrConTope(dir string, tope time.Duration, env []string, plan *encierro.Plan, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tope)
 	defer cancel()
@@ -1717,6 +1787,13 @@ func correrConTope(dir string, tope time.Duration, env []string, plan *encierro.
 	if err != nil {
 		return err // the deferred Close ends the reading
 	}
+	// on Windows without the job and exigir above ninguno (ronda 1, decision
+	// 22) its tree is already dead: the save refuses with
+	// ErrExigirDelGuardado of the real level
+	var sinJob error
+	if plan != nil {
+		_, sinJob = encierro.Comprobar(cmd, *plan)
+	}
 	err = cmd.Wait()
 	vencio := errors.Is(ctx.Err(), context.DeadlineExceeded)
 	if plan != nil {
@@ -1745,6 +1822,9 @@ func correrConTope(dir string, tope time.Duration, env []string, plan *encierro.
 			f.Close()
 		}
 		leyeron(time.After(finDeLecturaGit))
+	}
+	if sinJob != nil {
+		return sinJob
 	}
 	if vencio {
 		return fmt.Errorf("%s %w: se corto a los %s, con lo que corria", subcomandoGit(args), errTopeGit, tope)

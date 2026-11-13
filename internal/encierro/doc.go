@@ -118,7 +118,11 @@
 //
 // Windows: procesos.Adoptar's Job Object already contains a child and kills
 // it when it closes; the level is parcial with mechanism job when the job
-// was created (procesos.EnJob), ninguno when not. Writes are not enclosed.
+// was created (procesos.EnJob), ninguno when not. Comprobar, right after the
+// start, gives that real level, and when the job is missing and exigir is
+// not ExigirNo it kills the tree at once and returns *SinJob: the decision
+// is TrasAdoptar, a pure function, and ReemplazarAdopcion lets a test take
+// it on Linux (ronda 1, decision 22). Writes are not enclosed.
 // macOS: nothing contains processes; the level is ninguno. Envolver leaves
 // the command as it is outside Linux. The files of this package that need
 // Linux carry a build tag, and the other systems get their counterpart.

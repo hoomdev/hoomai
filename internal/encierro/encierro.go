@@ -615,7 +615,11 @@ var AdministracionPrincipal = []string{
 // is no job and exigir is not ExigirNo (nor ""). On any other system it
 // returns the zero Info and false: there is nothing to correct. Pure.
 func TrasAdoptar(sistema string, enJob bool, exigir string) (Info, bool) {
-	return Info{}, false
+	if sistema != "windows" {
+		return Info{}, false
+	}
+	info := NivelDe(Caso{Sistema: sistema, Tarea: true, Job: enJob})
+	return info, !enJob && exigir != "" && exigir != manifest.ExigirNo
 }
 
 // SinJob (ronda 1, decision 22) is Comprobar's error when Windows did not
@@ -630,7 +634,10 @@ type SinJob struct {
 	Exigir string
 }
 
-func (e *SinJob) Error() string { return "" }
+func (e *SinJob) Error() string {
+	return "el encierro de este sistema es " + e.Info.Nivel + " (falta: " + strings.Join(e.Info.Falta, ", ") +
+		") y hoom.yaml exige " + e.Exigir + ": " + e.Info.Motivo
+}
 
 // Comprobar (ronda 1, decision 22) looks at cmd, started with Arrancar under
 // p, right after it started: it returns the level the launch really has
@@ -638,14 +645,49 @@ func (e *SinJob) Error() string { return "" }
 // when TrasAdoptar says so, kills cmd's process tree at once and returns a
 // *SinJob. Whoever calls it still waits for cmd and calls Liberar.
 func Comprobar(cmd *exec.Cmd, p Plan) (Info, error) {
-	return p.Info, nil
+	if cmd == nil || cmd.Process == nil {
+		return p.Info, nil
+	}
+	adopcion.Lock()
+	sistema, enJob := runtime.GOOS, procesos.EnJob
+	if adopcion.enJob != nil {
+		sistema, enJob = adopcion.sistema, adopcion.enJob
+	}
+	adopcion.Unlock()
+	info, matar := TrasAdoptar(sistema, enJob(cmd.Process.Pid), p.Exigir)
+	if info.Nivel == "" {
+		return p.Info, nil // not Windows: nothing to correct
+	}
+	if matar {
+		// no job and the project demands one: its tree dies at once, and
+		// whoever launched it closes as a refusal of exigir (decision 22)
+		_ = procesos.MatarGrupo(cmd.Process.Pid)
+		return info, &SinJob{Info: info, Exigir: p.Exigir}
+	}
+	return info, nil
+}
+
+// adopcion is ReemplazarAdopcion's replacement of the system and of
+// procesos.EnJob for Comprobar; enJob nil = the real ones.
+var adopcion struct {
+	sync.Mutex
+	sistema string
+	enJob   func(pid int) bool
 }
 
 // ReemplazarAdopcion makes Comprobar take sistema as the system and enJob
 // as procesos.EnJob until restaurar: the seam that lets the decision of
 // Windows without the job be tried on Linux.
 func ReemplazarAdopcion(sistema string, enJob func(pid int) bool) (restaurar func()) {
-	return func() {}
+	adopcion.Lock()
+	antesS, antesF := adopcion.sistema, adopcion.enJob
+	adopcion.sistema, adopcion.enJob = sistema, enJob
+	adopcion.Unlock()
+	return func() {
+		adopcion.Lock()
+		adopcion.sistema, adopcion.enJob = antesS, antesF
+		adopcion.Unlock()
+	}
 }
 
 // ValidarEscribe (ronda 1, 425a75 and 03a36d) applies to the Escribe that

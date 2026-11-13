@@ -257,7 +257,10 @@ const topeFotoMaterial = 5 * time.Second
 
 // planDelSobre is the encierro of the gates of a verify with Sobre s: nil
 // (as today) without the section `encierro` in s.Root's hoom.yaml, or with
-// a level ninguno; otherwise the view of role s.Rol with the cache `verify`:
+// a level ninguno; with the mechanism job (Windows) a plan with no view,
+// each gate in its job and, when Windows leaves it out with exigir above
+// ninguno, in error on start (encierro.Comprobar, ronda 1, decision 22);
+// with bwrap the view of role s.Rol with the cache `verify`:
 // the manifest's tree writable, but for the test-writer (agents.Role.Isolated),
 // whose gates run in the manifest's tree read-only and write only in its
 // blind tree s.Ciego, when it is still there. sin are
@@ -275,7 +278,11 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]boo
 		sin[g] = true
 	}
 	info := encierro.Nivel(s.Task != "", nil)
-	if info.Mecanismo != encierro.MecanismoBwrap {
+	switch info.Mecanismo {
+	case encierro.MecanismoBwrap:
+	case encierro.MecanismoJob:
+		return &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}, sin, nil
+	default:
 		return nil, sin, nil
 	}
 	lugar := encierro.Lugar{Principal: s.Root, Tarea: s.Task, Arbol: m.Dir, Quien: encierro.QuienVerify,
@@ -290,7 +297,7 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]boo
 	if err != nil {
 		return nil, nil, err
 	}
-	return &encierro.Plan{Info: info, Vista: vista}, sin, nil
+	return &encierro.Plan{Info: info, Vista: vista, Exigir: roles.Encierro.Exigir}, sin, nil
 }
 
 // approvedGate enforces the human control point: a spec bound to a verify

@@ -24,7 +24,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -324,7 +323,9 @@ type Meta struct {
 	// Encierro is the level of the encierro the run had
 	// (contencion-del-writer): `"encierro": {...}` (encierro.Info), the one
 	// of StartOptions.Encierro, except on Windows, where it is ninguno when
-	// procesos.Adoptar could not create the job. Omitted for a run started
+	// procesos.Adoptar could not create the job (encierro.Comprobar); then,
+	// with Plan.Exigir above ninguno, hoom killed its tree on start and the
+	// run ends in error with encierro.SinJob's text. Omitted for a run started
 	// without a Plan (`hoom run`, a role that does not execute, a project
 	// without the section `encierro`).
 	Encierro *encierro.Info `json:"encierro,omitempty"`
@@ -1447,12 +1448,18 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	// the provider's PID keeps the run alive for other processes if this
 	// one dies: without it on disk the run is not protected, so it does not
 	// go on (finding da369a)
+	// the level the run really had (ronda 1, decision 22): on Windows,
+	// without the job nothing contains its processes; with exigir above
+	// ninguno its tree is already dead and the run closes in error with why
+	var sinJob error
+	var real *encierro.Info
+	if plan != nil {
+		info, err := encierro.Comprobar(cmd, *plan)
+		real, sinJob = &info, err
+	}
 	m.mu.Lock()
-	if plan != nil && runtime.GOOS == "windows" && !procesos.EnJob(cmd.Process.Pid) {
-		// the level the run really had: Windows did not let Adoptar create
-		// the job, so nothing contains its processes
-		info := encierro.NivelDe(encierro.Caso{Sistema: "windows", Tarea: true, Job: false})
-		r.meta.Encierro = &info
+	if real != nil {
+		r.meta.Encierro = real
 	}
 	r.meta.ChildPID, r.meta.ChildStartedAt = cmd.Process.Pid, time.Now().UTC()
 	errPID := writeMeta(m.root, r.meta)
@@ -1568,6 +1575,12 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	if errPID != nil {
 		status, exit = StatusError, -1
 		detail = fmt.Sprintf("no se pudo registrar el PID del provider (%v): el run se corto", errPID)
+		corte = ""
+	}
+	if sinJob != nil {
+		// hoom killed it on start: what it did before is not a result
+		status, exit = StatusError, -1
+		detail = sinJob.Error()
 		corte = ""
 	}
 	if escrito != nil {

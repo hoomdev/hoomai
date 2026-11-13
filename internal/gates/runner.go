@@ -157,7 +157,9 @@ const graciaGate = 10 * time.Second
 // With the plan of an encierro (contencion-del-writer; nil = as today) the
 // gate's sh runs enclosed (encierro.Envolver), with the same gracia
 // (encierro.Arrancar), and its end kills whatever it left inside
-// (encierro.Liberar).
+// (encierro.Liberar). When encierro.Comprobar kills it on start (Windows
+// without the job, Plan.Exigir above ninguno), err is its encierro.SinJob:
+// the gate ends in error with that text.
 func correr(ctx context.Context, dir, cmdStr string, limite int, plan *encierro.Plan) (out []byte, cortado bool, err error) {
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -188,6 +190,12 @@ func correr(ctx context.Context, dir, cmdStr string, limite int, plan *encierro.
 	if err != nil {
 		return nil, false, err // the deferred Close ends the reading
 	}
+	// on Windows without the job and exigir above ninguno (ronda 1, decision
+	// 22) its tree is already dead: the gate ends in error with why
+	var sinJob error
+	if plan != nil {
+		_, sinJob = encierro.Comprobar(cmd, *plan)
+	}
 	err = cmd.Wait()
 	if plan != nil {
 		encierro.Liberar(cmd) // the rest of its gracia, then the whole encierro
@@ -210,6 +218,9 @@ func correr(ctx context.Context, dir, cmdStr string, limite int, plan *encierro.
 		}
 	}
 	out, cortado = cola.bytes()
+	if sinJob != nil {
+		err = sinJob
+	}
 	return out, cortado, err
 }
 

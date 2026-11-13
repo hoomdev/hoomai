@@ -145,7 +145,11 @@ type Isolation struct {
 // a task the run starts enclosed (runcmd.StartOptions.Encierro): its run tree
 // is the task's tree (the blind tree for the test-writer), its cache the
 // role's (encierro.Cache), plus its provider's Escribe and
-// encierro.escribibles. Without the section, or for a role that does not
+// encierro.escribibles. When the level the run really had (its sidecar's:
+// on Windows, ninguno without the job, and runcmd already killed its tree)
+// does not meet encierro.exigir, the envelope closes in its step run with
+// exit 1 and encierro.NotaExigir, its territory measured like a failed run's
+// (ronda 1, decision 22). Without the section, or for a role that does not
 // execute, none of this happens and the record has no `encierro`.
 //
 // In any project, after the run of a role that executes, the envelope
@@ -337,7 +341,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			fmt.Fprintf(w, "    %s\n", aviso)
 		}
 		// with ninguno the plan only carries the level to the run's sidecar
-		plan = &encierro.Plan{Info: info}
+		plan = &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}
 		if opt.Task != "" && info.Nivel != encierro.NivelNinguno {
 			vista, err := encierro.VistaDe(encierro.Lugar{Principal: root, Tarea: opt.Task, Arbol: runDir, Quien: role.Slug,
 				Estado: EstadoDe(prov), Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
@@ -428,7 +432,15 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			return cerrar(w, root, &rec, res, "scope", 1, notaDelCorte(sc, role.Slug)), nil
 		}
 	}
-	if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
+	// the level the run really had does not meet exigir (ronda 1, decision
+	// 22: Windows did not let Adoptar create the job, and runcmd killed its
+	// tree on start): a refusal of exigir, in run, with its territory measured
+	// like a failed run's
+	niegaExigir := ""
+	if plan != nil && rec.Encierro != nil && !encierro.Alcanza(rec.Encierro.Nivel, plan.Exigir) {
+		niegaExigir = encierro.NotaExigir(*rec.Encierro, plan.Exigir, role.Slug)
+	}
+	if niegaExigir != "" || st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 		code := st.ExitCode
 		if code == 0 {
 			code = 1
@@ -440,6 +452,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// ended well or not (CA-438). What it cannot give is a tree to verify.
 		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
 		printScope(w, res.Scope, role, step(steps-2, steps))
+		if niegaExigir != "" {
+			keepQuarantine(w, tree, res.Isolation, "el encierro no dejo correr el rol")
+			return cerrar(w, root, &rec, res, "run", 1, niegaExigir), nil
+		}
 		keepQuarantine(w, tree, res.Isolation, "el run fallo")
 		return cerrar(w, root, &rec, res, "run", code, "el run fallo: su territorio se midio; no se emite veredicto"), nil
 	}

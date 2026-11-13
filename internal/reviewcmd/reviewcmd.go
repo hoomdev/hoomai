@@ -886,7 +886,12 @@ func SoloDocs(files []string) bool {
 // encierro.NotaExigir (role reviewer) when the level is under
 // encierro.exigir, and with encierro.Validar's error when the policy breaks
 // one of its rules against the tree, or encierro.ValidarEscribe's when the
-// reviewer's provider declares an Escribe that breaks them. In any project, with encierro or
+// reviewer's provider declares an Escribe that breaks them. A pass whose
+// level really was under encierro.exigir (its run's sidecar: on Windows,
+// ninguno without the job, and runcmd already killed its tree) ends the
+// review there with the same refusal, in stage run, exit 1, its territory
+// measured like a failed pass's and no record in .hoom/reviews/ (ronda 1,
+// decision 22). In any project, with encierro or
 // without it, git-ajeno and config-de-agentes are compared around each pass
 // (agentcmd.FotoGitAjeno, agentcmd.FotoConfigAgentes): a pass that breaks
 // one makes Run return PasadaConGitAjeno or PasadaConConfigDeAgentes as its
@@ -1154,7 +1159,15 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			return res, e
 		}
 
-		if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
+		// the level the pass really had does not meet exigir (ronda 1,
+		// decision 22: Windows did not let Adoptar create the job, and runcmd
+		// killed its tree on start): the refusal of exigir, as before the
+		// first pass, with its territory measured like a failed pass's
+		niegaExigir := ""
+		if plan != nil && nivel != nil && !encierro.Alcanza(nivel.Nivel, plan.Exigir) {
+			niegaExigir = encierro.NotaExigir(*nivel, plan.Exigir, role.Slug)
+		}
+		if niegaExigir != "" || st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 			fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
 			// a pass that failed may have written anyway: its territory is
 			// measured all the same, so a resolution it left is a violation
@@ -1163,6 +1176,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			printScope(w, pass.Scope, role)
 			printGasto(w, pass.Usage)
 			res.Passes = append(res.Passes, pass)
+			if niegaExigir != "" {
+				return terminar("no-entregable", 1, "run", niegaExigir), nil
+			}
 			return terminar("no-entregable", 1, "run", "el run del reviewer fallo"), nil
 		}
 
@@ -1245,7 +1261,7 @@ func encierroDeLaReview(root, dir, task string, prov providers.Provider, role ag
 	if why := agentcmd.NiegaEncierroCon(root, dir, m, *roles.Encierro, info, role.Slug, prov); why != "" {
 		return &info, nil, why, nil
 	}
-	plan = &encierro.Plan{Info: info}
+	plan = &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}
 	if task != "" && info.Nivel != encierro.NivelNinguno {
 		vista, err := encierro.VistaDe(encierro.Lugar{Principal: root, Tarea: task, Arbol: dir, Quien: role.Slug,
 			Estado: agentcmd.EstadoDe(prov), Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
