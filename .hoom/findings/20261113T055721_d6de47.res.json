@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T055721_d6de47",
+  "as": "corregido",
+  "evidence": "commit 54e2f6e; test TestHallazgosD6de47_F835e8_CA638_SobrescribirUnHookGrandeYRestaurarSuFechaCorta (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T06:21:32.074866509Z"
+}

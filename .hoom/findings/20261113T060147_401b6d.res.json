@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T060147_401b6d",
+  "as": "corregido",
+  "evidence": "commit fd44100; test TestHallazgosC3e30e_401b6d_59db0e_CA644_ElGuardadoNoRetiraUnaActualizacionAjena (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T06:21:32.095386519Z"
+}
