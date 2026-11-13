@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T194044_d52247",
+  "as": "corregido",
+  "evidence": "Commit 608c73b: la doc de reviewcmd.Run nombra los rechazos que vuelven como error (arbol sucio, config-de-agentes, git-ajeno) y deja de contradecirse.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.108444077Z"
+}

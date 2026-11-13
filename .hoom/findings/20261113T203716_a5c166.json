@@ -1,0 +1,11 @@
+{
+  "id": "20261113T203716_a5c166",
+  "created_at": "2026-11-13T20:37:16.126824855Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/encierro/encierro_linux.go",
+  "description": "INTRODUCIDO (lo encontro el writer en la ronda 1; CA-679, CA-684): con bwrap, cuando el proceso principal del encierro termina (por ejemplo, el git del guardado que recibe el SIGTERM del tope y sale enseguida), el init de bwrap sale y el espacio de PID se desarma: sus descendientes (el hook que tiene un trap de TERM) mueren con SIGKILL sin la gracia. Sin encierro, el grupo recibe SIGTERM y el hook sigue hasta el SIGKILL de graciaGit. El contrato de encierro.Arrancar promete la gracia de hoy (SIGTERM al grupo principal, y solo despues de la gracia el encierro termina). TestCA684_ElHookQuePasaElTopeRecibeSIGTERMYSuGracia falla 2 de 20 bajo carga por esto. Arreglo propuesto: que el paso dentro del encierro lance el comando como hijo y quede de subreaper; con SIGTERM espera a todos los descendientes hasta el kill de la gracia.",
+  "author": "orquestador",
+  "fingerprint": "dde1faa8bcf1a819",
+  "task": "contencion-del-writer"
+}

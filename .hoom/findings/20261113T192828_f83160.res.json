@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T192828_f83160",
+  "as": "corregido",
+  "evidence": "Commit 9334e7b (aclaracion 24; casos de la spec: 'los guardados del piloto quedan sin firma', CA-684): con la seccion encierro, todo git del guardado lleva -c commit.gpgsign=false a cualquier nivel. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_f83160_CA684_SinBwrapElGuardadoConLaSeccionNoFirma (sin bwrap, con commit.gpgsign=true y un gpg.program que falla, guarda; sin la seccion falla al firmar).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.091500779Z"
+}

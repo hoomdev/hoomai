@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T192828_03a36d",
+  "as": "corregido",
+  "evidence": "Commit c5eb4f1 (aclaracion 26): el Escribe del provider pasa por encierro.ValidarEscribe (no /, no $HOME, nada que contenga o este dentro del checkout principal o del dir comun) al empezar el sobre y la review, y VistaDe nunca monta uno que no pasa. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_425a75_CA690_CA678_ValidarEscribe, ElEscribeDelProviderSeValidaAlEmpezarElSobre, LaReviewValidaElEscribeDelProvider, TestR1_03a36d_CA690_ValidarEscribeConCodexHome.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.065305109Z"
+}

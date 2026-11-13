@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T192828_5380e1",
+  "as": "corregido",
+  "evidence": "Commit 4322424 (aclaracion 22, decision de la persona): encierro.Comprobar, despues de Arrancar, mata el arbol cuando Adoptar no creo el job y exigir no es no (encierro.TrasAdoptar, pura); el sobre y la pasada se niegan con NotaExigir del nivel real ninguno, el gate queda en error con el texto de SinJob y el guardado falla con ErrExigirDelGuardado; el verify del sobre y el guardado arman plan con el mecanismo job. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225, con encierro.ReemplazarAdopcion: TestR1_c5790e_CA676_CA677_TrasAdoptarLaTabla, ComprobarSinJob, SinJobElSobreSeNiegaConElNivelReal, SinJobElGateQuedaEnError, SinJobElGuardadoSeNiegaConElNivelReal, TestR1_c5790e_CA676_ElTextoDeSinJob.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.047151584Z"
+}

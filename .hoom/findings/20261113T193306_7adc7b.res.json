@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T193306_7adc7b",
+  "as": "corregido",
+  "evidence": "Commit cfd7e64: deshacerSi conserva lo que dijo el deshacer cuando el guardado ya habia fallado; el error nunca afirma una vuelta que no ocurrio. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_7adc7b_CA688_ElDeshacerQueNoPuedeVolverNoMiente (con \u003crama\u003e.lock tomado: el error dice 'y no pude devolver' y no dice 'vuelve a').",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.094925422Z"
+}

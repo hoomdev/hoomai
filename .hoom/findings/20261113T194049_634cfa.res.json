@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T194049_634cfa",
+  "as": "corregido",
+  "evidence": "Commit 0fd4c2b (test-writer ciego, ronda 1): cdwUltimoCompletoVerde llama tipado a verdict.LatestComplete en agentcmd y verifycmd; sin la maquinaria de reflect y con el mismo aserto.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.11160235Z"
+}

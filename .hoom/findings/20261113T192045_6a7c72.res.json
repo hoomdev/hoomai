@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T192045_6a7c72",
+  "as": "corregido",
+  "evidence": "Commit ae43324 (aclaracion 21, decision de la persona): guardarTarea fotografia la config de los agentes antes del primer git y despues del ultimo; un cambio (tambien un .claude/settings.json o .mcp.json sin rastrear) falla el guardado, deshace su commit y devuelve ErrHookCambioConfig. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_6a7c72_CA688_CA689_UnHookQueCreaConfigDeAgentesHaceFallarElGuardado.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.071640515Z"
+}
