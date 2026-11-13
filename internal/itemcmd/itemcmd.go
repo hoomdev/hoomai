@@ -860,7 +860,9 @@ var TopeGit = 5 * time.Minute
 //     aclaracion 21) and git-ajeno (agentcmd.FotoGitAjeno) around itself: a
 //     change fails the save, which undoes its commit as today (deshacer) and
 //     returns ErrHookCambioMaterial, ErrHookCambioConfig or ErrGitAjeno with
-//     what changed. The undo's git is then the last one: what it changes
+//     what changed; when more than one changed, each of them, in that order,
+//     joined with "; " (aclaracion 29), before the usual `; ademas: ` or what
+//     the undo said. The undo's git is then the last one: what it changes
 //     (its update-ref runs the hook reference-transaction) is looked at
 //     again, and the error adds `; ademas, en el deshacer: ` and each of
 //     those errors for it, after the first violation and what the undo said
@@ -1018,14 +1020,22 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	// (update-ref runs the hook reference-transaction) is the last one, and
 	// what it changes is looked at again from these (ronda 2, 110c02)
 	material2, config2 := agentcmd.FotoMaterialGit(dir), agentcmd.FotoConfigAgentes(dir)
-	var motivo error
+	// each of the three that changed, in this order: one cannot hide another
+	// (aclaracion 29)
+	var violaciones []string
 	if cambios := agentcmd.CambiosMaterialGit(material, material2); len(cambios) > 0 {
-		motivo = errors.New(ErrHookCambioMaterial(cambios))
-	} else if cambios := agentcmd.CambiosConfigAgentes(config, config2); len(cambios) > 0 {
+		violaciones = append(violaciones, ErrHookCambioMaterial(cambios))
+	}
+	if cambios := agentcmd.CambiosConfigAgentes(config, config2); len(cambios) > 0 {
 		// the agents' config, also what a hook leaves untracked (aclaracion 21)
-		motivo = errors.New(ErrHookCambioConfig(cambios))
-	} else if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
-		motivo = errors.New(ErrGitAjeno(slug, cambios))
+		violaciones = append(violaciones, ErrHookCambioConfig(cambios))
+	}
+	if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
+		violaciones = append(violaciones, ErrGitAjeno(slug, cambios))
+	}
+	var motivo error
+	if len(violaciones) > 0 {
+		motivo = errors.New(strings.Join(violaciones, "; "))
 	} else if sj := g.negado.sinJob(); sj != nil {
 		// a git of the save that Windows left out of its job, with exigir
 		// above ninguno: hoom killed it on start, and the save is the
