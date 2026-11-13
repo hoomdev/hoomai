@@ -1,0 +1,11 @@
+{
+  "id": "20261113T055721_d6de47",
+  "created_at": "2026-11-13T05:57:21.76659815Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/material_git.go",
+  "description": "INTRODUCIDO — internal/agentcmd/material_git.go:146-147: para cada archivo regular del material de Git mayor que 1 MiB la foto deja de comprobar el contenido y guarda solo tamano, modo y mtime. Un writer puede sobrescribir un hook grande con contenido distinto del mismo largo y restaurar su mtime/permisos; las fotos anterior y posterior quedan iguales, RuleMaterialDeGit no corta y el hook alterado persiste para ejecutarse en el guardado posterior. Es high porque un caso provocable salta un control de integridad y permite ejecucion persistente.",
+  "author": "reviewer@codex",
+  "fingerprint": "55d4ca66312ca470",
+  "task": "autonomia-entre-firmas"
+}

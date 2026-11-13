@@ -1,0 +1,11 @@
+{
+  "id": "20261113T060451_77ecf8",
+  "created_at": "2026-11-13T06:04:51.451817091Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1015-1024 y :1070-1093 leen el reflog directamente con Lstat/Open/Stat/ReadAt, fuera de los comandos protegidos por TopeGit. Si el directorio git está en un filesystem degradado y una de esas operaciones se bloquea, hoom piloto puede quedar colgado antes o después del commit sin alcanzar ni el error ni deshacer; el nuevo camino de recuperación pierde así el límite que sí tienen los git del guardado.",
+  "author": "reviewer@codex",
+  "fingerprint": "55d4ca66312ca470",
+  "task": "autonomia-entre-firmas"
+}

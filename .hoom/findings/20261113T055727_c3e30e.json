@@ -1,0 +1,11 @@
+{
+  "id": "20261113T055727_c3e30e",
+  "created_at": "2026-11-13T05:57:27.839935641Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1101-1103,1299-1307: suCommit atribuye al guardado la primera transicion del reflog que parte de s.antes, pero esa transicion tambien puede hacerla un hook (o un update-ref concurrente) antes de que el git commit del guardado mueva la rama. Si luego ese commit falla o vence y la rama sigue en el SHA ajeno, deshacer lo toma por propio y ejecuta update-ref de vuelta a s.antes, descartando un commit que el guardado no creo. Es high porque el rollback nuevo puede causar perdida de datos en un caso provocable.",
+  "author": "reviewer@codex",
+  "fingerprint": "55d4ca66312ca470",
+  "task": "autonomia-entre-firmas"
+}

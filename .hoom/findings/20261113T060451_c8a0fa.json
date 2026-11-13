@@ -1,0 +1,11 @@
+{
+  "id": "20261113T060451_c8a0fa",
+  "created_at": "2026-11-13T06:04:51.322592311Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/material_git.go",
+  "description": "INTRODUCIDO — internal/agentcmd/material_git.go:79-89 limita solo la espera del llamador: no cancela la goroutine de fotoMaterialGit. Si el hooksPath está en un FUSE/NFS degradado, os.ReadDir en :115 o la lectura de huellaMaterial en :129 puede quedar bloqueada después de los 5 s; cada foto devuelve FotoSinTerminar pero deja otra goroutine y posiblemente descriptores vivos, por lo que ejecuciones repetidas pueden agotar el proceso persistente de hoom.",
+  "author": "reviewer@codex",
+  "fingerprint": "55d4ca66312ca470",
+  "task": "autonomia-entre-firmas"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261113T060147_401b6d",
+  "created_at": "2026-11-13T06:01:47.923434278Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:1102 supone que la primera entrada nueva del reflog cuyo old es s.antes fue creada por el git commit del guardado. Un pre-commit/commit-msg hook o un proceso git concurrente puede mover esa rama desde s.antes antes de que el commit exterior la mueva. Si luego el commit falla o vence y esa actualizacion queda en la punta, deshacer la confunde con la propia y la revierte; si el commit exterior alcanza a crear otro commit, la atribucion tampoco coincide y el guardado puede reportar fallo dejando su commit. El rollback puede retirar o conservar la actualizacion equivocada; hace falta correlacionar el ref update que creo el comando, no escoger la primera transicion desde la punta inicial.",
+  "author": "reviewer@codex",
+  "fingerprint": "55d4ca66312ca470",
+  "task": "autonomia-entre-firmas"
+}

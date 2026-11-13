@@ -1,0 +1,11 @@
+{
+  "id": "20261113T060701_a47073",
+  "created_at": "2026-11-13T06:07:01.149513374Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/pilotocmd/autonomia_entre_firmas_r7_test.go",
+  "description": "INTRODUCIDO: internal/pilotocmd/autonomia_entre_firmas_r7_test.go:12-13 y :99-115 arma estas regresiones sobre ocho helpers identificados por la ronda donde nacieron (apr3/apr4/apr5/apr6), no por su responsabilidad; el mismo patron aparece en internal/agentcmd/autonomia_entre_firmas_r7_test.go:16-17 y :37-57 con ar6*. Para entender o mover una prueba hay que reconstruir la historia de rondas y conservar archivos anteriores como API de fixtures. Centralizar los helpers compartidos con nombres semanticos reduciria ese acoplamiento historico sin cambiar cobertura.",
+  "author": "reviewer@codex",
+  "fingerprint": "55d4ca66312ca470",
+  "task": "autonomia-entre-firmas"
+}
