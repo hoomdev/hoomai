@@ -180,7 +180,7 @@ func TestCA684_ElHookQuePasaElTopeRecibeSIGTERMYSuGracia(t *testing.T) {
 	apr4Hook(t, wt, "pre-commit", "#!/bin/sh\n"+
 		"trap 'echo term > \"$TMPDIR/cdw-sigterm\"; exit 1' TERM\n"+
 		"setsid sh -c 'while :; do sleep 1; done' "+tok+" </dev/null >/dev/null 2>&1 &\n"+
-		": > \"$TMPDIR/cdw-arranco\"\n"+
+		"echo arranco > \"$TMPDIR/cdw-arranco\"\n"+ // con contenido: cdwlBuscar da "" si no esta
 		"while :; do sleep 0.1; done\n")
 	head := apHead(t, wt)
 	lock := apGit(t, wt, "rev-parse", "--git-path", "index.lock")
