@@ -265,7 +265,8 @@ func TestCDWAyudante(t *testing.T) {
 	}
 	arbol, tok := os.Getenv("CDW_ARBOL"), os.Getenv("CDW_TOK")
 	v := encierro.Vista{Dir: arbol, Escribibles: []string{arbol}, Cache: filepath.Join(arbol, "cache")}
-	cmd := exec.Command("/bin/sh", "-c", "sleep 60; :", tok)
+	// Arrancar (como procesos.Arrancar) le pone Cancel: el cmd nace con contexto
+	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "sleep 60; :", tok)
 	cmd.Dir = arbol
 	i := encierro.NivelDe(encierro.Caso{Sistema: "linux", Sonda: encierro.Sondear(), Tarea: true})
 	if err := encierro.Envolver(cmd, encierro.Plan{Info: i, Vista: v}); err != nil {
@@ -287,17 +288,42 @@ func TestCA679_MuereConHoomAunqueSeaPorSIGKILL(t *testing.T) {
 	arbol := cdwDir(t)
 	h := exec.Command(os.Args[0], "-test.run=^TestCDWAyudante$", "-test.count=1")
 	h.Env = append(os.Environ(), "CDW_AYUDANTE=muere-con-hoom", "CDW_ARBOL="+arbol, "CDW_TOK="+tok)
+	var salida bytes.Buffer
+	h.Stdout, h.Stderr = &salida, &salida
 	if err := h.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = h.Process.Kill(); _, _ = h.Process.Wait() }()
-	if !cdwAparece(tok, 1, 20*time.Second) {
-		t.Fatalf("%s: fixture: el ayudante lanzo el encierro (%v)", ca, cdwConToken(tok))
+	murio := make(chan error, 1)
+	go func() { murio <- h.Wait() }()
+	terminado := false
+	esperar := func() error {
+		if terminado {
+			return nil
+		}
+		terminado = true
+		return <-murio
+	}
+	defer func() { _ = h.Process.Kill(); _ = esperar() }()
+	// el ayudante que falla (o sale) antes de lanzar el encierro corta el test
+	// con su salida, sin esperar el plazo
+	hasta := time.Now().Add(20 * time.Second)
+	for len(cdwConToken(tok)) == 0 {
+		select {
+		case err := <-murio:
+			terminado = true
+			t.Fatalf("%s: fixture: el ayudante termino sin lanzar el encierro: %v\n%s", ca, err, salida.String())
+		case <-time.After(50 * time.Millisecond):
+		}
+		if time.Now().After(hasta) {
+			_ = h.Process.Kill()
+			err := esperar()
+			t.Fatalf("%s: fixture: el ayudante no lanzo el encierro en 20 s (%v): %v\n%s", ca, cdwConToken(tok), err, salida.String())
+		}
 	}
 	if err := h.Process.Signal(syscall.SIGKILL); err != nil {
 		t.Fatal(err)
 	}
-	_, _ = h.Process.Wait()
+	_ = esperar()
 	cdwNadieVivo(t, ca, "tras el SIGKILL al hoom que lo lanzo", tok, 5*time.Second)
 }
 

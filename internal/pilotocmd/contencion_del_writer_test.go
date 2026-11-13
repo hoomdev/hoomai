@@ -223,7 +223,9 @@ func TestCA676_CerrarHallazgosConExigirNoCorreElVerify(t *testing.T) {
 	restaurar := encierro.ReemplazarSonda(encierro.Sonda{})
 	defer restaurar()
 	f := apPATH(t)
-	fx := apr1Ronda(t, "true")
+	// "true" no cambiaria el hoom.yaml (apr1Gate no tendria que commitear):
+	// el mismo gate barato, con un argumento que true ignora
+	fx := apr1Ronda(t, "true ca-676")
 	raw, err := os.ReadFile(filepath.Join(fx.root, "hoom.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -311,8 +313,10 @@ func TestCA688_UnHookQueCambiaElMaterialHaceFallarElGuardado(t *testing.T) {
 	if want != "un hook del guardado cambio el material de git: "+ruta+": no guardo" {
 		t.Fatalf("%s: ErrHookCambioMaterial: %q", ca, want)
 	}
-	if err == nil || err.Error() != want {
-		t.Fatalf("%s: el guardado falla con %q: %+v %v", ca, want, res, err)
+	// el texto del contrato es el comienzo del error: el deshacer de hoy le
+	// suma "; hoom/<slug> vuelve a <sha>"
+	if err == nil || !strings.HasPrefix(err.Error(), want) {
+		t.Fatalf("%s: el guardado falla con un error que empieza con %q: %+v %v", ca, want, res, err)
 	}
 	if h := apHead(t, wt); h != head {
 		t.Fatalf("%s: el guardado deshace su commit: HEAD %s -> %s", ca, head, h)
@@ -346,8 +350,10 @@ func TestCA685_ElGuardadoConGitAjeno(t *testing.T) {
 	if want != "el guardado cambio git fuera de hoom/ajeno: "+ruta+": no guardo" {
 		t.Fatalf("%s: ErrGitAjeno: %q", ca, want)
 	}
-	if err == nil || err.Error() != want || apHead(t, wt) != head {
-		t.Fatalf("%s: el guardado falla con %q y deshace su commit: %+v %v (HEAD %s -> %s)", ca, want, res, err, head, apHead(t, wt))
+	// el texto del contrato es el comienzo del error (el deshacer de hoy le
+	// suma la vuelta de la rama)
+	if err == nil || !strings.HasPrefix(err.Error(), want) || apHead(t, wt) != head {
+		t.Fatalf("%s: el guardado falla con un error que empieza con %q y deshace su commit: %+v %v (HEAD %s -> %s)", ca, want, res, err, head, apHead(t, wt))
 	}
 
 	root, wt = cdwTarjeta(t, "", "stash")

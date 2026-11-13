@@ -488,7 +488,9 @@ func TestCA676_ExigirContraCadaNivel(t *testing.T) {
 				root, _ := cdwProyecto(t, cdwExigir(exigir))
 				info := encierro.Nivel(true, cdwProv(t, "claude"))
 				marca := filepath.Join(t.TempDir(), "corrio")
-				res, out := cdwCorrer(t, root, "writer", aeaTarea, ": > '"+marca+"'\n"+ar1Codigo+"exit 0\n", Options{})
+				// en un subshell: encerrado, la redireccion a la marca de afuera
+				// falla y un `:` (especial) terminaria el script antes del codigo
+				res, out := cdwCorrer(t, root, "writer", aeaTarea, "( : > '"+marca+"' ) 2>/dev/null\n"+ar1Codigo+"exit 0\n", Options{})
 				if encierro.Alcanza(info.Nivel, exigir) {
 					// (el CLI puede correr encerrado: la marca de afuera no cuenta)
 					if res.RunID == "" || res.Stage == "run" || res.Note == encierro.NotaExigir(info, exigir, "writer") {
@@ -899,7 +901,16 @@ func TestCA686_CadaPiezaCambiaLaFoto(t *testing.T) {
 		ruta   string
 		cambia func()
 	}{
-		{filepath.Join(home, ".gitconfig"), func() { cdwEscribir(t, filepath.Join(home, ".gitconfig"), "[alias]\n\tst = status -s\n") }},
+		// cambia solo el alias: el attributesFile y los dos include siguen
+		// siendo material para los casos de abajo
+		{filepath.Join(home, ".gitconfig"), func() {
+			p := filepath.Join(home, ".gitconfig")
+			raw, err := os.ReadFile(p)
+			if err != nil || !strings.Contains(string(raw), "\tst = status\n") {
+				t.Fatalf("%s: fixture: el ~/.gitconfig de cdwMaterial: %v\n%s", ca, err, raw)
+			}
+			cdwEscribir(t, p, strings.Replace(string(raw), "\tst = status\n", "\tst = status -s\n", 1))
+		}},
 		{incluido, func() { os.Remove(incluido) }},
 		{xdg, func() { cdwEscribir(t, xdg, "[color]\n\tui = never\n") }},
 		{"cfg/extra.gitconfig", func() {
