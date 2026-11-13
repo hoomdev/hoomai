@@ -363,7 +363,7 @@ func sueltoCorrecto(p string) bool {
 	var h hash.Hash
 	switch len(nombre) {
 	case 40:
-		h = sha1.New()
+		h = sha1.New() // nosemgrep: go.lang.security.audit.crypto.use_of_weak_crypto.use-of-sha1 -- el nombre de un objeto de git sha1 es el sha1 de su contenido: se compara con el, no se firma nada
 	case 64:
 		h = sha256.New()
 	default:
@@ -374,13 +374,24 @@ func sueltoCorrecto(p string) bool {
 		return false
 	}
 	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
 	z, err := zlib.NewReader(f)
 	if err != nil {
 		return false
 	}
 	defer z.Close()
-	if _, err := io.Copy(h, z); err != nil {
+	// deflate inflates at most ~1032 times what it takes: more than that is
+	// not a loose object git wrote, and the reading stops there (a
+	// decompression bomb the run left does not keep the gate hashing)
+	if _, err := io.CopyN(h, z, fi.Size()*maxInflado+64); !errors.Is(err, io.EOF) {
 		return false
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)) == nombre
 }
+
+// maxInflado is deflate's largest ratio between what it inflates and what it
+// takes (zlib's technical details: 1032:1).
+const maxInflado = 1032

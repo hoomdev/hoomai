@@ -44,7 +44,7 @@ func paso() {
 			path = p
 		}
 	}
-	err := syscall.Exec(path, os.Args[2:], os.Environ())
+	err := syscall.Exec(path, os.Args[2:], os.Environ()) // nosemgrep: go.lang.security.audit.dangerous-syscall-exec.dangerous-syscall-exec -- el paso del encierro ejecuta el comando que Envolver puso detras de el: su argv lo arma hoom, como el exec.Cmd que envuelve
 	fmt.Fprintf(os.Stderr, "hoom: encierro: %s: %v\n", os.Args[1], err)
 	os.Exit(127)
 }
