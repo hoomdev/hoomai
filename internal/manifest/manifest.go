@@ -549,8 +549,8 @@ func blockOnDeclarado(n yaml.Node) bool {
 //     being the entry as the file writes it;
 //   - `encierro: escribibles: "<ruta>" es todo el disco o todo el directorio personal`,
 //     for what is, after filepath.Clean and expanding "~/" with this
-//     process's $HOME, `/`, the $HOME or an ancestor of it (`/`, `~/`,
-//     `/home`, also written with extra "/" or "." components).
+//     process's $HOME, `/` or the $HOME (`/`, `~/`, the $HOME written
+//     absolute, also with extra "/" or "." components).
 //
 // The two rules that need the tree and the repository (a writable path that
 // contains or is inside the main checkout or the git common directory, a
@@ -642,12 +642,14 @@ func rutaEscribible(ruta string) bool {
 }
 
 // todoElDisco says whether ruta, cleaned and with "~/" expanded with home,
-// is the whole disk, the whole home or an ancestor of it: making it writable
-// would leave nothing enclosed. It runs no git.
+// is the whole disk or the whole home: making it writable would leave
+// nothing enclosed. An ancestor of the home is not judged here: when the
+// project lives under it, encierro.Validar refuses it at the start because it
+// contains the main checkout. It runs no git.
 func todoElDisco(ruta, home string) bool {
 	if rest, ok := strings.CutPrefix(ruta, "~/"); ok {
-		if r := filepath.Clean("/" + rest); r == "/" || strings.HasPrefix(filepath.Clean(rest), "..") {
-			return true // ~/, ~/., ~/.. and the like, whatever the home is
+		if filepath.Clean("/"+rest) == "/" && !strings.HasPrefix(filepath.Clean(rest), "..") {
+			return true // ~/, ~/. and the like, whatever the home is
 		}
 		if home == "" {
 			return false
@@ -658,15 +660,7 @@ func todoElDisco(ruta, home string) bool {
 	if c == "/" || c == filepath.VolumeName(c)+string(filepath.Separator) {
 		return true
 	}
-	if home == "" {
-		return false
-	}
-	h := filepath.Clean(home)
-	if c == h {
-		return true
-	}
-	rel, err := filepath.Rel(c, h)
-	return err == nil && rel != "." && !strings.HasPrefix(rel, "..")
+	return home != "" && c == filepath.Clean(home)
 }
 
 // AutonomiaOrDefault is the project's autonomia policy: the declared section,
