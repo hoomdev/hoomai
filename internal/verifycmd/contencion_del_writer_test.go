@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"testing/quick"
@@ -109,65 +108,16 @@ func cdwComun(t *testing.T, wt string) string {
 	return p
 }
 
-// cdwUltimoCompletoVerde llama a verdict.LatestComplete sin fijar su firma
-// (el go doc no la da; anotado en el informe) y dice si da un verde.
+// cdwUltimoCompletoVerde dice si verdict.LatestComplete da, de los
+// veredictos de dir, uno verde.
 func cdwUltimoCompletoVerde(t *testing.T, dir string) bool {
 	t.Helper()
 	all, err := verdict.LoadAll(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := reflect.ValueOf(verdict.LatestComplete)
-	ft := f.Type()
-	if ft.NumIn() != 1 {
-		t.Fatalf("verdict.LatestComplete: firma inesperada %s (anotado en el informe)", ft)
-	}
-	var arg reflect.Value
-	switch in := ft.In(0); {
-	case reflect.TypeOf(all).AssignableTo(in):
-		arg = reflect.ValueOf(all)
-	case in.Kind() == reflect.String:
-		arg = reflect.ValueOf(dir).Convert(in)
-	case in.Kind() == reflect.Slice:
-		src := reflect.ValueOf(all)
-		vals := reflect.MakeSlice(in, 0, src.Len())
-		for i := 0; i < src.Len(); i++ {
-			e := src.Index(i)
-			switch {
-			case e.Type().AssignableTo(in.Elem()):
-			case e.Kind() == reflect.Ptr && e.Elem().Type().AssignableTo(in.Elem()):
-				e = e.Elem()
-			case e.CanAddr() && e.Addr().Type().AssignableTo(in.Elem()):
-				e = e.Addr()
-			default:
-				t.Fatalf("verdict.LatestComplete: firma inesperada %s", ft)
-			}
-			vals = reflect.Append(vals, e)
-		}
-		arg = vals
-	default:
-		t.Fatalf("verdict.LatestComplete: firma inesperada %s (anotado en el informe)", ft)
-	}
-	out := f.Call([]reflect.Value{arg})
-	if len(out) == 0 {
-		return false
-	}
-	for _, o := range out[1:] {
-		if o.Kind() == reflect.Bool && !o.Bool() {
-			return false
-		}
-		if o.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) && !o.IsNil() {
-			return false
-		}
-	}
-	o := out[0]
-	if o.Kind() == reflect.Ptr {
-		if o.IsNil() {
-			return false
-		}
-		o = o.Elem()
-	}
-	return o.Kind() == reflect.Struct && o.FieldByName("Verdict").String() == "green"
+	v := verdict.LatestComplete(all)
+	return v != nil && v.Verdict == "green"
 }
 
 // ---------------------------------------------------------------- CA-687
