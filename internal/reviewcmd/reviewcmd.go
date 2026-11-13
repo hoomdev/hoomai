@@ -885,7 +885,8 @@ func SoloDocs(files []string) bool {
 // with no record in .hoom/reviews/ and exit 1, it refuses with
 // encierro.NotaExigir (role reviewer) when the level is under
 // encierro.exigir, and with encierro.Validar's error when the policy breaks
-// one of its rules against the tree. In any project, with encierro or
+// one of its rules against the tree, or encierro.ValidarEscribe's when the
+// reviewer's provider declares an Escribe that breaks them. In any project, with encierro or
 // without it, git-ajeno and config-de-agentes are compared around each pass
 // (agentcmd.FotoGitAjeno, agentcmd.FotoConfigAgentes): a pass that breaks
 // one makes Run return PasadaConGitAjeno or PasadaConConfigDeAgentes as its
@@ -1226,7 +1227,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 // pass starts under (its view, writing in the task's tree, only with a task
 // and a level above ninguno; with ninguno the plan only carries the level to
 // the sidecar), and niega the refusal before the first pass: encierro.Validar's
-// error against dir's gates or encierro.NotaExigir. err is a broken setup.
+// error against dir's gates, encierro.ValidarEscribe's with prov's Escribe,
+// or encierro.NotaExigir. err is a broken setup.
 func encierroDeLaReview(root, dir, task string, prov providers.Provider, role agents.Role) (nivel *encierro.Info, plan *encierro.Plan, niega string, err error) {
 	roles, err := manifest.LoadRoles(root)
 	if err != nil {
@@ -1240,7 +1242,7 @@ func encierroDeLaReview(root, dir, task string, prov providers.Provider, role ag
 		return nil, nil, "", err
 	}
 	info := encierro.Nivel(task != "", prov)
-	if why := agentcmd.NiegaEncierro(root, dir, m, *roles.Encierro, info, role.Slug); why != "" {
+	if why := agentcmd.NiegaEncierroCon(root, dir, m, *roles.Encierro, info, role.Slug, prov); why != "" {
 		return &info, nil, why, nil
 	}
 	plan = &encierro.Plan{Info: info}

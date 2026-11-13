@@ -465,6 +465,11 @@ func VistaDe(l Lugar) (Vista, error) {
 	}
 	escribible(filepath.Clean(l.Arbol))
 	escribible(filepath.Clean(lg.Comun))
+	// whoever builds the view already refused this (ValidarEscribe, at the
+	// start of the envelope or the review); never mounted all the same
+	if err := ValidarEscribe("el provider", l.Estado.Escribe, l.Principal, lg.Comun); err != nil {
+		return Vista{}, err
+	}
 	for _, p := range l.Estado.Escribe {
 		escribible(expandir(p, home))
 	}
@@ -611,6 +616,22 @@ func ReemplazarAdopcion(sistema string, enJob func(pid int) bool) (restaurar fun
 // (exit 1, without launching) and the review before its first pass (exit 1,
 // no record), like Validar's errors.
 func ValidarEscribe(provider string, escribe []string, principal, comunGit string) error {
+	home, _ := os.UserHomeDir()
+	for _, r := range escribe {
+		p := expandir(r, home)
+		if p == "" {
+			continue // not absolute: VistaDe never mounts it
+		}
+		if p == string(filepath.Separator) || p == filepath.VolumeName(p)+string(filepath.Separator) ||
+			(home != "" && p == filepath.Clean(home)) {
+			return fmt.Errorf("encierro: %s escribe %s: es todo el disco o todo el directorio personal: no puede ser escribible", provider, r)
+		}
+		for _, d := range []string{principal, comunGit} {
+			if d != "" && cruza(p, d) {
+				return fmt.Errorf("encierro: %s escribe %s: contiene o esta dentro del checkout principal o del directorio comun de git: no puede ser escribible", provider, r)
+			}
+		}
+	}
 	return nil
 }
 

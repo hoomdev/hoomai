@@ -137,8 +137,9 @@ type Isolation struct {
 // provider; ninguno with the motive `sin tarea` without opt.Task) and keeps
 // it in its record (envelope.Record.Encierro). Inside its step run, before
 // launching, it refuses with exit 1, no run in .hoom/runs/, no verdict and
-// the usual steps (five, or six with aislar) when encierro.Validar breaks
-// (its error is the note) or the level does not meet encierro.exigir
+// the usual steps (five, or six with aislar) when encierro.Validar breaks,
+// or encierro.ValidarEscribe with the Escribe of its provider (their error is
+// the note), or the level does not meet encierro.exigir
 // (encierro.NotaExigir is the note). Otherwise its log carries
 // encierro.Linea and, under completo, encierro.Aviso with the role, and with
 // a task the run starts enclosed (runcmd.StartOptions.Encierro): its run tree
@@ -327,7 +328,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if role.Exec && roles.Encierro != nil {
 		info := encierro.Nivel(opt.Task != "", prov)
 		rec.Encierro = &info
-		if why := encierroNiega(root, dir, m, *roles.Encierro, info, role.Slug); why != "" {
+		if why := encierroNiega(root, dir, m, *roles.Encierro, info, role.Slug, prov); why != "" {
 			keepQuarantine(w, tree, res.Isolation, "el encierro no dejo correr el rol")
 			return cerrar(w, root, &rec, res, "run", 1, why), nil
 		}

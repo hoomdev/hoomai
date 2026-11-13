@@ -58,8 +58,22 @@ func NombresDeGates(m *manifest.Manifest) []string {
 // directory of the tree dir, gates_sin_encierro against m's gates), or
 // encierro.NotaExigir when the level does not meet exigir. "" = it runs.
 func NiegaEncierro(root, dir string, m *manifest.Manifest, pol manifest.EncierroPolicy, info encierro.Info, rol string) string {
-	if err := encierro.Validar(pol, root, ComunGit(dir), NombresDeGates(m)); err != nil {
+	return NiegaEncierroCon(root, dir, m, pol, info, rol, nil)
+}
+
+// NiegaEncierroCon is NiegaEncierro for a role that runs on the provider
+// prov (nil = none): the Escribe it declares goes through
+// encierro.ValidarEscribe too, after encierro.Validar and before
+// encierro.exigir (ronda 1, 425a75).
+func NiegaEncierroCon(root, dir string, m *manifest.Manifest, pol manifest.EncierroPolicy, info encierro.Info, rol string, prov providers.Provider) string {
+	comun := ComunGit(dir)
+	if err := encierro.Validar(pol, root, comun, NombresDeGates(m)); err != nil {
 		return err.Error()
+	}
+	if prov != nil {
+		if err := encierro.ValidarEscribe(prov.Name(), EstadoDe(prov).Escribe, root, comun); err != nil {
+			return err.Error()
+		}
 	}
 	if !encierro.Alcanza(info.Nivel, pol.Exigir) {
 		return encierro.NotaExigir(info, pol.Exigir, rol)
@@ -67,9 +81,9 @@ func NiegaEncierro(root, dir string, m *manifest.Manifest, pol manifest.Encierro
 	return ""
 }
 
-// encierroNiega is NiegaEncierro for the envelope.
-func encierroNiega(root, dir string, m *manifest.Manifest, pol manifest.EncierroPolicy, info encierro.Info, rol string) string {
-	return NiegaEncierro(root, dir, m, pol, info, rol)
+// encierroNiega is NiegaEncierroCon for the envelope of role rol on prov.
+func encierroNiega(root, dir string, m *manifest.Manifest, pol manifest.EncierroPolicy, info encierro.Info, rol string, prov providers.Provider) string {
+	return NiegaEncierroCon(root, dir, m, pol, info, rol, prov)
 }
 
 // fotosPrevias are the photographs an envelope of a role that executes
