@@ -7,14 +7,14 @@
 package itemcmd
 
 import (
-	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"math"
 	"os"
 	"os/exec"
@@ -926,6 +926,7 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	if err != nil {
 		return res, err
 	}
+	g = s.con(g)
 	foto, err := fotoProtegidos(dir, g, prot)
 	if err != nil {
 		return res, err
@@ -964,39 +965,27 @@ type protegidosDelGuardado struct {
 }
 
 // guardado is what a save of the card knows of the commit it is about to
-// make (aclaraciones 26 y 27): the branch HEAD named when it started, before
-// any hook ran (rama, a full ref), where that branch was (antes), and the
-// branch's reflog as it was then (reflogDelGuardado), where git writes the
-// commit the save's git commit creates.
+// make (aclaraciones 26, 27 y 30): the branch HEAD named when it started,
+// before any hook ran (rama, a full ref), where that branch was (antes), and
+// the reflog action of its git commands (accion, GIT_REFLOG_ACTION), with a
+// nonce of this save's own: git commit writes "<accion>: <subject>" in the
+// branch's reflog, so the save tells its own update of the branch from one
+// another git process makes meanwhile.
 type guardado struct {
-	rama, antes string
-	reflog      reflogDelGuardado
+	rama, antes, accion string
 }
-
-// reflogDelGuardado is the reflog file of the save's branch (git rev-parse
-// --git-path) and how it was when the save started: its size (largo) and its
-// last bytes (cola), which must still be there when the save reads what git
-// appended.
-type reflogDelGuardado struct {
-	ruta  string
-	largo int64
-	cola  []byte
-}
-
-// maxColaReflog is how many of the last bytes of the branch's reflog the
-// save keeps to see, later, that git only appended to it; maxReflogNuevo
-// bounds what it reads of what was appended during the save (a few lines).
-const (
-	maxColaReflog  = 512
-	maxReflogNuevo = 1 << 20
-)
 
 // empezarGuardado reads, from gits of the save that run no hook, the branch
 // the save of the card slug commits on: the one HEAD names, which must be
 // the task's refs/heads/hoom/<slug> (runcmd.TaskDir's ErrOtraRama
-// otherwise), its tip and its reflog.
+// otherwise), and its tip; and draws the save's reflog action.
 func empezarGuardado(dir string, g gitDelGuardado, slug string) (guardado, error) {
 	s := guardado{rama: "refs/heads/hoom/" + slug}
+	nonce := make([]byte, 8)
+	if _, err := rand.Read(nonce); err != nil {
+		return guardado{}, fmt.Errorf("no pude preparar el guardado: %w", err)
+	}
+	s.accion = "hoom-guardado-" + hex.EncodeToString(nonce)
 	ref, err := g.correr(dir, nil, "symbolic-ref", "-q", "HEAD")
 	if errors.Is(err, errTopeGit) || err != nil && ref != "" {
 		return guardado{}, fmt.Errorf("no pude ver la rama de la tarea antes de guardar: %s", motivoGit(ref, err))
@@ -1008,48 +997,14 @@ func empezarGuardado(dir string, g gitDelGuardado, slug string) (guardado, error
 	if err != nil {
 		return guardado{}, fmt.Errorf("no pude ver la punta de hoom/%s antes de guardar: %s", slug, motivoGit(s.antes, err))
 	}
-	s.reflog.ruta, err = g.correr(dir, nil, "rev-parse", "--path-format=absolute", "--git-path", "logs/"+s.rama)
-	if err != nil {
-		return guardado{}, fmt.Errorf("no pude ver el reflog de hoom/%s antes de guardar: %s", slug, motivoGit(s.reflog.ruta, err))
-	}
-	f, fi, err := abrirReflog(s.reflog.ruta)
-	if err != nil {
-		return guardado{}, fmt.Errorf("no pude leer el reflog de hoom/%s antes de guardar: %w", slug, err)
-	}
-	if f != nil {
-		defer f.Close()
-		s.reflog.largo = fi.Size()
-		s.reflog.cola = make([]byte, min(s.reflog.largo, maxColaReflog))
-		if _, err := f.ReadAt(s.reflog.cola, s.reflog.largo-int64(len(s.reflog.cola))); err != nil {
-			return guardado{}, fmt.Errorf("no pude leer el reflog de hoom/%s antes de guardar: %w", slug, err)
-		}
-	}
 	return s, nil
 }
 
-// abrirReflog opens the reflog file at ruta when it is a regular file (never
-// a FIFO, which would hang the save); nil when there is none yet (git
-// creates it with the first update of the branch).
-func abrirReflog(ruta string) (*os.File, fs.FileInfo, error) {
-	fi, err := os.Lstat(ruta)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil, nil
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	if !fi.Mode().IsRegular() {
-		return nil, nil, fmt.Errorf("%s no es un archivo", ruta)
-	}
-	f, err := os.Open(ruta)
-	if err != nil {
-		return nil, nil, err
-	}
-	if fi, err = f.Stat(); err != nil || !fi.Mode().IsRegular() {
-		f.Close()
-		return nil, nil, fmt.Errorf("%s no es un archivo", ruta)
-	}
-	return f, fi, nil
+// con is g with the save's reflog action in its environment: its git
+// commit, and whatever git a hook of it runs, inherit it.
+func (s guardado) con(g gitDelGuardado) gitDelGuardado {
+	g.env = append(append([]string{}, g.env...), "GIT_REFLOG_ACTION="+s.accion)
+	return g
 }
 
 // nombre is the save's branch as git shows it: hoom/<slug>.
@@ -1057,53 +1012,30 @@ func (s guardado) nombre() string {
 	return strings.TrimPrefix(s.rama, "refs/heads/")
 }
 
-// suCommit is the commit this save's git commit created (aclaracion 27), as
-// git wrote it in the branch's reflog, whatever its message (a
+// suCommit is the commit this save's git commit created (aclaraciones 27 y
+// 30), as git wrote it in the branch's reflog, whatever its message (a
 // prepare-commit-msg or commit-msg hook may rewrite it): the new value of
-// the first entry appended during the save whose old value is antes. git
-// commit moves the branch only from the tip it started on, antes, so a
-// commit a hook makes on top of it, or one that replaces it (--amend), is a
-// later entry. ok is false when there is none: git did not move the branch.
-// It is an error when the reflog was not only appended to since the save
-// started.
-func (s guardado) suCommit() (sha string, ok bool, err error) {
-	f, fi, err := abrirReflog(s.reflog.ruta)
+// the oldest entry whose message starts with the save's reflog action. An
+// update of the branch by another git process (a person's git update-ref or
+// commit while the save runs) does not carry it, so it is never the save's,
+// even from antes. A commit a hook of the save makes on top of it, or one
+// that replaces it (--amend), inherits it but comes later. ok is false when
+// there is none: git did not move the branch for the save. It reads the
+// reflog with a git of the save, bounded (git log --walk-reflogs).
+func (s guardado) suCommit(dir string, g gitDelGuardado) (sha string, ok bool, err error) {
+	pre := s.accion + ": "
+	out, err := g.listado(dir, "log", "--walk-reflogs", "--no-color", "--no-show-signature",
+		"--fixed-strings", "--grep-reflog="+pre, "--format=%H %gs", s.rama, "--")
 	if err != nil {
-		return "", false, err
+		return "", false, fmt.Errorf("no pude leer el reflog de %s: %w", s.nombre(), err)
 	}
-	if f == nil {
-		if s.reflog.largo > 0 {
-			return "", false, fmt.Errorf("el reflog de %s desaparecio durante el guardado", s.nombre())
-		}
-		return "", false, nil
-	}
-	defer f.Close()
-	cola := make([]byte, len(s.reflog.cola))
-	if fi.Size() < s.reflog.largo {
-		return "", false, fmt.Errorf("el reflog de %s se acorto durante el guardado", s.nombre())
-	}
-	if _, err := f.ReadAt(cola, s.reflog.largo-int64(len(cola))); err != nil || !bytes.Equal(cola, s.reflog.cola) {
-		return "", false, fmt.Errorf("el reflog de %s cambio durante el guardado", s.nombre())
-	}
-	if fi.Size()-s.reflog.largo > maxReflogNuevo {
-		return "", false, fmt.Errorf("el reflog de %s crecio demasiado durante el guardado", s.nombre())
-	}
-	nuevo := make([]byte, fi.Size()-s.reflog.largo)
-	if _, err := f.ReadAt(nuevo, s.reflog.largo); err != nil {
-		return "", false, err
-	}
-	// <old> <new> <ident> <time> <tz>[\t<message>]\n; a line not written
-	// whole (a git cut at its bound) is not an entry
-	for _, l := range strings.SplitAfter(string(nuevo), "\n") {
-		if !strings.HasSuffix(l, "\n") {
-			break
-		}
-		cabecera, _, _ := strings.Cut(l, "\t")
-		if c := strings.Fields(cabecera); len(c) >= 2 && c[0] == s.antes && c[1] != s.antes {
-			return c[1], true, nil
+	// newest first: the save's own update is the last one
+	for _, l := range strings.Split(string(out), "\n") {
+		if h, msg, cortada := strings.Cut(l, " "); cortada && strings.HasPrefix(msg, pre) {
+			sha = h
 		}
 	}
-	return "", false, nil
+	return sha, sha != "", nil
 }
 
 func fotoProtegidos(dir string, g gitDelGuardado, rutas []string) (protegidosDelGuardado, error) {
@@ -1137,7 +1069,7 @@ func indiceDe(dir string, g gitDelGuardado, rutas []string) (map[string]string, 
 
 // revisarCommit checks that the save's commit sha is where the save put it
 // and holds what the save asked for and nothing a hook slipped in
-// (aclaraciones 24, 26 y 27): sha is the commit the save's git commit
+// (aclaraciones 24, 26, 27 y 30): sha is the commit the save's git commit
 // created (guardado.suCommit), with antes as its one parent, HEAD still
 // names the save's branch and its tip is sha; every path it changes is one
 // of pedidas, and it changes every one of them whose entry the save staged
@@ -1147,7 +1079,7 @@ func indiceDe(dir string, g gitDelGuardado, rutas []string) (map[string]string, 
 // keeps the mode and blob the save staged: another one is a hook's, whatever
 // the disk says. Its message is not checked: a hook may rewrite it.
 func revisarCommit(dir string, g gitDelGuardado, s guardado, sha string, pedidas []string, stageados map[string]string, foto protegidosDelGuardado) error {
-	suyo, ok, err := s.suCommit()
+	suyo, ok, err := s.suCommit(dir, g)
 	if err != nil {
 		return fmt.Errorf("no pude revisar el commit del guardado: %w", err)
 	}
@@ -1278,12 +1210,13 @@ func enComun(a, b []string) []string {
 }
 
 // deshacer leaves the task's branch where it was when the save s failed
-// with err (aclaraciones 24, 26 y 27). It moves s.rama, the branch HEAD
+// with err (aclaraciones 24, 26, 27 y 30). It moves s.rama, the branch HEAD
 // named when the save started, never HEAD nor another branch a hook made
 // HEAD name, and only when its tip is the commit this save's git commit
 // created (guardado.suCommit), whatever its message: with a commit on top of
-// it, one that replaced it (even with its parent and message) or any other
-// tip, it stays where it is and the error says so. The move is an
+// it, one that replaced it (even with its parent and message), an update
+// another git process made (even from antes) or any other tip, it stays
+// where it is and the error says so. The move is an
 // update-ref of the ref itself conditioned on that tip, bounded and in its
 // group like every git of the save (the reference-transaction hook runs
 // there too). The error is err, and says whether the branch went back or
@@ -1296,7 +1229,7 @@ func deshacer(dir string, g gitDelGuardado, s guardado, err error) error {
 	if punta == s.antes {
 		return err
 	}
-	suyo, ok, serr := s.suCommit()
+	suyo, ok, serr := s.suCommit(dir, g)
 	if serr != nil {
 		return fmt.Errorf("%w; y no pude ver que commit creo este guardado: %v: no muevo %s", err, serr, s.nombre())
 	}
