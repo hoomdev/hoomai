@@ -477,6 +477,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	var sobre *verifycmd.Sobre
 	if role.Exec {
 		sobre = &verifycmd.Sobre{Root: root, Task: opt.Task, Rol: role.Slug}
+		if tree != nil {
+			sobre.Ciego = tree.Dir // the test-writer's gates write only there
+		}
 	}
 	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath, Sobre: sobre})
 	if err != nil {

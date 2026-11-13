@@ -435,7 +435,7 @@ type Vista struct {
 	VarsCache []string
 }
 
-// VistaDe builds the Vista of l: Arbol as Dir; writable Arbol, the git
+// VistaDe builds the Vista of l: l.Dir (or Arbol) as Dir; writable Arbol, the git
 // common directory of Arbol (minus the git material and the admin
 // directories of the other worktrees, which go to SoloLectura; when Arbol is
 // a linked worktree, minus too the main checkout's administration that
@@ -445,22 +445,38 @@ type Vista struct {
 // $HOME); read-only the git material that exists, the agents' config in
 // Arbol (`.claude/`, `.codex/`, `.mcp.json` and l.Estado.EnArbol) and Arbol's
 // `.git` file; Cache(l.Principal, l.Tarea, l.Quien) as Cache; and
-// profiles.Cache(l.Perfil) as VarsCache. An error when git does not say where
-// Arbol's repository is, or the profile is unknown.
+// profiles.Cache(l.Perfil) as VarsCache. With l.Dir and no Arbol (or one
+// that is not there), nothing of a tree is writable: the cache, Escribe and
+// Escribibles only. An error when git does not say where Arbol's repository
+// is, or the profile is unknown.
 func VistaDe(l Lugar) (Vista, error) {
 	limite := time.Now().Add(topeVista)
-	lg, err := materialgit.Ubicar(l.Arbol, limite)
-	if err != nil {
-		return Vista{}, fmt.Errorf("encierro: no se sabe donde esta el repositorio de %s: %w", l.Arbol, err)
+	// without a writable tree (the gates of the test-writer's verify once
+	// its blind tree is gone: Dir set and Arbol "" or not there), only the
+	// cache, Escribe and Escribibles are writable (ronda 1, a8ef36)
+	conArbol := l.Arbol != "" && (l.Dir == "" || esDirectorio(l.Arbol))
+	var lg materialgit.Lugar
+	if conArbol {
+		var err error
+		if lg, err = materialgit.Ubicar(l.Arbol, limite); err != nil {
+			return Vista{}, fmt.Errorf("encierro: no se sabe donde esta el repositorio de %s: %w", l.Arbol, err)
+		}
+	} else if l.Dir == "" {
+		return Vista{}, fmt.Errorf("encierro: la vista no tiene arbol")
 	}
 	var vars []string
 	if strings.TrimSpace(l.Perfil) != "" {
+		var err error
 		if vars, err = profiles.Cache(l.Perfil); err != nil {
 			return Vista{}, err
 		}
 	}
 	home, _ := os.UserHomeDir()
-	v := Vista{Dir: l.Arbol, Cache: Cache(l.Principal, l.Tarea, l.Quien), VarsCache: vars}
+	dir := l.Dir
+	if dir == "" {
+		dir = l.Arbol
+	}
+	v := Vista{Dir: dir, Cache: Cache(l.Principal, l.Tarea, l.Quien), VarsCache: vars}
 	visto := map[string]bool{}
 	escribible := func(p string) {
 		if p != "" && !visto[p] {
@@ -468,8 +484,10 @@ func VistaDe(l Lugar) (Vista, error) {
 			v.Escribibles = append(v.Escribibles, p)
 		}
 	}
-	escribible(filepath.Clean(l.Arbol))
-	escribible(filepath.Clean(lg.Comun))
+	if conArbol {
+		escribible(filepath.Clean(l.Arbol))
+		escribible(filepath.Clean(lg.Comun))
+	}
 	// whoever builds the view already refused this (ValidarEscribe, at the
 	// start of the envelope or the review); never mounted all the same
 	if err := ValidarEscribe("el provider", l.Estado.Escribe, l.Principal, lg.Comun); err != nil {
@@ -480,6 +498,9 @@ func VistaDe(l Lugar) (Vista, error) {
 	}
 	for _, p := range l.Escribibles {
 		escribible(expandir(p, home))
+	}
+	if !conArbol {
+		return v, nil
 	}
 	soloVisto := map[string]bool{}
 	soloLectura := func(p string) {
@@ -531,6 +552,12 @@ func VistaDe(l Lugar) (Vista, error) {
 		}
 	}
 	return v, nil
+}
+
+// esDirectorio says whether p is a directory (followed).
+func esDirectorio(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
 }
 
 // montable says whether the path p (fi, not followed) can be re-bound

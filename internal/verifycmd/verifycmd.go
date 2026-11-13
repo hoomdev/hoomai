@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/finding"
@@ -42,7 +43,9 @@ type Options struct {
 // pilot's cerrar-hallazgos (Options.Sobre). With it:
 //   - in a project whose hoom.yaml (Root's, manifest.LoadRoles) has the
 //     section `encierro`, each gate runs enclosed (encierro), with the view of
-//     role Rol in the manifest's tree and the cache `verify`
+//     role Rol in the manifest's tree (for the test-writer that tree is
+//     read-only and only its blind tree Ciego is writable) and the cache
+//     `verify`
 //     (encierro.Cache(Root, Task, encierro.QuienVerify)), nested user
 //     namespaces allowed and the gate's gracia kept; the gates of
 //     encierro.gates_sin_encierro run as today. Without the section the gates
@@ -254,8 +257,11 @@ const topeFotoMaterial = 5 * time.Second
 
 // planDelSobre is the encierro of the gates of a verify with Sobre s: nil
 // (as today) without the section `encierro` in s.Root's hoom.yaml, or with
-// a level ninguno; otherwise the view of role s.Rol in the manifest's tree
-// with the cache `verify`. sin are encierro.gates_sin_encierro.
+// a level ninguno; otherwise the view of role s.Rol with the cache `verify`:
+// the manifest's tree writable, but for the test-writer (agents.Role.Isolated),
+// whose gates run in the manifest's tree read-only and write only in its
+// blind tree s.Ciego, when it is still there. sin are
+// encierro.gates_sin_encierro.
 func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]bool, error) {
 	roles, err := manifest.LoadRoles(s.Root)
 	if err != nil {
@@ -272,8 +278,15 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]boo
 	if info.Mecanismo != encierro.MecanismoBwrap {
 		return nil, sin, nil
 	}
-	vista, err := encierro.VistaDe(encierro.Lugar{Principal: s.Root, Tarea: s.Task, Arbol: m.Dir, Quien: encierro.QuienVerify,
-		Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
+	lugar := encierro.Lugar{Principal: s.Root, Tarea: s.Task, Arbol: m.Dir, Quien: encierro.QuienVerify,
+		Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile}
+	if rol, err := agents.Lookup(s.Rol); err == nil && rol.Isolated {
+		// the view of the test-writer (ronda 1, a8ef36): the implementation
+		// stays read-only; only its blind tree, if it is still there, and
+		// the cache are writable
+		lugar.Dir, lugar.Arbol = m.Dir, s.Ciego
+	}
+	vista, err := encierro.VistaDe(lugar)
 	if err != nil {
 		return nil, nil, err
 	}
