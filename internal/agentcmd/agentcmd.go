@@ -371,7 +371,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			// the test-writer's tests: with the evidence also moved, the
 			// note stays the tampering one
 			note = NotaTestsDelTestWriter
-		case !res.Scope.Tampering:
+		case !res.Scope.Tampering && res.Scope.has(RuleMaterialDeGit):
 			note = NotaMaterialDeGit
 		}
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
