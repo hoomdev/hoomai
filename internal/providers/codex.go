@@ -24,7 +24,10 @@ func (codex) Bin() string  { return "codex" }
 //   - Escribe: `~/.codex`, whole;
 //   - EnArbol: `.codex/`;
 //   - Corre: `~/.codex/config.toml`, the whole file (hoom has no TOML
-//     parser).
+//     parser), and `~/.codex/hooks.json`, the whole file (codex's hooks).
+//
+// Nothing is mounted read-only inside `~/.codex`: what changes there and
+// makes code run is detected (config-de-agentes), not blocked.
 //
 // The probe that fixes these lists (codex-cli 0.167.0, 2026-11-13: `codex
 // exec --json -c model_reasoning_effort="low" -c sandbox_mode="read-only"`)
@@ -43,7 +46,16 @@ func (codex) Bin() string  { return "codex" }
 // pilot uses (medicion.go): with `~/.codex` writable, an enclosed run can
 // forge them (a risk the spec accepts). The probe also found
 // `~/.codex/hooks.json`, codex's hooks: code that runs in the next session.
-func (codex) Estado() Estado { return Estado{} }
+func (codex) Estado() Estado {
+	return Estado{
+		Escribe: []string{"~/.codex"},
+		EnArbol: []string{".codex/"},
+		Corre: []Corre{
+			{Archivo: "~/.codex/config.toml"},
+			{Archivo: "~/.codex/hooks.json"},
+		},
+	}
+}
 
 func (codex) Capabilities() Capabilities {
 	return Capabilities{

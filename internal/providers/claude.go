@@ -51,8 +51,20 @@ func (claude) MinBudgetUSD() float64 { return 0.5 }
 // 0) and left its session: a read-only `~/.claude.json` does not break it,
 // it just does not update it (it rewrites it with a temporary file and a
 // rename in its directory). A credential refresh could not be forced: one
-// that happens in an enclosed run is not kept.
-func (claude) Estado() Estado { return Estado{} }
+// that happens in an enclosed run is not kept, and if the refresh token
+// rotates the person has to log in again (a risk this declaration accepts:
+// leaving `~/.claude` writable would let the run change its hooks).
+func (claude) Estado() Estado {
+	return Estado{
+		Escribe: []string{"~/.claude/projects"},
+		EnArbol: []string{".claude/", ".mcp.json"},
+		Corre: []Corre{
+			{Archivo: "~/.claude/settings.json", Claves: []string{"hooks"}},
+			{Archivo: "~/.claude/settings.local.json", Claves: []string{"hooks"}},
+			{Archivo: "~/.claude.json", Claves: []string{"mcpServers", "projects.*.mcpServers"}},
+		},
+	}
+}
 
 func (claude) Capabilities() Capabilities {
 	return Capabilities{

@@ -2,6 +2,9 @@ name: laravel
 description: PHP / Laravel (Pest o PHPUnit, PHPStan, Infection, tests de arquitectura)
 detect:
   files: [composer.json, artisan]
+# variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
+# dentro de su propia cache (las descargas de composer y de npm)
+cache: [COMPOSER_CACHE_DIR, npm_config_cache]
 gates:
   security:
     required: false

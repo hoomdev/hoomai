@@ -402,6 +402,7 @@ func LoadRoles(root string) (*Manifest, error) {
 		Agents    AgentPolicies    `yaml:"agents"`
 		Review    *ReviewPolicy    `yaml:"review"`
 		Autonomia *AutonomiaPolicy `yaml:"autonomia"`
+		Encierro  *EncierroPolicy  `yaml:"encierro"`
 		Findings  yaml.Node        `yaml:"findings"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -413,7 +414,7 @@ func LoadRoles(root string) (*Manifest, error) {
 	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings)); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Dir: root}, nil
+	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Dir: root}, nil
 }
 
 // AutonomiaPolicy is the optional `autonomia:` section of the PROJECT's
@@ -547,7 +548,9 @@ func blockOnDeclarado(n yaml.Node) bool {
 //     for a relative, empty or null entry (`- ~` is null in YAML), "<ruta>"
 //     being the entry as the file writes it;
 //   - `encierro: escribibles: "<ruta>" es todo el disco o todo el directorio personal`,
-//     for `/` and `~/` (also written with extra "/" or "." components).
+//     for what is, after filepath.Clean and expanding "~/" with this
+//     process's $HOME, `/`, the $HOME or an ancestor of it (`/`, `~/`,
+//     `/home`, also written with extra "/" or "." components).
 //
 // The two rules that need the tree and the repository (a writable path that
 // contains or is inside the main checkout or the git common directory, a
@@ -583,7 +586,87 @@ var EncierroKeys = []string{"exigir", "escribibles", "gates_sin_encierro"}
 // or that is the whole disk or the whole home, is the error of
 // EncierroPolicy's contract.
 func (p *EncierroPolicy) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("encierro debe ser un mapa (ej. encierro: { exigir: completo })")
+	}
+	out := EncierroPolicy{Exigir: ExigirNo}
+	home, _ := os.UserHomeDir()
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, v := n.Content[i].Value, n.Content[i+1]
+		if !containsKey(EncierroKeys, key) {
+			return fmt.Errorf("encierro: clave desconocida %q (validas: %s)", key, strings.Join(EncierroKeys, ", "))
+		}
+		if esNulo(v) {
+			continue // como en autonomia: nulo = sin la clave
+		}
+		switch key {
+		case "exigir":
+			if v.Kind != yaml.ScalarNode || (v.Value != ExigirCompleto && v.Value != ExigirParcial && v.Value != ExigirNo) {
+				return fmt.Errorf("encierro: exigir tiene que ser completo, parcial o no")
+			}
+			out.Exigir = v.Value
+		case "escribibles":
+			if v.Kind != yaml.SequenceNode {
+				return fmt.Errorf("encierro: escribibles tiene que ser una lista de rutas")
+			}
+			for _, e := range v.Content {
+				ruta := e.Value
+				if e.Kind != yaml.ScalarNode || esNulo(e) || !rutaEscribible(ruta) {
+					return fmt.Errorf("encierro: escribibles: %q no es una ruta absoluta ni empieza con ~/", ruta)
+				}
+				if todoElDisco(ruta, home) {
+					return fmt.Errorf("encierro: escribibles: %q es todo el disco o todo el directorio personal", ruta)
+				}
+				out.Escribibles = append(out.Escribibles, ruta)
+			}
+		case "gates_sin_encierro":
+			if v.Kind != yaml.SequenceNode {
+				return fmt.Errorf("encierro: gates_sin_encierro tiene que ser una lista de nombres de gates")
+			}
+			for _, e := range v.Content {
+				if e.Kind != yaml.ScalarNode || esNulo(e) || strings.TrimSpace(e.Value) == "" {
+					return fmt.Errorf("encierro: gates_sin_encierro tiene que ser una lista de nombres de gates")
+				}
+				out.GatesSinEncierro = append(out.GatesSinEncierro, e.Value)
+			}
+		}
+	}
+	*p = out
 	return nil
+}
+
+// rutaEscribible says whether ruta has the shape encierro.escribibles takes:
+// absolute, or starting with "~/".
+func rutaEscribible(ruta string) bool {
+	return strings.HasPrefix(ruta, "~/") || strings.HasPrefix(ruta, "/") || filepath.IsAbs(ruta)
+}
+
+// todoElDisco says whether ruta, cleaned and with "~/" expanded with home,
+// is the whole disk, the whole home or an ancestor of it: making it writable
+// would leave nothing enclosed. It runs no git.
+func todoElDisco(ruta, home string) bool {
+	if rest, ok := strings.CutPrefix(ruta, "~/"); ok {
+		if r := filepath.Clean("/" + rest); r == "/" || strings.HasPrefix(filepath.Clean(rest), "..") {
+			return true // ~/, ~/., ~/.. and the like, whatever the home is
+		}
+		if home == "" {
+			return false
+		}
+		ruta = filepath.Join(home, rest)
+	}
+	c := filepath.Clean(ruta)
+	if c == "/" || c == filepath.VolumeName(c)+string(filepath.Separator) {
+		return true
+	}
+	if home == "" {
+		return false
+	}
+	h := filepath.Clean(home)
+	if c == h {
+		return true
+	}
+	rel, err := filepath.Rel(c, h)
+	return err == nil && rel != "." && !strings.HasPrefix(rel, "..")
 }
 
 // AutonomiaOrDefault is the project's autonomia policy: the declared section,

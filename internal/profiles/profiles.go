@@ -149,10 +149,26 @@ func Markers(name string) ([]string, error) {
 // .hoom/cache/encierro/<slug>/<quien>/, besides TMPDIR and XDG_CACHE_HOME,
 // which it always gets. The go profile declares GOCACHE, GOMODCACHE and
 // GOTMPDIR; kmp (and so kmp-compose) GRADLE_USER_HOME, which also hides the
-// scripts of ~/.gradle/init.d/. A profile that declares none has none; an
-// unknown one is the error of Resolve.
+// scripts of ~/.gradle/init.d/; laravel COMPOSER_CACHE_DIR and
+// npm_config_cache (composer's and npm's downloads, which a build reuses). A
+// profile that declares none has none; an unknown one is the error of
+// Resolve.
 func Cache(name string) ([]string, error) {
-	return nil, nil
+	chain, err := chainOf(name)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range chain {
+		for _, v := range p.Cache {
+			if v = strings.TrimSpace(v); v != "" && !seen[v] {
+				seen[v] = true
+				out = append(out, v)
+			}
+		}
+	}
+	return out, nil
 }
 
 // chainOf walks the extends chain, parents first. Resolve and Markers merge
