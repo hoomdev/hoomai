@@ -29,6 +29,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -151,7 +152,10 @@ type PasadaConGitAjeno struct {
 	Rutas  []string
 }
 
-func (e PasadaConGitAjeno) Error() string { return "" }
+func (e PasadaConGitAjeno) Error() string {
+	return fmt.Sprintf("la pasada %d del reviewer cambio git fuera de la rama de su tarea: %s: no registro la review",
+		e.Pasada, strings.Join(e.Rutas, ", "))
+}
 
 // PasadaConConfigDeAgentes is the error of a review whose pass Pasada
 // changed the agents' config (agentcmd.RuleConfigDeAgentes), Rutas being
@@ -163,7 +167,10 @@ type PasadaConConfigDeAgentes struct {
 	Rutas  []string
 }
 
-func (e PasadaConConfigDeAgentes) Error() string { return "" }
+func (e PasadaConConfigDeAgentes) Error() string {
+	return fmt.Sprintf("la pasada %d del reviewer cambio la config de los agentes: %s: no registro la review",
+		e.Pasada, strings.Join(e.Rutas, ", "))
+}
 
 // Pass is one lens: one session, its scope gate and the findings hoom saw
 // appear while it ran.
@@ -1022,6 +1029,26 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err := runcmd.Check(opcionesDe(lentes[0])); err != nil {
 		return res, err
 	}
+	// the encierro (contencion-del-writer): its refusals are decided before
+	// the first pass, like a provider that does not take what is asked: no
+	// record
+	nivel, plan, niega, err := encierroDeLaReview(root, dir, opt.Task, prov, role)
+	if err != nil {
+		return res, err
+	}
+	if niega != "" {
+		return finish(w, res, "no-entregable", 1, niega), nil
+	}
+	if nivel != nil {
+		fmt.Fprintf(w, "  %s\n", encierro.Linea(*nivel))
+		if aviso := encierro.Aviso(*nivel, role.Slug); aviso != "" {
+			fmt.Fprintf(w, "  %s\n", aviso)
+		}
+	}
+	conEncierro := func(so runcmd.StartOptions) runcmd.StartOptions {
+		so.Encierro = plan
+		return so
+	}
 
 	// El registro del sobre de la review: lo mismo que deja `hoom agent`, asi
 	// el tablero ve la review en curso, cortada o fallida como a cualquier
@@ -1038,6 +1065,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		StartedAt: time.Now().UTC(), PID: os.Getpid(), Pilot: opt.Pilot,
 		Columna: opt.Columna, Regla: opt.Regla, Intento: opt.Intento, Ronda: opt.Ronda,
 		Hallazgos: opt.Hallazgos, Bloqueantes: opt.Bloqueantes, Delta: opt.Delta,
+		Encierro: nivel,
 	}
 	if err := envelope.Write(root, rec); err != nil && opt.Started != nil {
 		// el Studio espera el registro para responder: sin el, no hay sobre
@@ -1079,12 +1107,16 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	for i, lens := range lentes {
 		fmt.Fprintf(w, "  [%d/%d] %s\n", i+1, len(lentes), lens)
 		pass := Pass{Lens: lens, Findings: []string{}}
+		// what runs code in the next session, and git outside the task's
+		// branch, photographed before any git of hoom for this pass
+		// (contencion-del-writer)
+		config, ajeno := agentcmd.FotoConfigAgentes(dir), agentcmd.FotoGitAjeno(dir)
 		before := agentcmd.Take(dir, baseSHA)
 		antes := idsDeHallazgos(dir, baseSHA)
 		rec.Stage, rec.Step, rec.RunID = "run", i+1, ""
 		_ = envelope.Write(root, rec) // best-effort (CA-202)
 
-		info, err := mgr.Start(opcionesDe(lens))
+		info, err := mgr.Start(conEncierro(opcionesDe(lens)))
 		if err != nil {
 			// the contract's note; the error says the why (finding ccf0ab)
 			cerrarSobre("run", 1, "el run del reviewer fallo")
@@ -1099,6 +1131,27 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		pass.RunStatus, pass.SessionID = st.Status, st.ProviderSessionID
 		pass.Usage = anotarGasto(lens, st.Usage, &usos, &total)
 		rec.Corte = st.Corte
+		if nivel != nil {
+			// the level the pass really had (on Windows, without the job:
+			// ninguno)
+			if meta, ok := runcmd.ReadMeta(root, info.ID); ok && meta.Encierro != nil {
+				nivel = meta.Encierro
+				rec.Encierro = nivel
+			}
+		}
+		// BEFORE any other git of hoom on the tree, and whatever the run's
+		// status: the pass that changed the agents' config or git outside
+		// the task's branch leaves no record (contencion-del-writer)
+		if rutas := agentcmd.CambiosConfigAgentes(config, agentcmd.FotoConfigAgentes(dir)); len(rutas) > 0 {
+			e := PasadaConConfigDeAgentes{Pasada: i + 1, Rutas: rutas}
+			cerrarSobre("scope", 1, e.Error())
+			return res, e
+		}
+		if rutas := agentcmd.CambiosGitAjeno(ajeno); len(rutas) > 0 {
+			e := PasadaConGitAjeno{Pasada: i + 1, Rutas: rutas}
+			cerrarSobre("scope", 1, e.Error())
+			return res, e
+		}
 
 		if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 			fmt.Fprintf(w, "    run %s (exit %d)\n", st.Status, st.ExitCode)
@@ -1147,6 +1200,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
 		Base: rng.baseNombre, BaseIntegrada: rng.integrada,
 		Riesgo: res.Riesgo, RiesgoDeclarado: res.RiesgoDeclarado,
+		Encierro: nivel,
 	})
 	res.Notes = notas
 	if len(usos) == 0 {
@@ -1163,6 +1217,42 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res.RecordID = registro.ID
 	fmt.Fprintf(w, "  registro    .hoom/%s/%s.json (commitealo: es el rastro de esta review)\n", RecordsDir, registro.ID)
 	return terminar("revisado", 0, "ok", ""), nil
+}
+
+// encierroDeLaReview is the encierro of the passes of a review of the tree
+// dir (contencion-del-writer), under the policy of root's hoom.yaml
+// (manifest.LoadRoles): without the section, all nil and "". With it, nivel
+// is the level (encierro.Nivel, the reviewer's provider prov), plan what each
+// pass starts under (its view, writing in the task's tree, only with a task
+// and a level above ninguno; with ninguno the plan only carries the level to
+// the sidecar), and niega the refusal before the first pass: encierro.Validar's
+// error against dir's gates or encierro.NotaExigir. err is a broken setup.
+func encierroDeLaReview(root, dir, task string, prov providers.Provider, role agents.Role) (nivel *encierro.Info, plan *encierro.Plan, niega string, err error) {
+	roles, err := manifest.LoadRoles(root)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if roles.Encierro == nil {
+		return nil, nil, "", nil
+	}
+	m, err := manifest.LoadWithoutBaseCheck(dir, profiles.Resolve)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	info := encierro.Nivel(task != "", prov)
+	if why := agentcmd.NiegaEncierro(root, dir, m, *roles.Encierro, info, role.Slug); why != "" {
+		return &info, nil, why, nil
+	}
+	plan = &encierro.Plan{Info: info}
+	if task != "" && info.Nivel != encierro.NivelNinguno {
+		vista, err := encierro.VistaDe(encierro.Lugar{Principal: root, Tarea: task, Arbol: dir, Quien: role.Slug,
+			Estado: agentcmd.EstadoDe(prov), Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
+		if err != nil {
+			return nil, nil, "", err
+		}
+		plan.Vista = vista
+	}
+	return &info, plan, "", nil
 }
 
 // elegirReviewer picks the reviewer's provider and settles res.Writer and
