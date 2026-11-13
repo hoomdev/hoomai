@@ -709,6 +709,73 @@ hallazgo high. Con reintentos, aflojar el test seria la salida mas barata.
 `agents.writer.write` no levanta la regla; crear tests nuevos o cambiar uno
 que no esta protegido no la viola.
 
+## El encierro de los roles que ejecutan (encierro:)
+
+El writer, el test-writer, el reviewer, el characterizer, el refutador y el
+orquestador lanzado con `--task` corren codigo del writer: sus tests, su
+build, sus hooks. En un proyecto cuyo `hoom.yaml` (el del checkout
+principal, como `autonomia`) trae la seccion `encierro`, ese codigo corre
+encerrado cuando hay tarea: escribe solo en el arbol de su tarea (el
+test-writer, solo en su arbol ciego), no ve ni senala procesos de afuera, ve
+vacios los secretos conocidos (`~/.ssh`, `~/.gnupg`, `~/.config/gh`,
+`~/.aws`, `~/.docker/config.json`) y nada suyo sigue vivo cuando termina.
+La red sigue abierta.
+
+| Que | Con la seccion `encierro` |
+|---|---|
+| el run de cada rol que ejecuta, con `--task` (hoom agent, el tablero, el Studio, hoom pedir, el piloto) | encerrado, escribe en el arbol de la tarea |
+| cada pasada de `hoom review --task` | encerrada, sus hallazgos quedan en el arbol de la tarea |
+| los gates del verify del sobre y los de `cerrar-hallazgos` | encerrados, con la vista del rol y la cache del verify |
+| cada git del guardado del piloto, con sus hooks | encerrado, con la vista del writer y la cache del guardado |
+| un rol sin `--task`, `hoom verify`, `hoom item save`, `hoom run`, el Studio a mano | como antes, sin encierro |
+
+```yaml
+encierro:
+  exigir: completo          # completo, parcial o no (no por defecto)
+  escribibles:              # rutas fuera del arbol que el encierro deja escribir
+    - ~/.semgrep
+  gates_sin_encierro:       # gates del verify que corren como antes
+    - e2e
+```
+
+El **nivel del encierro** depende del sistema, y queda en el registro del
+sobre, en el de la review y en el sidecar de cada run (`encierro: {nivel,
+mecanismo, falta, motivo}`):
+
+| Sistema | Nivel | Mecanismo | Falta |
+|---|---|---|---|
+| Linux con bwrap, espacios de usuario sin privilegios y Landlock ABI 6 o mas | completo | bwrap | - |
+| Linux con bwrap y espacios de usuario, sin Landlock ABI 6 | parcial | bwrap | ipc |
+| Linux sin bwrap, o con bwrap que no puede crear el espacio de usuario | ninguno | - | procesos, escrituras, ipc |
+| Windows con el job creado | parcial | job | escrituras, ipc |
+| Windows sin job, o macOS | ninguno | - | procesos, escrituras, ipc |
+| un rol sin `--task`, o un provider que no declara su estado | ninguno | - | procesos, escrituras, ipc |
+
+Con un nivel menor que `completo` el log del sobre (o la salida de la
+review) lo avisa. Con un nivel menor que `exigir`, el sobre se niega en su
+paso `run` sin lanzar, la review antes de su primera pasada y el guardado
+del piloto antes de su primer git. En Ubuntu 24.04 AppArmor no deja crear
+espacios de usuario sin privilegios: bwrap falla y el nivel es `ninguno`
+hasta que la persona lo habilite.
+
+- `escribibles`: rutas absolutas o con `~/`; nunca `/`, `~/`, el checkout
+  principal ni el directorio comun de git.
+- `gates_sin_encierro`: gates del `hoom.yaml` del arbol que corren como
+  antes (por ejemplo, uno que necesita docker o credenciales de la nube).
+  **Debilita el encierro**: lo que ese gate corra del writer no esta
+  encerrado.
+- Cada tarea tiene sus caches (Go, npm, composer, Gradle) dentro de
+  `.hoom/cache/encierro/<slug>/` del checkout principal: la primera vez se
+  bajan las dependencias.
+
+Con encierro o sin el, en cualquier proyecto, el gate de scope mira el
+material de git (hooks, config, atributos, `.husky/`, `lefthook`), las
+refs de reemplazo y los objetos que ya existian (`git-ajeno`) y la config de
+los agentes (`.claude/`, `.codex/`, `.mcp.json`, los `hooks` de claude,
+`~/.codex/config.toml`: `config-de-agentes`). Un sobre que cambia algo de
+eso corta sin veredicto, con un hallazgo high; la review falla sin
+registro, y el piloto no guarda.
+
 ## El tablero en la terminal
 
 `hoom tablero` es el tablero del Studio en la terminal, a pantalla completa,
