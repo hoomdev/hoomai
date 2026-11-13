@@ -56,11 +56,27 @@ func apr5Protegida(t *testing.T, ca string) (root, wt, slug string) {
 	return root, wt, slug
 }
 
-// apr5NoGuardo exige la detencion de un guardado que fallo (aclaracion 24):
-// exit 1, `no pudo guardar el trabajo de la tarjeta: <error>`, sin linea de
-// guardado, la rama donde estaba, el test protegido en HEAD como estaba (si
-// protegido no es "") y el candado libre.
-func apr5NoGuardo(t *testing.T, ca string, s apSalida, root, wt, slug, head, rama, protegido string) {
+// apr5Antes es la tarea antes de un guardado que tiene que fallar: su raiz,
+// su worktree, su slug, HEAD y la punta de hoom/<slug>.
+//
+// Hallazgo low 20261113T040622_b163a0 (ronda 6): apr5NoGuardo recibia nueve
+// argumentos y usaba protegido == "" como bandera. Lo re-expresan apr5Antes
+// (lo de antes del guardado, tomado con apr5Mirar), apr5Fallo (la detencion
+// y el candado), apr5NoGuardo (apr5Fallo mas HEAD y la rama donde estaban) y
+// apr5ProtegidoIntacto (el test protegido en HEAD como estaba), con las
+// mismas exigencias que antes.
+type apr5Antes struct{ root, wt, slug, head, rama string }
+
+// apr5Mirar toma HEAD y la punta de hoom/<slug> de la tarea.
+func apr5Mirar(t *testing.T, root, wt, slug string) apr5Antes {
+	t.Helper()
+	return apr5Antes{root: root, wt: wt, slug: slug, head: apHead(t, wt), rama: apGit(t, wt, "rev-parse", "hoom/"+slug)}
+}
+
+// apr5Fallo exige la detencion de un guardado que fallo (aclaracion 24):
+// exit 1, `no pudo guardar el trabajo de la tarjeta: <error>` con un error
+// no vacio, sin linea de guardado y el candado de la tarjeta libre.
+func apr5Fallo(t *testing.T, ca string, s apSalida, root, slug string) {
 	t.Helper()
 	ls := apSoloLineasDelPiloto(t, ca, s)
 	pre := apDetiene + "no pudo guardar el trabajo de la tarjeta: "
@@ -72,19 +88,29 @@ func apr5NoGuardo(t *testing.T, ca string, s apSalida, root, wt, slug, head, ram
 			t.Fatalf("%s: no dice que guardo: %q", ca, l)
 		}
 	}
-	if h, r := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug); h != head || r != rama {
-		t.Fatalf("%s: ningun commit nuevo en la rama: HEAD %s -> %s, hoom/%s %s -> %s", ca, head, h, slug, rama, r)
-	}
-	if protegido != "" {
-		if enHead := apGit(t, wt, "show", "HEAD:precios_test.go"); enHead+"\n" != protegido {
-			t.Fatalf("%s: el test protegido en HEAD queda como estaba: %q", ca, enHead)
-		}
-	}
 	soltar, err := hoomfs.Lock(pilotocmd.Candado(root, slug), 0)
 	if err != nil {
 		t.Fatalf("%s: al detenerse, el piloto suelta su candado: %v", ca, err)
 	}
 	soltar()
+}
+
+// apr5NoGuardo es apr5Fallo mas ningun commit nuevo: HEAD y la rama de la
+// tarea donde estaban en a.
+func apr5NoGuardo(t *testing.T, ca string, s apSalida, a apr5Antes) {
+	t.Helper()
+	apr5Fallo(t, ca, s, a.root, a.slug)
+	if h, r := apHead(t, a.wt), apGit(t, a.wt, "rev-parse", "hoom/"+a.slug); h != a.head || r != a.rama {
+		t.Fatalf("%s: ningun commit nuevo en la rama: HEAD %s -> %s, hoom/%s %s -> %s", ca, a.head, h, a.slug, a.rama, r)
+	}
+}
+
+// apr5ProtegidoIntacto exige que el test protegido en HEAD siga como estaba.
+func apr5ProtegidoIntacto(t *testing.T, ca, wt string) {
+	t.Helper()
+	if enHead := apGit(t, wt, "show", "HEAD:precios_test.go"); enHead+"\n" != apr5Protegido {
+		t.Fatalf("%s: el test protegido en HEAD queda como estaba: %q", ca, enHead)
+	}
 }
 
 // Hallazgo 20261113T030054_048c45 (CA-638, CA-644, aclaracion 24): con un
@@ -111,7 +137,7 @@ func TestHallazgo048c45_CA638_CA644_UnHookNoCuelaNadaEnElGuardado(t *testing.T) 
 		f := apPATH(t)
 		root, wt, slug := apr5Protegida(t, ca)
 		apEscribir(t, wt, "app.go", "package app\n\n// el codigo del writer, sin guardar\n")
-		head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
+		antes := apr5Mirar(t, root, wt, slug)
 		corrio := filepath.Join(t.TempDir(), "corrio")
 		apr4Hook(t, wt, "pre-commit", "#!/bin/sh\n: > '"+corrio+"'\n"+c.cuerpo)
 
@@ -119,7 +145,8 @@ func TestHallazgo048c45_CA638_CA644_UnHookNoCuelaNadaEnElGuardado(t *testing.T) 
 		if !apr1Existe(corrio) {
 			t.Fatalf("%s: fixture: el guardado del piloto corre el hook pre-commit (aclaracion 23):\n%s", ca, s)
 		}
-		apr5NoGuardo(t, ca, s, root, wt, slug, head, rama, apr5Protegido)
+		apr5NoGuardo(t, ca, s, antes)
+		apr5ProtegidoIntacto(t, ca, wt)
 		f.ninguna(t, ca, "un piloto que no pudo guardar")
 	}
 }
@@ -162,13 +189,14 @@ func TestHallazgo048c45_CA638_CA644_ElHookQueDejaUnWriterNoCuelaElTestProtegido(
 	if err := os.Remove(filepath.Join(f.bin, "claude")); err != nil { // el piloto no tiene a quien lanzar
 		t.Fatal(err)
 	}
-	head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
+	antes := apr5Mirar(t, root, wt, slug)
 
 	s := apRun(t, ca, root, slug)
 	if !apr1Existe(corrio) {
 		t.Fatalf("%s: fixture: el guardado del piloto corre el hook que dejo el writer:\n%s", ca, s)
 	}
-	apr5NoGuardo(t, ca, s, root, wt, slug, head, rama, apr5Protegido)
+	apr5NoGuardo(t, ca, s, antes)
+	apr5ProtegidoIntacto(t, ca, wt)
 }
 
 // Hallazgos 20261113T030408_1a9510 y 20261113T030719_a808f9 (CA-644,
@@ -189,9 +217,9 @@ func TestHallazgos1a9510_a808f9_CA644_UnPostCommitColgadoNoDejaElCommit(t *testi
 	root := apProyecto(t, "")
 	const slug = "post-commit-colgado"
 	wt := apTuAprobacion(t, root, slug, apConAuto, true)
-	antes := apGit(t, wt, "show", "HEAD:app.go")
+	appAntes := apGit(t, wt, "show", "HEAD:app.go")
 	apEscribir(t, wt, "app.go", "package app\n\n// sin guardar\n")
-	head, rama := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug)
+	antes := apr5Mirar(t, root, wt, slug)
 
 	aparte := t.TempDir()
 	pids, corrio := filepath.Join(aparte, "pids"), filepath.Join(aparte, "corrio")
@@ -210,8 +238,8 @@ func TestHallazgos1a9510_a808f9_CA644_UnPostCommitColgadoNoDejaElCommit(t *testi
 	if !apr1Existe(corrio) {
 		t.Fatalf("%s: el post-commit corrio (el guardado llego a crear el commit):\n%s", ca, s)
 	}
-	apr5NoGuardo(t, ca, s, root, wt, slug, head, rama, "")
-	if enHead := apGit(t, wt, "show", "HEAD:app.go"); enHead != antes {
+	apr5NoGuardo(t, ca, s, antes)
+	if enHead := apGit(t, wt, "show", "HEAD:app.go"); enHead != appAntes {
 		t.Fatalf("%s: el cambio sigue sin commitear respecto de HEAD: app.go en HEAD es %q", ca, enHead)
 	}
 	for time.Since(desde) < 8*time.Second {
