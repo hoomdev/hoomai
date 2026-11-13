@@ -42,4 +42,4 @@ findings:
 review:
   model: gpt-5.6-sol
   effort: xhigh
-  max_evidence_kib: 448
+  max_evidence_kib: 576
