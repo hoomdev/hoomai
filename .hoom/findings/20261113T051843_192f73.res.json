@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T051843_192f73",
+  "as": "corregido",
+  "evidence": "commit 27ed97e; test TestHallazgo192f73_CA638_UnArchivoEnormeEnLosHooksNoCuelgaElSobre y TestHallazgo192f73_CA638_CambiarElArchivoEnormeCorta (antes rojo, ahora verde); tope de la foto con TestWriter192f73LaFotoQueNoTerminaCortaElSobre y TestWriter192f73UnaFotoSinTerminarCortaContraUnaCompleta",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T05:47:47.999936394Z"
+}
