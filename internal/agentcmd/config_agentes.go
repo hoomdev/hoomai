@@ -62,8 +62,9 @@ func DeConfigDeAgentes(f finding.Finding, rol string) bool {
 
 // ConfigAgentes is the agents' config of a tree as RuleConfigDeAgentes
 // compares it (FotoConfigAgentes): by path -> its Huella. A path inside the
-// tree is relative to it, with "/" (each file under `.claude/`, `.codex/`
-// and the directories of EnArbol is its own entry); a path outside it is
+// tree is relative to it, with "/" (each file and symlink under `.claude/`,
+// `.codex/` and the directories of EnArbol is its own entry, a directory
+// never is); a path outside it is
 // absolute. For a file of providers.Estado.Corre with Claves, the Huella is
 // that of the value of those keys only; without Claves, that of the whole
 // file. ProtegidoAusente for what is not there, HuellaIlegible for what
@@ -128,15 +129,20 @@ func FotoConfigAgentes(dir string) ConfigAgentes {
 }
 
 // fotoEnArbol adds to foto the entry rel of the tree dir: a directory (rel
-// ending in "/") with itself and everything under it, each by its path
-// relative to dir; a file by itself. Never followed.
+// ending in "/") by what is under it, each file and symlink by its path
+// relative to dir; a file by itself. Never followed. A directory is never an
+// entry of its own: a new empty one changes no config, and one removed or
+// replaced shows by its files or by the symlink (or file) in its place. A
+// directory that cannot be read is HuellaIlegible, by its path with "/".
 func fotoEnArbol(foto ConfigAgentes, dir, rel string) {
 	esDir := strings.HasSuffix(rel, "/")
 	p := filepath.Join(dir, filepath.FromSlash(strings.TrimSuffix(rel, "/")))
 	fi, err := os.Lstat(p)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		foto[rel] = ProtegidoAusente
+		if !esDir {
+			foto[rel] = ProtegidoAusente
+		}
 		return
 	case err != nil:
 		foto[rel] = HuellaIlegible
@@ -145,7 +151,6 @@ func fotoEnArbol(foto ConfigAgentes, dir, rel string) {
 		foto[strings.TrimSuffix(rel, "/")] = materialgit.Huella(p)
 		return
 	}
-	foto[rel] = "dir"
 	_ = filepath.WalkDir(p, func(q string, e fs.DirEntry, err error) error {
 		r, rerr := filepath.Rel(dir, q)
 		if rerr != nil {
@@ -156,11 +161,7 @@ func fotoEnArbol(foto ConfigAgentes, dir, rel string) {
 			foto[n+"/"] = HuellaIlegible
 			return nil
 		}
-		if q == p {
-			return nil
-		}
 		if e.IsDir() {
-			foto[n+"/"] = "dir"
 			return nil
 		}
 		foto[n] = materialgit.Huella(q)
