@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -45,7 +46,10 @@ const (
 	MaxLeido int64 = 1 << 30
 )
 
-// Ilegible is the value of a loose ref that could not be read.
+// Ilegible is materialgit's mark for what could not be read. A photograph of
+// refs/replace/ no longer gives it to a loose ref: what cannot be read is
+// photographed by its metadata (valorDeRef), so two states never share a
+// value.
 const Ilegible = materialgit.Ilegible
 
 // Foto is the photograph of the git common directory of a tree (Tomar): its
@@ -293,22 +297,184 @@ func refsDeReemplazo(comun string, pr *presupuesto) (map[string]string, error) {
 			return nil // a ref being written: its result is what counts
 		}
 		fi, err := e.Info()
-		if err != nil || !fi.Mode().IsRegular() || fi.Size() > 4096 {
-			refs[n] = Ilegible // a ref is one line: anything else is not read
-			return nil
-		}
-		raw, err := os.ReadFile(p)
 		if err != nil {
-			refs[n] = Ilegible
-			return nil
+			fi, err = os.Lstat(p)
 		}
-		refs[n] = strings.TrimSpace(string(raw))
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil // gone while it was walked: as if it never was
+		}
+		if err != nil {
+			return err // fails closed: the whole refs/replace/ counts as changed
+		}
+		v, err := valorDeRef(p, fi, pr)
+		if err != nil {
+			return err
+		}
+		refs[n] = v
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return refs, nil
+}
+
+// maxRef is the size up to which a loose ref is read as its value: a ref is
+// one line.
+const maxRef = 4096
+
+// topeHuellaRef is how many bytes of a loose ref over maxRef (or of the file
+// a symlink there resolves to) its photograph hashes.
+const topeHuellaRef = 1 << 20
+
+// valorDeRef is the photograph of the loose ref at p, whose Lstat is fi: what
+// git reads of it and, for whatever cannot be read as one line, enough that
+// any touch changes it (aclaracion 28: a photograph never joins two
+// different states in one value; ronda 2, 61babd and a48bb4):
+//   - a regular file of up to maxRef bytes: its content, trimmed (what git
+//     takes from it);
+//   - a symlink, which git follows: its target, read with readlink, and the
+//     photograph of what it resolves to, as follows;
+//   - a bigger regular file: its size, inode, mtime and ctime, and the sha256
+//     of its first topeHuellaRef bytes (beyond them, any write changes its
+//     ctime);
+//   - a directory a symlink resolves to: its metadata and that of every
+//     entry under it;
+//   - what is not a regular file, or cannot be opened or read: its kind and
+//     its metadata (ctime included: any touch changes it).
+//
+// Every value but the first kind's starts with a newline (especial), which a
+// trimmed content never does, and carries the lengths of its free parts: no
+// two of them, nor one of them and a ref's content, are ever the same string.
+// errVencido when pr's time passes.
+func valorDeRef(p string, fi fs.FileInfo, pr *presupuesto) (string, error) {
+	if fi.Mode()&fs.ModeSymlink == 0 {
+		return contenidoDeRef(p, false, pr)
+	}
+	destino, err := os.Readlink(p)
+	if err != nil {
+		return especial("enlace-ilegible", metadatos(fi)), nil
+	}
+	resuelto, err := contenidoDeRef(p, true, pr)
+	if err != nil {
+		return "", err
+	}
+	return especial("enlace", destino, resuelto), nil
+}
+
+// especial is a value of valorDeRef that is not a ref's content: a newline,
+// its kind, and each part with its length.
+func especial(tipo string, partes ...string) string {
+	var b strings.Builder
+	b.WriteString("\n" + tipo)
+	for _, x := range partes {
+		fmt.Fprintf(&b, ":%d:%s", len(x), x)
+	}
+	return b.String()
+}
+
+// contenidoDeRef is the photograph of the file at p (followed when seguir) as
+// valorDeRef describes it. It never blocks on the open (abrir) and reads at
+// most topeHuellaRef bytes, out of pr. errVencido when pr's time passes.
+func contenidoDeRef(p string, seguir bool, pr *presupuesto) (string, error) {
+	f, err := abrir(p, seguir)
+	if err != nil {
+		fi, serr := os.Lstat(p)
+		if seguir {
+			fi, serr = os.Stat(p)
+		}
+		switch {
+		case errors.Is(serr, fs.ErrNotExist):
+			return especial("ausente"), nil
+		case serr != nil:
+			return especial("ilegible", serr.Error()), nil
+		case fi.IsDir() && seguir:
+			return directorioDeRef(p, fi, pr)
+		}
+		return especial("ilegible", metadatos(fi)), nil
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return especial("ilegible", err.Error()), nil
+	}
+	if fi.IsDir() {
+		if seguir {
+			return directorioDeRef(p, fi, pr)
+		}
+		return especial("no-regular", metadatos(fi)), nil
+	}
+	if !fi.Mode().IsRegular() {
+		return especial("no-regular", metadatos(fi)), nil
+	}
+	if fi.Size() <= maxRef {
+		raw, err := io.ReadAll(io.LimitReader(f, maxRef+1))
+		if err != nil {
+			return especial("ilegible", metadatos(fi)), nil
+		}
+		if len(raw) <= maxRef {
+			return strings.TrimSpace(string(raw)), nil
+		}
+		// it grew while it was read: a big one
+	}
+	n := min(fi.Size(), topeHuellaRef)
+	huella := "sin-huella" // beyond pr's bytes: its metadata is all there is
+	if n <= pr.bytes {
+		h := sha256.New()
+		switch err := copiar(h, io.NewSectionReader(f, 0, n), n, pr); {
+		case errors.Is(err, errVencido):
+			return "", err
+		case err == nil:
+			huella = hex.EncodeToString(h.Sum(nil))
+		default:
+			huella = "corta" // it shrank while it was read
+		}
+	}
+	return especial("grande", metadatos(fi), huella), nil
+}
+
+// directorioDeRef is the photograph of the directory at p (fi its stat),
+// where a symlink under refs/replace/ resolves: its metadata and, sorted,
+// each entry under it (not followed) with its own. errVencido when pr's time
+// passes.
+func directorioDeRef(p string, fi fs.FileInfo, pr *presupuesto) (string, error) {
+	raiz, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return especial("dir", metadatos(fi), "ilegible"), nil
+	}
+	var entradas []string
+	err = filepath.WalkDir(raiz, func(q string, e fs.DirEntry, err error) error {
+		if pr.vencido() {
+			return errVencido
+		}
+		if q == raiz {
+			return err
+		}
+		rel, _ := filepath.Rel(raiz, q)
+		meta := "ilegible"
+		if err == nil {
+			if ei, ierr := e.Info(); ierr == nil {
+				meta = metadatos(ei)
+			}
+		}
+		entradas = append(entradas, especial("entrada", rel, meta))
+		return nil
+	})
+	if errors.Is(err, errVencido) {
+		return "", err
+	}
+	if err != nil {
+		entradas = append(entradas, especial("ilegible", err.Error()))
+	}
+	sort.Strings(entradas)
+	return especial("dir", append([]string{metadatos(fi)}, entradas...)...), nil
+}
+
+// metadatos is fi's kind and permissions, size, inode, mtime and ctime (in
+// nanoseconds; inode and ctime where the system gives them).
+func metadatos(fi fs.FileInfo) string {
+	ctime, _ := materialgit.CtimeDe(fi)
+	return fmt.Sprintf("%s:%d:%d:%d:%d", fi.Mode(), fi.Size(), materialgit.InodoDe(fi), fi.ModTime().UnixNano(), ctime)
 }
 
 // gitEnComun runs git on the common directory comun (GIT_DIR), with
