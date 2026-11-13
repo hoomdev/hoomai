@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051350_4785a1",
+  "created_at": "2026-11-13T05:13:50.679420575Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO. internal/itemcmd/itemcmd.go:997-1013 considera propio cualquier commit con un solo padre igual a antes y la misma primera linea, una identidad no unica. Un post-commit puede reemplazar la punta por otro commit con ese padre y mensaje y luego exceder TopeGit; deshacer lo confunde con el commit del guardado y lo elimina mediante update-ref en internal/itemcmd/itemcmd.go:1188-1206. El caso es una variante directa del hook concurrente que cubre el cambio y puede retirar un commit ajeno.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

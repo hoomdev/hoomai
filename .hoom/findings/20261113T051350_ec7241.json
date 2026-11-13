@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051350_ec7241",
+  "created_at": "2026-11-13T05:13:50.553756814Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO. internal/itemcmd/itemcmd.go:997-1013 identifica el commit del guardado exigiendo que su primera linea siga siendo exactamente el mensaje original. Un commit-msg hook valido puede reescribir esa linea y devolver exito; revisarCommit entonces falla y deshacer repite la misma comparacion (internal/itemcmd/itemcmd.go:1196-1202), por lo que informa que no pudo guardar pero deja el commit que acaba de crear en hoom/\u003cslug\u003e, contradiciendo la garantia de restaurar la rama al fallar.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

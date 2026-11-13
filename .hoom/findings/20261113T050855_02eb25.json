@@ -1,0 +1,11 @@
+{
+  "id": "20261113T050855_02eb25",
+  "created_at": "2026-11-13T05:08:55.700356204Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/boardcmd/piloto.go",
+  "description": "PRE-EXISTENTE (follow-up; la proteccion nueva no lo cierra) — internal/boardcmd/piloto.go:119: ParadaAntesDeGuardar solo mira el sobre mas nuevo. Si un writer deja un hook y su gate lo marca, pero antes de reanudar el piloto se cierra otro sobre manual de la tarjeta (por ejemplo test-writer), el ultimo sobre no tiene TocoMaterialGit y la vuelta ejecuta SaveTarea; el hook peligroso sigue en disco y corre. Es high porque una secuencia admitida por la tarjeta permite saltarse la parada de seguridad y ejecutar codigo del writer con permisos del usuario.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

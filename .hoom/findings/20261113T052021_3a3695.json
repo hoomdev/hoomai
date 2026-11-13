@@ -1,0 +1,11 @@
+{
+  "id": "20261113T052021_3a3695",
+  "created_at": "2026-11-13T05:20:21.950922484Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:374: la rama final del switch asigna NotaMaterialDeGit a cualquier corte que no sea manipulacion, aislamiento ni tests-del-test-writer, sin comprobar RuleMaterialDeGit. La relacion regla-nota queda acoplada implicitamente a que ScopeResult.Cuts no agregue otra causa; un corte futuro heredaria silenciosamente una nota incorrecta. Hacer explicita la comprobacion de RuleMaterialDeGit y el caso no reconocido deja la tabla de cortes mantenible.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

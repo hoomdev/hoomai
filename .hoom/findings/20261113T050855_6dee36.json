@@ -1,0 +1,11 @@
+{
+  "id": "20261113T050855_6dee36",
+  "created_at": "2026-11-13T05:08:55.437684192Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO — internal/itemcmd/itemcmd.go:1012: guardado.esSuyo identifica el commit por su padre y por la primera linea del mensaje, aunque los hooks prepare-commit-msg/commit-msg pueden reescribir legitimamente esa linea. En ese caso git commit ya avanzo hoom/\u003cslug\u003e, revisarCommit falla y deshacer vuelve a usar esSuyo (lineas 1196-1201), por lo que se niega a restaurar la rama: hoom piloto informa que no pudo guardar pero deja un commit nuevo. Es high porque un hook del repositorio que un usuario puede instalar provoca un resultado incorrecto y rompe la atomicidad prometida del guardado.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

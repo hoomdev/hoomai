@@ -1,0 +1,11 @@
+{
+  "id": "20261113T050855_42315c",
+  "created_at": "2026-11-13T05:08:55.56974983Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/agentcmd/material_git.go",
+  "description": "PRE-EXISTENTE (follow-up; la proteccion nueva no lo cierra) — internal/agentcmd/material_git.go:70: FotoMaterialGit solo huella las entradas directas del directorio de hooks y, para un symlink, huella el texto del destino sin seguirlo; tampoco cubre programas auxiliares que un hook invoque ni configuracion global/incluida. Un writer puede cambiar un script rastreado al que apunta o llama un hook preexistente (o un include de config) sin producir material-de-git; luego SaveTarea ejecuta ese codigo durante git add/commit antes de la aceptacion. Es high porque permite ejecucion con los permisos del usuario saltandose el control que pretende preceder al guardado.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

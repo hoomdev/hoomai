@@ -1,0 +1,11 @@
+{
+  "id": "20261113T051843_c8484d",
+  "created_at": "2026-11-13T05:18:43.744374367Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/boardcmd/piloto.go",
+  "description": "INTRODUCIDO: internal/boardcmd/piloto.go:113-122 solo detiene el guardado cuando el sobre mas nuevo tiene TocoMaterialGit. Un writer puede dejar .git/hooks/pre-commit y cerrar cortado; si despues una persona pide cualquier sobre que no modifica ese hook, la nueva foto lo toma como estado inicial y ese sobre pasa a ser el ultimo sin la marca. Al reanudar hoom piloto, SaveTarea ejecuta el hook persistente. Un sobre posterior no demuestra que el material peligroso fue restaurado, de modo que la condicion permite ejecucion arbitraria y posible perdida de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "a989ee891e52f71d",
+  "task": "autonomia-entre-firmas"
+}

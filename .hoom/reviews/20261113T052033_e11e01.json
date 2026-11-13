@@ -1,0 +1,95 @@
+{
+  "id": "20261113T052033_e11e01",
+  "created_at": "2026-11-13T05:20:33.895880678Z",
+  "task": "autonomia-entre-firmas",
+  "spec": ".hoom/specs/autonomia-entre-firmas.md",
+  "fingerprint": "a989ee891e52f71d",
+  "verdict_id": "2026-11-13T05-04-17Z_a0d4450f",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261113T050855_02eb25",
+    "20261113T050855_42315c",
+    "20261113T050855_6dee36",
+    "20261113T051349_a145a3",
+    "20261113T051350_25898c",
+    "20261113T051350_3830c1",
+    "20261113T051350_4785a1",
+    "20261113T051350_a586a6",
+    "20261113T051350_cc36e4",
+    "20261113T051350_ec7241",
+    "20261113T051843_192f73",
+    "20261113T051843_c8484d",
+    "20261113T051843_c9cc09",
+    "20261113T051844_0a36c3",
+    "20261113T052021_3a3695",
+    "20261113T052022_8fdef2"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 107570,
+  "evidence_sha256": "77610f4cb1651ab3889a17e0fd8f2739881303801237f912c402b602a2db8b4e",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 374959,
+      "cached_input_tokens": 324480,
+      "output_tokens": 14188,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 795495,
+      "cached_input_tokens": 720896,
+      "output_tokens": 15404,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1037278,
+      "cached_input_tokens": 972416,
+      "output_tokens": 15143,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 444705,
+      "cached_input_tokens": 383744,
+      "output_tokens": 4266,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261113T050441_bb3f97"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261113T050912_7a03a3"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261113T051407_6ab4a1"
+    },
+    {
+      "lens": "readability",
+      "run": "20261113T051903_5103f4"
+    }
+  ],
+  "desde": "e21da920ba59a6823e65b4a2e7884f93ac123673",
+  "hasta": "e4528e714225880ddf23f1f1cfe2687a6ac2a64d",
+  "cobertura": "parcial",
+  "base": "main",
+  "riesgo": "normal"
+}
