@@ -853,10 +853,11 @@ var TopeGit = 5 * time.Minute
 //     gpg nor ssh agent inside to sign: the pilot's saves stay unsigned);
 //   - with the section or without it, it photographs the git material of the
 //     task's tree (agentcmd.FotoMaterialGit) before its first git and after
-//     its last, and git-ajeno (agentcmd.FotoGitAjeno) around itself: a change
-//     fails the save, which undoes its commit as today (deshacer) and returns
-//     ErrHookCambioMaterial or ErrGitAjeno with what changed. hoom restores
-//     nothing else.
+//     its last, the agents' config (agentcmd.FotoConfigAgentes, ronda 1,
+//     aclaracion 21) and git-ajeno (agentcmd.FotoGitAjeno) around itself: a
+//     change fails the save, which undoes its commit as today (deshacer) and
+//     returns ErrHookCambioMaterial, ErrHookCambioConfig or ErrGitAjeno with
+//     what changed. hoom restores nothing else.
 //
 // `hoom item save` (Save) never runs enclosed.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
@@ -898,7 +899,7 @@ func ErrHookCambioMaterial(rutas []string) string {
 // <ruta> being the paths, as agentcmd.CambiosConfigAgentes names them,
 // joined with ", ".
 func ErrHookCambioConfig(rutas []string) string {
-	return ""
+	return "un hook del guardado cambio la config de los agentes: " + strings.Join(rutas, ", ") + ": no guardo"
 }
 
 // ErrGitAjeno is what SaveTarea of the card slug answers, once it undid its
@@ -959,8 +960,8 @@ func tareaGuardable(root, slug string) (string, error) {
 }
 
 // guardarTarea is SaveTarea under the task tree's lock: its refusals before
-// any git, then the save between the photographs of the git material and
-// git-ajeno (contencion-del-writer).
+// any git, then the save between the photographs of the git material, the
+// agents' config and git-ajeno (contencion-del-writer).
 func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	if materialEnElVeredicto(dir) {
 		return SaveResult{}, errors.New(ErrVeredictoConMaterial)
@@ -993,10 +994,15 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 		}
 	}
 	material := agentcmd.FotoMaterialGit(dir)
+	config := agentcmd.FotoConfigAgentes(dir)
 	ajeno := agentcmd.FotoGitAjeno(dir)
 	res, s, hecho, err := guardarEntre(root, slug, dir, g)
 	if cambios := agentcmd.CambiosMaterialGit(material, agentcmd.FotoMaterialGit(dir)); len(cambios) > 0 {
 		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrHookCambioMaterial(cambios)))
+	}
+	// the agents' config, also what a hook leaves untracked (aclaracion 21)
+	if cambios := agentcmd.CambiosConfigAgentes(config, agentcmd.FotoConfigAgentes(dir)); len(cambios) > 0 {
+		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrHookCambioConfig(cambios)))
 	}
 	if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
 		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrGitAjeno(slug, cambios)))
