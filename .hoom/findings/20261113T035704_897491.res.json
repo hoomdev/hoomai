@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T035704_897491",
+  "as": "corregido",
+  "evidence": "commit f2de6f5; test TestHallazgo897491_CA644_LaVueltaAtrasNoBorraUnCommitDeEncima (antes rojo, ahora verde)",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T04:49:15.527228414Z"
+}

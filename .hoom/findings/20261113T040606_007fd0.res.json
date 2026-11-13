@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T040606_007fd0",
+  "as": "corregido",
+  "evidence": "commit f2de6f5: stageados (todas las rutas pedidas) se pasa explicito a revisarCommit y sale de protegidosDelGuardado; tests del guardado verdes",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-13T04:49:15.540262367Z"
+}
