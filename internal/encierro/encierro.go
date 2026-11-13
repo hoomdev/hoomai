@@ -389,8 +389,15 @@ type Lugar struct {
 	Tarea string
 	// Arbol is its run tree, writable: the task's tree
 	// (.hoom/worktrees/<slug>), the test-writer's blind tree inside it, or
-	// the tree the gates of verify and the git of the save run in.
+	// the tree the gates of verify and the git of the save run in. "", or a
+	// tree that does not exist, is no writable tree at all (the gates of the
+	// test-writer's verify once its blind tree is gone): then only Cache,
+	// Estado.Escribe and Escribibles are writable.
 	Arbol string
+	// Dir (ronda 1, a8ef36) is where what runs starts, when it is not Arbol:
+	// the gates of the test-writer's verify run in the task's tree, which
+	// stays read-only, with Arbol its blind tree. "" = Arbol.
+	Dir string
 	// Quien owns its cache: the role's slug, QuienVerify or QuienGuardado.
 	Quien string
 	// Estado is what its provider declares; its Escribe is writable. The
@@ -526,6 +533,85 @@ const topeVista = 10 * time.Second
 type Plan struct {
 	Info  Info
 	Vista Vista
+	// Exigir (ronda 1, decision 22) is encierro.exigir of the project's
+	// hoom.yaml the launch runs under (manifest.ExigirCompleto,
+	// ExigirParcial or ExigirNo; "" = ExigirNo): Comprobar reads it once the
+	// process started.
+	Exigir string
+}
+
+// AdministracionPrincipal (ronda 1, fab30f) are the entries of the main
+// checkout's administration at the root of the git common directory, by
+// their path relative to it: when the run tree is a linked worktree, VistaDe
+// leaves read-only the ones that exist (and the whole `worktrees/`, but for
+// the tree's own administration), so nothing enclosed moves or blocks the
+// main checkout. refs/, objects/, the other logs/ and packed-refs stay
+// writable: the writer still commits on its branch.
+var AdministracionPrincipal = []string{
+	"HEAD", "index", "ORIG_HEAD", "FETCH_HEAD", "AUTO_MERGE",
+	"MERGE_HEAD", "MERGE_MSG", "MERGE_MODE", "MERGE_RR",
+	"CHERRY_PICK_HEAD", "REVERT_HEAD", "REBASE_HEAD", "SQUASH_MSG", "COMMIT_EDITMSG", "TAG_EDITMSG",
+	"BISECT_LOG", "BISECT_START", "BISECT_TERMS", "BISECT_NAMES", "BISECT_EXPECTED_REV", "BISECT_ANCESTORS_OK",
+	"logs/HEAD", "rebase-merge", "rebase-apply", "sequencer", "info/sparse-checkout",
+}
+
+// TrasAdoptar (ronda 1, decision 22) is the decision once a process of an
+// enclosed launch started on sistema (as runtime.GOOS names it) and
+// procesos.Adoptar did (enJob) or did not put it in a Job Object, under
+// exigir (encierro.exigir): the level the launch really has and whether its
+// process tree dies at once and the launch closes as a refusal of exigir.
+// On Windows the level is NivelDe's with Job enJob, and it kills when there
+// is no job and exigir is not ExigirNo (nor ""). On any other system it
+// returns the zero Info and false: there is nothing to correct. Pure.
+func TrasAdoptar(sistema string, enJob bool, exigir string) (Info, bool) {
+	return Info{}, false
+}
+
+// SinJob (ronda 1, decision 22) is Comprobar's error when Windows did not
+// let Adoptar create the job and exigir is not ExigirNo: Info is the real
+// level (ninguno, MotivoSinJob). Its text:
+// `el encierro de este sistema es <nivel> (falta: <lista>) y hoom.yaml exige <exigir>: <motivo>`.
+// The envelope closes in `run` with NotaExigir, the review's pass with its
+// refusal (NotaExigir, role reviewer), the gate in error with this text, and
+// the save with itemcmd.ErrExigirDelGuardado of Info.Nivel.
+type SinJob struct {
+	Info   Info
+	Exigir string
+}
+
+func (e *SinJob) Error() string { return "" }
+
+// Comprobar (ronda 1, decision 22) looks at cmd, started with Arrancar under
+// p, right after it started: it returns the level the launch really has
+// (p.Info, or on Windows without the job, ninguno with MotivoSinJob) and,
+// when TrasAdoptar says so, kills cmd's process tree at once and returns a
+// *SinJob. Whoever calls it still waits for cmd and calls Liberar.
+func Comprobar(cmd *exec.Cmd, p Plan) (Info, error) {
+	return p.Info, nil
+}
+
+// ReemplazarAdopcion makes Comprobar take sistema as the system and enJob
+// as procesos.EnJob until restaurar: the seam that lets the decision of
+// Windows without the job be tried on Linux.
+func ReemplazarAdopcion(sistema string, enJob func(pid int) bool) (restaurar func()) {
+	return func() {}
+}
+
+// ValidarEscribe (ronda 1, 425a75 and 03a36d) applies to the Escribe that
+// provider declares (providers.Estado.Escribe, "~/" being this process's
+// $HOME) the rules of encierro.escribibles, when the envelope or the review
+// starts: principal is the main checkout and comunGit the git common
+// directory. It returns the first that breaks, in Escribe's order:
+//
+//   - `encierro: <provider> escribe <ruta>: es todo el disco o todo el directorio personal: no puede ser escribible`,
+//     for `/` or the $HOME, after filepath.Clean;
+//   - `encierro: <provider> escribe <ruta>: contiene o esta dentro del checkout principal o del directorio comun de git: no puede ser escribible`,
+//
+// <ruta> as the provider declares it. The envelope then refuses in `run`
+// (exit 1, without launching) and the review before its first pass (exit 1,
+// no record), like Validar's errors.
+func ValidarEscribe(provider string, escribe []string, principal, comunGit string) error {
+	return nil
 }
 
 // VariablesQuitadas are the variables Entorno takes out of the environment:

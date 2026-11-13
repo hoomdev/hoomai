@@ -232,6 +232,16 @@ func MaterialDelVeredicto(v *verdict.Verdict) []string {
 	return nil
 }
 
+// GitAjenoDelVeredicto (ronda 1, aclaracion 20) lists the paths of the gate
+// verifycmd.GateGitAjeno of v when it is in fail (one per line of its
+// output), nil otherwise: the writer's envelope then closes in verify with
+// the git-ajeno finding (DeGitAjeno, so the pilot marks TocoGitAjeno), and
+// the pilot's cerrar-hallazgos stops with its red-verdict text before its
+// save.
+func GitAjenoDelVeredicto(v *verdict.Verdict) []string {
+	return nil
+}
+
 // unir is the sorted union of a and b, without repeats.
 func unir(a, b []string) []string {
 	visto := map[string]bool{}

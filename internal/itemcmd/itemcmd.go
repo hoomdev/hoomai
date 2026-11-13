@@ -888,6 +888,18 @@ func ErrHookCambioMaterial(rutas []string) string {
 	return "un hook del guardado cambio el material de git: " + strings.Join(rutas, ", ") + ": no guardo"
 }
 
+// ErrHookCambioConfig (ronda 1, aclaracion 21) is what SaveTarea answers,
+// once it undid its commit, when the agents' config of the task's tree
+// changed between its first git and its last (agentcmd.FotoConfigAgentes,
+// also what a hook leaves untracked: `.claude/settings.json`, `.mcp.json`,
+// `.codex/`):
+// `un hook del guardado cambio la config de los agentes: <ruta>: no guardo`,
+// <ruta> being the paths, as agentcmd.CambiosConfigAgentes names them,
+// joined with ", ".
+func ErrHookCambioConfig(rutas []string) string {
+	return ""
+}
+
 // ErrGitAjeno is what SaveTarea of the card slug answers, once it undid its
 // commit, when git changed outside its branch around it
 // (agentcmd.RuleGitAjeno):

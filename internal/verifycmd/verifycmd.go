@@ -50,7 +50,8 @@ type Options struct {
 //     (materialgit.TomarConTope, the photograph of agentcmd.FotoMaterialGit)
 //     is photographed before the first gate and after the last,
 //     gates_sin_encierro included. When it changed, the verdict carries one
-//     more gate, GateMaterialDeGit.
+//     more gate, GateMaterialDeGit; git-ajeno too (ronda 1, aclaracion 20),
+//     with the gate GateGitAjeno.
 //
 // The gates' view adds no provider's state: they have no provider. Their
 // level is the system's (encierro.Nivel without a provider): ninguno without
@@ -64,7 +65,21 @@ type Sobre struct {
 	// Rol is the role of the envelope whose view the gates get: "writer" in
 	// cerrar-hallazgos.
 	Rol string
+	// Ciego (ronda 1, a8ef36) is the test-writer's blind tree, when Rol is
+	// the test-writer: its gates write only there, when it still exists, and
+	// in the cache `verify`; the manifest's tree (the implementation) stays
+	// read-only. "" with the test-writer = no blind tree left.
+	Ciego string
 }
+
+// GateGitAjeno (ronda 1, aclaracion 20) is the gate a verify with
+// Options.Sobre adds to its verdict when git changed outside the task's
+// branch during its gates (agentcmd.RuleGitAjeno, photographed before the
+// first gate and after the last, like the git material): required, status
+// fail, scope full, its output the paths agentcmd.CambiosGitAjeno names, one
+// per line. The verdict is then red, and no reader of verdicts takes it as
+// green.
+const GateGitAjeno = "git_ajeno"
 
 // GateMaterialDeGit is the gate a verify with Options.Sobre adds to its
 // verdict when the git material of its tree changed during its gates:

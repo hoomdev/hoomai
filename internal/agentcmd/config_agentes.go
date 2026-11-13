@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
@@ -70,6 +71,24 @@ func DeConfigDeAgentes(f finding.Finding, rol string) bool {
 // file. ProtegidoAusente for what is not there, HuellaIlegible for what
 // could not be read.
 type ConfigAgentes map[string]string
+
+// TopeFotoConfigAgentes and MaxLeidoConfigAgentes (ronda 1, decision 27)
+// bound each photograph of the agents' config (FotoConfigAgentes): its time
+// (the walks of `.claude/`, `.codex/` and EnArbol included), and the bytes
+// of one JSON file of Corre it decodes. A photograph that passes its time is
+// unfinished: its one entry FotoSinTerminar, and CambiosConfigAgentes against
+// it gives [FotoSinTerminar]; a JSON file larger than MaxLeidoConfigAgentes
+// is not decoded, and its Huella is materialgit's (Grande). Never hangs.
+const (
+	TopeFotoConfigAgentes       = 10 * time.Second
+	MaxLeidoConfigAgentes int64 = 16 << 20
+)
+
+// FotoConfigAgentesConTope is FotoConfigAgentes within tope and maxLeido
+// bytes of each JSON file.
+func FotoConfigAgentesConTope(dir string, tope time.Duration, maxLeido int64) ConfigAgentes {
+	return ConfigAgentes{}
+}
 
 // FotoConfigAgentes photographs the agents' config of the tree dir: in the
 // tree, `.claude/`, `.codex/`, `.mcp.json` and the EnArbol of every provider

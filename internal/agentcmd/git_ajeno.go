@@ -119,6 +119,29 @@ func FotoGitAjeno(dir string) GitAjeno {
 	return foto
 }
 
+// TopeFotoGitAjeno and MaxLeidoGitAjeno (ronda 1, decision 27) bound each
+// photograph of git-ajeno (FotoGitAjeno) and each comparison
+// (CambiosGitAjeno): its time, and the bytes it hashes (loose objects, packs
+// and indexes). A photograph that passes its time is unfinished, and against
+// it any comparison gives FotoSinTerminar; a loose object beyond the bytes
+// of the photograph is kept without its hash (it counts as changed if it is
+// touched); a comparison that passes its time adds FotoSinTerminar, and a
+// changed file beyond its bytes counts as changed, by its path. Never hangs.
+const (
+	TopeFotoGitAjeno       = 10 * time.Second
+	MaxLeidoGitAjeno int64 = 1 << 30
+)
+
+// FotoGitAjenoConTope is FotoGitAjeno within tope and maxLeido bytes.
+func FotoGitAjenoConTope(dir string, tope time.Duration, maxLeido int64) GitAjeno {
+	return GitAjeno{}
+}
+
+// CambiosGitAjenoConTope is CambiosGitAjeno within tope and maxLeido bytes.
+func CambiosGitAjenoConTope(antes GitAjeno, tope time.Duration, maxLeido int64) []string {
+	return nil
+}
+
 // CambiosGitAjeno looks again at the git common directory antes photographed
 // and lists, sorted, what breaks RuleGitAjeno since then: each ref under
 // refs/replace/ created, moved or removed, loose or packed, named
