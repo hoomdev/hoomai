@@ -823,11 +823,13 @@ var TopeGit = 5 * time.Minute
 // commit, rev-parse HEAD) runs bounded by TopeGit in a process group of its
 // own (aclaraciones 17 y 19). The repository's hooks run, as in any commit
 // of it (aclaracion 23): one that refuses fails the save, one that never
-// ends is cut with its group. A save that fails leaves the branch where it
-// was (deshacer), and the commit holds exactly the paths that were unsaved
-// when it started: one a hook slips in, or a protected test of the task
-// that changes meanwhile, fails it (revisarCommit, aclaracion 24). base and
-// blockOn are not needed for that.
+// ends is cut with its group. A save that fails leaves the task's branch
+// where it was (deshacer): only that branch, the one HEAD named when it
+// started, and only while its tip is this save's commit (aclaracion 26).
+// The commit holds exactly the paths that were unsaved when it started:
+// one a hook slips in or takes out, or a protected test of the task that
+// changes meanwhile, fails it (revisarCommit, aclaraciones 24 y 26). base
+// and blockOn are not needed for that.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
 	dir, err := tareaGuardable(root, slug)
 	if err != nil {
@@ -911,34 +913,36 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 		}
 		return SaveResult{}, fmt.Errorf("espera a que termine %s que esta trabajando", quien)
 	}
-	// what the save checks its commit against (aclaracion 24): where the
-	// branch was and the task's protected tests, on disk and in the index
+	// what the save checks its commit against (aclaraciones 24 y 26): the
+	// branch HEAD names before any hook runs and where it was, and the
+	// task's protected tests, on disk and in the index
 	prot, err := agentcmd.TestsProtegidos(root, slug)
 	if err != nil {
 		return res, fmt.Errorf("no pude leer los tests protegidos de la tarea: %w", err)
 	}
-	antes, err := g.correr(dir, nil, "rev-parse", "--verify", "HEAD")
+	s, err := empezarGuardado(dir, g, slug, res.Message)
 	if err != nil {
-		return res, fmt.Errorf("no pude ver HEAD antes de guardar: %s", motivoGit(antes, err))
+		return res, err
 	}
 	foto, err := fotoProtegidos(dir, g, prot)
 	if err != nil {
 		return res, err
 	}
-	// the index entry the save itself staged for each protected test it
-	// asks for, which its commit must keep (aclaracion 24): a hook may
-	// stage another blob for it without touching the disk
-	pedidos := enComun(prot, local)
+	// the index entry the save itself staged for each path it asks for,
+	// once staged and before its commit: the commit must bring every one
+	// (aclaracion 26) and keep the blob of a protected test (aclaracion
+	// 24), which a hook may restage without touching the disk
+	var stageados map[string]string
 	sha, err := commitPaths(dir, res.Message, local, g, func() error {
 		var err error
-		foto.stageados, err = entradasDe(dir, g, "", pedidos)
+		stageados, err = entradasDe(dir, g, "", local)
 		return err
 	})
 	if err == nil {
-		err = revisarCommit(dir, g, antes, sha, local, foto)
+		err = revisarCommit(dir, g, s, sha, local, stageados, foto)
 	}
 	if err != nil {
-		return res, deshacer(dir, g, antes, err)
+		return res, deshacer(dir, g, s, err)
 	}
 	paths := make([]string, len(local))
 	for i, l := range local {
@@ -955,9 +959,58 @@ type protegidosDelGuardado struct {
 	rutas  []string
 	disco  agentcmd.Protegidos
 	indice map[string]string
-	// stageados is entradasDe of the protected tests the save asks for, in
-	// the index once the save staged them and before its commit
-	stageados map[string]string
+}
+
+// guardado is what a save of the card knows of the commit it is about to
+// make (aclaracion 26): the branch HEAD named when it started, before any
+// hook ran (rama, a full ref), where that branch was (antes) and the
+// message it commits with.
+type guardado struct {
+	rama, antes, mensaje string
+}
+
+// empezarGuardado reads, from gits of the save that run no hook, the branch
+// the save of the card slug commits on: the one HEAD names, which must be
+// the task's refs/heads/hoom/<slug> (runcmd.TaskDir's ErrOtraRama
+// otherwise), and its tip.
+func empezarGuardado(dir string, g gitDelGuardado, slug, mensaje string) (guardado, error) {
+	s := guardado{rama: "refs/heads/hoom/" + slug, mensaje: mensaje}
+	ref, err := g.correr(dir, nil, "symbolic-ref", "-q", "HEAD")
+	if errors.Is(err, errTopeGit) || err != nil && ref != "" {
+		return guardado{}, fmt.Errorf("no pude ver la rama de la tarea antes de guardar: %s", motivoGit(ref, err))
+	}
+	if ref != s.rama {
+		return guardado{}, fmt.Errorf("%w: la tarea %q no esta en hoom/%s: no guardo", runcmd.ErrOtraRama, slug, slug)
+	}
+	s.antes, err = g.correr(dir, nil, "rev-parse", "--verify", s.rama)
+	if err != nil {
+		return guardado{}, fmt.Errorf("no pude ver la punta de hoom/%s antes de guardar: %s", slug, motivoGit(s.antes, err))
+	}
+	return s, nil
+}
+
+// nombre is the save's branch as git shows it: hoom/<slug>.
+func (s guardado) nombre() string {
+	return strings.TrimPrefix(s.rama, "refs/heads/")
+}
+
+// esSuyo says whether the commit c is the one this save created: its only
+// parent is antes and the first line of its message is the save's (a
+// commit-msg hook may add trailers below). It reads the object only.
+func (s guardado) esSuyo(dir string, g gitDelGuardado, c string) (bool, error) {
+	raw, err := g.listado(dir, "cat-file", "commit", c)
+	if err != nil {
+		return false, err
+	}
+	cabecera, mensaje, _ := strings.Cut(string(raw), "\n\n")
+	var padres []string
+	for _, l := range strings.Split(cabecera, "\n") {
+		if p, ok := strings.CutPrefix(l, "parent "); ok {
+			padres = append(padres, p)
+		}
+	}
+	primera, _, _ := strings.Cut(mensaje, "\n")
+	return len(padres) == 1 && padres[0] == s.antes && strings.TrimSpace(primera) == s.mensaje, nil
 }
 
 func fotoProtegidos(dir string, g gitDelGuardado, rutas []string) (protegidosDelGuardado, error) {
@@ -989,21 +1042,39 @@ func indiceDe(dir string, g gitDelGuardado, rutas []string) (map[string]string, 
 	return idx, nil
 }
 
-// revisarCommit checks that the save's commit sha holds what the save asked
-// for and nothing a hook slipped in (aclaracion 24): its one parent is antes,
-// every path it changes is one of pedidas, and no protected test of the task
+// revisarCommit checks that the save's commit sha is where the save put it
+// and holds what the save asked for and nothing a hook slipped in
+// (aclaraciones 24 y 26): HEAD still names the save's branch, whose tip is
+// sha, this save's commit (guardado.esSuyo); every path it changes is one of
+// pedidas, and it changes every one of them whose entry the save staged
+// (stageados) is not the one in antes; and no protected test of the task
 // changed during the save: on disk, nor in the index unless it is one of
 // pedidas (staging those is the save's own doing). For those, the commit
-// keeps the mode and blob the save staged (foto.stageados): another one is
-// a hook's, whatever the disk says.
-func revisarCommit(dir string, g gitDelGuardado, antes, sha string, pedidas []string, foto protegidosDelGuardado) error {
-	padres, err := g.correr(dir, nil, "rev-list", "--parents", "-n", "1", sha)
+// keeps the mode and blob the save staged: another one is a hook's, whatever
+// the disk says.
+func revisarCommit(dir string, g gitDelGuardado, s guardado, sha string, pedidas []string, stageados map[string]string, foto protegidosDelGuardado) error {
+	ref, err := g.correr(dir, nil, "symbolic-ref", "-q", "HEAD")
+	if errors.Is(err, errTopeGit) || err != nil && ref != "" {
+		return fmt.Errorf("no pude revisar el commit del guardado: %s", motivoGit(ref, err))
+	}
+	if ref != s.rama {
+		return fmt.Errorf("durante el guardado HEAD dejo de nombrar %s", s.nombre())
+	}
+	punta, err := g.correr(dir, nil, "rev-parse", "--verify", s.rama)
 	if err != nil {
-		return fmt.Errorf("no pude revisar el commit del guardado: %s", motivoGit(padres, err))
+		return fmt.Errorf("no pude revisar el commit del guardado: %s", motivoGit(punta, err))
 	}
-	if f := strings.Fields(padres); len(f) != 2 || f[1] != antes {
-		return fmt.Errorf("el commit del guardado %s no sale de %s", short(sha), short(antes))
+	if punta != sha {
+		return fmt.Errorf("la punta de %s es %s y no el commit del guardado %s", s.nombre(), short(punta), short(sha))
 	}
+	suyo, err := s.esSuyo(dir, g, sha)
+	if err != nil {
+		return fmt.Errorf("no pude revisar el commit del guardado: %w", err)
+	}
+	if !suyo {
+		return fmt.Errorf("el commit %s no es el de este guardado: no sale de %s con su mensaje", short(sha), short(s.antes))
+	}
+	antes := s.antes
 	out, err := g.listado(dir, "-c", "core.quotePath=false", "diff-tree", "-r", "--no-commit-id",
 		"--name-only", "--no-renames", "-z", antes, sha)
 	if err != nil {
@@ -1022,6 +1093,23 @@ func revisarCommit(dir string, g gitDelGuardado, antes, sha string, pedidas []st
 	if len(extra) > 0 {
 		return fmt.Errorf("el commit del guardado trae rutas que no pidio: %q", extra)
 	}
+	enAntes, err := entradasDe(dir, g, antes, pedidas)
+	if err != nil {
+		return err
+	}
+	enCommit, err := entradasDe(dir, g, sha, pedidas)
+	if err != nil {
+		return err
+	}
+	var faltan []string
+	for _, p := range pedidas {
+		if stageados[p] != enAntes[p] && enCommit[p] == enAntes[p] {
+			faltan = append(faltan, p)
+		}
+	}
+	if len(faltan) > 0 {
+		return fmt.Errorf("el commit del guardado no trae rutas que pidio: %q", faltan)
+	}
 	disco := agentcmd.FotoProtegidos(dir, foto.rutas)
 	idx, err := indiceDe(dir, g, foto.rutas)
 	if err != nil {
@@ -1032,13 +1120,8 @@ func revisarCommit(dir string, g gitDelGuardado, antes, sha string, pedidas []st
 			return fmt.Errorf("durante el guardado cambio el test protegido %q", p)
 		}
 	}
-	pedidos := enComun(foto.rutas, pedidas)
-	enCommit, err := entradasDe(dir, g, sha, pedidos)
-	if err != nil {
-		return err
-	}
-	for _, p := range pedidos {
-		if enCommit[p] != foto.stageados[p] {
+	for _, p := range enComun(foto.rutas, pedidas) {
+		if enCommit[p] != stageados[p] {
 			return fmt.Errorf("el commit del guardado no trae el test protegido %q que stageo el guardado", p)
 		}
 	}
@@ -1093,24 +1176,34 @@ func enComun(a, b []string) []string {
 	return out
 }
 
-// deshacer leaves the task's branch where it was when the save failed with
-// err (aclaracion 24): if HEAD is no longer antes (git had made the commit,
-// or more), it moves it back with an update-ref conditioned on the value it
-// has now, bounded and in its group like every git of the save (the
+// deshacer leaves the task's branch where it was when the save s failed
+// with err (aclaraciones 24 y 26). It moves s.rama, the branch HEAD named
+// when the save started, never HEAD nor another branch a hook made HEAD
+// name, and only when its tip is this save's commit (guardado.esSuyo): with
+// a commit on top of it, or any other tip, it stays where it is and the
+// error says so. The move is an update-ref of the ref itself conditioned on
+// that tip, bounded and in its group like every git of the save (the
 // reference-transaction hook runs there too). The error is err, and says
-// whether the branch went back or why it could not.
-func deshacer(dir string, g gitDelGuardado, antes string, err error) error {
-	ahora, rerr := g.correr(dir, nil, "rev-parse", "--verify", "HEAD")
+// whether the branch went back or why it did not.
+func deshacer(dir string, g gitDelGuardado, s guardado, err error) error {
+	punta, rerr := g.correr(dir, nil, "rev-parse", "--verify", s.rama)
 	if rerr != nil {
-		return fmt.Errorf("%w; y no pude ver donde quedo la rama: %s", err, motivoGit(ahora, rerr))
+		return fmt.Errorf("%w; y no pude ver donde quedo %s: %s", err, s.nombre(), motivoGit(punta, rerr))
 	}
-	if ahora == antes {
+	if punta == s.antes {
 		return err
 	}
-	if out, uerr := g.correr(dir, nil, "update-ref", "-m", "hoom: deshace un guardado que fallo", "HEAD", antes, ahora); uerr != nil {
-		return fmt.Errorf("%w; y no pude devolver la rama de %s a %s: %s", err, short(ahora), short(antes), motivoGit(out, uerr))
+	suyo, serr := s.esSuyo(dir, g, punta)
+	if serr != nil {
+		return fmt.Errorf("%w; y no pude ver si la punta de %s es el commit de este guardado: %v", err, s.nombre(), serr)
 	}
-	return fmt.Errorf("%w; la rama vuelve a %s", err, short(antes))
+	if !suyo {
+		return fmt.Errorf("%w; la punta de %s (%s) no es el commit de este guardado: no la muevo", err, s.nombre(), short(punta))
+	}
+	if out, uerr := g.correr(dir, nil, "update-ref", "--no-deref", "-m", "hoom: deshace un guardado que fallo", s.rama, s.antes, punta); uerr != nil {
+		return fmt.Errorf("%w; y no pude devolver %s de %s a %s: %s", err, s.nombre(), short(punta), short(s.antes), motivoGit(out, uerr))
+	}
+	return fmt.Errorf("%w; %s vuelve a %s", err, s.nombre(), short(s.antes))
 }
 
 // motivoGit is why a git of the save failed: its bound, or what it said.
