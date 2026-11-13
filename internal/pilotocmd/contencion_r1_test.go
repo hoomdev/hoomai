@@ -183,8 +183,10 @@ func TestR1_f83160_CA684_SinBwrapElGuardadoConLaSeccionNoFirma(t *testing.T) {
 
 // ---------------------------------------------------------------- punto 9
 
-// r1NoVolvio reconoce un texto que dice que la rama no volvio.
-var r1NoVolvio = regexp.MustCompile(`(?i)\bno (volvi|vuelve|pudo volver|se pudo volver|regres)`)
+// r1NoVolvio reconoce un texto que dice que la rama no volvio, incluida la
+// frase que el deshacer ya usaba antes de esta tarea: `; y no pude devolver
+// <rama> de <sha> a <sha>: <motivo>` (ronda 1b).
+var r1NoVolvio = regexp.MustCompile(`(?i)\bno (volvi|vuelve|pudo volver|se pudo volver|regres|pude devolver \S+ de [0-9a-f]+ a [0-9a-f]+: )`)
 
 // CA-688 (id 7adc7b): un hook del guardado que cambia el material de git y
 // ademas impide que la rama vuelva: el error empieza con

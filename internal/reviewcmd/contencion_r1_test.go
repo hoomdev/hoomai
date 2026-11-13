@@ -107,8 +107,11 @@ func TestR1_425a75_CA690_CA678_LaReviewValidaElEscribeDelProvider(t *testing.T) 
 	// control: un Escribe valido corre como hoy (la pasada lanza su CLI)
 	root, _, opt := cdwTarea(t, "encierro:\n  exigir: no\n")
 	opt.Provider = r1RevNombre
-	r1RevPoner(t, []string{t.TempDir(), "~/.r1-revisa/sesiones"})
-	marca := filepath.Join(t.TempDir(), "invocado")
+	// la marca va dentro del primer Escribe: el Escribe valido es escribible
+	// para la pasada (ronda 1b)
+	escribible := t.TempDir()
+	r1RevPoner(t, []string{escribible, "~/.r1-revisa/sesiones"})
+	marca := filepath.Join(escribible, "invocado")
 	fakeProvider(t, r1RevNombre, "echo x >> '"+marca+"'\nexit 0\n")
 	res, out, err := cdwRevisar(t, root, opt)
 	if !cdwExiste(marca) || strings.Contains(out, "no puede ser escribible") || (err != nil && strings.Contains(err.Error(), "no puede ser escribible")) {

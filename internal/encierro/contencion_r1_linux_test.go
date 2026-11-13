@@ -4,8 +4,9 @@
 // de codex sobre el encierro de Linux, directo con VistaDe, Envolver,
 // Arrancar y Comprobar: la administracion del principal (fab30f), Windows sin
 // job simulado con ReemplazarAdopcion (aclaracion 22) y la carrera entre el
-// arranque y la gracia (69b8a2). Sin bwrap fallan, no se saltan
-// (aclaracion 1).
+// arranque y la gracia (69b8a2); en la ronda 1b, la gracia de los
+// descendientes cuando el principal muere (a5c166). Sin bwrap fallan, no se
+// saltan (aclaracion 1).
 package encierro_test
 
 import (
@@ -280,4 +281,142 @@ func TestR1_69b8a2_CA679_CanceladoEnSeguidaRecibeSIGTERMYSuGracia(t *testing.T) 
 			t.Fatalf("%s: vuelta %d: termina en un tiempo acotado: %s", ca, vuelta, dur)
 		}
 	}
+}
+
+// ---------------------------------------------------------------- a5c166
+
+// r1HijoConTrap es el hijo con trap de TERM: duerme 0.3 s dentro de su
+// gracia y deja la marca term en su arbol. DIR es su arbol, ya citado.
+const r1HijoConTrap = "d=DIR\n" +
+	"trap 'sleep 0.3; echo term > \"$d/term\"; exit 0' TERM\n" +
+	": > \"$d/listo\"\n" +
+	"while :; do sleep 0.05; done\n"
+
+// r1HijoQueIgnora es el hijo que ignora TERM: solo el SIGKILL lo termina.
+const r1HijoQueIgnora = "d=DIR\n" +
+	"trap '' TERM\n" +
+	": > \"$d/listo\"\n" +
+	"while :; do sleep 0.05; done\n"
+
+// r1HijoConGracia corre encerrado, con Envolver y Arrancar(cmd, gracia), un
+// principal SIN trap (muere apenas recibe SIGTERM) que lanza el hijo y lo
+// espera. El hijo lleva en su argv <tok>-hijo, que solo el tiene (se arma
+// adentro). Cuando el hijo dejo su marca listo (su trap ya esta puesto)
+// cancela el contexto: asi no hay carrera con el arranque. Devuelve el
+// arbol, el token, el momento de cancelar y un canal que se cierra cuando
+// Wait y Liberar volvieron.
+func r1HijoConGracia(t *testing.T, ca string, info encierro.Info, hijo string, gracia time.Duration) (dir, tok string, cancelado time.Time, hecho <-chan struct{}) {
+	t.Helper()
+	v := cdwVistaSimple(t)
+	tok = cdwToken()
+	t.Cleanup(func() { cdwMatar(tok) })
+	script := filepath.Join(v.Dir, "hijo.sh")
+	cdwEscribir(t, script, strings.ReplaceAll(hijo, "DIR", r1q(v.Dir)))
+	salida, err := os.Create(filepath.Join(cdwDir(t), "salida"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { salida.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "sh "+r1q(script)+" \"$0-hijo\" &\nwait\n", tok)
+	cmd.Dir = v.Dir
+	cmd.Stdout, cmd.Stderr = salida, salida
+	cmd.WaitDelay = 20 * time.Second
+	if err := encierro.Envolver(cmd, encierro.Plan{Info: info, Vista: v}); err != nil {
+		t.Fatalf("%s: Envolver: %v", ca, err)
+	}
+	if err := encierro.Arrancar(cmd, gracia); err != nil {
+		t.Fatalf("%s: Arrancar: %v", ca, err)
+	}
+	fin := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		encierro.Liberar(cmd)
+		close(fin)
+	}()
+	hasta := time.Now().Add(15 * time.Second)
+	for {
+		if _, ok := cdwLeer(filepath.Join(v.Dir, "listo")); ok {
+			break
+		}
+		if time.Now().After(hasta) {
+			cancel()
+			raw, _ := os.ReadFile(salida.Name())
+			t.Fatalf("%s: fixture: el hijo arranca y pone su trap (no dejo listo en 15 s): %s", ca, raw)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(cdwConToken(tok+"-hijo")) == 0 {
+		cancel()
+		t.Fatalf("%s: fixture: el hijo se ve desde afuera con %s-hijo en su argv", ca, tok)
+	}
+	cancelado = time.Now()
+	cancel()
+	return v.Dir, tok, cancelado, fin
+}
+
+// r1Esperar dice si hecho se cerro a mas tardar en hasta.
+func r1Esperar(hecho <-chan struct{}, hasta time.Time) bool {
+	select {
+	case <-hecho:
+		return true
+	case <-time.After(time.Until(hasta)):
+	}
+	select {
+	case <-hecho:
+		return true
+	default:
+		return false
+	}
+}
+
+// CA-679 y CA-684 (hallazgo a5c166): cuando el proceso principal del
+// encierro muere por su SIGTERM, el encierro no se desarma con sus
+// descendientes adentro: el hijo con trap de TERM recibe su SIGTERM y tiene
+// su gracia (su marca aparece), todo termina dentro de la gracia mas un
+// margen y no queda nadie vivo. Determinista: se cancela cuando el trap del
+// hijo ya esta puesto. Cinco veces en el mismo test.
+func TestR1_a5c166_CA679_CA684_ElHijoTieneSuGraciaAunqueElPrincipalMuera(t *testing.T) {
+	const ca = "CA-679"
+	const gracia, margen = 2 * time.Second, 3 * time.Second
+	info := cdwInfo(t, ca)
+	for vuelta := 0; vuelta < 5; vuelta++ {
+		que := "vuelta " + strconv.Itoa(vuelta)
+		dir, tok, cancelado, hecho := r1HijoConGracia(t, ca, info, r1HijoConTrap, gracia)
+		hasta := cancelado.Add(gracia + margen)
+		if !r1Esperar(hecho, hasta) {
+			t.Fatalf("%s: %s: el encierro termina dentro de la gracia mas un margen (%s desde cancelar)", ca, que, gracia+margen)
+		}
+		for {
+			if _, ok := cdwLeer(filepath.Join(dir, "term")); ok {
+				break
+			}
+			if time.Now().After(hasta) {
+				t.Fatalf("%s: %s: el hijo recibe su SIGTERM y tiene su gracia aunque el principal muera: su trap no dejo la marca (a los %s de cancelar)",
+					ca, que, time.Since(cancelado))
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		cdwNadieVivo(t, ca, que+": al terminar", tok, time.Until(hasta))
+	}
+}
+
+// CA-679 y CA-684 (hallazgo a5c166), control: el hijo que ignora TERM sigue
+// vivo a mitad de la gracia aunque el principal ya murio, el SIGKILL le
+// llega al vencerla, y dentro de la gracia mas un margen no queda nadie vivo.
+func TestR1_a5c166_CA679_CA684_ElHijoQueIgnoraTERMRecibeSIGKILLAlVencerLaGracia(t *testing.T) {
+	const ca = "CA-679"
+	const gracia, margen = 2 * time.Second, 3 * time.Second
+	info := cdwInfo(t, ca)
+	_, tok, cancelado, hecho := r1HijoConGracia(t, ca, info, r1HijoQueIgnora, gracia)
+	time.Sleep(time.Until(cancelado.Add(gracia / 2)))
+	if len(cdwConToken(tok+"-hijo")) == 0 {
+		t.Fatalf("%s: el hijo que ignora TERM sigue vivo a mitad de la gracia: el SIGKILL llega al vencerla, no antes (%s desde cancelar)", ca, time.Since(cancelado))
+	}
+	hasta := cancelado.Add(gracia + margen)
+	if !r1Esperar(hecho, hasta) {
+		t.Fatalf("%s: el encierro termina dentro de la gracia mas un margen (%s desde cancelar)", ca, gracia+margen)
+	}
+	cdwNadieVivo(t, ca, "el hijo que ignora TERM, al vencer la gracia", tok, time.Until(hasta))
 }
