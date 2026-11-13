@@ -848,8 +848,9 @@ var TopeGit = 5 * time.Minute
 //     with the writer's view of the task's tree, the cache `guardado`
 //     (encierro.Cache(root, slug, encierro.QuienGuardado)), TopeGit and the
 //     gracia of graciaGit (SIGTERM to what runs inside, so git drops its
-//     index.lock, and only then the end of the encierro), and with
-//     commit.gpgsign=false (no gpg nor ssh agent inside to sign);
+//     index.lock, and only then the end of the encierro); with the section,
+//     at any level, every git of the save carries commit.gpgsign=false (no
+//     gpg nor ssh agent inside to sign: the pilot's saves stay unsigned);
 //   - with the section or without it, it photographs the git material of the
 //     task's tree (agentcmd.FotoMaterialGit) before its first git and after
 //     its last, and git-ajeno (agentcmd.FotoGitAjeno) around itself: a change
@@ -974,6 +975,10 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 		if !encierro.Alcanza(info.Nivel, pol.Exigir) {
 			return SaveResult{}, errors.New(ErrExigirDelGuardado(info.Nivel, pol.Exigir))
 		}
+		// the pilot's saves stay unsigned at any level: no gpg nor ssh agent
+		// is reachable from inside, and the person signs when integrating
+		// (contencion-del-writer, decision 7; ronda 1, f83160)
+		g.opciones = append(g.opciones, "-c", "commit.gpgsign=false")
 		if info.Mecanismo == encierro.MecanismoBwrap {
 			perfil := ""
 			if m, err := manifest.Load(dir, profiles.Resolve); err == nil {
@@ -985,9 +990,6 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 				return SaveResult{}, err
 			}
 			g.plan = &encierro.Plan{Info: info, Vista: vista}
-			// no gpg nor ssh agent inside to sign: the person signs when
-			// integrating (contencion-del-writer, decision 7)
-			g.opciones = append(g.opciones, "-c", "commit.gpgsign=false")
 		}
 	}
 	material := agentcmd.FotoMaterialGit(dir)
