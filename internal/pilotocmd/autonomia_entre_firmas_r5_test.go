@@ -151,15 +151,29 @@ func TestHallazgo048c45_CA638_CA644_UnHookNoCuelaNadaEnElGuardado(t *testing.T) 
 	}
 }
 
-// Hallazgo 20261113T030054_048c45 (CA-638, CA-644, aclaracion 24), de punta
-// a punta: el hook lo instala un run de writer (CLI falso) en el directorio
-// de hooks comun del repo, que su gate no mira, junto con un cambio de
-// codigo, y su sobre no corta por tests-del-test-writer. Despues el
-// guardado del piloto corre ese hook, que edita el test protegido y lo
-// agrega: el guardado falla, la rama queda donde estaba y el test protegido
-// en HEAD sigue como estaba.
+// Hallazgo 20261113T030054_048c45 (CA-638, CA-644), de punta a punta: un
+// run de writer (CLI falso, lanzado como por el piloto) instala un
+// pre-commit en el directorio de hooks comun del repo de la tarea, un hook
+// que editaria el test protegido y lo agregaria, junto con un cambio de
+// codigo, sin tocar el test protegido.
+//
+// Re-expresado por la aclaracion 25 (ronda 6b), que es decision de la
+// persona: antes este test exigia que el guardado del piloto corriera ese
+// hook y fallara con `no pudo guardar` (aclaracion 24). Con la aclaracion 25
+// cambiar el directorio de hooks es cambiar el material de git de la tarea,
+// asi que ahora exige: el sobre del writer corta en `scope`, `no-entregable`,
+// exit 1, sin veredicto, con un hallazgo high abierto del gate de scope
+// (agentcmd.AutorGateDeScope) que nombra hooks/pre-commit; `hoom piloto` se
+// detiene con exit 1 y el Why del caso 8, sin linea de guardado, y el hook no
+// corre (su marca no aparece). Sigue exigiendo lo que vale de antes: el
+// writer no toco el test protegido y su sobre no lleva la nota de
+// tests-del-test-writer, no hay commit nuevo (HEAD y la rama donde estaban),
+// el test protegido en HEAD queda como estaba y el piloto suelta su candado.
+// TestHallazgos8e2d38_88ed5f_d908ff_CA638_CA644_ElPilotoNoGuardaDespuesDeUnHookDelWriter
+// (ronda 6) cubre lo mismo desde el piloto; este conserva el hook que cuela
+// el test protegido.
 func TestHallazgo048c45_CA638_CA644_ElHookQueDejaUnWriterNoCuelaElTestProtegido(t *testing.T) {
-	const ca = "048c45/CA-638/CA-644 (punta a punta)"
+	const ca = "048c45/CA-638/CA-644 (punta a punta, aclaracion 25)"
 	f := apPATH(t)
 	root, wt, slug := apr5Protegida(t, ca)
 	corrio := filepath.Join(t.TempDir(), "corrio")
@@ -167,6 +181,15 @@ func TestHallazgo048c45_CA638_CA644_ElHookQueDejaUnWriterNoCuelaElTestProtegido(
 	apr1Fake(t, f, "claude", "h=$(git rev-parse --git-path hooks/pre-commit)\nmkdir -p \"$(dirname \"$h\")\"\n"+
 		"cat > \"$h\" <<'HOOM_HOOK'\n"+hook+"HOOM_HOOK\nchmod +x \"$h\"\n"+
 		"printf 'package app // implementado\\n' > app.go\nexit 0\n")
+	veredictos := func() int {
+		n := 0
+		for _, d := range []string{root, wt} {
+			es, _ := os.ReadDir(filepath.Join(d, ".hoom", "verdicts"))
+			n += len(es)
+		}
+		return n
+	}
+	vAntes := veredictos()
 	var buf bytes.Buffer
 	w, err := agentcmd.Run(root, apBase, agentcmd.Options{Role: "writer", Provider: "claude", Task: slug, Prompt: "implementa el spec",
 		Pilot: true, Columna: boardcmd.ColWriter, Regla: boardcmd.ReglaCadena}, &buf)
@@ -174,7 +197,7 @@ func TestHallazgo048c45_CA638_CA644_ElHookQueDejaUnWriterNoCuelaElTestProtegido(
 		t.Fatalf("%s: fixture: el sobre del writer corre: %v %+v\n%s", ca, err, w, buf.String())
 	}
 	if w.Note == agentcmd.NotaTestsDelTestWriter {
-		t.Fatalf("%s: fixture: el writer no toco ningun test protegido, su sobre no corta por eso: %+v", ca, w)
+		t.Fatalf("%s: el writer no toco ningun test protegido, su sobre no lleva la nota de tests-del-test-writer: %+v", ca, w)
 	}
 	ruta := apGit(t, wt, "rev-parse", "--git-path", "hooks/pre-commit")
 	if !filepath.IsAbs(ruta) {
@@ -186,17 +209,44 @@ func TestHallazgo048c45_CA638_CA644_ElHookQueDejaUnWriterNoCuelaElTestProtegido(
 	if raw, _ := os.ReadFile(filepath.Join(wt, "precios_test.go")); string(raw) != apr5Protegido {
 		t.Fatalf("%s: fixture: el writer no toco el test protegido: %q", ca, raw)
 	}
+	if w.Stage != "scope" || w.Status != envelope.StatusNotDeliverable || w.ExitCode != 1 {
+		t.Fatalf("%s: el writer cambio el directorio de hooks: su sobre corta en scope, no-entregable, exit 1 (aclaracion 25): %+v\n%s", ca, w, buf.String())
+	}
+	if w.VerdictID != "" || veredictos() != vAntes {
+		t.Fatalf("%s: el sobre cortado no deja veredicto: %q (veredictos %d -> %d)", ca, w.VerdictID, vAntes, veredictos())
+	}
+	if _, _, ok := apr6HallazgoDelGate(t, "hooks/pre-commit", wt, root); !ok {
+		t.Fatalf("%s: un hallazgo high abierto de %q cuya descripcion nombra hooks/pre-commit (aclaracion 25)", ca, agentcmd.AutorGateDeScope)
+	}
 	if err := os.Remove(filepath.Join(f.bin, "claude")); err != nil { // el piloto no tiene a quien lanzar
 		t.Fatal(err)
 	}
+	_ = os.Remove(corrio) // se mira solo lo que corre el piloto
 	antes := apr5Mirar(t, root, wt, slug)
 
 	s := apRun(t, ca, root, slug)
-	if !apr1Existe(corrio) {
-		t.Fatalf("%s: fixture: el guardado del piloto corre el hook que dejo el writer:\n%s", ca, s)
+	ls := apSoloLineasDelPiloto(t, ca, s)
+	for _, l := range ls {
+		if apGuarda.MatchString(l) {
+			t.Fatalf("%s: despues del sobre que dejo el hook, el piloto no guarda: %q\n%s", ca, l, s)
+		}
 	}
-	apr5NoGuardo(t, ca, s, antes)
+	if apr1Existe(corrio) {
+		t.Fatalf("%s: el hook que dejo el writer no corre (aclaracion 25):\n%s", ca, s)
+	}
+	want := apDetiene + "el trabajo del writer no cerro entregable (" + envelope.StatusNotDeliverable + "): el piloto se detiene ante un rojo"
+	if s.code != 1 || apUltima(ls) != want {
+		t.Fatalf("%s: se detiene con el Why del caso 8, %q, y exit 1:\n%s", ca, want, s)
+	}
+	if h, r := apHead(t, wt), apGit(t, wt, "rev-parse", "hoom/"+slug); h != antes.head || r != antes.rama {
+		t.Fatalf("%s: ningun commit nuevo en la rama: HEAD %s -> %s, hoom/%s %s -> %s", ca, antes.head, h, slug, antes.rama, r)
+	}
 	apr5ProtegidoIntacto(t, ca, wt)
+	soltar, err := hoomfs.Lock(pilotocmd.Candado(root, slug), 0)
+	if err != nil {
+		t.Fatalf("%s: al detenerse, el piloto suelta su candado: %v", ca, err)
+	}
+	soltar()
 }
 
 // Hallazgos 20261113T030408_1a9510 y 20261113T030719_a808f9 (CA-644,
