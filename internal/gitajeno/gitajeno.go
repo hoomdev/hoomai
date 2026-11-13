@@ -230,7 +230,7 @@ func formatoSha256(comun string) bool {
 }
 
 // refsDeReemplazo reads the refs under refs/replace/ of the common directory
-// comun within pr: packed-refs (its bytes count), then the loose ones over
+// comun within pr: packed-refs (packedDeReemplazo), then the loose ones over
 // them; with the reftable backend, git for-each-ref (which reads no working
 // tree). errVencido when pr's time passes; another error when they cannot be
 // read.
@@ -251,27 +251,7 @@ func refsDeReemplazo(comun string, pr *presupuesto) (map[string]string, error) {
 		}
 		return refs, nil
 	}
-	if fi, err := os.Lstat(filepath.Join(comun, "packed-refs")); err == nil {
-		if fi.Size() > pr.bytes {
-			return nil, errors.New("gitajeno: packed-refs pasa el tope de bytes")
-		}
-		pr.bytes -= fi.Size()
-		raw, err := os.ReadFile(filepath.Join(comun, "packed-refs"))
-		if err != nil {
-			return nil, err
-		}
-		sc := bufio.NewScanner(bytes.NewReader(raw))
-		sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
-		for sc.Scan() {
-			l := sc.Text()
-			if l == "" || l[0] == '#' || l[0] == '^' {
-				continue
-			}
-			if v, n, ok := strings.Cut(l, " "); ok && strings.HasPrefix(n, "refs/replace/") {
-				refs[n] = v
-			}
-		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	if err := packedDeReemplazo(comun, refs, pr); err != nil {
 		return nil, err
 	}
 	base := filepath.Join(comun, "refs", "replace")
@@ -317,6 +297,70 @@ func refsDeReemplazo(comun string, pr *presupuesto) (map[string]string, error) {
 		return nil, err
 	}
 	return refs, nil
+}
+
+// maxPackedRefs is the most of packed-refs a photograph reads, and
+// maxLineaPacked the longest line: past either, the photograph fails closed
+// (it never reads, nor holds, GBs).
+const (
+	maxPackedRefs  = 256 << 20
+	maxLineaPacked = 64 << 10
+)
+
+// packedDeReemplazo adds to refs the refs under refs/replace/ of the
+// packed-refs of the common directory comun, read line by line (ronda 2,
+// d91180): its bytes come out of pr, it looks at pr's time at every line,
+// and it holds one line at a time. errVencido when pr's time passes; another
+// error (it fails closed) when packed-refs is not a regular file, passes
+// maxPackedRefs or pr's bytes, has a line over maxLineaPacked, or cannot be
+// read. No packed-refs adds nothing.
+func packedDeReemplazo(comun string, refs map[string]string, pr *presupuesto) error {
+	f, err := abrir(filepath.Join(comun, "packed-refs"), true)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !fi.Mode().IsRegular() {
+		return errors.New("gitajeno: packed-refs no es un archivo regular")
+	}
+	tope := min(int64(maxPackedRefs), pr.bytes)
+	if fi.Size() > tope {
+		return errors.New("gitajeno: packed-refs pasa el tope de bytes")
+	}
+	r := bufio.NewReaderSize(io.LimitReader(f, tope+1), maxLineaPacked)
+	var leidos int64
+	defer func() { pr.bytes -= leidos }()
+	for {
+		if pr.vencido() {
+			return errVencido
+		}
+		linea, err := r.ReadSlice('\n')
+		leidos += int64(len(linea))
+		switch {
+		case errors.Is(err, bufio.ErrBufferFull):
+			return errors.New("gitajeno: packed-refs tiene una linea que pasa el tope")
+		case leidos > tope:
+			return errors.New("gitajeno: packed-refs pasa el tope de bytes")
+		case err != nil && !errors.Is(err, io.EOF):
+			return err
+		}
+		l := strings.TrimRight(string(linea), "\r\n")
+		if l != "" && l[0] != '#' && l[0] != '^' {
+			if v, n, ok := strings.Cut(l, " "); ok && strings.HasPrefix(n, "refs/replace/") {
+				refs[n] = v
+			}
+		}
+		if err != nil {
+			return nil // io.EOF: all of it
+		}
+	}
 }
 
 // maxRef is the size up to which a loose ref is read as its value: a ref is
