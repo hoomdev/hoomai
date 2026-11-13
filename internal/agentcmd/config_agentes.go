@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -87,17 +88,8 @@ const (
 // FotoConfigAgentesConTope is FotoConfigAgentes within tope and maxLeido
 // bytes of each JSON file.
 func FotoConfigAgentesConTope(dir string, tope time.Duration, maxLeido int64) ConfigAgentes {
-	return ConfigAgentes{}
-}
-
-// FotoConfigAgentes photographs the agents' config of the tree dir: in the
-// tree, `.claude/`, `.codex/`, `.mcp.json` and the EnArbol of every provider
-// of providers.Default that implements providers.ConEstado; outside it, the
-// Corre of each of them ("~/" being this process's $HOME). It reads files
-// only, never follows a symlink, and runs no git. A JSON value that is null,
-// an empty object or an empty list reads as absent: claude writes
-// `"mcpServers": {}` for each new project, which makes nothing run.
-func FotoConfigAgentes(dir string) ConfigAgentes {
+	limite := time.Now().Add(tope)
+	sinTerminar := ConfigAgentes{FotoSinTerminar: FotoSinTerminar}
 	foto := ConfigAgentes{}
 	enArbol := []string{".claude/", ".codex/", ".mcp.json"}
 	var corre []providers.Corre
@@ -117,7 +109,9 @@ func FotoConfigAgentes(dir string) ConfigAgentes {
 			continue
 		}
 		vistos[rel] = true
-		fotoEnArbol(foto, dir, rel)
+		if !fotoEnArbol(foto, dir, rel, limite) {
+			return sinTerminar
+		}
 	}
 	home, _ := os.UserHomeDir()
 	porArchivo := map[string][]string{}
@@ -138,13 +132,31 @@ func FotoConfigAgentes(dir string) ConfigAgentes {
 		porArchivo[a] = append(porArchivo[a], c.Claves...)
 	}
 	for _, a := range orden {
+		if time.Now().After(limite) {
+			return sinTerminar
+		}
 		if enteros[a] {
 			foto[filepath.ToSlash(a)] = materialgit.Huella(a)
 			continue
 		}
-		foto[filepath.ToSlash(a)] = huellaDeClaves(a, porArchivo[a])
+		foto[filepath.ToSlash(a)] = huellaDeClaves(a, porArchivo[a], maxLeido)
+	}
+	if time.Now().After(limite) {
+		return sinTerminar
 	}
 	return foto
+}
+
+// FotoConfigAgentes photographs the agents' config of the tree dir: in the
+// tree, `.claude/`, `.codex/`, `.mcp.json` and the EnArbol of every provider
+// of providers.Default that implements providers.ConEstado; outside it, the
+// Corre of each of them ("~/" being this process's $HOME). It reads files
+// only, never follows a symlink, and runs no git. A JSON value that is null,
+// an empty object or an empty list reads as absent: claude writes
+// `"mcpServers": {}` for each new project, which makes nothing run. It is
+// bounded by TopeFotoConfigAgentes and MaxLeidoConfigAgentes.
+func FotoConfigAgentes(dir string) ConfigAgentes {
+	return FotoConfigAgentesConTope(dir, TopeFotoConfigAgentes, MaxLeidoConfigAgentes)
 }
 
 // fotoEnArbol adds to foto the entry rel of the tree dir: a directory (rel
@@ -152,8 +164,9 @@ func FotoConfigAgentes(dir string) ConfigAgentes {
 // relative to dir; a file by itself. Never followed. A directory is never an
 // entry of its own: a new empty one changes no config, and one removed or
 // replaced shows by its files or by the symlink (or file) in its place. A
-// directory that cannot be read is HuellaIlegible, by its path with "/".
-func fotoEnArbol(foto ConfigAgentes, dir, rel string) {
+// directory that cannot be read is HuellaIlegible, by its path with "/". It
+// says whether it ended before limite.
+func fotoEnArbol(foto ConfigAgentes, dir, rel string, limite time.Time) bool {
 	esDir := strings.HasSuffix(rel, "/")
 	p := filepath.Join(dir, filepath.FromSlash(strings.TrimSuffix(rel, "/")))
 	fi, err := os.Lstat(p)
@@ -162,15 +175,20 @@ func fotoEnArbol(foto ConfigAgentes, dir, rel string) {
 		if !esDir {
 			foto[rel] = ProtegidoAusente
 		}
-		return
+		return true
 	case err != nil:
 		foto[rel] = HuellaIlegible
-		return
+		return true
 	case !esDir || !fi.IsDir():
 		foto[strings.TrimSuffix(rel, "/")] = materialgit.Huella(p)
-		return
+		return true
 	}
+	termino := true
 	_ = filepath.WalkDir(p, func(q string, e fs.DirEntry, err error) error {
+		if time.Now().After(limite) {
+			termino = false
+			return filepath.SkipAll
+		}
 		r, rerr := filepath.Rel(dir, q)
 		if rerr != nil {
 			return nil
@@ -186,6 +204,7 @@ func fotoEnArbol(foto ConfigAgentes, dir, rel string) {
 		foto[n] = materialgit.Huella(q)
 		return nil
 	})
+	return termino
 }
 
 // expandirHome makes a path of providers.Estado absolute: "~/" is home; a
@@ -209,7 +228,7 @@ func expandirHome(p, home string) string {
 // sorted. A file that is not there, or holds none of them, is the Huella of
 // nothing; one that is not a regular file is materialgit's Huella; one that
 // is not valid JSON is the whole file's.
-func huellaDeClaves(a string, claves []string) string {
+func huellaDeClaves(a string, claves []string, maxLeido int64) string {
 	fi, err := os.Lstat(a)
 	if errors.Is(err, fs.ErrNotExist) {
 		return huellaDeValores(nil)
@@ -217,8 +236,8 @@ func huellaDeClaves(a string, claves []string) string {
 	if err != nil {
 		return HuellaIlegible
 	}
-	if !fi.Mode().IsRegular() {
-		return materialgit.Huella(a)
+	if !fi.Mode().IsRegular() || fi.Size() > maxLeido {
+		return materialgit.Huella(a) // not decoded: too large to read whole
 	}
 	r, err := os.OpenRoot(filepath.Dir(a))
 	if err != nil {
@@ -231,7 +250,7 @@ func huellaDeClaves(a string, claves []string) string {
 	}
 	defer f.Close()
 	var doc any
-	dec := json.NewDecoder(f)
+	dec := json.NewDecoder(io.LimitReader(f, maxLeido))
 	dec.UseNumber()
 	if err := dec.Decode(&doc); err != nil {
 		return "json-invalido:" + materialgit.Huella(a)
@@ -306,8 +325,15 @@ func huellaDeValores(valores map[string]string) string {
 }
 
 // CambiosConfigAgentes lists, sorted, the paths whose entry is not the same
-// in antes and despues: changed, appeared or gone. nil when none.
+// in antes and despues: changed, appeared or gone; [FotoSinTerminar] when
+// either photograph did not end within its bound. nil when none.
 func CambiosConfigAgentes(antes, despues ConfigAgentes) []string {
+	if _, ok := antes[FotoSinTerminar]; ok {
+		return []string{FotoSinTerminar}
+	}
+	if _, ok := despues[FotoSinTerminar]; ok {
+		return []string{FotoSinTerminar}
+	}
 	var out []string
 	for p, h := range antes {
 		if d, ok := despues[p]; !ok || d != h {
