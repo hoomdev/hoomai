@@ -797,7 +797,7 @@ func Save(root, base, blockOn, slug string, expect []string) (SaveResult, error)
 }
 
 // TopeGit acota cada comando git del guardado de la tarjeta (SaveTarea): un
-// comando, con lo que corre (un filtro de git), que no termina en ese tiempo
+// comando, con lo que corre (sus hooks, un filtro de git), que no termina en ese tiempo
 // se mata con todo su grupo y el guardado falla con un error. Los tests lo
 // achican.
 var TopeGit = 5 * time.Minute
@@ -820,8 +820,9 @@ var TopeGit = 5 * time.Minute
 // It reads the card with boardcmd.PulsoDe, which runs no git that reads the
 // working tree, and each git command that does (status, add, update-index,
 // commit, rev-parse HEAD) runs bounded by TopeGit in a process group of its
-// own (aclaraciones 17 y 19) and without any of the repository's hooks
-// (sinHooks, aclaracion 21). base and blockOn are not needed for that.
+// own (aclaraciones 17 y 19). The repository's hooks run, as in any commit
+// of it (aclaracion 23): one that refuses fails the save, one that never
+// ends is cut with its group. base and blockOn are not needed for that.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
 	dir, err := tareaGuardable(root, slug)
 	if err != nil {
@@ -888,12 +889,7 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	if p.Source != boardcmd.SourceWorktree {
 		return res, nil
 	}
-	vacio, err := os.MkdirTemp("", "hoom-sin-hooks-")
-	if err != nil {
-		return res, fmt.Errorf("no pude preparar el guardado sin hooks: %w", err)
-	}
-	defer os.RemoveAll(vacio)
-	g := sinHooks(vacio)
+	g := delGuardado()
 	local, err := sinGuardar(dir, g)
 	if err != nil {
 		return res, err
@@ -925,8 +921,8 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 // sinGuardar is what the task tree dir has unsaved, sorted, as the card's
 // Unsynced lists it (gitx.Rutas of git status: every uncommitted path,
 // untracked directories expanded, and the origin of a rename), from a git
-// status of the save's own: bounded, in its group and without hooks, like
-// its other git commands. It takes no optional lock (--no-optional-locks):
+// status of the save's own: bounded and in its group, like its other git
+// commands. It takes no optional lock (--no-optional-locks):
 // reading what there is to save writes nothing.
 func sinGuardar(dir string, g gitDelGuardado) ([]string, error) {
 	out, err := g.listado(dir, "--no-optional-locks", "-c", "core.quotePath=false",
@@ -994,25 +990,20 @@ func lockArboles(root string, c boardcmd.Card) (func(), error) {
 }
 
 // gitDelGuardado is how commitPaths runs its git commands: hoom item save's
-// (the zero value: unbounded, and the repository's hooks run) or SaveTarea's
-// (sinHooks).
+// (the zero value: unbounded) or SaveTarea's (delGuardado). In both the
+// repository's hooks run.
 type gitDelGuardado struct {
 	tope     time.Duration // > 0 bounds each command (gitTope); 0 = unbounded
 	opciones []string      // git options before the subcommand
-	noVerify bool          // commit with --no-verify
 }
 
-// sinHooks is the git of SaveTarea. With core.hooksPath at vacio, an empty
-// directory of its own, git finds none of the repository's hooks: not the
-// commit's (pre-commit, prepare-commit-msg, commit-msg, post-commit), nor
-// the ones writing the index or a ref run; and commit also goes with
-// --no-verify (aclaracion 21). Neither the fsmonitor hook nor an automatic
-// gc or maintenance runs: a gc that detaches would leave a process of the
-// command alive once it returned (aclaracion 19). What does run, a git
-// filter, is bounded by TopeGit with its whole group.
-func sinHooks(vacio string) gitDelGuardado {
-	return gitDelGuardado{tope: TopeGit, noVerify: true, opciones: []string{
-		"-c", "core.hooksPath=" + filepath.ToSlash(vacio),
+// delGuardado is the git of SaveTarea: each command bounded by TopeGit in
+// its group, the repository's hooks and filters included (aclaraciones 19 y
+// 23). It runs no fsmonitor nor any automatic gc or maintenance, which
+// check nothing: a gc that detaches would leave a process of the command
+// alive once it returned (aclaracion 19).
+func delGuardado() gitDelGuardado {
+	return gitDelGuardado{tope: TopeGit, opciones: []string{
 		"-c", "core.fsmonitor=false",
 		"-c", "gc.auto=0",
 		"-c", "maintenance.auto=false",
@@ -1034,8 +1025,7 @@ func (g gitDelGuardado) listado(dir string, args ...string) ([]byte, error) {
 }
 
 // commitPaths stages exactly paths and commits only them: whatever else sits
-// in the index stays there, uncommitted. With hoom item save's git the
-// repository's hooks run; with SaveTarea's none does.
+// in the index stays there, uncommitted. The repository's hooks run.
 func commitPaths(dir, msg string, paths []string, g gitDelGuardado) (string, error) {
 	// what is on disk is added; what is not (a deletion, also one a git rm
 	// or a git mv already staged) leaves the index: git add stops at a name
@@ -1066,11 +1056,7 @@ func commitPaths(dir, msg string, paths []string, g gitDelGuardado) (string, err
 			return "", fallo("update-index", out, err)
 		}
 	}
-	commit := []string{"--literal-pathspecs", "commit", "-q"}
-	if g.noVerify {
-		commit = append(commit, "--no-verify")
-	}
-	commit = append(append(commit, "-m", msg, "--"), paths...)
+	commit := append([]string{"--literal-pathspecs", "commit", "-q", "-m", msg, "--"}, paths...)
 	if out, err := g.correr(dir, nil, commit...); err != nil {
 		return "", fallo("commit", out, err)
 	}
@@ -1087,7 +1073,8 @@ var errTopeGit = errors.New("no termino a tiempo")
 
 // graciaGit is how long the group of a save's git command that passed
 // TopeGit has between its SIGTERM (git drops its index.lock) and the SIGKILL
-// of whatever is left: a filter that ignores the signal, or its children.
+// of whatever is left: a hook or filter that ignores the signal, or its
+// children.
 const graciaGit = 500 * time.Millisecond
 
 // finDeLecturaGit bounds the reading of a save's git command output once its
