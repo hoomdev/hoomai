@@ -3,13 +3,11 @@ package agentcmd
 import (
 	"bufio"
 	"bytes"
-	"compress/zlib"
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"hash"
 	"io"
 	"io/fs"
@@ -87,6 +85,9 @@ type objetoGit struct {
 	ino                uint64
 	// cola is a pack's or an index's trailer (its checksum), hex.
 	cola string
+	// huella is a loose object's raw bytes' sha256 (huellaCruda), hex: a
+	// loose object is small, and its bytes are what is compared.
+	huella string
 }
 
 // topeGitAjeno bounds the git FotoGitAjeno runs (to find the common
@@ -110,6 +111,8 @@ func FotoGitAjeno(dir string) GitAjeno {
 		o := objetoDe(fi)
 		if esPackOIdx(p) {
 			o.cola = colaDe(p)
+		} else {
+			o.huella = huellaCruda(p)
 		}
 		foto.objetos[p] = o
 	})
@@ -121,7 +124,8 @@ func FotoGitAjeno(dir string) GitAjeno {
 // refs/replace/ created, moved or removed, loose or packed, named
 // `<comun>/refs/replace/<nombre>` (absolute, the same name whether it is
 // loose or packed), and each loose object, pack or index that existed in antes
-// and now has another content, by its absolute path. A file it cannot read
+// and now has other bytes (only the files whose ctime, mtime, size or inode
+// changed are read: mismoContenido), by its absolute path. A file it cannot read
 // counts as changed, by its path. nil when nothing changed.
 func CambiosGitAjeno(antes GitAjeno) []string {
 	if antes.comun == "" {
@@ -155,7 +159,7 @@ func CambiosGitAjeno(antes GitAjeno) []string {
 		if objetoDe(fi) == (objetoGit{ctime: o.ctime, mtime: o.mtime, size: o.size, ino: o.ino}) {
 			continue // untouched since the photograph
 		}
-		if !mismoContenido(p, o) {
+		if !mismoContenido(p, o, fi) {
 			out = append(out, p)
 		}
 	}
@@ -318,14 +322,34 @@ func colaDe(p string) string {
 }
 
 // mismoContenido says whether the object file p, which changed on disk since
-// o was photographed, still holds the same content: a loose object whose
-// inflated content still hashes to its name; a pack or index whose trailer is
-// the one photographed and is the checksum of everything before it.
-func mismoContenido(p string, o objetoGit) bool {
+// o was photographed and is now fi, still holds the same bytes: the same
+// size and, for a loose object, the same hash of its raw bytes (any byte
+// counts, also after the zlib stream; nothing is inflated); for a pack or
+// index, the trailer photographed, which is still the checksum of
+// everything before it. A file it cannot read has not the same bytes.
+func mismoContenido(p string, o objetoGit, fi fs.FileInfo) bool {
+	if fi.Size() != o.size {
+		return false
+	}
 	if esPackOIdx(p) {
 		return o.cola != "" && colaDe(p) == o.cola && sumaCorrecta(p)
 	}
-	return sueltoCorrecto(p)
+	return o.huella != "" && huellaCruda(p) == o.huella
+}
+
+// huellaCruda is the sha256 of the raw bytes of the file at p, hex; "" when
+// it cannot be read.
+func huellaCruda(p string) string {
+	f, err := os.Open(p)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // sumaCorrecta says whether the trailer of the pack or index at p is the
@@ -355,43 +379,3 @@ func sumaCorrecta(p string) bool {
 	}
 	return false
 }
-
-// sueltoCorrecto says whether the loose object at p inflates to content
-// whose hash (sha1 for a 40-hex name, sha256 for a 64-hex one) is its name.
-func sueltoCorrecto(p string) bool {
-	nombre := filepath.Base(filepath.Dir(p)) + filepath.Base(p)
-	var h hash.Hash
-	switch len(nombre) {
-	case 40:
-		h = sha1.New() // nosemgrep: go.lang.security.audit.crypto.use_of_weak_crypto.use-of-sha1 -- el nombre de un objeto de git sha1 es el sha1 de su contenido: se compara con el, no se firma nada
-	case 64:
-		h = sha256.New()
-	default:
-		return false
-	}
-	f, err := os.Open(p)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	z, err := zlib.NewReader(f)
-	if err != nil {
-		return false
-	}
-	defer z.Close()
-	// deflate inflates at most ~1032 times what it takes: more than that is
-	// not a loose object git wrote, and the reading stops there (a
-	// decompression bomb the run left does not keep the gate hashing)
-	if _, err := io.CopyN(h, z, fi.Size()*maxInflado+64); !errors.Is(err, io.EOF) {
-		return false
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)) == nombre
-}
-
-// maxInflado is deflate's largest ratio between what it inflates and what it
-// takes (zlib's technical details: 1032:1).
-const maxInflado = 1032
