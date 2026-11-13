@@ -3,6 +3,7 @@ package encierro
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -469,8 +470,12 @@ func VistaDe(l Lugar) (Vista, error) {
 		if soloVisto[p] {
 			return
 		}
-		if _, err := os.Lstat(p); err != nil {
+		fi, err := os.Lstat(p)
+		if err != nil {
 			return // what is not there is not mounted: creating it is detected
+		}
+		if !montable(p, fi) {
+			return
 		}
 		soloVisto[p] = true
 		v.SoloLectura = append(v.SoloLectura, p)
@@ -495,6 +500,20 @@ func VistaDe(l Lugar) (Vista, error) {
 		}
 	}
 	return v, nil
+}
+
+// montable says whether the path p (fi, not followed) can be re-bound
+// read-only: a file, a directory or a symlink outside /dev and /proc. The
+// encierro gives /dev and /proc fresh (bwrap's --dev and --proc), so a device
+// the git material names, such as GIT_CONFIG_GLOBAL=/dev/null, is not
+// re-bound: read-only, /dev/null would refuse git its writes.
+func montable(p string, fi fs.FileInfo) bool {
+	for _, d := range []string{"/dev", "/proc"} {
+		if p == d || strings.HasPrefix(p, d+"/") {
+			return false
+		}
+	}
+	return fi.Mode()&(fs.ModeDevice|fs.ModeCharDevice|fs.ModeNamedPipe|fs.ModeSocket|fs.ModeIrregular) == 0
 }
 
 // topeVista bounds the git VistaDe runs.
