@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,8 +53,15 @@ type MaterialGit map[string]string
 const maxLeidoMaterialGit = 1 << 20
 
 // HuellaGrande prefixes the Huella of a regular file of the git material
-// larger than maxLeidoMaterialGit: its size, its mode and its modification
-// time, never its content. Changing its size, mode or time changes it.
+// larger than maxLeidoMaterialGit (aclaraciones 28 y 29): its size, its
+// mode, its modification time and its status change time (ctime, from the
+// system's stat), never its content. Changing its size, mode or mtime
+// changes it, and so does any write or chmod, which moves its ctime: a user
+// process cannot set the ctime back. So overwriting it with other bytes of
+// the same length and restoring its mtime counts as changing it, and so does
+// changing it and restoring it byte for byte: that is the price of not
+// reading it (a small file is still compared by its content). Where the
+// system gives no ctime (ctimeDe), the Huella has none.
 const HuellaGrande = "grande:"
 
 // topeFotoMaterialGit bounds a whole FotoMaterialGit (aclaracion 28): a
@@ -144,7 +152,11 @@ func huellaMaterial(p string) string {
 		return HuellaIlegible
 	}
 	if fi.Mode().IsRegular() && fi.Size() > maxLeidoMaterialGit {
-		return fmt.Sprintf("%s%d:%s:%d", HuellaGrande, fi.Size(), fi.Mode(), fi.ModTime().UnixNano())
+		h := fmt.Sprintf("%s%d:%s:%d", HuellaGrande, fi.Size(), fi.Mode(), fi.ModTime().UnixNano())
+		if c, ok := ctimeDe(fi); ok {
+			h += ":" + strconv.FormatInt(c, 10)
+		}
+		return h
 	}
 	r, err := os.OpenRoot(filepath.Dir(p))
 	if err != nil {
