@@ -1012,11 +1012,17 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 
 // deshacerSi is the end of a save that changed what it must not: when its
 // commit stands (hecho, with no error of its own), it is undone (deshacer)
-// with motivo; otherwise motivo is the error (what failed was undone
-// already).
+// with motivo, and the error says whether the branch went back. When the
+// save had already failed with err (which says, through deshacer, whether its
+// branch went back or why not), the error is motivo followed by err: what the
+// undo did is never lost, and no undo that did not happen is claimed.
+// Otherwise (nothing was committed) motivo is the error.
 func deshacerSi(dir string, g gitDelGuardado, s guardado, hecho bool, err, motivo error) (SaveResult, error) {
-	if hecho && err == nil {
+	switch {
+	case hecho && err == nil:
 		return SaveResult{}, deshacer(dir, g, s, motivo)
+	case err != nil:
+		return SaveResult{}, fmt.Errorf("%w; ademas: %v", motivo, err)
 	}
 	return SaveResult{}, motivo
 }
