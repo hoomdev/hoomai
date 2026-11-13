@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T055733_a329dc",
+  "as": "refutado",
+  "evidence": "La spec firmada (0d575e3f) lo admite. CA-644 (.hoom/specs/autonomia-entre-firmas.md:499) fija el mensaje que el guardado pide a git: el piloto commitea con -m \"hoom: guardar la tarjeta \u003cslug\u003e\" (itemcmd.SaveMessage). Y Riesgos (:606-609) dice que los hooks del repo \"corren como en cualquier commit\": en cualquier commit, un commit-msg que sale 0 puede reescribir el mensaje (por ejemplo, anteponer un ticket), y es un control del proyecto. Fallar el guardado por eso romperia hooks legitimos. Aclaracion 27 y test TestHallazgos6dee36_ec7241_4785a1_CA644_UnCommitMsgQueReescribeElMensajeNoHaceFallarElGuardado (aeb1db8). Desempate humano de hoomdev el 2026-11-13 por la regla 4 de 09-refutador.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-13T06:10:43.984386144Z"
+}
