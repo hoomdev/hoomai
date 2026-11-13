@@ -82,28 +82,36 @@
 // namespaces, armed with bubblewrap: inside, nothing of outside is seen or
 // signalled (not hoom, not the Studio, not the person's terminal); it ends
 // with its main process, and the kernel kills whatever was left inside, after
-// setsid or a double fork; it dies with the hoom that launched it, also by
-// SIGKILL (--die-with-parent); it runs in a new session without a
-// controlling terminal; with no_new_privs; with nested user namespaces
-// allowed (the gate `test` of hoomai and each CLI's own sandbox need them).
+// setsid or a double fork (during the gracia, below, it waits for them); it
+// dies with the hoom that launched it, also by SIGKILL (--die-with-parent);
+// it runs in a new session without a controlling terminal; with
+// no_new_privs; with nested user namespaces allowed (the gate `test` of
+// hoomai and each CLI's own sandbox need them).
 // Arrancar keeps today's gracia, which bwrap does not give by itself: when a
-// deadline passes or hoom cancels, SIGTERM goes to the group of the main
-// process inside (with the outside pid bwrap reports with --info-fd), today's
-// gracia passes (graciaGit in the save, graciaGate in a gate), and only then
-// the encierro ends. Liberar is the end once the command ended. Time bounds
+// deadline passes or hoom cancels, SIGTERM goes to the step inside (found
+// from the outside pid bwrap reports with --info-fd), which passes it on to
+// the command's group; today's gracia passes (graciaGit in the save,
+// graciaGate in a gate), with the encierro alive while any descendant of the
+// command is (a hook whose git already ended included), and only then the
+// encierro ends. Liberar is the end once the command ended. Time bounds
 // do not change.
 //
 // # The step
 //
-// A step of hoom inside the encierro, before the command, makes the command
-// the leader of a session of its own, without a controlling terminal, and,
-// with Landlock ABI 6 or more (level completo), forbids it to connect to an
-// abstract socket outside its domain (X11's way to the graphical session).
+// A step of hoom inside the encierro, at any level, starts the command as its
+// child, the leader of a session of its own, without a controlling terminal,
+// and, with Landlock ABI 6 or more (level completo), forbids it to connect to
+// an abstract socket outside its domain (X11's way to the graphical session).
+// It stays as a child subreaper (ronda 1, a5c166): without a SIGTERM it ends
+// with the command, with its status, and bwrap ends the rest; after a SIGTERM,
+// which it passes on to the command's group, it waits for every descendant
+// until they end or the SIGKILL of the gracia comes from outside. The command
+// cannot ptrace it (it is not dumpable).
 // The step is the same binary
 // (os.Executable), which is seen inside because the root is mounted: hoom
 // itself, or, in the tests, the test binary. Paso is that step: when the
-// process is the step it applies Landlock and executes the command, and never
-// returns; otherwise it returns at once. This package calls it from its own
+// process is the step it applies Landlock, starts the command and waits, and
+// never returns; otherwise it returns at once. This package calls it from its own
 // init, so every binary that links it (hoom, and the test binary of any
 // package whose code reaches it) already does the step, and an existing
 // TestMain needs no change. main and a TestMain may also call it first

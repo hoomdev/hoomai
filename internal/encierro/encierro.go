@@ -827,8 +827,9 @@ func ReemplazarRunUser(dir string) (restaurar func()) {
 // around its original command (Path, Args and Dir), in its own PID, user and
 // mount namespaces, a new session, no_new_privs, --die-with-parent and
 // --info-fd, with hoom's step (Paso, through os.Executable) before the
-// command: the step makes the command the leader of a session of its own and,
-// with level completo, applies Landlock; its environment is
+// command: the step starts the command as its child, the leader of a session
+// of its own, with level completo under Landlock, and stays as its subreaper
+// (Paso); its environment is
 // Entorno(cmd.Environ(), p.Vista); the known secrets and the sockets are
 // covered; it creates p.Vista.Cache and the directories Entorno points at.
 // With any other mechanism (MecanismoJob, or "" with ninguno) it leaves cmd
@@ -867,9 +868,10 @@ type lanzado struct {
 // in a process group of its own, registered for hoom's signal handler, like
 // procesos.ArrancarConGracia (gracia 0: like procesos.Arrancar). For a cmd Envolver prepared with bwrap it keeps
 // today's gracia: when cmd's context ends (its deadline, a cancel), and on a
-// signal to hoom, SIGTERM goes to the group of the main process inside the
-// encierro (found from the outside pid of its init, which bwrap reports with
-// --info-fd), and only after
+// signal to hoom, SIGTERM goes to the step inside the encierro (found from
+// the outside pid of its init, which bwrap reports with --info-fd), which
+// passes it on to the command's group and keeps the encierro while any
+// descendant of the command lives, and only after
 // gracia does the whole encierro end (SIGKILL to its pid 1), with everything
 // inside it. Whoever calls it calls Liberar once cmd's Wait returned.
 func Arrancar(cmd *exec.Cmd, gracia time.Duration) error {
@@ -952,9 +954,11 @@ var errSinBwrap = errors.New("encierro: bwrap no esta en el PATH")
 
 // Paso is the step of hoom inside the encierro, before the command: when this
 // process is that step (Envolver launched it, through os.Executable, inside
-// bwrap) it becomes the leader of a new session, with level completo forbids
-// itself, with Landlock, to connect to an abstract socket outside its domain,
-// and executes the command in its place: it never returns. Otherwise it returns at once. This package's init calls it, so any
+// bwrap, at any level) it leads a session of its own, starts the command as
+// its child in a session of the command's own (with level completo under
+// Landlock: no connecting to an abstract socket outside its domain) and
+// stays as its subreaper until it ends, passing a SIGTERM on to the
+// command's group and then waiting for every descendant: it never returns. Otherwise it returns at once. This package's init calls it, so any
 // binary that links the package does the step; calling it again, first thing
 // in main or in a TestMain, is harmless (see the package's doc).
 func Paso() {

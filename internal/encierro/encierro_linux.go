@@ -25,9 +25,10 @@ import (
 
 // marcaPaso is the variable that tells a hoom started inside the encierro
 // that it is the step (Paso): bwrap sets it for the step only, to the level
-// of the encierro, and the step takes it out before it executes the command.
-// With NivelCompleto the step applies Landlock; with any level it makes the
-// command the leader of a session of its own, with no controlling terminal.
+// of the encierro, and the step takes it out before it starts the command.
+// With NivelCompleto the step applies Landlock; with any level it starts the
+// command as the leader of a session of its own, with no controlling
+// terminal, and stays as its subreaper (paso).
 const marcaPaso = "HOOM_ENCIERRO_PASO"
 
 // topeSonda bounds the probe's bwrap; topeInfo how long Arrancar waits for
@@ -331,7 +332,7 @@ func socketsTapados() []string {
 
 // arrancarEnvuelto starts cmd, prepared by Envolver, in a process group of
 // its own registered with procesos, whose polite signal goes to the group of
-// the main process inside (the group of bwrap's init) and whose end kills
+// the main process inside (the step, which passes it on) and whose end kills
 // bwrap's init; then it waits for bwrap to report that init. A cancel or a
 // signal to hoom that comes before bwrap reported it waits for the report
 // (topeInfo at most) and then sends the SIGTERM: the gracia is kept, and
@@ -396,9 +397,10 @@ func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, e *envuelto, alCancel
 }
 
 // termAlComando sends SIGTERM to the main process of the encierro whose init
-// is pid (and to its init's group) as soon as that process is there, until
-// hasta or until the init ends: a cancel that came right after the start,
-// before the init started it, still reaches it (ronda 1, 69b8a2).
+// is pid as soon as it can pass it on (termComando), until hasta or until the
+// init ends: a cancel that came right after the start, before the init
+// started the step or the step started the command, still reaches it (ronda
+// 1, 69b8a2).
 func (e *envuelto) termAlComando(pid int, hasta time.Time) {
 	for time.Now().Before(hasta) && e.initVivo() {
 		if e.termComando(pid) {
@@ -409,22 +411,27 @@ func (e *envuelto) termAlComando(pid int, hasta time.Time) {
 }
 
 // termComando sends SIGTERM to the main process of the encierro whose init
-// is pid: to its group once it leads one (the step's setsid), to the process
-// itself before that (and to its init's group, when there is one). false
-// when it is not there yet.
+// is pid, hoom's step, which passes it on to the command's group (paso): to
+// the step's group (bwrap's --new-session makes it lead one), or to the step
+// itself. false while the step has not started the command yet: until then a
+// SIGTERM would end the step instead of reaching the command (it handles
+// SIGTERM from before it starts the command).
 func (e *envuelto) termComando(pid int) bool {
 	c := comandoDe(pid)
-	if c <= 0 {
+	if c <= 0 || !conHijos(c) {
 		return false
 	}
-	ok := syscall.Kill(-c, syscall.SIGTERM) == nil
-	if !ok {
-		ok = syscall.Kill(c, syscall.SIGTERM) == nil
+	if syscall.Kill(-c, syscall.SIGTERM) == nil {
+		return true
 	}
-	if syscall.Kill(-pid, syscall.SIGTERM) == nil {
-		ok = true
-	}
-	return ok
+	return syscall.Kill(c, syscall.SIGTERM) == nil
+}
+
+// conHijos says whether the process pid (its main thread, the one the step
+// starts the command from) has a child, from /proc.
+func conHijos(pid int) bool {
+	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/task/" + strconv.Itoa(pid) + "/children")
+	return err == nil && len(strings.Fields(string(raw))) > 0
 }
 
 // initVivo says whether bwrap's init is still there (through its pidfd: a
@@ -452,8 +459,8 @@ func leerInfo(info *os.File, _ int) int {
 }
 
 // comandoDe is the outside pid of the main process of the encierro whose
-// init is init: the child of init that is pid 2 inside (NSpid), the first
-// process bwrap's init starts. 0 when it is not there.
+// init is init (hoom's step, paso): the child of init that is pid 2 inside
+// (NSpid), the first process bwrap's init starts. 0 when it is not there.
 func comandoDe(init int) int {
 	raw, err := os.ReadFile("/proc/" + strconv.Itoa(init) + "/task/" + strconv.Itoa(init) + "/children")
 	if err != nil {
