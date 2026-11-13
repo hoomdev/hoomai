@@ -1,0 +1,11 @@
+{
+  "id": "20261113T215203_59fa6c",
+  "created_at": "2026-11-13T21:52:03.049118648Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/encierro/encierro.go",
+  "description": "INTRODUCIDO: internal/encierro/encierro.go:657 recalcula siempre el nivel de Windows con TrasAdoptar sin conservar las razones por las que p.Info ya era ninguno. Con exigir:no, un rol sin --task o un provider que no implementa ConEstado arranca con nivel ninguno, pero si Adoptar crea el job Comprobar devuelve parcial y runcmd reemplaza con ese valor el sidecar y luego el registro del sobre/review. Es un caso invocable por la persona y contradice CA-674/CA-677: el job no corrige la falta de tarea ni el estado desconocido del provider, por lo que el sistema publica un nivel de encierro que no tuvo.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

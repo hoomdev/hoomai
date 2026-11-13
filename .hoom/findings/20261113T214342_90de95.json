@@ -1,0 +1,11 @@
+{
+  "id": "20261113T214342_90de95",
+  "created_at": "2026-11-13T21:43:42.493404967Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/encierro/encierro.go",
+  "description": "INTRODUCIDO: internal/encierro/encierro.go:487-490 deja todo el directorio comun escribible y internal/encierro/encierro.go:511-514,540-544 solo remonta en solo lectura las entradas de AdministracionPrincipal que ya existen. Un writer encerrado puede crear directamente .git/index.lock (o una administracion ausente como MERGE_HEAD) en el checkout principal; ni material-de-git ni git-ajeno fotografian esas rutas. El sobre puede terminar verde dejando el checkout principal bloqueado o en un estado Git falso, contradiciendo que el rol escriba solo en su tarea y que no bloquee la administracion principal.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

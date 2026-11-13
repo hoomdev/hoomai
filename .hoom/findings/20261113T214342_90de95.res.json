@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T214342_90de95",
+  "as": "refutado",
+  "evidence": "Riesgo aceptado por decision de la persona (2026-11-13), con la logica que la spec ya acepta en Riesgos ('Mover otra rama no se ve'): lo que existe de la administracion del principal ya queda de solo lectura (fab30f, 4a64ca2); bloquear lo que no existe obliga a dejar de solo lectura toda la raiz del dir comun, que rompe packed-refs, el git stash drop de lint-staged, reftable y git-lfs; detectarlo da falsos positivos con el git de la persona en main mientras corre el piloto. Crear un index.lock o un MERGE_HEAD del principal es un estorbo visible que la persona limpia a mano y no salta ningun gate; va al PR como riesgo aceptado.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T22:12:29.347126526Z"
+}
