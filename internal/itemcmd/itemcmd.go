@@ -860,7 +860,11 @@ var TopeGit = 5 * time.Minute
 //     aclaracion 21) and git-ajeno (agentcmd.FotoGitAjeno) around itself: a
 //     change fails the save, which undoes its commit as today (deshacer) and
 //     returns ErrHookCambioMaterial, ErrHookCambioConfig or ErrGitAjeno with
-//     what changed. hoom restores nothing else.
+//     what changed. The undo's git is then the last one: what it changes
+//     (its update-ref runs the hook reference-transaction) is looked at
+//     again, and the error adds `; ademas, en el deshacer: ` and each of
+//     those errors for it, after the first violation and what the undo said
+//     (ronda 2, 110c02). hoom restores nothing else.
 //
 // `hoom item save` (Save) never runs enclosed.
 func SaveTarea(root, base, blockOn, slug string) (SaveResult, error) {
@@ -1010,27 +1014,61 @@ func guardarTarea(root, slug, dir string) (SaveResult, error) {
 	config := agentcmd.FotoConfigAgentes(dir)
 	ajeno := agentcmd.FotoGitAjeno(dir)
 	res, s, hecho, err := guardarEntre(root, slug, dir, g)
-	if cambios := agentcmd.CambiosMaterialGit(material, agentcmd.FotoMaterialGit(dir)); len(cambios) > 0 {
-		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrHookCambioMaterial(cambios)))
-	}
-	// the agents' config, also what a hook leaves untracked (aclaracion 21)
-	if cambios := agentcmd.CambiosConfigAgentes(config, agentcmd.FotoConfigAgentes(dir)); len(cambios) > 0 {
-		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrHookCambioConfig(cambios)))
-	}
-	if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
-		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrGitAjeno(slug, cambios)))
-	}
-	// a git of the save that Windows left out of its job, with exigir above
-	// ninguno: hoom killed it on start, and the save is the refusal of
-	// exigir with the real level (ronda 1, decision 22), plus what else
-	// happened (an undo, a failure that followed)
-	if sj := g.negado.sinJob(); sj != nil {
+	// the photographs after its last git; when an undo follows, its git
+	// (update-ref runs the hook reference-transaction) is the last one, and
+	// what it changes is looked at again from these (ronda 2, 110c02)
+	material2, config2 := agentcmd.FotoMaterialGit(dir), agentcmd.FotoConfigAgentes(dir)
+	var motivo error
+	if cambios := agentcmd.CambiosMaterialGit(material, material2); len(cambios) > 0 {
+		motivo = errors.New(ErrHookCambioMaterial(cambios))
+	} else if cambios := agentcmd.CambiosConfigAgentes(config, config2); len(cambios) > 0 {
+		// the agents' config, also what a hook leaves untracked (aclaracion 21)
+		motivo = errors.New(ErrHookCambioConfig(cambios))
+	} else if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
+		motivo = errors.New(ErrGitAjeno(slug, cambios))
+	} else if sj := g.negado.sinJob(); sj != nil {
+		// a git of the save that Windows left out of its job, with exigir
+		// above ninguno: hoom killed it on start, and the save is the
+		// refusal of exigir with the real level (ronda 1, decision 22), plus
+		// what else happened (an undo, a failure that followed)
 		if err != nil && err.Error() == sj.Error() {
 			err = nil // that git's failure is the refusal itself
 		}
-		return deshacerSi(dir, g, s, hecho, err, errors.New(ErrExigirDelGuardado(sj.Info.Nivel, sj.Exigir)))
+		motivo = errors.New(ErrExigirDelGuardado(sj.Info.Nivel, sj.Exigir))
 	}
-	return res, err
+	if motivo == nil {
+		return res, err
+	}
+	deshace := hecho && err == nil // deshacerSi runs git
+	var ajeno2 agentcmd.GitAjeno
+	if deshace {
+		ajeno2 = agentcmd.FotoGitAjeno(dir)
+	}
+	_, err = deshacerSi(dir, g, s, hecho, err, motivo)
+	if deshace {
+		if tras := cambiosDelDeshacer(dir, slug, material2, config2, ajeno2); tras != "" {
+			err = fmt.Errorf("%w; ademas, en el deshacer: %s", err, tras)
+		}
+	}
+	return SaveResult{}, err
+}
+
+// cambiosDelDeshacer says what the undo of a save of the card slug changed
+// in the task's tree dir since the photographs taken before it (material,
+// config, ajeno): ErrHookCambioMaterial, ErrHookCambioConfig and ErrGitAjeno
+// of each that changed, joined with "; "; "" when none did.
+func cambiosDelDeshacer(dir, slug string, material agentcmd.MaterialGit, config agentcmd.ConfigAgentes, ajeno agentcmd.GitAjeno) string {
+	var out []string
+	if cambios := agentcmd.CambiosMaterialGit(material, agentcmd.FotoMaterialGit(dir)); len(cambios) > 0 {
+		out = append(out, ErrHookCambioMaterial(cambios))
+	}
+	if cambios := agentcmd.CambiosConfigAgentes(config, agentcmd.FotoConfigAgentes(dir)); len(cambios) > 0 {
+		out = append(out, ErrHookCambioConfig(cambios))
+	}
+	if cambios := agentcmd.CambiosGitAjeno(ajeno); len(cambios) > 0 {
+		out = append(out, ErrGitAjeno(slug, cambios))
+	}
+	return strings.Join(out, "; ")
 }
 
 // deshacerSi is the end of a save that changed what it must not: when its
