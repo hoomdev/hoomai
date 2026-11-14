@@ -57,12 +57,17 @@ type GitAjeno = gitajeno.Foto
 
 // TopeFotoGitAjeno and MaxLeidoGitAjeno (ronda 1, decision 27) bound each
 // photograph of git-ajeno (FotoGitAjeno) and each comparison
-// (CambiosGitAjeno): its time, and the bytes it hashes (loose objects, packs
-// and indexes). A photograph that passes its time is unfinished, and against
-// it any comparison gives FotoSinTerminar; a loose object beyond the bytes
-// of the photograph is kept without its hash (it counts as changed if it is
-// touched); a comparison that passes its time adds FotoSinTerminar, and a
-// changed file beyond its bytes counts as changed, by its path. Never hangs.
+// (CambiosGitAjeno): its time, and the bytes it reads (refs, packed-refs,
+// loose objects, packs and indexes). Besides, the walk of refs/replace/ reads
+// 10000 directory entries at most, symlinked directories included, a batch
+// at a time, and goes 32 levels down at most (ronda 3, aclaraciones 30 and
+// 30b). A photograph that passes its time, or one of those bounds, or whose
+// bytes do not reach a ref, is unfinished, and against it any comparison
+// gives FotoSinTerminar; a loose object beyond the bytes of the photograph
+// is kept without its hash (it counts as changed if it is touched); a
+// comparison that passes its time or those bounds adds FotoSinTerminar, and
+// a changed object beyond its bytes counts as changed, by its path. Never
+// hangs.
 const (
 	TopeFotoGitAjeno = gitajeno.Tope
 	MaxLeidoGitAjeno = gitajeno.MaxLeido
