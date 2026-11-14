@@ -48,14 +48,23 @@ jobs:
           path: .hoom/cache/semgrep
           key: semgrep-reglas-${{ hashFiles('.hoom/semgrep/paquetes.lock') }}
       # el encierro (contencion-del-writer): bwrap, y espacios de usuario sin
-      # privilegios, que AppArmor de Ubuntu 24.04 no deja crear por defecto;
-      # sin esto los tests del encierro ven el nivel ninguno
+      # privilegios, que AppArmor de Ubuntu no deja crear por defecto; sin esto
+      # los tests del encierro ven el nivel ninguno. Desde Ubuntu 26.04 (el
+      # ubuntu-latest de hoy) viene cargado ademas bwrap-userns-restrict: lo
+      # que corre dentro de un bwrap queda en el perfil unpriv_bwrap, sin
+      # CAP_SYS_ADMIN, y un bwrap anidado no crea su espacio de usuario
+      # (CA-680, CA-683: el gate test de hoomai y el sandbox de cada CLI los
+      # necesitan). Se descarga ese perfil y se comprueba que el anidado corre.
       - name: encierro
         run: |
           sudo apt-get update
           sudo apt-get install -y bubblewrap
           sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
+          if [ -f /etc/apparmor.d/bwrap-userns-restrict ]; then
+            sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict
+          fi
           bwrap --version
+          bwrap --ro-bind / / bwrap --ro-bind / / true
       - name: build
         run: go build -mod=vendor ./...
       - name: vet
