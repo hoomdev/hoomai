@@ -7,7 +7,45 @@ on:
 permissions:
   contents: read
 jobs:
+  # TEMPORAL (no se fusiona): diagnostico de por que un bwrap anidado no crea
+  # su espacio de usuario en el runner (TestCA680/TestCA683 rojos en main)
+  diagnostico-bwrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.25"
+      - name: encierro
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap apparmor-utils
+          sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0
+          bwrap --version
+      - name: diagnostico
+        run: |
+          set +e
+          uname -a; grep -E '^(NAME|VERSION)=' /etc/os-release
+          for k in kernel.apparmor_restrict_unprivileged_userns kernel.apparmor_restrict_unprivileged_unconfined kernel.apparmor_restrict_unprivileged_io_uring kernel.unprivileged_userns_clone user.max_user_namespaces; do sysctl "$k" 2>&1; done
+          echo "--- etiqueta de este shell: $(cat /proc/self/attr/current 2>&1)"
+          echo "--- perfiles de AppArmor con bwrap/userns:"; sudo aa-status 2>&1 | grep -i -E 'bwrap|userns|unpriv|profiles are' 
+          ls -la /etc/apparmor.d/ | grep -i -E 'bwrap|userns|unpriv'
+          echo "--- 1 simple:"; bwrap --ro-bind / / true && echo simple=si || echo simple=no
+          echo "--- 2 etiqueta adentro:"; bwrap --ro-bind / / cat /proc/self/attr/current
+          echo "--- 3 max_user_namespaces adentro:"; bwrap --ro-bind / / cat /proc/sys/user/max_user_namespaces
+          echo "--- 4 anidado:"; bwrap --ro-bind / / bwrap --ro-bind / / true && echo anidado=si || echo anidado=no
+          echo "--- 5 anidado con las banderas del encierro:"; bwrap --unshare-user --unshare-pid --new-session --die-with-parent --ro-bind / / --dev /dev --proc /proc bwrap --ro-bind / / true && echo anidado-encierro=si || echo anidado-encierro=no
+          echo "--- 6 unshare -U adentro:"; bwrap --ro-bind / / unshare -U true && echo unshare=si || echo unshare=no
+          echo "--- 7 dmesg:"; sudo dmesg 2>&1 | grep -i -E 'apparmor|userns' | tail -20
+          exit 0
+      - name: tests que fallan en main
+        run: |
+          go test -mod=vendor -count=1 -v -run 'TestCA680_EspaciosDeUsuarioAnidados' ./internal/encierro/
+          go test -mod=vendor -count=1 -v -run 'TestCA683_ConSobreElGateCorreEncerrado' ./internal/verifycmd/
   verify:
+    if: github.head_ref != 'ci/diagnostico-bwrap-anidado'
     runs-on: ubuntu-latest
     steps:
       # sin persist-credentials el token no queda en .git/config, donde lo
