@@ -5,10 +5,11 @@
 // (RuleGitAjeno, FotoGitAjeno, CambiosGitAjeno), verifycmd (around the gates
 // of a verify with Sobre) and itemcmd (around the pilot's save) use it.
 //
-// Every photograph and every comparison has a bound of time and of bytes it
-// hashes: passing the time counts as changed (SinTerminar), and it never
-// hangs. It runs no git that reads the working tree (no status, no
-// fsmonitor, no filter).
+// Every photograph and every comparison has a bound of time, of the bytes it
+// reads and of the entries it lists from directories, which it lists a batch
+// at a time (aclaracion 30): passing a bound counts as changed (SinTerminar),
+// and it never hangs nor holds a whole directory. It runs no git that reads
+// the working tree (no status, no fsmonitor, no filter).
 package gitajeno
 
 import (
@@ -20,6 +21,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/fs"
 	"os"
@@ -49,8 +51,8 @@ const (
 
 // Ilegible is materialgit's mark for what could not be read. A photograph of
 // refs/replace/ no longer gives it to a loose ref: what cannot be read is
-// photographed by its metadata (valorDeRef), so two states never share a
-// value.
+// photographed by its metadata (recorrido.entrada), so two states never
+// share a value.
 const Ilegible = materialgit.Ilegible
 
 // Foto is the photograph of the git common directory of a tree (Tomar): its
@@ -95,12 +97,19 @@ func (p *presupuesto) vencido() bool { return time.Now().After(p.limite) }
 // errVencido is a reading cut by the time of its bound.
 var errVencido = errors.New("gitajeno: el tope de tiempo vencio")
 
+// errTope is a reading cut by one of its bounds of entries, depth or bytes
+// (aclaracion 30): like errVencido, it leaves the photograph or the
+// comparison unfinished (SinTerminar).
+var errTope = errors.New("gitajeno: la foto paso su tope de entradas, profundidad o bytes")
+
 // Tomar photographs, for the tree dir, its git common directory's refs under
 // refs/replace/ and the files under objects/ (loose objects, packs and their
 // indexes) within tope and maxLeido bytes hashed. Outside a git repository
-// there is nothing to compare: the zero Foto. A photograph that passes tope
-// is unfinished: Cambios against it gives [SinTerminar]. A loose object
-// beyond maxLeido is kept without its hash.
+// there is nothing to compare: the zero Foto. A photograph that passes tope,
+// or a bound of the walk of refs/replace/ or of objects/ (maxEntradasRefs,
+// maxProfundidad, maxEntradasObjetos), is unfinished: Cambios against it
+// gives [SinTerminar]. A loose object beyond maxLeido is kept without its
+// hash.
 func Tomar(dir string, tope time.Duration, maxLeido int64) Foto {
 	pr := &presupuesto{limite: time.Now().Add(tope), bytes: maxLeido}
 	l, err := materialgit.Ubicar(dir, pr.limite)
@@ -147,7 +156,8 @@ func Tomar(dir string, tope time.Duration, maxLeido int64) Foto {
 // absolute path. Only the files whose ctime, mtime, size or inode changed are
 // read. A file it cannot read, or that would pass maxLeido, counts as
 // changed, by its path; an unfinished antes, or a comparison that passes
-// tope, adds SinTerminar. nil when nothing changed.
+// tope or a bound of the walk of refs/replace/, adds SinTerminar. nil when
+// nothing changed.
 func Cambios(antes Foto, tope time.Duration, maxLeido int64) []string {
 	if antes.sinTerminar {
 		return []string{SinTerminar}
@@ -159,7 +169,7 @@ func Cambios(antes Foto, tope time.Duration, maxLeido int64) []string {
 	var out []string
 	ahora, err := refsDeReemplazo(antes.comun, pr)
 	switch {
-	case errors.Is(err, errVencido):
+	case errors.Is(err, errVencido), errors.Is(err, errTope):
 		return []string{SinTerminar}
 	case err != nil:
 		out = append(out, filepath.Join(antes.comun, "refs", "replace")+string(filepath.Separator))
@@ -245,72 +255,230 @@ func formatoSha256(comun string) bool {
 
 // refsDeReemplazo reads the refs under refs/replace/ of the common directory
 // comun within pr: packed-refs (packedDeReemplazo), then the loose ones over
-// them; with the reftable backend, git for-each-ref (which reads no working
-// tree). errVencido when pr's time passes; another error when they cannot be
-// read.
+// them (recorrido); with the reftable backend, git for-each-ref
+// (refsDeReftable, which reads no working tree). errVencido when pr's time
+// passes, errTope when it passes a bound of entries, depth or bytes
+// (aclaracion 30); another error when they cannot be read.
 func refsDeReemplazo(comun string, pr *presupuesto) (map[string]string, error) {
-	refs := map[string]string{}
 	if st, err := os.Stat(filepath.Join(comun, "reftable")); err == nil && st.IsDir() {
-		out, err := gitEnComun(comun, pr.limite, "for-each-ref", "--format=%(refname) %(objectname)", "refs/replace/")
-		if err != nil {
-			if pr.vencido() {
-				return nil, errVencido
-			}
-			return nil, err
-		}
-		for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if n, v, ok := strings.Cut(l, " "); ok {
-				refs[n] = v
-			}
-		}
-		return refs, nil
+		return refsDeReftable(comun, pr)
 	}
+	refs := map[string]string{}
 	if err := packedDeReemplazo(comun, refs, pr); err != nil {
 		return nil, err
 	}
 	base := filepath.Join(comun, "refs", "replace")
-	err := filepath.WalkDir(base, func(p string, e fs.DirEntry, err error) error {
-		if pr.vencido() {
-			return errVencido
-		}
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) && p == base {
-				return filepath.SkipAll
-			}
-			return err
-		}
-		if e.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(comun, p)
-		if err != nil {
-			return err
-		}
-		n := filepath.ToSlash(rel)
-		if strings.HasSuffix(n, ".lock") {
-			return nil // a ref being written: its result is what counts
-		}
-		fi, err := e.Info()
-		if err != nil {
-			fi, err = os.Lstat(p)
-		}
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil // gone while it was walked: as if it never was
-		}
-		if err != nil {
-			return err // fails closed: the whole refs/replace/ counts as changed
-		}
-		v, err := valorDeRef(p, fi, pr)
-		if err != nil {
-			return err
-		}
-		refs[n] = v
-		return nil
-	})
+	fi, err := os.Lstat(base)
+	if errors.Is(err, fs.ErrNotExist) {
+		return refs, nil
+	}
 	if err != nil {
+		return nil, err // fails closed: the whole refs/replace/ counts as changed
+	}
+	r := &recorrido{pr: pr, refs: refs, quedan: maxEntradasRefs}
+	if err := r.entrada(base, "refs/replace", fi, 0); err != nil {
 		return nil, err
 	}
 	return refs, nil
+}
+
+// maxEntradasRefs, maxProfundidad and lote bound the walk of refs/replace/
+// (recorrido; aclaraciones 30 and 30b): the entries it reads in all, from
+// every directory it walks (those its symlinks resolve to included); how many
+// levels it goes down under refs/replace/; and how many entries it lists
+// from a directory at a time. Passing the first two is errTope, whatever the
+// time left.
+const (
+	maxEntradasRefs = 10000
+	maxProfundidad  = 32
+	lote            = 256
+)
+
+// recorrido is one walk of the loose refs under refs/replace/
+// (refsDeReemplazo) within pr and its own bounds (ronda 3, d204f2, bea100 and
+// 6ce684; aclaraciones 30 and 30b). It lists each directory lote entries at
+// a time (never a whole directory in one read), looking at pr's time at
+// every batch and counting each entry out of quedan and its name's bytes out
+// of pr's, and only once the directory is listed within them does it look at
+// its entries: one with more entries than are left ends the walk before any
+// of them is read. It goes down at most maxProfundidad levels, and follows a
+// symlink to a directory as git does (its entries are refs too, under the
+// symlink's name: git takes refs/replace/<objeto>/<algo> as a replacement of
+// <objeto>), except into a directory it is already inside (a loop).
+type recorrido struct {
+	pr     *presupuesto
+	refs   map[string]string
+	quedan int
+	// dentro are the directories of the current path, the outermost first:
+	// a symlink back to one of them is a loop.
+	dentro []fs.FileInfo
+	// sumas are the hashes of the symlinked directories being walked, the
+	// outermost first: every ref noted under one goes into its hash.
+	sumas []hash.Hash
+}
+
+// anotar notes the ref n with the value v, also in the hash of every
+// symlinked directory it is under.
+func (r *recorrido) anotar(n, v string) {
+	r.refs[n] = v
+	for _, h := range r.sumas {
+		_, _ = io.WriteString(h, especial("ref", n, v))
+	}
+}
+
+// entrada photographs the entry at p, named n (refs/replace/...), whose Lstat
+// is fi, prof levels under refs/replace/: what git reads of it and, for
+// whatever cannot be read as one line, enough that any touch changes it
+// (aclaracion 28: a photograph never joins two different states in one
+// value; ronda 2, 61babd and a48bb4):
+//   - a directory: each entry in it, by its own name (directorio);
+//   - a lock file of git (`.lock`): nothing, its result is what counts;
+//   - a symlink, which git follows: its target, read with readlink, and the
+//     photograph of what it resolves to; to a directory, its metadata and
+//     the hash of every ref under it, which are noted by their own names
+//     too (directorio);
+//   - anything else, its content (contenidoDeRef).
+//
+// errVencido when pr's time passes; errTope past a bound of the walk.
+func (r *recorrido) entrada(p, n string, fi fs.FileInfo, prof int) error {
+	if fi.IsDir() {
+		v, err := r.directorio(p, n, false, prof)
+		if err != nil {
+			return err
+		}
+		if v != "" {
+			r.anotar(n, v) // one it could not walk
+		}
+		return nil
+	}
+	if strings.HasSuffix(n, ".lock") {
+		return nil // a ref being written: its result is what counts
+	}
+	if fi.Mode()&fs.ModeSymlink == 0 {
+		v, err := contenidoDeRef(p, false, r.pr)
+		if err != nil {
+			return err
+		}
+		r.anotar(n, v)
+		return nil
+	}
+	destino, err := os.Readlink(p)
+	if err != nil {
+		r.anotar(n, especial("enlace-ilegible", metadatos(fi)))
+		return nil
+	}
+	var v string
+	if st, serr := os.Stat(p); serr == nil && st.IsDir() {
+		v, err = r.directorio(p, n, true, prof)
+	} else {
+		v, err = contenidoDeRef(p, true, r.pr)
+	}
+	if err != nil {
+		return err
+	}
+	r.anotar(n, especial("enlace", destino, v))
+	return nil
+}
+
+// directorio notes, as refs named n/<entry>, each entry of the directory at
+// p (followed when enlace: a symlink n resolves to it), prof levels under
+// refs/replace/, in the order of their names, once it is listed whole (listar). For
+// a symlinked one it gives its value: its metadata and the sha256 of every
+// ref noted under it, so that any change inside it also changes the
+// symlink's; "" for the others. A directory it cannot open is given by why
+// (git, run by the same user, cannot read it either), one it is already
+// inside is a loop, given as such and not walked again, and one that stopped
+// being a directory is given by its metadata. errVencido when pr's time
+// passes; errTope past maxProfundidad, maxEntradasRefs or pr's bytes; another
+// error when it cannot be listed (it fails closed).
+func (r *recorrido) directorio(p, n string, enlace bool, prof int) (string, error) {
+	if prof >= maxProfundidad {
+		return "", errTope
+	}
+	f, err := abrir(p, enlace)
+	if err != nil {
+		return especial("dir-ilegible", err.Error()), nil
+	}
+	st, err := f.Stat()
+	switch {
+	case err != nil:
+		f.Close()
+		return especial("dir-ilegible", err.Error()), nil
+	case !st.IsDir():
+		f.Close()
+		return especial("no-dir", metadatos(st)), nil // it changed meanwhile
+	}
+	for _, d := range r.dentro {
+		if os.SameFile(d, st) {
+			f.Close()
+			return especial("bucle", metadatos(st)), nil
+		}
+	}
+	ents, err := r.listar(f)
+	f.Close()
+	if err != nil {
+		return "", err
+	}
+	r.dentro = append(r.dentro, st)
+	defer func() { r.dentro = r.dentro[:len(r.dentro)-1] }()
+	var suma hash.Hash
+	if enlace {
+		suma = sha256.New()
+		r.sumas = append(r.sumas, suma)
+		defer func() { r.sumas = r.sumas[:len(r.sumas)-1] }()
+	}
+	for _, e := range ents {
+		if r.pr.vencido() {
+			return "", errVencido
+		}
+		m := n + "/" + e.Name()
+		fi, err := e.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			continue // gone while it was walked: as if it never was
+		}
+		if err != nil {
+			r.anotar(m, especial("ilegible", err.Error()))
+			continue
+		}
+		if err := r.entrada(filepath.Join(p, e.Name()), m, fi, prof+1); err != nil {
+			return "", err
+		}
+	}
+	if !enlace {
+		return "", nil
+	}
+	return especial("dir", metadatos(st), hex.EncodeToString(suma.Sum(nil))), nil
+}
+
+// listar lists the directory f whole, lote entries at a time, within pr and
+// quedan, and gives its entries sorted by name. errVencido when pr's time
+// passes, errTope past quedan or pr's bytes, another error when it cannot be
+// listed.
+func (r *recorrido) listar(f *os.File) ([]fs.DirEntry, error) {
+	var ents []fs.DirEntry
+	for {
+		if r.pr.vencido() {
+			return nil, errVencido
+		}
+		l, err := f.ReadDir(lote)
+		if r.quedan -= len(l); r.quedan < 0 {
+			return nil, errTope
+		}
+		for _, e := range l {
+			if r.pr.bytes -= int64(len(e.Name())); r.pr.bytes < 0 {
+				return nil, errTope
+			}
+		}
+		ents = append(ents, l...)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	sort.Slice(ents, func(i, j int) bool { return ents[i].Name() < ents[j].Name() })
+	return ents, nil
 }
 
 // maxLineaRef is the longest line of packed-refs that can be a ref: a hash
@@ -355,7 +523,6 @@ func packedDeReemplazo(comun string, refs map[string]string, pr *presupuesto) er
 		return errors.New("gitajeno: packed-refs no es un archivo regular")
 	}
 	tope := pr.bytes
-	errTope := errors.New("gitajeno: packed-refs pasa el tope de bytes")
 	if fi.Size() > tope {
 		return errTope
 	}
@@ -417,43 +584,10 @@ const maxRef = 4096
 // a symlink there resolves to) its photograph hashes.
 const topeHuellaRef = 1 << 20
 
-// valorDeRef is the photograph of the loose ref at p, whose Lstat is fi: what
-// git reads of it and, for whatever cannot be read as one line, enough that
-// any touch changes it (aclaracion 28: a photograph never joins two
-// different states in one value; ronda 2, 61babd and a48bb4):
-//   - a regular file of up to maxRef bytes: its content, trimmed (what git
-//     takes from it);
-//   - a symlink, which git follows: its target, read with readlink, and the
-//     photograph of what it resolves to, as follows;
-//   - a bigger regular file: its size, inode, mtime and ctime, and the sha256
-//     of its first topeHuellaRef bytes (beyond them, any write changes its
-//     ctime);
-//   - a directory a symlink resolves to: its metadata and that of every
-//     entry under it;
-//   - what is not a regular file, or cannot be opened or read: its kind and
-//     its metadata (ctime included: any touch changes it).
-//
-// Every value but the first kind's starts with a newline (especial), which a
-// trimmed content never does, and carries the lengths of its free parts: no
-// two of them, nor one of them and a ref's content, are ever the same string.
-// errVencido when pr's time passes.
-func valorDeRef(p string, fi fs.FileInfo, pr *presupuesto) (string, error) {
-	if fi.Mode()&fs.ModeSymlink == 0 {
-		return contenidoDeRef(p, false, pr)
-	}
-	destino, err := os.Readlink(p)
-	if err != nil {
-		return especial("enlace-ilegible", metadatos(fi)), nil
-	}
-	resuelto, err := contenidoDeRef(p, true, pr)
-	if err != nil {
-		return "", err
-	}
-	return especial("enlace", destino, resuelto), nil
-}
-
-// especial is a value of valorDeRef that is not a ref's content: a newline,
-// its kind, and each part with its length.
+// especial is a value of a loose ref's photograph that is not its content (recorrido.entrada): a newline,
+// its kind, and each part with its length. A trimmed content never starts
+// with a newline, and the lengths of the free parts keep any two of these
+// values, or one of them and a ref's content, from being the same string.
 func especial(tipo string, partes ...string) string {
 	var b strings.Builder
 	b.WriteString("\n" + tipo)
@@ -463,9 +597,18 @@ func especial(tipo string, partes ...string) string {
 	return b.String()
 }
 
-// contenidoDeRef is the photograph of the file at p (followed when seguir) as
-// valorDeRef describes it. It never blocks on the open (abrir) and reads at
-// most topeHuellaRef bytes, out of pr. errVencido when pr's time passes.
+// contenidoDeRef is the photograph of the file at p (followed when seguir), a
+// loose ref or what a symlink there resolves to:
+//   - a regular file of up to maxRef bytes: its content, trimmed (what git
+//     takes from it);
+//   - a bigger regular file: its size, inode, mtime and ctime, and the sha256
+//     of its first topeHuellaRef bytes (beyond them, any write changes its
+//     ctime);
+//   - what is not a regular file, or cannot be opened or read: its kind and
+//     its metadata (ctime included: any touch changes it).
+//
+// It never blocks on the open (abrir) and reads at most topeHuellaRef bytes,
+// out of pr. errVencido when pr's time passes.
 func contenidoDeRef(p string, seguir bool, pr *presupuesto) (string, error) {
 	f, err := abrir(p, seguir)
 	if err != nil {
@@ -478,8 +621,6 @@ func contenidoDeRef(p string, seguir bool, pr *presupuesto) (string, error) {
 			return especial("ausente"), nil
 		case serr != nil:
 			return especial("ilegible", serr.Error()), nil
-		case fi.IsDir() && seguir:
-			return directorioDeRef(p, fi, pr)
 		}
 		return especial("ilegible", metadatos(fi)), nil
 	}
@@ -487,12 +628,6 @@ func contenidoDeRef(p string, seguir bool, pr *presupuesto) (string, error) {
 	fi, err := f.Stat()
 	if err != nil {
 		return especial("ilegible", err.Error()), nil
-	}
-	if fi.IsDir() {
-		if seguir {
-			return directorioDeRef(p, fi, pr)
-		}
-		return especial("no-regular", metadatos(fi)), nil
 	}
 	if !fi.Mode().IsRegular() {
 		return especial("no-regular", metadatos(fi)), nil
@@ -523,43 +658,6 @@ func contenidoDeRef(p string, seguir bool, pr *presupuesto) (string, error) {
 	return especial("grande", metadatos(fi), huella), nil
 }
 
-// directorioDeRef is the photograph of the directory at p (fi its stat),
-// where a symlink under refs/replace/ resolves: its metadata and, sorted,
-// each entry under it (not followed) with its own. errVencido when pr's time
-// passes.
-func directorioDeRef(p string, fi fs.FileInfo, pr *presupuesto) (string, error) {
-	raiz, err := filepath.EvalSymlinks(p)
-	if err != nil {
-		return especial("dir", metadatos(fi), "ilegible"), nil
-	}
-	var entradas []string
-	err = filepath.WalkDir(raiz, func(q string, e fs.DirEntry, err error) error {
-		if pr.vencido() {
-			return errVencido
-		}
-		if q == raiz {
-			return err
-		}
-		rel, _ := filepath.Rel(raiz, q)
-		meta := "ilegible"
-		if err == nil {
-			if ei, ierr := e.Info(); ierr == nil {
-				meta = metadatos(ei)
-			}
-		}
-		entradas = append(entradas, especial("entrada", rel, meta))
-		return nil
-	})
-	if errors.Is(err, errVencido) {
-		return "", err
-	}
-	if err != nil {
-		entradas = append(entradas, especial("ilegible", err.Error()))
-	}
-	sort.Strings(entradas)
-	return especial("dir", append([]string{metadatos(fi)}, entradas...)...), nil
-}
-
 // metadatos is fi's kind and permissions, size, inode, mtime and ctime (in
 // nanoseconds; inode and ctime where the system gives them).
 func metadatos(fi fs.FileInfo) string {
@@ -567,16 +665,96 @@ func metadatos(fi fs.FileInfo) string {
 	return fmt.Sprintf("%s:%d:%d:%d:%d", fi.Mode(), fi.Size(), materialgit.InodoDe(fi), fi.ModTime().UnixNano(), ctime)
 }
 
-// gitEnComun runs git on the common directory comun (GIT_DIR), with
-// core.fsmonitor=false, untranslated, until limite.
-func gitEnComun(comun string, limite time.Time, args ...string) ([]byte, error) {
-	ctx, cancel := context.WithDeadline(context.Background(), limite)
+// refsDeReftable reads the refs under refs/replace/ of the common directory
+// comun, with the reftable backend, from git for-each-ref (GIT_DIR, with
+// core.fsmonitor=false, untranslated: it reads no working tree), as a stream
+// within pr (aclaracion 30): its output comes out of pr's bytes and each of
+// its lines out of maxEntradasRefs, and no line longer than maxLineaRef is
+// kept; passing any of them is errTope (git stops at its next write), and
+// pr's time errVencido.
+func refsDeReftable(comun string, pr *presupuesto) (map[string]string, error) {
+	ctx, cancel := context.WithDeadline(context.Background(), pr.limite)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.fsmonitor=false"}, args...)...)
+	l := &lineasDeRefs{pr: pr, refs: map[string]string{}, quedan: maxEntradasRefs}
+	cmd := exec.CommandContext(ctx, "git", "-c", "core.fsmonitor=false", "for-each-ref", "--format=%(refname) %(objectname)", "refs/replace/")
 	cmd.WaitDelay = time.Second
 	cmd.Env = append(cmd.Environ(), "GIT_DIR="+comun, "LC_ALL=C", "LANGUAGE=C")
 	cmd.Dir = comun
-	return cmd.Output()
+	cmd.Stdout = l
+	err := cmd.Run()
+	if l.err == nil && err == nil {
+		l.linea(l.resto) // a last line without its newline
+	}
+	switch {
+	case l.err != nil:
+		return nil, l.err
+	case err != nil && pr.vencido():
+		return nil, errVencido
+	case err != nil:
+		return nil, err
+	}
+	return l.refs, nil
+}
+
+// lineasDeRefs takes the output of git for-each-ref (refsDeReftable) as it
+// comes, a line `<refname> <objectname>` at a time, within its bounds.
+type lineasDeRefs struct {
+	pr     *presupuesto
+	refs   map[string]string
+	quedan int
+	// resto is the start of a line whose end has not come yet.
+	resto []byte
+	// err is the bound passed (errTope): nothing more is taken.
+	err error
+}
+
+// Write takes b: its bytes out of pr's, each whole line into refs.
+func (l *lineasDeRefs) Write(b []byte) (int, error) {
+	if l.err != nil {
+		return 0, l.err
+	}
+	if l.pr.bytes -= int64(len(b)); l.pr.bytes < 0 {
+		l.err = errTope
+		return 0, l.err
+	}
+	n := len(b)
+	for len(b) > 0 && l.err == nil {
+		i := bytes.IndexByte(b, '\n')
+		fin := i
+		if i < 0 {
+			fin = len(b)
+		}
+		if len(l.resto)+fin > maxLineaRef {
+			l.err = errTope
+			break
+		}
+		l.resto = append(l.resto, b[:fin]...)
+		if i < 0 {
+			break
+		}
+		l.linea(l.resto)
+		l.resto, b = l.resto[:0], b[i+1:]
+	}
+	if l.err != nil {
+		return 0, l.err
+	}
+	return n, nil
+}
+
+// linea takes one line of the output: an empty one is nothing, and each other
+// counts out of quedan (errTope past it).
+func (l *lineasDeRefs) linea(s []byte) {
+	s = bytes.TrimSpace(s)
+	if len(s) == 0 {
+		return
+	}
+	if l.quedan--; l.quedan < 0 {
+		l.err = errTope
+		return
+	}
+	if n, v, ok := bytes.Cut(s, []byte(" ")); ok {
+		l.refs[string(n)] = string(v)
+	}
 }
 
 var (
@@ -585,48 +763,82 @@ var (
 	objetoSuelto = regexp.MustCompile(`^[0-9a-f]{2}/([0-9a-f]{38}|[0-9a-f]{62})$`)
 	// packOIdx matches objects/pack/pack-<hash>.pack and .idx.
 	packOIdx = regexp.MustCompile(`^pack/pack-[0-9a-f]+\.(pack|idx)$`)
+	// dosHex matches the name of a directory of loose objects, objects/<xx>.
+	dosHex = regexp.MustCompile(`^[0-9a-f]{2}$`)
 )
 
+// maxEntradasObjetos bounds the entries the walk of objects/ reads in all
+// (recorrerObjetos; aclaracion 30). It is not maxEntradasRefs: the loose
+// objects of a repository are many more than its replacement refs (git gc
+// --auto packs them past some 6700, but only when a command runs it), and
+// passing it leaves an unfinished photograph, which no save gets past.
+const maxEntradasObjetos = 1 << 17
+
 // recorrerObjetos calls f for each loose object, pack and index under the
-// objects directory of comun (never objects/info/, nor the other files of
-// pack/), while pr's time lasts and f says to go on. It says whether it went
-// through all of them.
+// objects directory of comun (only in objects/<xx>/ and objects/pack/: never
+// objects/info/, nor the other files of pack/), while pr's time lasts, the
+// entries it reads stay within maxEntradasObjetos and f says to go on. Each
+// directory is listed lote entries at a time (listarObjetos), never whole in
+// one read. It says whether it went through all of them.
 func recorrerObjetos(comun string, pr *presupuesto, f func(p string, fi fs.FileInfo) bool) bool {
 	base := filepath.Join(comun, "objects")
-	completo := true
-	_ = filepath.WalkDir(base, func(p string, e fs.DirEntry, err error) error {
-		if pr.vencido() {
-			completo = false
-			return filepath.SkipAll
+	quedan := maxEntradasObjetos
+	var dirs []string
+	if !listarObjetos(base, pr, &quedan, func(e fs.DirEntry) bool {
+		if e.IsDir() && (e.Name() == "pack" || dosHex.MatchString(e.Name())) {
+			dirs = append(dirs, e.Name())
 		}
-		if err != nil {
-			return nil
-		}
-		rel, err := filepath.Rel(base, p)
-		if err != nil {
-			return nil
-		}
-		rel = filepath.ToSlash(rel)
-		if e.IsDir() {
-			if rel == "info" {
-				return filepath.SkipDir
+		return true
+	}) {
+		return false
+	}
+	sort.Strings(dirs)
+	for _, d := range dirs {
+		dir := filepath.Join(base, d)
+		if !listarObjetos(dir, pr, &quedan, func(e fs.DirEntry) bool {
+			rel := d + "/" + e.Name()
+			if !objetoSuelto.MatchString(rel) && !packOIdx.MatchString(rel) {
+				return true
 			}
-			return nil
+			fi, err := e.Info()
+			if err != nil || !fi.Mode().IsRegular() {
+				return true
+			}
+			return f(filepath.Join(dir, e.Name()), fi)
+		}) {
+			return false
 		}
-		if !objetoSuelto.MatchString(rel) && !packOIdx.MatchString(rel) {
-			return nil
+	}
+	return true
+}
+
+// listarObjetos calls f for each entry of the directory dir (not followed),
+// lote at a time, looking at pr's time at every batch and counting each
+// entry out of quedan, while f says to go on. It says whether it went
+// through all of them; a directory it cannot open or list has none left.
+func listarObjetos(dir string, pr *presupuesto, quedan *int, f func(fs.DirEntry) bool) bool {
+	d, err := abrir(dir, false)
+	if err != nil {
+		return true
+	}
+	defer d.Close()
+	for {
+		if pr.vencido() {
+			return false
 		}
-		fi, err := e.Info()
-		if err != nil || !fi.Mode().IsRegular() {
-			return nil
+		ents, err := d.ReadDir(lote)
+		if *quedan -= len(ents); *quedan < 0 {
+			return false
 		}
-		if !f(p, fi) {
-			completo = false
-			return filepath.SkipAll
+		for _, e := range ents {
+			if !f(e) {
+				return false
+			}
 		}
-		return nil
-	})
-	return completo
+		if err != nil {
+			return true // its end (io.EOF), or what cannot be listed
+		}
+	}
 }
 
 // esPackOIdx says whether the object file p is a pack or an index.
