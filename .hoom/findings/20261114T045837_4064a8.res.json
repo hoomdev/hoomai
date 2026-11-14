@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261114T045837_4064a8",
+  "as": "corregido",
+  "evidence": "Commit 2f5989b (aclaracion 30): una ref suelta de reemplazo que el presupuesto de bytes no alcanza a hashear deja la foto FotoSinTerminar en todo sistema, nunca sus metadatos sin hash; la ref grande se hashea entera (no depende del ctime) y las chicas tambien descuentan sus bytes. Regresion a ciegas de la ronda 3 (c02f47c), roja sobre 765e144 (daba vacio sin cambios) y verde con -race sobre c02f47c (suite completa): TestR3_4064a8_CA685_ElPresupuestoDeBytesSeAgotaAntesDeUnaRef (con el control de MaxLeidoGitAjeno sin cambios).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T13:29:03.955568882Z"
+}
