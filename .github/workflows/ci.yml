@@ -64,7 +64,9 @@ jobs:
             sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict
           fi
           bwrap --version
-          bwrap --ro-bind / / bwrap --ro-bind / / true
+          # el de afuera monta su /proc, como el encierro: el anidado escribe
+          # su uid_map ahi
+          bwrap --unshare-user --unshare-pid --die-with-parent --ro-bind / / --dev /dev --proc /proc bwrap --ro-bind / / true
       - name: build
         run: go build -mod=vendor ./...
       - name: vet
