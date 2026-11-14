@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T213913_a48bb4",
+  "as": "corregido",
+  "evidence": "Commit 02ac5ab (aclaracion 28): una ref de reemplazo de mas de 4 KiB ya no colapsa en Ilegible; se fotografia por tamano, inodo, mtime, ctime y el sha256 de su primer MiB, asi que reescribirla con otro SHA del mismo tamano cuenta como git-ajeno con su ruta. Regresion a ciegas de la ronda 2 (af75e13), roja sobre ec7f7f5 y verde con -race sobre 4fe0470 (suite completa): TestR2_a48bb4_CA685_UnaRefDeReemplazoDeMasDe4KiB.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T04:34:23.219885252Z"
+}

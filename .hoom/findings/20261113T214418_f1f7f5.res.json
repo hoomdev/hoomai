@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T214418_f1f7f5",
+  "as": "corregido",
+  "evidence": "Commits e617e17 y 4fe0470: el SIGTERM de un cancel temprano espera, acotado, a que el paso lance el comando, y la gracia de procesos y la de Liberar cuentan desde esa entrega; el SIGTERM va solo al paso, nunca a su grupo (el hijo del comando, entre su fork y su setsid, sigue en el grupo del paso con las senales bloqueadas y un TERM al grupo lo mataba antes del exec, sin su trap). Regresion a ciegas de la ronda 2 (af75e13): TestR2_f1f7f5_CA679_LaGraciaCuentaDesdeElSIGTERM (10 cancelaciones tempranas) fallo una vez en la suite con -race sobre 08d54b1 (vuelta 9 sin marca); sobre 4fe0470 pasa 15 de 15 con -race y la CPU cargada (6 procesos yes), junto con TestR1_69b8a2, y verde con -race sobre 4fe0470 (suite completa).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T04:34:23.233514336Z"
+}

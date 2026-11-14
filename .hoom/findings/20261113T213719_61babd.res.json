@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T213719_61babd",
+  "as": "corregido",
+  "evidence": "Commit 02ac5ab (aclaracion 28): una ref suelta de refs/replace nunca se fotografia como el valor constante Ilegible; un symlink da su destino (readlink) y lo que resuelve, una ref grande sus metadatos y el sha256 de su primer MiB, lo ilegible o no regular sus metadatos, y los valores especiales nunca coinciden con el contenido de una ref; abre sin bloquear. Regresion a ciegas de la ronda 2 (af75e13), roja sobre ec7f7f5 y verde con -race sobre 4fe0470 (suite completa): TestR2_61babd_CA685_UnaRefDeReemplazoQueEsUnSymlink (cambio del destino y del symlink cuentan; sin cambios, nada).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T04:34:23.216365561Z"
+}
