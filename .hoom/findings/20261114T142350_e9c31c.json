@@ -1,0 +1,11 @@
+{
+  "id": "20261114T142350_e9c31c",
+  "created_at": "2026-11-14T14:23:50.427092147Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO: internal/procesos/procesos.go:293 bloquea cmd.Cancel hasta recibir hecho y la correccion depende explicitamente de que os/exec empiece WaitDelay al retornar Cancel (lineas 272-276). El contrato publico de exec.Cmd.WaitDelay dice que el reloj empieza cuando termina el Context, no al retorno de Cancel; con una version de Go que cumpla ese contrato, WaitDelay puede vencer mientras Diferida espera el arranque tardio de bwrap y matarlo antes de entregar SIGTERM y la gracia completa. El proyecto admite Go 1.25+ y no fija esa implementacion. Falla real en un cambio de toolchain compatible, sin perdida ni exposicion de datos: medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "64035d991f717e49",
+  "task": "contencion-del-writer"
+}
