@@ -876,6 +876,10 @@ var lanzados = struct {
 	por map[*exec.Cmd]*lanzado
 }{por: map[*exec.Cmd]*lanzado{}}
 
+// margenEspera is what an encierro's WaitDelay leaves after its gracia
+// (Arrancar): the end of the encierro once its gracia passed.
+const margenEspera = time.Second
+
 // lanzado is one command Arrancar started.
 type lanzado struct {
 	gracia time.Duration
@@ -894,13 +898,21 @@ type lanzado struct {
 // step passes it on to the command's group and keeps the encierro while any
 // descendant of the command lives; only after gracia, counted from that
 // SIGTERM, does the whole encierro end (SIGKILL to its pid 1), with
-// everything inside it. Whoever calls it calls Liberar once cmd's Wait
+// everything inside it. cmd's Cancel returns once that SIGTERM was
+// delivered, and os/exec counts cmd's WaitDelay from there; a WaitDelay
+// (not zero) shorter than gracia and margenEspera is raised to them, so that
+// it never kills bwrap before the command got its SIGTERM and its whole
+// gracia (ronda 4, c85a2a and f60133; aclaracion 32). A command that ends by
+// itself is not held by it. Whoever calls it calls Liberar once cmd's Wait
 // returned.
 func Arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 	l := &lanzado{gracia: gracia}
 	envueltos.Lock()
 	e := envueltos.por[cmd]
 	envueltos.Unlock()
+	if e != nil && gracia > 0 && cmd.WaitDelay > 0 && cmd.WaitDelay < gracia+margenEspera {
+		cmd.WaitDelay = gracia + margenEspera
+	}
 	alCancelar := func() {
 		l.mu.Lock()
 		if l.cancelado.IsZero() {
