@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192045_6a7c72",
+  "created_at": "2026-11-13T19:20:45.968943792Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:981-989 compara alrededor del guardado solo material-de-git y git-ajeno, no config-de-agentes; internal/itemcmd/itemcmd.go:1243-1250 revisa solo rutas que entraron al commit. Un hook puede crear como archivo no rastreado una .claude/settings.json, .codex/ o .mcp.json antes inexistente, el guardado termina con exito y esa configuracion ejecuta codigo en la proxima sesion.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

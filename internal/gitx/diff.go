@@ -192,7 +192,7 @@ func patchDesde(dir string, env []string, from, to string, dst *bytes.Buffer, ma
 // EsAncestro says whether commit a is an ancestor of b (a commit is its own
 // ancestor). A git failure (an unknown object) is an error, never a no.
 func EsAncestro(dir, a, b string) (bool, error) {
-	cmd := exec.Command("git", "merge-base", "--is-ancestor", a, b)
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "merge-base", "--is-ancestor", a, b)
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
@@ -217,7 +217,7 @@ func ResolverCommit(dir, rev string) (sha string, ok bool, err error) {
 	if rev == "" || strings.HasPrefix(rev, "-") {
 		return "", false, nil
 	}
-	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", rev+"^{commit}")
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "rev-parse", "--verify", "--quiet", rev+"^{commit}")
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
@@ -287,7 +287,7 @@ type Cambio struct {
 // that listing: the board, Discard and the envelope used to parse it each on
 // their own (finding e208a6).
 func Cambios(dir string) ([]Cambio, error) {
-	cmd := exec.Command("git", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "-z")
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "-z")
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
@@ -347,7 +347,7 @@ func Rutas(cambios []Cambio) []string {
 // never read). A bare FIFO is not a file for git: it is not listed, cannot
 // be committed, and so never enters the evidence.
 func CambioSinCommitear(dir string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
+	cmd := exec.Command("git", append([]string{"-c", "core.fsmonitor=false", "-c", "core.quotePath=false", "status", "--porcelain=v1", "-z",
 		"--untracked-files=normal", "--"}, evidencePaths...)...)
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
@@ -453,7 +453,7 @@ func VerificarBase(dir, base string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("git", "diff", "--quiet", "--no-ext-diff", "--no-textconv", mb, "HEAD", "--")
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "diff", "--quiet", "--no-ext-diff", "--no-textconv", mb, "HEAD", "--")
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}
@@ -555,7 +555,7 @@ func gitOutBoundedEnv(dir string, env []string, dst *bytes.Buffer, max int, exit
 	if env == nil {
 		env = soloLectura()
 	}
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", sinFsmonitor(args)...)
 	cmd.Dir = dir
 	cmd.Env = env
 	stderr := &capped{n: stderrMax}
@@ -602,7 +602,7 @@ func gitOutEnv(dir string, env []string, args ...string) (string, error) {
 	if env == nil {
 		env = soloLectura()
 	}
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", sinFsmonitor(args)...)
 	cmd.Dir = dir
 	cmd.Env = env
 	stderr := &capped{n: stderrMax}
@@ -627,7 +627,7 @@ func OutPrefix(dir string, max int, args ...string) (out string, truncated bool,
 		out, err = gitOut(dir, args...)
 		return out, false, err
 	}
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", sinFsmonitor(args)...)
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
 	stderr := &capped{n: stderrMax}

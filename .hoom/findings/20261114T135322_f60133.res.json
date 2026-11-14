@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261114T135322_f60133",
+  "as": "corregido",
+  "evidence": "Mismo defecto que c85a2a (lente resilience). Commit 1c856f3 (aclaracion 32): el Cancel de procesos, con Diferida o con Term, vuelve recien cuando el SIGTERM se entrego (o cuando nadie lo va a recibir), sin el mutex de procesos tomado, asi que el WaitDelay de os/exec cuenta desde la entrega real aunque el arranque o el paso tarden; ademas encierro.Arrancar sube a gracia + 1 s un WaitDelay distinto de cero mas corto. Un comando que termina solo no pasa por Cancel. Regresion a ciegas de la ronda 4 (ff6e0af): TestR4_c85a2a_CA679_UnWaitDelayChicoNoMataAlBwrapAntesDeLaGracia (bwrap lento de 2 s, WaitDelay de 1.5 s, gracia 1 s, cancel temprano), roja sobre 1f7a19b (os/exec mataba a bwrap dormido a los 1.99 s) y verde con -race 3 de 3 sobre ff6e0af con sus dos vueltas probadas, mas el control TestR4_c85a2a_CA679_UnWaitDelayChicoSinArranqueLento; suite completa verde con -race.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T14:09:40.876510733Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T192045_318ca0",
+  "as": "corregido",
+  "evidence": "Commit 28943b5 (aclaracion 20, decision de la persona): el verify del sobre y el de cerrar-hallazgos fotografian git-ajeno alrededor de los gates y suman el gate requerido git_ajeno en fail con las rutas; el writer cierra en verify con su hallazgo y cerrar-hallazgos se detiene antes de guardar. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_318ca0_CA685_CA687_UnGateQueCambiaGitAjenoDejaRojoElSobreDelWriter, ConSobreUnGateQueRompeGitAjenoDejaRojo, ConElGateEncerradoGitAjenoSeVe, CerrarHallazgosConUnGateQueRompeGitAjeno, TestR1_318ca0_CA685_GitAjenoDelVeredicto, UnGateQueSoloCreaObjetosNoEsGitAjeno, TestR1_318ca0_CA683_SinSobreNoHayGitAjeno.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.068330216Z"
+}

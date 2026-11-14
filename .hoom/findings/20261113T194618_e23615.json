@@ -1,0 +1,11 @@
+{
+  "id": "20261113T194618_e23615",
+  "created_at": "2026-11-13T19:46:18.196611074Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/encierro.go",
+  "description": "PRE-EXISTENTE (follow-up de bf03ca, no se corrige en esta tarea): el gate de scope descarta el error de finding.Register para material-de-git (scope.go, desde antes de contencion-del-writer), git-ajeno y config-de-agentes (registrarViolaciones). Si .hoom/findings no se puede escribir pero el registro del sobre si, el sobre corta pero un corte: tiempo posterior queda sin la marca Toco* que cortesDelGate saca de esos hallazgos, y el piloto podria relevarlo. Pide decidir si el sobre debe guardar la marca en su propio registro o fallar cuando no puede registrar el hallazgo.",
+  "author": "orquestador",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

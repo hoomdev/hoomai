@@ -1,0 +1,11 @@
+{
+  "id": "20261113T193727_775300",
+  "created_at": "2026-11-13T19:37:27.367851096Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/config_agentes.go",
+  "description": "INTRODUCIDO: huellaDeClaves decodifica el JSON externo completo en any y luego vuelve a serializar los valores seleccionados, sin limite de bytes ni plazo. Sin encierro, un rol puede dejar ~/.claude/settings.json o ~/.claude.json enorme durante su run acotado y hacer que la foto posterior consuma memoria/CPU sin limite hasta colgar o matar hoom; el MaxLeido de materialgit solo se usa despues de un JSON invalido y no protege el caso valido (internal/agentcmd/config_agentes.go:215).",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T193615_bf03ca",
+  "as": "refutado",
+  "evidence": "PRE-EXISTENTE, no introducido: el gate de scope de main ya descarta el error de finding.Register al registrar el hallazgo de material-de-git (internal/agentcmd/scope.go:671 en f7d1791: 'if f, err := finding.Register(...); err == nil { ... }'), y cortesDelGate deriva TocoMaterialGit de ese mismo hallazgo. CA-692 pide tratar git-ajeno y config-de-agentes como material-de-git; registrarViolaciones repite el patron de main. Queda el follow-up medium para las tres reglas juntas.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T19:46:18.18281028Z"
+}

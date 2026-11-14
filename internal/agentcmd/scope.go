@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -28,6 +27,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/materialgit"
 	"github.com/hoomdev/hoomai/internal/ratchet"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -95,7 +95,7 @@ const rolTestWriter = "test-writer"
 
 // ProtegidoAusente is the Protegidos entry of a protected test that was not
 // on disk when it was photographed.
-const ProtegidoAusente = "-"
+const ProtegidoAusente = materialgit.Ausente
 
 // FotoProtegidos photographs the protected tests rutas in the tree dir: one
 // entry per path, read from the disk (never from git), without following a
@@ -285,7 +285,7 @@ const ratchetPath = ".hoom/" + ratchet.FileName
 // Violation is one path the role should not have written.
 type Violation struct {
 	Path      string `json:"path"`
-	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer | material-de-git
+	Rule      string `json:"rule"` // manipulacion | fuera-de-scope | aislamiento | tests-del-test-writer | material-de-git | git-ajeno | config-de-agentes
 	Detail    string `json:"detail"`
 	FindingID string `json:"finding_id,omitempty"`
 }
@@ -301,9 +301,12 @@ type ScopeResult struct {
 // Cuts reports whether the tree does not deserve a verdict at all. Writing
 // outside the role's territory is information; moving the demand itself, or
 // undoing the blindfold, is not. Neither is changing the test-writer's tests
-// (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too.
+// (RuleTestsDelTestWriter, autonomia-entre-firmas): it cuts too, and so do
+// the git material, the agents' config and git outside the task's branch
+// (RuleMaterialDeGit, RuleConfigDeAgentes, RuleGitAjeno).
 func (s ScopeResult) Cuts() bool {
-	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter) || s.has(RuleMaterialDeGit)
+	return s.Tampering || s.Broken() || s.has(RuleTestsDelTestWriter) || s.has(RuleMaterialDeGit) ||
+		s.has(RuleConfigDeAgentes) || s.has(RuleGitAjeno)
 }
 
 // Delivered is what the run changed that counts as the role's work: Touched
@@ -739,7 +742,7 @@ func ruleRank(rule string) int {
 	switch rule {
 	case RuleIsolation:
 		return 0
-	case RuleTampering, RuleTestsDelTestWriter, RuleMaterialDeGit:
+	case RuleTampering, RuleTestsDelTestWriter, RuleMaterialDeGit, RuleConfigDeAgentes, RuleGitAjeno:
 		return 1
 	default:
 		return 2
@@ -805,9 +808,9 @@ const (
 	// a symlink would point it elsewhere), and no evidence hoom writes is one.
 	// A symlink's adds ":" and the sha256 of its target text (readlink does
 	// not follow it), so pointing it elsewhere changes it.
-	HuellaNoRegular = "no-regular:"
+	HuellaNoRegular = materialgit.NoRegular
 	// HuellaIlegible marks an entry hoom could not open or read.
-	HuellaIlegible = "ilegible"
+	HuellaIlegible = materialgit.Ilegible
 )
 
 // huella is what the disk floor compares for the entry name of r, which fi
@@ -816,27 +819,7 @@ const (
 // unwatched), read only if the descriptor shows that same regular file —
 // the entry can change between the Lstat and the open.
 func huella(r *os.Root, name string, fi fs.FileInfo) string {
-	switch t := fi.Mode().Type(); {
-	case t&fs.ModeSymlink != 0:
-		destino, err := r.Readlink(name)
-		if err != nil {
-			return HuellaIlegible
-		}
-		sum := sha256.Sum256([]byte(destino))
-		return HuellaNoRegular + t.String() + ":" + hex.EncodeToString(sum[:])
-	case !t.IsRegular():
-		return HuellaNoRegular + t.String()
-	}
-	f, err := hoomfs.AbrirRegularEn(r, name, fi)
-	if err != nil {
-		return HuellaIlegible
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return HuellaIlegible
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	return materialgit.HuellaEn(r, name, fi)
 }
 
 // conForma says whether a file a run created under the evidence has the

@@ -28,6 +28,10 @@ type Profile struct {
 	Extends     string                   `yaml:"extends,omitempty"`
 	Detect      Detect                   `yaml:"detect"`
 	Gates       map[string]manifest.Gate `yaml:"gates"`
+	// Cache are the environment variables of the stack's build caches
+	// (contencion-del-writer): what runs enclosed gets each one pointing
+	// inside its own cache (see Cache).
+	Cache []string `yaml:"cache,omitempty"`
 }
 
 // Detect declares how `hoom init` recognizes a stack.
@@ -133,6 +137,34 @@ func Markers(name string) ([]string, error) {
 			if f = strings.TrimSpace(f); f != "" && !seen[f] {
 				seen[f] = true
 				out = append(out, f)
+			}
+		}
+	}
+	return out, nil
+}
+
+// Cache lists the cache variables of a profile and of everything it
+// extends, parents first, no repeats (contencion-del-writer): what runs
+// enclosed gets each one pointing inside its cache,
+// .hoom/cache/encierro/<slug>/<quien>/, besides TMPDIR and XDG_CACHE_HOME,
+// which it always gets. The go profile declares GOCACHE, GOMODCACHE and
+// GOTMPDIR; kmp (and so kmp-compose) GRADLE_USER_HOME, which also hides the
+// scripts of ~/.gradle/init.d/; laravel COMPOSER_CACHE_DIR and
+// npm_config_cache (composer's and npm's downloads, which a build reuses). A
+// profile that declares none has none; an unknown one is the error of
+// Resolve.
+func Cache(name string) ([]string, error) {
+	chain, err := chainOf(name)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range chain {
+		for _, v := range p.Cache {
+			if v = strings.TrimSpace(v); v != "" && !seen[v] {
+				seen[v] = true
+				out = append(out, v)
 			}
 		}
 	}

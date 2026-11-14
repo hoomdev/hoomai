@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T203716_a5c166",
+  "as": "corregido",
+  "evidence": "Commit 945c225: el paso del encierro lanza el comando como hijo, lider de su sesion, y queda de subreaper; sin SIGTERM sale con su estado y bwrap desarma el resto (CA-679); con SIGTERM lo pasa al grupo del comando y espera a todos los descendientes hasta que terminen o llegue el SIGKILL de la gracia. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_a5c166_CA679_CA684_ElHijoTieneSuGraciaAunqueElPrincipalMuera (5 vueltas) y ElHijoQueIgnoraTERMRecibeSIGKILLAlVencerLaGracia, ambos rojos antes de 945c225; TestCA684_ElHookQuePasaElTopeRecibeSIGTERMYSuGracia pasa 20 de 20 con -race y la CPU cargada (antes 2 de 20 rojos).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.10166692Z"
+}

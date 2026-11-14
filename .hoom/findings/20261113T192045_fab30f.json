@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192045_fab30f",
+  "created_at": "2026-11-13T19:20:45.651102442Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/encierro/encierro.go",
+  "description": "INTRODUCIDO: internal/encierro/encierro.go:459-460 vuelve escribible todo el directorio Git comun y internal/encierro/encierro.go:494-500 solo vuelve de solo lectura los subdirectorios de otros worktrees. En una tarea enlazada quedan escribibles el index y HEAD del checkout principal, y tambien se pueden crear nuevas administraciones bajo worktrees/: un writer puede alterar o inutilizar el checkout principal sin que material-de-git ni git-ajeno lo detecten.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

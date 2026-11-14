@@ -1,0 +1,11 @@
+{
+  "id": "20261113T213913_a48bb4",
+  "created_at": "2026-11-13T21:39:13.739834396Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitajeno/gitajeno.go",
+  "description": "INTRODUCIDO — internal/gitajeno/gitajeno.go:295: refsDeReemplazo sustituye toda ref suelta de mas de 4096 bytes por el valor constante Ilegible. Git acepta una ref replace con un SHA valido seguido de mas de 4 KiB de espacios (se comprobo que aplica el reemplazo), de modo que el writer, un gate o un hook puede cambiar el SHA manteniendo el archivo por encima del umbral; ambas fotos quedan Ilegible y git-ajeno no corta. El codigo anterior leia el archivo completo. Esto salta CA-685 incluso con encierro; el limite debe fallar cerrado de forma que cualquier toque se detecte, no colapsar estados distintos al mismo valor.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

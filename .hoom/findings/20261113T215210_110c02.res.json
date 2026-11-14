@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T215210_110c02",
+  "as": "corregido",
+  "evidence": "Commits 723321c y 08d54b1 (aclaraciones 21 y 29): el git del deshacer es el ultimo del guardado; material, config de los agentes y git-ajeno se miran despues de el, y el error suma lo que cambio el deshacer. Ademas el motivo nombra cada cambio (material, config, git-ajeno, en ese orden), asi un shallow ya no tapa un .claude/settings.json nuevo. Regresion a ciegas de la ronda 2 (af75e13), roja sobre ec7f7f5 y sobre 723321c (la precedencia tapaba la config), verde con -race sobre 4fe0470 (suite completa): TestR2_110c02_CA688_CA689_LaFotoFinalDelGuardadoVaDespuesDelDeshacer (HEAD vuelve y el error nombra .claude/settings.json con ErrHookCambioConfig).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T04:34:23.230508695Z"
+}

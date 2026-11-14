@@ -1,0 +1,101 @@
+{
+  "id": "20261113T194106_391c48",
+  "created_at": "2026-11-13T19:41:06.606620471Z",
+  "task": "contencion-del-writer",
+  "spec": ".hoom/specs/contencion-del-writer.md",
+  "fingerprint": "79c6d088f0ac92df",
+  "verdict_id": "2026-11-13T18-39-40Z_b6a5ed7b",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261113T192045_318ca0",
+    "20261113T192045_425a75",
+    "20261113T192045_6a7c72",
+    "20261113T192045_c5790e",
+    "20261113T192045_fab30f",
+    "20261113T192046_02b2f7",
+    "20261113T192828_03a36d",
+    "20261113T192828_5380e1",
+    "20261113T192828_a8ef36",
+    "20261113T192828_f83160",
+    "20261113T193126_15f87d",
+    "20261113T193236_c1983c",
+    "20261113T193246_185514",
+    "20261113T193306_7adc7b",
+    "20261113T193316_69b8a2",
+    "20261113T193413_d9ebb2",
+    "20261113T193615_bf03ca",
+    "20261113T193709_c9b147",
+    "20261113T193727_775300",
+    "20261113T194039_f1ba2e",
+    "20261113T194044_d52247",
+    "20261113T194049_634cfa"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 557242,
+  "evidence_sha256": "281612b118cf6c02ce1788edcddacce1e62aa21d8b03e11b4b2cc834b126d8a4",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 3026052,
+      "cached_input_tokens": 2703744,
+      "output_tokens": 29425,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 3733016,
+      "cached_input_tokens": 3417856,
+      "output_tokens": 20155,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 6172551,
+      "cached_input_tokens": 5845760,
+      "output_tokens": 27410,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 2044052,
+      "cached_input_tokens": 1846144,
+      "output_tokens": 7386,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261113T191058_e40bfb"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261113T192106_c48e96"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261113T192845_ccd481"
+    },
+    {
+      "lens": "readability",
+      "run": "20261113T193837_afaaf4"
+    }
+  ],
+  "desde": "6b512fc142db6d8f59d88e0c5c0fb8e9cce73c41",
+  "hasta": "a4a26007016026c9d5efe807f84f0c3b03c37597",
+  "cobertura": "completa",
+  "base": "main",
+  "riesgo": "normal"
+}

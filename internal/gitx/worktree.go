@@ -118,7 +118,7 @@ func LimpiarEntorno() {
 // plain folder would pass for a worktree. LimpiarEntorno already removed
 // them from hoom; this holds for a caller that did not run through it.
 func gitLimpio(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", sinFsmonitor(args)...)
 	cmd.Dir = dir
 	for _, kv := range os.Environ() {
 		if k, _, _ := strings.Cut(kv, "="); !slices.Contains(variablesDeOtroRepo, k) {

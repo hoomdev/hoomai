@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261114T045307_75396e",
+  "as": "corregido",
+  "evidence": "Commit 0fbfa8b (aclaracion 31): una gorutina del encierro entrega el SIGTERM cuando el comando ya puede recibirlo, y desde esa entrega se arma el SIGKILL de procesos y se mueve el reloj de Liberar, tambien en el camino tardio; si el paso no lanza el comando en topeInfo, el encierro muere y ningun comando arranca tras la cancelacion sin su gracia entera. El camino real de 10 s no tiene seam publico: queda de guarda TestR3_75396e_CA679_UnComandoQueApareceTardeTieneSuGraciaCompleta (bwrap lento de 1.5 s, cancel antes de que arranque, la gracia completa desde el SIGTERM), con TestR2_f1f7f5 y TestR1_69b8a2, verde con -race sobre c02f47c (suite completa).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T13:29:03.962712575Z"
+}

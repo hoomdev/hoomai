@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T194039_f1ba2e",
+  "as": "corregido",
+  "evidence": "Commit 608c73b: el case sc.Tampering devuelve notaManipulacion en su rama y la doc dice el orden real.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.104815372Z"
+}

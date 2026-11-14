@@ -1,0 +1,11 @@
+{
+  "id": "20261114T045837_aacb4e",
+  "created_at": "2026-11-14T04:58:37.689738611Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/encierro/encierro_linux.go",
+  "description": "INTRODUCIDO. internal/encierro/encierro_linux.go:364-376 ahora espera hasta topeInfo dentro de Term; procesos invoca Term con el mutex global grupos tomado (internal/procesos/procesos.go:202-208 y 91-94). Si el paso tarda en crear el comando, cancelar un encierro bloquea durante hasta 10 s el arranque, liberacion y terminacion de todos los demas grupos, y una senal a hoom demora el SIGTERM de los otros procesos. Es medium porque aparece en un arranque degradado, pero rompe el aislamiento de fallos entre comandos.",
+  "author": "reviewer@codex",
+  "fingerprint": "15037cd7caf166ad",
+  "task": "contencion-del-writer"
+}

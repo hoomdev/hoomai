@@ -62,4 +62,26 @@
 // `hoom aprobar <slug>` and `hoom spec approve <ruta>` launch nothing: when
 // the card of that spec has `auto: hasta-humano` they add the line
 // AvisoDeFirma gives.
+//
+// contencion-del-writer:
+//   - the save is itemcmd.SaveTarea's, which in a project with the section
+//     `encierro` runs each git enclosed and, in any project, fails on a
+//     changed git material (itemcmd.ErrHookCambioMaterial), git outside the
+//     task's branch (itemcmd.ErrGitAjeno) or a newest verdict with
+//     verifycmd.GateMaterialDeGit in fail (itemcmd.ErrVeredictoConMaterial);
+//     the pilot then stops with `no pudo guardar el trabajo de la tarjeta: <error>`;
+//   - cerrar-hallazgos runs its verify with verifycmd.Options.Sobre (role
+//     writer): its gates run enclosed with the writer's view and the cache
+//     `verify` when the project has the section, and the git material and
+//     git-ajeno are photographed around them. A verdict with
+//     verifycmd.GateMaterialDeGit or verifycmd.GateGitAjeno in fail stops the
+//     pilot before its save with its usual text for a red verdict, which names
+//     the gate. With a level under encierro.exigir that verify does
+//     not run, and the pilot stops with a Why that carries
+//     itemcmd.ErrExigirDelGuardado's text;
+//   - an envelope cut by git-ajeno or config-de-agentes
+//     (boardcmd.Sobre.TocoGitAjeno, boardcmd.Sobre.TocoConfigDeAgentes, read
+//     from the scope gate's findings like TocoMaterialGit) is treated as one
+//     cut by material-de-git: no relief even with `corte: tiempo`, no retry,
+//     and a stop with case 8 before the next save.
 package pilotocmd

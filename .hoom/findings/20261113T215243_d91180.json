@@ -1,0 +1,11 @@
+{
+  "id": "20261113T215243_d91180",
+  "created_at": "2026-11-13T21:52:43.009182487Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/gitajeno/gitajeno.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea este delta): internal/gitajeno/gitajeno.go:250-255 acepta packed-refs de hasta MaxLeido (1 GiB) y lo carga entero con os.ReadFile, sin lectura incremental ni comprobacion del plazo durante el I/O. Un writer puede dejar un packed-refs disperso de 1 GiB y la foto posterior intenta reservar/leer todo antes de devolver FotoSinTerminar, pudiendo colgar u OOM al proceso de hoom y evitar que el gate termine. La implementacion anterior tambien usaba os.ReadFile sin cota, por eso no es introducido aunque el nuevo presupuesto no cierre el caso.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

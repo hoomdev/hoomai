@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T215203_59fa6c",
+  "as": "corregido",
+  "evidence": "Commit 6ee8ba3: encierro.Comprobar solo baja el nivel del plan, nunca lo sube; un plan ninguno (sin tarea, o un provider que no declara su estado) conserva su nivel y su motivo aunque Windows cree el job; un parcial por job con el job creado queda parcial. Regresiones a ciegas de la ronda 2 (af75e13), rojas sobre ec7f7f5 y verde con -race sobre 4fe0470 (suite completa): TestR2_59fa6c_CA674_CA677_ComprobarConElJobNuncaSubeElNivel y TestR2_59fa6c_CA674_CA677_ConElJobElSobreSinEstadoSigueEnNinguno (e2e: sidecar y registro del sobre en ninguno con su motivo).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T04:34:23.227270328Z"
+}

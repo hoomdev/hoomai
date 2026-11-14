@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261114T044454_bea100",
+  "as": "corregido",
+  "evidence": "Mismo defecto que d204f2 (lente risk). Commit 419c3f3 (aclaraciones 30 y 30b): refs/replace se recorre por tandas (ReadDir de a 256), con 10000 entradas como maximo entre todos los directorios que recorre (incluidos los destinos de symlinks), profundidad 32 y sin bucles; un directorio se lista dentro del presupuesto antes de abrir sus archivos y pasar cualquier tope da FotoSinTerminar. Un symlink a un directorio se sigue como lo sigue git y un cambio adentro se ve. objects/ queda acotado con su propio tope (aclaracion 30c). Regresion a ciegas de la ronda 3 (c02f47c, endurecida en 3b), roja sobre 765e144 (reservaba 60 MiB con tope de 100 ms; 373 MiB y sin cambios con tope de 10 s) y verde con -race sobre c02f47c (suite completa): TestR3_d204f2_CA685_UnaRefDeReemplazoQueApuntaAUnDirectorioEnorme (symlink y subdirectorio real, topes de 100 ms y 10 s: menos de 2 s, menos de 16 MiB, cuenta como cambiado) y el control TestR3_d204f2_CA685_UnSymlinkAUnDirectorioChico.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T13:29:03.948560272Z"
+}

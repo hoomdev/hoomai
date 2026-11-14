@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T192045_fab30f",
+  "as": "corregido",
+  "evidence": "Commit 4a64ca2: en un worktree enlazado, la vista deja de solo lectura la administracion del checkout principal (encierro.AdministracionPrincipal, las que existen) y worktrees/ salvo la propia; el writer sigue commiteando en su rama. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_fab30f_CA678_ElEncerradoNoMueveAlPrincipal, TestR1_fab30f_CA678_ElWriterEncerradoNoMueveAlPrincipal, TestR1_fab30f_CA678_LaAdministracionDelPrincipal.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.038181598Z"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261113T193709_c9b147",
+  "created_at": "2026-11-13T19:37:09.296373682Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/config_agentes.go",
+  "description": "INTRODUCIDO: FotoConfigAgentes recorre recursivamente .claude/, .codex/ y cada EnArbol sin limite de entradas ni de tiempo. Si uno de esos directorios no existia, el writer puede crear millones de archivos durante un run acotado; la foto posterior temprana queda en filepath.WalkDir fuera del timeout del rol y antes del gate normal, colgando el sobre o la review. Huella limita el tamano de cada archivo, pero no limita este recorrido (internal/agentcmd/config_agentes.go:154).",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

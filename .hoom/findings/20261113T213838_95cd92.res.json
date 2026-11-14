@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T213838_95cd92",
+  "as": "refutado",
+  "evidence": "Decision de la persona (2026-11-13) con sonda: adentro del encierro no se puede crear un hardlink hacia un archivo protegido. bwrap --ro-bind / / --bind \u003cescribible\u003e --ro-bind \u003cprotegido\u003e/hoom.yaml ... sh -c 'ln \u003cprotegido\u003e/hoom.yaml \u003cescribible\u003e/alias' falla con 'Enlace cruzado entre dispositivos no permitido' (EXDEV: link(2) entre montajes distintos), y escribir hoom.yaml da 'Sistema de ficheros de solo lectura'. Un alias asi solo lo prepara alguien fuera del encierro, que ya puede escribir el archivo directamente: no amplia lo que puede el rol encerrado. Va al PR como riesgo.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T22:12:29.350670001Z"
+}

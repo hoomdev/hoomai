@@ -222,7 +222,7 @@ func aislado(repo string) []string {
 // scratch repository, with no attributes file: the tree it wrote, or the
 // first conflicted path when git says there are conflicts (exit 1).
 func mergeSintetico(repo string, env []string, a, b string) (arbol, conflicto string, err error) {
-	cmd := exec.Command("git", "-c", "core.attributesFile="+os.DevNull,
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "-c", "core.attributesFile="+os.DevNull,
 		"merge-tree", "--write-tree", "-z", "--name-only", "--no-messages", a, b)
 	cmd.Dir = repo
 	cmd.Env = env

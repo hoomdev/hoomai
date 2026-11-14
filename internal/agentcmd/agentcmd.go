@@ -18,6 +18,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/isolate"
@@ -129,6 +130,44 @@ type Isolation struct {
 // verify or check, or in scope for fuera-de-scope. A run that died by its
 // timeout leaves `corte: "tiempo"` in the record (envelope.CorteTiempo), and
 // the envelope closes as always (stage run, no-entregable).
+//
+// contencion-del-writer: in a project whose hoom.yaml (root's,
+// manifest.LoadRoles) has the section `encierro`, the envelope of a role that
+// executes (agents.Role.Exec) computes its level (encierro.Nivel, with its
+// provider; ninguno with the motive `sin tarea` without opt.Task) and keeps
+// it in its record (envelope.Record.Encierro). Inside its step run, before
+// launching, it refuses with exit 1, no run in .hoom/runs/, no verdict and
+// the usual steps (five, or six with aislar) when encierro.Validar breaks,
+// or encierro.ValidarEscribe with the Escribe of its provider (their error is
+// the note), or the level does not meet encierro.exigir
+// (encierro.NotaExigir is the note). Otherwise its log carries
+// encierro.Linea and, under completo, encierro.Aviso with the role, and with
+// a task the run starts enclosed (runcmd.StartOptions.Encierro): its run tree
+// is the task's tree (the blind tree for the test-writer), its cache the
+// role's (encierro.Cache), plus its provider's Escribe and
+// encierro.escribibles. When the level the run really had (its sidecar's:
+// on Windows, ninguno without the job, and runcmd already killed its tree)
+// does not meet encierro.exigir, the envelope closes in its step run with
+// exit 1 and encierro.NotaExigir, its territory measured like a failed run's
+// (ronda 1, decision 22). Without the section, or for a role that does not
+// execute, none of this happens and the record has no `encierro`.
+//
+// In any project, after the run of a role that executes, the envelope
+// compares the agents' config (FotoConfigAgentes, RuleConfigDeAgentes) and,
+// for the writer, the git material (RuleMaterialDeGit), BEFORE Take or any
+// other git of its own on the tree: when they changed it cuts in scope
+// without running git status. It also compares git-ajeno (FotoGitAjeno,
+// RuleGitAjeno), which cuts the same way. The note of a cut is the first that
+// applies of: the isolation note, the tampering note, NotaTestsDelTestWriter,
+// NotaMaterialDeGit, NotaConfigDeAgentes(rol), NotaGitAjeno(rol). Every git
+// of hoom on the tree of a role that executes carries core.fsmonitor=false.
+// Its verify runs with verifycmd.Options.Sobre (the role's view, the cache
+// `verify`, the git material and git-ajeno photographed around the gates):
+// when that verdict has verifycmd.GateMaterialDeGit or verifycmd.GateGitAjeno
+// in fail, the writer's envelope also registers the high finding of
+// RuleMaterialDeGit or RuleGitAjeno with each path and closes in verify,
+// no-entregable, exit 1, with NotaMaterialDeGit or NotaGitAjeno; another
+// role's closes as any red verdict.
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup(opt.Role)
 	if err != nil {
@@ -286,8 +325,36 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [N-3/N] run
 	seguir("run", steps-3)
+	// the encierro (contencion-del-writer): only a role that executes, in a
+	// project whose hoom.yaml asks for it; its refusals are inside this step,
+	// before launching
+	var plan *encierro.Plan
+	if role.Exec && roles.Encierro != nil {
+		info := encierro.Nivel(opt.Task != "", prov)
+		rec.Encierro = &info
+		if why := encierroNiega(root, dir, m, *roles.Encierro, info, role.Slug, prov); why != "" {
+			keepQuarantine(w, tree, res.Isolation, "el encierro no dejo correr el rol")
+			return cerrar(w, root, &rec, res, "run", 1, why), nil
+		}
+		fmt.Fprintf(w, "    %s\n", encierro.Linea(info))
+		if aviso := encierro.Aviso(info, role.Slug); aviso != "" {
+			fmt.Fprintf(w, "    %s\n", aviso)
+		}
+		// with ninguno the plan only carries the level to the run's sidecar
+		plan = &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}
+		if opt.Task != "" && info.Nivel != encierro.NivelNinguno {
+			vista, err := encierro.VistaDe(encierro.Lugar{Principal: root, Tarea: opt.Task, Arbol: runDir, Quien: role.Slug,
+				Estado: EstadoDe(prov), Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile})
+			if err != nil {
+				keepQuarantine(w, tree, res.Isolation, "el encierro no se pudo armar")
+				return res, roto(root, &rec, err)
+			}
+			plan.Vista = vista
+		}
+	}
 	so, warn := startOptions(prov, role, contract, opt)
 	so.Dir = runDir
+	so.Encierro = plan
 	if warn {
 		fmt.Fprintf(w, "  aviso: %s no puede imponer un rol de solo lectura; el limite se verifica solo despues del run\n", prov.Name())
 	}
@@ -308,6 +375,13 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// and what the pilot's save runs of git: the writer does not change
 		// it (aclaracion 25)
 		pol.MaterialGit = FotoMaterialGit(dir)
+	}
+	// what runs code in the next session, and git outside the task's
+	// branch: photographed for every role that executes, compared after the
+	// run before any git of hoom on the tree (contencion-del-writer)
+	var previo *fotosPrevias
+	if role.Exec {
+		previo = tomarPrevias(runDir, dir)
 	}
 	before := Take(runDir, base)
 	info, err := mgr.Start(so)
@@ -341,7 +415,32 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		fmt.Fprintf(w, "    sesion %s - reanudar: hoom agent --role %s --provider %s --resume %s \"<pedido>\"\n",
 			st.ProviderSessionID, role.Slug, prov.Name(), st.ProviderSessionID)
 	}
-	if st.Status != runcmd.StatusDone || st.ExitCode != 0 {
+	if rec.Encierro != nil && plan != nil {
+		// the level the run really had (on Windows, without the job: ninguno)
+		if meta, ok := runcmd.ReadMeta(root, info.ID); ok && meta.Encierro != nil {
+			rec.Encierro = meta.Encierro
+		}
+	}
+	// BEFORE Take or any other git of hoom on the tree: a fsmonitor or a
+	// filter the run left does not run inside hoom before the gate sees it
+	if previo != nil {
+		if sc, corta := previo.comparar(dir, opt.Task, role, before, beforeReal, tree != nil, pol); corta {
+			seguir("scope", steps-2)
+			res.Scope = sc
+			printScope(w, res.Scope, role, step(steps-2, steps))
+			keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
+			return cerrar(w, root, &rec, res, "scope", 1, notaDelCorte(sc, role.Slug)), nil
+		}
+	}
+	// the level the run really had does not meet exigir (ronda 1, decision
+	// 22: Windows did not let Adoptar create the job, and runcmd killed its
+	// tree on start): a refusal of exigir, in run, with its territory measured
+	// like a failed run's
+	niegaExigir := ""
+	if plan != nil && rec.Encierro != nil && !encierro.Alcanza(rec.Encierro.Nivel, plan.Exigir) {
+		niegaExigir = encierro.NotaExigir(*rec.Encierro, plan.Exigir, role.Slug)
+	}
+	if niegaExigir != "" || st.Status != runcmd.StatusDone || st.ExitCode != 0 {
 		code := st.ExitCode
 		if code == 0 {
 			code = 1
@@ -353,6 +452,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// ended well or not (CA-438). What it cannot give is a tree to verify.
 		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
 		printScope(w, res.Scope, role, step(steps-2, steps))
+		if niegaExigir != "" {
+			keepQuarantine(w, tree, res.Isolation, "el encierro no dejo correr el rol")
+			return cerrar(w, root, &rec, res, "run", 1, niegaExigir), nil
+		}
 		keepQuarantine(w, tree, res.Isolation, "el run fallo")
 		return cerrar(w, root, &rec, res, "run", code, "el run fallo: su territorio se midio; no se emite veredicto"), nil
 	}
@@ -363,19 +466,8 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
 	printScope(w, res.Scope, role, step(steps-2, steps))
 	if res.Scope.Cuts() {
-		note := "manipulacion de la evidencia: no se emite veredicto sobre este arbol"
-		switch {
-		case res.Scope.Broken():
-			note = "el aislamiento se rompio: no se emite veredicto sobre este arbol"
-		case !res.Scope.Tampering && res.Scope.has(RuleTestsDelTestWriter):
-			// the test-writer's tests: with the evidence also moved, the
-			// note stays the tampering one
-			note = NotaTestsDelTestWriter
-		case !res.Scope.Tampering && res.Scope.has(RuleMaterialDeGit):
-			note = NotaMaterialDeGit
-		}
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")
-		return cerrar(w, root, &rec, res, "scope", 1, note), nil
+		return cerrar(w, root, &rec, res, "scope", 1, notaDelCorte(res.Scope, role.Slug)), nil
 	}
 	// Solo viaja lo que el gate aprobo: la cuarentena es la unica vez que el
 	// gate llega ANTES de que el arbol certificable reciba la escritura.
@@ -395,13 +487,42 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 
 	// [N-1/N] verify
 	seguir("verify", steps-1)
-	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath})
+	// a role that executes: its verify's gates run with its view (enclosed
+	// when the project asks) and the git material is photographed around
+	// them (contencion-del-writer)
+	var sobre *verifycmd.Sobre
+	if role.Exec {
+		sobre = &verifycmd.Sobre{Root: root, Task: opt.Task, Rol: role.Slug}
+		if tree != nil {
+			sobre.Ciego = tree.Dir // the test-writer's gates write only there
+		}
+	}
+	v, _, err := verifycmd.Run(m, verifycmd.Options{Spec: specPath, Sobre: sobre})
 	if err != nil {
 		return res, roto(root, &rec, err)
 	}
 	res.VerdictID, res.Verdict = v.ID, v.Verdict
 	rec.VerdictID, rec.Verdict = v.ID, v.Verdict
 	fmt.Fprintf(w, "  %s verify  %s (veredicto %s)\n", step(steps-1, steps), color(v.Verdict == "green"), v.ID)
+	if role.Scope == agents.ScopeCodigo {
+		// the writer's code changed the git material, or git outside its
+		// branch (aclaracion 20), during its own verify: the finding of
+		// always, and the envelope stops here. Another role's envelope goes
+		// on like any red verdict
+		material, ajeno := MaterialDelVeredicto(v), GitAjenoDelVeredicto(v)
+		if len(material) > 0 {
+			res.Scope = registrarCorte(dir, opt.Task, role, res.Scope, material, RuleMaterialDeGit, DetalleMaterialDeGit)
+		}
+		if len(ajeno) > 0 {
+			res.Scope = registrarCorte(dir, opt.Task, role, res.Scope, ajeno, RuleGitAjeno, DetalleGitAjeno)
+		}
+		switch {
+		case len(material) > 0:
+			return cerrar(w, root, &rec, res, "verify", 1, NotaMaterialDeGit), nil
+		case len(ajeno) > 0:
+			return cerrar(w, root, &rec, res, "verify", 1, NotaGitAjeno(role.Slug)), nil
+		}
+	}
 
 	// [N/N] check
 	seguir("check", steps)
@@ -854,7 +975,7 @@ func specInHead(dir, specPath string) error {
 		return fmt.Errorf("el spec %s vive fuera del arbol de trabajo y no puede viajar al arbol ciego", specPath)
 	}
 	rel = filepath.ToSlash(rel)
-	cmd := exec.Command("git", "show", "HEAD:"+rel)
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "show", "HEAD:"+rel)
 	cmd.Dir = dir
 	head, err := cmd.Output()
 	if err != nil {

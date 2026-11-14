@@ -1,0 +1,11 @@
+{
+  "id": "20261114T045837_d204f2",
+  "created_at": "2026-11-14T04:58:37.548715421Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/gitajeno/gitajeno.go",
+  "description": "INTRODUCIDO. internal/gitajeno/gitajeno.go:530-560 sigue el destino arbitrario de una ref symlink con filepath.WalkDir y acumula cada entrada sin descontarla de pr.bytes. WalkDir lee y ordena un directorio completo antes de invocar el callback, asi que el writer puede crear refs/replace/\u003csha\u003e apuntando a un directorio enorme y hacer que la foto posterior exceda el tope, consuma memoria sin limite o quede colgada antes de registrar git-ajeno. Es high porque un caso provocable por el writer puede colgar u OOM el control que debe detectarlo.",
+  "author": "reviewer@codex",
+  "fingerprint": "15037cd7caf166ad",
+  "task": "contencion-del-writer"
+}

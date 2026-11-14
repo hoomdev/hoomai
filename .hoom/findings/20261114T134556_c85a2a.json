@@ -1,0 +1,11 @@
+{
+  "id": "20261114T134556_c85a2a",
+  "created_at": "2026-11-14T13:45:56.316576042Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO: internal/procesos/procesos.go:270-296 hace que cmd.Cancel inicie la terminacion diferida y vuelva antes de que hecho confirme el SIGTERM. os/exec empieza WaitDelay al volver Cancel; los llamadores reales usan internal/itemcmd/itemcmd.go:1823 (graciaGit + 1 s) e internal/gates/runner.go:179 (graciaGate + 5 s), mientras internal/encierro/encierro_linux.go:440-463 puede tardar hasta topeInfo en encontrar el comando. Si bwrap/el paso arranca tarde, WaitDelay mata el proceso exterior antes de que transcurra la gracia completa desde el SIGTERM, contradiciendo CA-679/CA-684 y pudiendo dejar index.lock; el test nuevo oculta el caso al fijar WaitDelay=20 s. Severidad medium porque aparece bajo arranque degradado/tardio, no en el camino normal.",
+  "author": "reviewer@codex",
+  "fingerprint": "a0d15665e3d58196",
+  "task": "contencion-del-writer"
+}

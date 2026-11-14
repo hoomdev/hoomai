@@ -1,0 +1,11 @@
+{
+  "id": "20261113T194039_f1ba2e",
+  "created_at": "2026-11-13T19:40:39.51377387Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/encierro.go",
+  "description": "INTRODUCIDO: internal/agentcmd/encierro.go:172 deja vacio el case sc.Tampering para salir del switch y caer en el return comun de la linea 184. En Go una rama vacia no hace fallthrough, por lo que esta decision se lee facilmente como un return olvidado; devolver ahi mismo la nota de manipulacion (o nombrar una constante y usarla en ambos lugares) haria explicito el flujo.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

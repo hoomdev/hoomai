@@ -108,15 +108,32 @@ type Sobre struct {
 	// envelope, Piloto stops with case 8, and the pilot does so before its
 	// save (ParadaAntesDeGuardar, aclaracion 25).
 	TocoMaterialGit bool
+	// TocoGitAjeno says the envelope's run changed git outside its task's
+	// branch: the scope gate registered its git-ajeno finding while the
+	// envelope ran (agentcmd.DeGitAjeno), whatever its status
+	// (contencion-del-writer). Piloto treats it as TocoMaterialGit: it does
+	// not relieve it even with `corte: tiempo` (case 5), does not retry it
+	// (case 6), and stops with case 8 before its save.
+	TocoGitAjeno bool
+	// TocoConfigDeAgentes says the envelope's run changed the agents' config:
+	// the scope gate registered its config-de-agentes finding while the
+	// envelope ran (agentcmd.DeConfigDeAgentes), whatever its status
+	// (contencion-del-writer). Piloto treats it as TocoMaterialGit.
+	TocoConfigDeAgentes bool
 }
 
 // ParadaAntesDeGuardar is the pilot's stop before it saves the card, when
 // the newest of sobres (oldest first) changed the git material of its task
-// (Sobre.TocoMaterialGit): case 8, with its Why. The save runs the
+// (Sobre.TocoMaterialGit), or, since contencion-del-writer, git outside its
+// branch (Sobre.TocoGitAjeno) or the agents' config
+// (Sobre.TocoConfigDeAgentes): case 8, with its Why. The save runs the
 // repository's hooks and config (aclaracion 23), and a writer that changed
 // them is not followed by any git that runs them (aclaracion 25).
 func ParadaAntesDeGuardar(sobres []Sobre) (PilotDecision, bool) {
-	if len(sobres) == 0 || !sobres[len(sobres)-1].TocoMaterialGit {
+	if len(sobres) == 0 {
+		return PilotDecision{}, false
+	}
+	if last := sobres[len(sobres)-1]; !last.TocoMaterialGit && !last.TocoGitAjeno && !last.TocoConfigDeAgentes {
 		return PilotDecision{}, false
 	}
 	return parar(8, noEntregable(sobres[len(sobres)-1].Record)), true
@@ -282,8 +299,10 @@ func (p piloto) decidir() PilotDecision {
 	// that ends a round
 	pasa := false
 	if hay {
-		// an envelope that changed the git material of its task stops the
-		// pilot, whatever its status, round or finding (aclaracion 25)
+		// an envelope that changed the git material of its task, git
+		// outside its branch or the agents' config stops the pilot, whatever
+		// its status, round or finding (aclaracion 25, contencion-del-writer):
+		// it is neither relieved nor retried
 		if d, para := ParadaAntesDeGuardar(p.e.Sobres); para {
 			return d
 		}

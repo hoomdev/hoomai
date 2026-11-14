@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192828_f83160",
+  "created_at": "2026-11-13T19:28:28.272048657Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:965 agrega -c commit.gpgsign=false solo cuando el mecanismo es bwrap. Con la seccion encierro y nivel parcial o ninguno permitido (Windows, macOS o Linux sin bwrap), el guardado hereda commit.gpgsign=true y puede firmar, pedir credenciales o fallar, contrario a la decision 7 y CA-684.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

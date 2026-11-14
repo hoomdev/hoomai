@@ -1,0 +1,11 @@
+{
+  "id": "20261114T141951_8daed0",
+  "created_at": "2026-11-14T14:19:51.38263962Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO — internal/procesos/procesos.go:287-293 espera sin limite en \u003c-hecho dentro de cmd.Cancel. Para Terminacion.Term, diferir ejecuta Term en una goroutine y solo publica hecho cuando Term retorna (lineas 222-235), pero el contrato de Term en lineas 60-67 permite que tarde y no exige que este acotado. Si ese callback se bloquea (por ejemplo, una terminacion degradada que espera I/O), os/exec queda bloqueado dentro de Cancel, nunca inicia WaitDelay y cmd.Wait no vuelve aunque venza el contexto. Antes de esta delta Cancel devolvia y la espera de hecho quedaba en otra goroutine, por lo que WaitDelay aun acotaba el comando. Severidad medium: ocurre fuera del camino normal actual de bwrap, cuyo Diferida si esta acotado, pero rompe el comportamiento soportado de ArrancarCon con Term.",
+  "author": "reviewer@codex",
+  "fingerprint": "64035d991f717e49",
+  "task": "contencion-del-writer"
+}

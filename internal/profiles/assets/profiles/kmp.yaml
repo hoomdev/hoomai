@@ -7,6 +7,9 @@ detect:
       contains: "multiplatform"
     - path: settings.gradle.kts
       contains: "multiplatform"
+# variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
+# dentro de su propia cache; GRADLE_USER_HOME ademas tapa ~/.gradle/init.d/
+cache: [GRADLE_USER_HOME]
 gates:
   security:
     required: false

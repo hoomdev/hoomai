@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
@@ -133,6 +134,14 @@ type StartOptions struct {
 	// Timeout bounds each invocation of THIS run; 0 = the Manager's (30
 	// minutes by default). The sidecar records it (timeout_s).
 	Timeout time.Duration
+	// Encierro (contencion-del-writer) is the plan each invocation of the
+	// run starts under (encierro.Envolver and encierro.Arrancar): nil = as
+	// today. Its Info goes to the sidecar (Meta.Encierro); a plan with no
+	// mechanism (level ninguno) only does that, and the run starts as
+	// today. Whoever runs a role that executes, in a project with the
+	// section `encierro`, sets it (agentcmd.Run, reviewcmd.Run); `hoom run`
+	// never does.
+	Encierro *encierro.Plan
 }
 
 // VentanaNarrando is how recent the provider's last narration must be, when
@@ -311,6 +320,15 @@ type Meta struct {
 	// (autonomia-entre-firmas): `"corte": "tiempo"` in the sidecar, written
 	// with the close. Omitted for any other end (done, error, canceled).
 	Corte string `json:"corte,omitempty"`
+	// Encierro is the level of the encierro the run had
+	// (contencion-del-writer): `"encierro": {...}` (encierro.Info), the one
+	// of StartOptions.Encierro, except on Windows, where it is ninguno when
+	// procesos.Adoptar could not create the job (encierro.Comprobar); then,
+	// with Plan.Exigir above ninguno, hoom killed its tree on start and the
+	// run ends in error with encierro.SinJob's text. Omitted for a run started
+	// without a Plan (`hoom run`, a role that does not execute, a project
+	// without the section `encierro`).
+	Encierro *encierro.Info `json:"encierro,omitempty"`
 }
 
 // CorteTiempo is Meta.Corte (and Run.Corte) of a run that died by its
@@ -1116,6 +1134,10 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 		Model:    strings.TrimSpace(opts.Model), Effort: strings.TrimSpace(opts.Effort),
 	}
 	r.meta.IsolatedFrom, r.meta.Isolated = blindFrom(dir)
+	if opts.Encierro != nil {
+		info := opts.Encierro.Info
+		r.meta.Encierro = &info
+	}
 	// a run with no task (a review with --spec and no --task, at the root)
 	// keeps the task of its findings: the only fact that ties its cost to
 	// the task when it ends with no record (costo-por-spec, amendment 2)
@@ -1391,17 +1413,54 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 		m.settle(r, StatusError, -1, "no se pudo lanzar el provider "+r.provider.Name()+": sin pipes")
 		return
 	}
-	if err := arrancar(cmd); err != nil {
+	// with a plan (a role that executes, with a task, in a project with the
+	// section encierro) the provider runs enclosed: bwrap around it, and
+	// the run's gracia (none) kept (contencion-del-writer)
+	// a plan with no mechanism (level ninguno) only carries its level to the
+	// sidecar: the run starts as today
+	plan := r.opts.Encierro
+	if plan != nil && plan.Info.Mecanismo == "" {
+		plan = nil
+	}
+	if plan != nil {
+		if err := encierro.Envolver(cmd, *plan); err != nil {
+			m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo encerrar el provider %s: %v", r.provider.Name(), err))
+			return
+		}
+	}
+	var errArranque error
+	if plan != nil {
+		errArranque = encierro.Arrancar(cmd, 0)
+	} else {
+		errArranque = arrancar(cmd)
+	}
+	if errArranque != nil {
 		// the cause matters: a missing binary and an argv too large (E2BIG
 		// with a huge --system-prompt) look the same otherwise
-		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), err))
+		m.settle(r, StatusError, -1, fmt.Sprintf("no se pudo lanzar el provider %s: %v", r.provider.Name(), errArranque))
 		return
 	}
-	defer soltarGrupo(cmd.Process.Pid)
+	if plan != nil {
+		defer encierro.Liberar(cmd)
+	} else {
+		defer soltarGrupo(cmd.Process.Pid)
+	}
 	// the provider's PID keeps the run alive for other processes if this
 	// one dies: without it on disk the run is not protected, so it does not
 	// go on (finding da369a)
+	// the level the run really had (ronda 1, decision 22): on Windows,
+	// without the job nothing contains its processes; with exigir above
+	// ninguno its tree is already dead and the run closes in error with why
+	var sinJob error
+	var real *encierro.Info
+	if plan != nil {
+		info, err := encierro.Comprobar(cmd, *plan)
+		real, sinJob = &info, err
+	}
 	m.mu.Lock()
+	if real != nil {
+		r.meta.Encierro = real
+	}
 	r.meta.ChildPID, r.meta.ChildStartedAt = cmd.Process.Pid, time.Now().UTC()
 	errPID := writeMeta(m.root, r.meta)
 	m.mu.Unlock()
@@ -1516,6 +1575,12 @@ func (m *Manager) execute(r *run, inv providers.Invocation) {
 	if errPID != nil {
 		status, exit = StatusError, -1
 		detail = fmt.Sprintf("no se pudo registrar el PID del provider (%v): el run se corto", errPID)
+		corte = ""
+	}
+	if sinJob != nil {
+		// hoom killed it on start: what it did before is not a result
+		status, exit = StatusError, -1
+		detail = sinJob.Error()
 		corte = ""
 	}
 	if escrito != nil {

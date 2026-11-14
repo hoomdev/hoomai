@@ -1,0 +1,11 @@
+{
+  "id": "20261113T213719_61babd",
+  "created_at": "2026-11-13T21:37:19.90058441Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitajeno/gitajeno.go",
+  "description": "INTRODUCIDO — internal/gitajeno/gitajeno.go:295: refsDeReemplazo convierte toda ref suelta no regular (incluidos symlinks que Git sigue) en el valor constante Ilegible. Si refs/replace/\u003cobjeto\u003e ya es un symlink, el writer, un gate o un hook puede cambiar solo su archivo destino (por ejemplo en su cache escribible); Git pasa a reemplazar por otro objeto, pero las fotos anterior y posterior conservan Ilegible y git-ajeno no corta. El codigo anterior leia os.ReadFile(p) y por tanto fotografiaba el valor resuelto. Esto salta el control de CA-685 incluso con encierro.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

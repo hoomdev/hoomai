@@ -43,7 +43,7 @@ type Info struct {
 }
 
 func run(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", sinFsmonitor(args)...)
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
 	out, err := cmd.Output()
@@ -426,7 +426,7 @@ var errSinRespuesta = errors.New("git no respondio")
 func runTope(dir string, tope time.Duration, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), tope)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", sinFsmonitor(args)...)
 	cmd.Dir = dir
 	cmd.Env = soloLectura()
 	cmd.WaitDelay = 5 * time.Second
@@ -497,4 +497,11 @@ func Identity(dir string) string {
 		return email
 	}
 	return "desconocido"
+}
+
+// sinFsmonitor puts core.fsmonitor=false before args: no git of hoom over a
+// tree runs the fsmonitor a role may have left in a config
+// (contencion-del-writer, CA-693).
+func sinFsmonitor(args []string) []string {
+	return append([]string{"-c", "core.fsmonitor=false"}, args...)
 }

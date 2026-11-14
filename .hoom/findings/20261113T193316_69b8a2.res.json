@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T193316_69b8a2",
+  "as": "corregido",
+  "evidence": "Commits 6244211 y 945c225: un cancel o una senal antes de que bwrap publique el pid de su init espera ese dato y manda SIGTERM con su gracia; el paso retiene el SIGTERM hasta que el comando lo maneja. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_69b8a2_CA679_CanceladoEnSeguidaRecibeSIGTERMYSuGracia (repetido dentro del test).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.098195326Z"
+}

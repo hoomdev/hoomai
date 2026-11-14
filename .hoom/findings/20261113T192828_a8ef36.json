@@ -1,0 +1,11 @@
+{
+  "id": "20261113T192828_a8ef36",
+  "created_at": "2026-11-13T19:28:28.179915885Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/verifycmd/verifycmd.go",
+  "description": "INTRODUCIDO: internal/verifycmd/verifycmd.go:251 ignora Sobre.Rol y siempre monta m.Dir completo como escribible. En el sobre del test-writer, los gates corren despues de cerrar y trasplantar el arbol ciego, por lo que un test puede sobrescribir la implementacion real fuera de su territorio; aunque el check posterior corte, la escritura y posible perdida ya ocurrieron, contra CA-683/CA-695.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

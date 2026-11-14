@@ -1,0 +1,11 @@
+{
+  "id": "20261113T213838_95cd92",
+  "created_at": "2026-11-13T21:38:38.094939485Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/encierro/encierro.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea esta delta) — internal/encierro/encierro.go:487: VistaDe monta el arbol, el directorio comun y el estado del provider como escribibles y luego protege archivos sensibles solo con bind mounts de solo lectura por ruta. Un hardlink ya existente dentro de cualquiera de esas zonas escribibles conserva el mismo inodo que un archivo protegido (por ejemplo hoom.yaml, material git o administracion del principal) y permite modificarlo por el alias; bubblewrap no hace de solo lectura el inodo en los otros mounts. El comportamiento ya estaba antes de a4a260070160, pero contradice la garantia de que lo encerrado escribe solo en su tarea y permite perdida o alteracion de controles en un caso que una persona puede preparar sin privilegios.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

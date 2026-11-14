@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -30,6 +31,13 @@ type Options struct {
 	// Emit narrates the run as live events (nil = silent). Best-effort by
 	// contract: emitting never alters gate execution, verdict or exit code.
 	Emit func(live.Event)
+	// Encierro (contencion-del-writer) is the plan each gate runs under
+	// (encierro.Envolver, encierro.Arrancar with the gate's gracia): nil =
+	// as today. Only verifycmd.Run with Options.Sobre sets it.
+	Encierro *encierro.Plan
+	// SinEncierro are the gates that run as today even with Encierro
+	// (encierro.gates_sin_encierro of hoom.yaml).
+	SinEncierro map[string]bool
 }
 
 func (o Options) emit(ev live.Event) {
@@ -88,7 +96,11 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	start := time.Now()
 	// correr keeps the last TailSize+margenCola bytes; tail then trims the
 	// blanks at both ends and keeps the last TailSize of what is left
-	out, cortado, err := correr(ctx, m.Dir, cmdStr, opt.TailSize+margenCola)
+	plan := opt.Encierro
+	if opt.SinEncierro[name] {
+		plan = nil
+	}
+	out, cortado, err := correr(ctx, m.Dir, cmdStr, opt.TailSize+margenCola, plan)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.OutputTail = tail(string(out), opt.TailSize)
 	if cortado && !strings.HasPrefix(res.OutputTail, marcaCorte) {
@@ -141,7 +153,14 @@ const graciaGate = 10 * time.Second
 // gracia when the deadline passed (finding 01d565) — and the reading ends
 // with it; something that left the group and still holds the output gets
 // finDeLectura more, and no more.
-func correr(ctx context.Context, dir, cmdStr string, limite int) (out []byte, cortado bool, err error) {
+//
+// With the plan of an encierro (contencion-del-writer; nil = as today) the
+// gate's sh runs enclosed (encierro.Envolver), with the same gracia
+// (encierro.Arrancar), and its end kills whatever it left inside
+// (encierro.Liberar). When encierro.Comprobar kills it on start (Windows
+// without the job, Plan.Exigir above ninguno), err is its encierro.SinJob:
+// the gate ends in error with that text.
+func correr(ctx context.Context, dir, cmdStr string, limite int, plan *encierro.Plan) (out []byte, cortado bool, err error) {
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		return nil, false, err
@@ -158,16 +177,34 @@ func correr(ctx context.Context, dir, cmdStr string, limite int) (out []byte, co
 	cmd.Stdout = pw
 	cmd.Stderr = pw
 	cmd.WaitDelay = graciaGate + 5*time.Second
-	err = procesos.ArrancarConGracia(cmd, graciaGate)
+	if plan != nil {
+		if err := encierro.Envolver(cmd, *plan); err != nil {
+			pw.Close()
+			return nil, false, err
+		}
+		err = encierro.Arrancar(cmd, graciaGate)
+	} else {
+		err = procesos.ArrancarConGracia(cmd, graciaGate)
+	}
 	pw.Close() // the gate keeps its copy: EOF comes when the gate's are closed
 	if err != nil {
 		return nil, false, err // the deferred Close ends the reading
 	}
-	err = cmd.Wait()
-	if ctx.Err() != nil {
-		procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGate))
+	// on Windows without the job and exigir above ninguno (ronda 1, decision
+	// 22) its tree is already dead: the gate ends in error with why
+	var sinJob error
+	if plan != nil {
+		_, sinJob = encierro.Comprobar(cmd, *plan)
 	}
-	procesos.Liberar(cmd.Process.Pid)
+	err = cmd.Wait()
+	if plan != nil {
+		encierro.Liberar(cmd) // the rest of its gracia, then the whole encierro
+	} else {
+		if ctx.Err() != nil {
+			procesos.EsperarGrupo(cmd.Process.Pid, time.Now().Add(graciaGate))
+		}
+		procesos.Liberar(cmd.Process.Pid)
+	}
 	select {
 	case <-leido:
 	case <-time.After(finDeLectura):
@@ -181,6 +218,9 @@ func correr(ctx context.Context, dir, cmdStr string, limite int) (out []byte, co
 		}
 	}
 	out, cortado = cola.bytes()
+	if sinJob != nil {
+		err = sinJob
+	}
 	return out, cortado, err
 }
 

@@ -384,6 +384,12 @@ func (m *Manifest) RoleDefaults(role string) RoleDefaults {
 // declared section (nil without it), and an invalid one is the error of
 // AutonomiaPolicy's contract, wrapped as `hoom.yaml invalido: ...`; the rule
 // that rounds need findings.block_on is judged against this same file.
+//
+// It reads encierro: the same way (contencion-del-writer), without running
+// git: the result's Encierro is the declared section (nil without it, and
+// then nothing is enclosed), with Exigir ExigirNo when the section does not
+// say it, and an invalid one is the error of EncierroPolicy's contract,
+// wrapped as `hoom.yaml invalido: ...`.
 func LoadRoles(root string) (*Manifest, error) {
 	raw, err := os.ReadFile(filepath.Join(root, FileName))
 	if os.IsNotExist(err) {
@@ -396,6 +402,7 @@ func LoadRoles(root string) (*Manifest, error) {
 		Agents    AgentPolicies    `yaml:"agents"`
 		Review    *ReviewPolicy    `yaml:"review"`
 		Autonomia *AutonomiaPolicy `yaml:"autonomia"`
+		Encierro  *EncierroPolicy  `yaml:"encierro"`
 		Findings  yaml.Node        `yaml:"findings"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -407,7 +414,7 @@ func LoadRoles(root string) (*Manifest, error) {
 	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings)); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Dir: root}, nil
+	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Dir: root}, nil
 }
 
 // AutonomiaPolicy is the optional `autonomia:` section of the PROJECT's
@@ -519,6 +526,143 @@ func blockOnDeclarado(n yaml.Node) bool {
 	return false
 }
 
+// EncierroPolicy is the optional `encierro:` section of the PROJECT's
+// hoom.yaml (contencion-del-writer, "La politica encierro"). With the
+// section, what runs code of the writer under an envelope of a role that
+// executes, the review or the pilot runs enclosed; without it, nothing does.
+//
+//	encierro:
+//	  exigir: completo          # completo, parcial o no (no por defecto)
+//	  escribibles:              # rutas fuera del arbol que el encierro deja escribir
+//	    - ~/.semgrep
+//	  gates_sin_encierro:       # gates del verify que corren como hoy
+//	    - e2e
+//
+// The section is strict. Load (and LoadWithoutBaseCheck) and LoadRoles
+// reject an invalid one without running git, wrapped as
+// `hoom.yaml invalido: <error>`, and the errors are exactly:
+//
+//   - `encierro: clave desconocida "<k>" (validas: exigir, escribibles, gates_sin_encierro)`;
+//   - `encierro: exigir tiene que ser completo, parcial o no`;
+//   - `encierro: escribibles: "<ruta>" no es una ruta absoluta ni empieza con ~/`,
+//     for a relative, empty or null entry (`- ~` is null in YAML), "<ruta>"
+//     being the entry as the file writes it;
+//   - `encierro: escribibles: "<ruta>" es todo el disco o todo el directorio personal`,
+//     for what is, after filepath.Clean and expanding "~/" with this
+//     process's $HOME, `/` or the $HOME (`/`, `~/`, the $HOME written
+//     absolute, also with extra "/" or "." components).
+//
+// The two rules that need the tree and the repository (a writable path that
+// contains or is inside the main checkout or the git common directory, a
+// gate that is not among the tree's gates) are judged when the envelope or
+// the review starts (encierro.Validar), not here.
+type EncierroPolicy struct {
+	// Exigir is ExigirCompleto, ExigirParcial or ExigirNo; ExigirNo when the
+	// section does not say it (or says it null).
+	Exigir string `yaml:"exigir"`
+	// Escribibles are the paths outside the tree the encierro lets write, as
+	// the file writes them: absolute or starting with "~/" (the $HOME of
+	// whoever runs hoom).
+	Escribibles []string `yaml:"escribibles"`
+	// GatesSinEncierro are names of gates of verify that run as today
+	// (unenclosed), also in the verify of the envelope; the photograph of the
+	// git material before and after the gates still includes them.
+	GatesSinEncierro []string `yaml:"gates_sin_encierro"`
+}
+
+// The values of encierro.exigir.
+const (
+	ExigirCompleto = "completo"
+	ExigirParcial  = "parcial"
+	ExigirNo       = "no"
+)
+
+// EncierroKeys are the keys `encierro:` accepts, in the order its error
+// lists them.
+var EncierroKeys = []string{"exigir", "escribibles", "gates_sin_encierro"}
+
+// UnmarshalYAML decodes `encierro:` strictly: an unknown key, an exigir out
+// of its list or a writable path that is not absolute nor starts with "~/",
+// or that is the whole disk or the whole home, is the error of
+// EncierroPolicy's contract.
+func (p *EncierroPolicy) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("encierro debe ser un mapa (ej. encierro: { exigir: completo })")
+	}
+	out := EncierroPolicy{Exigir: ExigirNo}
+	home, _ := os.UserHomeDir()
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, v := n.Content[i].Value, n.Content[i+1]
+		if !containsKey(EncierroKeys, key) {
+			return fmt.Errorf("encierro: clave desconocida %q (validas: %s)", key, strings.Join(EncierroKeys, ", "))
+		}
+		if esNulo(v) {
+			continue // como en autonomia: nulo = sin la clave
+		}
+		switch key {
+		case "exigir":
+			if v.Kind != yaml.ScalarNode || (v.Value != ExigirCompleto && v.Value != ExigirParcial && v.Value != ExigirNo) {
+				return fmt.Errorf("encierro: exigir tiene que ser completo, parcial o no")
+			}
+			out.Exigir = v.Value
+		case "escribibles":
+			if v.Kind != yaml.SequenceNode {
+				return fmt.Errorf("encierro: escribibles tiene que ser una lista de rutas")
+			}
+			for _, e := range v.Content {
+				ruta := e.Value
+				if e.Kind != yaml.ScalarNode || esNulo(e) || !rutaEscribible(ruta) {
+					return fmt.Errorf("encierro: escribibles: %q no es una ruta absoluta ni empieza con ~/", ruta)
+				}
+				if todoElDisco(ruta, home) {
+					return fmt.Errorf("encierro: escribibles: %q es todo el disco o todo el directorio personal", ruta)
+				}
+				out.Escribibles = append(out.Escribibles, ruta)
+			}
+		case "gates_sin_encierro":
+			if v.Kind != yaml.SequenceNode {
+				return fmt.Errorf("encierro: gates_sin_encierro tiene que ser una lista de nombres de gates")
+			}
+			for _, e := range v.Content {
+				if e.Kind != yaml.ScalarNode || esNulo(e) || strings.TrimSpace(e.Value) == "" {
+					return fmt.Errorf("encierro: gates_sin_encierro tiene que ser una lista de nombres de gates")
+				}
+				out.GatesSinEncierro = append(out.GatesSinEncierro, e.Value)
+			}
+		}
+	}
+	*p = out
+	return nil
+}
+
+// rutaEscribible says whether ruta has the shape encierro.escribibles takes:
+// absolute, or starting with "~/".
+func rutaEscribible(ruta string) bool {
+	return strings.HasPrefix(ruta, "~/") || strings.HasPrefix(ruta, "/") || filepath.IsAbs(ruta)
+}
+
+// todoElDisco says whether ruta, cleaned and with "~/" expanded with home,
+// is the whole disk or the whole home: making it writable would leave
+// nothing enclosed. An ancestor of the home is not judged here: when the
+// project lives under it, encierro.Validar refuses it at the start because it
+// contains the main checkout. It runs no git.
+func todoElDisco(ruta, home string) bool {
+	if rest, ok := strings.CutPrefix(ruta, "~/"); ok {
+		if filepath.Clean("/"+rest) == "/" && !strings.HasPrefix(filepath.Clean(rest), "..") {
+			return true // ~/, ~/. and the like, whatever the home is
+		}
+		if home == "" {
+			return false
+		}
+		ruta = filepath.Join(home, rest)
+	}
+	c := filepath.Clean(ruta)
+	if c == "/" || c == filepath.VolumeName(c)+string(filepath.Separator) {
+		return true
+	}
+	return home != "" && c == filepath.Clean(home)
+}
+
 // AutonomiaOrDefault is the project's autonomia policy: the declared section,
 // or the zero policy (0 retries, 0 rounds, VentanaMax nil) without it. A nil
 // manifest declares nothing.
@@ -601,6 +745,10 @@ type Manifest struct {
 	// Autonomia is the pilot's policy (autonomia-entre-firmas): nil = no
 	// section. Read it with AutonomiaOrDefault.
 	Autonomia *AutonomiaPolicy `yaml:"autonomia,omitempty"`
+	// Encierro is the containment policy (contencion-del-writer): nil = no
+	// section, and then nothing runs enclosed. What counts is the PROJECT's
+	// (LoadRoles of the main checkout), never the branch's.
+	Encierro *EncierroPolicy `yaml:"encierro,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`

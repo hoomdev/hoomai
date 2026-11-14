@@ -1,0 +1,11 @@
+{
+  "id": "20261113T214418_f1f7f5",
+  "created_at": "2026-11-13T21:44:18.091252721Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/encierro/encierro_linux.go",
+  "description": "INTRODUCIDO: internal/encierro/encierro_linux.go:359-365 devuelve exito y arma el SIGKILL de la gracia aunque el step aun no tenga hijo; termAlComando recien entrega SIGTERM cuando aparece el comando, pero ese camino no llama alTerm. Por eso el temporizador de procesos (internal/procesos/procesos.go:209-210) y Liberar (internal/encierro/encierro.go:935-940) siguen contando desde la cancelacion, no desde la entrega real de SIGTERM. Si se cancela justo despues de Arrancar y el step tarda en hacer ForkExec, un gate o git recibe menos que graciaGate/graciaGit — incluso puede recibir solo SIGKILL— y puede no limpiar su index.lock. Es una carrera improbable, por eso medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261113T194044_d52247",
+  "created_at": "2026-11-13T19:40:44.569963938Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:873-875 afirma que una violacion de scope vuelve como Result y que solo un setup roto devuelve error, pero el comentario nuevo de las lineas 889-893 y las ramas 1145-1153 dicen y hacen lo contrario para config-de-agentes y git-ajeno. El contrato publico de Run queda internamente contradictorio; unificarlo para describir con precision cuales rechazos son errores evita que los consumidores tengan que inferir la convencion desde la implementacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "79c6d088f0ac92df",
+  "task": "contencion-del-writer"
+}

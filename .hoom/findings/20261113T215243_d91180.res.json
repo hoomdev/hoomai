@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T215243_d91180",
+  "as": "corregido",
+  "evidence": "Commits a8ee774 y 5d0147e (aclaraciones 27 y 28): packed-refs se lee en flujo con un buffer fijo de 64 KiB y el plazo se mira en cada linea y en cada trozo; una linea mas larga que cualquier ref posible se fotografia por largo y sha256 bajo su propia clave (si cambia, Cambios nombra \u003ccomun\u003e/packed-refs) y las refs que siguen se siguen viendo; pasar el plazo da FotoSinTerminar. Regresiones a ciegas de la ronda 2 (af75e13), verde con -race sobre 4fe0470 (suite completa): TestR2_d91180_CA685_UnPackedRefsEnormeYDispersoNoSeLeeEntero (tiempo acotado) y TestR2_d91180_CA685_UnPackedRefsDeBajoDeMaxLeidoNoSeCargaEntero (roja sobre ec7f7f5: reservaba 544 MiB, quiere menos de 64).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T04:34:23.223710985Z"
+}

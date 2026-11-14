@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261114T142350_e9c31c",
+  "as": "corregido",
+  "evidence": "Commit fc45ba6 (aclaracion 33): Cancel ya no espera la entrega, y para un cmd encerrado con gracia encierro.Arrancar sube un WaitDelay distinto de cero a esperaEntrega (esperaInfo = topeInfo + 1 s, mas topeInfo: el peor caso de mandarTerm, de las constantes) + gracia + margenEspera, contado desde el fin del contexto como documenta os/exec; ya no depende de que os/exec arranque su reloj al volver Cancel. Regresion a ciegas de la ronda 5 (8b4c9c8): TestR5_e9c31c_CA679_LaMarcaTermLlegaAntesDeT0MasElWaitDelay (bwrap lento de 2 s, WaitDelay 1.5 s, gracia 1 s; exige que la marca term llegue antes de t0 + cmd.WaitDelay), roja sobre 9e76fa9 (marca a los 2.6 s, WaitDelay de 2 s) y verde 3 de 3 con -race sobre 8b4c9c8, junto con las de r3 (aacb4e, 75396e) y r4 (c85a2a y su control); suite completa verde con -race.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T17:07:36.45771214Z"
+}

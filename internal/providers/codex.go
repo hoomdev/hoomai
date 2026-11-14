@@ -3,6 +3,8 @@ package providers
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -18,6 +20,48 @@ type codex struct{}
 
 func (codex) Name() string { return "codex" }
 func (codex) Bin() string  { return "codex" }
+
+// Estado declares what Codex CLI keeps on the machine (ConEstado,
+// contencion-del-writer):
+//   - Escribe: `~/.codex` ($CODEX_HOME when it is set, as CodexHome), whole;
+//   - EnArbol: `.codex/`;
+//   - Corre: `~/.codex/config.toml`, the whole file (hoom has no TOML
+//     parser), and `~/.codex/hooks.json`, the whole file (codex's hooks).
+//
+// Nothing is mounted read-only inside `~/.codex`: what changes there and
+// makes code run is detected (config-de-agentes), not blocked.
+//
+// The probe that fixes these lists (codex-cli 0.167.0, 2026-11-13: `codex
+// exec --json -c model_reasoning_effort="low" -c sandbox_mode="read-only"`)
+// saw it write, in `~/.codex/`, several sqlite databases at its ROOT
+// (`goals_1`, `logs_2`, `memories_1`, `queue_1`, `state_5`,
+// `thread_history_1`, with their -wal/-shm), `sessions/AAAA/...`, `cache/`,
+// `plugins/cache/`, `tmp/arg0-linux/`, `models_cache.json`,
+// `installation_id` and `thread-writer-locks`; NOT `config.toml`,
+// `hooks.json` nor `auth.json` in a run without a refresh. With $HOME
+// read-only and only `~/.codex/sessions` writable it fails (`failed to
+// initialize in-process app-server client: Read-only file system`); with
+// `~/.codex` writable whole it runs, also with `config.toml`, `hooks.json`,
+// `auth.json` and `rules/` read-only on top. sqlite creates its
+// -wal/-shm/-journal next to each database, so the root of `~/.codex` has to
+// be writable. `~/.codex/sessions/` is where hoom reads the 5 h windows the
+// pilot uses (medicion.go): with `~/.codex` writable, an enclosed run can
+// forge them (a risk the spec accepts). The probe also found
+// `~/.codex/hooks.json`, codex's hooks: code that runs in the next session.
+func (codex) Estado() Estado {
+	dir := "~/.codex"
+	if h := os.Getenv("CODEX_HOME"); h != "" && filepath.IsAbs(h) {
+		dir = filepath.Clean(h) // CodexHome: where codex really keeps it
+	}
+	return Estado{
+		Escribe: []string{dir},
+		EnArbol: []string{".codex/"},
+		Corre: []Corre{
+			{Archivo: dir + "/config.toml"},
+			{Archivo: dir + "/hooks.json"},
+		},
+	}
+}
 
 func (codex) Capabilities() Capabilities {
 	return Capabilities{

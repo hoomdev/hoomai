@@ -1,0 +1,11 @@
+{
+  "id": "20261114T135322_f60133",
+  "created_at": "2026-11-14T13:53:22.82728364Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO: internal/procesos/procesos.go:270-296 hace que Cmd.Cancel vuelva apenas inicia la terminacion diferida y espere el resultado en otra goroutine. os/exec empieza WaitDelay cuando Cancel vuelve; por eso, si bwrap o el comando aparecen tarde, WaitDelay puede ejecutar Process.Kill antes de que Diferida entregue SIGTERM o antes de que transcurra la gracia completa. Es concreto en el guardado: internal/itemcmd/itemcmd.go:1823 fija WaitDelay a graciaGit+1s (1.5s), mientras internal/encierro/encierro_linux.go:440-463 puede esperar hasta topeInfo para hallar el init y otro topeInfo para hallar el comando. Un arranque degradado de mas de ~1s deja a git sin sus 500ms completos para soltar index.lock; los tests nuevos ocultan el caso al fijar WaitDelay=20s. La terminacion diferida debe coordinar el reloj de os/exec con la entrega real o ampliar ese limite para cubrir la espera previa mas la gracia.",
+  "author": "reviewer@codex",
+  "fingerprint": "a0d15665e3d58196",
+  "task": "contencion-del-writer"
+}

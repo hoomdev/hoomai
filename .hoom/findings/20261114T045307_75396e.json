@@ -1,0 +1,11 @@
+{
+  "id": "20261114T045307_75396e",
+  "created_at": "2026-11-14T04:53:07.590503162Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/encierro/encierro_linux.go",
+  "description": "INTRODUCIDO: internal/encierro/encierro_linux.go:369-373, al agotarse topeInfo antes de que el step tenga comando, devuelve true y deja termAlComando entregando SIGTERM en segundo plano durante la misma ventana gracia. ArrancarCon arma matarTrasGracia apenas Term devuelve (internal/procesos/procesos.go:199-210), y ese temporizador no se reajusta cuando termAlComando llama alTerm; alTerm solo mueve el reloj que usa Liberar. Si el comando aparece tarde en esa ventana recibe solo la fraccion restante, o SIGKILL casi inmediato, en vez de la gracia completa desde SIGTERM que exige CA-679; un gate o git de arranque lento puede no limpiar su index.lock. Es el camino raro posterior a 10 s, por eso medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "15037cd7caf166ad",
+  "task": "contencion-del-writer"
+}

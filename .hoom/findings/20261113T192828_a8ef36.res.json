@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T192828_a8ef36",
+  "as": "corregido",
+  "evidence": "Commit 27144c2 (aclaracion 23: la 10 de r0 contradecia la spec, 'con la vista del rol del sobre'): los gates del sobre del test-writer corren con su vista (verifycmd.Sobre.Ciego); la implementacion del arbol de la tarea queda de solo lectura y solo su arbol ciego, si existe, y la cache verify son escribibles. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_a8ef36_CA683_CA695_LosGatesDelTestWriterNoEscribenLaImplementacion, ElGateDelTestWriterEscribeEnSuCiegoYNoEnElArbol.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.087545994Z"
+}

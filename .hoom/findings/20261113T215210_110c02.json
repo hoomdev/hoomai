@@ -1,0 +1,11 @@
+{
+  "id": "20261113T215210_110c02",
+  "created_at": "2026-11-13T21:52:10.212137392Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:1013-1021 toma las fotos finales de material/config/git-ajeno antes de llamar deshacerSi; si detecta una violacion con el commit ya hecho, deshacerSi ejecuta despues deshacer, cuyo update-ref de internal/itemcmd/itemcmd.go:1411 vuelve a correr el hook reference-transaction. Ese hook de recuperacion puede crear, por ejemplo, .claude/settings.json (ausente al armar la vista) y no hay una segunda FotoConfigAgentes: el guardado falla por la violacion anterior pero deja codigo para la proxima sesion sin detectar. Un hook puede provocarlo haciendo que post-commit cree material para forzar el rollback y actuando solo en la transaccion de deshacer; por tanto la foto no queda realmente despues del ultimo git del guardado y se salta el control en un flujo de recovery cubierto.",
+  "author": "reviewer@codex",
+  "fingerprint": "77500e917e5ca4cd",
+  "task": "contencion-del-writer"
+}

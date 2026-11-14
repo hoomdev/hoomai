@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261114T045837_aacb4e",
+  "as": "corregido",
+  "evidence": "Commits 0fbfa8b y b0df903 (aclaracion 31): procesos.Terminacion.Diferida (campo nuevo) solo arranca el SIGTERM del encierro, y ningun Term corre con el mutex de procesos tomado (va en su propia gorutina); en la senal a hoom un Term lento no demora el SIGTERM de los otros grupos. Regresion a ciegas de la ronda 3 (c02f47c), con un bwrap lento en el PATH: roja sobre 765e144 (procesos.ArrancarConGracia de otro grupo tardo 2.9 s mientras se cancelaba el encerrado) y verde con -race sobre c02f47c (suite completa): TestR3_aacb4e_CA679_CancelarUnEncerradoNoDemoraALosDemas (arranque y terminacion de otro grupo en menos de 1 s).",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T13:29:03.959059328Z"
+}

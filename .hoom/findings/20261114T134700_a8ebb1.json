@@ -1,0 +1,11 @@
+{
+  "id": "20261114T134700_a8ebb1",
+  "created_at": "2026-11-14T13:47:00.453471313Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/procesos/procesos.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo de esta delta): internal/procesos/procesos.go:148-208 conserva un unico hasta para todos los grupos del cierre por SIGINT/SIGTERM. Si un grupo entrega SIGTERM enseguida y otro queda pendiente hasta topeInfo, el primero permanece en vivos aun despues de agotar su propia gracia; cuando el segundo entrega, desde extiende el hasta global a ahora+su gracia, de modo que el primero puede ignorar TERM durante topeInfo mas otra gracia antes del SIGKILL. La delta ya no demora el SIGTERM de los otros grupos, pero no hace individual el vencimiento. Severidad medium: requiere varios grupos y un arranque degradado, sin perdida ni exposicion de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "a0d15665e3d58196",
+  "task": "contencion-del-writer"
+}

@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/encierro"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/providers"
 )
@@ -121,6 +122,14 @@ type Record struct {
 	// the pilot repeats a review cut by time with the same options. Only a
 	// reviewer's record carries it.
 	Delta bool `json:"delta,omitempty"`
+	// Encierro is the level of the encierro the role's run had
+	// (contencion-del-writer): `"encierro": {"nivel", "mecanismo", "falta",
+	// "motivo"}` (encierro.Info). Only the envelope of a role that executes
+	// (and the review's), in a project whose hoom.yaml has the section
+	// `encierro`, carries it, also when it refused inside its step run
+	// because of encierro.exigir; without the section, or for a role that
+	// does not execute, the record has no key.
+	Encierro *encierro.Info `json:"encierro,omitempty"`
 }
 
 // CorteTiempo is Record.Corte (and runcmd.Meta.Corte) of a run that died by

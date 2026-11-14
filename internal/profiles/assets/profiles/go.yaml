@@ -2,6 +2,9 @@ name: go
 description: Go (go test con race detector, go vet, golangci-lint, arch-go, Gremlins)
 detect:
   files: [go.mod]
+# variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
+# dentro de su propia cache, .hoom/cache/encierro/<slug>/<quien>/
+cache: [GOCACHE, GOMODCACHE, GOTMPDIR]
 gates:
   security:
     required: false

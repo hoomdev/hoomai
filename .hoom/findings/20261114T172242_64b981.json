@@ -1,0 +1,11 @@
+{
+  "id": "20261114T172242_64b981",
+  "created_at": "2026-11-14T17:22:42.379386437Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/procesos/procesos.go",
+  "description": "INTRODUCIDO: internal/procesos/procesos.go:299 deja una goroutine esperando '\u003c-hecho' sin ninguna via de cancelacion, mientras diferir ya dejo otra ejecutando Term. Si Term se traba (caso que el nuevo contrato y TestR5_8daed0 declaran soportar), WaitDelay solo hace volver cmd.Wait: tras Liberar ambas goroutines siguen vivas indefinidamente y Term aun puede ejecutar efectos tardios sobre recursos ya liberados. La prueba oculta la fuga porque cierra traba en Cleanup. Cancelaciones repetidas bajo ese fallo degradado acumulan goroutines sin limite.",
+  "author": "reviewer@codex",
+  "fingerprint": "f3733cd840edaf9a",
+  "task": "contencion-del-writer"
+}

@@ -25,6 +25,9 @@ func Adoptar(cmd *exec.Cmd) {}
 // Soltar does nothing on Unix: a group has nothing to close.
 func Soltar(pid int) {}
 
+// EnJob is false on Unix: there are no Job Objects.
+func EnJob(pid int) bool { return false }
+
 // MismoProceso says whether pid is still the process that started at
 // arranco, by the start time ps reports (one-second resolution): a pid that
 // another process reused started later. When ps cannot say, it answers true,
@@ -122,4 +125,17 @@ func Terminar(s os.Signal) {
 		os.Exit(128 + int(sys))
 	}
 	os.Exit(1)
+}
+
+// matarTrasGracia is the SIGKILL that TerminarGrupo leaves for after gracia:
+// only for the very registration pid has now (a group that Liberar forgot,
+// or a new group of hoom that got the same number, is another object) and
+// only if the group still has members, checked under the registry's lock
+// (findings 2f4af2, f0dfd4, cd9f87, bc1864). A pid with no registration gets
+// nothing later.
+func matarTrasGracia(pid int, gracia time.Duration) {
+	grupos.Lock()
+	esta := grupos.pids[pid]
+	grupos.Unlock()
+	armarSigkill(pid, esta, gracia)
 }

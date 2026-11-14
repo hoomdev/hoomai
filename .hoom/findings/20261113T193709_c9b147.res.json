@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261113T193709_c9b147",
+  "as": "corregido",
+  "evidence": "Commit 66c878d (aclaracion 27): toda foto y comparacion de git-ajeno (paquete gitajeno, TopeFotoGitAjeno y MaxLeidoGitAjeno) y de config-de-agentes (TopeFotoConfigAgentes, MaxLeidoConfigAgentes; un JSON sobre el tope no se decodifica) tiene tope de tiempo y de bytes, y pasarlo cuenta como cambiado (FotoSinTerminar o la ruta), nunca cuelga. Regresion a ciegas en r1 (0fd4c2b, 1b dfffdae), roja en el esqueleto 7fbfd97 y verde con -race sobre 945c225: TestR1_02b2f7_CA685_UnObjetoGrandeNuevoNoCuelgaLaComparacion, TestR1_d9ebb2_CA685_ReescribirUnObjetoMasAllaDeMaxLeidoCuentaComoCambiado, TestR1_c9b147_CA685_UnaFotoQuePasaSuTiempoEsFotoSinTerminar, TestR1_775300_CA689_LaFotoDeLaConfigConTope.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-13T20:57:33.081211459Z"
+}
