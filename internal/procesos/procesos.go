@@ -58,8 +58,11 @@ type grupo struct {
 // is in another group (encierro.Arrancar).
 type Terminacion struct {
 	// Term sends the polite signal (SIGTERM) to what must get it, and says
-	// whether someone was there to get it; false makes the end come at once.
-	// It must not block: it is called with the registry's lock held.
+	// whether someone was there to get it; false makes the end come at once,
+	// and true arms the SIGKILL of the gracia from its return. It may take
+	// its time: it runs in a goroutine of its own, never with the registry's
+	// lock held (diferir), and it may run on a cancel and on a signal to
+	// hoom at once.
 	Term func() bool
 	// Diferida, when set, is used instead of Term, for a polite signal that
 	// may have to wait until what must get it is there (an encierro whose
@@ -97,16 +100,6 @@ func matarRegistrado(pid int, g *grupo) {
 	if g != nil && g.matar != nil {
 		g.matar()
 	}
-}
-
-// termRegistrado sends the polite signal to the group of pid as its
-// registration says, and says whether someone was there to get it. The
-// registry's lock is held.
-func termRegistrado(pid int) bool {
-	if g := grupos.pids[pid]; g != nil && g.term != nil {
-		return g.term()
-	}
-	return senalarTerm(pid)
 }
 
 func prepararSenales() {
@@ -148,10 +141,10 @@ func prepararSenales() {
 // arrives on otra. It returns the ones still there: a group seen empty is
 // dropped and never signalled again. One that cannot get a SIGTERM (Windows
 // has none for a tree) is killed right there, never left out (findings
-// 01c41b, 648d31). A group whose polite signal is Diferida is started with
-// the others, without waiting for it, and its gracia counts from when it
-// says it was delivered (or it dies then, if nothing got it). The registry's
-// lock is held.
+// 01c41b, 648d31). A group whose polite signal is its own (Diferida or
+// Term) is started with the others without waiting for it (diferir), and
+// its gracia counts from when it was delivered (or it dies then, if nothing
+// got it). The registry's lock is held.
 func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 	hasta := time.Now()
 	var vivos []int
@@ -167,7 +160,7 @@ func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 		}
 	}
 	for _, p := range pids {
-		if g := grupos.pids[p]; g != nil && g.diferida != nil {
+		if g := grupos.pids[p]; g != nil && (g.diferida != nil || g.term != nil) {
 			hecho, ok := diferir(g)
 			if !ok {
 				matarRegistrado(p, g)
@@ -176,7 +169,7 @@ func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 			pendientes = append(pendientes, pendiente{p, hecho})
 			continue
 		}
-		if !termRegistrado(p) {
+		if !senalarTerm(p) {
 			matarRegistrado(p, grupos.pids[p])
 			continue
 		}
@@ -216,18 +209,27 @@ func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 	return vivos
 }
 
-// diferir starts the polite signal of the registration g (its Diferida) and
-// gives where its hecho arrives, and whether someone is there to get it. The
+// diferir starts the polite signal of the registration g, its Diferida or
+// its Term, without waiting for it, and gives where its result arrives
+// (true: delivered; false: nobody got it) and whether someone is, or may be,
+// there to get it. Term runs in a goroutine of its own, so however long it
+// takes it never holds the registry's lock, another group nor a signal to
+// hoom (ronda 3, aacb4e; aclaracion 31), and its return is its result. The
 // registry's lock is held; Diferida never waits there.
 func diferir(g *grupo) (<-chan bool, bool) {
 	hecho := make(chan bool, 1)
-	ok := g.diferida(func(entregado bool) {
+	avisar := func(entregado bool) {
 		select {
 		case hecho <- entregado:
 		default:
 		}
-	})
-	return hecho, ok
+	}
+	if g.diferida != nil {
+		return hecho, g.diferida(avisar)
+	}
+	term := g.term
+	go func() { avisar(term()) }()
+	return hecho, true
 }
 
 // EsperarGrupo waits until the group of pid is gone or hasta passes: the
@@ -261,10 +263,10 @@ func arrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
 	prepararSenales()
 	EnGrupo(cmd)
 	switch {
-	case t.Diferida != nil && gracia > 0:
-		// the polite signal is only started under the lock; the SIGKILL of
-		// the gracia is armed when it says it was delivered, for this same
-		// registration (ronda 3, aacb4e and 75396e)
+	case (t.Diferida != nil || term != nil) && gracia > 0:
+		// the polite signal is only started under the lock (diferir); the
+		// SIGKILL of the gracia is armed when it was delivered, for this
+		// same registration (ronda 3, aacb4e and 75396e)
 		cmd.Cancel = func() error {
 			pid := cmd.Process.Pid
 			grupos.Lock()
@@ -290,21 +292,6 @@ func arrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
 						matarRegistrado(pid, g)
 					}
 				}()
-			}
-			return nil
-		}
-	case term != nil && gracia > 0:
-		cmd.Cancel = func() error {
-			pid := cmd.Process.Pid
-			grupos.Lock()
-			g := grupos.pids[pid]
-			ok := g != nil && termRegistrado(pid)
-			if g != nil && !ok {
-				matarRegistrado(pid, g)
-			}
-			grupos.Unlock()
-			if ok {
-				matarTrasGracia(pid, gracia)
 			}
 			return nil
 		}
@@ -349,21 +336,12 @@ func Liberar(pid int) {
 	Soltar(pid)
 }
 
-// matarTrasGracia is the SIGKILL that TerminarGrupo leaves for after gracia:
-// only for the very registration pid has now (a group that Liberar forgot,
-// or a new group of hoom that got the same number, is another object) and
-// only if the group still has members, checked under the registry's lock
-// (findings 2f4af2, f0dfd4, cd9f87, bc1864). A pid with no registration gets
-// nothing later.
-func matarTrasGracia(pid int, gracia time.Duration) {
-	grupos.Lock()
-	esta := grupos.pids[pid]
-	grupos.Unlock()
-	armarSigkill(pid, esta, gracia)
-}
-
-// armarSigkill leaves the SIGKILL of matarTrasGracia for after gracia, for
-// the registration esta of pid only (nil: nothing).
+// armarSigkill leaves the SIGKILL of a gracia (matarTrasGracia, a Diferida
+// or Term delivered) for after gracia: for the registration esta of pid only
+// (nil: nothing; a group that Liberar forgot, or a new group of hoom that got
+// the same number, is another object), and only if the group still has
+// members, checked under the registry's lock (findings 2f4af2, f0dfd4,
+// cd9f87, bc1864).
 func armarSigkill(pid int, esta *grupo, gracia time.Duration) {
 	if esta == nil {
 		return
