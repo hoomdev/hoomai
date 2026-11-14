@@ -59,11 +59,12 @@ type grupo struct {
 type Terminacion struct {
 	// Term sends the polite signal (SIGTERM) to what must get it, and says
 	// whether someone was there to get it; false makes the end come at once,
-	// and true arms the SIGKILL of the gracia from its return, which cmd's
-	// Cancel waits for (os/exec counts cmd's WaitDelay from there). It may
-	// take its time: it runs in a goroutine of its own, never with the
-	// registry's lock held (diferir), and it may run on a cancel and on a
-	// signal to hoom at once.
+	// and true arms the SIGKILL of the gracia from its return. It may take
+	// its time: it runs in a goroutine of its own, never with the registry's
+	// lock held (diferir), and it may run on a cancel and on a signal to
+	// hoom at once. cmd's Cancel never waits for it (aclaracion 33): one that
+	// takes long or hangs is bounded by the caller's WaitDelay, which
+	// os/exec counts from the end of cmd's context.
 	Term func() bool
 	// Diferida, when set, is used instead of Term, for a polite signal that
 	// may have to wait until what must get it is there (an encierro whose
@@ -74,10 +75,12 @@ type Terminacion struct {
 	// once), and then calls hecho, once and in a bounded time, with true when
 	// the signal really reached it, or with false when nothing will get it.
 	// The SIGKILL of the gracia is armed from that call, never before, and
-	// false brings it at once (ronda 3, aacb4e and 75396e; aclaracion 31);
-	// cmd's Cancel returns then too, so os/exec counts cmd's WaitDelay from
-	// there (ronda 4, c85a2a and f60133; aclaracion 32). hecho never blocks,
-	// and it may be called before Diferida returns.
+	// false brings it at once (ronda 3, aacb4e and 75396e; aclaracion 31).
+	// cmd's Cancel never waits for that call: it returns at once, and the
+	// caller's WaitDelay, which os/exec counts from the end of cmd's
+	// context, has to cover the wait for the delivery and the gracia
+	// (encierro.Arrancar raises it; ronda 5, 8daed0 and e9c31c; aclaracion
+	// 33). hecho never blocks, and it may be called before Diferida returns.
 	Diferida func(hecho func(entregado bool)) bool
 	// Matar ends everything at once, besides the SIGKILL to the group. It
 	// must not block, and it is called with the registry's lock held.
@@ -267,13 +270,13 @@ func arrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
 	EnGrupo(cmd)
 	switch {
 	case (t.Diferida != nil || term != nil) && gracia > 0:
-		// the polite signal is only started under the lock (diferir); the
-		// SIGKILL of the gracia is armed when it was delivered, for this
-		// same registration (ronda 3, aacb4e and 75396e). Cancel returns only
-		// then, without the lock: os/exec counts cmd's WaitDelay from
-		// Cancel's return, so a WaitDelay that covers the gracia never kills
-		// the command before its SIGTERM and its whole gracia, however late
-		// the SIGTERM comes (ronda 4, c85a2a and f60133; aclaracion 32)
+		// the polite signal is only started under the lock (diferir), and
+		// Cancel returns at once, never waiting for it to be delivered
+		// (ronda 5, 8daed0 and e9c31c; aclaracion 33): what follows the
+		// delivery runs in a goroutine without the lock, for this same
+		// registration (ronda 3, aacb4e and 75396e), so a Term that takes
+		// long or hangs never hangs cmd's Wait, which the caller's WaitDelay
+		// bounds (os/exec counts it from the end of cmd's context)
 		cmd.Cancel = func() error {
 			pid := cmd.Process.Pid
 			grupos.Lock()
@@ -287,17 +290,18 @@ func arrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
 				matarRegistrado(pid, g)
 			}
 			grupos.Unlock()
-			if !ok {
-				return nil
-			}
-			if <-hecho {
-				armarSigkill(pid, g, gracia)
-				return nil
-			}
-			grupos.Lock()
-			defer grupos.Unlock()
-			if grupos.pids[pid] == g {
-				matarRegistrado(pid, g)
+			if ok {
+				go func() {
+					if <-hecho {
+						armarSigkill(pid, g, gracia)
+						return
+					}
+					grupos.Lock()
+					defer grupos.Unlock()
+					if grupos.pids[pid] == g {
+						matarRegistrado(pid, g)
+					}
+				}()
 			}
 			return nil
 		}

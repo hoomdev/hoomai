@@ -31,12 +31,12 @@ import (
 // terminal, and stays as its subreaper (paso).
 const marcaPaso = "HOOM_ENCIERRO_PASO"
 
-// topeSonda bounds the probe's bwrap; topeInfo how long Arrancar waits for
-// bwrap to report the pid of its init; topeFin how long Liberar waits for the
-// encierro to be gone once its init got its SIGKILL.
+// topeSonda bounds the probe's bwrap; topeFin how long Liberar waits for the
+// encierro to be gone once its init got its SIGKILL (topeInfo, and the
+// waits of the polite end, are in encierro.go: Arrancar counts them on any
+// system).
 const (
 	topeSonda = 10 * time.Second
-	topeInfo  = 10 * time.Second
 	topeFin   = 5 * time.Second
 )
 
@@ -431,9 +431,9 @@ func (e *envuelto) entregar(alTerm func()) {
 	}
 }
 
-// mandarTerm waits until bwrap said its init (topeInfo and a second at
-// most) and then until the command can get the SIGTERM (termComando,
-// topeInfo at most), and sends it. false when nothing will get it: the init
+// mandarTerm waits until bwrap said its init (esperaInfo at most) and then
+// until the command can get the SIGTERM (termComando, topeInfo at most), and
+// sends it: esperaEntrega at most in all. false when nothing will get it: the init
 // never got reported, it ended meanwhile, or the step did not start the
 // command in that time (then the encierro ends at once, and no command
 // starts after the cancel without its gracia).
@@ -442,7 +442,7 @@ func (e *envuelto) mandarTerm() bool {
 	if pid <= 0 {
 		select {
 		case <-e.dicho:
-		case <-time.After(topeInfo + time.Second):
+		case <-time.After(esperaInfo):
 		}
 		pid = e.pidInit()
 	}

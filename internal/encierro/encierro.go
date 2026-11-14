@@ -876,9 +876,21 @@ var lanzados = struct {
 	por map[*exec.Cmd]*lanzado
 }{por: map[*exec.Cmd]*lanzado{}}
 
-// margenEspera is what an encierro's WaitDelay leaves after its gracia
-// (Arrancar): the end of the encierro once its gracia passed.
-const margenEspera = time.Second
+// topeInfo is how long Arrancar waits for bwrap to report the pid of its
+// init, and how long the polite end of an encierro waits for its step to
+// start the command. esperaInfo is how long that polite end waits for the
+// report (topeInfo and a second), and esperaEntrega the longest it waits in
+// all before the SIGTERM reaches the command (mandarTerm: esperaInfo, then
+// topeInfo). margenEspera is what an encierro's WaitDelay leaves after its
+// gracia (Arrancar): the end of the encierro once its gracia passed. They
+// are here, not in encierro_linux.go, so that Arrancar counts them on any
+// system; only an encierro (Linux) uses them.
+const (
+	topeInfo      = 10 * time.Second
+	esperaInfo    = topeInfo + time.Second
+	esperaEntrega = esperaInfo + topeInfo
+	margenEspera  = time.Second
+)
 
 // lanzado is one command Arrancar started.
 type lanzado struct {
@@ -898,20 +910,25 @@ type lanzado struct {
 // step passes it on to the command's group and keeps the encierro while any
 // descendant of the command lives; only after gracia, counted from that
 // SIGTERM, does the whole encierro end (SIGKILL to its pid 1), with
-// everything inside it. cmd's Cancel returns once that SIGTERM was
-// delivered, and os/exec counts cmd's WaitDelay from there; a WaitDelay
-// (not zero) shorter than gracia and margenEspera is raised to them, so that
-// it never kills bwrap before the command got its SIGTERM and its whole
-// gracia (ronda 4, c85a2a and f60133; aclaracion 32). A command that ends by
-// itself is not held by it. Whoever calls it calls Liberar once cmd's Wait
-// returned.
+// everything inside it. cmd's Cancel returns at once, without waiting for
+// that SIGTERM, and os/exec counts cmd's WaitDelay from the end of cmd's
+// context, as it documents: so for a cmd Envolver prepared, with gracia, a
+// WaitDelay (not zero) shorter than the longest wait for the SIGTERM
+// (esperaEntrega), the gracia and margenEspera is raised to them, and it
+// never kills bwrap before the command got its SIGTERM and its whole gracia,
+// however late either comes (ronda 4, c85a2a and f60133, aclaracion 32;
+// ronda 5, 8daed0 and e9c31c, aclaracion 33). A WaitDelay of zero stays
+// zero. Raising it also lengthens how long Wait waits for cmd's pipes after
+// a normal end; in an encierro that does not matter, since when bwrap ends
+// everything inside it dies and the pipes close. Whoever calls it calls
+// Liberar once cmd's Wait returned.
 func Arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 	l := &lanzado{gracia: gracia}
 	envueltos.Lock()
 	e := envueltos.por[cmd]
 	envueltos.Unlock()
-	if e != nil && gracia > 0 && cmd.WaitDelay > 0 && cmd.WaitDelay < gracia+margenEspera {
-		cmd.WaitDelay = gracia + margenEspera
+	if piso := esperaEntrega + gracia + margenEspera; e != nil && gracia > 0 && cmd.WaitDelay > 0 && cmd.WaitDelay < piso {
+		cmd.WaitDelay = piso
 	}
 	alCancelar := func() {
 		l.mu.Lock()
