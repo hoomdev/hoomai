@@ -580,10 +580,6 @@ func packedDeReemplazo(comun string, refs map[string]string, pr *presupuesto) er
 // one line.
 const maxRef = 4096
 
-// topeHuellaRef is how many bytes of a loose ref over maxRef (or of the file
-// a symlink there resolves to) its photograph hashes.
-const topeHuellaRef = 1 << 20
-
 // especial is a value of a loose ref's photograph that is not its content (recorrido.entrada): a newline,
 // its kind, and each part with its length. A trimmed content never starts
 // with a newline, and the lengths of the free parts keep any two of these
@@ -602,13 +598,15 @@ func especial(tipo string, partes ...string) string {
 //   - a regular file of up to maxRef bytes: its content, trimmed (what git
 //     takes from it);
 //   - a bigger regular file: its size, inode, mtime and ctime, and the sha256
-//     of its first topeHuellaRef bytes (beyond them, any write changes its
-//     ctime);
+//     of all its bytes;
 //   - what is not a regular file, or cannot be opened or read: its kind and
-//     its metadata (ctime included: any touch changes it).
+//     its metadata (ctime included where the system gives it).
 //
-// It never blocks on the open (abrir) and reads at most topeHuellaRef bytes,
-// out of pr. errVencido when pr's time passes.
+// It never blocks on the open (abrir), and every byte it reads comes out of
+// pr's: a regular file pr's bytes do not reach is errTope, an unfinished
+// photograph on every system, never its metadata without its hash (ronda 3,
+// 4064a8; aclaracion 30), and one that shrinks while it is hashed is an error
+// (it fails closed). errVencido when pr's time passes.
 func contenidoDeRef(p string, seguir bool, pr *presupuesto) (string, error) {
 	f, err := abrir(p, seguir)
 	if err != nil {
@@ -634,28 +632,32 @@ func contenidoDeRef(p string, seguir bool, pr *presupuesto) (string, error) {
 	}
 	if fi.Size() <= maxRef {
 		raw, err := io.ReadAll(io.LimitReader(f, maxRef+1))
+		if pr.bytes -= int64(len(raw)); pr.bytes < 0 {
+			return "", errTope
+		}
 		if err != nil {
 			return especial("ilegible", metadatos(fi)), nil
 		}
 		if len(raw) <= maxRef {
 			return strings.TrimSpace(string(raw)), nil
 		}
-		// it grew while it was read: a big one
-	}
-	n := min(fi.Size(), topeHuellaRef)
-	huella := "sin-huella" // beyond pr's bytes: its metadata is all there is
-	if n <= pr.bytes {
-		h := sha256.New()
-		switch err := copiar(h, io.NewSectionReader(f, 0, n), n, pr); {
-		case errors.Is(err, errVencido):
-			return "", err
-		case err == nil:
-			huella = hex.EncodeToString(h.Sum(nil))
-		default:
-			huella = "corta" // it shrank while it was read
+		// it grew while it was read: a big one, as it is now
+		if fi, err = f.Stat(); err != nil {
+			return especial("ilegible", err.Error()), nil
 		}
 	}
-	return especial("grande", metadatos(fi), huella), nil
+	n := fi.Size()
+	if n > pr.bytes {
+		return "", errTope
+	}
+	h := sha256.New()
+	if err := copiar(h, io.NewSectionReader(f, 0, n), n, pr); err != nil {
+		if errors.Is(err, errVencido) {
+			return "", err
+		}
+		return "", fmt.Errorf("gitajeno: %s cambio mientras se leia: %w", p, err)
+	}
+	return especial("grande", metadatos(fi), hex.EncodeToString(h.Sum(nil))), nil
 }
 
 // metadatos is fi's kind and permissions, size, inode, mtime and ctime (in
