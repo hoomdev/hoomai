@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261114T141951_8daed0",
+  "as": "corregido",
+  "evidence": "Commit fc45ba6 (aclaracion 33): el Cancel de procesos.ArrancarCon con Term o Diferida vuelve enseguida, sin esperar la entrega; lo que sigue a la entrega (armarSigkill con true, matarRegistrado de esa misma registracion con false) corre en una goroutine sin el mutex, asi que un Term que tarda o se traba nunca cuelga Wait: lo acota el WaitDelay del que llama. Regresion a ciegas de la ronda 5 (8b4c9c8): TestR5_8daed0_CA679_UnTermQueSeTrabaNoCuelgaWait (Term trabado en un canal, WaitDelay 0.5 s, gracia 1 s), roja sobre 9e76fa9 (Wait no habia vuelto a los 6 s de cancelar) y verde 3 de 3 con -race sobre 8b4c9c8 (Wait vuelve a los 0.5 s), mas el control TestR5_8daed0_CA679_UnTermQueVuelveEnseguida; suite completa verde con -race.",
+  "author": "hoomdev \u003cdev@volale.com\u003e",
+  "resolved_at": "2026-11-14T17:07:36.453543956Z"
+}
