@@ -1,0 +1,11 @@
+{
+  "id": "20261114T045313_6ce684",
+  "created_at": "2026-11-14T04:53:13.729129537Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/gitajeno/gitajeno.go",
+  "description": "INTRODUCIDO: internal/gitajeno/gitajeno.go:530-560 sigue una ref suelta simbolica que resuelve a directorio y recorre recursivamente todo el destino con filepath.WalkDir, acumulando una cadena por entrada y sin descontar pr.bytes. WalkDir debe leer un directorio entero en memoria antes de llamar al callback, de modo que la comprobacion de pr.vencido en 537 no acota ni esa lectura ni la memoria acumulada. Un writer puede crear refs/replace/\u003csha\u003e como symlink a un directorio plano enorme ya existente o preparado en su arbol/cache; la foto posterior puede bloquearse o agotar memoria antes de producir git-ajeno, pese al contrato de fotos acotadas. Es provocable por codigo del writer y puede colgar/matar hoom, por eso high.",
+  "author": "reviewer@codex",
+  "fingerprint": "15037cd7caf166ad",
+  "task": "contencion-del-writer"
+}

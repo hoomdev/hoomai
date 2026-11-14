@@ -1,0 +1,11 @@
+{
+  "id": "20261114T045837_4064a8",
+  "created_at": "2026-11-14T04:58:37.614780849Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/gitajeno/gitajeno.go",
+  "description": "INTRODUCIDO. internal/gitajeno/gitajeno.go:510-523 degrada una ref grande a metadatos con huella sin-huella cuando packed-refs agota pr.bytes; en sistemas cubiertos por internal/materialgit/ctime_otros.go:9-15 esos metadatos no tienen ctime ni inodo. Con un packed-refs sin cambios que consuma MaxLeido, una ref grande existente puede cambiar de SHA conservando tamano y restaurando mtime, y ambas fotos producen el mismo valor, por lo que Cambios omite git-ajeno. Es high aunque requiera ese entorno degradado porque salta un control exigido en cualquier sistema.",
+  "author": "reviewer@codex",
+  "fingerprint": "15037cd7caf166ad",
+  "task": "contencion-del-writer"
+}

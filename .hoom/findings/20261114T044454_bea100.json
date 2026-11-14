@@ -1,0 +1,11 @@
+{
+  "id": "20261114T044454_bea100",
+  "created_at": "2026-11-14T04:44:54.662458992Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gitajeno/gitajeno.go",
+  "description": "INTRODUCIDO — internal/gitajeno/gitajeno.go:530-560: valorDeRef sigue una ref suelta que sea symlink a cualquier directorio y directorioDeRef recorre recursivamente ese destino con filepath.WalkDir, acumula una cadena por cada entrada y luego construye otra huella completa, sin descontar del presupuesto de bytes. El chequeo de tiempo de la linea 537 solo corre en el callback; WalkDir ejecuta os.ReadDir y ordena todas las entradas de un directorio antes del siguiente callback. Por eso un writer puede crear una sola ref symlink a un directorio externo muy grande y hacer que la foto/comparacion de git-ajeno exceda su tope, consuma memoria sin limite o mate hoom por OOM, saltandose el cierre determinista del control. La correccion debe acotar la enumeracion/huella sin seguir arboles arbitrarios; este patron (WalkDir sobre un destino resuelto sin presupuesto de entradas/bytes) es candidato a una regla Semgrep custom.",
+  "author": "reviewer@codex",
+  "fingerprint": "15037cd7caf166ad",
+  "task": "contencion-del-writer"
+}
