@@ -47,9 +47,10 @@ var grupos = struct {
 // (ArrancarCon), are how its polite signal and its end reach what it runs
 // besides the group itself.
 type grupo struct {
-	gracia time.Duration
-	term   func() bool
-	matar  func()
+	gracia   time.Duration
+	term     func() bool
+	diferida func(hecho func(entregado bool)) bool
+	matar    func()
 }
 
 // Terminacion is how ArrancarCon ends a command whose work does not live in
@@ -58,7 +59,20 @@ type grupo struct {
 type Terminacion struct {
 	// Term sends the polite signal (SIGTERM) to what must get it, and says
 	// whether someone was there to get it; false makes the end come at once.
+	// It must not block: it is called with the registry's lock held.
 	Term func() bool
+	// Diferida, when set, is used instead of Term, for a polite signal that
+	// may have to wait until what must get it is there (an encierro whose
+	// command has not started yet). It only starts it, and returns at once:
+	// it is called with the registry's lock held, so it never waits there
+	// and never holds up another group nor a signal to hoom. It says whether
+	// someone is, or will be, there to get it (false makes the end come at
+	// once), and then calls hecho, once and in a bounded time, with true when
+	// the signal really reached it, or with false when nothing will get it.
+	// The SIGKILL of the gracia is armed from that call, never before, and
+	// false brings it at once (ronda 3, aacb4e and 75396e; aclaracion 31).
+	// hecho never blocks, and it may be called before Diferida returns.
+	Diferida func(hecho func(entregado bool)) bool
 	// Matar ends everything at once, besides the SIGKILL to the group. It
 	// must not block, and it is called with the registry's lock held.
 	Matar func()
@@ -68,10 +82,10 @@ type Terminacion struct {
 }
 
 // ArrancarCon is ArrancarConGracia (gracia 0: Arrancar) for a command that
-// is ended through t: where today SIGTERM goes to the group, t.Term is
-// called (on cmd's Cancel, and on a signal to hoom); wherever the group gets
-// its SIGKILL (its gracia passed, Liberar, a signal to hoom, a group without
-// gracia), t.Matar is called too.
+// is ended through t: where today SIGTERM goes to the group, t.Diferida or
+// t.Term is called (on cmd's Cancel, and on a signal to hoom); wherever the
+// group gets its SIGKILL (its gracia passed, Liberar, a signal to hoom, a
+// group without gracia), t.Matar is called too.
 func ArrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
 	return arrancarCon(cmd, gracia, t)
 }
@@ -134,23 +148,46 @@ func prepararSenales() {
 // arrives on otra. It returns the ones still there: a group seen empty is
 // dropped and never signalled again. One that cannot get a SIGTERM (Windows
 // has none for a tree) is killed right there, never left out (findings
-// 01c41b, 648d31). The registry's lock is held.
+// 01c41b, 648d31). A group whose polite signal is Diferida is started with
+// the others, without waiting for it, and its gracia counts from when it
+// says it was delivered (or it dies then, if nothing got it). The registry's
+// lock is held.
 func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 	hasta := time.Now()
 	var vivos []int
-	for _, p := range pids {
-		if !termRegistrado(p) {
-			matarRegistrado(p, grupos.pids[p])
-			continue
-		}
+	type pendiente struct {
+		pid   int
+		hecho <-chan bool
+	}
+	var pendientes []pendiente
+	desde := func(p int) {
 		vivos = append(vivos, p)
 		if t := time.Now().Add(grupos.pids[p].gracia); t.After(hasta) {
 			hasta = t
 		}
 	}
-	for len(vivos) > 0 && time.Now().Before(hasta) {
+	for _, p := range pids {
+		if g := grupos.pids[p]; g != nil && g.diferida != nil {
+			hecho, ok := diferir(g)
+			if !ok {
+				matarRegistrado(p, g)
+				continue
+			}
+			pendientes = append(pendientes, pendiente{p, hecho})
+			continue
+		}
+		if !termRegistrado(p) {
+			matarRegistrado(p, grupos.pids[p])
+			continue
+		}
+		desde(p)
+	}
+	for len(pendientes) > 0 || (len(vivos) > 0 && time.Now().Before(hasta)) {
 		select {
 		case <-otra:
+			for _, x := range pendientes {
+				vivos = append(vivos, x.pid)
+			}
 			return vivos
 		case <-time.After(20 * time.Millisecond):
 		}
@@ -161,8 +198,36 @@ func terminarConGracia(pids []int, otra <-chan os.Signal) []int {
 			}
 		}
 		vivos = quedan
+		siguen := pendientes[:0]
+		for _, x := range pendientes {
+			select {
+			case entregado := <-x.hecho:
+				if entregado {
+					desde(x.pid)
+				} else {
+					matarRegistrado(x.pid, grupos.pids[x.pid])
+				}
+			default:
+				siguen = append(siguen, x)
+			}
+		}
+		pendientes = siguen
 	}
 	return vivos
+}
+
+// diferir starts the polite signal of the registration g (its Diferida) and
+// gives where its hecho arrives, and whether someone is there to get it. The
+// registry's lock is held; Diferida never waits there.
+func diferir(g *grupo) (<-chan bool, bool) {
+	hecho := make(chan bool, 1)
+	ok := g.diferida(func(entregado bool) {
+		select {
+		case hecho <- entregado:
+		default:
+		}
+	})
+	return hecho, ok
 }
 
 // EsperarGrupo waits until the group of pid is gone or hasta passes: the
@@ -196,6 +261,38 @@ func arrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
 	prepararSenales()
 	EnGrupo(cmd)
 	switch {
+	case t.Diferida != nil && gracia > 0:
+		// the polite signal is only started under the lock; the SIGKILL of
+		// the gracia is armed when it says it was delivered, for this same
+		// registration (ronda 3, aacb4e and 75396e)
+		cmd.Cancel = func() error {
+			pid := cmd.Process.Pid
+			grupos.Lock()
+			g := grupos.pids[pid]
+			if g == nil {
+				grupos.Unlock()
+				return nil
+			}
+			hecho, ok := diferir(g)
+			if !ok {
+				matarRegistrado(pid, g)
+			}
+			grupos.Unlock()
+			if ok {
+				go func() {
+					if <-hecho {
+						armarSigkill(pid, g, gracia)
+						return
+					}
+					grupos.Lock()
+					defer grupos.Unlock()
+					if grupos.pids[pid] == g {
+						matarRegistrado(pid, g)
+					}
+				}()
+			}
+			return nil
+		}
 	case term != nil && gracia > 0:
 		cmd.Cancel = func() error {
 			pid := cmd.Process.Pid
@@ -232,7 +329,7 @@ func arrancarCon(cmd *exec.Cmd, gracia time.Duration, t Terminacion) error {
 		return err
 	}
 	Adoptar(cmd) // Windows: its Job Object (finding d24626)
-	grupos.pids[cmd.Process.Pid] = &grupo{gracia: gracia, term: term, matar: matar}
+	grupos.pids[cmd.Process.Pid] = &grupo{gracia: gracia, term: term, diferida: t.Diferida, matar: matar}
 	return nil
 }
 
@@ -262,6 +359,12 @@ func matarTrasGracia(pid int, gracia time.Duration) {
 	grupos.Lock()
 	esta := grupos.pids[pid]
 	grupos.Unlock()
+	armarSigkill(pid, esta, gracia)
+}
+
+// armarSigkill leaves the SIGKILL of matarTrasGracia for after gracia, for
+// the registration esta of pid only (nil: nothing).
+func armarSigkill(pid int, esta *grupo, gracia time.Duration) {
 	if esta == nil {
 		return
 	}

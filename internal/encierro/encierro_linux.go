@@ -114,10 +114,22 @@ type envuelto struct {
 	// reports it. pidfd is a pidfd of it, -1 when there is none.
 	pid, pidfd int
 	// dicho is closed once Arrancar decided pid (bwrap said it, or ended or
-	// took too long without saying): a cancel or a signal that comes before
-	// waits for it, so the polite end keeps its gracia (ronda 1, 69b8a2).
+	// took too long without saying): the polite end of a cancel or a signal
+	// that comes before waits for it, so it keeps its gracia (ronda 1,
+	// 69b8a2).
 	dicho     chan struct{}
 	dichoOnce sync.Once
+	// vistoComando is when the command, the step's child, was first seen
+	// (termComando); zero until then. Under mu.
+	vistoComando time.Time
+	// entregaOnce starts the polite end of the encierro once (entregar);
+	// entregada says it is over, entregadoOK whether its SIGTERM was
+	// delivered, and avisos are who wait for that (avisar). Under muEntrega.
+	entregaOnce sync.Once
+	muEntrega   sync.Mutex
+	entregada   bool
+	entregadoOK bool
+	avisos      []func(bool)
 }
 
 // decidido closes e.dicho, once.
@@ -331,56 +343,30 @@ func socketsTapados() []string {
 }
 
 // arrancarEnvuelto starts cmd, prepared by Envolver, in a process group of
-// its own registered with procesos, whose polite signal goes to the group of
-// the main process inside (the step, which passes it on) and whose end kills
-// bwrap's init; then it waits for bwrap to report that init. A cancel or a
-// signal to hoom that comes before bwrap reported it, or before the step
-// started the command, waits for that (topeInfo at most each) and then sends
-// the SIGTERM: the gracia is kept whole, and counts from there (procesos's,
-// which starts when the polite signal returns, and Liberar's through
-// alTerm); only an encierro whose init never got reported, or that ended
-// meanwhile, ends at once (ronda 1, 69b8a2; ronda 2, f1f7f5).
+// its own registered with procesos, whose polite signal goes to the main
+// process inside (the step, which passes it on to the command) and whose end
+// kills bwrap's init; then it waits for bwrap to report that init. The
+// polite signal is Diferida (ronda 3, aacb4e and 75396e; aclaracion 31): a
+// cancel or a signal to hoom only starts it (entregar), so it never waits
+// with procesos's lock held, and procesos arms the SIGKILL of the gracia, as
+// Liberar's gracia counts (alTerm), from when the SIGTERM really reached the
+// command, however late that is. Until bwrap reported its init, and until
+// the step started the command, it waits for them (topeInfo at most each);
+// an encierro whose init never got reported, that ended meanwhile, or whose
+// step does not start the command in that time ends at once: no command
+// starts after the cancel without its whole gracia (ronda 1, 69b8a2; ronda
+// 2, f1f7f5).
 func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, e *envuelto, alCancelar, alTerm func()) error {
 	defer e.decidido()
-	term := func() bool {
-		espero := false
-		pid := e.pidInit()
-		if pid <= 0 {
-			// before bwrap said its init: wait for it, bounded (it is read
-			// with topeInfo once the start returns)
-			select {
-			case <-e.dicho:
-			case <-time.After(topeInfo + time.Second):
-			}
-			pid, espero = e.pidInit(), true
-		}
-		if pid <= 0 || !e.initVivo() {
+	diferida := func(hecho func(entregado bool)) bool {
+		if e.pidInit() > 0 && !e.initVivo() {
 			return false // nothing inside to be polite to
 		}
-		// until the step started the command it cannot pass the SIGTERM
-		// on: wait for it, bounded, and send it then. procesos's gracia
-		// starts when term returns, and Liberar's counts from alTerm: both
-		// from the SIGTERM really sent (ronda 2, f1f7f5)
-		hasta := time.Now().Add(topeInfo)
-		for !e.termComando(pid) {
-			if !e.initVivo() {
-				return false // the encierro ended meanwhile
-			}
-			if time.Now().After(hasta) {
-				// a step that does not start the command: it gets the
-				// SIGTERM if it ever does, within the gracia
-				go e.termAlComando(pid, time.Now().Add(gracia), alTerm)
-				return true
-			}
-			espero = true
-			time.Sleep(2 * time.Millisecond)
-		}
-		if espero && alTerm != nil {
-			alTerm()
-		}
+		e.avisar(hecho)
+		e.entregaOnce.Do(func() { go e.entregar(alTerm) })
 		return true
 	}
-	err := procesos.ArrancarCon(cmd, gracia, procesos.Terminacion{Term: term, Matar: e.matarInit, AlCancelar: alCancelar})
+	err := procesos.ArrancarCon(cmd, gracia, procesos.Terminacion{Diferida: diferida, Matar: e.matarInit, AlCancelar: alCancelar})
 	e.mu.Lock()
 	if e.infoW != nil {
 		e.infoW.Close() // bwrap keeps its copy
@@ -412,42 +398,117 @@ func arrancarEnvuelto(cmd *exec.Cmd, gracia time.Duration, e *envuelto, alCancel
 	return nil
 }
 
-// termAlComando sends SIGTERM to the main process of the encierro whose init
-// is pid as soon as it can pass it on (termComando), until hasta or until the
-// init ends, and then calls alTerm: the polite signal's last resort for a
-// step that did not start the command within topeInfo (ronda 1, 69b8a2).
-func (e *envuelto) termAlComando(pid int, hasta time.Time, alTerm func()) {
-	for time.Now().Before(hasta) && e.initVivo() {
-		if e.termComando(pid) {
-			if alTerm != nil {
-				alTerm() // Liberar's gracia counts from here
-			}
-			return
+// avisar gives hecho the result of the polite end of e (entregar) once it is
+// known, at once if it already is.
+func (e *envuelto) avisar(hecho func(bool)) {
+	e.muEntrega.Lock()
+	if !e.entregada {
+		e.avisos = append(e.avisos, hecho)
+		e.muEntrega.Unlock()
+		return
+	}
+	ok := e.entregadoOK
+	e.muEntrega.Unlock()
+	hecho(ok)
+}
+
+// entregar is the polite end of e, once: it sends the SIGTERM as soon as the
+// command can get it (mandarTerm), moves Liberar's gracia to then (alTerm)
+// and tells whoever waits for it (avisar), procesos among them, which arms
+// its SIGKILL then.
+func (e *envuelto) entregar(alTerm func()) {
+	ok := e.mandarTerm()
+	if ok && alTerm != nil {
+		alTerm()
+	}
+	e.muEntrega.Lock()
+	e.entregada, e.entregadoOK = true, ok
+	avisos := e.avisos
+	e.avisos = nil
+	e.muEntrega.Unlock()
+	for _, f := range avisos {
+		f(ok)
+	}
+}
+
+// mandarTerm waits until bwrap said its init (topeInfo and a second at
+// most) and then until the command can get the SIGTERM (termComando,
+// topeInfo at most), and sends it. false when nothing will get it: the init
+// never got reported, it ended meanwhile, or the step did not start the
+// command in that time (then the encierro ends at once, and no command
+// starts after the cancel without its gracia).
+func (e *envuelto) mandarTerm() bool {
+	pid := e.pidInit()
+	if pid <= 0 {
+		select {
+		case <-e.dicho:
+		case <-time.After(topeInfo + time.Second):
 		}
-		time.Sleep(5 * time.Millisecond)
+		pid = e.pidInit()
+	}
+	if pid <= 0 {
+		return false
+	}
+	hasta := time.Now().Add(topeInfo)
+	for {
+		if !e.initVivo() {
+			return false // the encierro ended meanwhile
+		}
+		if e.termComando(pid) {
+			return true
+		}
+		if time.Now().After(hasta) {
+			return false
+		}
+		time.Sleep(2 * time.Millisecond)
 	}
 }
 
 // termComando sends SIGTERM to the main process of the encierro whose init
-// is pid, hoom's step, which passes it on to the command's group (paso). To
-// the step alone, never to its group: the command's child, between its fork
-// and its setsid, is still in the step's group with its signals blocked, and
-// a SIGTERM to the group would stay pending there and kill it before its
-// exec, with the default action, so the command would never run its trap
-// (ronda 2, f1f7f5). false while the step has not started the command yet.
+// is pid, hoom's step, which passes it on to the command's group (paso),
+// once the command can get it: it started (it is the step's child) and it
+// handles SIGTERM, or it started at least arranqueDelComando ago, the same
+// moment the step would pass it on, so that the gracia counts from the
+// SIGTERM the command really gets. To the step alone, never to its group:
+// the command's child, between its fork and its setsid, is still in the
+// step's group with its signals blocked, and a SIGTERM to the group would
+// stay pending there and kill it before its exec, with the default action,
+// so the command would never run its trap (ronda 2, f1f7f5). false while it
+// cannot be sent yet.
 func (e *envuelto) termComando(pid int) bool {
 	c := comandoDe(pid)
-	if c <= 0 || !conHijos(c) {
+	if c <= 0 {
+		return false
+	}
+	h := hijoDe(c)
+	if h <= 0 {
+		return false
+	}
+	e.mu.Lock()
+	if e.vistoComando.IsZero() {
+		e.vistoComando = time.Now()
+	}
+	visto := e.vistoComando
+	e.mu.Unlock()
+	if !manejaTerm(h) && time.Since(visto) < arranqueDelComando {
 		return false
 	}
 	return syscall.Kill(c, syscall.SIGTERM) == nil
 }
 
-// conHijos says whether the process pid (its main thread, the one the step
-// starts the command from) has a child, from /proc.
-func conHijos(pid int) bool {
+// hijoDe is a child of the process pid (its main thread, the one the step
+// starts the command from), from /proc; 0 when it has none.
+func hijoDe(pid int) int {
 	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/task/" + strconv.Itoa(pid) + "/children")
-	return err == nil && len(strings.Fields(string(raw))) > 0
+	if err != nil {
+		return 0
+	}
+	f := strings.Fields(string(raw))
+	if len(f) == 0 {
+		return 0
+	}
+	h, _ := strconv.Atoi(f[0])
+	return h
 }
 
 // initVivo says whether bwrap's init is still there (through its pidfd: a

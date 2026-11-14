@@ -889,11 +889,13 @@ type lanzado struct {
 // procesos.ArrancarConGracia (gracia 0: like procesos.Arrancar). For a cmd Envolver prepared with bwrap it keeps
 // today's gracia: when cmd's context ends (its deadline, a cancel), and on a
 // signal to hoom, SIGTERM goes to the step inside the encierro (found from
-// the outside pid of its init, which bwrap reports with --info-fd), which
-// passes it on to the command's group and keeps the encierro while any
-// descendant of the command lives, and only after
-// gracia does the whole encierro end (SIGKILL to its pid 1), with everything
-// inside it. Whoever calls it calls Liberar once cmd's Wait returned.
+// the outside pid of its init, which bwrap reports with --info-fd) as soon
+// as the command can get it, without holding up any other group, and the
+// step passes it on to the command's group and keeps the encierro while any
+// descendant of the command lives; only after gracia, counted from that
+// SIGTERM, does the whole encierro end (SIGKILL to its pid 1), with
+// everything inside it. Whoever calls it calls Liberar once cmd's Wait
+// returned.
 func Arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 	l := &lanzado{gracia: gracia}
 	envueltos.Lock()
@@ -906,8 +908,8 @@ func Arrancar(cmd *exec.Cmd, gracia time.Duration) error {
 		}
 		l.mu.Unlock()
 	}
-	// the gracia of an encierro whose SIGTERM had to wait for bwrap to say
-	// its init counts from that SIGTERM (ronda 1, 69b8a2)
+	// the gracia of an encierro counts from the SIGTERM its command really
+	// got, however late (ronda 1, 69b8a2; ronda 3, 75396e)
 	alTerm := func() {
 		l.mu.Lock()
 		if !l.cancelado.IsZero() {

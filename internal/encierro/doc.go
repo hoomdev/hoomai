@@ -91,10 +91,14 @@
 // deadline passes or hoom cancels, SIGTERM goes to the step inside (found
 // from the outside pid bwrap reports with --info-fd), which passes it on to
 // the command's group; today's gracia passes (graciaGit in the save,
-// graciaGate in a gate), with the encierro alive while any descendant of the
-// command is (a hook whose git already ended included), and only then the
-// encierro ends. Liberar is the end once the command ended. Time bounds
-// do not change.
+// graciaGate in a gate), counted from the SIGTERM the command really got,
+// with the encierro alive while any descendant of the command is (a hook
+// whose git already ended included), and only then the encierro ends. That
+// SIGTERM waits, in its own goroutine and never holding up another process
+// group nor a signal to hoom, until the command started (topeInfo at most):
+// an encierro whose command does not start by then ends at once (ronda 3,
+// aacb4e and 75396e). Liberar is the end once the command ended. Time
+// bounds do not change.
 //
 // # The step
 //
