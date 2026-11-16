@@ -14,7 +14,6 @@ package agentcmd
 import (
 	"bytes"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -50,11 +49,15 @@ func TestHallazgosD6de47_F835e8_CA638_SobrescribirUnHookGrandeYRestaurarSuFechaC
 	}
 
 	antes := aeaVeredictos(root, wt)
+	// La fecha se restaura con touch -t ([[CC]YY]MMDDhhmm[.SS], POSIX), que
+	// aceptan el touch de GNU y el de BSD/macOS; -d '@<epoch>' es solo de
+	// GNU. touch -t lee la hora en la zona del proceso, asi que el script
+	// fija TZ=UTC0 (cadena POSIX, no depende de tzdata) y la fecha va en UTC.
 	script := ar1Codigo +
 		"sleep 0.2\n" +
 		"h=$(git rev-parse --git-path hooks/pre-push)\n" +
 		"printf 'b' | dd of=\"$h\" bs=1 seek=100 count=1 conv=notrunc 2>/dev/null\n" +
-		"touch -m -d '@" + strconv.FormatInt(fecha.Unix(), 10) + "' \"$h\"\n" +
+		"TZ=UTC0 touch -m -t " + fecha.UTC().Format("200601021504.05") + " \"$h\"\n" +
 		"exit 0\n"
 	res, out := aeaCorrer(t, root, "writer", script, Options{})
 
