@@ -1,130 +1,59 @@
 package tablero
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/hoomdev/hoomai/internal/boardcmd"
 )
 
-// cajaPanel is a panel's place on the screen.
-type cajaPanel struct {
-	p       panel
-	r       rect
-	plegado bool
+// zonas are the places of the body: the list and the detail (the package
+// doc, "The layout of the body").
+type zonas struct {
+	lista, detalle rect
+	plegada        bool // the list folded to one line
 }
 
-// disponer lays the panels out (the package doc, "The layout").
-func (m *Modelo) disponer() []cajaPanel {
-	w, a := m.c.Ancho, m.c.Alto
-	b := a - 2
-	h3n := min(7, max(3, max(1, len(m.filas3()))+2))
-	if w >= 80 {
-		l := w / 3
-		pleg := map[panel]bool{}
-		var h1, h2, h3, h4 int
-		for {
-			h1, h3 = 6, h3n
-			if pleg[panelProyecto] {
-				h1 = 1
-			}
-			if pleg[panelCorriendo] {
-				h3 = 1
-			}
-			h4 = max(3, (b-h1-h3)/3)
-			if pleg[panelHallazgos] {
-				h4 = 1
-			}
-			h2 = b - h1 - h3 - h4
-			if h2 >= 3 {
-				break
-			}
-			plego := false
-			for _, p := range []panel{panelProyecto, panelHallazgos, panelCorriendo} {
-				if !pleg[p] && p != m.foco {
-					pleg[p], plego = true, true
-					break
-				}
-			}
-			if !plego {
-				break
-			}
-		}
-		var out []cajaPanel
-		y := 0
-		for _, x := range []struct {
-			p panel
-			h int
-		}{{panelProyecto, h1}, {panelTarjetas, h2}, {panelCorriendo, h3}, {panelHallazgos, h4}} {
-			out = append(out, cajaPanel{p: x.p, r: rect{0, y, l, x.h}, plegado: x.h == 1})
-			y += x.h
-		}
-		hr := 4
-		if a >= 24 {
-			hr = 6
-		}
-		h0 := b - hr
-		plegR := false
-		if h0 < 3 {
-			hr, h0, plegR = 1, b-1, true
-		}
-		out = append(out, cajaPanel{p: panelPrincipal, r: rect{l, 0, w - l, h0}},
-			cajaPanel{p: panelRegistro, r: rect{l, h0, w - l, hr}, plegado: plegR})
-		return out
+// The fixed lines of the screen (from 0).
+const (
+	yCabecera = 0
+	yCaja     = 1
+	altoCaja  = 4
+	yCuerpo   = 5
+)
+
+// cuerpo is the body's height: C = Alto-8.
+func (m *Modelo) cuerpo() int { return max(0, m.c.Alto-8) }
+
+// disponer lays the body out.
+func (m *Modelo) disponer() zonas {
+	w, cu := m.c.Ancho, m.cuerpo()
+	if m.ancha() {
+		l := w * 2 / 5
+		return zonas{lista: rect{0, yCuerpo, l, cu}, detalle: rect{l, yCuerpo, w - l, cu}}
 	}
-	// one column
-	natural := map[panel]int{
-		panelProyecto:  6,
-		panelCorriendo: h3n,
-		panelHallazgos: max(3, max(1, len(m.hallazgos))+2),
+	if m.zona == ZonaDetalle {
+		return zonas{lista: rect{0, yCuerpo, w, 1}, detalle: rect{0, yCuerpo + 1, w, cu - 1}, plegada: true}
 	}
-	l2, _ := m.contenido2(w - 2)
-	if m.esAviso(panelTarjetas) && len(l2) == 1 {
-		l2 = avisoEnvuelto(l2[0], w-2, b)
-	}
-	natural[panelTarjetas] = len(l2) + 2
-	alturas := map[panel]int{panelProyecto: 1, panelTarjetas: 1, panelCorriendo: 1, panelHallazgos: 1}
-	if m.foco != panelPrincipal {
-		alturas[m.foco] = max(3, min(natural[m.foco], a/3))
-	}
-	h0 := b - 1
-	for _, h := range alturas {
-		h0 -= h
-	}
-	var out []cajaPanel
-	y := 0
-	for _, p := range []panel{panelProyecto, panelTarjetas, panelCorriendo, panelHallazgos} {
-		out = append(out, cajaPanel{p: p, r: rect{0, y, w, alturas[p]}, plegado: alturas[p] == 1})
-		y += alturas[p]
-	}
-	out = append(out, cajaPanel{p: panelPrincipal, r: rect{0, y, w, h0}},
-		cajaPanel{p: panelRegistro, r: rect{0, y + h0, w, 1}, plegado: true})
-	return out
+	tope := max(3, (cu+1)/2)
+	n := m.altoNatural(w, tope-2)
+	h := max(3, min(n, (cu+1)/2))
+	return zonas{lista: rect{0, yCuerpo, w, h}, detalle: rect{0, yCuerpo + h, w, cu - h}}
 }
 
-// caja is the place of panel p.
-func (m *Modelo) caja(p panel) cajaPanel {
-	for _, c := range m.disponer() {
-		if c.p == p {
-			return c
-		}
-	}
-	return cajaPanel{}
+// altoNatural is the list's natural height in one column of w cells: its
+// content lines + 2 (the text of an empty list wrapped when it fits in hi
+// lines).
+func (m *Modelo) altoNatural(w, hi int) int {
+	ls, _, _ := m.contenidoLista(rect{0, 0, w, hi + 2})
+	return len(ls) + 2
 }
 
-// doc0 is [0]'s title, its document and its inner height.
-func (m *Modelo) doc0() (string, []docLinea, int) {
-	c := m.caja(panelPrincipal)
-	wi, hi := max(1, c.r.w-2), max(1, c.r.h-2)
-	t, d := m.documento0(wi, hi)
-	return t, d, hi
-}
-
-// alto0 is [0]'s inner height.
-func (m *Modelo) alto0() int { return max(1, m.caja(panelPrincipal).r.h-2) }
-
-// avisoEnvuelto is the text of an empty panel, or of one that is reading, for an
-// inner width wi and an inner height hi: wrapped at its words when it does
-// not fit in one line and the panel has the height for it; else one line
-// (cut by the panel).
+// avisoEnvuelto is the text of an empty box, or of one that is reading, for
+// an inner width wi and an inner height hi: wrapped at its words when it
+// does not fit in one line and the box has the height for it; else one line
+// (cut by the box).
 func avisoEnvuelto(l linea, wi, hi int) []linea {
 	ls := envolverLinea(l, wi)
 	if len(ls) <= 1 || len(ls) > hi {
@@ -133,173 +62,65 @@ func avisoEnvuelto(l linea, wi, hi int) []linea {
 	return ls
 }
 
-// esAviso says whether the content of panel p is its text of empty or of
-// reading.
-func (m *Modelo) esAviso(p panel) bool {
-	switch p {
-	case panelTarjetas:
-		return !m.leido || len(m.todas()) == 0
-	case panelCorriendo:
-		return len(m.filas3()) == 0
-	case panelHallazgos:
-		return !m.hallLeidos || len(m.hallazgos) == 0
-	case panelRegistro:
-		return len(m.registro) == 0
-	}
-	return false
+// ---------------------------------------------------------------- boxes
+
+// marco is a box to draw.
+type marco struct {
+	r               rect
+	foco            bool
+	estilo          estilo // the border's style when it has no focus
+	titulo, derecha linea
+	lineas          []linea
+	sel, scroll     int // the chosen line (-1: none) and the first line in view
+	pos             string
 }
 
-// contenido is panel p's content for its box: its lines and the line of its
-// chosen row (-1: none).
-func (m *Modelo) contenido(c cajaPanel) ([]linea, int) {
-	ls, sel := m.contenidoSinAviso(c)
-	if m.esAviso(c.p) && len(ls) == 1 {
-		return avisoEnvuelto(ls[0], c.r.w-2, max(1, c.r.h-2)), -1
-	}
-	return ls, sel
-}
-
-func (m *Modelo) contenidoSinAviso(c cajaPanel) ([]linea, int) {
-	wi := c.r.w - 2
-	switch c.p {
-	case panelProyecto:
-		return m.contenido1(), -1
-	case panelTarjetas:
-		ls, filas := m.contenido2(wi)
-		sel := -1
-		if !m.sel2.nada {
-			for i, f := range filas {
-				if f == m.sel2.idx {
-					sel = i
-				}
-			}
-		}
-		return ls, sel
-	case panelCorriendo:
-		sel := -1
-		if len(m.filas3()) > 0 {
-			sel = m.idx3
-		}
-		return m.contenido3(wi), sel
-	case panelHallazgos:
-		sel := -1
-		if len(m.hallazgos) > 0 {
-			sel = m.idx4
-		}
-		return m.contenido4(wi), sel
-	case panelRegistro:
-		return m.contenidoRegistro(max(1, c.r.h-2)), -1
-	}
-	return nil, -1
-}
-
-// scrollDe is a pointer to panel p's scroll.
-func (m *Modelo) scrollDe(p panel) *int {
-	switch p {
-	case panelTarjetas:
-		return &m.scroll2
-	case panelCorriendo:
-		return &m.scroll3
-	case panelHallazgos:
-		return &m.scroll4
-	case panelPrincipal:
-		return &m.scroll0
-	}
-	return nil
-}
-
-// titulo is panel p's title.
-func (m *Modelo) titulo(c cajaPanel) linea {
-	switch c.p {
-	case panelProyecto:
-		t := "[1] Proyecto"
-		if c.plegado {
-			t += m.estadoCheck()
-		}
-		return lin(t)
-	case panelTarjetas:
-		return lin("[2] Tarjetas")
-	case panelCorriendo:
-		if n := len(m.filas3()); n > 0 {
-			return lin("[3] Corriendo " + strconv.Itoa(n))
-		}
-		return lin("[3] Corriendo")
-	case panelHallazgos:
-		n := len(m.hallazgos)
-		if n == 0 {
-			return lin("[4] Hallazgos")
-		}
-		l := lin("[4] Hallazgos " + strconv.Itoa(n))
-		altos := 0
-		for _, h := range m.hallazgos {
-			if h.Severity == "high" {
-				altos++
-			}
-		}
-		if m.c.Color && altos > 0 {
-			l = l.masCon(" · "+strconv.Itoa(altos)+" high", rojo)
-		}
-		return l
-	case panelPrincipal:
-		t, _, _ := m.doc0()
-		return lin(t)
-	}
-	return m.tituloRegistro(c.plegado)
-}
-
-// dibujarPanel draws one panel.
-func (m *Modelo) dibujarPanel(lz *lienzo, c cajaPanel) {
+// dibujarMarco draws a box (the package doc, "The boxes").
+func (m *Modelo) dibujarMarco(lz *lienzo, b marco) {
 	s := m.s
-	r := c.r
-	titulo := m.titulo(c)
-	if c.plegado {
-		lz.fijar(r.x, r.y, s.linea, 1, normal)
-		n := lz.poner(r.x+1, r.y, r.w-2, titulo, normal, false)
-		lz.repetir(r.x+1+n, r.y, r.w-1-n, s.linea, normal)
+	r := b.r
+	if r.w < 2 || r.h < 1 {
 		return
 	}
-	foco := c.p == m.foco
 	esqSI, esqSD, esqII, esqID, lado, hor := s.esqSI, s.esqSD, s.esqII, s.esqID, s.lado, s.linea
-	borde := normal
-	if foco {
+	borde := b.estilo
+	if b.foco {
 		esqSI, esqSD, esqII, esqID, lado, hor = s.fEsqSI, s.fEsqSD, s.fEsqII, s.fEsqID, s.fLado, s.fLinea
 		borde = estiloFoco
-		for i := range titulo {
-			if titulo[i].estilo == normal {
-				titulo[i].estilo = estiloFoco
+	}
+	conBorde := func(l linea) linea {
+		out := make(linea, len(l))
+		for i, t := range l {
+			out[i] = t
+			if t.estilo == normal {
+				out[i].estilo = borde
 			}
 		}
+		return out
 	}
+	titulo := conBorde(b.titulo).limpia().cortada(r.w-2, s.corte)
 	lz.fijar(r.x, r.y, esqSI, 1, borde)
 	n := lz.poner(r.x+1, r.y, r.w-2, titulo, normal, false)
-	lz.repetir(r.x+1+n, r.y, r.w-2-n, hor, borde)
-	lz.fijar(r.x+r.w-1, r.y, esqSD, 1, borde)
-
-	var lineas []linea
-	sel := -1
-	scroll := 0
-	if c.p == panelPrincipal {
-		_, d, _ := m.doc0()
-		for _, x := range d {
-			lineas = append(lineas, x.l)
-		}
-		scroll = m.scroll0
+	der := conBorde(b.derecha).limpia()
+	dw := celdas(der.plano())
+	if dw > 0 && n+1+dw+1 <= r.w-2 {
+		lz.repetir(r.x+1+n, r.y, r.w-2-n-dw-1, hor, borde)
+		lz.poner(r.x+r.w-2-dw, r.y, dw, der, normal, false)
+		lz.fijar(r.x+r.w-2, r.y, hor, 1, borde)
 	} else {
-		lineas, sel = m.contenido(c)
-		if p := m.scrollDe(c.p); p != nil {
-			scroll = *p
-		}
+		lz.repetir(r.x+1+n, r.y, r.w-2-n, hor, borde)
 	}
+	lz.fijar(r.x+r.w-1, r.y, esqSD, 1, borde)
 	hi := r.h - 2
 	for i := 0; i < hi; i++ {
 		y := r.y + 1 + i
 		lz.fijar(r.x, y, lado, 1, borde)
-		k := scroll + i
+		k := b.scroll + i
 		var l linea
-		if k >= 0 && k < len(lineas) {
-			l = lineas[k]
+		if k >= 0 && k < len(b.lineas) {
+			l = b.lineas[k]
 		}
-		if k == sel && foco {
+		if k == b.sel && b.foco {
 			barra := make(linea, len(l))
 			for j, t := range l {
 				barra[j] = tramo{texto: t.texto, estilo: t.estilo | inverso}
@@ -310,19 +131,198 @@ func (m *Modelo) dibujarPanel(lz *lienzo, c cajaPanel) {
 		}
 		lz.fijar(r.x+r.w-1, y, lado, 1, borde)
 	}
-	pos := ""
-	if len(lineas) > hi && sel >= 0 {
-		switch c.p {
-		case panelTarjetas:
-			pos = strconv.Itoa(m.sel2.idx+1) + " de " + strconv.Itoa(len(m.filas2()))
-		case panelCorriendo:
-			pos = strconv.Itoa(m.idx3+1) + " de " + strconv.Itoa(len(m.filas3()))
-		case panelHallazgos:
-			pos = strconv.Itoa(m.idx4+1) + " de " + strconv.Itoa(len(m.hallazgos))
+	if r.h >= 2 {
+		m.borde(lz, r.x, r.y+r.h-1, r.w, esqII, hor, esqID, b.pos, borde)
+	}
+}
+
+// dibujarPlegada draws a folded box: the line sign, its title and line
+// signs up to its width.
+func (m *Modelo) dibujarPlegada(lz *lienzo, r rect, titulo linea) {
+	lz.fijar(r.x, r.y, m.s.linea, 1, normal)
+	n := lz.poner(r.x+1, r.y, r.w-2, titulo, normal, false)
+	lz.repetir(r.x+1+n, r.y, r.w-1-n, m.s.linea, normal)
+}
+
+// ---------------------------------------------------------------- the header
+
+// cabecera is the header's line (the package doc, "The header").
+func (m *Modelo) cabecera() linea {
+	w := m.c.Ancho
+	izq := linCon("hoom tablero", estiloFoco).mas(" · " + m.c.Proyecto)
+	var partes []linea
+	if p := m.proyecto; p != nil {
+		if p.Git {
+			izq = izq.mas(" · rama " + p.Rama)
+		} else {
+			izq = izq.mas(" · sin git")
+		}
+		partes = append(partes, m.lineaCheck())
+		if p.Hoy.Runs > 0 {
+			partes = append(partes, lin(fmt.Sprintf(" · hoy %.2f USD", p.Hoy.CostoUSD)))
+		} else {
+			partes = append(partes, lin(" · hoy sin trabajos"))
+		}
+		if m.fijada != "" {
+			partes = append(partes, lin(" · fijada: "+m.fijada))
+		}
+	} else {
+		partes = append(partes, lin("leyendo el proyecto..."))
+	}
+	ancho := func(l linea) int { return celdas(l.limpia().plano()) }
+	unir := func() linea {
+		var l linea
+		for _, p := range partes {
+			l = append(l, p...)
+		}
+		return l
+	}
+	cabe := func(der linea) bool { return 1+ancho(izq)+2+ancho(der)+1 <= w }
+	for !cabe(unir()) && len(partes) > 1 {
+		partes = partes[:len(partes)-1]
+	}
+	der := unir()
+	if !cabe(der) {
+		if n := w - 4 - ancho(izq); n >= 1 {
+			der = der.limpia().cortada(n, m.s.corte)
+		} else {
+			return append(lin(" "), izq.limpia().cortada(w-2, m.s.corte)...)
 		}
 	}
-	m.borde(lz, r.x, r.y+r.h-1, r.w, esqII, hor, esqID, pos, borde)
+	return append(lin(" "), conDerecha(izq, der, w-1)...)
 }
+
+// ---------------------------------------------------------------- the box TU SIGUIENTE PASO
+
+// cajaPaso is the box TU SIGUIENTE PASO: its right part, its two lines and
+// whether its border is yellow.
+func (m *Modelo) cajaPaso() (linea, [2]linea, bool) {
+	var ls [2]linea
+	if !m.leido {
+		ls[0] = lin(" leyendo el tablero...")
+		return nil, ls, false
+	}
+	c, gs := m.tarjetaDeCaja()
+	der := lin(fmt.Sprintf("te toca %d · corriendo %d · detenida %d",
+		len(gs[GrupoTeToca]), len(gs[GrupoCorriendo]), len(gs[GrupoDetenida])))
+	amarilla := len(gs[GrupoTeToca])+len(gs[GrupoDetenida]) > 0
+	wi := m.c.Ancho - 2
+	switch {
+	case c != nil:
+		g := m.grupoDe(c)
+		p := m.pasoDe(c)
+		plain := unaLinea(c.Plain)
+		if g == GrupoDetenida {
+			plain = motivoDetenida(c)
+		}
+		ls[0] = lin(" ").masCon(m.fraseCaja(c, g, p), negrita).mas("  ").masCon(plain, gris)
+		var siguen []*boardcmd.Card
+		for _, x := range append(append([]*boardcmd.Card(nil), gs[GrupoTeToca]...), gs[GrupoDetenida]...) {
+			if x != c {
+				siguen = append(siguen, x)
+			}
+		}
+		ls[1] = m.segundaDeCaja(p, siguen, wi)
+	case len(gs[GrupoCorriendo]) > 0:
+		cs := gs[GrupoCorriendo]
+		n := "1 tarjeta"
+		if len(cs) > 1 {
+			n = strconv.Itoa(len(cs)) + " tarjetas"
+		}
+		ls[0] = lin(" ").masCon("Nada te espera. hoom trabaja en "+n+".", negrita)
+		primera := cs[0]
+		que := "piloto, decidiendo"
+		if r := primera.Running; r != nil {
+			que = rolDe(r.Role) + ", " + reloj(m.ahora.Sub(r.StartedAt))
+		}
+		t := "corriendo: " + m.citar(tituloDe(primera)) + " (" + que + ")"
+		if k := len(cs) - 1; k > 0 {
+			t += m.fijo(fmt.Sprintf(" y %d más", k))
+		}
+		ls[1] = lin(" " + t)
+	case len(gs[GrupoEnCola]) > 0:
+		e := gs[GrupoEnCola][0]
+		ls[0] = lin(" ").masCon(m.frase("Nada en curso. Podés empezar ", tituloDe(e), "."), negrita)
+		ls[1] = m.segundaDeCaja(m.pasoDe(e), nil, wi)
+	default:
+		ls[0] = lin(" ").masCon("No hay nada pendiente.", negrita)
+		ls[1] = lin(` para sumar trabajo: hoom item add "<titulo>"`)
+	}
+	return der, ls, amarilla
+}
+
+// fraseCaja is the box's phrase for its card c of group g with step p.
+func (m *Modelo) fraseCaja(c *boardcmd.Card, g Grupo, p paso) string {
+	t := tituloDe(c)
+	switch {
+	case g == GrupoDetenida:
+		return m.frase("Decidí cómo sigue ", t, ".")
+	case p.seguir:
+		return m.frase("Dejá que ", t, " siga sola.")
+	case p.act == nil:
+		return m.frase("Mirá ", t, ".")
+	}
+	switch p.act.ID {
+	case boardcmd.ActAprobar:
+		return m.frase("Firmá el spec de ", t, ".")
+	case boardcmd.ActIntegrar:
+		return m.frase("Aceptá ", t, ".")
+	case boardcmd.ActPedirArquitecto:
+		return m.frase("Pedile el spec al arquitecto para ", t, ".")
+	case boardcmd.ActPedirTestWriter:
+		return m.frase("Pedile los tests al test-writer para ", t, ".")
+	case boardcmd.ActPedirWriter:
+		return m.frase("Pedile el código al writer para ", t, ".")
+	case boardcmd.ActPedirReviewer:
+		return m.frase("Pedile la review al reviewer para ", t, ".")
+	case boardcmd.ActReanudar:
+		return m.frase("Reanudá el trabajo de ", t, ".")
+	case boardcmd.ActGuardar:
+		return m.frase("Guardá el trabajo de ", t, ".")
+	}
+	return m.frase("Mirá ", t, ".")
+}
+
+// segundaDeCaja is the box's second line: "n <label>" (or the rule's
+// text) and, gray on the right, "después:" and the titles that follow.
+func (m *Modelo) segundaDeCaja(p paso, siguen []*boardcmd.Card, wi int) linea {
+	izq := p.texto
+	if p.hay() {
+		izq = "n " + strings.ToLower(p.etiqueta())
+	}
+	izq = unaLinea(izq)
+	l := lin(" " + izq)
+	if len(siguen) == 0 {
+		return l
+	}
+	lugar := wi - 1 - celdas(limpio(izq)) - 2 - 1
+	der := m.fijo("después: ")
+	puestos := 0
+	for _, c := range siguen {
+		sep := ""
+		if puestos > 0 {
+			sep = " · "
+		}
+		t := limpio(tituloDe(c))
+		pieza := m.citar(t)
+		if celdas(der+sep+pieza) <= lugar {
+			der += sep + pieza
+			puestos++
+			continue
+		}
+		if resto := lugar - celdas(der+sep); resto >= 2 {
+			der += sep + m.citar(cortar(t, resto-celdas(m.s.comillaAbre+m.s.comillaCierra), m.s.corte))
+			puestos++
+		}
+		break
+	}
+	if puestos == 0 {
+		return l
+	}
+	return lin(" ").mas(izq).mas(strings.Repeat(" ", max(1, wi-1-celdas(limpio(izq))-celdas(der)-1))).masCon(der, gris).mas(" ")
+}
+
+// ---------------------------------------------------------------- the screen
 
 // Pantalla is the screen now, as the package's doc describes it.
 func (m *Modelo) Pantalla() []string {
@@ -338,14 +338,61 @@ func (m *Modelo) Pantalla() []string {
 		return out
 	}
 	lz := nuevoLienzo(w, h, m.s.corte)
-	for _, c := range m.disponer() {
-		m.dibujarPanel(lz, c)
+	lz.poner(0, yCabecera, w, m.cabecera(), normal, false)
+	der, ls, amarilla := m.cajaPaso()
+	e := gris
+	if amarilla {
+		e = amarillo
 	}
+	m.dibujarMarco(lz, marco{r: rect{0, yCaja, w, altoCaja}, estilo: e, titulo: lin("TU SIGUIENTE PASO"),
+		derecha: der, lineas: ls[:], sel: -1})
+	z := m.disponer()
+	m.dibujarListaZona(lz, z)
+	m.dibujarDetalle(lz, z)
+	m.dibujarPlegada(lz, rect{0, h - 3, w, 1}, m.tituloRegistro())
 	lz.poner(0, h-2, w, m.lineaMensajes(), normal, false)
-	lz.poner(0, h-1, w, lin(m.lineaTeclas()), normal, false)
+	lz.poner(0, h-1, w, m.lineaTeclas(), normal, false)
 	m.dibujarModal(lz)
 	return lz.lineas(m.c.Color)
 }
+
+func (m *Modelo) dibujarListaZona(lz *lienzo, z zonas) {
+	titulo := m.tituloLista()
+	if z.plegada {
+		if pos := m.posicionLista(); pos != "" {
+			titulo = titulo.mas(" · " + pos)
+		}
+		m.dibujarPlegada(lz, z.lista, titulo)
+		return
+	}
+	ls, _, sel := m.contenidoLista(z.lista)
+	pos := ""
+	if len(ls) > z.lista.h-2 && sel >= 0 {
+		pos = m.posicionLista()
+	}
+	m.dibujarMarco(lz, marco{r: z.lista, foco: m.zona == ZonaLista, titulo: titulo, lineas: ls, sel: sel,
+		scroll: *m.scrollLista(), pos: pos})
+}
+
+func (m *Modelo) dibujarDetalle(lz *lienzo, z zonas) {
+	titulo, der, d := m.documentoDetalle(z.detalle)
+	ls := make([]linea, len(d))
+	for i, x := range d {
+		ls[i] = x.l
+	}
+	m.dibujarMarco(lz, marco{r: z.detalle, foco: m.zona == ZonaDetalle, titulo: titulo, derecha: der, lineas: ls,
+		sel: -1, scroll: m.scroll0})
+}
+
+// doc0 is the detail's document and its inner height.
+func (m *Modelo) doc0() ([]docLinea, int) {
+	r := m.disponer().detalle
+	_, _, d := m.documentoDetalle(r)
+	return d, max(1, r.h-2)
+}
+
+// alto0 is the detail's inner height.
+func (m *Modelo) alto0() int { return max(1, m.disponer().detalle.h-2) }
 
 // lineaMensajes is the message line.
 func (m *Modelo) lineaMensajes() linea {
@@ -368,91 +415,139 @@ func (m *Modelo) lineaMensajes() linea {
 	return l
 }
 
+// pista is a hint of the keys line; enter's goes bold.
+type pista struct {
+	texto string
+	enter bool
+}
+
 // pistas are the hints of the keys line now.
-func (m *Modelo) pistas() []string {
+func (m *Modelo) pistas() []pista {
 	l := m.Lugar()
 	c := m.tarjetaDeLugar(l)
-	var out []string
+	var out []pista
 	for _, a := range m.filas(l) {
-		if a.Barra == "" {
+		if a.Barra == "" || a.DeTarjeta && c == nil {
 			continue
 		}
-		if a.DeTarjeta && c == nil {
-			continue
-		}
-		out = append(out, m.s.conFlechas(a.Barra))
-		if a.Accion == AccionSiguiente {
-			if act, fila, _ := m.siguientePaso(c); act != nil {
-				out = append(out, m.s.conFlechas(fila.Muestra)+" "+strings.ToLower(act.Label))
+		if a.Accion == AccionPaso {
+			if t := m.pistaPaso(l, c); t != "" {
+				out = append(out, pista{texto: t, enter: true})
 			}
+			continue
 		}
+		out = append(out, pista{texto: m.s.conFlechas(a.Barra)})
 	}
 	return out
 }
 
-// lineaTeclas is the keys line: the hints that fit (the package doc, "The
-// two last lines").
-func (m *Modelo) lineaTeclas() string {
-	ps := m.pistas()
-	w := m.c.Ancho
-	unir := func() string { return " " + strings.Join(ps, " · ") }
-	if len(ps) == 0 || celdas(unir()) <= w {
-		return unir()
+// pistaPaso is enter's hint: the step of the chosen card, or HECHO's line.
+func (m *Modelo) pistaPaso(l Lugar, c *boardcmd.Card) string {
+	if l == LugarTarjetas && !m.sel.nada && m.sel.hecho && len(m.filasLista()) > 0 {
+		if m.hechoAbierto {
+			return "enter cerrar"
+		}
+		return "enter abrir"
 	}
-	if ps[len(ps)-1] == "? todas las teclas" {
-		ps[len(ps)-1] = "? todas"
+	if c == nil {
+		return ""
 	}
-	for celdas(unir()) > w && len(ps) > 1 {
-		ps = append(ps[:len(ps)-2], ps[len(ps)-1])
+	if p := m.pasoDe(c); p.hay() {
+		return "enter " + strings.ToLower(p.etiqueta())
 	}
-	return unir()
+	return ""
 }
 
-// acomodar keeps the selections, the scrolls and [0] where the contract
-// says after any change.
+// lineaTeclas is the keys line: the hints that fit (the package doc, "The
+// two last lines").
+func (m *Modelo) lineaTeclas() linea {
+	ps := m.pistas()
+	w := m.c.Ancho
+	ancho := func() int {
+		n := 1
+		for i, p := range ps {
+			if i > 0 {
+				n += 3
+			}
+			n += celdas(p.texto)
+		}
+		return n
+	}
+	if len(ps) > 0 && ancho() > w {
+		if ps[len(ps)-1].texto == "? todas las teclas" {
+			ps[len(ps)-1].texto = "? todas"
+		}
+		for ancho() > w && len(ps) > 1 {
+			i := len(ps) - 2
+			if i == 0 && ps[0].enter {
+				break
+			}
+			ps = append(ps[:i], ps[i+1:]...)
+		}
+	}
+	l := lin(" ")
+	for i, p := range ps {
+		if i > 0 {
+			l = l.mas(" · ")
+		}
+		if p.enter {
+			l = l.masCon(p.texto, negrita)
+		} else {
+			l = l.mas(p.texto)
+		}
+	}
+	return l
+}
+
+// ---------------------------------------------------------------- after any change
+
+// acomodar keeps the selections, the scrolls and the detail where the
+// contract says after any change.
 func (m *Modelo) acomodar() {
 	if m.c.Ancho <= 0 || m.c.Alto <= 0 {
 		return
 	}
-	m.acomodar2()
-	m.acomodar3()
+	m.acomodarLista()
 	m.acomodar4()
-	if m.buscando && m.foco != panelTarjetas {
+	if m.buscando && (m.zona != ZonaLista || m.vista != VistaTarjetas) {
 		m.cerrarBusqueda()
 	}
-	// what [0] shows changed: its document starts again
+	// what the detail shows changed: its document starts again
 	if clave := m.clave0Actual(); clave != m.clave0 {
 		m.clave0 = clave
 		m.scroll0 = 0
-		m.sigue0 = strings.HasPrefix(clave, "c:")
+		m.sigue0 = false
+		if c := m.tarjeta(strings.TrimPrefix(clave, "t:")); strings.HasPrefix(clave, "t:") && c != nil && c.Running != nil {
+			m.sigue0 = true
+		}
 	}
 	if m.pequena() {
 		return
 	}
-	for _, c := range m.disponer() {
-		p := m.scrollDe(c.p)
-		if p == nil || c.plegado {
-			continue
-		}
-		hi := max(1, c.r.h-2)
-		if c.p == panelPrincipal {
-			_, d, _ := m.doc0()
-			maximo := max(0, len(d)-hi)
-			if m.sigue0 {
-				m.scroll0 = maximo
-			}
-			m.scroll0 = max(0, min(m.scroll0, maximo))
-			continue
-		}
-		ls, sel := m.contenido(c)
-		if sel >= 0 {
-			if sel < *p {
-				*p = sel
-			}
-			if sel >= *p+hi {
-				*p = sel - hi + 1
-			}
-		}
-		*p = max(0, min(*p, len(ls)-hi))
+	z := m.disponer()
+	d, hi := m.doc0()
+	maximo := max(0, len(d)-hi)
+	if m.sigue0 {
+		m.scroll0 = maximo
 	}
+	m.scroll0 = max(0, min(m.scroll0, maximo))
+	if z.plegada {
+		return
+	}
+	ls, filas, sel := m.contenidoLista(z.lista)
+	hiL := max(1, z.lista.h-2)
+	p := m.scrollLista()
+	if sel >= 0 {
+		ultima := sel
+		for ultima+1 < len(filas) && filas[ultima+1] == filas[sel] {
+			ultima++
+		}
+		if ultima >= *p+hiL {
+			*p = ultima - hiL + 1
+		}
+		if sel < *p {
+			*p = sel
+		}
+	}
+	*p = max(0, min(*p, len(ls)-hiL))
 }

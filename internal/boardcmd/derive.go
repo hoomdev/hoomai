@@ -34,6 +34,9 @@ func Derive(ev Evidence) Card {
 		Spend:    spend(ev),
 		Red:      red(ev),
 	}
+	if c.Red != nil {
+		c.Red.Esperado = rojoEsperadoDe(ev)
+	}
 	c.Running, c.Interrupted = liveness(ev)
 	c.Column, c.Missing, c.Next, c.Plain = column(ev)
 	if c.Missing == nil {
@@ -467,6 +470,33 @@ func red(ev Evidence) *Red {
 		reason += ": " + n
 	}
 	return &Red{Source: RedEnvelope, ID: last.ID, Reason: reason, Plain: plainEnvelope(*last)}
+}
+
+// ultimoCerrado is the newest closed envelope of es in the pilot's order
+// (by StartedAt, then by ID; pilotocmd's sobresCerrados), nil without one.
+func ultimoCerrado(es []EnvelopeState) *envelope.Record {
+	var last *envelope.Record
+	for i := range es {
+		r := es[i].Record
+		if !r.Done() {
+			continue
+		}
+		if last == nil || r.StartedAt.After(last.StartedAt) || r.StartedAt.Equal(last.StartedAt) && r.ID > last.ID {
+			last = &r
+		}
+	}
+	return last
+}
+
+// rojoEsperadoDe says whether the card's red is the test-writer's expected
+// one: its newest closed envelope is the one the pilot's rojoEsperado
+// accepts, with the verdict that envelope emitted (CA-703).
+func rojoEsperadoDe(ev Evidence) bool {
+	last := ultimoCerrado(ev.Envelopes)
+	if last == nil {
+		return false
+	}
+	return rojoEsperado(Sobre{Record: *last, Veredicto: ev.VeredictoDelSobre})
 }
 
 func endOf(r envelope.Record) time.Time {

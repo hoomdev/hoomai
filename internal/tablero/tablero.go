@@ -22,12 +22,14 @@ import (
 // UsageText is the usage block of `hoom tablero`.
 const UsageText = `Uso: hoom tablero
 
-Abre el tablero en la terminal, a pantalla completa y con paneles: el
-proyecto, las tarjetas, lo que corre y los hallazgos a la izquierda, y a la
-derecha el detalle de lo que elegis y el registro de lo que se ejecuto. Una
-tecla por accion (? muestra todas) y cada accion ejecuta un verbo de la
-tarjeta (hoom pedir, aprobar, guardar, integrar, reanudar, usar) despues de
-mostrar en un modal el comando exacto. HOOM_MOUSE=0 apaga el mouse.
+Abre el tablero en la terminal, a pantalla completa y ordenado por quien
+tiene la pelota: arriba la caja TU SIGUIENTE PASO dice que te toca ahora (n
+lo abre); abajo, las tarjetas agrupadas (TE TOCA, CORRIENDO, DETENIDA, EN
+COLA, HECHO) y el detalle de la elegida (AHORA, TE TOCA, SIGUE, EL CAMINO).
+enter abre el paso de la tarjeta y cada accion ejecuta un verbo (hoom pedir,
+aprobar, guardar, integrar, reanudar, usar, piloto) despues de mostrar en un
+modal el comando exacto; P es Seguir solo (hoom piloto). ? muestra todas las
+teclas y L el registro de lo que se ejecuto. HOOM_MOUSE=0 apaga el mouse.
 Necesita una terminal; sin terminal usa hoom board.
 'hoom tablero' no tiene flags ni argumentos.`
 

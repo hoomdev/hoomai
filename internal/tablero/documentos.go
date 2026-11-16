@@ -11,7 +11,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/finding"
 )
 
-// docLinea is one line of [0]'s document: the line, and, on part D of a
+// docLinea is one line of the detail's document: the line, and, on part D of a
 // card's, the criterion it is of and whether it is ✗.
 type docLinea struct {
 	l    linea
@@ -34,64 +34,10 @@ func (d *doc) ponerCrit(l linea, crit string, sin bool) {
 	}
 }
 
-// cortada adds l without wrapping (the panel cuts it).
+// cortada adds l without wrapping (the box cuts it).
 func (d *doc) cortada(l linea) { d.lineas = append(d.lineas, docLinea{l: l}) }
 
 func (d *doc) vacia() { d.lineas = append(d.lineas, docLinea{l: lin("")}) }
-
-// clave0 says what [0] shows, to know when it changes.
-func (m *Modelo) clave0Actual() string {
-	switch m.izq {
-	case panelProyecto:
-		return "p"
-	case panelTarjetas:
-		if s := m.elegidaDe2(); s != "" {
-			return "t:" + s
-		}
-	case panelCorriendo:
-		if s := m.elegidaDe3(); s != "" {
-			return "c:" + s
-		}
-	case panelHallazgos:
-		if h, ok := m.hallazgoElegido(); ok {
-			return "h:" + h.ID
-		}
-	}
-	return ""
-}
-
-// documento0 is [0]'s title and document for an inner width wi and an
-// inner height hi.
-func (m *Modelo) documento0(wi, hi int) (string, []docLinea) {
-	d := &doc{wi: wi}
-	switch m.izq {
-	case panelProyecto:
-		m.docProyecto(d)
-		return "[0] Proyecto", d.lineas
-	case panelTarjetas:
-		if c := m.tarjeta(m.elegidaDe2()); c != nil {
-			m.docTarjeta(d, c)
-			return "[0] " + c.Slug + " · " + c.Item.Titulo, d.lineas
-		}
-	case panelCorriendo:
-		if c := m.tarjeta(m.elegidaDe3()); c != nil {
-			rol := ""
-			if c.Running != nil {
-				rol = rolDe(c.Running.Role)
-			} else if c.Interrupted != nil {
-				rol = rolDe(c.Interrupted.Role)
-			}
-			m.docCorriendo(d, c)
-			return "[0] " + c.Slug + " · " + rol, d.lineas
-		}
-	case panelHallazgos:
-		if h, ok := m.hallazgoElegido(); ok {
-			m.docHallazgo(d, h, hi)
-			return "[0] hallazgo " + h.ID, d.lineas
-		}
-	}
-	return "[0]", nil
-}
 
 // ---------------------------------------------------------------- Proyecto
 
@@ -148,97 +94,6 @@ func (m *Modelo) docProyecto(d *doc) {
 }
 
 // ---------------------------------------------------------------- a card
-
-func (m *Modelo) docTarjeta(d *doc, c *boardcmd.Card) {
-	// A
-	d.poner(lin(" " + m.s.queFalta + "  " + unaLinea(c.Plain)))
-	if m.experto {
-		d.poner(lin(" siguiente: " + unaLinea(c.Next)))
-		for _, x := range c.Missing {
-			d.poner(lin(" missing: " + unaLinea(x)))
-		}
-	}
-	if act, fila, texto := m.siguientePaso(c); act != nil {
-		d.poner(lin(" Siguiente paso  " + act.Label + "  [" + m.s.conFlechas(fila.Muestra) + "]"))
-	} else {
-		d.poner(lin(" Siguiente paso  " + unaLinea(texto)))
-	}
-	// what does not block, in sight when accepting (ciclo-de-review-acotado)
-	if c.Pendientes.Texto != "" {
-		d.poner(lin(" " + unaLinea(c.Pendientes.Texto)))
-	}
-	// B
-	d.vacia()
-	g := gasto(c.Spend)
-	if c.Spend.BudgetUSD != nil {
-		g += fmt.Sprintf(" de %.2f USD", *c.Spend.BudgetUSD)
-	}
-	b := " " + c.ColumnName + " · gasto " + g
-	if c.Providers.Writer != "" {
-		b += " · " + m.s.escribio + " " + c.Providers.Writer
-	}
-	if c.Providers.Reviewer != "" {
-		b += " · " + m.s.reviso + " " + c.Providers.Reviewer
-	}
-	d.poner(lin(b))
-	if c.Red != nil {
-		motivo := c.Red.Plain
-		if m.experto {
-			motivo = c.Red.Reason
-		}
-		d.poner(linCon(" rojo: "+unaLinea(motivo), rojo))
-	}
-	for _, p := range c.Doctor {
-		que := p.Plain
-		if que == "" {
-			que = p.What
-		}
-		d.poner(lin(" doctor: " + unaLinea(que) + ": " + unaLinea(p.Action)))
-	}
-	// C
-	if len(c.Meter) > 0 {
-		d.vacia()
-		for i, s := range c.Meter {
-			t := "  " + m.signo(c, i) + " " + s.Label
-			if s.Detail != "" {
-				t += ": " + unaLinea(s.Detail)
-			}
-			d.poner(lin(t))
-		}
-	}
-	d.vacia()
-	det := m.detalle
-	switch {
-	case det == nil || det.Slug != c.Slug:
-		d.poner(lin(" leyendo la tarjeta..."))
-		return
-	case det.Err != nil:
-		d.poner(linCon(" no se pudo leer la tarjeta: "+unaLinea(det.Err.Error()), rojo))
-		return
-	}
-	// D
-	m.docSpec(d, c, det)
-	// E
-	d.vacia()
-	m.docHallazgosTarea(d, det)
-	// F
-	d.vacia()
-	d.poner(lin(" Historia"))
-	if len(det.Historia.Entries) == 0 {
-		d.poner(lin("  sin historia todavia"))
-	}
-	for _, e := range det.Historia.Entries {
-		que := e.Plain
-		if m.experto {
-			que = e.Summary
-		}
-		d.poner(lin("  " + e.At.UTC().Format("2006-01-02 15:04") + " " + e.Who + " " + unaLinea(que)))
-	}
-	// G
-	d.vacia()
-	d.poner(lin(" " + m.s.narracion))
-	m.docSobre(d, c, det)
-}
 
 func tieneSpec(d *Detalle) bool { return d.Detalle.Spec.Exists || d.Detalle.Spec.Markdown != "" }
 
@@ -343,7 +198,7 @@ func (m *Modelo) docSobre(d *doc, c *boardcmd.Card, det *Detalle) {
 	case c.Running != nil:
 		r := c.Running
 		partes = append(partes, rolDe(r.Role))
-		if p := paso(r.Stage, r.Step, r.Steps); p != "" {
+		if p := etapa(r.Stage, r.Step, r.Steps); p != "" {
 			partes = append(partes, p)
 		}
 		t := reloj(m.ahora.Sub(r.StartedAt))
@@ -354,7 +209,7 @@ func (m *Modelo) docSobre(d *doc, c *boardcmd.Card, det *Detalle) {
 	case len(det.Detalle.Work) > 0:
 		w := det.Detalle.Work[0]
 		partes = append(partes, rolDe(w.Role))
-		if p := paso(w.Stage, w.Step, w.Steps); p != "" {
+		if p := etapa(w.Stage, w.Step, w.Steps); p != "" {
 			partes = append(partes, p)
 		}
 		if w.DurationMS != nil {
@@ -377,52 +232,6 @@ func (m *Modelo) docSobre(d *doc, c *boardcmd.Card, det *Detalle) {
 	}
 	for _, e := range ev {
 		l := "  " + e.TS.UTC().Format("15:04:05") + " " + e.Kind
-		if e.Detail != "" {
-			l += " " + unaLinea(e.Detail)
-		}
-		d.cortada(lin(l))
-	}
-}
-
-// ---------------------------------------------------------------- [3]'s card
-
-func (m *Modelo) docCorriendo(d *doc, c *boardcmd.Card) {
-	if r := c.Running; r != nil {
-		partes := []string{rolDe(r.Role)}
-		if p := paso(r.Stage, r.Step, r.Steps); p != "" {
-			partes = append(partes, p)
-		}
-		t := reloj(m.ahora.Sub(r.StartedAt))
-		if r.TimeoutS != 0 {
-			t += " de " + reloj(time.Duration(r.TimeoutS)*time.Second)
-		}
-		partes = append(partes, t)
-		if r.LastEventAt != nil {
-			partes = append(partes, fmt.Sprintf("%s hace %ds", m.s.narro, segundos(m.ahora.Sub(*r.LastEventAt))))
-		}
-		partes = append(partes, gasto(c.Spend))
-		d.poner(lin(" " + strings.Join(partes, " · ")))
-	} else if i := c.Interrupted; i != nil {
-		d.poner(linCon(fmt.Sprintf(" interrumpido en el paso %d de %d (%s): el %s ya no corre",
-			i.Step, i.Steps, i.Stage, rolDe(i.Role)), rojo))
-	}
-	det := m.detalle
-	if det == nil || det.Slug != c.Slug {
-		d.poner(lin(" leyendo la tarjeta..."))
-		return
-	}
-	if det.Err != nil {
-		d.poner(linCon(" no se pudo leer la tarjeta: "+unaLinea(det.Err.Error()), rojo))
-		return
-	}
-	if det.Sobre.Err != nil {
-		d.poner(linCon(" no se pudo leer el sobre: "+unaLinea(det.Sobre.Err.Error()), rojo))
-	}
-	if len(det.Sobre.Eventos) == 0 {
-		d.poner(lin(" sin eventos todavia"))
-	}
-	for _, e := range det.Sobre.Eventos {
-		l := " " + e.TS.UTC().Format("15:04:05") + " " + e.Kind
 		if e.Detail != "" {
 			l += " " + unaLinea(e.Detail)
 		}

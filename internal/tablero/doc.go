@@ -439,7 +439,6 @@
 //	         " enter " + label + " · " + help      (the step's label in lower case; " · " and the
 //	                                               help gray)
 //	         " nada: " + text                      (without a step: the rule's text)
-//	         " " + pendientes                      (only when the card's Pendientes.Texto is not "")
 //	SIGUE    " SIGUE"                              (1;90)
 //	         " " + phrase
 //	         " con el piloto seguiria sola: hoom item set <slug> --auto hasta-humano"
@@ -522,6 +521,9 @@
 //	B  " <column_name> · gasto <g>[ · escribió <writer>][ · revisó <reviewer>]"
 //	   " rojo: <red.plain>"                  (only with red, in red; red.reason in expert mode)
 //	   " doctor: <plain>: <action>"          (one per problem of the card; What when Plain is "")
+//	   " <Pendientes.Texto>"                 (only when the card's Pendientes.Texto is not "": the
+//	                                         spec puts the line of pendientes in the rest, after the
+//	                                         doctor and before the meter)
 //	C  "  <sign> <label>: <detail>"          (one per segment of the meter; "  <sign> <label>"
 //	                                         without detail; only when the card has a meter)
 //	D  " Spec · <n> criterios · <k> sin prueba"
@@ -570,7 +572,6 @@
 //	" TE TOCA " + "enter <label> · <help>"      (or "nada: <text>")
 //	" SIGUE   " + phrase
 //	" CAMINO  " + the 8 signs + " paso <i> de 8: <name>"
-//	" " + pendientes                            (only when not "": decision, its own line here)
 //
 // then the empty line and parts B to G. AHORA carries only its phrase: no
 // gray line, no bar, no expert lines; SIGUE has no gray line.
