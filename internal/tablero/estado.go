@@ -25,7 +25,7 @@ const msgAgrandar = "agranda la terminal (minimo 60x15)"
 
 // panelRegistro is the Registro's place among the panels: it never takes
 // the focus.
-const panelRegistro Panel = 5
+const panelRegistro panel = 5
 
 // Modelo is the TUI without a terminal: keys, mouse events and reads in, a
 // screen and orders out (the package doc is the contract of its screen and
@@ -53,8 +53,8 @@ type Modelo struct {
 	detalle *Detalle // of Elegida
 	archivo *Archivo // of ArchivoElegido
 
-	foco Panel
-	izq  Panel // the last left panel that had the focus
+	foco panel
+	izq  panel // the last left panel that had the focus
 
 	// [2]: the selection is a card (slug) or Hecho's line (hecho); idx is
 	// its place among the rows
@@ -119,8 +119,8 @@ func Nuevo(c Config) *Modelo {
 	m := &Modelo{
 		c:        c,
 		s:        signosASCII,
-		foco:     PanelTarjetas,
-		izq:      PanelTarjetas,
+		foco:     panelTarjetas,
+		izq:      panelTarjetas,
 		sel2:     elegido2{nada: true},
 		lanzados: map[int]*lanzado{},
 		vistos:   map[string]visto{},
@@ -174,7 +174,7 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 		m.ahora = l.Ahora
 	}
 	m.errTablero = ""
-	enCero := m.foco == PanelPrincipal && m.izq == PanelTarjetas
+	enCero := m.foco == panelPrincipal && m.izq == panelTarjetas
 	antes := m.elegidaDe2()
 	m.tablero = l.Tablero
 	m.leido = true
@@ -218,10 +218,10 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 	// longer on the board
 	if slug := m.slugDelModal(); slug != "" && m.tarjeta(slug) == nil {
 		m.cerrarModal()
-		m.ponerFoco(PanelTarjetas)
+		m.ponerFoco(panelTarjetas)
 		m.avisar(fmt.Sprintf("la tarjeta %s ya no existe", slug), normal, DuracionAviso)
 	} else if enCero && antes != "" && m.tarjeta(antes) == nil {
-		m.ponerFoco(PanelTarjetas)
+		m.ponerFoco(panelTarjetas)
 		m.avisar(fmt.Sprintf("la tarjeta %s ya no existe", antes), normal, DuracionAviso)
 	}
 	m.revisarConfirmacion()
@@ -301,22 +301,29 @@ func (m *Modelo) LeerArchivo(a Archivo) {
 	m.acomodar()
 }
 
-// Termino takes the end of a process the model ordered. Its Registro entry
-// says `hecho` when Code is 0 and `fallo: <Ultima>` otherwise (Ultima
-// empty: `hoom <verb> salio con <Code>`, the verb being the first of the
-// order's Args). As in the v1, the message line
-// also says it: a role launch that ends before it was registered (see
-// Leer) puts its Ultima there for DuracionAviso, red when Code is not 0;
-// one that ends after leaves the line to Leer's notice; usar, guardar,
-// aprobar and integrar put their Ultima there, green with Code 0 and red
-// otherwise.
-func (m *Modelo) Termino(f FinProceso, ahora time.Time) {
+// Termino takes the end of a process the model ordered, and returns the
+// orders that end brings. Its Registro entry says `hecho` when Code is 0
+// and `fallo: <Ultima>` otherwise (Ultima empty: `hoom <verb> salio con
+// <Code>`, the verb being the first of the order's Args); a pilot's (Seguir
+// solo) says `se detuvo: <rest>` when its Ultima starts with "piloto
+// automatico: se detiene: " (see the package doc, "Seguir solo"). As in the
+// v1, the message line also says it: a role launch that ends before it was
+// registered (see Leer) puts its Ultima there for DuracionAviso, red when
+// Code is not 0; one that ends after leaves the line to Leer's notice;
+// usar, guardar, aprobar, integrar and the pilot put their Ultima there,
+// green with Code 0 and red otherwise.
+//
+// The only orders it returns: when the process is an aprobar whose Firma
+// modal said "y despues: hoom piloto <slug>" and Code is 0, the
+// Lanzar{Rol: "piloto", Args: {"piloto", <slug>}} of the pilot, with its
+// own Registro entry (CA-717). Otherwise none.
+func (m *Modelo) Termino(f FinProceso, ahora time.Time) []Orden {
 	if !ahora.IsZero() {
 		m.ahora = ahora
 	}
 	la, ok := m.lanzados[f.ID]
 	if !ok {
-		return
+		return nil
 	}
 	delete(m.lanzados, f.ID)
 	texto := f.Ultima
@@ -355,6 +362,7 @@ func (m *Modelo) Termino(f FinProceso, ahora time.Time) {
 		}
 	}
 	m.acomodar()
+	return nil
 }
 
 // PedidoEditado takes what the editor gave back for the pedido of the open
@@ -388,10 +396,38 @@ func (m *Modelo) Tic(ahora time.Time) {
 	m.barra.avanzar(m.ahora)
 }
 
-// Foco is the panel with the focus: PanelTarjetas at the start. There is
-// always one, also while a modal is open (the panel under it).
-func (m *Modelo) Foco() Panel {
-	return m.foco
+// Foco is the zone with the focus: ZonaLista at the start. There is always
+// one, also while a modal is open (the zone under it).
+func (m *Modelo) Foco() Zona {
+	if m.foco == panelPrincipal || m.foco == panelProyecto {
+		return ZonaDetalle
+	}
+	return ZonaLista
+}
+
+// Vista is what the list shows: VistaTarjetas at the start, VistaHallazgos
+// after H (CA-712).
+func (m *Modelo) Vista() Vista {
+	if m.izq == panelHallazgos {
+		return VistaHallazgos
+	}
+	return VistaTarjetas
+}
+
+// Grupo is the group of the card slug of the last read of the board, by
+// the rule of the package doc ("The groups"), whatever the view and the
+// search show; "" when the board has no such card or before the first
+// read.
+func (m *Modelo) Grupo(slug string) Grupo {
+	return ""
+}
+
+// Caja is the slug of the box's card (TU SIGUIENTE PASO): the first card of
+// TE TOCA in the list's order, else the first of DETENIDA; "" without one
+// (and before the first read), also when the box offers the first card of
+// EN COLA (CA-698, CA-699).
+func (m *Modelo) Caja() string {
+	return ""
 }
 
 // Modal is the open modal (SinModal when none).
@@ -418,27 +454,27 @@ func (m *Modelo) Lugar() Lugar {
 		return LugarBusqueda
 	}
 	switch m.foco {
-	case PanelProyecto:
-		return LugarProyecto
-	case PanelTarjetas:
+	case panelProyecto:
+		return lugarProyecto
+	case panelTarjetas:
 		return LugarTarjetas
-	case PanelCorriendo:
-		return LugarCorriendo
-	case PanelHallazgos:
+	case panelCorriendo:
+		return lugarCorriendo
+	case panelHallazgos:
 		return LugarHallazgos
 	}
 	switch m.izq {
-	case PanelProyecto:
+	case panelProyecto:
 		return LugarVerProyecto
-	case PanelTarjetas:
+	case panelTarjetas:
 		if m.elegidaDe2() != "" {
 			return LugarVerTarjeta
 		}
-	case PanelCorriendo:
+	case panelCorriendo:
 		if m.elegidaDe3() != "" {
-			return LugarVerCorriendo
+			return lugarVerCorriendo
 		}
-	case PanelHallazgos:
+	case panelHallazgos:
 		if _, ok := m.hallazgoElegido(); ok {
 			return LugarVerHallazgo
 		}
@@ -446,15 +482,14 @@ func (m *Modelo) Lugar() Lugar {
 	return LugarVerNada
 }
 
-// Elegida is the slug of the card [0] shows, the one whose Detalle Run
-// reads: the card chosen in [2] or in [3] when that panel is the last left
-// panel that had the focus; "" when [0] shows Proyecto, a finding or
-// nothing.
+// Elegida is the slug of the card the detail shows, the one whose Detalle
+// Run reads: the card chosen in the list of cards; "" when the detail shows
+// the project, a finding or nothing (HECHO's line, an empty list).
 func (m *Modelo) Elegida() string {
 	switch m.izq {
-	case PanelTarjetas:
+	case panelTarjetas:
 		return m.elegidaDe2()
-	case PanelCorriendo:
+	case panelCorriendo:
 		return m.elegidaDe3()
 	}
 	return ""
@@ -466,7 +501,7 @@ func (m *Modelo) Elegida() string {
 // names no file, or its path leaves the project by its form (see the
 // package doc, "Paths").
 func (m *Modelo) ArchivoElegido() (ruta string, linea int) {
-	if m.izq != PanelHallazgos {
+	if m.izq != panelHallazgos {
 		return "", 0
 	}
 	h, ok := m.hallazgoElegido()
@@ -616,15 +651,15 @@ func (m *Modelo) pequena() bool {
 }
 
 // ponerFoco gives the focus to p.
-func (m *Modelo) ponerFoco(p Panel) {
-	if p != PanelPrincipal && p != m.izq {
+func (m *Modelo) ponerFoco(p panel) {
+	if p != panelPrincipal && p != m.izq {
 		m.prefijo = ""
 	}
 	m.foco = p
-	if p != PanelPrincipal {
+	if p != panelPrincipal {
 		m.izq = p
 	}
-	if p != PanelTarjetas && m.buscando {
+	if p != panelTarjetas && m.buscando {
 		m.cerrarBusqueda()
 	}
 }

@@ -255,7 +255,7 @@ func (m *Modelo) alFiltrar() {
 }
 
 func (m *Modelo) abrirBusqueda() {
-	m.ponerFoco(PanelTarjetas)
+	m.ponerFoco(panelTarjetas)
 	m.buscando = true
 	m.filtro = nil
 }

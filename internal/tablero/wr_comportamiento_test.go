@@ -24,12 +24,12 @@ func TestWRMouse(t *testing.T) {
 	}
 	m := wrModelo(100, 25, true)
 	// a click on [4]'s second row
-	c := m.caja(PanelHallazgos)
+	c := m.caja(panelHallazgos)
 	if ords := m.Raton(Raton{RatonClic, 5, c.r.y + 2}, wrAhora); len(ords) != 0 {
 		t.Fatalf("un clic no da ordenes: %v", ords)
 	}
-	if h, _ := m.hallazgoElegido(); m.Foco() != PanelHallazgos || h.ID != "f-low" {
-		t.Fatalf("el clic da el foco y elige la fila: %v %q", m.Foco(), h.ID)
+	if h, _ := m.hallazgoElegido(); m.foco != panelHallazgos || h.ID != "f-low" {
+		t.Fatalf("el clic da el foco y elige la fila: %v %q", m.foco, h.ID)
 	}
 	wrTeclas(m, "2", "j", "w")
 	g, _ := m.geometria()

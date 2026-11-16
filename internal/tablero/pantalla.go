@@ -7,7 +7,7 @@ import (
 
 // cajaPanel is a panel's place on the screen.
 type cajaPanel struct {
-	p       Panel
+	p       panel
 	r       rect
 	plegado bool
 }
@@ -19,18 +19,18 @@ func (m *Modelo) disponer() []cajaPanel {
 	h3n := min(7, max(3, max(1, len(m.filas3()))+2))
 	if w >= 80 {
 		l := w / 3
-		pleg := map[Panel]bool{}
+		pleg := map[panel]bool{}
 		var h1, h2, h3, h4 int
 		for {
 			h1, h3 = 6, h3n
-			if pleg[PanelProyecto] {
+			if pleg[panelProyecto] {
 				h1 = 1
 			}
-			if pleg[PanelCorriendo] {
+			if pleg[panelCorriendo] {
 				h3 = 1
 			}
 			h4 = max(3, (b-h1-h3)/3)
-			if pleg[PanelHallazgos] {
+			if pleg[panelHallazgos] {
 				h4 = 1
 			}
 			h2 = b - h1 - h3 - h4
@@ -38,7 +38,7 @@ func (m *Modelo) disponer() []cajaPanel {
 				break
 			}
 			plego := false
-			for _, p := range []Panel{PanelProyecto, PanelHallazgos, PanelCorriendo} {
+			for _, p := range []panel{panelProyecto, panelHallazgos, panelCorriendo} {
 				if !pleg[p] && p != m.foco {
 					pleg[p], plego = true, true
 					break
@@ -51,9 +51,9 @@ func (m *Modelo) disponer() []cajaPanel {
 		var out []cajaPanel
 		y := 0
 		for _, x := range []struct {
-			p Panel
+			p panel
 			h int
-		}{{PanelProyecto, h1}, {PanelTarjetas, h2}, {PanelCorriendo, h3}, {PanelHallazgos, h4}} {
+		}{{panelProyecto, h1}, {panelTarjetas, h2}, {panelCorriendo, h3}, {panelHallazgos, h4}} {
 			out = append(out, cajaPanel{p: x.p, r: rect{0, y, l, x.h}, plegado: x.h == 1})
 			y += x.h
 		}
@@ -66,23 +66,23 @@ func (m *Modelo) disponer() []cajaPanel {
 		if h0 < 3 {
 			hr, h0, plegR = 1, b-1, true
 		}
-		out = append(out, cajaPanel{p: PanelPrincipal, r: rect{l, 0, w - l, h0}},
+		out = append(out, cajaPanel{p: panelPrincipal, r: rect{l, 0, w - l, h0}},
 			cajaPanel{p: panelRegistro, r: rect{l, h0, w - l, hr}, plegado: plegR})
 		return out
 	}
 	// one column
-	natural := map[Panel]int{
-		PanelProyecto:  6,
-		PanelCorriendo: h3n,
-		PanelHallazgos: max(3, max(1, len(m.hallazgos))+2),
+	natural := map[panel]int{
+		panelProyecto:  6,
+		panelCorriendo: h3n,
+		panelHallazgos: max(3, max(1, len(m.hallazgos))+2),
 	}
 	l2, _ := m.contenido2(w - 2)
-	if m.esAviso(PanelTarjetas) && len(l2) == 1 {
+	if m.esAviso(panelTarjetas) && len(l2) == 1 {
 		l2 = avisoEnvuelto(l2[0], w-2, b)
 	}
-	natural[PanelTarjetas] = len(l2) + 2
-	alturas := map[Panel]int{PanelProyecto: 1, PanelTarjetas: 1, PanelCorriendo: 1, PanelHallazgos: 1}
-	if m.foco != PanelPrincipal {
+	natural[panelTarjetas] = len(l2) + 2
+	alturas := map[panel]int{panelProyecto: 1, panelTarjetas: 1, panelCorriendo: 1, panelHallazgos: 1}
+	if m.foco != panelPrincipal {
 		alturas[m.foco] = max(3, min(natural[m.foco], a/3))
 	}
 	h0 := b - 1
@@ -91,17 +91,17 @@ func (m *Modelo) disponer() []cajaPanel {
 	}
 	var out []cajaPanel
 	y := 0
-	for _, p := range []Panel{PanelProyecto, PanelTarjetas, PanelCorriendo, PanelHallazgos} {
+	for _, p := range []panel{panelProyecto, panelTarjetas, panelCorriendo, panelHallazgos} {
 		out = append(out, cajaPanel{p: p, r: rect{0, y, w, alturas[p]}, plegado: alturas[p] == 1})
 		y += alturas[p]
 	}
-	out = append(out, cajaPanel{p: PanelPrincipal, r: rect{0, y, w, h0}},
+	out = append(out, cajaPanel{p: panelPrincipal, r: rect{0, y, w, h0}},
 		cajaPanel{p: panelRegistro, r: rect{0, y + h0, w, 1}, plegado: true})
 	return out
 }
 
 // caja is the place of panel p.
-func (m *Modelo) caja(p Panel) cajaPanel {
+func (m *Modelo) caja(p panel) cajaPanel {
 	for _, c := range m.disponer() {
 		if c.p == p {
 			return c
@@ -112,14 +112,14 @@ func (m *Modelo) caja(p Panel) cajaPanel {
 
 // doc0 is [0]'s title, its document and its inner height.
 func (m *Modelo) doc0() (string, []docLinea, int) {
-	c := m.caja(PanelPrincipal)
+	c := m.caja(panelPrincipal)
 	wi, hi := max(1, c.r.w-2), max(1, c.r.h-2)
 	t, d := m.documento0(wi, hi)
 	return t, d, hi
 }
 
 // alto0 is [0]'s inner height.
-func (m *Modelo) alto0() int { return max(1, m.caja(PanelPrincipal).r.h-2) }
+func (m *Modelo) alto0() int { return max(1, m.caja(panelPrincipal).r.h-2) }
 
 // avisoEnvuelto is the text of an empty panel, or of one that is reading, for an
 // inner width wi and an inner height hi: wrapped at its words when it does
@@ -135,13 +135,13 @@ func avisoEnvuelto(l linea, wi, hi int) []linea {
 
 // esAviso says whether the content of panel p is its text of empty or of
 // reading.
-func (m *Modelo) esAviso(p Panel) bool {
+func (m *Modelo) esAviso(p panel) bool {
 	switch p {
-	case PanelTarjetas:
+	case panelTarjetas:
 		return !m.leido || len(m.todas()) == 0
-	case PanelCorriendo:
+	case panelCorriendo:
 		return len(m.filas3()) == 0
-	case PanelHallazgos:
+	case panelHallazgos:
 		return !m.hallLeidos || len(m.hallazgos) == 0
 	case panelRegistro:
 		return len(m.registro) == 0
@@ -162,9 +162,9 @@ func (m *Modelo) contenido(c cajaPanel) ([]linea, int) {
 func (m *Modelo) contenidoSinAviso(c cajaPanel) ([]linea, int) {
 	wi := c.r.w - 2
 	switch c.p {
-	case PanelProyecto:
+	case panelProyecto:
 		return m.contenido1(), -1
-	case PanelTarjetas:
+	case panelTarjetas:
 		ls, filas := m.contenido2(wi)
 		sel := -1
 		if !m.sel2.nada {
@@ -175,13 +175,13 @@ func (m *Modelo) contenidoSinAviso(c cajaPanel) ([]linea, int) {
 			}
 		}
 		return ls, sel
-	case PanelCorriendo:
+	case panelCorriendo:
 		sel := -1
 		if len(m.filas3()) > 0 {
 			sel = m.idx3
 		}
 		return m.contenido3(wi), sel
-	case PanelHallazgos:
+	case panelHallazgos:
 		sel := -1
 		if len(m.hallazgos) > 0 {
 			sel = m.idx4
@@ -194,15 +194,15 @@ func (m *Modelo) contenidoSinAviso(c cajaPanel) ([]linea, int) {
 }
 
 // scrollDe is a pointer to panel p's scroll.
-func (m *Modelo) scrollDe(p Panel) *int {
+func (m *Modelo) scrollDe(p panel) *int {
 	switch p {
-	case PanelTarjetas:
+	case panelTarjetas:
 		return &m.scroll2
-	case PanelCorriendo:
+	case panelCorriendo:
 		return &m.scroll3
-	case PanelHallazgos:
+	case panelHallazgos:
 		return &m.scroll4
-	case PanelPrincipal:
+	case panelPrincipal:
 		return &m.scroll0
 	}
 	return nil
@@ -211,20 +211,20 @@ func (m *Modelo) scrollDe(p Panel) *int {
 // titulo is panel p's title.
 func (m *Modelo) titulo(c cajaPanel) linea {
 	switch c.p {
-	case PanelProyecto:
+	case panelProyecto:
 		t := "[1] Proyecto"
 		if c.plegado {
 			t += m.estadoCheck()
 		}
 		return lin(t)
-	case PanelTarjetas:
+	case panelTarjetas:
 		return lin("[2] Tarjetas")
-	case PanelCorriendo:
+	case panelCorriendo:
 		if n := len(m.filas3()); n > 0 {
 			return lin("[3] Corriendo " + strconv.Itoa(n))
 		}
 		return lin("[3] Corriendo")
-	case PanelHallazgos:
+	case panelHallazgos:
 		n := len(m.hallazgos)
 		if n == 0 {
 			return lin("[4] Hallazgos")
@@ -240,7 +240,7 @@ func (m *Modelo) titulo(c cajaPanel) linea {
 			l = l.masCon(" · "+strconv.Itoa(altos)+" high", rojo)
 		}
 		return l
-	case PanelPrincipal:
+	case panelPrincipal:
 		t, _, _ := m.doc0()
 		return lin(t)
 	}
@@ -278,7 +278,7 @@ func (m *Modelo) dibujarPanel(lz *lienzo, c cajaPanel) {
 	var lineas []linea
 	sel := -1
 	scroll := 0
-	if c.p == PanelPrincipal {
+	if c.p == panelPrincipal {
 		_, d, _ := m.doc0()
 		for _, x := range d {
 			lineas = append(lineas, x.l)
@@ -313,11 +313,11 @@ func (m *Modelo) dibujarPanel(lz *lienzo, c cajaPanel) {
 	pos := ""
 	if len(lineas) > hi && sel >= 0 {
 		switch c.p {
-		case PanelTarjetas:
+		case panelTarjetas:
 			pos = strconv.Itoa(m.sel2.idx+1) + " de " + strconv.Itoa(len(m.filas2()))
-		case PanelCorriendo:
+		case panelCorriendo:
 			pos = strconv.Itoa(m.idx3+1) + " de " + strconv.Itoa(len(m.filas3()))
-		case PanelHallazgos:
+		case panelHallazgos:
 			pos = strconv.Itoa(m.idx4+1) + " de " + strconv.Itoa(len(m.hallazgos))
 		}
 	}
@@ -417,7 +417,7 @@ func (m *Modelo) acomodar() {
 	m.acomodar2()
 	m.acomodar3()
 	m.acomodar4()
-	if m.buscando && m.foco != PanelTarjetas {
+	if m.buscando && m.foco != panelTarjetas {
 		m.cerrarBusqueda()
 	}
 	// what [0] shows changed: its document starts again
@@ -435,7 +435,7 @@ func (m *Modelo) acomodar() {
 			continue
 		}
 		hi := max(1, c.r.h-2)
-		if c.p == PanelPrincipal {
+		if c.p == panelPrincipal {
 			_, d, _ := m.doc0()
 			maximo := max(0, len(d)-hi)
 			if m.sigue0 {

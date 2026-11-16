@@ -39,7 +39,7 @@ func (m *Modelo) ratonEnPaneles(r Raton) {
 	switch r.Accion {
 	case RatonClic:
 		m.ponerFoco(c.p)
-		if c.plegado || c.p == PanelPrincipal || c.p == PanelProyecto {
+		if c.plegado || c.p == panelPrincipal || c.p == panelProyecto {
 			return
 		}
 		// the row under the click
@@ -49,16 +49,16 @@ func (m *Modelo) ratonEnPaneles(r Raton) {
 		}
 		k := *m.scrollDe(c.p) + dentro
 		switch c.p {
-		case PanelTarjetas:
+		case panelTarjetas:
 			_, filas := m.contenido2(c.r.w - 2)
 			if k < len(filas) && filas[k] >= 0 {
 				m.elegir2(filas[k])
 			}
-		case PanelCorriendo:
+		case panelCorriendo:
 			if k < len(m.filas3()) {
 				m.elegir3(k)
 			}
-		case PanelHallazgos:
+		case panelHallazgos:
 			if k < len(m.hallazgos) {
 				m.elegir4(k)
 			}
@@ -72,13 +72,13 @@ func (m *Modelo) ratonEnPaneles(r Raton) {
 			d = -1
 		}
 		switch c.p {
-		case PanelTarjetas:
+		case panelTarjetas:
 			m.elegir2(m.sel2.idx + d)
-		case PanelCorriendo:
+		case panelCorriendo:
 			m.elegir3(m.idx3 + d)
-		case PanelHallazgos:
+		case panelHallazgos:
 			m.elegir4(m.idx4 + d)
-		case PanelPrincipal:
+		case panelPrincipal:
 			m.desplazar0(3 * d)
 		}
 	}

@@ -626,9 +626,9 @@ var grupos = []struct {
 	l      Lugar
 	titulo string
 }{
-	{LugarProyecto, "[1] Proyecto"}, {LugarTarjetas, "[2] Tarjetas"}, {LugarCorriendo, "[3] Corriendo"},
+	{lugarProyecto, "[1] Proyecto"}, {LugarTarjetas, "[2] Tarjetas"}, {lugarCorriendo, "[3] Corriendo"},
 	{LugarHallazgos, "[4] Hallazgos"}, {LugarVerProyecto, "[0] el proyecto"}, {LugarVerTarjeta, "[0] una tarjeta"},
-	{LugarVerCorriendo, "[0] lo que corre"}, {LugarVerHallazgo, "[0] un hallazgo"},
+	{lugarVerCorriendo, "[0] lo que corre"}, {LugarVerHallazgo, "[0] un hallazgo"},
 }
 
 // enTodasPartes says whether the row works in every panel Lugar.

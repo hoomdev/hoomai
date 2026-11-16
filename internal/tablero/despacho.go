@@ -167,10 +167,10 @@ func (m *Modelo) hacer(l Lugar, a Atajo, t Tecla) []Orden {
 	// the panels
 	switch t {
 	case "1", "2", "3", "4", "0":
-		m.ponerFoco(Panel(t[0] - '0'))
+		m.ponerFoco(panel(t[0] - '0'))
 		return nil
 	case TeclaTab, TeclaShiftTab:
-		orden := []Panel{PanelProyecto, PanelTarjetas, PanelCorriendo, PanelHallazgos, PanelPrincipal}
+		orden := []panel{panelProyecto, panelTarjetas, panelCorriendo, panelHallazgos, panelPrincipal}
 		i := 0
 		for j, p := range orden {
 			if p == m.foco {
@@ -213,7 +213,7 @@ func (m *Modelo) tarjetaDeLugar(l Lugar) *boardcmd.Card {
 	switch l {
 	case LugarTarjetas, LugarVerTarjeta:
 		return m.tarjeta(m.elegidaDe2())
-	case LugarCorriendo, LugarVerCorriendo:
+	case lugarCorriendo, lugarVerCorriendo:
 		return m.tarjeta(m.elegidaDe3())
 	case LugarAcciones:
 		if m.acciones != nil {
@@ -227,7 +227,7 @@ func (m *Modelo) tarjetaDeLugar(l Lugar) *boardcmd.Card {
 func (m *Modelo) enIzquierda(t Tecla) {
 	mover := func(d int) {
 		switch m.foco {
-		case PanelTarjetas:
+		case panelTarjetas:
 			if d == 0 {
 				m.elegir2(0)
 			} else if d == 2 {
@@ -235,7 +235,7 @@ func (m *Modelo) enIzquierda(t Tecla) {
 			} else {
 				m.elegir2(m.sel2.idx + d)
 			}
-		case PanelCorriendo:
+		case panelCorriendo:
 			switch d {
 			case 0:
 				m.elegir3(0)
@@ -244,7 +244,7 @@ func (m *Modelo) enIzquierda(t Tecla) {
 			default:
 				m.elegir3(m.idx3 + d)
 			}
-		case PanelHallazgos:
+		case panelHallazgos:
 			switch d {
 			case 0:
 				m.elegir4(0)
@@ -265,11 +265,11 @@ func (m *Modelo) enIzquierda(t Tecla) {
 	case "G":
 		mover(2)
 	case TeclaEnter, "l", TeclaDer:
-		if m.foco == PanelTarjetas && !m.sel2.nada && m.sel2.hecho {
+		if m.foco == panelTarjetas && !m.sel2.nada && m.sel2.hecho {
 			m.hechoAbierto = !m.hechoAbierto
 			return
 		}
-		m.ponerFoco(PanelPrincipal)
+		m.ponerFoco(panelPrincipal)
 	}
 }
 

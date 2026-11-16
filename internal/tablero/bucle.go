@@ -282,7 +282,7 @@ func (b *bucle) bucle() (int, error) {
 				fin, code, err = b.entradas(pendiente)
 				pendiente = nil
 			case ev.fin != nil:
-				b.m.Termino(*ev.fin, b.e.Ahora())
+				fin, code, err = b.ordenes(b.m.Termino(*ev.fin, b.e.Ahora()))
 				b.leer(leeProyecto)
 			default:
 				b.enVuelo[ev.tipo] = false
@@ -376,8 +376,11 @@ func (b *bucle) ordenes(ords []Orden) (bool, int, error) {
 		case Lanzar:
 			err := b.e.Lanzador.Lanzar(o, func(f FinProceso) { b.enviar(evento{fin: &f}) })
 			if err != nil {
-				b.m.Termino(FinProceso{ID: o.ID, Code: -1, Ultima: strings.TrimPrefix(err.Error(), "hoom: ")}, b.e.Ahora())
+				mas := b.m.Termino(FinProceso{ID: o.ID, Code: -1, Ultima: strings.TrimPrefix(err.Error(), "hoom: ")}, b.e.Ahora())
 				b.leer(leeProyecto)
+				if fin, code, err := b.ordenes(mas); fin || err != nil {
+					return fin, code, err
+				}
 			}
 		case AbrirEditor:
 			// the model looked at the path's form; through a symlink of the

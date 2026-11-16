@@ -300,11 +300,19 @@ func incompleta(b []byte) bool {
 	return false
 }
 
-// AccionSiguiente is the Accion of n: the card's next step (see the
-// package doc, "The next step"). n opens the modal of that action and runs
-// that action's verb.
+// AccionSiguiente is the Accion of n: the step of the box's card (see the
+// package doc, "The box TU SIGUIENTE PASO" and "The step of a card"). n
+// opens the modal of that step, whose button runs its verb.
 const AccionSiguiente = "siguiente"
 
 // AccionUsar is the Accion of u: hoom usar, which every card has. It is the
 // only action key that runs without a modal.
 const AccionUsar = "usar"
+
+// AccionPaso is the Accion of enter on a card: the step of the chosen card
+// (see the package doc, "The step of a card").
+const AccionPaso = "paso"
+
+// AccionSeguir is the Accion of P: Seguir solo, hoom piloto <slug>, an
+// action of the board that is not among the card's actions.
+const AccionSeguir = "seguir"

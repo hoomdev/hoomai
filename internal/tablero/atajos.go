@@ -2,54 +2,86 @@ package tablero
 
 import "github.com/hoomdev/hoomai/internal/boardcmd"
 
-// Panel is one of the five panels that take the focus, by its number: [0]
-// the main panel, [1] Proyecto, [2] Tarjetas, [3] Corriendo and [4]
-// Hallazgos. The Registro is a panel too, but it never takes the focus.
-type Panel int
+// panel is one of the v2's five panels by its number. The v3 has no
+// numbered panels: the model still keeps the list ([2] the cards, [4] the
+// findings), the detail ([0]) and the project's detail ([1]) apart with it,
+// but what the outside sees is a Zona and a Vista.
+type panel int
 
-// The panels, with their number.
+// The panels, with their v2 number.
 const (
-	PanelPrincipal Panel = 0 // [0]: what was chosen in the last left panel with the focus
-	PanelProyecto  Panel = 1 // [1] Proyecto
-	PanelTarjetas  Panel = 2 // [2] Tarjetas
-	PanelCorriendo Panel = 3 // [3] Corriendo
-	PanelHallazgos Panel = 4 // [4] Hallazgos
+	panelPrincipal panel = 0 // the detail
+	panelProyecto  panel = 1 // the detail of the project (v)
+	panelTarjetas  panel = 2 // the list of cards
+	panelCorriendo panel = 3 // no longer a panel: the group CORRIENDO
+	panelHallazgos panel = 4 // the list of the Hallazgos view
 )
 
-// Modal is the modal that is open over the panels ("" = none).
+// Zona is one of the two zones that take the focus: the list or the
+// detail (CA-706). There is always one with the focus; at the start it is
+// the list.
+type Zona int
+
+// The zones.
+const (
+	ZonaLista   Zona = 0 // the list: of cards, or of findings in the Hallazgos view
+	ZonaDetalle Zona = 1 // the detail: of the chosen card or finding, of the project, or nothing
+)
+
+// Vista is what the list shows (CA-712).
+type Vista string
+
+// The views.
+const (
+	VistaTarjetas  Vista = "tarjetas"  // the cards, grouped by who has the ball
+	VistaHallazgos Vista = "hallazgos" // the project's open findings (H)
+)
+
+// Grupo is the group of a card in the list: who has the ball (CA-700).
+type Grupo string
+
+// The groups, in the list's order. Their values are their names on screen.
+const (
+	GrupoTeToca    Grupo = "TE TOCA"
+	GrupoCorriendo Grupo = "CORRIENDO"
+	GrupoDetenida  Grupo = "DETENIDA"
+	GrupoEnCola    Grupo = "EN COLA"
+	GrupoHecho     Grupo = "HECHO"
+)
+
+// Modal is the modal that is open over the screen ("" = none).
 type Modal string
 
 // The modals.
 const (
 	SinModal      Modal = ""
-	ModalPedir    Modal = "pedir"    // a, t, w, r, R, and n when the next step launches a role
-	ModalFirma    Modal = "firma"    // A, I, and n when the next step is a signature
-	ModalGuardar  Modal = "guardar"  // s, and n when the next step is guardar
+	ModalPedir    Modal = "pedir"    // a, t, w, r, R, and enter or n when the step launches a role
+	ModalFirma    Modal = "firma"    // A, I, and enter or n when the step is a signature
+	ModalGuardar  Modal = "guardar"  // s, and enter or n when the step is guardar
+	ModalSeguir   Modal = "seguir"   // P, and enter or n when the step is Seguir solo
 	ModalAcciones Modal = "acciones" // espacio
 	ModalAyuda    Modal = "ayuda"    // ?
+	ModalRegistro Modal = "registro" // L
 )
 
-// Lugar is where the keys are now: the panel with the focus (and, for [0],
-// what it shows), the search, or the open modal and the part of it with the
-// focus. Each row of Atajos says the Lugares where its keys work; a key
-// with no row in the current Lugar does nothing (Modelo.Lugar says which
-// Lugar is current).
+// Lugar is where the keys are now: the zone with the focus and what it
+// shows, the search, or the open modal and the part of it with the focus.
+// Each row of Atajos says the Lugares where its keys work; a key with no
+// row in the current Lugar does nothing (Modelo.Lugar says which Lugar is
+// current).
 type Lugar string
 
 // The Lugares.
 const (
-	LugarProyecto  Lugar = "proyecto"  // [1] with the focus
-	LugarTarjetas  Lugar = "tarjetas"  // [2] with the focus
-	LugarCorriendo Lugar = "corriendo" // [3] with the focus
-	LugarHallazgos Lugar = "hallazgos" // [4] with the focus
+	LugarTarjetas  Lugar = "tarjetas"  // the list of cards with the focus
+	LugarHallazgos Lugar = "hallazgos" // the list of the Hallazgos view with the focus
 
-	LugarVerProyecto  Lugar = "ver-proyecto"  // [0] with the focus, showing Proyecto
-	LugarVerTarjeta   Lugar = "ver-tarjeta"   // [0] with the focus, showing the card chosen in [2]
-	LugarVerCorriendo Lugar = "ver-corriendo" // [0] with the focus, showing the card chosen in [3]
-	LugarVerHallazgo  Lugar = "ver-hallazgo"  // [0] with the focus, showing the finding chosen in [4]
-	LugarVerNada      Lugar = "ver-nada"      // [0] with the focus, with nothing chosen to show
+	LugarVerProyecto Lugar = "ver-proyecto" // the detail with the focus, showing the project (v)
+	LugarVerTarjeta  Lugar = "ver-tarjeta"  // the detail with the focus, showing the chosen card
+	LugarVerHallazgo Lugar = "ver-hallazgo" // the detail with the focus, showing the chosen finding
+	LugarVerNada     Lugar = "ver-nada"     // the detail with the focus, with nothing to show
 
-	LugarBusqueda Lugar = "busqueda" // [2] while the search (/) is open
+	LugarBusqueda Lugar = "busqueda" // the list of cards while the search (/) is open
 
 	LugarPedirSelector Lugar = "pedir-selector" // the Pedir modal, the focus on a selector
 	LugarPedirPedido   Lugar = "pedir-pedido"   // the Pedir modal, the focus on the Pedido
@@ -58,39 +90,48 @@ const (
 	LugarPedirBotones  Lugar = "pedir-botones"  // the Pedir modal, the focus on its buttons
 	LugarFirma         Lugar = "firma"          // the Firma modal (only buttons)
 	LugarGuardar       Lugar = "guardar"        // the Guardar modal (only buttons)
+	LugarSeguir        Lugar = "seguir"         // the Seguir solo modal (only buttons)
 	LugarAcciones      Lugar = "acciones"       // the Acciones modal
 	LugarAyuda         Lugar = "ayuda"          // the Ayuda modal
+	LugarRegistro      Lugar = "registro"       // the Registro modal
 )
 
 // The sets of Lugares the rows of Atajos use.
 var (
 	// LugaresPaneles are the Lugares without a modal and without the
-	// search: "siempre" in the spec's key table.
-	LugaresPaneles = []Lugar{LugarProyecto, LugarTarjetas, LugarCorriendo, LugarHallazgos,
-		LugarVerProyecto, LugarVerTarjeta, LugarVerCorriendo, LugarVerHallazgo, LugarVerNada}
-	// LugaresVer are [0]'s.
-	LugaresVer = []Lugar{LugarVerProyecto, LugarVerTarjeta, LugarVerCorriendo, LugarVerHallazgo, LugarVerNada}
-	// LugaresVerAlgo are [0]'s with something to show: the keys that
+	// search: the list (of cards or of findings) and the detail.
+	LugaresPaneles = []Lugar{LugarTarjetas, LugarHallazgos,
+		LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo, LugarVerNada}
+	// LugaresVer are the detail's.
+	LugaresVer = []Lugar{LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo, LugarVerNada}
+	// LugaresVerAlgo are the detail's with something to show: the keys that
 	// scroll it work there (in LugarVerNada they would have no effect).
-	LugaresVerAlgo = []Lugar{LugarVerProyecto, LugarVerTarjeta, LugarVerCorriendo, LugarVerHallazgo}
-	// LugaresConTarjeta are "con tarjeta" in the spec: [2] on a card, [3]
-	// (the card of the row) and [0] showing a card (chosen in [2] or in
-	// [3]). In [2] on Hecho's line and in an empty [3] there is no card:
-	// the rows of the card do nothing there.
-	LugaresConTarjeta = []Lugar{LugarTarjetas, LugarCorriendo, LugarVerTarjeta, LugarVerCorriendo}
+	LugaresVerAlgo = []Lugar{LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo}
+	// LugaresConTarjeta are "con tarjeta" in the spec: the list of cards on
+	// a card and the detail showing a card. On HECHO's line and in an empty
+	// list there is no card: the rows of the card do nothing there.
+	LugaresConTarjeta = []Lugar{LugarTarjetas, LugarVerTarjeta}
 	// LugaresAccion are where the action keys work: LugaresConTarjeta and
 	// the Acciones modal.
-	LugaresAccion = []Lugar{LugarTarjetas, LugarCorriendo, LugarVerTarjeta, LugarVerCorriendo, LugarAcciones}
+	LugaresAccion = []Lugar{LugarTarjetas, LugarVerTarjeta, LugarAcciones}
 	// LugaresPedir are the Pedir modal's.
 	LugaresPedir = []Lugar{LugarPedirSelector, LugarPedirPedido, LugarPedirTexto, LugarPedirLista, LugarPedirBotones}
 	// LugaresModales are the Lugares of every modal.
 	LugaresModales = []Lugar{LugarPedirSelector, LugarPedirPedido, LugarPedirTexto, LugarPedirLista, LugarPedirBotones,
-		LugarFirma, LugarGuardar, LugarAcciones, LugarAyuda}
-	// LugaresTodos are every Lugar: the panels, the search and the modals.
-	LugaresTodos = []Lugar{LugarProyecto, LugarTarjetas, LugarCorriendo, LugarHallazgos,
-		LugarVerProyecto, LugarVerTarjeta, LugarVerCorriendo, LugarVerHallazgo, LugarVerNada, LugarBusqueda,
+		LugarFirma, LugarGuardar, LugarSeguir, LugarAcciones, LugarAyuda, LugarRegistro}
+	// LugaresTodos are every Lugar: the zones, the search and the modals.
+	LugaresTodos = []Lugar{LugarTarjetas, LugarHallazgos,
+		LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo, LugarVerNada, LugarBusqueda,
 		LugarPedirSelector, LugarPedirPedido, LugarPedirTexto, LugarPedirLista, LugarPedirBotones,
-		LugarFirma, LugarGuardar, LugarAcciones, LugarAyuda}
+		LugarFirma, LugarGuardar, LugarSeguir, LugarAcciones, LugarAyuda, LugarRegistro}
+)
+
+// The v2's Lugares the v3 no longer has; the model keeps the names until
+// the writer drops them.
+const (
+	lugarProyecto     Lugar = "proyecto"
+	lugarCorriendo    Lugar = "corriendo"
+	lugarVerCorriendo Lugar = "ver-corriendo"
 )
 
 // Atajo is one row of the key table: the keys, how the help writes them,
@@ -107,14 +148,18 @@ type Atajo struct {
 	// none): what the help shows, and what runs.
 	Verbo string
 	// Accion is the card action they run: a boardcmd.Act* id,
-	// AccionSiguiente or AccionUsar ("" = none).
+	// AccionPaso (enter: the chosen card's step), AccionSiguiente (n: the
+	// box's card's step), AccionSeguir (P) or AccionUsar ("" = none).
 	Accion string
 	// Barra is their hint on the keys line ("" = not there), with UTF-8
-	// arrows like Muestra.
+	// arrows like Muestra. The row with AccionPaso has a hint that depends
+	// on what is chosen (see the package doc, "The two last lines"): its
+	// Barra only says that it has one.
 	Barra string
-	// DeTarjeta marks the rows of the card (espacio, n and the action
-	// keys): without a card ([2] on Hecho's line, an empty [3], the Acciones
-	// of a card gone) their hints are not on the keys line.
+	// DeTarjeta marks the rows of the card (espacio, P and the action
+	// keys): without a card (HECHO's line, an empty list, the detail of the
+	// project or of a finding, the Acciones of a card gone) their hints are
+	// not on the keys line.
 	DeTarjeta bool
 	Lugares   []Lugar
 }
@@ -123,25 +168,55 @@ type Atajo struct {
 // from it, so no key does something without being in the help, nor the
 // other way round (CA-564). Its order is the keys line's and the help's.
 var Atajos = []Atajo{
-	// [1] to [4]
+	// enter: the step of what is chosen (first on the keys line)
+	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "abrir el modal del paso de la tarjeta (en HECHO, abrirlo o cerrarlo)",
+		Accion: AccionPaso, Barra: "enter <paso>", Lugares: []Lugar{LugarTarjetas, LugarVerTarjeta}},
+	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "foco al detalle del hallazgo", Barra: "enter ver",
+		Lugares: []Lugar{LugarHallazgos}},
+	// n: the step of the box's card
+	{Teclas: []Tecla{"n"}, Muestra: "n", Hace: "abrir el modal del paso de la tarjeta de la caja", Accion: AccionSiguiente,
+		Barra: "n tu siguiente paso", Lugares: []Lugar{LugarTarjetas, LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo, LugarVerNada}},
+	{Teclas: []Tecla{"n"}, Muestra: "n", Hace: "abrir el modal del paso de la tarjeta de la caja", Accion: AccionSiguiente,
+		Lugares: []Lugar{LugarHallazgos}},
+	// moving in the list and in the detail
 	{Teclas: []Tecla{TeclaArriba, TeclaAbajo, "k", "j"}, Muestra: "↑ ↓ k j", Hace: "elegir", Barra: "↑↓ elegir",
-		Lugares: []Lugar{LugarTarjetas, LugarCorriendo, LugarHallazgos}},
-	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "primera o ultima",
-		Lugares: []Lugar{LugarTarjetas, LugarCorriendo, LugarHallazgos}},
-	{Teclas: []Tecla{TeclaEnter, TeclaDer, "l"}, Muestra: "enter → l", Hace: "ver en grande (en Hecho, abrir o cerrar)",
-		Barra: "enter ver", Lugares: []Lugar{LugarProyecto, LugarTarjetas, LugarCorriendo, LugarHallazgos}},
-	// [0]
+		Lugares: []Lugar{LugarTarjetas, LugarHallazgos}},
 	{Teclas: []Tecla{TeclaArriba, TeclaAbajo, "k", "j"}, Muestra: "↑ ↓ k j", Hace: "desplazar", Barra: "↑↓ desplazar",
 		Lugares: LugaresVerAlgo},
-	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "principio o final", Lugares: LugaresVerAlgo},
 	{Teclas: []Tecla{TeclaPgArriba, TeclaPgAbajo}, Muestra: "pgup pgdn", Hace: "desplazar una pagina", Lugares: LugaresVerAlgo},
-	{Teclas: []Tecla{TeclaEsc, TeclaIzq, "h"}, Muestra: "esc ← h", Hace: "volver al panel de donde vino", Barra: "esc volver",
+	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "primera o ultima",
+		Lugares: []Lugar{LugarTarjetas, LugarHallazgos}},
+	{Teclas: []Tecla{"g", "G"}, Muestra: "g G", Hace: "principio o final", Lugares: LugaresVerAlgo},
+	// the zones
+	{Teclas: []Tecla{TeclaTab, TeclaShiftTab}, Muestra: "tab shift-tab", Hace: "foco a la otra zona", Barra: "tab detalle",
+		Lugares: []Lugar{LugarTarjetas}},
+	{Teclas: []Tecla{TeclaTab, TeclaShiftTab}, Muestra: "tab shift-tab", Hace: "foco a la otra zona",
+		Lugares: []Lugar{LugarHallazgos, LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo, LugarVerNada}},
+	{Teclas: []Tecla{TeclaDer, "l"}, Muestra: "→ l", Hace: "foco al detalle", Lugares: []Lugar{LugarTarjetas, LugarHallazgos}},
+	{Teclas: []Tecla{"e"}, Muestra: "e", Hace: "abrir en el editor", Barra: "e editor", Lugares: []Lugar{LugarHallazgos}},
+	{Teclas: []Tecla{"e"}, Muestra: "e", Hace: "abrir en el editor", Lugares: []Lugar{LugarVerTarjeta, LugarVerHallazgo}},
+	{Teclas: []Tecla{TeclaEsc, TeclaIzq, "h"}, Muestra: "esc ← h", Hace: "foco a la lista", Barra: "esc volver",
 		Lugares: LugaresVer},
+	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "volver a las tarjetas", Barra: "esc volver",
+		Lugares: []Lugar{LugarHallazgos}},
 	// the card
 	{Teclas: []Tecla{TeclaEspacio}, Muestra: "espacio", Hace: "acciones de la tarjeta", Barra: "espacio acciones",
 		DeTarjeta: true, Lugares: LugaresConTarjeta},
-	{Teclas: []Tecla{"n"}, Muestra: "n", Hace: "el siguiente paso", Accion: AccionSiguiente, Barra: "n siguiente paso",
-		DeTarjeta: true, Lugares: LugaresAccion},
+	// the views
+	{Teclas: []Tecla{"H"}, Muestra: "H", Hace: "abrir o cerrar la vista Hallazgos", Barra: "H hallazgos",
+		Lugares: []Lugar{LugarTarjetas}},
+	{Teclas: []Tecla{"H"}, Muestra: "H", Hace: "abrir o cerrar la vista Hallazgos",
+		Lugares: []Lugar{LugarHallazgos, LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo, LugarVerNada}},
+	{Teclas: []Tecla{"v"}, Muestra: "v", Hace: "el proyecto en el detalle", Barra: "v proyecto",
+		Lugares: []Lugar{LugarTarjetas}},
+	{Teclas: []Tecla{"v"}, Muestra: "v", Hace: "el proyecto en el detalle", Lugares: LugaresVer},
+	// ]c is "]" and then "c": a key of two strokes, like in Vim
+	{Teclas: []Tecla{"]c", "[c"}, Muestra: "]c [c", Hace: "criterio sin prueba siguiente o anterior",
+		Lugares: []Lugar{LugarVerTarjeta}},
+	// Seguir solo: an action of the board, not of the card
+	{Teclas: []Tecla{"P"}, Muestra: "P", Hace: "seguir solo", Verbo: "hoom piloto <slug>", Accion: AccionSeguir,
+		DeTarjeta: true, Lugares: LugaresConTarjeta},
+	// the card's actions
 	{Teclas: []Tecla{"a"}, Muestra: "a", Hace: "pedir al arquitecto", Verbo: "hoom pedir arquitecto <slug>",
 		Accion: boardcmd.ActPedirArquitecto, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"t"}, Muestra: "t", Hace: "pedir al test-writer", Verbo: "hoom pedir test-writer <slug>",
@@ -160,11 +235,6 @@ var Atajos = []Atajo{
 		DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"u"}, Muestra: "u", Hace: "fijar la tarjeta para la terminal", Verbo: "hoom usar <slug>",
 		Accion: AccionUsar, DeTarjeta: true, Lugares: LugaresAccion},
-	{Teclas: []Tecla{"e"}, Muestra: "e", Hace: "abrir en el editor", Barra: "e editor",
-		Lugares: []Lugar{LugarVerTarjeta, LugarHallazgos, LugarVerHallazgo}},
-	// ]c is "]" and then "c": a key of two strokes, like in Vim
-	{Teclas: []Tecla{"]c", "[c"}, Muestra: "]c [c", Hace: "criterio sin prueba siguiente o anterior",
-		Barra: "]c [c sin prueba", Lugares: []Lugar{LugarVerTarjeta}},
 	// the search
 	{Teclas: []Tecla{TeclaTexto, TeclaBorrar}, Muestra: "texto", Hace: "filtrar por slug o titulo",
 		Lugares: []Lugar{LugarBusqueda}},
@@ -198,16 +268,16 @@ var Atajos = []Atajo{
 		Lugares: []Lugar{LugarPedirLista}},
 	{Teclas: []Tecla{TeclaIzq, TeclaDer}, Muestra: "← →", Hace: "boton anterior o siguiente", Barra: "←→ boton",
 		Lugares: []Lugar{LugarPedirBotones}},
-	// the Firma and Guardar modals
+	// the Firma, Guardar and Seguir solo modals
 	{Teclas: []Tecla{TeclaIzq, TeclaDer, TeclaTab, TeclaShiftTab}, Muestra: "← → tab shift-tab",
-		Hace: "boton anterior o siguiente", Barra: "←→ boton", Lugares: []Lugar{LugarFirma, LugarGuardar}},
+		Hace: "boton anterior o siguiente", Barra: "←→ boton", Lugares: []Lugar{LugarFirma, LugarGuardar, LugarSeguir}},
 	// the modals that run a verb
 	{Teclas: []Tecla{TeclaEnter}, Muestra: "enter", Hace: "ejecutar la accion o cancelar, segun el boton elegido",
-		Barra: "enter ejecutar", Lugares: []Lugar{LugarPedirBotones, LugarFirma, LugarGuardar}},
+		Barra: "enter ejecutar", Lugares: []Lugar{LugarPedirBotones, LugarFirma, LugarGuardar, LugarSeguir}},
 	{Teclas: []Tecla{TeclaCtrlE}, Muestra: "ctrl-e", Hace: "abrir el pedido en el editor", Barra: "ctrl-e editor",
 		Lugares: []Lugar{LugarPedirSelector, LugarPedirPedido, LugarPedirBotones}},
 	{Teclas: []Tecla{TeclaEsc}, Muestra: "esc", Hace: "cerrar sin ejecutar", Barra: "esc cerrar",
-		Lugares: []Lugar{LugarPedirSelector, LugarPedirPedido, LugarPedirBotones, LugarFirma, LugarGuardar, LugarAcciones}},
+		Lugares: []Lugar{LugarPedirSelector, LugarPedirPedido, LugarPedirBotones, LugarFirma, LugarGuardar, LugarSeguir, LugarAcciones}},
 	// the Acciones modal (and the action keys above)
 	{Teclas: []Tecla{TeclaArriba, TeclaAbajo, "k", "j"}, Muestra: "↑ ↓ k j", Hace: "moverse por las acciones que se pueden elegir",
 		Barra: "↑↓ elegir", Lugares: []Lugar{LugarAcciones}},
@@ -218,10 +288,13 @@ var Atajos = []Atajo{
 		Hace: "desplazar", Barra: "↑↓ desplazar", Lugares: []Lugar{LugarAyuda}},
 	{Teclas: []Tecla{TeclaEsc, "?"}, Muestra: "esc ?", Hace: "cerrar la ayuda", Barra: "esc cerrar",
 		Lugares: []Lugar{LugarAyuda}},
+	// the Registro modal
+	{Teclas: []Tecla{TeclaArriba, TeclaAbajo, "k", "j", TeclaPgArriba, TeclaPgAbajo}, Muestra: "↑ ↓ k j pgup pgdn",
+		Hace: "desplazar", Barra: "↑↓ desplazar", Lugares: []Lugar{LugarRegistro}},
+	{Teclas: []Tecla{TeclaEsc, "L"}, Muestra: "esc L", Hace: "cerrar el registro", Barra: "esc cerrar",
+		Lugares: []Lugar{LugarRegistro}},
 	// everywhere
-	{Teclas: []Tecla{"1", "2", "3", "4", "0"}, Muestra: "1 2 3 4 0", Hace: "foco a ese panel", Lugares: LugaresPaneles},
-	{Teclas: []Tecla{TeclaTab, TeclaShiftTab}, Muestra: "tab shift-tab", Hace: "panel siguiente o anterior (1, 2, 3, 4, 0)",
-		Lugares: LugaresPaneles},
+	{Teclas: []Tecla{"L"}, Muestra: "L", Hace: "el registro de lo que se ejecuto", Lugares: LugaresPaneles},
 	{Teclas: []Tecla{"/"}, Muestra: "/", Hace: "buscar tarjetas", Lugares: LugaresPaneles},
 	{Teclas: []Tecla{"x"}, Muestra: "x", Hace: "modo experto", Lugares: LugaresPaneles},
 	{Teclas: []Tecla{"?"}, Muestra: "?", Hace: "todas las teclas", Barra: "? todas las teclas", Lugares: LugaresPaneles},

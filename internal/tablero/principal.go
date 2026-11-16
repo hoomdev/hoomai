@@ -42,17 +42,17 @@ func (d *doc) vacia() { d.lineas = append(d.lineas, docLinea{l: lin("")}) }
 // clave0 says what [0] shows, to know when it changes.
 func (m *Modelo) clave0Actual() string {
 	switch m.izq {
-	case PanelProyecto:
+	case panelProyecto:
 		return "p"
-	case PanelTarjetas:
+	case panelTarjetas:
 		if s := m.elegidaDe2(); s != "" {
 			return "t:" + s
 		}
-	case PanelCorriendo:
+	case panelCorriendo:
 		if s := m.elegidaDe3(); s != "" {
 			return "c:" + s
 		}
-	case PanelHallazgos:
+	case panelHallazgos:
 		if h, ok := m.hallazgoElegido(); ok {
 			return "h:" + h.ID
 		}
@@ -65,15 +65,15 @@ func (m *Modelo) clave0Actual() string {
 func (m *Modelo) documento0(wi, hi int) (string, []docLinea) {
 	d := &doc{wi: wi}
 	switch m.izq {
-	case PanelProyecto:
+	case panelProyecto:
 		m.docProyecto(d)
 		return "[0] Proyecto", d.lineas
-	case PanelTarjetas:
+	case panelTarjetas:
 		if c := m.tarjeta(m.elegidaDe2()); c != nil {
 			m.docTarjeta(d, c)
 			return "[0] " + c.Slug + " · " + c.Item.Titulo, d.lineas
 		}
-	case PanelCorriendo:
+	case panelCorriendo:
 		if c := m.tarjeta(m.elegidaDe3()); c != nil {
 			rol := ""
 			if c.Running != nil {
@@ -84,7 +84,7 @@ func (m *Modelo) documento0(wi, hi int) (string, []docLinea) {
 			m.docCorriendo(d, c)
 			return "[0] " + c.Slug + " · " + rol, d.lineas
 		}
-	case PanelHallazgos:
+	case panelHallazgos:
 		if h, ok := m.hallazgoElegido(); ok {
 			m.docHallazgo(d, h, hi)
 			return "[0] hallazgo " + h.ID, d.lineas

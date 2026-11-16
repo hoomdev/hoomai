@@ -151,6 +151,12 @@ type Evidence struct {
 
 	Envelopes []EnvelopeState // envelope records with task == slug, newest first
 	Runs      []RunState      // run sidecars with task == slug, newest first
+	// VeredictoDelSobre is the verdict the card's newest closed envelope
+	// emitted (its Record.VerdictID; newest in the pilot's order: by
+	// StartedAt, then by ID), read from E's verdicts and then the root's,
+	// partial ones included; nil when that envelope emitted none, Gather
+	// cannot read it, or the card has no closed envelope (CA-703).
+	VeredictoDelSobre *verdict.Verdict
 
 	// C3: what the card's actions need that Derive cannot find out alone.
 	Providers []providers.Info // the providers of this machine (providers.Detect, once per Build)
@@ -435,6 +441,14 @@ type Red struct {
 	ID     string `json:"id"`
 	Reason string `json:"reason"`
 	Plain  string `json:"plain"` // the same failure in the normal mode's words, without the note
+	// Esperado says the red is the test-writer's expected red (tablero-tu-
+	// siguiente-paso, CA-703): the card's newest closed envelope (in the
+	// pilot's order: by StartedAt, then by ID) is the one the pilot's
+	// rojoEsperado accepts with the verdict that envelope emitted
+	// (Evidence.VeredictoDelSobre): the test-writer's, closed in verify or
+	// check with a red verdict whose spec gates all pass. false for any
+	// other red.
+	Esperado bool `json:"esperado"`
 }
 
 // Spend is what the card's runs cost on THIS machine (local telemetry).
