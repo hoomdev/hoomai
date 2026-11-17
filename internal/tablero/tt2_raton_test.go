@@ -661,7 +661,9 @@ func TestCA575_RunDevuelveElMouseConErrorYPanic(t *testing.T) {
 // el tablero principal y el foco en la lista (una columna, C = 16), la lista
 // ocupa las lineas 6 a 13 (desde 1) y el detalle las 14 a 21; el clic va a
 // la linea 18, en el detalle, que toma los signos del foco (su borde de
-// arriba "#" + el titulo de nuc-tenancy) y la lista los simples.
+// arriba "#" + el titulo de nuc-tenancy); la lista, sin el foco, se pliega a
+// una linea con el signo simple (CA-696: entre 60 y 99 columnas, con el foco
+// en el detalle): "-Tarjetas · 1 de 7---".
 func TestCA719_CA575_RunUnClicPorLaTerminal(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	w.datos.hallazgos = ttHallazgosDorados()
@@ -670,7 +672,7 @@ func TestCA719_CA575_RunUnClicPorLaTerminal(t *testing.T) {
 	w.term.mandar("\x1b[<0;3;")
 	w.term.mandar("18M")
 	ttEsperar(t, "CA-719", "el foco en el detalle", w, func() bool {
-		return w.marcoCon("\n#Tenancy del nucleo=") && w.marcoCon("\n+Tarjetas-")
+		return w.marcoCon("\n#Tenancy del nucleo=") && w.marcoCon("\n-Tarjetas · 1 de 7-")
 	})
 	w.term.mandar("q")
 	if code, _ := fin(t); code != 0 {

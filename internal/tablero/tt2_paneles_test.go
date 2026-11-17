@@ -646,8 +646,10 @@ func TestCA708_CA556_CA521_CA523_ElDocumentoDeLaTarjeta(t *testing.T) {
 		"",
 		" Narracion",
 	)
-	if quiere[14] != "  x Codigo         se detuvo"+strings.Repeat(" ", 83)+"<- aca" {
-		t.Fatalf("CA-708: la linea de Codigo del camino: %q", quiere[14])
+	// quiere[10] es " EL CAMINO"; los pasos siguen en el orden de las
+	// columnas: Pedido 11, Spec 12, Tu firma 13, Tests 14, Codigo (Writer) 15
+	if quiere[15] != "  x Codigo         se detuvo"+strings.Repeat(" ", 83)+"<- aca" {
+		t.Fatalf("CA-708: la linea de Codigo del camino: %q", quiere[15])
 	}
 	ttIgualesAlPrincipio(t, "CA-708", "el documento de infra-api", got, quiere)
 	sobre := got[len(quiere)]

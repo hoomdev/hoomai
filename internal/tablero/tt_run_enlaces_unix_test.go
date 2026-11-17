@@ -107,7 +107,13 @@ func ttTeclaEditor(desde string) string { return "e" }
 // arranca Run, espera la tarjeta elegida en la lista (filaElegida: el
 // tablero ya leido) y va a donde se pide: "spec", tab le da el foco al
 // detalle con la tarjeta (CA-706; enter abriria el modal de su paso,
-// CA-705), y se espera su parte Spec (el detalle leido); "hallazgo", H abre
+// CA-705), se espera su borde con el foco y el slug, G lo lleva al final
+// (el detalle va en orden fijo, AHORA, TE TOCA, SIGUE, EL CAMINO y las partes
+// B a G, CA-708, y una tarjeta sin running abre en su primera linea, CA-711:
+// la parte Spec queda debajo de la vista con 24 lineas; despues de ella solo
+// van Hallazgos, Historia y Narracion, que entran en la vista) y se espera su
+// parte Spec (el detalle leido; e abre el spec desde cualquier linea del
+// detalle de la tarjeta, con la linea 1 sin criterio a la vista); "hallazgo", H abre
 // la vista Hallazgos con el foco en su lista (la v2: 4 le daba el foco a
 // [4]), y se espera el titulo del detalle con el hallazgo. Ahi corre
 // antes (con Run ya arrancado y el cuadro dibujado), toma la marca del
@@ -121,7 +127,11 @@ func ttPedirEditorTras(t *testing.T, ca string, w *ttMundo, desde, archivo strin
 	linea := 0
 	if desde == "spec" {
 		w.term.mandar("\t")
-		ttEsperar(t, ca, "el detalle con el foco y el spec de la tarjeta", w, func() bool {
+		ttEsperar(t, ca, "el detalle de la tarjeta con el foco", w, func() bool {
+			return ttMarcoDice(w, "#Tarjeta de prueba=") && ttMarcoDice(w, "=tarjeta=#")
+		})
+		w.term.mandar("G")
+		ttEsperar(t, ca, "el final del detalle con el foco y el spec de la tarjeta", w, func() bool {
 			return ttMarcoDice(w, "#Tarjeta de prueba=") && ttMarcoDice(w, "=tarjeta=#") && ttMarcoDice(w, "Spec · 0 criterios")
 		})
 		linea = 1

@@ -505,20 +505,25 @@ func TestCA718_CA564_CA532_LaAyuda(t *testing.T) {
 			}
 		}
 		if mouse {
+			// las lineas de Mouse se parten como las filas (doc.go, "Ayuda"):
+			// por sus palabras, cada continuacion desde la columna de Hace, 20;
+			// la de seleccionar texto, sin Muestra, usa en su primera linea todo
+			// el ancho despues de sus "  " (ttPartir arma la primera linea por
+			// palabras sobre el ancho entero, asi que su corte a 20 no la cambia)
 			for _, s := range []string{"  clic              foco a la lista o al detalle; en una tarjeta, la elige",
 				"  clic en la caja   elige la tarjeta de tu siguiente paso",
 				"  rueda             mueve la seleccion de la lista; en el detalle y en la ayuda, desplaza",
 				"  clic en un modal  enfoca un campo, elige una opcion o un boton",
 				"  para seleccionar texto con el mouse, manten Option (macOS) o Shift"} {
-				if q := strings.Join(ttPartir(s, 66, 2), "\n"); !strings.Contains(todo, "\n"+q+"\n") {
+				if q := strings.Join(ttPartir(s, 66, 20), "\n"); !strings.Contains(todo, "\n"+q+"\n") {
 					t.Fatalf("CA-718, CA-575: el grupo Mouse dice %q:\n%s", q, todo)
 				}
-				if g := tv3bTecGrupoDe(mc.Textos, ttPartir(s, 66, 2)[0]); g != "Mouse" {
+				if g := tv3bTecGrupoDe(mc.Textos, ttPartir(s, 66, 20)[0]); g != "Mouse" {
 					t.Fatalf("CA-718: la linea %q esta en el grupo Mouse, esta en %q", s, g)
 				}
 			}
-			if !strings.Contains(todo, "\n  para seleccionar texto con el mouse, manten Option (macOS) o\n  Shift\n") {
-				t.Fatalf("CA-718 (guarda de ttPartir): la linea de 68 celdas se parte antes de Shift:\n%s", todo)
+			if !strings.Contains(todo, "\n  para seleccionar texto con el mouse, manten Option (macOS) o\n"+strings.Repeat(" ", 20)+"Shift\n") {
+				t.Fatalf("CA-718 (guarda de ttPartir): la linea de 68 celdas se parte antes de Shift, que sigue en la columna 20:\n%s", todo)
 			}
 		} else if !strings.Contains(todo, "\nMouse\n  apagado: HOOM_MOUSE=0\n") {
 			t.Fatalf("CA-718, CA-575: sin mouse, el grupo Mouse dice 'apagado: HOOM_MOUSE=0':\n%s", todo)
@@ -608,9 +613,10 @@ func TestCA718_CA564_LaAyudaSeDesplaza(t *testing.T) {
 
 // ttPartir parte una linea de la ayuda que no entra en ancho celdas por sus
 // palabras (R3): la primera conserva sus sangria celdas de comienzo (los dos
-// espacios y la Muestra rellena, o los dos espacios de Mouse) y tantas
-// palabras como entren; cada continuacion empieza con sangria espacios. Los
-// espacios entre dos palabras de una misma linea quedan como estaban.
+// espacios y la Muestra rellena) y tantas palabras como entren en el ancho
+// entero; cada continuacion empieza con sangria espacios (la ayuda: 20, la
+// columna de Hace, tambien en el grupo Mouse). Los espacios entre dos
+// palabras de una misma linea quedan como estaban.
 func ttPartir(texto string, ancho, sangria int) []string {
 	if ttCeldas(texto) <= ancho {
 		return []string{texto}
