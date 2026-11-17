@@ -381,9 +381,10 @@ func (m *Modelo) Termino(f FinProceso, ahora time.Time) []Orden {
 		m.acomodar()
 		return nil
 	}
-	if la.o.Rol != "" {
+	if la.o.Rol != "" && f.Code != -1 {
 		// another job ran on the card: its pilot's stop no longer stands,
-		// though no read saw it running
+		// though no read saw it running (-1: it could not start, so it did
+		// not run)
 		delete(m.paradas, la.o.Slug)
 	}
 	if a := la.asiento; a != nil {

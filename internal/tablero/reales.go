@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -280,24 +281,39 @@ func (l *lanzadorReal) Lanzar(o Lanzar, fin func(FinProceso)) error {
 		err := cmd.Wait()
 		salida.Close()
 		errores.Close()
-		code := 0
-		if err != nil {
-			code = -1
-			var ee *exec.ExitError
-			if errors.As(err, &ee) {
-				code = ee.ExitCode()
-			}
-		}
+		code, sinCodigo := codigoDeSalida(err)
 		ultima := ultimaLinea(base + ".err")
 		if ultima == "" {
 			ultima = ultimaLinea(base + ".out")
 		}
-		if ultima == "" && code == -1 && err != nil {
+		if ultima == "" && sinCodigo {
 			ultima = err.Error()
 		}
 		fin(FinProceso{ID: o.ID, Code: code, Ultima: strings.TrimPrefix(ultima, "hoom: ")})
 	}()
 	return nil
+}
+
+// codigoDeSalida is the FinProceso.Code of a process that started and whose
+// cmd.Wait gave err: 0, its exit code, 128 + the signal's number when a
+// signal ended it (as Run's own), or 1 when waiting failed otherwise. Never
+// -1: that is a start that failed. sinCodigo is true when the process gave
+// no exit code (a signal, or the wait failed): err then says why.
+func codigoDeSalida(err error) (code int, sinCodigo bool) {
+	if err == nil {
+		return 0, false
+	}
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) {
+		return 1, true
+	}
+	if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		return 128 + int(ws.Signal()), true
+	}
+	if c := ee.ExitCode(); c >= 0 {
+		return c, false
+	}
+	return 1, true
 }
 
 // nuevoLog creates a log file that did not exist.
