@@ -1,0 +1,11 @@
+{
+  "id": "20261117T141702_322ac4",
+  "created_at": "2026-11-17T14:17:02.167515Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/tt4c_seguir_test.go",
+  "description": "INTRODUCIDO: internal/tablero/tt4c_seguir_test.go:198-202 fija que cualquier running con ID distinto levanta la parada del piloto, pero el helper usado en internal/tablero/tt4c_fixtures_test.go:95-100 fecha ese trabajo 30 s antes del FinProceso. Ante una lectura parcial o atrasada, un sobre viejo que reaparece se confunde con otro trabajo posterior; cuando desaparece, P vuelve a habilitarse y permite relanzar tras una parada no-cero. El caso que levanta la parada debe tener StartedAt posterior a la parada y debe agregarse el inverso: un running anterior observado tarde no la levanta.",
+  "author": "reviewer@codex",
+  "fingerprint": "f5a519e9bd1dad36",
+  "task": "tablero-tu-siguiente-paso"
+}
