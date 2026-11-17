@@ -14,7 +14,9 @@ package tablero_test
 // tiene que salir sin panic y con lo que dice doc.go.
 
 import (
+	"fmt"
 	"math"
+	"math/big"
 	"regexp"
 	"strings"
 	"testing"
@@ -268,5 +270,59 @@ func TestV3A_CA708_LimiteEnLaFronteraDeUnaDuracion(t *testing.T) {
 			tiempo: tv3aExacto("14:02"), tiempoDice: "14:02"},
 	} {
 		tv3aRevisarCorrida(t, k)
+	}
+}
+
+// CA-708, hallazgos c74a93 y 2223ea: las celdas corridas de la barra son el
+// cociente exacto 20 * transcurrido / limite redondeado hacia abajo, para
+// cualquier transcurrido y cualquier limite (doc.go: "the exact quotient
+// rounded down, for any elapsed and any limit"), de 0 a 20. Con un limite
+// enorme la barra no se corre de celda: ni por un redondeo en punto
+// flotante ni por un desborde de 20 * transcurrido. El transcurrido va en
+// nanosegundos (el reloj del modelo menos started_at). Los casos:
+//
+//   - timeout_s 8896355502 y 2224088875499999998 ns: 4,99999... son 4
+//     corridas y 16 por correr (y 2224088875500000000 ns, 5 justas: 5);
+//   - timeout_s 9223372036 y limite/20 - 1 ns: 0; limite/20 justo: 1;
+//   - con los dos limites, limite - 1 ns: 19; el limite justo: 20.
+//
+// El tiempo no se fija (sus segundos se cortan o se redondean: doc.go no
+// lo dice para un transcurrido con fraccion); el limite si: 8896355502 s
+// son 2471209:51:42 y 9223372036 s, 2562047:47:16.
+func TestV3A_CA708_LaBarraEsElCocienteExacto(t *testing.T) {
+	defer tv3aSinPanico(t)
+	type caso struct {
+		limite     int
+		limiteDice string
+		hace       time.Duration
+		f          int
+	}
+	const (
+		l1 = 8896355502
+		l2 = 9223372036
+	)
+	d1, d2 := time.Duration(l1)*time.Second, time.Duration(l2)*time.Second
+	casos := []caso{
+		{l1, "2471209:51:42", 2224088875499999998, 4},
+		{l1, "2471209:51:42", 2224088875500000000, 5},
+		{l2, "2562047:47:16", d2/20 - 1, 0},
+		{l2, "2562047:47:16", d2 / 20, 1},
+		{l2, "2562047:47:16", d2 - 1, 19},
+		{l2, "2562047:47:16", d2, 20},
+		{l1, "2471209:51:42", d1 - 1, 19},
+		{l1, "2471209:51:42", d1, 20},
+	}
+	for _, c := range casos {
+		// guarda: f es el cociente exacto, calculado sin desborde
+		q := new(big.Int).Mul(big.NewInt(20), big.NewInt(int64(c.hace)))
+		q.Quo(q, new(big.Int).Mul(big.NewInt(int64(c.limite)), big.NewInt(int64(time.Second))))
+		if q.Int64() != int64(c.f) {
+			t.Fatalf("CA-708 (guarda): 20 * %d ns / %d s es %d, no %d", int64(c.hace), c.limite, q.Int64(), c.f)
+		}
+		tv3aRevisarCorrida(t, tv3aCorridaCaso{
+			nombre: fmt.Sprintf("timeout_s %d, transcurrido %d ns", c.limite, int64(c.hace)),
+			inicio: ttAhora.Add(-c.hace), limite: c.limite, f: c.f,
+			tiempo: tv3aRelojLargo, tiempoDice: "<h:mm:ss>", limiteDice: c.limiteDice,
+		})
 	}
 }
