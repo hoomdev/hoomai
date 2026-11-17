@@ -157,8 +157,10 @@ type Asiento struct {
 
 // FinProceso is a process the TUI launched that ended (or could not start).
 type FinProceso struct {
-	ID   int // Lanzar.ID of the order that started it
-	Code int // its exit code; -1 when it could not start
+	ID int // Lanzar.ID of the order that started it
+	// Code is its exit code; -1 only when it could not start (its Lanzar
+	// failed): a process that started never ends with -1 (LanzadorDe).
+	Code int
 	// Ultima is the last line of what it said that is not empty: of its
 	// stderr, or of its stdout when stderr was empty (or the start error),
 	// without a leading "hoom: ".

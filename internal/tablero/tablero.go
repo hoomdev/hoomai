@@ -370,7 +370,11 @@ func ArgumentosEditor(editor, archivo string, linea int) []string {
 // Args in dir, detached (a process group and a session of its own on Unix;
 // a new process group without a console on Windows), with stdin empty and
 // stdout and stderr to two new files in the directory logs (created when
-// missing). Its FinProceso.Ultima comes from those files.
+// missing). Its FinProceso.Ultima comes from those files. Its
+// FinProceso.Code is the process's exit code, 128 + the signal's number when
+// a signal ended it (as Run's own), and 1 when waiting for it failed
+// otherwise (its Ultima then the error when the files say nothing): never
+// -1, since the process started.
 func LanzadorDe(hoom, dir, logs string) Lanzador {
 	return &lanzadorReal{hoom: hoom, dir: dir, logs: logs}
 }
