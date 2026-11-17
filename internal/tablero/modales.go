@@ -377,7 +377,7 @@ const textoSeguir = "El piloto lleva la tarjeta sola: tests, codigo, verify, rev
 func (m *Modelo) abrirSeguir(c *boardcmd.Card) {
 	m.cerrarModal()
 	m.conf = &confirmacion{slug: c.Slug, seguir: true, verbo: []string{"piloto", c.Slug}, texto: textoSeguir,
-		titulo: tituloDe(c)}
+		titulo: boardcmd.TituloDe(c)}
 	m.modal = ModalSeguir
 }
 

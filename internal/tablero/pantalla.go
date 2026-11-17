@@ -235,14 +235,14 @@ func (m *Modelo) cajaPaso() (linea, [2]linea, bool) {
 		if r := primera.Running; r != nil {
 			que = rolDe(r.Role) + ", " + reloj(m.ahora.Sub(r.StartedAt))
 		}
-		t := "corriendo: " + m.citar(tituloDe(primera)) + " (" + que + ")"
+		t := "corriendo: " + m.citar(boardcmd.TituloDe(primera)) + " (" + que + ")"
 		if k := len(cs) - 1; k > 0 {
 			t += m.fijo(fmt.Sprintf(" y %d más", k))
 		}
 		ls[1] = lin(" " + t)
 	case len(gs[GrupoEnCola]) > 0:
 		e := gs[GrupoEnCola][0]
-		ls[0] = lin(" ").masCon(m.frase("Nada en curso. Podés empezar ", tituloDe(e), "."), negrita)
+		ls[0] = lin(" ").masCon(m.frase("Nada en curso. Podés empezar ", boardcmd.TituloDe(e), "."), negrita)
 		ls[1] = m.segundaDeCaja(m.pasoDe(e), nil, wi)
 	default:
 		ls[0] = lin(" ").masCon("No hay nada pendiente.", negrita)
@@ -251,36 +251,17 @@ func (m *Modelo) cajaPaso() (linea, [2]linea, bool) {
 	return der, ls, amarilla
 }
 
-// fraseCaja is the box's phrase for its card c of group g with step p.
+// fraseCaja is the box's phrase for its card c of group g with step p:
+// boardcmd's, and Seguir solo's, that only the board offers.
 func (m *Modelo) fraseCaja(c *boardcmd.Card, g Grupo, p paso) string {
-	t := tituloDe(c)
-	switch {
-	case g == GrupoDetenida:
-		return m.frase("Decidí cómo sigue ", t, ".")
-	case p.seguir:
-		return m.frase("Dejá que ", t, " siga sola.")
-	case p.act == nil:
-		return m.frase("Mirá ", t, ".")
+	if p.seguir && g != GrupoDetenida {
+		return m.frase("Dejá que ", boardcmd.TituloDe(c), " siga sola.")
 	}
-	switch p.act.ID {
-	case boardcmd.ActAprobar:
-		return m.frase("Firmá el spec de ", t, ".")
-	case boardcmd.ActIntegrar:
-		return m.frase("Aceptá ", t, ".")
-	case boardcmd.ActPedirArquitecto:
-		return m.frase("Pedile el spec al arquitecto para ", t, ".")
-	case boardcmd.ActPedirTestWriter:
-		return m.frase("Pedile los tests al test-writer para ", t, ".")
-	case boardcmd.ActPedirWriter:
-		return m.frase("Pedile el código al writer para ", t, ".")
-	case boardcmd.ActPedirReviewer:
-		return m.frase("Pedile la review al reviewer para ", t, ".")
-	case boardcmd.ActReanudar:
-		return m.frase("Reanudá el trabajo de ", t, ".")
-	case boardcmd.ActGuardar:
-		return m.frase("Guardá el trabajo de ", t, ".")
+	id := ""
+	if p.act != nil {
+		id = p.act.ID
 	}
-	return m.frase("Mirá ", t, ".")
+	return boardcmd.FraseDe(c, string(g), id, m.piel())
 }
 
 // segundaDeCaja is the box's second line: "n <label>" (or the rule's
@@ -303,7 +284,7 @@ func (m *Modelo) segundaDeCaja(p paso, siguen []*boardcmd.Card, wi int) linea {
 		if puestos > 0 {
 			sep = " · "
 		}
-		t := limpio(tituloDe(c))
+		t := limpio(boardcmd.TituloDe(c))
 		pieza := m.citar(t)
 		if celdas(der+sep+pieza) <= lugar {
 			der += sep + pieza

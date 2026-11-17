@@ -8,25 +8,26 @@ import (
 	"github.com/hoomdev/hoomai/internal/item"
 )
 
-// ordenGrupos are the groups in the list's order.
-var ordenGrupos = []Grupo{GrupoTeToca, GrupoCorriendo, GrupoDetenida, GrupoEnCola, GrupoHecho}
+// ordenGrupos are the groups in the list's order: boardcmd's.
+var ordenGrupos = func() []Grupo {
+	out := make([]Grupo, len(boardcmd.GruposPelota))
+	for i, g := range boardcmd.GruposPelota {
+		out[i] = Grupo(g)
+	}
+	return out
+}()
 
 // etiquetaSeguir is Seguir solo's label (the step's, the Registro's).
 const etiquetaSeguir = "Seguir solo"
 
-// grupoDe is the group of the card c (the package doc, "The groups").
+// grupoDe is the group of the card c (the package doc, "The groups"):
+// boardcmd's, and CORRIENDO while a pilot this board launched is alive for
+// it outside Hecho (boardcmd cannot know that pilot).
 func (m *Modelo) grupoDe(c *boardcmd.Card) Grupo {
-	switch {
-	case c.Column == boardcmd.ColHecho:
-		return GrupoHecho
-	case c.Running != nil || m.pilotoVivo(c.Slug):
+	if c.Column != boardcmd.ColHecho && m.pilotoVivo(c.Slug) {
 		return GrupoCorriendo
-	case c.Interrupted != nil || c.Red != nil && !c.Red.Esperado:
-		return GrupoDetenida
-	case c.Column == boardcmd.ColBacklog:
-		return GrupoEnCola
 	}
-	return GrupoTeToca
+	return Grupo(boardcmd.GrupoDe(c))
 }
 
 // pilotoVivo says whether a pilot this board launched is alive for slug:
@@ -40,27 +41,25 @@ func (m *Modelo) pilotoVivo(slug string) bool {
 	return false
 }
 
-// grupos are the board's cards by group, each in the list's order: TE TOCA
-// by column from the board's last column to its first, the others in the
-// board's order. With filtrar only the cards the search leaves.
+// grupos are the board's cards by group, each in the list's order
+// (boardcmd.OrdenPelota with the board's groups): TE TOCA by column from the
+// board's last column to its first, the others in the board's order. With
+// filtrar only the cards the search leaves.
 func (m *Modelo) grupos(filtrar bool) map[Grupo][]*boardcmd.Card {
-	out := map[Grupo][]*boardcmd.Card{}
+	var todas []*boardcmd.Card
 	cols := m.tablero.Columns
-	for i := len(cols) - 1; i >= 0; i-- {
+	for i := range cols {
 		for j := range cols[i].Cards {
-			c := &cols[i].Cards[j]
-			if (!filtrar || m.pasaFiltro(c)) && m.grupoDe(c) == GrupoTeToca {
-				out[GrupoTeToca] = append(out[GrupoTeToca], c)
+			if c := &cols[i].Cards[j]; !filtrar || m.pasaFiltro(c) {
+				todas = append(todas, c)
 			}
 		}
 	}
-	for i := range cols {
-		for j := range cols[i].Cards {
-			c := &cols[i].Cards[j]
-			if g := m.grupoDe(c); g != GrupoTeToca && (!filtrar || m.pasaFiltro(c)) {
-				out[g] = append(out[g], c)
-			}
-		}
+	grupo := func(c *boardcmd.Card) string { return string(m.grupoDe(c)) }
+	out := map[Grupo][]*boardcmd.Card{}
+	for _, c := range boardcmd.OrdenPelota(todas, grupo) {
+		g := m.grupoDe(c)
+		out[g] = append(out[g], c)
 	}
 	return out
 }
@@ -99,15 +98,6 @@ func (m *Modelo) tarjetaDeN() (*boardcmd.Card, string) {
 	return nil, "no hay nada pendiente"
 }
 
-// tituloDe is the card's title: the item's titulo, the slug when it is
-// empty; on one line.
-func tituloDe(c *boardcmd.Card) string {
-	if c.Item.Titulo == "" {
-		return c.Slug
-	}
-	return unaLinea(c.Item.Titulo)
-}
-
 // ---------------------------------------------------------------- the step
 
 // paso is the step of a card (the package doc, "The step of a card"): the
@@ -143,45 +133,37 @@ func filaDeAccion(id string) (Atajo, bool) {
 	return Atajo{}, false
 }
 
-// pasoDe is the card's step.
+// pasoDe is the card's step: boardcmd's (the rule, once), plus what only the
+// board knows: the pilot it launched, the key that reanuda, Seguir solo, and
+// its keys' table (a card action without a row is nothing to do here; one
+// the card lacks is told with its row's verb).
 func (m *Modelo) pasoDe(c *boardcmd.Card) paso {
-	nada := fmt.Sprintf("en %s no hay nada que hacer ahora: %s", c.ColumnName, unaLinea(c.Plain))
+	enCurso := c.Column != boardcmd.ColHecho && c.Running == nil
 	switch {
-	case c.Column == boardcmd.ColHecho:
-		return paso{texto: "la tarjeta ya esta en Hecho"}
-	case m.pilotoVivo(c.Slug):
+	case c.Column != boardcmd.ColHecho && m.pilotoVivo(c.Slug):
 		return paso{texto: "el piloto lleva la tarjeta: espera a que se detenga"}
-	case c.Running != nil:
-		return paso{texto: fmt.Sprintf("el %s esta trabajando: espera a que termine", rolDe(c.Running.Role))}
-	case c.Interrupted != nil:
+	case enCurso && c.Interrupted != nil:
 		return paso{texto: "el trabajo se corto: R reanuda o pide de nuevo"}
-	case m.motivoSinSeguir(c) == "":
+	case enCurso && m.motivoSinSeguir(c) == "":
 		fila, _ := filaDeAccion(AccionSeguir)
 		return paso{seguir: true, fila: fila}
 	}
-	var id string
+	b := boardcmd.PasoDe(c)
+	id := boardcmd.AccionDelPaso(c)
+	if !enCurso || id == "" {
+		return paso{texto: unaLinea(b.Texto)}
+	}
+	fila, ok := filaDeAccion(id)
+	_, tiene := c.Action(id)
 	switch {
-	case c.Column == boardcmd.ColTuAprobacion:
-		id = boardcmd.ActAprobar
-	case c.Column == boardcmd.ColTuAceptacion:
-		id = boardcmd.ActIntegrar
-	case len(c.Actions) == 0:
-		return paso{texto: nada}
-	default:
-		a := c.Actions[0]
-		if _, ok := filaDeAccion(a.ID); !ok || !boardcmd.IsRoleAction(a.ID) && a.ID != boardcmd.ActGuardar {
-			return paso{texto: nada}
-		}
-		id = a.ID
-	}
-	fila, _ := filaDeAccion(id)
-	act, ok := c.Action(id)
-	if !ok {
+	case !ok:
+		return paso{texto: unaLinea(boardcmd.NadaQueHacer(c))}
+	case !tiene:
 		return paso{fila: fila, texto: fmt.Sprintf("en %s no hay %s", c.ColumnName, fila.Hace)}
+	case b.Accion == "":
+		return paso{fila: fila, texto: b.Texto}
 	}
-	if !act.Enabled {
-		return paso{fila: fila, texto: act.Why}
-	}
+	act, _ := c.Action(b.Accion)
 	return paso{act: &act, fila: fila}
 }
 
@@ -249,4 +231,10 @@ func (m *Modelo) citar(t string) string {
 // as the mode writes them, t as it comes.
 func (m *Modelo) frase(antes, t, despues string) string {
 	return m.fijo(antes) + m.citar(t) + m.fijo(despues)
+}
+
+// piel is how boardcmd writes the ball's fixed texts for this board: in the
+// mode's letters and quotes, the start of a run in the board's clock.
+func (m *Modelo) piel() boardcmd.Piel {
+	return boardcmd.Piel{Fijo: m.fijo, Citar: m.citar, Hora: m.ahora.Location()}
 }

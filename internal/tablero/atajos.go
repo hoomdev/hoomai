@@ -25,13 +25,14 @@ const (
 // Grupo is the group of a card in the list: who has the ball (CA-700).
 type Grupo string
 
-// The groups, in the list's order. Their values are their names on screen.
+// The groups, in the list's order: boardcmd's (studio-tu-siguiente-paso).
+// Their values are their names on screen.
 const (
-	GrupoTeToca    Grupo = "TE TOCA"
-	GrupoCorriendo Grupo = "CORRIENDO"
-	GrupoDetenida  Grupo = "DETENIDA"
-	GrupoEnCola    Grupo = "EN COLA"
-	GrupoHecho     Grupo = "HECHO"
+	GrupoTeToca    Grupo = boardcmd.GrupoTeToca
+	GrupoCorriendo Grupo = boardcmd.GrupoCorriendo
+	GrupoDetenida  Grupo = boardcmd.GrupoDetenida
+	GrupoEnCola    Grupo = boardcmd.GrupoEnCola
+	GrupoHecho     Grupo = boardcmd.GrupoHecho
 )
 
 // Modal is the modal that is open over the screen ("" = none).
