@@ -2,6 +2,7 @@ package tablero
 
 import (
 	"fmt"
+	"math/bits"
 	"strconv"
 	"strings"
 	"time"
@@ -426,12 +427,20 @@ func (m *Modelo) docResto(d *doc, c *boardcmd.Card) {
 }
 
 // barraDeTiempo puts AHORA's " tiempo " line: a bar of 20 cells, f =
-// 20 * trans / limite of them run (in floating point, so a huge trans does
-// not overflow), at least 0 and at most 20, then the time and the limit.
+// 20 * trans / limite of them run (the exact quotient rounded down, at least
+// 0 and at most 20), then the time and the limit. limite is above 0
+// (limiteDe).
 func (m *Modelo) barraDeTiempo(d *doc, trans, limite time.Duration) {
 	f := 0
-	if trans > 0 {
-		f = int(min(20, 20*float64(trans)/float64(limite)))
+	switch {
+	case trans >= limite:
+		f = 20
+	case trans > 0:
+		// 20 * trans in 128 bits, so it neither overflows nor rounds; its
+		// high word is at most 19 and below limite, as Div64 needs
+		hi, lo := bits.Mul64(20, uint64(trans))
+		q, _ := bits.Div64(hi, lo, uint64(limite))
+		f = int(q)
 	}
 	l := lin(" tiempo ").masCon(strings.Repeat(m.s.barraHecha, f), cian).masCon(strings.Repeat(m.s.barraFalta, 20-f), gris)
 	d.poner(l.mas(" " + reloj(trans) + " de " + reloj(limite)))
