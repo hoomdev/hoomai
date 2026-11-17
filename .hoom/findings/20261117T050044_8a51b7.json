@@ -1,0 +1,11 @@
+{
+  "id": "20261117T050044_8a51b7",
+  "created_at": "2026-11-17T05:00:44.171238Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/estado.go",
+  "description": "INTRODUCIDO: internal/tablero/estado.go:66-73 conserva nombres numericos de la v2 (sel4, idx4, scroll4, scroll0, clave0, sigue0) aunque esta rama elimina los paneles [0]/[4] y ya modela ZonaDetalle/VistaHallazgos; el patron se propaga a desplazar0, doc0, alto0 y contenido4, obligando a conocer la numeracion obsoleta para seguir el estado. Renombrarlos por detalle/hallazgos haria el nuevo modelo coherente con su dominio.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

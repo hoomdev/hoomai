@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T045224_004c1f",
+  "as": "refutado",
+  "evidence": "REFUTADO contra el spec y doc.go. CA-706 (spec:761): \"esc, ← y h\" pasan el foco \"del detalle a la lista\", sin excepcion de vista; doc.go:868-869 lo repite, y doc.go:386-388 fija como se cumple CA-712: \"esc in the list and H anywhere in the view go back to the cards view, with the card that was chosen\". \"Aun con foco en el detalle\" no esta en CA-712, y hacerlo romperia CA-706. El codigo hace eso: despacho.go:289 (esc en el detalle -\u003e ZonaLista) y atajos.go:175/177 (detalle: \"esc ← h foco a la lista\"; lista de Hallazgos: \"esc volver a las tarjetas\"). Reproducido con un test temporal fuera del repo (scratchpad/refutador/internal/tablero/zz_refutador2_test.go sobre una copia de b296fa6): H -\u003e vista=hallazgos foco=lista; tab -\u003e foco=detalle lugar=ver-hallazgo; esc -\u003e vista=hallazgos foco=lista; esc -\u003e vista=tarjetas, elegida=exportar-pdf (la que estaba). go test ./internal/tablero -run 'TestV3A_CA712|TestV3C_CA706|TestCA706' -count=1 en b296fa6: PASS.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-11-17T05:13:18.599753Z"
+}

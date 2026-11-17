@@ -1,0 +1,11 @@
+{
+  "id": "20261117T045826_aa5be4",
+  "created_at": "2026-11-17T04:58:26.599086Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/detalle.go",
+  "description": "INTRODUCIDO: internal/tablero/detalle.go:288-296 trata cualquier TimeoutS distinto de cero como limite valido y usa el cociente como contador de strings.Repeat. La telemetria no valida que timeout_s sea positivo (internal/runcmd/runcmd.go:453-475) y boardcmd lo propaga, asi que un sidecar running degradado con timeout_s negativo, o uno cuyo producto desborde time.Duration, produce f negativo y hace panic al dibujar la barra. Un artefacto de run corrupto puede derribar hoom tablero en vez de degradarse sin la barra.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

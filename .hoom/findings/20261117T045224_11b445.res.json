@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T045224_11b445",
+  "as": "refutado",
+  "evidence": "REFUTADO contra doc.go, el contrato fino del paquete. doc.go:591-616 (\"The detail of the project (v)\"): \"First the four lines of the v2's [1], which the header shortens (decision: the v2's [1] keeps its content here), then the v2's [0] of [1]\", y enumera \" \u003cproyecto\u003e · rama \u003cRama\u003e\", \" \u003cthe check, as the header's\u003e\", \" hoy \u003cusd\u003e USD en \u003cn\u003e trabajos\", \" fijada: \u003cslug\u003e\", \"\" y despues \" Veredicto\", \" Check\", \" Avisos\", \" Doctor\": las dos lineas del check y los datos de [1] son el contrato, no algo fuera de el. El spec lo respalda: :784 \"Proyecto pasa a la cabecera y a `v`\", y la cabecera (:147-157) recorta lo fijado, lo de hoy y el check cuando no entran, asi que `v` es el unico lugar donde [1] se ve entero; CA-713 nombra el [0] de [1] pero no dice \"solo eso\". No son datos nuevos (spec :72-73: son los de la v2 [1]). go test ./internal/tablero -run TestV3A_CA713 -count=1 en b296fa6: PASS (TestV3A_CA713_ProyectoEnElDetalle, _AvisosSinFijadaYLeyendo, _ProyectoEnUnaColumna), y tt4_detalle_test.go:1041 sigue doc.go linea por linea. Si se quiere v solo con el [0] de [1], es un cambio de doc.go, no un defecto del codigo.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-11-17T05:13:18.607715Z"
+}

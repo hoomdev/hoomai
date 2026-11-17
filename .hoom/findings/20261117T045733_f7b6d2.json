@@ -1,0 +1,11 @@
+{
+  "id": "20261117T045733_f7b6d2",
+  "created_at": "2026-11-17T04:57:33.378305Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/estado.go",
+  "description": "INTRODUCIDO: internal/tablero/estado.go:426-431 guarda la parada del piloto con la columna del modelo en ese instante, y estado.go:230-233 la elimina ante la siguiente lectura si la columna difiere. En el piloto encadenado tras aprobar, el modelo aun conserva Tu aprobacion (bucle.go:284-286 solo dispara leerProyecto), por lo que un piloto que se detiene rapido antes del siguiente poll queda asociado a la columna vieja; la lectura fresca de Test-writer borra la parada aunque no hubo trabajo posterior. Entonces AHORA pierde el motivo y P vuelve a ofrecerse, contrario a CA-715 para una parada no-cero que sigue vigente.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}
