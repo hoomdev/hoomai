@@ -42,6 +42,10 @@ type Lectura struct {
 	// line says "no se pudo leer el tablero: <Err>" until a read works.
 	Err    error
 	Fijada string // the card hoom usar fixed ("" = none): [1]'s fourth line
+	// Pedida is when the read was started (zero = unknown: it counts as
+	// started after every end before it). A pilot's stop takes the card's
+	// column from the first read started after that stop.
+	Pedida time.Time
 }
 
 // Detalle is the read of the card [0] shows (Modelo.Elegida): Run reads it

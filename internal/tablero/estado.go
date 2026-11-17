@@ -120,6 +120,11 @@ type parada struct {
 	motivo  string
 	columna string
 	running string // the running id the card had when it stopped
+	// porLeer: the first read of the board started after the stop (desde)
+	// has not come yet; it gives columna the card's column then, since
+	// the model's may be older (the aprobar that chained the pilot).
+	porLeer bool
+	desde   time.Time
 }
 
 // Nuevo is the model before the first read of the board: the focus on the
@@ -226,9 +231,14 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 			}
 		}
 	}
-	// the pilots' stops that no longer stand
+	// the pilots' stops that no longer stand, after the first read started
+	// after a stop gives it the card's column
 	for slug, p := range m.paradas {
 		c := m.tarjeta(slug)
+		if c != nil && p.porLeer && (l.Pedida.IsZero() || !l.Pedida.Before(p.desde)) {
+			p.columna, p.porLeer = c.Column, false
+			m.paradas[slug] = p
+		}
 		if c == nil || c.Column != p.columna || c.Running != nil && idDe(c.Running) != p.running {
 			delete(m.paradas, slug)
 		}
@@ -362,6 +372,11 @@ func (m *Modelo) Termino(f FinProceso, ahora time.Time) []Orden {
 		m.acomodar()
 		return nil
 	}
+	if la.o.Rol != "" {
+		// another job ran on the card: its pilot's stop no longer stands,
+		// though no read saw it running
+		delete(m.paradas, la.o.Slug)
+	}
 	if a := la.asiento; a != nil {
 		if f.Code == 0 {
 			a.estado = estadoHecho
@@ -424,7 +439,7 @@ func (m *Modelo) terminoPiloto(la *lanzado, f FinProceso, texto string, e estilo
 		motivo = fmt.Sprintf("hoom piloto salio con %d", f.Code)
 	}
 	if c := m.tarjeta(la.o.Slug); c != nil {
-		p := parada{code: f.Code, motivo: unaLinea(motivo), columna: c.Column}
+		p := parada{code: f.Code, motivo: unaLinea(motivo), columna: c.Column, porLeer: true, desde: m.ahora}
 		if c.Running != nil {
 			p.running = idDe(c.Running)
 		}

@@ -1,6 +1,7 @@
 package tablero
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -157,10 +158,20 @@ func estiloNombre(g Grupo) estilo {
 // <tiempo>[ de <limite>]".
 func (m *Modelo) rolCorriendo(r *boardcmd.Running) string {
 	t := rolDe(r.Role) + " · " + reloj(m.ahora.Sub(r.StartedAt))
-	if r.TimeoutS != 0 {
-		t += " de " + reloj(time.Duration(r.TimeoutS)*time.Second)
+	if limite, ok := limiteDe(r); ok {
+		t += " de " + reloj(limite)
 	}
 	return t
+}
+
+// limiteDe is the limit of the run r and whether it has one: its timeout_s
+// when it is above 0 and fits a time.Duration. A damaged sidecar's
+// negative or huge timeout_s is no limit, never a crash.
+func limiteDe(r *boardcmd.Running) (time.Duration, bool) {
+	if r.TimeoutS <= 0 || int64(r.TimeoutS) > math.MaxInt64/int64(time.Second) {
+		return 0, false
+	}
+	return time.Duration(r.TimeoutS) * time.Second, true
 }
 
 // estadoDe is the state of a card's row (its second line, or the end of a

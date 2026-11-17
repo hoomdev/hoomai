@@ -327,7 +327,9 @@
 //	HECHO       the plain
 //
 // rol is running.role ("agente" when empty), tiempo the time since
-// running.started_at and limite running.timeout_s (when not 0), as the v1
+// running.started_at and limite running.timeout_s (when it is above 0 and
+// fits a duration: a negative or huge one, from a damaged sidecar, is no
+// limit, and the board does not crash on it), as the v1
 // writes them: m:ss below an hour, h:mm:ss from an hour on ("14:02 de
 // 30:00", "1:02:03").
 //
@@ -474,7 +476,7 @@
 // started_at in the model clock's location, and <paso> the v2's
 // "<stage> <step>/<steps>" (the stage alone when steps is 0); the parts
 // that are empty are left out with their " · ". The bar (decision on the
-// rounding) has 20 cells: f = 20 * elapsed / limit (integer, at most 20)
+// rounding) has 20 cells: f = 20 * elapsed / limit (integer, from 0 to 20)
 // are the run sign, cyan (36), and 20-f the left sign, gray (90); tiempo
 // and limite as the rows'. "ya no corre: R lo reanuda" and "falta el
 // código" are gray lines too.
@@ -704,8 +706,13 @@
 // the model keeps its code, its motivo (its Ultima without the prefix
 // "piloto automatico: se detiene: " when it has it, else its Ultima, else
 // "hoom piloto salio con <code>"), the card's column then and the running
-// id the card had then. The stop stands while the card is in that column
-// and has not shown a running with another id (another job ran on it).
+// id the card had then. The column then is the one of the first read of the
+// board started after that end (Lectura.Pedida; until it comes, the column
+// the model has, which may be older: the aprobar that chained the pilot).
+// The stop stands while the card is in that column, has not shown a running
+// with another id, and no job this board launched on it (a Lanzar with a
+// Rol other than the pilot's) has ended since: in any of those, another job
+// ran on it.
 //
 // The modal Seguir solo (P, and enter and n when the step is Seguir solo;
 // CA-716), with the modals' common rules, title "Seguir solo · <T>" (T the
@@ -744,7 +751,9 @@
 // of aprobar has auto item.AutoHastaHumano, the modal adds, right after
 // the line "hoom aprobar <slug> --si", the line "y despues: hoom piloto
 // <slug>" (and the modal is tied to that too: a change of the card's auto
-// closes it as a change of what it shows). When that aprobar ends with code
+// closes it as a change of what it shows); that line is laid out as the
+// command above it, by words in at most two lines (the second from "  "),
+// and cut when it does not fit even so. When that aprobar ends with code
 // 0 (Termino), the model orders Lanzar{Rol: "piloto", Args: {"piloto",
 // <slug>}}, with its own Registro entry as above; with another code it
 // launches nothing. Without auto the Firma modal is the v2's.
@@ -956,8 +965,11 @@
 // same, and the spec too when the card's Detalle showed it; when not, it
 // closes and the message line says in red the action's why or "cambio lo
 // que ibas a confirmar en <slug>: vuelve a abrirlo"), and a signature that
-// does not fit whole is never signed: enter on the action's button says in
-// red "agranda la terminal: la firma no entra entera" and runs nothing.
+// does not fit whole is never signed: when its lines do not fit in the
+// modal's height, or a command (its "hoom aprobar <slug> --si" or its "y
+// despues: hoom piloto <slug>") is cut in the width, enter on the action's
+// button says in red "agranda la terminal: la firma no entra entera" and
+// runs nothing.
 //
 // Guardar (s, and enter or n when the step is guardar): title "<label> ·
 // <slug>", "Se guarda en git:", one line per path, "", "Se va a

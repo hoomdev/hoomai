@@ -192,9 +192,10 @@ func (b *bucle) leer(tipo int) {
 	var f func() evento
 	switch tipo {
 	case leeTablero:
+		pedida := b.e.Ahora()
 		f = func() evento {
 			tab, err := b.e.Datos.Tablero()
-			return evento{lectura: &Lectura{Tablero: tab, Err: err, Fijada: b.e.Datos.Fijada()}}
+			return evento{lectura: &Lectura{Tablero: tab, Err: err, Fijada: b.e.Datos.Fijada(), Pedida: pedida}}
 		}
 	case leeDetalle:
 		slug := b.m.Elegida()

@@ -285,15 +285,10 @@ func (m *Modelo) docTarjetaAncha(d *doc, c *boardcmd.Card, g Grupo, p paso) {
 	if grisL != "" {
 		d.poner(lin(" ").masCon(grisL, gris))
 	}
-	if r := c.Running; r != nil && r.TimeoutS != 0 {
-		trans := m.ahora.Sub(r.StartedAt)
-		limite := time.Duration(r.TimeoutS) * time.Second
-		f := 0
-		if trans > 0 {
-			f = min(20, int(20*trans/limite))
+	if r := c.Running; r != nil {
+		if limite, ok := limiteDe(r); ok {
+			m.barraDeTiempo(d, m.ahora.Sub(r.StartedAt), limite)
 		}
-		l := lin(" tiempo ").masCon(strings.Repeat(m.s.barraHecha, f), cian).masCon(strings.Repeat(m.s.barraFalta, 20-f), gris)
-		d.poner(l.mas(" " + reloj(trans) + " de " + reloj(limite)))
 	}
 	if m.experto {
 		d.poner(lin(" siguiente: " + unaLinea(c.Next)))
@@ -428,4 +423,16 @@ func (m *Modelo) docResto(d *doc, c *boardcmd.Card) {
 	d.vacia()
 	d.poner(lin(" " + m.s.narracion))
 	m.docSobre(d, c, det)
+}
+
+// barraDeTiempo puts AHORA's " tiempo " line: a bar of 20 cells, f =
+// 20 * trans / limite of them run (in floating point, so a huge trans does
+// not overflow), at least 0 and at most 20, then the time and the limit.
+func (m *Modelo) barraDeTiempo(d *doc, trans, limite time.Duration) {
+	f := 0
+	if trans > 0 {
+		f = int(min(20, 20*float64(trans)/float64(limite)))
+	}
+	l := lin(" tiempo ").masCon(strings.Repeat(m.s.barraHecha, f), cian).masCon(strings.Repeat(m.s.barraFalta, 20-f), gris)
+	d.poner(l.mas(" " + reloj(trans) + " de " + reloj(limite)))
 }

@@ -21,6 +21,7 @@ type lineaModal struct {
 	campo   int  // the Pedir field it is the line of (-1: none)
 	botones bool // the buttons' line
 	accion  int  // Acciones: the index of its action (-1: none)
+	cortada bool // a command's line that does not fit whole (Firma never signs with one)
 }
 
 func lm(l linea) lineaModal { return lineaModal{l: l, campo: -1, accion: -1} }
@@ -260,17 +261,21 @@ func lineaDeAyuda(t string, c int) string {
 // puts the label on the command's first line.
 func (m *Modelo) lineasEjecutar(args []string, c int, junto bool) []lineaModal {
 	if junto {
-		var out []lineaModal
-		ls, _ := lineasComando(args, c, "Se va a ejecutar: ", m.c.Windows, m.s.corte)
-		for _, l := range ls {
-			out = append(out, lm(lin(m.s.enPantalla(l))))
-		}
-		return out
+		return m.lineasDeComando(args, c, "Se va a ejecutar: ")
 	}
-	out := []lineaModal{lm(lin("Se va a ejecutar:"))}
-	ls, _ := lineasComando(args, c, "", m.c.Windows, m.s.corte)
+	return append([]lineaModal{lm(lin("Se va a ejecutar:"))}, m.lineasDeComando(args, c, "")...)
+}
+
+// lineasDeComando are the lines of the command args after prefijo, laid out
+// by words in at most two lines; when it does not fit whole they are cut
+// and marked cortada.
+func (m *Modelo) lineasDeComando(args []string, c int, prefijo string) []lineaModal {
+	ls, entero := lineasComando(args, c, prefijo, m.c.Windows, m.s.corte)
+	out := make([]lineaModal, 0, len(ls))
 	for _, l := range ls {
-		out = append(out, lm(lin(m.s.enPantalla(l))))
+		lmo := lm(lin(m.s.enPantalla(l)))
+		lmo.cortada = !entero
+		out = append(out, lmo)
 	}
 	return out
 }
@@ -420,7 +425,7 @@ func (m *Modelo) lineasConfirmacion(cf *confirmacion, c, paso int, paths []strin
 	vacia()
 	out = append(out, m.lineasEjecutar(cf.verbo, c, paso >= 2)...)
 	if cf.piloto {
-		out = append(out, lm(lin("y despues: hoom piloto "+cf.slug)))
+		out = append(out, m.lineasDeComando([]string{"piloto", cf.slug}, c, "y despues: ")...)
 	}
 	vacia()
 	bl, _ := botones(cf.etiquetas(), cf.boton, c)
@@ -485,11 +490,22 @@ func (m *Modelo) enConfirmacion(t Tecla) []Orden {
 	return nil
 }
 
-// firmaCabe says whether the open signature fits whole on the screen.
+// firmaCabe says whether the open signature fits whole on the screen: every
+// line in the modal's height and no command cut in its width (the action's
+// nor "y despues: hoom piloto <slug>").
 func (m *Modelo) firmaCabe() bool {
 	c := m.modalAncho() - 6
 	alto := m.c.Alto - 2 - 2
-	return len(m.lineasConfirmacionQueEntran(m.conf, c, alto)) <= alto
+	ls := m.lineasConfirmacionQueEntran(m.conf, c, alto)
+	if len(ls) > alto {
+		return false
+	}
+	for _, l := range ls {
+		if l.cortada {
+			return false
+		}
+	}
+	return true
 }
 
 // rutasSinGuardar are the paths guardar would save: the action's, else the

@@ -202,8 +202,8 @@ func (m *Modelo) docSobre(d *doc, c *boardcmd.Card, det *Detalle) {
 			partes = append(partes, p)
 		}
 		t := reloj(m.ahora.Sub(r.StartedAt))
-		if r.TimeoutS != 0 {
-			t += " de " + reloj(time.Duration(r.TimeoutS)*time.Second)
+		if limite, ok := limiteDe(r); ok {
+			t += " de " + reloj(limite)
 		}
 		partes = append(partes, t)
 	case len(det.Detalle.Work) > 0:
