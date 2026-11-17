@@ -100,6 +100,9 @@ func (b *bucle) correr() int {
 	if msg := MensajeSalida(b.m.Corriendo()); msg != "" {
 		fmt.Fprintln(b.e.Out, msg)
 	}
+	for _, msg := range MensajePilotos(b.m.PilotosSinLanzar()) {
+		fmt.Fprintln(b.e.Out, msg)
+	}
 	return code
 }
 

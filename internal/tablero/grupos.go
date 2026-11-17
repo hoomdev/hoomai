@@ -211,7 +211,13 @@ func (m *Modelo) motivoSinSeguir(c *boardcmd.Card) string {
 // paradaDe is the stop of the pilot of c, when it still stands.
 func (m *Modelo) paradaDe(c *boardcmd.Card) (parada, bool) {
 	p, ok := m.paradas[c.Slug]
-	if !ok || c.Column != p.columna || c.Running != nil && idDe(c.Running) != p.running {
+	switch {
+	case !ok:
+		return parada{}, false
+	case p.porLeer:
+		// its column comes with the first read started after it
+		return p, true
+	case c.Column != p.columna || c.Running != nil && idDe(c.Running) != p.running:
 		return parada{}, false
 	}
 	return p, true

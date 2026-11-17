@@ -165,7 +165,8 @@ func Real() Entorno {
 // writing the terminal, its end of file included (1, "hoom: <error>" on Err
 // after giving it back), and with a panic, in Run or in what it calls
 // (given back, then the panic goes on in Run's goroutine). After giving it
-// back it prints MensajeSalida on Out when it is not empty. While the
+// back it prints MensajeSalida on Out when it is not empty, then the lines
+// of MensajePilotos for Modelo.PilotosSinLanzar (CA-717). While the
 // editor is open (AbrirEditor, EditarPedido) the terminal is given back the
 // same way (the mouse off) and taken again after (the mouse asked again).
 //

@@ -707,8 +707,9 @@
 // "piloto automatico: se detiene: " when it has it, else its Ultima, else
 // "hoom piloto salio con <code>"), the card's column then and the running
 // id the card had then. The column then is the one of the first read of the
-// board started after that end (Lectura.Pedida; until it comes, the column
-// the model has, which may be older: the aprobar that chained the pilot).
+// board started after that end (Lectura.Pedida; the model's may be older:
+// the aprobar that chained the pilot). Until that read comes the stop
+// stands, and a read started before that end says nothing of it.
 // The stop stands while the card is in that column, has not shown a running
 // with another id, and no job this board launched on it (a Lanzar with a
 // Rol other than the pilot's) has ended since: in any of those, another job
@@ -756,7 +757,12 @@
 // and cut when it does not fit even so. When that aprobar ends with code
 // 0 (Termino), the model orders Lanzar{Rol: "piloto", Args: {"piloto",
 // <slug>}}, with its own Registro entry as above; with another code it
-// launches nothing. Without auto the Firma modal is the v2's.
+// launches nothing. Without auto the Firma modal is the v2's. When the board
+// closes while that aprobar runs (q, ctrl-c, a signal or an error), the
+// pilot is not launched, and hoom tablero says so (decision of Henry): after
+// giving the terminal back, after MensajeSalida, one line on Out per card,
+// in order, "el piloto de <slug> no se lanza solo: cuando termine la firma,
+// hoom piloto <slug>" (Modelo.PilotosSinLanzar, MensajePilotos).
 //
 // The board does not look at the pilot's lock (.hoom/cache/locks): it only
 // knows the pilots it launched.
@@ -966,10 +972,13 @@
 // closes and the message line says in red the action's why or "cambio lo
 // que ibas a confirmar en <slug>: vuelve a abrirlo"), and a signature that
 // does not fit whole is never signed: when its lines do not fit in the
-// modal's height, or a command (its "hoom aprobar <slug> --si" or its "y
-// despues: hoom piloto <slug>") is cut in the width, enter on the action's
-// button says in red "agranda la terminal: la firma no entra entera" and
-// runs nothing.
+// modal's height, or its "y despues: hoom piloto <slug>" (the process the
+// board launches by itself after) is cut in the width, enter on the
+// action's button says in red "agranda la terminal: la firma no entra
+// entera" and runs nothing. The action's own command keeps the v2's layout
+// and rule (decision: with the widest modal a valid slug of 60 to 64
+// characters does not fit whole in "  <slug> --si", and enlarging the
+// terminal would not help; the line of the pilot, 5 cells shorter, fits).
 //
 // Guardar (s, and enter or n when the step is guardar): title "<label> ·
 // <slug>", "Se guarda en git:", one line per path, "", "Se va a

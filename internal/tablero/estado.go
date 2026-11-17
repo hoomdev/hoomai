@@ -2,6 +2,7 @@ package tablero
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -231,15 +232,23 @@ func (m *Modelo) Leer(l Lectura) []Orden {
 			}
 		}
 	}
-	// the pilots' stops that no longer stand, after the first read started
-	// after a stop gives it the card's column
+	// the pilots' stops that no longer stand; the first read started after
+	// a stop gives it the card's column, and one started before says
+	// nothing of it
 	for slug, p := range m.paradas {
 		c := m.tarjeta(slug)
-		if c != nil && p.porLeer && (l.Pedida.IsZero() || !l.Pedida.Before(p.desde)) {
+		if c == nil {
+			delete(m.paradas, slug)
+			continue
+		}
+		if p.porLeer {
+			if !l.Pedida.IsZero() && l.Pedida.Before(p.desde) {
+				continue
+			}
 			p.columna, p.porLeer = c.Column, false
 			m.paradas[slug] = p
 		}
-		if c == nil || c.Column != p.columna || c.Running != nil && idDe(c.Running) != p.running {
+		if c.Column != p.columna || c.Running != nil && idDe(c.Running) != p.running {
 			delete(m.paradas, slug)
 		}
 	}
@@ -639,6 +648,31 @@ func (m *Modelo) Corriendo() int {
 		}
 	}
 	return n
+}
+
+// PilotosSinLanzar are the cards, in order, whose Firma chained "y despues:
+// hoom piloto <slug>" while their aprobar has not ended (Termino): closing
+// the board now leaves those pilots unlaunched.
+func (m *Modelo) PilotosSinLanzar() []string {
+	var out []string
+	for _, la := range m.lanzados {
+		if la.encadenar != "" {
+			out = append(out, la.encadenar)
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// MensajePilotos is what hoom tablero prints, after MensajeSalida, for each
+// card of PilotosSinLanzar: "el piloto de <slug> no se lanza solo: cuando
+// termine la firma, hoom piloto <slug>".
+func MensajePilotos(slugs []string) []string {
+	out := make([]string, 0, len(slugs))
+	for _, s := range slugs {
+		out = append(out, fmt.Sprintf("el piloto de %s no se lanza solo: cuando termine la firma, hoom piloto %s", s, s))
+	}
+	return out
 }
 
 // MensajeSalida is what hoom tablero prints when it gives the terminal

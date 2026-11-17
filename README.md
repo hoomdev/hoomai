@@ -883,7 +883,10 @@ CORRIENDO, y cuando se detiene el Registro dice `se detuvo: <motivo>` (en
 verde si se detuvo en una columna tuya o en Hecho, en rojo si no). Con el
 piloto encendido, firmar el spec con `A` lo encadena: el modal suma
 `y despues: hoom piloto <slug>` y, si `hoom aprobar` termina bien, el
-tablero lo lanza. Cuando Seguir solo no vale, la linea de mensajes dice por
+tablero lo lanza. Si cierras el tablero antes de que la firma termine, ese
+piloto no se lanza, y al salir el tablero lo dice:
+`el piloto de <slug> no se lanza solo: cuando termine la firma, hoom piloto <slug>`.
+Cuando Seguir solo no vale, la linea de mensajes dice por
 que (por ejemplo,
 `el piloto no esta encendido en la tarjeta: hoom item set <slug> --auto hasta-humano`)
 y nada se abre. Ver [El piloto automatico](#el-piloto-automatico-hoom-piloto).
