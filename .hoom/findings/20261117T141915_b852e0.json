@@ -1,0 +1,11 @@
+{
+  "id": "20261117T141915_b852e0",
+  "created_at": "2026-11-17T14:19:15.396923Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt4c_fixtures_test.go",
+  "description": "INTRODUCIDO — internal/tablero/tt4c_fixtures_test.go:206: los helpers de geometría repiten desplazamientos anónimos (`6`, `len(ls)-5`, `ls[5]`, `len(ls)-4`, `len(ls)-3`) entre las líneas 206 y 282. Aunque el comentario inicial documenta el layout, cada helper obliga a traducir nuevamente esos números y un cambio de layout requiere localizar todos los cálculos; constantes locales con nombres de fila/inicio/fin harían explícito el contrato sin acoplar los tests a la implementación.",
+  "author": "reviewer@codex",
+  "fingerprint": "f5a519e9bd1dad36",
+  "task": "tablero-tu-siguiente-paso"
+}
