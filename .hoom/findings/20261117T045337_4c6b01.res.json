@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T045337_4c6b01",
+  "as": "refutado",
+  "evidence": "FALSO POR EL CORTE (politica de Henry: lo que el tramo 3 trae se refuta asi). Los tests heredados tt2_* adaptados a la API v3 llegan en el tramo 3; el tramo 1/2 no los trae y por eso su paquete de tests no compila solo. En el arbol completo (worktree .hoom/worktrees/tablero-tu-siguiente-paso, rama hoom/tablero-tu-siguiente-paso, b296fa6), con codigo de produccion identico al de los tramos (git diff --stat 523628b fe23cb6 y fe23cb6 b296fa6, sin tests ni testdata: vacio): grep -rc 'tablero\\.Panel\\b|PanelTarjetas|LugarVerCorriendo' internal/tablero/ no da ningun archivo con cuenta distinta de 0, y go test ./internal/tablero/ -run '^$' -count=1 compila: \"ok github.com/hoomdev/hoomai/internal/tablero 0.162s [no tests to run]\". Veredicto verde .hoom/verdicts/2026-11-17T04-32-27Z_3ed50d59.json del commit 43965a2 (build pass, test pass, lint pass).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-11-17T05:13:18.615297Z"
+}

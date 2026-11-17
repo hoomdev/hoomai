@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/tarjetacmd"
 	"github.com/hoomdev/hoomai/internal/valores"
 )
@@ -20,6 +21,7 @@ type lineaModal struct {
 	campo   int  // the Pedir field it is the line of (-1: none)
 	botones bool // the buttons' line
 	accion  int  // Acciones: the index of its action (-1: none)
+	cortada bool // a line of "y despues: hoom piloto <slug>" cut in the width (Firma never signs with one)
 }
 
 func lm(l linea) lineaModal { return lineaModal{l: l, campo: -1, accion: -1} }
@@ -259,19 +261,23 @@ func lineaDeAyuda(t string, c int) string {
 // puts the label on the command's first line.
 func (m *Modelo) lineasEjecutar(args []string, c int, junto bool) []lineaModal {
 	if junto {
-		var out []lineaModal
-		ls, _ := lineasComando(args, c, "Se va a ejecutar: ", m.c.Windows, m.s.corte)
-		for _, l := range ls {
-			out = append(out, lm(lin(m.s.enPantalla(l))))
-		}
-		return out
+		ls, _ := m.lineasDeComando(args, c, "Se va a ejecutar: ")
+		return ls
 	}
-	out := []lineaModal{lm(lin("Se va a ejecutar:"))}
-	ls, _ := lineasComando(args, c, "", m.c.Windows, m.s.corte)
+	ls, _ := m.lineasDeComando(args, c, "")
+	return append([]lineaModal{lm(lin("Se va a ejecutar:"))}, ls...)
+}
+
+// lineasDeComando are the lines of the command args after prefijo, laid out
+// by words in at most two lines (cut when it does not fit even so), and
+// whether it fits whole.
+func (m *Modelo) lineasDeComando(args []string, c int, prefijo string) ([]lineaModal, bool) {
+	ls, entero := lineasComando(args, c, prefijo, m.c.Windows, m.s.corte)
+	out := make([]lineaModal, 0, len(ls))
 	for _, l := range ls {
 		out = append(out, lm(lin(m.s.enPantalla(l))))
 	}
-	return out
+	return out, entero
 }
 
 // compacto is what the Pedir modal gives up to fit in B lines.
@@ -329,26 +335,55 @@ func (m *Modelo) pedirEntero(p *pedir) bool {
 	return entero
 }
 
-// ---------------------------------------------------------------- Firma and Guardar
+// ---------------------------------------------------------------- Firma, Guardar and Seguir solo
 
-// confirmacion is the Firma or the Guardar modal.
+// confirmacion is the Firma, the Guardar or the Seguir solo modal.
 type confirmacion struct {
 	slug   string
 	accion boardcmd.Action
-	firma  bool     // aprobar or integrar; false: guardar
+	firma  bool     // aprobar or integrar
+	seguir bool     // Seguir solo; neither: guardar
 	verbo  []string // what the action's button runs
 	boton  int      // the chosen button
 	texto  string
 	paths  []string
 	spec   string // sha256 of the spec the card's detail showed; "" = not read
+	piloto bool   // aprobar on a card with the pilot on: "y despues: hoom piloto <slug>"
+	titulo string // Seguir solo's: the card's title
 }
 
-// etiquetas are its buttons: Firma's Cancelar first, Guardar's the action.
+// etiqueta is the action's label.
+func (cf *confirmacion) etiqueta() string {
+	if cf.seguir {
+		return etiquetaSeguir
+	}
+	return cf.accion.Label
+}
+
+// etiquetas are its buttons: Firma's Cancelar first, Guardar's and Seguir
+// solo's the action.
 func (cf *confirmacion) etiquetas() [2]string {
 	if cf.firma {
 		return [2]string{"Cancelar", cf.accion.Label}
 	}
-	return [2]string{cf.accion.Label, "Cancelar"}
+	return [2]string{cf.etiqueta(), "Cancelar"}
+}
+
+// textoSeguir is the text of the Seguir solo modal.
+const textoSeguir = "El piloto lleva la tarjeta sola: tests, codigo, verify, review y rondas de hallazgos, " +
+	"hasta tu aceptacion o hasta que algo lo frene. Nunca firma ni acepta."
+
+// abrirSeguir opens the Seguir solo modal of c.
+func (m *Modelo) abrirSeguir(c *boardcmd.Card) {
+	m.cerrarModal()
+	m.conf = &confirmacion{slug: c.Slug, seguir: true, verbo: []string{"piloto", c.Slug}, texto: textoSeguir,
+		titulo: tituloDe(c)}
+	m.modal = ModalSeguir
+}
+
+// conPiloto says whether the Firma of the action a on c chains the pilot.
+func conPiloto(c *boardcmd.Card, a boardcmd.Action) bool {
+	return a.ID == boardcmd.ActAprobar && c.Item.Auto == item.AutoHastaHumano
 }
 
 // ejecuta says whether the chosen button is the action's.
@@ -359,6 +394,7 @@ func (m *Modelo) abrirConfirmacion(c *boardcmd.Card, a boardcmd.Action, firma bo
 	if firma {
 		cf.texto = tarjetacmd.TextoFirma(*c, a)
 		cf.spec = m.huellaSpec(c.Slug)
+		cf.piloto = conPiloto(c, a)
 	} else {
 		cf.paths = rutasSinGuardar(c, a)
 	}
@@ -376,7 +412,7 @@ func (m *Modelo) lineasConfirmacion(cf *confirmacion, c, paso int, paths []strin
 			out = append(out, lm(lin("")))
 		}
 	}
-	if cf.firma {
+	if cf.firma || cf.seguir {
 		for _, l := range envolverPalabras(cf.texto, c) {
 			out = append(out, lm(lin(l)))
 		}
@@ -388,6 +424,13 @@ func (m *Modelo) lineasConfirmacion(cf *confirmacion, c, paso int, paths []strin
 	}
 	vacia()
 	out = append(out, m.lineasEjecutar(cf.verbo, c, paso >= 2)...)
+	if cf.piloto {
+		ls, entero := m.lineasDeComando([]string{"piloto", cf.slug}, c, "y despues: ")
+		for i := range ls {
+			ls[i].cortada = !entero
+		}
+		out = append(out, ls...)
+	}
 	vacia()
 	bl, _ := botones(cf.etiquetas(), cf.boton, c)
 	out = append(out, lineaModal{l: bl, marca: true, botones: true, campo: campoBotones, accion: -1})
@@ -404,7 +447,7 @@ func (m *Modelo) lineasConfirmacionQueEntran(cf *confirmacion, c, alto int) []li
 			return ls
 		}
 	}
-	if !cf.firma {
+	if !cf.firma && !cf.seguir {
 		fijas := len(ls) - len(cf.paths)
 		if n := alto - fijas; n >= 1 && len(cf.paths) > n {
 			paths := append(cf.paths[:n-1:n-1], fmt.Sprintf("y %d rutas mas", len(cf.paths)-(n-1)))
@@ -435,19 +478,38 @@ func (m *Modelo) enConfirmacion(t Tecla) []Orden {
 			m.avisar("agranda la terminal: la firma no entra entera", rojo, DuracionAviso)
 			return nil
 		}
+		if cf.seguir {
+			la := m.lanzarPiloto(cf.slug)
+			m.cerrarModal()
+			return []Orden{la.o}
+		}
 		la := m.lanzar(cf.slug, "", cf.verbo)
 		m.registrarVerbo(la, cf.accion.Label, lineaVerbo(cf.verbo, m.c.Windows))
+		if cf.piloto {
+			la.encadenar = cf.slug
+		}
 		m.cerrarModal()
 		return []Orden{la.o}
 	}
 	return nil
 }
 
-// firmaCabe says whether the open signature fits whole on the screen.
+// firmaCabe says whether the open signature fits whole on the screen: every
+// line in the modal's height, and "y despues: hoom piloto <slug>" (the
+// process it launches by itself) not cut in the width.
 func (m *Modelo) firmaCabe() bool {
 	c := m.modalAncho() - 6
 	alto := m.c.Alto - 2 - 2
-	return len(m.lineasConfirmacionQueEntran(m.conf, c, alto)) <= alto
+	ls := m.lineasConfirmacionQueEntran(m.conf, c, alto)
+	if len(ls) > alto {
+		return false
+	}
+	for _, l := range ls {
+		if l.cortada {
+			return false
+		}
+	}
+	return true
 }
 
 // rutasSinGuardar are the paths guardar would save: the action's, else the
@@ -477,6 +539,12 @@ func (m *Modelo) vigente(cf *confirmacion) (string, bool) {
 	if c == nil {
 		return fmt.Sprintf("la tarjeta %s ya no existe", cf.slug), false
 	}
+	if cf.seguir {
+		if why := m.motivoSinSeguir(c); why != "" {
+			return why, false
+		}
+		return "", true
+	}
 	a, ok := c.Action(cf.accion.ID)
 	switch {
 	case !ok:
@@ -488,6 +556,9 @@ func (m *Modelo) vigente(cf *confirmacion) (string, bool) {
 			return cambio, false
 		}
 		if cf.spec != "" && m.huellaSpec(cf.slug) != cf.spec {
+			return cambio, false
+		}
+		if conPiloto(c, a) != cf.piloto {
 			return cambio, false
 		}
 	case !slices.Equal(rutasSinGuardar(c, a), cf.paths):
@@ -621,24 +692,25 @@ func (m *Modelo) abrirAyuda(l Lugar) {
 	m.modal = ModalAyuda
 }
 
-// grupos are the help's panel groups, in order, with their title.
-var grupos = []struct {
-	l      Lugar
-	titulo string
+// gruposAyuda are the help's first three groups, with their title and the
+// Lugares of their rows.
+var gruposAyuda = []struct {
+	titulo  string
+	lugares []Lugar
 }{
-	{LugarProyecto, "[1] Proyecto"}, {LugarTarjetas, "[2] Tarjetas"}, {LugarCorriendo, "[3] Corriendo"},
-	{LugarHallazgos, "[4] Hallazgos"}, {LugarVerProyecto, "[0] el proyecto"}, {LugarVerTarjeta, "[0] una tarjeta"},
-	{LugarVerCorriendo, "[0] lo que corre"}, {LugarVerHallazgo, "[0] un hallazgo"},
+	{"Tarjetas", []Lugar{LugarTarjetas, LugarBusqueda}},
+	{"Detalle", LugaresVer},
+	{"Hallazgos", []Lugar{LugarHallazgos}},
 }
 
-// enTodasPartes says whether the row works in every panel Lugar.
-func enTodasPartes(a Atajo) bool {
-	for _, l := range LugaresPaneles {
-		if !contieneLugar(a.Lugares, l) {
-			return false
+// trabajaEn says whether the row works in one of ls.
+func trabajaEn(a Atajo, ls []Lugar) bool {
+	for _, l := range ls {
+		if contieneLugar(a.Lugares, l) {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 // filasAyuda are a row's lines in the help, c cells wide: wrapped at the
@@ -664,67 +736,60 @@ func (m *Modelo) filasAyuda(a Atajo, c int) []lineaModal {
 func (m *Modelo) lineasAyuda() []lineaModal {
 	var out []lineaModal
 	c := m.modalAncho() - 6
-	grupo := func(titulo string, filas []Atajo) {
+	type grupo struct {
+		titulo  string
+		lugares []Lugar
+	}
+	// the group of where the focus is, then the other two, then Modales
+	primero := 0
+	switch {
+	case contieneLugar(LugaresVer, m.ayuda.desde):
+		primero = 1
+	case m.ayuda.desde == LugarHallazgos:
+		primero = 2
+	}
+	var orden []grupo
+	orden = append(orden, grupo(gruposAyuda[primero]))
+	for i, g := range gruposAyuda {
+		if i != primero {
+			orden = append(orden, grupo(g))
+		}
+	}
+	orden = append(orden, grupo{"Modales", LugaresModales})
+	listadas := map[int]bool{}
+	for _, g := range orden {
 		if len(out) > 0 {
 			out = append(out, lm(lin("")))
 		}
-		out = append(out, lm(lin(titulo)))
-		for _, a := range filas {
+		out = append(out, lm(lin(g.titulo)))
+		for i, a := range Atajos {
+			if listadas[i] || !trabajaEn(a, g.lugares) {
+				continue
+			}
+			listadas[i] = true
 			out = append(out, m.filasAyuda(a, c)...)
 		}
 	}
-	delPanel := func(l Lugar) []Atajo {
-		var out []Atajo
-		for _, a := range AtajosDe(l) {
-			if !enTodasPartes(a) {
-				out = append(out, a)
-			}
-		}
-		if l == LugarTarjetas {
-			out = append(out, AtajosDe(LugarBusqueda)...)
-		}
-		return out
-	}
-	desde := m.ayuda.desde
-	titulo := "[0]"
-	for _, g := range grupos {
-		if g.l == desde {
-			titulo = g.titulo
-		}
-	}
-	grupo(titulo, delPanel(desde))
-	var todas []Atajo
-	for _, a := range Atajos {
-		if enTodasPartes(a) {
-			todas = append(todas, a)
-		}
-	}
-	grupo("En todas partes", todas)
-	for _, g := range grupos {
-		if g.l != desde {
-			grupo(g.titulo, delPanel(g.l))
-		}
-	}
-	var modales []Atajo
-	for _, a := range Atajos {
-		for _, l := range LugaresModales {
-			if contieneLugar(a.Lugares, l) {
-				modales = append(modales, a)
-				break
-			}
-		}
-	}
-	grupo("Modales", modales)
 	out = append(out, lm(lin("")), lm(lin("Mouse")))
 	if m.c.Mouse {
 		for _, l := range []string{
-			"  clic              foco al panel; en una fila, la elige",
-			"  rueda             mueve la seleccion; en [0] y en la ayuda, desplaza",
+			"  clic              foco a la lista o al detalle; en una tarjeta, la elige",
+			"  clic en la caja   elige la tarjeta de tu siguiente paso",
+			"  rueda             mueve la seleccion de la lista; en el detalle y en la ayuda, desplaza",
 			"  clic en un modal  enfoca un campo, elige una opcion o un boton",
 			"  para seleccionar texto con el mouse, manten Option (macOS) o Shift",
 		} {
-			for _, p := range envolverLinea(lin(l), c) {
-				out = append(out, lm(p))
+			// a line that does not fit goes on from the column of Hace, 20
+			cabeza, resto := "  ", strings.TrimPrefix(l, "  ")
+			if celdas(l) > 20 && strings.TrimSpace(l[:20]) != "" && l[19] == ' ' {
+				cabeza, resto = l[:20], l[20:]
+			}
+			for i, p := range envolverDos(resto, max(10, c-celdas(cabeza)), max(10, c-20)) {
+				if i == 0 {
+					out = append(out, lm(lin(cabeza+p)))
+				} else {
+					out = append(out, lm(lin(strings.Repeat(" ", 20)+p)))
+				}
 			}
 		}
 	} else {
@@ -752,6 +817,57 @@ func (m *Modelo) desplazarAyuda(d int) {
 	ls := m.lineasAyuda()
 	alto := min(len(ls)+2, m.c.Alto-2) - 2
 	m.ayuda.scroll = max(0, min(m.ayuda.scroll+d, len(ls)-alto))
+}
+
+// ---------------------------------------------------------------- Registro
+
+// verRegistro is the Registro modal.
+type verRegistro struct {
+	scroll int
+}
+
+// abrirRegistro opens the Registro modal at its end.
+func (m *Modelo) abrirRegistro() {
+	m.cerrarModal()
+	m.reg = &verRegistro{scroll: 1 << 30}
+	m.modal = ModalRegistro
+}
+
+// lineasRegistro are the Registro modal's text lines: every entry's lines,
+// the oldest on top.
+func (m *Modelo) lineasRegistro() []lineaModal {
+	if len(m.registro) == 0 {
+		return []lineaModal{lm(lin("todavia no se ejecuto nada"))}
+	}
+	var out []lineaModal
+	for _, a := range m.registro {
+		for _, l := range a.lineas(m.s) {
+			out = append(out, lm(l))
+		}
+	}
+	return out
+}
+
+func (m *Modelo) enRegistro(t Tecla) {
+	switch t {
+	case "j", TeclaAbajo:
+		m.desplazarRegistro(1)
+	case "k", TeclaArriba:
+		m.desplazarRegistro(-1)
+	case TeclaPgAbajo:
+		m.desplazarRegistro(max(1, m.c.Alto-4))
+	case TeclaPgArriba:
+		m.desplazarRegistro(-max(1, m.c.Alto-4))
+	case TeclaEsc, "L":
+		m.cerrarModal()
+	}
+}
+
+func (m *Modelo) desplazarRegistro(d int) {
+	ls := m.lineasRegistro()
+	alto := min(len(ls)+2, m.c.Alto-2) - 2
+	m.reg.scroll = max(0, min(m.reg.scroll, len(ls)-alto))
+	m.reg.scroll = max(0, min(m.reg.scroll+d, len(ls)-alto))
 }
 
 // ---------------------------------------------------------------- the modal on screen
@@ -788,6 +904,9 @@ func (m *Modelo) geometria() (modalEnPantalla, bool) {
 	case ModalFirma, ModalGuardar:
 		g.titulo = m.conf.accion.Label + " · " + m.conf.slug
 		ls = m.lineasConfirmacionQueEntran(m.conf, c, b-2)
+	case ModalSeguir:
+		g.titulo = etiquetaSeguir + " · " + m.conf.titulo
+		ls = m.lineasConfirmacionQueEntran(m.conf, c, b-2)
 	case ModalAcciones:
 		g.titulo = "Acciones · " + m.acciones.slug
 		ls = m.lineasAcciones()
@@ -799,6 +918,15 @@ func (m *Modelo) geometria() (modalEnPantalla, bool) {
 		if len(ls) > alto {
 			g.pos = fmt.Sprintf("%d de %d", m.ayuda.scroll+alto, len(ls))
 			ls = ls[m.ayuda.scroll : m.ayuda.scroll+alto]
+		}
+	case ModalRegistro:
+		g.titulo = "Registro"
+		ls = m.lineasRegistro()
+		alto := min(len(ls)+2, b) - 2
+		m.reg.scroll = max(0, min(m.reg.scroll, len(ls)-alto))
+		if len(ls) > alto {
+			g.pos = fmt.Sprintf("%d de %d", m.reg.scroll+alto, len(ls))
+			ls = ls[m.reg.scroll : m.reg.scroll+alto]
 		}
 	}
 	hm := min(len(ls)+2, b)
@@ -888,8 +1016,8 @@ func (m *Modelo) filaLista(ops []opcion, i int, o opcion) linea {
 	return lin(strings.TrimRight(t, " "))
 }
 
-// dibujarModal draws the open modal (and its list) over the panels; with
-// color the panels behind it go gray.
+// dibujarModal draws the open modal (and its list) over the screen; with
+// color the lines behind it go gray.
 func (m *Modelo) dibujarModal(lz *lienzo) {
 	g, ok := m.geometria()
 	if !ok {
@@ -968,4 +1096,15 @@ func (m *Modelo) dibujarLista(lz *lienzo, g modalEnPantalla) {
 		pos = strconv.Itoa(p.lista.idx+1) + " de " + strconv.Itoa(len(g.listaOps))
 	}
 	m.borde(lz, r.x, r.y+r.h-1, r.w, s.esqII, s.linea, s.esqID, pos, normal)
+}
+
+// envolverDos wraps s at its words: the first line in w1 cells, the others
+// in w2 (a word longer than its line is cut hard).
+func envolverDos(s string, w1, w2 int) []string {
+	primera := envolverPalabrasEspacios(s, w1)
+	if len(primera) <= 1 {
+		return primera
+	}
+	resto := strings.TrimLeft(strings.TrimPrefix(s, primera[0]), " ")
+	return append([]string{primera[0]}, envolverPalabrasEspacios(resto, w2)...)
 }

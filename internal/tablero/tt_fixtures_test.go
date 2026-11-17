@@ -5,7 +5,10 @@
 // CLI de IA en el PATH), helpers para manejar el Modelo sin terminal y para
 // leer su pantalla de paneles. Los archivos dorados de testdata/ se
 // escribieron a mano desde el contrato de doc.go y el spec; ningun test los
-// regenera desde el codigo.
+// regenera desde el codigo. La v3 (spec tablero-tu-siguiente-paso,
+// CA-696..CA-721) no tiene paneles numerados: ttCajas sigue leyendo el
+// Registro plegado, y la cabecera, la caja TU SIGUIENTE PASO, la lista y el
+// detalle se leen con los helpers de tt4b_fixtures_test.go (tv3b*).
 package tablero_test
 
 import (
@@ -829,9 +832,6 @@ func ttFocos(m *tablero.Modelo) []string {
 	}
 	return out
 }
-
-// ttNombrePanel es el nombre en pantalla de un Panel.
-func ttNombrePanel(p tablero.Panel) string { return fmt.Sprintf("[%d]", int(p)) }
 
 // ---------------------------------------------------------------- el modal
 

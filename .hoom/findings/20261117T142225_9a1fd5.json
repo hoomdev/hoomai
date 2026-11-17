@@ -1,0 +1,11 @@
+{
+  "id": "20261117T142225_9a1fd5",
+  "created_at": "2026-11-17T14:22:25.797034Z",
+  "severity": "low",
+  "lens": "risk",
+  "file": "internal/tablero/tt2_controles_test.go",
+  "description": "INTRODUCIDO: TestCA534_ControlesEnLosTextos ya no abre el modal Registro antes de verificarlo (internal/tablero/tt2_controles_test.go:152), de modo que el pedido hostil solo se comprueba en la linea plegada, donde el comando no aparece. El reemplazo en internal/tablero/tt2_registro_test.go:289 solo rechaza ESC y no afirma que tab, CR, BEL, C1, DEL o controles bidi se neutralicen dentro del modal L; una regresion de inyeccion o suplantacion visual en ese nuevo camino podria pasar el gate.",
+  "author": "reviewer@codex",
+  "fingerprint": "be3c7f1e82cdbe2a",
+  "task": "tablero-tu-siguiente-paso"
+}

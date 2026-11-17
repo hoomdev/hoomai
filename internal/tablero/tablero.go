@@ -22,12 +22,14 @@ import (
 // UsageText is the usage block of `hoom tablero`.
 const UsageText = `Uso: hoom tablero
 
-Abre el tablero en la terminal, a pantalla completa y con paneles: el
-proyecto, las tarjetas, lo que corre y los hallazgos a la izquierda, y a la
-derecha el detalle de lo que elegis y el registro de lo que se ejecuto. Una
-tecla por accion (? muestra todas) y cada accion ejecuta un verbo de la
-tarjeta (hoom pedir, aprobar, guardar, integrar, reanudar, usar) despues de
-mostrar en un modal el comando exacto. HOOM_MOUSE=0 apaga el mouse.
+Abre el tablero en la terminal, a pantalla completa y ordenado por quien
+tiene la pelota: arriba la caja TU SIGUIENTE PASO dice que te toca ahora (n
+lo abre); abajo, las tarjetas agrupadas (TE TOCA, CORRIENDO, DETENIDA, EN
+COLA, HECHO) y el detalle de la elegida (AHORA, TE TOCA, SIGUE, EL CAMINO).
+enter abre el paso de la tarjeta y cada accion ejecuta un verbo (hoom pedir,
+aprobar, guardar, integrar, reanudar, usar, piloto) despues de mostrar en un
+modal el comando exacto; P es Seguir solo (hoom piloto). ? muestra todas las
+teclas y L el registro de lo que se ejecuto. HOOM_MOUSE=0 apaga el mouse.
 Necesita una terminal; sin terminal usa hoom board.
 'hoom tablero' no tiene flags ni argumentos.`
 
@@ -163,7 +165,8 @@ func Real() Entorno {
 // writing the terminal, its end of file included (1, "hoom: <error>" on Err
 // after giving it back), and with a panic, in Run or in what it calls
 // (given back, then the panic goes on in Run's goroutine). After giving it
-// back it prints MensajeSalida on Out when it is not empty. While the
+// back it prints MensajeSalida on Out when it is not empty, then the lines
+// of MensajePilotos for Modelo.PilotosSinLanzar (CA-717). While the
 // editor is open (AbrirEditor, EditarPedido) the terminal is given back the
 // same way (the mouse off) and taken again after (the mouse asked again).
 //
@@ -367,7 +370,11 @@ func ArgumentosEditor(editor, archivo string, linea int) []string {
 // Args in dir, detached (a process group and a session of its own on Unix;
 // a new process group without a console on Windows), with stdin empty and
 // stdout and stderr to two new files in the directory logs (created when
-// missing). Its FinProceso.Ultima comes from those files.
+// missing). Its FinProceso.Ultima comes from those files. Its
+// FinProceso.Code is the process's exit code, 128 + the signal's number when
+// a signal ended it (as Run's own), and 1 when waiting for it failed
+// otherwise: never -1, since the process started. In those last two, when
+// the files say nothing, its Ultima is the error.
 func LanzadorDe(hoom, dir, logs string) Lanzador {
 	return &lanzadorReal{hoom: hoom, dir: dir, logs: logs}
 }

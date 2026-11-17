@@ -42,6 +42,10 @@ type Lectura struct {
 	// line says "no se pudo leer el tablero: <Err>" until a read works.
 	Err    error
 	Fijada string // the card hoom usar fixed ("" = none): [1]'s fourth line
+	// Pedida is when the read was started (zero = unknown: it counts as
+	// started after every end before it). A pilot's stop takes the card's
+	// column from the first read started after that stop.
+	Pedida time.Time
 }
 
 // Detalle is the read of the card [0] shows (Modelo.Elegida): Run reads it
@@ -153,8 +157,10 @@ type Asiento struct {
 
 // FinProceso is a process the TUI launched that ended (or could not start).
 type FinProceso struct {
-	ID   int // Lanzar.ID of the order that started it
-	Code int // its exit code; -1 when it could not start
+	ID int // Lanzar.ID of the order that started it
+	// Code is its exit code; -1 only when it could not start (its Lanzar
+	// failed): a process that started never ends with -1 (LanzadorDe).
+	Code int
 	// Ultima is the last line of what it said that is not empty: of its
 	// stderr, or of its stdout when stderr was empty (or the start error),
 	// without a leading "hoom: ".

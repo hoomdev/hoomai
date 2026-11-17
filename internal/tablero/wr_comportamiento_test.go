@@ -6,7 +6,7 @@ import (
 )
 
 // Pruebas propias del writer que miran estado interno del modelo (la
-// geometria de los paneles y del modal); el comportamiento por la API
+// geometria de las zonas y del modal); el comportamiento por la API
 // publica lo prueban los tt_* del test-writer.
 
 func wrContiene(t *testing.T, m *Modelo, s string) {
@@ -23,15 +23,17 @@ func TestWRMouse(t *testing.T) {
 		t.Fatalf("decodifica: %+v", es)
 	}
 	m := wrModelo(100, 25, true)
-	// a click on [4]'s second row
-	c := m.caja(PanelHallazgos)
-	if ords := m.Raton(Raton{RatonClic, 5, c.r.y + 2}, wrAhora); len(ords) != 0 {
+	// la vista Hallazgos: un clic en su segunda fila
+	wrTeclas(m, "H", TeclaTab)
+	l := m.disponer().lista
+	if ords := m.Raton(Raton{RatonClic, 5, l.y + 2}, wrAhora); len(ords) != 0 {
 		t.Fatalf("un clic no da ordenes: %v", ords)
 	}
-	if h, _ := m.hallazgoElegido(); m.Foco() != PanelHallazgos || h.ID != "f-low" {
+	if h, _ := m.hallazgoElegido(); m.Foco() != ZonaLista || h.ID != "f-low" {
 		t.Fatalf("el clic da el foco y elige la fila: %v %q", m.Foco(), h.ID)
 	}
-	wrTeclas(m, "2", "j", "w")
+	// de vuelta a las tarjetas: el writer que corre (CORRIENDO, segunda fila)
+	wrTeclas(m, "H", "j", "w")
 	g, _ := m.geometria()
 	for i, l := range g.lineas {
 		if l.botones {

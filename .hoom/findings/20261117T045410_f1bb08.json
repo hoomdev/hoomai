@@ -1,0 +1,11 @@
+{
+  "id": "20261117T045410_f1bb08",
+  "created_at": "2026-11-17T04:54:10.156738Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/estado.go",
+  "description": "INTRODUCIDO. CA-715 permite Seguir solo otra vez cuando corrio otro trabajo en la tarjeta, pero internal/tablero/estado.go:232 solo elimina la parada si una lectura alcanza a ver un Running con otro ID. Si un rol lanzado desde el tablero empieza y termina entre dos lecturas de 2 segundos, o la lectura falla mientras corre, Termino no limpia m.paradas y la lectura siguiente ve la misma columna sin Running; P queda bloqueada y AHORA conserva la parada vieja aunque ya corrio otro trabajo. Es una carrera rara de sondeo, sin perdida de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

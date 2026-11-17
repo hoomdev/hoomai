@@ -17,9 +17,12 @@ type signos struct {
 	flechaIzq, flechaDer, cursor, corte, puntos   string
 	// the arrows of the keys line and the help, in that order: ↑ ↓ ← →
 	flechas [4]string
+	// the path: before, TE TOCA, CORRIENDO, DETENIDA, EN COLA and after
+	antes, teToca, corriendo, detenida, despues string
+	// the time bar: run and left; the quotes of a title; the DETENIDA mark
+	barraHecha, barraFalta, comillaAbre, comillaCierra, marcaDetenida string
 	// the TUI's own words with accents
-	decisionTitulo, queFalta, tiempoLimite, narracion string
-	escribio, reviso, narro, ultimo                   string
+	tiempoLimite, narracion, escribio, reviso, ultimo string
 }
 
 var signosUTF8 = signos{
@@ -29,9 +32,10 @@ var signosUTF8 = signos{
 	esqSI: "┌", esqSD: "┐", esqII: "└", esqID: "┘", lado: "│", linea: "─",
 	fEsqSI: "╔", fEsqSD: "╗", fEsqII: "╚", fEsqID: "╝", fLado: "║", fLinea: "═",
 	flechaIzq: "‹", flechaDer: "›", cursor: "▌", corte: "…", puntos: "…",
-	flechas:        [4]string{"↑", "↓", "←", "→"},
-	decisionTitulo: "NECESITA TU DECISIÓN", queFalta: "¿Qué falta?", tiempoLimite: "Tiempo límite",
-	narracion: "Narración", escribio: "escribió", reviso: "revisó", narro: "narró", ultimo: "último",
+	flechas: [4]string{"↑", "↓", "←", "→"},
+	antes:   "●", teToca: "◆", corriendo: "◉", detenida: "✗", despues: "○",
+	barraHecha: "█", barraFalta: "░", comillaAbre: "«", comillaCierra: "»", marcaDetenida: "✗",
+	tiempoLimite: "Tiempo límite", narracion: "Narración", escribio: "escribió", reviso: "revisó", ultimo: "último",
 }
 
 var signosASCII = signos{
@@ -41,9 +45,10 @@ var signosASCII = signos{
 	esqSI: "+", esqSD: "+", esqII: "+", esqID: "+", lado: "|", linea: "-",
 	fEsqSI: "#", fEsqSD: "#", fEsqII: "#", fEsqID: "#", fLado: "#", fLinea: "=",
 	flechaIzq: "<", flechaDer: ">", cursor: "_", corte: "~", puntos: "...",
-	flechas:        [4]string{"^", "v", "<", ">"},
-	decisionTitulo: "NECESITA TU DECISION", queFalta: "Que falta?", tiempoLimite: "Tiempo limite",
-	narracion: "Narracion", escribio: "escribio", reviso: "reviso", narro: "narro", ultimo: "ultimo",
+	flechas: [4]string{"^", "v", "<", ">"},
+	antes:   "#", teToca: "!", corriendo: "*", detenida: "x", despues: "-",
+	barraHecha: "#", barraFalta: "-", comillaAbre: `"`, comillaCierra: `"`, marcaDetenida: "x",
+	tiempoLimite: "Tiempo limite", narracion: "Narracion", escribio: "escribio", reviso: "reviso", ultimo: "ultimo",
 }
 
 // conFlechas is s (a Muestra or a Barra of the table, written with UTF-8

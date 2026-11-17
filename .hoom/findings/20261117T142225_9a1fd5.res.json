@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T142225_9a1fd5",
+  "as": "corregido",
+  "evidence": "Commit f24c046 (solo tests): TestCA534_ControlesEnLosTextos vuelve a afirmar lo que afirmaba el panel del Registro de la v2. Abre el modal L (CA-714), exige ModalRegistro, aplica ttSinControles con el conjunto completo y el texto 'hoom pedir writer tarjeta -m ', exige que ninguna runa del Comando de la entrada en Registro() sea ttEsControl (falla si no hay entrada) y que esc cierre el modal. TestCA563_ElComandoCortadoAlModal revisa el conjunto entero de controles en la pantalla, en el modal y en el Comando, y conserva las comprobaciones de ESC. Tests del test-writer B, que no leyo la implementacion. Mutacion (pedir.go:570 registra el pedido crudo, 'hoom '+strings.Join(args,' ')): los tests nuevos fallan (tt2_controles_test.go:173, U+001B en el Comando; tt2_registro_test.go:310, U+0009) y los de antes pasan, que era el hueco. Sobre el codigo real: go test -race ./internal/tablero/ ok (323 s), gofmt y vet limpios.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T14:47:59.600734Z"
+}

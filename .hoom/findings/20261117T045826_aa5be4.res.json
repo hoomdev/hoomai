@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T045826_aa5be4",
+  "as": "corregido",
+  "evidence": "Commit d3d7058: limiteDe (internal/tablero/lista.go) da el limite solo con timeout_s \u003e 0 y que entre en un time.Duration; la fila, la Narracion y la barra lo usan, y barraDeTiempo (detalle.go) calcula f en coma flotante y lo deja entre 0 y 20, asi que un sidecar con timeout_s negativo o enorme ya no hace panic (doc.go lo dice). Regresion a ciegas (tests del test-writer, escritos desde doc.go sin leer la implementacion): rojos sobre dde3de5 (el codigo de antes del arreglo, con solo la API nueva agregada para compilar) y verdes sobre 26a205f con go test -race -count=1: TestV3A_CA708_LimiteDanadoEsSinLimite, TranscurridoEnormeBarraLlena y LimiteEnLaFronteraDeUnaDuracion fallan antes (panic recuperado y aserciones) y pasan despues; EmpezadoEnElFuturoBarraVacia pasa en los dos (internal/tablero/tt4a_tiempo_test.go).",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T06:13:32.967024Z"
+}

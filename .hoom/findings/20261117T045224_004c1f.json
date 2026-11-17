@@ -1,0 +1,11 @@
+{
+  "id": "20261117T045224_004c1f",
+  "created_at": "2026-11-17T04:52:24.47166Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/tablero/despacho.go",
+  "description": "INTRODUCIDO. CA-712 exige que esc desde la vista Hallazgos vuelva a Tarjetas aun con foco en el detalle; internal/tablero/despacho.go:289 envia todo esc del detalle a ponerZona(ZonaLista) y conserva VistaHallazgos, por lo que H seguido de tab o enter y esc solo enfoca la lista de hallazgos y requiere un segundo esc. El test agregado omite precisamente esc en el detalle en internal/tablero/tt4_detalle_test.go:1008.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

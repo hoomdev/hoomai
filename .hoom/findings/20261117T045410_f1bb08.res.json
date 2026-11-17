@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T045410_f1bb08",
+  "as": "corregido",
+  "evidence": "Commit d3d7058: Termino (internal/tablero/estado.go) borra la parada del piloto de la tarjeta cuando termina un trabajo que el tablero lanzo sobre ella (un Lanzar con Rol distinto del piloto), aunque ninguna lectura lo haya visto corriendo; doc.go lo dice en 'A pilot's stop'. Regresion a ciegas (tests del test-writer, escritos desde doc.go sin leer la implementacion): rojos sobre dde3de5 (el codigo de antes del arreglo, con solo la API nueva agregada para compilar) y verdes sobre 26a205f con go test -race -count=1: TestV3C_CA715_ElTrabajoQueTerminaLevantaLaParada y UnTrabajoDeAntesQueTerminaDespuesLaLevanta fallan antes y pasan despues; LoQueNoEsUnTrabajoNoLevantaLaParada (el caso negativo) pasa en los dos.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T06:13:32.894537Z"
+}

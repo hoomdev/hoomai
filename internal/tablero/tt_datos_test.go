@@ -2,9 +2,10 @@
 // CA-559, CA-560 y CA-562): DatosDe sobre un proyecto en disco (git con
 // gittest.EntornoSolo, ningun provider): el tablero de boardcmd.Build, la
 // tarjeta fijada, el detalle con su historia y la cinta del Sobre con solo
-// los ultimos MaxSobre bytes de la narracion, el proyecto ([1]), los
-// hallazgos abiertos ([4]) y las lineas del archivo de un hallazgo por el
-// os.Root del proyecto.
+// los ultimos MaxSobre bytes de la narracion, el proyecto (la cabecera y el
+// detalle del proyecto con v; [1] en la v2), los hallazgos abiertos (la
+// vista Hallazgos con H; [4] en la v2) y las lineas del archivo de un
+// hallazgo por el os.Root del proyecto. CA-556 lo re-expresa CA-708 en la v3.
 package tablero_test
 
 import (
@@ -132,10 +133,11 @@ func TestCA530_DatosDeTableroYFijada(t *testing.T) {
 // CA-521, CA-523, CA-556: el detalle es el de boardcmd.DetailFor sin diff,
 // con la historia de boardcmd.TimelineFor, y el Sobre trae solo los eventos
 // de los ultimos MaxSobre bytes de la narracion del run mas nuevo (caso
-// limite: un log de varios MB). Re-expresado por CA-556: [0] de una tarjeta
-// es un solo documento con su Historia, asi que el Detalle la trae siempre
-// (en la v1 solo cuando su pestana la pedia).
-func TestCA523_CA556_DatosDeDetalleYSobre(t *testing.T) {
+// limite: un log de varios MB). Re-expresado por CA-556 y en la v3 por
+// CA-708: el detalle de una tarjeta es un solo documento con su Historia (la
+// parte F, despues de AHORA, TE TOCA, SIGUE y EL CAMINO), asi que el Detalle
+// la trae siempre (en la v1 solo cuando su pestana la pedia).
+func TestCA523_CA708_CA556_DatosDeDetalleYSobre(t *testing.T) {
 	root, runID := ttProyecto(t)
 	d := ttDatosDe(t, root)
 	det := d.Detalle("datos")
@@ -163,7 +165,7 @@ func TestCA523_CA556_DatosDeDetalleYSobre(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(det.Historia.Entries) != len(tl.Entries) || len(tl.Entries) == 0 {
-		t.Fatalf("CA-556: el detalle trae la historia de boardcmd.TimelineFor: %d entradas, se esperaban %d", len(det.Historia.Entries), len(tl.Entries))
+		t.Fatalf("CA-708, CA-556: el detalle trae la historia de boardcmd.TimelineFor: %d entradas, se esperaban %d", len(det.Historia.Entries), len(tl.Entries))
 	}
 	if mal := d.Detalle("no-existe"); mal.Err == nil {
 		t.Fatalf("CA-521: el detalle de una tarjeta que no existe es un error")
@@ -239,7 +241,7 @@ func ttRunDeHoy(t *testing.T, root, id string, costo *float64) {
 
 // CA-560, CA-562: Proyecto lee la rama de gitx ("main" en el repositorio de
 // prueba), el check de hoom status (sin veredicto: ReasonNoVerdict y
-// Veredicto nil, lo que [1] dice "sin veredicto todavia"), el gasto de hoy de
+// Veredicto nil, lo que la cabecera dice "sin veredicto todavia"), el gasto de hoy de
 // costcmd.HoyEn con el reloj local y los problemas de boardcmd.Doctor; sin
 // error.
 func TestCA560_CA562_DatosDeProyecto(t *testing.T) {
@@ -282,8 +284,8 @@ func TestCA560_CA562_DatosDeProyecto(t *testing.T) {
 	}
 }
 
-// CA-560, caso limite: sin repositorio git, Proyecto dice Git false ([1]:
-// "sin git") y no es un error.
+// CA-560, caso limite: sin repositorio git, Proyecto dice Git false (la
+// cabecera: "sin git") y no es un error.
 func TestCA560_DatosDeProyectoSinGit(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

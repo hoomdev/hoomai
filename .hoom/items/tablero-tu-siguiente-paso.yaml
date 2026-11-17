@@ -1,0 +1,6 @@
+titulo: El tablero dice tu siguiente paso (hoom tablero v3)
+tipo: feature
+prioridad: media
+pedido: 'Spec .hoom/specs/tablero-tu-siguiente-paso.md (CA-696..721, firmado 8a14b1e4): hoom tablero v3. Cabecera de una linea, caja TU SIGUIENTE PASO, lista agrupada por quien tiene la pelota (TE TOCA, CORRIENDO, DETENIDA, EN COLA, HECHO), detalle AHORA / TE TOCA / SIGUE / EL CAMINO, Seguir solo (P, hoom piloto desprendido), la firma encadena el piloto, enter abre el modal del paso, n, H, v, L; boardcmd.Red.Esperado. Re-expresa 11 criterios de tablero-con-paneles.'
+creado_por: Henry Orellana <henry.orellana@oceansbits.com>
+creado_en: 2026-11-16T20:50:33Z

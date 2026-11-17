@@ -1,0 +1,11 @@
+{
+  "id": "20261117T150512_56b14c",
+  "created_at": "2026-11-17T15:05:12.153646Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt2_paneles_test.go",
+  "description": "INTRODUCIDO: internal/tablero/tt2_paneles_test.go:319 representa los escenarios aleatorios con caso := r.Intn(5) y obliga a recordar que 0 significa running, 1 interrupted, 2 rojo no esperado y 3 rojo esperado en dos switch separados (lineas 320 y 333). El oraculo queda dificil de leer y ambas interpretaciones pueden divergir al extenderlo; usar constantes con nombre o una tabla de escenarios que construya la tarjeta y su grupo esperado juntos.",
+  "author": "reviewer@codex",
+  "fingerprint": "be3c7f1e82cdbe2a",
+  "task": "tablero-tu-siguiente-paso"
+}

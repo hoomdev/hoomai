@@ -1,8 +1,10 @@
-// Las teclas (spec tablero-con-paneles CA-564, que re-expresa CA-532 de la
-// v1; y CA-533): Decodificar (sin cambios de la v1), la tabla Atajos por
-// Lugar, la linea de teclas y la ayuda desde la misma tabla, y las dos
-// propiedades del contrato: toda tecla de la ayuda tiene efecto y ninguna
-// tecla fuera de la tabla lo tiene.
+// Las teclas (spec tablero-tu-siguiente-paso CA-718, que re-expresa CA-564
+// de tablero-con-paneles, que re-expresaba CA-532 de la v1; CA-705 y CA-706;
+// y CA-533): Decodificar (sin cambios de la v1), la tabla Atajos por Lugar,
+// la linea de teclas y la ayuda desde la misma tabla, y las dos propiedades
+// del contrato: toda tecla de la ayuda tiene efecto y ninguna tecla fuera de
+// la tabla lo tiene. En la v3 no hay paneles numerados: la lista, el
+// detalle, la vista Hallazgos y los modales (doc.go, "The keys").
 package tablero_test
 
 import (
@@ -18,6 +20,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
 	"github.com/hoomdev/hoomai/internal/finding"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/tablero"
 )
 
@@ -92,7 +95,7 @@ func TestCA532_DecodificarPropiedadImprimibles(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- la tabla (CA-564)
+// ---------------------------------------------------------------- la tabla (CA-718)
 
 // ttFilas son las filas de Atajos que valen en l, en el orden de la tabla
 // (calculadas aca, no con AtajosDe).
@@ -109,35 +112,37 @@ func ttFilas(l tablero.Lugar) []tablero.Atajo {
 	return out
 }
 
-// CA-564, CA-532: AtajosDe(l) son las filas de Atajos de l, en el orden de la
-// tabla; cada Lugar tiene filas; un Lugar desconocido no tiene.
-func TestCA564_CA532_AtajosDe(t *testing.T) {
+// CA-718, CA-564, CA-532: AtajosDe(l) son las filas de Atajos de l, en el
+// orden de la tabla; cada Lugar tiene filas; un Lugar desconocido no tiene.
+// La v3 tiene 18 Lugares (atajos.go): sin los de [1] y [3] de la v2 ni su
+// [0], y con Seguir solo y el Registro.
+func TestCA718_CA564_CA532_AtajosDe(t *testing.T) {
 	for _, l := range tablero.LugaresTodos {
 		quiere := ttFilas(l)
 		if len(quiere) == 0 {
-			t.Fatalf("CA-564: el Lugar %q tiene filas en Atajos", l)
+			t.Fatalf("CA-718: el Lugar %q tiene filas en Atajos", l)
 		}
 		if got := tablero.AtajosDe(l); !reflect.DeepEqual(got, quiere) {
-			t.Fatalf("CA-564: AtajosDe(%q) son sus %d filas en orden, dio %d", l, len(quiere), len(got))
+			t.Fatalf("CA-718: AtajosDe(%q) son sus %d filas en orden, dio %d", l, len(quiere), len(got))
 		}
 	}
 	if got := tablero.AtajosDe("no-es-un-lugar"); len(got) != 0 {
-		t.Fatalf("CA-564: un Lugar desconocido no tiene teclas: %#v", got)
+		t.Fatalf("CA-718: un Lugar desconocido no tiene teclas: %#v", got)
 	}
-	if len(tablero.LugaresTodos) != 19 {
-		t.Fatalf("CA-564 (guarda): los Lugares son los 19 del contrato: %d", len(tablero.LugaresTodos))
+	if len(tablero.LugaresTodos) != 18 {
+		t.Fatalf("CA-718 (guarda): los Lugares son los 18 del contrato: %d", len(tablero.LugaresTodos))
 	}
 }
 
-// CA-564 (guarda de la tabla): en ningun Lugar una tecla esta en dos filas:
-// el despacho no puede elegir entre dos.
-func TestCA564_SinTeclasRepetidasPorLugar(t *testing.T) {
+// CA-718, CA-564 (guarda de la tabla): en ningun Lugar una tecla esta en dos
+// filas: el despacho no puede elegir entre dos.
+func TestCA718_CA564_SinTeclasRepetidasPorLugar(t *testing.T) {
 	for _, l := range tablero.LugaresTodos {
 		visto := map[tablero.Tecla]string{}
 		for _, a := range ttFilas(l) {
 			for _, k := range a.Teclas {
 				if otra, ok := visto[k]; ok {
-					t.Fatalf("CA-564: en %q la tecla %q esta en dos filas: %q y %q", l, k, otra, a.Hace)
+					t.Fatalf("CA-718: en %q la tecla %q esta en dos filas: %q y %q", l, k, otra, a.Hace)
 				}
 				visto[k] = a.Hace
 			}
@@ -145,21 +150,24 @@ func TestCA564_SinTeclasRepetidasPorLugar(t *testing.T) {
 	}
 }
 
-// CA-564, CA-525, CA-532: las teclas de accion ejecutan los verbos de la tabla
-// del spec, con sus acciones; n es la accion del siguiente paso, sin verbo
-// propio (en la v1 ejecutaba hoom siguiente: CA-566 lo re-expresa).
-func TestCA564_CA525_VerbosDeLaTabla(t *testing.T) {
+// CA-718, CA-564, CA-525, CA-532: las teclas de accion ejecutan los verbos de
+// la tabla del spec, con sus acciones; enter es el paso de la tarjeta
+// elegida y n el de la tarjeta de la caja (CA-705, que re-expresa CA-566),
+// los dos sin verbo propio; P es Seguir solo, con hoom piloto (CA-715).
+func TestCA718_CA564_CA525_VerbosDeLaTabla(t *testing.T) {
 	quiere := map[tablero.Tecla][2]string{
-		"n": {"", tablero.AccionSiguiente},
-		"a": {"hoom pedir arquitecto <slug>", boardcmd.ActPedirArquitecto},
-		"t": {"hoom pedir test-writer <slug>", boardcmd.ActPedirTestWriter},
-		"w": {"hoom pedir writer <slug>", boardcmd.ActPedirWriter},
-		"r": {"hoom pedir reviewer <slug>", boardcmd.ActPedirReviewer},
-		"R": {"hoom reanudar <slug>", boardcmd.ActReanudar},
-		"s": {"hoom guardar <slug>", boardcmd.ActGuardar},
-		"A": {"hoom aprobar <slug> --si", boardcmd.ActAprobar},
-		"I": {"hoom integrar <slug> --si", boardcmd.ActIntegrar},
-		"u": {"hoom usar <slug>", tablero.AccionUsar},
+		tablero.TeclaEnter: {"", tablero.AccionPaso},
+		"n":                {"", tablero.AccionSiguiente},
+		"P":                {"hoom piloto <slug>", tablero.AccionSeguir},
+		"a":                {"hoom pedir arquitecto <slug>", boardcmd.ActPedirArquitecto},
+		"t":                {"hoom pedir test-writer <slug>", boardcmd.ActPedirTestWriter},
+		"w":                {"hoom pedir writer <slug>", boardcmd.ActPedirWriter},
+		"r":                {"hoom pedir reviewer <slug>", boardcmd.ActPedirReviewer},
+		"R":                {"hoom reanudar <slug>", boardcmd.ActReanudar},
+		"s":                {"hoom guardar <slug>", boardcmd.ActGuardar},
+		"A":                {"hoom aprobar <slug> --si", boardcmd.ActAprobar},
+		"I":                {"hoom integrar <slug> --si", boardcmd.ActIntegrar},
+		"u":                {"hoom usar <slug>", tablero.AccionUsar},
 	}
 	for k, q := range quiere {
 		var fila *tablero.Atajo
@@ -172,7 +180,7 @@ func TestCA564_CA525_VerbosDeLaTabla(t *testing.T) {
 			}
 		}
 		if fila == nil {
-			t.Fatalf("CA-564: la tecla %q esta en la tabla de [2]", k)
+			t.Fatalf("CA-718: la tecla %q esta en la tabla de la lista de tarjetas", k)
 		}
 		if fila.Verbo != q[0] || fila.Accion != q[1] {
 			t.Fatalf("CA-525: la tecla %q ejecuta %q (accion %q), la tabla dice %q (%q)", k, q[0], q[1], fila.Verbo, fila.Accion)
@@ -187,109 +195,180 @@ func ttAscii(s string) string {
 	return strings.NewReplacer("↑", "^", "↓", "v", "←", "<", "→", ">").Replace(s)
 }
 
-// ttLineaTeclasQuiere es la linea de teclas de l segun doc.go: los Barra de
-// sus filas en orden, con la pista del siguiente paso despues de "n
-// siguiente paso" (sig, "" sin ella), sin las de la tarjeta si no hay
-// tarjeta, y el ajuste al ancho.
+// ttLineaTeclasQuiere es la linea de teclas de l segun doc.go ("The two last
+// lines"): los Barra de sus filas en orden, salvo la fila de enter con
+// AccionPaso, cuya pista es sig ("enter <paso>", "enter abrir" o "enter
+// cerrar" en HECHO; "" sin paso: sin pista); sin las de la tarjeta
+// (DeTarjeta) si no hay tarjeta; y el ajuste al ancho: "? todas las teclas"
+// pasa a "? todas" y despues se quitan las de antes de la ultima, de la de
+// justo antes hacia atras, nunca la primera cuando es la de enter (CA-718).
+// (El corte de la ultima cuando no entra sola no lo usa ningun caso.)
 func ttLineaTeclasQuiere(l tablero.Lugar, conTarjeta bool, sig string, ancho int, utf bool) string {
 	var pistas []string
+	primeraEnter := false
 	for _, a := range ttFilas(l) {
-		if a.Barra == "" {
+		b := a.Barra
+		if a.Accion == tablero.AccionPaso {
+			b = sig // la pista de enter depende de lo elegido
+		}
+		if b == "" {
 			continue
 		}
 		if !conTarjeta && a.DeTarjeta {
-			continue // las filas de la tarjeta (DeTarjeta: espacio, n y las de accion)
+			continue // las filas de la tarjeta (DeTarjeta: espacio, P y las de accion)
 		}
-		b := a.Barra
 		if !utf {
 			b = ttAscii(b)
 		}
-		pistas = append(pistas, b)
-		if a.Accion == tablero.AccionSiguiente && sig != "" {
-			pistas = append(pistas, sig)
+		if len(pistas) == 0 && len(a.Teclas) > 0 && a.Teclas[0] == tablero.TeclaEnter {
+			primeraEnter = true
 		}
+		pistas = append(pistas, b)
 	}
 	mide := func(ps []string) int { return ttCeldas(" " + strings.Join(ps, " · ")) }
 	if mide(pistas) > ancho && len(pistas) > 0 && pistas[len(pistas)-1] == "? todas las teclas" {
 		pistas[len(pistas)-1] = "? todas"
 	}
 	for mide(pistas) > ancho && len(pistas) > 1 {
+		if len(pistas) == 2 && primeraEnter {
+			break // la de enter no se quita nunca
+		}
 		pistas = append(pistas[:len(pistas)-2], pistas[len(pistas)-1])
 	}
 	return " " + strings.Join(pistas, " · ")
 }
 
-// CA-564: la ultima linea muestra, en palabras, solo las teclas del lugar
-// con foco o del modal abierto, desde la tabla; con el ajuste al ancho de
-// doc.go (los dos dibujos del spec: a 100 columnas entera, a 60 con "?
-// todas"). Re-expresa CA-532 (la barra 2 de la v1).
-func TestCA564_CA532_LaLineaDeTeclas(t *testing.T) {
-	// los dos dibujos del contrato
-	m := ttModeloDorado(ttConfig(100, 30, true))
-	if got := ttLineaTeclas(m); got != " ↑↓ elegir · enter ver · espacio acciones · n siguiente paso · A aprobar spec · ? todas las teclas" {
-		t.Fatalf("CA-564: a 100 columnas, [2] en Tu aprobacion: %q", got)
+// CA-718: la ultima linea muestra, en palabras, solo las teclas del Lugar
+// actual o del modal abierto, desde la tabla: primero la pista de enter para
+// lo elegido, en negrita ("enter <etiqueta del paso>", "enter abrir" o
+// "enter cerrar" en HECHO, "enter ver" en la vista Hallazgos, ninguna sin
+// paso), y el ajuste al ancho de doc.go, que no quita nunca la de enter (el
+// dibujo del contrato a 100 columnas y el del spec a 80x24). Re-expresa
+// CA-564 (y CA-532, la barra 2 de la v1).
+func TestCA718_CA564_CA532_LaLineaDeTeclas(t *testing.T) {
+	const paso = "enter aprobar spec" // nuc-tenancy, en Tu aprobacion: su paso es aprobar
+	for _, x := range []struct {
+		ancho, alto int
+		utf         bool
+		quiere      string
+	}{
+		{100, 30, true, " enter aprobar spec · n tu siguiente paso · ↑↓ elegir · tab detalle · espacio acciones · ? todas"},
+		{80, 24, false, " enter aprobar spec · n tu siguiente paso · ^v elegir · tab detalle · ? todas"},
+		{60, 15, true, " enter aprobar spec · n tu siguiente paso · ? todas"},
+	} {
+		m := ttModeloDorado(ttConfig(x.ancho, x.alto, x.utf))
+		if m.Lugar() != tablero.LugarTarjetas || m.Elegida() != "nuc-tenancy" {
+			t.Fatalf("CA-718 (guarda): al abrir, la lista con foco en nuc-tenancy: %q %q", m.Lugar(), m.Elegida())
+		}
+		if got := ttLineaTeclas(m); got != x.quiere {
+			t.Fatalf("CA-718: a %d columnas, la lista en nuc-tenancy (Tu aprobacion):\n %q\nse esperaba\n %q", x.ancho, got, x.quiere)
+		}
+		if q := ttLineaTeclasQuiere(tablero.LugarTarjetas, true, paso, x.ancho, x.utf); q != x.quiere {
+			t.Fatalf("CA-718 (guarda de ttLineaTeclasQuiere): a %d columnas da %q", x.ancho, q)
+		}
 	}
-	m = ttModeloDorado(ttConfig(60, 15, true))
-	if got := ttLineaTeclas(m); got != " ↑↓ elegir · enter ver · espacio acciones · ? todas" {
-		t.Fatalf("CA-564: a 60 columnas: %q", got)
+	// la vista Hallazgos a 60 columnas: "enter ver" primero, y no se quita
+	h := ttModeloDorado(ttConfig(60, 15, true))
+	h.Tecla("H", ttAhora)
+	const enHallazgos = " enter ver · ↑↓ elegir · e editor · esc volver · ? todas"
+	if got := ttLineaTeclas(h); h.Lugar() != tablero.LugarHallazgos || got != enHallazgos ||
+		ttLineaTeclasQuiere(tablero.LugarHallazgos, false, "", 60, true) != enHallazgos {
+		t.Fatalf("CA-718: a 60 columnas, la vista Hallazgos (%q):\n %q\nse esperaba\n %q", h.Lugar(), got, enHallazgos)
 	}
-	m = ttModeloDorado(ttConfig(80, 24, false))
-	if got := ttLineaTeclas(m); got != " ^v elegir · enter ver · espacio acciones · n siguiente paso · ? todas" {
-		t.Fatalf("CA-564: a 80 columnas en ASCII: %q", got)
+	// con color, la pista de enter va en negrita (1) y la que le sigue sin estilo
+	for _, x := range []struct {
+		teclas           []tablero.Tecla
+		pista, siguiente string
+	}{
+		{nil, paso, "n tu siguiente paso"},
+		{[]tablero.Tecla{"H"}, "enter ver", "↑↓ elegir"},
+	} {
+		cfg := ttConfig(200, 50, true)
+		cfg.Color = true
+		m := ttModeloDorado(cfg)
+		ttTeclas(m, x.teclas...)
+		p := m.Pantalla()
+		crudo := p[len(p)-1]
+		if e := ttEstiloDe(crudo, x.pista); e != "\x1b[1m" {
+			t.Fatalf("CA-718: con color, la pista %q va en negrita (1): %q en %q", x.pista, e, crudo)
+		}
+		if e := ttEstiloDe(crudo, x.siguiente); e != "" {
+			t.Fatalf("CA-718: la pista %q no lleva estilo: %q en %q", x.siguiente, e, crudo)
+		}
 	}
 	// cada lugar, a 200 columnas (todo entra)
+	teclas := func(ks ...tablero.Tecla) func(*tablero.Modelo) {
+		return func(m *tablero.Modelo) { ttTeclas(m, ks...) }
+	}
 	casos := []struct {
+		nombre string
 		lugar  tablero.Lugar
-		teclas []tablero.Tecla
+		ir     func(*tablero.Modelo)
 		tarj   bool
 		sig    string
 	}{
-		{tablero.LugarTarjetas, nil, true, "A aprobar spec"},
-		{tablero.LugarTarjetas, []tablero.Tecla{"G"}, false, ""},
-		{tablero.LugarProyecto, []tablero.Tecla{"1"}, false, ""},
-		{tablero.LugarCorriendo, []tablero.Tecla{"3"}, true, ""},
-		{tablero.LugarHallazgos, []tablero.Tecla{"4"}, false, ""},
-		{tablero.LugarVerTarjeta, []tablero.Tecla{tablero.TeclaEnter}, true, "A aprobar spec"},
-		{tablero.LugarVerProyecto, []tablero.Tecla{"1", tablero.TeclaEnter}, false, ""},
-		{tablero.LugarVerHallazgo, []tablero.Tecla{"4", tablero.TeclaEnter}, false, ""},
-		{tablero.LugarVerNada, []tablero.Tecla{"G", "0"}, false, ""},
-		{tablero.LugarBusqueda, []tablero.Tecla{"/"}, false, ""},
-		{tablero.LugarAcciones, []tablero.Tecla{tablero.TeclaEspacio}, true, "A aprobar spec"},
-		{tablero.LugarFirma, []tablero.Tecla{"A"}, false, ""},
-		{tablero.LugarAyuda, []tablero.Tecla{"?"}, false, ""},
+		{"la lista en nuc-tenancy", tablero.LugarTarjetas, teclas(), true, paso},
+		{"la lista en precios (sin paso)", tablero.LugarTarjetas, func(m *tablero.Modelo) { tv3bIrA(t, m, "precios") }, true, ""},
+		{"la linea de HECHO cerrada", tablero.LugarTarjetas, func(m *tablero.Modelo) { tv3bIrAHecho(t, m) }, false, "enter abrir"},
+		{"la linea de HECHO abierta", tablero.LugarTarjetas, func(m *tablero.Modelo) { tv3bIrAHecho(t, m); m.Tecla(tablero.TeclaEnter, ttAhora) }, false, "enter cerrar"},
+		{"la vista Hallazgos", tablero.LugarHallazgos, teclas("H"), false, ""},
+		{"el detalle de nuc-tenancy", tablero.LugarVerTarjeta, teclas(tablero.TeclaTab), true, paso},
+		{"el detalle del proyecto", tablero.LugarVerProyecto, teclas("v"), false, ""},
+		{"el detalle de un hallazgo", tablero.LugarVerHallazgo, teclas("H", tablero.TeclaTab), false, ""},
+		{"el detalle sin nada (HECHO)", tablero.LugarVerNada, func(m *tablero.Modelo) { tv3bIrAHecho(t, m); m.Tecla(tablero.TeclaTab, ttAhora) }, false, ""},
+		{"la busqueda", tablero.LugarBusqueda, teclas("/"), false, ""},
+		{"Acciones", tablero.LugarAcciones, teclas(tablero.TeclaEspacio), true, ""},
+		{"Firma", tablero.LugarFirma, teclas("A"), false, ""},
+		{"la ayuda", tablero.LugarAyuda, teclas("?"), false, ""},
+		{"el Registro", tablero.LugarRegistro, teclas("L"), false, ""},
 	}
 	for _, c := range casos {
 		m := ttModeloDorado(ttConfig(200, 50, false))
-		ttTeclas(m, c.teclas...)
+		c.ir(m)
 		if m.Lugar() != c.lugar {
-			t.Fatalf("CA-564 (guarda): %v lleva a %q, llevo a %q", c.teclas, c.lugar, m.Lugar())
+			t.Fatalf("CA-718 (guarda): %s es el Lugar %q, se llego a %q", c.nombre, c.lugar, m.Lugar())
+		}
+		if c.nombre == "la linea de HECHO abierta" && !strings.HasPrefix(tv3bElegida(t, "CA-718", m), "HECHO ") {
+			t.Fatalf("CA-718 (guarda): enter en la linea de HECHO la abre y la deja elegida: %q", tv3bElegida(t, "CA-718", m))
 		}
 		if got, q := ttLineaTeclas(m), ttLineaTeclasQuiere(c.lugar, c.tarj, c.sig, 200, false); got != q {
-			t.Fatalf("CA-564: la linea de teclas de %q es\n %q\nse esperaba\n %q", c.lugar, got, q)
+			t.Fatalf("CA-718: la linea de teclas de %s (%q) es\n %q\nse esperaba\n %q", c.nombre, c.lugar, got, q)
 		}
 	}
-	// CA-564, hallazgo 403795: tambien en [0] de lo que corre y en Guardar
+	// CA-718, hallazgo 403795: tambien en el detalle de una tarjeta que corre
+	// (la v2: [0] de lo que corre; CA-711), sin paso, en Guardar y en Seguir solo
 	v := ttModeloDorado(ttConfig(200, 50, false))
-	ttTeclas(v, "3", tablero.TeclaEnter)
-	if v.Lugar() != tablero.LugarVerCorriendo {
-		t.Fatalf("CA-564 (guarda): 3 y enter llevan a LugarVerCorriendo: %q", v.Lugar())
+	tv3bIrA(t, v, "infra-api")
+	tv3bAlDetalle(t, v)
+	if v.Lugar() != tablero.LugarVerTarjeta || v.Grupo("infra-api") != tablero.GrupoCorriendo {
+		t.Fatalf("CA-718 (guarda): tab en infra-api lleva al detalle de una tarjeta de CORRIENDO: %q %q", v.Lugar(), v.Grupo("infra-api"))
 	}
-	if got, q := ttLineaTeclas(v), ttLineaTeclasQuiere(tablero.LugarVerCorriendo, true, "", 200, false); got != q {
-		t.Fatalf("CA-564 (hallazgo 403795): la linea de teclas de %q es\n %q\nse esperaba\n %q", tablero.LugarVerCorriendo, got, q)
+	if got, q := ttLineaTeclas(v), ttLineaTeclasQuiere(tablero.LugarVerTarjeta, true, "", 200, false); got != q {
+		t.Fatalf("CA-718 (hallazgo 403795): la linea de teclas del detalle de infra-api (corre: sin paso) es\n %q\nse esperaba\n %q", got, q)
 	}
 	g := ttModelo(ttConfig(200, 50, false), ttTablero(ttTarjetaCon(ttAccionGuardar(true, "", "a.go"))))
 	g.Tecla("s", ttAhora)
 	if g.Lugar() != tablero.LugarGuardar {
-		t.Fatalf("CA-564 (guarda): s lleva a LugarGuardar: %q", g.Lugar())
+		t.Fatalf("CA-718 (guarda): s lleva a LugarGuardar: %q", g.Lugar())
 	}
 	if got, q := ttLineaTeclas(g), ttLineaTeclasQuiere(tablero.LugarGuardar, true, "", 200, false); got != q {
-		t.Fatalf("CA-564 (hallazgo 403795): la linea de teclas de %q es\n %q\nse esperaba\n %q", tablero.LugarGuardar, got, q)
+		t.Fatalf("CA-718 (hallazgo 403795): la linea de teclas de %q es\n %q\nse esperaba\n %q", tablero.LugarGuardar, got, q)
+	}
+	sola := ttTarjetaCon(ttAccionWriter())
+	sola.Item.Auto = item.AutoHastaHumano
+	s := ttModelo(ttConfig(200, 50, false), ttTablero(sola))
+	s.Tecla("P", ttAhora)
+	if s.Lugar() != tablero.LugarSeguir {
+		t.Fatalf("CA-718 (guarda): P en una tarjeta con el piloto encendido, en Writer, lleva a LugarSeguir: %q\n%s", s.Lugar(), ttPantalla(s))
+	}
+	if got, q := ttLineaTeclas(s), ttLineaTeclasQuiere(tablero.LugarSeguir, true, "", 200, false); got != q {
+		t.Fatalf("CA-718: la linea de teclas de %q es\n %q\nse esperaba\n %q", tablero.LugarSeguir, got, q)
 	}
 	// el modal Pedir: el dibujo del spec
 	p := ttPedir(t, "w", ttAccionWriter())
 	p.Tecla(tablero.TeclaTab, ttAhora)
 	if got := ttLineaTeclas(p); got != " tab campo · <> cambiar · enter ver opciones · ctrl-e editor · esc cerrar" {
-		t.Fatalf("CA-564: la linea de teclas de un selector (el dibujo del spec): %q", got)
+		t.Fatalf("CA-718: la linea de teclas de un selector (el dibujo del spec): %q", got)
 	}
 	for _, l := range []tablero.Lugar{tablero.LugarPedirPedido, tablero.LugarPedirBotones, tablero.LugarPedirLista, tablero.LugarPedirTexto} {
 		m := ttPedir(t, "w", ttAccionWriter())
@@ -306,53 +385,77 @@ func TestCA564_CA532_LaLineaDeTeclas(t *testing.T) {
 			m.Tecla(tablero.TeclaEnter, ttAhora)
 		}
 		if m.Lugar() != l {
-			t.Fatalf("CA-564 (guarda): no llegue a %q: %q", l, m.Lugar())
+			t.Fatalf("CA-718 (guarda): no llegue a %q: %q", l, m.Lugar())
 		}
 		if got, q := ttLineaTeclas(m), ttLineaTeclasQuiere(l, false, "", 200, false); got != q {
-			t.Fatalf("CA-564: la linea de teclas de %q es\n %q\nse esperaba\n %q", l, got, q)
+			t.Fatalf("CA-718: la linea de teclas de %q es\n %q\nse esperaba\n %q", l, got, q)
 		}
 	}
 }
 
 // ---------------------------------------------------------------- la ayuda
 
-// CA-564: ? abre el modal de la ayuda ("Todas las teclas") con todas las
-// teclas agrupadas: primero el grupo del lugar con foco, despues "En todas
-// partes", los otros paneles, "Modales" y "Mouse"; cada fila "  " + Muestra
-// rellena a 18 + Hace (+ su verbo); el grupo Mouse dice como seleccionar
-// texto (o, sin mouse, "apagado: HOOM_MOUSE=0"); esc y ? la cierran.
-// Re-expresa CA-532.
-func TestCA564_CA532_LaAyuda(t *testing.T) {
-	grupos := []string{"[2] Tarjetas", "En todas partes", "[1] Proyecto", "[3] Corriendo", "[4] Hallazgos", "[0] el proyecto",
-		"[0] una tarjeta", "[0] lo que corre", "[0] un hallazgo", "Modales", "Mouse"}
+// tv3bTecGrupos son los titulos de los grupos de la ayuda, en orden: sus
+// lineas de texto que no empiezan con un espacio (las filas empiezan con dos,
+// las continuaciones con su sangria).
+func tv3bTecGrupos(textos []string) []string {
+	var out []string
+	for _, l := range textos {
+		if l != "" && !strings.HasPrefix(l, " ") {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// tv3bTecGrupoDe es el titulo del grupo de la ayuda donde esta la primera
+// linea que empieza con prefijo, o "" si ninguna.
+func tv3bTecGrupoDe(textos []string, prefijo string) string {
+	grupo := ""
+	for _, l := range textos {
+		if l != "" && !strings.HasPrefix(l, " ") {
+			grupo = l
+			continue
+		}
+		if strings.HasPrefix(l, prefijo) {
+			return grupo
+		}
+	}
+	return ""
+}
+
+// CA-718: ? abre el modal de la ayuda ("Todas las teclas") con todas las
+// teclas agrupadas en "Tarjetas", "Detalle", "Hallazgos", "Modales" y
+// "Mouse", primero el grupo de donde esta el foco (despues los otros dos de
+// los tres primeros, en ese orden), una linea vacia entre grupos; cada fila
+// "  " + Muestra rellena a 18 + Hace (+ su verbo), una vez, en el primer
+// grupo cuyos Lugares la tienen (decision de doc.go); el grupo Mouse con las
+// lineas de la v3 (o, sin mouse, "apagado: HOOM_MOUSE=0"); 1, 2, 3, 4 y 0 no
+// estan (CA-706); esc y ? la cierran. Re-expresa CA-564 (y CA-532).
+func TestCA718_CA564_CA532_LaAyuda(t *testing.T) {
+	grupos := []string{"Tarjetas", "Detalle", "Hallazgos", "Modales", "Mouse"}
 	for _, mouse := range []bool{true, false} {
 		cfg := ttConfig(200, 300, false)
 		cfg.Mouse = mouse
 		m := ttModelo(cfg, ttTableroDorado())
-		ttSinOrdenes(t, "CA-564", "?", m.Tecla("?", ttAhora))
+		ttSinOrdenes(t, "CA-718", "?", m.Tecla("?", ttAhora))
 		if m.Modal() != tablero.ModalAyuda || m.Lugar() != tablero.LugarAyuda {
-			t.Fatalf("CA-564: ? abre la ayuda: %q %q", m.Modal(), m.Lugar())
+			t.Fatalf("CA-718: ? abre la ayuda: %q %q", m.Modal(), m.Lugar())
 		}
-		mc := ttModal(t, "CA-564", m, 200)
+		mc := ttModal(t, "CA-718", m, 200)
 		if !strings.HasPrefix(mc.Arriba, "# Todas las teclas ") {
-			t.Fatalf("CA-564: el titulo de la ayuda es 'Todas las teclas': %q", mc.Arriba)
+			t.Fatalf("CA-718: el titulo de la ayuda es 'Todas las teclas': %q", mc.Arriba)
 		}
-		pos := -1
-		for _, g := range grupos {
-			i := -1
-			for k, l := range mc.Textos {
-				if l == g && k > pos {
-					i = k
-					break
-				}
+		if got := tv3bTecGrupos(mc.Textos); strings.Join(got, "|") != strings.Join(grupos, "|") {
+			t.Fatalf("CA-718: abierta desde la lista, los grupos son %q: %q\n%s", grupos, got, strings.Join(mc.Textos, "\n"))
+		}
+		if len(mc.Textos) == 0 || mc.Textos[0] != grupos[0] {
+			t.Fatalf("CA-718: la ayuda empieza con el grupo de donde esta el foco: %q", mc.Textos[:min(3, len(mc.Textos))])
+		}
+		for i, l := range mc.Textos {
+			if i > 0 && l != "" && !strings.HasPrefix(l, " ") && mc.Textos[i-1] != "" {
+				t.Fatalf("CA-718: una linea vacia entre grupos (antes de %q)", l)
 			}
-			if i < 0 {
-				t.Fatalf("CA-564: la ayuda tiene el grupo %q despues del anterior:\n%s", g, strings.Join(mc.Textos, "\n"))
-			}
-			if i > 0 && mc.Textos[i-1] != "" {
-				t.Fatalf("CA-564: una linea vacia entre grupos (antes de %q)", g)
-			}
-			pos = i
 		}
 		todo := "\n" + strings.Join(mc.Textos, "\n") + "\n"
 		// R3: una linea que no entra en las Wm-6 = 66 celdas del texto se parte
@@ -369,99 +472,151 @@ func TestCA564_CA532_LaAyuda(t *testing.T) {
 				ok = ok || strings.Contains(todo, "\n"+strings.Join(ttPartir(v, 66, 20), "\n")+"\n")
 			}
 			if !ok {
-				t.Fatalf("CA-564: toda fila de la tabla esta en la ayuda, entera (partida por palabras si no entra):\n%q\n%s",
+				t.Fatalf("CA-718: toda fila de la tabla esta en la ayuda, entera (partida por palabras si no entra):\n%q\n%s",
 					ttPartir(variantes[0], 66, 20), todo)
 			}
 		}
-		if mouse {
-			for _, s := range []string{"  clic              foco al panel; en una fila, la elige",
-				"  rueda             mueve la seleccion; en [0] y en la ayuda, desplaza",
-				"  clic en un modal  enfoca un campo, elige una opcion o un boton",
-				"  para seleccionar texto con el mouse, manten Option (macOS) o Shift"} {
-				if q := strings.Join(ttPartir(s, 66, 2), "\n"); !strings.Contains(todo, "\n"+q+"\n") {
-					t.Fatalf("CA-564, CA-575: el grupo Mouse dice %q:\n%s", q, todo)
+		// cada fila en el primer grupo cuyos Lugares la tienen (abierta desde
+		// la lista los grupos van en el orden de la tabla del contrato)
+		for _, x := range []struct{ muestra, hace, grupo string }{
+			{"texto", "filtrar por slug o titulo", "Tarjetas"},               // LugarBusqueda
+			{"P", "seguir solo  hoom piloto ", "Tarjetas"},                   // LugaresConTarjeta
+			{"]c [c", "criterio sin prueba siguiente o anterior", "Detalle"}, // LugarVerTarjeta
+			{"enter", "foco al detalle del hallazgo", "Hallazgos"},           // LugarHallazgos
+			{"esc", "volver a las tarjetas", "Hallazgos"},                    // LugarHallazgos
+			{"esc L", "cerrar el registro", "Modales"},                       // LugarRegistro
+		} {
+			linea := "  " + fmt.Sprintf("%-18s", x.muestra) + x.hace
+			if g := tv3bTecGrupoDe(mc.Textos, linea); g != x.grupo {
+				t.Fatalf("CA-718: la fila %q esta en el grupo %q, esta en %q:\n%s", linea, x.grupo, g, todo)
+			}
+		}
+		// CA-706: 1, 2, 3, 4 y 0 no estan en la tabla ni en la ayuda
+		for _, a := range tablero.Atajos {
+			for _, k := range a.Teclas {
+				if len(k) == 1 && strings.Contains("01234", string(k)) {
+					t.Fatalf("CA-706: la tecla %q no esta en la tabla (fila %q)", k, a.Hace)
 				}
 			}
-			if !strings.Contains(todo, "\n  para seleccionar texto con el mouse, manten Option (macOS) o\n  Shift\n") {
-				t.Fatalf("CA-564 (guarda de ttPartir): la linea de 68 celdas se parte antes de Shift:\n%s", todo)
+		}
+		for _, d := range "01234" {
+			if strings.Contains(todo, "\n  "+string(d)+" ") {
+				t.Fatalf("CA-706: la ayuda no tiene la tecla %q:\n%s", string(d), todo)
+			}
+		}
+		if mouse {
+			// las lineas de Mouse se parten como las filas (doc.go, "Ayuda"):
+			// por sus palabras, cada continuacion desde la columna de Hace, 20;
+			// la de seleccionar texto, sin Muestra, usa en su primera linea todo
+			// el ancho despues de sus "  " (ttPartir arma la primera linea por
+			// palabras sobre el ancho entero, asi que su corte a 20 no la cambia)
+			for _, s := range []string{"  clic              foco a la lista o al detalle; en una tarjeta, la elige",
+				"  clic en la caja   elige la tarjeta de tu siguiente paso",
+				"  rueda             mueve la seleccion de la lista; en el detalle y en la ayuda, desplaza",
+				"  clic en un modal  enfoca un campo, elige una opcion o un boton",
+				"  para seleccionar texto con el mouse, manten Option (macOS) o Shift"} {
+				if q := strings.Join(ttPartir(s, 66, 20), "\n"); !strings.Contains(todo, "\n"+q+"\n") {
+					t.Fatalf("CA-718, CA-575: el grupo Mouse dice %q:\n%s", q, todo)
+				}
+				if g := tv3bTecGrupoDe(mc.Textos, ttPartir(s, 66, 20)[0]); g != "Mouse" {
+					t.Fatalf("CA-718: la linea %q esta en el grupo Mouse, esta en %q", s, g)
+				}
+			}
+			if !strings.Contains(todo, "\n  para seleccionar texto con el mouse, manten Option (macOS) o\n"+strings.Repeat(" ", 20)+"Shift\n") {
+				t.Fatalf("CA-718 (guarda de ttPartir): la linea de 68 celdas se parte antes de Shift, que sigue en la columna 20:\n%s", todo)
 			}
 		} else if !strings.Contains(todo, "\nMouse\n  apagado: HOOM_MOUSE=0\n") {
-			t.Fatalf("CA-564, CA-575: sin mouse, el grupo Mouse dice 'apagado: HOOM_MOUSE=0':\n%s", todo)
+			t.Fatalf("CA-718, CA-575: sin mouse, el grupo Mouse dice 'apagado: HOOM_MOUSE=0':\n%s", todo)
 		}
 		for _, cerrar := range []tablero.Tecla{tablero.TeclaEsc, "?"} {
-			ttSinOrdenes(t, "CA-564", string(cerrar), m.Tecla(cerrar, ttAhora))
+			ttSinOrdenes(t, "CA-718", string(cerrar), m.Tecla(cerrar, ttAhora))
 			if m.Modal() != tablero.SinModal || m.Lugar() != tablero.LugarTarjetas {
-				t.Fatalf("CA-564: %q cierra la ayuda: %q", cerrar, m.Modal())
+				t.Fatalf("CA-718: %q cierra la ayuda y vuelve a la lista: %q %q", cerrar, m.Modal(), m.Lugar())
 			}
 			m.Tecla("?", ttAhora)
 		}
 	}
-	// el primer grupo es el del lugar de donde se abrio
+	// el primer grupo es el de donde esta el foco; despues los otros dos de
+	// los tres primeros, en su orden, y Modales y Mouse
+	enDetalle := []string{"Detalle", "Tarjetas", "Hallazgos", "Modales", "Mouse"}
 	for _, c := range []struct {
-		teclas []tablero.Tecla
-		grupo  string
-	}{{[]tablero.Tecla{"3"}, "[3] Corriendo"}, {[]tablero.Tecla{"4", tablero.TeclaEnter}, "[0] un hallazgo"},
-		{[]tablero.Tecla{"G", "0"}, "[0]"}, {[]tablero.Tecla{"1"}, "[1] Proyecto"}} {
+		nombre string
+		ir     func(*tablero.Modelo)
+		orden  []string
+	}{
+		{"el detalle de una tarjeta", func(m *tablero.Modelo) { m.Tecla(tablero.TeclaTab, ttAhora) }, enDetalle},
+		{"el detalle del proyecto", func(m *tablero.Modelo) { m.Tecla("v", ttAhora) }, enDetalle},
+		{"el detalle sin nada (HECHO)", func(m *tablero.Modelo) { tv3bIrAHecho(t, m); m.Tecla(tablero.TeclaTab, ttAhora) }, enDetalle},
+		{"el detalle de un hallazgo", func(m *tablero.Modelo) { ttTeclas(m, "H", tablero.TeclaTab) }, enDetalle},
+		{"la lista de la vista Hallazgos", func(m *tablero.Modelo) { m.Tecla("H", ttAhora) },
+			[]string{"Hallazgos", "Tarjetas", "Detalle", "Modales", "Mouse"}},
+	} {
 		m := ttModeloDorado(ttConfig(200, 300, false))
-		ttTeclas(m, c.teclas...)
+		c.ir(m)
+		desde := m.Lugar()
 		m.Tecla("?", ttAhora)
-		mc := ttModal(t, "CA-564", m, 200)
-		if len(mc.Textos) == 0 || mc.Textos[0] != c.grupo {
-			t.Fatalf("CA-564: abierta desde %v, el primer grupo es %q: %q", c.teclas, c.grupo, mc.Textos[:min(3, len(mc.Textos))])
+		if m.Lugar() != tablero.LugarAyuda {
+			t.Fatalf("CA-718 (guarda): ? desde %s (%q) abre la ayuda: %q", c.nombre, desde, m.Lugar())
+		}
+		mc := ttModal(t, "CA-718", m, 200)
+		if got := tv3bTecGrupos(mc.Textos); strings.Join(got, "|") != strings.Join(c.orden, "|") || mc.Textos[0] != c.orden[0] {
+			t.Fatalf("CA-718: abierta desde %s (%q), los grupos son %q: %q", c.nombre, desde, c.orden, got)
 		}
 	}
 }
 
-// CA-564: la ayuda que no entra ocupa B lineas, su borde de abajo dice "<n>
-// de <m>" (n la ultima linea a la vista, m todas) y se desplaza con ↓ j ↑ k
-// (una linea) y pgdn pgup (su alto interior), entre su principio y su final.
-func TestCA564_LaAyudaSeDesplaza(t *testing.T) {
+// CA-718 (re-expresa CA-564): la ayuda que no entra ocupa B lineas, su borde
+// de abajo dice "<n> de <m>" (n la ultima linea a la vista, m todas) y se
+// desplaza con ↓ j ↑ k (una linea) y pgdn pgup (su alto interior), entre su
+// principio y su final.
+func TestCA718_CA564_LaAyudaSeDesplaza(t *testing.T) {
 	m := ttModeloDorado(ttConfig(80, 24, false))
 	m.Tecla("?", ttAhora)
-	mc := ttModal(t, "CA-564", m, 80)
+	mc := ttModal(t, "CA-718", m, 80)
 	if mc.Alto != 22 || mc.Fila != 0 {
-		t.Fatalf("CA-564: la ayuda que no entra ocupa las B=22 lineas: fila %d, alto %d", mc.Fila, mc.Alto)
+		t.Fatalf("CA-718: la ayuda que no entra ocupa las B=22 lineas: fila %d, alto %d", mc.Fila, mc.Alto)
 	}
 	if !strings.Contains(mc.Abajo, "=20 de ") {
-		t.Fatalf("CA-564: el borde de abajo dice '20 de <m>' (20 lineas interiores): %q", mc.Abajo)
+		t.Fatalf("CA-718: el borde de abajo dice '20 de <m>' (20 lineas interiores): %q", mc.Abajo)
 	}
 	primera := mc.Textos[0]
 	m.Tecla("j", ttAhora)
-	if mc := ttModal(t, "CA-564", m, 80); mc.Textos[0] == primera || !strings.Contains(mc.Abajo, "=21 de ") {
-		t.Fatalf("CA-564: j baja una linea: %q %q", mc.Textos[0], mc.Abajo)
+	if mc := ttModal(t, "CA-718", m, 80); mc.Textos[0] == primera || !strings.Contains(mc.Abajo, "=21 de ") {
+		t.Fatalf("CA-718: j baja una linea: %q %q", mc.Textos[0], mc.Abajo)
 	}
 	m.Tecla("k", ttAhora)
 	m.Tecla("k", ttAhora)
-	if mc := ttModal(t, "CA-564", m, 80); mc.Textos[0] != primera {
-		t.Fatalf("CA-564: k en la primera no sube mas: %q", mc.Textos[0])
+	if mc := ttModal(t, "CA-718", m, 80); mc.Textos[0] != primera {
+		t.Fatalf("CA-718: k en la primera no sube mas: %q", mc.Textos[0])
 	}
 	m.Tecla(tablero.TeclaPgAbajo, ttAhora)
-	if mc := ttModal(t, "CA-564", m, 80); !strings.Contains(mc.Abajo, "=40 de ") {
-		t.Fatalf("CA-564: pgdn baja su alto interior (20): %q", mc.Abajo)
+	if mc := ttModal(t, "CA-718", m, 80); !strings.Contains(mc.Abajo, "=40 de ") {
+		t.Fatalf("CA-718: pgdn baja su alto interior (20): %q", mc.Abajo)
 	}
 	m.Tecla(tablero.TeclaPgArriba, ttAhora)
-	if mc := ttModal(t, "CA-564", m, 80); mc.Textos[0] != primera {
-		t.Fatalf("CA-564: pgup vuelve: %q", mc.Textos[0])
+	if mc := ttModal(t, "CA-718", m, 80); mc.Textos[0] != primera {
+		t.Fatalf("CA-718: pgup vuelve: %q", mc.Textos[0])
 	}
 	for i := 0; i < 500; i++ {
 		m.Tecla(tablero.TeclaPgAbajo, ttAhora)
 	}
-	mc = ttModal(t, "CA-564", m, 80)
+	mc = ttModal(t, "CA-718", m, 80)
 	g := regexp.MustCompile(`([0-9]+) de ([0-9]+)`).FindStringSubmatch(mc.Abajo)
 	if g == nil || g[1] != g[2] {
-		t.Fatalf("CA-564: al final del todo el borde dice '<m> de <m>': %q", mc.Abajo)
+		t.Fatalf("CA-718: al final del todo el borde dice '<m> de <m>': %q", mc.Abajo)
 	}
 	m.Tecla("j", ttAhora)
-	if otra := ttModal(t, "CA-564", m, 80); otra.Abajo != mc.Abajo {
-		t.Fatalf("CA-564: en el final j no baja mas: %q", otra.Abajo)
+	if otra := ttModal(t, "CA-718", m, 80); otra.Abajo != mc.Abajo {
+		t.Fatalf("CA-718: en el final j no baja mas: %q", otra.Abajo)
 	}
 }
 
 // ttPartir parte una linea de la ayuda que no entra en ancho celdas por sus
 // palabras (R3): la primera conserva sus sangria celdas de comienzo (los dos
-// espacios y la Muestra rellena, o los dos espacios de Mouse) y tantas
-// palabras como entren; cada continuacion empieza con sangria espacios. Los
-// espacios entre dos palabras de una misma linea quedan como estaban.
+// espacios y la Muestra rellena) y tantas palabras como entren en el ancho
+// entero; cada continuacion empieza con sangria espacios (la ayuda: 20, la
+// columna de Hace, tambien en el grupo Mouse). Los espacios entre dos
+// palabras de una misma linea quedan como estaban.
 func ttPartir(texto string, ancho, sangria int) []string {
 	if ttCeldas(texto) <= ancho {
 		return []string{texto}
@@ -504,8 +659,14 @@ func ttPartir(texto string, ancho, sangria int) []string {
 // ---------------------------------------------------------------- los estados para las propiedades
 
 // ttEstado es un modelo en el Lugar l, en un estado donde cada tecla de la
-// tabla puede tener efecto: paneles con varias filas, [0] mas largos que su
-// vista, una ayuda que se desplaza.
+// tabla puede tener efecto: listas con varias filas, detalles mas largos que
+// su vista, una ayuda y un Registro que se desplazan. La tarjeta elegida es
+// infra-api (DETENIDA por su rojo, con el detalle largo): es tambien la de la
+// caja, porque TE TOCA esta vacio (doc.go, "The box TU SIGUIENTE PASO").
+// Llega a cada Lugar como dice doc.go ("The keys"): tab al detalle, H a la
+// vista Hallazgos, v al proyecto, la linea de HECHO y tab al detalle sin
+// nada, L al Registro, P a Seguir solo (en una tarjeta con el piloto
+// encendido en Writer).
 func ttEstado(t *testing.T, l tablero.Lugar) *tablero.Modelo {
 	t.Helper()
 	c, d := ttTarjetaLarga()
@@ -513,7 +674,13 @@ func ttEstado(t *testing.T, l tablero.Lugar) *tablero.Modelo {
 	d.Detalle.Card = c
 	corre := ttCorre("corre", "writer", "env-c", "run-c")
 	otra := ttCorre("otra", "reviewer", "env-o", "run-o")
-	m := ttModelo(ttConfig(80, 24, false), ttTablero(c, corre, otra, ttBacklog("uno", "Uno"), ttViejo(1)))
+	tarjetas := []boardcmd.Card{c, corre, otra, ttBacklog("uno", "Uno"), ttViejo(1)}
+	sola := ttTarjetaCon(ttAccionWriter()) // Seguir solo esta disponible para ella (CA-715)
+	sola.Item.Auto = item.AutoHastaHumano
+	if l == tablero.LugarSeguir {
+		tarjetas = append(tarjetas, sola)
+	}
+	m := ttModelo(ttConfig(80, 24, false), ttTablero(tarjetas...))
 	p := ttProyectoVerde()
 	for i := 0; i < 30; i++ {
 		p.Problemas = append(p.Problemas, boardcmd.Problem{ID: boardcmd.ProbSinSpec, Slug: fmt.Sprintf("p%02d", i), What: "sin spec", Action: "hoom pedir arquitecto x"})
@@ -525,29 +692,22 @@ func ttEstado(t *testing.T, l tablero.Lugar) *tablero.Modelo {
 	}
 	h := ttHallazgo("h1", finding.StatusOpen, "high", "a.go:3", desc.String())
 	m.LeerHallazgos(tablero.Hallazgos{Items: []finding.Item{h, ttHallazgo("h2", finding.StatusOpen, "low", "b.go", "d")}})
-	ttIrA(t, m, c.Slug)
+	tv3bIrA(t, m, c.Slug)
 	m.LeerDetalle(d)
 	ir := func(ks ...tablero.Tecla) { ttTeclas(m, ks...) }
 	switch l {
 	case tablero.LugarTarjetas:
-	case tablero.LugarProyecto:
-		ir("1")
-	case tablero.LugarCorriendo:
-		ir("3")
 	case tablero.LugarHallazgos:
-		ir("4")
+		ir("H")
 	case tablero.LugarVerProyecto:
-		ir("1", tablero.TeclaEnter)
+		ir("v")
 	case tablero.LugarVerTarjeta:
-		ir(tablero.TeclaEnter)
-	case tablero.LugarVerCorriendo:
-		ir("3")
-		m.LeerDetalle(tablero.Detalle{Slug: "corre", Sobre: tablero.Sobre{EnvelopeID: "env-c", Eventos: ttEventos(40)}})
-		ir(tablero.TeclaEnter)
+		ir(tablero.TeclaTab)
 	case tablero.LugarVerHallazgo:
-		ir("4", tablero.TeclaEnter)
+		ir("H", tablero.TeclaTab)
 	case tablero.LugarVerNada:
-		ir("G", "0")
+		tv3bIrAHecho(t, m)
+		ir(tablero.TeclaTab)
 	case tablero.LugarBusqueda:
 		ir("/")
 	case tablero.LugarPedirPedido:
@@ -572,26 +732,40 @@ func ttEstado(t *testing.T, l tablero.Lugar) *tablero.Modelo {
 				c.Actions[i] = ttAccionGuardar(true, "", "a.go")
 			}
 		}
-		m.Leer(tablero.Lectura{Ahora: ttAhora, Tablero: ttTablero(c, corre, otra, ttBacklog("uno", "Uno"), ttViejo(1))})
+		tarjetas[0] = c
+		m.Leer(tablero.Lectura{Ahora: ttAhora, Tablero: ttTablero(tarjetas...)})
 		ir("s")
+	case tablero.LugarSeguir:
+		tv3bIrA(t, m, sola.Slug)
+		ir("P")
 	case tablero.LugarAcciones:
 		ir(tablero.TeclaEspacio)
 	case tablero.LugarAyuda:
 		ir("?")
+	case tablero.LugarRegistro:
+		// doce u (Lanzar sin modal, cada una con su asiento: CA-560, CA-714)
+		// dejan 24 lineas: mas que las 20 interiores del modal a 80x24
+		for i := 0; i < 12; i++ {
+			ir("u")
+		}
+		if len(m.Registro()) < 12 {
+			t.Fatalf("CA-714 (guarda): doce u dejan doce asientos en el Registro: %d", len(m.Registro()))
+		}
+		ir("L")
 	}
 	if m.Lugar() != l {
-		t.Fatalf("CA-564 (guarda): no pude llegar a %q (estoy en %q)\n%s", l, m.Lugar(), ttPantalla(m))
+		t.Fatalf("CA-718 (guarda): no pude llegar a %q (estoy en %q)\n%s", l, m.Lugar(), ttPantalla(m))
 	}
 	return m
 }
 
 // ttPrepara deja m donde la tecla k tiene que tener efecto: lejos del
-// principio para subir, con texto para borrar, con el cursor atras para ir
-// adelante.
+// principio para subir, lejos del final del Registro (que abre en su final)
+// para bajar, con texto para borrar, con el cursor atras para ir adelante.
 func ttPrepara(m *tablero.Modelo, l tablero.Lugar, k tablero.Tecla) {
 	texto := l == tablero.LugarPedirTexto || l == tablero.LugarBusqueda
 	switch {
-	case l == tablero.LugarVerCorriendo && (k == "j" || k == tablero.TeclaAbajo || k == "G" || k == tablero.TeclaPgAbajo):
+	case l == tablero.LugarRegistro && (k == "j" || k == tablero.TeclaAbajo || k == tablero.TeclaPgAbajo):
 		m.Tecla(tablero.TeclaPgArriba, ttAhora)
 	case (k == "k" || k == tablero.TeclaArriba || k == "g" || k == tablero.TeclaPgArriba) && !texto && l != tablero.LugarPedirSelector &&
 		l != tablero.LugarPedirLista && l != tablero.LugarPedirPedido:
@@ -620,38 +794,40 @@ func ttApretar(m *tablero.Modelo, k tablero.Tecla) []tablero.Orden {
 	return m.Tecla(k, ttAhora)
 }
 
-// ttFoto es todo lo que una tecla puede cambiar.
+// ttFoto es todo lo que una tecla puede cambiar (la vista de la lista
+// incluida: H).
 func ttFoto(m *tablero.Modelo) string {
-	return fmt.Sprintf("%s|%s|%d|%s|%d\n%s", m.Lugar(), m.Modal(), int(m.Foco()), m.Elegida(), len(m.Registro()), ttPantalla(m))
+	return fmt.Sprintf("%s|%s|%d|%s|%s|%d\n%s", m.Lugar(), m.Modal(), int(m.Foco()), m.Vista(), m.Elegida(), len(m.Registro()), ttPantalla(m))
 }
 
-// CA-564, propiedad: toda tecla de la ayuda tiene efecto. En cada Lugar, cada
+// CA-718, propiedad: toda tecla de la ayuda tiene efecto. En cada Lugar, cada
 // tecla de cada una de sus filas (desde un estado donde puede tenerlo)
-// cambia algo: la pantalla, el Lugar, el modal, el foco, el Registro, o da
-// una orden. Re-expresa CA-532. Queda afuera la tecla del panel que ya tiene
-// el foco. (En [0] sin nada que mostrar las teclas de desplazar ya no estan
-// en sus filas: respuesta del orquestador en doc.go.)
-func TestCA564_CA532_TodaTeclaDeLaAyudaTieneEfecto(t *testing.T) {
+// cambia algo: la pantalla, el Lugar, el modal, el foco, la vista, el
+// Registro, o da una orden. Re-expresa CA-564 (y CA-532). Queda afuera v con
+// el proyecto ya en el detalle y el foco ahi (LugarVerProyecto), como en la
+// v2 la tecla del panel que ya tenia el foco. (En el detalle sin nada que
+// mostrar las teclas de desplazar no estan en sus filas: LugaresVerAlgo.)
+func TestCA718_CA564_CA532_TodaTeclaDeLaAyudaTieneEfecto(t *testing.T) {
 	probadas := 0
 	for _, l := range tablero.LugaresTodos {
 		for _, a := range tablero.AtajosDe(l) {
 			for _, k := range a.Teclas {
-				m := ttEstado(t, l)
-				if string(k) == fmt.Sprint(int(m.Foco())) && len(a.Lugares) == len(tablero.LugaresPaneles) {
+				if l == tablero.LugarVerProyecto && k == "v" {
 					continue
 				}
+				m := ttEstado(t, l)
 				ttPrepara(m, l, k)
 				antes := ttFoto(m)
 				os := ttApretar(m, k)
 				if len(os) == 0 && ttFoto(m) == antes {
-					t.Fatalf("CA-564: en %q la tecla %q (%s) esta en la ayuda y no tuvo efecto:\n%s", l, k, a.Hace, antes)
+					t.Fatalf("CA-718: en %q la tecla %q (%s) esta en la ayuda y no tuvo efecto:\n%s", l, k, a.Hace, antes)
 				}
 				probadas++
 			}
 		}
 	}
 	if probadas < 150 {
-		t.Fatalf("CA-564: se probaron %d teclas, se esperaban todas las de la tabla", probadas)
+		t.Fatalf("CA-718: se probaron %d teclas, se esperaban todas las de la tabla", probadas)
 	}
 }
 
@@ -677,18 +853,20 @@ var ttTeclasEspeciales = []tablero.Tecla{tablero.TeclaEnter, tablero.TeclaEsc, t
 	tablero.TeclaCtrlU, tablero.TeclaCtrlE, tablero.TeclaPgArriba, tablero.TeclaPgAbajo, tablero.TeclaEspacio}
 
 // ttRunasV1 son las runas de la propiedad negativa de la v1: todas las letras,
-// los digitos (0-4 mueven el foco en los paneles y en un modal no), "[" y "]"
-// (el primer golpe de ]c y [c, que solo tiene la vista de una tarjeta) y la
-// puntuacion (CA-564, hallazgo d95bb0).
+// los digitos (en la v3 1, 2, 3, 4 y 0 no hacen nada en ningun Lugar:
+// CA-706), "[" y "]" (el primer golpe de ]c y [c, que solo tiene el detalle
+// de una tarjeta) y la puntuacion (CA-564, hallazgo d95bb0).
 const ttRunasV1 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&()*+,-.:;<=>@[]^_{|}~ñé"
 
-// CA-564, propiedad negativa: toda tecla con efecto esta en la ayuda. En cada
-// Lugar, una tecla que no esta en ninguna de sus filas no cambia nada ni da
-// ordenes: las especiales todas, las runas de la v1 y runas imprimibles al
-// azar. Re-expresa CA-532. (CA-564, hallazgo d95bb0: con la lista de la v1,
-// "u" en Firma, Guardar o Ayuda, "]" o "[" en [0] del proyecto, de lo que
-// corre o de un hallazgo, y 0-4 dentro de un modal se prueban.)
-func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
+// CA-718, CA-706, propiedad negativa: toda tecla con efecto esta en la
+// ayuda. En cada Lugar, una tecla que no esta en ninguna de sus filas no
+// cambia nada ni da ordenes: las especiales todas, las runas de la v1 y
+// runas imprimibles al azar; 1, 2, 3, 4 y 0 en los Lugares de los paneles
+// (la v2 movia el foco con ellas: CA-706). Re-expresa CA-564 (y CA-532).
+// (CA-564, hallazgo d95bb0: con la lista de la v1, "u" en Firma, Guardar o
+// Ayuda, "]" o "[" en el detalle del proyecto o de un hallazgo, y los
+// digitos dentro de un modal se prueban.)
+func TestCA718_CA706_CA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 	sinEfecto := func(l tablero.Lugar, k tablero.Tecla) error {
 		m := ttEstado(t, l)
 		antes := ttFoto(m)
@@ -705,7 +883,7 @@ func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 				continue
 			}
 			if err := sinEfecto(l, k); err != nil {
-				t.Fatalf("CA-564: %v", err)
+				t.Fatalf("CA-718: %v", err)
 			}
 			probadas++
 		}
@@ -715,30 +893,39 @@ func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 				continue
 			}
 			if err := sinEfecto(l, k); err != nil {
-				t.Fatalf("CA-564: %v", err)
+				t.Fatalf("CA-718: %v", err)
 			}
 			probadas++
 		}
 	}
 	if probadas < 400 {
-		t.Fatalf("CA-564: se probaron solo %d teclas fuera de la tabla", probadas)
+		t.Fatalf("CA-718: se probaron solo %d teclas fuera de la tabla", probadas)
 	}
-	// CA-564, hallazgo d95bb0: "]" y "[" tampoco desplazan [0] del proyecto,
-	// de lo que corre ni de un hallazgo desde el medio de su documento (donde
-	// un desplazamiento se veria para los dos lados).
-	for _, l := range []tablero.Lugar{tablero.LugarVerProyecto, tablero.LugarVerCorriendo, tablero.LugarVerHallazgo} {
+	// CA-706: 1, 2, 3, 4 y 0 no estan en la tabla de ningun Lugar de los
+	// paneles y no hacen nada ahi
+	for _, l := range tablero.LugaresPaneles {
+		for _, k := range []tablero.Tecla{"1", "2", "3", "4", "0"} {
+			if ttEnLaTabla(l, k) {
+				t.Fatalf("CA-706: %q no esta en la tabla de %q", k, l)
+			}
+			if err := sinEfecto(l, k); err != nil {
+				t.Fatalf("CA-706: %v", err)
+			}
+		}
+	}
+	// CA-564, hallazgo d95bb0: "]" y "[" tampoco desplazan el detalle del
+	// proyecto ni el de un hallazgo desde el medio de su documento (donde un
+	// desplazamiento se veria para los dos lados).
+	for _, l := range []tablero.Lugar{tablero.LugarVerProyecto, tablero.LugarVerHallazgo} {
 		for _, k := range []tablero.Tecla{"]", "["} {
 			if ttEnLaTabla(l, k) {
-				t.Fatalf("CA-564: %q no tiene ]c ni [c (son de la vista de una tarjeta)", l)
+				t.Fatalf("CA-718: %q no tiene ]c ni [c (son del detalle de una tarjeta)", l)
 			}
 			m := ttEstado(t, l)
 			ttTeclas(m, "g", "j", "j", "j")
-			if l == tablero.LugarVerCorriendo {
-				ttTeclas(m, "G", "k", "k", "k")
-			}
 			antes := ttFoto(m)
 			if os := ttTeclas(m, k, k); len(os) != 0 || ttFoto(m) != antes {
-				t.Fatalf("CA-564: en %q %q no esta en la tabla y desplazo [0] (ordenes %#v):\n%s", l, k, os, ttPantalla(m))
+				t.Fatalf("CA-718: en %q %q no esta en la tabla y desplazo el detalle (ordenes %#v):\n%s", l, k, os, ttPantalla(m))
 			}
 		}
 	}
@@ -763,10 +950,11 @@ func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 			return ttPantalla(m)
 		}
 		if sin, con := cerrado(false), cerrado(true); sin != con {
-			t.Fatalf("CA-564: en %q x no esta en la tabla y cambio el modo experto; sin x:\n%s\ncon x:\n%s", l, sin, con)
+			t.Fatalf("CA-718: en %q x no esta en la tabla y cambio el modo experto; sin x:\n%s\ncon x:\n%s", l, sin, con)
 		}
 	}
-	for _, l := range []tablero.Lugar{tablero.LugarTarjetas, tablero.LugarVerTarjeta, tablero.LugarAcciones, tablero.LugarAyuda, tablero.LugarFirma} {
+	for _, l := range []tablero.Lugar{tablero.LugarTarjetas, tablero.LugarHallazgos, tablero.LugarVerTarjeta, tablero.LugarAcciones,
+		tablero.LugarAyuda, tablero.LugarFirma, tablero.LugarSeguir, tablero.LugarRegistro} {
 		prop := func(r rune) bool {
 			r = r % 0x3000
 			if !unicode.IsPrint(r) || r == ' ' {
@@ -779,19 +967,22 @@ func TestCA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testing.T) {
 			return sinEfecto(l, k) == nil
 		}
 		if err := quick.Check(prop, &quick.Config{MaxCount: 40, Rand: rand.New(rand.NewSource(int64(len(l))))}); err != nil {
-			t.Fatalf("CA-564: en %q una runa fuera de la tabla tuvo efecto: %v", l, err)
+			t.Fatalf("CA-718: en %q una runa fuera de la tabla tuvo efecto: %v", l, err)
 		}
 	}
 }
 
 // ---------------------------------------------------------------- lo que corre es lo que se muestra (v1)
 
-// CA-564, CA-566, CA-525, CA-532 (hallazgo e8c2ef de la v1, guarda): para
-// cada fila de Atajos con Accion y Verbo, lo que corre es lo que se muestra:
-// los Args del Lanzar son las palabras de su Verbo sin "hoom" y con <slug>
-// reemplazado (mas -m <pedido> cuando el modal tiene Pedido), "Se va a
-// ejecutar" empieza con ese verbo, y el modal de acciones lo muestra.
-func TestCA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
+// CA-718, CA-705, CA-564, CA-566, CA-525, CA-532 (hallazgo e8c2ef de la v1,
+// guarda): para cada fila de Atajos con Accion y Verbo, lo que corre es lo
+// que se muestra: los Args del Lanzar son las palabras de su Verbo sin
+// "hoom" y con <slug> reemplazado (mas -m <pedido> cuando el modal tiene
+// Pedido), "Se va a ejecutar" empieza con ese verbo, y el modal de acciones
+// lo muestra. P (Seguir solo, CA-715 y CA-716) no es una accion de la
+// tarjeta: Acciones no la lista, y su modal lanza hoom piloto <slug> con el
+// rol piloto.
+func TestCA718_CA705_CA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
 	acciones := map[string]boardcmd.Action{
 		boardcmd.ActPedirArquitecto: ttAccionRol(boardcmd.ActPedirArquitecto, "arquitecto", "Pedir al arquitecto", "Escribi el spec"),
 		boardcmd.ActPedirTestWriter: ttAccionRol(boardcmd.ActPedirTestWriter, "test-writer", "Pedir al test-writer", "Escribi los tests"),
@@ -809,24 +1000,38 @@ func TestCA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
 		}
 		vistas++
 		k := fila.Teclas[0]
-		ca := fmt.Sprintf("CA-564 (%q, %s)", k, fila.Accion)
+		ca := fmt.Sprintf("CA-718 (%q, %s)", k, fila.Accion)
 		verbo := strings.ReplaceAll(fila.Verbo, "<slug>", "tarjeta")
 		pal := strings.Fields(verbo)
 		quiere := append([]string{}, pal[1:]...)
 		acc, con := acciones[fila.Accion]
+		rol := acc.Role
 		card := ttTarjetaCon()
-		if con {
+		switch {
+		case fila.Accion == tablero.AccionSeguir:
+			rol = "piloto"
+			card = ttTarjetaCon(ttAccionWriter())
+			card.Item.Auto = item.AutoHastaHumano // en Writer: Seguir solo esta disponible
+			m := ttModelo(ttAncho(), ttTablero(card))
+			m.Tecla(tablero.TeclaEspacio, ttAhora)
+			if l, _, _ := ttModal(t, ca, m, 200).ttLineaQueEmpieza(string(k) + " "); l != "" {
+				t.Fatalf("CA-715: Seguir solo no es una accion de la tarjeta y Acciones no la lista: %q", l)
+			}
+		case con:
 			card = ttTarjetaCon(acc)
 			m := ttModelo(ttAncho(), ttTablero(card))
 			m.Tecla(tablero.TeclaEspacio, ttAhora)
 			if !ttModal(t, ca, m, 200).ttTieneLinea(string(k) + " " + acc.Label + "  " + verbo) {
 				t.Fatalf("%s: Acciones muestra la accion con su tecla y el verbo %q:\n%s", ca, verbo, ttPantalla(m))
 			}
-		} else if fila.Accion != tablero.AccionUsar {
+		case fila.Accion != tablero.AccionUsar:
 			t.Fatalf("%s: la guarda no sabe armar la accion %q", ca, fila.Accion)
 		}
 		m := ttModelo(ttAncho(), ttTablero(card))
 		ords := m.Tecla(k, ttAhora)
+		if fila.Accion == tablero.AccionSeguir && m.Modal() != tablero.ModalSeguir {
+			t.Fatalf("CA-716: P en una tarjeta con Seguir solo disponible abre su modal: %q\n%s", m.Modal(), ttPantalla(m))
+		}
 		switch m.Modal() {
 		case tablero.ModalPedir:
 			ttSinOrdenes(t, ca, "abrir Pedir", ords)
@@ -854,17 +1059,23 @@ func TestCA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
 		case tablero.ModalGuardar:
 			ttSinOrdenes(t, ca, "abrir Guardar", ords)
 			ords = m.Tecla(tablero.TeclaEnter, ttAhora)
+		case tablero.ModalSeguir:
+			ttSinOrdenes(t, ca, "abrir Seguir solo", ords)
+			if got := ttModal(t, ca, m, 200).ttComando(); got != verbo {
+				t.Fatalf("CA-716: 'Se va a ejecutar' es el verbo %q: %q", verbo, got)
+			}
+			ords = m.Tecla(tablero.TeclaEnter, ttAhora) // Seguir solo esta elegido al abrir
 		}
 		l := ttUnaLanzar(t, ca, "la accion", ords)
 		ttMismosArgs(t, ca, "lo que corre es lo que se muestra", l.Args, quiere)
-		if l.Slug != "tarjeta" || l.Rol != acc.Role {
-			t.Fatalf("%s: el Lanzar es de la tarjeta y del rol de la accion (%q): %#v", ca, acc.Role, l)
+		if l.Slug != "tarjeta" || l.Rol != rol {
+			t.Fatalf("%s: el Lanzar es de la tarjeta y del rol de la accion (%q): %#v", ca, rol, l)
 		}
 		if r := m.Registro(); len(r) == 0 || !strings.HasPrefix(r[len(r)-1].Comando, verbo) {
 			t.Fatalf("%s: el Registro lleva el mismo comando: %#v", ca, r)
 		}
 	}
-	if vistas != 9 {
-		t.Fatalf("CA-564: la tabla tiene las nueve teclas de accion con verbo del spec, tiene %d", vistas)
+	if vistas != 10 {
+		t.Fatalf("CA-718: la tabla tiene las diez teclas de accion con verbo del spec (P y las nueve de la v2), tiene %d", vistas)
 	}
 }

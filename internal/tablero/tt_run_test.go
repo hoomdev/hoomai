@@ -4,7 +4,11 @@
 // falsos. Run corre en su goroutine; cada espera tiene su tiempo maximo.
 // Adaptado a la v2 (tablero-con-paneles): los Datos leen ademas el proyecto,
 // los hallazgos y el archivo de un hallazgo, el Detalle ya no pide la
-// Historia aparte, y lo que se espera en pantalla son los paneles.
+// Historia aparte. Adaptado a la v3 (tablero-tu-siguiente-paso): lo que se
+// espera en pantalla es la cabecera, la caja, la lista y el detalle (los
+// nombres de la v2: [2] la lista, [0] el detalle, [1] la cabecera), las filas
+// dicen el titulo de la tarjeta (nunca el slug, CA-701) y el foco pasa al
+// detalle con tab (enter sobre una tarjeta abre el modal de su paso, CA-705).
 package tablero_test
 
 import (
@@ -413,20 +417,35 @@ func (w *ttMundo) marcoCon(s string) bool {
 }
 
 // filaElegida dice si el ultimo cuadro (sin las SGR del color) tiene la
-// fila de la tarjeta slug elegida en [2] con el foco: el lado del foco en
-// ASCII ("#", HOOM_ASCII=1 en todos los mundos de Run) y " > " + slug + " "
-// (doc.go, "[2] Tarjetas": " " + M + " " + S + " " + tira).
+// fila de la tarjeta slug elegida en la lista con el foco: el lado del foco
+// en ASCII ("#", HOOM_ASCII=1 en todos los mundos de Run) y " > " + T + " "
+// (doc.go, "The rows": " " + M + " " + T + " " + path, T el titulo de la
+// tarjeta, nunca el slug, o el slug cuando el titulo esta vacio; CA-701). El
+// titulo sale de la tarjeta slug del tablero que los Datos dan.
 //
-// Toda espera que deja pasar una tecla sobre el tablero (enter que da el foco
-// a [0], w que abre su modal) espera esto, y no un texto cualquiera: antes de
-// la primera lectura Run ya dibujo un cuadro (doc.go: [2] dice " leyendo el
-// tablero..."), y el contrato no dice que una tecla mandada antes de la
-// primera lectura la espere. La fila elegida solo la muestra el tablero
-// leido, con la seleccion ya en la tarjeta ("At the start the selection is on
-// the first card row").
+// Toda espera que deja pasar una tecla sobre el tablero (tab que da el foco
+// al detalle, w que abre su modal) espera esto, y no un texto cualquiera:
+// antes de la primera lectura Run ya dibujo un cuadro (doc.go: la lista dice
+// " leyendo el tablero..."), y el contrato no dice que una tecla mandada
+// antes de la primera lectura la espere. La fila elegida solo la muestra el
+// tablero leido, con la seleccion ya en la tarjeta ("At the start the
+// selection is on the first card row").
 func (w *ttMundo) filaElegida(slug string) bool {
+	titulo := ""
+	w.datos.mu.Lock()
+	for _, col := range w.datos.tablero.Columns {
+		for _, c := range col.Cards {
+			if c.Slug == slug {
+				titulo = c.Item.Titulo
+			}
+		}
+	}
+	w.datos.mu.Unlock()
+	if titulo == "" {
+		titulo = slug
+	}
 	for _, l := range w.ultimoMarco() {
-		if strings.Contains(ttSGR.ReplaceAllString(l, ""), "# > "+slug+" ") {
+		if strings.Contains(ttSGR.ReplaceAllString(l, ""), "# > "+titulo+" ") {
 			return true
 		}
 	}
@@ -633,7 +652,7 @@ func ttSinBorrarLaUltimaColumna(t *testing.T, salida string, ancho int) {
 // color con NO_COLOR, ASCII sin locale UTF-8, el mouse pedido sin
 // HOOM_MOUSE, el editor vi sin VISUAL ni EDITOR) y las mismas lecturas (el
 // tablero, el proyecto, los hallazgos y el detalle de la tarjeta elegida:
-// CA-553, CA-562).
+// CA-553, re-expresado por CA-706 y CA-707, y CA-562).
 func TestCA533_ElCuadroEsLaPantallaDelModelo(t *testing.T) {
 	b := ttTableroPrincipal()
 	w := ttNuevoMundo(t, b)
@@ -655,7 +674,7 @@ func TestCA533_ElCuadroEsLaPantallaDelModelo(t *testing.T) {
 		}
 	}
 	if llenas < 20 {
-		t.Fatalf("CA-533 (guarda): a 80x24 las lineas de los paneles llegan a la ultima columna: %d", llenas)
+		t.Fatalf("CA-533 (guarda): a 80x24 las lineas de la caja, la lista y el detalle llegan a la ultima columna: %d", llenas)
 	}
 	if cuadro := ttCuadro(quiere, 80); !strings.Contains(salida, cuadro) {
 		t.Fatalf("CA-533 (hallazgo 55281d): el cuadro va entero, con \\x1b[K solo despues de una linea de menos de 80 celdas y \\r\\n entre lineas:\n%q", ttCola(salida, 600))
@@ -667,11 +686,14 @@ func TestCA533_ElCuadroEsLaPantallaDelModelo(t *testing.T) {
 
 // CA-533: redibuja al cambiar el tamano (se pregunta al menos cada 250 ms):
 // por debajo de 60x15, "agranda la terminal (minimo 60x15)"; de vuelta, el
-// tablero (CA-550: a 100x30, dos columnas con [1] arriba a la izquierda).
-func TestCA533_RedibujaAlCambiarElTamano(t *testing.T) {
+// tablero (CA-550, re-expresado por CA-696: a 100x30, la cabecera en la
+// linea 1, la caja TU SIGUIENTE PASO en las lineas 2..5 y el cuerpo en dos
+// zonas desde la linea 6: la lista con el foco en las celdas 0..39, W*2/5, y
+// el detalle desde la celda 40).
+func TestCA533_CA696_CA550_RedibujaAlCambiarElTamano(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-533", "el primer cuadro", w, func() bool { return w.marcoCon("[2] Tarjetas") })
+	ttEsperar(t, "CA-533", "el primer cuadro", w, func() bool { return w.marcoCon("#Tarjetas=") })
 	w.term.cambiar(50, 10)
 	limite := time.Now().Add(2 * time.Second)
 	for !strings.Contains(w.r.texto("escribe"), "\x1b[Hagranda la terminal (minimo 60x15)\x1b[K") {
@@ -685,7 +707,13 @@ func TestCA533_RedibujaAlCambiarElTamano(t *testing.T) {
 	ttEsperar(t, "CA-533", "el tablero a 100x30", w, func() bool {
 		s := w.r.texto("escribe")
 		ms := ttMarcos(s[antes:])
-		return len(ms) > 0 && len(ms[len(ms)-1]) == 30 && strings.HasPrefix(ms[len(ms)-1][0], "+[1] Proyecto")
+		if len(ms) == 0 || len(ms[len(ms)-1]) != 30 {
+			return false
+		}
+		u := ms[len(ms)-1]
+		// ASCII y NO_COLOR: una celda es un byte en estas lineas
+		return strings.HasPrefix(u[0], " hoom tablero · demo · rama main") && strings.HasPrefix(u[1], "+TU SIGUIENTE PASO-") &&
+			strings.HasPrefix(u[5], "#Tarjetas=") && len(u[5]) > 41 && u[5][39] == '#' && u[5][40] == '+'
 	})
 	w.term.mandar("q")
 	if code, _ := fin(t); code != 0 {
@@ -766,31 +794,33 @@ func TestCA533_PanicDevuelveLaTerminal(t *testing.T) {
 
 // ---------------------------------------------------------------- CA-530
 
-// CA-530, CA-553: el tablero se vuelve a leer cada Intervalo, y el detalle
-// de la tarjeta que [0] muestra con cada lectura. Re-expresado por CA-553:
-// [0] sigue a la seleccion sin enter, asi que la tarjeta elegida en [2] ya
-// tiene su detalle leido antes de cualquier tecla (la v1 lo leia solo con la
-// tarjeta abierta, y la Historia solo con su pestana: la v2 no tiene
-// pestanas y el Detalle siempre la trae). Una tecla que cambia la seleccion
-// pide el detalle de la nueva.
-func TestCA530_CA553_RunReleeElTableroYElDetalle(t *testing.T) {
+// CA-530, CA-553 (re-expresado por CA-706 y CA-707): el tablero se vuelve a
+// leer cada Intervalo, y el detalle de la tarjeta que el detalle muestra con
+// cada lectura. El detalle sigue a la seleccion sin enter, asi que la
+// tarjeta elegida en la lista ya tiene su detalle leido antes de cualquier
+// tecla (la v1 lo leia solo con la tarjeta abierta, y la Historia solo con su
+// pestana: la v2 no tiene pestanas y el Detalle siempre la trae). Una tecla
+// que cambia la seleccion pide el detalle de la nueva ("el detalle cambia
+// con cada movimiento", CA-707). En la v3 la primera fila es la de TE TOCA
+// (tarjeta, en Writer) y despues la de EN COLA (otra, en Backlog; CA-700).
+func TestCA530_CA706_CA707_CA553_RunReleeElTableroYElDetalle(t *testing.T) {
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter()), ttBacklog("otra", "Otra")))
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-530", "cinco lecturas con Intervalo 10ms", w, func() bool { return w.datos.cuantas() >= 5 })
-	ttEsperar(t, "CA-553", "el detalle de la tarjeta elegida, sin enter", w, func() bool {
+	ttEsperar(t, "CA-707", "el detalle de la tarjeta elegida, sin enter", w, func() bool {
 		ps := w.datos.pedidos()
-		return len(ps) >= 2 && ps[len(ps)-1] == "otra"
+		return len(ps) >= 2 && ps[len(ps)-1] == "tarjeta"
 	})
 	for _, p := range w.datos.pedidos() {
-		if p != "otra" {
-			t.Fatalf("CA-553: solo se lee el detalle de la tarjeta que [0] muestra (otra, la primera de [2]): %v", w.datos.pedidos())
+		if p != "tarjeta" {
+			t.Fatalf("CA-707: solo se lee el detalle de la tarjeta que el detalle muestra (tarjeta, la primera de la lista: TE TOCA va antes que EN COLA): %v", w.datos.pedidos())
 		}
 	}
-	ttEsperar(t, "CA-553", "la tarjeta elegida en [2]", w, func() bool { return w.filaElegida("otra") })
+	ttEsperar(t, "CA-707", "la tarjeta elegida en la lista", w, func() bool { return w.filaElegida("tarjeta") })
 	w.term.mandar("j")
-	ttEsperar(t, "CA-553", "el detalle de la nueva elegida", w, func() bool {
+	ttEsperar(t, "CA-707", "el detalle de la nueva elegida", w, func() bool {
 		ps := w.datos.pedidos()
-		return len(ps) > 0 && ps[len(ps)-1] == "tarjeta"
+		return len(ps) > 0 && ps[len(ps)-1] == "otra"
 	})
 	antes := len(w.datos.pedidos())
 	ttEsperar(t, "CA-530", "el detalle con cada relectura", w, func() bool { return len(w.datos.pedidos()) >= antes+3 })
@@ -803,14 +833,15 @@ func TestCA530_CA553_RunReleeElTableroYElDetalle(t *testing.T) {
 func TestCA530_RunLecturaQueFalla(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	fin := w.correr(nil)
-	// a 80x24 [2] muestra 6 lineas: NECESITA, nuc-tenancy, pagos-caidos, EN
-	// CURSO, infra-api y BACKLOG 2
-	ttEsperar(t, "CA-530", "el tablero", w, func() bool { return w.marcoCon("pagos-caidos") })
+	// a 80x24 la lista no muestra todas sus filas, pero la primera, la de
+	// Tenancy del nucleo (TE TOCA va primero, y en TE TOCA Tu aprobacion
+	// antes que Arquitecto; CA-700), se ve siempre: es la elegida (CA-707)
+	ttEsperar(t, "CA-530", "el tablero", w, func() bool { return w.filaElegida("nuc-tenancy") })
 	w.datos.mu.Lock()
 	w.datos.err = errors.New("disco roto")
 	w.datos.mu.Unlock()
 	ttEsperar(t, "CA-530", "el error de lectura en la linea de mensajes", w, func() bool {
-		return w.marcoCon("no se pudo leer el tablero: disco roto") && w.marcoCon("pagos-caidos")
+		return w.marcoCon("no se pudo leer el tablero: disco roto") && w.filaElegida("nuc-tenancy")
 	})
 	w.term.mandar("q")
 	fin(t)
@@ -820,7 +851,9 @@ func TestCA530_RunLecturaQueFalla(t *testing.T) {
 
 // CA-528: lanzar desde la TUI le pasa al Lanzador la orden exacta; al salir,
 // MensajeSalida dice cuantos trabajos quedan corriendo (despues de devolver
-// la terminal). En la v2 se lanza desde el boton del modal (CA-566, CA-568).
+// la terminal). En la v2 se lanza desde el boton del modal (CA-566,
+// re-expresado por CA-705: enter sobre la tarjeta abre el modal de su paso y
+// nunca lanza; y CA-568). Aca el modal se abre con w, la tecla de la accion.
 func TestCA528_RunLanzaYAlSalirDiceCuantosQuedan(t *testing.T) {
 	w := ttNuevoMundo(t, ttTablero(ttTarjetaCon(ttAccionWriter())))
 	fin := w.correr(nil)
@@ -890,12 +923,15 @@ func TestCA528_RunNoPudoArrancar(t *testing.T) {
 
 // ---------------------------------------------------------------- el editor
 
-// CA-522, CA-557: e en [0] de una tarjeta abre el editor con la ruta
+// CA-522, CA-557: e en el detalle de una tarjeta abre el editor con la ruta
 // absoluta (Dir + la del spec) y la linea 1 (ningun criterio a la vista);
-// mientras esta abierto la terminal se devuelve (CA-575: SecMouseNo antes de
-// SecSalir, y despues restaurar) y despues se toma de nuevo (Crudo,
-// SecEntrar y SecMouseSi). Re-expresado: en la v1 era o en la pestana Spec.
-func TestCA522_CA557_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
+// mientras esta abierto la terminal se devuelve (CA-575, y en la v3 CA-719:
+// SecMouseNo antes de SecSalir, y despues restaurar) y despues se toma de
+// nuevo (Crudo, SecEntrar y SecMouseSi). Re-expresado: en la v1 era o en la
+// pestana Spec. En la v3 el foco pasa al detalle con tab (CA-706; enter abriria el modal
+// del paso, CA-705): a 80x24, una columna, la lista se pliega y el borde de
+// arriba del detalle, con el foco, dice el titulo de la tarjeta.
+func TestCA522_CA557_CA706_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
 	c := ttTarjetaCon(ttAccionWriter())
 	w := ttNuevoMundo(t, ttTablero(c))
 	w.datos.detalleDe = func(slug string) tablero.Detalle {
@@ -904,9 +940,9 @@ func TestCA522_CA557_RunAbreElEditorYDevuelveLaTerminal(t *testing.T) {
 	}
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-522", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
-	w.term.mandar("\r")
-	ttEsperar(t, "CA-553", "el foco en [0] con la tarjeta y su spec", w, func() bool {
-		return w.marcoCon("#[0] tarjeta · Tarjeta de prueba") && w.marcoCon("Spec · 0 criterios")
+	w.term.mandar("\t")
+	ttEsperar(t, "CA-706", "el foco en el detalle con la tarjeta y su spec", w, func() bool {
+		return w.marcoCon("#Tarjeta de prueba=") && w.marcoCon("=tarjeta=#") && w.marcoCon("Spec · 0 criterios")
 	})
 	desde := len(w.r.copia())
 	w.term.mandar("e")

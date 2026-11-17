@@ -7,7 +7,7 @@ import (
 
 // Raton takes one mouse event at ahora (see the package doc, "The mouse").
 // It moves the focus, chooses rows, options and buttons and scrolls; it
-// never orders Lanzar nor opens a modal, so it returns no order (CA-575).
+// never orders Lanzar nor opens a modal, so it returns no order (CA-719).
 func (m *Modelo) Raton(r Raton, ahora time.Time) []Orden {
 	if !ahora.IsZero() {
 		m.ahora = ahora
@@ -26,60 +26,66 @@ func (m *Modelo) Raton(r Raton, ahora time.Time) []Orden {
 
 // ratonEnPaneles is a mouse event without a modal.
 func (m *Modelo) ratonEnPaneles(r Raton) {
-	var c cajaPanel
-	hay := false
-	for _, x := range m.disponer() {
-		if x.r.contiene(r.X, r.Y) {
-			c, hay = x, true
-		}
+	h := m.c.Alto
+	if r.Y <= yCabecera || r.Y >= h-3 {
+		return // the header, the Registro's line and the two last lines
 	}
-	if !hay || c.p == panelRegistro {
-		return
+	caja := rect{0, yCaja, m.c.Ancho, altoCaja}
+	z := m.disponer()
+	rueda := r.Accion == RatonRuedaArriba || r.Accion == RatonRuedaAbajo
+	d := 1
+	if r.Accion == RatonRuedaArriba {
+		d = -1
 	}
-	switch r.Accion {
-	case RatonClic:
-		m.ponerFoco(c.p)
-		if c.plegado || c.p == PanelPrincipal || c.p == PanelProyecto {
+	switch {
+	case caja.contiene(r.X, r.Y):
+		if r.Accion != RatonClic {
 			return
 		}
-		// the row under the click
-		dentro := r.Y - c.r.y - 1
-		if dentro < 0 || dentro >= c.r.h-2 || r.X <= c.r.x || r.X >= c.r.x+c.r.w-1 {
+		c, _ := m.tarjetaDeCaja()
+		if c == nil {
 			return
 		}
-		k := *m.scrollDe(c.p) + dentro
-		switch c.p {
-		case PanelTarjetas:
-			_, filas := m.contenido2(c.r.w - 2)
-			if k < len(filas) && filas[k] >= 0 {
-				m.elegir2(filas[k])
+		m.buscando, m.filtro = false, nil
+		m.vista = VistaTarjetas
+		m.ponerZona(ZonaLista)
+		m.elegirTarjeta(c.Slug)
+	case z.lista.contiene(r.X, r.Y):
+		if rueda {
+			if !z.plegada {
+				m.moverLista(d, false)
 			}
-		case PanelCorriendo:
-			if k < len(m.filas3()) {
-				m.elegir3(k)
-			}
-		case PanelHallazgos:
-			if k < len(m.hallazgos) {
-				m.elegir4(k)
-			}
-		}
-	case RatonRuedaArriba, RatonRuedaAbajo:
-		if c.plegado {
 			return
 		}
-		d := 1
-		if r.Accion == RatonRuedaArriba {
-			d = -1
+		if r.Accion != RatonClic {
+			return
 		}
-		switch c.p {
-		case PanelTarjetas:
-			m.elegir2(m.sel2.idx + d)
-		case PanelCorriendo:
-			m.elegir3(m.idx3 + d)
-		case PanelHallazgos:
-			m.elegir4(m.idx4 + d)
-		case PanelPrincipal:
+		m.ponerZona(ZonaLista)
+		if z.plegada {
+			return
+		}
+		l := z.lista
+		dentro := r.Y - l.y - 1
+		if dentro < 0 || dentro >= l.h-2 || r.X <= l.x || r.X >= l.x+l.w-1 {
+			return
+		}
+		_, filas, _ := m.contenidoLista(l)
+		k := *m.scrollLista() + dentro
+		if k >= len(filas) || filas[k] < 0 {
+			return
+		}
+		if m.vista == VistaHallazgos {
+			m.elegir4(filas[k])
+		} else {
+			m.elegirL(filas[k])
+		}
+	case z.detalle.contiene(r.X, r.Y):
+		if rueda {
 			m.desplazar0(3 * d)
+			return
+		}
+		if r.Accion == RatonClic {
+			m.ponerZona(ZonaDetalle)
 		}
 	}
 }
@@ -91,12 +97,18 @@ func (m *Modelo) ratonEnModal(r Raton) {
 		return
 	}
 	if r.Accion != RatonClic {
-		if m.modal == ModalAyuda && g.r.contiene(r.X, r.Y) {
-			d := 3
-			if r.Accion == RatonRuedaArriba {
-				d = -3
-			}
+		if !g.r.contiene(r.X, r.Y) {
+			return
+		}
+		d := 3
+		if r.Accion == RatonRuedaArriba {
+			d = -3
+		}
+		switch m.modal {
+		case ModalAyuda:
 			m.desplazarAyuda(d)
+		case ModalRegistro:
+			m.desplazarRegistro(d)
 		}
 		return
 	}
@@ -133,7 +145,7 @@ func (m *Modelo) ratonEnModal(r Raton) {
 		case l.campo >= 0:
 			p.foco = l.campo
 		}
-	case ModalFirma, ModalGuardar:
+	case ModalFirma, ModalGuardar, ModalSeguir:
 		if l.botones {
 			e := m.conf.etiquetas()
 			if b := m.botonBajo(r.X-g.r.x-4, e, g.r.w-6); b >= 0 {

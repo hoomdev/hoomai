@@ -3,7 +3,11 @@
 // y de la v1, que siguen igual: CA-528 lanzar, CA-530 el aviso de fin, CA-533
 // salir). Los tests de la v1 del aviso de fin (hallazgos 5f48e8, 8a3a66,
 // 08c87c y 48bfb7) miran ahora la linea de mensajes (la penultima, como la
-// barra 1 de la v1) y aseveran lo mismo.
+// barra 1 de la v1) y aseveran lo mismo. En la v3 (spec
+// tablero-tu-siguiente-paso, CA-714) el Registro es una linea, la A-2 (el
+// Registro plegado de la v2), y el Registro desplegado de la v2 es el modal
+// Registro que abre L: lo que los tests de la v2 miraban en el panel lo miran
+// ahi.
 package tablero_test
 
 import (
@@ -49,6 +53,55 @@ func ttCorriendoCon(env string) boardcmd.Card {
 	return c
 }
 
+// tv3bRegModal abre el modal Registro con L (CA-714), exige su titulo
+// "Registro" y que L no de ordenes, lo lee y lo cierra con esc.
+func tv3bRegModal(t *testing.T, ca string, m *tablero.Modelo, ancho int, ahora time.Time) ttModalCaja {
+	t.Helper()
+	if os := m.Tecla("L", ahora); len(os) != 0 {
+		t.Fatalf("%s (CA-714): L abre el Registro sin ejecutar nada: %#v", ca, os)
+	}
+	if m.Modal() != tablero.ModalRegistro {
+		t.Fatalf("%s (CA-714): L abre el modal Registro: %q\n%s", ca, m.Modal(), ttPantalla(m))
+	}
+	mc := ttModal(t, ca, m, ancho)
+	if !strings.Contains(mc.Arriba, " Registro ") {
+		t.Fatalf("%s (CA-714): el titulo del modal es Registro: %q", ca, mc.Arriba)
+	}
+	m.Tecla(tablero.TeclaEsc, ahora)
+	if m.Modal() != tablero.SinModal {
+		t.Fatalf("%s (CA-714): esc cierra el Registro: %q", ca, m.Modal())
+	}
+	return mc
+}
+
+// tv3bRegCortar es s cortado a n celdas con el signo del corte (doc.go,
+// "Signs": "…" con UTF-8, "~" en ASCII): el comienzo mas largo que entra en
+// n-1 celdas y el signo.
+func tv3bRegCortar(s string, n int, utf bool) string {
+	if ttCeldas(s) <= n {
+		return s
+	}
+	signo := "~"
+	if utf {
+		signo = "…"
+	}
+	out, c := "", 0
+	for _, r := range s {
+		if c+ttAnchoRuna(r) > n-1 {
+			break
+		}
+		out += string(r)
+		c += ttAnchoRuna(r)
+	}
+	return out + signo
+}
+
+// tv3bRegLinea es la linea A-2 en ASCII con ese titulo: "-" + titulo y
+// signos de linea hasta el ancho.
+func tv3bRegLinea(titulo string, ancho int) string {
+	return "-" + titulo + strings.Repeat("-", ancho-1-ttCeldas(titulo))
+}
+
 // ---------------------------------------------------------------- CA-563: el Registro
 
 // CA-563: cada verbo que la TUI ejecuta suma una entrada con la hora, la
@@ -63,15 +116,17 @@ func TestCA563_LosEstadosDeUnaEntrada(t *testing.T) {
 	l := ttLanzarWriter(t, m, t0)
 	// D3: Asiento.Comando conserva el texto de CitarPedido tal cual (con
 	// "…"); en la pantalla ASCII, la segunda linea del Registro lo muestra
-	// con el signo del corte "~"
+	// con el signo del corte "~". En la v3 esa linea esta en el modal
+	// Registro (CA-714), cortada al ancho de su texto: Wm-6 = 66 celdas, y el
+	// "…" de CitarPedido (pasadas las 60 letras del pedido) queda fuera.
 	comando := "hoom pedir writer tarjeta -m " + tarjetacmd.CitarPedido(ttPedidoWriter, false)
 	r := m.Registro()
 	if len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · lanzando..." || r[0].Comando != comando || !r[0].Hora.Equal(t0) {
 		t.Fatalf("CA-563: la entrada al lanzar: %#v", r)
 	}
-	enPantalla := "       " + ttEnPantalla(comando, false)
-	if reg := ttCajaDe(t, "CA-563", m, "Registro").ttTexto(); len(reg) < 2 || reg[1] != enPantalla {
-		t.Fatalf("CA-563: la segunda linea del Registro es el comando, en ASCII sin '…' (D3):\n got %q\nwant %q", reg, enPantalla)
+	enPantalla := tv3bRegCortar("      "+ttEnPantalla(comando, false), 66, false)
+	if reg := tv3bRegModal(t, "CA-563", m, 200, t0).Textos; len(reg) < 2 || reg[1] != enPantalla || strings.Contains(strings.Join(reg, "\n"), "…") {
+		t.Fatalf("CA-563: la segunda linea de la entrada en el Registro es el comando, en ASCII sin '…' (D3):\n got %q\nwant %q", reg, enPantalla)
 	}
 	// registrado: la tarjeta muestra running con un sobre que no tenia
 	m.Leer(tablero.Lectura{Ahora: t0.Add(2 * time.Second), Tablero: ttTablero(ttCorriendoCon("env-nuevo"))})
@@ -108,8 +163,8 @@ func TestCA563_LosEstadosDeUnaEntrada(t *testing.T) {
 	if r := u.Registro(); len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · lanzando…" || r[0].Comando != comando {
 		t.Fatalf("CA-563: con UTF-8 'lanzando…', y el comando con el '…' de CitarPedido (D3): %#v", r)
 	}
-	if reg := ttCajaDe(t, "CA-563", u, "Registro").ttTexto(); len(reg) < 2 || reg[1] != "       "+comando {
-		t.Fatalf("CA-563: con UTF-8 la segunda linea del Registro lleva el '…' de CitarPedido: %q", reg)
+	if reg := tv3bRegModal(t, "CA-563", u, 200, ttAhora).Textos; len(reg) < 2 || reg[1] != tv3bRegCortar("      "+comando, 66, true) {
+		t.Fatalf("CA-563: con UTF-8 la segunda linea de la entrada en el Registro es el comando, con el corte '…': %q", reg)
 	}
 }
 
@@ -132,13 +187,9 @@ func TestCA563_CA528_TerminaAntesDelRegistro(t *testing.T) {
 	if r := m.Registro(); len(r) != 1 || r[0].Texto != "Pedir al writer · tarjeta · fallo: ya se esta lanzando un trabajo en esta tarjeta" {
 		t.Fatalf("CA-563: la entrada dice 'fallo: <linea>': %#v", r)
 	}
-	var reg string
-	for _, x := range m.Pantalla() {
-		if strings.Contains(ttSinSGR(x), "fallo: ya se esta") {
-			reg = x
-		}
-	}
-	if !ttConColor(ttRojo, reg, "fallo: ya se esta") {
+	p := m.Pantalla()
+	reg := p[len(p)-3] // la linea del Registro (A-2, CA-714)
+	if !strings.Contains(ttSinSGR(reg), "fallo: ya se esta") || !ttConColor(ttRojo, reg, "fallo: ya se esta") {
 		t.Fatalf("CA-563: 'fallo: <...>' va en rojo en el Registro: %q", reg)
 	}
 	m.Tic(ttAhora.Add(time.Second + tablero.DuracionAviso + time.Second))
@@ -147,74 +198,121 @@ func TestCA563_CA528_TerminaAntesDelRegistro(t *testing.T) {
 	}
 }
 
-// CA-563: el panel del Registro muestra las entradas mas nuevas que entran
-// enteras, la mas vieja arriba y la mas nueva abajo, desde su primera linea
-// interior: " <HH:MM> <texto>" y siete espacios y el comando; vacio, "todavia
-// no se ejecuto nada"; la hora en la zona del reloj del modelo.
-func TestCA563_ElPanelDelRegistro(t *testing.T) {
+// CA-563: el Registro desplegado (en la v3 el modal Registro, L: CA-714)
+// muestra las entradas, la mas vieja arriba y la mas nueva abajo: "<HH:MM>
+// <texto>" y seis espacios y el comando; vacio, "todavia no se ejecuto
+// nada"; la hora en la zona del reloj del modelo. (La v2 mostraba en su panel
+// las entradas mas nuevas que entraban enteras; el modal las tiene todas y,
+// cuando sus lineas no entran, abre en su final: CA-714.)
+func TestCA563_ElModalDelRegistro(t *testing.T) {
 	m := ttModelo(ttConfig(120, 32, false), ttTablero(ttTarjetaCon(ttAccionWriter()), ttBacklog("otra", "Otra")))
-	reg := func() []string { return ttCajaDe(t, "CA-563", m, "Registro").ttTexto() }
-	if got := reg(); got[0] != " todavia no se ejecuto nada" || ttCajaDe(t, "CA-563", m, "Registro").Titulo != "Registro" {
-		t.Fatalf("CA-563: vacio, el Registro dice ' todavia no se ejecuto nada': %q", got)
+	if got := tv3bRegModal(t, "CA-563", m, 120, ttAhora).Textos; len(got) < 1 || got[0] != "todavia no se ejecuto nada" {
+		t.Fatalf("CA-563: vacio, el Registro dice 'todavia no se ejecuto nada': %q", got)
 	}
 	zona := time.FixedZone("UTC-6", -6*3600)
-	ttIrA(t, m, "tarjeta")
+	tv3bIrA(t, m, "tarjeta")
 	m.Tecla("u", ttAhora.In(zona))                     // 06:00
 	m.Tecla("u", ttAhora.Add(5*time.Minute).In(zona))  // 06:05
 	m.Tecla("u", ttAhora.Add(10*time.Minute).In(zona)) // 06:10
-	got := reg()
+	got := tv3bRegModal(t, "CA-563", m, 120, ttAhora.Add(10*time.Minute).In(zona)).Textos
 	quiere := []string{
-		" 06:05 Fijar para la terminal · tarjeta · lanzando...",
-		"       hoom usar tarjeta",
-		" 06:10 Fijar para la terminal · tarjeta · lanzando...",
-		"       hoom usar tarjeta",
+		"06:00 Fijar para la terminal · tarjeta · lanzando...",
+		"      hoom usar tarjeta",
+		"06:05 Fijar para la terminal · tarjeta · lanzando...",
+		"      hoom usar tarjeta",
+		"06:10 Fijar para la terminal · tarjeta · lanzando...",
+		"      hoom usar tarjeta",
 	}
 	if strings.Join(got, "\n") != strings.Join(quiere, "\n") {
-		t.Fatalf("CA-563: a 120x32 (4 lineas interiores) las dos entradas mas nuevas, la vieja arriba, con la hora del reloj del modelo:\n got %q\nwant %q", got, quiere)
+		t.Fatalf("CA-563: a 120x32 las tres entradas, la vieja arriba, con la hora del reloj del modelo:\n got %q\nwant %q", got, quiere)
 	}
 	// una entrada de una linea (el fin de un trabajo) tambien cuenta entera
 	m = ttModelo(ttConfig(120, 32, false), ttTablero(ttCorre("corre", "writer", "env", "run")))
 	m.Tecla("u", ttAhora)
 	m.Leer(tablero.Lectura{Ahora: ttAhora.Add(time.Minute), Tablero: ttTablero(ttParada("corre"))})
-	got = ttCajaDe(t, "CA-563", m, "Registro").ttTexto()
-	quiere = []string{" 12:00 Fijar para la terminal · corre · lanzando...", "       hoom usar corre", " 12:01 writer termino en corre: termino corre", ""}
+	got = tv3bRegModal(t, "CA-563", m, 120, ttAhora.Add(time.Minute)).Textos
+	quiere = []string{"12:00 Fijar para la terminal · corre · lanzando...", "      hoom usar corre", "12:01 writer termino en corre: termino corre"}
 	if strings.Join(got, "\n") != strings.Join(quiere, "\n") {
 		t.Fatalf("CA-563: la entrada del fin es una linea:\n got %q\nwant %q", got, quiere)
 	}
+	// lo que no entra: a 70x20 el modal tiene B = 18 lineas (16 de texto) y
+	// nueve entradas son 18; abre en su final y su borde de abajo dice
+	// "18 de 18"
+	n := ttModelo(ttConfig(70, 20, false), ttTablero(ttTarjetaCon(ttAccionWriter())))
+	var todas []string
+	for i := 0; i < 9; i++ {
+		h := ttAhora.Add(time.Duration(i) * time.Minute)
+		n.Tecla("u", h)
+		todas = append(todas, h.Format("15:04")+" Fijar para la terminal · tarjeta · lanzando...", "      hoom usar tarjeta")
+	}
+	mc := tv3bRegModal(t, "CA-563", n, 70, ttAhora.Add(time.Hour))
+	if strings.Join(mc.Textos, "\n") != strings.Join(todas[2:], "\n") || !strings.Contains(mc.Abajo, "18 de 18") {
+		t.Fatalf("CA-563: con lineas que no entran el Registro abre en su final (%q):\n got %q\nwant %q", mc.Abajo, mc.Textos, todas[2:])
+	}
 }
 
-// CA-563: plegado (una columna), el Registro muestra en su titulo la primera
-// linea de su entrada mas nueva, sin su margen; vacio, "Registro".
+// CA-563: plegado, el Registro muestra en su linea la primera linea de su
+// entrada mas nueva, sin su margen; vacio, "Registro". En la v3 esta plegado
+// a cualquier ancho (la linea A-2, CA-714); la v2 lo plegaba en una columna.
 func TestCA563_ElRegistroPlegado(t *testing.T) {
-	m := ttModelo(ttConfig(70, 24, false), ttTablero(ttTarjetaCon(ttAccionWriter())))
-	if c := ttCajaDe(t, "CA-563", m, "Registro"); !c.Plegado || c.Titulo != "Registro" {
-		t.Fatalf("CA-563: plegado y vacio, el titulo es 'Registro': %+v", c)
-	}
-	m.Tecla("u", ttAhora)
-	m.Tecla("u", ttAhora.Add(2*time.Minute))
-	c := ttCajaDe(t, "CA-563", m, "Registro")
-	if !c.Plegado || c.Titulo != "Registro · 12:02 Fijar para la terminal · tarjeta · lanzando..." {
-		t.Fatalf("CA-563: plegado, el titulo dice la primera linea de la entrada mas nueva: %q", c.Titulo)
-	}
-	if !strings.HasPrefix(c.Arriba, "-Registro · 12:02 ") || ttCeldas(c.Arriba) != 70 {
-		t.Fatalf("CA-563: la linea plegada mide su ancho: %q", c.Arriba)
+	for _, tam := range [][2]int{{70, 24}, {120, 32}} {
+		m := ttModelo(ttConfig(tam[0], tam[1], false), ttTablero(ttTarjetaCon(ttAccionWriter())))
+		if got, quiere := tv3bRegistro(m), tv3bRegLinea("Registro", tam[0]); got != quiere {
+			t.Fatalf("CA-563: a %dx%d, plegado y vacio, la linea del Registro es 'Registro':\n got %q\nwant %q", tam[0], tam[1], got, quiere)
+		}
+		m.Tecla("u", ttAhora)
+		m.Tecla("u", ttAhora.Add(2*time.Minute))
+		quiere := tv3bRegLinea("Registro · 12:02 Fijar para la terminal · tarjeta · lanzando...", tam[0])
+		if got := tv3bRegistro(m); got != quiere || ttCeldas(got) != tam[0] {
+			t.Fatalf("CA-563: a %dx%d la linea plegada dice la primera linea de la entrada mas nueva y mide su ancho:\n got %q\nwant %q", tam[0], tam[1], got, quiere)
+		}
 	}
 }
 
 // CA-563: el comando del Registro es el que mostro "Se va a ejecutar", en una
-// linea y cortado al panel; ningun control de un texto llega al Registro.
-func TestCA563_ElComandoCortadoAlPanel(t *testing.T) {
+// linea y cortado al ancho (en la v3, al texto del modal Registro: Wm-6 = 66
+// celdas a 80x24, con el signo del corte); ningun control de un texto llega
+// al Registro (CA-534: el conjunto entero de ttEsControl, no solo ESC): ni a
+// la pantalla con su linea plegada, ni al modal L, ni al Comando de la
+// entrada.
+func TestCA563_ElComandoCortadoAlModal(t *testing.T) {
 	a := ttAccionWriter()
 	a.Pedido = "un pedido largo con\ttab y \x1b[2J control " + strings.Repeat("mas texto ", 10)
 	m := ttModelo(ttConfig(80, 24, false), ttTablero(ttTarjetaCon(a)))
 	ttLanzarWriter(t, m, ttAhora)
-	c := ttCajaDe(t, "CA-563", m, "Registro")
-	if len(c.Dentro) < 2 {
-		t.Fatalf("CA-563: el Registro tiene la entrada: %+v", c)
+	if l := tv3bRegistro(m); strings.Contains(l, "\x1b") {
+		t.Fatalf("CA-563: ningun control llega a la linea del Registro: %q", l)
 	}
-	linea := c.Dentro[1]
-	if ttCeldas(linea) != 52 || !strings.HasPrefix(linea, "       hoom pedir writer tarjeta -m ") || strings.Contains(linea, "\x1b") {
-		t.Fatalf("CA-563: la segunda linea es el comando cortado a las 52 celdas, sin controles: %q", linea)
+	ttSinControles(t, "CA-563", "la pantalla con la linea del Registro", m, false)
+	mc := tv3bRegModal(t, "CA-563", m, 80, ttAhora)
+	if len(mc.Textos) < 2 {
+		t.Fatalf("CA-563: el Registro tiene la entrada: %q", mc.Textos)
+	}
+	linea := mc.Textos[1]
+	if ttCeldas(linea) != 66 || !strings.HasSuffix(linea, "~") || !strings.HasPrefix(linea, "      hoom pedir writer tarjeta -m ") || strings.Contains(strings.Join(mc.Textos, "\n"), "\x1b") {
+		t.Fatalf("CA-563: la segunda linea es el comando cortado a las 66 celdas, sin controles: %q", linea)
+	}
+	for i, l := range append([]string{mc.Arriba, mc.Abajo}, mc.Textos...) {
+		for _, r := range l {
+			if ttEsControl(r) {
+				t.Fatalf("CA-563: ninguna linea del modal Registro lleva el control %U (linea %d): %q", r, i, l)
+			}
+		}
+	}
+	entrada := false
+	for _, as := range m.Registro() {
+		if !strings.HasPrefix(as.Comando, "hoom pedir writer tarjeta -m ") {
+			continue
+		}
+		entrada = true
+		for _, r := range as.Comando {
+			if ttEsControl(r) {
+				t.Fatalf("CA-563: el Comando de la entrada no lleva el control %U: %q", r, as.Comando)
+			}
+		}
+	}
+	if !entrada {
+		t.Fatalf("CA-563: el Registro tiene la entrada del pedido: %#v", m.Registro())
 	}
 }
 
@@ -226,19 +324,31 @@ func TestCA563_ElComandoCortadoAlPanel(t *testing.T) {
 // que una lectura funcione; los errores de lectura van debajo de cualquier
 // mensaje con tiempo: el del tablero primero, despues el del proyecto,
 // despues el de los hallazgos.
+//
+// En la v3 lo que la v2 miraba en [1] es la cabecera y lo de [4], la lista de
+// la vista Hallazgos (H): las dos se miran con la vista Hallazgos abierta, y
+// H vuelve a las tarjetas antes de la tecla w.
 func TestCA562_LecturasQueFallan(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, false))
-	antes1 := ttCajaDe(t, "CA-562", m, "[1]").ttTexto()
-	antes4 := ttCajaDe(t, "CA-562", m, "[4]").ttTexto()
+	m.Tecla("H", ttAhora)
+	if m.Vista() != tablero.VistaHallazgos {
+		t.Fatalf("CA-712 (guarda): H abre la vista Hallazgos: %q", m.Vista())
+	}
+	antes1 := tv3bCabecera(m)
+	antes4 := tv3bLista(t, "CA-562", m).ttTexto()
 	m.LeerProyecto(tablero.Proyecto{Err: errors.New("git no responde")})
 	ttDiceMensaje(t, "CA-562", "el proyecto falla", m, false, "no se pudo leer el proyecto: git no responde")
-	if got := ttCajaDe(t, "CA-562", m, "[1]").ttTexto(); strings.Join(got, "|") != strings.Join(antes1, "|") {
-		t.Fatalf("CA-562: [1] se queda con la ultima lectura: %q", got)
+	if got := tv3bCabecera(m); got != antes1 {
+		t.Fatalf("CA-562: la cabecera se queda con la ultima lectura: %q", got)
 	}
 	m.LeerHallazgos(tablero.Hallazgos{Err: errors.New("hallazgo ilegible")})
 	ttDiceMensaje(t, "CA-562", "los dos fallan: primero el proyecto", m, false, "no se pudo leer el proyecto: git no responde")
-	if got := ttCajaDe(t, "CA-562", m, "[4]").ttTexto(); strings.Join(got, "|") != strings.Join(antes4, "|") {
-		t.Fatalf("CA-562: [4] se queda con la ultima lectura: %q", got)
+	if got := tv3bLista(t, "CA-562", m).ttTexto(); strings.Join(got, "|") != strings.Join(antes4, "|") {
+		t.Fatalf("CA-562: la vista Hallazgos se queda con la ultima lectura: %q", got)
+	}
+	m.Tecla("H", ttAhora)
+	if m.Vista() != tablero.VistaTarjetas || m.Elegida() != "nuc-tenancy" {
+		t.Fatalf("CA-712 (guarda): H vuelve a las tarjetas con la que estaba elegida: %q %q", m.Vista(), m.Elegida())
 	}
 	m.Leer(tablero.Lectura{Ahora: ttAhora, Err: errors.New("disco roto")})
 	ttDiceMensaje(t, "CA-562", "el tablero falla: primero el tablero", m, false, "no se pudo leer el tablero: disco roto")
@@ -262,31 +372,44 @@ func TestCA562_LecturasQueFallan(t *testing.T) {
 }
 
 // CA-530, CA-562: una lectura del tablero que falla deja la ultima pantalla
-// de [2] y la linea de mensajes dice "no se pudo leer el tablero: <error>"
-// hasta que una lectura funcione. (v1 CA-530, hallazgo c91cb9: la pantalla
-// entera menos sus dos ultimas lineas queda igual, con la seleccion de [3] en
-// su segunda fila y el foco ahi.)
+// de la lista de tarjetas y la linea de mensajes dice "no se pudo leer el
+// tablero: <error>" hasta que una lectura funcione. (v1 CA-530, hallazgo
+// c91cb9: la pantalla entera menos sus dos ultimas lineas queda igual; la v2
+// lo miraba con el foco en [3] y su segunda fila elegida: en la v3, con la
+// seleccion en la fila que sigue a la del grupo CORRIENDO y el foco en el
+// detalle.)
 func TestCA530_CA562_LecturaDelTableroQueFalla(t *testing.T) {
 	m := ttModelo(ttConfig(120, 24, false), ttTableroPrincipal())
-	antes := ttCajaDe(t, "CA-530", m, "[2]").ttTexto()
+	antes := tv3bLista(t, "CA-530", m).ttTexto()
 	m.Leer(tablero.Lectura{Ahora: ttAhora.Add(2 * time.Second), Err: errors.New("disco roto")})
 	ttDiceMensaje(t, "CA-530", "falla", m, false, "no se pudo leer el tablero: disco roto")
-	if got := ttCajaDe(t, "CA-530", m, "[2]").ttTexto(); strings.Join(got, "|") != strings.Join(antes, "|") {
+	if got := tv3bLista(t, "CA-530", m).ttTexto(); strings.Join(got, "|") != strings.Join(antes, "|") {
 		t.Fatalf("CA-530: la pantalla se queda con el ultimo tablero: %q", got)
 	}
 	// v1 CA-530, hallazgo c91cb9: la pantalla entera menos sus dos ultimas
 	// lineas (a la misma hora, para que nada cuente tiempo), con el foco en
-	// [2] y con el foco en [3] y su segunda fila elegida
-	for _, ks := range [][]tablero.Tecla{nil, {"3", "j"}} {
+	// la lista y con el foco en el detalle de la fila que sigue a CORRIENDO
+	casos := []struct {
+		nombre string
+		ir     func(f *tablero.Modelo)
+	}{
+		{"el foco en la lista", func(f *tablero.Modelo) {}},
+		{"la fila que sigue a CORRIENDO, el foco en el detalle", func(f *tablero.Modelo) {
+			tv3bIrA(t, f, "infra-api")
+			f.Tecla("j", ttAhora)
+			tv3bAlDetalle(t, f)
+		}},
+	}
+	for _, cs := range casos {
 		f := ttModelo(ttConfig(120, 24, false), ttTableroPrincipal())
-		ttTeclas(f, ks...)
+		cs.ir(f)
 		elegida, foco := f.Elegida(), f.Foco()
 		p0 := f.Pantalla()
 		f.Leer(tablero.Lectura{Ahora: ttAhora, Err: errors.New("disco roto")})
 		p1 := f.Pantalla()
 		if strings.Join(p1[:len(p1)-2], "\n") != strings.Join(p0[:len(p0)-2], "\n") || f.Elegida() != elegida || f.Foco() != foco {
-			t.Fatalf("CA-530 (hallazgo c91cb9, teclas %q): una lectura que falla deja la pantalla entera menos las dos ultimas lineas (elegida %q, era %q); antes:\n%s\ndespues:\n%s",
-				ks, f.Elegida(), elegida, strings.Join(p0, "\n"), strings.Join(p1, "\n"))
+			t.Fatalf("CA-530 (hallazgo c91cb9, %s): una lectura que falla deja la pantalla entera menos las dos ultimas lineas (elegida %q, era %q); antes:\n%s\ndespues:\n%s",
+				cs.nombre, f.Elegida(), elegida, strings.Join(p0, "\n"), strings.Join(p1, "\n"))
 		}
 	}
 	m.Tic(ttAhora.Add(time.Minute))
@@ -343,13 +466,9 @@ func TestCA530_CA563_FinInterrumpidoEsRojo(t *testing.T) {
 		if !strings.Contains(b, cs.msg) || !ttConColor(color, b, cs.msg) {
 			t.Fatalf("CA-530: %s: la linea de mensajes dice %q en %s: %q", cs.nombre, cs.msg, map[bool]string{true: "rojo", false: "verde"}[cs.rojo], b)
 		}
-		var reg string
-		for _, x := range m.Pantalla()[:len(m.Pantalla())-2] {
-			if strings.Contains(ttSinSGR(x), cs.msg) {
-				reg = x
-			}
-		}
-		if reg == "" || !ttConColor(color, reg, cs.msg) {
+		p := m.Pantalla()
+		reg := p[len(p)-3] // la linea del Registro (A-2, CA-714)
+		if !strings.Contains(ttSinSGR(reg), cs.msg) || !ttConColor(color, reg, cs.msg) {
 			t.Fatalf("CA-563: %s: el Registro dice el fin en el mismo color: %q", cs.nombre, reg)
 		}
 		m = ttModelo(ttAncho(), ttTablero(cs.antes))
@@ -387,13 +506,13 @@ func TestCA530_DosFinesEnUnaLectura(t *testing.T) {
 // why).
 func TestCA530_ElAvisoDeFinTomaLaLinea(t *testing.T) {
 	m := ttModelo(ttAncho(), ttTablero(ttTarjetaCon(ttAccionWriter()), ttCorre("dos", "reviewer", "env-dos", "run-dos")))
-	ttIrA(t, m, "tarjeta")
+	tv3bIrA(t, m, "tarjeta")
 	ttLanzarWriter(t, m, ttAhora)
 	ttDiceMensaje(t, "CA-528", "lanzado", m, false, "lanzando hoom pedir writer tarjeta")
 	m.Leer(tablero.Lectura{Ahora: ttAhora.Add(time.Second), Tablero: ttTablero(ttTarjetaCon(ttAccionWriter()), ttParada("dos"))})
 	ttDiceMensaje(t, "CA-530", "tras lanzar", m, false, "reviewer termino en dos: termino dos")
 	m = ttModelo(ttAncho(), ttTablero(ttTarjetaCon(ttAccionGuardar(false, ttWhyGuardar)), ttCorre("dos", "reviewer", "env-dos", "run-dos")))
-	ttIrA(t, m, "tarjeta")
+	tv3bIrA(t, m, "tarjeta")
 	m.Tecla("s", ttAhora)
 	ttDiceMensaje(t, "CA-525", "el why", m, false, ttWhyGuardar)
 	m.Leer(tablero.Lectura{Ahora: ttAhora.Add(time.Second), Tablero: ttTablero(ttTarjetaCon(ttAccionGuardar(false, ttWhyGuardar)), ttParada("dos"))})
@@ -431,21 +550,22 @@ func ttFinVuelveEntero(t *testing.T, ca, que string, m *tablero.Modelo, desde, t
 }
 
 // CA-530, CA-578 (hallazgo 08c87c de la v1): ningun aviso de fin se pierde. En
-// una lectura donde una tarjeta deja de correr y la tarjeta que [0] mostraba
-// con el foco ya no esta, el foco vuelve a [2] y la linea dice primero "la
-// tarjeta <slug> ya no existe" (su DuracionAviso) y despues el aviso de fin,
-// entero.
+// una lectura donde una tarjeta deja de correr y la tarjeta que el detalle
+// mostraba con el foco ya no esta, el foco vuelve a la lista y la linea dice
+// primero "la tarjeta <slug> ya no existe" (su DuracionAviso) y despues el
+// aviso de fin, entero. (La v2 llegaba al detalle con enter; en la v3 enter
+// abre el modal del paso y al detalle se va con tab: CA-706.)
 func TestCA530_CA578_ElFinVuelveDespuesDeYaNoExiste(t *testing.T) {
 	m := ttModelo(ttAncho(), ttTablero(ttBacklog("abierta", "La tarjeta abierta"), ttCorre("corre", "writer", "env-c", "run-c")))
-	ttIrA(t, m, "abierta")
-	m.Tecla(tablero.TeclaEnter, ttAhora)
-	if m.Foco() != tablero.PanelPrincipal || m.Elegida() != "abierta" {
-		t.Fatalf("CA-553: enter pasa el foco a [0] con la tarjeta: %d %q", int(m.Foco()), m.Elegida())
+	tv3bIrA(t, m, "abierta")
+	tv3bAlDetalle(t, m)
+	if m.Lugar() != tablero.LugarVerTarjeta || m.Elegida() != "abierta" {
+		t.Fatalf("CA-706: tab pasa el foco al detalle con la tarjeta: %q %q", m.Lugar(), m.Elegida())
 	}
 	t0 := ttAhora.Add(2 * time.Second)
 	m.Leer(tablero.Lectura{Ahora: t0, Tablero: ttTablero(ttParada("corre"))})
-	if m.Foco() != tablero.PanelTarjetas {
-		t.Fatalf("CA-578: la tarjeta de [0] ya no existe: el foco vuelve a [2]: %d", int(m.Foco()))
+	if m.Foco() != tablero.ZonaLista {
+		t.Fatalf("CA-578: la tarjeta del detalle ya no existe: el foco vuelve a la lista: %d", int(m.Foco()))
 	}
 	const ya = "la tarjeta abierta ya no existe"
 	ttDiceMensaje(t, "CA-530", "primero lo de esta lectura", m, false, ya)
@@ -455,22 +575,24 @@ func TestCA530_CA578_ElFinVuelveDespuesDeYaNoExiste(t *testing.T) {
 		t0.Add(tablero.DuracionAviso+time.Second), "writer termino en corre: termino corre")
 }
 
-// CA-530, CA-574 (hallazgo 08c87c de la v1): lo mismo con una firma que esa
-// lectura cierra: primero "cambio lo que ibas a confirmar en <slug>: vuelve
-// a abrirlo" y despues el aviso de fin, entero. Nada se firma.
-func TestCA530_CA574_ElFinVuelveDespuesDeLaFirmaCerrada(t *testing.T) {
+// CA-530, CA-717, CA-574 (hallazgo 08c87c de la v1): lo mismo con una firma
+// que esa lectura cierra: primero "cambio lo que ibas a confirmar en <slug>:
+// vuelve a abrirlo" y despues el aviso de fin, entero. Nada se firma. Sin
+// auto en el item (ttNucTenancy no lo tiene) el modal de firma es el de la
+// v2 (CA-717, que re-expresa CA-574).
+func TestCA530_CA717_CA574_ElFinVuelveDespuesDeLaFirmaCerrada(t *testing.T) {
 	m := ttModelo(ttAncho(), ttTablero(ttNucTenancy(), ttCorre("corre", "reviewer", "env-c", "run-c")))
-	ttIrA(t, m, "nuc-tenancy")
-	ttSinOrdenes(t, "CA-574", "A", m.Tecla("A", ttAhora))
+	tv3bIrA(t, m, "nuc-tenancy")
+	ttSinOrdenes(t, "CA-717, CA-574", "A", m.Tecla("A", ttAhora))
 	m.Tecla(tablero.TeclaDer, ttAhora)
 	otra := ttNucTenancy()
 	otra.Item.Titulo = "Tenancy del nucleo, otra"
 	t0 := ttAhora.Add(2 * time.Second)
 	if l := ttLanzares(m.Leer(tablero.Lectura{Ahora: t0, Tablero: ttTablero(otra, ttParada("corre"))})); len(l) != 0 {
-		t.Fatalf("CA-574: la lectura que cambia la firma no firma: %#v", l)
+		t.Fatalf("CA-717, CA-574: la lectura que cambia la firma no firma: %#v", l)
 	}
 	if m.Modal() != tablero.SinModal {
-		t.Fatalf("CA-574: la firma se cierra: %q", m.Modal())
+		t.Fatalf("CA-717, CA-574: la firma se cierra: %q", m.Modal())
 	}
 	cambio := ttCambio("nuc-tenancy")
 	ttDiceMensaje(t, "CA-530", "primero la firma cerrada", m, false, cambio)
@@ -479,7 +601,7 @@ func TestCA530_CA574_ElFinVuelveDespuesDeLaFirmaCerrada(t *testing.T) {
 	ttFinVuelveEntero(t, "CA-530", "despues de la firma cerrada", m, t0.Add(tablero.DuracionAviso-time.Second),
 		t0.Add(tablero.DuracionAviso+time.Second), "reviewer termino en corre: termino corre")
 	if l := ttLanzares(m.Tecla(tablero.TeclaEnter, t0.Add(30*time.Second))); len(l) != 0 {
-		t.Fatalf("CA-574: nada se firma: %#v", l)
+		t.Fatalf("CA-717, CA-574: nada se firma: %#v", l)
 	}
 }
 
@@ -581,14 +703,19 @@ func TestCA528_CA530_RegistradoYTermino(t *testing.T) {
 	}
 }
 
-// CA-530, caso limite de la v1: un rol lanzado desde otra terminal aparece
-// igual (en [3]) y su fin avisa, en verde cuando el rojo no es el de su sobre.
-func TestCA530_FinDeUnRolLanzadoDesdeOtraTerminal(t *testing.T) {
+// CA-530, CA-711, caso limite de la v1: un rol lanzado desde otra terminal
+// aparece igual (en la v3 en el grupo CORRIENDO, con "<rol> · <tiempo>" en la
+// segunda linea de su fila: CA-711, que re-expresa CA-558; la v2: en [3]) y
+// su fin avisa, en verde cuando el rojo no es el de su sobre.
+func TestCA530_CA711_FinDeUnRolLanzadoDesdeOtraTerminal(t *testing.T) {
 	cfg := ttConfig(120, 24, false)
 	cfg.Color = true
 	m := ttModelo(cfg, ttTablero(ttCorriendoCon("env-ajeno")))
-	if e := ttElegidaEn(ttCajaDe(t, "CA-558", m, "[3]")); !strings.HasPrefix(e, "tarjeta writer ") {
-		t.Fatalf("CA-558: el running ajeno se ve en [3]: %q", e)
+	l := tv3bLista(t, "CA-711", m)
+	i := tv3bFilaDe(l, "Tarjeta de prueba")
+	if g := m.Grupo("tarjeta"); g != tablero.GrupoCorriendo || i < 1 || strings.TrimRight(l.Dentro[i-1], " ") != " CORRIENDO 1" ||
+		!strings.HasPrefix(tv3bSegunda(l, "Tarjeta de prueba"), "   writer · ") || tv3bTituloElegido(t, "CA-711", m) != "Tarjeta de prueba" {
+		t.Fatalf("CA-711, CA-558: el running ajeno se ve en el grupo CORRIENDO, con su rol (%q):\n%s", g, ttPantalla(m))
 	}
 	fin := ttTarjetaCon(ttAccionWriter())
 	fin.Plain = "espera tu aceptacion"
@@ -629,17 +756,19 @@ func TestCA528_MensajeSalidaYCorriendo(t *testing.T) {
 	}
 }
 
-// CA-533: q y ctrl-c ordenan Salir desde los paneles y [0]; ctrl-c tambien
-// desde la busqueda, la lista abierta y cada modal (q ahi no sale: en un
-// texto es una q).
+// CA-533: q y ctrl-c ordenan Salir desde los paneles (en la v3: la lista y
+// el detalle de las dos vistas, el proyecto con v y el detalle sin nada; la
+// v2: [2], [1], [3], [4] y [0]); ctrl-c tambien desde la busqueda, la lista
+// abierta y cada modal (q ahi no sale: en un texto es una q).
 func TestCA533_QYCtrlCOrdenanSalir(t *testing.T) {
 	salir := func(os []tablero.Orden) bool { return len(os) == 1 && os[0] == tablero.Orden(tablero.Salir{}) }
 	for _, k := range []tablero.Tecla{"q", tablero.TeclaCtrlC} {
-		for _, antes := range []tablero.Tecla{"2", "1", "3", "4", "0"} {
+		for _, l := range []tablero.Lugar{tablero.LugarTarjetas, tablero.LugarVerTarjeta, tablero.LugarHallazgos,
+			tablero.LugarVerHallazgo, tablero.LugarVerProyecto, tablero.LugarVerNada} {
 			m := ttModeloDorado(ttConfig(120, 32, false))
-			m.Tecla(antes, ttAhora)
+			tv3bEnLugar(t, m, l)
 			if os := m.Tecla(k, ttAhora); !salir(os) {
-				t.Fatalf("CA-533: %q con el foco en [%s] ordena Salir: %#v", k, antes, os)
+				t.Fatalf("CA-533: %q en %q ordena Salir: %#v", k, l, os)
 			}
 		}
 	}

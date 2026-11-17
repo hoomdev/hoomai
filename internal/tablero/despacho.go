@@ -17,22 +17,24 @@ import (
 // nothing: the screen and the orders stay the same. The package doc says
 // what each row does in each Lugar ("The keys"); in short:
 //
-//   - The keys of an action (a, t, w, r, R, s, A, I and n) never order
-//     Lanzar: when the card has the action and it is enabled, they open its
-//     modal (Pedir for a, t, w, r and R; Firma for A and I; Guardar for s;
-//     n the modal of the next step's action, whatever its kind) and return
-//     no order; when the card does not have it, the message line says for
-//     DuracionAviso "en <column_name> no hay <Hace>"; when it is disabled,
-//     its why. n without a next step says what hoom siguiente would say
-//     (see the package doc, "The next step"). Without a card (Hecho's line,
-//     an empty [3]) they do nothing.
+//   - enter on a card (in the list or in its detail) and n (the box's card)
+//     open the modal of the card's step, whatever its kind; without a step
+//     the message line says why for DuracionAviso (CA-704, CA-705). enter
+//     on HECHO's line opens or closes HECHO.
+//   - The keys of an action (a, t, w, r, R, s, A and I) never order Lanzar:
+//     when the card has the action and it is enabled, they open its modal
+//     (Pedir for a, t, w, r and R; Firma for A and I; Guardar for s) and
+//     return no order; when the card does not have it, the message line
+//     says for DuracionAviso "en <column_name> no hay <Hace>"; when it is
+//     disabled, its why. P opens Seguir solo when it is available, and else
+//     says why (see the package doc, "Seguir solo").
 //   - u orders Lanzar{Rol: "", Args: {"usar", <slug>}} at once (no modal)
 //     and adds its Registro entry ("Fijar para la terminal").
 //   - Only enter on a modal's action button orders Lanzar (Pedir, Firma,
-//     Guardar), with the Args the modal's "Se va a ejecutar" shows, adds
-//     the verb's Registro entry and closes the modal. Pedir, as the v1's
-//     form, also puts "lanzando hoom <verb>" in the message line for
-//     DuracionAviso (the verb's words, without -m and the flags:
+//     Guardar, Seguir solo), with the Args the modal's "Se va a ejecutar"
+//     shows, adds the verb's Registro entry and closes the modal. Pedir, as
+//     the v1's form, also puts "lanzando hoom <verb>" in the message line
+//     for DuracionAviso (the verb's words, without -m and the flags:
 //     "lanzando hoom pedir writer <slug>").
 //   - e orders AbrirEditor (and adds the editor's Registro entry), ctrl-e
 //     in the Pedir modal orders EditarPedido, q and ctrl-c order Salir.
@@ -144,7 +146,27 @@ func (m *Modelo) hacer(l Lugar, a Atajo, t Tecla) []Orden {
 	if t == TeclaCtrlC || t == "q" && contieneLugar(LugaresPaneles, l) {
 		return []Orden{Salir{}}
 	}
-	if a.Accion != "" {
+	switch a.Accion {
+	case "":
+	case AccionPaso:
+		if l == LugarTarjetas && !m.sel.nada && m.sel.hecho && len(m.filasLista()) > 0 {
+			m.hechoAbierto = !m.hechoAbierto
+			return nil
+		}
+		if c := m.tarjetaDeLugar(l); c != nil {
+			m.abrirPaso(c)
+		}
+		return nil
+	case AccionSiguiente:
+		c, texto := m.tarjetaDeN()
+		switch {
+		case c != nil:
+			m.abrirPaso(c)
+		case texto != "":
+			m.avisar(texto, normal, DuracionAviso)
+		}
+		return nil
+	default:
 		if c := m.tarjetaDeLugar(l); c != nil {
 			return m.accion(c, a)
 		}
@@ -153,35 +175,28 @@ func (m *Modelo) hacer(l Lugar, a Atajo, t Tecla) []Orden {
 	switch l {
 	case LugarPedirSelector, LugarPedirPedido, LugarPedirTexto, LugarPedirLista, LugarPedirBotones:
 		return m.enPedir(l, t)
-	case LugarFirma, LugarGuardar:
+	case LugarFirma, LugarGuardar, LugarSeguir:
 		return m.enConfirmacion(t)
 	case LugarAcciones:
 		return m.enAcciones(t)
 	case LugarAyuda:
 		m.enAyuda(t)
 		return nil
+	case LugarRegistro:
+		m.enRegistro(t)
+		return nil
 	case LugarBusqueda:
 		m.enBusqueda(t)
 		return nil
 	}
-	// the panels
+	// the zones
 	switch t {
-	case "1", "2", "3", "4", "0":
-		m.ponerFoco(Panel(t[0] - '0'))
-		return nil
 	case TeclaTab, TeclaShiftTab:
-		orden := []Panel{PanelProyecto, PanelTarjetas, PanelCorriendo, PanelHallazgos, PanelPrincipal}
-		i := 0
-		for j, p := range orden {
-			if p == m.foco {
-				i = j
-			}
+		if m.zona == ZonaLista {
+			m.ponerZona(ZonaDetalle)
+		} else {
+			m.ponerZona(ZonaLista)
 		}
-		d := 1
-		if t == TeclaShiftTab {
-			d = len(orden) - 1
-		}
-		m.ponerFoco(orden[(i+d)%len(orden)])
 		return nil
 	case "/":
 		m.abrirBusqueda()
@@ -192,6 +207,21 @@ func (m *Modelo) hacer(l Lugar, a Atajo, t Tecla) []Orden {
 	case "?":
 		m.abrirAyuda(l)
 		return nil
+	case "L":
+		m.abrirRegistro()
+		return nil
+	case "H":
+		if m.vista == VistaHallazgos {
+			m.volverATarjetas()
+		} else {
+			m.vista = VistaHallazgos
+			m.ponerZona(ZonaLista)
+		}
+		return nil
+	case "v":
+		m.ponerZona(ZonaDetalle)
+		m.verProyecto = true
+		return nil
 	case TeclaEspacio:
 		if c := m.tarjetaDeLugar(l); c != nil {
 			m.abrirAcciones(c)
@@ -201,10 +231,10 @@ func (m *Modelo) hacer(l Lugar, a Atajo, t Tecla) []Orden {
 		return m.abrirEnEditor(l)
 	}
 	if contieneLugar(LugaresVer, l) {
-		m.enPrincipal(l, t)
+		m.enDetalle(t)
 		return nil
 	}
-	m.enIzquierda(t)
+	m.enLista(l, t)
 	return nil
 }
 
@@ -212,9 +242,7 @@ func (m *Modelo) hacer(l Lugar, a Atajo, t Tecla) []Orden {
 func (m *Modelo) tarjetaDeLugar(l Lugar) *boardcmd.Card {
 	switch l {
 	case LugarTarjetas, LugarVerTarjeta:
-		return m.tarjeta(m.elegidaDe2())
-	case LugarCorriendo, LugarVerCorriendo:
-		return m.tarjeta(m.elegidaDe3())
+		return m.tarjeta(m.elegidaDeLista())
 	case LugarAcciones:
 		if m.acciones != nil {
 			return m.tarjeta(m.acciones.slug)
@@ -223,58 +251,28 @@ func (m *Modelo) tarjetaDeLugar(l Lugar) *boardcmd.Card {
 	return nil
 }
 
-// enIzquierda is a key of [1] to [4].
-func (m *Modelo) enIzquierda(t Tecla) {
-	mover := func(d int) {
-		switch m.foco {
-		case PanelTarjetas:
-			if d == 0 {
-				m.elegir2(0)
-			} else if d == 2 {
-				m.elegir2(len(m.filas2()) - 1)
-			} else {
-				m.elegir2(m.sel2.idx + d)
-			}
-		case PanelCorriendo:
-			switch d {
-			case 0:
-				m.elegir3(0)
-			case 2:
-				m.elegir3(len(m.filas3()) - 1)
-			default:
-				m.elegir3(m.idx3 + d)
-			}
-		case PanelHallazgos:
-			switch d {
-			case 0:
-				m.elegir4(0)
-			case 2:
-				m.elegir4(len(m.hallazgos) - 1)
-			default:
-				m.elegir4(m.idx4 + d)
-			}
-		}
-	}
+// enLista is a key of the list (of cards or of findings).
+func (m *Modelo) enLista(l Lugar, t Tecla) {
 	switch t {
 	case "j", TeclaAbajo:
-		mover(1)
+		m.moverLista(1, false)
 	case "k", TeclaArriba:
-		mover(-1)
+		m.moverLista(-1, false)
 	case "g":
-		mover(0)
+		m.moverLista(-1, true)
 	case "G":
-		mover(2)
+		m.moverLista(1, true)
 	case TeclaEnter, "l", TeclaDer:
-		if m.foco == PanelTarjetas && !m.sel2.nada && m.sel2.hecho {
-			m.hechoAbierto = !m.hechoAbierto
-			return
+		m.ponerZona(ZonaDetalle)
+	case TeclaEsc:
+		if l == LugarHallazgos {
+			m.volverATarjetas()
 		}
-		m.ponerFoco(PanelPrincipal)
 	}
 }
 
-// enPrincipal is a key of [0].
-func (m *Modelo) enPrincipal(l Lugar, t Tecla) {
+// enDetalle is a key of the detail.
+func (m *Modelo) enDetalle(t Tecla) {
 	switch t {
 	case "j", TeclaAbajo:
 		m.desplazar0(1)
@@ -289,16 +287,16 @@ func (m *Modelo) enPrincipal(l Lugar, t Tecla) {
 	case "G":
 		m.desplazar0(1 << 30)
 	case TeclaEsc, TeclaIzq, "h":
-		m.ponerFoco(m.izq)
+		m.ponerZona(ZonaLista)
 	case "]c", "[c":
 		m.saltarCriterio(t == "]c")
 	}
 }
 
-// desplazar0 scrolls [0] d lines (clamped); [0] of [3] follows its end
-// when the view is at it.
+// desplazar0 scrolls the detail d lines (clamped); a card with running
+// follows its end when the view is at it.
 func (m *Modelo) desplazar0(d int) {
-	_, docu, hi := m.doc0()
+	docu, hi := m.doc0()
 	maximo := max(0, len(docu)-hi)
 	s := m.scroll0 + d
 	if d == 1<<30 || s > maximo {
@@ -311,24 +309,24 @@ func (m *Modelo) desplazar0(d int) {
 	m.sigue0 = m.sigueElFinal(s, maximo)
 }
 
-// sigueElFinal says whether [0] follows its end at the scroll s of maximo:
-// [0] of [3] when it is at its end; a card's document only when it is longer
-// than the view and it is at its end (its Narración in view). Proyecto and
-// a finding never follow.
+// sigueElFinal says whether the detail follows its end at the scroll s of
+// maximo: a card with running when it is at its end; another card's
+// document only when it is longer than the view and it is at its end (its
+// Narración in view). The project and a finding never follow.
 func (m *Modelo) sigueElFinal(s, maximo int) bool {
-	switch {
-	case strings.HasPrefix(m.clave0, "c:"):
-		return s >= maximo
-	case strings.HasPrefix(m.clave0, "t:"):
-		return maximo > 0 && s >= maximo
+	if !strings.HasPrefix(m.clave0, "t:") {
+		return false
 	}
-	return false
+	if c := m.tarjeta(strings.TrimPrefix(m.clave0, "t:")); c != nil && c.Running != nil {
+		return s >= maximo
+	}
+	return maximo > 0 && s >= maximo
 }
 
 // saltarCriterio makes the next (or previous) criterion without a test the
 // first line in view.
 func (m *Modelo) saltarCriterio(adelante bool) {
-	_, docu, hi := m.doc0()
+	docu, hi := m.doc0()
 	actual := m.scroll0
 	var sin []int
 	for i, l := range docu {
@@ -360,7 +358,7 @@ func (m *Modelo) saltarCriterio(adelante bool) {
 func (m *Modelo) abrirEnEditor(l Lugar) []Orden {
 	switch l {
 	case LugarVerTarjeta:
-		c := m.tarjeta(m.elegidaDe2())
+		c := m.tarjeta(m.elegidaDeLista())
 		det := m.detalle
 		if c == nil || det == nil || det.Slug != c.Slug || det.Err != nil {
 			return nil
@@ -386,9 +384,9 @@ func (m *Modelo) abrirEnEditor(l Lugar) []Orden {
 }
 
 // lineaCriterioEnVista is the spec's line of the first criterion with a
-// line in [0]'s view, or 1.
+// line in the detail's view, or 1.
 func (m *Modelo) lineaCriterioEnVista(det *Detalle) int {
-	_, docu, hi := m.doc0()
+	docu, hi := m.doc0()
 	for i := m.scroll0; i < len(docu) && i < m.scroll0+hi; i++ {
 		id := docu[i].crit
 		if id == "" {
@@ -419,9 +417,9 @@ func (m *Modelo) abrirArchivo(archivo string, linea int) []Orden {
 func (m *Modelo) enBusqueda(t Tecla) {
 	switch t {
 	case TeclaAbajo:
-		m.elegir2(m.sel2.idx + 1)
+		m.moverLista(1, false)
 	case TeclaArriba:
-		m.elegir2(m.sel2.idx - 1)
+		m.moverLista(-1, false)
 	case TeclaBorrar:
 		if len(m.filtro) > 0 {
 			m.filtro = m.filtro[:len(m.filtro)-1]
@@ -438,66 +436,18 @@ func (m *Modelo) enBusqueda(t Tecla) {
 // trasFiltrar keeps the chosen card while it stays, and else goes to the
 // first row that does.
 func (m *Modelo) trasFiltrar() {
-	if m.sel2.hecho {
-		m.acomodar2()
+	if m.sel.hecho {
+		m.acomodarLista()
 		return
 	}
-	if c := m.tarjeta(m.sel2.slug); c != nil && m.pasaFiltro(c) {
-		m.acomodar2()
+	if c := m.tarjeta(m.sel.slug); c != nil && m.pasaFiltro(c) {
+		m.acomodarLista()
 		return
 	}
-	m.alFiltrar()
+	m.elegirL(0)
 }
 
 // ---------------------------------------------------------------- the actions
-
-// filaDeAccion is the row of the table that runs the card action id.
-func filaDeAccion(id string) (Atajo, bool) {
-	for _, a := range Atajos {
-		if a.Accion == id && a.Verbo != "" {
-			return a, true
-		}
-	}
-	return Atajo{}, false
-}
-
-// siguientePaso is the card's next step (the package doc, "The next
-// step"): its action and its key's row, or the text n says.
-func (m *Modelo) siguientePaso(c *boardcmd.Card) (*boardcmd.Action, Atajo, string) {
-	nada := fmt.Sprintf("en %s no hay nada que hacer ahora: %s", c.ColumnName, c.Plain)
-	switch {
-	case c.Column == boardcmd.ColHecho:
-		return nil, Atajo{}, "la tarjeta ya esta en Hecho"
-	case c.Running != nil:
-		return nil, Atajo{}, fmt.Sprintf("el %s esta trabajando: espera a que termine", rolDe(c.Running.Role))
-	case c.Interrupted != nil:
-		return nil, Atajo{}, "el trabajo se corto: R reanuda o pide de nuevo"
-	}
-	var id string
-	switch {
-	case c.Column == boardcmd.ColTuAprobacion:
-		id = boardcmd.ActAprobar
-	case c.Column == boardcmd.ColTuAceptacion:
-		id = boardcmd.ActIntegrar
-	case len(c.Actions) == 0:
-		return nil, Atajo{}, nada
-	default:
-		a := c.Actions[0]
-		if _, ok := filaDeAccion(a.ID); !ok || !boardcmd.IsRoleAction(a.ID) && a.ID != boardcmd.ActGuardar {
-			return nil, Atajo{}, nada
-		}
-		id = a.ID
-	}
-	fila, _ := filaDeAccion(id)
-	act, ok := c.Action(id)
-	if !ok {
-		return nil, fila, fmt.Sprintf("en %s no hay %s", c.ColumnName, fila.Hace)
-	}
-	if !act.Enabled {
-		return nil, fila, act.Why
-	}
-	return &act, fila, ""
-}
 
 // accion runs the row a (one with Accion) on the card c.
 func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
@@ -510,13 +460,12 @@ func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
 			m.cerrarModal()
 		}
 		return []Orden{la.o}
-	case AccionSiguiente:
-		act, fila, texto := m.siguientePaso(c)
-		if act == nil {
-			m.avisar(texto, normal, DuracionAviso)
+	case AccionSeguir:
+		if why := m.motivoSinSeguir(c); why != "" {
+			m.avisar(why, normal, DuracionAviso)
 			return nil
 		}
-		m.abrirModalDe(c, *act, fila)
+		m.abrirSeguir(c)
 		return nil
 	}
 	act, ok := c.Action(a.Accion)
@@ -530,6 +479,19 @@ func (m *Modelo) accion(c *boardcmd.Card, a Atajo) []Orden {
 	}
 	m.abrirModalDe(c, act, a)
 	return nil
+}
+
+// abrirPaso opens the modal of the card's step, or says why it has none.
+func (m *Modelo) abrirPaso(c *boardcmd.Card) {
+	p := m.pasoDe(c)
+	switch {
+	case p.seguir:
+		m.abrirSeguir(c)
+	case p.act != nil:
+		m.abrirModalDe(c, *p.act, p.fila)
+	default:
+		m.avisar(p.texto, normal, DuracionAviso)
+	}
 }
 
 // abrirModalDe opens the modal of the action act of the card c, whose key's
@@ -550,7 +512,7 @@ func (m *Modelo) abrirModalDe(c *boardcmd.Card, act boardcmd.Action, fila Atajo)
 // cerrarModal closes the open modal.
 func (m *Modelo) cerrarModal() {
 	m.modal = SinModal
-	m.pedir, m.conf, m.acciones, m.ayuda = nil, nil, nil, nil
+	m.pedir, m.conf, m.acciones, m.ayuda, m.reg = nil, nil, nil, nil, nil
 }
 
 // slugDelModal is the card of the open modal ("" without one).

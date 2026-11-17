@@ -1,0 +1,11 @@
+{
+  "id": "20261117T045224_11b445",
+  "created_at": "2026-11-17T04:52:24.621718Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/tablero/detalle.go",
+  "description": "INTRODUCIDO. CA-713 define v como el detalle de proyecto de la v2, con Veredicto, Check, Avisos y Doctor, pero internal/tablero/detalle.go:38 antepone contenido1, que agrega proyecto y rama, Check, gasto y fijada antes de docProyecto; al pulsar v el usuario recibe datos fuera del contrato y Check duplicado. El test agregado consagra esa salida contraria al spec en internal/tablero/tt4_detalle_test.go:1041.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

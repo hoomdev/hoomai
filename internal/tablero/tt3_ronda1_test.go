@@ -1,7 +1,11 @@
 // Ronda 1 del test-writer (la review por tramos de tablero-con-paneles), en
 // el modelo: los tests nuevos de la parte A (lo que el refutador rompio sin
 // que ningun test lo viera) y las regresiones de la parte B, escritos desde
-// doc.go y el spec. Cada uno cita su CA y el id corto de su hallazgo.
+// doc.go y el spec. Cada uno cita su CA y el id corto de su hallazgo. En la
+// v3 (spec tablero-tu-siguiente-paso) los criterios re-expresados citan su id
+// nuevo antes del de la v2, y los paneles de la v2 se leen con la tabla "Los
+// nombres de la v2" del spec: [2] la lista, [0] el detalle, [1] la cabecera
+// (y el detalle con v), [3] el grupo CORRIENDO, [4] la vista Hallazgos (H).
 package tablero_test
 
 import (
@@ -25,12 +29,16 @@ const ttNoEntra = "agranda la terminal: el comando no entra entero"
 
 // ---------------------------------------------------------------- A1 f4b30e: n sin siguiente paso
 
-// CA-566 (v1 CA-525), hallazgo f4b30e: n sin siguiente paso no ordena nada,
-// no abre ningun modal y la linea de mensajes dice lo que diria hoom
-// siguiente: en Hecho, interrumpida, sin acciones, con la accion del
-// siguiente paso deshabilitada, con running (y las otras reglas que no dan
-// accion). Desde [2] y desde [0] de la tarjeta.
-func TestCA566_CA525_NSinSiguientePaso(t *testing.T) {
+// CA-705 (re-expresa CA-566; v1 CA-525), hallazgo f4b30e: enter sobre una
+// tarjeta sin paso, y n con ella en la caja, no ordenan nada, no abren ningun
+// modal y la linea de mensajes dice el texto de la regla del paso (doc.go,
+// "The step of a card"): en Hecho, interrumpida, sin acciones, con la accion
+// del paso deshabilitada, con running (y las otras reglas que no dan paso).
+// En Hecho y con running la tarjeta no esta en TE TOCA ni en DETENIDA: la
+// caja no tiene tarjeta y n dice el texto de la caja para su caso ("no hay
+// nada pendiente", "nada te espera: hoom esta trabajando"). Desde la lista
+// y desde el detalle de la tarjeta (tab: enter ya no lleva al detalle).
+func TestCA705_CA566_CA525_NSinSiguientePaso(t *testing.T) {
 	writer := ttAccionWriter()
 	writerOff := ttAccionWriter()
 	writerOff.Enabled, writerOff.Why = false, "se agoto el presupuesto de la tarjeta"
@@ -46,40 +54,56 @@ func TestCA566_CA525_NSinSiguientePaso(t *testing.T) {
 	casos := []struct {
 		nombre string
 		card   boardcmd.Card
-		quiere string
+		quiere string // lo que dicen enter, y n cuando la tarjeta es la de la caja
+		caja   string // lo que dice n cuando la caja no tiene tarjeta ("" = la tiene)
 	}{
-		{"en Hecho", enHecho, "la tarjeta ya esta en Hecho"},
-		{"con running", conRunning, "el writer esta trabajando: espera a que termine"},
-		{"interrumpida", conInterr, "el trabajo se corto: R reanuda o pide de nuevo"},
-		{"interrumpida con reanudar", ttPagosCaidos(), "el trabajo se corto: R reanuda o pide de nuevo"},
-		{"sin acciones", ttTarjetaCon(), "en Writer no hay nada que hacer ahora: el plain de la tarjeta"},
-		{"primera de rol deshabilitada", ttTarjetaCon(writerOff), "se agoto el presupuesto de la tarjeta"},
-		{"aprobar deshabilitada", aprobOff, "el spec no pasa el lint"},
-		{"en Tu aprobacion sin la accion", aprobSin, "en Tu aprobacion no hay aprobar el spec"},
-		{"primera sin tecla", ttTarjetaCon(ttRelanzar(), writer), "en Writer no hay nada que hacer ahora: el plain de la tarjeta"},
+		{"en Hecho", enHecho, "la tarjeta ya esta en Hecho", "no hay nada pendiente"},
+		{"con running", conRunning, "el writer esta trabajando: espera a que termine", "nada te espera: hoom esta trabajando"},
+		{"interrumpida", conInterr, "el trabajo se corto: R reanuda o pide de nuevo", ""},
+		{"interrumpida con reanudar", ttPagosCaidos(), "el trabajo se corto: R reanuda o pide de nuevo", ""},
+		{"sin acciones", ttTarjetaCon(), "en Writer no hay nada que hacer ahora: el plain de la tarjeta", ""},
+		{"primera de rol deshabilitada", ttTarjetaCon(writerOff), "se agoto el presupuesto de la tarjeta", ""},
+		{"aprobar deshabilitada", aprobOff, "el spec no pasa el lint", ""},
+		{"en Tu aprobacion sin la accion", aprobSin, "en Tu aprobacion no hay aprobar el spec", ""},
+		{"primera sin tecla", ttTarjetaCon(ttRelanzar(), writer), "en Writer no hay nada que hacer ahora: el plain de la tarjeta", ""},
 	}
 	for _, c := range casos {
-		ca := "CA-566 (hallazgo f4b30e, " + c.nombre + ")"
+		ca := "CA-705 (hallazgo f4b30e, " + c.nombre + ")"
 		m := ttModelo(ttConfig(200, 50, false), ttTablero(c.card))
 		if c.nombre == "en Hecho" {
-			ttTeclas(m, "G", tablero.TeclaEnter, "j")
+			tv3bIrAHecho(t, m)
+			ttTeclas(m, tablero.TeclaEnter, "j") // abre HECHO y elige su tarjeta
 		}
 		if m.Elegida() != c.card.Slug {
 			t.Fatalf("%s (guarda): la tarjeta esta elegida: %q\n%s", ca, m.Elegida(), ttPantalla(m))
 		}
-		for _, desde := range []string{"[2]", "[0]"} {
-			if desde == "[0]" {
-				m.Tecla(tablero.TeclaEnter, ttAhora)
+		caja, quiereN := c.card.Slug, c.quiere
+		if c.caja != "" {
+			caja, quiereN = "", c.caja
+		}
+		if m.Caja() != caja {
+			t.Fatalf("%s (guarda, CA-698): la tarjeta de la caja es %q: %q", ca, caja, m.Caja())
+		}
+		for _, desde := range []string{"la lista", "el detalle"} {
+			if desde == "el detalle" {
+				tv3bAlDetalle(t, m)
 				if m.Lugar() != tablero.LugarVerTarjeta {
-					t.Fatalf("%s (guarda): enter lleva a [0] de la tarjeta: %q", ca, m.Lugar())
+					t.Fatalf("%s (guarda): tab lleva al detalle de la tarjeta: %q", ca, m.Lugar())
 				}
 			}
 			lugar := m.Lugar()
-			ttSinOrdenes(t, ca, "n desde "+desde, m.Tecla("n", ttAhora))
-			if m.Modal() != tablero.SinModal || m.Lugar() != lugar {
-				t.Fatalf("%s: desde %s, n sin siguiente paso no abre nada: modal %q, lugar %q", ca, desde, m.Modal(), m.Lugar())
+			for _, k := range []tablero.Tecla{tablero.TeclaEnter, "n"} {
+				quiere := c.quiere
+				if k == "n" {
+					quiere = quiereN
+				}
+				que := fmt.Sprintf("%s desde %s", k, desde)
+				ttSinOrdenes(t, ca, que, m.Tecla(k, ttAhora))
+				if m.Modal() != tablero.SinModal || m.Lugar() != lugar {
+					t.Fatalf("%s: %s, sin paso, no abre nada: modal %q, lugar %q", ca, que, m.Modal(), m.Lugar())
+				}
+				ttDiceMensaje(t, ca, que, m, false, quiere)
 			}
-			ttDiceMensaje(t, ca, "n desde "+desde, m, false, c.quiere)
 		}
 	}
 }
@@ -156,54 +180,73 @@ func TestCA568_CA527_ProviderQueNoPuede(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- A8 09738a: las teclas de accion desde [3]
+// ---------------------------------------------------------------- A8 09738a: las teclas de accion de la fila elegida
 
-// CA-566, CA-558, hallazgo 09738a: las teclas de accion desde [3] y desde su
-// [0] actuan sobre la tarjeta de la fila elegida de [3], no sobre la de [2]:
-// con [2] en nuc-tenancy y [3] en pagos-caidos (interrumpida), R abre
-// "Reanudar · pagos-caidos" y su boton lanza hoom reanudar pagos-caidos.
-func TestCA566_CA558_TeclasDeAccionDesdeCorriendo(t *testing.T) {
-	pedido := strings.TrimSpace(ttPagosCaidos().Actions[0].Pedido)
-	for _, enCero := range []bool{false, true} {
-		ca := fmt.Sprintf("CA-566 (hallazgo 09738a, desde [0]: %v)", enCero)
-		m := ttModelo(ttAncho(), ttTableroPrincipal())
-		if m.Elegida() != "nuc-tenancy" {
-			t.Fatalf("%s (guarda): [2] empieza en nuc-tenancy: %q", ca, m.Elegida())
-		}
-		ttTeclas(m, "3", "j")
-		if e := ttElegidaEn(ttCajaDe(t, ca, m, "[3]")); !strings.HasPrefix(e, "pagos-caidos ") {
-			t.Fatalf("%s (guarda): j en [3] elige pagos-caidos: %q", ca, e)
-		}
-		if enCero {
-			m.Tecla(tablero.TeclaEnter, ttAhora)
-			if m.Lugar() != tablero.LugarVerCorriendo {
-				t.Fatalf("%s (guarda): enter en [3] lleva a su [0]: %q", ca, m.Lugar())
+// CA-705, CA-711 (re-expresan CA-566 y CA-558), hallazgo 09738a: las teclas
+// de accion, desde la lista y desde el detalle, actuan sobre la tarjeta
+// elegida de la lista (la que muestra el detalle), no sobre la de la caja
+// (doc.go, "The keys"): con la caja en nuc-tenancy, R sobre pagos-caidos
+// (DETENIDA: interrumpida) abre "Reanudar · pagos-caidos" y su boton lanza
+// hoom reanudar pagos-caidos; w sobre infra-api (CORRIENDO, la [3] de la v2;
+// su detalle es el de una tarjeta con running) abre "Pedir al writer ·
+// infra-api" y su boton lanza hoom pedir writer infra-api.
+func TestCA705_CA711_CA566_CA558_TeclasDeAccionDeLaFilaElegida(t *testing.T) {
+	casos := []struct {
+		slug   string
+		grupo  tablero.Grupo
+		k      tablero.Tecla
+		titulo string
+		args   []string
+	}{
+		{"pagos-caidos", tablero.GrupoDetenida, "R", "Reanudar · pagos-caidos",
+			[]string{"reanudar", "pagos-caidos", "-m", strings.TrimSpace(ttPagosCaidos().Actions[0].Pedido)}},
+		{"infra-api", tablero.GrupoCorriendo, "w", "Pedir al writer · infra-api",
+			[]string{"pedir", "writer", "infra-api", "-m", strings.TrimSpace(ttPedidoWriter)}},
+	}
+	for _, c := range casos {
+		for _, enDetalle := range []bool{false, true} {
+			ca := fmt.Sprintf("CA-705 (hallazgo 09738a, %s, desde el detalle: %v)", c.slug, enDetalle)
+			m := ttModelo(ttAncho(), ttTableroPrincipal())
+			if m.Elegida() != "nuc-tenancy" || m.Caja() != "nuc-tenancy" {
+				t.Fatalf("%s (guarda): la lista empieza en nuc-tenancy, la tarjeta de la caja: %q %q", ca, m.Elegida(), m.Caja())
 			}
-		}
-		ttSinOrdenes(t, ca, "R", m.Tecla("R", ttAhora))
-		if m.Modal() != tablero.ModalPedir {
-			t.Fatalf("%s: R abre el modal de reanudar de la fila de [3]: %q\n%s", ca, m.Modal(), ttPantalla(m))
-		}
-		if mc := ttMC(t, m); !strings.HasPrefix(mc.Arriba, "# Reanudar · pagos-caidos ") {
-			t.Fatalf("%s: el titulo es 'Reanudar · pagos-caidos': %q", ca, mc.Arriba)
-		}
-		m.Tecla(tablero.TeclaEnter, ttAhora) // al boton
-		l := ttUnaLanzar(t, ca, "el boton de reanudar", m.Tecla(tablero.TeclaEnter, ttAhora))
-		ttMismosArgs(t, ca, "reanudar desde [3]", l.Args, []string{"reanudar", "pagos-caidos", "-m", pedido})
-		if l.Slug != "pagos-caidos" || l.Rol != "writer" {
-			t.Fatalf("%s: el Lanzar es de pagos-caidos y del rol de la accion: %#v", ca, l)
+			tv3bIrA(t, m, c.slug)
+			if g := m.Grupo(c.slug); g != c.grupo {
+				t.Fatalf("%s (guarda): %s esta en %q: %q", ca, c.slug, c.grupo, g)
+			}
+			if enDetalle {
+				tv3bAlDetalle(t, m)
+				if m.Lugar() != tablero.LugarVerTarjeta || m.Elegida() != c.slug {
+					t.Fatalf("%s (guarda): tab lleva al detalle de %s: %q %q", ca, c.slug, m.Lugar(), m.Elegida())
+				}
+			}
+			ttSinOrdenes(t, ca, string(c.k), m.Tecla(c.k, ttAhora))
+			if m.Modal() != tablero.ModalPedir {
+				t.Fatalf("%s: %s abre el modal de la accion de la tarjeta elegida: %q\n%s", ca, c.k, m.Modal(), ttPantalla(m))
+			}
+			if mc := ttMC(t, m); !strings.HasPrefix(mc.Arriba, "# "+c.titulo+" ") {
+				t.Fatalf("%s: el titulo es %q: %q", ca, c.titulo, mc.Arriba)
+			}
+			m.Tecla(tablero.TeclaEnter, ttAhora) // al boton
+			l := ttUnaLanzar(t, ca, "el boton de la accion", m.Tecla(tablero.TeclaEnter, ttAhora))
+			ttMismosArgs(t, ca, "la accion de la fila elegida", l.Args, c.args)
+			if l.Slug != c.slug || l.Rol != "writer" {
+				t.Fatalf("%s: el Lanzar es de %s y del rol de la accion: %#v", ca, c.slug, l)
+			}
 		}
 	}
 }
 
 // ---------------------------------------------------------------- A10 da8fe2: la Narracion del sobre en curso
 
-// CA-556, CA-558, hallazgo da8fe2: la Narracion de [0] de una tarjeta con
-// running es la del sobre en curso, con su linea exacta: "  <rol> · <paso> ·
-// <tiempo de [3] con ' de <limite>'> · ultimo evento hace <n>s" ("último" y
-// "Narración" con UTF-8, sin acento en ASCII) y un evento por linea; una
-// segunda LeerDetalle la actualiza; sin eventos no dice "ultimo evento".
-func TestCA556_CA558_LaNarracionDelSobreEnCurso(t *testing.T) {
+// CA-708, CA-711 (re-expresan CA-556 y CA-558), hallazgo da8fe2: la
+// Narracion (la parte G) del detalle de una tarjeta con running es la del
+// sobre en curso, con su linea exacta: "  <rol> · <paso> · <tiempo con ' de
+// <limite>'> · ultimo evento hace <n>s" ("último" y "Narración" con UTF-8,
+// sin acento en ASCII) y un evento por linea; una segunda LeerDetalle la
+// actualiza; sin eventos no dice "ultimo evento". (El detalle de una tarjeta
+// con running empieza en su final y lo sigue: la Narracion queda a la vista.)
+func TestCA708_CA711_CA556_CA558_LaNarracionDelSobreEnCurso(t *testing.T) {
 	for _, utf := range []bool{false, true} {
 		ca := fmt.Sprintf("CA-556 (hallazgo da8fe2, utf8=%v)", utf)
 		c := ttInfraAPI(true)
@@ -216,15 +259,18 @@ func TestCA556_CA558_LaNarracionDelSobreEnCurso(t *testing.T) {
 		if utf {
 			titulo, ultimo = " Narración", "último"
 		}
+		if m.Elegida() != c.Slug {
+			t.Fatalf("%s (guarda): el detalle muestra infra-api: %q", ca, m.Elegida())
+		}
 		narr := func() []string {
 			t.Helper()
-			got := ttCajaDe(t, ca, m, "[0]").ttTexto()
+			got := tv3bDetalle(t, ca, m).ttTexto()
 			for i, l := range got {
 				if l == titulo {
 					return got[i+1:]
 				}
 			}
-			t.Fatalf("%s: [0] tiene la parte %q:\n%s", ca, titulo, strings.Join(got, "\n"))
+			t.Fatalf("%s: el detalle tiene la parte %q a la vista:\n%s", ca, titulo, strings.Join(got, "\n"))
 			return nil
 		}
 		base := "  writer · run 3/6 · 12:41 de 45:00"
@@ -254,10 +300,11 @@ func TestCA556_CA558_LaNarracionDelSobreEnCurso(t *testing.T) {
 
 // ---------------------------------------------------------------- A11 b5b345: e y los margenes del spec
 
-// CA-557, hallazgo b5b345: e en [0] de una tarjeta abre el spec en la linea
-// del primer criterio con una linea a la vista: la primera del markdown que,
-// sin sus espacios, empieza con "- " + id + ":" (CA-1 no es CA-10, una con
-// sangria cuenta, "-CA-3:" sin espacio no), o 1 si ninguno esta a la vista.
+// CA-557, hallazgo b5b345: e en el detalle de una tarjeta (con el foco: tab)
+// abre el spec en la linea del primer criterio con una linea a la vista: la
+// primera del markdown que, sin sus espacios, empieza con "- " + id + ":"
+// (CA-1 no es CA-10, una con sangria cuenta, "-CA-3:" sin espacio no), o 1
+// si ninguno esta a la vista.
 func TestCA557_ELineaDelCriterioConMargenesHostiles(t *testing.T) {
 	c, d := ttTarjetaLarga()
 	for i := 0; i < 6; i++ { // la tira larga deja la parte D fuera de la vista de arriba
@@ -271,8 +318,11 @@ func TestCA557_ELineaDelCriterioConMargenesHostiles(t *testing.T) {
 		{ID: "CA-10", Text: "el diez", TracedBy: boardcmd.TracedTest}}
 	m := ttModelo(ttConfig(80, 24, false), ttTablero(c))
 	m.LeerDetalle(d)
-	m.Tecla(tablero.TeclaEnter, ttAhora)
-	vista := func() []string { return ttCajaDe(t, "CA-557", m, "[0]").ttTexto() }
+	tv3bAlDetalle(t, m)
+	if m.Lugar() != tablero.LugarVerTarjeta {
+		t.Fatalf("CA-557 (guarda): tab lleva al detalle de la tarjeta: %q", m.Lugar())
+	}
+	vista := func() []string { return tv3bDetalle(t, "CA-557", m).ttTexto() }
 	for _, l := range vista() {
 		if strings.Contains(l, "el uno") || strings.Contains(l, "el diez") {
 			t.Fatalf("CA-557 (guarda): arriba de todo no hay criterios a la vista: %q", vista())
@@ -298,9 +348,10 @@ func TestCA557_ELineaDelCriterioConMargenesHostiles(t *testing.T) {
 // ---------------------------------------------------------------- A12 3c80d0: la seleccion sigue a su tarjeta
 
 // CA-578 (v1 CA-535), hallazgo 3c80d0: la seleccion sigue a SU tarjeta cuando
-// aparece otra antes: con a, b y c en Backlog y b elegida, una lectura que
-// suma una tarjeta de backlog antes de a deja elegida b ([2] y [0]); lo mismo
-// con la fila elegida de [3].
+// aparece otra antes: con a, b y c en Backlog (EN COLA) y b elegida, una
+// lectura que suma una tarjeta de backlog antes de a deja elegida b (la fila
+// de la lista y el detalle, con su titulo "B" y su slug a la derecha); lo
+// mismo con la fila elegida del grupo CORRIENDO (la [3] de la v2).
 func TestCA578_CA535_LaSeleccionSigueASuTarjeta(t *testing.T) {
 	b := ttTablero(ttBacklog("a", "A"), ttBacklog("b", "B"), ttBacklog("c", "C"))
 	m := ttModelo(ttConfig(120, 32, false), b)
@@ -309,25 +360,27 @@ func TestCA578_CA535_LaSeleccionSigueASuTarjeta(t *testing.T) {
 		t.Fatalf("CA-578 (guarda): j elige b: %q", m.Elegida())
 	}
 	m.Leer(tablero.Lectura{Ahora: ttAhora, Tablero: ttTablero(ttBacklog("nueva", "Nueva"), ttBacklog("a", "A"), ttBacklog("b", "B"), ttBacklog("c", "C"))})
-	if m.Elegida() != "b" || ttSlugElegido(t, m) != "b" || ttCajaDe(t, "CA-578", m, "[0]").Titulo != "[0] b · B" {
-		t.Fatalf("CA-578 (hallazgo 3c80d0): con otra tarjeta antes, la seleccion sigue en b: %q\n%s", m.Elegida(), ttPantalla(m))
+	d := tv3bDetalle(t, "CA-578", m)
+	if m.Elegida() != "b" || tv3bTituloElegido(t, "CA-578", m) != "B" || d.Titulo != "B" || d.Derecha != "b" {
+		t.Fatalf("CA-578 (hallazgo 3c80d0): con otra tarjeta antes, la seleccion sigue en b (detalle %q · %q): %q\n%s",
+			d.Titulo, d.Derecha, m.Elegida(), ttPantalla(m))
 	}
 	corre := func(s string) boardcmd.Card { return ttCorre(s, "writer", "env-"+s, "run-"+s) }
 	r := ttModelo(ttConfig(120, 32, false), ttTablero(corre("a"), corre("b"), corre("c")))
-	ttTeclas(r, "3", "j")
-	if e := ttElegidaEn(ttCajaDe(t, "CA-578", r, "[3]")); !strings.HasPrefix(e, "b ") {
-		t.Fatalf("CA-578 (guarda): j en [3] elige b: %q", e)
+	r.Tecla("j", ttAhora)
+	if r.Elegida() != "b" || r.Grupo("b") != tablero.GrupoCorriendo || tv3bTituloElegido(t, "CA-578", r) != "Tarjeta b" {
+		t.Fatalf("CA-578 (guarda): j en el grupo CORRIENDO elige b: %q %q", r.Elegida(), tv3bTituloElegido(t, "CA-578", r))
 	}
 	r.Leer(tablero.Lectura{Ahora: ttAhora, Tablero: ttTablero(corre("nueva"), corre("a"), corre("b"), corre("c"))})
-	if e := ttElegidaEn(ttCajaDe(t, "CA-578", r, "[3]")); !strings.HasPrefix(e, "b ") || r.Elegida() != "b" {
-		t.Fatalf("CA-578 (hallazgo 3c80d0): con otra fila antes, la de [3] sigue en b: %q (elegida %q)\n%s", e, r.Elegida(), ttPantalla(r))
+	if e := tv3bTituloElegido(t, "CA-578", r); e != "Tarjeta b" || r.Elegida() != "b" {
+		t.Fatalf("CA-578 (hallazgo 3c80d0): con otra fila antes, la de CORRIENDO sigue en b: %q (elegida %q)\n%s", e, r.Elegida(), ttPantalla(r))
 	}
 }
 
 // ---------------------------------------------------------------- B1, B2: nada a ciegas
 
 // ttNadaACiegas: con el modal Pedir abierto, lleva el foco al boton de la
-// accion y exige que el modal entre en las B lineas de los paneles y muestre
+// accion y exige que el modal entre en las B = A-2 lineas de arriba y muestre
 // "Se va a ejecutar", el comando y los botones con la accion elegida; enter
 // ahi o lanza (y cada flag de sus Args, con su valor, esta entero en el
 // comando que el modal mostro) o no ordena nada y la linea de mensajes dice
@@ -344,7 +397,7 @@ func ttNadaACiegas(t *testing.T, ca string, m *tablero.Modelo, cfg tablero.Confi
 	ttForma(t, ca, m, cfg.Ancho, cfg.Alto, cfg.Color)
 	mc := ttModal(t, ca, m, cfg.Ancho)
 	if mc.Fila < 0 || mc.Fila+mc.Alto > cfg.Alto-2 {
-		t.Fatalf("%s: el modal entra en las %d lineas de los paneles: linea %d, alto %d", ca, cfg.Alto-2, mc.Fila+1, mc.Alto)
+		t.Fatalf("%s: el modal entra en las B = A-2 = %d lineas de arriba: linea %d, alto %d", ca, cfg.Alto-2, mc.Fila+1, mc.Alto)
 	}
 	todo := strings.Join(mc.Textos, "\n")
 	cmd := mc.ttComando()
@@ -651,19 +704,22 @@ func TestCA570_ElModeloElegidoQueNoEstaEnLaLista(t *testing.T) {
 
 // ---------------------------------------------------------------- B5 a28cdb: seguir el final
 
-// CA-557, CA-558, hallazgo a28cdb: [0] sigue el final solo de un documento
-// mas largo que su vista y llevado a su final (donde esta la Narracion): el
-// de una tarjeta que entra entero, con enter y j, no se va al final cuando
-// una lectura lo alarga ("Que falta?" sigue a la vista); el de una tarjeta
-// llevada al final con G lo sigue; el del proyecto nunca.
-func TestCA557_CA558_SeguirElFinal(t *testing.T) {
+// CA-711, CA-557 (CA-711 re-expresa CA-558), hallazgo a28cdb: el detalle
+// sigue el final solo de un documento mas largo que su vista y llevado a su
+// final (donde esta la Narracion): el de una tarjeta sin running que entra
+// entero, con tab y j, no se va al final cuando una lectura lo alarga (su
+// primera linea, la de AHORA, sigue a la vista); el de una tarjeta llevada
+// al final con G lo sigue; el del proyecto (v) nunca.
+func TestCA711_CA557_CA558_SeguirElFinal(t *testing.T) {
 	c := ttTarjetaCon(ttAccionWriter())
 	corto := tablero.Detalle{Slug: c.Slug, Detalle: boardcmd.Detail{Card: c}}
 	m := ttModelo(ttConfig(200, 50, false), ttTablero(c))
 	m.LeerDetalle(corto)
-	ttTeclas(m, tablero.TeclaEnter, "j")
-	if v := ttCajaDe(t, "CA-557", m, "[0]").ttTexto(); !strings.HasPrefix(v[0], " Que falta?") {
-		t.Fatalf("CA-557 (guarda): el documento entra entero y empieza en 'Que falta?': %q", v)
+	tv3bAlDetalle(t, m)
+	m.Tecla("j", ttAhora)
+	primera := tv3bDetalle(t, "CA-557", m).ttTexto()
+	if len(primera) == 0 || !strings.HasPrefix(primera[0], " AHORA") {
+		t.Fatalf("CA-557 (guarda): el documento entra entero (j no lo mueve) y empieza en AHORA: %q", primera)
 	}
 	largo := corto
 	largo.Detalle.Spec = boardcmd.SpecDetail{Path: ".hoom/specs/tarjeta.md", Exists: true, Markdown: "# Spec\n"}
@@ -672,25 +728,26 @@ func TestCA557_CA558_SeguirElFinal(t *testing.T) {
 			Text: fmt.Sprintf("criterio %02d", i+1), TracedBy: boardcmd.TracedTest})
 	}
 	m.LeerDetalle(largo)
-	if v := ttCajaDe(t, "CA-557", m, "[0]").ttTexto(); !strings.HasPrefix(v[0], " Que falta?") {
+	if v := tv3bDetalle(t, "CA-557", m).ttTexto(); len(v) == 0 || v[0] != primera[0] {
 		t.Fatalf("CA-557 (hallazgo a28cdb): un documento que entraba entero no se va al final cuando una lectura lo alarga: %q", v)
 	}
 	// llevado al final con G, la lectura que lo alarga deja el final a la vista
 	c2, d2 := ttTarjetaLarga()
 	n := ttModelo(ttConfig(80, 24, false), ttTablero(c2))
 	n.LeerDetalle(d2)
-	ttTeclas(n, tablero.TeclaEnter, "G")
-	antes := ttCajaDe(t, "CA-557", n, "[0]").ttTexto()
+	tv3bAlDetalle(t, n)
+	n.Tecla("G", ttAhora)
+	antes := tv3bDetalle(t, "CA-557", n).ttTexto()
 	const ultima = "  11:59:55 text leyendo el spec"
-	if antes[len(antes)-1] != ultima {
+	if len(antes) == 0 || antes[len(antes)-1] != ultima {
 		t.Fatalf("CA-557 (guarda): G deja la ultima linea (el ultimo evento) abajo de todo: %q", antes)
 	}
 	for i := 0; i < 10; i++ {
 		d2.Detalle.Findings = append(d2.Detalle.Findings, ttHallazgo(fmt.Sprintf("y%02d", i), finding.StatusOpen, "low", "", fmt.Sprintf("mas %02d", i)))
 	}
 	n.LeerDetalle(d2)
-	if despues := ttCajaDe(t, "CA-557", n, "[0]").ttTexto(); despues[len(despues)-1] != ultima {
-		t.Fatalf("CA-558 (hallazgo a28cdb): al final, una lectura que alarga el documento deja su final a la vista: %q", despues)
+	if despues := tv3bDetalle(t, "CA-557", n).ttTexto(); len(despues) == 0 || despues[len(despues)-1] != ultima {
+		t.Fatalf("CA-711 (hallazgo a28cdb): al final, una lectura que alarga el documento deja su final a la vista: %q", despues)
 	}
 	// el del proyecto nunca sigue el final
 	p := ttModelo(ttConfig(80, 24, false), ttTableroPrincipal())
@@ -702,12 +759,15 @@ func TestCA557_CA558_SeguirElFinal(t *testing.T) {
 	}
 	problemas(30)
 	p.LeerProyecto(pr)
-	ttTeclas(p, "1", tablero.TeclaEnter, "G")
-	antes = ttCajaDe(t, "CA-557", p, "[0]").ttTexto()
+	ttTeclas(p, "v", "G")
+	if p.Lugar() != tablero.LugarVerProyecto {
+		t.Fatalf("CA-713 (guarda): v lleva al detalle del proyecto: %q", p.Lugar())
+	}
+	antes = tv3bDetalle(t, "CA-557", p).ttTexto()
 	problemas(40)
 	p.LeerProyecto(pr)
-	if despues := ttCajaDe(t, "CA-557", p, "[0]").ttTexto(); despues[0] != antes[0] {
-		t.Fatalf("CA-557 (hallazgo a28cdb): [0] del proyecto no sigue el final: %q, era %q", despues[0], antes[0])
+	if despues := tv3bDetalle(t, "CA-557", p).ttTexto(); len(despues) == 0 || len(antes) == 0 || despues[0] != antes[0] {
+		t.Fatalf("CA-557 (hallazgo a28cdb): el detalle del proyecto no sigue el final: %q, era %q", despues, antes)
 	}
 }
 
@@ -715,7 +775,8 @@ func TestCA557_CA558_SeguirElFinal(t *testing.T) {
 
 // CA-559, hallazgo 02b9e8: el archivo de un hallazgo es relativo al dir de
 // evidencia de la tarjeta de su tarea (como en la v1): con infra-api en
-// .hoom/worktrees/infra-api, e en [4] (y en su [0]) abre
+// .hoom/worktrees/infra-api, e en la lista de la vista Hallazgos (H; la [4]
+// de la v2) y en su detalle (enter) abre
 // ".hoom/worktrees/infra-api/internal/api/router.go" en la linea 41 y
 // ArchivoElegido da lo mismo; sin la tarjeta en el tablero o con dir ".", el
 // archivo solo; las rutas que salen siguen sin leerse ni abrirse.
@@ -726,7 +787,10 @@ func TestCA559_ElArchivoEsDelDirDeLaTarjeta(t *testing.T) {
 	con := func(cfg tablero.Config, h finding.Item) *tablero.Modelo {
 		m := ttModelo(cfg, b)
 		m.LeerHallazgos(tablero.Hallazgos{Items: []finding.Item{h}})
-		m.Tecla("4", ttAhora)
+		m.Tecla("H", ttAhora)
+		if m.Lugar() != tablero.LugarHallazgos {
+			t.Fatalf("CA-712 (guarda): H abre la vista Hallazgos: %q", m.Lugar())
+		}
 		return m
 	}
 	h := ttHallazgo("h-high", finding.StatusOpen, "high", "internal/api/router.go:41", "el router acepta todo")
@@ -735,9 +799,12 @@ func TestCA559_ElArchivoEsDelDirDeLaTarjeta(t *testing.T) {
 		m := con(ttAncho(), h)
 		if enCero {
 			m.Tecla(tablero.TeclaEnter, ttAhora)
+			if m.Lugar() != tablero.LugarVerHallazgo {
+				t.Fatalf("CA-712 (guarda): enter en la lista de Hallazgos lleva al detalle del hallazgo: %q", m.Lugar())
+			}
 		}
 		if r, l := m.ArchivoElegido(); r != ruta || l != 41 {
-			t.Fatalf("CA-559 (hallazgo 02b9e8): ArchivoElegido es %q:41 (desde [0]: %v): %q:%d", ruta, enCero, r, l)
+			t.Fatalf("CA-559 (hallazgo 02b9e8): ArchivoElegido es %q:41 (desde el detalle: %v): %q:%d", ruta, enCero, r, l)
 		}
 		ords := m.Tecla("e", ttAhora)
 		if len(ords) != 1 {
@@ -781,21 +848,25 @@ func TestCA559_ElArchivoEsDelDirDeLaTarjeta(t *testing.T) {
 // ---------------------------------------------------------------- B7 9c1e0c, B8 aae463: el ancho de los textos
 
 // CA-577, hallazgo 9c1e0c: una marca combinante se dibuja pegada a su letra
-// (NFD: "Cafe" + U+0301, "man" + U+0303 + "ana": "Café y mañana") y cada
-// linea de los paneles sigue midiendo Ancho celdas, contadas con la tabla de
-// los tests.
+// (NFD: "Cafe" + U+0301, "man" + U+0303 + "ana": "Café y mañana"), en el
+// titulo del detalle (con el slug a la derecha) y en la fila de la lista, y
+// cada linea de cajas (la caja TU SIGUIENTE PASO, la lista, el detalle y el
+// Registro: las lineas 2 a A-2) sigue midiendo Ancho celdas, contadas con la
+// tabla de los tests; la cabecera, a lo sumo Ancho.
 func TestCA577_LasMarcasCombinantesVanConSuLetra(t *testing.T) {
-	const titulo = "Cafe\u0301 y man\u0303ana"
+	const titulo = "Café y mañana"
 	c := ttTarjetaCon(ttAccionWriter())
 	c.Item.Titulo = titulo
 	// el selector de variacion (U+FE0F) se deja afuera: la terminal puede
 	// hacer ancha a su base (doc.go, decision de la review del 2026-11-09)
 	v := ttTarjetaCon(ttAccionWriter())
-	v.Item.Titulo = "te \u2764\ufe0f quiero"
+	v.Item.Titulo = "te ❤️ quiero"
 	for _, utf := range []bool{true, false} {
 		mv := ttModelo(ttConfig(80, 24, utf), ttTablero(v))
-		if !ttTiene(mv, "[0] tarjeta · te \u2764 quiero") || strings.ContainsRune(ttPantalla(mv), 0xfe0f) {
-			t.Fatalf("CA-577 (hallazgo 9c1e0c, utf8=%v): el selector de variacion U+FE0F no llega a la pantalla:\n%s", utf, ttPantalla(mv))
+		d := tv3bDetalle(t, "CA-577", mv)
+		if d.Titulo != "te ❤ quiero" || d.Derecha != "tarjeta" || strings.ContainsRune(ttPantalla(mv), 0xfe0f) {
+			t.Fatalf("CA-577 (hallazgo 9c1e0c, utf8=%v): el selector de variacion U+FE0F no llega a la pantalla (detalle %q · %q):\n%s",
+				utf, d.Titulo, d.Derecha, ttPantalla(mv))
 		}
 		ttForma(t, "CA-577", mv, 80, 24, false)
 	}
@@ -803,20 +874,20 @@ func TestCA577_LasMarcasCombinantesVanConSuLetra(t *testing.T) {
 		ca := fmt.Sprintf("CA-577 (hallazgo 9c1e0c, utf8=%v)", utf)
 		m := ttModelo(ttConfig(80, 24, utf), ttTablero(c))
 		ttForma(t, ca, m, 80, 24, false)
-		vistas := 0
-		for i, l := range m.Pantalla() {
-			if strings.Contains(l, "[0] tarjeta") {
-				vistas++
-				if !strings.Contains(l, "[0] tarjeta · "+titulo) {
-					t.Fatalf("%s: el titulo de [0] lleva cada marca pegada a su letra (%q): %q", ca, titulo, l)
-				}
-			}
-			if i < 22 && ttCeldas(l) != 80 {
-				t.Fatalf("%s: la linea %d de los paneles mide 80 celdas (la marca no ocupa una): %d %q", ca, i+1, ttCeldas(l), l)
-			}
+		if d := tv3bDetalle(t, ca, m); d.Titulo != titulo || d.Derecha != "tarjeta" {
+			t.Fatalf("%s: el titulo del detalle lleva cada marca pegada a su letra (%q · tarjeta): %q · %q", ca, titulo, d.Titulo, d.Derecha)
 		}
-		if vistas != 1 {
-			t.Fatalf("%s: el titulo de [0] esta una vez: %d\n%s", ca, vistas, ttPantalla(m))
+		if tv3bFilaDe(tv3bLista(t, ca, m), titulo) < 0 {
+			t.Fatalf("%s: la fila de la lista lleva el titulo con cada marca pegada a su letra (%q):\n%s", ca, titulo, ttPantalla(m))
+		}
+		ls := m.Pantalla()
+		for i, l := range ls {
+			if i == 0 && ttCeldas(l) > 80 {
+				t.Fatalf("%s: la cabecera mide a lo sumo 80 celdas: %d %q", ca, ttCeldas(l), l)
+			}
+			if i >= 1 && i <= len(ls)-3 && ttCeldas(l) != 80 {
+				t.Fatalf("%s: la linea %d (de cajas) mide 80 celdas (la marca no ocupa una): %d %q", ca, i+1, ttCeldas(l), l)
+			}
 		}
 	}
 }
@@ -852,8 +923,11 @@ func TestCA577_CA534_LosCaracteresDeFormato(t *testing.T) {
 		c.Item.Titulo = "titulo " + crudo
 		m := ttModelo(ttConfig(120, 32, utf), ttTablero(c))
 		m.LeerHallazgos(tablero.Hallazgos{Items: []finding.Item{ttHallazgo("h1", finding.StatusOpen, "high", "x.go:2", "desc")}})
-		ver(m, "el titulo de [0]", "[0] infra-api · titulo "+neutro)
-		m.Tecla("4", ttAhora)
+		ver(m, "el titulo de la tarjeta", "titulo "+neutro)
+		if d := tv3bDetalle(t, ca, m); d.Titulo != "titulo "+neutro {
+			t.Fatalf("%s: el titulo del detalle es %q: %q", ca, "titulo "+neutro, d.Titulo)
+		}
+		m.Tecla("H", ttAhora) // la vista Hallazgos: su detalle muestra el archivo
 		m.LeerArchivo(tablero.Archivo{Ruta: "x.go", Linea: 2, Desde: 1, Lineas: []string{"uno " + crudo, "dos"}})
 		ver(m, "una linea del archivo", "uno "+neutro)
 	}
@@ -862,17 +936,20 @@ func TestCA577_CA534_LosCaracteresDeFormato(t *testing.T) {
 // ---------------------------------------------------------------- B11 140c81 (en el modelo): los avisos
 
 // CA-562, hallazgo 140c81: los veredictos que no se pudieron leer llegan en
-// Proyecto.Avisos y [0] de Proyecto los muestra, uno por linea y
-// neutralizados, bajo " Avisos" (despues de Check, antes de Doctor, con una
-// linea vacia antes); sin avisos esa parte no esta.
+// Proyecto.Avisos y el detalle del proyecto (v; el [0] de [1] de la v2) los
+// muestra, uno por linea y neutralizados, bajo " Avisos" (despues de Check,
+// antes de Doctor, con una linea vacia antes); sin avisos esa parte no esta.
 func TestCA562_LosAvisosDeLosVeredictos(t *testing.T) {
 	const aviso = "no se pudo leer .hoom/verdicts/20261108T090000_bad111.json: "
 	p := ttProyectoVerde()
 	p.Avisos = []string{aviso + ttHostil}
 	m := ttModelo(ttConfig(200, 50, false), ttTableroPrincipal())
 	m.LeerProyecto(p)
-	ttTeclas(m, "1", tablero.TeclaEnter)
-	cero := ttCajaDe(t, "CA-562", m, "[0]").ttTexto()
+	m.Tecla("v", ttAhora)
+	if m.Lugar() != tablero.LugarVerProyecto {
+		t.Fatalf("CA-713 (guarda): v lleva al detalle del proyecto: %q", m.Lugar())
+	}
+	cero := tv3bDetalle(t, "CA-562", m).ttTexto()
 	donde := func(s string) int {
 		for i, l := range cero {
 			if l == s {
@@ -883,45 +960,65 @@ func TestCA562_LosAvisosDeLosVeredictos(t *testing.T) {
 	}
 	iCheck, iAvisos, iDoctor := donde(" Check"), donde(" Avisos"), donde(" Doctor")
 	if iCheck < 0 || iAvisos < iCheck || iDoctor < iAvisos || cero[iAvisos-1] != "" || cero[iAvisos+1] != "  "+aviso+ttNeutro || cero[iAvisos+2] != "" {
-		t.Fatalf("CA-562 (hallazgo 140c81): [0] del proyecto: ' Avisos' entre Check y Doctor con el aviso neutralizado:\n%s", strings.Join(cero, "\n"))
+		t.Fatalf("CA-562 (hallazgo 140c81): el detalle del proyecto: ' Avisos' entre Check y Doctor con el aviso neutralizado:\n%s", strings.Join(cero, "\n"))
 	}
-	ttSinControles(t, "CA-562 (hallazgo 140c81)", "[0] del proyecto con avisos", m, false)
+	ttSinControles(t, "CA-562 (hallazgo 140c81)", "el detalle del proyecto con avisos", m, false)
 	m.LeerProyecto(ttProyectoVerde())
-	for _, l := range ttCajaDe(t, "CA-562", m, "[0]").ttTexto() { // releida despues de la lectura
+	for _, l := range tv3bDetalle(t, "CA-562", m).ttTexto() { // releido despues de la lectura
 		if l == " Avisos" {
-			t.Fatalf("CA-562 (hallazgo 140c81): sin Proyecto.Avisos, [0] no tiene ' Avisos'")
+			t.Fatalf("CA-562 (hallazgo 140c81): sin Proyecto.Avisos, el detalle del proyecto no tiene ' Avisos'")
 		}
 	}
 }
 
 // ---------------------------------------------------------------- B14 db18ee: el check mide desde su veredicto
 
-// CA-560, hallazgo db18ee (decision del orquestador): la linea 2 de [1] mide
-// desde el veredicto al que se refiere el check (VeredictoDelCheck; sin el,
-// el ultimo cuando es el del check), no desde el mas nuevo; el [0] de
-// Proyecto sigue mostrando el ultimo. Caso: un completo viejo y un parcial
-// nuevo.
+// CA-560, hallazgo db18ee (decision del orquestador): el check de la
+// cabecera (la [1] de la v2) y la linea 2 del detalle del proyecto (v, que
+// guarda las cuatro lineas de [1]) miden desde el veredicto al que se
+// refiere el check (VeredictoDelCheck; sin el, el ultimo cuando es el del
+// check), no desde el mas nuevo; la parte Veredicto del detalle del proyecto
+// (el [0] de [1] de la v2) sigue mostrando el ultimo. Caso: un completo
+// viejo y un parcial nuevo.
 func TestCA560_ElCheckMideDesdeSuVeredicto(t *testing.T) {
 	viejo := ttVeredicto() // completo, verde, de hace dos horas: el del check
 	nuevo := &statuscmd.LastVerdict{ID: "20261108T115500_def456", Verdict: "green", Partial: true, CreatedAt: ttAhora.Add(-5 * time.Minute),
 		Summary: verdict.Summary{Pass: 1}}
+	const check = "check VERDE · verify hace 2h"
 	linea2 := func(p tablero.Proyecto) (*tablero.Modelo, string) {
 		m := ttModelo(ttConfig(120, 32, false), ttTableroPrincipal())
 		m.LeerProyecto(p)
-		got := ttCajaDe(t, "CA-560", m, "[1]").ttTexto()
+		if cab := tv3bCabecera(m); !strings.HasSuffix(cab, " "+check+" · hoy 3.88 USD") {
+			t.Fatalf("CA-560 (hallazgo db18ee): la cabecera termina con %q (desde el veredicto del check): %q", check+" · hoy 3.88 USD", cab)
+		}
+		m.Tecla("v", ttAhora)
+		if m.Lugar() != tablero.LugarVerProyecto {
+			t.Fatalf("CA-713 (guarda): v lleva al detalle del proyecto: %q", m.Lugar())
+		}
+		got := tv3bDetalle(t, "CA-560", m).ttTexto()
 		if len(got) < 2 {
-			t.Fatalf("CA-560: [1] tiene sus lineas: %q", got)
+			t.Fatalf("CA-560: el detalle del proyecto tiene sus lineas: %q", got)
 		}
 		return m, got[1]
 	}
 	p := ttProyectoVerde()
 	p.Veredicto, p.VeredictoDelCheck = nuevo, viejo
 	m, l := linea2(p)
-	if l != " check VERDE · verify hace 2h" {
-		t.Fatalf("CA-560 (hallazgo db18ee): la linea 2 de [1] mide desde el veredicto del check (hace 2h), no desde el parcial nuevo: %q", l)
+	if l != " "+check {
+		t.Fatalf("CA-560 (hallazgo db18ee): la linea 2 del detalle del proyecto mide desde el veredicto del check (hace 2h), no desde el parcial nuevo: %q", l)
 	}
-	ttTeclas(m, "1", tablero.TeclaEnter)
-	ttIgualesAlPrincipio(t, "CA-560 (hallazgo db18ee)", "[0] del proyecto", ttCajaDe(t, "CA-560", m, "[0]").ttTexto(), []string{
+	cero := tv3bDetalle(t, "CA-560", m).ttTexto()
+	desde := -1
+	for i, x := range cero {
+		if x == " Veredicto" {
+			desde = i
+			break
+		}
+	}
+	if desde < 0 {
+		t.Fatalf("CA-560: el detalle del proyecto tiene la parte ' Veredicto':\n%s", strings.Join(cero, "\n"))
+	}
+	ttIgualesAlPrincipio(t, "CA-560 (hallazgo db18ee)", "el detalle del proyecto desde ' Veredicto'", cero[desde:], []string{
 		" Veredicto",
 		"  20261108T115500_def456 · hace 5m · VERDE · parcial",
 		"  pass 1 · fail 0 · error 0 · absent 0",
@@ -935,7 +1032,7 @@ func TestCA560_ElCheckMideDesdeSuVeredicto(t *testing.T) {
 	for _, del := range []*statuscmd.LastVerdict{nil, viejo} {
 		q := ttProyectoVerde()
 		q.VeredictoDelCheck = del
-		if _, l := linea2(q); l != " check VERDE · verify hace 2h" {
+		if _, l := linea2(q); l != " "+check {
 			t.Fatalf("CA-560 (hallazgo db18ee): con el ultimo siendo el del check (VeredictoDelCheck nil: %v), mide desde el: %q", del == nil, l)
 		}
 	}
@@ -943,15 +1040,15 @@ func TestCA560_ElCheckMideDesdeSuVeredicto(t *testing.T) {
 
 // ---------------------------------------------------------------- B15 dceff5: el reviewer y ctrl-e
 
-// CA-564, hallazgo dceff5: en el modal del reviewer (sin Pedido) la fila de
-// ctrl-e no esta en la linea de teclas y ctrl-e no hace nada, en un selector
-// y en los botones; el writer si la tiene.
-func TestCA564_ElReviewerNoTieneCtrlE(t *testing.T) {
+// CA-718 (re-expresa CA-564), hallazgo dceff5: en el modal del reviewer (sin
+// Pedido) la fila de ctrl-e no esta en la linea de teclas y ctrl-e no hace
+// nada, en un selector y en los botones; el writer si la tiene.
+func TestCA718_CA564_ElReviewerNoTieneCtrlE(t *testing.T) {
 	w := ttPedir(t, "w", ttAccionWriter())
 	w.Tecla(tablero.TeclaTab, ttAhora)
 	const conE = " tab campo · <> cambiar · enter ver opciones · ctrl-e editor · esc cerrar"
 	if got := ttLineaTeclas(w); got != conE {
-		t.Fatalf("CA-564 (guarda): la linea de teclas de un selector del writer lleva ctrl-e: %q", got)
+		t.Fatalf("CA-718 (guarda): la linea de teclas de un selector del writer lleva ctrl-e: %q", got)
 	}
 	m := ttPedir(t, "r", ttAccionRol(boardcmd.ActPedirReviewer, "reviewer", "Pedir al reviewer", ""))
 	if m.Lugar() != tablero.LugarPedirSelector {

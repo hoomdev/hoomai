@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T150306_23e18d",
+  "as": "corregido",
+  "evidence": "Es el mismo defecto que 20261117T045612_98ba68 (bucle.go descarta el FinProceso de hoom aprobar cuando el tablero ya cerro, y el piloto encadenado no se lanza). La review del tramo 3 lo vio en hoom/tablero-v3-tramo3, que no lleva los arreglos; esos van en la rama de la tarea. Ya esta corregido ahi con la decision de Henry (2026-11-17, avisar al salir), en el commit acacd68: Modelo.PilotosSinLanzar y MensajePilotos, y Run imprime al salir 'el piloto de \u003cslug\u003e no se lanza solo: cuando termine la firma, hoom piloto \u003cslug\u003e'. doc.go (CA-717), el comentario de Run y el README lo dicen. La regresion a ciegas ya esta registrada en 20261117T045612_98ba68: tests del test-writer C, rojos sobre dde3de5 y verdes despues. Sobre a76b215 (la rama de la tarea con el registro del tramo 3): go test -race -count=1 -run 'TestV3C_CA717_|TestV3C_CA715_CA717_' ./internal/tablero/ ok, 16 tests, entre ellos TestV3C_CA717_RunAlCerrarDiceElPilotoSinLanzar y TestV3C_CA717_PilotosSinLanzarMientrasCorreLaFirma.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T15:06:25.546304Z"
+}

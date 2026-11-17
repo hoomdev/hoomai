@@ -1,0 +1,15 @@
+ hoom tablero · demo · rama main  check VERDE · verify hac~
++TU SIGUIENTE PASO----te toca 2 · corriendo 1 · detenida 2-+
+| Pedile el codigo al writer para "Listado de proyectos". ~|
+| n pedir al writer      despues: "Exportar reporte a PDF" |
++----------------------------------------------------------+
+#Tarjetas==================================================#
+# TE TOCA 2                                                #
+# > Listado de proyectos    ####!--- los tests fallan: fal~#
+#===================================================1 de 7=#
++Listado de proyectos------------------------------listado-+
+| AHORA   Los tests estan escritos y fallan, com~  TE TOCA |
++----------------------------------------------------------+
+-Registro---------------------------------------------------
+
+ enter pedir al writer · n tu siguiente paso · ? todas
