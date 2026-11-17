@@ -454,7 +454,7 @@ func stSondeoDesde(js string, pos int) (string, bool) {
 	}
 	ini := strings.LastIndex(js[:pos], "\n") + 1
 	if m := regexp.MustCompile(`^\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=[^=>]*$`).FindStringSubmatch(js[ini:pos]); m != nil {
-		for _, u := range regexp.MustCompile(`\b` + regexp.QuoteMeta(m[1]) + `\b`).FindAllStringIndex(js, -1) {
+		for _, u := range regexp.MustCompile(`\b`+regexp.QuoteMeta(m[1])+`\b`).FindAllStringIndex(js, -1) {
 			if u[0] > pos {
 				if n := atFuncionQueEncierra(js, u[0]); n != "" {
 					nombres = append(nombres, n)
@@ -468,7 +468,7 @@ func stSondeoDesde(js string, pos int) (string, bool) {
 		if atEncadenada(js, n) {
 			return n, true
 		}
-		for _, m := range regexp.MustCompile(`\b` + regexp.QuoteMeta(n) + `\(`).FindAllStringIndex(js, -1) {
+		for _, m := range regexp.MustCompile(`\b`+regexp.QuoteMeta(n)+`\(`).FindAllStringIndex(js, -1) {
 			if esDecl.MatchString(js[:m[0]]) {
 				continue
 			}
