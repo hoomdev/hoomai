@@ -1,0 +1,11 @@
+{
+  "id": "20261117T151254_c74a93",
+  "created_at": "2026-11-17T15:12:54.456169Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/detalle.go",
+  "description": "INTRODUCIDO: internal/tablero/detalle.go:434 calcula f con float64, aunque CA-708/doc.go exige el entero de 20*trans/limite. La conversion redondea hacia arriba cerca de fronteras grandes: con timeout_s=8896355502 y trans=2224088875499999998ns, el cociente entero es 4 pero la expresion float64 vale 5, por lo que AHORA pinta una celda corrida de mas. Es un caso raro de sidecar/fecha extremos, sin perdida de datos, pero el resultado visible es incorrecto.",
+  "author": "reviewer@codex",
+  "fingerprint": "2d1ba42347805978",
+  "task": "tablero-tu-siguiente-paso"
+}

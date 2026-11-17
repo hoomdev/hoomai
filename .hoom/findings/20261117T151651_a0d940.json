@@ -1,0 +1,11 @@
+{
+  "id": "20261117T151651_a0d940",
+  "created_at": "2026-11-17T15:16:51.951564Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/tablero/estado.go",
+  "description": "INTRODUCIDO — internal/tablero/estado.go:384-387 elimina la parada previa de un piloto para cualquier FinProceso de rol, incluido Code=-1 («no pudo arrancar», documentado en internal/tablero/modelo.go:158-164 y producido por internal/tablero/bucle.go:380-384). Si el lanzador falla antes de crear el proceso, ningún trabajo corrió sobre la tarjeta, pero la protección de CA-715 desaparece y P vuelve a ofrecer Seguir solo sin cambio de columna ni trabajo posterior. La parada solo debe levantarse cuando el proceso realmente arrancó/terminó, no ante un fallo de lanzamiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "2d1ba42347805978",
+  "task": "tablero-tu-siguiente-paso"
+}

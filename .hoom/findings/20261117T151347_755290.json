@@ -1,0 +1,11 @@
+{
+  "id": "20261117T151347_755290",
+  "created_at": "2026-11-17T15:13:47.820651Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/tablero/estado.go",
+  "description": "INTRODUCIDO: internal/tablero/estado.go:384-387 borra la parada del piloto ante cualquier FinProceso de un rol. Pero FinProceso.Code=-1 significa que el proceso no pudo arrancar (internal/tablero/modelo.go:162), y bucle.go:381-384 genera exactamente ese fin cuando Lanzador.Lanzar devuelve error. Asi, tras una parada, intentar pedir otro rol en un entorno degradado y fallar al lanzar levanta la parada y vuelve a habilitar P aunque ningun trabajo corrio ni cambio la columna, contrariando CA-715. Caso raro de fallo parcial, sin perdida de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "2d1ba42347805978",
+  "task": "tablero-tu-siguiente-paso"
+}
