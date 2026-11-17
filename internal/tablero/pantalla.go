@@ -503,6 +503,16 @@ func (m *Modelo) lineaTeclas() linea {
 
 // acomodar keeps the selections, the scrolls and the detail where the
 // contract says after any change.
+// detalleLeido says whether the detail shows a document that is read: not
+// a card's while its detail is still being read (" leyendo la tarjeta...").
+func (m *Modelo) detalleLeido() bool {
+	clave := m.clave0Actual()
+	if !strings.HasPrefix(clave, "t:") {
+		return true
+	}
+	return m.detalle != nil && m.detalle.Slug == strings.TrimPrefix(clave, "t:")
+}
+
 func (m *Modelo) acomodar() {
 	if m.c.Ancho <= 0 || m.c.Alto <= 0 {
 		return
@@ -527,7 +537,7 @@ func (m *Modelo) acomodar() {
 	z := m.disponer()
 	d, hi := m.doc0()
 	maximo := max(0, len(d)-hi)
-	if m.sigue0 {
+	if m.sigue0 && m.detalleLeido() {
 		m.scroll0 = maximo
 	}
 	m.scroll0 = max(0, min(m.scroll0, maximo))

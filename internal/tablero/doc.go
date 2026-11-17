@@ -300,7 +300,8 @@
 //
 // Before the first read: " leyendo el tablero..."; with no card at all:
 // ` no hay tarjetas: hoom item add "<titulo>"` (CA-578). At the start the
-// selection is on the first card row.
+// selection is on the first card row; with no card row (every card in a
+// closed HECHO) it is on HECHO's line, as in the v2.
 //
 // # The rows
 //
@@ -417,9 +418,11 @@
 // starts at its first line for each new thing it shows, and follows its
 // end only when the document is longer than the view and the person
 // scrolled to its end: then a read that makes it longer keeps the end in
-// view. A card with running starts at its end instead, and follows it
-// while the reads bring events, unless the person scrolled up; it follows
-// again when the view is back at its end, and G takes it there (CA-711).
+// view. A card with running starts at its end instead (once its detail is
+// read: while it says " leyendo la tarjeta..." it is at its first line),
+// and follows it while the reads bring events, unless the person scrolled
+// up; it follows again when the view is back at its end, and G takes it
+// there (CA-711).
 // The project and a finding never follow.
 //
 // # The detail of a card

@@ -759,8 +759,17 @@ func (m *Modelo) lineasAyuda() []lineaModal {
 			"  clic en un modal  enfoca un campo, elige una opcion o un boton",
 			"  para seleccionar texto con el mouse, manten Option (macOS) o Shift",
 		} {
-			for _, p := range envolverLinea(lin(l), c) {
-				out = append(out, lm(p))
+			// a line that does not fit goes on from the column of Hace, 20
+			cabeza, resto := "  ", strings.TrimPrefix(l, "  ")
+			if celdas(l) > 20 && strings.TrimSpace(l[:20]) != "" && l[19] == ' ' {
+				cabeza, resto = l[:20], l[20:]
+			}
+			for i, p := range envolverPalabrasEspacios(resto, max(10, c-20)) {
+				if i == 0 {
+					out = append(out, lm(lin(cabeza+p)))
+				} else {
+					out = append(out, lm(lin(strings.Repeat(" ", 20)+p)))
+				}
 			}
 		}
 	} else {
