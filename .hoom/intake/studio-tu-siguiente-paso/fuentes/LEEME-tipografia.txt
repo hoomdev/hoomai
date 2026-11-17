@@ -1,0 +1,46 @@
+TIPOGRAFÍA hoomdev
+==================
+
+Space Grotesk  — marca, títulos, texto
+JetBrains Mono — código, rutas, comandos, etiquetas técnicas
+
+Ambas con licencia SIL Open Font License 1.1: gratis, uso comercial
+permitido, se pueden empotrar en web, video y productos impresos.
+
+QUÉ ARCHIVO INSTALAR
+--------------------
+SpaceGrotesk[wght].ttf    Variable, pesos 300 a 700 en un solo archivo.
+JetBrainsMono[wght].ttf   Variable, pesos 100 a 800 en un solo archivo.
+
+Instalá los variables si tu programa los soporta (Affinity 2, Illustrator,
+Figma, Premiere, DaVinci, Windows 11, macOS).
+
+Si algún programa viejo no te deja elegir el peso, usá los estáticos:
+SpaceGrotesk-400 / -500 / -700 y JetBrainsMono-400 / -500.
+
+PESOS QUE USA LA MARCA
+----------------------
+Space Grotesk 500 (Medium)  el wordmark y los títulos
+Space Grotesk 400 (Regular) cuerpo de texto
+Space Grotesk 700 (Bold)    miniaturas y énfasis
+JetBrains Mono 400 / 500    todo lo técnico
+
+CÓMO INSTALAR
+-------------
+Windows  clic derecho sobre el .ttf > Instalar para todos los usuarios
+macOS    doble clic > Instalar fuente
+Linux    copiar a ~/.local/share/fonts y correr  fc-cache -f
+
+EN WEB
+------
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+DESCARGA OFICIAL
+----------------
+https://fonts.google.com/specimen/Space+Grotesk
+https://fonts.google.com/specimen/JetBrains+Mono
+
+OJO: los archivos de logo NO necesitan estas fuentes. El wordmark ya está
+convertido a curvas. Las fuentes son para lo demás: miniaturas, lower
+thirds, slides, sitio web y documentos.
