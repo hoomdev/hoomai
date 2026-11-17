@@ -1,9 +1,11 @@
 // Los controles en los textos (CA-534 de la v1, que sigue igual: "Todo texto
 // de la pantalla pasa por la neutralizacion de controles de la v1") y las
 // rutas fuera del proyecto en el modelo (CA-522 y CA-524 de la v1,
-// re-expresados por CA-557 y CA-559: e en [0] de una tarjeta y en [4]). Los
-// hallazgos c82abf, f28d31 y e7f022 de la v1 siguen valiendo: aca se miran
-// en los lugares de la v2.
+// re-expresados por CA-557 y CA-559: e en el detalle de una tarjeta y en la
+// vista Hallazgos, su lista y su detalle; los nombres de la v3, spec
+// tablero-tu-siguiente-paso, "Los nombres de la v2"). Los hallazgos c82abf,
+// f28d31 y e7f022 de la v1 siguen valiendo: aca se miran en los lugares de la
+// v3.
 package tablero_test
 
 import (
@@ -88,11 +90,16 @@ func ttTarjetaHostil() (boardcmd.Card, tablero.Detalle) {
 
 // CA-534 (hallazgo c82abf de la v1): ningun texto de la tarjeta, del proyecto
 // o de los agentes llega a la terminal como una secuencia. En cada lugar de
-// la v2 (los paneles, [0] de la tarjeta, la linea de mensajes con el why, el
-// modal de acciones, Pedir, la firma, el Registro, [4] y su [0], [1] y su
-// [0]) ninguna linea lleva un control; con color, solo SGR. El tab se ve
-// como un espacio y cada otro control como "?". El pedido que se lanza es el
-// de la accion, sin tocar: neutralizar es solo de la pantalla.
+// la v3 (la cabecera, la caja TU SIGUIENTE PASO, la lista y el detalle de la
+// tarjeta, la linea de mensajes con el why, el modal de acciones, Pedir, la
+// firma, el Registro, la vista Hallazgos con el detalle del hallazgo, el
+// detalle del proyecto con v) ninguna linea lleva un control; con color, solo
+// SGR. El tab se ve como un espacio y cada otro control como "?". El pedido
+// que se lanza es el de la accion, sin tocar: neutralizar es solo de la
+// pantalla. La tarjeta hostil tiene un rojo no esperado (esta en DETENIDA: su
+// AHORA y su fila dicen el plain del rojo); el plain de la tarjeta se mira
+// despues con la misma tarjeta sin el rojo (TE TOCA: su AHORA, su fila y la
+// caja dicen el plain), porque en DETENIDA la v3 no lo muestra.
 func TestCA534_ControlesEnLosTextos(t *testing.T) {
 	for _, color := range []bool{false, true} {
 		for _, utf := range []bool{false, true} {
@@ -115,8 +122,20 @@ func TestCA534_ControlesEnLosTextos(t *testing.T) {
 			p.Problemas = []boardcmd.Problem{{ID: boardcmd.ProbSinSpec, Slug: "x", Plain: "problema " + ttHostil, Action: "accion " + ttHostil}}
 			m.LeerProyecto(p)
 			m.LeerHallazgos(tablero.Hallazgos{Items: []finding.Item{ttHallazgo("h1", finding.StatusOpen, "high", "x.go:2", "hallazgo "+ttHostil)}})
-			ver(m, "los paneles y [0] de la tarjeta", " tarjeta · titulo "+ttNeutro, "plain "+ttNeutro, "rojo "+ttNeutro,
+			// la cabecera (rama), la fila y el borde del detalle (titulo), el
+			// AHORA, la fila y la caja (el plain del rojo) y las partes B a G
+			ver(m, "la cabecera, la caja, la lista y el detalle de la tarjeta", "titulo "+ttNeutro, "rojo "+ttNeutro,
 				"doctor "+ttNeutro, "criterio "+ttNeutro, "desc "+ttNeutro, "historia "+ttNeutro, "evento "+ttNeutro, "rama "+ttNeutro)
+			if z := tv3bLeer(t, ca, m); !strings.HasPrefix(z.Detalle.Titulo, "titulo "+ttNeutro) || !strings.Contains(z.Detalle.Derecha, "tarjeta") {
+				t.Fatalf("%s: el borde del detalle dice el titulo neutralizado y, a la derecha, el slug: %q / %q", ca, z.Detalle.Titulo, z.Detalle.Derecha)
+			}
+			sinRojo := c
+			sinRojo.Red = nil
+			n := ttModelo(cfg, ttTablero(sinRojo))
+			dn := d
+			dn.Detalle.Card = sinRojo
+			n.LeerDetalle(dn)
+			ver(n, "la tarjeta sin rojo (TE TOCA)", "titulo "+ttNeutro, "plain "+ttNeutro)
 			m.Tecla("s", ttAhora)
 			ver(m, "la linea de mensajes con el why", "why "+ttNeutro)
 			m.Tecla(tablero.TeclaEspacio, ttAhora)
@@ -137,22 +156,30 @@ func TestCA534_ControlesEnLosTextos(t *testing.T) {
 			}
 			ver(m, "la firma", "titulo "+ttNeutro[:10])
 			m.Tecla(tablero.TeclaEsc, ttAhora)
-			m.Tecla("4", ttAhora)
+			m.Tecla("H", ttAhora)
+			if m.Vista() != tablero.VistaHallazgos {
+				t.Fatalf("%s: H abre la vista Hallazgos: %q", ca, m.Vista())
+			}
 			m.LeerArchivo(tablero.Archivo{Ruta: "x.go", Linea: 2, Desde: 1, Lineas: []string{"uno " + ttHostil, "dos"}})
-			ver(m, "[4] y [0] de un hallazgo", "hallazgo "+ttNeutro, "uno "+ttNeutro)
-			m.Tecla("1", ttAhora)
-			ver(m, "[0] del proyecto", "problema "+ttNeutro, "accion "+ttNeutro)
+			ver(m, "la vista Hallazgos y el detalle de un hallazgo", "hallazgo "+ttNeutro, "uno "+ttNeutro)
+			m.Tecla("H", ttAhora) // de vuelta a las tarjetas: v es de la lista de tarjetas y del detalle
+			m.Tecla("v", ttAhora)
+			if m.Lugar() != tablero.LugarVerProyecto {
+				t.Fatalf("%s: v muestra el proyecto en el detalle: %q", ca, m.Lugar())
+			}
+			ver(m, "el detalle del proyecto (v)", "problema "+ttNeutro, "accion "+ttNeutro, "rama "+ttNeutro)
 		}
 	}
 }
 
 // ---------------------------------------------------------------- las rutas fuera del proyecto
 
-// ttConHallazgos es el modelo con el foco en [4] y esos hallazgos.
+// ttConHallazgos es el modelo con esos hallazgos y la vista Hallazgos abierta
+// con el foco en su lista (la v2: el foco en [4]; la v3: H).
 func ttConHallazgos(cfg tablero.Config, hs []finding.Item) *tablero.Modelo {
 	m := ttModelo(cfg, ttTableroPrincipal())
 	m.LeerHallazgos(tablero.Hallazgos{Items: hs})
-	m.Tecla("4", ttAhora)
+	m.Tecla("H", ttAhora)
 	return m
 }
 
@@ -174,7 +201,8 @@ func ttAbreLocal(t *testing.T, ca, que string, ords []tablero.Orden, ruta string
 // una unidad, un UNC, una raiz "\" o un ".." que sube con / o \) no ordena
 // nada y la linea de mensajes dice en rojo "el archivo <ruta con
 // strconv.Quote> esta fuera del proyecto" durante DuracionAviso; uno local
-// con un ".." que no sale abre el editor. En [4] y en su [0].
+// con un ".." que no sale abre el editor. En la lista de la vista Hallazgos y
+// en su detalle (enter, en la vista Hallazgos, le da el foco al detalle).
 func TestCA559_CA524_HallazgoFueraDelProyecto(t *testing.T) {
 	casos := []struct{ file, ruta string }{
 		{"/etc/passwd", "/etc/passwd"},
@@ -197,11 +225,9 @@ func TestCA559_CA524_HallazgoFueraDelProyecto(t *testing.T) {
 			ahora := ttAhora
 			for _, cs := range casos {
 				m := ttConHallazgos(cfg, []finding.Item{ttHallazgo("f", finding.StatusOpen, "high", cs.file, "d")})
-				if enCero {
-					m.Tecla(tablero.TeclaEnter, ttAhora)
-				}
+				tv3bChicoControlesEnVista(t, m, enCero)
 				ahora = ahora.Add(time.Second)
-				que := fmt.Sprintf("e sobre %q (en [0]: %v, color=%v)", cs.file, enCero, color)
+				que := fmt.Sprintf("e sobre %q (en el detalle: %v, color=%v)", cs.file, enCero, color)
 				ttSinOrdenes(t, "CA-559", que, m.Tecla("e", ahora))
 				ttDiceMensaje(t, "CA-559", que, m, color, ttFuera(cs.ruta))
 				if len(m.Registro()) != 0 {
@@ -214,9 +240,7 @@ func TestCA559_CA524_HallazgoFueraDelProyecto(t *testing.T) {
 			}
 			for _, local := range []string{"dentro/../a.go", "sub/../x.go", `sub\..\x.go`} {
 				m := ttConHallazgos(cfg, []finding.Item{ttHallazgo("l", finding.StatusOpen, "low", local, "local")})
-				if enCero {
-					m.Tecla(tablero.TeclaEnter, ttAhora)
-				}
+				tv3bChicoControlesEnVista(t, m, enCero)
 				ords := m.Tecla("e", ttAhora)
 				if local == `sub\..\x.go` {
 					// CA-559, CA-534, hallazgo d31956: la unica orden es un
@@ -235,8 +259,9 @@ func TestCA559_CA524_HallazgoFueraDelProyecto(t *testing.T) {
 	}
 }
 
-// CA-557, CA-522 (hallazgos f28d31 y e7f022 de la v1): e en [0] de una
-// tarjeta con un spec cuya ruta sale del proyecto (relativa con "..", absoluta,
+// CA-557, CA-522 (hallazgos f28d31 y e7f022 de la v1): e en el detalle de
+// una tarjeta (el foco ahi con tab: en la v3 enter abre el modal de su paso)
+// con un spec cuya ruta sale del proyecto (relativa con "..", absoluta,
 // con unidad, UNC, raiz "\" o "..\") no ordena nada y la linea de mensajes
 // dice en rojo "el archivo <ruta> esta fuera del proyecto"; uno local con un
 // ".." que no sale abre el editor en la linea 1.
@@ -246,7 +271,10 @@ func TestCA557_CA522_SpecFueraDelProyecto(t *testing.T) {
 		m := ttModelo(cfg, ttTablero(c))
 		m.LeerDetalle(tablero.Detalle{Slug: c.Slug, Detalle: boardcmd.Detail{Card: c,
 			Spec: boardcmd.SpecDetail{Path: ruta, Exists: true, Markdown: "# Spec\n\nuna linea\n"}}})
-		m.Tecla(tablero.TeclaEnter, ttAhora)
+		m.Tecla(tablero.TeclaTab, ttAhora)
+		if m.Lugar() != tablero.LugarVerTarjeta {
+			t.Fatalf("CA-557: tab le da el foco al detalle de la tarjeta: %q", m.Lugar())
+		}
 		return m
 	}
 	for _, ruta := range []string{"../../fuera.md", "/etc/hoom/spec.md", "C:/fuera/spec.md", "C:spec.md", `\\srv\r\spec.md`, `\spec.md`, `..\spec.md`} {
@@ -260,4 +288,20 @@ func TestCA557_CA522_SpecFueraDelProyecto(t *testing.T) {
 		}
 	}
 	ttAbreLocal(t, "CA-557", "e con el spec en sub/../spec.md", abrir(ttAncho(), "sub/../spec.md").Tecla("e", ttAhora), "sub/../spec.md", 1)
+}
+
+// tv3bChicoControlesEnVista exige que m este en la lista de la vista
+// Hallazgos y, con enCero, le da el foco al detalle del hallazgo con enter
+// (la v2: enter en [4] pasaba el foco a su [0]).
+func tv3bChicoControlesEnVista(t *testing.T, m *tablero.Modelo, enCero bool) {
+	t.Helper()
+	if m.Vista() != tablero.VistaHallazgos || m.Lugar() != tablero.LugarHallazgos {
+		t.Fatalf("CA-559: H abre la vista Hallazgos con el foco en su lista: vista %q, lugar %q", m.Vista(), m.Lugar())
+	}
+	if enCero {
+		m.Tecla(tablero.TeclaEnter, ttAhora)
+		if m.Lugar() != tablero.LugarVerHallazgo || m.Foco() != tablero.ZonaDetalle {
+			t.Fatalf("CA-559: enter en la vista Hallazgos le da el foco al detalle del hallazgo: lugar %q, foco %d", m.Lugar(), int(m.Foco()))
+		}
+	}
 }

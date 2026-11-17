@@ -17,10 +17,14 @@ import (
 // CA-522, CA-557 (hallazgo f28d31): un Editor cuyo Abrir falla: la linea de
 // mensajes dice "no se pudo abrir el editor: <error>", la terminal se toma
 // de nuevo y la TUI sigue (otra tecla redibuja, q sale con 0, nada en Err).
-// Re-expresado por CA-557: el editor se pide con e en [0] de la tarjeta (en
-// la v1, o en la pestana Spec), y "la TUI sigue" se ve con 2, que le
-// devuelve el foco a [2] (en la v1, 1 volvia a Resumen).
-func TestCA522_CA557_RunEditorQueNoAbreSigueLaTUI(t *testing.T) {
+// Re-expresado por CA-557: el editor se pide con e en el detalle de la
+// tarjeta (en la v1, o en la pestana Spec), y "la TUI sigue" se ve con h,
+// que le devuelve el foco a la lista (en la v1, 1 volvia a Resumen; en la v2,
+// 2 le daba el foco a [2]: CA-551 y CA-553, re-expresados por CA-706, que
+// pasa el foco con tab al detalle y con esc, ← o h a la lista; 2 ya no hace
+// nada). A 80x24, una columna: con el foco en el detalle la lista esta
+// plegada, y con el foco de vuelta se despliega con su borde de foco.
+func TestCA522_CA557_CA706_RunEditorQueNoAbreSigueLaTUI(t *testing.T) {
 	c := ttTarjetaCon(ttAccionWriter())
 	w := ttNuevoMundo(t, ttTablero(c))
 	w.ed.err = errors.New("vi: no existe")
@@ -30,9 +34,9 @@ func TestCA522_CA557_RunEditorQueNoAbreSigueLaTUI(t *testing.T) {
 	}
 	fin := w.correr(nil)
 	ttEsperar(t, "CA-522", "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
-	w.term.mandar("\r")
-	ttEsperar(t, "CA-553", "el foco en [0] con el spec de la tarjeta", w, func() bool {
-		return w.marcoCon("#[0] tarjeta · Tarjeta de prueba") && w.marcoCon("Spec · 0 criterios")
+	w.term.mandar("\t")
+	ttEsperar(t, "CA-706", "el foco en el detalle con el spec de la tarjeta", w, func() bool {
+		return w.marcoCon("#Tarjeta de prueba=") && w.marcoCon("=tarjeta=#") && w.marcoCon("Spec · 0 criterios") && !w.marcoCon("#Tarjetas=")
 	})
 	desde := len(w.r.copia())
 	w.term.mandar("e")
@@ -48,8 +52,10 @@ func TestCA522_CA557_RunEditorQueNoAbreSigueLaTUI(t *testing.T) {
 		en := w.r.indice(abrir, func(e ttSuceso) bool { return e.que == "escribe" && strings.Contains(e.dato, tablero.SecEntrar) })
 		return cr > abrir && en > cr
 	})
-	w.term.mandar("2")
-	ttEsperar(t, "CA-551", "la TUI sigue: 2 le da el foco a [2]", w, func() bool { return w.marcoCon("#[2] Tarjetas") })
+	w.term.mandar("h")
+	ttEsperar(t, "CA-706", "la TUI sigue: h le da el foco a la lista", w, func() bool {
+		return w.marcoCon("#Tarjetas=") && w.filaElegida("tarjeta") && w.marcoCon("+Tarjeta de prueba-")
+	})
 	w.term.mandar("q")
 	if code, _ := fin(t); code != 0 {
 		t.Fatalf("CA-522: tras un editor que no abre, q sale con 0, salio con %d", code)

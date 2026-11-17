@@ -13,7 +13,10 @@
 // 0o000 (como root no niegan nada: esos casos se saltan). Con los mundos y
 // las ayudas de tt_run_enlaces_unix_test.go y tt_run_test.go (terminal,
 // datos, lanzador y editor falsos; Intervalo chico; cada espera con su tiempo
-// maximo).
+// maximo). "enter sobre un hallazgo" y "o con el spec" son las teclas de la
+// v1: el camino hasta la tecla es el de ttPedirEditorTras y la tecla la de
+// ttTeclaEditor (en la v3, e en la vista Hallazgos, H, sobre el hallazgo, y e
+// en el detalle de la tarjeta, con el foco ahi por tab).
 package tablero_test
 
 import (

@@ -1,8 +1,10 @@
 // El entorno (CA-516, CA-522, CA-524, CA-534, CA-536; en la v2 CA-575 y
-// CA-576): ParseArgs, ConColor, ConUTF8, ConMouse, ComandoEditor,
-// ArgumentosEditor, la pantalla sin color y en ASCII en todos los lugares de
-// la v2 (paneles, busqueda, modales, la ayuda, la pantalla chica), y los
-// require de go.mod.
+// CA-576; en la v3 CA-719, que re-expresa CA-575, y CA-720): ParseArgs,
+// ConColor, ConUTF8, ConMouse, ComandoEditor, ArgumentosEditor, la pantalla
+// sin color y en ASCII en todos los lugares de la v3 (la lista y el detalle
+// con el foco, el detalle de una tarjeta, de lo que corre, de un hallazgo y
+// del proyecto, la vista Hallazgos, la busqueda, los modales, la ayuda, el
+// Registro, la pantalla chica), y los require de go.mod.
 package tablero_test
 
 import (
@@ -203,9 +205,10 @@ func TestCA536_RequireDeGoMod(t *testing.T) {
 	}
 }
 
-// CA-575: ConMouse es false solo con HOOM_MOUSE "0"; cualquier otro valor,
-// o ninguno, es si.
-func TestCA575_ConMouse(t *testing.T) {
+// CA-575 (re-expresado por CA-719: lo que se pide del mouse sigue igual):
+// ConMouse es false solo con HOOM_MOUSE "0"; cualquier otro valor, o
+// ninguno, es si.
+func TestCA719_CA575_ConMouse(t *testing.T) {
 	casos := []struct {
 		env    map[string]string
 		quiere bool
@@ -220,46 +223,52 @@ func TestCA575_ConMouse(t *testing.T) {
 	}
 	for _, c := range casos {
 		if got := tablero.ConMouse(ttEnv(c.env)); got != c.quiere {
-			t.Fatalf("CA-575: ConMouse(%v) = %v, se esperaba %v", c.env, got, c.quiere)
+			t.Fatalf("CA-719, CA-575: ConMouse(%v) = %v, se esperaba %v", c.env, got, c.quiere)
 		}
 	}
 }
 
 // ---------------------------------------------------------------- sin color y en ASCII (CA-534, CA-576)
 
-// ttPantallas recorre los lugares de la v2 con cfg y devuelve cada pantalla
-// con su nombre: los paneles con el foco en cada uno, [0] de una tarjeta, de
-// lo que corre, de un hallazgo y del proyecto, la busqueda, el modo experto,
-// un aviso, un error de lectura, el modal de acciones, el de pedir (con una
-// lista abierta), el de firma, el de guardar, la ayuda y la pantalla chica.
+// ttPantallas recorre los lugares de la v3 con cfg y devuelve cada pantalla
+// con su nombre: la lista con el foco ("tablero"), una fila roja elegida, el
+// detalle con el foco (de una tarjeta, de lo que corre, de un hallazgo y del
+// proyecto), la vista Hallazgos, el modo experto, la busqueda, un aviso, un
+// error de lectura, el modal de acciones, el de pedir (con una lista
+// abierta), el de firma, el de guardar, la ayuda, el Registro, la pantalla
+// chica y la de una columna. Los lugares de la v2 se llegan por las teclas de
+// la v3 (CA-706: 1, 2, 3, 4 y 0 no hacen nada; el foco pasa con tab y vuelve
+// con esc; H abre la vista Hallazgos y v el proyecto en el detalle).
 func ttPantallas(t *testing.T, cfg tablero.Config) map[string][]string {
 	t.Helper()
 	out := map[string][]string{}
 	foto := func(nombre string, m *tablero.Modelo) { out[nombre] = m.Pantalla() }
 	m := ttModeloDorado(cfg)
-	foto("paneles", m)
-	// v1 CA-534, hallazgo b0c379: una fila roja (pagos-caidos, interrumpida)
-	// elegida en el panel con el foco: su slug es la pieza 7;31 entre las 7
+	foto("tablero", m)
+	// v1 CA-534, hallazgo b0c379: una fila roja (pagos-caidos, DETENIDA por
+	// interrumpida) elegida en la lista con el foco: su barra en video
+	// inverso deja a cada pieza su color (la del camino en rojo es 7;31)
 	r := ttModeloDorado(cfg)
-	r.Tecla("j", ttAhora)
+	tv3bIrA(t, r, "pagos-caidos")
 	foto("fila roja elegida", r)
-	for _, k := range []tablero.Tecla{"1", "3", "4", "0", "2"} {
-		m.Tecla(k, ttAhora)
-		foto("foco "+string(k), m)
-	}
-	m.Tecla(tablero.TeclaEnter, ttAhora)
-	foto("[0] de una tarjeta", m)
-	m.Tecla(tablero.TeclaEsc, ttAhora)
-	m.Tecla("3", ttAhora)
+	tv3bChicoEntornoEnLugar(t, m, tablero.TeclaTab, tablero.LugarVerTarjeta)
+	foto("el detalle de una tarjeta", m)
+	tv3bChicoEntornoEnLugar(t, m, tablero.TeclaEsc, tablero.LugarTarjetas)
+	tv3bIrA(t, m, "infra-api")
 	m.LeerDetalle(tablero.Detalle{Slug: "infra-api", Sobre: tablero.Sobre{EnvelopeID: "env-api", Eventos: []runcmd.Event{ttEvento(-3, "text", "leyendo")}}})
-	foto("[0] de lo que corre", m)
-	m.Tecla("4", ttAhora)
+	tv3bChicoEntornoEnLugar(t, m, tablero.TeclaTab, tablero.LugarVerTarjeta)
+	foto("el detalle de lo que corre", m)
+	tv3bChicoEntornoEnLugar(t, m, tablero.TeclaEsc, tablero.LugarTarjetas)
+	tv3bChicoEntornoEnLugar(t, m, "H", tablero.LugarHallazgos)
 	m.LeerArchivo(tablero.Archivo{Ruta: "internal/api/router.go", Linea: 41, Desde: 40, Lineas: []string{"a", "b", "c"}})
-	foto("[0] de un hallazgo", m)
-	m.Tecla("1", ttAhora)
-	m.Tecla(tablero.TeclaEnter, ttAhora)
-	foto("[0] del proyecto", m)
-	m.Tecla("2", ttAhora)
+	foto("la vista Hallazgos", m)
+	tv3bChicoEntornoEnLugar(t, m, tablero.TeclaTab, tablero.LugarVerHallazgo)
+	foto("el detalle de un hallazgo", m)
+	tv3bChicoEntornoEnLugar(t, m, "H", tablero.LugarTarjetas)
+	tv3bChicoEntornoEnLugar(t, m, "v", tablero.LugarVerProyecto)
+	foto("el detalle del proyecto", m)
+	tv3bChicoEntornoEnLugar(t, m, tablero.TeclaEsc, tablero.LugarTarjetas)
+	tv3bIrA(t, m, "nuc-tenancy")
 	m.Tecla("x", ttAhora)
 	foto("experto", m)
 	m.Tecla("x", ttAhora)
@@ -267,7 +276,8 @@ func ttPantallas(t *testing.T, cfg tablero.Config) map[string][]string {
 	ttEscribir(m, "inf")
 	foto("busqueda", m)
 	m.Tecla(tablero.TeclaEsc, ttAhora)
-	m.Tecla("w", ttAhora) // nuc-tenancy no tiene writer: aviso
+	tv3bIrA(t, m, "nuc-tenancy") // al cerrar la busqueda la elegida es la del filtro
+	m.Tecla("w", ttAhora)        // nuc-tenancy no tiene writer: aviso
 	foto("aviso", m)
 	m.Leer(tablero.Lectura{Ahora: ttAhora, Err: errors.New("disco roto")})
 	foto("error de lectura", m)
@@ -281,6 +291,12 @@ func ttPantallas(t *testing.T, cfg tablero.Config) map[string][]string {
 	m.Tecla(tablero.TeclaEsc, ttAhora)
 	m.Tecla("?", ttAhora)
 	foto("ayuda", m)
+	m.Tecla(tablero.TeclaEsc, ttAhora)
+	m.Tecla("L", ttAhora)
+	if m.Modal() != tablero.ModalRegistro {
+		t.Fatalf("CA-576 (guarda): L abre el modal Registro: %q", m.Modal())
+	}
+	foto("registro", m)
 
 	p := ttModelo(cfg, ttTablero(ttTarjetaCon(ttAccionWriter())))
 	p.Tecla("w", ttAhora)
@@ -325,8 +341,9 @@ func TestCA534_CA576_SinColorNingunaSecuencia(t *testing.T) {
 	}
 }
 
-// ttSoloConColor es lo que el titulo de [4] suma con color, con los signos
-// de linea que le siguen en el borde: " · <k> high" y su relleno.
+// ttSoloConColor es lo que el titulo de la vista Hallazgos ([4] en la v2)
+// suma con color, con los signos de linea que le siguen en el borde: " · <k>
+// high" y su relleno.
 var ttSoloConColor = regexp.MustCompile(` · [0-9]+ high[-─=═]+`)
 
 // CA-534, CA-576: con color la pantalla lleva secuencias SGR (el foco, los
@@ -369,9 +386,9 @@ func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 				}
 			}
 			sin := ttSinSGR(p[i])
-			// el titulo de [4] suma " · <k> high" solo con color (spec, "[4]
-			// Hallazgos"; TestCA559_CA524_FilasDeHallazgos): fuera de eso, la
-			// misma linea
+			// el titulo de la vista Hallazgos suma " · <k> high" solo con
+			// color (doc.go, "The Hallazgos view"; en la v2 el de [4],
+			// TestCA559_CA524_FilasDeHallazgos): fuera de eso, la misma linea
 			if !strings.Contains(q[i], " high") {
 				sin = ttSoloConColor.ReplaceAllStringFunc(sin, func(x string) string {
 					r := []rune(x)
@@ -389,21 +406,26 @@ func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 	if conSGR == 0 {
 		t.Fatalf("CA-576: con color alguna linea lleva una secuencia SGR")
 	}
-	// v1 CA-534, hallazgo b0c379: la fila roja elegida con el foco lleva su
-	// slug como la pieza 7;31 (la barra en video inverso y su color)
+	// v1 CA-534, hallazgo b0c379: la fila roja elegida con el foco es una
+	// barra en video inverso cuyas piezas guardan su color: en la v3 la fila
+	// dice el titulo (nunca el slug, CA-701) y lo rojo de una fila de
+	// DETENIDA es su signo del camino, ✗ en la columna de la tarjeta (CA-702),
+	// que en la barra es la pieza 7;31 (doc.go, "The selection": "its pieces
+	// keeping their colors"). Re-expresado: en la v2 era el slug en 7;31
+	// (CA-552, re-expresado por CA-707 y CA-701).
 	roja := 0
 	for _, l := range color["fila roja elegida"] {
-		if strings.Contains(ttSinSGR(l), " pagos-caidos ") && strings.Contains(l, "\x1b[7") {
+		if strings.Contains(ttSinSGR(l), " Pagos caidos ") && strings.Contains(l, "\x1b[7") {
 			roja++
-			if ttEstiloDe(l, "pagos-caidos") != "\x1b[7;31m" {
-				t.Fatalf("CA-552, CA-576 (hallazgo b0c379): la fila roja elegida con el foco lleva el slug en 7;31: %q", l)
+			if ttEstiloDe(l, "✗") != "\x1b[7;31m" {
+				t.Fatalf("CA-701, CA-707, CA-552, CA-576 (hallazgo b0c379): la fila roja elegida con el foco lleva su ✗ del camino en 7;31: %q", l)
 			}
 		}
 	}
 	if roja != 1 {
-		t.Fatalf("CA-552 (hallazgo b0c379): la pantalla tiene una fila elegida de pagos-caidos en video inverso: %d\n%s", roja, strings.Join(color["fila roja elegida"], "\n"))
+		t.Fatalf("CA-707, CA-552 (hallazgo b0c379): la pantalla tiene una fila elegida de Pagos caidos en video inverso: %d\n%s", roja, strings.Join(color["fila roja elegida"], "\n"))
 	}
-	for _, nombre := range []string{"paneles", "pedir", "firma", "ayuda"} {
+	for _, nombre := range []string{"tablero", "el detalle de una tarjeta", "pedir", "firma", "ayuda"} {
 		n := 0
 		for _, l := range color[nombre] {
 			if strings.Contains(l, "\x1b[1;32m") {
@@ -411,7 +433,7 @@ func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 			}
 		}
 		if n == 0 {
-			t.Fatalf("CA-551, CA-565: con color, en %q el borde del foco (o del modal) va en verde y negrita (1;32)", nombre)
+			t.Fatalf("CA-706, CA-551, CA-565: con color, en %q el borde del foco (o del modal) va en verde y negrita (1;32)", nombre)
 		}
 	}
 }
@@ -419,9 +441,11 @@ func TestCA534_CA576_ConColorEsLaMismaPantallaConSGR(t *testing.T) {
 // CA-576: en ASCII ninguna pantalla lleva los signos UTF-8 del contrato
 // (bordes simples y del foco, la seleccion, Hecho, la tira, los criterios,
 // las flechas de los selectores, el cursor, el corte, las flechas de la
-// linea de teclas y de la ayuda) ni las palabras con acento de la TUI.
+// linea de teclas y de la ayuda; en la v3 tambien el camino, las comillas
+// del titulo y la barra del tiempo, CA-720) ni las palabras con acento de la
+// TUI.
 func TestCA576_EnASCIISinSignosUTF8(t *testing.T) {
-	const signos = "●○✋✓✗⚑▸▾─│┌┐└┘═║╔╗╚╝‹›▌…↑↓←→ÓóÍíÁáÉéÚú¿"
+	const signos = "●○◆◉✋✓✗⚑▸▾─│┌┐└┘═║╔╗╚╝‹›▌…↑↓←→«»█░ÓóÍíÁáÉéÚú¿"
 	for nombre, p := range ttPantallas(t, ttConfig(100, 30, false)) {
 		for i, l := range p {
 			if j := strings.IndexAny(l, signos); j >= 0 {
@@ -432,36 +456,58 @@ func TestCA576_EnASCIISinSignosUTF8(t *testing.T) {
 	}
 }
 
-// CA-576: con UTF-8 el foco usa la linea doble (╔ ═ ╗ ║ ╚ ╝), los otros
-// paneles la simple, la seleccion ▸ y Hecho cerrada ▸; en ASCII, # = para
-// el foco, + - | para los otros y > para la seleccion y Hecho.
+// CA-576: con UTF-8 el foco usa la linea doble (╔ ═ ╗ ║ ╚ ╝), las otras
+// cajas la simple (el detalle sin el foco y la caja TU SIGUIENTE PASO, que
+// nunca lo tiene), la seleccion ▸ y Hecho cerrada ▸; en ASCII, # = para el
+// foco, + - | para las otras y > para la seleccion y Hecho. Las palabras con
+// acento de la TUI (en la v2 los titulos de seccion, "NECESITA TU
+// DECISIÓN"): en la v3 la frase de la caja, con «» y su acento con UTF-8 y
+// con "" y sin acento en ASCII (CA-720). La fila dice el titulo, nunca el
+// slug (CA-701).
 func TestCA576_SignosDeLosDosModos(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, true))
-	cs := ttCajas(m)
-	if c := cs["[2]"]; !strings.HasPrefix(c.Arriba, "╔[2] Tarjetas═") || !strings.HasSuffix(c.Arriba, "╗") ||
+	z := tv3bLeer(t, "CA-576", m)
+	if c := z.Lista; !c.Foco || !strings.HasPrefix(c.Arriba, "╔Tarjetas═") || !strings.HasSuffix(c.Arriba, "╗") ||
 		!strings.HasPrefix(c.Abajo, "╚") || !strings.HasSuffix(c.Abajo, "╝") {
 		t.Fatalf("CA-576: con UTF-8 el foco va en linea doble: %q / %q", c.Arriba, c.Abajo)
 	}
-	if c := cs["[1]"]; !strings.HasPrefix(c.Arriba, "┌[1] Proyecto─") || !strings.HasSuffix(c.Arriba, "┐") || !strings.HasPrefix(c.Abajo, "└") {
-		t.Fatalf("CA-576: con UTF-8 los otros paneles van en linea simple: %q", c.Arriba)
+	if c := z.Detalle; c.Foco || !strings.HasPrefix(c.Arriba, "┌Tenancy del nucleo─") || !strings.HasSuffix(c.Arriba, "┐") || !strings.HasPrefix(c.Abajo, "└") {
+		t.Fatalf("CA-576: con UTF-8 la caja sin el foco va en linea simple: %q", c.Arriba)
 	}
-	if !ttTiene(m, "║ ▸ nuc-tenancy") || !ttTiene(m, " HECHO 3 ▸") || !ttTiene(m, "NECESITA TU DECISIÓN") {
-		t.Fatalf("CA-576: con UTF-8, ▸ en la seleccion y en Hecho cerrada, y los titulos con acento:\n%s", ttPantalla(m))
+	if c := z.Caja; !strings.HasPrefix(c.Arriba, "┌TU SIGUIENTE PASO─") || !strings.HasSuffix(c.Arriba, "┐") || !strings.HasPrefix(c.Abajo, "└") {
+		t.Fatalf("CA-576: con UTF-8 la caja TU SIGUIENTE PASO va en linea simple: %q", c.Arriba)
+	}
+	if !ttTiene(m, "║ ▸ Tenancy del nucleo") || !ttTiene(m, " HECHO 3 ▸") || !ttTiene(m, "Firmá el spec de «Tenancy del nucleo».") {
+		t.Fatalf("CA-576, CA-720: con UTF-8, ▸ en la seleccion y en Hecho cerrada, y la frase de la caja con acento y «»:\n%s", ttPantalla(m))
 	}
 	a := ttModeloDorado(ttConfig(120, 32, false))
-	cs = ttCajas(a)
-	if c := cs["[2]"]; !strings.HasPrefix(c.Arriba, "#[2] Tarjetas=") || !strings.HasSuffix(c.Arriba, "#") || !strings.HasPrefix(c.Abajo, "#=") {
+	z = tv3bLeer(t, "CA-576", a)
+	if c := z.Lista; !c.Foco || !strings.HasPrefix(c.Arriba, "#Tarjetas=") || !strings.HasSuffix(c.Arriba, "#") || !strings.HasPrefix(c.Abajo, "#=") {
 		t.Fatalf("CA-576: en ASCII el borde del foco usa # y =: %q / %q", c.Arriba, c.Abajo)
 	}
-	if c := cs["[1]"]; !strings.HasPrefix(c.Arriba, "+[1] Proyecto-") || !strings.HasSuffix(c.Arriba, "+") || !strings.HasPrefix(c.Dentro[0], " ") {
-		t.Fatalf("CA-576: en ASCII los otros paneles usan + - |: %q", c.Arriba)
+	if c := z.Detalle; c.Foco || !strings.HasPrefix(c.Arriba, "+Tenancy del nucleo-") || !strings.HasSuffix(c.Arriba, "+") || len(c.Dentro) == 0 || !strings.HasPrefix(c.Dentro[0], " ") {
+		t.Fatalf("CA-576: en ASCII la caja sin el foco usa + - |: %q", c.Arriba)
 	}
-	if !ttTiene(a, "# > nuc-tenancy") || !ttTiene(a, " HECHO 3 >") || !ttTiene(a, "NECESITA TU DECISION") {
-		t.Fatalf("CA-576: en ASCII, > en la seleccion y en Hecho cerrada, y los titulos sin acento:\n%s", ttPantalla(a))
+	if c := z.Caja; !strings.HasPrefix(c.Arriba, "+TU SIGUIENTE PASO-") || !strings.HasSuffix(c.Arriba, "+") {
+		t.Fatalf("CA-576: en ASCII la caja TU SIGUIENTE PASO usa + - |: %q", c.Arriba)
+	}
+	if !ttTiene(a, "# > Tenancy del nucleo") || !ttTiene(a, " HECHO 3 >") || !ttTiene(a, `Firma el spec de "Tenancy del nucleo".`) {
+		t.Fatalf("CA-576, CA-720: en ASCII, > en la seleccion y en Hecho cerrada, y la frase de la caja sin acento y con \"\":\n%s", ttPantalla(a))
 	}
 	// guarda: el reloj no mueve nada de esto
 	a.Tic(ttAhora.Add(time.Second))
-	if !ttTiene(a, "# > nuc-tenancy") {
+	if !ttTiene(a, "# > Tenancy del nucleo") {
 		t.Fatalf("CA-576: tras un Tic la seleccion sigue:\n%s", ttPantalla(a))
+	}
+}
+
+// tv3bChicoEntornoEnLugar aprieta k y exige que m quede en el lugar l: cada
+// lugar de ttPantallas es el que dice su nombre, no uno al que una tecla de
+// la v2 no llevo (una tecla que no hace nada daria una pantalla repetida).
+func tv3bChicoEntornoEnLugar(t *testing.T, m *tablero.Modelo, k tablero.Tecla, l tablero.Lugar) {
+	t.Helper()
+	m.Tecla(k, ttAhora)
+	if m.Lugar() != l {
+		t.Fatalf("CA-576 (guarda): %q lleva a %q, el modelo esta en %q", k, l, m.Lugar())
 	}
 }
