@@ -1,8 +1,10 @@
-// El mouse (spec tablero-con-paneles CA-575): DecodificarEntradas y el
-// formato SGR, lo que hace cada evento en el modelo (foco, seleccion,
-// rueda, el modal) y que ninguno lance ni abra un modal (propiedad), y Run:
-// las secuencias que piden y devuelven el mouse, HOOM_MOUSE=0, y un clic
-// que llega por la terminal falsa.
+// El mouse (spec tablero-con-paneles CA-575; en la v3, spec
+// tablero-tu-siguiente-paso, CA-719 re-expresa donde hace efecto un clic):
+// DecodificarEntradas y el formato SGR, lo que hace cada evento en el modelo
+// (el foco de la lista o del detalle, la seleccion, la caja TU SIGUIENTE
+// PASO, la rueda, el modal) y que ninguno lance ni abra un modal
+// (propiedad), y Run: las secuencias que piden y devuelven el mouse,
+// HOOM_MOUSE=0, y un clic que llega por la terminal falsa.
 package tablero_test
 
 import (
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"github.com/hoomdev/hoomai/internal/tablero"
 )
@@ -140,8 +143,8 @@ func TestCA575_DecodificarEntradasPropiedad(t *testing.T) {
 
 // ---------------------------------------------------------------- el modelo
 
-// ttFilaDe es la linea (desde 0) de la pantalla donde esta s, en la columna
-// de la izquierda.
+// ttFilaDe es la linea (desde 0) de la pantalla donde esta s, en las
+// primeras 40 celdas (en la v3, la lista con 100 columnas o mas).
 func ttFilaDe(t *testing.T, m *tablero.Modelo, s string) int {
 	t.Helper()
 	for i, l := range ttLimpia(m) {
@@ -153,150 +156,283 @@ func ttFilaDe(t *testing.T, m *tablero.Modelo, s string) int {
 	return -1
 }
 
-// CA-575: un clic en un panel le da el foco (sus bordes incluidos); en una
-// fila de un panel de la izquierda ademas la elige ([0] la sigue); en un
-// titulo de seccion de [2] solo da el foco; en la linea de Hecho la elige sin
-// abrirla; en el Registro no hace nada. Nunca una orden.
-func TestCA575_ClicDaElFocoYElige(t *testing.T) {
+// tv3bRatFila es la linea de la pantalla (desde 0) de la linea k (0 la
+// primera, 1 la segunda) de la fila de la lista cuyo titulo es titulo.
+func tv3bRatFila(t *testing.T, m *tablero.Modelo, titulo string, k int) int {
+	t.Helper()
+	c := tv3bLista(t, "CA-719", m)
+	i := tv3bFilaDe(c, titulo)
+	if i < 0 || i+k >= len(c.Dentro) {
+		t.Fatalf("CA-719: la lista tiene la fila %q con su linea %d:\n%s", titulo, k+1, ttPantalla(m))
+	}
+	return c.Fila + 1 + i + k
+}
+
+// tv3bRatLinea es la linea de la pantalla (desde 0) de la linea de la lista
+// que, sin el relleno, es s (la de un grupo, la de HECHO).
+func tv3bRatLinea(t *testing.T, m *tablero.Modelo, s string) int {
+	t.Helper()
+	c := tv3bLista(t, "CA-719", m)
+	for i, l := range c.Dentro {
+		if strings.TrimRight(l, " ") == s {
+			return c.Fila + 1 + i
+		}
+	}
+	t.Fatalf("CA-719: la lista tiene la linea %q:\n%s", s, ttPantalla(m))
+	return -1
+}
+
+// tv3bRatCon es la linea de la pantalla (desde 0) de la primera linea de la
+// lista que tiene s.
+func tv3bRatCon(t *testing.T, m *tablero.Modelo, s string) int {
+	t.Helper()
+	c := tv3bLista(t, "CA-719", m)
+	for i, l := range c.Dentro {
+		if strings.Contains(l, s) {
+			return c.Fila + 1 + i
+		}
+	}
+	t.Fatalf("CA-719: la lista tiene una linea con %q:\n%s", s, ttPantalla(m))
+	return -1
+}
+
+// tv3bRatEnDetalle es una celda dentro del detalle.
+func tv3bRatEnDetalle(t *testing.T, m *tablero.Modelo) (int, int) {
+	t.Helper()
+	d := tv3bDetalle(t, "CA-719", m)
+	return d.Col + 10, d.Fila + 3
+}
+
+// CA-719, CA-575: un clic en la lista le da el foco (sus bordes incluidos);
+// en cualquiera de las dos lineas de una tarjeta ademas la elige (el detalle
+// la sigue); en la linea de un grupo solo da el foco; en la linea de HECHO la
+// elige sin abrirla. Un clic en el detalle le da el foco. Un clic en la caja
+// TU SIGUIENTE PASO elige en la lista la tarjeta de la caja y le da el foco a
+// la lista (desde la vista Hallazgos y desde el detalle del proyecto vuelve a
+// las tarjetas); sin tarjeta en la caja no hace nada. En la cabecera, en la
+// linea del Registro y en las dos ultimas no hace nada. Nunca una orden. (La
+// v2 empezaba con un clic en [1], que mostraba el proyecto en [0]: en la v3
+// la cabecera no hace nada con un clic y el proyecto se ve con v.)
+func TestCA719_CA575_ClicDaElFocoYElige(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, false))
-	ttRaton(t, m, ttClic(5, 2))
-	if m.Foco() != tablero.PanelProyecto || ttCajaDe(t, "CA-575", m, "[0]").Titulo != "[0] Proyecto" {
-		t.Fatalf("CA-575: un clic en [1] le da el foco y [0] muestra el proyecto: %d", int(m.Foco()))
+	z := tv3bLeer(t, "CA-719", m)
+	ttRaton(t, m, ttClic(tv3bRatEnDetalle(t, m)))
+	if m.Foco() != tablero.ZonaDetalle || m.Lugar() != tablero.LugarVerTarjeta || m.Elegida() != "nuc-tenancy" {
+		t.Fatalf("CA-719: un clic en el detalle le da el foco, con la tarjeta elegida: %d %q %q", int(m.Foco()), m.Lugar(), m.Elegida())
 	}
-	ttRaton(t, m, ttClic(3, ttFilaDe(t, m, "infra-ci-cd")))
-	if m.Foco() != tablero.PanelTarjetas || m.Elegida() != "infra-ci-cd" {
-		t.Fatalf("CA-575: un clic en una fila de [2] le da el foco y la elige: %d %q", int(m.Foco()), m.Elegida())
+	ttRaton(t, m, ttClic(3, tv3bRatFila(t, m, "CI y CD de la infra", 0)))
+	if m.Foco() != tablero.ZonaLista || m.Elegida() != "infra-ci-cd" || tv3bTituloElegido(t, "CA-719", m) != "CI y CD de la infra" ||
+		tv3bDetalle(t, "CA-719", m).Titulo != "CI y CD de la infra" {
+		t.Fatalf("CA-719: un clic en la primera linea de una tarjeta le da el foco a la lista y la elige (el detalle la sigue): %d %q\n%s", int(m.Foco()), m.Elegida(), ttPantalla(m))
 	}
-	m.Tecla("1", ttAhora)
-	ttRaton(t, m, ttClic(3, ttFilaDe(t, m, "BACKLOG 2")))
-	if m.Foco() != tablero.PanelTarjetas || m.Elegida() != "infra-ci-cd" {
-		t.Fatalf("CA-575: un clic en un titulo de seccion solo da el foco: %d %q", int(m.Foco()), m.Elegida())
+	tv3bAlDetalle(t, m)
+	ttRaton(t, m, ttClic(3, tv3bRatFila(t, m, "Guia de la documentacion", 1)))
+	if m.Foco() != tablero.ZonaLista || m.Elegida() != "docs-guia" {
+		t.Fatalf("CA-719: un clic en la segunda linea de una tarjeta tambien la elige y le da el foco a la lista: %d %q", int(m.Foco()), m.Elegida())
 	}
-	ttRaton(t, m, ttClic(3, ttFilaDe(t, m, "HECHO 3")))
-	if ttSlugElegido(t, m) != "HECHO" || ttTiene(m, "viejo-1") {
-		t.Fatalf("CA-575: un clic en la linea de Hecho la elige sin abrirla:\n%s", ttPantalla(m))
+	tv3bAlDetalle(t, m)
+	ttRaton(t, m, ttClic(3, tv3bRatLinea(t, m, " EN COLA 2")))
+	if m.Foco() != tablero.ZonaLista || m.Elegida() != "docs-guia" {
+		t.Fatalf("CA-719: un clic en la linea de un grupo solo da el foco: %d %q", int(m.Foco()), m.Elegida())
 	}
-	ttRaton(t, m, ttClic(10, ttFilaDe(t, m, "pagos-caidos writer")))
-	if m.Foco() != tablero.PanelCorriendo || m.Elegida() != "pagos-caidos" {
-		t.Fatalf("CA-575: un clic en una fila de [3]: %d %q", int(m.Foco()), m.Elegida())
+	ttRaton(t, m, ttClic(3, tv3bRatLinea(t, m, " HECHO 3 >")))
+	if got := tv3bTituloElegido(t, "CA-719", m); got != "HECHO 3 >" || m.Elegida() != "" || ttTiene(m, "Viejo 1") {
+		t.Fatalf("CA-719: un clic en la linea de HECHO la elige sin abrirla (%q):\n%s", got, ttPantalla(m))
 	}
-	ttRaton(t, m, ttClic(10, ttFilaDe(t, m, "low    nuc-tenancy")))
-	if m.Foco() != tablero.PanelHallazgos || ttCajaDe(t, "CA-575", m, "[0]").Titulo != "[0] hallazgo h-low" {
-		t.Fatalf("CA-575: un clic en una fila de [4]: %d", int(m.Foco()))
+	// una fila del grupo CORRIENDO (la v2: [3]) y una de DETENIDA
+	if g := m.Grupo("infra-api"); g != tablero.GrupoCorriendo {
+		t.Fatalf("CA-700 (guarda): infra-api va en CORRIENDO: %q", g)
 	}
-	c2 := ttCajaDe(t, "CA-575", m, "[2]")
-	ttRaton(t, m, ttClic(0, c2.Fila)) // la esquina de [2]
-	if m.Foco() != tablero.PanelTarjetas {
-		t.Fatalf("CA-575: un clic en el borde de un panel le da el foco: %d", int(m.Foco()))
+	ttRaton(t, m, ttClic(10, tv3bRatFila(t, m, "Convenciones de la API", 0)))
+	if m.Foco() != tablero.ZonaLista || m.Elegida() != "infra-api" {
+		t.Fatalf("CA-719: un clic en una fila del grupo CORRIENDO la elige: %d %q", int(m.Foco()), m.Elegida())
 	}
-	ttRaton(t, m, ttClic(60, 5))
-	if m.Foco() != tablero.PanelPrincipal || m.Lugar() != tablero.LugarVerNada {
-		t.Fatalf("CA-575: un clic en [0] le da el foco ([2] estaba en Hecho: nada): %d %q", int(m.Foco()), m.Lugar())
+	ttRaton(t, m, ttClic(10, tv3bRatFila(t, m, "Pagos caidos", 1)))
+	if m.Foco() != tablero.ZonaLista || m.Elegida() != "pagos-caidos" {
+		t.Fatalf("CA-719: un clic en la segunda linea de una fila de DETENIDA la elige: %d %q", int(m.Foco()), m.Elegida())
 	}
+	// la vista Hallazgos (la v2: [4]): desde su detalle, un clic en una fila
+	// de su lista le da el foco y la elige
+	m.Tecla("H", ttAhora)
+	tv3bAlDetalle(t, m)
+	if m.Lugar() != tablero.LugarVerHallazgo {
+		t.Fatalf("CA-712 (guarda): H y tab: el detalle de un hallazgo: %q", m.Lugar())
+	}
+	ttRaton(t, m, ttClic(10, tv3bRatCon(t, m, "low    nuc-tenancy")))
+	if m.Lugar() != tablero.LugarHallazgos || tv3bDetalle(t, "CA-719", m).Titulo != "hallazgo h-low" {
+		t.Fatalf("CA-719: un clic en una fila de la lista de la vista Hallazgos le da el foco y la elige: %q %q", m.Lugar(), tv3bDetalle(t, "CA-719", m).Titulo)
+	}
+	tv3bAlDetalle(t, m)
+	ttRaton(t, m, ttClic(z.Lista.Col, z.Lista.Fila)) // la esquina de la lista
+	if m.Foco() != tablero.ZonaLista || m.Lugar() != tablero.LugarHallazgos {
+		t.Fatalf("CA-719: un clic en el borde de la lista le da el foco: %d %q", int(m.Foco()), m.Lugar())
+	}
+	// la caja TU SIGUIENTE PASO
+	if m.Caja() != "nuc-tenancy" {
+		t.Fatalf("CA-698 (guarda): la tarjeta de la caja es nuc-tenancy: %q", m.Caja())
+	}
+	tv3bAlDetalle(t, m)
+	ttRaton(t, m, ttClic(5, z.Caja.Fila+1))
+	if m.Vista() != tablero.VistaTarjetas || m.Lugar() != tablero.LugarTarjetas || m.Elegida() != "nuc-tenancy" {
+		t.Fatalf("CA-719: un clic en la caja desde la vista Hallazgos vuelve a las tarjetas, elige la de la caja y le da el foco a la lista: %q %q %q", m.Vista(), m.Lugar(), m.Elegida())
+	}
+	tv3bIrAHecho(t, m)
+	ttRaton(t, m, ttClic(tv3bRatEnDetalle(t, m)))
+	if m.Foco() != tablero.ZonaDetalle || m.Lugar() != tablero.LugarVerNada {
+		t.Fatalf("CA-719: un clic en el detalle le da el foco (la lista estaba en HECHO: nada): %d %q", int(m.Foco()), m.Lugar())
+	}
+	ttRaton(t, m, ttClic(60, z.Caja.Fila+2))
+	if m.Lugar() != tablero.LugarTarjetas || m.Elegida() != "nuc-tenancy" {
+		t.Fatalf("CA-719: un clic en la caja desde el detalle elige la tarjeta de la caja, con el foco en la lista: %q %q", m.Lugar(), m.Elegida())
+	}
+	m.Tecla("v", ttAhora)
+	if m.Lugar() != tablero.LugarVerProyecto {
+		t.Fatalf("CA-713 (guarda): v muestra el proyecto en el detalle: %q", m.Lugar())
+	}
+	ttRaton(t, m, ttClic(5, z.Caja.Fila+1))
+	if m.Lugar() != tablero.LugarTarjetas || m.Elegida() != "nuc-tenancy" {
+		t.Fatalf("CA-719: un clic en la caja desde el detalle del proyecto vuelve a las tarjetas: %q %q", m.Lugar(), m.Elegida())
+	}
+	// la cabecera, la linea del Registro (la v2: el panel del Registro) y
+	// las dos ultimas no hacen nada
+	tv3bAlDetalle(t, m)
 	antes := ttFoto(m)
-	reg := ttCajaDe(t, "CA-575", m, "Registro")
-	ttRaton(t, m, ttClic(reg.Col+5, reg.Fila+2))
-	if ttFoto(m) != antes {
-		t.Fatalf("CA-575: un clic en el Registro no hace nada (el Registro no toma el foco)")
+	for _, y := range []int{0, z.Alto - 3, z.Alto - 2, z.Alto - 1} {
+		ttRaton(t, m, ttClic(5, y))
+		if ttFoto(m) != antes {
+			t.Fatalf("CA-719: un clic en la linea %d (la cabecera, el Registro o las dos ultimas) no hace nada:\n%s", y+1, ttPantalla(m))
+		}
+	}
+	// sin tarjeta en la caja (solo EN COLA), un clic en la caja no hace nada
+	n := ttModelo(ttConfig(120, 32, false), ttTablero(ttBacklog("cola", "En la cola")))
+	if n.Caja() != "" {
+		t.Fatalf("CA-698 (guarda): con solo EN COLA la caja no tiene tarjeta: %q", n.Caja())
+	}
+	ttRaton(t, n, ttClic(tv3bRatEnDetalle(t, n)))
+	if n.Foco() != tablero.ZonaDetalle {
+		t.Fatalf("CA-719: un clic en el detalle le da el foco: %d", int(n.Foco()))
+	}
+	antes = ttFoto(n)
+	ttRaton(t, n, ttClic(5, z.Caja.Fila+1))
+	if ttFoto(n) != antes {
+		t.Fatalf("CA-719: sin tarjeta en la caja, un clic en la caja no hace nada:\n%s", ttPantalla(n))
 	}
 }
 
-// CA-575: un clic en un panel plegado le da el foco, y entonces se
-// despliega.
-func TestCA575_ClicEnUnPlegado(t *testing.T) {
+// CA-719, CA-575: un clic en la lista plegada (una columna, con el foco en el
+// detalle) le da el foco a la lista, que se despliega, sin cambiar la
+// elegida; la rueda sobre la lista plegada no hace nada. (La v2 plegaba [4]
+// y [1] a 60x15.)
+func TestCA719_CA575_ClicEnUnPlegado(t *testing.T) {
 	m := ttModeloDorado(ttConfig(60, 15, false))
-	c4 := ttCajaDe(t, "CA-575", m, "[4]")
-	if !c4.Plegado {
-		t.Fatalf("CA-550 (guarda): a 60x15 [4] va plegado: %+v", c4)
+	tv3bAlDetalle(t, m)
+	l := tv3bLista(t, "CA-719", m)
+	if !l.Plegado {
+		t.Fatalf("CA-696 (guarda): a 60x15 con el foco en el detalle la lista va plegada: %+v", l)
 	}
-	ttRaton(t, m, ttClic(30, c4.Fila))
-	if m.Foco() != tablero.PanelHallazgos || ttCajaDe(t, "CA-575", m, "[4]").Plegado {
-		t.Fatalf("CA-575: un clic en [4] plegado le da el foco y lo despliega:\n%s", ttPantalla(m))
+	elegida := m.Elegida()
+	ttRaton(t, m, ttClic(30, l.Fila))
+	if m.Foco() != tablero.ZonaLista || tv3bLista(t, "CA-719", m).Plegado || m.Elegida() != elegida {
+		t.Fatalf("CA-719: un clic en la lista plegada le da el foco y la despliega (%q, era %q):\n%s", m.Elegida(), elegida, ttPantalla(m))
 	}
-	// la rueda sobre un plegado no hace nada
-	c1 := ttCajaDe(t, "CA-575", m, "[1]")
+	// la rueda sobre la lista plegada no hace nada
+	tv3bAlDetalle(t, m)
+	l = tv3bLista(t, "CA-719", m)
 	antes := ttFoto(m)
-	ttRaton(t, m, ttRuedaAbajo(5, c1.Fila))
+	ttRaton(t, m, ttRuedaAbajo(5, l.Fila))
+	ttRaton(t, m, ttRuedaArriba(5, l.Fila))
 	if ttFoto(m) != antes {
-		t.Fatalf("CA-575: la rueda sobre una linea plegada no hace nada")
+		t.Fatalf("CA-719: la rueda sobre la lista plegada no hace nada")
 	}
 }
 
-// CA-575: la rueda sobre un panel de la izquierda mueve su seleccion una fila
-// por muesca sin mover el foco; sobre [0] lo desplaza 3 lineas; sobre el
-// Registro no hace nada.
-func TestCA575_LaRueda(t *testing.T) {
+// CA-719, CA-575: la rueda sobre la lista mueve su seleccion una fila por
+// muesca sin mover el foco; sobre el detalle lo desplaza 3 lineas; sobre lo
+// demas (la cabecera, la caja, la linea del Registro) no hace nada.
+func TestCA719_CA575_LaRueda(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, false))
-	m.Tecla("4", ttAhora)
-	// la fila elegida de [2] ("> nuc-tenancy"; [1] tambien dice
-	// "fijada: nuc-tenancy")
-	fila2 := ttFilaDe(t, m, "> nuc-tenancy")
-	ttRaton(t, m, ttRuedaAbajo(5, fila2))
-	if m.Foco() != tablero.PanelHallazgos || ttSlugElegido(t, m) != "pagos-caidos" {
-		t.Fatalf("CA-575: la rueda sobre [2] mueve su seleccion sin mover el foco: %d %q", int(m.Foco()), ttSlugElegido(t, m))
+	tv3bAlDetalle(t, m)
+	fila := tv3bRatFila(t, m, "Tenancy del nucleo", 0)
+	ttRaton(t, m, ttRuedaAbajo(5, fila))
+	if m.Foco() != tablero.ZonaDetalle || m.Elegida() != "precios" || tv3bTituloElegido(t, "CA-719", m) != "Precios por region" {
+		t.Fatalf("CA-719: la rueda sobre la lista mueve su seleccion sin mover el foco: %d %q", int(m.Foco()), m.Elegida())
 	}
-	ttRaton(t, m, ttRuedaArriba(5, fila2))
-	if ttSlugElegido(t, m) != "nuc-tenancy" {
-		t.Fatalf("CA-575: la rueda arriba la sube: %q", ttSlugElegido(t, m))
+	ttRaton(t, m, ttRuedaArriba(5, fila))
+	if m.Foco() != tablero.ZonaDetalle || m.Elegida() != "nuc-tenancy" {
+		t.Fatalf("CA-719: la rueda arriba la sube: %d %q", int(m.Foco()), m.Elegida())
 	}
-	// [0]: tres lineas por muesca
+	// el detalle (la v2: [0]): tres lineas por muesca
 	c, d := ttTarjetaLarga()
 	n := ttModelo(ttConfig(80, 24, false), ttTablero(c))
 	n.LeerDetalle(d)
-	todo := ttCajaDe(t, "CA-575", n, "[0]").ttTexto()
-	ttRaton(t, n, ttRuedaAbajo(50, 5))
-	if v := ttCajaDe(t, "CA-575", n, "[0]").ttTexto(); v[0] != todo[3] || n.Foco() != tablero.PanelTarjetas {
-		t.Fatalf("CA-575: la rueda sobre [0] lo desplaza 3 lineas (sin mover el foco): %q", v[0])
+	det := tv3bDetalle(t, "CA-719", n)
+	todo := det.ttTexto()
+	ttRaton(t, n, ttRuedaAbajo(50, det.Fila+2))
+	if v := tv3bDetalle(t, "CA-719", n).ttTexto(); v[0] != todo[3] || n.Foco() != tablero.ZonaLista {
+		t.Fatalf("CA-719: la rueda sobre el detalle lo desplaza 3 lineas (sin mover el foco): %q", v[0])
 	}
-	ttRaton(t, n, ttRuedaArriba(50, 5))
-	if v := ttCajaDe(t, "CA-575", n, "[0]").ttTexto(); v[0] != todo[0] {
-		t.Fatalf("CA-575: la rueda arriba vuelve: %q", v[0])
+	ttRaton(t, n, ttRuedaArriba(50, det.Fila+2))
+	if v := tv3bDetalle(t, "CA-719", n).ttTexto(); v[0] != todo[0] {
+		t.Fatalf("CA-719: la rueda arriba vuelve: %q", v[0])
 	}
 	antes := ttFoto(n)
-	reg := ttCajaDe(t, "CA-575", n, "Registro")
-	ttRaton(t, n, ttRuedaAbajo(reg.Col+3, reg.Fila+1))
-	if ttFoto(n) != antes {
-		t.Fatalf("CA-575: la rueda sobre el Registro no hace nada")
+	for _, y := range []int{0, 2, 21} { // la cabecera, la caja, la linea del Registro (A-2)
+		ttRaton(t, n, ttRuedaAbajo(5, y))
+		if ttFoto(n) != antes {
+			t.Fatalf("CA-719: la rueda sobre la linea %d (fuera de la lista y del detalle) no hace nada", y+1)
+		}
 	}
 }
 
-// CA-575: un clic que saca el foco de [2] cierra la busqueda (como esc); uno
-// en una fila de [2] la deja abierta.
-func TestCA575_ClicYLaBusqueda(t *testing.T) {
+// CA-719, CA-575: un clic que saca el foco de la lista cierra la busqueda
+// (como esc) y suelta el filtro; uno en una fila de la lista la deja
+// abierta; uno en la caja tambien la cierra y elige la tarjeta de la caja.
+func TestCA719_CA575_ClicYLaBusqueda(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, false))
 	m.Tecla("/", ttAhora)
 	ttEscribir(m, "inf")
-	ttRaton(t, m, ttClic(3, ttFilaDe(t, m, "infra-ci-cd")))
+	ttRaton(t, m, ttClic(3, tv3bRatFila(t, m, "CI y CD de la infra", 0)))
 	if m.Lugar() != tablero.LugarBusqueda || m.Elegida() != "infra-ci-cd" {
-		t.Fatalf("CA-575: un clic en una fila de [2] deja la busqueda abierta y elige: %q %q", m.Lugar(), m.Elegida())
+		t.Fatalf("CA-719: un clic en una fila de la lista deja la busqueda abierta y elige: %q %q", m.Lugar(), m.Elegida())
 	}
-	ttRaton(t, m, ttClic(5, 2)) // [1]
-	if m.Lugar() != tablero.LugarProyecto || ttMensaje(m) != "" || !ttTiene(m, "nuc-tenancy") {
-		t.Fatalf("CA-575: un clic en otro panel cierra la busqueda y suelta el filtro: %q %q", m.Lugar(), ttMensaje(m))
+	if tv3bFilaDe(tv3bLista(t, "CA-719", m), "Tenancy del nucleo") >= 0 {
+		t.Fatalf("CA-554 (guarda): con la busqueda \"inf\" nuc-tenancy no esta en la lista:\n%s", ttPantalla(m))
+	}
+	ttRaton(t, m, ttClic(tv3bRatEnDetalle(t, m)))
+	if m.Lugar() != tablero.LugarVerTarjeta || m.Elegida() != "infra-ci-cd" || ttMensaje(m) != "" ||
+		tv3bFilaDe(tv3bLista(t, "CA-719", m), "Tenancy del nucleo") < 0 {
+		t.Fatalf("CA-719: un clic en el detalle cierra la busqueda y suelta el filtro: %q %q %q", m.Lugar(), m.Elegida(), ttMensaje(m))
+	}
+	m.Tecla("/", ttAhora)
+	ttEscribir(m, "inf")
+	ttRaton(t, m, ttClic(5, 2)) // la caja TU SIGUIENTE PASO
+	if m.Lugar() != tablero.LugarTarjetas || m.Elegida() != "nuc-tenancy" || ttMensaje(m) != "" ||
+		tv3bFilaDe(tv3bLista(t, "CA-719", m), "Precios por region") < 0 {
+		t.Fatalf("CA-719: un clic en la caja cierra la busqueda, suelta el filtro y elige la tarjeta de la caja: %q %q %q", m.Lugar(), m.Elegida(), ttMensaje(m))
 	}
 }
 
-// CA-575: los eventos fuera de la pantalla (mas alla del ancho o del alto,
-// en la linea de mensajes o en la de teclas) no hacen nada.
-func TestCA575_FueraDeLaPantalla(t *testing.T) {
+// CA-719, CA-575: los eventos fuera de la pantalla (mas alla del ancho o del
+// alto, en la linea de mensajes o en la de teclas) no hacen nada.
+func TestCA719_CA575_FueraDeLaPantalla(t *testing.T) {
 	m := ttModeloDorado(ttConfig(120, 32, false))
 	antes := ttFoto(m)
 	for _, r := range []tablero.Raton{ttClic(120, 5), ttClic(500, 500), ttClic(5, 32), ttClic(-1, 3), ttClic(3, -1),
 		ttClic(5, 30), ttClic(5, 31), ttRuedaAbajo(119, 40), ttRuedaArriba(-5, -5), {Accion: 0, X: 5, Y: 5}, {Accion: 99, X: 5, Y: 8}} {
 		ttRaton(t, m, r)
 		if ttFoto(m) != antes {
-			t.Fatalf("CA-575: el evento %+v fuera de los paneles no hace nada:\n%s", r, ttPantalla(m))
+			t.Fatalf("CA-719: el evento %+v fuera de la lista, del detalle y de la caja no hace nada:\n%s", r, ttPantalla(m))
 		}
 	}
 }
 
-// CA-575: con un modal abierto, un clic fuera no hace nada; uno en la linea
-// de un selector (que no es gris) le da el foco; uno en el Pedido, al Pedido;
-// uno en un boton lo elige sin ejecutarlo y la linea de mensajes dice "enter
-// para <accion>"; con una lista abierta, un clic en una opcion la elige y
-// cierra la lista; en Acciones marca la accion; en la ayuda la rueda
-// desplaza 3 lineas.
-func TestCA575_ElMouseEnUnModal(t *testing.T) {
+// CA-719, CA-575: con un modal abierto, un clic fuera no hace nada; uno en la
+// linea de un selector (que no es gris) le da el foco; uno en el Pedido, al
+// Pedido; uno en un boton lo elige sin ejecutarlo y la linea de mensajes dice
+// "enter para <accion>"; con una lista abierta, un clic en una opcion la
+// elige y cierra la lista; en Acciones marca la accion; en la ayuda y en el
+// Registro (L, nuevo en la v3) la rueda desplaza 3 lineas.
+func TestCA719_CA575_ElMouseEnUnModal(t *testing.T) {
 	m := ttAbrirModal(t, ttConfig(120, 32, false), "w", tablero.ModalPedir, ttAccionWriter())
 	mc := ttModal(t, "CA-575", m, 120)
 	x := mc.Col + 6 // dentro del texto (que empieza en Col + 4)
@@ -384,11 +520,32 @@ func TestCA575_ElMouseEnUnModal(t *testing.T) {
 	if got := ttModal(t, "CA-575", h, 80).Textos; got[0] != primero[3] {
 		t.Fatalf("CA-575: en la ayuda la rueda desplaza 3 lineas: %q", got[0])
 	}
+	// el Registro (L): abre en su final y la rueda lo desplaza 3 lineas; 15
+	// entradas de horas distintas son 30 lineas, mas que las 20 interiores
+	// de un modal de B = 22 lineas a 80x24
+	g := ttModelo(ttConfig(80, 24, false), ttTablero(ttTarjetaCon(ttAccionWriter())))
+	for i := 0; i < 15; i++ {
+		g.Tecla("u", ttAhora.Add(time.Duration(i)*time.Minute))
+	}
+	g.Tecla("L", ttAhora.Add(time.Hour))
+	if g.Modal() != tablero.ModalRegistro {
+		t.Fatalf("CA-714 (guarda): L abre el modal Registro: %q", g.Modal())
+	}
+	fin := ttModal(t, "CA-719", g, 80).Textos
+	ttRaton(t, g, ttRuedaArriba(40, 10))
+	arriba := ttModal(t, "CA-719", g, 80).Textos
+	if len(arriba) != len(fin) || len(fin) < 4 || strings.Join(arriba[3:], "\n") != strings.Join(fin[:len(fin)-3], "\n") {
+		t.Fatalf("CA-719: en el Registro la rueda arriba desplaza 3 lineas:\n antes %q\ndespues %q", fin, arriba)
+	}
+	ttRaton(t, g, ttRuedaAbajo(40, 10))
+	if got := ttModal(t, "CA-719", g, 80).Textos; strings.Join(got, "\n") != strings.Join(fin, "\n") || g.Modal() != tablero.ModalRegistro {
+		t.Fatalf("CA-719: en el Registro la rueda abajo vuelve al final: %q", got)
+	}
 }
 
 // CA-575 (propiedad): ninguna secuencia de eventos del mouse produce una
-// orden (ni Lanzar) ni abre un modal; con un modal abierto, ninguno lo cambia
-// por otro ni lo cierra.
+// orden (ni Lanzar) ni abre un modal; con un modal abierto (tambien el
+// Registro de la v3, L), ninguno lo cambia por otro ni lo cierra.
 func TestCA575_PropiedadElMouseNuncaEjecuta(t *testing.T) {
 	prop := func(semilla int64) bool {
 		r := rand.New(rand.NewSource(semilla))
@@ -396,13 +553,15 @@ func TestCA575_PropiedadElMouseNuncaEjecuta(t *testing.T) {
 		tam := tams[r.Intn(len(tams))]
 		m := ttModeloDorado(ttConfig(tam[0], tam[1], r.Intn(2) == 0))
 		abierto := tablero.SinModal
-		switch r.Intn(4) {
+		switch r.Intn(5) {
 		case 1:
 			m.Tecla("A", ttAhora)
 		case 2:
 			m.Tecla(tablero.TeclaEspacio, ttAhora)
 		case 3:
 			m.Tecla("?", ttAhora)
+		case 4:
+			m.Tecla("L", ttAhora)
 		}
 		abierto = m.Modal()
 		for i := 0; i < 60; i++ {
@@ -497,17 +656,22 @@ func TestCA575_RunDevuelveElMouseConErrorYPanic(t *testing.T) {
 	}
 }
 
-// CA-575: un clic que llega por la terminal (en el formato SGR, cortado en
-// dos lecturas) le da el foco al panel bajo el clic: a 80x24 con el tablero
-// principal, [4] ocupa las lineas 19 a 22 (desde 1).
-func TestCA575_RunUnClicPorLaTerminal(t *testing.T) {
+// CA-719, CA-575: un clic que llega por la terminal (en el formato SGR,
+// cortado en dos lecturas) le da el foco a la zona bajo el clic: a 80x24 con
+// el tablero principal y el foco en la lista (una columna, C = 16), la lista
+// ocupa las lineas 6 a 13 (desde 1) y el detalle las 14 a 21; el clic va a
+// la linea 18, en el detalle, que toma los signos del foco (su borde de
+// arriba "#" + el titulo de nuc-tenancy) y la lista los simples.
+func TestCA719_CA575_RunUnClicPorLaTerminal(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	w.datos.hallazgos = ttHallazgosDorados()
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-575", "el tablero", w, func() bool { return w.filaElegida("nuc-tenancy") })
+	ttEsperar(t, "CA-719", "el tablero", w, func() bool { return w.filaElegida("nuc-tenancy") })
 	w.term.mandar("\x1b[<0;3;")
-	w.term.mandar("20M")
-	ttEsperar(t, "CA-575", "el foco en [4]", w, func() bool { return w.marcoCon("#[4] Hallazgos 2") })
+	w.term.mandar("18M")
+	ttEsperar(t, "CA-719", "el foco en el detalle", w, func() bool {
+		return w.marcoCon("\n#Tenancy del nucleo=") && w.marcoCon("\n+Tarjetas-")
+	})
 	w.term.mandar("q")
 	if code, _ := fin(t); code != 0 {
 		t.Fatalf("CA-575: q sale con 0: %d", code)

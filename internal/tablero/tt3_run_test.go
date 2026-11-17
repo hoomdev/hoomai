@@ -1,7 +1,8 @@
 // Ronda 1 del test-writer, en Run (con la terminal, los datos, el lanzador y
 // el editor falsos de tt_run_test.go; cada espera con su tiempo maximo) y en
 // los Datos reales: las lecturas del proyecto (CA-562, hallazgos 361c6a y
-// 140c81) y el mouse partido entre dos lecturas (CA-575, hallazgo d57fc7).
+// 140c81) y el mouse partido entre dos lecturas (CA-575, hallazgo d57fc7;
+// en la v3 tambien CA-719, el mouse sobre la lista y el detalle).
 package tablero_test
 
 import (
@@ -60,7 +61,7 @@ func TestCA562_IntervaloProyectoPorDefecto(t *testing.T) {
 		t.Fatalf("CA-562 (guarda): el mundo de prueba deja IntervaloProyecto en 0: %v", w.e.IntervaloProyecto)
 	}
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-562", "el primer cuadro", w, func() bool { return w.marcoCon("[2] Tarjetas") })
+	ttEsperar(t, "CA-562", "el primer cuadro", w, func() bool { return w.marcoCon("#Tarjetas=") })
 	t0 := time.Now()
 	ttEsperar(t, "CA-562", "muchas lecturas del tablero en mas de un segundo", w, func() bool {
 		return w.datos.cuantas() >= 40 && time.Since(t0) > 1200*time.Millisecond
@@ -72,7 +73,8 @@ func TestCA562_IntervaloProyectoPorDefecto(t *testing.T) {
 	fin(t)
 }
 
-// CA-562, hallazgo 361c6a: la relectura de [1] y [4] es al terminar un verbo
+// CA-562, hallazgo 361c6a: la relectura del proyecto y de los hallazgos (la
+// cabecera y la vista Hallazgos; [1] y [4] en la v2) es al terminar un verbo
 // que la TUI lanzo, no al lanzarlo: con un lanzador que entrega el
 // FinProceso cuando el test lo pide, lanzar no relee; el fin si.
 func TestCA562_RunReleeAlTerminarNoAlLanzar(t *testing.T) {
@@ -98,25 +100,27 @@ func TestCA562_RunReleeAlTerminarNoAlLanzar(t *testing.T) {
 	fin(t)
 }
 
-// CA-575, hallazgo d57fc7: un evento del mouse partido en dos lecturas
-// separadas por mas que la espera de las secuencias (X10: "\x1b[M" y, 150 ms
-// despues, " !!"; SGR: "\x1b[<64;3" y despues "1;5M") no abre ningun modal, no
-// mueve el foco ni da teclas: la j que sigue elige la segunda tarjeta en [2].
-func TestCA575_RunElMousePartidoNoSonTeclas(t *testing.T) {
+// CA-719, CA-575, hallazgo d57fc7: un evento del mouse partido en dos
+// lecturas separadas por mas que la espera de las secuencias (X10: "\x1b[M"
+// y, 150 ms despues, " !!"; SGR: "\x1b[<64;3" y despues "1;5M") no abre
+// ningun modal, no mueve el foco ni da teclas: la j que sigue elige la
+// segunda tarjeta en la lista, que sigue con el foco. Ningun evento del mouse
+// ejecuta ni abre un modal (CA-719): tampoco el del paso.
+func TestCA719_CA575_RunElMousePartidoNoSonTeclas(t *testing.T) {
 	seg := ttSeg("spec", "spec", boardcmd.SegHecho, "aprobado")
 	for _, partes := range [][2]string{{"\x1b[M", " !!"}, {"\x1b[<64;3", "1;5M"}} {
 		w := ttNuevoMundo(t, ttTablero(ttCard("uno", "Uno", boardcmd.ColWriter, "la primera", seg),
 			ttCard("dos", "Dos", boardcmd.ColWriter, "la segunda", seg)))
 		fin := w.correr(nil)
-		ttEsperar(t, "CA-575", "[2] con uno elegida", w, func() bool { return w.filaElegida("uno") })
+		ttEsperar(t, "CA-575", "la lista con uno elegida", w, func() bool { return w.filaElegida("uno") })
 		w.term.mandar(partes[0])
 		time.Sleep(150 * time.Millisecond)
 		w.term.mandar(partes[1])
 		w.term.mandar("j")
-		ttEsperar(t, "CA-575 (hallazgo d57fc7)", "la j elige dos, con el foco en [2] (el evento partido no dio teclas)", w, func() bool {
+		ttEsperar(t, "CA-575 (hallazgo d57fc7)", "la j elige dos, con el foco en la lista (el evento partido no dio teclas)", w, func() bool {
 			return w.filaElegida("dos")
 		})
-		if m := strings.Join(w.ultimoMarco(), "\n"); strings.Contains(m, "Acciones ·") || strings.Contains(m, "Todas las teclas") {
+		if m := strings.Join(w.ultimoMarco(), "\n"); strings.Contains(m, "Acciones ·") || strings.Contains(m, "Todas las teclas") || strings.Contains(m, "Se va a ejecutar:") {
 			t.Fatalf("CA-575 (hallazgo d57fc7): el evento partido %q no abre ningun modal:\n%s", partes, m)
 		}
 		w.term.mandar("q")

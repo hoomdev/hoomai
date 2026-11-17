@@ -1,7 +1,8 @@
 //go:build !windows
 
 // Ronda 1 del test-writer, solo Unix: las senales que terminan Run (CA-575,
-// CA-533, hallazgo 3ab10c) y Datos.Archivo sobre un FIFO (CA-559, hallazgo
+// re-expresado en la v3 por CA-719, que apaga al salir lo que pide del
+// mouse; CA-533, hallazgo 3ab10c) y Datos.Archivo sobre un FIFO (CA-559, hallazgo
 // a6a051). Con la terminal y los datos falsos de tt_run_test.go, y los Datos
 // reales de tt_datos_test.go; cada espera con su tiempo maximo.
 package tablero_test
@@ -18,10 +19,11 @@ import (
 	"github.com/hoomdev/hoomai/internal/tablero"
 )
 
-// CA-575, CA-533, hallazgo 3ab10c: SIGTERM, SIGHUP y SIGINT terminan Run como
-// Salir: devuelve la terminal (restaura el modo crudo y lo ultimo que escribe
-// es SecMouseNo y SecSalir) y sale con 128 + el numero de la senal.
-func TestCA575_CA533_RunTerminaConUnaSenal(t *testing.T) {
+// CA-719, CA-575, CA-533, hallazgo 3ab10c: SIGTERM, SIGHUP y SIGINT terminan
+// Run como Salir: devuelve la terminal (restaura el modo crudo y lo ultimo
+// que escribe es SecMouseNo y SecSalir) y sale con 128 + el numero de la
+// senal.
+func TestCA719_CA575_CA533_RunTerminaConUnaSenal(t *testing.T) {
 	for _, s := range []syscall.Signal{syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT} {
 		// una suscripcion propia antes de mandar la senal: sin ella, si Run no
 		// la atendiera, la senal terminaria el proceso de los tests
@@ -29,7 +31,7 @@ func TestCA575_CA533_RunTerminaConUnaSenal(t *testing.T) {
 		signal.Notify(mia, s)
 		w := ttNuevoMundo(t, ttTableroPrincipal())
 		fin := w.correr(nil)
-		ttEsperar(t, "CA-575", "el primer cuadro", w, func() bool { return w.marcoCon("[2] Tarjetas") })
+		ttEsperar(t, "CA-575", "el primer cuadro", w, func() bool { return w.marcoCon("#Tarjetas=") })
 		time.Sleep(50 * time.Millisecond)
 		if err := syscall.Kill(os.Getpid(), s); err != nil {
 			t.Fatal(err)

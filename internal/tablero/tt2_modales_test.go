@@ -6,9 +6,19 @@
 // confirmacion a lo que muestra). Lanzar pasa por las ordenes del modelo,
 // sin ejecutar nada.
 //
+// Con la v3 (spec tablero-tu-siguiente-paso): CA-566 se re-expresa en
+// CA-705 (enter sobre una tarjeta abre el modal de su paso, n el de la
+// tarjeta de la caja, y ninguna tecla de accion lanza) y CA-574 en CA-717
+// (con auto hasta-humano la firma de A suma "y despues: hoom piloto
+// <slug>" y, si aprobar termina con 0, el tablero lanza el piloto); esos
+// tests citan los dos ids. Los demas solo cambian como llegan: ya no hay
+// paneles numerados, la lista de tarjetas es lo que era [2], el detalle lo
+// que era [0] (se llega con tab, no con enter), v el [0] de [1] y H la
+// vista Hallazgos que era [4] (tabla "Los nombres de la v2").
+//
 // Correcciones del contrato de doc.go que el orquestador paso para esta
 // ronda (no estan en la copia de doc.go del arbol ciego): con un modal
-// abierto solo las lineas de los paneles (1 a Alto-2) van en gris, la linea
+// abierto solo las lineas 1 a Alto-2 (en la v2, las de los paneles) van en gris, la linea
 // de mensajes y la de teclas conservan su estilo; el why de un selector gris
 // que no entra en la columna del origen va en su propia linea debajo del
 // selector, desde la columna 15, en gris.
@@ -24,6 +34,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/boardcmd"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/tablero"
 	"github.com/hoomdev/hoomai/internal/tarjetacmd"
@@ -190,7 +201,7 @@ func ttFoco(mc ttModalCaja) string {
 // ---------------------------------------------------------------- CA-565: lo comun
 
 // CA-565: el modal es un cuadro de Wm = min(72, W-4) celdas centrado sobre
-// los paneles (su celda izquierda en (W-Wm)/2, su linea de arriba en
+// las lineas 1..A-2 (en la v2, los paneles; su celda izquierda en (W-Wm)/2, su linea de arriba en
 // (B-Hm)/2), con el borde del foco y su titulo en el borde de arriba; al
 // cambiar el tamano se centra de nuevo.
 func TestCA565_CentradoYTitulo(t *testing.T) {
@@ -226,7 +237,7 @@ func TestCA565_CentradoYTitulo(t *testing.T) {
 }
 
 // CA-565: con color, el borde del modal va en 1;32 y todo lo de atras, en las
-// lineas de los paneles, en gris solo (90); la linea de mensajes y la de
+// lineas 1..A-2 (en la v2, las de los paneles), en gris solo (90); la linea de mensajes y la de
 // teclas conservan su estilo (correccion del orquestador): un error del
 // modal como "el pedido esta vacio" sigue en rojo.
 func TestCA565_ElFondoGris(t *testing.T) {
@@ -235,7 +246,7 @@ func TestCA565_ElFondoGris(t *testing.T) {
 	m := ttModelo(cfg, ttTableroDorado())
 	m.LeerProyecto(ttProyectoVerde())
 	m.LeerHallazgos(ttHallazgosDorados())
-	ttIrA(t, m, "infra-api")
+	tv3bIrA(t, m, "infra-api") // en la v3 se elige en la lista con ↓ ↑
 	m.Tecla("w", ttAhora)
 	if m.Modal() != tablero.ModalPedir {
 		t.Fatalf("CA-566: w abre Pedir: %q", m.Modal())
@@ -254,7 +265,7 @@ func TestCA565_ElFondoGris(t *testing.T) {
 	for i := mc.Fila + mc.Alto; i < len(p)-2; i++ {
 		for _, sgr := range ttSGR.FindAllString(p[i], -1) {
 			if sgr != "\x1b[90m" && sgr != "\x1b[0m" {
-				t.Fatalf("CA-565: debajo del modal, las lineas de los paneles van solo en gris (linea %d): %q", i+1, p[i])
+				t.Fatalf("CA-565: debajo del modal, las lineas 1..A-2 van solo en gris (linea %d): %q", i+1, p[i])
 			}
 		}
 	}
@@ -285,15 +296,19 @@ func ttAtras(m *tablero.Modelo, mc ttModalCaja) string {
 	return strings.Join(out, "\n")
 }
 
-// CA-565: mientras hay un modal abierto las teclas van solo a el: las de los
-// paneles (1..4, 0, j, k, /, x, q, las de accion) no mueven nada atras; esc
-// lo cierra sin ejecutar nada (con una lista abierta, cierra solo la lista).
+// CA-565: mientras hay un modal abierto las teclas van solo a el: las de
+// afuera (H, v, L, P, /, x, q, las de accion) no mueven nada atras; esc lo
+// cierra sin ejecutar nada (con una lista abierta, cierra solo la lista).
 // (CA-565, hallazgo becef7: despues de cada tecla el modal es el mismo y la
 // pantalla de atras no cambio; u lanza solo desde Acciones, donde las teclas
-// de accion hacen lo que hacen afuera; a, R, I y n no abren otro modal
-// encima; ctrl-c con el modal abierto, antes de cerrarlo, sale; y en Pedir,
-// en un selector, en los botones y con la lista abierta, 1 3 4 0 no mueven el
-// foco de atras.)
+// de accion hacen lo que hacen afuera; a, R, I, n y P no abren otro modal
+// encima, P tampoco en Acciones (decision de doc.go); ctrl-c con el modal
+// abierto, antes de cerrarlo, sale; y en Pedir, en un selector, en los
+// botones y con la lista abierta, las teclas de afuera no mueven el foco de
+// atras.) En la v2 las teclas de afuera de los paneles eran 1 3 4 0; la v3
+// no las tiene (no hacen nada en ningun lugar) y sus teclas de afuera que no
+// son de los modales son H (la vista Hallazgos), v (el proyecto), L (el
+// Registro) y P (Seguir solo). tab, ← y → son teclas de los modales.
 func TestCA565_LasTeclasVanAlModal(t *testing.T) {
 	type caso struct {
 		nombre string
@@ -301,8 +316,8 @@ func TestCA565_LasTeclasVanAlModal(t *testing.T) {
 		abrir  func() *tablero.Modelo
 		teclas []tablero.Tecla
 	}
-	todas := []tablero.Tecla{"1", "3", "4", "0", "/", "x", "q", "u", "n", "a", "R", "I"}
-	digitos := []tablero.Tecla{"1", "3", "4", "0"}
+	todas := []tablero.Tecla{"H", "v", "L", "P", "/", "x", "q", "u", "n", "a", "R", "I"}
+	digitos := []tablero.Tecla{"H", "v", "L", "P"} // las de afuera que en Pedir no son de sus lugares
 	abrir := func(k tablero.Tecla, modal tablero.Modal, a ...boardcmd.Action) func() *tablero.Modelo {
 		return func() *tablero.Modelo { return ttAbrirModal(t, ttAncho(), k, modal, a...) }
 	}
@@ -374,7 +389,7 @@ func TestCA565_LasTeclasVanAlModal(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- CA-566: nada a ciegas
+// ---------------------------------------------------------------- CA-705, CA-566: nada a ciegas
 
 var ttTeclasDeAccion = []tablero.Tecla{"a", "t", "w", "r", "R", "s", "A", "I"}
 
@@ -401,13 +416,15 @@ func ttAccionDeTecla(k tablero.Tecla) (boardcmd.Action, tablero.Modal) {
 	panic("tecla sin accion: " + string(k))
 }
 
-// ttEnLugar lleva el modelo (foco en [2] sobre "tarjeta") al lugar desde
-// donde se aprieta la tecla: [2], [0] de la tarjeta, o el modal Acciones.
+// ttEnLugar lleva el modelo (foco en la lista sobre "tarjeta") al lugar
+// desde donde se aprieta la tecla: la lista, el detalle de la tarjeta, o el
+// modal Acciones. En la v3 al detalle se llega con tab (enter abre el modal
+// del paso).
 func ttEnLugar(t *testing.T, m *tablero.Modelo, l tablero.Lugar) {
 	t.Helper()
 	switch l {
 	case tablero.LugarVerTarjeta:
-		m.Tecla(tablero.TeclaEnter, ttAhora)
+		m.Tecla(tablero.TeclaTab, ttAhora)
 	case tablero.LugarAcciones:
 		m.Tecla(tablero.TeclaEspacio, ttAhora)
 	}
@@ -416,13 +433,27 @@ func ttEnLugar(t *testing.T, m *tablero.Modelo, l tablero.Lugar) {
 	}
 }
 
-// CA-566, CA-525: cada tecla de accion, con la accion habilitada, abre su
-// modal y no da ninguna orden (desde [2], [0] de la tarjeta y el modal de
-// acciones); sin la accion, la linea de mensajes dice "en <columna> no hay
-// <hace>"; deshabilitada, su why. En ningun caso se ejecuta nada. En la v1
-// (CA-525) la tecla abria el formulario o la confirmacion; en la v2, su
-// modal.
-func TestCA566_CA525_TeclasDeAccionAbrenSuModal(t *testing.T) {
+// tv3bModSinPaso es el texto de la regla del paso de "tarjeta" (en Writer)
+// cuando ninguna de sus acciones es de un rol con tecla ni guardar (regla 8
+// de "The step of a card" en doc.go).
+const tv3bModSinPaso = "en Writer no hay nada que hacer ahora: el plain de la tarjeta"
+
+// tv3bModEsPaso dice si la accion de la tecla k, sola y habilitada en
+// "tarjeta" (en Writer), es su paso: las de un rol con tecla y guardar lo
+// son (regla 7); aprobar e integrar solo lo son en Tu aprobacion y Tu
+// aceptacion (regla 5).
+func tv3bModEsPaso(k tablero.Tecla) bool { return k != "A" && k != "I" }
+
+// CA-705, CA-566, CA-525: cada tecla de accion, con la accion habilitada,
+// abre su modal y no da ninguna orden (desde la lista, el detalle de la
+// tarjeta y el modal de acciones); sin la accion, la linea de mensajes dice
+// "en <columna> no hay <hace>"; deshabilitada, su why. En ningun caso se
+// ejecuta nada. En la v1 (CA-525) la tecla abria el formulario o la
+// confirmacion; en la v2, su modal. Con la v3 (CA-705), enter sobre la
+// tarjeta, en la lista y en su detalle, abre el modal de su paso y nunca
+// lanza; sin paso la linea de mensajes dice el texto de la regla (la accion
+// deshabilitada que es el paso: su why) y nada se abre.
+func TestCA705_CA566_CA525_TeclasDeAccionAbrenSuModal(t *testing.T) {
 	for _, desde := range []tablero.Lugar{tablero.LugarTarjetas, tablero.LugarVerTarjeta, tablero.LugarAcciones} {
 		for _, k := range ttTeclasDeAccion {
 			a, modal := ttAccionDeTecla(k)
@@ -432,6 +463,21 @@ func TestCA566_CA525_TeclasDeAccionAbrenSuModal(t *testing.T) {
 			if m.Modal() != modal {
 				t.Fatalf("CA-566: desde %q, %q con %s habilitada abre %q, el modal es %q", desde, k, a.ID, modal, m.Modal())
 			}
+			// CA-705: enter con la accion habilitada
+			if desde != tablero.LugarAcciones {
+				m = ttModelo(ttAncho(), ttTablero(ttTarjetaCon(a)))
+				ttEnLugar(t, m, desde)
+				ttSinOrdenes(t, "CA-705", "enter con "+a.ID+" habilitada", m.Tecla(tablero.TeclaEnter, ttAhora))
+				if tv3bModEsPaso(k) && m.Modal() != modal {
+					t.Fatalf("CA-705: desde %q, enter con %s (el paso) abre %q, el modal es %q", desde, a.ID, modal, m.Modal())
+				}
+				if !tv3bModEsPaso(k) {
+					if m.Modal() != tablero.SinModal {
+						t.Fatalf("CA-705: desde %q, %s en Writer no es el paso: enter no abre nada: %q", desde, a.ID, m.Modal())
+					}
+					ttDiceMensaje(t, "CA-705", fmt.Sprintf("desde %q, enter con %s", desde, a.ID), m, false, tv3bModSinPaso)
+				}
+			}
 			// sin la accion (con otra sin verbo, para que Acciones tenga algo)
 			m = ttModelo(ttAncho(), ttTablero(ttTarjetaCon(ttRelanzar())))
 			ttEnLugar(t, m, desde)
@@ -439,6 +485,14 @@ func TestCA566_CA525_TeclasDeAccionAbrenSuModal(t *testing.T) {
 			ttDiceMensaje(t, "CA-525", fmt.Sprintf("desde %q, %q sin %s", desde, k, a.ID), m, false, "en Writer no hay "+ttHaceDe(t, k))
 			if m.Lugar() != desde {
 				t.Fatalf("CA-525: sin la accion el lugar sigue (%q): %q", desde, m.Lugar())
+			}
+			// CA-705: volver a lanzar no tiene tecla: sin paso
+			if desde != tablero.LugarAcciones {
+				ttSinOrdenes(t, "CA-705", "enter sin paso", m.Tecla(tablero.TeclaEnter, ttAhora))
+				if m.Modal() != tablero.SinModal {
+					t.Fatalf("CA-705: desde %q, enter sin paso no abre nada: %q", desde, m.Modal())
+				}
+				ttDiceMensaje(t, "CA-705", fmt.Sprintf("desde %q, enter sin paso", desde), m, false, tv3bModSinPaso)
 			}
 			// deshabilitada
 			a.Enabled, a.Why = false, "un motivo de la tarjeta para "+a.ID
@@ -450,13 +504,28 @@ func TestCA566_CA525_TeclasDeAccionAbrenSuModal(t *testing.T) {
 			if strings.Contains(ttMensaje(m), a.Why) {
 				t.Fatalf("CA-525: el why se va pasado DuracionAviso: %q", ttMensaje(m))
 			}
+			// CA-705: enter con la accion deshabilitada
+			if desde != tablero.LugarAcciones {
+				m = ttModelo(ttAncho(), ttTablero(ttTarjetaCon(a)))
+				ttEnLugar(t, m, desde)
+				ttSinOrdenes(t, "CA-705", "enter con "+a.ID+" deshabilitada", m.Tecla(tablero.TeclaEnter, ttAhora))
+				if m.Modal() != tablero.SinModal {
+					t.Fatalf("CA-705: desde %q, enter con %s deshabilitada no abre nada: %q", desde, a.ID, m.Modal())
+				}
+				quiere := a.Why
+				if !tv3bModEsPaso(k) {
+					quiere = tv3bModSinPaso
+				}
+				ttDiceMensaje(t, "CA-705", fmt.Sprintf("desde %q, enter con %s deshabilitada", desde, a.ID), m, false, quiere)
+			}
 		}
 	}
 }
 
-// CA-566, CA-525, caso limite de la v1: t con el spec sin guardar: la linea
-// de mensajes dice el why de la capa 1 y no se abre el modal.
-func TestCA566_CA525_TConElSpecSinGuardar(t *testing.T) {
+// CA-705, CA-566, CA-525, caso limite de la v1: t con el spec sin guardar:
+// la linea de mensajes dice el why de la capa 1 y no se abre el modal. Con
+// la v3 enter, cuyo paso es esa accion, dice lo mismo (CA-705).
+func TestCA705_CA566_CA525_TConElSpecSinGuardar(t *testing.T) {
 	a := ttAccionRol(boardcmd.ActPedirTestWriter, "test-writer", "Pedir al test-writer", "Escribi los tests")
 	a.Enabled, a.Why = false, boardcmd.WhySpecSinGuardar
 	c := ttTarjetaCon(a)
@@ -467,30 +536,74 @@ func TestCA566_CA525_TConElSpecSinGuardar(t *testing.T) {
 		t.Fatalf("CA-525: t con el spec sin guardar no abre el modal: %q", m.Modal())
 	}
 	ttDiceMensaje(t, "CA-525", "t", m, false, boardcmd.WhySpecSinGuardar)
+	m = ttModelo(ttAncho(), ttTablero(c))
+	ttSinOrdenes(t, "CA-705", "enter", m.Tecla(tablero.TeclaEnter, ttAhora))
+	if m.Modal() != tablero.SinModal {
+		t.Fatalf("CA-705: enter con el paso deshabilitado no abre el modal: %q", m.Modal())
+	}
+	ttDiceMensaje(t, "CA-705", "enter", m, false, boardcmd.WhySpecSinGuardar)
 }
 
-// CA-566, CA-525: sin tarjeta (la linea de Hecho, [3] vacio, [1] o [4]) las
-// teclas de accion, n y u no hacen nada.
-func TestCA566_CA525_SinTarjeta(t *testing.T) {
-	for _, lugar := range []tablero.Tecla{"G", "3", "1", "4"} {
+// CA-705, CA-566, CA-525: sin tarjeta (en la v2: la linea de Hecho, [3]
+// vacio, [1] o [4]; en la v3: la linea de HECHO, el detalle sin nada, el
+// proyecto con v y la vista Hallazgos con H) las teclas de accion, P y u no
+// hacen nada. n ya no: en la v3 (CA-705) n abre el modal del paso de la
+// tarjeta de la caja, este elegida o no; sin tarjeta en la caja dice el
+// texto de este spec para ese caso ("no hay nada pendiente" sin nada que
+// hacer). Reemplaza a "n sin tarjeta no hace nada" de la v2.
+func TestCA705_CA566_CA525_SinTarjeta(t *testing.T) {
+	llegar := []struct {
+		nombre string
+		ir     func(t *testing.T, m *tablero.Modelo)
+	}{
+		{"la linea de HECHO", tv3bIrAHecho},
+		{"el detalle sin nada", func(t *testing.T, m *tablero.Modelo) { tv3bEnLugar(t, m, tablero.LugarVerNada) }},
+		{"el proyecto con v", func(t *testing.T, m *tablero.Modelo) { tv3bEnLugar(t, m, tablero.LugarVerProyecto) }},
+		{"la vista Hallazgos", func(t *testing.T, m *tablero.Modelo) { tv3bEnLugar(t, m, tablero.LugarHallazgos) }},
+	}
+	for _, lg := range llegar {
 		m := ttModelo(ttAncho(), ttTablero(ttTarjetaCon(ttAccionWriter(), ttAccionAprobar())))
-		m.Tecla(lugar, ttAhora)
+		lg.ir(t, m)
 		antes := ttPantalla(m)
-		for _, k := range append([]tablero.Tecla{"n", "u"}, ttTeclasDeAccion...) {
-			ttSinOrdenes(t, "CA-525", fmt.Sprintf("%q tras %q", k, lugar), m.Tecla(k, ttAhora))
+		for _, k := range append([]tablero.Tecla{"P", "u"}, ttTeclasDeAccion...) {
+			ttSinOrdenes(t, "CA-525", fmt.Sprintf("%q en %s", k, lg.nombre), m.Tecla(k, ttAhora))
 			if ttPantalla(m) != antes || m.Modal() != tablero.SinModal {
-				t.Fatalf("CA-525: %q sin tarjeta (tras %q) no hace nada:\n%s", k, lugar, ttPantalla(m))
+				t.Fatalf("CA-525: %q sin tarjeta (en %s) no hace nada:\n%s", k, lg.nombre, ttPantalla(m))
 			}
 		}
+		// CA-705: n abre el paso de la tarjeta de la caja ("tarjeta", la unica
+		// de TE TOCA: Pedir al writer), sin ninguna orden
+		ttSinOrdenes(t, "CA-705", "n en "+lg.nombre, m.Tecla("n", ttAhora))
+		if m.Modal() != tablero.ModalPedir || !strings.HasPrefix(ttMC(t, m).Arriba, "# Pedir al writer · tarjeta ") {
+			t.Fatalf("CA-705: n en %s abre el modal del paso de la tarjeta de la caja (Pedir al writer · tarjeta): %q\n%s",
+				lg.nombre, m.Modal(), ttPantalla(m))
+		}
+	}
+	// sin tarjeta en la caja (solo una en Hecho): n no abre nada y dice el
+	// texto del spec para ese caso
+	for _, lg := range llegar {
+		m := ttModelo(ttAncho(), ttTablero(ttViejo(1)))
+		lg.ir(t, m)
+		ttSinOrdenes(t, "CA-705", "n sin nada pendiente, en "+lg.nombre, m.Tecla("n", ttAhora))
+		if m.Modal() != tablero.SinModal {
+			t.Fatalf("CA-705: n sin tarjeta en la caja (en %s) no abre nada: %q", lg.nombre, m.Modal())
+		}
+		ttDiceMensaje(t, "CA-705", "n sin nada pendiente, en "+lg.nombre, m, false, "no hay nada pendiente")
 	}
 }
 
-// CA-566, CA-528: n abre el modal de la accion del siguiente paso, sea de
-// pedir, de firma o de guardar, y su boton ejecuta el verbo de esa accion (no
-// hoom siguiente); sin siguiente paso, la linea de mensajes dice lo que diria
-// hoom siguiente y nada se abre. Re-expresa el test de la v1 de CA-528 que
-// esperaba "lanzando hoom siguiente" (decision del orquestador).
-func TestCA566_CA528_NAbreElModalDelSiguientePaso(t *testing.T) {
+// CA-705, CA-566, CA-528: n abre el modal de la accion del siguiente paso,
+// sea de pedir, de firma o de guardar, y su boton ejecuta el verbo de esa
+// accion (no hoom siguiente); sin siguiente paso, la linea de mensajes dice
+// un texto y nada se abre. Re-expresa el test de la v1 de CA-528 que
+// esperaba "lanzando hoom siguiente" (decision del orquestador). Con la v3
+// (CA-705) n es el paso de la tarjeta de la caja y enter el de la tarjeta
+// elegida (aca la misma: la unica del tablero); con la unica tarjeta en
+// CORRIENDO la caja no tiene tarjeta y n dice "nada te espera: hoom esta
+// trabajando", mientras enter sobre esa tarjeta dice el texto de la regla 2
+// del paso, "el writer esta trabajando: espera a que termine" (lo que en la
+// v2 decia n).
+func TestCA705_CA566_CA528_NAbreElModalDelSiguientePaso(t *testing.T) {
 	casos := []struct {
 		nombre string
 		card   boardcmd.Card
@@ -504,40 +617,51 @@ func TestCA566_CA528_NAbreElModalDelSiguientePaso(t *testing.T) {
 		{"guardar", ttTarjetaCon(ttAccionGuardar(true, "", "a.go"), ttAccionWriter()), tablero.ModalGuardar, []string{"guardar", "tarjeta"}, ""},
 	}
 	for _, c := range casos {
-		m := ttModelo(ttAncho(), ttTablero(c.card))
-		ttSinOrdenes(t, "CA-566", "n ("+c.nombre+")", m.Tecla("n", ttAhora))
-		if m.Modal() != c.modal {
-			t.Fatalf("CA-566: n (%s) abre %q, abrio %q", c.nombre, c.modal, m.Modal())
-		}
-		if c.modal == tablero.ModalPedir {
-			m.Tecla(tablero.TeclaEnter, ttAhora) // al boton
-		}
-		if c.modal == tablero.ModalFirma {
-			m.Tecla(tablero.TeclaDer, ttAhora) // de Cancelar a la accion
-		}
-		l := ttUnaLanzar(t, "CA-566", "el boton de n ("+c.nombre+")", m.Tecla(tablero.TeclaEnter, ttAhora))
-		ttMismosArgs(t, "CA-566", "n ("+c.nombre+")", l.Args, c.args)
-		if l.Rol != c.rol || l.ID != 1 {
-			t.Fatalf("CA-528: el Lanzar de n lleva el rol de la accion y el ID 1: %#v", l)
+		for _, k := range []tablero.Tecla{"n", tablero.TeclaEnter} {
+			que := string(k) + " (" + c.nombre + ")"
+			m := ttModelo(ttAncho(), ttTablero(c.card))
+			ttSinOrdenes(t, "CA-705", que, m.Tecla(k, ttAhora))
+			if m.Modal() != c.modal {
+				t.Fatalf("CA-705: %s abre %q, abrio %q", que, c.modal, m.Modal())
+			}
+			if c.modal == tablero.ModalPedir {
+				m.Tecla(tablero.TeclaEnter, ttAhora) // al boton
+			}
+			if c.modal == tablero.ModalFirma {
+				m.Tecla(tablero.TeclaDer, ttAhora) // de Cancelar a la accion
+			}
+			l := ttUnaLanzar(t, "CA-705", "el boton de "+que, m.Tecla(tablero.TeclaEnter, ttAhora))
+			ttMismosArgs(t, "CA-705", que, l.Args, c.args)
+			if l.Rol != c.rol || l.ID != 1 {
+				t.Fatalf("CA-528: el Lanzar de %s lleva el rol de la accion y el ID 1: %#v", que, l)
+			}
 		}
 	}
-	// sin siguiente paso
+	// sin siguiente paso: la unica tarjeta corre
 	conRunning := ttTarjetaCon(ttAccionWriter())
 	conRunning.Running = &boardcmd.Running{EnvelopeID: "e", Role: "writer", Stage: "run", StartedAt: ttAhora}
 	m := ttModelo(ttAncho(), ttTablero(conRunning))
-	ttSinOrdenes(t, "CA-566", "n con running", m.Tecla("n", ttAhora))
+	ttSinOrdenes(t, "CA-705", "n con running", m.Tecla("n", ttAhora))
 	if m.Modal() != tablero.SinModal {
-		t.Fatalf("CA-566: sin siguiente paso n no abre nada: %q", m.Modal())
+		t.Fatalf("CA-705: sin tarjeta en la caja n no abre nada: %q", m.Modal())
 	}
-	ttDiceMensaje(t, "CA-566", "n con running", m, false, "el writer esta trabajando: espera a que termine")
+	ttDiceMensaje(t, "CA-705", "n con running", m, false, "nada te espera: hoom esta trabajando")
+	m = ttModelo(ttAncho(), ttTablero(conRunning))
+	ttSinOrdenes(t, "CA-705", "enter con running", m.Tecla(tablero.TeclaEnter, ttAhora))
+	if m.Modal() != tablero.SinModal {
+		t.Fatalf("CA-705: enter sobre una tarjeta sin paso no abre nada: %q", m.Modal())
+	}
+	ttDiceMensaje(t, "CA-705", "enter con running", m, false, "el writer esta trabajando: espera a que termine")
 }
 
-// CA-566 (propiedad): ninguna tecla de accion salvo u produce un Lanzar como
-// primera orden, desde cualquier panel, con cualquier seleccion: las ordenes
-// de esa tecla nunca traen un Lanzar.
-func TestCA566_PropiedadNingunaTeclaDeAccionLanza(t *testing.T) {
-	moverse := []tablero.Tecla{"1", "2", "3", "4", "0", "j", "k", "G", "g", tablero.TeclaEnter, tablero.TeclaEsc, "x"}
-	accion := append([]tablero.Tecla{"n"}, ttTeclasDeAccion...)
+// CA-705, CA-566 (propiedad): ninguna tecla de accion salvo u produce un
+// Lanzar como primera orden, desde cualquier lugar, con cualquier seleccion:
+// las ordenes de esa tecla nunca traen un Lanzar. En la v3 las teclas de
+// moverse son tab, → l, ← h, esc, H, v, j k G g y x (la v2 tenia 1..4 y 0),
+// y enter y P son teclas de accion (CA-705).
+func TestCA705_CA566_PropiedadNingunaTeclaDeAccionLanza(t *testing.T) {
+	moverse := []tablero.Tecla{tablero.TeclaTab, tablero.TeclaDer, "l", tablero.TeclaIzq, "h", "H", "v", "j", "k", "G", "g", tablero.TeclaEsc, "x"}
+	accion := append([]tablero.Tecla{"n", "P", tablero.TeclaEnter}, ttTeclasDeAccion...)
 	prop := func(semilla int64) bool {
 		r := rand.New(rand.NewSource(semilla))
 		c := ttTarjetaCon(ttAccionWriter(), ttAccionAprobar(), ttAccionGuardar(true, "", "a.go"), ttAccionIntegrar(),
@@ -563,7 +687,7 @@ func TestCA566_PropiedadNingunaTeclaDeAccionLanza(t *testing.T) {
 		return true
 	}
 	if err := quick.Check(prop, &quick.Config{MaxCount: 100}); err != nil {
-		t.Fatalf("CA-566: %v", err)
+		t.Fatalf("CA-705, CA-566: %v", err)
 	}
 }
 
@@ -1743,14 +1867,16 @@ func TestCA571_ToposYTiempos(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- CA-574: Firma y Guardar
+// ---------------------------------------------------------------- CA-717, CA-574: Firma y Guardar
 
 // CA-574, CA-529: A abre el modal de firma con el texto de la capa 1, "Se va
 // a ejecutar: hoom aprobar <slug> --si" y los botones Cancelar (elegido) y
 // la etiqueta de la accion; enter enseguida cierra sin nada; → (o tab) y
 // enter ejecutan hoom aprobar <slug> --si; ← vuelve a Cancelar; esc cierra.
-// Re-expresa CA-529 (en la v1 el boton era "Firmar").
-func TestCA574_CA529_AprobarSoloConElBoton(t *testing.T) {
+// Re-expresa CA-529 (en la v1 el boton era "Firmar"). CA-717: sin auto el
+// modal de firma es el de la v2: ninguna linea "y despues: hoom piloto
+// <slug>", y el fin de aprobar con 0 no lanza nada.
+func TestCA717_CA574_CA529_AprobarSoloConElBoton(t *testing.T) {
 	c := ttNucTenancy()
 	a, _ := c.Action(boardcmd.ActAprobar)
 	abrir := func() *tablero.Modelo {
@@ -1773,6 +1899,9 @@ func TestCA574_CA529_AprobarSoloConElBoton(t *testing.T) {
 	if mc.ttComando() != "hoom aprobar nuc-tenancy --si" || !strings.Contains(texto, "[ Cancelar ]     Aprobar spec") {
 		t.Fatalf("CA-574: 'Se va a ejecutar: hoom aprobar nuc-tenancy --si' y Cancelar elegido: %q / %q", mc.ttComando(), texto)
 	}
+	if strings.Contains(texto, "y despues") {
+		t.Fatalf("CA-717: sin auto la firma no dice 'y despues: hoom piloto <slug>': %q", texto)
+	}
 	ttSinOrdenes(t, "CA-574", "enter sobre Cancelar", m.Tecla(tablero.TeclaEnter, ttAhora))
 	if m.Modal() != tablero.SinModal {
 		t.Fatalf("CA-574: enter sobre Cancelar cierra: %q", m.Modal())
@@ -1791,6 +1920,10 @@ func TestCA574_CA529_AprobarSoloConElBoton(t *testing.T) {
 		if r := m.Registro(); len(r) != 1 || r[0].Texto != "Aprobar spec · nuc-tenancy · lanzando..." || r[0].Comando != "hoom aprobar nuc-tenancy --si" {
 			t.Fatalf("CA-563: la firma va al Registro: %#v", r)
 		}
+		ttSinOrdenes(t, "CA-717", "aprobar sin auto termina con 0", m.Termino(tablero.FinProceso{ID: l.ID, Code: 0}, ttAhora.Add(time.Second)))
+		if e := tv3bModEntradas(m, "hoom piloto nuc-tenancy"); len(e) != 0 {
+			t.Fatalf("CA-717: sin auto el fin de aprobar no suma la entrada del piloto: %#v", e)
+		}
 	}
 	m = abrir()
 	ttSinOrdenes(t, "CA-574", "→ ←", ttTeclas(m, tablero.TeclaDer, tablero.TeclaIzq))
@@ -1804,7 +1937,7 @@ func TestCA574_CA529_AprobarSoloConElBoton(t *testing.T) {
 
 // CA-574, CA-529: I igual, con hoom integrar <slug> --si y el texto de
 // integrar.
-func TestCA574_CA529_IntegrarSoloConElBoton(t *testing.T) {
+func TestCA717_CA574_CA529_IntegrarSoloConElBoton(t *testing.T) {
 	c := ttIntegrable()
 	a := c.Actions[0]
 	m := ttModelo(ttAncho(), ttTablero(c))
@@ -1825,7 +1958,7 @@ func TestCA574_CA529_IntegrarSoloConElBoton(t *testing.T) {
 // CA-574, CA-529: s abre el modal de guardar con "Se guarda en git:" y las
 // rutas, "Se va a ejecutar: hoom guardar <slug>" y los botones Guardar
 // (elegido) y Cancelar; enter guarda; esc no ejecuta nada.
-func TestCA574_CA529_Guardar(t *testing.T) {
+func TestCA717_CA574_CA529_Guardar(t *testing.T) {
 	c := ttTarjetaCon(ttAccionGuardar(true, "", "internal/a.go", ".hoom/specs/tarjeta.md"))
 	m := ttModelo(ttAncho(), ttTablero(c))
 	m.Tecla("s", ttAhora)
@@ -1893,7 +2026,7 @@ func ttCambio(slug string) string {
 // firma), donde la accion queda deshabilitada o donde desaparece, la cierra:
 // la linea de mensajes dice en rojo el why o "cambio lo que ibas a confirmar
 // en <slug>: vuelve a abrirlo", y el enter que sigue no ordena nada.
-func TestCA574_CA529_LaFirmaEstaAtadaALoQueMuestra(t *testing.T) {
+func TestCA717_CA574_CA529_LaFirmaEstaAtadaALoQueMuestra(t *testing.T) {
 	const whyA = "el spec cambio despues de abrir la confirmacion"
 	const whyI = "falta el veredicto verde de la base"
 	casos := []struct {
@@ -1949,7 +2082,7 @@ func TestCA574_CA529_LaFirmaEstaAtadaALoQueMuestra(t *testing.T) {
 // CA-574, CA-529 (hallazgo ecb288): una firma cuyos datos no cambiaron
 // firma como antes, aunque la tarjeta cambie en lo que la firma no muestra
 // (el plain, el gasto) o el tablero traiga otra tarjeta.
-func TestCA574_CA529_LaFirmaSinCambiosSigueValiendo(t *testing.T) {
+func TestCA717_CA574_CA529_LaFirmaSinCambiosSigueValiendo(t *testing.T) {
 	cambios := []struct {
 		nombre  string
 		cambiar func(c *boardcmd.Card) []boardcmd.Card
@@ -1992,11 +2125,12 @@ func TestCA574_CA529_LaFirmaSinCambiosSigueValiendo(t *testing.T) {
 }
 
 // CA-574, CA-529 (hallazgos ecb288, f0fbb9 y 4581a6 de la v1): la firma
-// tambien esta atada al spec que mostro el detalle de su tarjeta en [0]: un
+// tambien esta atada al spec que mostro el detalle de su tarjeta (en la v2,
+// [0]; en la v3 se llega con tab, porque enter abre el modal del paso): un
 // LeerDetalle con otro markdown, uno que falla (Detalle.Err, aunque traiga
 // el mismo spec) o uno sin spec la cierra con el mensaje de cambio en rojo,
 // y el enter que sigue no firma; con el mismo, firma. Con A y con I.
-func TestCA574_CA529_LaFirmaAtadaAlSpecDeSuDetalle(t *testing.T) {
+func TestCA717_CA574_CA529_LaFirmaAtadaAlSpecDeSuDetalle(t *testing.T) {
 	const md1 = "# Spec: tenancy\n\n## Criterios de aceptacion\n\n- CA-1: uno.\n"
 	const md2 = md1 + "- CA-2: un criterio que el arquitecto agrego despues.\n"
 	spec := func(c boardcmd.Card, md string) boardcmd.SpecDetail {
@@ -2036,7 +2170,7 @@ func TestCA574_CA529_LaFirmaAtadaAlSpecDeSuDetalle(t *testing.T) {
 				cfg.Color = color
 				m := ttModelo(cfg, ttTablero(c))
 				m.LeerDetalle(tablero.Detalle{Slug: c.Slug, Detalle: boardcmd.Detail{Card: f.base(), Spec: spec(c, md1)}})
-				m.Tecla(tablero.TeclaEnter, ttAhora) // [0] de la tarjeta, con su spec
+				tv3bAlDetalle(t, m) // el detalle de la tarjeta, con su spec
 				ttSinOrdenes(t, "CA-574", que+": "+string(f.tecla), m.Tecla(f.tecla, ttAhora))
 				m.Tecla(tablero.TeclaDer, ttAhora)
 				// guarda: el mismo tablero no la cierra
@@ -2066,7 +2200,7 @@ func TestCA574_CA529_LaFirmaAtadaAlSpecDeSuDetalle(t *testing.T) {
 // rutas (o una de mas) lo cierran con el mensaje de cambio; guardar
 // deshabilitada, con su why; el enter que sigue no guarda. Con las mismas,
 // guarda.
-func TestCA574_CA529_GuardarAtadoASusRutas(t *testing.T) {
+func TestCA717_CA574_CA529_GuardarAtadoASusRutas(t *testing.T) {
 	conRutas := func(rutas ...string) boardcmd.Card {
 		c := ttTarjetaCon(ttAccionGuardar(true, "", rutas...))
 		c.Unsynced = append([]string{}, rutas...)
@@ -2107,7 +2241,151 @@ func TestCA574_CA529_GuardarAtadoASusRutas(t *testing.T) {
 	ttMismosArgs(t, "CA-574", "guardar", l.Args, []string{"guardar", "tarjeta"})
 }
 
-// ---------------------------------------------------------------- lo que no entra (CA-565, CA-568, CA-574)
+// tv3bModEntradas son las entradas del Registro de m cuyo comando es cmd.
+func tv3bModEntradas(m *tablero.Modelo, cmd string) []tablero.Asiento {
+	var out []tablero.Asiento
+	for _, r := range m.Registro() {
+		if r.Comando == cmd {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// tv3bModConAuto es c con el piloto encendido (auto hasta-humano).
+func tv3bModConAuto(c boardcmd.Card) boardcmd.Card {
+	c.Item.Auto = item.AutoHastaHumano
+	return c
+}
+
+// CA-717, CA-574: con auto hasta-humano el modal de firma de A suma la linea
+// "y despues: hoom piloto <slug>" justo debajo de "hoom aprobar <slug> --si"
+// (el comando que ejecuta su boton sigue siendo solo el de aprobar); si
+// hoom aprobar termina con 0 el tablero lanza hoom piloto <slug> con su
+// propia entrada del Registro (la de Seguir solo), y si termina con otro
+// codigo no lo lanza. La linea es solo de la firma de A: la de I con auto es
+// la de la v2.
+func TestCA717_CA574_LaFirmaConElPilotoEncendido(t *testing.T) {
+	c := tv3bModConAuto(ttNucTenancy())
+	abrir := func() *tablero.Modelo {
+		t.Helper()
+		m := ttModelo(ttAncho(), ttTablero(c))
+		ttSinOrdenes(t, "CA-717", "A con auto", m.Tecla("A", ttAhora))
+		if m.Modal() != tablero.ModalFirma || m.Lugar() != tablero.LugarFirma {
+			t.Fatalf("CA-717: A con auto abre el modal de firma: %q %q", m.Modal(), m.Lugar())
+		}
+		return m
+	}
+	m := abrir()
+	mc := ttMC(t, m)
+	i := -1
+	for j, x := range mc.Textos {
+		if x == "hoom aprobar nuc-tenancy --si" {
+			i = j
+		}
+	}
+	if i < 1 || mc.Textos[i-1] != "Se va a ejecutar:" || i+2 >= len(mc.Textos) ||
+		mc.Textos[i+1] != "y despues: hoom piloto nuc-tenancy" || mc.Textos[i+2] != "" {
+		t.Fatalf("CA-717: con auto, debajo de 'Se va a ejecutar:' y 'hoom aprobar nuc-tenancy --si' va 'y despues: hoom piloto nuc-tenancy' y una linea vacia:\n%s",
+			strings.Join(mc.Textos, "\n"))
+	}
+	if got := mc.ttComando(); got != "hoom aprobar nuc-tenancy --si" {
+		t.Fatalf("CA-717: el comando de la firma sigue siendo el de aprobar: %q", got)
+	}
+	if b := strings.Join(mc.Textos, " "); !strings.Contains(b, "[ Cancelar ]     Aprobar spec") {
+		t.Fatalf("CA-717: con auto la firma empieza en Cancelar, como la de la v2: %q", b)
+	}
+	ttSinOrdenes(t, "CA-717", "→", m.Tecla(tablero.TeclaDer, ttAhora))
+	// guarda: el mismo tablero no la cierra
+	m.Leer(tablero.Lectura{Ahora: ttAhora.Add(2 * time.Second), Tablero: ttTablero(tv3bModConAuto(ttNucTenancy()))})
+	if m.Modal() != tablero.ModalFirma {
+		t.Fatalf("CA-717 (guarda): con el mismo tablero la firma con auto sigue abierta: %q (%q)", m.Modal(), ttMensaje(m))
+	}
+	l := ttUnaLanzar(t, "CA-717", "enter sobre Aprobar spec con auto", m.Tecla(tablero.TeclaEnter, ttAhora.Add(3*time.Second)))
+	ttMismosArgs(t, "CA-717", "aprobar con auto", l.Args, []string{"aprobar", "nuc-tenancy", "--si"})
+	if l.Rol != "" || l.ID != 1 || m.Modal() != tablero.SinModal {
+		t.Fatalf("CA-717: el boton ordena solo aprobar (sin rol, ID 1) y cierra el modal: %#v %q", l, m.Modal())
+	}
+	if e := tv3bModEntradas(m, "hoom piloto nuc-tenancy"); len(e) != 0 {
+		t.Fatalf("CA-717: el piloto no se lanza antes de que aprobar termine: %#v", e)
+	}
+	// aprobar termina con 0: el tablero lanza el piloto, con su entrada
+	p := ttUnaLanzar(t, "CA-717", "aprobar con auto termina con 0",
+		m.Termino(tablero.FinProceso{ID: l.ID, Code: 0, Ultima: "spec aprobado"}, ttAhora.Add(time.Minute)))
+	ttMismosArgs(t, "CA-717", "el piloto", p.Args, []string{"piloto", "nuc-tenancy"})
+	if p.Rol != "piloto" || p.Slug != "nuc-tenancy" || p.ID != 2 {
+		t.Fatalf("CA-717: el Lanzar del piloto lleva Rol 'piloto', el slug y el ID siguiente (2): %#v", p)
+	}
+	if e := tv3bModEntradas(m, "hoom piloto nuc-tenancy"); len(e) != 1 || !strings.HasPrefix(e[0].Texto, "Seguir solo · nuc-tenancy · lanzando") {
+		t.Fatalf("CA-717: el piloto lleva su propia entrada del Registro ('Seguir solo · nuc-tenancy · lanzando...', 'hoom piloto nuc-tenancy'): %#v", m.Registro())
+	}
+	if e := tv3bModEntradas(m, "hoom aprobar nuc-tenancy --si"); len(e) != 1 {
+		t.Fatalf("CA-717: la entrada de aprobar sigue siendo una: %#v", m.Registro())
+	}
+	// aprobar termina con otro codigo: el piloto no se lanza
+	for _, code := range []int{1, 2, -1} {
+		m = abrir()
+		m.Tecla(tablero.TeclaDer, ttAhora)
+		l = ttUnaLanzar(t, "CA-717", "enter sobre Aprobar spec con auto", m.Tecla(tablero.TeclaEnter, ttAhora))
+		ttSinOrdenes(t, "CA-717", fmt.Sprintf("aprobar con auto termina con %d", code),
+			m.Termino(tablero.FinProceso{ID: l.ID, Code: code, Ultima: "no se pudo aprobar"}, ttAhora.Add(time.Minute)))
+		if e := tv3bModEntradas(m, "hoom piloto nuc-tenancy"); len(e) != 0 {
+			t.Fatalf("CA-717: con el codigo %d el piloto no se lanza ni entra al Registro: %#v", code, e)
+		}
+	}
+	// I con auto: la firma de integrar no suma la linea y su fin no lanza nada
+	ci := tv3bModConAuto(ttIntegrable())
+	m = ttModelo(ttAncho(), ttTablero(ci))
+	ttSinOrdenes(t, "CA-717", "I con auto", m.Tecla("I", ttAhora))
+	if m.Modal() != tablero.ModalFirma {
+		t.Fatalf("CA-717: I con auto abre la firma: %q", m.Modal())
+	}
+	if b := strings.Join(ttMC(t, m).Textos, " "); strings.Contains(b, "y despues") {
+		t.Fatalf("CA-717: la linea 'y despues' es solo de la firma de A: %q", b)
+	}
+	m.Tecla(tablero.TeclaDer, ttAhora)
+	l = ttUnaLanzar(t, "CA-717", "enter sobre Integrar con auto", m.Tecla(tablero.TeclaEnter, ttAhora))
+	ttMismosArgs(t, "CA-717", "integrar con auto", l.Args, []string{"integrar", "lista", "--si"})
+	ttSinOrdenes(t, "CA-717", "integrar con auto termina con 0", m.Termino(tablero.FinProceso{ID: l.ID, Code: 0}, ttAhora.Add(time.Minute)))
+}
+
+// CA-717, CA-574 (con la regla de la v1, hallazgo ecb288): la firma de A
+// esta atada tambien al auto de su tarjeta: abierta y elegida la accion, una
+// lectura del tablero donde la tarjeta enciende o apaga el piloto la cierra
+// como un cambio de lo que muestra (la linea de mensajes dice en rojo
+// "cambio lo que ibas a confirmar en <slug>: vuelve a abrirlo") y el enter
+// que sigue no ordena nada.
+func TestCA717_CA574_LaFirmaAtadaAlAuto(t *testing.T) {
+	casos := []struct {
+		nombre      string
+		base, nuevo boardcmd.Card
+	}{
+		{"se apaga el piloto", tv3bModConAuto(ttNucTenancy()), ttNucTenancy()},
+		{"se enciende el piloto", ttNucTenancy(), tv3bModConAuto(ttNucTenancy())},
+	}
+	for _, cs := range casos {
+		for _, color := range []bool{false, true} {
+			que := fmt.Sprintf("%s (color=%v)", cs.nombre, color)
+			cfg := ttAncho()
+			cfg.Color = color
+			m := ttModelo(cfg, ttTablero(cs.base))
+			ttSinOrdenes(t, "CA-717", que+": A", m.Tecla("A", ttAhora))
+			ttSinOrdenes(t, "CA-717", que+": → elige la accion", m.Tecla(tablero.TeclaDer, ttAhora))
+			if l := ttLanzares(m.Leer(tablero.Lectura{Ahora: ttAhora.Add(2 * time.Second), Tablero: ttTablero(cs.nuevo)})); len(l) != 0 {
+				t.Fatalf("CA-717: %s: la lectura que cambia el auto no ordena nada: %#v", que, l)
+			}
+			if m.Modal() != tablero.SinModal {
+				t.Fatalf("CA-717: %s: la firma se cierra: %q", que, m.Modal())
+			}
+			ttDiceMensaje(t, "CA-717", que, m, color, ttCambio("nuc-tenancy"))
+			if l := ttLanzares(m.Tecla(tablero.TeclaEnter, ttAhora.Add(3*time.Second))); len(l) != 0 {
+				t.Fatalf("CA-717: %s: el enter que sigue no firma nada: %#v", que, l)
+			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------- lo que no entra (CA-565, CA-568, CA-717, CA-574)
 
 // CA-565, CA-568, CA-527, CA-533 (hallazgo 9f25a9 de la v1): a 60x15 el
 // modal Pedir del writer entra en las B = 13 lineas dejando afuera, en el
@@ -2120,7 +2398,7 @@ func TestCA565_CA568_PedirChicoConservaElComandoYLosBotones(t *testing.T) {
 	ttForma(t, "CA-565", m, 60, 15, false)
 	mc := ttModal(t, "CA-565", m, 60)
 	if mc.Fila < 0 || mc.Fila+mc.Alto > 13 {
-		t.Fatalf("CA-565: el modal entra en las lineas de los paneles (1..13): linea %d, alto %d", mc.Fila+1, mc.Alto)
+		t.Fatalf("CA-565: el modal entra en las lineas 1..A-2 (1..13): linea %d, alto %d", mc.Fila+1, mc.Alto)
 	}
 	todo := strings.Join(mc.Textos, "\n")
 	if !strings.Contains(todo, "Se va a ejecutar:") || !strings.Contains(todo, "hoom pedir writer tarjeta") || !strings.Contains(todo, "[ Pedir al writer ]") {
@@ -2164,7 +2442,7 @@ func TestCA565_CA568_PedirChicoConservaElComandoYLosBotones(t *testing.T) {
 // muchas rutas muestra las primeras y "y <n> rutas mas" en una ultima linea,
 // con "Se va a ejecutar", el comando y los botones; enter guarda. En el borde
 // exacto, las que entran: ninguna linea perdida.
-func TestCA574_CA533_GuardarConMuchasRutasAChico(t *testing.T) {
+func TestCA717_CA574_CA533_GuardarConMuchasRutasAChico(t *testing.T) {
 	for _, n := range []int{3, 5, 6, 7, 8, 9, 20} {
 		var rutas []string
 		for i := 0; i < n; i++ {
@@ -2210,7 +2488,7 @@ func TestCA574_CA533_GuardarConMuchasRutasAChico(t *testing.T) {
 // linea de mensajes dice en rojo "agranda la terminal: la firma no entra
 // entera"; tambien si la terminal se achica con la firma abierta. Donde
 // entra, firma.
-func TestCA574_CA529_LaFirmaQueNoEntraNoSeFirma(t *testing.T) {
+func TestCA717_CA574_CA529_LaFirmaQueNoEntraNoSeFirma(t *testing.T) {
 	const msg = "agranda la terminal: la firma no entra entera"
 	c := ttNucTenancy()
 	c.Item.Titulo = strings.TrimSpace(strings.Repeat("palabra ", 380))

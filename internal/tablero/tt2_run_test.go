@@ -4,7 +4,9 @@
 // models de hoom.yaml (un error es exit 1 antes de tomar la pantalla; las
 // entradas llegan al selector de Modelo). Con la terminal, los datos, el
 // lanzador y el editor falsos de tt_run_test.go; cada espera con su tiempo
-// maximo.
+// maximo. En la v3 (tablero-tu-siguiente-paso) lo leido del proyecto se ve
+// en la cabecera ([1] en la v2) y los hallazgos en la vista Hallazgos, que
+// abre H ([4] y su [0] en la v2).
 package tablero_test
 
 import (
@@ -21,15 +23,17 @@ import (
 )
 
 // CA-562: Run lee el proyecto y los hallazgos al abrir y despues cada
-// IntervaloProyecto; [1] y [4] muestran lo leido.
+// IntervaloProyecto; la cabecera y la vista Hallazgos muestran lo leido.
 func TestCA562_RunLeeElProyectoYLosHallazgos(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	w.datos.hallazgos = ttHallazgosDorados()
 	w.e.IntervaloProyecto = 20 * time.Millisecond
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-562", "[1] y [4] con lo leido", w, func() bool {
-		return w.marcoCon("demo · rama main") && w.marcoCon("[4] Hallazgos 2")
+	ttEsperar(t, "CA-562", "la cabecera con lo leido y el tablero", w, func() bool {
+		return w.marcoCon(" hoom tablero · demo · rama main") && w.filaElegida("nuc-tenancy")
 	})
+	w.term.mandar("H")
+	ttEsperar(t, "CA-562", "la vista Hallazgos con lo leido", w, func() bool { return w.marcoCon("#Hallazgos 2") })
 	ttEsperar(t, "CA-562", "cinco lecturas del proyecto con IntervaloProyecto de 20ms", w, func() bool {
 		p, h := w.datos.lecturasProyecto()
 		return p >= 5 && h >= 5
@@ -68,19 +72,20 @@ func TestCA562_RunLecturaDelProyectoQueFalla(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	w.e.IntervaloProyecto = 20 * time.Millisecond
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-562", "[1] leido", w, func() bool { return w.marcoCon("demo · rama main") })
+	ttEsperar(t, "CA-562", "la cabecera con el proyecto leido", w, func() bool { return w.marcoCon(" hoom tablero · demo · rama main") })
 	w.datos.mu.Lock()
 	w.datos.proyecto = tablero.Proyecto{Err: errors.New("git no responde")}
 	w.datos.mu.Unlock()
 	ttEsperar(t, "CA-562", "el error en la linea de mensajes", w, func() bool {
-		return w.marcoCon("no se pudo leer el proyecto: git no responde") && w.marcoCon("demo · rama main")
+		return w.marcoCon("no se pudo leer el proyecto: git no responde") && w.marcoCon(" hoom tablero · demo · rama main")
 	})
 	w.term.mandar("q")
 	fin(t)
 }
 
 // CA-559: Run lee el Archivo de ArchivoElegido cuando cambia (el hallazgo
-// elegido en [4]), y [0] muestra sus lineas.
+// elegido en la vista Hallazgos; [4] en la v2), y el detalle del hallazgo
+// muestra sus lineas.
 func TestCA559_RunLeeElArchivoDelHallazgo(t *testing.T) {
 	w := ttNuevoMundo(t, ttTableroPrincipal())
 	w.datos.hallazgos = ttHallazgosDorados()
@@ -88,9 +93,10 @@ func TestCA559_RunLeeElArchivoDelHallazgo(t *testing.T) {
 		return tablero.Archivo{Ruta: ruta, Linea: linea, Desde: linea, Lineas: []string{"la linea del hallazgo"}}
 	}
 	fin := w.correr(nil)
-	ttEsperar(t, "CA-559", "[4] leido", w, func() bool { return w.marcoCon("[4] Hallazgos 2") })
-	w.term.mandar("4")
-	ttEsperar(t, "CA-559", "las lineas del archivo en [0]", w, func() bool { return w.marcoCon("> 41 la linea del hallazgo") })
+	ttEsperar(t, "CA-559", "el tablero leido", w, func() bool { return w.filaElegida("nuc-tenancy") })
+	w.term.mandar("H")
+	ttEsperar(t, "CA-559", "la vista Hallazgos leida", w, func() bool { return w.marcoCon("#Hallazgos 2") })
+	ttEsperar(t, "CA-559", "las lineas del archivo en el detalle del hallazgo", w, func() bool { return w.marcoCon("> 41 la linea del hallazgo") })
 	w.datos.mu.Lock()
 	pedidos := append([]string(nil), w.datos.archivos...)
 	w.datos.mu.Unlock()

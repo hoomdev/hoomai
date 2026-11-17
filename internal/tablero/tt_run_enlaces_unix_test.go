@@ -9,7 +9,9 @@
 // con strconv.Quote> esta fuera del proyecto"; uno que queda adentro, o que
 // todavia no existe, abre el editor con raiz/<Archivo>. En la v2 el editor se
 // pide con e: en [4] sobre el hallazgo del proyecto (CA-559) y en [0] de la
-// tarjeta para su spec (CA-557); lo que se asevera es lo de la v1. Escrito desde el
+// tarjeta para su spec (CA-557); en la v3, en la vista Hallazgos (H) sobre el
+// hallazgo y en el detalle de la tarjeta (el foco ahi con tab, CA-706); lo
+// que se asevera es lo de la v1. Escrito desde el
 // contrato de Run (go doc del paquete), sin leer la implementacion. Solo
 // Unix: los enlaces se crean con os.Symlink. Con la terminal, los datos, el
 // lanzador y el editor falsos de tt_run_test.go; cada espera con su tiempo
@@ -58,8 +60,8 @@ func ttEnlaces(t *testing.T, root string) {
 
 // ttMundoConEnlaces es un mundo de Run cuya raiz (Dir, sin enlaces en su
 // camino) tiene los enlaces de ttEnlaces, con una sola tarjeta cuyo detalle
-// trae el spec en archivo, y un hallazgo abierto del proyecto (lo que lee
-// [4]) en archivo, sin linea. La terminal tiene 120 columnas: el aviso mas
+// trae el spec en archivo, y un hallazgo abierto del proyecto (lo que lee la
+// vista Hallazgos) en archivo, sin linea. La terminal tiene 120 columnas: el aviso mas
 // largo entra en la linea de mensajes.
 func ttMundoConEnlaces(t *testing.T, archivo string) *ttMundo {
 	t.Helper()
@@ -86,7 +88,8 @@ func ttMarcoDice(w *ttMundo, s string) bool {
 }
 
 // ttPedirEditor arranca Run y pide el editor desde desde ("hallazgo": e en
-// [4] sobre el hallazgo; "spec": e en [0] de la tarjeta).
+// la vista Hallazgos sobre el hallazgo; "spec": e en el detalle de la
+// tarjeta).
 // Devuelve el fin de Run, desde donde mirar el registro y la linea con la que
 // se abriria. Es ttPedirEditorTras sin nada antes de la tecla.
 func ttPedirEditor(t *testing.T, ca string, w *ttMundo, desde, archivo string) (func(*testing.T) (int, any), int, int) {
@@ -94,16 +97,19 @@ func ttPedirEditor(t *testing.T, ca string, w *ttMundo, desde, archivo string) (
 	return ttPedirEditorTras(t, ca, w, desde, archivo, func() {})
 }
 
-// ttTeclaEditor es la tecla que pide el editor: e, en [4] y en [0] de una
-// tarjeta (CA-557, CA-559; en la v1 eran enter en Hallazgos y o en Spec).
+// ttTeclaEditor es la tecla que pide el editor: e, en la vista Hallazgos y
+// en el detalle de una tarjeta (CA-557, CA-559; en la v1 eran enter en
+// Hallazgos y o en Spec; en la v2, e en [4] y en [0] de una tarjeta).
 func ttTeclaEditor(desde string) string { return "e" }
 
 // ttPedirEditorTras es el unico camino de los tests de Run hasta la tecla
 // que pide el editor (ttPedirEditor lo usa con un antes que no hace nada):
-// arranca Run, espera la tarjeta elegida en [2] (filaElegida: el tablero ya
-// leido) y va a donde se pide: "spec", enter le da el foco a [0] con la
-// tarjeta, y se espera su parte Spec (el detalle leido); "hallazgo", 4 le da
-// el foco a [4], y se espera el titulo de [0] con el hallazgo. Ahi corre
+// arranca Run, espera la tarjeta elegida en la lista (filaElegida: el
+// tablero ya leido) y va a donde se pide: "spec", tab le da el foco al
+// detalle con la tarjeta (CA-706; enter abriria el modal de su paso,
+// CA-705), y se espera su parte Spec (el detalle leido); "hallazgo", H abre
+// la vista Hallazgos con el foco en su lista (la v2: 4 le daba el foco a
+// [4]), y se espera el titulo del detalle con el hallazgo. Ahi corre
 // antes (con Run ya arrancado y el cuadro dibujado), toma la marca del
 // registro y manda la tecla de ttTeclaEditor. Devuelve el fin de Run, la
 // marca y la linea con la que se abriria (1 el spec, sin criterio a la
@@ -114,15 +120,15 @@ func ttPedirEditorTras(t *testing.T, ca string, w *ttMundo, desde, archivo strin
 	ttEsperar(t, ca, "la tarjeta", w, func() bool { return w.filaElegida("tarjeta") })
 	linea := 0
 	if desde == "spec" {
-		w.term.mandar("\r")
-		ttEsperar(t, ca, "[0] con el spec de la tarjeta", w, func() bool {
-			return ttMarcoDice(w, "#[0] tarjeta · Tarjeta de prueba") && ttMarcoDice(w, "Spec · 0 criterios")
+		w.term.mandar("\t")
+		ttEsperar(t, ca, "el detalle con el foco y el spec de la tarjeta", w, func() bool {
+			return ttMarcoDice(w, "#Tarjeta de prueba=") && ttMarcoDice(w, "=tarjeta=#") && ttMarcoDice(w, "Spec · 0 criterios")
 		})
 		linea = 1
 	} else {
-		w.term.mandar("4")
-		ttEsperar(t, ca, "[4] con el hallazgo y su [0]", w, func() bool {
-			return ttMarcoDice(w, "#[4] Hallazgos 1") && ttMarcoDice(w, "[0] hallazgo f1")
+		w.term.mandar("H")
+		ttEsperar(t, ca, "la vista Hallazgos con el foco en su lista y el hallazgo en el detalle", w, func() bool {
+			return ttMarcoDice(w, "#Hallazgos 1") && ttMarcoDice(w, "+hallazgo f1-")
 		})
 	}
 	antes()
