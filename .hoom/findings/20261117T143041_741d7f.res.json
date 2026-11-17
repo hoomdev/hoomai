@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T143041_741d7f",
+  "as": "refutado",
+  "evidence": "REFUTADO: el archivo lo escribio el refutador, no el reviewer. .hoom/findings/20261117T141702_322ac4.res.json dice author \"refutador@claude\", as \"refutado\", resolved_at 2026-11-17T14:24:28.992485Z: es el hoom finding resolve 20261117T141702_322ac4 --as refutado --author refutador@claude que corrio el refutador (sesion de Claude Code, fuera de todo run de hoom) con el directorio de trabajo en este worktree, cuya salida fue \"hoom finding: 20261117T141702_322ac4 -\u003e REFUTADO\". Cayo dentro del run del reviewer 20261117T142240_b441ed (.hoom/runs/20261117T142240_b441ed.meta.json de este worktree: role reviewer, provider codex, pid 71946, created_at 14:22:40.70593Z, ended_at 14:30:40.689401Z), y el gate de scope atribuyo al rol del run un archivo que aparecio en el arbol mientras corria. La narracion de ese run (.hoom/runs/20261117T142240_b441ed.jsonl, 32 lineas) no menciona el hallazgo ni un cierre: grep -c '322ac4' = 0, grep -c 'finding resolve' = 0, grep -c 'resolve' = 0, grep -c 'res.json' = 0. El hallazgo lo creo \"hoom gate de scope\" a las 14:30:41.155788Z, al cerrar esa lente. No hubo manipulacion del reviewer: fue una escritura concurrente de otro agente en el mismo worktree, un error de coordinacion que ya se corrigio (no se resuelve nada en un worktree con una review en curso).",
+  "author": "refutador@claude",
+  "resolved_at": "2026-11-17T14:32:19.511764Z"
+}

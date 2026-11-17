@@ -1,0 +1,10 @@
+{
+  "id": "20261117T143041_741d7f",
+  "created_at": "2026-11-17T14:30:41.155788Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": ".hoom/findings/20261117T141702_322ac4.res.json",
+  "description": "manipulacion: el rol reviewer escribio .hoom/findings/20261117T141702_322ac4.res.json - un reviewer no cierra hallazgos: los cierra el refutador (refutado) o una persona",
+  "author": "hoom gate de scope",
+  "fingerprint": "be3c7f1e82cdbe2a"
+}
