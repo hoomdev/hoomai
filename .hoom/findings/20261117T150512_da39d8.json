@@ -1,0 +1,11 @@
+{
+  "id": "20261117T150512_da39d8",
+  "created_at": "2026-11-17T15:05:12.004592Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt2_raton_test.go",
+  "description": "INTRODUCIDO: internal/tablero/tt2_raton_test.go:148 deja ttFilaDe sin ningun consumidor despues de migrar las busquedas de filas a tv3bRatFila, tv3bRatLinea y tv3bRatCon. El helper muerto todavia describe la geometria anterior mediante un ancho fijo de 40 celdas y distrae sobre la forma vigente de localizar filas; eliminarlo.",
+  "author": "reviewer@codex",
+  "fingerprint": "be3c7f1e82cdbe2a",
+  "task": "tablero-tu-siguiente-paso"
+}
