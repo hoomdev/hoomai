@@ -761,7 +761,7 @@
 // closes while that aprobar runs (q, ctrl-c, a signal or an error), the
 // pilot is not launched, and hoom tablero says so (decision of Henry): after
 // giving the terminal back, after MensajeSalida, one line on Out per card,
-// in order, "el piloto de <slug> no se lanza solo: cuando termine la firma,
+// in the slugs' order, "el piloto de <slug> no se lanza solo: cuando termine la firma,
 // hoom piloto <slug>" (Modelo.PilotosSinLanzar, MensajePilotos).
 //
 // The board does not look at the pilot's lock (.hoom/cache/locks): it only

@@ -650,7 +650,7 @@ func (m *Modelo) Corriendo() int {
 	return n
 }
 
-// PilotosSinLanzar are the cards, in order, whose Firma chained "y despues:
+// PilotosSinLanzar are the cards, by slug, whose Firma chained "y despues:
 // hoom piloto <slug>" while their aprobar has not ended (Termino): closing
 // the board now leaves those pilots unlaunched.
 func (m *Modelo) PilotosSinLanzar() []string {
