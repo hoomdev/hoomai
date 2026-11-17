@@ -1,0 +1,30 @@
+ hoom tablero · demo · rama main                        check VERDE · verify hace 2h · hoy 3.88 USD
+┌TU SIGUIENTE PASO────────────────────────────────────────────te toca 2 · corriendo 1 · detenida 2─┐
+│ Pedile el código al writer para «Listado de proyectos».  los tests fallan: falta el codigo       │
+│ n pedir al writer  después: «Exportar reporte a PDF» · «Pagos con tarjeta» · «Notificaciones p…» │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+╔Tarjetas══════════════════════════════╗┌Listado de proyectos──────────────────────────────listado─┐
+║ TE TOCA 2                            ║│ AHORA                                            TE TOCA │
+║ ▸ Listado de proyectos       ●●●●◆○○○║│ Los tests están escritos y fallan, como se espera.       │
+║   los tests fallan: falta el codigo  ║│ falta el código                                          │
+║   Exportar reporte a PDF     ●●◆○○○○○║│                                                          │
+║   te toca aprobar el spec            ║│ TE TOCA                                                  │
+║ CORRIENDO 1                          ║│ enter pedir al writer · se abre el pedido para revisarlo │
+║   Módulo de usuarios         ●●●●◉○○○║│ antes de lanzar                                          │
+║   writer · 14:02 de 30:00            ║│                                                          │
+║ DETENIDA 2                           ║│ SIGUE                                                    │
+║   Pagos con tarjeta          ●●●●✗○○○║│ despues, te toca pedir la review al reviewer             │
+║   ✗ se corto el trabajo del writer   ║│ con el piloto seguiria sola: hoom item set listado --auto│
+║   Notificaciones por correo  ●●●●●✗○○║│ hasta-humano                                             │
+║   ✗ el veredicto quedo rojo en test  ║│                                                          │
+║ EN COLA 1                            ║│ EL CAMINO                                    paso 5 de 8 │
+║   Importar desde Excel       ○○○○○○○○║│  ● Pedido                                                │
+║   falta el spec de la tarjeta        ║│  ● Spec                                                  │
+║ HECHO 2 ▸                            ║│  ● Tu firma                                              │
+║                                      ║│  ● Tests                                                 │
+║                                      ║│  ◆ Código         te toca a vos                    ← acá │
+║                                      ║│  ○ Review                                                │
+╚══════════════════════════════════════╝└──────────────────────────────────────────────────────────┘
+─Registro───────────────────────────────────────────────────────────────────────────────────────────
+
+ enter pedir al writer · n tu siguiente paso · ↑↓ elegir · tab detalle · espacio acciones · ? todas

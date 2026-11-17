@@ -1,0 +1,24 @@
+ hoom tablero · demo                                     leyendo el proyecto...
+┌TU SIGUIENTE PASO────────────────────────te toca 1 · corriendo 0 · detenida 0─┐
+│ Firmá el spec de «Despegue 🚀 del 漢字».  lanzar el 🚀 hacia 漢字            │
+│ n aprobar spec                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+╔Tarjetas══════════════════════════════════════════════════════════════════════╗
+║ TE TOCA 1                                                                    ║
+║ ▸ Despegue 🚀 del 漢字              ●●◆○○○○○ lanzar el 🚀 hacia 漢字         ║
+║ EN COLA 1                                                                    ║
+║   A漢字漢字漢字漢字漢字漢字漢字漢…  ○○○○○○○○ falta el spec 🚀                ║
+║ HECHO 0 ▸                                                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+┌Despegue 🚀 del 漢字───────────────────────────────────────────────────cohete─┐
+│ AHORA   El spec está listo y espera tu firma.                        TE TOCA │
+│ TE TOCA enter aprobar spec · hoom no firma por vos                           │
+│ SIGUE   al firmar, te toca pedir los tests al test-writer                    │
+│ CAMINO  ●●◆○○○○○ paso 3 de 8: Tu firma                                       │
+│                                                                              │
+│ Tu aprobacion · gasto sin dato de costo                                      │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+─Registro───────────────────────────────────────────────────────────────────────
+
+ enter aprobar spec · n tu siguiente paso · ↑↓ elegir · tab detalle · ? todas
