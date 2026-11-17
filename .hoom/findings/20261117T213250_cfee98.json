@@ -1,0 +1,11 @@
+{
+  "id": "20261117T213250_cfee98",
+  "created_at": "2026-11-17T21:32:50.37321Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/servecmd/ui/ahora.js",
+  "description": "INTRODUCIDO — internal/servecmd/ui/ahora.js:112-124: pedirFicha combina el rechazo del detalle y el de /timeline en e y luego usa e.status === 404 para marcar ah.no. Si GET /api/board/\u003cslug\u003e responde 200 pero GET /api/board/\u003cslug\u003e/timeline responde 404 (por una carrera con el item o una falla parcial de la ruta), la UI muestra 'no existe la tarjeta' y corta el sondeo en vez de mostrar 'no se pudo leer la tarjeta: \u003cerror\u003e' y reintentar. CA-742 reserva el estado de inexistencia al 404 del detalle; el origen del rechazo debe conservarse al clasificarlo.",
+  "author": "reviewer@codex",
+  "fingerprint": "4ff7c2aa744a20b4",
+  "task": "studio-tu-siguiente-paso"
+}

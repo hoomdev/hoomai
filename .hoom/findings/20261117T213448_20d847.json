@@ -1,0 +1,11 @@
+{
+  "id": "20261117T213448_20d847",
+  "created_at": "2026-11-17T21:34:48.871445Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/servecmd/ui/ahora.js",
+  "description": "INTRODUCIDO: internal/servecmd/ui/ahora.js:110 espera Promise.allSettled de detalle y timeline antes de procesar cualquier fallo. Si el detalle ya rechazo (incluido su 404) pero el pedido de /timeline queda pendiente, pedirFicha no muestra el error ni programa otro sondeo; la pantalla queda leyendo indefinidamente. Antes Promise.all cortaba al rechazar el detalle. Es una regresion de recuperacion ante fallos parciales/dependencia colgada; ocurre en entorno degradado y no pierde datos, por eso medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "4ff7c2aa744a20b4",
+  "task": "studio-tu-siguiente-paso"
+}
