@@ -476,8 +476,9 @@
 // started_at in the model clock's location, and <paso> the v2's
 // "<stage> <step>/<steps>" (the stage alone when steps is 0); the parts
 // that are empty are left out with their " · ". The bar (decision on the
-// rounding) has 20 cells: f = 20 * elapsed / limit (integer, from 0 to 20)
-// are the run sign, cyan (36), and 20-f the left sign, gray (90); tiempo
+// rounding) has 20 cells: f = 20 * elapsed / limit (integer, from 0 to 20;
+// the exact quotient rounded down, for any elapsed and any limit) are the
+// run sign, cyan (36), and 20-f the left sign, gray (90); tiempo
 // and limite as the rows'. "ya no corre: R lo reanuda" and "falta el
 // código" are gray lines too.
 //
@@ -713,7 +714,8 @@
 // The stop stands while the card is in that column, has not shown a running
 // with another id, and no job this board launched on it (a Lanzar with a
 // Rol other than the pilot's) has ended since: in any of those, another job
-// ran on it.
+// ran on it. A job that could not start (its FinProceso has code -1) did
+// not run: its end does not lift the stop.
 //
 // The modal Seguir solo (P, and enter and n when the step is Seguir solo;
 // CA-716), with the modals' common rules, title "Seguir solo · <T>" (T the
