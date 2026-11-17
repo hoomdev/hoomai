@@ -88,6 +88,7 @@ func build(g *gatherer) (Board, error) {
 			b.Warnings = append(b.Warnings, f)
 		}
 	}
+	b.Pelota = pelotaBoard(b)
 	return b, nil
 }
 

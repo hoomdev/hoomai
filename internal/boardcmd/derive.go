@@ -59,6 +59,7 @@ func Derive(ev Evidence) Card {
 	c.Doctor = DoctorOf(ev, c)
 	c.Historica = ev.Item.HechoEn == nil && ev.Item.Historico != "" && ev.HistoricaSostenida
 	c.Pendientes = pendientesDe(ev)
+	c.Pelota = PelotaDe(&c, Piel{})
 	return c
 }
 
