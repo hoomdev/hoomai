@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T044323_acc731",
+  "as": "corregido",
+  "evidence": "Commits d3d7058 y acacd68: firmaCabe (internal/tablero/modales.go) ya no firma si la linea 'y despues: hoom piloto \u003cslug\u003e' queda cortada a lo ancho; esa linea se arma como el comando (por palabras, en dos lineas, la segunda desde dos espacios), y enter dice en rojo 'agranda la terminal: la firma no entra entera'. El comando de la accion conserva la regla de la v2 (decision en doc.go: con el modal mas ancho un slug valido de 60 a 64 no entra en '  \u003cslug\u003e --si'). Regresion a ciegas (tests del test-writer, escritos desde doc.go sin leer la implementacion): rojos sobre dde3de5 (el codigo de antes del arreglo, con solo la API nueva agregada para compilar) y verdes sobre 26a205f con go test -race -count=1: TestV3C_CA717_CA574_LaLineaDelPilotoCortadaNoSeFirma, LaFirmaPartidaQueEntraSeFirma y ElComandoCortadoSoloNoFrenaLaFirma (internal/tablero/tt4c_hallazgos_test.go): 0/3 antes, 3/3 despues.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T06:13:32.860577Z"
+}

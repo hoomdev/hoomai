@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T045733_f7b6d2",
+  "as": "corregido",
+  "evidence": "Commits d3d7058 y acacd68: la parada guarda porLeer y su momento; la primera lectura del tablero empezada despues del fin del piloto (Lectura.Pedida, que el bucle sella al lanzar la lectura) le da la columna, hasta entonces la parada sigue en pie y una lectura empezada antes no dice nada de ella (estado.go Leer, grupos.go paradaDe; doc.go 'A pilot's stop'). Regresion a ciegas (tests del test-writer, escritos desde doc.go sin leer la implementacion): rojos sobre dde3de5 (el codigo de antes del arreglo, con solo la API nueva agregada para compilar) y verdes sobre 26a205f con go test -race -count=1: TestV3C_CA715_CA717_LaParadaTomaLaColumnaDeLaLecturaSiguiente y UnaLecturaViejaNoFijaLaColumna: 0/2 antes, 2/2 despues. El segundo encontro ademas que una lectura vieja borraba la parada pendiente, corregido en acacd68.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T06:13:32.93157Z"
+}

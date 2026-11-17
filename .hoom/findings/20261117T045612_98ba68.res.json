@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T045612_98ba68",
+  "as": "corregido",
+  "evidence": "Decision de Henry (2026-11-17, en la sesion de la tarea): avisar al salir. Commit acacd68: Modelo.PilotosSinLanzar (estado.go) da las tarjetas cuya firma encadeno el piloto y cuyo aprobar no termino, y Run (bucle.go) imprime en Out, despues de MensajeSalida, una linea por tarjeta: 'el piloto de \u003cslug\u003e no se lanza solo: cuando termine la firma, hoom piloto \u003cslug\u003e' (MensajePilotos); doc.go (CA-717), el comentario de Run y el README lo dicen. Regresion a ciegas (tests del test-writer, escritos desde doc.go sin leer la implementacion): rojos sobre dde3de5 (el codigo de antes del arreglo, con solo la API nueva agregada para compilar) y verdes sobre 26a205f con go test -race -count=1: TestV3C_CA717_PilotosSinLanzarMientrasCorreLaFirma, SinPilotoEncadenadoNoHayPilotoSinLanzar, LosPilotosSinLanzarVanEnOrden, MensajePilotosEsUnaLineaPorTarjeta y RunAlCerrarDiceElPilotoSinLanzar (q, ctrl-c y fin de archivo) fallan antes y pasan despues; RunSinPilotoPendienteNoLoDice (el caso negativo) pasa en los dos.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T06:13:33.002703Z"
+}
