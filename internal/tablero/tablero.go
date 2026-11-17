@@ -373,8 +373,8 @@ func ArgumentosEditor(editor, archivo string, linea int) []string {
 // missing). Its FinProceso.Ultima comes from those files. Its
 // FinProceso.Code is the process's exit code, 128 + the signal's number when
 // a signal ended it (as Run's own), and 1 when waiting for it failed
-// otherwise (its Ultima then the error when the files say nothing): never
-// -1, since the process started.
+// otherwise: never -1, since the process started. In those last two, when
+// the files say nothing, its Ultima is the error.
 func LanzadorDe(hoom, dir, logs string) Lanzador {
 	return &lanzadorReal{hoom: hoom, dir: dir, logs: logs}
 }
