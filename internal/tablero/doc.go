@@ -994,9 +994,12 @@
 //	"  clic en un modal  enfoca un campo, elige una opcion o un boton"
 //	"  para seleccionar texto con el mouse, manten Option (macOS) o Shift"
 //
-// and without it "  apagado: HOOM_MOUSE=0". It is B lines tall when its
-// lines do not fit (its bottom border says "<n> de <m>", n the number of
-// the last line in view and m of all of them), starts at its first line,
+// and without it "  apagado: HOOM_MOUSE=0". These lines wrap as the rows
+// do: at their words, each continuation from the column of Hace, 20 (the
+// last line's first line in the whole width after its "  "). It is B
+// lines tall when its lines do not fit (its bottom border says "<n> de
+// <m>", n the number of the last line in view and m of all of them),
+// starts at its first line,
 // scrolls with ↑ ↓ k j (one line), pgup pgdn (its inner height) and the
 // wheel (3 lines), and esc or ? close it.
 //

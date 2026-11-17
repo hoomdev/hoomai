@@ -764,7 +764,7 @@ func (m *Modelo) lineasAyuda() []lineaModal {
 			if celdas(l) > 20 && strings.TrimSpace(l[:20]) != "" && l[19] == ' ' {
 				cabeza, resto = l[:20], l[20:]
 			}
-			for i, p := range envolverPalabrasEspacios(resto, max(10, c-20)) {
+			for i, p := range envolverDos(resto, max(10, c-celdas(cabeza)), max(10, c-20)) {
 				if i == 0 {
 					out = append(out, lm(lin(cabeza+p)))
 				} else {
@@ -1076,4 +1076,15 @@ func (m *Modelo) dibujarLista(lz *lienzo, g modalEnPantalla) {
 		pos = strconv.Itoa(p.lista.idx+1) + " de " + strconv.Itoa(len(g.listaOps))
 	}
 	m.borde(lz, r.x, r.y+r.h-1, r.w, s.esqII, s.linea, s.esqID, pos, normal)
+}
+
+// envolverDos wraps s at its words: the first line in w1 cells, the others
+// in w2 (a word longer than its line is cut hard).
+func envolverDos(s string, w1, w2 int) []string {
+	primera := envolverPalabrasEspacios(s, w1)
+	if len(primera) <= 1 {
+		return primera
+	}
+	resto := strings.TrimLeft(strings.TrimPrefix(s, primera[0]), " ")
+	return append([]string{primera[0]}, envolverPalabrasEspacios(resto, w2)...)
 }

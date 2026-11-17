@@ -436,7 +436,8 @@ func (m *Modelo) pistas() []pista {
 			}
 			continue
 		}
-		out = append(out, pista{texto: m.s.conFlechas(a.Barra)})
+		// "enter ver" of the Hallazgos view is enter's hint too (CA-718)
+		out = append(out, pista{texto: m.s.conFlechas(a.Barra), enter: contieneTecla(a.Teclas, TeclaEnter) && l == LugarHallazgos})
 	}
 	return out
 }
@@ -560,4 +561,14 @@ func (m *Modelo) acomodar() {
 		}
 	}
 	*p = max(0, min(*p, len(ls)-hiL))
+}
+
+// contieneTecla says whether ts has t.
+func contieneTecla(ts []Tecla, t Tecla) bool {
+	for _, x := range ts {
+		if x == t {
+			return true
+		}
+	}
+	return false
 }
