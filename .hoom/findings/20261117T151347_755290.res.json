@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T151347_755290",
+  "as": "corregido",
+  "evidence": "Commits ae66795 y a682c88/bf527dc (contrato: 'A job that could not start (its FinProceso has code -1) did not run: its end does not lift the stop'; FinProceso.Code -1 solo cuando su Lanzar fallo; LanzadorDe da 128 + la senal y nunca -1), 9a84505 (tests) y 3b65c4b (arreglo). Termino (estado.go) levanta la parada solo si f.Code != -1. LanzadorDe (reales.go, codigoDeSalida) daba -1 cuando una senal terminaba un proceso que si corrio; con el arreglo un writer matado por una senal levantaria la parada; ahora da 128+N, como Run. Regresion a ciegas, tests del test-writer C desde doc.go sin leer la implementacion: TestV3C_CA715_UnRolQueNoArrancoNoLevantaLaParada y TestCA528_CA715_LanzadorDeSenalEs128MasN (SIGTERM 143, SIGKILL 137, con y sin salida) son rojos sobre a682c88 y verdes sobre 3b65c4b. Los controles TestV3C_CA715_UnRolQueArrancoYFallaLevantaLaParada (codigos 1 y 2) y el subtest exit 3 son verdes antes y despues. go test -race ./internal/tablero/ ok (335 s); vet limpio en darwin, linux y windows.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T15:31:25.594519Z"
+}

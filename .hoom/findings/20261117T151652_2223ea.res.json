@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T151652_2223ea",
+  "as": "corregido",
+  "evidence": "Commits ae66795 (doc.go: f es el cociente exacto rounded down, for any elapsed and any limit), 54ff8fd (test) y 81c6dc7 (arreglo): barraDeTiempo (detalle.go) calcula 20*trans/limite en 128 bits (bits.Mul64 y bits.Div64, sin float64), 20 si trans \u003e= limite y 0 si trans \u003c= 0. Regresion a ciegas: TestV3A_CA708_LaBarraEsElCocienteExacto, del test-writer A desde doc.go sin leer la implementacion. Sus casos incluyen timeout_s 8896355502 con 2224088875499999998 ns (4 celdas) y timeout_s 9223372036 con limite/20-1 ns (0), limite/20 (1), limite-1 ns (19) y limite (20); su guarda recalcula f con math/big. Rojo sobre ae66795 (pintaba 5 de 20 donde van 4) y verde sobre 81c6dc7. go test -race ./internal/tablero/ ok (335 s) sobre 3b65c4b; vet limpio en darwin, linux y windows.",
+  "author": "Henry Orellana \u003chenry.orellana@oceansbits.com\u003e",
+  "resolved_at": "2026-11-17T15:31:25.56712Z"
+}
