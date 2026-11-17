@@ -96,10 +96,17 @@ func ttTarjetaHostil() (boardcmd.Card, tablero.Detalle) {
 // detalle del proyecto con v) ninguna linea lleva un control; con color, solo
 // SGR. El tab se ve como un espacio y cada otro control como "?". El pedido
 // que se lanza es el de la accion, sin tocar: neutralizar es solo de la
-// pantalla. La tarjeta hostil tiene un rojo no esperado (esta en DETENIDA: su
-// AHORA y su fila dicen el plain del rojo); el plain de la tarjeta se mira
-// despues con la misma tarjeta sin el rojo (TE TOCA: su AHORA, su fila y la
-// caja dicen el plain), porque en DETENIDA la v3 no lo muestra.
+// pantalla. El Registro (CA-534, CA-714; hallazgo 9a1fd5): en la v3 la
+// pantalla solo tiene su linea plegada, sin el comando, y el comando se ve en
+// el modal L; esto re-expresa la asercion del panel del Registro de la v2,
+// que mostraba el comando con el pedido hostil: el modal L no lleva controles
+// y dice "hoom pedir writer tarjeta -m ", y como el modal (72 celdas) solo
+// muestra el comienzo del comando, el Comando entero de su entrada en
+// Registro() tampoco lleva ninguno. La tarjeta hostil tiene un rojo no
+// esperado (esta en DETENIDA: su AHORA y su fila dicen el plain del rojo); el
+// plain de la tarjeta se mira despues con la misma tarjeta sin el rojo (TE
+// TOCA: su AHORA, su fila y la caja dicen el plain), porque en DETENIDA la v3
+// no lo muestra.
 func TestCA534_ControlesEnLosTextos(t *testing.T) {
 	for _, color := range []bool{false, true} {
 		for _, utf := range []bool{false, true} {
@@ -150,6 +157,30 @@ func TestCA534_ControlesEnLosTextos(t *testing.T) {
 			l := ttUnaLanzar(t, ca, "enter en el boton", m.Tecla(tablero.TeclaEnter, ttAhora))
 			ttMismosArgs(t, ca, "el pedido se lanza como es", l.Args, []string{"pedir", "writer", "tarjeta", "-m", "pedido " + ttHostil})
 			ver(m, "el Registro")
+			m.Tecla("L", ttAhora)
+			if m.Modal() != tablero.ModalRegistro {
+				t.Fatalf("%s (CA-714): L abre el modal Registro: %q", ca, m.Modal())
+			}
+			ver(m, "el modal Registro", "hoom pedir writer tarjeta -m ")
+			entrada := false
+			for _, a := range m.Registro() {
+				if !strings.HasPrefix(a.Comando, "hoom pedir writer tarjeta -m ") {
+					continue
+				}
+				entrada = true
+				for _, r := range a.Comando {
+					if ttEsControl(r) {
+						t.Fatalf("%s (CA-714): el Comando de la entrada del Registro no lleva el control %U: %q", ca, r, a.Comando)
+					}
+				}
+			}
+			if !entrada {
+				t.Fatalf("%s (CA-714): el Registro tiene la entrada del pedido con su Comando 'hoom pedir writer tarjeta -m ...': %#v", ca, m.Registro())
+			}
+			m.Tecla(tablero.TeclaEsc, ttAhora)
+			if m.Modal() != tablero.SinModal {
+				t.Fatalf("%s (CA-714): esc cierra el modal Registro: %q", ca, m.Modal())
+			}
 			m.Tecla("A", ttAhora)
 			if m.Modal() != tablero.ModalFirma {
 				t.Fatalf("%s: A abre la firma: %q", ca, m.Modal())

@@ -272,7 +272,9 @@ func TestCA563_ElRegistroPlegado(t *testing.T) {
 // CA-563: el comando del Registro es el que mostro "Se va a ejecutar", en una
 // linea y cortado al ancho (en la v3, al texto del modal Registro: Wm-6 = 66
 // celdas a 80x24, con el signo del corte); ningun control de un texto llega
-// al Registro.
+// al Registro (CA-534: el conjunto entero de ttEsControl, no solo ESC): ni a
+// la pantalla con su linea plegada, ni al modal L, ni al Comando de la
+// entrada.
 func TestCA563_ElComandoCortadoAlModal(t *testing.T) {
 	a := ttAccionWriter()
 	a.Pedido = "un pedido largo con\ttab y \x1b[2J control " + strings.Repeat("mas texto ", 10)
@@ -281,6 +283,7 @@ func TestCA563_ElComandoCortadoAlModal(t *testing.T) {
 	if l := tv3bRegistro(m); strings.Contains(l, "\x1b") {
 		t.Fatalf("CA-563: ningun control llega a la linea del Registro: %q", l)
 	}
+	ttSinControles(t, "CA-563", "la pantalla con la linea del Registro", m, false)
 	mc := tv3bRegModal(t, "CA-563", m, 80, ttAhora)
 	if len(mc.Textos) < 2 {
 		t.Fatalf("CA-563: el Registro tiene la entrada: %q", mc.Textos)
@@ -288,6 +291,28 @@ func TestCA563_ElComandoCortadoAlModal(t *testing.T) {
 	linea := mc.Textos[1]
 	if ttCeldas(linea) != 66 || !strings.HasSuffix(linea, "~") || !strings.HasPrefix(linea, "      hoom pedir writer tarjeta -m ") || strings.Contains(strings.Join(mc.Textos, "\n"), "\x1b") {
 		t.Fatalf("CA-563: la segunda linea es el comando cortado a las 66 celdas, sin controles: %q", linea)
+	}
+	for i, l := range append([]string{mc.Arriba, mc.Abajo}, mc.Textos...) {
+		for _, r := range l {
+			if ttEsControl(r) {
+				t.Fatalf("CA-563: ninguna linea del modal Registro lleva el control %U (linea %d): %q", r, i, l)
+			}
+		}
+	}
+	entrada := false
+	for _, as := range m.Registro() {
+		if !strings.HasPrefix(as.Comando, "hoom pedir writer tarjeta -m ") {
+			continue
+		}
+		entrada = true
+		for _, r := range as.Comando {
+			if ttEsControl(r) {
+				t.Fatalf("CA-563: el Comando de la entrada no lleva el control %U: %q", r, as.Comando)
+			}
+		}
+	}
+	if !entrada {
+		t.Fatalf("CA-563: el Registro tiene la entrada del pedido: %#v", m.Registro())
 	}
 }
 
