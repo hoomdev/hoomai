@@ -1,0 +1,11 @@
+{
+  "id": "20261117T150511_76d691",
+  "created_at": "2026-11-17T15:05:11.861549Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/tt_fixtures_test.go",
+  "description": "INTRODUCIDO: internal/tablero/tt_fixtures_test.go:683 conserva el parser v2 ttCajas y sus wrappers ttCajaDe, ttSlugElegido, ttIrA y ttFocos, aunque la migracion reemplazo todos sus consumidores por helpers tv3b*; los unicos usos restantes son entre esos mismos helpers. Este bloque de infraestructura muerta (con comentarios sobre paneles que ya no existen) hace ambiguo cual API deben usar los tests nuevos; eliminar el bloque obsoleto.",
+  "author": "reviewer@codex",
+  "fingerprint": "be3c7f1e82cdbe2a",
+  "task": "tablero-tu-siguiente-paso"
+}

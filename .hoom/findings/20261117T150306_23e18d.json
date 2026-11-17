@@ -1,0 +1,11 @@
+{
+  "id": "20261117T150306_23e18d",
+  "created_at": "2026-11-17T15:03:06.116166Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/tablero/bucle.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea este diff): internal/tablero/bucle.go:151-155 descarta el FinProceso cuando el bucle ya cerro; como el piloto encadenado solo se crea al procesar ese fin en internal/tablero/estado.go:388-391, cerrar el tablero despues de confirmar Aprobar y antes de que hoom aprobar termine hace que una aprobacion exitosa nunca lance hoom piloto, pese a la promesa del modal y CA-717. Caso provocable por el usuario; resultado incorrecto.",
+  "author": "reviewer@codex",
+  "fingerprint": "be3c7f1e82cdbe2a",
+  "task": "tablero-tu-siguiente-paso"
+}
