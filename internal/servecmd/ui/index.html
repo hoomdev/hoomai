@@ -512,6 +512,8 @@
     font: 12.5px var(--mono); color: var(--hd-gris-claro); white-space: pre-wrap; word-break: break-word;
   }
   .ah-linea { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--hd-borde); }
+  /* un título largo de una sola línea (después:, En cola, Hecho) se corta con … */
+  .ah-corta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .ah-vista a.ah-titulo-link { color: var(--hd-blanco); text-decoration: none; font-weight: 500; }
   .ah-pie { color: var(--hd-gris); font-size: 12px; border-top: 1px solid var(--hd-borde); padding-top: 12px; }
   .tj-cab { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }

@@ -5,8 +5,8 @@
    board.pelota), el mismo que pinta hoom tablero: este archivo solo lee con
    j() y pinta. Ningún botón decide nada acá: todos van por abrirAccion de
    acciones.js, con su diálogo y su confirmación.
-   Reusa de index.html: $, esc y j; de tablero.js: mostrarPestana y visible;
-   de acciones.js: abrirAccion. */
+   Reusa de index.html: $, esc y j; de tablero.js: mostrarPestana, visible y
+   experto; de acciones.js: abrirAccion. */
 
 const ah = {
   on: false,       // Ahora está a la vista
@@ -100,21 +100,25 @@ function verTarjeta(slug) {
   } else ah.genF++;
 }
 
+// pedirFicha lee el detalle y la historia; un error de cualquiera de los dos
+// (primero el del detalle) se dice y se reintenta. Una respuesta que llega
+// tarde (otra generación u otra tarjeta) no toca ah.
 async function pedirFicha(gen) {
   if (gen !== ah.genF || !ah.ficha || !visible()) return;
   const slug = ah.ficha;
   const base = "/api/board/" + encodeURIComponent(slug);
-  try {
-    const [d, h] = await Promise.all([j(base), j(base + "/timeline").catch(() => null)]);
-    ah.det = d;
-    if (h) ah.hist = h;
-    ah.ferr = "";
-    ah.no = false;
-  } catch (e) {
+  const [d, h] = await Promise.allSettled([j(base), j(base + "/timeline")]);
+  if (gen !== ah.genF || slug !== ah.ficha) return;
+  const e = d.status === "rejected" ? d.reason : h.status === "rejected" ? h.reason : null;
+  if (e) {
     ah.no = e.status === 404;
     ah.ferr = e.message;
+  } else {
+    ah.det = d.value;
+    ah.hist = h.value;
+    ah.ferr = "";
+    ah.no = false;
   }
-  if (gen !== ah.genF) return;
   pintarFicha();
   if (ah.no) return; // no existe: no hay nada que volver a pedir
   setTimeout(() => pedirFicha(gen), 1000);
@@ -151,6 +155,12 @@ function botonPaso(c) {
   const p = c.pelota.paso;
   if (!p.accion) return `<span class="ah-gris">${esc(p.texto)}</span>`;
   return `<button class="ah-btn" data-slug="${esc(c.slug)}" data-accion="${esc(p.accion)}">${esc(p.etiqueta)}</button>`;
+}
+
+// accionesAh son las acciones habilitadas de la tarjeta que este modo
+// muestra: las expert, solo en modo experto (CA-354, como acciones.js).
+function accionesAh(c) {
+  return (c.actions || []).filter(a => a.enabled && (!a.expert || experto()));
 }
 
 // botonAccion es un botón secundario de una acción de la tarjeta.
@@ -195,9 +205,11 @@ function fechaAh(iso) {
   return isNaN(d) ? "" : `${dosAh(d.getDate())}/${dosAh(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
-// haceAh es el tiempo desde iso: segundos, minutos u horas y minutos.
+// haceAh es el tiempo desde iso: segundos, minutos u horas y minutos; con
+// iso en el futuro (reloj corrido), 0 min.
 function haceAh(iso) {
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 1000));
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 0) return "0 min";
   if (s < 60) return `${s} s`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m} min`;
@@ -219,12 +231,12 @@ function motivoDetenidaAh(c) {
   return c.red ? c.red.plain : c.plain;
 }
 
-// chipsAh: riesgo (cuando la evidencia trae uno que no es el normal) y el
-// piloto encendido.
+// chipsAh: riesgo (cuando la evidencia trae riesgo, cualquiera) y el piloto
+// encendido.
 function chipsAh(c) {
   let out = "";
   const r = c.evidence && c.evidence.riesgo;
-  if (r && r !== "normal") out += ` <span class="ah-chip">riesgo ${esc(r)}</span>`;
+  if (r) out += ` <span class="ah-chip">riesgo ${esc(r)}</span>`;
   if (c.item && c.item.auto === "hasta-humano") out += ` <span class="ah-chip verde">piloto encendido</span>`;
   return out;
 }
@@ -276,7 +288,7 @@ function bandaAh(b, por, orden) {
     cuerpo = `<p class="ah-frase">${esc(c.pelota.frase)}</p>
       <p class="ah-gris">${esc(g === "DETENIDA" ? motivoDetenidaAh(c) : c.plain)}</p>
       <div class="ah-botones">${botonPaso(c)}${verLaTarjeta(c)}` +
-      (siguen.length ? `<span class="ah-gris">después: ${siguen.map(x => `«${esc(tituloAh(x))}»`).join(" · ")}</span>` : "") +
+      (siguen.length ? `<span class="ah-gris ah-corta">después: ${siguen.map(x => `«${esc(tituloAh(x))}»`).join(" · ")}</span>` : "") +
       `</div>`;
   } else {
     const corren = orden.filter(x => x.pelota.grupo === "CORRIENDO");
@@ -369,7 +381,7 @@ function filaEnCurso(c) {
 
 function tarjetaDetenidaAh(c) {
   const a = c.pelota.ahora;
-  const acciones = (c.actions || []).filter(x => x.enabled).slice(0, 3).map(x => botonAccion(c, x)).join("");
+  const acciones = accionesAh(c).slice(0, 3).map(x => botonAccion(c, x)).join("");
   return `<article class="ah-tarj">
     <div><span class="ah-badge detenida">DETENIDA</span> <span class="ah-mono ah-gris">${esc(c.slug)}</span></div>
     <h3>${esc(tituloAh(c))}</h3>
@@ -378,10 +390,11 @@ function tarjetaDetenidaAh(c) {
   </article>`;
 }
 
-// lineaAh es una fila de En cola o de Hecho; en Hecho, cuándo se aceptó.
+// lineaAh es una fila de En cola o de Hecho; en Hecho, cuándo se aceptó. Su
+// título largo se corta con … (ah-corta).
 function lineaAh(c, hecha) {
   const cuando = hecha && c.item && c.item.hecho_en ? ` · aceptada ${esc(fechaAh(c.item.hecho_en))}` : "";
-  return `<div class="ah-linea"><a class="ah-titulo-link" href="#tarjeta/${esc(c.slug)}">${esc(tituloAh(c))}</a>
+  return `<div class="ah-linea"><a class="ah-titulo-link ah-corta" href="#tarjeta/${esc(c.slug)}">${esc(tituloAh(c))}</a>
     <span class="ah-mono ah-gris">${esc(c.slug)}</span><span class="ah-gris">${esc(c.plain)}${cuando}</span></div>`;
 }
 
@@ -505,10 +518,11 @@ function evidenciaFicha(d) {
 }
 
 // botonesFicha: el primario del paso y un secundario por cada otra acción
-// habilitada, en su orden; con el piloto encendido, cómo apagarlo.
+// habilitada que este modo muestra, en su orden; con el piloto encendido,
+// cómo apagarlo.
 function botonesFicha(c) {
   const p = c.pelota.paso;
-  const otras = (c.actions || []).filter(a => a.enabled && a.id !== p.accion).map(a => botonAccion(c, a)).join("");
+  const otras = accionesAh(c).filter(a => a.id !== p.accion).map(a => botonAccion(c, a)).join("");
   const piloto = c.item && c.item.auto === "hasta-humano"
     ? `<p class="ah-mono ah-gris">para apagar el piloto: hoom item set ${esc(c.slug)} --auto no</p>` : "";
   return `<section class="tj-panel"><div class="ah-botones">${botonPaso(c)}${otras}</div>${piloto}</section>`;
