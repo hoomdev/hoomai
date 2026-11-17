@@ -300,7 +300,8 @@
 //
 // Before the first read: " leyendo el tablero..."; with no card at all:
 // ` no hay tarjetas: hoom item add "<titulo>"` (CA-578). At the start the
-// selection is on the first card row.
+// selection is on the first card row; with no card row (every card in a
+// closed HECHO) it is on HECHO's line, as in the v2.
 //
 // # The rows
 //
@@ -417,9 +418,11 @@
 // starts at its first line for each new thing it shows, and follows its
 // end only when the document is longer than the view and the person
 // scrolled to its end: then a read that makes it longer keeps the end in
-// view. A card with running starts at its end instead, and follows it
-// while the reads bring events, unless the person scrolled up; it follows
-// again when the view is back at its end, and G takes it there (CA-711).
+// view. A card with running starts at its end instead (once its detail is
+// read: while it says " leyendo la tarjeta..." it is at its first line),
+// and follows it while the reads bring events, unless the person scrolled
+// up; it follows again when the view is back at its end, and G takes it
+// there (CA-711).
 // The project and a finding never follow.
 //
 // # The detail of a card
@@ -439,7 +442,6 @@
 //	         " enter " + label + " · " + help      (the step's label in lower case; " · " and the
 //	                                               help gray)
 //	         " nada: " + text                      (without a step: the rule's text)
-//	         " " + pendientes                      (only when the card's Pendientes.Texto is not "")
 //	SIGUE    " SIGUE"                              (1;90)
 //	         " " + phrase
 //	         " con el piloto seguiria sola: hoom item set <slug> --auto hasta-humano"
@@ -522,6 +524,9 @@
 //	B  " <column_name> · gasto <g>[ · escribió <writer>][ · revisó <reviewer>]"
 //	   " rojo: <red.plain>"                  (only with red, in red; red.reason in expert mode)
 //	   " doctor: <plain>: <action>"          (one per problem of the card; What when Plain is "")
+//	   " <Pendientes.Texto>"                 (only when the card's Pendientes.Texto is not "": the
+//	                                         spec puts the line of pendientes in the rest, after the
+//	                                         doctor and before the meter)
 //	C  "  <sign> <label>: <detail>"          (one per segment of the meter; "  <sign> <label>"
 //	                                         without detail; only when the card has a meter)
 //	D  " Spec · <n> criterios · <k> sin prueba"
@@ -570,7 +575,6 @@
 //	" TE TOCA " + "enter <label> · <help>"      (or "nada: <text>")
 //	" SIGUE   " + phrase
 //	" CAMINO  " + the 8 signs + " paso <i> de 8: <name>"
-//	" " + pendientes                            (only when not "": decision, its own line here)
 //
 // then the empty line and parts B to G. AHORA carries only its phrase: no
 // gray line, no bar, no expert lines; SIGUE has no gray line.
@@ -990,9 +994,12 @@
 //	"  clic en un modal  enfoca un campo, elige una opcion o un boton"
 //	"  para seleccionar texto con el mouse, manten Option (macOS) o Shift"
 //
-// and without it "  apagado: HOOM_MOUSE=0". It is B lines tall when its
-// lines do not fit (its bottom border says "<n> de <m>", n the number of
-// the last line in view and m of all of them), starts at its first line,
+// and without it "  apagado: HOOM_MOUSE=0". These lines wrap as the rows
+// do: at their words, each continuation from the column of Hace, 20 (the
+// last line's first line in the whole width after its "  "). It is B
+// lines tall when its lines do not fit (its bottom border says "<n> de
+// <m>", n the number of the last line in view and m of all of them),
+// starts at its first line,
 // scrolls with ↑ ↓ k j (one line), pgup pgdn (its inner height) and the
 // wheel (3 lines), and esc or ? close it.
 //

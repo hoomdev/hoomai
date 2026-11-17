@@ -26,12 +26,14 @@ type asiento struct {
 	tipo     int
 	etiqueta string // a verb's: the action's label
 	slug     string
-	estado   string // a verb's: estadoLanzando, estadoCorriendo, estadoHecho or "fallo: <...>"
-	archivo  string // the editor's
-	linea    int
-	texto    string // the end of a job's
-	estilo   estilo // the end of a job's: green or red
-	comando  string // its second line ("" for the end of a job)
+	estado   string // a verb's: estadoLanzando, estadoCorriendo, estadoHecho, "fallo: <...>" or "se detuvo: <...>"
+	// estadoEstilo is the color of a "se detuvo: <...>" (green or red)
+	estadoEstilo estilo
+	archivo      string // the editor's
+	linea        int
+	texto        string // the end of a job's
+	estilo       estilo // the end of a job's: green or red
+	comando      string // its second line ("" for the end of a job)
 }
 
 // primera is its first line after "<HH:MM> ", in pieces.
@@ -52,47 +54,27 @@ func (a *asiento) primeraLinea(s signos) linea {
 		return l.mas("lanzando" + s.puntos)
 	case strings.HasPrefix(a.estado, "fallo: "):
 		return l.masCon(a.estado, rojo)
+	case a.estadoEstilo != normal:
+		return l.masCon(a.estado, a.estadoEstilo)
 	}
 	return l.mas(a.estado)
 }
 
 func (a *asiento) primera(s signos) string { return a.primeraLinea(s).plano() }
 
-// lineas are the entry's lines in the panel, with their margin.
+// lineas are the entry's lines in the Registro modal: "<HH:MM> <first>"
+// and "      <comando>".
 func (a *asiento) lineas(s signos) []linea {
-	uno := append(lin(" "+a.hora.Format("15:04")+" "), a.primeraLinea(s)...)
+	uno := append(lin(a.hora.Format("15:04")+" "), a.primeraLinea(s)...)
 	if a.tipo == asientoFin {
 		return []linea{uno.todaCon(a.estilo)}
 	}
-	return []linea{uno, lin("       " + s.enPantalla(unaLinea(a.comando)))}
+	return []linea{uno, lin("      " + s.enPantalla(unaLinea(a.comando)))}
 }
 
-// contenidoRegistro is the Registro's content for h inner lines: the newest
-// whole entries that fit, the oldest of them on top.
-func (m *Modelo) contenidoRegistro(h int) []linea {
+// tituloRegistro is the folded Registro's title, with its newest entry.
+func (m *Modelo) tituloRegistro() linea {
 	if len(m.registro) == 0 {
-		return []linea{lin(" todavia no se ejecuto nada")}
-	}
-	var bloques [][]linea
-	n := 0
-	for i := len(m.registro) - 1; i >= 0; i-- {
-		ls := m.registro[i].lineas(m.s)
-		if n+len(ls) > h && len(bloques) > 0 {
-			break
-		}
-		bloques = append(bloques, ls)
-		n += len(ls)
-	}
-	var out []linea
-	for i := len(bloques) - 1; i >= 0; i-- {
-		out = append(out, bloques[i]...)
-	}
-	return out
-}
-
-// tituloRegistro is the Registro's title; folded, with its newest entry.
-func (m *Modelo) tituloRegistro(plegado bool) linea {
-	if !plegado || len(m.registro) == 0 {
 		return lin("Registro")
 	}
 	a := m.registro[len(m.registro)-1]

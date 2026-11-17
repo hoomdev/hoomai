@@ -307,6 +307,25 @@ func (t *tree) once(what string, f func()) {
 	}
 }
 
+// veredictoDelSobre is the verdict the newest closed envelope of es emitted
+// (in the pilot's order: by StartedAt, then by ID), read from the evidence
+// tree t and then from the root's, partial ones included; nil when that
+// envelope emitted none, it cannot be read, or none is closed.
+func (g *gatherer) veredictoDelSobre(es []EnvelopeState, t *tree) *verdict.Verdict {
+	last := ultimoCerrado(es)
+	if last == nil || last.VerdictID == "" {
+		return nil
+	}
+	for _, tr := range []*tree{t, g.tree(g.root)} {
+		for _, v := range tr.allVerdicts() {
+			if v.ID == last.VerdictID {
+				return v
+			}
+		}
+	}
+	return nil
+}
+
 func (t *tree) allVerdicts() []*verdict.Verdict {
 	t.once("verdicts", func() {
 		var warnings []string
@@ -638,6 +657,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 	ev.Uncommitted = g.uncommitted(ev, t, dir, cardVerdicts, cardFindings)
 	ev.Envelopes, ev.Runs = g.telemetry(s, dir)
+	ev.VeredictoDelSobre = g.veredictoDelSobre(ev.Envelopes, t)
 	ev.Providers = g.installed()
 	ev.Defaults = g.roleDefaults()
 	ev.Signer = t.identity()

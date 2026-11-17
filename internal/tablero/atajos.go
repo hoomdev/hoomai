@@ -2,21 +2,6 @@ package tablero
 
 import "github.com/hoomdev/hoomai/internal/boardcmd"
 
-// panel is one of the v2's five panels by its number. The v3 has no
-// numbered panels: the model still keeps the list ([2] the cards, [4] the
-// findings), the detail ([0]) and the project's detail ([1]) apart with it,
-// but what the outside sees is a Zona and a Vista.
-type panel int
-
-// The panels, with their v2 number.
-const (
-	panelPrincipal panel = 0 // the detail
-	panelProyecto  panel = 1 // the detail of the project (v)
-	panelTarjetas  panel = 2 // the list of cards
-	panelCorriendo panel = 3 // no longer a panel: the group CORRIENDO
-	panelHallazgos panel = 4 // the list of the Hallazgos view
-)
-
 // Zona is one of the two zones that take the focus: the list or the
 // detail (CA-706). There is always one with the focus; at the start it is
 // the list.
@@ -124,14 +109,6 @@ var (
 		LugarVerProyecto, LugarVerTarjeta, LugarVerHallazgo, LugarVerNada, LugarBusqueda,
 		LugarPedirSelector, LugarPedirPedido, LugarPedirTexto, LugarPedirLista, LugarPedirBotones,
 		LugarFirma, LugarGuardar, LugarSeguir, LugarAcciones, LugarAyuda, LugarRegistro}
-)
-
-// The v2's Lugares the v3 no longer has; the model keeps the names until
-// the writer drops them.
-const (
-	lugarProyecto     Lugar = "proyecto"
-	lugarCorriendo    Lugar = "corriendo"
-	lugarVerCorriendo Lugar = "ver-corriendo"
 )
 
 // Atajo is one row of the key table: the keys, how the help writes them,

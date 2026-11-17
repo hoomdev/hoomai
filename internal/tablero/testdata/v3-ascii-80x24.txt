@@ -1,0 +1,24 @@
+ hoom tablero · demo · rama main    check VERDE · verify hace 2h · hoy 3.88 USD
++TU SIGUIENTE PASO------------------------te toca 2 · corriendo 1 · detenida 2-+
+| Pedile el codigo al writer para "Listado de proyectos".  los tests fallan: f~|
+| n pedir al writer    despues: "Exportar reporte a PDF" · "Pagos con tarjeta" |
++------------------------------------------------------------------------------+
+#Tarjetas======================================================================#
+# TE TOCA 2                                                                    #
+# > Listado de proyectos      ####!--- los tests fallan: falta el codigo       #
+#   Exportar reporte a PDF    ##!----- te toca aprobar el spec                 #
+# CORRIENDO 1                                                                  #
+#   Módulo de usuarios        ####*--- writer · 14:02 de 30:00                 #
+# DETENIDA 2                                                                   #
+#=======================================================================1 de 7=#
++Listado de proyectos--------------------------------------------------listado-+
+| AHORA   Los tests estan escritos y fallan, como se espera.           TE TOCA |
+| TE TOCA enter pedir al writer · se abre el pedido para revisarlo antes de la~|
+| SIGUE   despues, te toca pedir la review al reviewer                         |
+| CAMINO  ####!--- paso 5 de 8: Codigo                                         |
+|                                                                              |
+| Writer · gasto sin dato de costo                                             |
++------------------------------------------------------------------------------+
+-Registro-----------------------------------------------------------------------
+
+ enter pedir al writer · n tu siguiente paso · ^v elegir · tab detalle · ? todas
