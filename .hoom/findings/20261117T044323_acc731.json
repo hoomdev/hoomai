@@ -1,0 +1,11 @@
+{
+  "id": "20261117T044323_acc731",
+  "created_at": "2026-11-17T04:43:23.004147Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/tablero/modales.go",
+  "description": "INTRODUCIDO: internal/tablero/modales.go:422-424 agrega y despues: hoom piloto \u003cslug\u003e como una sola linea sin envolver ni comprobar su ancho, mientras firmaCabe en internal/tablero/modales.go:488-492 solo valida cantidad de lineas. Un slug valido puede tener 64 caracteres; en el modal minimo (50 celdas de texto) la orden encadenada queda cortada, pero enter igual aprueba y deja programado el piloto en internal/tablero/modales.go:477-480. Se salta el control de mostrar el comando exacto antes de lanzar un proceso automatico que puede modificar el arbol y gastar presupuesto; CA-717 y el principio de nada a ciegas requieren que la linea completa sea visible.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

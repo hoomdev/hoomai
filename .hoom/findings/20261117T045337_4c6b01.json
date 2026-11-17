@@ -1,0 +1,11 @@
+{
+  "id": "20261117T045337_4c6b01",
+  "created_at": "2026-11-17T04:53:37.297556Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/tablero/atajos.go",
+  "description": "INTRODUCIDO. La sustitucion de Panel por Zona en internal/tablero/atajos.go:7 elimino la API que siguen usando las pruebas heredadas: internal/tablero/tt2_pantalla_test.go:33 referencia tablero.Panel, internal/tablero/tt2_paneles_test.go:327 referencia PanelTarjetas y internal/tablero/tt2_paneles_test.go:1028 referencia LugarVerCorriendo. Una compilacion acotada con go test ./internal/tablero -run ^$ falla con esos undefined, de modo que el paquete de pruebas de la rama no compila pese al veredicto verde suministrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

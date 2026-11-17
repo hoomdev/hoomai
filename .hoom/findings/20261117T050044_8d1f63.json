@@ -1,0 +1,11 @@
+{
+  "id": "20261117T050044_8d1f63",
+  "created_at": "2026-11-17T05:00:44.171049Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/modales.go",
+  "description": "INTRODUCIDO: internal/tablero/modales.go:335-347 representa Firma, Guardar y Seguir solo mediante dos booleanos (firma y seguir), deja Guardar como el estado implicito de ambos en false y permite la combinacion invalida de ambos en true. La codificacion se ramifica en etiquetas, layout, ejecucion y vigencia (lineas 350-365, 403-448, 451-483 y 515-547); un tipo de clase explicito haria exhaustivos y legibles los tres casos.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}

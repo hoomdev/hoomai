@@ -1,0 +1,11 @@
+{
+  "id": "20261117T050106_d600cd",
+  "created_at": "2026-11-17T05:01:06.736753Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tablero/hallazgos_lista.go",
+  "description": "INTRODUCIDO: internal/tablero/hallazgos_lista.go:163-258 coloca bajo un archivo llamado hallazgos_lista la presentacion del proyecto (lineaCheck y contenido1) y formateadores genericos de tiempo, costo y etapa que consumen pantalla.go, detalle.go, documentos.go y lista.go. Esa cohesion por descarte vuelve impredecible donde buscar o modificar codigo no relacionado con hallazgos; separar proyecto y formato compartido, o usar un nombre que refleje el contenido, haria navegable la nueva estructura.",
+  "author": "reviewer@codex",
+  "fingerprint": "3acef19ca7606543",
+  "task": "tablero-tu-siguiente-paso"
+}
