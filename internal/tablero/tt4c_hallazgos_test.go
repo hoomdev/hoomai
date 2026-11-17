@@ -7,8 +7,9 @@
 //     no entra entera a lo ancho nunca se firma; el comando de la accion
 //     cortado, por si solo, no la frena (CA-717, CA-574);
 //  2. un trabajo que el tablero lanzo sobre la tarjeta levanta la parada del
-//     piloto al terminar, aunque ninguna lectura lo haya visto correr
-//     (CA-715);
+//     piloto al terminar, aunque ninguna lectura lo haya visto correr; el que
+//     no pudo arrancar (su FinProceso con codigo -1) no la levanta (CA-715,
+//     hallazgos 755290 y a0d940);
 //  3. la parada toma la columna de la primera lectura empezada despues del
 //     fin del piloto (CA-715, CA-717);
 //  4. si el tablero se cierra mientras corre el hoom aprobar de una firma con
@@ -301,6 +302,96 @@ func TestV3C_CA715_LoQueNoEsUnTrabajoNoLevantaLaParada(t *testing.T) {
 		t.Fatalf("%s: precondicion del spec: k vuelve a sola: %q", ca, m.Elegida())
 	}
 	tv3cPNoAbre(t, ca, "tras el fin del writer de otra tarjeta", m, msg)
+}
+
+// tv3cHAhoraDetenido es la frase de AHORA de una tarjeta cuyo piloto se
+// detuvo con la parada en pie (doc.go, AHORA: "a pilot of this board that
+// stopped, its stop still standing"; la linea gris es el motivo).
+const tv3cHAhoraDetenido = "El piloto se detuvo."
+
+// tv3cHAhoraDice dice si el detalle (en 200 columnas) tiene la frase de AHORA
+// "El piloto se detuvo." seguida de la linea gris motivo.
+func tv3cHAhoraDice(m *tablero.Modelo, motivo string) bool {
+	ls := tv3cInteriorDetalle(m, 200)
+	for i := 0; i+1 < len(ls); i++ {
+		if strings.TrimSpace(ls[i]) == tv3cHAhoraDetenido && strings.TrimSpace(ls[i+1]) == motivo {
+			return true
+		}
+	}
+	return false
+}
+
+// tv3cHParadaEnPie exige la parada en pie, como la ven P y la pantalla: P no
+// abre nada, no ordena nada y la linea de mensajes dice msg; el AHORA del
+// detalle dice "El piloto se detuvo." y su motivo.
+func tv3cHParadaEnPie(t *testing.T, ca, que string, m *tablero.Modelo, msg, motivo string) {
+	t.Helper()
+	tv3cPNoAbre(t, ca, que, m, msg)
+	if !tv3cHAhoraDice(m, motivo) {
+		t.Fatalf("%s: [%s] con la parada en pie el AHORA del detalle dice %q y %q:\n%s", ca, que,
+			tv3cHAhoraDetenido, motivo, strings.Join(tv3cInteriorDetalle(m, 200), "\n"))
+	}
+}
+
+// CA-715, hallazgos 755290 y a0d940: un rol que no llego a arrancar no corrio
+// sobre la tarjeta, asi que su fin no levanta la parada del piloto (doc.go,
+// "A pilot's stop": "A job that could not start (its FinProceso has code -1)
+// did not run: its end does not lift the stop"). El piloto que el tablero
+// lanzo sobre sola se detiene con 1 ("un rojo final"); el tablero lanza el
+// writer sobre la misma tarjeta y su FinProceso llega con -1. La parada sigue
+// en pie con el writer sin terminar, tras su fin con -1 sin otra lectura y
+// tras una lectura sin cambios: P no abre nada, no ordena nada y dice "el
+// piloto se detuvo: un rojo final"; el AHORA del detalle dice "El piloto se
+// detuvo." y "un rojo final"; y enter no abre Seguir solo (no es el paso).
+func TestV3C_CA715_UnRolQueNoArrancoNoLevantaLaParada(t *testing.T) {
+	defer tv3cSinPanico(t)
+	const ca = "CA-715"
+	const motivo = "un rojo final"
+	sola := tv3cSola("sola", "Sola", boardcmd.ColWriter)
+	m := tv3cModelo(tv3cConfig(200, 40), sola)
+	msg := tv3cHParada(t, m, sola)
+	tv3cHParadaEnPie(t, ca, "con la parada del piloto", m, msg, motivo)
+	w := tv3cHPedirWriter(t, m, "sola")
+	tv3cHParadaEnPie(t, ca, "con el writer lanzado y sin terminar", m, msg, motivo)
+	ttSinOrdenes(t, ca, "el fin con -1 del writer", tv3cFin(m, w.ID, -1, "no se pudo arrancar el proceso"))
+	tv3cHParadaEnPie(t, ca, "tras el fin con -1 del writer, sin lectura", m, msg, motivo)
+	tv3cLeer(m, sola)
+	tv3cHParadaEnPie(t, ca, "tras el fin con -1 del writer y una lectura sin running", m, msg, motivo)
+	if got := ttTeclas(m, tablero.TeclaEnter); len(got) != 0 || m.Modal() == tablero.ModalSeguir {
+		t.Fatalf("%s: con la parada en pie Seguir solo no es el paso: enter dio %#v, modal %q", ca, got, m.Modal())
+	}
+}
+
+// CA-715, hallazgos 755290 y a0d940, el otro lado: un rol que arranco y fallo
+// (codigo 1, o 2) si corrio sobre la tarjeta, y su fin levanta la parada;
+// solo -1 dice que no arranco. Mismo armado que el anterior: con el writer
+// sin terminar la parada sigue en pie; tras su fin, P abre Seguir solo
+// (antes de otra lectura y despues de una sin cambios) y el AHORA del detalle
+// ya no dice "El piloto se detuvo.".
+func TestV3C_CA715_UnRolQueArrancoYFallaLevantaLaParada(t *testing.T) {
+	defer tv3cSinPanico(t)
+	const ca = "CA-715"
+	const motivo = "un rojo final"
+	sola := tv3cSola("sola", "Sola", boardcmd.ColWriter)
+	for _, code := range []int{1, 2} {
+		que := fmt.Sprintf("tras el fin con %d del writer", code)
+		m := tv3cModelo(tv3cConfig(200, 40), sola)
+		msg := tv3cHParada(t, m, sola)
+		w := tv3cHPedirWriter(t, m, "sola")
+		tv3cHParadaEnPie(t, ca, "con el writer lanzado y sin terminar", m, msg, motivo)
+		ttSinOrdenes(t, ca, "el fin del writer", tv3cFin(m, w.ID, code, "el writer fallo"))
+		tv3cPAbre(t, ca, que+", sin lectura", m)
+		if tv3cDetalleTiene(m, 200, tv3cHAhoraDetenido) {
+			t.Fatalf("%s: [%s, sin lectura] sin la parada el AHORA no dice %q:\n%s", ca, que, tv3cHAhoraDetenido,
+				strings.Join(tv3cInteriorDetalle(m, 200), "\n"))
+		}
+		tv3cLeer(m, sola)
+		tv3cPAbre(t, ca, que+" y una lectura sin running", m)
+		if tv3cDetalleTiene(m, 200, tv3cHAhoraDetenido) {
+			t.Fatalf("%s: [%s y una lectura] sin la parada el AHORA no dice %q:\n%s", ca, que, tv3cHAhoraDetenido,
+				strings.Join(tv3cInteriorDetalle(m, 200), "\n"))
+		}
+	}
 }
 
 // ===========================================================================

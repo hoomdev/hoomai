@@ -236,6 +236,77 @@ func TestCA528_LanzadorDeSinBinario(t *testing.T) {
 	}
 }
 
+// CA-528 y CA-715, hallazgos 755290 y a0d940: el FinProceso de LanzadorDe
+// nunca trae -1 para un proceso que arranco; -1 es solo el Lanzar que fallo
+// (FinProceso.Code). Un rol que una senal termino si corrio sobre la tarjeta,
+// asi que su fin levanta la parada del piloto (doc.go, "A pilot's stop"); por
+// eso su Code es 128 + el numero de la senal, como el de Run: el hoom falso
+// que se mata con SIGTERM (kill -TERM $$) da 143 y con SIGKILL da 137. El fin
+// llega una sola vez, con el ID de la orden, y su Ultima es la ultima linea
+// que escribio en stderr antes de matarse. El que se mata sin escribir nada
+// (stdout y stderr vacios) da el mismo codigo, y su Ultima no queda vacia: es
+// el error de la espera (LanzadorDe: "when the files say nothing, its Ultima
+// is the error"; el texto exacto no es contrato). Como control, el que sale
+// con 3 da 3: la salida normal no cambia. Si la senal no lo matara, el hoom
+// falso sale con 9 (y el test lo dice).
+func TestCA528_CA715_LanzadorDeSenalEs128MasN(t *testing.T) {
+	for _, c := range []struct {
+		nombre, accion string
+		code           int
+		dice           bool // escribe en stdout y stderr antes de la accion
+	}{
+		{"SIGTERM", "kill -TERM $$", 128 + int(unix.SIGTERM), true},
+		{"SIGKILL", "kill -KILL $$", 128 + int(unix.SIGKILL), true},
+		{"SIGTERM sin decir nada", "kill -TERM $$", 128 + int(unix.SIGTERM), false},
+		{"SIGKILL sin decir nada", "kill -KILL $$", 128 + int(unix.SIGKILL), false},
+		{"exit 3", "exit 3", 3, true},
+	} {
+		t.Run(c.nombre, func(t *testing.T) {
+			if strings.HasPrefix(c.nombre, "SIGTERM") && c.code != 143 || strings.HasPrefix(c.nombre, "SIGKILL") && c.code != 137 {
+				t.Fatalf("CA-528: precondicion: SIGTERM es 15 y SIGKILL 9 en Unix: %s da %d", c.nombre, c.code)
+			}
+			base, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			dice := ""
+			if c.dice {
+				dice = "printf '%s\\n' 'una linea de stdout'\n" +
+					"printf '%s\\n' 'algo antes' 'el writer recibio una senal' >&2\n"
+			}
+			hoom := ttScript(t, filepath.Join(base, "bin", "hoom"), dice+c.accion+"\nsleep 5\nexit 9\n")
+			l := ttLanzadorDe(t, hoom, base, filepath.Join(base, "logs"))
+			fines := ttNuevosFines()
+			if err := l.Lanzar(tablero.Lanzar{ID: 11, Slug: "tarjeta", Rol: "writer",
+				Args: []string{"pedir", "writer", "tarjeta", "-m", "x"}}, fines.fin); err != nil {
+				t.Fatalf("CA-528: [%s] Lanzar arranca el proceso: %v", c.nombre, err)
+			}
+			select {
+			case <-fines.llego:
+			case <-time.After(10 * time.Second):
+				t.Fatalf("CA-528: [%s] fin llega cuando el proceso termina", c.nombre)
+			}
+			time.Sleep(200 * time.Millisecond)
+			fs := fines.copia()
+			if len(fs) != 1 {
+				t.Fatalf("CA-528: [%s] fin llega una sola vez: %#v", c.nombre, fs)
+			}
+			if fs[0].Code == -1 {
+				t.Fatalf("CA-528 y CA-715: [%s] un proceso que arranco nunca termina con -1: %#v", c.nombre, fs[0])
+			}
+			if fs[0].ID != 11 || fs[0].Code != c.code {
+				t.Fatalf("CA-528 y CA-715: [%s] fin trae el ID 11 y el codigo %d: %#v", c.nombre, c.code, fs[0])
+			}
+			if c.dice && fs[0].Ultima != "el writer recibio una senal" {
+				t.Fatalf("CA-528: [%s] Ultima es la ultima linea no vacia de stderr: %#v", c.nombre, fs[0])
+			}
+			if !c.dice && strings.TrimSpace(fs[0].Ultima) == "" {
+				t.Fatalf("CA-528: [%s] sin nada en los archivos, Ultima es el error de la espera, no vacia: %#v", c.nombre, fs[0])
+			}
+		})
+	}
+}
+
 // ttEditorDe es EditorDe, que tiene que dar un Editor.
 func ttEditorDe(t *testing.T, comando string) tablero.Editor {
 	t.Helper()
