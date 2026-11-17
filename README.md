@@ -971,7 +971,41 @@ a siempre; si el Studio no te convence, lo cerras y no paso nada.
 
 Que trae:
 
-- **Cockpit (protagonista de la pantalla)**: elegis el provider de IA entre
+- **Ahora (la portada)**: la pestaña que abre el Studio. Arriba, la banda
+  **TU SIGUIENTE PASO**: `te toca · corriendo · detenida` con sus numeros, la
+  frase de la tarjeta que te espera (`Firmá el spec de «...».`), su motivo,
+  el boton de su paso y `Ver la tarjeta`, y `después:` las que siguen; sin
+  nada que te espere, dice que hace hoom o que podes empezar. Debajo, las
+  tarjetas por quien tiene la pelota, en el orden del tablero de la
+  terminal: **Te toca** (lo que hoom no firma ni acepta por vos), **En
+  curso** (el rol, el provider, hace cuanto y su tope, y que sigue),
+  **Detenidas** (por que paro y sus acciones), **En cola** y **Hecho** (las 5
+  primeras). Cada boton abre el mismo dialogo y la misma confirmacion que el
+  Tablero: Ahora no decide nada, pinta lo que resolvio el binario. Lee solo
+  `GET /api/board`, cada segundo y solo con la pagina visible.
+- **Tarjeta**: `#tarjeta/<slug>` (el enlace `Ver la tarjeta`) muestra una
+  tarjeta entera: su camino de 8 pasos de tu firma a tu aceptacion, AHORA (que
+  esta haciendo, con el tiempo de su trabajo contra el tope), SIGUE (que pasa
+  despues y como encender el piloto), su historia paso a paso, sus topes
+  (presupuesto), su evidencia (el veredicto gate por gate, `FAIL esperado`
+  en el rojo del test-writer, hallazgos que bloquean y pendientes) y sus
+  acciones. Lee `GET /api/board/{slug}` y su `/timeline`. El hash dice la
+  pantalla: vacio o `#ahora` es Ahora, `#tablero` y `#cockpit` las pestañas
+  de siempre, y el boton Atras del navegador funciona.
+- **Quien tiene la pelota, una sola vez**: la regla del tablero v3 (grupo,
+  paso, frases, camino y orden) vive en `boardcmd` y viaja en el JSON: cada
+  tarjeta de `hoom board --json`, `hoom item show --json` y `/api/board`
+  trae `"pelota"` (`grupo`, `paso` con `accion`, `etiqueta` y `texto`,
+  `frase`, `ahora`, `sigue` y `camino`), y el tablero trae `"pelota"` con
+  `orden`, `caja` y `cuenta`. `hoom tablero` y el Studio la pintan cada uno
+  a su manera: el tablero solo suma su piloto, Seguir solo y sus teclas.
+- **La linea grafica hoomdev**: los colores de la marca (`--hd-*` en el
+  `:root`) y sus fuentes, Space Grotesk para el texto y JetBrains Mono para
+  todo valor de maquina, embebidas en el binario (`ui/fuentes/`) y servidas
+  desde el mismo origen: el Studio sigue sin pedir nada a la red. Las dos son
+  SIL Open Font License 1.1; el texto de la licencia y su copyright estan en
+  `internal/servecmd/licencias/`.
+- **Cockpit**: elegis el provider de IA entre
   las CLIs que tenes instaladas (`hoom providers` las detecta por PATH),
   escribis el pedido y el Studio lanza TU CLI en modo headless (`hoom run`)
   sobre el proyecto o el worktree de una tarea. hoomAI nunca llama a una API
