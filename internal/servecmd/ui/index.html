@@ -5,28 +5,53 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HoomAI Studio</title>
 <style>
-  /* Autocontenido por contrato (CA-10): sin fuentes, scripts ni estilos externos. */
+  /* Autocontenido por contrato (CA-10): sin fuentes, scripts ni estilos externos.
+     Las fuentes de la linea grafica hoomdev viajan embebidas en el binario
+     (ui/fuentes/, SIL OFL 1.1: internal/servecmd/licencias/) y se sirven
+     desde el mismo origen. */
+  @font-face { font-family: "Space Grotesk"; src: url("fuentes/SpaceGrotesk-400.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Space Grotesk"; src: url("fuentes/SpaceGrotesk-500.ttf") format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Space Grotesk"; src: url("fuentes/SpaceGrotesk-700.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url("fuentes/JetBrainsMono-400.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url("fuentes/JetBrainsMono-500.ttf") format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
   :root {
-    --surface: #1a1a19;
-    --panel: #232322;
-    --panel-2: #2b2b29;
-    --border: #3a3a37;
+    /* la linea grafica hoomdev (studio-tu-siguiente-paso) */
+    --hd-carbon: #0d1117;       /* fondo de pagina; texto sobre verde */
+    --hd-carbon-900: #090c10;   /* hundido (cajas de comando) */
+    --hd-grafito: #21262d;      /* tarjetas y paneles */
+    --hd-grafito-700: #2d333b;  /* boton secundario */
+    --hd-borde: #30363d;        /* todo borde */
+    --hd-blanco: #ffffff;       /* titulos */
+    --hd-gris-claro: #c9d1d9;   /* texto */
+    --hd-gris: #8b949e;         /* atenuado */
+    --hd-verde: #3ed18b;        /* marca, boton primario, trabajo abierto, VERDE */
+    --hd-verde-gate: #0ca30c;   /* PASS */
+    --hd-amarillo: #fab219;     /* te toca */
+    --hd-naranja: #ec835a;      /* error */
+    --hd-rojo: #d03b3b;         /* detenida, FAIL */
+    --hd-azul: #3987e5;         /* corriendo, foco */
+    /* las de hoy: las vistas viejas toman la paleta sin cambiar su CSS */
+    --surface: #0d1117;
+    --panel: #21262d;
+    --panel-2: #2d333b;
+    --border: #30363d;
     --text: #ffffff;
-    --text-2: #c3c2b7;
-    --text-3: #8a897f;
+    --text-2: #c9d1d9;
+    --text-3: #8b949e;
     --good: #0ca30c;
     --warning: #fab219;
     --serious: #ec835a;
     --critical: #d03b3b;
     --accent: #3987e5;
     --human: #a07cf0; /* las dos columnas humanas de la cabina */
-    --mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+    --nucleo: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     background: var(--surface); color: var(--text);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.5 var(--nucleo);
   }
   header {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -44,7 +69,7 @@
   nav { display: flex; gap: 6px; }
   button.act {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 5px 12px; font: 600 12.5px system-ui, sans-serif;
+    border-radius: 6px; padding: 5px 12px; font: 600 12.5px var(--nucleo);
     cursor: pointer; white-space: nowrap;
   }
   button.act:hover { border-color: var(--accent); }
@@ -60,11 +85,11 @@
   .dispatchbar { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; flex: none; }
   .dispatchbar select {
     background: var(--panel); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif;
+    border-radius: 6px; padding: 6px 8px; font: 13px var(--nucleo);
   }
   .dispatchbar textarea {
     flex: 1; min-width: 220px; background: var(--panel); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 7px 9px; font: 13px system-ui, sans-serif; min-height: 44px; resize: vertical;
+    border-radius: 6px; padding: 7px 9px; font: 13px var(--nucleo); min-height: 44px; resize: vertical;
   }
   #cockpit, #runview { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
   .rrow {
@@ -131,7 +156,7 @@
     box-shadow: 0 0 0 1px var(--good), 0 0 16px rgba(12,163,12,.28);
   }
   .card .face { font-size: 26px; line-height: 1; }
-  .card .who { font: 650 13px system-ui, sans-serif; color: var(--text); }
+  .card .who { font: 650 13px var(--nucleo); color: var(--text); }
   .card .who small { color: var(--text-3); font-weight: 400; }
   .card .acts { color: var(--text-3); font-size: 11.5px; }
   .card .acts b { color: var(--good); font-weight: 650; }
@@ -211,7 +236,7 @@
   .dbar { display: flex; gap: 8px; padding: 10px 16px; align-items: center; flex-wrap: wrap; }
   .dbar input[type=text], .dbar textarea {
     flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border);
-    border-radius: 6px; padding: 6px 8px; font: 13px system-ui, sans-serif;
+    border-radius: 6px; padding: 6px 8px; font: 13px var(--nucleo);
   }
   .dbar input.mono { font-family: var(--mono); }
   .dbar textarea { flex: 1 1 100%; min-height: 54px; resize: vertical; }
@@ -258,7 +283,7 @@
   .tabs { display: flex; gap: 4px; flex: none; border-bottom: 1px solid var(--border); }
   .tabs .tab {
     background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-3);
-    padding: 6px 14px; font: 600 13px system-ui, sans-serif; cursor: pointer; margin-bottom: -1px;
+    padding: 6px 14px; font: 600 13px var(--nucleo); cursor: pointer; margin-bottom: -1px;
   }
   .tabs .tab:hover { color: var(--text); }
   .tabs .tab.on { color: var(--text); border-bottom-color: var(--accent); }
@@ -268,12 +293,12 @@
   .seg-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .seg-toggle button {
     background: var(--panel); color: var(--text-3); border: 0; padding: 5px 11px;
-    font: 600 12.5px system-ui, sans-serif; cursor: pointer;
+    font: 600 12.5px var(--nucleo); cursor: pointer;
   }
   .seg-toggle button.on { background: var(--panel-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
   button.pill {
     background: var(--panel); color: var(--text-2); border: 1px solid var(--border); border-radius: 999px;
-    padding: 4px 12px; font: 600 12.5px system-ui, sans-serif; cursor: pointer;
+    padding: 4px 12px; font: 600 12.5px var(--nucleo); cursor: pointer;
   }
   button.pill.on { color: var(--human); border-color: var(--human); }
   .tberr { color: var(--critical); font-size: 12.5px; }
@@ -358,7 +383,7 @@
   .tacc { display: flex; flex-wrap: wrap; gap: 4px; }
   .tacc:empty { display: none; }
   .tact {
-    font: 600 11.5px system-ui, sans-serif; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+    font: 600 11.5px var(--nucleo); padding: 3px 8px; border-radius: 6px; cursor: pointer;
     border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
   }
   .tact:hover { border-color: var(--accent); color: var(--text); }
@@ -380,7 +405,7 @@
   #accdlg .fld { display: grid; gap: 4px; margin-bottom: 10px; font-size: 12.5px; color: var(--text-2); }
   #accdlg .fld label { color: var(--text-3); font-weight: 600; }
   #accdlg select, #accdlg input, #accdlg textarea {
-    font: 13px system-ui, sans-serif; color: var(--text); background: var(--surface);
+    font: 13px var(--nucleo); color: var(--text); background: var(--surface);
     border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
   }
   #accdlg textarea { min-height: 110px; resize: vertical; }
@@ -407,7 +432,7 @@
   .dtabs { display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--border); flex: none; }
   .dtabs .tab {
     background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-3);
-    padding: 8px 14px; font: 600 13px system-ui, sans-serif; cursor: pointer; margin-bottom: -1px;
+    padding: 8px 14px; font: 600 13px var(--nucleo); cursor: pointer; margin-bottom: -1px;
   }
   .dtabs .tab.on { color: var(--text); border-bottom-color: var(--accent); }
   .dbody { flex: 1; min-height: 0; overflow-y: auto; }
@@ -422,6 +447,110 @@
   #tb-diff { margin: 8px 16px 16px; border: 1px solid var(--border); border-radius: 8px; }
   #tb-diff summary { padding: 8px 12px; cursor: pointer; color: var(--text-2); font-size: 12.5px; }
   #tb-diff pre.tail { max-height: 520px; overflow: auto; margin: 0 12px 12px; white-space: pre; }
+  /* ---- Ahora y Tarjeta (studio-tu-siguiente-paso): la linea hoomdev ---- */
+  .ah-vista { flex: 1; min-height: 0; overflow-y: auto; color: var(--hd-gris-claro); }
+  .ah-pag { max-width: 1120px; margin: 0 auto; padding: 8px 24px 28px; display: flex; flex-direction: column; gap: 18px; }
+  .ah-pag > * { min-width: 0; }
+  .ah-pag p { margin: 0; }
+  .ah-gris { color: var(--hd-gris); }
+  .ah-mono { font-family: var(--mono); overflow-wrap: anywhere; }
+  .ah-err, .ah-aviso { color: var(--hd-naranja); }
+  .ah-vista a { color: var(--hd-gris-claro); }
+  .ah-vista a:focus-visible, .ah-vista button:focus-visible { outline: 2px solid var(--hd-azul); outline-offset: 2px; }
+  .ah-banda {
+    background: var(--hd-grafito); border: 1px solid var(--hd-borde); border-radius: 10px;
+    padding: 18px 20px; display: grid; gap: 10px;
+  }
+  .ah-banda.amarilla { border-color: var(--hd-amarillo); }
+  .ah-banda-cab {
+    display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--hd-gris);
+  }
+  .ah-cuenta { font-family: var(--mono); font-weight: 400; letter-spacing: 0; }
+  .ah-frase { font-size: 25px; font-weight: 500; line-height: 1.25; color: var(--hd-blanco); }
+  .ah-botones { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .ah-btn, .ah-btn2 {
+    min-height: 44px; padding: 0 18px; border-radius: 6px; display: inline-flex; align-items: center;
+    font: 700 14px var(--nucleo); cursor: pointer; text-decoration: none;
+  }
+  .ah-btn { background: var(--hd-verde); border: 1px solid var(--hd-verde); color: var(--hd-carbon); }
+  .ah-vista a.ah-btn2, .ah-btn2 {
+    background: var(--hd-grafito-700); border: 1px solid var(--hd-borde); color: var(--hd-blanco); font-weight: 500;
+  }
+  .ah-badge {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 4px;
+  }
+  .ah-badge.te-toca { background: var(--hd-amarillo); color: var(--hd-carbon); }
+  .ah-badge.corriendo { background: var(--hd-azul); color: var(--hd-carbon); }
+  .ah-badge.detenida { background: var(--hd-rojo); color: var(--hd-blanco); }
+  .ah-chip { font-size: 12px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--hd-borde); color: var(--hd-gris-claro); }
+  .ah-chip.verde { color: var(--hd-verde); border-color: var(--hd-verde); }
+  .ah-sec { display: grid; gap: 10px; }
+  .ah-sec-cab h2 { margin: 0; font-size: 18px; font-weight: 500; color: var(--hd-blanco); }
+  .ah-sec-cab p { color: var(--hd-gris); font-size: 13px; }
+  .ah-grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; }
+  .ah-tarj {
+    background: var(--hd-grafito); border: 1px solid var(--hd-borde); border-radius: 10px;
+    padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start;
+  }
+  .ah-tarj h3 { margin: 0; font-size: 18px; font-weight: 500; color: var(--hd-blanco); }
+  .ah-verde { color: var(--hd-verde); font-weight: 700; }
+  .ah-fila {
+    background: var(--hd-grafito); border: 1px solid var(--hd-borde); border-left: 3px solid var(--hd-verde);
+    border-radius: 8px; padding: 14px 16px; display: grid; gap: 16px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ah-col { display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .ah-etq { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--hd-gris); }
+  .ah-barra { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+  .ah-barra span { height: 6px; border-radius: 2px; background: var(--hd-borde); }
+  .ah-barra .hecho { background: var(--hd-verde); }
+  .ah-barra .actual { background: var(--hd-azul); }
+  .ah-hundida {
+    background: var(--hd-carbon-900); border: 1px solid var(--hd-borde); border-radius: 6px; padding: 8px 10px;
+    font: 12.5px var(--mono); color: var(--hd-gris-claro); white-space: pre-wrap; word-break: break-word;
+  }
+  .ah-linea { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--hd-borde); }
+  .ah-vista a.ah-titulo-link { color: var(--hd-blanco); text-decoration: none; font-weight: 500; }
+  .ah-pie { color: var(--hd-gris); font-size: 12px; border-top: 1px solid var(--hd-borde); padding-top: 12px; }
+  .tj-cab { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .tj-cab h1 { margin: 0; font-size: 31px; font-weight: 500; line-height: 1.2; color: var(--hd-blanco); }
+  .tj-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tj-panel {
+    background: var(--hd-grafito); border: 1px solid var(--hd-borde); border-radius: 10px;
+    padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start;
+  }
+  .tj-panel.abierto { border-left: 3px solid var(--hd-verde); }
+  .tj-panel h2 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--hd-gris); }
+  .tj-camino { overflow-x: auto; }
+  .tj-camino ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(8, minmax(84px, 1fr)); gap: 6px; }
+  .tj-camino li { display: grid; gap: 4px; font-size: 12.5px; }
+  .tj-camino .barra { height: 6px; border-radius: 2px; background: var(--hd-borde); }
+  .tj-camino .hecho .barra { background: var(--hd-verde); }
+  .tj-camino .actual.te-toca .barra { background: var(--hd-amarillo); }
+  .tj-camino .actual.corriendo .barra { background: var(--hd-azul); }
+  .tj-camino .actual.detenida .barra { background: var(--hd-rojo); }
+  .tj-camino .nombre { font-weight: 700; color: var(--hd-blanco); }
+  .tj-camino .estado { color: var(--hd-gris); }
+  .tj-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .tj-col { display: grid; gap: 16px; min-width: 0; }
+  .tj-barra { height: 6px; border-radius: 2px; background: var(--hd-borde); overflow: hidden; }
+  .tj-barra span { display: block; height: 100%; background: var(--hd-azul); }
+  .tj-gasto span { background: var(--hd-verde); }
+  .tj-gasto.alto span { background: var(--hd-amarillo); }
+  .tj-hist { display: grid; gap: 6px; }
+  .tj-hist > div { display: grid; grid-template-columns: 96px 1fr; gap: 10px; }
+  .tj-gate { display: flex; justify-content: space-between; gap: 10px; font: 12.5px var(--mono); }
+  .tj-gate .pass { color: var(--hd-verde-gate); }
+  .tj-gate .fail { color: var(--hd-rojo); }
+  .tj-gate .esperado { color: var(--hd-amarillo); }
+  .tj-gate .otro { color: var(--hd-gris); }
+  @media (max-width: 760px) {
+    .ah-pag { padding: 8px 0 24px; }
+    .ah-fila, .tj-cols { grid-template-columns: minmax(0, 1fr); }
+    .tj-camino ol { min-width: 680px; }
+  }
 </style>
 </head>
 <body>
@@ -443,11 +572,16 @@
 
 <main>
   <div class="tabs">
-    <button class="tab on" data-tab="cockpit">Cockpit</button>
+    <button class="tab on" data-tab="ahora">Ahora</button>
     <button class="tab" data-tab="tablero">Tablero</button>
+    <button class="tab" data-tab="cockpit">Cockpit</button>
   </div>
-  <!-- cockpit: la pantalla protagonista -->
-  <div id="cockpit">
+  <!-- Ahora: la portada, y Tarjeta, el detalle de una tarjeta (ahora.js
+       pinta lo que /api/board ya resolvio: quien tiene la pelota) -->
+  <div id="ahora" class="ah-vista"><div class="ah-pag"><p class="ah-gris">leyendo el tablero...</p></div></div>
+  <div id="tarjeta" class="ah-vista" style="display:none"></div>
+  <!-- cockpit: el despacho, los runs y el trinquete -->
+  <div id="cockpit" style="display:none">
     <div class="dispatchbar">
       <select id="provider"></select>
       <select id="runtask"><option value="">en el proyecto</option></select>
@@ -1340,5 +1474,6 @@ setInterval(tick, 5000);
 </script>
 <script src="tablero.js"></script>
 <script src="acciones.js"></script>
+<script src="ahora.js"></script>
 </body>
 </html>

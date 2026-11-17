@@ -82,12 +82,20 @@ function guardarModo(m) {
 
 /* ---------- pestañas de la pantalla ---------- */
 
-function mostrarPestana(cual) {
+// la única que muestra y oculta las pestañas: Ahora y su Tarjeta (de
+// ahora.js, que cortan su sondeo al salir), Tablero y Cockpit (con su run
+// abierto). La Tarjeta marca la pestaña Ahora; slug es su tarjeta.
+function mostrarPestana(cual, slug) {
   tb.on = cual === "tablero";
-  for (const b of document.querySelectorAll(".tabs .tab")) b.classList.toggle("on", b.dataset.tab === cual);
+  const marcada = cual === "tarjeta" ? "ahora" : cual;
+  for (const b of document.querySelectorAll(".tabs .tab")) b.classList.toggle("on", b.dataset.tab === marcada);
+  $("ahora").style.display = cual === "ahora" ? "" : "none";
+  $("tarjeta").style.display = cual === "tarjeta" ? "" : "none";
   $("tablero").style.display = tb.on ? "" : "none";
-  $("cockpit").style.display = !tb.on && !runOpen ? "" : "none";
-  $("runview").style.display = !tb.on && runOpen ? "" : "none";
+  $("cockpit").style.display = cual === "cockpit" && !runOpen ? "" : "none";
+  $("runview").style.display = cual === "cockpit" && runOpen ? "" : "none";
+  verAhora(cual === "ahora");
+  verTarjeta(cual === "tarjeta" ? slug : "");
   if (tb.on) arrancarTablero();
   else {
     tb.genB++; // corta el sondeo del tablero
@@ -96,8 +104,9 @@ function mostrarPestana(cual) {
     if (tb.open) cerrarDetalle();
   }
 }
+// cambiar de pestaña escribe el hash: el hash dice la pantalla (ahora.js)
 for (const b of document.querySelectorAll(".tabs .tab"))
-  b.addEventListener("click", () => mostrarPestana(b.dataset.tab));
+  b.addEventListener("click", () => { location.hash = "#" + b.dataset.tab; });
 
 /* ---------- sondeo: 1 s después de cada respuesta, nunca dos a la vez ---------- */
 
