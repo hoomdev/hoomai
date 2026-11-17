@@ -1,0 +1,11 @@
+{
+  "id": "20261117T204412_015e90",
+  "created_at": "2026-11-17T20:44:12.97853Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/servecmd/ui/ahora.js",
+  "description": "INTRODUCIDO por este cambio. internal/servecmd/ui/ahora.js:11: el unico objeto ah mezcla el estado de los dos sondeos y renderizadores, y la mitad de Tarjeta queda representada por abreviaturas como genF, det, hist, ferr, no y pintadoF. En un archivo de 520 lineas, entender una transicion exige rastrear cada sigla por pedirFicha, pintarFicha y visibilitychange; agrupar el estado por pantalla o usar nombres descriptivos haria explicito que dato y generacion pertenecen a cada flujo.",
+  "author": "reviewer@codex",
+  "fingerprint": "5a251aad27e578b4",
+  "task": "studio-tu-siguiente-paso"
+}
