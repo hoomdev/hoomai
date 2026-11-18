@@ -228,6 +228,11 @@ type Card struct {
 	// included.
 	Pendientes Pendientes `json:"pendientes"`
 
+	// Pelota is who has the card's ball (studio-tu-siguiente-paso): its
+	// group, step, phrase, AHORA, SIGUE and path, the rule of `hoom tablero`
+	// resolved once (pelota.go).
+	Pelota Pelota `json:"pelota"`
+
 	// PilotActions (autonomia-entre-firmas) are the role actions the pilot
 	// may launch from ANY column, built by Derive exactly like the ones in
 	// Actions (role, pedido, budget, provider options with their ok and
@@ -477,6 +482,9 @@ type BoardColumn struct {
 type Board struct {
 	Columns  []BoardColumn `json:"columns"`
 	Warnings []string      `json:"warnings"`
+	// Pelota is the board's ball: the list's order, the box's card and the
+	// count of each group (studio-tu-siguiente-paso, pelota.go).
+	Pelota PelotaBoard `json:"pelota"`
 }
 
 // UsageText is the exact usage block of `hoom board`.

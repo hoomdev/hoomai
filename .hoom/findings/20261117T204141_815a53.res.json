@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261117T204141_815a53",
+  "as": "corregido",
+  "evidence": "corregido en 983914a (ahora.js/index.html); test ciego TestHallazgo_2c8a7a_815a53_CA742 en internal/servecmd/studio_hallazgos_a82af1_test.go (10327d3), escrito en un worktree sin la implementacion: ROJO sobre 568b5d0 y VERDE sobre 983914a (go test -count=1 -run TestHallazgo_ ./internal/servecmd/)",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-17T21:19:19.776589Z"
+}

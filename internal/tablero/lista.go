@@ -252,7 +252,7 @@ func (m *Modelo) lineasTarjeta(c *boardcmd.Card, g Grupo, sel bool, w, t int) []
 	if sel {
 		marca = m.s.sel
 	}
-	titulo := tituloDe(c)
+	titulo := boardcmd.TituloDe(c)
 	estado := m.estadoDe(c, g)
 	if !m.ancha() {
 		l := lin(" " + marca + " " + rellenar(cortar(titulo, t, m.s.corte), t) + " ")
@@ -278,7 +278,7 @@ func (m *Modelo) anchoTitulos(gs map[Grupo][]*boardcmd.Card, w int) int {
 			continue
 		}
 		for _, c := range gs[g] {
-			mayor = max(mayor, celdas(limpio(tituloDe(c))))
+			mayor = max(mayor, celdas(limpio(boardcmd.TituloDe(c))))
 		}
 	}
 	return max(8, min(mayor, (w-2-12)/2))

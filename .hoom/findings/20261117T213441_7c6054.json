@@ -1,0 +1,11 @@
+{
+  "id": "20261117T213441_7c6054",
+  "created_at": "2026-11-17T21:34:41.75665Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/servecmd/ui/ahora.js",
+  "description": "INTRODUCIDO: internal/servecmd/ui/ahora.js:112-124 trata cualquier 404 como si faltara la tarjeta. Si GET /api/board/\u003cslug\u003e responde bien pero /timeline responde 404, toma h.reason, pone ah.no=true, muestra 'no existe la tarjeta' y corta el sondeo en vez de mostrar 'no se pudo leer la tarjeta' y reintentar como exige CA-742. Es un fallo real ante degradacion parcial del endpoint de historia; no pierde datos, por eso medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "4ff7c2aa744a20b4",
+  "task": "studio-tu-siguiente-paso"
+}

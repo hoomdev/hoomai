@@ -1,0 +1,11 @@
+{
+  "id": "20261117T203726_ab487d",
+  "created_at": "2026-11-17T20:37:26.124248Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/servecmd/ui/ahora.js",
+  "description": "INTRODUCIDO — internal/servecmd/ui/ahora.js:200-201 satura un started_at futuro a cero y, por caer en la rama de segundos, muestra 'hace 0 s'. El caso limite del contrato exige literalmente 'hace 0 min' cuando hay reloj corrido; cualquier tarjeta running con una marca futura produce el texto incorrecto en la banda, En curso y el detalle Tarjeta.",
+  "author": "reviewer@codex",
+  "fingerprint": "5a251aad27e578b4",
+  "task": "studio-tu-siguiente-paso"
+}

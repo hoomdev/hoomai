@@ -61,7 +61,7 @@ func (m *Modelo) documentoDetalle(r rect) (linea, linea, []docLinea) {
 // bordeTarjeta is the title and the right part of the top border of a card's
 // detail of w cells (the package doc, "The detail").
 func (m *Modelo) bordeTarjeta(c *boardcmd.Card, w int) (string, string) {
-	titulo := limpio(tituloDe(c))
+	titulo := limpio(boardcmd.TituloDe(c))
 	partes := []string{c.Slug}
 	if r := c.Item.Riesgo; r != "" && r != "normal" {
 		partes = append(partes, " · riesgo "+r)
@@ -108,66 +108,27 @@ func (m *Modelo) docTarjeta(d *doc, c *boardcmd.Card) {
 	m.docResto(d, c)
 }
 
-// fraseRol is AHORA's phrase of a card whose role runs.
-func fraseRol(rol string) string {
-	switch rol {
-	case "arquitecto":
-		return "El arquitecto está escribiendo el spec."
-	case "test-writer":
-		return "El test-writer está escribiendo los tests."
-	case "writer":
-		return "El writer está escribiendo el código."
-	case "reviewer":
-		return "El reviewer está revisando el cambio."
-	}
-	return "El " + rolDe(rol) + " está trabajando."
-}
-
 // ahoraDe is AHORA's phrase and gray line ("" without one), as the mode
-// writes them (the package doc, "The detail of a card").
+// writes them (the package doc, "The detail of a card"): boardcmd's, plus
+// the pilot this board launched and its stop, the key that reanuda and a
+// red's reason only in the expert mode.
 func (m *Modelo) ahoraDe(c *boardcmd.Card) (string, string) {
-	plain := unaLinea(c.Plain)
+	a := boardcmd.AhoraDe(c, m.piel())
 	switch {
 	case c.Running != nil:
-		r := c.Running
-		var partes []string
-		if r.Provider != "" {
-			partes = append(partes, r.Provider)
-		}
-		partes = append(partes, "empezo "+r.StartedAt.In(m.ahora.Location()).Format("15:04"))
-		if e := etapa(r.Stage, r.Step, r.Steps); e != "" {
-			partes = append(partes, e)
-		}
-		return m.fijo(fraseRol(r.Role)), strings.Join(partes, " · ")
+		return a.Frase, a.Gris
 	case m.pilotoVivo(c.Slug):
 		return m.fijo("El piloto está decidiendo el siguiente paso."), "hoom piloto " + c.Slug
 	case c.Interrupted != nil:
-		i := c.Interrupted
-		return m.fijo(fmt.Sprintf("El trabajo del %s se cortó en el paso %d de %d.", rolDe(i.Role), i.Step, i.Steps)),
-			"ya no corre: R lo reanuda"
+		return a.Frase, "ya no corre: R lo reanuda"
 	}
 	if pa, ok := m.paradaDe(c); ok {
 		return m.fijo("El piloto se detuvo."), pa.motivo
 	}
-	switch {
-	case c.Red != nil && !c.Red.Esperado:
-		gr := ""
-		if m.experto {
-			gr = unaLinea(c.Red.Reason)
-		}
-		return unaLinea(c.Red.Plain), gr
-	case c.Red != nil:
-		return m.fijo("Los tests están escritos y fallan, como se espera."), m.fijo("falta el código")
-	case c.Column == boardcmd.ColTuAprobacion:
-		return m.fijo("El spec está listo y espera tu firma."), plain
-	case c.Column == boardcmd.ColTuAceptacion:
-		return m.fijo("Está lista para que la pruebes y la aceptes."), plain
-	case c.Column == boardcmd.ColBacklog:
-		return m.fijo("Todavía no empezó."), plain
-	case c.Column == boardcmd.ColHecho:
-		return m.fijo("Terminada."), plain
+	if c.Red != nil && !c.Red.Esperado && !m.experto {
+		a.Gris = ""
 	}
-	return plain, ""
+	return unaLinea(a.Frase), unaLinea(a.Gris)
 }
 
 // ayudaPaso is TE TOCA's help of the step p.
@@ -189,76 +150,27 @@ func ayudaPaso(p paso) string {
 }
 
 // sigueDe is SIGUE's phrase and, without the pilot where it would carry the
-// card, its gray line (CA-710).
+// card, its gray line (CA-710): boardcmd's.
 func (m *Modelo) sigueDe(c *boardcmd.Card) (string, string) {
-	on := c.Item.Auto == item.AutoHastaHumano
-	sugerir := ""
-	if !on {
-		sugerir = "con el piloto seguiria sola: hoom item set " + c.Slug + " --auto hasta-humano"
-	}
-	var f string
-	switch c.Column {
-	case boardcmd.ColBacklog:
-		return m.fijo("el arquitecto escribe el spec; despues te toca firmarlo"), ""
-	case boardcmd.ColArquitecto:
-		return m.fijo("te toca firmar el spec"), ""
-	case boardcmd.ColTuAprobacion:
-		f = "al firmar, te toca pedir los tests al test-writer"
-		if on {
-			f = "al firmar, el piloto pide los tests y sigue solo hasta tu aceptación"
-		}
-	case boardcmd.ColTestWriter:
-		f = "despues, te toca pedir el código al writer"
-		if on {
-			f = "el piloto pide el código al writer y sigue hasta tu aceptación"
-		}
-	case boardcmd.ColWriter:
-		f = "despues, te toca pedir la review al reviewer"
-		if on {
-			f = "el piloto pide la review; si algo bloquea, hace una ronda de hallazgos"
-		}
-	case boardcmd.ColReview:
-		f = "si nada bloquea, te toca aceptar"
-		if on {
-			f = "si nada bloquea, te toca aceptar; si algo bloquea, el piloto hace una ronda de hallazgos"
-		}
-	case boardcmd.ColTuAceptacion:
-		return m.fijo("al aceptar, hoom integra y la tarjeta pasa a Hecho"), ""
-	case boardcmd.ColHecho:
-		return m.fijo("nada: la tarjeta esta terminada"), ""
-	default:
-		return "", ""
-	}
-	return m.fijo(f), sugerir
+	s := boardcmd.SigueDe(c, m.piel())
+	return s.Frase, s.Gris
 }
-
-// nombresCamino are the steps of the path, one per column.
-var nombresCamino = []string{"Pedido", "Spec", "Tu firma", "Tests", "Código", "Review", "Tu aceptación", "Hecho"}
 
 // nombreCamino is the step's name of the column i, as the mode writes it.
 func (m *Modelo) nombreCamino(i int) string {
-	if i < 0 || i >= len(nombresCamino) {
+	if i < 0 || i >= len(boardcmd.NombresCamino) {
 		return ""
 	}
-	return m.fijo(nombresCamino[i])
+	return m.fijo(boardcmd.NombresCamino[i])
 }
 
-// estadoCamino is the state the path's line of the card's column says.
+// estadoCamino is the state the path's line of the card's column says:
+// boardcmd's, and the pilot this board launched.
 func (m *Modelo) estadoCamino(c *boardcmd.Card, g Grupo) string {
-	switch g {
-	case GrupoTeToca:
-		return "te toca a vos"
-	case GrupoCorriendo:
-		if c.Running == nil {
-			return "piloto, ahora"
-		}
-		return rolDe(c.Running.Role) + ", ahora"
-	case GrupoDetenida:
-		return "se detuvo"
-	case GrupoEnCola:
-		return "sin empezar"
+	if g == GrupoCorriendo && c.Running == nil {
+		return "piloto, ahora"
 	}
-	return ""
+	return boardcmd.TextoCamino(c, string(g))
 }
 
 // lineaTeToca is TE TOCA's line after its label: "enter <label> · <help>"

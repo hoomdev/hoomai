@@ -111,8 +111,11 @@ func TestCA319_SinAssetsDeRed(t *testing.T) {
 		return nil
 	})
 	sort.Strings(archivos)
-	if strings.Join(archivos, ",") != "ui/acciones.js,ui/index.html,ui/tablero.js" {
-		t.Fatalf("CA-319: la UI embebida son acciones.js, index.html y tablero.js, sin dependencias: %v", archivos)
+	if strings.Join(archivos, ",") != "ui/acciones.js,ui/ahora.js,"+
+		"ui/fuentes/JetBrainsMono-400.ttf,ui/fuentes/JetBrainsMono-500.ttf,"+
+		"ui/fuentes/SpaceGrotesk-400.ttf,ui/fuentes/SpaceGrotesk-500.ttf,ui/fuentes/SpaceGrotesk-700.ttf,"+
+		"ui/index.html,ui/tablero.js" {
+		t.Fatalf("CA-734 (re-expresa CA-319): la UI embebida son exactamente index.html, tablero.js, acciones.js, ahora.js y los 5 .ttf de fuentes/, sin dependencias: %v", archivos)
 	}
 }
 
