@@ -4,3 +4,5 @@ prioridad: media
 pedido: 'Spec .hoom/specs/studio-tu-siguiente-paso.md (CA-722..746, firmado 4d4be58c): el Studio nuevo con las pantallas Ahora (portada, banda TU SIGUIENTE PASO y grupos Te toca / En curso / Detenidas / En cola / Hecho) y Tarjeta (camino de 8 pasos, AHORA, SIGUE, historia, topes y evidencia). La regla de quien tiene la pelota se muda a internal/boardcmd/pelota.go (Card.pelota y Board.pelota) y el tablero la consume. Linea grafica hoomdev: tokens --hd-*, Space Grotesk y JetBrains Mono embebidas, sin iconos, en voseo.'
 creado_por: Henry Orellana <henry.orellana@oceansbits.com>
 creado_en: 2026-11-17T18:50:18Z
+hecho_en: 2026-11-18T05:01:28Z
+commit_final: 53e74ba1fc2cd230a2bfb6892166d1c0cef55e5c
