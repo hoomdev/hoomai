@@ -1,0 +1,6 @@
+titulo: verify corre donde vive el runtime del proyecto
+tipo: feature
+prioridad: alta
+pedido: 'Intake .hoom/intake/rfc-calibracion-por-riesgo.md, CAL-8 con el ajuste de 10.2: un comando que no existe (exit 127) deja el gate en error y no en fail; prefijo de ejecucion local por maquina (DDEV, Sail, Compose, devcontainers, Lando), fuera de git, registrado en el veredicto, compatible con el encierro; el perfil solo lo sugiere.'
+creado_por: hoomdev <dev@volale.com>
+creado_en: 2026-11-21T21:10:33Z
