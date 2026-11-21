@@ -42,6 +42,13 @@ func Derive(ev Evidence) Card {
 	if c.Missing == nil {
 		c.Missing = []string{}
 	}
+	// the cap on the rounds of findings (ciclo-lo-decide-hoom): the column
+	// stays, and its reason goes first
+	c.Rondas = rondasDe(ev, c.Column, c.Evidence.BlockingFindings)
+	if c.Rondas.AlTope {
+		c.Missing = append([]string{c.Rondas.Razon}, c.Missing...)
+		c.Plain, c.Next = c.Rondas.Razon, AccionAlTope
+	}
 	for _, col := range Columns {
 		if col.ID == c.Column {
 			c.ColumnName = col.Name
@@ -54,7 +61,7 @@ func Derive(ev Evidence) Card {
 	c.Providers.Declared = declaredOf(ev)
 	c.Actions = actionsOf(ev, c)
 	c.PilotActions = pilotActionsOf(ev, c)
-	c.Drops = dropsOf(c)
+	c.Drops = dropsOf(ev, c)
 	c.Ghost = ghostOf(c)
 	c.Doctor = DoctorOf(ev, c)
 	c.Historica = ev.Item.HechoEn == nil && ev.Item.Historico != "" && ev.HistoricaSostenida

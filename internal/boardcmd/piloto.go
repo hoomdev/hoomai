@@ -311,18 +311,23 @@ func (p piloto) decidir() PilotDecision {
 		return parar(4, "el piloto corre en el espacio de trabajo de la tarjeta: abre la tarea con hoom task start "+c.Slug)
 	}
 	last, hay := p.ultimo()
+	// an envelope that changed the git material of its task, git outside
+	// its branch or the agents' config stops the pilot, whatever its status,
+	// round or finding (aclaracion 25, contencion-del-writer): it is neither
+	// relieved nor retried
+	if d, para := ParadaAntesDeGuardar(p.e.Sobres); para {
+		return d
+	}
+	// at the cap on the rounds of findings nothing launches
+	// (ciclo-lo-decide-hoom)
+	if why := p.alTope(); why != "" {
+		return parar(7, why)
+	}
 	// the newest envelope counts as entregable and leaves the card out of
 	// red for cases 8 to 11: the test-writer's expected red, or the one
 	// that ends a round
 	pasa := false
 	if hay {
-		// an envelope that changed the git material of its task, git
-		// outside its branch or the agents' config stops the pilot, whatever
-		// its status, round or finding (aclaracion 25, contencion-del-writer):
-		// it is neither relieved nor retried
-		if d, para := ParadaAntesDeGuardar(p.e.Sobres); para {
-			return d
-		}
 		// touching the protected tests is not retried: such an envelope
 		// goes on to its stop (finding 24e6e0)
 		if last.Record.Corte == envelope.CorteTiempo && !last.TocoProtegidos {
@@ -369,6 +374,22 @@ func (p piloto) decidir() PilotDecision {
 		l.delta = strings.Contains(c.Next, "--delta")
 	}
 	return p.lanzar(l, a)
+}
+
+// alTope is the reason of the cap on the rounds of findings when the card is
+// at it: reviewcmd.Rondas of its review records at or above the cap
+// (Estado.TopeDeRondas, with its rule for 0) and some finding that blocks;
+// "" otherwise.
+func (p piloto) alTope() string {
+	tope := p.e.TopeDeRondas
+	if tope == 0 {
+		tope = max(manifest.DefaultMaxRondas, p.e.Politica.RondasDeHallazgos)
+	}
+	n, k := reviewcmd.Rondas(p.e.Reviews, p.c.Slug), len(p.e.Bloqueantes)
+	if n < tope || k == 0 {
+		return ""
+	}
+	return RazonTopeDeRondas(n, k)
 }
 
 // accion is the card's action id: the one it offers a person or, if not,
@@ -589,27 +610,22 @@ func (p piloto) empezarRonda() PilotDecision {
 	}
 	k := len(p.e.Bloqueantes)
 	if n > p.e.Politica.RondasDeHallazgos {
-		return parar(7, fmt.Sprintf("se hicieron %d rondas de hallazgos y quedan %d que bloquean: te toca", n-1, k))
+		return parar(7, RazonTopeDeRondas(n-1, k))
 	}
 	if n >= 2 {
 		if kAntes, ok := p.bloqueantesAlEmpezar(n - 1); ok && k >= kAntes {
 			return parar(7, fmt.Sprintf("los hallazgos que bloquean no bajan (%d -> %d): te toca", kAntes, k))
 		}
 	}
-	refutados := map[string]bool{}
-	for _, s := range p.e.Sobres {
-		if s.Record.Role == "refutador" && s.Record.Stage != "run" {
-			for _, id := range s.Record.Hallazgos {
-				refutados[id] = true
-			}
-		}
-	}
-	var ids []string
+	bloqueantes := make([]string, 0, k)
 	for _, f := range p.e.Bloqueantes {
-		if !refutados[f.ID] {
-			ids = append(ids, f.ID)
-		}
+		bloqueantes = append(bloqueantes, f.ID)
 	}
+	sobres := make([]envelope.Record, 0, len(p.e.Sobres))
+	for _, s := range p.e.Sobres {
+		sobres = append(sobres, s.Record)
+	}
+	ids := BloqueantesSinRefutar(bloqueantes, sobres)
 	if len(ids) == 0 {
 		return p.testWriterDeRonda(n, k)
 	}

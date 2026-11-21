@@ -330,6 +330,8 @@ func FraseDe(c *Card, g, accion string, p Piel) string {
 		return p.frase("Pedile el código al writer para ", t, ".")
 	case ActPedirReviewer:
 		return p.frase("Pedile la review al reviewer para ", t, ".")
+	case ActPedirRefutador:
+		return p.frase("Pedile al refutador que revise los hallazgos de ", t, ".")
 	case ActReanudar:
 		return p.frase("Reanudá el trabajo de ", t, ".")
 	case ActGuardar:

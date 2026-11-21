@@ -153,6 +153,10 @@ type gatherer struct {
 	// card branch's), read once per gatherer
 	defaults     map[string]manifest.RoleDefaults
 	defaultsRead bool
+	// tope: the cap on the rounds of findings of the PROJECT's hoom.yaml
+	// (ciclo-lo-decide-hoom), read once per gatherer
+	tope     int
+	topeRead bool
 	// principal: the main checkout of root when it is another tree ("" when
 	// root is the main checkout or there is none), read once
 	// (autonomia-entre-firmas)
@@ -222,6 +226,32 @@ func (g *gatherer) roleDefaults() map[string]manifest.RoleDefaults {
 	}
 	g.defaults = out
 	return out
+}
+
+// topeDeRondas is manifest.Manifest.FindingsMaxRondas of the hoom.yaml of
+// g.root, the one block_on comes from: findings.max_rondas, or the default
+// with autonomia.rondas_de_hallazgos (ciclo-lo-decide-hoom). Read once. A
+// file it cannot read gives 0, the default: whoever built the board already
+// loaded that hoom.yaml and said what is wrong with it.
+func (g *gatherer) topeDeRondas() int {
+	if g.topeRead {
+		return g.tope
+	}
+	g.topeRead = true
+	raw, err := os.ReadFile(filepath.Join(g.root, manifest.FileName))
+	if err != nil {
+		return 0
+	}
+	pol, err := manifest.ParseFindings(raw)
+	if err != nil {
+		return 0
+	}
+	roles, err := manifest.LoadRoles(g.root)
+	if err != nil {
+		return 0
+	}
+	g.tope = (&manifest.Manifest{Findings: pol, Autonomia: roles.Autonomia}).FindingsMaxRondas()
+	return g.tope
 }
 
 // fallar records a source the gatherer could not read, once. The message
@@ -547,7 +577,8 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 		it.Riesgo = riesgo.Alto
 	}
 	ev := Evidence{Item: it, Now: g.now, Source: SourceArbol, Dir: ".",
-		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn, RiesgoIlegible: ilegible}
+		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn, RiesgoIlegible: ilegible,
+		TopeDeRondas: g.topeDeRondas()}
 	if ev.BlockOn == "" {
 		ev.BlockOn = "high"
 	}

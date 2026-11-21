@@ -293,14 +293,18 @@ func (p Pendientes) MarshalJSON() ([]byte, error) {
 // RondasDeHallazgos is how many rounds of findings the card had and where
 // its cap is (ciclo-lo-decide-hoom, «El tope: findings.max_rondas»).
 //
-// AT THE CAP (AlTope) the card stays in Review with no role action (no
-// Action for which IsRoleAction is true: pedir-*, reanudar, relanzar), its
-// Plain is Razon as it is, its Missing starts with Razon and its Next is
-// AccionAlTope; `hoom siguiente` launches nothing and prints
-// `te toca: hoom finding list --open` and, on the next line, Razon; `hoom
-// pedir writer` and `hoom pedir refutador` exit 1 with Razon without
-// launching; and the pilot stops with Razon (Piloto, case 7). PilotActions
-// are built as always: what stops the pilot is Piloto, not its actions.
+// AT THE CAP (AlTope), in any column but Hecho, the column does not change:
+// the card does not offer pedir-writer nor pedir-refutador, nor reanudar or
+// relanzar of a job of those two roles (pedir-reviewer stays: it is how a
+// card leaves the cap after fixing by hand), its Missing starts with Razon,
+// its Plain is Razon as it is and its Next is AccionAlTope. `hoom siguiente`
+// launches nothing and prints `te toca: hoom finding list --open` and, on
+// the next line, Razon (with a role working or an interrupted job it says
+// what it says today); `hoom pedir writer` and `hoom pedir refutador` exit 1
+// with Razon without launching, also when the card fell to Writer; and the
+// pilot stops with Razon (Piloto, case 7). PilotActions are built as always:
+// what stops the pilot is Piloto, not its actions. A card whose workspace
+// cannot be used is never at the cap: nothing else of it can be read.
 //
 // With Hechas >= Tope and no blocking finding the card is not at the cap:
 // its column and actions are today's (Tu aceptacion when nothing else is
@@ -343,18 +347,22 @@ const (
 	// pilot inside a round of findings, from Card.PilotActions in any column.
 	//
 	// Since ciclo-lo-decide-hoom the Review column offers it too, under the
-	// cap (RondasDeHallazgos.AlTope false): with blocking findings without
-	// refuting (BloqueantesSinRefutar of CardEvidence.BlockingFindings and
-	// the card's envelopes) it is the first action of Review; with blocking
-	// findings and none without refuting the first is pedir-writer, as
-	// before; without blocking findings neither of them is there. Its Pedido
-	// is PedidoRondaRefutador(Rondas.Hechas+1, slug, ids) and its Hallazgos
-	// are ids, the blocking findings without refuting in the order of `hoom
-	// finding list`: what `hoom pedir refutador <slug>` launches and what
-	// its envelope records in `hallazgos`, as in the pilot. The refutador
-	// builds its own pedido: `hoom pedir refutador -m` is the usage error
-	// `el refutador arma su propio pedido: no lleva -m`, and with no blocking
-	// finding without refuting it exits 1 with
+	// cap (RondasDeHallazgos.AlTope false), when some blocking finding
+	// reached no refutador (BloqueantesSinRefutar of
+	// CardEvidence.BlockingFindings and the card's CLOSED envelopes). Review
+	// offers pedir-reviewer when the review is missing, then pedir-refutador,
+	// then pedir-writer, which stays: skipping the refutador is decided by
+	// whoever launches. Without blocking findings neither of the last two is
+	// there. Its Pedido is PedidoRondaRefutador(Rondas.Hechas+1, slug, ids)
+	// and its Hallazgos are ids, the blocking findings without refuting in
+	// the order of `hoom finding list`: what `hoom pedir refutador <slug>`
+	// launches and what its envelope records in `hallazgos`, as in the
+	// pilot. The refutador builds its own pedido and it is not edited, by
+	// any path: `hoom pedir refutador -m` is the usage error
+	// `el refutador arma su propio pedido: no lleva -m`, `hoom pedir` opens
+	// no editor for it, and lanzar.Lanzar refuses another pedido with
+	// `el refutador arma su propio pedido: no se edita`. With no blocking
+	// finding without refuting, `hoom pedir refutador` exits 1 with
 	// `no hay hallazgos que bloquean sin pasar por el refutador: nada que pedirle`
 	// without launching. Outside Review it behaves like any role the column
 	// does not offer, with today's message.
