@@ -20,3 +20,5 @@ en coding.
    Correcciones tras un veredicto rojo: presupuesto maximo ~120 lineas; si no
    alcanza, reportar al Orquestador en lugar de expandir el scope.
 5. Commits como unidades de trabajo revisables, mensajes en imperativo.
+6. En una correccion, corrige solo los hallazgos del pedido. Un pendiente que
+   vea de pasada no se toca: queda abierto.

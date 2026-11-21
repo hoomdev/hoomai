@@ -75,7 +75,7 @@ var roles = []Role{
 		Desc:     "Convierte los documentos del cliente en .hoom/intake en la vision (.hoom/specs/00-vision.md) y el backlog (.hoom/specs/backlog.md). Escribe solo en .hoom/specs y no ejecuta comandos. Deja: .hoom/specs/00-vision.md y .hoom/specs/backlog.md.",
 		ReadOnly: false, Exec: false, Primary: false, Scope: ScopeSpecs, Isolated: false},
 	{Slug: "refutador", Native: "hoom-refutador", File: "09-refutador.md",
-		Desc:     "Intenta REFUTAR los hallazgos abiertos con evidencia deterministica (correr el test, citar la linea) antes de que se corrijan; maximo 2 ciclos y escala al humano. Solo lectura de codigo; cierra con hoom finding resolve. Deja: resoluciones con evidencia (.hoom/findings/<id>.res.json).",
+		Desc:     "Intenta REFUTAR los hallazgos que bloquean con evidencia deterministica (correr el test, citar la linea) antes de que se corrijan; maximo 2 ciclos y escala al humano. Solo lectura de codigo; cierra con hoom finding resolve. Deja: resoluciones con evidencia (.hoom/findings/<id>.res.json).",
 		ReadOnly: true, Exec: true, Primary: false, Scope: ScopeEvidencia, Isolated: false},
 }
 
