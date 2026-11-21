@@ -1,0 +1,90 @@
+{
+  "id": "20261121T235319_1c9146",
+  "created_at": "2026-11-21T23:53:19.701792357Z",
+  "task": "ciclo-lo-decide-hoom",
+  "spec": ".hoom/specs/ciclo-lo-decide-hoom.md",
+  "fingerprint": "08349b63f5d5efe9",
+  "verdict_id": "2026-11-21T23-29-16Z_fd08a6b5",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261121T233451_be3c8c",
+    "20261121T234026_326073",
+    "20261121T234306_c155a2",
+    "20261121T234409_a3a4d8",
+    "20261121T235027_56c600",
+    "20261121T235033_f58e6a",
+    "20261121T235038_335d61",
+    "20261121T235045_7e5d7e",
+    "20261121T235052_2b881f",
+    "20261121T235304_ab8ca0",
+    "20261121T235304_f304a2"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 239125,
+  "evidence_sha256": "b02b9a426e339b2e00dc20f8fb2d6e7d2b1924bee29f7ff61f5046635d0d6ade",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1545699,
+      "cached_input_tokens": 1419648,
+      "output_tokens": 15260,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 6091280,
+      "cached_input_tokens": 5966336,
+      "output_tokens": 27582,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 3449704,
+      "cached_input_tokens": 3304704,
+      "output_tokens": 16276,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 951526,
+      "cached_input_tokens": 832000,
+      "output_tokens": 6451,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261121T233119_52b0e3"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261121T233618_b265f2"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261121T234534_ce172d"
+    },
+    {
+      "lens": "readability",
+      "run": "20261121T235110_54d3d5"
+    }
+  ],
+  "desde": "719e1dad12c926bca5431defb2080134412a561e",
+  "hasta": "c5bc6d2ad37c5e63618ee991722409fac49930c2",
+  "cobertura": "completa",
+  "base": "main",
+  "riesgo": "normal"
+}

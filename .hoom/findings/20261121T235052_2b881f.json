@@ -1,0 +1,11 @@
+{
+  "id": "20261121T235052_2b881f",
+  "created_at": "2026-11-21T23:50:52.900134576Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO. internal/boardcmd/gather.go:236-254 transforma cualquier fallo de ReadFile, ParseFindings o LoadRoles en 0 y rondasDe lo interpreta como el tope 2, sin registrar la falla; ademas lee el mismo archivo dos veces y puede combinar findings de una version con autonomia de otra durante un reemplazo atomico. En un Studio persistente, un hoom.yaml temporalmente ilegible/invalido puede convertir max_rondas 1 en 2 (habilita una ronda extra) o 5 en 2 (escala antes), en vez de conservar una foto coherente o fallar cerrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

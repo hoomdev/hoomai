@@ -1,0 +1,11 @@
+{
+  "id": "20261121T235033_f58e6a",
+  "created_at": "2026-11-21T23:50:33.656911329Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO. internal/pilotocmd/pilotocmd.go:571-592 arma el tope con m.Findings de Opciones.Manifest, pero la tarjeta de :580 acaba de releer el hoom.yaml actual; internal/servecmd/acciones.go:233-235 pasa siempre el s.m congelado al arrancar Studio. Al subir findings.max_rondas —la salida del tope prevista por el spec— el tablero sale del tope pero el piloto de Studio sigue deteniendose con el valor viejo hasta reiniciar; al bajarlo puede decidir con un tope mayor que el que muestra la tarjeta.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

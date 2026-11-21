@@ -1,0 +1,11 @@
+{
+  "id": "20261121T235038_335d61",
+  "created_at": "2026-11-21T23:50:38.930308908Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO. internal/boardcmd/gather.go:393-405 conserva y devuelve el subconjunto legible aun cuando RecordsErr informa reviews faltantes/ilegibles; internal/boardcmd/rondas.go:89-95 cuenta ese subconjunto como si fuera completo. Si la delta que alcanza el tope es la ilegible, CardFor calcula una ronda menos y vuelve a ofrecer/permitir writer o refutador; hoom pedir no pasa por doctor. Es una falla real en evidencia degradada que permite otra ronda por encima del limite.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261121T234306_c155a2",
+  "created_at": "2026-11-21T23:43:06.546930658Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/servecmd/servecmd.go:100-110 carga `s.m` una sola vez, internal/servecmd/acciones.go:233-238 pasa siempre ese Manifest cacheado al piloto del Studio, e internal/pilotocmd/pilotocmd.go:569-592 calcula `Estado.TopeDeRondas` desde ese `m.Findings`. En cambio CardFor relee findings.max_rondas del hoom.yaml en cada tarjeta. Por eso, si una persona sale del tope subiendo findings.max_rondas como permite el spec, el tablero del Studio muestra la tarjeta bajo el nuevo tope pero el piloto automatico sigue deteniendose con el tope viejo hasta reiniciar Studio; un mismo camino decide dos estados contradictorios y no permite la salida documentada.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

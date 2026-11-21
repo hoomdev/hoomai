@@ -1,0 +1,11 @@
+{
+  "id": "20261121T234409_a3a4d8",
+  "created_at": "2026-11-21T23:44:09.899496262Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO: internal/boardcmd/gather.go:579-584 aplica `high` como umbral efectivo cuando findings.block_on no esta declarado, por lo que una tarjeta con `findings.max_rondas`, rondas suficientes y un high abierto queda `Rondas.AlTope`; sin embargo internal/pilotocmd/pilotocmd.go:646-660 no carga ningun bloqueante cuando blockOn es vacio. Esa configuracion es valida (max_rondas no exige block_on), pero `Piloto.alTope` ve k=0 y no se detiene; con un writer/refutador cortado o un rojo puede ejecutar el relevo/reintento que CA-751 ordena bloquear al tope. La tarjeta y el piloto deciden distinto para el mismo estado.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}
