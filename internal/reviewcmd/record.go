@@ -182,6 +182,25 @@ func RecordsErr(dir string) ([]Record, []string, error) {
 	return out, warnings, nil
 }
 
+// Rondas is the number of rounds of findings of the task tarea
+// (ciclo-lo-decide-hoom, «Que es una ronda»): how many of records (the
+// review records of .hoom/reviews/, as Records reads them, in any order)
+// have Task tarea, Cobertura CoberturaDelta and a CreatedAt after the
+// CreatedAt of the task's newest record with Cobertura CoberturaCompleta.
+// Without a completa record of the task it is 0, and a new complete review
+// takes it back to 0. Records of other tasks, parcial ones and those
+// without cobertura never count. A delta with no corrections (after
+// integrating the base, say) is a round: the definition is by records.
+//
+// It lives here, next to the records it counts, because every path that
+// counts rounds already imports reviewcmd: the pilot (boardcmd.Piloto, over
+// Estado.Reviews), the board (boardcmd.Derive, over Evidence.Reviews, which
+// `hoom siguiente` and `hoom pedir` read through boardcmd.CardFor). They all
+// count with this one function.
+func Rondas(records []Record, tarea string) int {
+	return 0
+}
+
 // validRecordID is the shape WriteRecord gives an id: 20060102T150405_
 // plus 6 lowercase letters or digits. Anything else — a newline, a space,
 // text glued to a real-looking id — would carry text into the pedido outside

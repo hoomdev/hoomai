@@ -75,6 +75,12 @@ type Estado struct {
 	Citas map[string][]string
 	// Politica is the project's autonomia (manifest.Manifest.AutonomiaOrDefault).
 	Politica manifest.AutonomiaPolicy
+	// TopeDeRondas is the effective cap on the card's rounds of findings
+	// (ciclo-lo-decide-hoom): manifest.Manifest.FindingsMaxRondas of the
+	// project's hoom.yaml. 0 = not read: manifest.DefaultMaxRondas, or
+	// Politica.RondasDeHallazgos when that is greater (the rule of a
+	// hoom.yaml without findings.max_rondas).
+	TopeDeRondas int
 	// Ventanas are, by provider name, the newest "5h" window datum of the
 	// sidecars of the card's runs (runcmd.Meta.Ventanas). A provider without
 	// a datum has no entry.
@@ -174,6 +180,17 @@ func ParadaAntesDeGuardar(sobres []Sobre) (PilotDecision, bool) {
 //     `ningun proveedor con tope de presupuesto puede tomar este trabajo`;
 //  14. the chosen provider's 5 h window reached ventana_max:
 //     `la ventana de 5h de <provider> va en <x>% (tope <y>%): el piloto espera; reinicia <hora UTC>`.
+//
+// The cap on the rounds of findings (ciclo-lo-decide-hoom) adds a stop to
+// these: with reviewcmd.Rondas(e.Reviews, slug) at or above the cap
+// (e.TopeDeRondas, with its rule for 0) and at least one of e.Bloqueantes,
+// after cases 1 to 4 and ParadaAntesDeGuardar and before case 5, it stops
+// with Caso 7 and Why RazonTopeDeRondas(<rondas>, len(e.Bloqueantes)):
+// `se hicieron <n> rondas de hallazgos y quedan <k> que bloquean: te toca`.
+// The pilot keeps numbering its rounds with the `ronda` of its envelopes,
+// and its stops of before this spec stay. The ids it gives the refutador of
+// a round are BloqueantesSinRefutar(<ids of e.Bloqueantes>, <records of
+// e.Sobres>): the same rule as the card's pedir-refutador.
 //
 // With none it launches the column's table action (test-writer, writer or
 // reviewer: the table no longer has the Arquitecto column) with ReglaCadena.

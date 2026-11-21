@@ -136,6 +136,11 @@ type Evidence struct {
 	// fail the findings_open gate.
 	UnreadableFindings []string
 	BlockOn            string // effective threshold: the project's block_on, or "high"
+	// TopeDeRondas is the effective cap on the card's rounds of findings
+	// (ciclo-lo-decide-hoom): manifest.Manifest.FindingsMaxRondas of the
+	// same hoom.yaml BlockOn comes from (the project's), which Gather reads.
+	// 0 = not read: Derive takes manifest.DefaultMaxRondas.
+	TopeDeRondas int
 
 	// WorktreeInusable: why the card's task folder is there but cannot be
 	// used as its worktree: git could not say (gitx.ErrSinComprobar) or it
@@ -228,6 +233,11 @@ type Card struct {
 	// included.
 	Pendientes Pendientes `json:"pendientes"`
 
+	// Rondas are the card's rounds of findings and its cap
+	// (ciclo-lo-decide-hoom), in every column. Never in the JSON: the card
+	// shows the cap through Plain, Missing and Next.
+	Rondas RondasDeHallazgos `json:"-"`
+
 	// Pelota is who has the card's ball (studio-tu-siguiente-paso): its
 	// group, step, phrase, AHORA, SIGUE and path, the rule of `hoom tablero`
 	// resolved once (pelota.go).
@@ -280,6 +290,41 @@ func (p Pendientes) MarshalJSON() ([]byte, error) {
 	return json.Marshal(plano(p))
 }
 
+// RondasDeHallazgos is how many rounds of findings the card had and where
+// its cap is (ciclo-lo-decide-hoom, «El tope: findings.max_rondas»).
+//
+// AT THE CAP (AlTope) the card stays in Review with no role action (no
+// Action for which IsRoleAction is true: pedir-*, reanudar, relanzar), its
+// Plain is Razon as it is, its Missing starts with Razon and its Next is
+// AccionAlTope; `hoom siguiente` launches nothing and prints
+// `te toca: hoom finding list --open` and, on the next line, Razon; `hoom
+// pedir writer` and `hoom pedir refutador` exit 1 with Razon without
+// launching; and the pilot stops with Razon (Piloto, case 7). PilotActions
+// are built as always: what stops the pilot is Piloto, not its actions.
+//
+// With Hechas >= Tope and no blocking finding the card is not at the cap:
+// its column and actions are today's (Tu aceptacion when nothing else is
+// missing). A person leaves the cap refuting or fixing by hand, or raising
+// findings.max_rondas.
+type RondasDeHallazgos struct {
+	// Hechas is reviewcmd.Rondas(Evidence.Reviews, slug).
+	Hechas int
+	// Tope is Evidence.TopeDeRondas, or manifest.DefaultMaxRondas when it
+	// is 0.
+	Tope int
+	// AlTope: Hechas >= Tope and the card has at least one blocking finding
+	// (CardEvidence.BlockingFindings).
+	AlTope bool
+	// Razon is RazonTopeDeRondas(Hechas, len(BlockingFindings)) when AlTope;
+	// "" otherwise.
+	Razon string
+}
+
+// AccionAlTope is the card's Next at the cap of rounds of findings
+// (RondasDeHallazgos.AlTope): what a person looks at to refute or fix by
+// hand.
+const AccionAlTope = "hoom finding list --open"
+
 // Action ids.
 const (
 	ActPedirArquitecto = "pedir-arquitecto"
@@ -294,10 +339,25 @@ const (
 	ActGuardar         = "guardar"
 	ActSesion          = "sesion"
 	ActTerminal        = "terminal"
-	// ActPedirRefutador launches the refutador (autonomia-entre-firmas). Only
-	// the pilot uses it, inside a round of findings: no column offers it to
-	// a person (it is never in Card.Actions, Studio or `hoom pedir`), only in
-	// Card.PilotActions.
+	// ActPedirRefutador launches the refutador (autonomia-entre-firmas): the
+	// pilot inside a round of findings, from Card.PilotActions in any column.
+	//
+	// Since ciclo-lo-decide-hoom the Review column offers it too, under the
+	// cap (RondasDeHallazgos.AlTope false): with blocking findings without
+	// refuting (BloqueantesSinRefutar of CardEvidence.BlockingFindings and
+	// the card's envelopes) it is the first action of Review; with blocking
+	// findings and none without refuting the first is pedir-writer, as
+	// before; without blocking findings neither of them is there. Its Pedido
+	// is PedidoRondaRefutador(Rondas.Hechas+1, slug, ids) and its Hallazgos
+	// are ids, the blocking findings without refuting in the order of `hoom
+	// finding list`: what `hoom pedir refutador <slug>` launches and what
+	// its envelope records in `hallazgos`, as in the pilot. The refutador
+	// builds its own pedido: `hoom pedir refutador -m` is the usage error
+	// `el refutador arma su propio pedido: no lleva -m`, and with no blocking
+	// finding without refuting it exits 1 with
+	// `no hay hallazgos que bloquean sin pasar por el refutador: nada que pedirle`
+	// without launching. Outside Review it behaves like any role the column
+	// does not offer, with today's message.
 	ActPedirRefutador = "pedir-refutador"
 )
 
@@ -315,6 +375,12 @@ type Action struct {
 	Paths     []string         `json:"paths"`     // guardar: unsynced; descartar: what goes back
 	ResumeID  string           `json:"resume_id"` // reanudar: the provider session to resume
 	Signer    string           `json:"signer"`    // aprobar: the identity that signs
+	// Hallazgos (ciclo-lo-decide-hoom), only for pedir-refutador: the ids of
+	// the blocking findings without refuting (BloqueantesSinRefutar), in the
+	// order of `hoom finding list`, that its Pedido lists and its envelope
+	// records in `hallazgos` (envelope.Record.Hallazgos). nil for any other
+	// action, and then not in the JSON.
+	Hallazgos []string `json:"hallazgos,omitempty"`
 	// verbos-de-la-tarjeta: the model, effort and timeout the value rule
 	// gives the action's role ("" = the provider's; timeout_s is never 0:
 	// 1800 without anything declared), and where each proposed value came

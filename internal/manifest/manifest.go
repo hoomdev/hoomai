@@ -438,7 +438,11 @@ func LoadRoles(root string) (*Manifest, error) {
 //   - `autonomia: ventana_max tiene que ser un entero de 1 a 100`;
 //   - `autonomia: rondas_de_hallazgos necesita findings.block_on`, when the
 //     rounds are more than 0 and the same hoom.yaml has no findings.block_on
-//     (without it findings_open never runs and no round could close).
+//     (without it findings_open never runs and no round could close);
+//   - `autonomia: rondas_de_hallazgos (<a>) pasa de findings.max_rondas (<m>)`,
+//     when the same hoom.yaml declares a findings.max_rondas below the
+//     rounds (ciclo-lo-decide-hoom): the pilot never goes past the card's
+//     cap (Manifest.FindingsMaxRondas).
 type AutonomiaPolicy struct {
 	// ReintentosAnteRojo: 0 or 1 retries of the writer after a red verdict.
 	ReintentosAnteRojo int `yaml:"reintentos_ante_rojo"`
@@ -698,8 +702,30 @@ type FindingsPolicy struct {
 	// `findings: max_pendientes tiene que ser un entero mayor o igual a 0`,
 	// and an unknown key under findings is
 	// `findings: clave desconocida "<k>" (validas: block_on, max_pendientes)`.
+	// Since ciclo-lo-decide-hoom that error is
+	// `findings: clave desconocida "<k>" (validas: block_on, max_pendientes, max_rondas)`.
 	MaxPendientes *int `yaml:"max_pendientes"`
+	// MaxRondas (findings.max_rondas, ciclo-lo-decide-hoom) is the cap on the
+	// rounds of findings of a card, by any path: the pilot, `hoom siguiente`,
+	// `hoom pedir` or the orchestrator. An integer from 1 to 5; nil = not
+	// declared (FindingsMaxRondas gives the default then). A null value is
+	// no key, like block_on and max_pendientes. Out of range or not an
+	// integer (0, 6, 2.5, "dos", true) makes the manifest invalid with
+	// `findings: max_rondas tiene que ser un entero de 1 a 5`.
+	//
+	// It is read from the same hoom.yaml the board reads findings.block_on
+	// from (the project's). A declared max_rondas under the same file's
+	// autonomia.rondas_de_hallazgos is the error
+	// `autonomia: rondas_de_hallazgos (<a>) pasa de findings.max_rondas (<m>)`,
+	// in Load, LoadWithoutBaseCheck and LoadRoles, wrapped as
+	// `hoom.yaml invalido: <error>` like every other error of the section.
+	MaxRondas *int `yaml:"max_rondas"`
 }
+
+// DefaultMaxRondas is the cap on the rounds of findings of a hoom.yaml
+// without findings.max_rondas (ciclo-lo-decide-hoom): the «segunda y ultima
+// ronda» of CAL-4.
+const DefaultMaxRondas = 2
 
 // ParseFindings reads only the `findings:` section of a hoom.yaml, with the
 // same strictness Load applies to it (block_on normalized, max_pendientes
@@ -914,6 +940,19 @@ func (m *Manifest) FindingsMaxPendientes() (n int, ok bool) {
 		return 0, false
 	}
 	return *m.Findings.MaxPendientes, true
+}
+
+// FindingsMaxRondas is the effective cap on the rounds of findings
+// (ciclo-lo-decide-hoom): findings.max_rondas when the project declares it;
+// without it, DefaultMaxRondas, or autonomia.rondas_de_hallazgos when that is
+// greater, so a hoom.yaml of before this spec does not change behavior (a
+// project with `autonomia.rondas_de_hallazgos: 3` and no findings.max_rondas
+// has cap 3). A nil manifest declares nothing: DefaultMaxRondas.
+//
+// A card is AT THE CAP when reviewcmd.Rondas of its task is at or above this
+// cap and it has at least one blocking finding (finding.Bloquea).
+func (m *Manifest) FindingsMaxRondas() int {
+	return 0
 }
 
 // Severities are the values block_on accepts, mildest first. They are the

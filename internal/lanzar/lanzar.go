@@ -338,6 +338,11 @@ func Reservar(p Params, slug string) (soltar func(), err error) {
 // outside the card's column inside a round of findings): Lanzar takes it
 // from boardcmd.Card.PilotAction, with the same checks as any other. A
 // provider without a USD cap launches without a budget, as today.
+//
+// ciclo-lo-decide-hoom: the card's own pedir-refutador (Review, under the
+// cap) launches without Pilot too, and then its envelope records the
+// action's Hallazgos (boardcmd.Action.Hallazgos) in `hallazgos`, as the
+// pilot's does with req.Hallazgos.
 func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, error) {
 	fail := func(code int, format string, args ...any) (*Trabajo, error) {
 		return nil, &Rechazo{Code: code, Motivo: fmt.Sprintf(format, args...)}
