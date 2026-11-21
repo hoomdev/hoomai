@@ -198,7 +198,23 @@ func RecordsErr(dir string) ([]Record, []string, error) {
 // `hoom siguiente` and `hoom pedir` read through boardcmd.CardFor). They all
 // count with this one function.
 func Rondas(records []Record, tarea string) int {
-	return 0
+	var completa time.Time
+	hay := false
+	for _, r := range records {
+		if r.Task == tarea && r.Cobertura == CoberturaCompleta && (!hay || r.CreatedAt.After(completa)) {
+			completa, hay = r.CreatedAt, true
+		}
+	}
+	if !hay {
+		return 0
+	}
+	n := 0
+	for _, r := range records {
+		if r.Task == tarea && r.Cobertura == CoberturaDelta && r.CreatedAt.After(completa) {
+			n++
+		}
+	}
+	return n
 }
 
 // validRecordID is the shape WriteRecord gives an id: 20060102T150405_
