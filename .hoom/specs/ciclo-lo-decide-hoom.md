@@ -93,9 +93,9 @@ El README documenta `findings.max_rondas` y `hoom pedir refutador`.
 ## Decisiones
 
 - **La ronda se cuenta por reviews delta, no por sobres.** Los sobres lanzados a mano no traen `ronda`, y la review delta es lo que cierra una ronda por cualquier camino. Descartado: contar sobres de writer, porque un writer cortado por tiempo contaría dos veces.
-- **El tope vive en `findings`, no en `autonomia`.** `autonomia` es lo que el piloto hace solo; el tope es de la tarjeta, por cualquier camino. El 2 por defecto es la «segunda y última ronda» de CAL-4.
+- **El tope vive en `findings`, no en `autonomia`.** `autonomia` es lo que el piloto hace solo; el tope es de la tarjeta, por cualquier camino. El 2 por defecto es la «segunda y última ronda» de CAL-4; Hoom lo confirmó el 2026-11-21.
 - **El refutador arma su pedido**, como la review. Si aceptara `-m`, el orquestador podría volver a meterle pendientes.
-- **A mano, la ronda es refutador y después writer.** El piloto suma el test-writer de regresión. Igualarlos suma un run por ronda; queda como pregunta para la firma.
+- **A mano, la ronda es refutador y después writer.** El piloto suma el test-writer de regresión. Igualarlos sumaría un run por ronda; Hoom eligió el 2026-11-21 dejar la ronda a mano sin ese run.
 - **`hoom agent` no se toca.** Lo usan el piloto y `lanzar`: cerrarlo rompería esos caminos.
 
 ## Riesgos y deuda aceptada
@@ -106,5 +106,4 @@ El README documenta `findings.max_rondas` y `hoom pedir refutador`.
 
 ## Preguntas para la firma
 
-1. A mano, ¿la ronda también pide el test-writer de regresión, como el piloto, o queda refutador y después writer?
-2. ¿Tope por defecto de 2 rondas?
+Ninguna. Las dos que había (el test-writer de regresión en la ronda a mano y el tope por defecto) están contestadas en Decisiones. Contestarlas no es la firma.
