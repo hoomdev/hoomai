@@ -658,6 +658,10 @@ func TestCA428_DerivePuroCodigoDespuesPideElDelta(t *testing.T) {
 // CA-427 / CA-325: un registro sin hasta ya no cuenta, asi que con la review
 // exigida y un hallazgo que bloquea, la tarjeta vuelve a ofrecer pedir el
 // reviewer (antes, con ese registro, solo pedir el writer).
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): con la review exigida y un
+// bloqueante sin refutar, el orden es pedir-reviewer, pedir-refutador,
+// pedir-writer (el registro sin cobertura no es completa: 0 rondas, bajo el
+// tope).
 func TestCA427_DerivePuroRegistroViejoVuelveAPedirReviewer(t *testing.T) {
 	ev := acConHallazgos(acGrande(acEv()), "f-a")
 	viejo := acRegistroQueCuenta()
@@ -665,8 +669,8 @@ func TestCA427_DerivePuroRegistroViejoVuelveAPedirReviewer(t *testing.T) {
 	ev.Reviews = []reviewcmd.Record{viejo}
 	c := Derive(bdColas(ev))
 	bdCol(t, "CA-427", c, ColReview)
-	want := []string{ActPedirReviewer, ActPedirWriter, ActSesion, ActTerminal}
+	want := []string{ActPedirReviewer, ActPedirRefutador, ActPedirWriter, ActSesion, ActTerminal}
 	if got := acIDs(c); strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("CA-427/CA-325: con un registro sin hasta la tarjeta ofrece %v, fueron %v", want, got)
+		t.Fatalf("CA-427/CA-325/CA-753: con un registro sin hasta la tarjeta ofrece %v, fueron %v", want, got)
 	}
 }

@@ -21,12 +21,16 @@ import (
 
 // acPrincipal es la accion principal de una lista de ids: la primera, si es
 // una accion de columna.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): pedir-refutador es una
+// accion de la columna Review; sin review exigida es la primera y la que
+// abre el drop.
 func acPrincipal(ids []string) string {
 	if len(ids) == 0 {
 		return ""
 	}
 	switch ids[0] {
-	case ActPedirArquitecto, ActPedirTestWriter, ActPedirWriter, ActPedirReviewer, ActAprobar, ActIntegrar:
+	case ActPedirArquitecto, ActPedirTestWriter, ActPedirWriter, ActPedirReviewer, ActAprobar, ActIntegrar,
+		ActPedirRefutador:
 		return ids[0]
 	}
 	return ""
@@ -82,6 +86,9 @@ func acDropEs(t *testing.T, que string, d Drop, action, why string) {
 // CA-331: una entrada por cada columna que no es la de la tarjeta, en el
 // orden fijo; la siguiente con la accion principal (o plain sin ella), las
 // anteriores "no vuelve atras" y las de mas alla "primero tiene que llegar".
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): en Review con bloqueantes
+// sin refutar y sin review exigida, el drop en Tu aceptacion abre
+// pedir-refutador (filas de acColumnas y acPrincipal).
 func TestCA331_DropsPorColumna(t *testing.T) {
 	casos := append(acColumnas(), acColumnasArbol()...)
 	vistas := map[string]bool{}
@@ -105,6 +112,8 @@ func TestCA331_DropsPorColumna(t *testing.T) {
 }
 
 // CA-331: los casos que nombra el contrato, con sus textos.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): Review con hallazgos sin
+// refutar abre pedir-refutador, no pedir-writer.
 func TestCA331_DropsCasosDelContrato(t *testing.T) {
 	// Writer: la siguiente es Review con pedir-writer; Hecho esta mas alla;
 	// Arquitecto es anterior
@@ -168,10 +177,14 @@ func TestCA331_DropsCasosDelContrato(t *testing.T) {
 	acDropEs(t, "review sin accion", acDrop(t, c, ColTuAceptacion), "", c.Plain)
 	acDropEs(t, "review sin accion", acDrop(t, c, ColHecho), "", "primero tiene que llegar a Tu aceptacion: "+c.Plain)
 
-	// Review con hallazgos: la siguiente abre pedir-writer; con la review
-	// exigida ademas, pedir-reviewer (la principal)
+	// Review con hallazgos sin refutar: la siguiente abre pedir-refutador
+	// (CA-753); con la review exigida ademas, pedir-reviewer (la principal)
 	c = Derive(acConHallazgos(acEv(), "f-a"))
-	acDropEs(t, "review con hallazgos", acDrop(t, c, ColTuAceptacion), ActPedirWriter, "")
+	acDropEs(t, "review con hallazgos", acDrop(t, c, ColTuAceptacion), ActPedirRefutador, "")
+	// todos ya pasaron por un refutador (sobre cerrado): abre pedir-writer,
+	// como antes
+	c = Derive(cldConSobres(acConHallazgos(acEv(), "f-a"), cldRefutador("env-ref-1", 10, "ok", "f-a")))
+	acDropEs(t, "review con hallazgos refutados", acDrop(t, c, ColTuAceptacion), ActPedirWriter, "")
 	c = Derive(acConHallazgos(acGrande(acEv()), "f-a"))
 	acDropEs(t, "review exigida y con hallazgos", acDrop(t, c, ColTuAceptacion), ActPedirReviewer, "")
 }

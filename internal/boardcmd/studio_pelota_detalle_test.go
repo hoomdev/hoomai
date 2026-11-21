@@ -337,6 +337,11 @@ func TestCA727_CaminoEnTodosLosFixtures(t *testing.T) {
 // del contrato (CA-722..CA-727) y su camino esta bien formado.
 // ===========================================================================
 
+// TestCA722_CA727_PropiedadPelotaDelContrato compara la pelota de cada
+// combinacion con el oraculo sp*.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): con la forma
+// review-hallazgos el paso es pedir-refutador y el oraculo (spFraseDe) da su
+// frase.
 func TestCA722_CA727_PropiedadPelotaDelContrato(t *testing.T) {
 	prop := func(forma, tope, extra uint8, piloto, sinTitulo, cambios, sinProv, arbol bool) bool {
 		ev := piEv(piFormas[int(forma)%len(piFormas)], piTopes[int(tope)%len(piTopes)], piExtras[int(extra)%len(piExtras)])

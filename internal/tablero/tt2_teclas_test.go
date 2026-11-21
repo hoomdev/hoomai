@@ -982,12 +982,21 @@ func TestCA718_CA706_CA564_CA532_NingunaTeclaFueraDeLaTablaTieneEfecto(t *testin
 // lo muestra. P (Seguir solo, CA-715 y CA-716) no es una accion de la
 // tarjeta: Acciones no la lista, y su modal lanza hoom piloto <slug> con el
 // rol piloto.
+// Re-expresado por CA-753 y CA-755 (ciclo-lo-decide-hoom): la tabla suma la
+// fila f (pedir al refutador, hoom pedir refutador <slug>): son once teclas
+// de accion con verbo. El modal del refutador no lleva Pedido y su Lanzar no
+// lleva -m aunque la accion traiga el pedido que armo hoom.
 func TestCA718_CA705_CA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
+	// el refutador trae el pedido que armo hoom (CA-754), que no se edita
+	refutador := ttAccionRol(boardcmd.ActPedirRefutador, "refutador", "Pedir al refutador",
+		boardcmd.PedidoRondaRefutador(1, "tarjeta", []string{"f1", "f2"}))
+	refutador.Hallazgos = []string{"f1", "f2"}
 	acciones := map[string]boardcmd.Action{
 		boardcmd.ActPedirArquitecto: ttAccionRol(boardcmd.ActPedirArquitecto, "arquitecto", "Pedir al arquitecto", "Escribi el spec"),
 		boardcmd.ActPedirTestWriter: ttAccionRol(boardcmd.ActPedirTestWriter, "test-writer", "Pedir al test-writer", "Escribi los tests"),
 		boardcmd.ActPedirWriter:     ttAccionWriter(),
 		boardcmd.ActPedirReviewer:   ttAccionRol(boardcmd.ActPedirReviewer, "reviewer", "Pedir al reviewer", ""),
+		boardcmd.ActPedirRefutador:  refutador,
 		boardcmd.ActReanudar:        ttPagosCaidos().Actions[0],
 		boardcmd.ActGuardar:         ttAccionGuardar(true, "", "internal/a.go"),
 		boardcmd.ActAprobar:         ttAccionAprobar(),
@@ -1039,10 +1048,11 @@ func TestCA718_CA705_CA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
 			if !strings.HasPrefix(mc.ttComando(), verbo) {
 				t.Fatalf("%s: 'Se va a ejecutar' empieza con el verbo de la tabla %q: %q", ca, verbo, mc.ttComando())
 			}
-			if tiene := mc.ttCampo("Pedido") != ""; tiene != (acc.Role != "reviewer") {
-				t.Fatalf("%s: el modal tiene Pedido salvo el del reviewer (tiene: %v)", ca, tiene)
+			sinPedido := acc.Role == "reviewer" || acc.Role == "refutador"
+			if tiene := mc.ttCampo("Pedido") != ""; tiene == sinPedido {
+				t.Fatalf("%s: el modal tiene Pedido salvo el del reviewer y el del refutador (tiene: %v)", ca, tiene)
 			}
-			if acc.Role != "reviewer" {
+			if !sinPedido {
 				quiere = append(quiere, "-m", strings.TrimSpace(acc.Pedido))
 			}
 			for m.Lugar() != tablero.LugarPedirBotones {
@@ -1075,7 +1085,7 @@ func TestCA718_CA705_CA564_CA566_LoQueCorreEsLoQueSeMuestra(t *testing.T) {
 			t.Fatalf("%s: el Registro lleva el mismo comando: %#v", ca, r)
 		}
 	}
-	if vistas != 10 {
-		t.Fatalf("CA-718: la tabla tiene las diez teclas de accion con verbo del spec (P y las nueve de la v2), tiene %d", vistas)
+	if vistas != 11 {
+		t.Fatalf("CA-718, CA-753: la tabla tiene las once teclas de accion con verbo (P, las nueve de la v2 y f), tiene %d", vistas)
 	}
 }

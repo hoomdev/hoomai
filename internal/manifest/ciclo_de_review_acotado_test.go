@@ -16,7 +16,9 @@ import (
 
 const (
 	crMaxInvalido = "findings: max_pendientes tiene que ser un entero mayor o igual a 0"
-	crValidas     = "(validas: block_on, max_pendientes)"
+	// Re-expresado por CA-747 (ciclo-lo-decide-hoom): la clave desconocida
+	// de findings nombra tambien max_rondas.
+	crValidas = "(validas: block_on, max_pendientes, max_rondas)"
 )
 
 // CA-632: acepta un entero mayor o igual a 0, con o sin block_on.
@@ -83,7 +85,9 @@ func TestCA632_MaxPendientesInvalido(t *testing.T) {
 	}
 }
 
-// CA-632: la clave desconocida nombra las dos validas.
+// CA-632: la clave desconocida nombra las validas.
+// Re-expresado por CA-747 (ciclo-lo-decide-hoom): nombra block_on,
+// max_pendientes y max_rondas (crValidas), no solo las dos de CA-632.
 func TestCA632_ClaveDesconocidaNombraLasDos(t *testing.T) {
 	for _, clave := range []string{"max_pendiente", "maxPendientes", "tope", "blockon"} {
 		yml := "findings:\n  block_on: high\n  " + clave + ": 1\n"

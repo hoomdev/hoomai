@@ -63,6 +63,8 @@ func vdtSobres(t *testing.T, root string) []envelope.Record {
 // ===========================================================================
 
 // CA-501: otro rol es exit 2 con el texto del contrato, sin efectos.
+// Re-expresado por CA-755 (ciclo-lo-decide-hoom): el error nombra cinco
+// roles, con el refutador entre el writer y el reviewer.
 func TestCA501_RolDesconocidoEsExit2(t *testing.T) {
 	f := vdtPATH(t)
 	f.cli(t, "claude", "")
@@ -72,7 +74,7 @@ func TestCA501_RolDesconocidoEsExit2(t *testing.T) {
 		antes := vdtFoto(t, root)
 		s := vdtCorrer(t, "CA-501", vdtOpts{dir: root}, "pedir", rol, "precios", "-m", "Implementa")
 		vdtExit(t, "CA-501 (rol "+rol+")", s, 2)
-		want := `rol desconocido "` + rol + `" (arquitecto, test-writer, writer, reviewer); para otros roles: hoom agent`
+		want := `rol desconocido "` + rol + `" (arquitecto, test-writer, writer, refutador, reviewer); para otros roles: hoom agent`
 		if !strings.Contains(s.err, want) {
 			t.Fatalf("CA-501: el rol %q dice %q:\n%s", rol, want, s)
 		}

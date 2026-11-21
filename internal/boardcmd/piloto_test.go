@@ -89,7 +89,8 @@ func piProvs() []providers.Info {
 
 // Las formas de las tarjetas de los fixtures: las ocho columnas, con Review
 // en dos formas (review exigida: la accion principal es pedir-reviewer; con
-// un hallazgo que bloquea: es pedir-writer, que no es la de la tabla).
+// un hallazgo que bloquea: es pedir-refutador desde ciclo-lo-decide-hoom,
+// CA-753, antes pedir-writer; ninguna de las dos es la de la tabla).
 var piFormas = []string{"backlog", "arquitecto", "tu-aprobacion", "test-writer", "writer",
 	"review-exigida", "review-hallazgos", "tu-aceptacion", "hecho"}
 
@@ -316,8 +317,12 @@ func piLanza(t *testing.T, ca, nombre string, d PilotDecision, c Card, accion, r
 // Arquitecto. Desde cualquier tarjeta y con cualquier ultimo sobre, la regla
 // cadena lanza solo la accion de la tabla de su columna (test-writer, writer
 // o reviewer); nunca pide al arquitecto. Las acciones del piloto son las
-// cuatro del contrato, en orden, nunca van al JSON, y pedir-refutador nunca
-// se le ofrece a una persona.
+// cuatro del contrato, en orden, y nunca van al JSON.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): pedir-refutador deja de
+// ser solo del piloto: en Review con bloqueantes sin refutar (la forma
+// review-hallazgos) la tarjeta se la ofrece a una persona, primera (sin
+// review exigida), y el JSON la trae en actions; en las demas formas sigue
+// sin ofrecerse ni nombrarse en el JSON.
 func TestCA379_LaTablaDelPilotoSinArquitecto(t *testing.T) {
 	ultimos := []*Sobre{nil}
 	for _, rol := range []string{"arquitecto", "test-writer", "writer", "reviewer"} {
@@ -336,10 +341,18 @@ func TestCA379_LaTablaDelPilotoSinArquitecto(t *testing.T) {
 		if want := []string{ActPedirTestWriter, ActPedirWriter, ActPedirReviewer, ActPedirRefutador}; !reflect.DeepEqual(ids, want) {
 			t.Fatalf("CA-379: [%s] las acciones del piloto son %v, fueron %v", forma, want, ids)
 		}
+		enReview := forma == "review-hallazgos"
+		ofrecidas := 0
 		for _, a := range c.Actions {
 			if a.ID == ActPedirRefutador {
-				t.Fatalf("CA-379: [%s] pedir-refutador nunca se le ofrece a una persona: %v", forma, acIDs(c))
+				ofrecidas++
 			}
+		}
+		if enReview && (ofrecidas != 1 || c.Actions[0].ID != ActPedirRefutador) {
+			t.Fatalf("CA-753: [%s] en Review con bloqueantes sin refutar la tarjeta le ofrece pedir-refutador a una persona, primera: %v", forma, acIDs(c))
+		}
+		if !enReview && ofrecidas != 0 {
+			t.Fatalf("CA-379: [%s] fuera de Review con bloqueantes pedir-refutador no se le ofrece a una persona: %v", forma, acIDs(c))
 		}
 		if _, ok := c.PilotAction(ActPedirRefutador); !ok {
 			t.Fatalf("CA-379: [%s] PilotAction encuentra pedir-refutador", forma)
@@ -348,8 +361,17 @@ func TestCA379_LaTablaDelPilotoSinArquitecto(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(js), ActPedirRefutador) {
+		sinPiloto := c
+		sinPiloto.PilotActions = nil
+		js0, err := json.Marshal(sinPiloto)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(js) != string(js0) {
 			t.Fatalf("CA-379: [%s] las acciones del piloto no van al JSON de la tarjeta", forma)
+		}
+		if strings.Contains(string(js), ActPedirRefutador) != enReview {
+			t.Fatalf("CA-753: [%s] el JSON nombra pedir-refutador solo cuando la tarjeta lo ofrece (Review con bloqueantes): %s", forma, js)
 		}
 		for _, u := range ultimos {
 			e := piEstado(c)

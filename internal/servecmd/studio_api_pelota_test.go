@@ -197,6 +197,9 @@ func stTitulo(c stCardJSON) string {
 }
 
 // stFraseTeToca es la tabla de frases del contrato para TE TOCA (CA-725).
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): la tabla tiene la frase de
+// pedir-refutador (aclaracion 7); sin ella una tarjeta cuyo paso fuera
+// pedir-refutador exigiria "Mirá «T».".
 func stFraseTeToca(accion, titulo string) string {
 	q := "«" + titulo + "»"
 	switch accion {
@@ -212,6 +215,8 @@ func stFraseTeToca(accion, titulo string) string {
 		return "Pedile el código al writer para " + q + "."
 	case boardcmd.ActPedirReviewer:
 		return "Pedile la review al reviewer para " + q + "."
+	case boardcmd.ActPedirRefutador:
+		return "Pedile al refutador que revise los hallazgos de " + q + "."
 	case boardcmd.ActReanudar:
 		return "Reanudá el trabajo de " + q + "."
 	case boardcmd.ActGuardar:
