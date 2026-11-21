@@ -1037,6 +1037,13 @@ func (v *verbo) siguienteCon(operando string, l *lanzamiento, escrito string) in
 	case c.Running != nil:
 		r := c.Running
 		return v.falla(fmt.Sprintf("%s esta trabajando (%s, paso %d de %d): espera a que termine", quien(r.Role), r.Stage, r.Step, r.Steps))
+	case c.Rondas.AlTope && (c.Interrupted == nil || c.Interrupted.Role == "writer" || c.Interrupted.Role == "refutador"):
+		// at the cap on the rounds of findings it launches nothing, in any
+		// column (ciclo-lo-decide-hoom): a cut job of the writer or the
+		// refutador shows the cap too, since reanudar and pedir would refuse
+		return noLanza(strings.TrimPrefix(boardcmd.AccionAlTope, "hoom "), func() {
+			fmt.Fprintf(out, "te toca: %s\n%s\n", boardcmd.AccionAlTope, c.Rondas.Razon)
+		})
 	case c.Interrupted != nil:
 		i := c.Interrupted
 		return noLanza("reanudar", func() {
@@ -1047,12 +1054,6 @@ func (v *verbo) siguienteCon(operando string, l *lanzamiento, escrito string) in
 				fmt.Fprintln(out, "  hoom reanudar          retoma su sesion")
 			}
 			fmt.Fprintf(out, "  hoom pedir %-11s lo vuelve a lanzar desde como quedo\n", i.Role)
-		})
-	case c.Rondas.AlTope:
-		// at the cap on the rounds of findings it launches nothing, in any
-		// column (ciclo-lo-decide-hoom)
-		return noLanza(strings.TrimPrefix(boardcmd.AccionAlTope, "hoom "), func() {
-			fmt.Fprintf(out, "te toca: %s\n%s\n", boardcmd.AccionAlTope, c.Rondas.Razon)
 		})
 	case c.Column == boardcmd.ColTuAprobacion:
 		return noLanza("aprobar", func() { fmt.Fprintf(out, "te toca: hoom aprobar\n%s\n", c.Plain) })
