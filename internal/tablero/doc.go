@@ -222,6 +222,7 @@
 //	Pedir al test-writer                   Pedile los tests al test-writer para «T».
 //	Pedir al writer                        Pedile el código al writer para «T».
 //	Pedir al reviewer                      Pedile la review al reviewer para «T».
+//	Pedir al refutador                     Pedile al refutador que revise los hallazgos de «T».
 //	Reanudar                               Reanudá el trabajo de «T».
 //	Guardar                                Guardá el trabajo de «T».
 //	Seguir solo                            Dejá que «T» siga sola.
@@ -230,7 +231,8 @@
 //
 // The step's action is known by its id (boardcmd.ActAprobar,
 // ActIntegrar, ActPedirArquitecto, ActPedirTestWriter, ActPedirWriter,
-// ActPedirReviewer, ActReanudar, ActGuardar; Seguir solo is AccionSeguir).
+// ActPedirReviewer, ActPedirRefutador, ActReanudar, ActGuardar; Seguir solo
+// is AccionSeguir).
 // The plain is the card's plain; for a card of DETENIDA it is its stop's:
 // "se corto el trabajo del <rol>" with interrupted (rol as the v2's:
 // interrupted.role, "agente" when empty), else red.plain.
@@ -898,9 +900,11 @@
 // in the Hallazgos view's list, the focus to the detail. n: in every Lugar
 // of the panels, the modal of the step of the box's card.
 //
-// The action keys (CA-705): a, t, w, r, R, s, A, I, n, P and enter never
-// order Lanzar. a, t, w, r, R, s, A and I, when the card has the row's
-// action and it is enabled, open its modal: Pedir for a, t, w, r and R;
+// The action keys (CA-705): a, t, w, f, r, R, s, A, I, n, P and enter never
+// order Lanzar. a, t, w, f, r, R, s, A and I, when the card has the row's
+// action and it is enabled, open its modal: Pedir for a, t, w, f, r and R
+// (f, pedir al refutador, `hoom pedir refutador <slug>`, since
+// ciclo-lo-decide-hoom);
 // Firma for A and I; Guardar for s. When the card does not have it the
 // message line says for DuracionAviso "en <column_name> no hay <Hace>";
 // when it is disabled, its why. P opens Seguir solo when it is available
@@ -947,7 +951,7 @@
 // the line "y despues: hoom piloto <slug>" of Firma (see Seguir solo) and
 // the Ayuda's groups (below). In short:
 //
-// Pedir (a, t, w, r, R, and enter or n when the step launches a role;
+// Pedir (a, t, w, f, r, R, and enter or n when the step launches a role;
 // CA-568), title "<label> · <slug>": "Pedido", the Pedido's box (4 lines),
 // the selectors Provider, Modelo, Esfuerzo, Tope and Tiempo límite (the
 // label padded to 15, the value "‹ <option> ›", the origin at column 15 +
@@ -955,7 +959,8 @@
 // "", "Se va a ejecutar:", the command (1 or 2 lines), "", and the buttons
 // (the action, Cancelar). The fields in tab order: Pedido, Provider,
 // Modelo, Esfuerzo, Tope, Tiempo límite, the action's button and Cancelar;
-// the reviewer has no Pedido. The options of each selector, their gray
+// the reviewer and the refutador have no Pedido (the refutador builds its
+// own: its command takes no -m). The options of each selector, their gray
 // whys, the origins, the list over the modal, otro…, the command's flags
 // (only what differs from the proposal), its layout by words in two lines
 // with the -m shortened, the "agranda la terminal: el comando no entra

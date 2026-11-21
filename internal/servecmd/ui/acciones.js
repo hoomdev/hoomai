@@ -36,6 +36,7 @@ const ACC_LABEL = {
   "pedir-test-writer": "Pedir al test-writer",
   "pedir-writer": "Pedir al writer",
   "pedir-reviewer": "Pedir al reviewer",
+  "pedir-refutador": "Pedir al refutador",
   "aprobar": "Aprobar spec",
   "integrar": ACC_NORMAL.integrar,
   "reanudar": "Reanudar",
@@ -197,6 +198,8 @@ function dialogoRol(c, a) {
   const ex = experto();
   const reanuda = a.id === "reanudar";
   const revision = a.role === "reviewer";
+  // el refutador arma su propio pedido: se muestra y no se edita
+  const fijo = a.role === "refutador";
   const opciones = a.providers.map(p => `<option value="${esc(p.name)}"${p.ok ? "" : " disabled"}${p.default ? " selected" : ""}>
       ${esc(nombreCLI(p.name))}${p.ok ? "" : ` — ${esc(p.why)}`}</option>`).join("");
   const avisos = [];
@@ -217,7 +220,7 @@ function dialogoRol(c, a) {
       <input id="acc-budget" type="number" min="0" step="0.1" value="${a.budget_usd != null ? esc(String(a.budget_usd)) : ""}" placeholder="vacío: sin tope"></div>
     <div class="aviso" id="acc-budgetnote"></div>
     <div class="hint" id="acc-timeout">${esc(tiempoLimite(a.timeout_s, a.origen))}</div>
-    ${revision ? "" : `<div class="fld"><label for="acc-pedido">Pedido</label><textarea id="acc-pedido">${esc(a.pedido)}</textarea></div>`}`;
+    ${revision ? "" : `<div class="fld"><label for="acc-pedido">Pedido</label><textarea id="acc-pedido"${fijo ? " readonly" : ""}>${esc(a.pedido)}</textarea></div>`}`;
   dialogo(`${etiquetaAccion(a)} · ${c.item.titulo}`, html, async () => {
     const budget = $("acc-budget");
     const valor = budget.disabled || budget.value.trim() === "" ? null : Number(budget.value);
@@ -226,7 +229,7 @@ function dialogoRol(c, a) {
       provider: $("acc-prov").value,
       model: $("acc-model").value.trim(),
       budget_usd: valor,
-      pedido: revision ? "" : $("acc-pedido").value,
+      pedido: revision ? "" : fijo ? a.pedido : $("acc-pedido").value,
       effort: $("acc-effort").value.trim(),
       // lo que el dialogo mostro: si la tarjeta cambio mientras estaba
       // abierto, no se lanza con otros valores (hallazgo faff7c)

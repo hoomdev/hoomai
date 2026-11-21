@@ -201,6 +201,8 @@ var Atajos = []Atajo{
 		Accion: boardcmd.ActPedirTestWriter, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"w"}, Muestra: "w", Hace: "pedir al writer", Verbo: "hoom pedir writer <slug>",
 		Accion: boardcmd.ActPedirWriter, DeTarjeta: true, Lugares: LugaresAccion},
+	{Teclas: []Tecla{"f"}, Muestra: "f", Hace: "pedir al refutador", Verbo: "hoom pedir refutador <slug>",
+		Accion: boardcmd.ActPedirRefutador, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"r"}, Muestra: "r", Hace: "pedir al reviewer", Verbo: "hoom pedir reviewer <slug>",
 		Accion: boardcmd.ActPedirReviewer, DeTarjeta: true, Lugares: LugaresAccion},
 	{Teclas: []Tecla{"R"}, Muestra: "R", Hace: "reanudar", Verbo: "hoom reanudar <slug>", Accion: boardcmd.ActReanudar,

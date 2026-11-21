@@ -163,7 +163,7 @@ func (m *Modelo) lineasPedir(p *pedir, c int, k compacto) []lineaModal {
 			out = append(out, lm(lin("")))
 		}
 	}
-	if !p.revisor {
+	if !p.sinPedido {
 		n := k.pedido
 		etiqueta := linCon("Pedido", normal)
 		if p.pedidoVacio {

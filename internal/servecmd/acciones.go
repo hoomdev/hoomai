@@ -131,7 +131,7 @@ func (s *Server) launch(w http.ResponseWriter, r *http.Request) {
 	if !boardcmd.IsRoleAction(body.Action) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("accion desconocida %q (validas: %s)", body.Action,
 			strings.Join([]string{boardcmd.ActPedirArquitecto, boardcmd.ActPedirTestWriter, boardcmd.ActPedirWriter,
-				boardcmd.ActPedirReviewer, boardcmd.ActReanudar, boardcmd.ActRelanzar}, ", ")))
+				boardcmd.ActPedirRefutador, boardcmd.ActPedirReviewer, boardcmd.ActReanudar, boardcmd.ActRelanzar}, ", ")))
 		return
 	}
 	resp, code, err := s.start(r.Context(), slug, launchReq{Action: body.Action, Provider: body.Provider, Model: body.Model,

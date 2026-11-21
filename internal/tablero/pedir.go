@@ -70,11 +70,15 @@ func (t *texto) editar(k Tecla) bool {
 
 // pedir is the open Pedir modal.
 type pedir struct {
-	slug     string
-	accion   boardcmd.Action
-	verbo    []string // {"pedir", <rol>, <slug>} or {"reanudar", <slug>}
-	revisor  bool     // no Pedido, and its Tiempo limite is review.timeout's
-	reanudar bool     // the provider is the session's
+	slug    string
+	accion  boardcmd.Action
+	verbo   []string // {"pedir", <rol>, <slug>} or {"reanudar", <slug>}
+	revisor bool     // its Tiempo limite is review.timeout's
+	// sinPedido: the role builds its own pedido and the modal has no Pedido
+	// (the reviewer, and since ciclo-lo-decide-hoom any action of the
+	// refutador, whose verbs take no -m)
+	sinPedido bool
+	reanudar  bool // the provider is the session's
 
 	pedido      texto
 	pedidoVacio bool
@@ -118,12 +122,13 @@ func (p *pedir) lugar() Lugar {
 
 func (m *Modelo) abrirPedir(c *boardcmd.Card, a boardcmd.Action, verbo []string) {
 	p := &pedir{
-		slug:     c.Slug,
-		accion:   a,
-		verbo:    verbo,
-		revisor:  a.ID == boardcmd.ActPedirReviewer,
-		reanudar: a.ID == boardcmd.ActReanudar,
-		prov:     -1,
+		slug:      c.Slug,
+		accion:    a,
+		verbo:     verbo,
+		revisor:   a.ID == boardcmd.ActPedirReviewer,
+		sinPedido: a.ID == boardcmd.ActPedirReviewer || a.Role == "refutador",
+		reanudar:  a.ID == boardcmd.ActReanudar,
+		prov:      -1,
 	}
 	for i, o := range a.Providers {
 		if o.Default {
@@ -149,7 +154,7 @@ func (m *Modelo) abrirPedir(c *boardcmd.Card, a boardcmd.Action, verbo []string)
 		p.propuesto[campoTiempo] = valores.Duracion(time.Duration(a.TimeoutS) * time.Second)
 	}
 	p.valor = p.propuesto
-	if !p.revisor {
+	if !p.sinPedido {
 		p.pedido.poner(a.Pedido)
 		p.foco = campoPedido
 	} else {
@@ -359,7 +364,7 @@ func (m *Modelo) cambiarProvider(p *pedir, i int) {
 // selectors are skipped.
 func (m *Modelo) focosPedir(p *pedir) []int {
 	var out []int
-	if !p.revisor {
+	if !p.sinPedido {
 		out = append(out, campoPedido)
 	}
 	for _, c := range selectores {
@@ -443,7 +448,7 @@ func (m *Modelo) enPedir(l Lugar, t Tecla) []Orden {
 		}
 		return nil
 	case TeclaCtrlE:
-		if !p.revisor {
+		if !p.sinPedido {
 			return []Orden{EditarPedido{Texto: p.pedido.valor()}}
 		}
 		return nil
@@ -527,7 +532,7 @@ func (m *Modelo) elegirDeLista(p *pedir, i int) {
 // proposal.
 func (m *Modelo) argsPedir(p *pedir) []string {
 	out := append([]string{}, p.verbo...)
-	if !p.revisor {
+	if !p.sinPedido {
 		out = append(out, "-m", strings.TrimSpace(p.pedido.valor()))
 	}
 	if !p.reanudar && p.prov != p.provPropuesto && p.prov >= 0 {
@@ -555,7 +560,7 @@ func (m *Modelo) argsPedir(p *pedir) []string {
 // lanzarPedir is enter on the action's button.
 func (m *Modelo) lanzarPedir() []Orden {
 	p := m.pedir
-	if !p.revisor && strings.TrimSpace(p.pedido.valor()) == "" {
+	if !p.sinPedido && strings.TrimSpace(p.pedido.valor()) == "" {
 		p.pedidoVacio = true
 		p.foco = campoPedido
 		m.avisar("el pedido esta vacio", rojo, DuracionAviso)
