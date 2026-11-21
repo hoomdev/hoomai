@@ -411,7 +411,7 @@ func LoadRoles(root string) (*Manifest, error) {
 	if err := doc.Review.validate(); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings)); err != nil {
+	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings), maxRondasDeclarado(doc.Findings)); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Dir: root}, nil
@@ -508,10 +508,14 @@ func enteroYAML(v *yaml.Node) (int, bool) {
 
 // validarAutonomia is the rule of autonomia that needs the rest of the file:
 // rounds of findings close only through findings_open, which runs only with
-// findings.block_on.
-func validarAutonomia(a *AutonomiaPolicy, blockOn bool) error {
+// findings.block_on, and the pilot's rounds never pass a declared
+// findings.max_rondas (maxRondas nil = not declared, or not valid).
+func validarAutonomia(a *AutonomiaPolicy, blockOn bool, maxRondas *int) error {
 	if a != nil && a.RondasDeHallazgos > 0 && !blockOn {
 		return fmt.Errorf("autonomia: rondas_de_hallazgos necesita findings.block_on")
+	}
+	if a != nil && maxRondas != nil && a.RondasDeHallazgos > *maxRondas {
+		return fmt.Errorf("autonomia: rondas_de_hallazgos (%d) pasa de findings.max_rondas (%d)", a.RondasDeHallazgos, *maxRondas)
 	}
 	return nil
 }
@@ -952,12 +956,54 @@ func (m *Manifest) FindingsMaxPendientes() (n int, ok bool) {
 // A card is AT THE CAP when reviewcmd.Rondas of its task is at or above this
 // cap and it has at least one blocking finding (finding.Bloquea).
 func (m *Manifest) FindingsMaxRondas() int {
-	return 0
+	if m == nil {
+		return DefaultMaxRondas
+	}
+	if m.Findings != nil && m.Findings.MaxRondas != nil {
+		return *m.Findings.MaxRondas
+	}
+	if m.Autonomia != nil && m.Autonomia.RondasDeHallazgos > DefaultMaxRondas {
+		return m.Autonomia.RondasDeHallazgos
+	}
+	return DefaultMaxRondas
 }
 
 // Severities are the values block_on accepts, mildest first. They are the
 // same three a finding can carry.
 var Severities = []string{"low", "medium", "high"}
+
+// FindingsKeys are the keys `findings:` accepts, in the order its error
+// lists them.
+var FindingsKeys = []string{"block_on", "max_pendientes", "max_rondas"}
+
+// maxRondasValido is the cap a findings.max_rondas node holds when it is a
+// valid one: an integer from 1 to 5.
+func maxRondasValido(v *yaml.Node) (int, bool) {
+	x, ok := enteroYAML(v)
+	if !ok || x < 1 || x > 5 {
+		return 0, false
+	}
+	return x, true
+}
+
+// maxRondasDeclarado is the findings.max_rondas of a findings: node when it
+// declares a valid one, nil otherwise (LoadRoles compares autonomia with it
+// only then; Load judges an invalid value).
+func maxRondasDeclarado(n yaml.Node) *int {
+	if n.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if n.Content[i].Value != "max_rondas" {
+			continue
+		}
+		if x, ok := maxRondasValido(n.Content[i+1]); ok {
+			return &x
+		}
+		return nil
+	}
+	return nil
+}
 
 // UnmarshalYAML rejects unknown keys inside `findings`: a typo like
 // `blockon` would otherwise switch a BLOCKING gate off in silence, which is
@@ -977,8 +1023,15 @@ func (p *FindingsPolicy) UnmarshalYAML(n *yaml.Node) error {
 			if v.Kind != yaml.ScalarNode || v.Tag != "!!int" || v.Decode(&x) != nil || x < 0 {
 				return fmt.Errorf("findings: max_pendientes tiene que ser un entero mayor o igual a 0")
 			}
+		case "max_rondas":
+			if esNulo(v) {
+				continue // como block_on: nulo = sin la clave
+			}
+			if _, ok := maxRondasValido(v); !ok {
+				return fmt.Errorf("findings: max_rondas tiene que ser un entero de 1 a 5")
+			}
 		default:
-			return fmt.Errorf("findings: clave desconocida %q (validas: block_on, max_pendientes)", key)
+			return fmt.Errorf("findings: clave desconocida %q (validas: %s)", key, strings.Join(FindingsKeys, ", "))
 		}
 	}
 	type plain FindingsPolicy // sin el metodo: evita la recursion
@@ -1104,7 +1157,11 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 	if err := m.validateReview(); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	if err := validarAutonomia(m.Autonomia, m.FindingsBlockOn() != ""); err != nil {
+	var maxRondas *int
+	if m.Findings != nil {
+		maxRondas = m.Findings.MaxRondas
+	}
+	if err := validarAutonomia(m.Autonomia, m.FindingsBlockOn() != "", maxRondas); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	if m.BaseBranch == "" {
