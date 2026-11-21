@@ -562,8 +562,10 @@ func sobresCerrados(root, slug string) []envelope.Record {
 // sidecar, the card's newest complete verdict, its review records, the open
 // findings of its task that block (finding.Bloquea) with the protected tests
 // (agentcmd.TestsProtegidos) whose text contains each id, the project's
-// autonomia policy, the newest "5h" datum per provider of the sidecars of
-// the card's runs, the machine's providers and o.Ahora.
+// autonomia policy and its cap on the rounds of findings
+// (manifest.Manifest.FindingsMaxRondas, ciclo-lo-decide-hoom), the newest
+// "5h" datum per provider of the sidecars of the card's runs, the machine's
+// providers and o.Ahora.
 func Armar(o Opciones) (boardcmd.Estado, error) {
 	o = completar(o)
 	m := o.Manifest
@@ -585,6 +587,9 @@ func Armar(o Opciones) (boardcmd.Estado, error) {
 		return boardcmd.Estado{}, err
 	}
 	e.Politica = roles.AutonomiaOrDefault()
+	// the cap on the rounds of findings (ciclo-lo-decide-hoom): the same
+	// hoom.yaml block_on comes from, with the project's autonomia
+	e.TopeDeRondas = (&manifest.Manifest{Findings: m.Findings, Autonomia: roles.Autonomia}).FindingsMaxRondas()
 
 	dir := root
 	if c.Evidence.Source == boardcmd.SourceWorktree {
