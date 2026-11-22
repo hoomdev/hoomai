@@ -9,6 +9,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -62,7 +63,9 @@ type Entorno struct {
 //
 // <Ejecutar> goes as it is, between double quotes.
 func (e Entorno) Sugerencia() string {
-	return ""
+	return "sugerencia: este proyecto parece usar " + e.Nombre + " y el host no tiene " + e.Sin +
+		"; para correr los gates ahi, crea .hoom/local.yaml con:\n" +
+		"  ejecutar: \"" + e.Ejecutar + "\""
 }
 
 // Entornos lists the entornos of profile name and of everything it extends,
@@ -76,7 +79,15 @@ func (e Entorno) Sugerencia() string {
 // A profile that declares none has none; an unknown one is the error of
 // Resolve.
 func Entornos(name string) ([]Entorno, error) {
-	return nil, nil
+	chain, err := chainOf(name)
+	if err != nil {
+		return nil, err
+	}
+	var out []Entorno
+	for _, p := range chain {
+		out = append(out, p.Entornos...)
+	}
+	return out, nil
 }
 
 // Sugerencias are the entornos of profile name (Entornos) that hold in the
@@ -90,7 +101,21 @@ func Entornos(name string) ([]Entorno, error) {
 // (the file does not exist: one without ejecutar is not "no file", and then
 // nothing is suggested); with --json it prints none of them, on no stream.
 func Sugerencias(name, dir string) []Entorno {
-	return nil
+	todos, err := Entornos(name)
+	if err != nil {
+		return nil
+	}
+	var out []Entorno
+	for _, e := range todos {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(e.SiExiste))); err != nil {
+			continue
+		}
+		if _, err := exec.LookPath(e.Sin); err == nil {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // Detect declares how `hoom init` recognizes a stack.
