@@ -562,8 +562,8 @@ func sobresCerrados(root, slug string) []envelope.Record {
 // sidecar, the card's newest complete verdict, its review records, the open
 // findings of its task that block (finding.Bloquea) with the protected tests
 // (agentcmd.TestsProtegidos) whose text contains each id, the project's
-// autonomia policy and its cap on the rounds of findings
-// (manifest.Manifest.FindingsMaxRondas, ciclo-lo-decide-hoom), the newest
+// autonomia policy and the cap on the rounds of findings the card read
+// (boardcmd.Card.Rondas.Tope, ciclo-lo-decide-hoom), the newest
 // "5h" datum per provider of the sidecars of the card's runs, the machine's
 // providers and o.Ahora.
 func Armar(o Opciones) (boardcmd.Estado, error) {
@@ -587,9 +587,12 @@ func Armar(o Opciones) (boardcmd.Estado, error) {
 		return boardcmd.Estado{}, err
 	}
 	e.Politica = roles.AutonomiaOrDefault()
-	// the cap on the rounds of findings (ciclo-lo-decide-hoom): the same
-	// hoom.yaml block_on comes from, with the project's autonomia
-	e.TopeDeRondas = (&manifest.Manifest{Findings: m.Findings, Autonomia: roles.Autonomia}).FindingsMaxRondas()
+	// the cap on the rounds of findings (ciclo-lo-decide-hoom) is the one the
+	// card just read from the hoom.yaml (Card.Rondas.Tope), not o.Manifest's:
+	// the Studio's is the one it loaded at start, and a person who raised
+	// findings.max_rondas since would see the card under the cap and the
+	// pilot stopping at the old one (findings c155a2, f58e6a)
+	e.TopeDeRondas = c.Rondas.Tope
 
 	dir := root
 	if c.Evidence.Source == boardcmd.SourceWorktree {
