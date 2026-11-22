@@ -3,6 +3,7 @@
 Estado: BORRADOR — pendiente de aprobación humana.
 Tarjeta: `ciclo-lo-decide-hoom`. Intake: `.hoom/intake/rfc-calibracion-por-riesgo.md`, CAL-4, CAL-5 y la parte de contrato de CAL-10 (secciones 4 y 10). Criterios CA-747 a CA-759.
 Enmienda del 2026-11-21, antes del verify: precisa el orden de las acciones, el tope en cualquier columna, el tablero y el Studio y el pedido del refutador, y re-expresa criterios de specs anteriores (ver «Lo que este spec re-expresa»).
+Enmienda del 2026-11-22, después de la review: `max_rondas:` sin valor cuenta como sin la clave (ver Decisiones).
 
 ## Objetivo
 
@@ -28,7 +29,7 @@ El piloto ya lo hace: solo pide corregir los bloqueantes, le pasa al refutador s
 ### El tope: `findings.max_rondas`
 
 - Clave nueva de `hoom.yaml`: `findings.max_rondas: <n>`, entero de 1 a 5. Se lee del mismo `hoom.yaml` del que el tablero lee hoy `findings.block_on`.
-- Sin la clave, el tope es 2, o `autonomia.rondas_de_hallazgos` si es mayor: un `hoom.yaml` de hoy no cambia de comportamiento.
+- Sin la clave, el tope es 2, o `autonomia.rondas_de_hallazgos` si es mayor: un `hoom.yaml` de hoy no cambia de comportamiento. `max_rondas:` sin valor (null o `~` en YAML) cuenta como sin la clave, igual que `block_on:` sin valor y `max_pendientes:` sin valor.
 - Errores de carga:
   - valor fuera de rango o no entero: `findings: max_rondas tiene que ser un entero de 1 a 5`;
   - clave desconocida en `findings`: `findings: clave desconocida "<k>" (validas: block_on, max_pendientes, max_rondas)`;
@@ -100,7 +101,7 @@ Estos criterios de specs anteriores fijaban el comportamiento que este spec camb
 
 ## Criterios de aceptación
 
-- CA-747: `hoom.yaml` acepta `findings.max_rondas` con un entero de 1 a 5; rechaza 0, 6 y un valor no entero con `findings: max_rondas tiene que ser un entero de 1 a 5`; una clave desconocida en `findings` nombra `block_on, max_pendientes, max_rondas`.
+- CA-747: `hoom.yaml` acepta `findings.max_rondas` con un entero de 1 a 5; rechaza 0, 6 y un valor no entero con `findings: max_rondas tiene que ser un entero de 1 a 5`; `max_rondas:` sin valor (null o `~`) carga como sin la clave (CA-748); una clave desconocida en `findings` nombra `block_on, max_pendientes, max_rondas`.
 - CA-748: sin `findings.max_rondas`, el tope es 2, o `autonomia.rondas_de_hallazgos` si es mayor; un `autonomia.rondas_de_hallazgos` mayor que un `findings.max_rondas` declarado es el error `autonomia: rondas_de_hallazgos (<a>) pasa de findings.max_rondas (<m>)`.
 - CA-749: `Rondas` de una tarea cuenta sus registros de review `delta` posteriores a su registro `completa` más nuevo; da 0 sin registro `completa` y vuelve a 0 con una review completa nueva.
 - CA-750: al tope, en cualquier columna salvo Hecho, la tarjeta no ofrece `pedir-writer` ni `pedir-refutador` (ni `reanudar` o `relanzar` de esos roles) y sigue ofreciendo `pedir-reviewer` cuando corresponde; su texto llano y lo primero que falta es la razón `se hicieron <n> rondas de hallazgos y quedan <k> que bloquean: te toca`, y su acción es `hoom finding list --open`; `hoom siguiente` no lanza e imprime `te toca: hoom finding list --open` y la razón, también con un trabajo cortado de writer o de refutador.
@@ -122,6 +123,7 @@ Estos criterios de specs anteriores fijaban el comportamiento que este spec camb
 - **El tope vale en cualquier columna.** Si solo valiera en Review, bastaría correr verify con los bloqueantes abiertos para caer en la columna Writer y pedir otro writer.
 - **El refutador arma su pedido**, como la review. Si aceptara `-m`, el orquestador podría volver a meterle pendientes.
 - **A mano, la ronda es refutador y después writer.** El piloto suma el test-writer de regresión. Igualarlos sumaría un run por ronda; Hoom eligió el 2026-11-21 dejar la ronda a mano sin ese run.
+- **`max_rondas:` sin valor es sin la clave.** Es lo que ya hacen `block_on` (gate-findings-open) y `max_pendientes`, y deja el tope por defecto, que es válido. Descartado: rechazarlo como no entero, porque sería la única clave de `findings` en tratar distinto al nulo. Hoom lo eligió el 2026-11-22, por los hallazgos be3c8c y 326073 de la review 1c9146.
 - **`hoom agent` no se toca.** Lo usan el piloto y `lanzar`: cerrarlo rompería esos caminos.
 
 ## Riesgos y deuda aceptada
