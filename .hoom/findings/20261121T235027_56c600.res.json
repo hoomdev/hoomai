@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261121T235027_56c600",
+  "as": "corregido",
+  "evidence": "corregido en adabddd: bajo el candado, lanzar.Lanzar con req.Pilot niega con 409 '\u003cRazon\u003e: el piloto no lanza nada' una accion de writer o refutador si la tarjeta releida esta al tope (internal/lanzar/lanzar.go:400-407). Test TestHallazgo56c600_ElCandadoNoLanzaPorEncimaDelTope (servecmd, 1c5f85f), para writer y refutador, falla sin adabddd; la reproduccion TestRefutador_DeltaEntreDecisionYCandado pasa de trabajo creado a 409 con 0 llamadas al CLI.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-22T00:29:07.170059333Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261121T234409_a3a4d8",
+  "as": "corregido",
+  "evidence": "corregido en e2ea089: piloto.alTope devuelve p.c.Rondas.Razon cuando la tarjeta esta al tope (internal/boardcmd/piloto.go:388-390), asi el piloto decide con el block_on efectivo de la tarjeta (high sin block_on). Tests TestHallazgoA3a4d8_ElPilotoParaConLaTarjetaAlTope (internal/boardcmd/hallazgos_cld_a3a4d8_test.go) y TestHallazgoA3a4d8_SinBlockOnElPilotoParaAlTope (servecmd, 1c5f85f): fallan sin e2ea089; la reproduccion TestRefutador_SinBlockOn pasa del caso 5 con 1 llamada al CLI al caso 7 con 0.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-22T00:29:07.167779772Z"
+}
