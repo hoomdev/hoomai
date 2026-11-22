@@ -377,10 +377,17 @@ func (p piloto) decidir() PilotDecision {
 }
 
 // alTope is the reason of the cap on the rounds of findings when the card is
-// at it: reviewcmd.Rondas of its review records at or above the cap
+// at it: the card's own (Card.Rondas.AlTope, with its Razon), or
+// reviewcmd.Rondas of its review records at or above the cap
 // (Estado.TopeDeRondas, with its rule for 0) and some finding that blocks;
-// "" otherwise.
+// "" otherwise. The card goes first: it judges its findings with the
+// effective block_on ("high" when the project declares none), while
+// Estado.Bloqueantes are empty without one, and the pilot must not launch
+// what the card already took away (finding a3a4d8).
 func (p piloto) alTope() string {
+	if p.c.Rondas.AlTope {
+		return p.c.Rondas.Razon
+	}
 	tope := p.e.TopeDeRondas
 	if tope == 0 {
 		tope = max(manifest.DefaultMaxRondas, p.e.Politica.RondasDeHallazgos)
