@@ -146,10 +146,13 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // With ejecutar or without it, and with Options.Sobre or without it, every
 // run photographs the main checkout's .hoom/local.yaml (entorno.Ruta under
 // entorno.Ajuste.Principal): the sha256 of its bytes, or that it does not
-// exist, right before the first gate of the manifest and right after the
-// last (CA-773). When the two differ, the verdict carries one more gate,
-// GateEntornoLocal, in fail with NotaEntornoLocal, and is red; when they do
-// not, it has no such gate and the JSON is as before.
+// exist, right before the first gate the run executes and right after the
+// last (CA-773), counting hoom's own: the spec's (spec_lint, spec_trace with
+// its [verifica:] commands, spec_approved), findings_open, the manifest's
+// gates and the ratchet with its metric commands. When the two differ, the
+// verdict carries one more gate, GateEntornoLocal, in fail with
+// NotaEntornoLocal, and is red; when they do not, it has no such gate and the
+// JSON is as before.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
 		return nil, "", err
@@ -215,6 +218,9 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	}
 	lw.Emit(live.Event{Kind: live.KindVerifyStart, Gates: total, Spec: opt.Spec})
 
+	// the photograph of .hoom/local.yaml spans every command the run
+	// executes, hoom's own gates included (CA-773)
+	localAntes := fotoLocal(local.Principal)
 	var results []verdict.GateResult
 	if opt.Spec != "" {
 		for _, name := range []string{"spec_lint", "spec_trace", "spec_approved"} {
@@ -244,12 +250,7 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		antes = materialgit.TomarConTope(m.Dir, topeFotoMaterial)
 		ajeno = gitajeno.Tomar(m.Dir, gitajeno.Tope, gitajeno.MaxLeido)
 	}
-	localAntes := fotoLocal(local.Principal)
 	results = append(results, gates.Run(m, git, gopt)...)
-	if fotoLocal(local.Principal) != localAntes {
-		results = append(results, verdict.GateResult{Name: GateEntornoLocal, Required: true, Status: verdict.StatusFail,
-			Scope: "full", ExitCode: 1, OutputTail: entorno.Ruta, Notes: NotaEntornoLocal})
-	}
 	if opt.Sobre != nil {
 		if cambios := materialgit.Cambios(antes, materialgit.TomarConTope(m.Dir, topeFotoMaterial)); len(cambios) > 0 {
 			results = append(results, verdict.GateResult{Name: GateMaterialDeGit, Required: true, Status: verdict.StatusFail,
@@ -277,6 +278,10 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: "ratchet", Status: rres.Status,
 			DurationMS: rres.DurationMS, ExitCode: rres.ExitCode})
 		results = append(results, rres)
+	}
+	if fotoLocal(local.Principal) != localAntes {
+		results = append(results, verdict.GateResult{Name: GateEntornoLocal, Required: true, Status: verdict.StatusFail,
+			Scope: "full", ExitCode: 1, OutputTail: entorno.Ruta, Notes: NotaEntornoLocal})
 	}
 
 	v := &verdict.Verdict{
