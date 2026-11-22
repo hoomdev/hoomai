@@ -4,3 +4,5 @@ prioridad: alta
 pedido: 'Intake .hoom/intake/rfc-calibracion-por-riesgo.md, CAL-4, CAL-5 y la parte de contrato de CAL-10 (secciones 4 y 10): el camino a mano (siguiente, pedir, el orquestador) sigue la regla del piloto. Solo se corrigen los bloqueantes, el refutador recibe solo bloqueantes (hoom pedir refutador), tope de rondas findings.max_rondas por cualquier camino, y los contratos 00, 04 y 09 lo dicen.'
 creado_por: hoomdev <dev@volale.com>
 creado_en: 2026-11-21T21:10:33Z
+hecho_en: 2026-11-22T01:56:28Z
+commit_final: 7cc22ff8792df17ae934186e2b6126b97ef0409f
