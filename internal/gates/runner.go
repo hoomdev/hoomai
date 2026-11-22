@@ -137,6 +137,14 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 		Partial:  g.Partial,
 		Scope:    "none",
 	}
+	prefijo := opt.Local.ConPrefijo(name)
+	if opt.Local != nil && opt.Local.Ejecutar != "" {
+		// where it runs, or would have run (aclaracion 2)
+		res.Entorno = verdict.EntornoHost
+		if prefijo {
+			res.Entorno = verdict.EntornoPrefijo
+		}
+	}
 	if len(opt.Only) > 0 && !opt.Only[name] {
 		res.Status = verdict.StatusSkipped
 		opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: res.Scope})
@@ -154,6 +162,20 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	res.Command = cmdStr
 	res.Scope = scope
 	opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: scope})
+	// the container is the limit of a gate with the template: in the verify
+	// of a Sobre it runs unenclosed, or not at all when exigir asks for more
+	sinEncierro := prefijo && opt.ExigirEncierro != ""
+	if sinEncierro && (opt.ExigirEncierro == manifest.ExigirCompleto || opt.ExigirEncierro == manifest.ExigirParcial) {
+		res.Status = verdict.StatusError
+		res.ExitCode = -1
+		res.Notes = fmt.Sprintf(NotaExigirConPrefijo, opt.ExigirEncierro)
+		opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status, ExitCode: res.ExitCode})
+		return res
+	}
+	linea := cmdStr
+	if prefijo {
+		linea = opt.Local.Linea(cmdStr, m.Dir)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), opt.Timeout)
 	defer cancel()
@@ -161,10 +183,10 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	// correr keeps the last TailSize+margenCola bytes; tail then trims the
 	// blanks at both ends and keeps the last TailSize of what is left
 	plan := opt.Encierro
-	if opt.SinEncierro[name] {
+	if opt.SinEncierro[name] || prefijo {
 		plan = nil
 	}
-	out, cortado, err := correr(ctx, m.Dir, cmdStr, opt.TailSize+margenCola, plan)
+	out, cortado, err := correr(ctx, m.Dir, linea, opt.TailSize+margenCola, plan)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.OutputTail = tail(string(out), opt.TailSize)
 	if cortado && !strings.HasPrefix(res.OutputTail, marcaCorte) {
@@ -182,15 +204,47 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 		if ee, ok := err.(*exec.ExitError); ok {
 			res.ExitCode = ee.ExitCode()
 			res.Status = verdict.StatusFail
+			switch res.ExitCode {
+			case 127:
+				res.Status = verdict.StatusError
+				res.Notes = notaNoPudo(NotaNoEncontrado, res.OutputTail)
+			case 126:
+				res.Status = verdict.StatusError
+				res.Notes = notaNoPudo(NotaNoEjecutable, res.OutputTail)
+			}
 		} else {
 			res.ExitCode = -1
 			res.Status = verdict.StatusError // could not even start — fail closed
 			res.Notes = err.Error()
 		}
 	}
+	if sinEncierro {
+		res.Notes = juntarNotas(res.Notes, NotaSinEncierroConPrefijo)
+	}
 	opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status,
 		DurationMS: res.DurationMS, ExitCode: res.ExitCode})
 	return res
+}
+
+// notaNoPudo is the note of a gate that exited 127 or 126: constante, then
+// ": " and the last line of its output that is not blank, which is where sh
+// and env name the command; constante alone when there is none.
+func notaNoPudo(constante, salida string) string {
+	lineas := strings.Split(salida, "\n")
+	for i := len(lineas) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(lineas[i]); l != "" {
+			return constante + ": " + l
+		}
+	}
+	return constante
+}
+
+// juntarNotas is a gate's own note followed by another one (aclaracion 8).
+func juntarNotas(propia, otra string) string {
+	if propia == "" {
+		return otra
+	}
+	return propia + "; " + otra
 }
 
 // graciaGate is how long a gate's group has, once its deadline passed,
