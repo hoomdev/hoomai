@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -834,10 +835,14 @@ const DetalleLocal = "la plantilla de .hoom/local.yaml decide que corren los gat
 
 // FotoLocal (verify-en-el-entorno) is the photograph of the .hoom/local.yaml
 // (entorno.Ruta) of the main checkout principal, as Snapshot.Local keeps it:
-// the hex sha256 of its bytes when it is a regular file, ProtegidoAusente
-// when it is not there, HuellaNoRegular plus its type for anything else
-// (never followed nor read) and HuellaIlegible when it cannot be read. It is
-// read from the disk, never from git, and is never "".
+// the hex sha256 of its bytes when it is a regular file of at most
+// materialgit.MaxLeido bytes; materialgit.HuellaGrande (its size, mode, mtime
+// and ctime, never its content) for a larger one, also one that grows past
+// that bound while it is read (the read stops there); ProtegidoAusente when
+// it is not there, HuellaNoRegular plus its type for anything else (never
+// followed nor read) and HuellaIlegible when it cannot be read. It is read
+// from the disk, never from git, is never "", and returns in a bounded time
+// whatever the file's size (a sparse file of an exabyte included).
 func FotoLocal(principal string) string {
 	r, err := os.OpenRoot(principal)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -854,8 +859,31 @@ func FotoLocal(principal string) string {
 		return ProtegidoAusente
 	case err != nil:
 		return HuellaIlegible
+	case !fi.Mode().IsRegular():
+		return huella(r, name, fi)
+	case fi.Size() > materialgit.MaxLeido:
+		return materialgit.HuellaGrande(fi)
 	}
-	return huella(r, name, fi)
+	f, err := hoomfs.AbrirRegularEn(r, name, fi)
+	if err != nil {
+		return HuellaIlegible
+	}
+	defer f.Close()
+	h := sha256.New()
+	// at most one byte past the bound: a file that grows between the
+	// Lstat and the read is never read whole (acc76d)
+	n, err := io.Copy(h, io.LimitReader(f, materialgit.MaxLeido+1))
+	if err != nil {
+		return HuellaIlegible
+	}
+	if n > materialgit.MaxLeido {
+		ahora, err := f.Stat()
+		if err != nil {
+			return HuellaIlegible
+		}
+		return materialgit.HuellaGrande(ahora)
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // The two Huellas that are not a content hash.
