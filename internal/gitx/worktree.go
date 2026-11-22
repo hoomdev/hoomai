@@ -99,8 +99,25 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 }
 
 // AceptaRutasRelativas (verify-en-el-entorno) says whether the git that runs
-// in dir accepts `git worktree add --relative-paths`: git 2.48 or newer. A
-// version it cannot read, or a git that does not answer, does not.
+// in dir accepts `git worktree add --relative-paths`: git 2.48 or newer.
+//
+// It runs, with dir as its working directory, the git that this process's
+// PATH resolves (exec.Command("git")), with exactly these arguments:
+//
+//	git -c core.fsmonitor=false version
+//
+// and this process's environment plus GIT_OPTIONAL_LOCKS=0,
+// GIT_NO_REPLACE_OBJECTS=1 and GIT_GRAFT_FILE (hoom's read-only git). It
+// splits the output in fields (strings.Fields): the first two have to be
+// "git" and "version", and the third is the version, for example "2.56.1"
+// or "2.47.1.windows.2". It holds when the first two dot-separated parts of
+// that version, as integers, are at least 2.48: a major above 2, or major 2
+// and a minor of 48 or more. A git that exits non-zero, an output that does
+// not start with "git version", or a version whose first two parts are not
+// integers does not. It asks git nothing else and keeps nothing between
+// calls: a fake git first in the PATH that answers that one call with
+// "git version 2.47.0" and passes every other call to the real git makes it
+// false, and taskcmd.Start then refuses a worktrees_relativos: true.
 func AceptaRutasRelativas(dir string) bool {
 	v, err := versionDeGit(dir)
 	return err == nil && alMenos(v, [2]int{2, 48})

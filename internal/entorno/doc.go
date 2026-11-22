@@ -27,6 +27,7 @@
 //
 //	ejecutar: "ddev exec -d /var/www/html/{rel} sh -c {cmd}"
 //	en_el_host: [semgrep]   # gates que corren como hoy
+//	worktrees_relativos: true
 //
 // Claves are the only keys the file accepts. ejecutar is the template; with
 // no value, null, "" or only blanks it counts as without the key (the rule
@@ -34,6 +35,20 @@
 // hoom.yaml that run as today even with ejecutar; without ejecutar it
 // changes nothing in the commands, the states or the JSON, but the file is
 // still validated whole.
+//
+// worktrees_relativos (CA-771) is a boolean for `hoom task start`, not for
+// verify (Ajuste.WorktreesRelativos): with true, the task's worktree is
+// added with `git worktree add --relative-paths`, so its .git stays valid
+// inside a container that mounts the project at another path. It is this
+// machine's choice because --relative-paths writes extensions.relativeWorktrees
+// in this clone's .git/config, and from then on a git older than 2.48
+// refuses the whole repository, on the host and in the container. false,
+// no value, null or empty count as without the key: the worktree is added
+// as before, and .git/config does not change. With true and a git older
+// than 2.48, `hoom task start` refuses with ErrWorktreesRelativosGitViejo
+// and creates nothing. `hoom task start` reads the file with the same rules
+// as verify (Leer): with any of its errors it refuses with that error and
+// creates no worktree.
 //
 // # The marks
 //
@@ -61,7 +76,7 @@
 // Leer refuses the file, and then `hoom verify` runs no gate and writes no
 // verdict, as with an invalid hoom.yaml, with exactly:
 //
-//   - ErrClaveDesconocida: `.hoom/local.yaml: clave desconocida "<k>" (validas: ejecutar, en_el_host)`;
+//   - ErrClaveDesconocida: `.hoom/local.yaml: clave desconocida "<k>" (validas: ejecutar, en_el_host, worktrees_relativos)`;
 //   - ErrSinCmd: `.hoom/local.yaml: ejecutar tiene que llevar {cmd}`;
 //   - ErrGateDesconocido: `.hoom/local.yaml: en_el_host nombra "<g>", que no es un gate de hoom.yaml`;
 //   - ErrNoIgnorado: `.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)`.
@@ -72,9 +87,10 @@
 // the four above (the path .hoom/local.yaml, a colon and a space), and whose
 // text is not fixed: a file that is not regular or cannot be read, YAML
 // that does not parse, a top level that is not a map, an ejecutar that is
-// not text, an en_el_host that is not a list of names (all of these before
-// the four above), and a git that does not answer whether it ignores the
-// file (in the place of ErrNoIgnorado).
+// not text, an en_el_host that is not a list of names, a
+// worktrees_relativos that is not a boolean, null or empty (all of these
+// before the four above), and a git that does not answer whether it
+// ignores the file (in the place of ErrNoIgnorado).
 //
 // # The verdict
 //

@@ -58,13 +58,32 @@ func ensureIgnored(root string) error {
 
 // Start creates the branch hoom/<slug> and its isolated worktree.
 //
-// verify-en-el-entorno: with a git that accepts it
-// (gitx.AceptaRutasRelativas: 2.48 or newer) the worktree is added with
-// `git worktree add --relative-paths`, so the worktree's .git holds a
-// relative gitdir and stays valid inside a container that mounts the
-// project at another path; `hoom task list`, `hoom verify` and
-// `hoom task done` recognize it as before (gitx.WorktreeDe resolves relative
-// paths). With an older git it is added as before.
+// verify-en-el-entorno (CA-771, as amended): right after the slug check and
+// before it creates or writes anything (no branch, no worktree, no
+// .hoom/.gitignore completed), Start reads the main checkout's
+// .hoom/local.yaml with the same rules as `hoom verify`:
+// entorno.Leer(root, the names of the gates of root's hoom.yaml merged with
+// its profile, as manifest.Load(root, profiles.Resolve) gives them). When
+// the file does not exist, root's hoom.yaml is not read for it, and a root
+// without one starts its task as before. Then:
+//   - an error of Leer (entorno.ErrClaveDesconocida, ErrSinCmd,
+//     ErrGateDesconocido, ErrNoIgnorado or another that starts with the path
+//     .hoom/local.yaml, a colon and a space), or of loading root's hoom.yaml
+//     when the file exists, is Start's error, exactly, and nothing is
+//     created;
+//   - with entorno.Ajuste.WorktreesRelativos and gitx.AceptaRutasRelativas(root)
+//     false (a git older than 2.48), Start refuses with
+//     errors.New(entorno.ErrWorktreesRelativosGitViejo) and nothing is
+//     created;
+//   - with WorktreesRelativos and a git that accepts it, the worktree is
+//     added with `git worktree add --relative-paths`: its .git and the
+//     repository's registry (.git/worktrees/<id>/gitdir) hold relative
+//     paths, git writes extensions.relativeWorktrees in .git/config, and
+//     `hoom task list`, `hoom verify` and `hoom task done` recognize it as
+//     before (gitx.WorktreeDe resolves relative paths);
+//   - without it (no file, no key, false, null or empty) the worktree is
+//     added as before this card, with absolute paths, whatever the git, and
+//     .git/config does not gain extensions.relativeWorktrees.
 func Start(root, slug, base string) error {
 	if err := checkSlug(slug); err != nil {
 		return err

@@ -25,13 +25,13 @@ const Ruta = ".hoom/local.yaml"
 
 // Claves are the keys .hoom/local.yaml accepts, in the order
 // ErrClaveDesconocida lists them.
-var Claves = []string{"ejecutar", "en_el_host"}
+var Claves = []string{"ejecutar", "en_el_host", "worktrees_relativos"}
 
 // The errors of Leer, exactly. The two with a %q take the key, or the gate,
 // as the file writes it.
 const (
 	// ErrClaveDesconocida is a key of the file outside Claves.
-	ErrClaveDesconocida = ".hoom/local.yaml: clave desconocida %q (validas: ejecutar, en_el_host)"
+	ErrClaveDesconocida = ".hoom/local.yaml: clave desconocida %q (validas: ejecutar, en_el_host, worktrees_relativos)"
 	// ErrSinCmd is an ejecutar (not empty) without the mark {cmd}.
 	ErrSinCmd = ".hoom/local.yaml: ejecutar tiene que llevar {cmd}"
 	// ErrGateDesconocido is an entry of en_el_host that is not among the
@@ -41,6 +41,13 @@ const (
 	// not covered by a .gitignore, or tracked.
 	ErrNoIgnorado = ".hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)"
 )
+
+// ErrWorktreesRelativosGitViejo is, exactly, the error of `hoom task start`
+// (taskcmd.Start) with Ajuste.WorktreesRelativos and a git that does not
+// accept `git worktree add --relative-paths` (gitx.AceptaRutasRelativas
+// false: older than 2.48). Leer never returns it: the file is valid, and
+// hoom verify runs as with any other.
+const ErrWorktreesRelativosGitViejo = ".hoom/local.yaml: worktrees_relativos pide git 2.48 o mas nuevo"
 
 // Ajuste is the .hoom/local.yaml of one verified tree, read and validated by
 // Leer. The zero Ajuste, and a nil *Ajuste, is "no adjustment": the gates run
@@ -68,6 +75,18 @@ type Ajuste struct {
 	// otherwise, even when it starts with "../" or is the project's subpath
 	// in the repository.
 	Rel string
+	// WorktreesRelativos (the key worktrees_relativos, CA-771) is true only
+	// when the file says worktrees_relativos: true, a YAML boolean (true,
+	// True or TRUE). false, no value, null, "" or only blanks count as
+	// without the key: false. Any other value (a quoted "true", yes, on, a
+	// number, a list, a map) refuses the file, fail closed, like an
+	// ejecutar that is not text (see Leer).
+	//
+	// Only `hoom task start` reads it (taskcmd.Start): with it, the task's
+	// worktree is added with `git worktree add --relative-paths`. It
+	// changes nothing in verify: the same commands, states and JSON, with
+	// or without ejecutar.
+	WorktreesRelativos bool
 }
 
 // Leer reads the .hoom/local.yaml of the verified tree dir (the manifest's
@@ -76,9 +95,11 @@ type Ajuste struct {
 // of hoom.yaml, already merged with its profile (the ones verify runs): every
 // entry of en_el_host has to be one of them.
 //
-// Without the file it is an Ajuste with Existe false and no Ejecutar: as
-// today, no error. With it, the file is validated whole, with ejecutar or
-// without it, and its error is one of ErrClaveDesconocida, ErrSinCmd,
+// Without the file it is an Ajuste with Existe false, no Ejecutar and no
+// WorktreesRelativos: as today, no error. With it, the file is validated
+// whole, with ejecutar or without it (worktrees_relativos included: a value
+// that is not a boolean, null or empty is one of the errors that start with
+// the path), and its error is one of ErrClaveDesconocida, ErrSinCmd,
 // ErrGateDesconocido (each with its %q filled) and ErrNoIgnorado, exactly,
 // the first in that order when several apply (ErrNoIgnorado never outside a
 // git repository), or another error that starts the same way (the path
