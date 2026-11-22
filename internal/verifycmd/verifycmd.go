@@ -101,6 +101,22 @@ const GateGitAjeno = "git_ajeno"
 // material did not change has no such gate.
 const GateMaterialDeGit = "material_de_git"
 
+// GateEntornoLocal (verify-en-el-entorno, CA-773) is the gate EVERY verify
+// adds to its verdict when the main checkout's .hoom/local.yaml was created,
+// changed or removed while its gates ran: required, status fail, scope full,
+// exit_code 1, its note (Notes) exactly NotaEntornoLocal and its output
+// (OutputTail) the path entorno.Ruta. The verdict is then red, like one with
+// GateMaterialDeGit, and no reader of verdicts takes it as green. A verify
+// whose .hoom/local.yaml did not change has no such gate. It holds for
+// `hoom verify`, the verify of an envelope, the pilot's cerrar-hallazgos and
+// POST /api/verify, with Options.Sobre or without it, with ejecutar or
+// without it, and in a --gate run too: a gate that runs unenclosed, with the
+// template or without it, can write in the main checkout.
+const GateEntornoLocal = "entorno_local"
+
+// NotaEntornoLocal is the note of the gate GateEntornoLocal, exactly.
+const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian los gates"
+
 // Run executes the verification and writes the verdict. It returns the
 // finalized verdict and the path of its artifact.
 //
@@ -125,6 +141,14 @@ const GateMaterialDeGit = "material_de_git"
 //
 // Without ejecutar (no file, or ejecutar with no value), the same commands,
 // the same states and the same JSON as before.
+//
+// With ejecutar or without it, and with Options.Sobre or without it, every
+// run photographs the main checkout's .hoom/local.yaml (entorno.Ruta under
+// entorno.Ajuste.Principal): the sha256 of its bytes, or that it does not
+// exist, right before the first gate of the manifest and right after the
+// last (CA-773). When the two differ, the verdict carries one more gate,
+// GateEntornoLocal, in fail with NotaEntornoLocal, and is red; when they do
+// not, it has no such gate and the JSON is as before.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
 		return nil, "", err

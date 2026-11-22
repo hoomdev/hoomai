@@ -49,8 +49,9 @@ type GateResult struct {
 	// for a gate of hoom.yaml that runs with the template, EntornoHost for
 	// one of en_el_host and for the gates hoom itself computes (spec_lint,
 	// spec_trace, spec_approved, findings_open, ratchet, material_de_git,
-	// git_ajeno). A gate of hoom.yaml that is absent or skipped carries where
-	// it would have run. "" (no key in the JSON) without ejecutar.
+	// git_ajeno, entorno_local). A gate of hoom.yaml that is absent or
+	// skipped carries where it would have run. "" (no key in the JSON)
+	// without ejecutar.
 	Entorno string `json:"entorno,omitempty"`
 }
 

@@ -15,8 +15,10 @@
 //
 // # Where it lives
 //
-// In the main checkout: the folder holding the git common directory of the
-// verified tree (gitx.CheckoutPrincipal). From a task's tree,
+// In the main checkout: the parent folder of the git common directory of the
+// verified tree (gitx.CheckoutPrincipal), and the file read is always
+// <main checkout>/.hoom/local.yaml, also for a project whose hoom.yaml lives
+// in a subdirectory of the repository. From a task's tree,
 // .hoom/worktrees/<slug>/, the main checkout's file is read; a
 // .hoom/local.yaml inside a worktree is never read. Outside a git
 // repository, the one of the project root (the directory Leer gets) is read.
@@ -27,9 +29,11 @@
 //	en_el_host: [semgrep]   # gates que corren como hoy
 //
 // Claves are the only keys the file accepts. ejecutar is the template; with
-// no value, null or "" it counts as without the key (the rule of CA-747), and
-// then the gates run as today. en_el_host names gates of hoom.yaml that run
-// as today even with ejecutar; without ejecutar it changes nothing.
+// no value, null, "" or only blanks it counts as without the key (the rule
+// of CA-747), and then the gates run as today. en_el_host names gates of
+// hoom.yaml that run as today even with ejecutar; without ejecutar it
+// changes nothing in the commands, the states or the JSON, but the file is
+// still validated whole.
 //
 // # The marks
 //
@@ -39,8 +43,12 @@
 //   - {cmd}: the gate's command already built, with {base}, {files} and
 //     {packages} resolved;
 //   - {dir}: the absolute path of the verified tree;
-//   - {rel}: the tree's path relative to the main checkout, with "/": "." in
-//     the main checkout and ".hoom/worktrees/<slug>" in a task.
+//   - {rel}: the tree's path relative to the main checkout
+//     (filepath.Rel(main checkout, tree)), with "/": "." in the main
+//     checkout and ".hoom/worktrees/<slug>" in a task; as it comes out
+//     otherwise, even when it starts with "../" (a worktree outside the main
+//     checkout) or is the project's subpath (a hoom.yaml in a subdirectory
+//     of the repository).
 //
 // A gate with the template runs `sh -c <ejecutar with the marks replaced>`,
 // with the same directory, timeout and gracia as today. A single quote
@@ -57,6 +65,16 @@
 //   - ErrSinCmd: `.hoom/local.yaml: ejecutar tiene que llevar {cmd}`;
 //   - ErrGateDesconocido: `.hoom/local.yaml: en_el_host nombra "<g>", que no es un gate de hoom.yaml`;
 //   - ErrNoIgnorado: `.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)`.
+//
+// When several apply, the first in that order. Outside a git repository
+// there is no git to ignore the file, and so no ErrNoIgnorado. Any other
+// defect also refuses the file, fail closed, with an error that starts like
+// the four above (the path .hoom/local.yaml, a colon and a space), and whose
+// text is not fixed: a file that is not regular or cannot be read, YAML
+// that does not parse, a top level that is not a map, an ejecutar that is
+// not text, an en_el_host that is not a list of names (all of these before
+// the four above), and a git that does not answer whether it ignores the
+// file (in the place of ErrNoIgnorado).
 //
 // # The verdict
 //

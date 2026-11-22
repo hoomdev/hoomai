@@ -86,8 +86,9 @@ func Entornos(name string) ([]Entorno, error) {
 //
 // `hoom init` prints the Sugerencia of each one at its end. `hoom verify`
 // prints them in its text, once, below its report, when a gate ended in
-// error with exit_code 127 and the verdict has no Entorno (no
-// .hoom/local.yaml with ejecutar); with --json it prints none of them.
+// error with exit_code 127 and the main checkout has no .hoom/local.yaml
+// (the file does not exist: one without ejecutar is not "no file", and then
+// nothing is suggested); with --json it prints none of them, on no stream.
 func Sugerencias(name, dir string) []Entorno {
 	return nil
 }
