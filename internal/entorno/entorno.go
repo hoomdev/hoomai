@@ -199,7 +199,7 @@ func (a *Ajuste) validar(raw []byte, gates []string) error {
 	if err != nil {
 		return err
 	}
-	var ejecutar, enElHost *yaml.Node
+	var ejecutar, enElHost, relativos *yaml.Node
 	var desconocida string
 	for i := 0; raiz != nil && i+1 < len(raiz.Content); i += 2 {
 		k, v := raiz.Content[i], alias(raiz.Content[i+1])
@@ -217,6 +217,11 @@ func (a *Ajuste) validar(raw []byte, gates []string) error {
 				return defecto("la clave %q esta repetida", k.Value)
 			}
 			enElHost = v
+		case "worktrees_relativos":
+			if relativos != nil {
+				return defecto("la clave %q esta repetida", k.Value)
+			}
+			relativos = v
 		default:
 			if desconocida == "" {
 				desconocida = k.Value
@@ -242,6 +247,13 @@ func (a *Ajuste) validar(raw []byte, gates []string) error {
 			a.EnElHost = append(a.EnElHost, g.Value)
 		}
 	}
+	if relativos != nil {
+		si, err := booleano(relativos)
+		if err != nil {
+			return err
+		}
+		a.WorktreesRelativos = si
+	}
 	if desconocida != "" {
 		return fmt.Errorf(ErrClaveDesconocida, desconocida)
 	}
@@ -254,6 +266,31 @@ func (a *Ajuste) validar(raw []byte, gates []string) error {
 		}
 	}
 	return nil
+}
+
+// booleano is the value of worktrees_relativos: true only for a YAML
+// boolean true (true, True, TRUE, or an explicit !!bool tag that decodes as
+// true); false for false, null, "" or only blanks; any other node (quoted
+// text, yes, on, a number, a list, a map) is an error that starts with the
+// path.
+func booleano(n *yaml.Node) (bool, error) {
+	if nulo(n) {
+		return false, nil
+	}
+	if n.Kind == yaml.ScalarNode {
+		switch n.ShortTag() {
+		case "!!str":
+			if strings.TrimSpace(n.Value) == "" {
+				return false, nil
+			}
+		case "!!bool":
+			var b bool
+			if err := n.Decode(&b); err == nil {
+				return b, nil
+			}
+		}
+	}
+	return false, defecto("worktrees_relativos tiene que ser true o false")
 }
 
 // documento is the top-level map of the file's one YAML document; nil for
@@ -279,7 +316,7 @@ func documento(raw []byte) (*yaml.Node, error) {
 	case nulo(raiz):
 		return nil, nil
 	case raiz.Kind != yaml.MappingNode:
-		return nil, defecto("tiene que ser un mapa de claves (ejecutar, en_el_host)")
+		return nil, defecto("tiene que ser un mapa de claves (ejecutar, en_el_host, worktrees_relativos)")
 	}
 	return raiz, nil
 }
