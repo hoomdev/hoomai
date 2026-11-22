@@ -1,6 +1,7 @@
-// Tests de regresion de los hallazgos c155a2, f58e6a, a3a4d8 y 56c600 sobre
-// .hoom/specs/ciclo-lo-decide-hoom.md (CA-750 y CA-751): el piloto decide
-// con el mismo tope que muestra la tarjeta, por el camino del Studio.
+// Tests de regresion de los hallazgos c155a2, f58e6a, a3a4d8, 56c600,
+// 75a10b, 6d82f5 y faf4f5 sobre .hoom/specs/ciclo-lo-decide-hoom.md (CA-750
+// y CA-751): el piloto decide con el mismo tope que muestra la tarjeta, por
+// el camino del Studio.
 //
 //   - c155a2 y f58e6a: el Studio carga su Manifest al arrancar; si una
 //     persona sube (o baja) findings.max_rondas con el Studio abierto, el
@@ -11,6 +12,9 @@
 //   - 56c600: una delta que llega entre la decision del piloto y el candado
 //     de lanzar.Lanzar gana: con Pilot, Lanzar no lanza al writer ni al
 //     refutador de una tarjeta al tope.
+//   - 75a10b, 6d82f5 y faf4f5: tampoco al test-writer ni al reviewer, que
+//     la tarjeta al tope sigue ofreciendo: al tope el piloto no lanza
+//     ningun rol.
 //
 // Fixtures de tablero_test.go (tbProyecto, tbEscribir, tbItem),
 // lanzar_test.go (lnPATH, lnServidor, lnCommit, lnEsperarLanzamientos,
@@ -261,5 +265,84 @@ func TestHallazgo56c600_ElCandadoNoLanzaPorEncimaDelTope(t *testing.T) {
 	lnEsperarLanzamientos(t, "56c600", s)
 	if n := len(f.llamadas(t, "claude")); n != 0 {
 		t.Fatalf("56c600: al tope el CLI no se llama, se llamo %d veces", n)
+	}
+}
+
+// rgtCortado escribe en la raiz un sobre cerrado del rol role, de provider,
+// cortado por tiempo hace hora y media: el piloto lo releva (caso 5) bajo el
+// tope.
+func rgtCortado(t *testing.T, root, wt, role, provider, pedido string) {
+	t.Helper()
+	ini := time.Now().UTC().Add(-90 * time.Minute).Truncate(time.Second)
+	rec := envelope.Record{ID: "rgt-" + role + "-cortado", Role: role, Provider: provider, Task: rgtSlug, Dir: wt,
+		Spec: filepath.Join(wt, ".hoom", "specs", rgtSlug+".md"), Stage: "run", Step: 3, Steps: 6,
+		Status: envelope.StatusNotDeliverable, Corte: envelope.CorteTiempo, StartedAt: ini, UpdatedAt: ini.Add(5 * time.Minute),
+		EndedAt: ini.Add(5 * time.Minute), Columna: boardcmd.ColReview, Pedido: pedido}
+	raw, err := json.MarshalIndent(rec, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tbEscribir(t, root, ".hoom/"+envelope.DirName+"/"+rec.ID+".json", string(raw)+"\n")
+}
+
+// 75a10b, 6d82f5 y faf4f5: como en 56c600, el piloto decide con dos rondas
+// y tope 3 relevar a un rol cortado, y antes de que lance llega la tercera
+// delta. Al tope el piloto para (CA-751): bajo el candado lanzar.Lanzar
+// tampoco lanza al test-writer ni al reviewer, que no son writer ni
+// refutador (409 con la razon), y el CLI no se llama.
+func TestHallazgo75a10b_ElCandadoNoLanzaNingunRolAlTope(t *testing.T) {
+	casos := []struct {
+		role, provider, pedido, accion, extra string
+	}{
+		{"test-writer", "claude", "Escribi los tests de CA-970.", boardcmd.ActPedirTestWriter, ""},
+		// codex, sin tope en USD, toma la review con ventana_max declarada
+		// (CA-661); el reviewer cortado era una review completa
+		{"reviewer", "codex", "", boardcmd.ActPedirReviewer, "autonomia:\n  ventana_max: 80\n"},
+	}
+	for _, k := range casos {
+		t.Run(k.role, func(t *testing.T) {
+			f := lnPATH(t)
+			f.cli(t, "claude", false)
+			f.cli(t, "codex", false)
+			root := tbProyecto(t)
+			rgtYAML(t, root, "findings:\n  block_on: high\n  max_rondas: 3\n"+k.extra)
+			wt, _ := cldCartaReview(t, "75a10b", root, rgtSlug, 2, 2)
+			rgtAuto(t, root)
+			rgtCortado(t, root, wt, k.role, k.provider, k.pedido)
+			e, err := pilotocmd.Armar(pilotocmd.Opciones{Root: root, Slug: rgtSlug})
+			if err != nil {
+				t.Fatal(err)
+			}
+			d := boardcmd.Piloto(e)
+			if !d.Launch || d.Action != k.accion || d.Regla != boardcmd.ReglaRelevoPorTiempo {
+				t.Fatalf("75a10b: fixture: con dos rondas y tope 3 el piloto releva al %s: %+v", k.role, d)
+			}
+
+			rgtDelta(t, wt, 3) // la tercera ronda: 3 >= tope 3
+			s := lnServidor(t, root, f)
+			razon := boardcmd.RazonTopeDeRondas(3, 2)
+			if c := rgtTarjeta(t, s); !c.Rondas.AlTope || c.Rondas.Razon != razon {
+				t.Fatalf("75a10b: fixture: tras la delta la tarjeta esta al tope: %+v", c.Rondas)
+			}
+			p := s.piloto(rgtSlug).Lanzar
+			p.Despues = nil
+			// el pedido que arma el piloto con su decision (corrida.lanzar)
+			req := lanzar.Request{Action: d.Action, Provider: d.Provider, Pedido: d.Pedido, Pilot: true, Resume: d.Resume,
+				Delta: d.Delta, Regla: d.Regla, Intento: d.Intento, Ronda: d.Ronda, Hallazgos: d.Hallazgos, Bloqueantes: d.Bloqueantes}
+			if d.BudgetUSD > 0 {
+				b := d.BudgetUSD
+				req.BudgetUSD = &b
+			}
+			quiero := razon + ": el piloto no lanza nada"
+			tr, err := lanzar.Lanzar(context.Background(), p, rgtSlug, req)
+			var rech *lanzar.Rechazo
+			if tr != nil || !errors.As(err, &rech) || rech.Code != http.StatusConflict || rech.Motivo != quiero {
+				t.Errorf("75a10b: al tope, bajo el candado, el piloto no lanza %s: 409 %q; fue trabajo=%v err=%v", req.Action, quiero, tr != nil, err)
+			}
+			lnEsperarLanzamientos(t, "75a10b", s)
+			if n := len(f.llamadas(t, "claude")) + len(f.llamadas(t, "codex")); n != 0 {
+				t.Fatalf("75a10b: al tope el CLI no se llama para el %s, se llamo %d veces", k.role, n)
+			}
+		})
 	}
 }
