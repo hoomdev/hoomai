@@ -1,0 +1,11 @@
+{
+  "id": "20261122T003209_75a10b",
+  "created_at": "2026-11-22T00:32:09.104018292Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/lanzar/lanzar.go:400 limita el rechazo al tope a roles writer/refutador. Si una review delta alcanza findings.max_rondas despues de que el piloto decidio pero antes de Lanzar, una decision stale de pedir-reviewer o pedir-test-writer cae por Card.PilotAction y aun se lanza, aunque CA-750/CA-751 exigen que al tope el piloto no lance nada y escale a la persona. Esto permite saltarse el control de rondas y consumir otro run/presupuesto; el test 56c600 solo cubre writer/refutador.",
+  "author": "reviewer@codex",
+  "fingerprint": "22af6a718981d9c5",
+  "task": "ciclo-lo-decide-hoom"
+}

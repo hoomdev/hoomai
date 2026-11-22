@@ -213,6 +213,7 @@ Opcional, a nivel proyecto (los perfiles no lo traen):
 findings:
   block_on: high   # low | medium | high: esa severidad o mayor pone ROJO a verify
   max_pendientes: 20   # opcional: tope de medium abiertos del arbol al aceptar una tarea
+  max_rondas: 2        # opcional, de 1 a 5: rondas de hallazgos antes de escalarte
 ```
 
 Los valores con que se lanza cada rol, tambien a nivel proyecto. Todas las
@@ -411,6 +412,28 @@ reliability y resilience.
 **Tope de pendientes**: `findings: { max_pendientes: <n> }` en `hoom.yaml`
 hace que `hoom task ready` se niegue a aceptar una tarea si dejaria mas de
 `n` medium abiertos en el arbol. Sin la clave no hay tope.
+
+**Tope de rondas**: `findings: { max_rondas: <n> }` en `hoom.yaml`, un
+entero de 1 a 5, es cuantas rondas de hallazgos tiene una tarjeta antes de
+que te toque a vos. Una ronda es cada review delta de la tarea posterior a
+su review completa mas nueva: una review completa nueva vuelve a 0, y una
+delta sin correcciones (despues de integrar la base, por ejemplo) tambien
+cuenta. Sin la clave el tope es 2, o `autonomia.rondas_de_hallazgos` si es
+mayor; un `rondas_de_hallazgos` mayor que un `max_rondas` declarado hace
+invalido el `hoom.yaml`. Al tope con hallazgos que bloquean, la tarjeta no
+ofrece writer ni refutador y dice
+`se hicieron <n> rondas de hallazgos y quedan <k> que bloquean: te toca`,
+con la accion `hoom finding list --open`: `hoom siguiente`,
+`hoom pedir writer`, `hoom pedir refutador` y el piloto no lanzan. Al tope
+sin hallazgos que bloquean, la tarjeta sigue su camino.
+
+Solo se corrigen en la tarjeta los hallazgos que bloquean; los pendientes
+no se corrigen ni se refutan, quedan abiertos. En Review, bajo el tope, la
+tarjeta propone primero el refutador (`hoom pedir refutador`) mientras haya
+un hallazgo que bloquea y ningun refutador recibio, y despues UN writer con
+todos los que bloquean (`Corregi los hallazgos que bloquean la tarjeta:
+<ids>. Solo esos: los pendientes quedan abiertos.`); despues, verify y la
+review delta. El siguiente paso lo dice `hoom siguiente` o el piloto.
 
 ## Veredictos parciales (verify --gate)
 
@@ -648,8 +671,18 @@ git merge --no-ff hoom/infra-ci-cd    # juntarla es tuyo
 
   Lanza con la misma funcion que el Studio, con la narracion en la salida
   estandar, y sale con el exit code de `hoom agent` (o de `hoom review`).
+- `hoom pedir refutador [<slug>]`: lanza al refutador con los hallazgos que
+  bloquean y ningun refutador recibio, en el orden de `hoom finding list`,
+  con el pedido de su ronda; su sobre registra esos ids en `hallazgos`. El
+  refutador arma su propio pedido: no abre tu editor, no lleva `-m` y ni el
+  tablero ni el Studio lo dejan editar. Sin hallazgos que bloquean sin
+  pasar por el refutador sale con exit 1
+  (`no hay hallazgos que bloquean sin pasar por el refutador: nada que pedirle`);
+  al tope de rondas (`findings.max_rondas`), con exit 1 y la razon del tope.
 - `hoom siguiente`: hace la accion principal de la tarjeta. Nunca aprueba ni
-  integra: en Tu aprobacion y Tu aceptacion dice el comando que es tuyo.
+  integra: en Tu aprobacion y Tu aceptacion dice el comando que es tuyo. Al
+  tope de rondas no lanza: imprime `te toca: hoom finding list --open` y la
+  razon.
 - `hoom aprobar` y `hoom integrar`: las firmas. Preguntan `¿Seguir? [s/N]`;
   `--si` no pregunta, y sin terminal es obligatorio.
 - `hoom guardar`: commitea lo que la tarjeta tiene sin guardar, como
@@ -690,14 +723,16 @@ y al aprobar el spec desde la tarjeta) y en la terminal. Cada vuelta:
    (`reintentos_ante_rojo`); un run cortado por su tiempo limite se releva
    una vez; los hallazgos que bloquean se corrigen por rondas
    (`rondas_de_hallazgos`): refutador, test que falla, arreglo, cierre por
-   evidencia y review de la diferencia;
+   evidencia y review de la diferencia, hasta el tope de rondas
+   (`findings.max_rondas`);
 3. lanza con la misma funcion que el Studio y `hoom pedir`, o se detiene y
    dice por que.
 
-Se detiene en las columnas tuyas, ante un rojo que no se reintenta, cuando
-se acaba el presupuesto y cuando la ventana de 5 h del provider llega a
-`ventana_max`. Con `ventana_max` declarada tambien le pide trabajo a un
-provider sin tope en USD (codex), sin presupuesto en USD. Cada decision
+Se detiene en las columnas tuyas, ante un rojo que no se reintenta, al tope
+de rondas con hallazgos que bloquean, cuando se acaba el presupuesto y
+cuando la ventana de 5 h del provider llega a `ventana_max`. Con
+`ventana_max` declarada tambien le pide trabajo a un provider sin tope en
+USD (codex), sin presupuesto en USD. Cada decision
 queda en el log del ultimo sobre de la tarjeta, y cada sobre que lanza el
 piloto dice `"piloto": true` y su `regla`.
 
@@ -901,6 +936,7 @@ y nada se abre. Ver [El piloto automatico](#el-piloto-automatico-hoom-piloto).
 | `espacio` | con tarjeta | las acciones de la tarjeta, con su tecla y su verbo | |
 | `P` | con tarjeta | Seguir solo | `hoom piloto <slug>` |
 | `a` `t` `w` `r` | con tarjeta | pedir al arquitecto, test-writer, writer, reviewer | `hoom pedir <rol> <slug>` |
+| `f` | con tarjeta | pedir al refutador | `hoom pedir refutador <slug>` |
 | `R` | con tarjeta | reanudar | `hoom reanudar <slug>` |
 | `s` | con tarjeta | guardar | `hoom guardar <slug>` |
 | `A` | con tarjeta | aprobar el spec (con el piloto encendido, y despues Seguir solo) | `hoom aprobar <slug> --si` |
@@ -1047,11 +1083,12 @@ Que trae:
 - **Acciones desde la tarjeta**: cada tarjeta muestra solo las acciones que
   valen para su columna, y lo decide el binario (`actions`, `drops` y
   `ghost` en `hoom board --json`), no la pagina. **Pedir al rol**
-  (arquitecto, test-writer, writer; el reviewer corre `hoom review`) abre un
-  dialogo con rol, provider (los instalados que reciben el contrato), modelo,
-  presupuesto en USD (propone lo que queda del presupuesto de la tarjeta; con
-  Codex avisa que no hay tope) y el pedido, y lanza el mismo sobre que
-  `hoom agent`. Mientras corre, un **fantasma** de la tarjeta aparece en la
+  (arquitecto, test-writer, writer, refutador; el reviewer corre
+  `hoom review`) abre un dialogo con rol, provider (los instalados que
+  reciben el contrato), modelo, presupuesto en USD (propone lo que queda del
+  presupuesto de la tarjeta; con Codex avisa que no hay tope) y el pedido,
+  y lanza el mismo sobre que `hoom agent`. El pedido del refutador se
+  muestra pero no se edita. Mientras corre, un **fantasma** de la tarjeta aparece en la
   columna siguiente con el paso del sobre; si el sobre cierra sin la
   evidencia, el fantasma desaparece y la tarjeta dice por que. Arrastrar a la
   columna siguiente abre el mismo dialogo, y soltar en otra dice por que no.
@@ -1125,7 +1162,7 @@ tarea) - 05 Test-writer adversarial (PROHIBIDO ver la implementacion) - 06 Revie
 (4 lentes deterministicas segun riesgo) - 07 Characterizer (fija el comportamiento
 actual de codigo legacy antes de refactorizar) - 08 Analista (convierte el documento
 del cliente en vision + backlog, sin inventar requerimientos) - 09 Refutador (intenta
-TUMBAR los hallazgos abiertos con evidencia deterministica antes de que se corrijan;
+TUMBAR los hallazgos que bloquean con evidencia deterministica antes de que se corrijan;
 maximo 2 ciclos y escala al humano — el antidoto contra hallazgos persuasivos falsos).
 
 `verify` NO es un agente: es un comando deterministico.

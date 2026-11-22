@@ -317,6 +317,10 @@ func tomarCandados(p Params, slug string) (func(), error) {
 	}, nil
 }
 
+// MsgRefutadorNoSeEdita refuses a launch of the refutador whose pedido is
+// not the one hoom built (ciclo-lo-decide-hoom).
+const MsgRefutadorNoSeEdita = "el refutador arma su propio pedido: no se edita"
+
 // Reservar takes the card's launch locks (the file lock and p.Candado) as
 // Lanzar does, so no launch of the card starts until soltar: the pilot's
 // cerrar-hallazgos holds them from the first resolution until it saves
@@ -338,6 +342,16 @@ func Reservar(p Params, slug string) (soltar func(), err error) {
 // outside the card's column inside a round of findings): Lanzar takes it
 // from boardcmd.Card.PilotAction, with the same checks as any other. A
 // provider without a USD cap launches without a budget, as today.
+//
+// ciclo-lo-decide-hoom: the card's own pedir-refutador (Review, under the
+// cap) launches without Pilot too, and then its envelope records the
+// action's Hallazgos (boardcmd.Action.Hallazgos) in `hallazgos`, as the
+// pilot's does with req.Hallazgos. The refutador builds its own pedido: a
+// launch of the refutador without Pilot whose pedido is not the action's
+// (boardcmd.Action.Pedido) is refused with MsgRefutadorNoSeEdita. A launch
+// with Pilot, of any role, on a card at the cap on its rounds of findings
+// (boardcmd.RondasDeHallazgos.AlTope), read under the lock, is refused with
+// 409 and `<Razon>: el piloto no lanza nada`.
 func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, error) {
 	fail := func(code int, format string, args ...any) (*Trabajo, error) {
 		return nil, &Rechazo{Code: code, Motivo: fmt.Sprintf(format, args...)}
@@ -383,6 +397,16 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if !ok {
 		return fail(http.StatusConflict, "la tarjeta ya no esta donde la viste: ahora esta en %s (%s)", c.ColumnName, c.Plain)
 	}
+	if req.Pilot && c.Rondas.AlTope {
+		// at the cap on the rounds of findings (ciclo-lo-decide-hoom) the
+		// pilot stops and launches no role (CA-751): not the writer nor the
+		// refutador, whose actions the card took away while its pilot
+		// actions are built as always, and not the test-writer nor the
+		// reviewer, which the card still offers. A delta (or a lower cap)
+		// that arrived after Piloto decided is checked here, under the lock
+		// (findings 56c600, 75a10b, 6d82f5, faf4f5)
+		return fail(http.StatusConflict, "%s: el piloto no lanza nada", c.Rondas.Razon)
+	}
 	if !a.Enabled {
 		return fail(http.StatusConflict, "%s", a.Why)
 	}
@@ -401,9 +425,19 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	}
 	review := a.Role == "reviewer"
 	pedido := strings.TrimSpace(req.Pedido)
+	// the refutador builds its own pedido and it is not edited, by any path
+	// but the pilot's, whose pedidos are hoom's templates
+	// (ciclo-lo-decide-hoom); its envelope records the action's findings
+	refutador := a.Role == "refutador" && !req.Pilot
+	hallazgos := req.Hallazgos
+	if refutador {
+		hallazgos = a.Hallazgos
+	}
 	switch {
 	case review && pedido != "":
 		return fail(http.StatusBadRequest, "la revision arma su propio pedido: deja el pedido vacio")
+	case refutador && pedido != strings.TrimSpace(a.Pedido):
+		return fail(http.StatusBadRequest, "%s", MsgRefutadorNoSeEdita)
 	case !review && pedido == "":
 		return fail(http.StatusBadRequest, "falta el pedido: lo que el rol tiene que hacer")
 	case !review && agentcmd.IsPlaceholder(pedido):
@@ -482,7 +516,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 				Effort: v.Effort, Timeout: v.Timeout, BudgetUSD: budget, BudgetSet: true,
 				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 				Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
-				Hallazgos: req.Hallazgos, Bloqueantes: req.Bloqueantes,
+				Hallazgos: hallazgos, Bloqueantes: req.Bloqueantes,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec

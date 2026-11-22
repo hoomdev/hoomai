@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261121T234026_326073",
+  "as": "refutado",
+  "evidence": "REFUTADO por la enmienda firmada 004258c5 (commit 7a6483b, aprobacion en .hoom/approvals/ciclo-lo-decide-hoom_004258c5.json): .hoom/specs/ciclo-lo-decide-hoom.md, seccion del tope y CA-747, dice que max_rondas: sin valor (null o ~) carga como sin la clave, igual que block_on (gate-findings-open.md:84) y max_pendientes (manifest.go:1019-1021). Hoom lo eligio el 2026-11-22 (Decisiones). El codigo lo cumple: internal/manifest/manifest.go:1027-1029 (esNulo -\u003e continue); TestCA747_MaxRondasNuloEsSinClave (internal/manifest/ciclo_lo_decide_hoom_test.go:152-169) ok con go test -count=1 -run TestCA747 ./internal/manifest/.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-22T01:12:08.471085775Z"
+}

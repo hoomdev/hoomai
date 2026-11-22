@@ -1,0 +1,11 @@
+{
+  "id": "20261122T010242_e4e8fd",
+  "created_at": "2026-11-22T01:02:42.763799533Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO — internal/lanzar/lanzar.go:400 amplía el rechazo por c.Rondas.AlTope al reviewer y al test-writer, pero esa bandera puede ser un falso tope durante un fallo transitorio de hoom.yaml: CardFor llama a topeDeRondas, que ante cualquier error de lectura/parseo devuelve 0 (internal/boardcmd/gather.go:241-251), y rondasDe lo convierte en el tope por defecto 2 (internal/boardcmd/rondas.go:90-95). Con findings.max_rondas real 3–5, dos rondas y bloqueantes, si el piloto decidió relevar a uno de esos roles y el archivo queda momentáneamente ilegible o parcialmente escrito antes de Lanzar, este nuevo candado responde 409 y no releva aunque la tarjeta no esté al tope configurado. Propaguen el error o reutilicen de forma explícita el manifiesto válido cargado por el servidor, en vez de fabricar el default para esta decisión bajo candado.",
+  "author": "reviewer@codex",
+  "fingerprint": "281a800582e47145",
+  "task": "ciclo-lo-decide-hoom"
+}

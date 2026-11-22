@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261121T235033_f58e6a",
+  "as": "corregido",
+  "evidence": "corregido en b93c63e (el mismo defecto que c155a2): el piloto del Studio usa c.Rondas.Tope, la lectura de la tarjeta. Test TestHallazgoF58e6a_ElPilotoDelStudioBajaConElTope (internal/servecmd/hallazgos_cld_tope_test.go, 1c5f85f): al bajar max_rondas de 3 a 2 el piloto para con la razon y el CLI no se llama; falla sin b93c63e. La reproduccion TestRefutador_StudioBajaElTopeYLanza pasa de 1 llamada al CLI a 0.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-22T00:29:07.164710902Z"
+}

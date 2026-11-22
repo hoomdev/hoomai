@@ -87,8 +87,24 @@ func IsRoleAction(id string) bool {
 	return acciones[id].role != "" || id == ActReanudar || id == ActRelanzar
 }
 
-// columnActions are the actions of the card's column, the primary first.
-func columnActions(c Card) []string {
+// columnActions are the actions of the card's column, the primary first,
+// without the ones the cap on the rounds of findings takes away
+// (alTopeQuita).
+func columnActions(ev Evidence, c Card) []string {
+	var out []string
+	for _, id := range accionesDeColumna(ev, c) {
+		if !alTopeQuita(c, id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// accionesDeColumna are the actions of the card's column before the cap.
+// In Review: pedir-reviewer when the review is missing, then, with findings
+// that block, pedir-refutador when some of them reached no refutador
+// (ciclo-lo-decide-hoom) and pedir-writer.
+func accionesDeColumna(ev Evidence, c Card) []string {
 	switch c.Column {
 	case ColBacklog, ColArquitecto:
 		return []string{ActPedirArquitecto}
@@ -104,6 +120,9 @@ func columnActions(c Card) []string {
 			out = append(out, ActPedirReviewer)
 		}
 		if len(c.Evidence.BlockingFindings) > 0 {
+			if len(sinRefutar(ev)) > 0 {
+				out = append(out, ActPedirRefutador)
+			}
 			out = append(out, ActPedirWriter)
 		}
 		return out
@@ -138,9 +157,13 @@ func actionsOf(ev Evidence, c Card) []Action {
 	if ev.WorktreeInusable != "" {
 		return []Action{}
 	}
-	ids := columnActions(c)
+	ids := columnActions(ev, c)
 	if c.Interrupted != nil {
-		ids = append(ids, ActReanudar, ActRelanzar)
+		for _, id := range []string{ActReanudar, ActRelanzar} {
+			if !alTopeQuita(c, id) {
+				ids = append(ids, id)
+			}
+		}
 		if hasTask(ev) && len(discardable(ev)) > 0 {
 			ids = append(ids, ActDescartar)
 		}
@@ -215,6 +238,16 @@ func roleAction(ev Evidence, c Card, a *Action) {
 		}
 	default:
 		a.Pedido = defaultPedido(ev, c, a.Role)
+	}
+	// what the refutador's envelope records in hallazgos
+	// (ciclo-lo-decide-hoom): the findings of its pedido, or, resuming, the
+	// ones of the job it resumes
+	if a.Role == "refutador" {
+		if a.ID == ActReanudar && intr != nil {
+			a.Hallazgos = copia(envelopeOf(ev, intr.EnvelopeID).Hallazgos)
+		} else {
+			a.Hallazgos = sinRefutar(ev)
+		}
 	}
 	review := a.Role == "reviewer"
 	var queda *float64 // what the card has left for this run (per lens in the review)
@@ -378,9 +411,15 @@ func defaultPedido(ev Evidence, c Card, role string) string {
 		return p + "."
 	case "writer":
 		if c.Column == ColReview && len(c.Evidence.BlockingFindings) > 0 {
-			return "Corregi los hallazgos que bloquean la tarjeta: " + strings.Join(c.Evidence.BlockingFindings, ", ") + "."
+			return PedidoCorreccion(c.Evidence.BlockingFindings)
 		}
 		return "Implementa " + spec + " hasta que hoom verify --spec " + spec + " de verde."
+	case "refutador":
+		// the refutador builds its own pedido: the next round's, with the
+		// blocking findings no refutador received
+		if ids := sinRefutar(ev); len(ids) > 0 {
+			return PedidoRondaRefutador(c.Rondas.Hechas+1, ev.Item.Slug, ids)
+		}
 	}
 	return ""
 }
@@ -402,11 +441,11 @@ func discardable(ev Evidence) []string {
 }
 
 // dropsOf says, for every other column, what dropping the card there does.
-func dropsOf(c Card) []Drop {
+func dropsOf(ev Evidence, c Card) []Drop {
 	out := []Drop{}
 	at := columnIndex(c.Column)
 	primary := ""
-	if ids := columnActions(c); len(ids) > 0 {
+	if ids := columnActions(ev, c); len(ids) > 0 {
 		primary = ids[0]
 	}
 	for i, col := range Columns {

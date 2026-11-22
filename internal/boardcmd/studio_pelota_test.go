@@ -257,6 +257,8 @@ func spTitulo(c Card) string {
 }
 
 // spFraseDe es la tabla de frases del contrato.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): la pelota tiene frase para
+// pedir-refutador (aclaracion 7).
 func spFraseDe(c Card, grupo string, p spPaso) string {
 	t := spTitulo(c)
 	switch grupo {
@@ -276,6 +278,8 @@ func spFraseDe(c Card, grupo string, p spPaso) string {
 			return "Pedile el código al writer para «" + t + "»."
 		case ActPedirReviewer:
 			return "Pedile la review al reviewer para «" + t + "»."
+		case ActPedirRefutador:
+			return "Pedile al refutador que revise los hallazgos de «" + t + "»."
 		case ActReanudar:
 			return "Reanudá el trabajo de «" + t + "»."
 		case ActGuardar:
@@ -912,6 +916,9 @@ func TestCA724_Regla4AprobarEIntegrar(t *testing.T) {
 
 // CA-724 regla 5: si no, la primera accion de la tarjeta cuando es de rol o
 // guardar, con su label.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): en Review con un
+// bloqueante sin refutar la primera accion es pedir-refutador ("Pedir al
+// refutador"); con los bloqueantes ya refutados sigue siendo pedir-writer.
 func TestCA724_Regla5PrimeraAccionDeRolOGuardar(t *testing.T) {
 	casos := []struct {
 		nombre string
@@ -924,7 +931,9 @@ func TestCA724_Regla5PrimeraAccionDeRolOGuardar(t *testing.T) {
 		{"test-writer", acTestWriter(), ColTestWriter, spPaso{Accion: ActPedirTestWriter, Etiqueta: "Pedir al test-writer"}},
 		{"writer", acWriter(), ColWriter, spPaso{Accion: ActPedirWriter, Etiqueta: "Pedir al writer"}},
 		{"review exigida", acGrande(acEv()), ColReview, spPaso{Accion: ActPedirReviewer, Etiqueta: "Pedir al reviewer"}},
-		{"review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, spPaso{Accion: ActPedirWriter, Etiqueta: "Pedir al writer"}},
+		{"review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, spPaso{Accion: ActPedirRefutador, Etiqueta: "Pedir al refutador"}},
+		{"review con hallazgos ya refutados", cldConSobres(acConHallazgos(acEv(), "f-a"), cldRefutador("env-ref-1", 10, "ok", "f-a")),
+			ColReview, spPaso{Accion: ActPedirWriter, Etiqueta: "Pedir al writer"}},
 		{"review sin accion con cambios", func() Evidence {
 			ev := tbListo(acEv(), taskcmd.ReadySinGuardar, tbMsgSinGuardar)
 			ev.Uncommitted = acSucios()
@@ -1037,6 +1046,9 @@ func TestCA725_FraseDetenida(t *testing.T) {
 }
 
 // CA-725: TE TOCA con cada paso de la tabla.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): en Review con un
+// bloqueante sin refutar el paso es pedir-refutador y la frase es la suya;
+// con los bloqueantes ya refutados, la de pedir-writer.
 func TestCA725_FraseTeTocaPorPaso(t *testing.T) {
 	casos := []struct {
 		nombre string
@@ -1049,7 +1061,11 @@ func TestCA725_FraseTeTocaPorPaso(t *testing.T) {
 		{"pedir-arquitecto", spColumna(t, ColArquitecto), ColArquitecto, "Pedile el spec al arquitecto para «Precios por region»."},
 		{"pedir-test-writer", acTestWriter(), ColTestWriter, "Pedile los tests al test-writer para «Precios por region»."},
 		{"pedir-writer", acWriter(), ColWriter, "Pedile el código al writer para «Precios por region»."},
-		{"pedir-writer en review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, "Pedile el código al writer para «Precios por region»."},
+		{"pedir-refutador en review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview,
+			"Pedile al refutador que revise los hallazgos de «Precios por region»."},
+		{"pedir-writer en review con hallazgos ya refutados",
+			cldConSobres(acConHallazgos(acEv(), "f-a"), cldRefutador("env-ref-1", 10, "ok", "f-a")), ColReview,
+			"Pedile el código al writer para «Precios por region»."},
 		{"pedir-reviewer", acGrande(acEv()), ColReview, "Pedile la review al reviewer para «Precios por region»."},
 		{"guardar", func() Evidence {
 			ev := tbListo(acEv(), taskcmd.ReadySinGuardar, tbMsgSinGuardar)
@@ -1110,6 +1126,9 @@ func TestCA725_TituloEnUnaLinea(t *testing.T) {
 
 // CA-725: en todos los fixtures la frase es la de la tabla para su grupo y su
 // paso.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): la tabla (spFraseDe) tiene
+// la frase de pedir-refutador, el paso de las tarjetas de Review con
+// bloqueantes sin refutar.
 func TestCA725_FraseEnTodosLosFixtures(t *testing.T) {
 	for _, f := range spTodas(t) {
 		spMiraFrase(t, "CA-725", f.nombre, f.c, spPelotaDe(t, "CA-725", f.nombre, f.c))

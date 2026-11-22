@@ -1,0 +1,11 @@
+{
+  "id": "20261121T235027_56c600",
+  "created_at": "2026-11-21T23:50:27.976700469Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/boardcmd/pilot.go",
+  "description": "INTRODUCIDO. internal/boardcmd/pilot.go:12-24 revalida bajo el candado solo auto/columnas humanas, pero no c.Rondas.AlTope; internal/lanzar/lanzar.go:378-392 entonces cae a PilotAction aunque la accion normal ya fue retirada por el tope. Si una review delta llega (o el tope baja) entre la decision de Piloto y el candado de Lanzar, el piloto lanza writer/refutador por encima de findings.max_rondas, saltandose el control que debia hacer ganar al cambio concurrente.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

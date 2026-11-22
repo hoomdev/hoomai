@@ -1,0 +1,11 @@
+{
+  "id": "20261121T234026_326073",
+  "created_at": "2026-11-21T23:40:26.885497139Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/manifest/manifest.go",
+  "description": "INTRODUCIDO: internal/manifest/manifest.go:1026-1028 acepta findings.max_rondas nulo (por ejemplo `max_rondas:` o `max_rondas: null`) como si la clave no existiera y aplica el tope por defecto. CA-747 especifica que max_rondas debe ser un entero de 1 a 5 y que todo valor no entero se rechaza con `findings: max_rondas tiene que ser un entero de 1 a 5`; null no es un entero, por lo que una configuracion que el spec cubre produce un resultado incorrecto en vez del error exigido.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

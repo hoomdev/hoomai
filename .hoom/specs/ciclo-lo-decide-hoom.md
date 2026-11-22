@@ -2,6 +2,8 @@
 
 Estado: BORRADOR — pendiente de aprobación humana.
 Tarjeta: `ciclo-lo-decide-hoom`. Intake: `.hoom/intake/rfc-calibracion-por-riesgo.md`, CAL-4, CAL-5 y la parte de contrato de CAL-10 (secciones 4 y 10). Criterios CA-747 a CA-759.
+Enmienda del 2026-11-21, antes del verify: precisa el orden de las acciones, el tope en cualquier columna, el tablero y el Studio y el pedido del refutador, y re-expresa criterios de specs anteriores (ver «Lo que este spec re-expresa»).
+Enmienda del 2026-11-22, después de la review: `max_rondas:` sin valor cuenta como sin la clave (ver Decisiones).
 
 ## Objetivo
 
@@ -27,15 +29,16 @@ El piloto ya lo hace: solo pide corregir los bloqueantes, le pasa al refutador s
 ### El tope: `findings.max_rondas`
 
 - Clave nueva de `hoom.yaml`: `findings.max_rondas: <n>`, entero de 1 a 5. Se lee del mismo `hoom.yaml` del que el tablero lee hoy `findings.block_on`.
-- Sin la clave, el tope es 2, o `autonomia.rondas_de_hallazgos` si es mayor: un `hoom.yaml` de hoy no cambia de comportamiento.
+- Sin la clave, el tope es 2, o `autonomia.rondas_de_hallazgos` si es mayor: un `hoom.yaml` de hoy no cambia de comportamiento. `max_rondas:` sin valor (null o `~` en YAML) cuenta como sin la clave, igual que `block_on:` sin valor y `max_pendientes:` sin valor.
 - Errores de carga:
   - valor fuera de rango o no entero: `findings: max_rondas tiene que ser un entero de 1 a 5`;
   - clave desconocida en `findings`: `findings: clave desconocida "<k>" (validas: block_on, max_pendientes, max_rondas)`;
   - `autonomia.rondas_de_hallazgos` mayor que un `findings.max_rondas` declarado: `autonomia: rondas_de_hallazgos (<a>) pasa de findings.max_rondas (<m>)`.
-- **Al tope** quiere decir: `Rondas(tarea) >= tope` y la tarjeta tiene al menos un hallazgo que bloquea. Al tope:
-  - la tarjeta queda en Review, sin acciones de rol, con la razón `se hicieron <n> rondas de hallazgos y quedan <k> que bloquean: te toca` y la acción `hoom finding list --open`;
-  - `hoom siguiente` no lanza nada e imprime `te toca: hoom finding list --open` y, en la línea siguiente, esa razón;
-  - `hoom pedir writer` y `hoom pedir refutador` salen con exit 1 y esa razón, sin lanzar;
+- **Al tope** quiere decir: `Rondas(tarea) >= tope` y la tarjeta tiene al menos un hallazgo que bloquea. No aplica en Hecho ni con el espacio de la tarea inusable. Al tope, en cualquier columna:
+  - la tarjeta no ofrece `pedir-writer` ni `pedir-refutador`, ni `reanudar` o `relanzar` de un trabajo de esos dos roles. `pedir-reviewer` sigue: es como se sale después de corregir a mano;
+  - la columna no cambia. La razón `se hicieron <n> rondas de hallazgos y quedan <k> que bloquean: te toca` es el texto llano de la tarjeta y lo primero que falta, y la acción es `hoom finding list --open`;
+  - `hoom siguiente` no lanza nada e imprime `te toca: hoom finding list --open` y, en la línea siguiente, esa razón; también con un trabajo cortado de writer o de refutador;
+  - `hoom pedir writer` y `hoom pedir refutador` salen con exit 1 y esa razón, sin lanzar, aunque el veredicto esté rojo;
   - el piloto para con esa razón.
 - La persona sale del tope refutando o corrigiendo a mano, o subiendo `findings.max_rondas`. Un rol que edita `hoom.yaml` comete manipulación, como hoy.
 
@@ -43,14 +46,24 @@ El piloto ya lo hace: solo pide corregir los bloqueantes, le pasa al refutador s
 
 - `hoom pedir` gana el rol `refutador`. Sus roles quedan: arquitecto, test-writer, writer, refutador, reviewer. El error de rol desconocido nombra esos cinco.
 - **Bloqueantes sin refutar**: los hallazgos que bloquean y que no están en el campo `hallazgos` de ningún sobre de refutador de la tarjeta cuyo `stage` no es `run`. Es la regla de hoy del piloto (`piloto.go`), que pasa a una sola función que usan los dos.
-- En Review, bajo el tope:
-  - con bloqueantes sin refutar, la primera acción es `pedir-refutador`;
-  - con bloqueantes y ninguno sin refutar, es `pedir-writer`, como hoy;
+- El tablero cuenta solo los sobres cerrados de la tarjeta, como el piloto.
+- En Review, bajo el tope, las acciones van en este orden: `pedir-reviewer` si la review está exigida, como hoy; después `pedir-refutador` si hay bloqueantes sin refutar; después `pedir-writer` si hay bloqueantes. Así:
+  - con bloqueantes sin refutar, `pedir-refutador` es la primera acción después de `pedir-reviewer`, y `pedir-writer` sigue disponible detrás: saltarse al refutador lo decide quien lanza;
+  - con bloqueantes y ninguno sin refutar, `pedir-writer` es la primera después de `pedir-reviewer`, como hoy;
   - sin bloqueantes, no hay ninguna de las dos, como hoy.
 - `hoom pedir refutador <slug>` lanza al refutador con el pedido `PedidoRondaRefutador(Rondas+1, slug, ids)`, donde `ids` son los bloqueantes sin refutar en el orden de `hoom finding list`. Su sobre registra `hallazgos` con esos ids, igual que en el piloto.
-- El refutador arma su propio pedido: con `-m`, `hoom pedir` sale con el error de uso `el refutador arma su propio pedido: no lleva -m`. Así el orquestador no puede meterle pendientes.
+- El refutador arma su propio pedido, como la review. Así el orquestador no puede meterle pendientes:
+  - con `-m`, `hoom pedir` sale con el error de uso `el refutador arma su propio pedido: no lleva -m`;
+  - `hoom pedir refutador` no abre el editor con el pedido, y el Studio lo muestra sin dejarlo editar;
+  - un lanzamiento de refutador fuera del piloto cuyo pedido no es el que armó hoom se niega con `el refutador arma su propio pedido: no se edita`.
 - Sin bloqueantes sin refutar, sale con exit 1 y `no hay hallazgos que bloquean sin pasar por el refutador: nada que pedirle`, sin lanzar.
 - El pedido del writer en Review pasa a: `Corregi los hallazgos que bloquean la tarjeta: <ids>. Solo esos: los pendientes quedan abiertos.`
+
+### El tablero y el Studio
+
+- `hoom tablero` ofrece `pedir-refutador` con la tecla `f` («pedir al refutador», verbo `hoom pedir refutador <slug>`), en los mismos lugares que las otras acciones de rol. Su modal no tiene pedido.
+- La frase de la pelota para `pedir-refutador` es `Pedile al refutador que revise los hallazgos de ` más el título y un punto, con la misma forma que las demás.
+- `POST /api/board/{slug}/launch` acepta `pedir-refutador`. Su lista de acciones válidas queda: `pedir-arquitecto, pedir-test-writer, pedir-writer, pedir-refutador, pedir-reviewer, reanudar, relanzar`.
 
 ### Contratos de los roles
 
@@ -74,17 +87,29 @@ El README documenta `findings.max_rondas` y `hoom pedir refutador`.
 - `hoom pedir refutador` fuera de Review se comporta como cualquier rol no disponible en la columna, con el mensaje de hoy.
 - Un proyecto con `autonomia.rondas_de_hallazgos: 3` y sin `findings.max_rondas` tiene tope 3.
 
+## Lo que este spec re-expresa
+
+Estos criterios de specs anteriores fijaban el comportamiento que este spec cambia. Sus tests pasan a afirmar el valor nuevo; no se debilitan ni se borran.
+
+- CA-632: la clave desconocida de `findings` nombra también `max_rondas` (CA-747).
+- CA-325, CA-326, CA-331, CA-427 y CA-724: en Review con bloqueantes, `pedir-refutador` aparece antes de `pedir-writer`; sin review exigida, es la primera acción, la que abre un drop y la que nombra la pelota (CA-753).
+- CA-379: `pedir-refutador` deja de ser solo del piloto: en Review se le ofrece a una persona (CA-753).
+- CA-329: el pedido del writer en Review suma `Solo esos: los pendientes quedan abiertos.` (CA-756).
+- CA-722, CA-725 y CA-727: la pelota tiene frase para `pedir-refutador` (CA-753).
+- CA-564, CA-566, CA-705 y CA-718: el tablero tiene la tecla `f`, y el modal del refutador no lleva pedido ni `-m` (CA-753, CA-755).
+- CA-501: el error de rol desconocido nombra cinco roles (CA-755).
+
 ## Criterios de aceptación
 
-- CA-747: `hoom.yaml` acepta `findings.max_rondas` con un entero de 1 a 5; rechaza 0, 6 y un valor no entero con `findings: max_rondas tiene que ser un entero de 1 a 5`; una clave desconocida en `findings` nombra `block_on, max_pendientes, max_rondas`.
+- CA-747: `hoom.yaml` acepta `findings.max_rondas` con un entero de 1 a 5; rechaza 0, 6 y un valor no entero con `findings: max_rondas tiene que ser un entero de 1 a 5`; `max_rondas:` sin valor (null o `~`) carga como sin la clave (CA-748); una clave desconocida en `findings` nombra `block_on, max_pendientes, max_rondas`.
 - CA-748: sin `findings.max_rondas`, el tope es 2, o `autonomia.rondas_de_hallazgos` si es mayor; un `autonomia.rondas_de_hallazgos` mayor que un `findings.max_rondas` declarado es el error `autonomia: rondas_de_hallazgos (<a>) pasa de findings.max_rondas (<m>)`.
 - CA-749: `Rondas` de una tarea cuenta sus registros de review `delta` posteriores a su registro `completa` más nuevo; da 0 sin registro `completa` y vuelve a 0 con una review completa nueva.
-- CA-750: al tope, la tarjeta está en Review sin acciones de rol, con la razón `se hicieron <n> rondas de hallazgos y quedan <k> que bloquean: te toca` y la acción `hoom finding list --open`; `hoom siguiente` no lanza e imprime `te toca: hoom finding list --open` y la razón.
-- CA-751: al tope, `hoom pedir writer` y `hoom pedir refutador` salen con exit 1 y la razón de CA-750 sin lanzar, y el piloto para con esa razón.
+- CA-750: al tope, en cualquier columna salvo Hecho, la tarjeta no ofrece `pedir-writer` ni `pedir-refutador` (ni `reanudar` o `relanzar` de esos roles) y sigue ofreciendo `pedir-reviewer` cuando corresponde; su texto llano y lo primero que falta es la razón `se hicieron <n> rondas de hallazgos y quedan <k> que bloquean: te toca`, y su acción es `hoom finding list --open`; `hoom siguiente` no lanza e imprime `te toca: hoom finding list --open` y la razón, también con un trabajo cortado de writer o de refutador.
+- CA-751: al tope, `hoom pedir writer` y `hoom pedir refutador` salen con exit 1 y la razón de CA-750 sin lanzar, también con el veredicto rojo, y el piloto para con esa razón.
 - CA-752: con `Rondas >= tope` y sin bloqueantes, la columna y las acciones de la tarjeta son las de hoy.
-- CA-753: en Review y bajo el tope, la primera acción es `pedir-refutador` cuando hay bloqueantes sin refutar y `pedir-writer` cuando todos ya pasaron por un refutador; sin bloqueantes no aparece ninguna de las dos.
+- CA-753: en Review y bajo el tope, las acciones van `pedir-reviewer` (si la review está exigida), `pedir-refutador` (si hay bloqueantes sin refutar) y `pedir-writer` (si hay bloqueantes), en ese orden, y sin bloqueantes no aparece ninguna de las dos últimas; el tablero cuenta solo los sobres cerrados; `hoom tablero` ofrece `pedir-refutador` con la tecla `f`, la pelota tiene su frase y `POST /launch` lo acepta con la lista de acciones válidas del contrato.
 - CA-754: `hoom pedir refutador <slug>` lanza al refutador con `PedidoRondaRefutador(Rondas+1, slug, ids)`, con los bloqueantes sin refutar en el orden de `hoom finding list`, y su sobre registra esos ids en `hallazgos`; un sobre de refutador en `stage` `run` no cuenta como recibido.
-- CA-755: `hoom pedir refutador` sin bloqueantes sin refutar sale con exit 1 y `no hay hallazgos que bloquean sin pasar por el refutador: nada que pedirle` sin lanzar; con `-m` da el error de uso `el refutador arma su propio pedido: no lleva -m`; el error de rol desconocido nombra `arquitecto, test-writer, writer, refutador, reviewer`.
+- CA-755: `hoom pedir refutador` sin bloqueantes sin refutar sale con exit 1 y `no hay hallazgos que bloquean sin pasar por el refutador: nada que pedirle` sin lanzar; con `-m` da el error de uso `el refutador arma su propio pedido: no lleva -m`; un lanzamiento de refutador fuera del piloto con un pedido distinto del que armó hoom se niega con `el refutador arma su propio pedido: no se edita`; el error de rol desconocido nombra `arquitecto, test-writer, writer, refutador, reviewer`.
 - CA-756: el pedido del writer en Review con bloqueantes es `Corregi los hallazgos que bloquean la tarjeta: <ids>. Solo esos: los pendientes quedan abiertos.`
 - CA-757: los contratos 00, 04 y 09 son idénticos en las dos copias y dicen la regla. [verifica: sh -c 'for f in 00-orquestador 04-writer 09-refutador; do cmp -s internal/agents/assets/agents/$f.md .hoom/agents/$f.md || exit 1; done; ! grep -q "Para CADA hallazgo abierto" internal/agents/assets/agents/09-refutador.md && grep -q "hoom pedir refutador" internal/agents/assets/agents/00-orquestador.md && grep -q "findings.max_rondas" internal/agents/assets/agents/00-orquestador.md && grep -q "pendiente" internal/agents/assets/agents/04-writer.md']
 - CA-758: la descripción del rol refutador en `agents.Roles` dice «los hallazgos que bloquean» y no «los hallazgos abiertos».
@@ -93,9 +118,12 @@ El README documenta `findings.max_rondas` y `hoom pedir refutador`.
 ## Decisiones
 
 - **La ronda se cuenta por reviews delta, no por sobres.** Los sobres lanzados a mano no traen `ronda`, y la review delta es lo que cierra una ronda por cualquier camino. Descartado: contar sobres de writer, porque un writer cortado por tiempo contaría dos veces.
-- **El tope vive en `findings`, no en `autonomia`.** `autonomia` es lo que el piloto hace solo; el tope es de la tarjeta, por cualquier camino. El 2 por defecto es la «segunda y última ronda» de CAL-4.
+- **El tope vive en `findings`, no en `autonomia`.** `autonomia` es lo que el piloto hace solo; el tope es de la tarjeta, por cualquier camino. El 2 por defecto es la «segunda y última ronda» de CAL-4; Hoom lo confirmó el 2026-11-21.
+- **`pedir-writer` sigue detrás del refutador.** Saltarse al refutador ahorra un run y no hace corregir de más: lo decide quien lanza. Descartado: esconder `pedir-writer` hasta que pase el refutador, porque obliga a un run que el intake no pide.
+- **El tope vale en cualquier columna.** Si solo valiera en Review, bastaría correr verify con los bloqueantes abiertos para caer en la columna Writer y pedir otro writer.
 - **El refutador arma su pedido**, como la review. Si aceptara `-m`, el orquestador podría volver a meterle pendientes.
-- **A mano, la ronda es refutador y después writer.** El piloto suma el test-writer de regresión. Igualarlos suma un run por ronda; queda como pregunta para la firma.
+- **A mano, la ronda es refutador y después writer.** El piloto suma el test-writer de regresión. Igualarlos sumaría un run por ronda; Hoom eligió el 2026-11-21 dejar la ronda a mano sin ese run.
+- **`max_rondas:` sin valor es sin la clave.** Es lo que ya hacen `block_on` (gate-findings-open) y `max_pendientes`, y deja el tope por defecto, que es válido. Descartado: rechazarlo como no entero, porque sería la única clave de `findings` en tratar distinto al nulo. Hoom lo eligió el 2026-11-22, por los hallazgos be3c8c y 326073 de la review 1c9146.
 - **`hoom agent` no se toca.** Lo usan el piloto y `lanzar`: cerrarlo rompería esos caminos.
 
 ## Riesgos y deuda aceptada
@@ -106,5 +134,4 @@ El README documenta `findings.max_rondas` y `hoom pedir refutador`.
 
 ## Preguntas para la firma
 
-1. A mano, ¿la ronda también pide el test-writer de regresión, como el piloto, o queda refutador y después writer?
-2. ¿Tope por defecto de 2 rondas?
+Ninguna. Las dos que había (el test-writer de regresión en la ronda a mano y el tope por defecto) están contestadas en Decisiones. Contestarlas no es la firma.

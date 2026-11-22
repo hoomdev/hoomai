@@ -1,0 +1,11 @@
+{
+  "id": "20261121T235304_ab8ca0",
+  "created_at": "2026-11-21T23:53:04.949394269Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/boardcmd.go",
+  "description": "INTRODUCIDO: internal/boardcmd/boardcmd.go:380 documenta Action.Pedido como editable, pero el nuevo refutador exige un pedido fijo; además, internal/boardcmd/boardcmd.go:386-390 afirma que Hallazgos existe solo para pedir-refutador y es nil para las demás acciones, aunque internal/boardcmd/acciones.go:245-250 también lo llena al reanudar o relanzar un refutador. Los consumidores terminan infiriendo la excepción otra vez por rol (internal/tablero/pedir.go:129 e internal/servecmd/ui/acciones.js:200-232), por lo que el modelo público no expresa su propia semántica y obliga a duplicarla. Conviene representar explícitamente en Action si el pedido es editable/autogenerado y documentar Hallazgos según las acciones reales.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

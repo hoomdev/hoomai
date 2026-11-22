@@ -77,10 +77,11 @@ func (m *Modelo) Tecla(t Tecla, ahora time.Time) []Orden {
 }
 
 // filas are the rows of l that work now: AtajosDe(l), without ctrl-e in
-// the reviewer's Pedir modal, which has no Pedido (CA-564).
+// the Pedir modal of the reviewer (CA-564) or the refutador, which has no
+// Pedido.
 func (m *Modelo) filas(l Lugar) []Atajo {
 	out := AtajosDe(l)
-	if m.modal != ModalPedir || m.pedir == nil || !m.pedir.revisor {
+	if m.modal != ModalPedir || m.pedir == nil || !m.pedir.sinPedido {
 		return out
 	}
 	var sin []Atajo

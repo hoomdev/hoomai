@@ -25,6 +25,15 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
    cambiadas = review con las 4 lentes, salvo riesgo bajo en la tarjeta (reliability); con riesgo alto, las 4 siempre. Antes de entregar,
    `hoom check` debe dar VERDE: veredicto verde Y huella coincidente con el
    arbol actual (verificar A y entregar B es fraude de veredicto).
+4c. Despues de una review, el siguiente paso lo dice `hoom siguiente` o el piloto:
+   el orquestador no lo elige. Solo se corrigen los hallazgos que bloquean
+   (`bloquea:` en `hoom finding list --open`); los `pendiente` no se corrigen ni
+   se refutan en la tarjeta. Una ronda es el refutador con `hoom pedir refutador`,
+   si hay bloqueantes sin refutar, y UN writer con todos los bloqueantes
+   (`hoom pedir writer`); despues, verify y la review delta. Una ronda no se arma
+   con `hoom agent`. El arquitecto se relanza solo si la correccion cambia un
+   criterio de aceptacion, y eso pide firma nueva. Al tope (`findings.max_rondas`),
+   se escala a Hoom.
 5. Al cerrar: guardar resumen de sesion en Engram (topic: session/<proyecto>/<fecha>)
    y adjuntar la ruta del veredicto en la respuesta final.
 

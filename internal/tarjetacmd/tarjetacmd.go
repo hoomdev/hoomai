@@ -254,10 +254,11 @@ Se guarda en .hoom/cache/tarjeta: es estado local, no viaja en git.`,
 	"pedir": `Uso: hoom pedir <rol> [<slug>] [-m "<pedido>"] [--provider p] [--model m]
                   [--effort e] [--budget-usd x] [--timeout d] [--json]
 
-  <rol>            arquitecto, test-writer, writer o reviewer
+  <rol>            arquitecto, test-writer, writer, refutador o reviewer
   <slug>           la tarjeta; sin el: la de la carpeta o la de hoom usar
   -m <pedido>      lo que el rol tiene que hacer; sin -m se abre tu editor
-                   con el pedido que propone la tarjeta (el reviewer arma el suyo)
+                   con el pedido que propone la tarjeta (el reviewer y el
+                   refutador arman el suyo y no llevan -m)
   --provider p     CLI de IA; vacio = agents.<rol>.provider o el de la tarjeta
   --model m        modelo; vacio = agents.<rol>.model o el del provider
   --effort e       esfuerzo; vacio = agents.<rol>.effort o el del provider
@@ -270,7 +271,8 @@ Se guarda en .hoom/cache/tarjeta: es estado local, no viaja en git.`,
 
 Hace la accion principal de la tarjeta. Si es pedirle trabajo a un rol, es
 hoom pedir <rol> (con los mismos flags); nunca aprueba ni integra: en Tu
-aprobacion y Tu aceptacion dice el comando que es tuyo.`,
+aprobacion y Tu aceptacion dice el comando que es tuyo. Al tope de rondas de
+hallazgos (findings.max_rondas) no lanza nada: dice que te toca.`,
 
 	"aprobar": `Uso: hoom aprobar [<slug>] [--si]
 
@@ -446,8 +448,9 @@ func (v *verbo) usarCon(ninguna, fijar bool, slug string) int {
 
 // ---------------------------------------------------------------- lanzar
 
-// roles are the roles hoom pedir asks for: the four of the card.
-var roles = []string{"arquitecto", "test-writer", "writer", "reviewer"}
+// roles are the roles hoom pedir asks for: the four of the card and, since
+// ciclo-lo-decide-hoom, the refutador.
+var roles = []string{"arquitecto", "test-writer", "writer", "refutador", "reviewer"}
 
 // The reviewer builds its own pedido, and its timeout is review.timeout's:
 // one place per role, so the → line stays the equivalent hoom review.
@@ -457,7 +460,14 @@ const (
 )
 
 // msgRolDesconocido is the usage reason for another role (roles, in order).
-const msgRolDesconocido = "rol desconocido %q (arquitecto, test-writer, writer, reviewer); para otros roles: hoom agent"
+const msgRolDesconocido = "rol desconocido %q (arquitecto, test-writer, writer, refutador, reviewer); para otros roles: hoom agent"
+
+// The refutador builds its own pedido too (ciclo-lo-decide-hoom), and with
+// no blocking finding left that no refutador received it has nothing to do.
+const (
+	msgRefutadorSinPedido = "el refutador arma su propio pedido: no lleva -m"
+	msgNadaQueRefutar     = "no hay hallazgos que bloquean sin pasar por el refutador: nada que pedirle"
+)
 
 // lanzamiento is what the launch flags asked.
 type lanzamiento struct {
@@ -535,6 +545,9 @@ func (v *verbo) pedir(args []string) int {
 	if rol == "reviewer" && l.escritos["timeout"] {
 		return v.uso(msgRevisionSinTimeout)
 	}
+	if rol == "refutador" && l.escritos["m"] {
+		return v.uso(msgRefutadorSinPedido)
+	}
 	operando := ""
 	if len(ops) == 2 {
 		operando = ops[1]
@@ -551,8 +564,16 @@ func (v *verbo) pedirCon(rol, operando string, l *lanzamiento) int {
 	if !ok {
 		return code
 	}
+	// at the cap on the rounds of findings neither the writer nor the
+	// refutador launches, in any column (ciclo-lo-decide-hoom)
+	if (rol == "writer" || rol == "refutador") && c.Rondas.AlTope {
+		return v.falla(c.Rondas.Razon)
+	}
 	a, ok := c.Action("pedir-" + rol)
 	if !ok {
+		if rol == "refutador" && c.Column == boardcmd.ColReview {
+			return v.falla(msgNadaQueRefutar)
+		}
 		return v.falla(fmt.Sprintf("en %s no se le pide al %s: %s. Siguiente: hoom siguiente", c.ColumnName, rol, c.Plain))
 	}
 	return v.lanzarRol(d, m, c, a, l)
@@ -610,7 +631,19 @@ func (v *verbo) lanzarRol(d Deduccion, m *manifest.Manifest, c boardcmd.Card, a 
 	vals := lanzar.Valores(a, req)
 	linea := lineaValores(vals, a, req)
 	review := a.Role == "reviewer"
-	if !review {
+	switch {
+	case review:
+	case a.Role == "refutador":
+		// the refutador builds its own pedido: no -m, no editor
+		// (ciclo-lo-decide-hoom)
+		if l.escritos["m"] {
+			return v.uso(msgRefutadorSinPedido)
+		}
+		if strings.TrimSpace(a.Pedido) == "" {
+			return v.falla("pedido vacio: no se lanzo nada")
+		}
+		req.Pedido = strings.TrimSpace(a.Pedido)
+	default:
 		pedido, code, ok := v.elPedido(d, a, l, linea)
 		if !ok {
 			return code
@@ -1004,6 +1037,13 @@ func (v *verbo) siguienteCon(operando string, l *lanzamiento, escrito string) in
 	case c.Running != nil:
 		r := c.Running
 		return v.falla(fmt.Sprintf("%s esta trabajando (%s, paso %d de %d): espera a que termine", quien(r.Role), r.Stage, r.Step, r.Steps))
+	case c.Rondas.AlTope && (c.Interrupted == nil || c.Interrupted.Role == "writer" || c.Interrupted.Role == "refutador"):
+		// at the cap on the rounds of findings it launches nothing, in any
+		// column (ciclo-lo-decide-hoom): a cut job of the writer or the
+		// refutador shows the cap too, since reanudar and pedir would refuse
+		return noLanza(strings.TrimPrefix(boardcmd.AccionAlTope, "hoom "), func() {
+			fmt.Fprintf(out, "te toca: %s\n%s\n", boardcmd.AccionAlTope, c.Rondas.Razon)
+		})
 	case c.Interrupted != nil:
 		i := c.Interrupted
 		return noLanza("reanudar", func() {

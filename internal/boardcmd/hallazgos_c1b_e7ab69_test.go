@@ -41,8 +41,11 @@ import (
 const e7SinComprobar = "no se pudo comprobar el worktree: git no respondio"
 
 // e7TodasLasAcciones son los ids de todas las acciones del contrato.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): la tarjeta en Review
+// tambien ofrece pedir-refutador.
 var e7TodasLasAcciones = []string{ActPedirArquitecto, ActPedirTestWriter, ActPedirWriter, ActPedirReviewer,
-	ActAprobar, ActIntegrar, ActReanudar, ActRelanzar, ActDescartar, ActGuardar, ActSesion, ActTerminal}
+	ActAprobar, ActIntegrar, ActReanudar, ActRelanzar, ActDescartar, ActGuardar, ActSesion, ActTerminal,
+	ActPedirRefutador}
 
 // e7Fixture es una tarjeta en memoria y las acciones que ofrece sin la marca
 // (nil = no se exige la lista, solo que no este vacia).
@@ -136,6 +139,10 @@ func e7Describir(as []Action) string {
 // WorktreeInusable no ofrece ninguna accion. Guarda: sin la marca, la
 // misma tarjeta ofrece sus acciones de siempre (las de la tabla, o al menos
 // una).
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): la guarda compara con las
+// filas de acColumnas y acColumnasArbol, donde Review con bloqueantes
+// ofrece pedir-refutador antes de pedir-writer; con la marca, tampoco
+// pedir-refutador (e7TodasLasAcciones).
 func TestCA325_Hallazgoe7ab69_SinComprobarElEspacioNoHayAcciones(t *testing.T) {
 	for _, f := range e7Fixtures() {
 		guarda := Derive(f.ev)

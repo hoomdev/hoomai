@@ -50,19 +50,23 @@ func acAgotado(gastado, presupuesto string) string {
 }
 
 // Etiquetas, roles y modo experto de cada accion, segun el contrato.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): en Review la tarjeta
+// ofrece pedir-refutador ("Pedir al refutador", rol refutador), una accion
+// que lanza un rol y no es experta.
 var (
 	acEtiquetas = map[string]string{
 		ActPedirArquitecto: "Pedir al arquitecto", ActPedirTestWriter: "Pedir al test-writer",
 		ActPedirWriter: "Pedir al writer", ActPedirReviewer: "Pedir al reviewer", ActAprobar: "Aprobar spec",
 		ActIntegrar: "Integrar", ActReanudar: "Reanudar", ActRelanzar: "Volver a lanzar",
 		ActDescartar: "Descartar cambios", ActGuardar: "Guardar", ActSesion: "Abrir sesion", ActTerminal: "Ver terminal",
+		ActPedirRefutador: "Pedir al refutador",
 	}
 	acRolDe = map[string]string{ActPedirArquitecto: "arquitecto", ActPedirTestWriter: "test-writer",
-		ActPedirWriter: "writer", ActPedirReviewer: "reviewer"}
+		ActPedirWriter: "writer", ActPedirReviewer: "reviewer", ActPedirRefutador: "refutador"}
 	acExperta = map[string]bool{ActDescartar: true, ActSesion: true, ActTerminal: true}
 	// acDeRol son las acciones que lanzan un rol.
 	acDeRol = map[string]bool{ActPedirArquitecto: true, ActPedirTestWriter: true, ActPedirWriter: true,
-		ActPedirReviewer: true, ActReanudar: true, ActRelanzar: true}
+		ActPedirReviewer: true, ActReanudar: true, ActRelanzar: true, ActPedirRefutador: true}
 )
 
 // acProvs son los providers de la maquina de los fixtures, en el orden del
@@ -209,6 +213,10 @@ type acFix struct {
 
 // acColumnas recorre las ocho columnas (Review en sus cinco formas), con
 // espacio de trabajo propio, sin nada en curso, interrumpido ni sin guardar.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): en Review con bloqueantes
+// sin refutar (ningun sobre de refutador en los fixtures) y bajo el tope (0
+// rondas), pedir-refutador va antes de pedir-writer y despues de
+// pedir-reviewer cuando la review esta exigida.
 func acColumnas() []acCaso {
 	cuando := bdT0.Add(48 * time.Hour)
 	con := func(ids ...string) []string { return append(append([]string{}, ids...), ActSesion, ActTerminal) }
@@ -229,12 +237,13 @@ func acColumnas() []acCaso {
 	add("test-writer", acTestWriter(), ColTestWriter, con(ActPedirTestWriter))
 	add("writer", acWriter(), ColWriter, con(ActPedirWriter))
 	add("review exigida sin registro", acGrande(acEv()), ColReview, con(ActPedirReviewer))
-	add("review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, con(ActPedirWriter))
+	add("review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, con(ActPedirRefutador, ActPedirWriter))
 	add("review exigida y con hallazgos", acConHallazgos(acGrande(acEv()), "f-a"), ColReview,
-		con(ActPedirReviewer, ActPedirWriter))
+		con(ActPedirReviewer, ActPedirRefutador, ActPedirWriter))
 	ev = acConHallazgos(acGrande(acEv()), "f-a")
 	ev.Reviews = []reviewcmd.Record{acRegistroQueCuenta()}
-	add("review exigida con registro que cuenta y con hallazgos", bdColas(ev), ColReview, con(ActPedirWriter))
+	add("review exigida con registro que cuenta y con hallazgos", bdColas(ev), ColReview,
+		con(ActPedirRefutador, ActPedirWriter))
 	add("review sin exigir ni hallazgos", tbListo(acEv(), taskcmd.ReadySinGuardar, tbMsgSinGuardar), ColReview, con())
 	add("tu-aceptacion", acEv(), ColTuAceptacion, con(ActIntegrar))
 	ev = acEv()
@@ -245,6 +254,8 @@ func acColumnas() []acCaso {
 
 // acColumnasArbol son las mismas columnas sin espacio de trabajo propio: la
 // evidencia vive en el arbol del proyecto.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): Review con bloqueantes
+// ofrece pedir-refutador antes de pedir-writer tambien sin espacio propio.
 func acColumnasArbol() []acCaso {
 	cuando := bdT0.Add(48 * time.Hour)
 	var cs []acCaso
@@ -266,7 +277,8 @@ func acColumnasArbol() []acCaso {
 	add("test-writer sin espacio propio", bdArbol(acTestWriter()), ColTestWriter, ActPedirTestWriter)
 	add("writer sin espacio propio", bdArbol(acWriter()), ColWriter, ActPedirWriter)
 	add("review exigida sin espacio propio", bdArbol(acGrande(acEv())), ColReview, ActPedirReviewer)
-	add("review con hallazgos sin espacio propio", bdArbol(acConHallazgos(acEv(), "f-a")), ColReview, ActPedirWriter)
+	add("review con hallazgos sin espacio propio", bdArbol(acConHallazgos(acEv(), "f-a")), ColReview,
+		ActPedirRefutador, ActPedirWriter)
 	add("review sin espacio propio y sin accion", bdArbol(acEv()), ColReview)
 	ev = bdArbol(acEv())
 	ev.Item.HechoEn = &cuando
@@ -396,6 +408,9 @@ func TestCA325_IdsDeLasAcciones(t *testing.T) {
 // CA-325: actions sigue la tabla de columnas, en su orden y con la principal
 // primero, en las ocho columnas (Review con y sin review exigida y con y sin
 // hallazgos que bloquean), con y sin espacio de trabajo propio.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): en Review con bloqueantes
+// sin refutar, pedir-refutador va antes de pedir-writer (filas de
+// acColumnas y acColumnasArbol) y acBienFormada la conoce.
 func TestCA325_AccionesPorColumna(t *testing.T) {
 	casos := append(acColumnas(), acColumnasArbol()...)
 	vistas := map[string]bool{}
@@ -745,6 +760,9 @@ func acConEnCurso(ev Evidence, rol string) Evidence {
 // CA-326: con running, toda accion menos sesion y terminal esta
 // deshabilitada con "espera a que termine el <rol> que esta trabajando"; sin
 // rol, "el agente". sesion y terminal siguen habilitadas.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): pedir-refutador es una
+// accion del contrato (acEtiquetas): los fixtures en curso de Review con
+// bloqueantes la recorren, deshabilitada como las demas.
 func TestCA326_EnCursoDeshabilitaTodoMenosSesionYTerminal(t *testing.T) {
 	type caso struct {
 		nombre string
@@ -802,6 +820,9 @@ func TestCA326_EnCursoDeshabilitaTodoMenosSesionYTerminal(t *testing.T) {
 
 // CA-326: sin espacio de trabajo propio y fuera de Backlog, las acciones de
 // rol estan deshabilitadas con su frase; aprobar y guardar no.
+// Re-expresado por CA-753 (ciclo-lo-decide-hoom): pedir-refutador lanza un
+// rol (acDeRol): en Review con bloqueantes sin espacio propio esta
+// deshabilitada con la frase, como pedir-writer.
 func TestCA326_SinEspacioPropioFueraDeBacklog(t *testing.T) {
 	for _, cs := range acColumnasArbol() {
 		c := Derive(cs.ev)
@@ -1226,6 +1247,8 @@ func TestCA327_ReviewPorLenteYSinElWriter(t *testing.T) {
 }
 
 // CA-329: el pedido propuesto de cada accion es el texto del contrato.
+// Re-expresado por CA-756 (ciclo-lo-decide-hoom): el pedido del writer en
+// Review con bloqueantes.
 func TestCA329_PedidoPropuesto(t *testing.T) {
 	pedido := func(ev Evidence, id string) string {
 		t.Helper()
@@ -1268,10 +1291,13 @@ func TestCA329_PedidoPropuesto(t *testing.T) {
 		"Escribi los tests que citan los criterios de .hoom/specs/precios.md que todavia no tienen prueba: CA-2.")
 
 	// writer, y en Review con los hallazgos que bloquean (no el medium)
+	// Re-expresado por CA-756 (ciclo-lo-decide-hoom): el pedido de Review
+	// suma "Solo esos: los pendientes quedan abiertos."
 	igual("pedir-writer", pedido(acWriter(), ActPedirWriter), acPedWriter)
 	ev = acConHallazgos(acEv(), "f-a", "f-b")
 	ev.Findings = append(ev.Findings, bdHallazgo("f-m", "medium", bdSlug))
-	igual("pedir-writer en Review", pedido(ev, ActPedirWriter), "Corregi los hallazgos que bloquean la tarjeta: f-a, f-b.")
+	igual("pedir-writer en Review", pedido(ev, ActPedirWriter),
+		"Corregi los hallazgos que bloquean la tarjeta: f-a, f-b. Solo esos: los pendientes quedan abiertos.")
 
 	// la review arma su propio pedido
 	igual("pedir-reviewer", pedido(acGrande(acEv()), ActPedirReviewer), "")

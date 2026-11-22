@@ -1,0 +1,11 @@
+{
+  "id": "20261121T235304_f304a2",
+  "created_at": "2026-11-21T23:53:04.96365674Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO: internal/boardcmd/gather.go:241-253 calcula el tope leyendo el mismo hoom.yaml mediante ParseFindings y LoadRoles y fabricando después un Manifest parcial solo para invocar FindingsMaxRondas; internal/pilotocmd/pilotocmd.go:585-592 repite el mismo ensamblaje. Esta receta oculta la fuente del valor efectivo y deja dos caminos productivos que deben mantenerse sincronizados. Conviene encapsular en manifest la carga o el cálculo conjunto de findings y autonomia.",
+  "author": "reviewer@codex",
+  "fingerprint": "08349b63f5d5efe9",
+  "task": "ciclo-lo-decide-hoom"
+}

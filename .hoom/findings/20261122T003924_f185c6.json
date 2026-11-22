@@ -1,0 +1,11 @@
+{
+  "id": "20261122T003924_f185c6",
+  "created_at": "2026-11-22T00:39:24.388370813Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO. internal/lanzar/lanzar.go:400 confia en una unica Card derivada antes del chequeo de run activo de internal/lanzar/lanzar.go:451. El candado lanzar-\u003cslug\u003e no lo toma reviewcmd.WriteRecord (publica con el candado reviews), por lo que un reviewer concurrente puede publicar la delta despues de que CardFor listo las reviews y terminar antes de runcmd.Busy; Busy da false y el lanzamiento usa c.Rondas obsoleto, incluso para writer/refutador, saltando el tope de CA-751. Es medium porque requiere un intercalado de carrera improbable y no pierde ni expone datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "22af6a718981d9c5",
+  "task": "ciclo-lo-decide-hoom"
+}

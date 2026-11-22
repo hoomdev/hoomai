@@ -1,0 +1,11 @@
+{
+  "id": "20261122T003521_6d82f5",
+  "created_at": "2026-11-22T00:35:21.031629535Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/lanzar/lanzar.go:400 solo rechaza al tope los lanzamientos Pilot cuyo rol es writer o refutador. Card.PilotActions sigue incluyendo test-writer y reviewer (internal/boardcmd/acciones.go:137-148), y PilotoNoSigue no comprueba el tope (internal/boardcmd/pilot.go:12-24); por eso, si el piloto decide uno de esos dos roles bajo el tope y una review delta llega antes de esta relectura, Lanzar lo ejecuta aun con c.Rondas.AlTope. Viola CA-751 (al tope el piloto para) y puede consumir un run adicional; severidad high porque el caso esta cubierto expresamente por el spec y una persona puede provocarlo registrando la delta en esa ventana.",
+  "author": "reviewer@codex",
+  "fingerprint": "22af6a718981d9c5",
+  "task": "ciclo-lo-decide-hoom"
+}

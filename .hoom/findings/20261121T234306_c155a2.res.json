@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261121T234306_c155a2",
+  "as": "corregido",
+  "evidence": "corregido en b93c63e: pilotocmd.Armar toma e.TopeDeRondas de c.Rondas.Tope, el tope que CardFor acaba de leer del hoom.yaml, no del Manifest del Studio (pilotocmd.go:590-595). Test TestHallazgoC155a2_ElPilotoDelStudioSubeConElTope (internal/servecmd/hallazgos_cld_tope_test.go, 1c5f85f): falla con pilotocmd.go de 9e6f1a7 y pasa en 1c5f85f; la reproduccion TestRefutador_StudioSubeElTope del refutador se invierte (tope 3, no para). go test -count=1 ./internal/pilotocmd/ ./internal/servecmd/ ok.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-22T00:29:07.1620305Z"
+}
