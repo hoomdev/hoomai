@@ -49,6 +49,9 @@ func GitignoreBody() string {
 	for _, d := range Local {
 		b.WriteString(d + "/\n")
 	}
+	for _, f := range LocalFiles {
+		b.WriteString(f + "\n")
+	}
 	return b.String()
 }
 
@@ -62,6 +65,18 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	if len(names) == 0 {
 		names = Local
 	}
+	lineas := make([]string, len(names))
+	for i, d := range names {
+		lineas[i] = d + "/"
+	}
+	return completarGitignore(root, lineas)
+}
+
+// completarGitignore appends to .hoom/.gitignore every one of lineas it
+// lacks (a line counts as there when, trimmed, it is that one), creating the
+// file when there is none, and returns what it added, in order. A file that
+// already has them all is never rewritten.
+func completarGitignore(root string, lineas []string) (added []string, err error) {
 	// .hoom is walked by descriptors, read AND written in that one directory:
 	// a .hoom swapped for a symlink to another project between the reading
 	// and the writing never gets that project's .gitignore overwritten
@@ -79,9 +94,9 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 	for _, line := range strings.Split(string(raw), "\n") {
 		have[strings.TrimSpace(line)] = true
 	}
-	for _, d := range names {
-		if !have[d+"/"] {
-			added = append(added, d+"/")
+	for _, l := range lineas {
+		if !have[l] {
+			added = append(added, l)
 		}
 	}
 	if len(added) == 0 {
@@ -116,7 +131,10 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 // directories only. `hoom init` calls it for local.yaml on a
 // .hoom/.gitignore that already exists.
 func EnsureIgnoredFiles(root string, names ...string) (added []string, err error) {
-	return nil, nil
+	if len(names) == 0 {
+		names = LocalFiles
+	}
+	return completarGitignore(root, names)
 }
 
 // maxGitignore caps .hoom/.gitignore: hoom writes a few lines.
