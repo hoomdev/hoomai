@@ -1,0 +1,11 @@
+{
+  "id": "20261122T225837_ab20c5",
+  "created_at": "2026-11-22T22:58:37.414630972Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/verifycmd/verifycmd.go",
+  "description": "INTRODUCIDO: internal/verifycmd/verifycmd.go:247 toma la foto inicial de .hoom/local.yaml despues de ejecutar spec.Gates en :223, y la compara en :249 antes de ejecutar ratchet.Gate en :275. Por eso un comando [verifica:] de spec_trace o una metrica del ratchet que cree, cambie o borre el archivo no produce el gate entorno_local exigido por CA-773; si el comando sale 0, el verify puede quedar verde y dejar una plantilla alterada para la siguiente corrida.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

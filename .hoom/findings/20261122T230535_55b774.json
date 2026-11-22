@@ -1,0 +1,11 @@
+{
+  "id": "20261122T230535_55b774",
+  "created_at": "2026-11-22T23:05:35.863195441Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/initcmd/initcmd.go",
+  "description": "INTRODUCIDO: internal/initcmd/initcmd.go:93-96 ignora el error de EnsureIgnoredFiles, imprime solo un aviso y luego devuelve éxito. Si el .hoom/.gitignore existente es ilegible, no regular, demasiado grande o no puede publicarse, init anuncia el proyecto como creado sin agregar local.yaml; después .hoom/local.yaml queda rastreable o verify lo rechaza con ErrNoIgnorado. CA-770 promete completar el archivo existente, por lo que este fallo de I/O debe hacer fallar init en vez de dejar una inicialización parcial.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

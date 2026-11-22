@@ -1,0 +1,11 @@
+{
+  "id": "20261122T230737_acc76d",
+  "created_at": "2026-11-22T23:07:37.116660668Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO: FotoLocal delega en huella en internal/agentcmd/scope.go:858, que termina en materialgit.HuellaEn y hace io.Copy de todo archivo regular sin límite (internal/materialgit/materialgit.go:376-383). Aunque entorno.Leer rechaza local.yaml mayores de 64 KiB, un rol sin encierro puede ejecutar truncate -s 1T sobre el archivo durante el run; la foto posterior intenta leer el archivo disperso completo y el sobre puede quedar bloqueado antes de cortar por manipulación. La foto de este archivo local debe estar acotada por tamaño/tiempo y aun así producir una huella que difiera.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261122T225852_470368",
+  "created_at": "2026-11-22T22:58:52.818933343Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/initcmd/initcmd.go",
+  "description": "INTRODUCIDO: internal/initcmd/initcmd.go:86-93 crea o completa abs/.hoom/.gitignore, aunque internal/entorno/entorno.go:127 y :147 ubica y valida local.yaml en el checkout principal. Si hoom init se ejecuta para un proyecto soportado en un subdirectorio (por ejemplo repo/sub/app), agrega local.yaml a repo/sub/app/.hoom/.gitignore, que no ignora repo/.hoom/local.yaml; al crear el ajuste sugerido, verify lo rechaza con ErrNoIgnorado en vez de poder ejecutar los gates, incumpliendo CA-770.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

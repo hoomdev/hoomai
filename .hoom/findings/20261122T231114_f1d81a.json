@@ -1,0 +1,11 @@
+{
+  "id": "20261122T231114_f1d81a",
+  "created_at": "2026-11-22T23:11:14.233544413Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/scope.go",
+  "description": "INTRODUCIDO — internal/agentcmd/scope.go:841 y internal/verifycmd/verifycmd.go:331 implementan por separado la fotografía del mismo .hoom/local.yaml: una abre desde la raíz y usa HuellaEn, la otra construye la ruta y usa Huella. Mantener dos políticas de huella y sus sentinelas obliga a comparar ambas rutas y favorece deriva; conviene extraer una única abstracción compartida para esta foto.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

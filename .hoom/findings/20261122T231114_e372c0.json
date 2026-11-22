@@ -1,0 +1,11 @@
+{
+  "id": "20261122T231114_e372c0",
+  "created_at": "2026-11-22T23:11:14.274284529Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/verifycmd/verify_en_el_entorno_test.go",
+  "description": "INTRODUCIDO — internal/verifycmd/verify_en_el_entorno_test.go:70 replica el fake de ddev y su lector de llamadas de internal/gates/verify_en_el_entorno_test.go:52, internal/servecmd/verify_en_el_entorno_test.go:60 y otros paquetes; el fake de git 2.47 también está copiado en :793, internal/taskcmd/verify_en_el_entorno_test.go:122 e internal/entorno/verify_en_el_entorno_test.go:592. La suite nueva deja varias implementaciones del mismo protocolo de fixture; consolidarlas en un test helper compartido reduciría ruido y puntos de mantenimiento.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

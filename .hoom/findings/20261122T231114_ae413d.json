@@ -1,0 +1,11 @@
+{
+  "id": "20261122T231114_ae413d",
+  "created_at": "2026-11-22T23:11:14.312102149Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/gates/runner.go",
+  "description": "INTRODUCIDO — internal/gates/runner.go:54 representa dos conceptos en ExigirEncierro como string sin tipo: vacío significa que no existe sección encierro, mientras no significa que sí existe y por eso se agrega la nota de ejecución sin encierro; parcial y completo bloquean. El flujo depende luego de comparaciones dispersas en :167-168. Un estado tipado que separe presencia de la sección y nivel haría autoexplicativa esta lógica sensible.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

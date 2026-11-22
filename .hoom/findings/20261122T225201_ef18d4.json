@@ -1,0 +1,11 @@
+{
+  "id": "20261122T225201_ef18d4",
+  "created_at": "2026-11-22T22:52:01.705613815Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/verifycmd/verifycmd.go",
+  "description": "INTRODUCIDO: internal/verifycmd/verifycmd.go:247-251 compara .hoom/local.yaml inmediatamente despues de gates.Run, pero spec.Gates ya ejecuto los [verifica:] en :219-228 y ratchet.Gate ejecuta sus comandos despues de la comparacion en :267-279. Un comando de ratchet puede crear local.yaml con ejecutar: 'true {cmd}', imprimir una metrica valida y dejar un veredicto verde sin entorno_local; el siguiente verify omite efectivamente los gates. La ventana incompleta salta el control de manipulacion CA-773.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261122T225844_bd3025",
+  "created_at": "2026-11-22T22:58:44.850973739Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: internal/agentcmd/agentcmd.go:399 fotografia FotoLocal(root), pero cmd/hoom/main.go:768 pasa como root m.Dir, el directorio que contiene hoom.yaml, que puede ser un subdirectorio del checkout. entorno.Leer en cambio consume checkout-principal/.hoom/local.yaml. En un proyecto sub/app, un rol puede cambiar el local.yaml real sin que el scope vea diferencia; luego verify lee esa plantilla ya alterada y puede certificar con ella, saltandose CA-768 con resultado verde incorrecto.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

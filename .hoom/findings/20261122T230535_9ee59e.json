@@ -1,0 +1,11 @@
+{
+  "id": "20261122T230535_9ee59e",
+  "created_at": "2026-11-22T23:05:35.874766965Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gitx/worktree.go",
+  "description": "INTRODUCIDO: internal/gitx/worktree.go:121-123 colapsa en false tanto una versión anterior a 2.48 como cualquier error al lanzar git o interpretar su salida, y internal/taskcmd/taskcmd.go:150-151 transforma todos esos casos en “worktrees_relativos pide git 2.48 o mas nuevo”. Con git ausente, no ejecutable, roto o un cwd inaccesible se reporta una versión vieja falsa y se pierde la causa recuperable del fallo; AceptaRutasRelativas debe conservar/distinguir el error de sondeo.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}
