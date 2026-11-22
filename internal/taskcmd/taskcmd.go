@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,11 +20,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -88,6 +91,10 @@ func Start(root, slug, base string) error {
 	if err := checkSlug(slug); err != nil {
 		return err
 	}
+	relativos, err := worktreesRelativos(root)
+	if err != nil {
+		return err
+	}
 	if err := ensureIgnored(root); err != nil {
 		return err
 	}
@@ -101,7 +108,7 @@ func Start(root, slug, base string) error {
 		ref = "HEAD" // base branch may not exist yet in young repos
 	}
 	add := []string{"worktree", "add"}
-	if gitx.AceptaRutasRelativas(root) {
+	if relativos {
 		// the worktree stays valid where a container mounts the project
 		// under another path (verify-en-el-entorno, CA-771)
 		add = append(add, "--relative-paths")
@@ -117,6 +124,33 @@ func Start(root, slug, base string) error {
 	fmt.Println("    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)")
 	fmt.Println("  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done " + slug + "' desde el proyecto principal")
 	return nil
+}
+
+// worktreesRelativos is the machine's choice for Start's worktree, read as
+// Start's doc says: false without the main checkout's .hoom/local.yaml (and
+// then hoom.yaml is not read), the error of manifest.Load or entorno.Leer as
+// it comes, and entorno.ErrWorktreesRelativosGitViejo when the file asks for
+// relative paths and git cannot write them. It creates nothing.
+func worktreesRelativos(root string) (bool, error) {
+	principal, ok := gitx.CheckoutPrincipal(root)
+	if !ok {
+		principal = root
+	}
+	if _, err := os.Lstat(filepath.Join(principal, filepath.FromSlash(entorno.Ruta))); errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	m, err := manifest.Load(root, profiles.Resolve)
+	if err != nil {
+		return false, err
+	}
+	a, err := entorno.Leer(root, m.SortedGateNames())
+	if err != nil {
+		return false, err
+	}
+	if a.WorktreesRelativos && !gitx.AceptaRutasRelativas(root) {
+		return false, errors.New(entorno.ErrWorktreesRelativosGitViejo)
+	}
+	return a.WorktreesRelativos, nil
 }
 
 // Task states, machine-readable. The human rendering derives from these.
