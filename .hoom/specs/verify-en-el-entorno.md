@@ -127,7 +127,7 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - **En el checkout principal, no en `~/.config`.** Es del proyecto y de la máquina, junto a los otros directorios locales, y los worktrees lo comparten sin copiarlo.
 - **Una plantilla con `{cmd}`, no un prefijo que se antepone.** DDEV, Compose, devcontainers y Lando reciben el comando de formas distintas; con `{cmd}` entran todos.
 - **La plantilla no entra en la huella.** La huella es del árbol (I2). El veredicto dice dónde corrió, y `hoom check` y `task done` no cambian.
-- **Con encierro, el gate con prefijo corre fuera del bwrap.** El contenedor necesita el socket de docker, y abrírselo al bwrap equivale a darle root al código del writer. Descartado: abrir el socket. `exigir` lo niega, porque quien exige encierro no lo pierde por un archivo local.
+- **Con encierro, el gate con prefijo corre fuera del bwrap.** El contenedor necesita el socket de docker, y abrírselo al bwrap equivale a darle root al código del writer. `exigir` lo niega, porque quien exige encierro no lo pierde por un archivo local. Descartados: abrir el socket, y rechazar `.hoom/local.yaml` siempre que haya encierro, porque una máquina con DDEV y encierro no podría usar el prefijo. Hoom lo eligió el 2026-11-22.
 - **La foto de `.hoom/local.yaml` en el sobre.** Un archivo ignorado no aparece en el scope, y esa plantilla decide qué corre.
 - **Rutas relativas en los worktrees nuevos**, para CAL-8.4: sin ellas, git dentro del contenedor no encuentra el repo de una tarea.
 
@@ -140,4 +140,4 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 
 ## Preguntas para la firma
 
-1. Con la sección `encierro`, ¿un gate con prefijo corre fuera del bwrap con una nota, salvo que `exigir` lo niegue (recomendado), o hoom rechaza `.hoom/local.yaml` siempre que haya encierro?
+Ninguna. La que había (el gate con prefijo y el encierro) está contestada en Decisiones. Contestarla no es la firma.
