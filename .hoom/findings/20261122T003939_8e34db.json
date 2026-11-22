@@ -1,0 +1,11 @@
+{
+  "id": "20261122T003939_8e34db",
+  "created_at": "2026-11-22T00:39:39.596197863Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/pilotocmd/pilotocmd.go",
+  "description": "INTRODUCIDO. internal/pilotocmd/pilotocmd.go:595 adopta Card.Rondas.Tope para la decision dinamica, pero esa Card obtiene el tope de gather.topeDeRondas, que en internal/boardcmd/gather.go:241-251 convierte cualquier error de lectura o ParseFindings en 0 y luego en el default 2. LoadRoles no rechaza por si solo un max_rondas invalido sin autonomia, asi que con el Studio arrancado con tope 1 una escritura parcial o valor invalido en hoom.yaml puede hacer que una ronda hecha deje de verse al tope y el piloto lance otra, en vez de rechazar la configuracion como exige CA-747. Es medium porque ocurre con configuracion degradada/transitoria y no pierde ni expone datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "22af6a718981d9c5",
+  "task": "ciclo-lo-decide-hoom"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261122T003906_faf4f5",
+  "created_at": "2026-11-22T00:39:06.609623392Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO. internal/lanzar/lanzar.go:400 limita la revalidacion del tope a acciones cuyo rol es writer o refutador. Si el piloto decidio pedir-reviewer o pedir-test-writer y antes de Lanzar llega una delta (o baja findings.max_rondas), la tarjeta releida ya puede estar al tope, pero PilotoNoSigue no comprueba el tope y este if deja pasar esos roles; se lanza un trabajo aunque CA-751 exige que al tope el piloto no lance nada. Es high porque una mutacion concurrente cubierta por el spec salta el control del tope; el test nuevo solo cubre writer/refutador.",
+  "author": "reviewer@codex",
+  "fingerprint": "22af6a718981d9c5",
+  "task": "ciclo-lo-decide-hoom"
+}
