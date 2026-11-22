@@ -512,6 +512,7 @@ los gates. Es de esa maquina, no del proyecto:
 ```yaml
 ejecutar: "ddev exec -d /var/www/html/{rel} sh -c {cmd}"
 en_el_host: [semgrep]   # gates que corren como hoy
+worktrees_relativos: true   # ver «Worktrees con rutas relativas»
 ```
 
 `ejecutar` es la plantilla: cada gate corre `sh -c <ejecutar>`, en el mismo
@@ -537,9 +538,10 @@ y, en cada gate, `"entorno": "prefijo"` o `"entorno": "host"`. La huella no
 cambia: es del arbol. Sin `ejecutar`, el JSON es el de siempre.
 
 Un archivo con una clave desconocida, con un `ejecutar` sin `{cmd}`, con un
-gate en `en_el_host` que no esta en `hoom.yaml`, o que git no ignora, no se
-usa: `hoom verify` sale con el error que lo dice, sin correr ningun gate ni
-escribir veredicto, como con un `hoom.yaml` invalido.
+gate en `en_el_host` que no esta en `hoom.yaml`, con un `worktrees_relativos`
+que no es `true` ni `false`, o que git no ignora, no se usa: `hoom verify`
+sale con el error que lo dice, sin correr ningun gate ni escribir veredicto,
+como con un `hoom.yaml` invalido.
 
 El perfil solo sugiere. Con `profile: laravel`, `hoom init` (al final) y
 `hoom verify` (debajo del reporte, cuando un gate quedo en `error` con 127 y
@@ -563,11 +565,28 @@ Con `exigir: completo` o `exigir: parcial`, ese gate no corre y queda en
 encierro.exigir es <valor>`. Los de `en_el_host` corren encerrados como
 siempre.
 
-**Worktrees con rutas relativas.** Con git 2.48 o mas nuevo, `hoom task
-start` crea el worktree con `git worktree add --relative-paths`, asi git lo
-encuentra tambien dentro del contenedor, que monta el proyecto en otra ruta.
-Un worktree creado antes guarda rutas absolutas, y dentro del contenedor el
-gate que usa git falla. Para repararlo, desde el checkout principal:
+**Worktrees con rutas relativas.** El contenedor monta el proyecto en otra
+ruta, y git no encuentra ahi un worktree que guarda rutas absolutas: en una
+tarea, el gate con la plantilla que usa git falla. Con
+`worktrees_relativos: true`, `hoom task start` crea el worktree con
+`git worktree add --relative-paths`, y git lo encuentra tambien adentro. Sin
+la clave, o con `false`, sin valor o vacia, el worktree es el de siempre, con
+rutas absolutas. Otro valor (`"true"` entre comillas, `yes`, un numero) es un
+error del archivo. `hoom verify` no la usa.
+
+Pide git 2.48 o mas nuevo en el host y en el contenedor:
+`--relative-paths` escribe `extensions.relativeWorktrees` en el `.git/config`
+del clon, y desde ahi un git mas viejo rechaza el repositorio entero, tambien
+el del contenedor. Por eso es de cada maquina: la enciende quien sabe que
+todos sus git son 2.48 o mas nuevos. Con la clave y un git del host mas viejo,
+`hoom task start` se niega con `.hoom/local.yaml: worktrees_relativos pide
+git 2.48 o mas nuevo` y no crea nada; hoom no ve el git del contenedor.
+`hoom task start` lee el archivo con las mismas reglas que `hoom verify`: con
+uno de sus errores, se niega con ese error y no crea la tarea.
+
+Un worktree creado antes de encenderla guarda rutas absolutas. Para
+repararlo, desde el checkout principal (tambien escribe la extension en
+`.git/config`, con el mismo requisito de git):
 
 ```sh
 git worktree repair --relative-paths
