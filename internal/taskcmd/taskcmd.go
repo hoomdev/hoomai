@@ -85,7 +85,10 @@ func ensureIgnored(root string) error {
 //     `hoom task list`, `hoom verify` and `hoom task done` recognize it as
 //     before (gitx.WorktreeDe resolves relative paths);
 //   - without it (no file, no key, false, null or empty) the worktree is
-//     added as before this card, with absolute paths, whatever the git, and
+//     added as before this card, with absolute paths, whatever the git and
+//     whatever its config says (a worktree.useRelativePaths=true in the
+//     repository's or the global config is overridden with
+//     `git -c worktree.useRelativePaths=false worktree add`), and
 //     .git/config does not gain extensions.relativeWorktrees.
 func Start(root, slug, base string) error {
 	if err := checkSlug(slug); err != nil {
@@ -112,6 +115,12 @@ func Start(root, slug, base string) error {
 		// the worktree stays valid where a container mounts the project
 		// under another path (verify-en-el-entorno, CA-771)
 		add = append(add, "--relative-paths")
+	} else {
+		// absolute paths whatever git's own config says: a
+		// worktree.useRelativePaths=true (repository or global) would write
+		// relative ones and extensions.relativeWorktrees (053a71). An older
+		// git ignores the key; --no-relative-paths would need 2.48.
+		add = append([]string{"-c", "worktree.useRelativePaths=false"}, add...)
 	}
 	if out, err := run(root, append(add, "-b", branch, wt, ref)...); err != nil {
 		return fmt.Errorf("git worktree add fallo: %s", out)

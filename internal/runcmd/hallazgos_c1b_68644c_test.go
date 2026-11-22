@@ -35,6 +35,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hoomdev/hoomai/internal/entorno"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/worktreetest"
@@ -224,8 +226,10 @@ func TestHallazgo68644c_CA280_RunConCarpetaQueNoEsLaTareaNoArranca(t *testing.T)
 // puerta da la carpeta de cada worktree registrado de verdad: legit, una
 // tarea nueva, la raiz alcanzada por un symlink (git lista rutas reales: la
 // puerta compara rutas, no textos), una tarea creada por el enlace, y una
-// creada con worktree.useRelativePaths (git escribe el .git y el registro
-// con rutas relativas: siguen nombrando la carpeta).
+// creada con rutas relativas (worktrees_relativos: true en el
+// .hoom/local.yaml del principal, CA-771 de verify-en-el-entorno: git
+// escribe el .git y el registro con rutas relativas, que siguen nombrando
+// la carpeta).
 func TestHallazgo68644c_CA280_GuardaLosRegistradosSiguenAndando(t *testing.T) {
 	root, legit := t68Entorno(t, true)
 	wt := func(r, slug string) string { return filepath.Join(r, ".hoom", "worktrees", slug) }
@@ -244,7 +248,11 @@ func TestHallazgo68644c_CA280_GuardaLosRegistradosSiguenAndando(t *testing.T) {
 	t68Acepta(t, "tarea creada por el enlace, pedida por la ruta real", root, "por-el-enlace", wt(root, "por-el-enlace"))
 
 	t.Run("rutas relativas", func(t *testing.T) {
-		worktreetest.Git(t, root, "config", "worktree.useRelativePaths", "true")
+		if !gitx.AceptaRutasRelativas(root) {
+			t.Skip("este git no acepta --relative-paths (es de git 2.48)")
+		}
+		// el .hoom/.gitignore de la raiz ignora local.yaml: es de esta maquina
+		worktreetest.Escribir(t, root, entorno.Ruta, "worktrees_relativos: true\n")
 		if err := taskcmd.Start(root, "relativa", "main"); err != nil {
 			t.Fatalf("fixture: task start relativa: %v", err)
 		}
@@ -253,7 +261,7 @@ func TestHallazgo68644c_CA280_GuardaLosRegistradosSiguenAndando(t *testing.T) {
 			t.Fatalf("fixture: el registro de relativa: %v", err)
 		}
 		if filepath.IsAbs(strings.TrimSpace(string(raw))) {
-			t.Skip("este git no escribe rutas relativas en el registro (worktree.useRelativePaths es de git 2.48)")
+			t.Fatalf("fixture: con worktrees_relativos: true el registro de relativa guarda una ruta relativa: %q", raw)
 		}
 		t68Acepta(t, "worktree con rutas relativas", root, "relativa", wt(root, "relativa"))
 	})
