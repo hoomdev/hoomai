@@ -19,6 +19,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/encierro"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/isolate"
@@ -169,9 +170,11 @@ type Isolation struct {
 // no-entregable, exit 1, with NotaMaterialDeGit or NotaGitAjeno; another
 // role's closes as any red verdict.
 //
-// verify-en-el-entorno: the envelope of every role photographs root's
-// .hoom/local.yaml (FotoLocal into Snapshot.Local; ProtegidoAusente when it
-// is not there) before and after the run. A run that created, changed or
+// verify-en-el-entorno: the envelope of every role photographs the
+// .hoom/local.yaml of root's main checkout, the one verify reads
+// (FotoLocal(entorno.Principal(root)) into Snapshot.Local, the folder found
+// once before the run; ProtegidoAusente when it is not there) before and
+// after the run, also when root is a subdirectory of its repository. A run that created, changed or
 // removed it is tampering (RuleTampering, path entorno.Ruta, DetalleLocal):
 // the envelope is cut in scope, no-entregable, exit 1, with the tampering
 // note and no verify, and its high finding names .hoom/local.yaml. Its verify
@@ -388,15 +391,17 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// what runs code in the next session, and git outside the task's
 	// branch: photographed for every role that executes, compared after the
 	// run before any git of hoom on the tree (contencion-del-writer)
+	// the main checkout's .hoom/local.yaml decides what the gates of verify
+	// run: photographed around every role's run (verify-en-el-entorno), at
+	// the folder verify reads it from, found once before the run
+	principal := entorno.Principal(root)
 	var previo *fotosPrevias
 	if role.Exec {
-		previo = tomarPrevias(runDir, dir, root)
+		previo = tomarPrevias(runDir, dir, principal)
 	}
-	// the main checkout's .hoom/local.yaml decides what the gates of verify
-	// run: photographed around every role's run (verify-en-el-entorno)
 	tomar := func() Snapshot {
 		s := Take(runDir, base)
-		s.Local = FotoLocal(root)
+		s.Local = FotoLocal(principal)
 		return s
 	}
 	before := tomar()

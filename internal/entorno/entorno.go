@@ -108,10 +108,7 @@ type Ajuste struct {
 // runs no gate and writes no verdict. On a nil error the Ajuste is never
 // nil.
 func Leer(dir string, gates []string) (*Ajuste, error) {
-	principal, enGit := gitx.CheckoutPrincipal(dir)
-	if !enGit {
-		principal = dir
-	}
+	principal, enGit := principalDe(dir)
 	a := &Ajuste{Principal: principal, Rel: rel(principal, dir)}
 	raw, err := leerArchivo(principal)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -135,6 +132,27 @@ func Leer(dir string, gates []string) (*Ajuste, error) {
 		}
 	}
 	return a, nil
+}
+
+// Principal is the main checkout whose .hoom/local.yaml Leer reads for the
+// tree dir (Ajuste.Principal): the parent folder of dir's git common
+// directory (gitx.CheckoutPrincipal), or dir itself when it is not in a git
+// repository. Whoever looks at the file outside Leer (the envelope of
+// `hoom agent` photographing it around a run, `hoom task start` deciding
+// whether to read it) takes the folder from here, so all of them look at the
+// same file verify reads, also for a project in a subdirectory of its
+// repository.
+func Principal(dir string) string {
+	principal, _ := principalDe(dir)
+	return principal
+}
+
+// principalDe is Principal, and whether dir is in a git repository.
+func principalDe(dir string) (string, bool) {
+	if principal, ok := gitx.CheckoutPrincipal(dir); ok {
+		return principal, true
+	}
+	return dir, false
 }
 
 // maxArchivo is the largest .hoom/local.yaml Leer reads: two keys do not

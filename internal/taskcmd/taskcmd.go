@@ -132,11 +132,7 @@ func Start(root, slug, base string) error {
 // it comes, and entorno.ErrWorktreesRelativosGitViejo when the file asks for
 // relative paths and git cannot write them. It creates nothing.
 func worktreesRelativos(root string) (bool, error) {
-	principal, ok := gitx.CheckoutPrincipal(root)
-	if !ok {
-		principal = root
-	}
-	if _, err := os.Lstat(filepath.Join(principal, filepath.FromSlash(entorno.Ruta))); errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Lstat(filepath.Join(entorno.Principal(root), filepath.FromSlash(entorno.Ruta))); errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
 	m, err := manifest.Load(root, profiles.Resolve)
