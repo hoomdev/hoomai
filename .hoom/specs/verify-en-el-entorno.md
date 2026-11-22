@@ -3,6 +3,7 @@
 Estado: BORRADOR — pendiente de aprobación humana.
 Tarjeta: `verify-en-el-entorno`. Intake: `.hoom/intake/rfc-calibracion-por-riesgo.md`, CAL-8 con el ajuste de 10.2 y la respuesta P6 de 10.4. Criterios CA-760 a CA-773.
 Enmienda del 2026-11-22, antes de los tests: la foto de `.hoom/local.yaml` alrededor de los gates (CA-773).
+Enmienda del 2026-11-22, después del verify: las rutas relativas de los worktrees son opcionales por máquina (CA-771, ver Decisiones).
 
 ## Objetivo
 
@@ -44,6 +45,7 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
   ```yaml
   ejecutar: "ddev exec -d /var/www/html/{rel} sh -c {cmd}"
   en_el_host: [semgrep]   # gates que corren como hoy
+  worktrees_relativos: true   # ver «Worktrees con rutas relativas»
   ```
 
 - En `ejecutar`, hoom reemplaza estas marcas, cada una como una palabra de `sh` entre comillas simples:
@@ -54,7 +56,7 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 - Vale para todo el que corre los gates: `hoom verify` a mano, el sobre de `hoom agent`, el piloto (`cerrar-hallazgos`) y `POST /api/verify`.
 - `ejecutar:` sin valor o vacío cuenta como sin la clave (la regla de CA-747).
 - Errores. Con cualquiera de ellos, `hoom verify` no corre ningún gate ni escribe veredicto, como con un `hoom.yaml` inválido:
-  - `.hoom/local.yaml: clave desconocida "<k>" (validas: ejecutar, en_el_host)`;
+  - `.hoom/local.yaml: clave desconocida "<k>" (validas: ejecutar, en_el_host, worktrees_relativos)`;
   - `.hoom/local.yaml: ejecutar tiene que llevar {cmd}`;
   - `.hoom/local.yaml: en_el_host nombra "<g>", que no es un gate de hoom.yaml`;
   - `.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)`.
@@ -87,11 +89,15 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 
 ### Worktrees con rutas relativas
 
-`hoom task start` crea el worktree con `git worktree add --relative-paths` cuando el git de la máquina lo acepta (2.48 o más nuevo). Así el `.git` del worktree vale también dentro de un contenedor que monta el proyecto en otra ruta. Con un git más viejo queda como hoy. `gitx.WorktreeDe` ya resuelve rutas relativas.
+- Con `worktrees_relativos: true` en `.hoom/local.yaml` del principal, `hoom task start` crea el worktree con `git worktree add --relative-paths`. Así el `.git` del worktree vale también dentro de un contenedor que monta el proyecto en otra ruta. `gitx.WorktreeDe` ya resuelve rutas relativas.
+- Sin la clave, o con `false`, nulo o vacío, el worktree se crea como hoy, y `.git/config` no cambia.
+- Con la clave y un git que no acepta `--relative-paths` (más viejo que 2.48), `hoom task start` se niega sin crear nada: `.hoom/local.yaml: worktrees_relativos pide git 2.48 o mas nuevo`.
+- `--relative-paths` escribe `extensions.relativeWorktrees` en el `.git/config` de ese clon, y desde ahí un git más viejo que 2.48 rechaza el repo entero, también dentro del contenedor. Por eso es de la máquina: lo enciende quien sabe que todos sus git son 2.48 o más nuevos.
+- `hoom task start` lee `.hoom/local.yaml` con las mismas reglas que `hoom verify`: con uno de los errores de arriba, se niega con ese error y no crea el worktree.
 
 ### Documentación
 
-El README documenta `.hoom/local.yaml`, sus marcas, `en_el_host`, la interacción con el encierro y `git worktree repair --relative-paths` para los worktrees creados antes.
+El README documenta `.hoom/local.yaml`, sus marcas, `en_el_host`, `worktrees_relativos` con su requisito de git 2.48 en el host y en el contenedor, la interacción con el encierro y `git worktree repair --relative-paths` para los worktrees creados antes.
 
 ## Casos límite y errores esperados
 
@@ -100,7 +106,7 @@ El README documenta `.hoom/local.yaml`, sus marcas, `en_el_host`, la interacció
 - El entorno está apagado: el prefijo sale con su propio código, distinto de 127, y el gate queda en `fail` con su salida. Es lo que pasó, y la salida lo dice.
 - Una comilla simple en el comando del gate: `{cmd}` la escapa (`'\''`), y `sh` dentro del contenedor recibe el comando intacto.
 - `en_el_host` sin `ejecutar` no cambia nada.
-- Un worktree creado antes, con ruta absoluta: git dentro del contenedor no lo encuentra y el gate que use git falla. El README dice cómo repararlo.
+- Un worktree con ruta absoluta (creado antes, o sin `worktrees_relativos`): git dentro del contenedor no lo encuentra y el gate que use git falla. El README dice cómo repararlo.
 
 ## Lo que este spec re-expresa
 
@@ -119,8 +125,8 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - CA-768: un rol que cambia, crea o borra `.hoom/local.yaml` del principal deja el sobre con la regla `manipulacion` y la ruta `.hoom/local.yaml`.
 - CA-769: con `.ddev/config.yaml`, perfil `laravel` y sin `php` en el PATH, `hoom init` imprime la sugerencia de `ddev`, y `hoom verify` la imprime debajo de un `error` por 127 cuando no hay `.hoom/local.yaml`; con `vendor/bin/sail`, la de `sail`; con `php` en el PATH, ninguna; nadie escribe `.hoom/local.yaml`.
 - CA-770: `hoomfs.GitignoreBody` incluye `local.yaml` y `hoom init` lo agrega a un `.hoom/.gitignore` que no lo tiene; el `.hoom/.gitignore` de este repo lo tiene. [verifica: grep -qx 'local.yaml' .hoom/.gitignore]
-- CA-771: con git 2.48 o más nuevo, `hoom task start` deja en el worktree un `.git` con `gitdir` relativo, y `hoom task list`, `hoom verify` y `hoom task done` lo reconocen como hoy.
-- CA-772: el README documenta el ajuste local y el encierro. [verifica: grep -q "\.hoom/local.yaml" README.md && grep -q "en_el_host" README.md && grep -q "relative-paths" README.md]
+- CA-771: con `worktrees_relativos: true` y git 2.48 o más nuevo, `hoom task start` deja en el worktree un `.git` con `gitdir` relativo, y `hoom task list`, `hoom verify` y `hoom task done` lo reconocen como hoy; sin la clave, el `.git` del worktree es absoluto y `.git/config` no gana `extensions.relativeWorktrees`; con la clave y un git más viejo, `hoom task start` se niega con `.hoom/local.yaml: worktrees_relativos pide git 2.48 o mas nuevo` y no crea el worktree.
+- CA-772: el README documenta el ajuste local y el encierro. [verifica: grep -q "\.hoom/local.yaml" README.md && grep -q "en_el_host" README.md && grep -q "relative-paths" README.md && grep -q "worktrees_relativos" README.md]
 - CA-773: un gate que crea, cambia o borra `.hoom/local.yaml` del principal mientras corre deja el veredicto rojo, con el gate `entorno_local` requerido en `fail` y la nota `manipulacion: .hoom/local.yaml cambio mientras corrian los gates`; un verify que no lo toca no trae ese gate.
 
 ## Decisiones
@@ -132,13 +138,13 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - **La plantilla no entra en la huella.** La huella es del árbol (I2). El veredicto dice dónde corrió, y `hoom check` y `task done` no cambian.
 - **Con encierro, el gate con prefijo corre fuera del bwrap.** El contenedor necesita el socket de docker, y abrírselo al bwrap equivale a darle root al código del writer. `exigir` lo niega, porque quien exige encierro no lo pierde por un archivo local. Descartados: abrir el socket, y rechazar `.hoom/local.yaml` siempre que haya encierro, porque una máquina con DDEV y encierro no podría usar el prefijo. Hoom lo eligió el 2026-11-22.
 - **La foto de `.hoom/local.yaml` en el sobre y alrededor de los gates.** Un archivo ignorado no aparece en el scope, y esa plantilla decide qué corre. La del sobre ve al rol; la de los gates ve al código del writer que corre en un test, y vale en todo verify, porque también un `hoom verify` a mano corre ese código.
-- **Rutas relativas en los worktrees nuevos**, para CAL-8.4: sin ellas, git dentro del contenedor no encuentra el repo de una tarea.
+- **Rutas relativas en los worktrees, opcionales por máquina**, para CAL-8.4: sin ellas, git dentro del contenedor no encuentra el repo de una tarea. Son opcionales porque `--relative-paths` escribe una extensión en `.git/config` que un git más viejo que 2.48 no acepta, y la imagen del contenedor puede traer uno más viejo. `.git/config` es de cada clon, igual que `.hoom/local.yaml`. Descartados: encenderlas siempre (lo firmado al principio; el writer encontró la extensión), y sacarlas de esta tarjeta. Hoom lo eligió el 2026-11-22.
 
 ## Riesgos y deuda aceptada
 
 - Una plantilla que traga el código de salida, como `true {cmd}`, pone verde todo. La escribe la persona, el veredicto la registra con su sha256 y ningún rol la puede cambiar sin que el sobre lo marque. El README lo advierte.
 - El `hoom verify` que un rol corre por su cuenta, dentro de su encierro, no llega al socket de docker y sus gates con prefijo fallan. El que cuenta es el del sobre.
-- Los worktrees ya creados conservan su ruta absoluta hasta que alguien corre `git worktree repair --relative-paths`.
+- Los worktrees con ruta absoluta la conservan hasta que alguien corre `git worktree repair --relative-paths`, que también escribe la extensión en `.git/config`. Sin `worktrees_relativos`, un gate con prefijo que use git dentro del contenedor falla en una tarea; el README lo dice.
 - El exit 2 que `.hoom/semgrep/gate.sh` usa para «no pudo correr» sigue siendo `fail`. Cambiarlo es del gate, no de hoom.
 
 ## Preguntas para la firma
