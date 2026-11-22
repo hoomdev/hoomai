@@ -1,7 +1,8 @@
 # Spec: verify corre donde vive el runtime del proyecto
 
 Estado: BORRADOR — pendiente de aprobación humana.
-Tarjeta: `verify-en-el-entorno`. Intake: `.hoom/intake/rfc-calibracion-por-riesgo.md`, CAL-8 con el ajuste de 10.2 y la respuesta P6 de 10.4. Criterios CA-760 a CA-772.
+Tarjeta: `verify-en-el-entorno`. Intake: `.hoom/intake/rfc-calibracion-por-riesgo.md`, CAL-8 con el ajuste de 10.2 y la respuesta P6 de 10.4. Criterios CA-760 a CA-773.
+Enmienda del 2026-11-22, antes de los tests: la foto de `.hoom/local.yaml` alrededor de los gates (CA-773).
 
 ## Objetivo
 
@@ -71,6 +72,7 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 - Con la sección `encierro` y un sobre, un gate con prefijo corre sin encierro, como uno de `gates_sin_encierro`, con la nota `sin encierro: corre con el prefijo de .hoom/local.yaml`. El contenedor es su límite. Las fotos del material de git alrededor de los gates siguen.
 - Con `encierro.exigir` en `completo` o `parcial`, ese gate queda en `error` con la nota `el prefijo de .hoom/local.yaml no corre encerrado y encierro.exigir es <valor>`.
 - El sobre de `hoom agent` saca el sha256 de `.hoom/local.yaml` del principal, o anota que no existe, antes y después del rol. Una diferencia es manipulación: regla `manipulacion` con la ruta `.hoom/local.yaml`, igual que un cambio a la evidencia. Un archivo ignorado no aparece en el scope, y un rol que escribe `ejecutar: "true {cmd}"` pondría verde todo.
+- Todo verify (a mano, el del sobre, el del piloto y `POST /api/verify`) saca también el sha256 de `.hoom/local.yaml` del principal, o anota que no existe, antes y después de los gates. Si cambió, el veredicto suma el gate `entorno_local`, requerido y en `fail`, con la nota `manipulacion: .hoom/local.yaml cambio mientras corrian los gates`, y queda rojo, como `material_de_git`. Si no cambió, ese gate no aparece. Un gate que corre sin encierro, con prefijo o sin él, puede escribir en el principal, y la foto del sobre es de antes y después del rol, no de los gates.
 
 ### La sugerencia del perfil
 
@@ -119,6 +121,7 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - CA-770: `hoomfs.GitignoreBody` incluye `local.yaml` y `hoom init` lo agrega a un `.hoom/.gitignore` que no lo tiene; el `.hoom/.gitignore` de este repo lo tiene. [verifica: grep -qx 'local.yaml' .hoom/.gitignore]
 - CA-771: con git 2.48 o más nuevo, `hoom task start` deja en el worktree un `.git` con `gitdir` relativo, y `hoom task list`, `hoom verify` y `hoom task done` lo reconocen como hoy.
 - CA-772: el README documenta el ajuste local y el encierro. [verifica: grep -q "\.hoom/local.yaml" README.md && grep -q "en_el_host" README.md && grep -q "relative-paths" README.md]
+- CA-773: un gate que crea, cambia o borra `.hoom/local.yaml` del principal mientras corre deja el veredicto rojo, con el gate `entorno_local` requerido en `fail` y la nota `manipulacion: .hoom/local.yaml cambio mientras corrian los gates`; un verify que no lo toca no trae ese gate.
 
 ## Decisiones
 
@@ -128,7 +131,7 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - **Una plantilla con `{cmd}`, no un prefijo que se antepone.** DDEV, Compose, devcontainers y Lando reciben el comando de formas distintas; con `{cmd}` entran todos.
 - **La plantilla no entra en la huella.** La huella es del árbol (I2). El veredicto dice dónde corrió, y `hoom check` y `task done` no cambian.
 - **Con encierro, el gate con prefijo corre fuera del bwrap.** El contenedor necesita el socket de docker, y abrírselo al bwrap equivale a darle root al código del writer. `exigir` lo niega, porque quien exige encierro no lo pierde por un archivo local. Descartados: abrir el socket, y rechazar `.hoom/local.yaml` siempre que haya encierro, porque una máquina con DDEV y encierro no podría usar el prefijo. Hoom lo eligió el 2026-11-22.
-- **La foto de `.hoom/local.yaml` en el sobre.** Un archivo ignorado no aparece en el scope, y esa plantilla decide qué corre.
+- **La foto de `.hoom/local.yaml` en el sobre y alrededor de los gates.** Un archivo ignorado no aparece en el scope, y esa plantilla decide qué corre. La del sobre ve al rol; la de los gates ve al código del writer que corre en un test, y vale en todo verify, porque también un `hoom verify` a mano corre ese código.
 - **Rutas relativas en los worktrees nuevos**, para CAL-8.4: sin ellas, git dentro del contenedor no encuentra el repo de una tarea.
 
 ## Riesgos y deuda aceptada
