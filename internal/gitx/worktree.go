@@ -102,7 +102,8 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 // in dir accepts `git worktree add --relative-paths`: git 2.48 or newer. A
 // version it cannot read, or a git that does not answer, does not.
 func AceptaRutasRelativas(dir string) bool {
-	return false
+	v, err := versionDeGit(dir)
+	return err == nil && alMenos(v, [2]int{2, 48})
 }
 
 // Ignora (verify-en-el-entorno) says whether the git of dir ignores the path

@@ -81,7 +81,13 @@ func Start(root, slug, base string) error {
 	if _, err := run(root, "rev-parse", "--verify", ref); err != nil {
 		ref = "HEAD" // base branch may not exist yet in young repos
 	}
-	if out, err := run(root, "worktree", "add", "-b", branch, wt, ref); err != nil {
+	add := []string{"worktree", "add"}
+	if gitx.AceptaRutasRelativas(root) {
+		// the worktree stays valid where a container mounts the project
+		// under another path (verify-en-el-entorno, CA-771)
+		add = append(add, "--relative-paths")
+	}
+	if out, err := run(root, append(add, "-b", branch, wt, ref)...); err != nil {
 		return fmt.Errorf("git worktree add fallo: %s", out)
 	}
 	fmt.Printf("hoom: tarea %q creada\n", slug)
