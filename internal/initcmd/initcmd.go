@@ -84,13 +84,29 @@ func Run(dir, projectName, profileName string) error {
 		}
 	}
 	gi := filepath.Join(abs, ".hoom", ".gitignore")
-	if _, err := os.Stat(gi); os.IsNotExist(err) {
+	var completado []string
+	if _, err := os.Lstat(gi); os.IsNotExist(err) {
 		_ = os.WriteFile(gi, []byte(hoomfs.GitignoreBody()), 0o644)
+	} else {
+		// .hoom/local.yaml is this machine's: git never takes it
+		// (verify-en-el-entorno, CA-770); nothing else in the file changes
+		completado, err = hoomfs.EnsureIgnoredFiles(abs, hoomfs.LocalFiles...)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "hoom: aviso: no se pudo agregar local.yaml a .hoom/.gitignore: %v\n", err)
+		}
 	}
 	fmt.Printf("hoom: creado %s\n", target)
 	fmt.Printf("hoom: creado .hoom/verdicts/ (los veredictos viajan en Git; .hoom/cache no)\n")
 	fmt.Printf("hoom: creado .hoom/intake/ (documentos del cliente: SRS, planes, minutas)\n")
 	fmt.Printf("hoom: creado .hoom/specs/ (vision del producto y specs por tarea)\n")
+	if len(completado) > 0 {
+		fmt.Printf("hoom: agregado %s a .hoom/.gitignore (es de esta maquina)\n", strings.Join(completado, ", "))
+	}
 	fmt.Printf("hoom: siguiente paso -> revisa los cmd del manifiesto y ejecuta 'hoom verify'\n")
+	// where the gates could run instead of the host: only a suggestion,
+	// the person writes .hoom/local.yaml (CA-769)
+	for _, e := range profiles.Sugerencias(profileName, abs) {
+		fmt.Println(e.Sugerencia())
+	}
 	return nil
 }
