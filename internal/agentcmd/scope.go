@@ -19,10 +19,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -804,6 +806,17 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 		res.Touched = append(res.Touched, ratchetPath)
 		sort.Strings(res.Touched)
 	}
+	// The main checkout's .hoom/local.yaml is ignored, so it never shows up
+	// in the delta: its photograph settles it, and its one violation is
+	// this one whatever git listed (verify-en-el-entorno).
+	if before.Local != "" && after.Local != "" && before.Local != after.Local {
+		res.Violations = slices.DeleteFunc(res.Violations, func(v Violation) bool { return v.Path == entorno.Ruta })
+		res.Violations = append(res.Violations, Violation{Path: entorno.Ruta, Rule: RuleTampering, Detail: DetalleLocal})
+		if !contains(res.Touched, entorno.Ruta) {
+			res.Touched = append(res.Touched, entorno.Ruta)
+			sort.Strings(res.Touched)
+		}
+	}
 	sortViolations(res.Violations)
 	for _, v := range res.Violations {
 		if v.Rule == RuleTampering {
@@ -826,7 +839,23 @@ const DetalleLocal = "la plantilla de .hoom/local.yaml decide que corren los gat
 // (never followed nor read) and HuellaIlegible when it cannot be read. It is
 // read from the disk, never from git, and is never "".
 func FotoLocal(principal string) string {
-	return ""
+	r, err := os.OpenRoot(principal)
+	if errors.Is(err, fs.ErrNotExist) {
+		return ProtegidoAusente
+	}
+	if err != nil {
+		return HuellaIlegible
+	}
+	defer r.Close()
+	name := filepath.FromSlash(entorno.Ruta)
+	fi, err := r.Lstat(name)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return ProtegidoAusente
+	case err != nil:
+		return HuellaIlegible
+	}
+	return huella(r, name, fi)
 }
 
 // The two Huellas that are not a content hash.

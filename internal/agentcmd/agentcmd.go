@@ -390,9 +390,16 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// run before any git of hoom on the tree (contencion-del-writer)
 	var previo *fotosPrevias
 	if role.Exec {
-		previo = tomarPrevias(runDir, dir)
+		previo = tomarPrevias(runDir, dir, root)
 	}
-	before := Take(runDir, base)
+	// the main checkout's .hoom/local.yaml decides what the gates of verify
+	// run: photographed around every role's run (verify-en-el-entorno)
+	tomar := func() Snapshot {
+		s := Take(runDir, base)
+		s.Local = FotoLocal(root)
+		return s
+	}
+	before := tomar()
 	info, err := mgr.Start(so)
 	if err != nil {
 		keepQuarantine(w, tree, res.Isolation, "el run no arranco")
@@ -459,7 +466,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// exactly like a finished one's — blind or not, with the real tree's
 		// photograph — because a resolution closes a finding whether the run
 		// ended well or not (CA-438). What it cannot give is a tree to verify.
-		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
+		res.Scope = Gate(dir, base, opt.Task, role, before, tomar(), pol, cegado(tree, beforeReal, dir, base))
 		printScope(w, res.Scope, role, step(steps-2, steps))
 		if niegaExigir != "" {
 			keepQuarantine(w, tree, res.Isolation, "el encierro no dejo correr el rol")
@@ -472,7 +479,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
 	// blind tree lets us ask — is the blindfold still on?
 	seguir("scope", steps-2)
-	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
+	res.Scope = Gate(dir, base, opt.Task, role, before, tomar(), pol, cegado(tree, beforeReal, dir, base))
 	printScope(w, res.Scope, role, step(steps-2, steps))
 	if res.Scope.Cuts() {
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")

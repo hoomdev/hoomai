@@ -91,15 +91,16 @@ func encierroNiega(root, dir string, m *manifest.Manifest, pol manifest.Encierro
 // on the tree: the agents' config of the run tree (and, blind, of the task's
 // tree) and git-ajeno.
 type fotosPrevias struct {
-	runDir, dir      string
-	config, configDe ConfigAgentes
-	ajeno            GitAjeno
+	runDir, dir, root string
+	config, configDe  ConfigAgentes
+	ajeno             GitAjeno
 }
 
 // tomarPrevias photographs, before the run, the agents' config of runDir
-// (and of dir when the run is blind) and git-ajeno.
-func tomarPrevias(runDir, dir string) *fotosPrevias {
-	p := &fotosPrevias{runDir: runDir, dir: dir, config: FotoConfigAgentes(runDir), ajeno: FotoGitAjeno(runDir)}
+// (and of dir when the run is blind) and git-ajeno. root is the main
+// checkout, whose .hoom/local.yaml the cut compares too.
+func tomarPrevias(runDir, dir, root string) *fotosPrevias {
+	p := &fotosPrevias{runDir: runDir, dir: dir, root: root, config: FotoConfigAgentes(runDir), ajeno: FotoGitAjeno(runDir)}
 	if dir != runDir {
 		p.configDe = FotoConfigAgentes(dir)
 	}
@@ -130,6 +131,7 @@ func (p *fotosPrevias) comparar(dir, task string, role agents.Role, before, befo
 		return ScopeResult{}, false
 	}
 	after := tomarSinGit(p.runDir, before)
+	after.Local = FotoLocal(p.root)
 	sc := CheckScope(before, after, pol)
 	arboles := []Fotos{{Antes: before, Despues: after}}
 	if blind {
