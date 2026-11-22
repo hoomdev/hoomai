@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T003906_faf4f5",
+  "as": "corregido",
+  "evidence": "corregido en 03d1318: bajo el candado, lanzar.Lanzar niega con 409 '\u003cRazon\u003e: el piloto no lanza nada' cualquier rol pedido con req.Pilot si la tarjeta releida esta al tope (internal/lanzar/lanzar.go:400), como exige CA-751; los casos 1-4 y ParadaAntesDeGuardar de Piloto son paradas, asi que no hay lanzamiento legitimo al tope. Test TestHallazgo75a10b_ElCandadoNoLanzaNingunRolAlTope (internal/servecmd/hallazgos_cld_tope_test.go, cd21dd4), subtests test-writer y reviewer: ROJO con lanzar.go de d75f99d por overlay, VERDE en cd21dd4; go test -count=1 ./internal/lanzar/ ./internal/servecmd/ ./internal/pilotocmd/ ok.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-22T00:57:41.71607669Z"
+}
