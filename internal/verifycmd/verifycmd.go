@@ -14,6 +14,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/encierro"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitajeno"
@@ -153,6 +154,10 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
 		return nil, "", err
 	}
+	local, err := entorno.Leer(m.Dir, m.SortedGateNames())
+	if err != nil {
+		return nil, "", err
+	}
 	git := gitx.Snapshot(m.Dir, m.BaseBranch)
 	// a relative spec is the project's (the verdict keeps it as given): read
 	// from m.Dir, so a caller in another directory verifies the same file
@@ -166,14 +171,14 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	lw := live.NewWriter(m.Dir)
 	defer lw.Close()
 
-	gopt := gates.Options{Full: opt.Full, Emit: lw.Emit}
+	gopt := gates.Options{Full: opt.Full, Emit: lw.Emit, Local: local}
 	var antes materialgit.Foto
 	if opt.Sobre != nil {
-		plan, sin, err := planDelSobre(m, *opt.Sobre)
+		plan, sin, exigir, err := planDelSobre(m, *opt.Sobre)
 		if err != nil {
 			return nil, "", err
 		}
-		gopt.Encierro, gopt.SinEncierro = plan, sin
+		gopt.Encierro, gopt.SinEncierro, gopt.ExigirEncierro = plan, sin, exigir
 	}
 	if len(opt.Gates) > 0 {
 		gopt.Only = map[string]bool{}
@@ -239,7 +244,12 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		antes = materialgit.TomarConTope(m.Dir, topeFotoMaterial)
 		ajeno = gitajeno.Tomar(m.Dir, gitajeno.Tope, gitajeno.MaxLeido)
 	}
+	localAntes := fotoLocal(local.Principal)
 	results = append(results, gates.Run(m, git, gopt)...)
+	if fotoLocal(local.Principal) != localAntes {
+		results = append(results, verdict.GateResult{Name: GateEntornoLocal, Required: true, Status: verdict.StatusFail,
+			Scope: "full", ExitCode: 1, OutputTail: entorno.Ruta, Notes: NotaEntornoLocal})
+	}
 	if opt.Sobre != nil {
 		if cambios := materialgit.Cambios(antes, materialgit.TomarConTope(m.Dir, topeFotoMaterial)); len(cambios) > 0 {
 			results = append(results, verdict.GateResult{Name: GateMaterialDeGit, Required: true, Status: verdict.StatusFail,
@@ -277,6 +287,16 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		Gates:   results,
 		Spec:    opt.Spec,
 	}
+	if local.Ejecutar != "" {
+		v.Entorno = &verdict.Entorno{Ejecutar: local.Ejecutar, SHA256: local.SHA256}
+		for i := range v.Gates {
+			if v.Gates[i].Entorno == "" {
+				// hoom's own gates (spec_*, findings_open, ratchet, the
+				// photographs) run in hoom, on the host
+				v.Gates[i].Entorno = verdict.EntornoHost
+			}
+		}
+	}
 	if len(gopt.Only) > 0 {
 		// A --gate scoped run is a diagnostic, never a reference: mark it so
 		// check/task done skip it by construction (no verdict fraud).
@@ -304,6 +324,14 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 // changed.
 const topeFotoMaterial = 5 * time.Second
 
+// fotoLocal is the photograph of the .hoom/local.yaml of the main checkout
+// principal around the gates (CA-773): its Huella (the sha256 of its bytes,
+// or that it is not there, not a regular file or not readable), read from
+// the disk without following it.
+func fotoLocal(principal string) string {
+	return materialgit.Huella(filepath.Join(principal, filepath.FromSlash(entorno.Ruta)))
+}
+
 // planDelSobre is the encierro of the gates of a verify with Sobre s: nil
 // (as today) without the section `encierro` in s.Root's hoom.yaml, or with
 // a level ninguno; with the mechanism job (Windows) a plan with no view,
@@ -313,16 +341,19 @@ const topeFotoMaterial = 5 * time.Second
 // the manifest's tree writable, but for the test-writer (agents.Role.Isolated),
 // whose gates run in the manifest's tree read-only and write only in its
 // blind tree s.Ciego, when it is still there. sin are
-// encierro.gates_sin_encierro.
-func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]bool, error) {
+// encierro.gates_sin_encierro, and exigir is encierro.exigir when there is
+// the section ("" without it), whether or not this system can enclose
+// (verify-en-el-entorno, aclaracion 10).
+func planDelSobre(m *manifest.Manifest, s Sobre) (plan *encierro.Plan, sin map[string]bool, exigir string, err error) {
 	roles, err := manifest.LoadRoles(s.Root)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	if roles.Encierro == nil {
-		return nil, nil, nil
+		return nil, nil, "", nil
 	}
-	sin := map[string]bool{}
+	exigir = roles.Encierro.Exigir
+	sin = map[string]bool{}
 	for _, g := range roles.Encierro.GatesSinEncierro {
 		sin[g] = true
 	}
@@ -330,9 +361,9 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]boo
 	switch info.Mecanismo {
 	case encierro.MecanismoBwrap:
 	case encierro.MecanismoJob:
-		return &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}, sin, nil
+		return &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}, sin, exigir, nil
 	default:
-		return nil, sin, nil
+		return nil, sin, exigir, nil
 	}
 	lugar := encierro.Lugar{Principal: s.Root, Tarea: s.Task, Arbol: m.Dir, Quien: encierro.QuienVerify,
 		Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile}
@@ -344,9 +375,9 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]boo
 	}
 	vista, err := encierro.VistaDe(lugar)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
-	return &encierro.Plan{Info: info, Vista: vista, Exigir: roles.Encierro.Exigir}, sin, nil
+	return &encierro.Plan{Info: info, Vista: vista, Exigir: roles.Encierro.Exigir}, sin, exigir, nil
 }
 
 // approvedGate enforces the human control point: a spec bound to a verify
