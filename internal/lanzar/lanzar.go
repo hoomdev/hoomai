@@ -348,7 +348,10 @@ func Reservar(p Params, slug string) (soltar func(), err error) {
 // action's Hallazgos (boardcmd.Action.Hallazgos) in `hallazgos`, as the
 // pilot's does with req.Hallazgos. The refutador builds its own pedido: a
 // launch of the refutador without Pilot whose pedido is not the action's
-// (boardcmd.Action.Pedido) is refused with MsgRefutadorNoSeEdita.
+// (boardcmd.Action.Pedido) is refused with MsgRefutadorNoSeEdita. A launch
+// with Pilot of a writer or refutador on a card at the cap on its rounds of
+// findings (boardcmd.RondasDeHallazgos.AlTope), read under the lock, is
+// refused with 409 and `<Razon>: el piloto no lanza nada`.
 func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, error) {
 	fail := func(code int, format string, args ...any) (*Trabajo, error) {
 		return nil, &Rechazo{Code: code, Motivo: fmt.Sprintf(format, args...)}
@@ -393,6 +396,14 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	}
 	if !ok {
 		return fail(http.StatusConflict, "la tarjeta ya no esta donde la viste: ahora esta en %s (%s)", c.ColumnName, c.Plain)
+	}
+	if req.Pilot && c.Rondas.AlTope && (a.Role == "writer" || a.Role == "refutador") {
+		// the cap on the rounds of findings (ciclo-lo-decide-hoom) took the
+		// writer's and the refutador's actions away from the card; its pilot
+		// actions are built as always, so a delta (or a lower cap) that
+		// arrived after Piloto decided is checked here, under the lock
+		// (finding 56c600)
+		return fail(http.StatusConflict, "%s: el piloto no lanza nada", c.Rondas.Razon)
 	}
 	if !a.Enabled {
 		return fail(http.StatusConflict, "%s", a.Why)
