@@ -361,6 +361,13 @@ type Snapshot struct {
 	Directorios map[string]bool
 	Manifest    string        // hash of hoom.yaml ("" = unreadable)
 	Ratchet     *ratchet.File // nil = no baseline declared
+	// Local (verify-en-el-entorno) is FotoLocal of the main checkout: the
+	// envelope of every role takes it before and after the run, since an
+	// ignored file never shows up in Touched and its template decides what
+	// the gates of verify run. "" = not photographed (a hand-built
+	// photograph): CheckScope compares it only when both photographs have
+	// it.
+	Local string
 	// Listado is why git could not list what changed ("" = it could): a
 	// photograph without that list cannot say what the role touched, so the
 	// gate cuts on it (finding 5c5342).
@@ -761,6 +768,12 @@ func sortViolations(vs []Violation) {
 // CheckScope compares the two photographs and judges every path the run
 // changed. Universal rules run first: they are the floor no manifest can
 // lower.
+//
+// When both photographs carry Local and it differs (verify-en-el-entorno),
+// the run created, changed or removed the main checkout's .hoom/local.yaml:
+// a RuleTampering violation with Path entorno.Ruta (".hoom/local.yaml") and
+// Detail DetalleLocal, like a change to the evidence, so the envelope is cut
+// before verify. No manifest lifts it.
 func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	res := ScopeResult{Touched: delta(before.Touched, after.Touched)}
 	// hoom.yaml may be untracked or ignored; its content settles the question.
@@ -799,6 +812,21 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	}
 	res.OK = len(res.Violations) == 0
 	return res
+}
+
+// DetalleLocal (verify-en-el-entorno) is the Detail of the RuleTampering
+// violation of a run that created, changed or removed the main checkout's
+// .hoom/local.yaml (Snapshot.Local).
+const DetalleLocal = "la plantilla de .hoom/local.yaml decide que corren los gates: un rol no la cambia"
+
+// FotoLocal (verify-en-el-entorno) is the photograph of the .hoom/local.yaml
+// (entorno.Ruta) of the main checkout principal, as Snapshot.Local keeps it:
+// the hex sha256 of its bytes when it is a regular file, ProtegidoAusente
+// when it is not there, HuellaNoRegular plus its type for anything else
+// (never followed nor read) and HuellaIlegible when it cannot be read. It is
+// read from the disk, never from git, and is never "".
+func FotoLocal(principal string) string {
+	return ""
 }
 
 // The two Huellas that are not a content hash.

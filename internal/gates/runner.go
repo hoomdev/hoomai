@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/encierro"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -38,7 +39,58 @@ type Options struct {
 	// SinEncierro are the gates that run as today even with Encierro
 	// (encierro.gates_sin_encierro of hoom.yaml).
 	SinEncierro map[string]bool
+	// Local (verify-en-el-entorno) is the .hoom/local.yaml of the run, as
+	// entorno.Leer read it. nil, or one without Ejecutar, = as today: the
+	// same commands and states, and no GateResult carries Entorno. With
+	// Ejecutar, each gate with the template (Local.ConPrefijo) runs
+	// `sh -c <Local.Linea(its command, m.Dir)>` instead of
+	// `sh -c <its command>`, with the same directory (m.Dir), timeout and
+	// gracia, and its GateResult.Entorno is verdict.EntornoPrefijo; the
+	// gates of Local.EnElHost run as today, with verdict.EntornoHost. Either
+	// way GateResult.Command is the gate's own command (what {cmd} became),
+	// not the line with the template, which the verdict keeps once in
+	// verdict.Verdict.Entorno.
+	Local *entorno.Ajuste
+	// ExigirEncierro (verify-en-el-entorno) is encierro.exigir of the
+	// project's hoom.yaml (manifest.ExigirCompleto, ExigirParcial or
+	// ExigirNo) when the run is the verify of a Sobre in a project with the
+	// section `encierro`, whether or not this system can enclose (so also
+	// with Encierro nil); "" otherwise. Only verifycmd.Run with
+	// Options.Sobre sets it.
+	//
+	// With it, a gate with Local's template runs unenclosed, as one of
+	// SinEncierro, with the note NotaSinEncierroConPrefijo: the container is
+	// its limit. With ExigirCompleto or ExigirParcial that gate does not run
+	// at all: status error, exit_code -1, its Command and Entorno as if it
+	// had run, and the note fmt.Sprintf(NotaExigirConPrefijo, ExigirEncierro).
+	// A gate with the template that also gets a note of its own
+	// (NotaNoEncontrado, NotaNoEjecutable, the timeout) has Notes
+	// "<its note>; " + NotaSinEncierroConPrefijo. The gates of
+	// Local.EnElHost are not affected: they run as today, enclosed with
+	// Encierro.
+	ExigirEncierro string
 }
+
+// The notes of a gate that could not run, or that ran unenclosed because of
+// .hoom/local.yaml (verify-en-el-entorno), exactly.
+const (
+	// NotaNoEncontrado opens the note of a gate whose command exited 127
+	// (sh: command not found): this text, then ": " and the last line of its
+	// output that is not blank, trimmed; this text alone when the output has
+	// no such line.
+	NotaNoEncontrado = "no pudo correr: comando no encontrado (exit 127)"
+	// NotaNoEjecutable opens the note of a gate whose command exited 126
+	// (found but not executable), as NotaNoEncontrado.
+	NotaNoEjecutable = "no pudo correr: el comando no se puede ejecutar (exit 126)"
+	// NotaSinEncierroConPrefijo is the note of a gate with the template of
+	// .hoom/local.yaml in the verify of a Sobre with the section encierro
+	// (Options.ExigirEncierro): it ran unenclosed.
+	NotaSinEncierroConPrefijo = "sin encierro: corre con el prefijo de .hoom/local.yaml"
+	// NotaExigirConPrefijo is the note of a gate with the template that did
+	// not run because encierro.exigir is completo or parcial; %s is that
+	// value.
+	NotaExigirConPrefijo = "el prefijo de .hoom/local.yaml no corre encerrado y encierro.exigir es %s"
+)
 
 func (o Options) emit(ev live.Event) {
 	if o.Emit != nil {
@@ -52,6 +104,18 @@ const (
 )
 
 // Run executes every gate in canonical order and returns results.
+//
+// How a gate's exit becomes its status (verify-en-el-entorno): exit 0 is
+// pass. Exit 127 (sh: command not found) and exit 126 (found but not
+// executable) are error, with that exit_code and the note NotaNoEncontrado
+// or NotaNoEjecutable followed by ": " and the last line of the gate's output
+// that is not blank, which is where sh and env name the command (the
+// constant alone when there is no such line). Any other non-zero exit is
+// fail with its code, a gate killed by a signal without a timeout included,
+// and the timeout is error with exit_code -1 and its note, as before. It
+// holds with Options.Local's template and without it: a ddev missing from
+// the host gives 127 just like a missing php, and a 127 from inside the
+// container that the template passes on is the gate's 127.
 func Run(m *manifest.Manifest, git gitx.Info, opt Options) []verdict.GateResult {
 	if opt.Timeout == 0 {
 		opt.Timeout = defaultTimeout

@@ -15,6 +15,13 @@ import (
 )
 
 // Run initializes dir. If profileName is empty the stack is auto-detected.
+//
+// verify-en-el-entorno: a new .hoom/.gitignore is hoomfs.GitignoreBody
+// (local.yaml included); one that already exists is completed with the line
+// local.yaml when it lacks it (hoomfs.EnsureIgnoredFiles), and nothing else
+// in it changes. At its end it prints, for each entorno of the profile that
+// holds in dir (profiles.Sugerencias), its Sugerencia; it never writes
+// .hoom/local.yaml.
 func Run(dir, projectName, profileName string) error {
 	abs, err := filepath.Abs(dir)
 	if err != nil {

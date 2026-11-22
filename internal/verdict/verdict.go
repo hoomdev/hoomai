@@ -44,6 +44,31 @@ type GateResult struct {
 	OutputTail string `json:"output_tail,omitempty"`
 	Partial    string `json:"partial,omitempty"`
 	Notes      string `json:"notes,omitempty"`
+	// Entorno (verify-en-el-entorno) is where the gate ran when
+	// .hoom/local.yaml has ejecutar (Verdict.Entorno not nil): EntornoPrefijo
+	// for a gate of hoom.yaml that runs with the template, EntornoHost for
+	// one of en_el_host and for the gates hoom itself computes (spec_lint,
+	// spec_trace, spec_approved, findings_open, ratchet, material_de_git,
+	// git_ajeno). A gate of hoom.yaml that is absent or skipped carries where
+	// it would have run. "" (no key in the JSON) without ejecutar.
+	Entorno string `json:"entorno,omitempty"`
+}
+
+// The values of GateResult.Entorno (verify-en-el-entorno).
+const (
+	EntornoPrefijo = "prefijo" // ran with the template of .hoom/local.yaml
+	EntornoHost    = "host"    // ran as today, on the host
+)
+
+// Entorno (verify-en-el-entorno) is the key `entorno` at the top of a verdict
+// whose gates ran with the template of .hoom/local.yaml:
+// `{"ejecutar": "<plantilla>", "sha256": "<de .hoom/local.yaml>"}`.
+type Entorno struct {
+	// Ejecutar is the template as the file writes it (entorno.Ajuste.Ejecutar).
+	Ejecutar string `json:"ejecutar"`
+	// SHA256 is the hex sha256 of the bytes of .hoom/local.yaml
+	// (entorno.Ajuste.SHA256).
+	SHA256 string `json:"sha256"`
 }
 
 // Verdict is one immutable verification run.
@@ -63,6 +88,11 @@ type Verdict struct {
 	Partial bool     `json:"partial,omitempty"`
 	Spec    string   `json:"spec,omitempty"`
 	Notes   []string `json:"notes,omitempty"`
+	// Entorno (verify-en-el-entorno) is where the gates ran: set when
+	// .hoom/local.yaml has ejecutar, and then every GateResult carries its
+	// Entorno. nil (no key `entorno` in the JSON) without ejecutar: the JSON
+	// is today's. It is not part of the fingerprint, which is the tree's.
+	Entorno *Entorno `json:"entorno,omitempty"`
 }
 
 type Summary struct {

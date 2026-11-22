@@ -34,7 +34,16 @@ func IsLocal(rel string) bool {
 	return false
 }
 
-// GitignoreBody is the canonical content of .hoom/.gitignore.
+// LocalFiles names the files under .hoom/ that stay on this machine
+// (verify-en-el-entorno): local.yaml, the machine's adjustment
+// (entorno.Ruta). Unlike the directories of Local, each one's line in
+// .hoom/.gitignore is its bare name, with no "/".
+var LocalFiles = []string{"local.yaml"}
+
+// GitignoreBody is the canonical content of .hoom/.gitignore: a line `<d>/`
+// for each directory of Local, in its order, then a line `<f>` for each file
+// of LocalFiles (`local.yaml`, verify-en-el-entorno), each line ending in
+// "\n".
 func GitignoreBody() string {
 	var b strings.Builder
 	for _, d := range Local {
@@ -94,6 +103,20 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 		return nil, err
 	}
 	return added, nil
+}
+
+// EnsureIgnoredFiles is EnsureIgnored for the local files
+// (verify-en-el-entorno): it completes .hoom/.gitignore with a line `<f>`
+// for each named file it lacks (all of LocalFiles when none is named),
+// creating .hoom/.gitignore when there is none, and returns what it added,
+// in order. A line counts as there when, trimmed, it is `<f>`. It keeps
+// EnsureIgnored's guarantees: a file that already has them is never
+// rewritten, not even byte-identically; .hoom is walked by descriptors, read
+// and written in that one directory. EnsureIgnored itself still adds
+// directories only. `hoom init` calls it for local.yaml on a
+// .hoom/.gitignore that already exists.
+func EnsureIgnoredFiles(root string, names ...string) (added []string, err error) {
+	return nil, nil
 }
 
 // maxGitignore caps .hoom/.gitignore: hoom writes a few lines.

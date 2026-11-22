@@ -57,6 +57,14 @@ func ensureIgnored(root string) error {
 }
 
 // Start creates the branch hoom/<slug> and its isolated worktree.
+//
+// verify-en-el-entorno: with a git that accepts it
+// (gitx.AceptaRutasRelativas: 2.48 or newer) the worktree is added with
+// `git worktree add --relative-paths`, so the worktree's .git holds a
+// relative gitdir and stays valid inside a container that mounts the
+// project at another path; `hoom task list`, `hoom verify` and
+// `hoom task done` recognize it as before (gitx.WorktreeDe resolves relative
+// paths). With an older git it is added as before.
 func Start(root, slug, base string) error {
 	if err := checkSlug(slug); err != nil {
 		return err

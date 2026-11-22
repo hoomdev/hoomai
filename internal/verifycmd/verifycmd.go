@@ -76,6 +76,13 @@ type Sobre struct {
 	Ciego string
 }
 
+// LineaEntorno (verify-en-el-entorno) is the line `hoom verify` prints under
+// its first line when the verdict has Entorno; %s is the template
+// (verdict.Entorno.Ejecutar): `entorno: <plantilla> (de .hoom/local.yaml)`.
+// With --json it goes, like that first line, to stderr: stdout stays the
+// verdict alone.
+const LineaEntorno = "entorno: %s (de .hoom/local.yaml)"
+
 // GateGitAjeno (ronda 1, aclaracion 20) is the gate a verify with
 // Options.Sobre adds to its verdict when git changed outside the task's
 // branch during its gates (agentcmd.RuleGitAjeno, photographed before the
@@ -100,6 +107,24 @@ const GateMaterialDeGit = "material_de_git"
 // It validates the gate selection against the manifest BEFORE anything else:
 // a request hoom does not understand produces no verdict, no live events and
 // no ratchet measurement — it produces a *cliargs.UsageError.
+//
+// Right after that, and before anything else (no git snapshot, no live
+// events, no gate), it reads the local adjustment of the machine
+// (verify-en-el-entorno) with entorno.Leer(m.Dir, the names of m.Gates): its
+// error is Run's error, exactly, and no gate runs and no verdict is written,
+// as with an invalid hoom.yaml. This holds for every caller — `hoom verify`,
+// the envelope of `hoom agent`, the pilot's cerrar-hallazgos and
+// POST /api/verify — since all of them run this function. With ejecutar:
+//   - the gates run with its template (gates.Options.Local);
+//   - the verdict carries Entorno, with Ejecutar and SHA256 of the file, and
+//     every GateResult its Entorno (verdict.EntornoPrefijo or
+//     verdict.EntornoHost);
+//   - with Options.Sobre and the section `encierro` in Sobre.Root's
+//     hoom.yaml, gates.Options.ExigirEncierro is its exigir, whether or not
+//     this system can enclose.
+//
+// Without ejecutar (no file, or ejecutar with no value), the same commands,
+// the same states and the same JSON as before.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
 		return nil, "", err

@@ -98,6 +98,13 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 	return rama, true, nil
 }
 
+// AceptaRutasRelativas (verify-en-el-entorno) says whether the git that runs
+// in dir accepts `git worktree add --relative-paths`: git 2.48 or newer. A
+// version it cannot read, or a git that does not answer, does not.
+func AceptaRutasRelativas(dir string) bool {
+	return false
+}
+
 // variablesDeOtroRepo make git answer for a repository or work tree other
 // than the one of its working directory: a hook exports GIT_DIR.
 var variablesDeOtroRepo = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR",

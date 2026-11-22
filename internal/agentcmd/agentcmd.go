@@ -168,6 +168,15 @@ type Isolation struct {
 // RuleMaterialDeGit or RuleGitAjeno with each path and closes in verify,
 // no-entregable, exit 1, with NotaMaterialDeGit or NotaGitAjeno; another
 // role's closes as any red verdict.
+//
+// verify-en-el-entorno: the envelope of every role photographs root's
+// .hoom/local.yaml (FotoLocal into Snapshot.Local; ProtegidoAusente when it
+// is not there) before and after the run. A run that created, changed or
+// removed it is tampering (RuleTampering, path entorno.Ruta, DetalleLocal):
+// the envelope is cut in scope, no-entregable, exit 1, with the tampering
+// note and no verify, and its high finding names .hoom/local.yaml. Its verify
+// then runs the gates with root's .hoom/local.yaml, like every verify
+// (verifycmd.Run).
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup(opt.Role)
 	if err != nil {
