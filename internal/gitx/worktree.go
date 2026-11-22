@@ -105,6 +105,22 @@ func AceptaRutasRelativas(dir string) bool {
 	return false
 }
 
+// Ignora (verify-en-el-entorno) says whether the git of dir ignores the path
+// rel, relative to dir: `git check-ignore -q`, with dir's own repository
+// whatever the environment points at. A tracked path is not ignored, even
+// when a .gitignore covers it. err when git could not answer.
+func Ignora(dir, rel string) (bool, error) {
+	_, err := gitLimpio(dir, "check-ignore", "-q", "--", rel)
+	var ee *exec.ExitError
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.As(err, &ee) && ee.ExitCode() == 1:
+		return false, nil
+	}
+	return false, err
+}
+
 // variablesDeOtroRepo make git answer for a repository or work tree other
 // than the one of its working directory: a hook exports GIT_DIR.
 var variablesDeOtroRepo = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR",

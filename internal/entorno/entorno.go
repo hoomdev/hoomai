@@ -1,5 +1,24 @@
 package entorno
 
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
+)
+
 // Ruta is where the local adjustment lives, relative to the main checkout,
 // with "/".
 const Ruta = ".hoom/local.yaml"
@@ -68,13 +87,199 @@ type Ajuste struct {
 // runs no gate and writes no verdict. On a nil error the Ajuste is never
 // nil.
 func Leer(dir string, gates []string) (*Ajuste, error) {
-	return &Ajuste{}, nil
+	principal, enGit := gitx.CheckoutPrincipal(dir)
+	if !enGit {
+		principal = dir
+	}
+	a := &Ajuste{Principal: principal, Rel: rel(principal, dir)}
+	raw, err := leerArchivo(principal)
+	if errors.Is(err, fs.ErrNotExist) {
+		return a, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	a.Existe = true
+	sum := sha256.Sum256(raw)
+	a.SHA256 = hex.EncodeToString(sum[:])
+	if err := a.validar(raw, gates); err != nil {
+		return nil, err
+	}
+	if enGit {
+		switch ignorado, err := gitx.Ignora(principal, Ruta); {
+		case err != nil:
+			return nil, defecto("git no pudo decir si lo ignora: %v", err)
+		case !ignorado:
+			return nil, errors.New(ErrNoIgnorado)
+		}
+	}
+	return a, nil
+}
+
+// maxArchivo is the largest .hoom/local.yaml Leer reads: two keys do not
+// need more, and a larger one is refused, never cut.
+const maxArchivo = 64 << 10
+
+// defecto is a refusal of the file whose text is not one of the four fixed
+// errors: it starts like them.
+func defecto(format string, args ...any) error {
+	return fmt.Errorf(Ruta+": "+format, args...)
+}
+
+// rel is {rel}: the tree dir relative to the main checkout, with "/", "."
+// when Rel cannot say it (dir and principal are then the same project).
+func rel(principal, dir string) string {
+	r, err := filepath.Rel(principal, dir)
+	if err != nil {
+		return "."
+	}
+	return filepath.ToSlash(r)
+}
+
+// leerArchivo reads principal/.hoom/local.yaml from the disk, never
+// following a symlink nor blocking on a FIFO (hoomfs.LeerRegularEn). An
+// error that is fs.ErrNotExist is "there is no file"; any other one is
+// already a defecto.
+func leerArchivo(principal string) ([]byte, error) {
+	r, err := os.OpenRoot(principal)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, defecto("no se puede leer: %v", err)
+	}
+	defer r.Close()
+	name := filepath.FromSlash(Ruta)
+	fi, err := r.Lstat(name)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, err
+	case err != nil:
+		return nil, defecto("no se puede leer: %v", err)
+	case !fi.Mode().IsRegular():
+		return nil, defecto("tiene que ser un archivo regular y es %s", fi.Mode().Type())
+	}
+	raw, err := hoomfs.LeerRegularEn(r, name, maxArchivo)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// it went away between the look and the read: not "no file"
+			return nil, defecto("cambio mientras se leia")
+		}
+		return nil, defecto("no se puede leer: %v", err)
+	}
+	return raw, nil
+}
+
+// validar fills a from the file's bytes raw and checks them, in the order
+// of Leer: what cannot be understood, then the four fixed errors but the
+// ignore.
+func (a *Ajuste) validar(raw []byte, gates []string) error {
+	raiz, err := documento(raw)
+	if err != nil {
+		return err
+	}
+	var ejecutar, enElHost *yaml.Node
+	var desconocida string
+	for i := 0; raiz != nil && i+1 < len(raiz.Content); i += 2 {
+		k, v := raiz.Content[i], alias(raiz.Content[i+1])
+		if k.Kind != yaml.ScalarNode {
+			return defecto("cada clave tiene que ser un texto")
+		}
+		switch k.Value {
+		case "ejecutar":
+			if ejecutar != nil {
+				return defecto("la clave %q esta repetida", k.Value)
+			}
+			ejecutar = v
+		case "en_el_host":
+			if enElHost != nil {
+				return defecto("la clave %q esta repetida", k.Value)
+			}
+			enElHost = v
+		default:
+			if desconocida == "" {
+				desconocida = k.Value
+			}
+		}
+	}
+	if ejecutar != nil && !nulo(ejecutar) {
+		if ejecutar.Kind != yaml.ScalarNode {
+			return defecto("ejecutar tiene que ser un texto")
+		}
+		if strings.TrimSpace(ejecutar.Value) != "" {
+			a.Ejecutar = ejecutar.Value
+		}
+	}
+	if enElHost != nil && !nulo(enElHost) {
+		if enElHost.Kind != yaml.SequenceNode {
+			return defecto("en_el_host tiene que ser una lista de gates")
+		}
+		for _, g := range enElHost.Content {
+			if g = alias(g); g.Kind != yaml.ScalarNode || nulo(g) {
+				return defecto("en_el_host tiene que ser una lista de gates")
+			}
+			a.EnElHost = append(a.EnElHost, g.Value)
+		}
+	}
+	if desconocida != "" {
+		return fmt.Errorf(ErrClaveDesconocida, desconocida)
+	}
+	if a.Ejecutar != "" && !strings.Contains(a.Ejecutar, "{cmd}") {
+		return errors.New(ErrSinCmd)
+	}
+	for _, g := range a.EnElHost {
+		if !slices.Contains(gates, g) {
+			return fmt.Errorf(ErrGateDesconocido, g)
+		}
+	}
+	return nil
+}
+
+// documento is the top-level map of the file's one YAML document; nil for
+// an empty file, one with only comments or a null top level.
+func documento(raw []byte) (*yaml.Node, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	var doc yaml.Node
+	switch err := dec.Decode(&doc); {
+	case errors.Is(err, io.EOF):
+		return nil, nil
+	case err != nil:
+		return nil, defecto("no es YAML valido: %v", err)
+	}
+	var otro yaml.Node
+	if err := dec.Decode(&otro); !errors.Is(err, io.EOF) {
+		return nil, defecto("tiene que ser un solo documento YAML")
+	}
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return nil, nil
+	}
+	raiz := alias(doc.Content[0])
+	switch {
+	case nulo(raiz):
+		return nil, nil
+	case raiz.Kind != yaml.MappingNode:
+		return nil, defecto("tiene que ser un mapa de claves (ejecutar, en_el_host)")
+	}
+	return raiz, nil
+}
+
+// alias is the node an alias stands for, or n itself.
+func alias(n *yaml.Node) *yaml.Node {
+	for n != nil && n.Kind == yaml.AliasNode && n.Alias != nil {
+		n = n.Alias
+	}
+	return n
+}
+
+// nulo says whether n is YAML's null: no value, ~ or null.
+func nulo(n *yaml.Node) bool {
+	return n == nil || (n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null")
 }
 
 // ConPrefijo says whether gate runs with the template: a has Ejecutar and
 // gate is not in EnElHost. false with a nil Ajuste.
 func (a *Ajuste) ConPrefijo(gate string) bool {
-	return false
+	return a != nil && a.Ejecutar != "" && !slices.Contains(a.EnElHost, gate)
 }
 
 // Linea is the line `sh -c` runs for a gate with the template: Ejecutar with
@@ -92,5 +297,13 @@ func (a *Ajuste) ConPrefijo(gate string) bool {
 // replaced again. Every occurrence of a mark is replaced. With a nil Ajuste,
 // or one without Ejecutar, it is cmd itself: as today.
 func (a *Ajuste) Linea(cmd, dir string) string {
-	return ""
+	if a == nil || a.Ejecutar == "" {
+		return cmd
+	}
+	return strings.NewReplacer("{cmd}", palabra(cmd), "{dir}", palabra(dir), "{rel}", palabra(a.Rel)).Replace(a.Ejecutar)
+}
+
+// palabra is s as one sh word between single quotes.
+func palabra(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
