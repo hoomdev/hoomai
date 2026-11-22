@@ -18,6 +18,9 @@
 //   - CA-773: el gate entorno_local cuando un gate crea, cambia o borra el
 //     .hoom/local.yaml del principal, con y sin Sobre, con y sin ejecutar, y
 //     con --gate; sin tocarlo (o reescribiendolo igual), no hay tal gate.
+//   - CA-771 (enmienda, ronda 0b): un .hoom/local.yaml con solo
+//     worktrees_relativos: true deja el verify como hoy, aun con un git que
+//     dice 2.47: con veredicto y sin la clave entorno.
 //
 // Prefijo falso: un `ddev` primero en el PATH que anota sus argumentos fuera
 // del proyecto. Escritos desde el spec, las aclaraciones de la ronda 0 y el
@@ -30,6 +33,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -775,5 +779,103 @@ func TestCA773_FueraDeGit(t *testing.T) {
 func TestCA773_Constantes(t *testing.T) {
 	if GateEntornoLocal != "entorno_local" || NotaEntornoLocal != "manipulacion: .hoom/local.yaml cambio mientras corrian los gates" {
 		t.Fatalf("CA-773: %q %q", GateEntornoLocal, NotaEntornoLocal)
+	}
+}
+
+// ---------------------------------------------------------------- CA-771
+
+// veeGitViejo pone primero en el PATH un git falso, un script de sh, que
+// contesta "git version 2.47.0" a toda llamada que lleva el argumento
+// version en cualquier posicion (la de gitx.AceptaRutasRelativas es
+// `git -c core.fsmonitor=false version`) y pasa las demas al git real, que
+// busca antes de cambiar el PATH. Usa t.Setenv: el test no puede ser
+// paralelo.
+func veeGitViejo(t *testing.T) {
+	t.Helper()
+	gitReal, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatalf("fixture: sin git en el PATH: %v", err)
+	}
+	bin := t.TempDir()
+	script := "#!/bin/sh\n" +
+		"for a do\n" +
+		"  if [ \"$a\" = version ]; then\n" +
+		"    echo 'git version 2.47.0'\n" +
+		"    exit 0\n" +
+		"  fi\n" +
+		"done\n" +
+		"exec " + veeQ(gitReal) + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if out, err := exec.Command("git", "-c", "core.fsmonitor=false", "version").Output(); err != nil || strings.TrimSpace(string(out)) != "git version 2.47.0" {
+		t.Fatalf("fixture: el git falso dice 2.47.0: %q %v", out, err)
+	}
+}
+
+// CA-771 (go doc de entorno.Ajuste.WorktreesRelativos y de
+// entorno.ErrWorktreesRelativosGitViejo): worktrees_relativos es de `hoom
+// task start`, no de verify. Un .hoom/local.yaml que solo trae
+// worktrees_relativos: true deja el verify como hoy, desde el principal y
+// desde la tarea, aun con un git que dice 2.47 (el archivo es valido; el
+// error de git viejo es solo de task start): Run no falla, escribe su
+// veredicto, sin Verdict.Entorno ni el entorno de ningun gate, y el JSON es
+// el de sin archivo salvo id, fecha y duraciones. Con ejecutar, el entorno
+// es el de siempre, con el sha256 del archivo entero.
+func TestCA771_WorktreesRelativosNoCambiaElVerify(t *testing.T) {
+	const ca = "CA-771"
+	veeSaltarSinSh(t)
+	veeFalso(t)
+	veeGitViejo(t)
+	for _, tarea := range []bool{false, true} {
+		root, wt, m := veeProyecto(t, veeGate("test", "echo hola")+veeGate("build", "true")+"  lint:\n    cmd: \"\"\n", "", tarea)
+		dir := root
+		if tarea {
+			dir = wt
+		}
+		correr := func(caso string) (*verdict.Verdict, map[string]any) {
+			v, path, err := Run(m, Options{Full: true})
+			if err != nil {
+				t.Fatalf("%s: %s (tarea %v): verify corre como hoy: %v", ca, caso, tarea, err)
+			}
+			if path == "" || veeVeredictos(t, dir) != 1 {
+				t.Fatalf("%s: %s (tarea %v): verify escribe su veredicto: %q", ca, caso, tarea, path)
+			}
+			doc := veeNormal(t, path)
+			if err := os.Remove(path); err != nil { // el arbol queda como antes de correr
+				t.Fatal(err)
+			}
+			return v, doc
+		}
+		_, hoy := correr("sin archivo")
+		const body = "worktrees_relativos: true\n"
+		veeLocal(t, root, body)
+		v, got := correr(body)
+		if v.Entorno != nil {
+			t.Fatalf("%s: %q (tarea %v): sin ejecutar no hay Verdict.Entorno: %+v", ca, body, tarea, v.Entorno)
+		}
+		for _, g := range v.Gates {
+			if g.Entorno != "" {
+				t.Fatalf("%s: %q (tarea %v): sin ejecutar ningun gate lleva entorno: %+v", ca, body, tarea, g)
+			}
+		}
+		if raw, _ := json.Marshal(got); strings.Contains(string(raw), `"entorno"`) {
+			t.Fatalf("%s: %q (tarea %v): el JSON no lleva ninguna clave entorno: %s", ca, body, tarea, raw)
+		}
+		if !reflect.DeepEqual(got, hoy) {
+			a, _ := json.MarshalIndent(hoy, "", " ")
+			b, _ := json.MarshalIndent(got, "", " ")
+			t.Fatalf("%s: %q (tarea %v): el JSON es el de hoy:\n--- sin archivo ---\n%s\n--- con el archivo ---\n%s", ca, body, tarea, a, b)
+		}
+		con := "ejecutar: \"" + veePlantilla + "\"\nworktrees_relativos: true\n"
+		veeLocal(t, root, con)
+		v, _ = correr("con ejecutar")
+		if v.Entorno == nil || *v.Entorno != (verdict.Entorno{Ejecutar: veePlantilla, SHA256: veeSha(con)}) {
+			t.Fatalf("%s: con ejecutar y worktrees_relativos (tarea %v): Verdict.Entorno es la plantilla y el sha256 del archivo: %+v", ca, tarea, v.Entorno)
+		}
+		if g := gateNamed(v, "test"); g == nil || g.Entorno != verdict.EntornoPrefijo || g.Status != verdict.StatusPass {
+			t.Fatalf("%s: con ejecutar y worktrees_relativos (tarea %v): el gate corre con el prefijo: %+v", ca, tarea, g)
+		}
 	}
 }

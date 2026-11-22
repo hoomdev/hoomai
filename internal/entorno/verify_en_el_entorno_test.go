@@ -13,7 +13,11 @@
 //     comillas simples (la comilla de adentro cerrada, escapada y
 //     reabierta), en una pasada;
 //     {rel} es "." en el principal y .hoom/worktrees/<slug> en una tarea;
-//     ConPrefijo deja afuera a los de en_el_host.
+//     ConPrefijo deja afuera a los de en_el_host;
+//   - CA-771 (enmienda, ronda 0b): worktrees_relativos es un booleano de
+//     YAML; false, sin valor, nulo, "" o blancos cuentan como sin la clave;
+//     cualquier otro valor falla cerrado; Leer nunca devuelve el error de
+//     git viejo, que es de `hoom task start`.
 //
 // Repos git temporales, con el git aislado de quien corre los tests
 // (gittest.AislarGit). Escritos desde el spec, las aclaraciones de la ronda
@@ -36,6 +40,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/gittest"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 )
 
@@ -323,7 +328,7 @@ func TestCA762_SubdirectorioYWorktreeFueraDelPrincipal(t *testing.T) {
 func TestCA763_LosTextosDeLosErrores(t *testing.T) {
 	const ca = "CA-763"
 	for _, c := range []struct{ got, want string }{
-		{fmt.Sprintf(entorno.ErrClaveDesconocida, "foo"), `.hoom/local.yaml: clave desconocida "foo" (validas: ejecutar, en_el_host)`},
+		{fmt.Sprintf(entorno.ErrClaveDesconocida, "foo"), `.hoom/local.yaml: clave desconocida "foo" (validas: ejecutar, en_el_host, worktrees_relativos)`},
 		{entorno.ErrSinCmd, ".hoom/local.yaml: ejecutar tiene que llevar {cmd}"},
 		{fmt.Sprintf(entorno.ErrGateDesconocido, "semgrep"), `.hoom/local.yaml: en_el_host nombra "semgrep", que no es un gate de hoom.yaml`},
 		{entorno.ErrNoIgnorado, ".hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)"},
@@ -332,7 +337,7 @@ func TestCA763_LosTextosDeLosErrores(t *testing.T) {
 			t.Fatalf("%s: el texto es %q; es %q", ca, c.want, c.got)
 		}
 	}
-	if !reflect.DeepEqual(entorno.Claves, []string{"ejecutar", "en_el_host"}) || entorno.Ruta != ".hoom/local.yaml" {
+	if !reflect.DeepEqual(entorno.Claves, []string{"ejecutar", "en_el_host", "worktrees_relativos"}) || entorno.Ruta != ".hoom/local.yaml" {
 		t.Fatalf("%s: Claves y Ruta: %q %q", ca, entorno.Claves, entorno.Ruta)
 	}
 }
@@ -573,5 +578,191 @@ func TestCA764_ElRelDeLeerEntraEnLaLinea(t *testing.T) {
 	}
 	if got, want := veeLeer(t, ca, wt).Linea("echo x", wt), `ddev exec -d /var/www/html/'.hoom/worktrees/precios' sh -c 'echo x'`; got != want {
 		t.Fatalf("%s: en la tarea: %q; fue %q", ca, want, got)
+	}
+}
+
+// ---------------------------------------------------------------- CA-771
+
+// veeGitViejo pone primero en el PATH un git falso, un script de sh, que
+// contesta "git version 2.47.0" a toda llamada que lleva el argumento
+// version en cualquier posicion (la de gitx.AceptaRutasRelativas es
+// `git -c core.fsmonitor=false version`) y pasa las demas al git real, que
+// busca antes de cambiar el PATH. Usa t.Setenv: el test no puede ser
+// paralelo.
+func veeGitViejo(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("el git falso es un script de sh")
+	}
+	gitReal, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatalf("fixture: sin git en el PATH: %v", err)
+	}
+	bin := t.TempDir()
+	script := "#!/bin/sh\n" +
+		"for a do\n" +
+		"  if [ \"$a\" = version ]; then\n" +
+		"    echo 'git version 2.47.0'\n" +
+		"    exit 0\n" +
+		"  fi\n" +
+		"done\n" +
+		"exec '" + strings.ReplaceAll(gitReal, "'", `'\''`) + "' \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if gitx.AceptaRutasRelativas(bin) {
+		t.Fatal("fixture: con el git falso, gitx.AceptaRutasRelativas da false")
+	}
+}
+
+// CA-771: el error de `hoom task start` con la clave y un git viejo es, al
+// pie de la letra, el del spec.
+func TestCA771_ElErrorDeGitViejoEsElDelSpec(t *testing.T) {
+	const ca = "CA-771"
+	if want := ".hoom/local.yaml: worktrees_relativos pide git 2.48 o mas nuevo"; entorno.ErrWorktreesRelativosGitViejo != want {
+		t.Fatalf("%s: el texto es %q; es %q", ca, want, entorno.ErrWorktreesRelativosGitViejo)
+	}
+}
+
+// CA-771 (go doc de Ajuste.WorktreesRelativos): worktrees_relativos: true,
+// un booleano de YAML (true, True o TRUE), deja WorktreesRelativos en true,
+// sin error y con el sha256 de los bytes del archivo. Desde la tarea es el
+// del principal; el del worktree (con false) no se lee. No toca verify: sin
+// ejecutar ningun gate lleva prefijo, y con ejecutar la plantilla es la de
+// siempre. Leer nunca devuelve ErrWorktreesRelativosGitViejo, tampoco con un
+// git que dice 2.47: el archivo es valido, y ese error es de `hoom task
+// start`.
+func TestCA771_WorktreesRelativosTrueEsTrue(t *testing.T) {
+	const ca = "CA-771"
+	for _, viejo := range []bool{false, true} {
+		nombre := "con el git real"
+		if viejo {
+			nombre = "con un git que dice 2.47"
+		}
+		t.Run(nombre, func(t *testing.T) {
+			if viejo {
+				veeGitViejo(t)
+			}
+			for _, c := range []struct{ body, ejecutar string }{
+				{"worktrees_relativos: true\n", ""},
+				{"worktrees_relativos: True\n", ""},
+				{"worktrees_relativos: TRUE\n", ""},
+				{"en_el_host: [build]\nworktrees_relativos: true\n", ""},
+				{"ejecutar: \"" + veePlantilla + "\"\nworktrees_relativos: true\n", veePlantilla},
+			} {
+				root := veeRepo(t, "")
+				wt := veeTarea(t, root, "demo")
+				veeLocal(t, wt, "worktrees_relativos: false\n")
+				veeLocal(t, root, c.body)
+				for _, dir := range []string{root, wt} {
+					a := veeLeer(t, ca, dir)
+					if !a.WorktreesRelativos || !a.Existe || a.Principal != root || a.SHA256 != veeSha(c.body) {
+						t.Fatalf("%s: %q desde %s: WorktreesRelativos true, del principal, con su sha256: %+v", ca, c.body, dir, a)
+					}
+					if a.Ejecutar != c.ejecutar || a.ConPrefijo("test") != (c.ejecutar != "") {
+						t.Fatalf("%s: %q desde %s: worktrees_relativos no cambia la plantilla (%q): %+v", ca, c.body, dir, c.ejecutar, a)
+					}
+				}
+			}
+		})
+	}
+}
+
+// CA-771: false, sin valor, nulo, "" o solo blancos cuentan como sin la
+// clave: WorktreesRelativos false, sin error, y el archivo vale (Existe,
+// con su sha256). Sin el archivo tambien es false, y el .hoom/local.yaml
+// del worktree (con true) no se lee.
+func TestCA771_WorktreesRelativosFalsoVacioONuloEsFalse(t *testing.T) {
+	const ca = "CA-771"
+	for _, body := range []string{
+		"worktrees_relativos: false\n",
+		"worktrees_relativos:\n",
+		"worktrees_relativos: ~\n",
+		"worktrees_relativos: null\n",
+		"worktrees_relativos: \"\"\n",
+		"worktrees_relativos: ''\n",
+		"worktrees_relativos: \"   \"\n",
+		"worktrees_relativos: \"\\t \\t\"\n",
+		"ejecutar: \"" + veePlantilla + "\"\nworktrees_relativos: false\n",
+		"ejecutar: \"" + veePlantilla + "\"\n",
+		"en_el_host: [test]\n",
+	} {
+		root := veeRepo(t, "")
+		veeLocal(t, root, body)
+		a := veeLeer(t, ca, root)
+		if a.WorktreesRelativos || !a.Existe || a.SHA256 != veeSha(body) {
+			t.Fatalf("%s: %q: el archivo vale y WorktreesRelativos es false: %+v", ca, body, a)
+		}
+	}
+	root := veeRepo(t, "")
+	wt := veeTarea(t, root, "demo")
+	veeLocal(t, wt, "worktrees_relativos: true\n")
+	for _, dir := range []string{root, wt} {
+		a := veeLeer(t, ca, dir)
+		if a.WorktreesRelativos || a.Existe {
+			t.Fatalf("%s: sin el archivo del principal (desde %s), WorktreesRelativos es false aunque el worktree tenga uno con true: %+v", ca, dir, a)
+		}
+	}
+}
+
+// CA-771 (go doc de Ajuste.WorktreesRelativos, aclaracion 4): cualquier
+// otro valor falla cerrado, con un error que empieza con
+// ".hoom/local.yaml: " y que no es el de clave desconocida (la clave es
+// valida) ni el de git viejo: un "true" entre comillas, yes, on, no, off,
+// y, un numero, una lista o un mapa. Desde el principal, desde la tarea y
+// fuera de git.
+func TestCA771_WorktreesRelativosQueNoEsBooleanoFallaCerrado(t *testing.T) {
+	const ca = "CA-771"
+	const prefijo = ".hoom/local.yaml: "
+	for _, body := range []string{
+		"worktrees_relativos: \"true\"\n",
+		"worktrees_relativos: 'true'\n",
+		"worktrees_relativos: \"false\"\n",
+		"worktrees_relativos: yes\n",
+		"worktrees_relativos: on\n",
+		"worktrees_relativos: no\n",
+		"worktrees_relativos: off\n",
+		"worktrees_relativos: y\n",
+		"worktrees_relativos: 1\n",
+		"worktrees_relativos: 0\n",
+		"worktrees_relativos: 2.48\n",
+		"worktrees_relativos: [true]\n",
+		"worktrees_relativos:\n  - true\n",
+		"worktrees_relativos: {valor: true}\n",
+		"worktrees_relativos:\n  valor: true\n",
+		"ejecutar: \"" + veePlantilla + "\"\nworktrees_relativos: si\n",
+	} {
+		root := veeRepo(t, "")
+		wt := veeTarea(t, root, "demo")
+		veeLocal(t, root, body)
+		fuera := veeDir(t)
+		veeLocal(t, fuera, body)
+		for _, dir := range []string{root, wt, fuera} {
+			got := veeError(t, ca, fmt.Sprintf("%q desde %s", body, dir), dir)
+			if !strings.HasPrefix(got, prefijo) || got == fmt.Sprintf(entorno.ErrClaveDesconocida, "worktrees_relativos") ||
+				got == entorno.ErrWorktreesRelativosGitViejo {
+				t.Fatalf("%s: %q desde %s: falla cerrado con un error que empieza con %q, sin ser el de la clave ni el de git viejo: %q", ca, body, dir, prefijo, got)
+			}
+		}
+	}
+}
+
+// CA-771 y CA-763: la clave se escribe como en el spec y distingue
+// mayusculas: otra grafia es una clave desconocida, con el texto exacto que
+// ya nombra las tres validas.
+func TestCA771_LaClaveSeEscribeComoEnElSpec(t *testing.T) {
+	const ca = "CA-771"
+	for _, k := range []string{"Worktrees_relativos", "WORKTREES_RELATIVOS", "worktrees-relativos", "worktree_relativos", "worktrees_relativo", "relative_paths"} {
+		root := veeRepo(t, "")
+		veeLocal(t, root, k+": true\n")
+		want := fmt.Sprintf(entorno.ErrClaveDesconocida, k)
+		if got := veeError(t, ca, k, root); got != want {
+			t.Fatalf("%s: %s: el error es %q; fue %q", ca, k, want, got)
+		}
+	}
+	if got, want := fmt.Sprintf(entorno.ErrClaveDesconocida, "Worktrees_relativos"),
+		`.hoom/local.yaml: clave desconocida "Worktrees_relativos" (validas: ejecutar, en_el_host, worktrees_relativos)`; got != want {
+		t.Fatalf("%s: el texto es %q; es %q", ca, want, got)
 	}
 }

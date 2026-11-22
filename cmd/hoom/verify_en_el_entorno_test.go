@@ -8,6 +8,9 @@
 //   - CA-766: la linea `entorno: <plantilla> (de .hoom/local.yaml)` debajo
 //     de la primera; con --json va a stderr y stdout es solo el veredicto
 //     (aclaracion 13); sin ejecutar no hay tal linea;
+//   - CA-766 (encargo de la ronda 0b): en esa linea, una plantilla con una
+//     runa no imprimible (unicode.IsPrint) va con strconv.Quote, y una toda
+//     imprimible va tal cual;
 //   - CA-769: la sugerencia del perfil, una vez, debajo del reporte, solo
 //     con un gate en error con 127 y sin .hoom/local.yaml; nada con --json
 //     (aclaraciones 11 y 12).
@@ -28,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 
 	hentorno "github.com/hoomdev/hoomai/internal/entorno"
 	hgates "github.com/hoomdev/hoomai/internal/gates"
@@ -259,6 +263,100 @@ func TestCA766_LaLineaDelEntorno(t *testing.T) {
 				t.Fatalf("CA-766: sin ejecutar (%q) %q no hay linea ni clave entorno: exit %d\n%s", body, args, r.exit, r.todo())
 			}
 		}
+	}
+}
+
+// veeExigeLineaEntorno exige, en una salida de `hoom verify`, la linea want
+// una sola vez y, cuando la plantilla va citada, que la plantilla cruda no
+// aparezca en ninguna parte. Con un ESC en la plantilla (la runa que abre
+// una secuencia de la terminal), ademas: la secuencia cruda de la plantilla,
+// desde su ESC, no aparece en la salida, y la linea del entorno (la que
+// termina en "(de .hoom/local.yaml)") no lleva ningun ESC crudo. El resto de
+// la salida puede llevar ESC: son los colores propios del reporte de hoom
+// (ronda 0c).
+func veeExigeLineaEntorno(t *testing.T, caso string, r qcSalida, want, plantilla string, citada bool) {
+	t.Helper()
+	if n := strings.Count(r.todo(), want); n != 1 {
+		t.Fatalf("CA-766: %s: la linea %q sale una vez: %d\n%s", caso, want, n, r.todo())
+	}
+	if !citada {
+		return
+	}
+	if strings.Contains(r.todo(), plantilla) {
+		t.Fatalf("CA-766: %s: citada, la salida no lleva la plantilla cruda:\n%q", caso, r.todo())
+	}
+	i := strings.IndexRune(plantilla, '\x1b')
+	if i < 0 {
+		return
+	}
+	if cruda := plantilla[i:]; strings.Contains(r.todo(), cruda) {
+		t.Fatalf("CA-766: %s: la salida no lleva la secuencia cruda de la plantilla %q:\n%q", caso, cruda, r.todo())
+	}
+	for _, l := range strings.Split(r.todo(), "\n") {
+		if strings.Contains(l, "(de .hoom/local.yaml)") && strings.ContainsRune(l, '\x1b') {
+			t.Fatalf("CA-766: %s: la linea del entorno no lleva ESC crudos: %q", caso, l)
+		}
+	}
+}
+
+// CA-766 (encargo de la ronda 0b): la linea entorno: de `hoom verify` lleva
+// la plantilla tal cual cuando todas sus runas son imprimibles
+// (unicode.IsPrint, tambien con unicode, comillas y barras), y citada con
+// strconv.Quote cuando alguna no lo es (un tab, ESC, un salto de linea): la
+// salida no lleva la runa cruda. Los gates corren igual: el tab es un
+// blanco para sh, ESC queda en un comentario de sh y el salto separa dos
+// comandos. Sin --json es la segunda linea de stdout; con --json, la
+// segunda de stderr, y el veredicto guarda la plantilla tal cual.
+func TestCA766_LaLineaDelEntornoCitaLaPlantillaNoImprimible(t *testing.T) {
+	veeSaltar(t)
+	bin := qcHoom(t)
+	imprimible := func(s string) bool {
+		for _, r := range s {
+			if !unicode.IsPrint(r) {
+				return false
+			}
+		}
+		return true
+	}
+	for _, c := range []struct {
+		nombre, plantilla string
+		citada            bool
+	}{
+		{"imprimible con unicode, comillas y barras", `sh -c {cmd} # año 日本 "x" 'y' \ z`, false},
+		{"un tab al final", "sh -c {cmd}\t", true},
+		{"un tab y unicode imprimible", "sh -c {cmd}\t# año 日本", true},
+		{"ESC en un comentario", "sh -c {cmd} # \x1b[31mrojo", true},
+		{"un salto de linea", "true\nsh -c {cmd}", true},
+	} {
+		if imprimible(c.plantilla) == c.citada {
+			t.Fatalf("fixture: %s: la plantilla es imprimible: %v", c.nombre, !c.citada)
+		}
+		want := fmt.Sprintf(hverifycmd.LineaEntorno, c.plantilla)
+		if c.citada {
+			want = fmt.Sprintf(hverifycmd.LineaEntorno, strconv.Quote(c.plantilla))
+		}
+		dir := veeRepo(t, "", veeGate("test", "echo hola"))
+		veeEscribir(t, dir, hentorno.Ruta, "ejecutar: "+strconv.Quote(c.plantilla)+"\n", 0o644)
+
+		r := qcCorrer(t, bin, dir, qcSinCorrida, "verify")
+		ls := veeLineasNoVacias(r.stdout)
+		if r.exit != 0 || len(ls) < 2 || ls[1] != want {
+			t.Fatalf("CA-766: %s: la segunda linea de hoom verify es %q: exit %d\n%s", c.nombre, want, r.exit, r.todo())
+		}
+		veeExigeLineaEntorno(t, c.nombre, r, want, c.plantilla, c.citada)
+
+		r = qcCorrer(t, bin, dir, qcSinCorrida, "verify", "--json")
+		var v hverdict.Verdict
+		if err := json.Unmarshal([]byte(r.stdout), &v); err != nil {
+			t.Fatalf("CA-766: %s: con --json stdout es solo el veredicto: %v\n%s", c.nombre, err, r.stdout)
+		}
+		if v.Entorno == nil || v.Entorno.Ejecutar != c.plantilla {
+			t.Fatalf("CA-766: %s: el veredicto guarda la plantilla tal cual (%q): %+v", c.nombre, c.plantilla, v.Entorno)
+		}
+		if es := veeLineasNoVacias(r.stderr); r.exit != 0 || len(es) < 2 || es[1] != want {
+			t.Fatalf("CA-766: %s: con --json la linea va a stderr, debajo de la primera: %q: exit %d\n%q", c.nombre, want, r.exit, r.stderr)
+		}
+		veeExigeLineaEntorno(t, c.nombre+" (--json)", r, want, c.plantilla, c.citada)
 	}
 }
 
