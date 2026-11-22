@@ -14,8 +14,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
@@ -396,7 +398,7 @@ func cmdVerify(args []string) error {
 	}
 	if v.Entorno != nil {
 		// where the gates ran, under the first line (verify-en-el-entorno)
-		fmt.Fprintf(progreso, verifycmd.LineaEntorno+"\n", v.Entorno.Ejecutar)
+		fmt.Fprintln(progreso, lineaEntorno(v.Entorno))
 	}
 	if opt.JSON {
 		// In-band, machine-readable output for agents: no ANSI, pure JSON.
@@ -412,6 +414,18 @@ func cmdVerify(args []string) error {
 		os.Exit(1) // strict policy: red verdict = failing exit code
 	}
 	return nil
+}
+
+// lineaEntorno is verifycmd.LineaEntorno for the template of e, as written
+// when every rune of it is printable and quoted (strconv.Quote) when one is
+// not: a newline or an ANSI sequence in .hoom/local.yaml does not forge the
+// lines a person or a CI reads after it.
+func lineaEntorno(e *verdict.Entorno) string {
+	plantilla := e.Ejecutar
+	if strings.IndexFunc(plantilla, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
+		plantilla = strconv.Quote(plantilla)
+	}
+	return fmt.Sprintf(verifycmd.LineaEntorno, plantilla)
 }
 
 // sugerenciasDelVerify are the entornos of m's profile that `hoom verify`
