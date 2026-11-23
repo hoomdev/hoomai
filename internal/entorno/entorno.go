@@ -38,8 +38,11 @@ const (
 	// gates Leer gets (the gates of hoom.yaml).
 	ErrGateDesconocido = ".hoom/local.yaml: en_el_host nombra %q, que no es un gate de hoom.yaml"
 	// ErrNoIgnorado is a file that the main checkout's git does not ignore:
-	// not covered by a .gitignore, or tracked.
-	ErrNoIgnorado = ".hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)"
+	// not covered by a .gitignore, or tracked. It names the main checkout's
+	// .hoom/.gitignore because that is where the file is read: with the
+	// project in a subdirectory of its repository, the project's own
+	// .hoom/.gitignore does not cover it (`hoom init` completes both).
+	ErrNoIgnorado = ".hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml al .hoom/.gitignore del checkout principal (y git rm --cached .hoom/local.yaml si esta en git)"
 )
 
 // ErrWorktreesRelativosGitViejo is, exactly, the error of `hoom task start`

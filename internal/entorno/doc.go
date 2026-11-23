@@ -79,7 +79,7 @@
 //   - ErrClaveDesconocida: `.hoom/local.yaml: clave desconocida "<k>" (validas: ejecutar, en_el_host, worktrees_relativos)`;
 //   - ErrSinCmd: `.hoom/local.yaml: ejecutar tiene que llevar {cmd}`;
 //   - ErrGateDesconocido: `.hoom/local.yaml: en_el_host nombra "<g>", que no es un gate de hoom.yaml`;
-//   - ErrNoIgnorado: `.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)`.
+//   - ErrNoIgnorado: `.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml al .hoom/.gitignore del checkout principal (y git rm --cached .hoom/local.yaml si esta en git)`.
 //
 // When several apply, the first in that order. Outside a git repository
 // there is no git to ignore the file, and so no ErrNoIgnorado. Any other
