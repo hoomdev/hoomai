@@ -9,10 +9,12 @@ package hoomfs
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -75,7 +77,22 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 // completarGitignore appends to .hoom/.gitignore every one of lineas it
 // lacks (a line counts as there when, trimmed, it is that one), creating the
 // file when there is none, and returns what it added, in order. A file that
-// already has them all is never rewritten.
+// already has them all is never written.
+//
+// An existing file is completed in place, never replaced (findings 3faa18,
+// 4583f7): the missing lines go in ONE append (O_APPEND, after a "\n" when
+// the file does not end in one), so the file keeps its inode, mode and
+// owner, and a line another hand appended in place between the reading and
+// the writing stays (the append lands after it). After the write, the name
+// has to still be the object written to and hold every line added; when it
+// is not (an editor replaced the file by rename meanwhile, so the append
+// went to the old one), it reads the file again and recomputes what is
+// missing, up to intentosGitignore times, and then it is an error: never
+// "added" for a line that is not there. A file that does not exist is
+// created with O_EXCL, mode 0644: one created at the same time by someone
+// else is completed like any existing one. What it cannot see is another
+// hand appending, between its reading and its write, a last line without
+// "\n": the lines added then follow that one on the same line.
 func completarGitignore(root string, lineas []string) (added []string, err error) {
 	// .hoom is walked by descriptors, read AND written in that one directory:
 	// a .hoom swapped for a symlink to another project between the reading
@@ -86,38 +103,160 @@ func completarGitignore(root string, lineas []string) (added []string, err error
 		return nil, err
 	}
 	defer r.Close()
-	raw, err := LeerRegularEn(r, ".gitignore", maxGitignore)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
+	for intento := 0; intento < intentosGitignore; intento++ {
+		added, listo, err := completarUnaVez(r, root, lineas)
+		if err != nil {
+			return nil, err
+		}
+		if !listo {
+			continue
+		}
+		// The .hoom just written into has to still be the one root/.hoom
+		// leads to; if another process moved it, this is an error, never
+		// "added" for a .gitignore left in a moved directory (findings
+		// 6513a7, 46561c, f27c7d).
+		if err := SigueEn(root, r, ".hoom"); err != nil {
+			return nil, err
+		}
+		return added, nil
 	}
+	return nil, fmt.Errorf(".hoom/.gitignore cambio %d veces mientras hoom lo completaba: vuelve a intentarlo", intentosGitignore)
+}
+
+// intentosGitignore bounds how many times completarGitignore reads and
+// completes a .hoom/.gitignore that keeps changing under it.
+const intentosGitignore = 5
+
+// antesDeCompletar, when set, runs in completarGitignore between the reading
+// of .hoom/.gitignore (or seeing it is not there) and the write, with the
+// root. It exists only for the tests: what another hand does in that window
+// (findings 4583f7) needs one to be shown. Atomic, like envelope's.
+var antesDeCompletar atomic.Pointer[func(root string)]
+
+// completarUnaVez is one try of completarGitignore in r, the .hoom of root:
+// listo false when the file changed under it and the try has to be made
+// again, from a fresh reading.
+func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, listo bool, err error) {
+	const name = ".gitignore"
+	antes, err := r.Lstat(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return crearGitignore(r, root, lineas)
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if !antes.Mode().IsRegular() {
+		// never followed nor opened: a symlink would take the write
+		// elsewhere, a FIFO would block it
+		return nil, false, &NoRegular{Path: name, Mode: antes.Mode()}
+	}
+	f, err := r.OpenFile(name, os.O_RDWR|os.O_APPEND|sinBloquear, 0)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil // gone since the Lstat: try again
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	switch {
+	case err != nil:
+		return nil, false, err
+	case !mismo(antes, st) || sigueSiendo(r, name, antes) != nil:
+		return nil, false, nil // another object took the name: try again
+	case !st.Mode().IsRegular():
+		return nil, false, &NoRegular{Path: name, Mode: st.Mode()}
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxGitignore+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(raw)) > maxGitignore {
+		return nil, false, fmt.Errorf("%s pasa de %d bytes", name, maxGitignore)
+	}
+	added = faltan(raw, lineas)
+	if len(added) == 0 {
+		return nil, true, nil
+	}
+	data := strings.Join(added, "\n") + "\n"
+	if len(raw) > 0 && raw[len(raw)-1] != '\n' {
+		data = "\n" + data
+	}
+	esperarCompletar(root)
+	if _, err := f.Write([]byte(data)); err != nil {
+		return nil, false, err
+	}
+	if !quedaron(r, name, antes, added) {
+		return nil, false, nil
+	}
+	return added, true, nil
+}
+
+// crearGitignore creates the .hoom/.gitignore of r with lineas, mode 0644,
+// only if there is still none (O_EXCL): listo false when someone else
+// created it first, or replaced it right after, so the try is made again.
+func crearGitignore(r *os.Root, root string, lineas []string) (added []string, listo bool, err error) {
+	const name = ".gitignore"
+	added = faltan(nil, lineas)
+	esperarCompletar(root)
+	f, err := r.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, fs.ErrExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	creado, err := f.Stat()
+	if err == nil {
+		err = f.Chmod(0o644) // as before, whatever the umask
+	}
+	if err == nil {
+		_, err = f.Write([]byte(strings.Join(added, "\n") + "\n"))
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	if !quedaron(r, name, creado, added) {
+		return nil, false, nil
+	}
+	return added, true, nil
+}
+
+// quedaron says whether the name in r is still the object escrito describes
+// and holds every one of lineas: what was written there is in place.
+func quedaron(r *os.Root, name string, escrito fs.FileInfo, lineas []string) bool {
+	if st, err := r.Lstat(name); err != nil || !mismo(escrito, st) {
+		return false
+	}
+	raw, err := LeerRegularEn(r, name, maxGitignore)
+	return err == nil && len(faltan(raw, lineas)) == 0
+}
+
+// faltan are the lines of lineas that raw lacks, in order and once each: a
+// line counts as there when, trimmed, it is that one.
+func faltan(raw []byte, lineas []string) []string {
 	have := map[string]bool{}
 	for _, line := range strings.Split(string(raw), "\n") {
 		have[strings.TrimSpace(line)] = true
 	}
+	var out []string
 	for _, l := range lineas {
 		if !have[l] {
-			added = append(added, l)
+			out = append(out, l)
+			have[l] = true
 		}
 	}
-	if len(added) == 0 {
-		return nil, nil
+	return out
+}
+
+// esperarCompletar runs antesDeCompletar, if set.
+func esperarCompletar(root string) {
+	if f := antesDeCompletar.Load(); f != nil {
+		(*f)(root)
 	}
-	content := string(raw)
-	if content != "" && !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	content += strings.Join(added, "\n") + "\n"
-	if err := PublicarEn(r, ".gitignore", []byte(content), 0o644); err != nil {
-		return nil, err
-	}
-	// The .hoom just written into has to still be the one root/.hoom leads
-	// to; if another process moved it, this is an error, never "added" for a
-	// .gitignore left in a moved directory (findings 6513a7, 46561c,
-	// f27c7d).
-	if err := SigueEn(root, r, ".hoom"); err != nil {
-		return nil, err
-	}
-	return added, nil
 }
 
 // EnsureIgnoredFiles is EnsureIgnored for the local files
