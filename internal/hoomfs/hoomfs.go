@@ -7,6 +7,7 @@
 package hoomfs
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -98,9 +99,18 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 // land in its other names, which can be outside the project, so it is
 // *EnlacesDuros, an error that says how to break the link. The count is
 // looked at on the descriptor before the write, on Unix only: on Windows it
-// is not (enlaces). What it cannot see is another
-// hand appending, between its reading and its write, a last line without
-// "\n": the lines added then follow that one on the same line.
+// is not (enlaces).
+//
+// One window stays, residual: another hand that appends a last line without
+// "\n" between the reading and the write (or between creating the file and
+// writing it) gets the first line added glued to it, and no lock the other
+// hands do not take can keep it from happening. Hoom lo aceptó el 2026-11-23
+// (hallazgo 7e38c4): it detects it and fails. After the write it reads, on
+// the same descriptor, the byte right before what it wrote (sinPegar); when
+// there is one and it is not "\n", it is an error that names both lines,
+// with no retry and never "added", and the file stays as it is for the
+// person to separate them. The lines are never always prefixed with a "\n":
+// a file that ends in one gets them right after it.
 func completarGitignore(root string, lineas []string) (added []string, err error) {
 	// .hoom is walked by descriptors, read AND written in that one directory:
 	// a .hoom swapped for a symlink to another project between the reading
@@ -207,6 +217,9 @@ func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, 
 	if _, err := f.Write([]byte(data)); err != nil {
 		return nil, false, err
 	}
+	if err := sinPegar(f, data); err != nil {
+		return nil, false, err
+	}
 	if !quedaron(r, name, antes, added) {
 		return nil, false, nil
 	}
@@ -219,12 +232,13 @@ func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, 
 func crearGitignore(r *os.Root, root string, lineas []string) (added []string, listo bool, err error) {
 	const name = ".gitignore"
 	added = faltan(nil, lineas)
+	data := strings.Join(added, "\n") + "\n"
 	esperar(&antesDeCompletar, root)
 	// O_APPEND too (finding 814254): another hoom that finds the file just
 	// created, empty, appends its lines to it before these are written; with
 	// the offset at 0 they would land on top of its, and both would say
-	// "added".
-	f, err := r.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_APPEND, 0o644)
+	// "added". Read too, for sinPegar.
+	f, err := r.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_EXCL|os.O_APPEND, 0o644)
 	if errors.Is(err, fs.ErrExist) {
 		return nil, false, nil
 	}
@@ -241,7 +255,10 @@ func crearGitignore(r *os.Root, root string, lineas []string) (added []string, l
 		err = f.Chmod(0o644) // as before, whatever the umask
 	}
 	if err == nil {
-		_, err = f.Write([]byte(strings.Join(added, "\n") + "\n"))
+		_, err = f.Write([]byte(data))
+	}
+	if err == nil {
+		err = sinPegar(f, data)
 	}
 	if cerr := f.Close(); err == nil {
 		err = cerr
@@ -254,6 +271,49 @@ func crearGitignore(r *os.Root, root string, lineas []string) (added []string, l
 	}
 	return added, true, nil
 }
+
+// sinPegar checks, once data went into f in one O_APPEND write, that the
+// byte right before it is a "\n", or that there is none (finding 7e38c4):
+// another hand that appended a last line without "\n" in the window leaves
+// the first line of data glued to it, and that is an error naming both. A
+// data that starts with "\n" ends by itself whatever line came before. The
+// offset after the write says where data landed; when what is there is not
+// data (someone wrote over it in place, or cut the file), there is nothing
+// to tell here and quedaron decides.
+func sinPegar(f *os.File, data string) error {
+	if strings.HasPrefix(data, "\n") {
+		return nil
+	}
+	fin, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return err
+	}
+	inicio := fin - int64(len(data))
+	if inicio <= 0 {
+		return nil
+	}
+	desde := max(inicio-maxPegada, 0)
+	buf := make([]byte, fin-desde)
+	_, err = f.ReadAt(buf, desde)
+	if errors.Is(err, io.EOF) {
+		return nil // cut meanwhile
+	}
+	if err != nil {
+		return err
+	}
+	previo, escrito := buf[:inicio-desde], buf[inicio-desde:]
+	if string(escrito) != data || previo[len(previo)-1] == '\n' {
+		return nil
+	}
+	ajena := previo[bytes.LastIndexByte(previo, '\n')+1:]
+	primera, _, _ := strings.Cut(data, "\n")
+	return fmt.Errorf("%s: otra mano anexo %q sin salto de linea mientras hoom escribia y quedo pegada a %q: separala a mano",
+		gitignoreHoom, ajena, primera)
+}
+
+// maxPegada bounds how much of the line glued to hoom's sinPegar reads to
+// name it.
+const maxPegada = 256
 
 // quedaron says whether the name in r is still the object escrito describes
 // and holds every one of lineas: what was written there is in place.

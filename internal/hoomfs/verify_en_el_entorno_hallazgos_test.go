@@ -12,7 +12,10 @@
 //
 //   - 814254: lo que otro hoom anexa al .hoom/.gitignore recien creado,
 //     antes de que el que lo creo escriba, queda: el que lo creo escribe al
-//     final, no encima.
+//     final, no encima;
+//   - 7e38c4: si otra mano anexa en la ventana una ultima linea sin "\n" y
+//     la de hoom queda pegada a ella, es un error que nombra las dos, sin
+//     reintento y nunca "agregado".
 package hoomfs
 
 import (
@@ -245,3 +248,69 @@ func TestHallazgo814254_ElQueCreaElGitignoreNoPisaLoQueOtroLeAnexo(t *testing.T)
 		t.Fatalf("814254: el archivo tiene las dos lineas, %q: %q", want, raw)
 	}
 }
+
+// 7e38c4: en la ventana entre la lectura y la escritura (o entre la
+// creacion y la escritura), otra mano anexa "secret.env" sin "\n", y la
+// linea de EnsureIgnoredFiles queda pegada a ella. Sobre "cache/\n", sobre
+// un archivo vacio que existe y en el que EnsureIgnoredFiles acaba de crear:
+// en los tres es un error que nombra las dos lineas, nunca local.yaml
+// agregado, y el archivo queda como lo dejo la escritura, sin un reintento
+// que vuelva a anexar.
+func TestHallazgo7e38c4_UnaLineaPegadaALaAjenaEsUnError(t *testing.T) {
+	anexarSinSalto := func(t *testing.T, gi string) {
+		f, err := os.OpenFile(gi, os.O_WRONLY|os.O_APPEND, 0)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer f.Close()
+		if _, err := f.WriteString("secret.env"); err != nil {
+			t.Error(err)
+		}
+	}
+	for _, c := range []struct {
+		nombre string
+		antes  *string // nil = sin el archivo
+		gancho *atomic.Pointer[func(root string)]
+		queda  string
+	}{
+		{"sobre cache/", vrhPtr("cache/\n"), &antesDeCompletar, "cache/\nsecret.envlocal.yaml\n"},
+		{"sobre un archivo vacio", vrhPtr(""), &antesDeCompletar, "secret.envlocal.yaml\n"},
+		{"en el que acaba de crear", nil, &antesDeEscribirCreado, "secret.envlocal.yaml\n"},
+	} {
+		t.Run(c.nombre, func(t *testing.T) {
+			root := t.TempDir()
+			gi := vrhGitignore(t, root, "", 0)
+			if c.antes != nil {
+				if err := os.WriteFile(gi, []byte(*c.antes), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var corrio bool
+			vrhArmar(t, c.gancho, func(string) {
+				corrio = true
+				anexarSinSalto(t, gi)
+			})
+			added, err := EnsureIgnoredFiles(root, "local.yaml")
+			raw, rerr := os.ReadFile(gi)
+			if rerr != nil {
+				t.Fatal(rerr)
+			}
+			if !corrio {
+				t.Fatal("fixture: el gancho de la ventana no corrio")
+			}
+			if err == nil || len(added) != 0 {
+				t.Fatalf("7e38c4: %s: la linea pegada es un error, nunca agregada: %q %v (queda %q)", c.nombre, added, err, raw)
+			}
+			if !strings.Contains(err.Error(), `"secret.env"`) || !strings.Contains(err.Error(), `"local.yaml"`) {
+				t.Fatalf("7e38c4: %s: el error nombra las dos lineas: %v", c.nombre, err)
+			}
+			if string(raw) != c.queda {
+				t.Fatalf("7e38c4: %s: el archivo queda %q, sin reintento: %q", c.nombre, c.queda, raw)
+			}
+		})
+	}
+}
+
+// vrhPtr es un puntero a s.
+func vrhPtr(s string) *string { return &s }
