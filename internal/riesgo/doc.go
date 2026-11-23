@@ -1,24 +1,44 @@
 // Package riesgo is the riesgo of a card: how much review its change gets
-// and which of its findings block (spec ciclo-de-review-acotado). A person
-// declares it in the item (the optional key `riesgo` of
-// .hoom/items/<slug>.yaml); a missing key is Normal, and Normal is exactly
-// what hoom did before the riesgo existed.
+// and which of its findings block (specs ciclo-de-review-acotado and
+// riesgo-efectivo-y-tamano). A person declares it in the item (the optional
+// key `riesgo` of .hoom/items/<slug>.yaml); a missing key is Normal.
 //
 // The vocabulary is Vocabulario: Bajo, Normal, Alto, in that order.
 //
-// The riesgo hoom applies is the effective one (Efectivo): the declared one,
-// except that a Bajo whose change touches a risk path (Ruta) is Normal. The
-// riesgo goes up by itself and never down by itself: Normal and Alto stay
-// what they are, with or without a risk path.
+// # The files of a change and their class
 //
-// A risk path is a file whose path, in lower case, contains one of Marcas as
-// a substring: the same list the lens rule of `hoom review` has always used
-// (coarse on purpose: `sign` also catches `design`). The files are always
-// the files of the whole change against the base: in `hoom review`, those of
-// the whole change also in a delta; on the board, the changed_files of the
-// card's verdict.
+// The files of a change are those of `git diff --numstat --no-renames` from
+// the merge-base of the base and HEAD against the working tree, plus the
+// untracked files git does not ignore (gitx.LineasDelCambio), each with its
+// lines: insertions plus deletions (a binary 0, an untracked file its
+// lines). Each file has one class (Clasificador.Clase), the first that
+// holds: ClaseHoom (under .hoom/), ClaseGenerado (rutas.generadas),
+// ClasePrueba (the test-writer's territory) and ClaseProducto (the rest,
+// hoom.yaml included). The size of a change (Tamano) is three numbers,
+// producto, pruebas and hoom; a generado adds to none. Every threshold uses
+// producto alone (UmbralProducto).
+//
+// # Rutas
+//
+// The three lists of patterns of the section `rutas` of hoom.yaml (Rutas):
+// de_riesgo, de_bajo_riesgo and generadas. A project without the section
+// gets the defaults of its profile over RutasBase (profiles.Rutas); the
+// manifest decodes the section (manifest.Rutas) and profiles.Clasificador
+// resolves it. A pattern (Coincide) has the syntax of
+// agents.<rol>.write.allow and matches a path or one of its parent
+// directories, case-insensitively.
+//
+// # The effective riesgo
+//
+// The riesgo hoom applies is the effective one (Clasificador.Evaluar): fixed
+// rules over the card (Tarjeta: whether it can be read, its tipo and its
+// declared riesgo) and the files of the change. hoom only raises it: no rule
+// gives an effective riesgo below the declared one, and lowering it is a
+// person's job (`hoom item set`). A file of class hoom or generado never
+// raises it. The verdict keeps it (Evaluacion, under `riesgo`), with its
+// motivo.
 //
 // The package imports no other package of hoom, so the item, the findings,
-// the review and the board all read the same definition; finding cannot
-// import reviewcmd, which already imports finding.
+// the verdict, the review and the board all read the same definition: the
+// lists arrive as parameters.
 package riesgo

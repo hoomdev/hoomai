@@ -36,6 +36,21 @@ func statusBadge(s string) string {
 }
 
 // Render prints one verdict to w.
+//
+// Its header (riesgo-efectivo-y-tamano), under the line `cambio:`, carries:
+//
+//   - v.Riesgo's line, riesgo.Evaluacion.Linea (`riesgo: <efectivo> (<motivo>)`),
+//     when the verdict has it;
+//   - v.Tamano's line, riesgo.Tamano.Linea
+//     (`tamano: producto <p> · pruebas <t> · hoom <h>`), when it has it (not
+//     outside a git repository);
+//   - riesgo.AvisoMayorQueDeclarado with v.Tarea when the effective riesgo
+//     is higher than the declared one and the verdict has a task;
+//   - riesgo.AvisoProductoGrande when the effective riesgo is normal and
+//     Tamano.Producto passes riesgo.UmbralProducto.
+//
+// Today's `! cambio grande (>400 lineas): la review exige las 4 lentes`
+// is no longer printed, for any verdict.
 func Render(w io.Writer, v *verdict.Verdict, path string) {
 	fmt.Fprintf(w, "\n%shoomAI - veredicto de verificacion%s\n", cBold, cReset)
 	fmt.Fprintf(w, "proyecto: %s  perfil: %s  politica: %s\n", v.Project, v.Profile, v.Policy)

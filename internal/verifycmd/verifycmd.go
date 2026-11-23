@@ -153,6 +153,27 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // verdict carries one more gate, GateEntornoLocal, in fail with
 // NotaEntornoLocal, and is red; when they do not, it has no such gate and the
 // JSON is as before.
+//
+// riesgo-efectivo-y-tamano: every run computes, before its gates, the
+// riesgo and the size of the change, and the verdict carries them
+// (verdict.Verdict Riesgo, Tamano and Tarea):
+//   - the task is Sobre.Task with Options.Sobre, else runcmd.TareaDe(m.Dir)
+//     (the worktree .hoom/worktrees/<slug> where it runs); in any other tree
+//     there is none;
+//   - its card is item.TarjetaDeRiesgo(m.Dir, task) (the main checkout's
+//     item, as on the board);
+//   - the classifier is profiles.Clasificador(m): the rutas and the
+//     test-writer's territory of the hoom.yaml it verifies with, like the
+//     gates;
+//   - the files and lines are gitx.LineasDelCambio(m.Dir, m.BaseBranch);
+//     outside a git repository there is no Tamano and the riesgo is computed
+//     without files.
+//
+// Its findings_open gate is finding.GateDelVerify with that classifier, the
+// task and the effective riesgo it computed. Neither key moves the
+// fingerprint. An error of the section `rutas` is an error of the manifest
+// (manifest.Rutas): Load already refuses it, so no gate runs and no verdict
+// is written.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
 		return nil, "", err

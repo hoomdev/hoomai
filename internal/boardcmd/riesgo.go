@@ -33,6 +33,20 @@ func efectivoDe(it item.Item, v *verdict.Verdict) string {
 // efectivoEv is efectivoDe for the card's evidence.
 func efectivoEv(ev Evidence) string { return efectivoDe(ev.Item, ev.Verdict) }
 
+// DetalleNoAplica is the detail of the segment review of the meter when the
+// card does not require one (riesgo-efectivo-y-tamano), exactly, with %d for
+// the lines of producto of its newest verdict (its tamano.producto, or
+// insertions + deletions for a verdict older than that spec) and %s for the
+// lenses ("4 lentes", or "la lente reliability" on a bajo card):
+// `el cambio es chico (<p> lineas de producto): no exige la revision de <lentes>`.
+//
+// The card requires its review (CardEvidence.ReviewRequired) when it has a
+// verdict and: with riesgo alto (CardEvidence.Riesgo), always, unless its
+// change (changed_files) is empty or only documentation
+// (reviewcmd.SoloDocs); with bajo and normal, when that producto passes
+// reviewcmd.UmbralLineas and the change is not only documentation.
+const DetalleNoAplica = "el cambio es chico (%d lineas de producto): no exige la revision de %s"
+
 // reviewRequired is contract 06's rule read from the verdict itself, with
 // the card's effective riesgo: alto requires the review whenever the change
 // has files and is not only documentation; bajo and normal, with more than

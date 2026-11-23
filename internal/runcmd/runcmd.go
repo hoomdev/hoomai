@@ -971,6 +971,19 @@ func TaskDir(root, task string) (string, error) {
 	return wt, nil
 }
 
+// TareaDe is the task whose worktree is dir (spec riesgo-efectivo-y-tamano,
+// «La tarea del veredicto»): the slug when dir, cleaned and absolute, is
+// exactly <principal>/.hoom/worktrees/<slug>, where <principal> is dir's main
+// checkout (gitx.CheckoutPrincipal), and TaskDir(<principal>, slug) gives
+// dir back (a worktree of the repository on its branch hoom/<slug>). "" in
+// any other tree: the main checkout, a folder inside the worktree (a blind
+// tree nested in it included), a plain folder or a copy under
+// .hoom/worktrees/, a worktree on another branch, and a dir outside a git
+// repository. `hoom verify` without an envelope takes its task from here.
+func TareaDe(dir string) string {
+	return ""
+}
+
 // Busy reports the run currently active in dir, if any. In-process state is
 // authoritative; the sidecars cover a run another process started and has not
 // settled yet. The envelope asks BEFORE building a blind tree: transplanting

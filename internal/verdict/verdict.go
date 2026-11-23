@@ -19,6 +19,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 )
 
 const SchemaID = "hoom.verdict/v1"
@@ -94,6 +95,32 @@ type Verdict struct {
 	// Entorno. nil (no key `entorno` in the JSON) without ejecutar: the JSON
 	// is today's. It is not part of the fingerprint, which is the tree's.
 	Entorno *Entorno `json:"entorno,omitempty"`
+	// Riesgo (riesgo-efectivo-y-tamano) is the riesgo of the change as this
+	// verify computed it (riesgo.Clasificador.Evaluar): the card of the
+	// verify's task (Tarea) and the files of the change, with the rutas and
+	// the test-writer's territory of the hoom.yaml it verifies with. Every
+	// verify writes it: {"declarado", "efectivo", "motivo"}, with declarado
+	// normal when the card does not say it or there is no task. nil (no key)
+	// only in a verdict older than that spec.
+	Riesgo *riesgo.Evaluacion `json:"riesgo,omitempty"`
+	// Tamano (riesgo-efectivo-y-tamano) is the size of the change
+	// (riesgo.Clasificador.Medir over gitx.LineasDelCambio):
+	// {"producto", "pruebas", "hoom"}. nil (no key) outside a git
+	// repository and in a verdict older than that spec. Git's Insertions and
+	// Deletions stay as they were.
+	//
+	// Neither Riesgo nor Tamano is part of the fingerprint, which is the
+	// tree's (I2): the same tree gives the same Git.ChangeFingerprint with
+	// these keys as without them.
+	Tamano *riesgo.Tamano `json:"tamano,omitempty"`
+	// Tarea is the verify's task (riesgo-efectivo-y-tamano): the one of the
+	// envelope of `hoom agent` (verifycmd.Sobre.Task), or the one of the
+	// worktree .hoom/worktrees/<slug> where `hoom verify` runs
+	// (runcmd.TareaDe); "" in any other tree. Never in the JSON (the spec
+	// adds only riesgo and tamano): a verdict read back has it empty. The
+	// text of `hoom verify` (report.Render) names it in
+	// riesgo.AvisoMayorQueDeclarado.
+	Tarea string `json:"-"`
 }
 
 type Summary struct {

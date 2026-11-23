@@ -402,7 +402,9 @@
 // Its top border (CA-708): the title of what it shows and, for a card, a
 // right part. For a card the title is its title (the slug when the titulo
 // is empty) and the right part "<slug>", then " · riesgo <r>" when the
-// item's riesgo is neither "" nor "normal", then " · piloto encendido" when
+// card's riesgo (evidence.riesgo, the effective one: riesgo-efectivo-y-tamano,
+// boardcmd.CardEvidence.Riesgo; the item's declared one before that spec)
+// is neither "" nor "normal", then " · piloto encendido" when
 // the item's auto is item.AutoHastaHumano. What does not fit drops from the
 // end (piloto, then riesgo); when the slug alone does not fit, the title is
 // cut to (w-2) - Celdas(slug) - 2 cells when that is at least 2, and else
@@ -532,6 +534,10 @@
 //	   " <Pendientes.Texto>"                 (only when the card's Pendientes.Texto is not "": the
 //	                                         spec puts the line of pendientes in the rest, after the
 //	                                         doctor and before the meter)
+//	   " tamano: producto <p> · pruebas <t> · hoom <h>"
+//	                                         (riesgo-efectivo-y-tamano: the line of the card's newest
+//	                                         verdict, riesgo.Tamano.Linea of evidence's Tamano; only
+//	                                         when it has one, after the pendientes)
 //	C  "  <sign> <label>: <detail>"          (one per segment of the meter; "  <sign> <label>"
 //	                                         without detail; only when the card has a meter)
 //	D  " Spec · <n> criterios · <k> sin prueba"

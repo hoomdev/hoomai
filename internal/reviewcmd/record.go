@@ -69,13 +69,22 @@ type Record struct {
 	// desde with it: spec evidencia-de-la-review).
 	BaseIntegrada string `json:"base_integrada,omitempty"`
 	// Riesgo is the effective riesgo the lenses were chosen with
-	// (riesgo.Efectivo of the item's riesgo over the whole change), and
-	// RiesgoDeclarado the item's, only when it differs from Riesgo (a bajo
-	// whose change touches a risk path). Records older than
+	// (riesgo.Clasificador.Evaluar over the task's card and the whole
+	// change, with the merge-base's rutas), and RiesgoDeclarado the item's,
+	// only when it differs from Riesgo (a card that a risk path, its tipo or
+	// a producto file outside de_bajo_riesgo raised). Records older than
 	// ciclo-de-review-acotado have neither: they count with their lenses
 	// like any other.
 	Riesgo          string `json:"riesgo"`
 	RiesgoDeclarado string `json:"riesgo_declarado,omitempty"`
+	// RiesgoMotivo is the motivo of Riesgo (riesgo-efectivo-y-tamano):
+	// riesgo.Evaluacion.Motivo of the rule that gave it, never empty in a
+	// record of that spec or later. LentesMotivo is why the review ran
+	// Lenses: the motivo of ReglaDeLentes with its range suffixes, the same
+	// text the line `lentes` prints. Records older than that spec have
+	// neither.
+	RiesgoMotivo string `json:"riesgo_motivo,omitempty"`
+	LentesMotivo string `json:"lentes_motivo,omitempty"`
 	// Encierro is the level of the encierro the passes had
 	// (contencion-del-writer, encierro.Info): only in a project whose
 	// hoom.yaml has the section `encierro`; without it the record has no

@@ -22,6 +22,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/valores"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -131,6 +132,14 @@ type Evidence struct {
 	// RiesgoIlegible is why the riesgo of the card's item cannot be read
 	// ("" when it can): its mediums block (finding.Contexto.Ilegibles).
 	RiesgoIlegible string `json:"-"`
+	// Clasificador is the PROJECT's classifier (profiles.Clasificador of
+	// the main checkout's hoom.yaml: its rutas and the test-writer's
+	// territory), which Gather reads once (riesgo-efectivo-y-tamano). Derive
+	// measures with it a verdict older than that spec (the rules over its
+	// changed_files: finding.RiesgoDeTarjeta) and judges the card's findings
+	// with its rutas (finding.Contexto.Rutas). nil = the classifier of a
+	// project without hoom.yaml (profiles.Clasificador(nil)).
+	Clasificador *riesgo.Clasificador
 	// UnreadableFindings: finding files of E that could not be read. Their
 	// task and severity are unknown, so they block every card of E, as they
 	// fail the findings_open gate.
@@ -478,10 +487,21 @@ type CardEvidence struct {
 	ReviewRequired   bool     `json:"review_required"`
 	ReviewID         string   `json:"review_id"`
 	BlockingFindings []string `json:"blocking_findings"`
-	// Riesgo is the card's effective riesgo (riesgo.Efectivo of its item's
-	// riesgo over the verdict's changed files): what decides its lenses and
-	// whether it requires a review.
-	Riesgo string `json:"riesgo"`
+	// Riesgo is the card's riesgo (riesgo-efectivo-y-tamano, «El riesgo de
+	// una tarjeta»): finding.RiesgoDeTarjeta of its newest verdict and its
+	// item now, the higher of the verdict's riesgo.efectivo and the declared
+	// riesgo; without a verdict, the declared one. It decides the lenses its
+	// chain must have and whether it requires a review. RiesgoMotivo is its
+	// motivo: the verdict's, or `declarado <d>` when the declared one wins
+	// (riesgo.MotivoDeclarado). `hoom board`, `hoom item show` and the detail
+	// of `hoom tablero` show ` · riesgo <Riesgo>` when it is not normal.
+	Riesgo       string `json:"riesgo"`
+	RiesgoMotivo string `json:"riesgo_motivo,omitempty"`
+	// Tamano is the size of the card's newest verdict (verdict.Verdict
+	// Tamano), nil without a verdict or with one older than
+	// riesgo-efectivo-y-tamano. The detail of `hoom tablero` prints its
+	// line (riesgo.Tamano.Linea). Never in the JSON.
+	Tamano *riesgo.Tamano `json:"-"`
 }
 
 // Running: an envelope or run of the card whose owner is alive.

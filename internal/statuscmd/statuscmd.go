@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/ratchet"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -73,6 +74,14 @@ type LastVerdict struct {
 	Partial   bool            `json:"partial"`
 	CreatedAt time.Time       `json:"created_at"`
 	Summary   verdict.Summary `json:"summary"`
+	// Riesgo and Tamano are that verdict's (riesgo-efectivo-y-tamano):
+	// nil, and no key, when it does not carry them (a verdict older than
+	// that spec; Tamano also outside a git repository). The text of `hoom
+	// status` prints, under the verdict's line, its line `riesgo:`
+	// (riesgo.Evaluacion.Linea) and its line `tamano:`
+	// (riesgo.Tamano.Linea), each only when the verdict has it.
+	Riesgo *riesgo.Evaluacion `json:"riesgo,omitempty"`
+	Tamano *riesgo.Tamano     `json:"tamano,omitempty"`
 }
 
 // FindingsSummary counts open findings.

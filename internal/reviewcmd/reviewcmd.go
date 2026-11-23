@@ -60,9 +60,26 @@ const CantidadDeLentes = 4
 // so with --lens.
 const LenteDominante = "reliability"
 
-// UmbralLineas is contract 06's threshold, and it comes from the verdict
-// (insertions+deletions), never from an eyeball estimate.
+// UmbralLineas is contract 06's threshold, and it comes from the evidence,
+// never from an eyeball estimate. With riesgo-efectivo-y-tamano it is
+// counted in lines of PRODUCTO (riesgo.Tamano.Producto: neither tests,
+// .hoom/ nor generated files count), and only a Normal change past it gets
+// the 4 lenses (ReglaDeLentes). It is riesgo.UmbralProducto.
 const UmbralLineas = 400
+
+// The motivos of the lenses (ReglaDeLentes), exactly: the field
+// lentes_motivo of the record, the Result and --json, and the reason of the
+// line `lentes` of the output. MotivoProductoGrande has %d for the lines of
+// producto.
+const (
+	MotivoLenteAMano     = "lente pedida a mano"
+	MotivoSinCambios     = "no hay cambios contra la base: no hay nada que revisar"
+	MotivoSoloDocs       = "el cambio es solo documentacion: no se invoca review"
+	MotivoRiesgoAlto     = "riesgo alto: las 4 lentes"
+	MotivoRiesgoBajo     = "riesgo bajo: la lente dominante"
+	MotivoProductoGrande = "%d lineas de producto (>400): las 4 lentes"
+	MotivoEstandar       = "cambio estandar: la lente dominante"
+)
 
 // Cross states of a review.
 const (
@@ -770,17 +787,31 @@ type Result struct {
 	Base          string `json:"base"`
 	BaseIntegrada string `json:"base_integrada,omitempty"`
 	// Riesgo and RiesgoDeclarado as in the record: the effective riesgo,
-	// and the item's only when it differs. The text output of `hoom review`
-	// carries the line `riesgo: <efectivo>`, or, when they differ,
-	// `riesgo: <motivo> (declarado <declarado>)` with riesgo.Efectivo's
-	// motivo.
+	// and the item's only when it differs. RiesgoMotivo and LentesMotivo as
+	// in the record (riesgo-efectivo-y-tamano); LentesMotivo is the same
+	// text as Reason. The text output of `hoom review` carries the line
+	// `riesgo: <efectivo> (<motivo>)` (riesgo.LineaRiesgo), always with the
+	// motivo, whether or not the declared riesgo differs.
 	Riesgo          string `json:"riesgo"`
 	RiesgoDeclarado string `json:"riesgo_declarado,omitempty"`
+	RiesgoMotivo    string `json:"riesgo_motivo,omitempty"`
+	LentesMotivo    string `json:"lentes_motivo,omitempty"`
 }
 
 // Lenses applies contract 06's rule over EVIDENCE, not over judgement. The
 // list is computed BEFORE the first run and never changes with what the
 // reviewer says.
+//
+// With riesgo-efectivo-y-tamano it is ReglaDeLentes for a change known only
+// by its gitx.Info: files git.ChangedFiles; producto git.Insertions +
+// git.Deletions (Info does not split its lines by class); and the effective
+// riesgo of a change without a card, with the classifier of a project
+// without hoom.yaml (profiles.Clasificador(nil).Evaluar(riesgo.Tarjeta{},
+// git.ChangedFiles)): alto when a file outside .hoom/ matches the default
+// rutas de_riesgo, normal otherwise. So a risk path gives the 4 lenses with
+// MotivoRiesgoAlto, and more than UmbralLineas lines the 4 with
+// MotivoProductoGrande. `hoom review` does not use it: it measures the
+// change by class (Run).
 func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
 	if e := strings.ToLower(strings.TrimSpace(explicit)); e != "" {
 		if !contains(Lentes, e) {
@@ -803,6 +834,12 @@ func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
 	return []string{LenteDominante}, "cambio estandar: la lente dominante", nil
 }
 
+// LentesConRiesgo is removed by the implementation of
+// riesgo-efectivo-y-tamano: the rule is ReglaDeLentes over the effective
+// riesgo (riesgo.Clasificador.Evaluar) and the lines of producto, and the
+// tests of CA-619 are re-expressed over them. It stays in the skeleton only
+// so that today's tests still compile. Today's contract:
+//
 // LentesConRiesgo is Lenses with the card's riesgo (spec
 // ciclo-de-review-acotado): the rule runs with the effective riesgo,
 // riesgo.Efectivo(riesgo, git.ChangedFiles), so a bajo whose change touches
@@ -839,6 +876,48 @@ func LentesConRiesgo(git gitx.Info, explicit, r string) ([]string, string, error
 		return []string{LenteDominante}, "riesgo bajo: la lente dominante", nil
 	}
 	return Lentes, "riesgo alto: las 4 lentes", nil
+}
+
+// ReglaDeLentes is the lens rule of `hoom review` (spec
+// riesgo-efectivo-y-tamano, «Las lentes de hoom review») for a change whose
+// files are files, whose lines of producto are producto
+// (riesgo.Tamano.Producto) and whose effective riesgo is efectivo. The first
+// case that holds wins:
+//
+//	case                                         lenses             motivo
+//	explicit (--lens) given                      that one           MotivoLenteAMano
+//	files empty                                  none               MotivoSinCambios
+//	only documentation (SoloDocs(files))         none               MotivoSoloDocs
+//	efectivo alto                                the 4 Lentes       MotivoRiesgoAlto
+//	efectivo bajo                                [LenteDominante]   MotivoRiesgoBajo
+//	efectivo normal and producto > UmbralLineas  the 4 Lentes       `<p> lineas de producto (>400): las 4 lentes`
+//	efectivo normal                              [LenteDominante]   MotivoEstandar
+//
+// "" efectivo is normal. An efectivo outside riesgo.Vocabulario is the error
+// of riesgo.Validar, before anything else; an explicit lens outside Lentes is
+// the error `lente desconocida "<l>" (validas: risk, reliability, resilience,
+// readability)`, as in Lenses. explicit is trimmed and lowered first.
+//
+// `hoom review` (Run) applies it with the effective riesgo of the WHOLE
+// change, riesgo.Clasificador.Evaluar with the classifier of the hoom.yaml of
+// the merge-base (profiles.ClasificadorDe: its rutas and the test-writer's
+// territory, never the branch's, CA-417), the task's card and the files of
+// gitx.LineasDelCambio; its producto with that same classifier; and the
+// files git.ChangedFiles of the snapshot for the empty and
+// only-documentation cases, as today. With a range (--desde or --delta) the
+// rule runs over the range (its files, and its producto by
+// gitx.Comparacion.Lineas with the same classes) and over the whole change,
+// both with the effective riesgo of the whole change, and the stricter one
+// (more lenses) wins, with today's suffixes ` (sobre el rango)` and
+// ` (sobre el cambio entero)` (CA-424), and today's motivos for a range
+// with no changes or with only documentation (`no hay cambios desde <sha>:
+// ...`, `lo que cambio desde <sha> es solo documentacion: ...`, 0 lenses);
+// when that gives the 4 in a delta,
+// the delta runs LentesDeUnaDelta and its motivo ends in
+// `; una delta no corre readability`. A delta whose range touches a risk
+// path runs risk: the whole change is then alto.
+func ReglaDeLentes(files []string, producto int, efectivo, explicit string) ([]string, string, error) {
+	return nil, "", nil
 }
 
 // LentesDeUnaDelta are the lenses a delta runs when its rule gives the 4:
@@ -904,6 +983,17 @@ func SoloDocs(files []string) bool {
 // one makes Run return PasadaConGitAjeno or PasadaConConfigDeAgentes as its
 // error, with no record in .hoom/reviews/ (exit 1, like a dirty tree); the
 // findings that pass left stay in the tree.
+//
+// riesgo-efectivo-y-tamano: before deciding the lenses, Run reads the rutas
+// and the test-writer's territory of the hoom.yaml of the merge-base
+// (profiles.ClasificadorDe), never of the branch (CA-417), computes the
+// effective riesgo of the whole change with them (riesgo.Clasificador.Evaluar
+// over the task's card and the files of gitx.LineasDelCambio) and decides
+// the lenses with ReglaDeLentes (see there, ranges included). Its output
+// carries `  riesgo: <efectivo> (<motivo>)`, and the record, the Result and
+// --json carry RiesgoMotivo and LentesMotivo besides Riesgo and
+// RiesgoDeclarado. An item of the task that cannot be read is still the
+// refusal of today (`el item de la tarea "<slug>" no se puede leer ...`).
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup("reviewer")
 	if err != nil {

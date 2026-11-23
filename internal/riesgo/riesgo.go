@@ -7,11 +7,14 @@ import (
 
 // The three riesgos a card may declare.
 const (
-	// Bajo: one lens (reliability) whatever the size of the change, unless
-	// the change touches a risk path (then it is Normal).
+	// Bajo: one lens (reliability) whatever the size of the change. It is
+	// an allow-list that fails closed: a file of class producto outside
+	// rutas.de_bajo_riesgo makes the effective riesgo Normal, and one that
+	// matches rutas.de_riesgo makes it Alto (Clasificador.Evaluar).
 	Bajo = "bajo"
-	// Normal: the rule as it was before the riesgo existed. It is the
-	// absence of the key: no verb of hoom ever writes `riesgo: normal`.
+	// Normal: the 4 lenses only past UmbralProducto lines of producto, the
+	// one dominant lens otherwise. It is the absence of the key: no verb of
+	// hoom ever writes `riesgo: normal`.
 	Normal = "normal"
 	// Alto: the 4 lenses always, a review always required (unless the
 	// change is empty or only documentation), and the mediums of a complete
@@ -23,8 +26,13 @@ const (
 // Normal, Alto.
 var Vocabulario = []string{Bajo, Normal, Alto}
 
-// Marcas are the substrings that make a path a risk path, matched against
-// the path in lower case. They are the lens rule's marks, unchanged.
+// Marcas are the marks of the default risk paths: RutasBase().DeRiesgo is
+// `**/*<m>*` for each m, in this order. With the implementation of
+// riesgo-efectivo-y-tamano they are auth, login, password, passwd, secret,
+// token, cred, crypt, signin, signature, pago, payment, billing, invoice,
+// dte, permission, permiso, sandbox, sudo: today's, with `sign` (which also
+// caught design, assign and signal) replaced by signin and signature, in its
+// place. The skeleton still has `sign`.
 var Marcas = []string{
 	"auth", "login", "password", "passwd", "secret", "token", "cred",
 	"crypt", "sign", "pago", "payment", "billing", "invoice", "dte",
@@ -34,6 +42,11 @@ var Marcas = []string{
 // Ruta is the first of files, in their order, whose path in lower case
 // contains one of Marcas, returned as it was given; "" when none does (an
 // empty or nil files included).
+//
+// The implementation of riesgo-efectivo-y-tamano removes it: a risk path is
+// a file that matches rutas.de_riesgo (Coincide, CoincideAlguno), and the
+// tests of CA-618 are re-expressed over Clasificador.Evaluar. It stays in
+// the skeleton only so that today's tests still compile.
 func Ruta(files []string) string {
 	for _, f := range files {
 		l := strings.ToLower(f)
@@ -56,6 +69,11 @@ func Ruta(files []string) string {
 // The riesgo goes up by itself and never down by itself: Normal and Alto are
 // returned as they are, with or without a risk path. A declarado outside
 // Vocabulario is returned as it is too: validating it is Validar's job.
+//
+// The implementation of riesgo-efectivo-y-tamano removes it: the effective
+// riesgo is Clasificador.Evaluar (a risk path gives Alto, also with Bajo,
+// and the motivo is never empty), and the tests of CA-618 are re-expressed
+// over it. It stays in the skeleton only so that today's tests still compile.
 func Efectivo(declarado string, files []string) (efectivo, motivo string) {
 	if declarado == "" {
 		return Normal, ""

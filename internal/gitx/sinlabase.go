@@ -75,6 +75,16 @@ func (c *Comparacion) Cambios(dir, hasta string) (files []string, ins, del int, 
 	return cambiosEntre(c.donde(dir), c.env, c.Antes, hasta)
 }
 
+// Lineas is Cambios file by file (spec riesgo-efectivo-y-tamano): each file
+// the branch changed since desde, without what the integrated base brought,
+// in the evidence's paths, with its lines (insertions plus deletions; a
+// binary 0). `hoom review` measures the producto of a range with it
+// (riesgo.Clasificador.Medir). A Comparacion that did not come apart is
+// Cambios' error.
+func (c *Comparacion) Lineas(dir, hasta string) (map[string]int, error) {
+	return nil, nil
+}
+
 // gitMinimo is the oldest git hoom builds the synthetic merge with: the
 // floor the spec sets (merge-tree --write-tree -z --name-only is 2.38).
 var gitMinimo = [2]int{2, 40}

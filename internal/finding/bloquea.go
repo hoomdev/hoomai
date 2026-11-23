@@ -12,6 +12,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/riesgo"
+	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
 // Contexto is everything besides the finding itself that decides whether an
@@ -24,9 +25,11 @@ type Contexto struct {
 	// Subidas are the VALID raises (see Subida), by finding id: an entry
 	// raises the finding of its key.
 	Subidas map[string]Subida
-	// Riesgos is the riesgo the item of each task declares
-	// (riesgo.Vocabulario), by task slug. A task that is not there, an empty
-	// value and a finding without task are judged as riesgo.Normal.
+	// Riesgos is the EFFECTIVE riesgo of each task (riesgo.Vocabulario), by
+	// task slug (riesgo-efectivo-y-tamano): the riesgo of its card
+	// (RiesgoDeTarjeta), or, in `hoom verify`, for the verify's own task, the
+	// one that verify computed (GateDelVerify). A task that is not there, an
+	// empty value and a finding without task are judged as riesgo.Normal.
 	Riesgos map[string]string
 	// Ilegibles are the tasks whose item is there and cannot be read, with
 	// the reason (item.RiesgosDe; "*" = no item of the project can be
@@ -37,6 +40,11 @@ type Contexto struct {
 	// first; a record with any other cobertura (delta, parcial, none) is
 	// never one of them.
 	Completas []RevisionCompleta
+	// Rutas are the project's resolved rutas (riesgo-efectivo-y-tamano):
+	// case 3 of Bloquea matches a finding's file against Rutas.DeRiesgo.
+	// nil = riesgo.RutasBase(), the rutas of a project without the section
+	// `rutas` (no profile adds to de_riesgo).
+	Rutas *riesgo.Rutas
 }
 
 // RevisionCompleta is one review record with cobertura completa as Bloquea
@@ -61,13 +69,17 @@ type RevisionCompleta struct {
 //     `severidad <sev>`;
 //  2. c.Subidas has a raise of f.ID: `subido a mano por <autor>` (the
 //     raise's author);
-//  3. it is medium and its file is a risk path (riesgo.Ruta of
-//     []string{f.File} not empty; a medium without file never is):
+//  3. it is medium and its file matches the rutas de_riesgo of c
+//     (riesgo.CoincideAlguno over c.Rutas.DeRiesgo, riesgo.RutasBase when
+//     c.Rutas is nil; a medium without file never does):
 //     `medium en ruta de riesgo: <file>`;
-//  4. it is medium, the riesgo of its task in c.Riesgos is alto, and its id
-//     is in the Findings of a RevisionCompleta of c.Completas whose Task is
-//     f.Task: `medium de la review completa <id>: riesgo alto`, where <id>
-//     is the first such record in c.Completas.
+//  4. it is medium, the EFFECTIVE riesgo of its task in c.Riesgos is alto
+//     (also when the card declares normal), and its id is in the Findings
+//     of a RevisionCompleta of c.Completas whose Task is f.Task:
+//     `medium de la review completa <id>: riesgo alto`, where <id> is the
+//     first such record in c.Completas.
+//
+// The text of each motivo does not change with riesgo-efectivo-y-tamano.
 //
 // When none holds it does not block: (false, "").
 func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
@@ -112,11 +124,16 @@ func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
 // ContextoDe is the Contexto the trees hold, with threshold blockOn: the
 // valid raises of arbol's .hoom/findings/, the completa review records of
 // arbol's .hoom/reviews/ (the format reviewcmd.WriteRecord writes; a record
-// it cannot read is left out) and the riesgo of each valid item of
-// proyecto's .hoom/items/ (item.List). The findings and the review records
-// of a task live in its tree; its item, in the project. For one tree, arbol
-// and proyecto are the same directory. Only a .hoom/findings/ that exists
-// and cannot be read is an error.
+// it cannot read is left out), the rutas of proyecto's hoom.yaml
+// (profiles.Clasificador; riesgo.RutasBase without one) and the riesgo of
+// the card of each valid item of proyecto's .hoom/items/ (item.List):
+// RiesgoDeTarjeta of the task's newest complete verdict in arbol (spec
+// .hoom/specs/<slug>.md), its card and proyecto's classifier
+// (riesgo-efectivo-y-tamano). The findings, the review records and the
+// verdicts of a task live in its tree; its item, in the project. For one
+// tree, arbol and proyecto are the same directory. Only a .hoom/findings/
+// that exists and cannot be read, and a hoom.yaml of proyecto whose rutas
+// do not load (manifest.Rutas), are errors.
 func ContextoDe(arbol, proyecto, blockOn string) (Contexto, error) {
 	sc, err := scan(arbol)
 	if err != nil {
@@ -129,6 +146,27 @@ func ContextoDe(arbol, proyecto, blockOn string) (Contexto, error) {
 		}
 	}
 	return c, nil
+}
+
+// RiesgoDeTarjeta is the riesgo of a card (spec riesgo-efectivo-y-tamano,
+// «El riesgo de una tarjeta»), with t as the card is read now and v its
+// newest complete verdict (nil = none):
+//
+//   - without a verdict, its declared riesgo, with the motivo
+//     `declarado <d>` (riesgo.MotivoDeclarado);
+//   - with a verdict, the higher (riesgo.Mayor) of the verdict's
+//     riesgo.efectivo and t's declared riesgo now: the verdict's motivo,
+//     or `declarado <d>` when the declared one is strictly higher. A verdict
+//     older than riesgo-efectivo-y-tamano (no Riesgo) is measured with the
+//     rules (c.Evaluar) over t and its Git.ChangedFiles.
+//
+// Declarado is t's (riesgo.Normal when it says nothing). So raising the
+// declared riesgo shows at once, and lowering it waits for the next verify:
+// the result is never lower than what the newest verify measured. The board
+// (CardEvidence.Riesgo and RiesgoMotivo), ContextoDe and `hoom status` read
+// a card's riesgo here.
+func RiesgoDeTarjeta(v *verdict.Verdict, t riesgo.Tarjeta, c riesgo.Clasificador) riesgo.Evaluacion {
+	return riesgo.Evaluacion{}
 }
 
 // riesgoIlegible says whether the riesgo of task is unknown because its

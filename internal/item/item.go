@@ -76,7 +76,16 @@ type Item struct {
 	// leave the key out for it). Only a person changes it (`hoom item add
 	// --riesgo`, `hoom item set`); the envelope's floor already forbids any
 	// change under .hoom/items/ to a role.
-	Riesgo         string     `yaml:"riesgo,omitempty" json:"riesgo,omitempty"`
+	Riesgo string `yaml:"riesgo,omitempty" json:"riesgo,omitempty"`
+	// RiesgoPor and RiesgoEn (riesgo-efectivo-y-tamano) say who changed the
+	// riesgo last and when: the `user.name <user.email>` of git
+	// (gitx.Identity, like CreadoPor) and the time in UTC, written as RFC
+	// 3339. `hoom item set <slug> --riesgo r` writes both whenever it
+	// changes the riesgo (SetRiesgo, Cambiar), also with r normal, which
+	// leaves the file without `riesgo` but with them. Parse accepts both
+	// keys; no other verb writes them.
+	RiesgoPor      string     `yaml:"riesgo_por,omitempty" json:"riesgo_por,omitempty"`
+	RiesgoEn       *time.Time `yaml:"riesgo_en,omitempty" json:"riesgo_en,omitempty"`
 	Pedido         string     `yaml:"pedido,omitempty" json:"pedido"`
 	CreadoPor      string     `yaml:"creado_por" json:"creado_por"`
 	CreadoEn       time.Time  `yaml:"creado_en" json:"creado_en"`
@@ -320,7 +329,9 @@ var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "pedido", "creado
 // field or a value outside its vocabulary is an error. The optional key
 // `riesgo` takes bajo, normal or alto; a missing key gives Riesgo
 // riesgo.Normal, and any other value is the error
-// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`.
+// `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`. The optional
+// keys `riesgo_por` (a string) and `riesgo_en` (an RFC 3339 time) are
+// accepted, with or without `riesgo` (riesgo-efectivo-y-tamano).
 func Parse(slug string, raw []byte) (Item, error) {
 	if !ValidSlug(slug) {
 		return Item{}, fmt.Errorf("el nombre %q no es un slug (minusculas, numeros y guiones)", slug)
@@ -474,6 +485,9 @@ func UnmarkDone(root, slug, commit string) (bool, error) {
 // item's lock (the same read-modify-write as MarkDone and AddSession): every
 // other key keeps its value, and the file is rewritten the way hoom writes
 // it. r riesgo.Normal leaves the file without the key. It commits nothing.
+// When it writes, it also writes riesgo_por (gitx.Identity of root) and
+// riesgo_en (now, in UTC), r normal included (riesgo-efectivo-y-tamano):
+// they are the only other keys it changes.
 //
 // antes is the riesgo the item had (riesgo.Normal when it had no key);
 // cambio says whether it wrote: an item that already had r is (antes, false,
@@ -536,8 +550,9 @@ var ErrAutoSinPresupuesto = errors.New("--auto necesita --presupuesto-usd: el pi
 // Cambiar applies c to the item slug of root in ONE read-modify-write, under
 // the item's lock, keeping every other key (the file is rewritten the way
 // hoom writes it). antes and despues are the item before and after; cambio
-// says whether the file was written (false when c changes nothing). It
-// refuses, writing nothing:
+// says whether the file was written (false when c changes nothing). When c
+// changes the riesgo, it also writes riesgo_por and riesgo_en, as SetRiesgo
+// does (riesgo-efectivo-y-tamano). It refuses, writing nothing:
 //
 //   - a value outside its vocabulary (Riesgo: riesgo.Validar's error; Auto:
 //     Validate's `auto "<a>" fuera del vocabulario (hasta-humano)`) or a
@@ -731,6 +746,18 @@ func RiesgoDe(arbol, slug string) (string, error) {
 		return riesgoONormal(it.Riesgo), nil
 	}
 	return riesgo.Normal, nil
+}
+
+// TarjetaDeRiesgo is the card slug as the rule of the effective riesgo
+// reads it (riesgo.Tarjeta), seen from the tree arbol: the item RiesgoDe
+// reads (the main checkout's when it has it, else arbol's), with its tipo
+// and its declared riesgo. An item that is there and cannot be read is
+// Ilegible; a slug that is not one, or an item that is in neither tree, is
+// a card without riesgo nor tipo (Tarea slug, declared normal). "" slug is
+// the zero riesgo.Tarjeta: no task. `hoom verify` reads its task's card
+// here (spec riesgo-efectivo-y-tamano, «La tarjeta»).
+func TarjetaDeRiesgo(arbol, slug string) riesgo.Tarjeta {
+	return riesgo.Tarjeta{}
 }
 
 // ArbolDelRiesgo is the tree whose item slug RiesgoDe reads from arbol: the

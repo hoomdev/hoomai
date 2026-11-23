@@ -104,6 +104,26 @@ func Snapshot(dir, base string) Info {
 	return info
 }
 
+// LineasDelCambio are the files of the change of dir and the lines of each
+// (spec riesgo-efectivo-y-tamano, «Los archivos del cambio»): path relative
+// to the root of the repository, with "/" -> insertions plus deletions. The
+// files are those of `git diff --numstat --no-renames` from the merge-base
+// of base and HEAD against the working tree, plus the untracked files git
+// does not ignore; a deleted file is there with its deleted lines, a binary
+// with 0, an untracked file with its lines (a last line without a newline
+// counts; 0 when it is binary). What the base brought after the merge-base
+// does not count. Nothing is left out: .hoom/ is there too (its class,
+// riesgo.ClaseHoom, keeps it out of producto and pruebas). Unlike Snapshot,
+// it does not touch Info.Insertions nor Info.Deletions, which stay as they
+// are.
+//
+// Outside a git repository it is an error (`hoom verify` then writes no
+// `tamano` and computes the riesgo without files); so is a git that cannot
+// say the merge-base, the diff or the untracked files inside one.
+func LineasDelCambio(dir, base string) (map[string]int, error) {
+	return nil, nil
+}
+
 // fingerprint (v2) identifies the change candidate by CONTENT, not by git
 // position: the blob listing of HEAD's tree overlaid with the working-tree
 // version of every locally-divergent file. Committing identical content —
