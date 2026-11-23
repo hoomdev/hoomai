@@ -17,6 +17,30 @@ func (e *NoRegular) Error() string {
 	return fmt.Sprintf("%s no es un archivo regular (%s)", e.Path, e.Mode.Type())
 }
 
+// EnlacesDuros is a regular file hoom does not write because it has more
+// than one hard link (finding 31f78c): the write would land in every name of
+// that file, and the others can be outside the project. The count comes from
+// the descriptor (enlaces); where the system does not give it (Windows), it
+// is not looked at.
+type EnlacesDuros struct {
+	Path    string
+	Enlaces uint64
+}
+
+func (e *EnlacesDuros) Error() string {
+	return fmt.Sprintf("%s tiene %d enlaces duros y hoom no escribe en un archivo que comparte con otro nombre: rompe el enlace copiandolo sobre si mismo (cp %s %s.copia && mv %s.copia %s) y vuelve a intentarlo",
+		e.Path, e.Enlaces, e.Path, e.Path, e.Path, e.Path)
+}
+
+// unSoloEnlace is nil for st with one hard link, or whose count the system
+// does not give (Windows), and *EnlacesDuros, with path, for one with more.
+func unSoloEnlace(path string, st fs.FileInfo) error {
+	if n, ok := enlaces(st); ok && n > 1 {
+		return &EnlacesDuros{Path: path, Enlaces: n}
+	}
+	return nil
+}
+
 // AbrirRegular opens path for reading only if it is a regular file, and it
 // decides on the descriptor it returns, never on an earlier look at the
 // path: between a look and an open anything can swap the entry (a process

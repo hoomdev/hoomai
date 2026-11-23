@@ -92,7 +92,13 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 // created with O_EXCL, mode 0644, and written with O_APPEND too: one created
 // at the same time by someone else is completed like any existing one, and
 // what another hand appends to the one just created, before its lines are
-// written, stays ahead of them (finding 814254). What it cannot see is another
+// written, stays ahead of them (finding 814254). A file with more than one
+// hard link is never written, neither when completing it nor when the one
+// just created already has another (finding 31f78c): the lines would also
+// land in its other names, which can be outside the project, so it is
+// *EnlacesDuros, an error that says how to break the link. The count is
+// looked at on the descriptor before the write, on Unix only: on Windows it
+// is not (enlaces). What it cannot see is another
 // hand appending, between its reading and its write, a last line without
 // "\n": the lines added then follow that one on the same line.
 func completarGitignore(root string, lineas []string) (added []string, err error) {
@@ -128,6 +134,10 @@ func completarGitignore(root string, lineas []string) (added []string, err error
 // intentosGitignore bounds how many times completarGitignore reads and
 // completes a .hoom/.gitignore that keeps changing under it.
 const intentosGitignore = 5
+
+// gitignoreHoom is how the errors of completarGitignore name the file: from
+// the project's root, where the person runs hoom.
+const gitignoreHoom = ".hoom/.gitignore"
 
 // antesDeCompletar, when set, runs in completarGitignore between the reading
 // of .hoom/.gitignore (or seeing it is not there) and the write, with the
@@ -175,6 +185,9 @@ func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, 
 	case !st.Mode().IsRegular():
 		return nil, false, &NoRegular{Path: name, Mode: st.Mode()}
 	}
+	if err := unSoloEnlace(gitignoreHoom, st); err != nil {
+		return nil, false, err
+	}
 	raw, err := io.ReadAll(io.LimitReader(f, maxGitignore+1))
 	if err != nil {
 		return nil, false, err
@@ -220,6 +233,10 @@ func crearGitignore(r *os.Root, root string, lineas []string) (added []string, l
 	}
 	esperar(&antesDeEscribirCreado, root)
 	creado, err := f.Stat()
+	if err == nil {
+		// someone may have linked the new file elsewhere already
+		err = unSoloEnlace(gitignoreHoom, creado)
+	}
 	if err == nil {
 		err = f.Chmod(0o644) // as before, whatever the umask
 	}
