@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -121,7 +122,104 @@ func Snapshot(dir, base string) Info {
 // `tamano` and computes the riesgo without files); so is a git that cannot
 // say the merge-base, the diff or the untracked files inside one.
 func LineasDelCambio(dir, base string) (map[string]int, error) {
-	return nil, nil
+	raiz, err := gitOut(dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return nil, fmt.Errorf("git rev-parse --show-toplevel: %v", err)
+	}
+	raiz = strings.TrimSpace(raiz)
+	if raiz == "" {
+		return nil, errors.New("git rev-parse --show-toplevel: sin arbol de trabajo")
+	}
+	mb, err := MergeBase(raiz, base)
+	if err != nil {
+		return nil, err
+	}
+	out, err := gitOut(raiz, "-c", "core.quotePath=false", "diff", "--numstat", "-z", "--no-renames",
+		"--no-ext-diff", "--no-textconv", mb, "--")
+	if err != nil {
+		return nil, fmt.Errorf("git diff --numstat %s: %v", mb, err)
+	}
+	lineas := lineasDelNumstat(out)
+	otros, err := gitOut(raiz, "-c", "core.quotePath=false", "ls-files", "-z", "--others", "--exclude-standard")
+	if err != nil {
+		return nil, fmt.Errorf("git ls-files --others: %v", err)
+	}
+	for _, f := range strings.Split(otros, "\x00") {
+		// a directory (a nested repository) is not a file of the change
+		if f == "" || strings.HasSuffix(f, "/") {
+			continue
+		}
+		n, err := lineasDeArchivo(filepath.Join(raiz, filepath.FromSlash(f)))
+		if err != nil {
+			return nil, err
+		}
+		lineas[f] = n
+	}
+	return lineas, nil
+}
+
+// lineasDelNumstat reads `git diff --numstat -z --no-renames`: each file
+// with its insertions plus deletions; a binary ("-\t-") is 0.
+func lineasDelNumstat(out string) map[string]int {
+	lineas := map[string]int{}
+	for _, entry := range strings.Split(out, "\x00") {
+		parts := strings.SplitN(entry, "\t", 3)
+		if len(parts) != 3 || parts[2] == "" {
+			continue
+		}
+		a, _ := strconv.Atoi(parts[0])
+		d, _ := strconv.Atoi(parts[1])
+		lineas[parts[2]] += a + d
+	}
+	return lineas
+}
+
+// lineasDeArchivo counts the lines of an untracked file the way git would
+// show them added: one per newline, plus a last one without it; 0 for an
+// empty file and for a binary (a NUL byte). A symbolic link is its target,
+// one line.
+func lineasDeArchivo(p string) (int, error) {
+	fi, err := os.Lstat(p)
+	if err != nil {
+		return 0, err
+	}
+	if fi.Mode()&fs.ModeSymlink != 0 {
+		return 1, nil
+	}
+	if !fi.Mode().IsRegular() {
+		return 0, nil
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	var (
+		n      int
+		ultimo byte
+		buf    = make([]byte, 64<<10)
+		leido  bool
+	)
+	for {
+		k, err := f.Read(buf)
+		if k > 0 {
+			if bytes.IndexByte(buf[:k], 0) >= 0 {
+				return 0, nil
+			}
+			n += bytes.Count(buf[:k], []byte("\n"))
+			ultimo, leido = buf[k-1], true
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+	}
+	if leido && ultimo != '\n' {
+		n++
+	}
+	return n, nil
 }
 
 // fingerprint (v2) identifies the change candidate by CONTENT, not by git

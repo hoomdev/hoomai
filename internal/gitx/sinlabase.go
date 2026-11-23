@@ -82,7 +82,16 @@ func (c *Comparacion) Cambios(dir, hasta string) (files []string, ins, del int, 
 // (riesgo.Clasificador.Medir). A Comparacion that did not come apart is
 // Cambios' error.
 func (c *Comparacion) Lineas(dir, hasta string) (map[string]int, error) {
-	return nil, nil
+	if !c.Separada() {
+		return nil, errors.New("el merge de la base no se separo del cambio")
+	}
+	args := append([]string{"-c", "core.quotePath=false", "diff", "--numstat", "-z", "--no-renames",
+		"--no-ext-diff", "--no-textconv", c.Antes, hasta, "--"}, evidencePaths...)
+	out, err := gitOutEnv(c.donde(dir), c.env, args...)
+	if err != nil {
+		return nil, fmt.Errorf("git diff --numstat %s %s: %v", c.Antes, hasta, err)
+	}
+	return lineasDelNumstat(out), nil
 }
 
 // gitMinimo is the oldest git hoom builds the synthetic merge with: the
