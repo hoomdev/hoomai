@@ -242,7 +242,8 @@ Flags de review (no emite veredicto ni juzga el codigo: eso es de verify):
   --provider <p>       Provider de la review; vacio = el primero instalado que
                        sostenga el contrato y NO sea el del writer
   --lens <l>           risk|reliability|resilience|readability; vacio = la
-                       regla del contrato 06 sobre la evidencia
+                       regla del contrato 06 sobre la evidencia: el riesgo
+                       efectivo y las lineas de producto del cambio
   --model <m>          Modelo del reviewer, en el vocabulario del provider;
                        vacio = review.model de hoom.yaml o el del provider
   --effort <e>         Esfuerzo del reviewer, en el vocabulario del provider;

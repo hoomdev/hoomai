@@ -65,7 +65,7 @@ const LenteDominante = "reliability"
 // counted in lines of PRODUCTO (riesgo.Tamano.Producto: neither tests,
 // .hoom/ nor generated files count), and only a Normal change past it gets
 // the 4 lenses (ReglaDeLentes). It is riesgo.UmbralProducto.
-const UmbralLineas = 400
+const UmbralLineas = riesgo.UmbralProducto
 
 // The motivos of the lenses (ReglaDeLentes), exactly: the field
 // lentes_motivo of the record, the Result and --json, and the reason of the
@@ -470,6 +470,9 @@ type rango struct {
 	cobertura   string
 	desdeReview string
 	medida      gitx.Info // files and lines from desde to HEAD in the evidence's paths (conRango only)
+	// lineas are medida file by file (gitx.Comparacion.Lineas), deletions
+	// included: the range's producto and its own riesgo (conRango only).
+	lineas map[string]int
 	// comp is what HEAD is compared against (conRango only): desde, or desde
 	// with the base the branch integrated afterwards (integrada), so the
 	// range leaves out what that base brought (finding 547228).
@@ -554,7 +557,12 @@ func resolverRango(dir, base string, opt Options) (rango, error) {
 		comp.Cerrar()
 		return rango{}, err
 	}
-	r.comp, r.integrada = comp, comp.Integrada
+	lineas, err := comp.Lineas(dir, hasta)
+	if err != nil {
+		comp.Cerrar()
+		return rango{}, err
+	}
+	r.comp, r.integrada, r.lineas = comp, comp.Integrada, lineas
 	r.medida = gitx.Info{ChangedFiles: files, Insertions: ins, Deletions: del}
 	return r, nil
 }
@@ -584,22 +592,95 @@ func ultimaEncadenable(dir, task, hasta, head string) (Record, bool) {
 	return Record{}, false
 }
 
-// lentesDe decides the lenses: today's rule without a range; with one, the
-// stricter of the rule over the range and over the whole change, so a big
-// change is never reviewed in small slices with one lens. It also says the
-// lenses the rule asks for, which a hand-picked lens must cover for the
-// review not to be parcial.
-func lentesDe(rng rango, git gitx.Info, explicit, r string) (lentes []string, motivo string, regla []string, err error) {
-	if err := riesgo.Validar(r); err != nil {
-		return nil, "", nil, err
+// medidaDelCambio is what the lenses of a review are decided on (spec
+// riesgo-efectivo-y-tamano): the effective riesgo and the lines of producto
+// of the whole change and, with a range, of the range.
+type medidaDelCambio struct {
+	riesgo   riesgo.Evaluacion // of the whole change: the one the record keeps
+	producto int
+	// rangoEfectivo is the riesgo the range's rule runs with: the whole
+	// change's, raised by what the range's own files give with the same
+	// rules (a range that touches a risk path is alto on its side, even when
+	// the whole change is empty: aclaracion 24). conRango only.
+	rangoEfectivo string
+	rangoProducto int
+}
+
+// medirCambio measures the change a review decides its lenses on, with the
+// classifier of the hoom.yaml of the merge-base (never the branch's: a
+// change does not loosen its own review, CA-417, CA-784) and the task's card.
+// The whole change is gitx.LineasDelCambio's (the tree is clean in the
+// evidence's paths, so it is merge-base..HEAD); the range, rng.lineas.
+func medirCambio(root, dir, baseSHA string, rng rango, opt Options) (medidaDelCambio, error) {
+	cl, err := clasificadorEnMergeBase(dir, rng.mb)
+	if err != nil {
+		return medidaDelCambio{}, err
 	}
-	// the effective riesgo is measured over the whole change, also in a
-	// delta: a delta that does not touch the risk path does not bring a bajo
-	// back
-	efectivo, _ := riesgo.Efectivo(r, git.ChangedFiles)
+	tarjeta := tarjetaDeLaReview(root, opt)
+	lineas, err := gitx.LineasDelCambio(dir, baseSHA)
+	if err != nil {
+		return medidaDelCambio{}, fmt.Errorf("no pude medir el cambio contra la base: %v", err)
+	}
+	m := medidaDelCambio{riesgo: cl.Evaluar(tarjeta, archivosDe(lineas)), producto: cl.Medir(lineas).Producto}
+	if rng.conRango {
+		propio := cl.Evaluar(tarjeta, archivosDe(rng.lineas)).Efectivo
+		m.rangoEfectivo = riesgo.Mayor(m.riesgo.Efectivo, propio)
+		m.rangoProducto = cl.Medir(rng.lineas).Producto
+	}
+	return m, nil
+}
+
+// archivosDe are the files of lineas, in byte order.
+func archivosDe(lineas map[string]int) []string {
+	out := make([]string, 0, len(lineas))
+	for f := range lineas {
+		out = append(out, f)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// clasificadorEnMergeBase is the classifier (rutas and the test-writer's
+// territory) of the hoom.yaml of the merge-base mb, like the rest of the
+// review's policy; the one of a project without hoom.yaml when that commit
+// has none.
+func clasificadorEnMergeBase(dir, mb string) (riesgo.Clasificador, error) {
+	raw, ok, err := gitx.ShowFile(dir, mb, "./"+manifest.FileName)
+	if err != nil {
+		return riesgo.Clasificador{}, err
+	}
+	if !ok {
+		return profiles.Clasificador(nil)
+	}
+	cl, err := profiles.ClasificadorDe(raw)
+	if err != nil {
+		return riesgo.Clasificador{}, fmt.Errorf("el %s de la base (%s): %v", manifest.FileName, mb[:12], err)
+	}
+	return cl, nil
+}
+
+// tarjetaDeLaReview is the card of the review's task, as the board reads
+// it (item.TarjetaDeRiesgo): none without a task. Run has already refused an
+// item that cannot be read (riesgoDeclarado).
+func tarjetaDeLaReview(root string, opt Options) riesgo.Tarjeta {
+	task := strings.TrimSpace(taskOf(opt))
+	if task == "" {
+		return riesgo.Tarjeta{}
+	}
+	return item.TarjetaDeRiesgo(root, task)
+}
+
+// lentesDe decides the lenses with ReglaDeLentes: over the whole change
+// without a range; with one, the stricter of the rule over the range and over
+// the whole change, so a big change is never reviewed in small slices with
+// one lens. It also says the lenses the rule asks for, which a hand-picked
+// lens must cover for the review not to be parcial.
+func lentesDe(rng rango, git gitx.Info, m medidaDelCambio, explicit string) (lentes []string, motivo string, regla []string, err error) {
 	if !rng.conRango {
-		regla, _, _ = LentesConRiesgo(git, "", efectivo)
-		lentes, motivo, err = LentesConRiesgo(git, explicit, efectivo)
+		if regla, _, err = ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, ""); err != nil {
+			return nil, "", nil, err
+		}
+		lentes, motivo, err = ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, explicit)
 		return lentes, motivo, regla, err
 	}
 	d12 := rng.desde[:12]
@@ -609,10 +690,14 @@ func lentesDe(rng rango, git gitx.Info, explicit, r string) (lentes []string, mo
 	case SoloDocs(rng.medida.ChangedFiles):
 		motivo = fmt.Sprintf("lo que cambio desde %s es solo documentacion: no se invoca review", d12)
 	default:
-		// the range is measured with the riesgo of the whole change: a bajo
-		// that the whole change turned normal stays normal on the range
-		lr, mr, _ := LentesConRiesgo(rng.medida, "", efectivo)
-		lw, mw, _ := LentesConRiesgo(git, "", efectivo)
+		lr, mr, err := ReglaDeLentes(rng.medida.ChangedFiles, m.rangoProducto, m.rangoEfectivo, "")
+		if err != nil {
+			return nil, "", nil, err
+		}
+		lw, mw, err := ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, "")
+		if err != nil {
+			return nil, "", nil, err
+		}
 		regla, motivo = lr, mr+" (sobre el rango)"
 		if len(lw) > len(lr) {
 			regla, motivo = lw, mw+" (sobre el cambio entero)"
@@ -624,7 +709,7 @@ func lentesDe(rng rango, git gitx.Info, explicit, r string) (lentes []string, mo
 		}
 	}
 	if strings.TrimSpace(explicit) != "" {
-		lentes, motivo, err = Lenses(git, explicit)
+		lentes, motivo, err = ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, explicit)
 		return lentes, motivo, regla, err
 	}
 	return regla, motivo, regla, nil
@@ -813,69 +898,12 @@ type Result struct {
 // MotivoProductoGrande. `hoom review` does not use it: it measures the
 // change by class (Run).
 func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
-	if e := strings.ToLower(strings.TrimSpace(explicit)); e != "" {
-		if !contains(Lentes, e) {
-			return nil, "", fmt.Errorf("lente desconocida %q (validas: %s)", explicit, strings.Join(Lentes, ", "))
-		}
-		return []string{e}, "lente pedida a mano", nil
-	}
-	if len(git.ChangedFiles) == 0 {
-		return nil, "no hay cambios contra la base: no hay nada que revisar", nil
-	}
-	if SoloDocs(git.ChangedFiles) {
-		return nil, "el cambio es solo documentacion: no se invoca review", nil
-	}
-	if p := riesgo.Ruta(git.ChangedFiles); p != "" {
-		return Lentes, fmt.Sprintf("el cambio toca %s: las 4 lentes", p), nil
-	}
-	if n := git.Insertions + git.Deletions; n > UmbralLineas {
-		return Lentes, fmt.Sprintf("%d lineas cambiadas (>%d): las 4 lentes", n, UmbralLineas), nil
-	}
-	return []string{LenteDominante}, "cambio estandar: la lente dominante", nil
-}
-
-// LentesConRiesgo is removed by the implementation of
-// riesgo-efectivo-y-tamano: the rule is ReglaDeLentes over the effective
-// riesgo (riesgo.Clasificador.Evaluar) and the lines of producto, and the
-// tests of CA-619 are re-expressed over them. It stays in the skeleton only
-// so that today's tests still compile. Today's contract:
-//
-// LentesConRiesgo is Lenses with the card's riesgo (spec
-// ciclo-de-review-acotado): the rule runs with the effective riesgo,
-// riesgo.Efectivo(riesgo, git.ChangedFiles), so a bajo whose change touches
-// a risk path gets the lenses of normal; "" is normal. Before the riesgo, as
-// in Lenses: a lens given by hand (explicit) wins, and an empty change or one
-// of only documentation gets no lens, whatever the riesgo. Then:
-//
-//   - bajo: [reliability], motivo `riesgo bajo: la lente dominante`, even past
-//     UmbralLineas;
-//   - normal: exactly what Lenses(git, explicit) gives, motivo included;
-//   - alto: the 4 Lentes, motivo `riesgo alto: las 4 lentes`, even under
-//     UmbralLineas.
-//
-// A riesgo outside riesgo.Vocabulario is the error of riesgo.Validar; an
-// unknown explicit lens is Lenses' error.
-//
-// `hoom review` applies it with the riesgo of the task's item (the one it
-// already reads for the declared writers; normal without an item) over the
-// files of the whole change, also in a delta. In a delta the rule runs over
-// the range and over the whole change with that same effective riesgo and the
-// stricter wins, as before; when that gives the 4 lenses, the delta runs
-// risk, reliability and resilience, in that order, and its motivo ends in
-// `; una delta no corre readability` (cobertura delta).
-func LentesConRiesgo(git gitx.Info, explicit, r string) ([]string, string, error) {
-	if err := riesgo.Validar(r); err != nil {
+	cl, err := profiles.Clasificador(nil)
+	if err != nil {
 		return nil, "", err
 	}
-	efectivo, _ := riesgo.Efectivo(r, git.ChangedFiles)
-	if efectivo == riesgo.Normal || strings.TrimSpace(explicit) != "" ||
-		len(git.ChangedFiles) == 0 || SoloDocs(git.ChangedFiles) {
-		return Lenses(git, explicit)
-	}
-	if efectivo == riesgo.Bajo {
-		return []string{LenteDominante}, "riesgo bajo: la lente dominante", nil
-	}
-	return Lentes, "riesgo alto: las 4 lentes", nil
+	e := cl.Evaluar(riesgo.Tarjeta{}, git.ChangedFiles)
+	return ReglaDeLentes(git.ChangedFiles, git.Insertions+git.Deletions, e.Efectivo, explicit)
 }
 
 // ReglaDeLentes is the lens rule of `hoom review` (spec
@@ -907,17 +935,40 @@ func LentesConRiesgo(git gitx.Info, explicit, r string) ([]string, string, error
 // only-documentation cases, as today. With a range (--desde or --delta) the
 // rule runs over the range (its files, and its producto by
 // gitx.Comparacion.Lineas with the same classes) and over the whole change,
-// both with the effective riesgo of the whole change, and the stricter one
-// (more lenses) wins, with today's suffixes ` (sobre el rango)` and
-// ` (sobre el cambio entero)` (CA-424), and today's motivos for a range
-// with no changes or with only documentation (`no hay cambios desde <sha>:
-// ...`, `lo que cambio desde <sha> es solo documentacion: ...`, 0 lenses);
-// when that gives the 4 in a delta,
-// the delta runs LentesDeUnaDelta and its motivo ends in
+// and the stricter one (more lenses) wins, with today's suffixes
+// ` (sobre el rango)` and ` (sobre el cambio entero)` (CA-424), and today's
+// motivos for a range with no changes or with only documentation
+// (`no hay cambios desde <sha>: ...`, `lo que cambio desde <sha> es solo
+// documentacion: ...`, 0 lenses). The rule over the range runs with the
+// riesgo of the whole change raised by what the range's own files give with
+// the same rules (aclaracion 24): a range that touches a risk path is alto on
+// its side, even when the whole change is empty. When that gives the 4 in a
+// delta, the delta runs LentesDeUnaDelta and its motivo ends in
 // `; una delta no corre readability`. A delta whose range touches a risk
 // path runs risk: the whole change is then alto.
 func ReglaDeLentes(files []string, producto int, efectivo, explicit string) ([]string, string, error) {
-	return nil, "", nil
+	if err := riesgo.Validar(efectivo); err != nil {
+		return nil, "", err
+	}
+	if e := strings.ToLower(strings.TrimSpace(explicit)); e != "" {
+		if !contains(Lentes, e) {
+			return nil, "", fmt.Errorf("lente desconocida %q (validas: %s)", explicit, strings.Join(Lentes, ", "))
+		}
+		return []string{e}, MotivoLenteAMano, nil
+	}
+	switch {
+	case len(files) == 0:
+		return nil, MotivoSinCambios, nil
+	case SoloDocs(files):
+		return nil, MotivoSoloDocs, nil
+	case efectivo == riesgo.Alto:
+		return Lentes, MotivoRiesgoAlto, nil
+	case efectivo == riesgo.Bajo:
+		return []string{LenteDominante}, MotivoRiesgoBajo, nil
+	case producto > UmbralLineas:
+		return Lentes, fmt.Sprintf(MotivoProductoGrande, producto), nil
+	}
+	return []string{LenteDominante}, MotivoEstandar, nil
 }
 
 // LentesDeUnaDelta are the lenses a delta runs when its rule gives the 4:
@@ -1004,12 +1055,17 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		return Result{}, err
 	}
 	defer rng.cerrar()
-	declarado, err := riesgoDeclarado(root, taskOf(opt))
+	// an item that cannot be read is refused, as before this spec
+	// (aclaracion 13): it could declare the very riesgo that asks for more
+	// review
+	if _, err := riesgoDeclarado(root, taskOf(opt)); err != nil {
+		return Result{}, err
+	}
+	medida, err := medirCambio(root, dir, baseSHA, rng, opt)
 	if err != nil {
 		return Result{}, err
 	}
-	efectivo, motivoRiesgo := riesgo.Efectivo(declarado, git.ChangedFiles)
-	lentes, motivo, regla, err := lentesDe(rng, git, opt.Lens, declarado)
+	lentes, motivo, regla, err := lentesDe(rng, git, medida, opt.Lens)
 	if err != nil {
 		return Result{}, err
 	}
@@ -1026,9 +1082,9 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		WritersDeclared: declarados}
 	res.Desde, res.Hasta, res.Cobertura, res.DesdeReview = rng.desde, rng.hasta, rng.cobertura, rng.desdeReview
 	res.Base, res.BaseIntegrada = rng.baseNombre, rng.integrada
-	res.Riesgo = efectivo
-	if declarado != efectivo {
-		res.RiesgoDeclarado = declarado
+	res.Riesgo, res.RiesgoMotivo, res.LentesMotivo = medida.riesgo.Efectivo, medida.riesgo.Motivo, motivo
+	if medida.riesgo.Declarado != medida.riesgo.Efectivo {
+		res.RiesgoDeclarado = medida.riesgo.Declarado
 	}
 	var notas []string
 
@@ -1050,11 +1106,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			plural(len(git.ChangedFiles), "archivo cambiado", "archivos cambiados"),
 			git.Insertions, git.Deletions, rng.baseNombre)
 	}
-	if res.RiesgoDeclarado != "" {
-		fmt.Fprintf(w, "  riesgo: %s (declarado %s)\n", motivoRiesgo, res.RiesgoDeclarado)
-	} else {
-		fmt.Fprintf(w, "  riesgo: %s\n", efectivo)
-	}
+	fmt.Fprintf(w, "  %s\n", medida.riesgo.Linea())
 	for _, aviso := range []string{rng.avisoBase, rng.avisoSeparacion} {
 		if aviso != "" {
 			fmt.Fprintf(w, "  aviso: %s\n", aviso)
@@ -1314,6 +1366,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
 		Base: rng.baseNombre, BaseIntegrada: rng.integrada,
 		Riesgo: res.Riesgo, RiesgoDeclarado: res.RiesgoDeclarado,
+		RiesgoMotivo: res.RiesgoMotivo, LentesMotivo: res.LentesMotivo,
 		Encierro: nivel,
 	})
 	res.Notes = notas
