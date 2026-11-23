@@ -981,7 +981,31 @@ func TaskDir(root, task string) (string, error) {
 // .hoom/worktrees/, a worktree on another branch, and a dir outside a git
 // repository. `hoom verify` without an envelope takes its task from here.
 func TareaDe(dir string) string {
-	return ""
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return ""
+	}
+	real, err := filepath.EvalSymlinks(filepath.Clean(abs))
+	if err != nil {
+		return ""
+	}
+	principal, ok := gitx.CheckoutPrincipal(real)
+	if !ok {
+		return ""
+	}
+	rel, err := filepath.Rel(principal, real)
+	if err != nil {
+		return ""
+	}
+	partes := strings.Split(filepath.ToSlash(rel), "/")
+	if len(partes) != 3 || partes[0] != ".hoom" || partes[1] != "worktrees" {
+		return ""
+	}
+	wt, err := TaskDir(principal, partes[2])
+	if err != nil || filepath.Clean(wt) != real {
+		return ""
+	}
+	return partes[2]
 }
 
 // Busy reports the run currently active in dir, if any. In-process state is

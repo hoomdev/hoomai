@@ -322,7 +322,7 @@ func Add(root string, d Draft) (Item, error) {
 func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 
 // claves are the only keys an item may carry, in the order hoom writes them.
-var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "pedido", "creado_por", "creado_en",
+var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "riesgo_por", "riesgo_en", "pedido", "creado_por", "creado_en",
 	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
@@ -388,6 +388,10 @@ func Parse(slug string, raw []byte) (Item, error) {
 		it.Riesgo = riesgo.Normal
 	}
 	it.CreadoEn = it.CreadoEn.UTC()
+	if it.RiesgoEn != nil {
+		t := it.RiesgoEn.UTC()
+		it.RiesgoEn = &t
+	}
 	if it.HechoEn != nil {
 		t := it.HechoEn.UTC()
 		it.HechoEn = &t
@@ -523,6 +527,7 @@ func SetRiesgo(root, slug, r string) (antes string, cambio bool, err error) {
 			return false
 		}
 		it.Riesgo = r
+		firmarRiesgo(root, it)
 		return true
 	})
 	if err == nil && !existia {
@@ -609,6 +614,9 @@ func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, er
 			rechazo = ErrAutoSinPresupuesto
 			return false
 		}
+		if nuevo.Riesgo != antes.Riesgo {
+			firmarRiesgo(root, &nuevo)
+		}
 		despues = nuevo
 		if nuevo.Riesgo == antes.Riesgo && nuevo.Auto == antes.Auto && mismoPresupuesto(nuevo.PresupuestoUSD, antes.PresupuestoUSD) {
 			return false
@@ -625,6 +633,13 @@ func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, er
 		return Item{}, Item{}, false, rechazo
 	}
 	return antes, despues, cambio, nil
+}
+
+// firmarRiesgo stamps a change of its riesgo: who (the git identity of
+// root, like creado_por) and when (now, in UTC, to the second).
+func firmarRiesgo(root string, it *Item) {
+	en := time.Now().UTC().Truncate(time.Second)
+	it.RiesgoPor, it.RiesgoEn = gitx.Identity(root), &en
 }
 
 // mismoPresupuesto says whether two caps are the same: both absent, or the
@@ -757,7 +772,26 @@ func RiesgoDe(arbol, slug string) (string, error) {
 // the zero riesgo.Tarjeta: no task. `hoom verify` reads its task's card
 // here (spec riesgo-efectivo-y-tamano, «La tarjeta»).
 func TarjetaDeRiesgo(arbol, slug string) riesgo.Tarjeta {
-	return riesgo.Tarjeta{}
+	if slug == "" {
+		return riesgo.Tarjeta{}
+	}
+	t := riesgo.Tarjeta{Tarea: slug}
+	if !ValidSlug(slug) {
+		return t
+	}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		if _, err := os.Lstat(Path(root, slug)); os.IsNotExist(err) {
+			continue
+		}
+		it, err := Load(root, slug)
+		if err != nil {
+			t.Ilegible = true
+			return t
+		}
+		t.Tipo, t.Riesgo = it.Tipo, riesgoONormal(it.Riesgo)
+		return t
+	}
+	return t
 }
 
 // ArbolDelRiesgo is the tree whose item slug RiesgoDe reads from arbol: the
