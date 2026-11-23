@@ -5,6 +5,7 @@ Tarjeta: `verify-en-el-entorno`. Intake: `.hoom/intake/rfc-calibracion-por-riesg
 Enmienda del 2026-11-22, antes de los tests: la foto de `.hoom/local.yaml` alrededor de los gates (CA-773).
 Enmienda del 2026-11-22, después del verify: las rutas relativas de los worktrees son opcionales por máquina (CA-771, ver Decisiones).
 Enmienda del 2026-11-22, después de la review: en un proyecto que vive en un subdirectorio del repo, `hoom init` ignora `local.yaml` también en el principal, y el error de no ignorado dice dónde (CA-763, CA-770, ver Decisiones).
+Enmienda del 2026-11-23, después del CI: la nota de 127 y 126 salta la pista que `env` imprime después del error (CA-760, ver Decisiones).
 
 ## Objetivo
 
@@ -34,7 +35,7 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 
 - Exit 127 (`sh`: comando no encontrado): estado `error`, `exit_code` 127, nota `no pudo correr: comando no encontrado (exit 127): <linea>`.
 - Exit 126 (encontrado pero no ejecutable): estado `error`, `exit_code` 126, nota `no pudo correr: el comando no se puede ejecutar (exit 126): <linea>`.
-- `<linea>` es la última línea no vacía de la salida del gate, que es donde `sh` y `env` nombran el comando. Sin salida, la nota termina en `)`.
+- `<linea>` es la última línea no vacía de la salida del gate que no sea la pista de `env`, que es donde `sh` y `env` nombran el comando. La pista es una línea que lleva `-[v]S`, como `env: use -[v]S to pass options in shebang lines`: algunas versiones de coreutils la imprimen después de `env: 'php': No such file or directory`, y `-[v]S` no se traduce. Sin otra línea, la nota termina en `)`.
 - Cualquier otro exit distinto de 0 sigue en `fail`, y el timeout sigue en `error`, como hoy.
 - Vale con prefijo y sin él: un `ddev` que falta en el host da 127 igual que un `php` que falta.
 
@@ -116,7 +117,7 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 
 ## Criterios de aceptación
 
-- CA-760: un gate requerido cuyo comando sale con 127 queda `error`, con `exit_code` 127 y la nota `no pudo correr: comando no encontrado (exit 127): <ultima linea no vacia de la salida>`; el veredicto es rojo y el resumen cuenta un `error`.
+- CA-760: un gate requerido cuyo comando sale con 127 queda `error`, con `exit_code` 127 y la nota `no pudo correr: comando no encontrado (exit 127): <ultima linea no vacia de la salida>`, sin contar la pista de `env` (una línea con `-[v]S`), así que con esa pista al final la nota lleva la línea anterior; el veredicto es rojo y el resumen cuenta un `error`.
 - CA-761: un gate que sale con 126 queda `error` con la nota `no pudo correr: el comando no se puede ejecutar (exit 126): <linea>`; un exit 1, 2 o 3 sigue en `fail` con su código, y el timeout sigue en `error`.
 - CA-762: `.hoom/local.yaml` se lee del checkout principal también desde `.hoom/worktrees/<slug>/`; uno dentro del worktree no se lee; `ejecutar:` vacío o nulo cuenta como sin la clave.
 - CA-763: los cuatro errores de `.hoom/local.yaml` salen con su texto exacto y `hoom verify` no corre gates ni escribe veredicto.
@@ -141,6 +142,7 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - **Con encierro, el gate con prefijo corre fuera del bwrap.** El contenedor necesita el socket de docker, y abrírselo al bwrap equivale a darle root al código del writer. `exigir` lo niega, porque quien exige encierro no lo pierde por un archivo local. Descartados: abrir el socket, y rechazar `.hoom/local.yaml` siempre que haya encierro, porque una máquina con DDEV y encierro no podría usar el prefijo. Hoom lo eligió el 2026-11-22.
 - **La foto de `.hoom/local.yaml` en el sobre y alrededor de los gates.** Un archivo ignorado no aparece en el scope, y esa plantilla decide qué corre. La del sobre ve al rol; la de los gates ve al código del writer que corre en un test, y vale en todo verify, porque también un `hoom verify` a mano corre ese código.
 - **Rutas relativas en los worktrees, opcionales por máquina**, para CAL-8.4: sin ellas, git dentro del contenedor no encuentra el repo de una tarea. Son opcionales porque `--relative-paths` escribe una extensión en `.git/config` que un git más viejo que 2.48 no acepta, y la imagen del contenedor puede traer uno más viejo. `.git/config` es de cada clon, igual que `.hoom/local.yaml`. Descartados: encenderlas siempre (lo firmado al principio; el writer encontró la extensión), y sacarlas de esta tarjeta. Hoom lo eligió el 2026-11-22.
+- **La nota de 127 salta la pista de `env`.** El `env` de coreutils de Ubuntu 24.04 imprime `env: use -[v]S to pass options in shebang lines` después del error, y con la última línea a secas la nota no nombraba lo que faltó: justo el caso de `#!/usr/bin/env php` sin php. Se reconoce por `-[v]S` porque el resto del texto se traduce. Descartado: aceptar la pista y dejar el comando solo en `output_tail`. Hoom lo eligió el 2026-11-23, por el CI del PR de esta tarea.
 - **En un subdirectorio, `hoom init` ignora `local.yaml` también en el principal.** El archivo se lee y se valida en el principal, y un ignore en el `.hoom/.gitignore` del proyecto no lo cubre. Se crea solo con `local.yaml` porque el principal puede no ser un proyecto de hoom. Descartado: dejarlo a mano, con el error como guía. Hoom lo eligió el 2026-11-22, por los hallazgos 470368 y 75bffc de la review.
 
 ## Riesgos y deuda aceptada
