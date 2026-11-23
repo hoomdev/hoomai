@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T230535_55b774",
+  "as": "corregido",
+  "evidence": "corregido en 793661e, segun la enmienda 55b134e2 (un fallo al escribir el ignore del principal es un error de hoom init, como el del proyecto): initcmd.Run devuelve error si falla crear o completar cualquiera de los dos .hoom/.gitignore, en vez de avisar y terminar con exito. Tests TestCA770_FalloAlEscribirElIgnoreDelProyectoEsError y _FalloAlEscribirElIgnoreDelPrincipalEsError (internal/initcmd, ronda 0d f378be1), rojos contra 9b0fe55 y verdes en 87b6992.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:16:47.494951603Z"
+}

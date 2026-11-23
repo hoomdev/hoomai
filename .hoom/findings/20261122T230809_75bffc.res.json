@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T230809_75bffc",
+  "as": "corregido",
+  "evidence": "corregido en 793661e y eb1107a, segun la enmienda 55b134e2 (CA-770, CA-763): mismo defecto que 470368. hoom init en sub/app deja local.yaml tambien en el .hoom/.gitignore del principal, y despues entorno.Leer(\u003crepo\u003e/sub/app) no da ErrNoIgnorado y git check-ignore ignora \u003crepo\u003e/.hoom/local.yaml. Tests TestCA770_SubdirectorioCreaElGitignoreDelPrincipal y _SubdirectorioCompletaElGitignoreDelPrincipal (f378be1), rojos contra 9b0fe55 y verdes en 87b6992.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:16:47.487168395Z"
+}
