@@ -2,7 +2,10 @@ package finding
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,6 +14,8 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
+	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -100,7 +105,7 @@ func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
 	if sev != "medium" {
 		return false, ""
 	}
-	if file := strings.TrimSpace(f.File); file != "" && riesgo.Ruta([]string{file}) != "" {
+	if file := strings.TrimSpace(f.File); file != "" && riesgo.CoincideAlguno(c.deRiesgo(), file) {
 		return true, "medium en ruta de riesgo: " + seguro(file)
 	}
 	if motivo, ok := c.riesgoIlegible(f.Task); ok {
@@ -132,14 +137,19 @@ func Bloquea(f Finding, c Contexto) (bloquea bool, motivo string) {
 // (riesgo-efectivo-y-tamano). The findings, the review records and the
 // verdicts of a task live in its tree; its item, in the project. For one
 // tree, arbol and proyecto are the same directory. Only a .hoom/findings/
-// that exists and cannot be read, and a hoom.yaml of proyecto whose rutas
-// do not load (manifest.Rutas), are errors.
+// that exists and cannot be read, and a hoom.yaml of proyecto that
+// profiles.ClasificadorDe cannot read (its rutas do not load, its profile
+// is unknown), are errors.
 func ContextoDe(arbol, proyecto, blockOn string) (Contexto, error) {
 	sc, err := scan(arbol)
 	if err != nil {
 		return Contexto{BlockOn: blockOn}, err
 	}
-	c := contextoDesde(sc, arbol, proyecto, blockOn)
+	cl, err := ClasificadorDelProyecto(proyecto)
+	if err != nil {
+		return Contexto{BlockOn: blockOn}, err
+	}
+	c := contextoDesde(sc, arbol, proyecto, blockOn, cl)
 	for _, it := range sc.items {
 		if motivo, ok := c.riesgoIlegible(it.Task); ok && it.Status == StatusOpen {
 			return c, fmt.Errorf("hallazgo %s: %s", it.ID, motivo)
@@ -152,6 +162,9 @@ func ContextoDe(arbol, proyecto, blockOn string) (Contexto, error) {
 // «El riesgo de una tarjeta»), with t as the card is read now and v its
 // newest complete verdict (nil = none):
 //
+//   - a card of a task that cannot be read (t.Ilegible) is rule 1 of
+//     riesgo.Clasificador.Evaluar, alto, with or without a verdict: it
+//     fails closed;
 //   - without a verdict, its declared riesgo, with the motivo
 //     `declarado <d>` (riesgo.MotivoDeclarado);
 //   - with a verdict, the higher (riesgo.Mayor) of the verdict's
@@ -166,7 +179,83 @@ func ContextoDe(arbol, proyecto, blockOn string) (Contexto, error) {
 // (CardEvidence.Riesgo and RiesgoMotivo), ContextoDe and `hoom status` read
 // a card's riesgo here.
 func RiesgoDeTarjeta(v *verdict.Verdict, t riesgo.Tarjeta, c riesgo.Clasificador) riesgo.Evaluacion {
-	return riesgo.Evaluacion{}
+	// the declared riesgo now, as the rule reads it (an unreadable card
+	// declares nothing: normal)
+	ahora := c.Evaluar(t, nil)
+	decl := ahora.Declarado
+	if t.Tarea != "" && t.Ilegible {
+		// the card cannot be read now: no declared riesgo is known, and it
+		// fails closed as rule 1 does, with or without a verdict
+		return ahora
+	}
+	if v == nil {
+		return riesgo.Evaluacion{Declarado: decl, Efectivo: decl, Motivo: fmt.Sprintf(riesgo.MotivoDeclarado, decl)}
+	}
+	medido := c.Evaluar(t, v.Git.ChangedFiles)
+	if v.Riesgo != nil {
+		medido = *v.Riesgo
+	}
+	out := riesgo.Evaluacion{Declarado: decl, Efectivo: riesgo.Mayor(medido.Efectivo, decl), Motivo: medido.Motivo}
+	// the declared one is strictly higher than what the verdict measured (or
+	// the verdict says no motivo): the motivo is the declared one's
+	if out.Efectivo != riesgo.Mayor(medido.Efectivo, medido.Efectivo) || strings.TrimSpace(out.Motivo) == "" {
+		out.Motivo = fmt.Sprintf(riesgo.MotivoDeclarado, out.Efectivo)
+	}
+	return out
+}
+
+// ClasificadorDelProyecto is the classifier of the hoom.yaml of the project
+// root proyecto (profiles.ClasificadorDe): its rutas and the test-writer's
+// territory; profiles.Clasificador(nil) when there is no hoom.yaml. A
+// hoom.yaml that cannot be read, or whose rutas, agents or profile do not
+// load, is an error.
+func ClasificadorDelProyecto(proyecto string) (riesgo.Clasificador, error) {
+	raw, err := os.ReadFile(filepath.Join(proyecto, manifest.FileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return profiles.Clasificador(nil)
+	}
+	if err != nil {
+		return riesgo.Clasificador{}, err
+	}
+	return profiles.ClasificadorDe(raw)
+}
+
+// VeredictoDeTarea is the newest complete verdict of all (oldest first, as
+// verdict.LoadAll gives them) bound to the spec of task slug,
+// .hoom/specs/<slug>.md (an absolute spec is read relative to arbol); nil
+// when there is none.
+func VeredictoDeTarea(all []*verdict.Verdict, arbol, slug string) *verdict.Verdict {
+	want := ".hoom/specs/" + slug + ".md"
+	for i := len(all) - 1; i >= 0; i-- {
+		v := all[i]
+		if v == nil || v.IsPartial() {
+			continue
+		}
+		spec := strings.TrimSpace(v.Spec)
+		if spec == "" {
+			continue
+		}
+		if filepath.IsAbs(spec) {
+			rel, err := filepath.Rel(arbol, spec)
+			if err != nil {
+				continue
+			}
+			spec = rel
+		}
+		if filepath.ToSlash(filepath.Clean(spec)) == want {
+			return v
+		}
+	}
+	return nil
+}
+
+// deRiesgo are the patterns of case 3 of Bloquea: c.Rutas.DeRiesgo, or the
+// defaults without rutas.
+func (c Contexto) deRiesgo() []string {
+	if c.Rutas == nil {
+		return riesgo.RutasBase().DeRiesgo
+	}
+	return c.Rutas.DeRiesgo
 }
 
 // riesgoIlegible says whether the riesgo of task is unknown because its
@@ -186,11 +275,22 @@ func (c Contexto) riesgoIlegible(task string) (string, bool) {
 }
 
 // contextoDesde completes, around an existing scan of arbol, the Contexto
-// ContextoDe gives.
-func contextoDesde(sc scanned, arbol, proyecto, blockOn string) Contexto {
-	riesgos, ilegibles := item.RiesgosDe(proyecto)
+// ContextoDe gives, with the classifier cl: its rutas for case 3 of
+// Bloquea, and the riesgo of each card (RiesgoDeTarjeta of its newest
+// complete verdict in arbol, measured with cl when it predates the spec).
+func contextoDesde(sc scanned, arbol, proyecto, blockOn string, cl riesgo.Clasificador) Contexto {
+	declarados, ilegibles := item.RiesgosDe(proyecto)
+	riesgos := map[string]string{}
+	if len(declarados) > 0 {
+		vs, _, _ := verdict.LoadAllWithWarnings(arbol)
+		for slug := range declarados {
+			t := item.TarjetaDeRiesgo(proyecto, slug)
+			riesgos[slug] = RiesgoDeTarjeta(VeredictoDeTarea(vs, arbol, slug), t, cl).Efectivo
+		}
+	}
+	rutas := cl.Rutas
 	c := Contexto{BlockOn: blockOn, Subidas: sc.subidas, Riesgos: riesgos, Ilegibles: ilegibles,
-		Completas: RevisionesCompletas(arbol)}
+		Completas: RevisionesCompletas(arbol), Rutas: &rutas}
 	if c.Subidas == nil {
 		c.Subidas = map[string]Subida{}
 	}
