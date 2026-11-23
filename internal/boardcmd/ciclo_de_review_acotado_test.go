@@ -91,14 +91,22 @@ func TestCA622_ReviewExigidaSegunElRiesgo(t *testing.T) {
 	if !c.Evidence.ReviewRequired {
 		t.Fatalf("CA-622: con alto la review se exige: %+v", c.Evidence)
 	}
-	// alto, solo documentacion o sin archivos: no se exige (caso limite)
-	for _, files := range [][]string{{"README.md", "docs/guia.md"}, nil} {
+	// alto, solo documentacion: no se exige (caso limite); alto sin archivos
+	// en un veredicto viejo con lineas (aclaracion 25): son archivos
+	// desconocidos, no un cambio vacio ni de solo documentacion, y se exige
+	for _, files := range [][]string{{"README.md", "docs/guia.md"}} {
 		c = Derive(crEv("alto", 50, 10, files...))
 		if c.Evidence.ReviewRequired {
 			t.Fatalf("CA-622: alto con %v no exige review: %+v", files, c.Evidence)
 		}
 		bdCol(t, "CA-622", c, ColTuAceptacion)
 	}
+	c = Derive(crEv("alto", 50, 10))
+	if !c.Evidence.ReviewRequired {
+		t.Fatalf("CA-622: alto sin changed_files y con 60 lineas exige review (aclaracion 25): %+v", c.Evidence)
+	}
+	bdCol(t, "CA-622", c, ColReview)
+	bdPrimero(t, "CA-622", c, crMotAlto)
 	// bajo, grande, con a.go: el efectivo es normal (regla 5), exige las 4 lentes
 	c = Derive(crEv("bajo", 500, 112, "a.go"))
 	bdCol(t, "CA-622", c, ColReview)
