@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T010559_814254",
+  "as": "corregido",
+  "evidence": "corregido en e841856: crearGitignore abre con O_RDWR|O_CREATE|O_EXCL|O_APPEND, asi que lo que otro EnsureIgnored anexe en la ventana no se pisa. Test TestHallazgo814254_ElQueCreaElGitignoreNoPisaLoQueOtroLeAnexo (internal/hoomfs, gancho antesDeEscribirCreado entre OpenFile y Write): con el hoomfs.go de 87c313b por overlay (scratchpad viejo-r3) falla; en c11c5f6 pasa (sobre 87c313b queda local.yaml solo; ahora worktrees/ y local.yaml).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T01:59:16.031418357Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T010611_c1ec5c",
+  "as": "corregido",
+  "evidence": "corregido en c11c5f6: si Stat, Chmod, Write o Close fallan tras el O_EXCL, quitarCreado borra el archivo solo si sigue siendo el mismo objeto, sin otro enlace y con cero bytes o exactamente los escritos; con bytes ajenos lo deja y devuelve el error. Test TestHallazgoc1ec5c_UnGitignoreCreadoQueNoSePudoEscribirNoQuedaAMedias (RLIMIT_FSIZE en un proceso hijo; topes 0 y 5 no dejan archivo, con linea ajena queda intacta): con el hoomfs.go de 87c313b por overlay (scratchpad viejo-r3) falla; en c11c5f6 pasa.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T01:59:16.083611151Z"
+}

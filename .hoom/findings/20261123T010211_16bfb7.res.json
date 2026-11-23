@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T010211_16bfb7",
+  "as": "corregido",
+  "evidence": "mismo defecto que 7e38c4, corregido en 1298c15 segun la decision de la persona del 2026-11-23: hoom detecta la regla ajena pegada sin salto y falla con un error que la nombra, en vez de devolver exito; la ventana residual queda aceptada y documentada. Test TestHallazgo7e38c4_UnaLineaPegadaALaAjenaEsUnError: con el hoomfs.go de 87c313b por overlay (scratchpad viejo-r3) falla; en c11c5f6 pasa.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T01:59:16.053765245Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T010211_9b99c2",
+  "as": "corregido",
+  "evidence": "corregido en c11c5f6: la rama que completa ya no difiere f.Close(); anexarFaltan y completarUnaVez miran el error de Close antes de devolver added (internal/hoomfs/hoomfs.go, if cerr := f.Close(); err == nil). Sin test deterministico: un fallo de Close no se puede provocar en tmpfs/ext4 sin inyeccion de fallos; el camino de error es el mismo que el de un Write fallido, que si esta probado (TestHallazgoc1ec5c_*). go test ./internal/hoomfs ok.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T01:59:16.06965807Z"
+}
