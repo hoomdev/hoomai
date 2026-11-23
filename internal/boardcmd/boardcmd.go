@@ -187,6 +187,14 @@ type Evidence struct {
 	TreeFingerprint string
 	TreeChanges     []string // changed files of E's candidate (only with a task worktree)
 	Certified       bool     // some complete verdict of E has TreeFingerprint
+	// ArchivosDelCambio are the files of E's change now, deletions included
+	// (gitx.ArchivosConBorrados over gitx.LineasDelCambio), which a verdict's
+	// changed_files leave out (findings 85c48e, d4c535). Gather reads them
+	// only when the newest verdict certifies E's current Fingerprint and its
+	// changed_files are empty or only documentation: the one case where they
+	// can change whether the card requires its review. reviewRequired adds
+	// them to the changed_files of a verdict with Fingerprint; nil = none.
+	ArchivosDelCambio []string `json:"-"`
 
 	// historia-en-el-tablero: whether the evidence the item's historico
 	// names still holds it, and why not when it does not.

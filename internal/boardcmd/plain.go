@@ -73,7 +73,7 @@ func meterOf(ev Evidence, col string, m CardEvidence) []Segment {
 		}
 	}
 
-	lines, required := reviewRequired(v, m.Riesgo)
+	lines, required := reviewRequired(ev, v, m.Riesgo)
 	lentes := textoLentes(m.Riesgo)
 	switch {
 	case m.ReviewID != "":

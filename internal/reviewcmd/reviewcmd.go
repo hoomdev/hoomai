@@ -598,6 +598,11 @@ func ultimaEncadenable(dir, task, hasta, head string) (Record, bool) {
 type medidaDelCambio struct {
 	riesgo   riesgo.Evaluacion // of the whole change: the one the record keeps
 	producto int
+	// archivos are the whole change's files the rule decides «no changes»
+	// and «only documentation» on: the snapshot's plus what the branch
+	// deleted in a commit (gitx.ArchivosConBorrados; findings 85c48e,
+	// d4c535).
+	archivos []string
 	// rangoEfectivo is the riesgo the range's rule runs with: the whole
 	// change's, raised by what the range's own files give with the same
 	// rules (a range that touches a risk path is alto on its side, even when
@@ -610,8 +615,9 @@ type medidaDelCambio struct {
 // classifier of the hoom.yaml of the merge-base (never the branch's: a
 // change does not loosen its own review, CA-417, CA-784) and the task's card.
 // The whole change is gitx.LineasDelCambio's (the tree is clean in the
-// evidence's paths, so it is merge-base..HEAD); the range, rng.lineas.
-func medirCambio(root, dir, baseSHA string, rng rango, opt Options) (medidaDelCambio, error) {
+// evidence's paths, so it is merge-base..HEAD), and its files are git's
+// ChangedFiles with the deletions it leaves out; the range, rng.lineas.
+func medirCambio(root, dir, baseSHA string, rng rango, git gitx.Info, opt Options) (medidaDelCambio, error) {
 	cl, err := clasificadorEnMergeBase(dir, rng.mb)
 	if err != nil {
 		return medidaDelCambio{}, err
@@ -621,7 +627,8 @@ func medirCambio(root, dir, baseSHA string, rng rango, opt Options) (medidaDelCa
 	if err != nil {
 		return medidaDelCambio{}, fmt.Errorf("no pude medir el cambio contra la base: %v", err)
 	}
-	m := medidaDelCambio{riesgo: cl.Evaluar(tarjeta, archivosDe(lineas)), producto: cl.Medir(lineas).Producto}
+	m := medidaDelCambio{riesgo: cl.Evaluar(tarjeta, archivosDe(lineas)), producto: cl.Medir(lineas).Producto,
+		archivos: gitx.ArchivosConBorrados(git.ChangedFiles, lineas)}
 	if rng.conRango {
 		propio := cl.Evaluar(tarjeta, archivosDe(rng.lineas)).Efectivo
 		m.rangoEfectivo = riesgo.Mayor(m.riesgo.Efectivo, propio)
@@ -670,17 +677,17 @@ func tarjetaDeLaReview(root string, opt Options) riesgo.Tarjeta {
 	return item.TarjetaDeRiesgo(root, task)
 }
 
-// lentesDe decides the lenses with ReglaDeLentes: over the whole change
-// without a range; with one, the stricter of the rule over the range and over
+// lentesDe decides the lenses with ReglaDeLentes: over the whole change (its
+// files m.archivos, deletions included) without a range; with one, the stricter of the rule over the range and over
 // the whole change, so a big change is never reviewed in small slices with
 // one lens. It also says the lenses the rule asks for, which a hand-picked
 // lens must cover for the review not to be parcial.
-func lentesDe(rng rango, git gitx.Info, m medidaDelCambio, explicit string) (lentes []string, motivo string, regla []string, err error) {
+func lentesDe(rng rango, m medidaDelCambio, explicit string) (lentes []string, motivo string, regla []string, err error) {
 	if !rng.conRango {
-		if regla, _, err = ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, ""); err != nil {
+		if regla, _, err = ReglaDeLentes(m.archivos, m.producto, m.riesgo.Efectivo, ""); err != nil {
 			return nil, "", nil, err
 		}
-		lentes, motivo, err = ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, explicit)
+		lentes, motivo, err = ReglaDeLentes(m.archivos, m.producto, m.riesgo.Efectivo, explicit)
 		return lentes, motivo, regla, err
 	}
 	d12 := rng.desde[:12]
@@ -694,7 +701,7 @@ func lentesDe(rng rango, git gitx.Info, m medidaDelCambio, explicit string) (len
 		if err != nil {
 			return nil, "", nil, err
 		}
-		lw, mw, err := ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, "")
+		lw, mw, err := ReglaDeLentes(m.archivos, m.producto, m.riesgo.Efectivo, "")
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -709,7 +716,7 @@ func lentesDe(rng rango, git gitx.Info, m medidaDelCambio, explicit string) (len
 		}
 	}
 	if strings.TrimSpace(explicit) != "" {
-		lentes, motivo, err = ReglaDeLentes(git.ChangedFiles, m.producto, m.riesgo.Efectivo, explicit)
+		lentes, motivo, err = ReglaDeLentes(m.archivos, m.producto, m.riesgo.Efectivo, explicit)
 		return lentes, motivo, regla, err
 	}
 	return regla, motivo, regla, nil
@@ -930,9 +937,11 @@ func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
 // change, riesgo.Clasificador.Evaluar with the classifier of the hoom.yaml of
 // the merge-base (profiles.ClasificadorDe: its rutas and the test-writer's
 // territory, never the branch's, CA-417), the task's card and the files of
-// gitx.LineasDelCambio; its producto with that same classifier; and the
-// files git.ChangedFiles of the snapshot for the empty and
-// only-documentation cases, as today. With a range (--desde or --delta) the
+// gitx.LineasDelCambio; its producto with that same classifier; and, for
+// the empty and only-documentation cases, the files git.ChangedFiles of the
+// snapshot plus the ones the branch deleted in a commit, which the snapshot
+// leaves out (gitx.ArchivosConBorrados): a change that only deletes a file
+// on a risk path is alto and runs the 4 (findings 85c48e, d4c535). With a range (--desde or --delta) the
 // rule runs over the range (its files, and its producto by
 // gitx.Comparacion.Lineas with the same classes) and over the whole change,
 // and the stricter one (more lenses) wins, with today's suffixes
@@ -1061,11 +1070,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if _, err := riesgoDeclarado(root, taskOf(opt)); err != nil {
 		return Result{}, err
 	}
-	medida, err := medirCambio(root, dir, baseSHA, rng, opt)
+	medida, err := medirCambio(root, dir, baseSHA, rng, git, opt)
 	if err != nil {
 		return Result{}, err
 	}
-	lentes, motivo, regla, err := lentesDe(rng, git, medida, opt.Lens)
+	lentes, motivo, regla, err := lentesDe(rng, medida, opt.Lens)
 	if err != nil {
 		return Result{}, err
 	}

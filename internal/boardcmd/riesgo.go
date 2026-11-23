@@ -2,6 +2,7 @@ package boardcmd
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -67,7 +68,8 @@ func efectivoEv(ev Evidence) string { return riesgoDe(ev, ev.Verdict).Efectivo }
 //
 // The card requires its review (CardEvidence.ReviewRequired) when it has a
 // verdict and: with riesgo alto (CardEvidence.Riesgo), always, unless its
-// change (changed_files) is empty or only documentation
+// change (changed_files, plus the committed deletions of the current
+// fingerprint: Evidence.ArchivosDelCambio) is empty or only documentation
 // (reviewcmd.SoloDocs); with bajo and normal, when that producto passes
 // reviewcmd.UmbralLineas and the change is not only documentation.
 const DetalleNoAplica = "el cambio es chico (%d lineas de producto): no exige la revision de %s"
@@ -76,15 +78,17 @@ const DetalleNoAplica = "el cambio es chico (%d lineas de producto): no exige la
 // the card's effective riesgo, over the lines of producto of the verdict
 // (productoDe): an empty change or one of only documentation never requires
 // it; otherwise alto always does, and bajo and normal with more than
-// UmbralLineas lines of producto. A verdict older than
-// riesgo-efectivo-y-tamano with lines and no changed_files has files hoom
+// UmbralLineas lines of producto. The change's files are the verdict's
+// changed_files plus, for the verdict of the card's current fingerprint,
+// what the branch deleted in a commit (archivosDelVeredicto). A verdict
+// older than riesgo-efectivo-y-tamano with lines and no files has files hoom
 // does not know (aclaracion 25): it is neither empty nor documentation.
-func reviewRequired(v *verdict.Verdict, efectivo string) (int, bool) {
+func reviewRequired(ev Evidence, v *verdict.Verdict, efectivo string) (int, bool) {
 	if v == nil {
 		return 0, false
 	}
 	p := productoDe(v)
-	files := v.Git.ChangedFiles
+	files := archivosDelVeredicto(ev, v)
 	desconocidos := len(files) == 0 && v.Riesgo == nil && v.Git.Insertions+v.Git.Deletions > 0
 	if !desconocidos && reviewcmd.SoloDocs(files) {
 		// SoloDocs of no files is true: the empty change
@@ -94,6 +98,28 @@ func reviewRequired(v *verdict.Verdict, efectivo string) (int, bool) {
 		return p, true
 	}
 	return p, p > reviewcmd.UmbralLineas
+}
+
+// archivosDelVeredicto are the files of v's change: its changed_files and,
+// when v certifies the card's current Fingerprint, Evidence.ArchivosDelCambio
+// (the deletions changed_files leave out), sorted and without repeats.
+func archivosDelVeredicto(ev Evidence, v *verdict.Verdict) []string {
+	if len(ev.ArchivosDelCambio) == 0 || ev.Fingerprint == "" || v.Git.ChangeFingerprint != ev.Fingerprint {
+		return v.Git.ChangedFiles
+	}
+	set := map[string]bool{}
+	for _, f := range v.Git.ChangedFiles {
+		set[f] = true
+	}
+	for _, f := range ev.ArchivosDelCambio {
+		set[f] = true
+	}
+	out := make([]string, 0, len(set))
+	for f := range set {
+		out = append(out, f)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // productoDe is the lines of producto of v: its tamano.producto, or

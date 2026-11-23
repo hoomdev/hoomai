@@ -121,6 +121,10 @@ func Snapshot(dir, base string) Info {
 // Outside a git repository it is an error (`hoom verify` then writes no
 // `tamano` and computes the riesgo without files); so is a git that cannot
 // say the merge-base, the diff or the untracked files inside one.
+//
+// Its files include what the branch deleted in a commit, which Snapshot's
+// ChangedFiles leave out (they are --diff-filter=ACMR): ArchivosConBorrados
+// joins both.
 func LineasDelCambio(dir, base string) (map[string]int, error) {
 	raiz, err := gitOut(dir, "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -391,6 +395,32 @@ func locales(rn func(args ...string) (string, error)) (map[string]bool, error) {
 		}
 	}
 	return local, falla
+}
+
+// ArchivosConBorrados is what the change touches, deletions included:
+// changed (Snapshot's ChangedFiles) plus the files of lineas
+// (LineasDelCambio) the candidate does not leave out, sorted, without
+// repeats. Snapshot lists the committed changes with --diff-filter=ACMR, so
+// a file the branch deleted in a commit is only in lineas; `hoom review` and
+// the board decide «no changes» and «only documentation» over this list
+// (findings 85c48e, d4c535). Info.ChangedFiles stays as it is: the
+// verdict's changed_files and its fingerprint do not move.
+func ArchivosConBorrados(changed []string, lineas map[string]int) []string {
+	set := make(map[string]bool, len(changed)+len(lineas))
+	for _, f := range changed {
+		set[f] = true
+	}
+	for f := range lineas {
+		if f != "" && !excludedFromCandidate(f) {
+			set[f] = true
+		}
+	}
+	out := make([]string, 0, len(set))
+	for f := range set {
+		out = append(out, f)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // excludedFromCandidate: generated artifacts are never part of the candidate;

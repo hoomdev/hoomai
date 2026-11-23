@@ -715,7 +715,7 @@ func (h *history) effects(e TimelineEntry, d *entryData, criteria []string, isCr
 				put(g, SegFalta)
 			}
 		}
-		if _, required := reviewRequired(v, riesgoDe(h.ev, v).Efectivo); !required {
+		if _, required := reviewRequired(h.ev, v, riesgoDe(h.ev, v).Efectivo); !required {
 			put("review", SegNoAplica)
 		}
 	case KindReview:
