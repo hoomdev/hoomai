@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T202146_b932ff",
+  "as": "refutado",
+  "evidence": "El spec no decide que hacer si git falla dentro de un repo (solo cubre fuera de un repo, linea 102). La aclaracion 3 del orquestador lo fija: sin merge-base o con el diff fallido no hay tamano y las reglas 4 y 5 miran git.changed_files. El refutador confirmo que el codigo hace eso (verifycmd.go:394-406, md.riesgo = cl.Evaluar(t, git.ChangedFiles); con base no-existe y un internal/auth/otro.go sin seguimiento el riesgo sale alto). No es mas blando que hoy: sin este spec el tablero ya calculaba con esos mismos changed_files. La persona ratifico la aclaracion 3 el 2026-11-23 (eligio dejarlo asi); queda como deuda que un clon superficial sin main mida declarado normal y sin tamano.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T21:00:55.050682042Z"
+}
