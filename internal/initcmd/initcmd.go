@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 )
@@ -19,9 +20,16 @@ import (
 // verify-en-el-entorno: a new .hoom/.gitignore is hoomfs.GitignoreBody
 // (local.yaml included); one that already exists is completed with the line
 // local.yaml when it lacks it (hoomfs.EnsureIgnoredFiles), and nothing else
-// in it changes. At its end it prints, for each entorno of the profile that
-// holds in dir (profiles.Sugerencias), its Sugerencia; it never writes
-// .hoom/local.yaml.
+// in it changes. When the project lives in a subdirectory of its repository
+// (entorno.Principal of dir is another folder), the main checkout's
+// .hoom/.gitignore is completed the same way, since .hoom/local.yaml is read
+// and validated there; when it does not exist it is created with that one
+// line, never GitignoreBody (the main checkout may not be a hoom project).
+// At the root of its repository, or outside git, nothing outside dir is
+// written. A failure to write either .hoom/.gitignore is Run's error (by
+// then hoom.yaml is already written, and the error says so). At its end it
+// prints, for each entorno of the profile that holds in dir
+// (profiles.Sugerencias), its Sugerencia; it never writes .hoom/local.yaml.
 func Run(dir, projectName, profileName string) error {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -86,13 +94,25 @@ func Run(dir, projectName, profileName string) error {
 	gi := filepath.Join(abs, ".hoom", ".gitignore")
 	var completado []string
 	if _, err := os.Lstat(gi); os.IsNotExist(err) {
-		_ = os.WriteFile(gi, []byte(hoomfs.GitignoreBody()), 0o644)
+		if err := os.WriteFile(gi, []byte(hoomfs.GitignoreBody()), 0o644); err != nil {
+			return fmt.Errorf("%s quedo escrito, pero no se pudo crear .hoom/.gitignore: %w", manifest.FileName, err)
+		}
 	} else {
 		// .hoom/local.yaml is this machine's: git never takes it
 		// (verify-en-el-entorno, CA-770); nothing else in the file changes
 		completado, err = hoomfs.EnsureIgnoredFiles(abs, hoomfs.LocalFiles...)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "hoom: aviso: no se pudo agregar local.yaml a .hoom/.gitignore: %v\n", err)
+			return fmt.Errorf("%s quedo escrito, pero no se pudo agregar local.yaml a .hoom/.gitignore: %w", manifest.FileName, err)
+		}
+	}
+	// in a subdirectory of the repository, .hoom/local.yaml is read at the
+	// main checkout: its .hoom/.gitignore has to ignore it too (CA-770)
+	var enPrincipal []string
+	principal := entorno.Principal(abs)
+	if !mismaCarpeta(principal, abs) {
+		enPrincipal, err = hoomfs.EnsureIgnoredFiles(principal, hoomfs.LocalFiles...)
+		if err != nil {
+			return fmt.Errorf("%s quedo escrito, pero no se pudo agregar local.yaml al .hoom/.gitignore del checkout principal (%s): %w", manifest.FileName, principal, err)
 		}
 	}
 	fmt.Printf("hoom: creado %s\n", target)
@@ -102,6 +122,9 @@ func Run(dir, projectName, profileName string) error {
 	if len(completado) > 0 {
 		fmt.Printf("hoom: agregado %s a .hoom/.gitignore (es de esta maquina)\n", strings.Join(completado, ", "))
 	}
+	if len(enPrincipal) > 0 {
+		fmt.Printf("hoom: agregado %s al .hoom/.gitignore del checkout principal, %s (es de esta maquina y se lee ahi)\n", strings.Join(enPrincipal, ", "), principal)
+	}
 	fmt.Printf("hoom: siguiente paso -> revisa los cmd del manifiesto y ejecuta 'hoom verify'\n")
 	// where the gates could run instead of the host: only a suggestion,
 	// the person writes .hoom/local.yaml (CA-769)
@@ -109,4 +132,16 @@ func Run(dir, projectName, profileName string) error {
 		fmt.Println(e.Sugerencia())
 	}
 	return nil
+}
+
+// mismaCarpeta says whether a and b are the same folder on disk, symlinks
+// and spellings aside: git gives the main checkout with its symlinks
+// resolved, and dir may come through one.
+func mismaCarpeta(a, b string) bool {
+	if a == b {
+		return true
+	}
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(fa, fb)
 }

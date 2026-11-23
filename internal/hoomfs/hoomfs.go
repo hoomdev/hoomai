@@ -128,8 +128,10 @@ func completarGitignore(root string, lineas []string) (added []string, err error
 // EnsureIgnored's guarantees: a file that already has them is never
 // rewritten, not even byte-identically; .hoom is walked by descriptors, read
 // and written in that one directory. EnsureIgnored itself still adds
-// directories only. `hoom init` calls it for local.yaml on a
-// .hoom/.gitignore that already exists.
+// directories only. `hoom init` calls it for local.yaml on the project's
+// .hoom/.gitignore when that one already exists and, with the project in a
+// subdirectory of its repository, on the main checkout's, which it then
+// creates with that one line when there is none.
 func EnsureIgnoredFiles(root string, names ...string) (added []string, err error) {
 	if len(names) == 0 {
 		names = LocalFiles
