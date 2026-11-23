@@ -79,6 +79,10 @@ func crCadena(ev Evidence, lentesC, lentesD []string) Evidence {
 
 // CA-622: con riesgo alto la review se exige siempre (salvo un cambio vacio
 // o de solo documentacion); con bajo y normal, con mas de 400 lineas.
+// Re-expresado por CA-785 (riesgo-efectivo-y-tamano): cuenta el efectivo, y
+// un veredicto sin riesgo se mide con las reglas sobre sus changed_files: un
+// bajo que toca a.go (producto fuera de de_bajo_riesgo) es normal (regla 5) y
+// un bajo que toca una ruta de riesgo es alto (regla 4).
 func TestCA622_ReviewExigidaSegunElRiesgo(t *testing.T) {
 	// alto, cambio chico
 	c := Derive(crEv("alto", 50, 10, "a.go"))
@@ -95,19 +99,19 @@ func TestCA622_ReviewExigidaSegunElRiesgo(t *testing.T) {
 		}
 		bdCol(t, "CA-622", c, ColTuAceptacion)
 	}
-	// bajo, grande: exige la lente reliability
+	// bajo, grande, con a.go: el efectivo es normal (regla 5), exige las 4 lentes
 	c = Derive(crEv("bajo", 500, 112, "a.go"))
 	bdCol(t, "CA-622", c, ColReview)
-	bdPrimero(t, "CA-622", c, crMotBajo(612))
+	bdPrimero(t, "CA-622", c, crMotHoy)
 	// bajo, chico: no exige
 	c = Derive(crEv("bajo", 50, 10, "a.go"))
 	if c.Evidence.ReviewRequired {
 		t.Fatalf("CA-622: bajo chico no exige review: %+v", c.Evidence)
 	}
-	// bajo que toca una ruta de riesgo: el efectivo es normal, el texto de hoy
+	// bajo que toca una ruta de riesgo: el efectivo es alto (regla 4)
 	c = Derive(crEv("bajo", 500, 112, "a.go", "internal/auth/x.go"))
 	bdCol(t, "CA-622", c, ColReview)
-	bdPrimero(t, "CA-622", c, crMotHoy)
+	bdPrimero(t, "CA-622", c, crMotAlto)
 	// normal y sin riesgo: el texto de hoy
 	for _, r := range []string{"normal", ""} {
 		c = Derive(crEv(r, 500, 112, "a.go"))
@@ -123,7 +127,9 @@ func TestCA622_ReviewExigidaSegunElRiesgo(t *testing.T) {
 // CA-622: un registro cuenta si trae las lentes que la regla pide para la
 // tarjeta, o mas: con bajo, reliability; con normal y alto, las 4 en la
 // completa y las 3 en el delta. Re-expresa CA-427 y CA-428 solo en las
-// lentes que cada registro necesita.
+// lentes que cada registro necesita. Re-expresado por CA-785: los casos que
+// declaran bajo y tocan a.go tienen efectivo normal (regla 5) y piden las 4;
+// el que toca una ruta de riesgo tiene efectivo alto (regla 4).
 func TestCA622_LaCadenaCuentaConLasLentesDeLaTarjeta(t *testing.T) {
 	type caso struct {
 		nombre     string
@@ -137,10 +143,10 @@ func TestCA622_LaCadenaCuentaConLasLentesDeLaTarjeta(t *testing.T) {
 	}
 	una := []string{"reliability"}
 	casos := []caso{
-		{"bajo completa reliability", "bajo", una, nil, "c1", []string{"a.go"}, 500, 112, ""},
+		{"bajo completa reliability", "bajo", una, nil, "", []string{"a.go"}, 500, 112, crMotHoy},
 		{"bajo completa de 4 (o mas)", "bajo", reviewcmd.Lentes, nil, "c1", []string{"a.go"}, 500, 112, ""},
-		{"bajo completa y delta reliability", "bajo", una, una, "d1", []string{"a.go"}, 500, 112, ""},
-		{"bajo completa risk solo", "bajo", []string{"risk"}, nil, "", []string{"a.go"}, 500, 112, crMotBajo(612)},
+		{"bajo completa y delta reliability", "bajo", una, una, "", []string{"a.go"}, 500, 112, ""},
+		{"bajo completa risk solo", "bajo", []string{"risk"}, nil, "", []string{"a.go"}, 500, 112, crMotHoy},
 		{"normal completa de 4 y delta de 3", "normal", reviewcmd.Lentes, crTres, "d1", []string{"a.go"}, 500, 112, ""},
 		{"normal completa de 4 y delta de 4 (o mas)", "normal", reviewcmd.Lentes, reviewcmd.Lentes, "d1", []string{"a.go"}, 500, 112, ""},
 		{"normal completa de 3", "normal", crTres, nil, "", []string{"a.go"}, 500, 112, crMotHoy},
@@ -148,7 +154,7 @@ func TestCA622_LaCadenaCuentaConLasLentesDeLaTarjeta(t *testing.T) {
 		{"alto completa de 4 y delta de 3", "alto", reviewcmd.Lentes, crTres, "d1", []string{"a.go"}, 50, 10, ""},
 		{"alto completa reliability", "alto", una, nil, "", []string{"a.go"}, 50, 10, crMotAlto},
 		{"alto delta sin resilience", "alto", reviewcmd.Lentes, []string{"risk", "reliability"}, "", []string{"a.go"}, 50, 10, ""},
-		{"bajo con ruta de riesgo, completa reliability", "bajo", una, nil, "", []string{"a.go", "internal/auth/x.go"}, 500, 112, crMotHoy},
+		{"bajo con ruta de riesgo, completa reliability", "bajo", una, nil, "", []string{"a.go", "internal/auth/x.go"}, 500, 112, crMotAlto},
 	}
 	for _, c := range casos {
 		ev := crEv(c.riesgo, c.ins, c.del, c.files...)
@@ -178,12 +184,14 @@ func TestCA622_LaCadenaCuentaConLasLentesDeLaTarjeta(t *testing.T) {
 
 // CA-622 (caso limite: el riesgo cambia despues de una review): el tablero
 // recalcula. De bajo a alto, un registro de una sola lente deja de cubrir;
-// de alto a bajo, lo que ya se reviso de mas sigue contando.
+// de alto a bajo, lo que ya se reviso de mas sigue contando. Re-expresado por
+// CA-785: el fixture bajo toca a.go, su efectivo es normal (regla 5) y una
+// sola lente ya no lo cubre.
 func TestCA622_ElRiesgoCambiaDespuesDeLaReview(t *testing.T) {
 	ev := crEv("bajo", 500, 112, "a.go")
 	ev.Reviews = []reviewcmd.Record{crRec("c1", reviewcmd.CoberturaCompleta, "", []string{"reliability"})}
 	ev = bdColas(ev)
-	bdCol(t, "CA-622 (fixture bajo)", Derive(ev), ColTuAceptacion)
+	bdCol(t, "CA-622 (fixture bajo)", Derive(ev), ColReview)
 	ev.Item.Riesgo = "alto"
 	c := Derive(ev)
 	bdCol(t, "CA-622 (bajo a alto)", c, ColReview)
@@ -202,7 +210,9 @@ func TestCA622_ElRiesgoCambiaDespuesDeLaReview(t *testing.T) {
 }
 
 // CA-622: con riesgo bajo los textos de la tarjeta que dicen `4 lentes`
-// dicen `la lente reliability`; con normal y alto no cambian.
+// dicen `la lente reliability`; con normal y alto no cambian. Re-expresado
+// por CA-785: estas tarjetas declaran bajo y tocan a.go, su efectivo es
+// normal (regla 5) y sus textos son los de normal: `4 lentes`.
 func TestCA622_TextosDeLaTarjetaBajo(t *testing.T) {
 	textos := func(c Card) string {
 		raw, _ := json.Marshal(c)
@@ -221,18 +231,18 @@ func TestCA622_TextosDeLaTarjetaBajo(t *testing.T) {
 	} {
 		c := Derive(ev)
 		s := textos(c)
-		if strings.Contains(s, "4 lentes") {
-			t.Fatalf("CA-622 (%s): una tarjeta bajo no dice `4 lentes`:\n%s", nombre, s)
+		if !strings.Contains(s, "4 lentes") {
+			t.Fatalf("CA-622 (%s): una tarjeta bajo con a.go (efectivo normal) dice `4 lentes`:\n%s", nombre, s)
 		}
-		if !strings.Contains(s, "la lente reliability") {
-			t.Fatalf("CA-622 (%s): una tarjeta bajo dice `la lente reliability`:\n%s", nombre, s)
+		if strings.Contains(s, "la lente reliability") {
+			t.Fatalf("CA-622 (%s): una tarjeta bajo con a.go (efectivo normal) no dice `la lente reliability`:\n%s", nombre, s)
 		}
 	}
-	// el segmento de review de una tarjeta bajo
-	tbSegEs(t, "CA-622", Derive(crEv("bajo", 500, 112, "a.go")), "review", SegFalta, "falta la revision de la lente reliability")
+	// el segmento de review de una tarjeta bajo con a.go (efectivo normal)
+	tbSegEs(t, "CA-622", Derive(crEv("bajo", 500, 112, "a.go")), "review", SegFalta, "falta la revision de 4 lentes")
 	ev := crEv("bajo", 500, 112, "a.go")
 	ev.Reviews = []reviewcmd.Record{crRec("c1", reviewcmd.CoberturaCompleta, "", []string{"reliability"})}
-	tbSegEs(t, "CA-622", Derive(bdColas(ev)), "review", SegHecho, "revision de la lente reliability registrada")
+	tbSegEs(t, "CA-622", Derive(bdColas(ev)), "review", SegFalta, "falta la revision de 4 lentes")
 	// con normal y alto, los textos de hoy
 	tbSegEs(t, "CA-622", Derive(crEv("normal", 500, 112, "a.go")), "review", SegFalta, "falta la revision de 4 lentes")
 	tbSegEs(t, "CA-622", Derive(crEv("alto", 500, 112, "a.go")), "review", SegFalta, "falta la revision de 4 lentes")
@@ -244,12 +254,14 @@ func TestCA622_TextosDeLaTarjetaBajo(t *testing.T) {
 // CA-622: la linea de tiempo marca hecho el paso de review con un registro
 // que cuenta en la cadena (la tarjeta bajo con una sola lente), no solo con
 // uno de 4 lentes. Lo mira el medidor: el segmento review hecho.
+// Re-expresado por CA-785: la tarjeta declara bajo y toca a.go, su efectivo
+// es normal (regla 5) y una sola lente ya no cuenta: el paso sigue en falta.
 func TestCA622_UnaLenteQueCuentaLlenaElPaso(t *testing.T) {
 	ev := crEv("bajo", 500, 112, "a.go")
 	ev.Reviews = []reviewcmd.Record{crRec("c1", reviewcmd.CoberturaCompleta, "", []string{"reliability"})}
 	c := Derive(bdColas(ev))
-	if s := tbSeg(t, "CA-622", c, "review"); s.State != SegHecho {
-		t.Fatalf("CA-622: el paso de review queda hecho con un registro que cuenta: %+v", s)
+	if s := tbSeg(t, "CA-622", c, "review"); s.State != SegFalta {
+		t.Fatalf("CA-622: con efectivo normal una sola lente no cuenta y el paso de review queda en falta: %+v", s)
 	}
 }
 

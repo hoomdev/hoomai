@@ -361,9 +361,9 @@ func TestCA305_SegmentoReview(t *testing.T) {
 		return ev
 	}
 
-	tbSegEs(t, "CA-305", Derive(bdEv()), "review", SegNoAplica, "el cambio es chico (60 lineas): no exige la revision de 4 lentes")
-	tbSegEs(t, "CA-305", Derive(tam(400, 0)), "review", SegNoAplica, "el cambio es chico (400 lineas): no exige la revision de 4 lentes")
-	tbSegEs(t, "CA-305", Derive(tam(0, 0)), "review", SegNoAplica, "el cambio es chico (0 lineas): no exige la revision de 4 lentes")
+	tbSegEs(t, "CA-305", Derive(bdEv()), "review", SegNoAplica, "el cambio es chico (60 lineas de producto): no exige la revision de 4 lentes")
+	tbSegEs(t, "CA-305", Derive(tam(400, 0)), "review", SegNoAplica, "el cambio es chico (400 lineas de producto): no exige la revision de 4 lentes")
+	tbSegEs(t, "CA-305", Derive(tam(0, 0)), "review", SegNoAplica, "el cambio es chico (0 lineas de producto): no exige la revision de 4 lentes")
 
 	grande := tam(500, 112)
 	tbSegEs(t, "CA-305", Derive(grande), "review", SegFalta, "falta la revision de 4 lentes")
@@ -385,7 +385,7 @@ func TestCA305_SegmentoReview(t *testing.T) {
 	// registro que cuente no exige la review
 	chico.Reviews = []reviewcmd.Record{recViejo("r-ok", reviewcmd.Lentes, "v-tam")}
 	tbSegEs(t, "CA-427 (sin hasta, chico)", Derive(bdColas(chico)), "review", SegNoAplica,
-		"el cambio es chico (35 lineas): no exige la revision de 4 lentes")
+		"el cambio es chico (35 lineas de producto): no exige la revision de 4 lentes")
 
 	// sin veredicto
 	ev := bdEv()

@@ -237,8 +237,11 @@ func TestCA424_DeltaChicoEnUnaRamaGrandeLlevaLasCuatro(t *testing.T) {
 // cambio: el cambio entero esta vacio, las lentes salen del rango, y la
 // review queda parcial"). La base es una rama que ya contiene HEAD. Y con
 // el cambio entero vacio, un rango chico lleva la dominante (la regla sobre
-// el rango) y uno que toca una ruta de riesgo, las 4; siempre parcial y con
-// el motivo ' (sobre el rango)'.
+// el rango); siempre parcial y con el motivo ' (sobre el rango)'.
+// riesgo-efectivo-y-tamano (aclaracion 24): la regla del rango aplica las
+// mismas reglas sobre los archivos del rango, tambien la 4, asi que un rango
+// que toca una ruta de riesgo es alto por su lado y lleva las 4 con el motivo
+// MotivoRiesgoAlto + " (sobre el rango)", aunque el cambio entero este vacio.
 func TestCA424_RangoConElCambioEnteroVacio(t *testing.T) {
 	casos := []struct {
 		nombre  string
@@ -280,6 +283,9 @@ func TestCA424_RangoConElCambioEnteroVacio(t *testing.T) {
 			if !strings.Contains(res.Reason, " (sobre el rango)") {
 				t.Fatalf("CA-424: %s: el motivo es el de la regla sobre el rango: %q", c.nombre, res.Reason)
 			}
+			if want := MotivoRiesgoAlto + " (sobre el rango)"; c.nombre == "rango-con-ruta-de-riesgo" && res.Reason != want {
+				t.Fatalf("CA-424: %s: el rango ve su ruta de riesgo: el motivo es %q, fue %q", c.nombre, want, res.Reason)
+			}
 			if res.Cobertura != CoberturaParcial || res.Desde != desde || res.Hasta != head || res.DesdeReview != "" {
 				t.Fatalf("CA-424: %s: con la base que ya contiene el cambio la review queda parcial, de %s a %s: %+v", c.nombre, desde[:12], head[:12], res)
 			}
@@ -306,9 +312,10 @@ func TestCA424_LensAManoMandaEnUnRango(t *testing.T) {
 
 // CA-424 (guarda de la medida): el rango se mide con las rutas de la
 // evidencia. Un rango que solo toca .hoom/specs/ con 900 lineas y un .go
-// chico: sobre el rango es un cambio chico (la dominante); el cambio entero
-// (con la medida de hoy, que incluye .hoom/specs/) pasa de 400 y pide las 4.
-// Gana la mas estricta: las 4, con el motivo sobre el cambio entero.
+// chico: sobre el rango es un cambio chico (la dominante). Con
+// riesgo-efectivo-y-tamano el cambio entero se mide en lineas de producto,
+// sin .hoom/specs/ (6 lineas): tambien es chico, y la review corre la
+// dominante.
 func TestCA424_LaMasEstrictaEntreRangoYCambioEntero(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "")
@@ -319,7 +326,7 @@ func TestCA424_LaMasEstrictaEntreRangoYCambioEntero(t *testing.T) {
 	})
 	cx := raInstalar(t, bin, "codex", "")
 	res, out := rdRevisar(t, "CA-424", root, Options{Provider: "codex", Desde: desde})
-	if !reflect.DeepEqual(res.Lenses, Lentes) || cx.veces() != 4 || !strings.Contains(res.Reason, " (sobre el cambio entero)") {
-		t.Fatalf("CA-424: gana la regla mas estricta (el cambio entero, con .hoom/specs/, pasa de 400): %+v\n%s", res, out)
+	if !reflect.DeepEqual(res.Lenses, []string{LenteDominante}) || cx.veces() != 1 || !strings.HasPrefix(res.Reason, MotivoEstandar) {
+		t.Fatalf("CA-424: el cambio entero y el rango son chicos en lineas de producto (.hoom/specs/ no suma): la dominante, %q: %+v\n%s", MotivoEstandar, res, out)
 	}
 }

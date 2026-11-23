@@ -248,7 +248,10 @@ func TestV3A_CA708_BordeDelDetalle(t *testing.T) {
 	defer tv3aSinPanico(t)
 	con := func(slug, titulo, riesgoDe string, auto bool) boardcmd.Card {
 		c := tv3aListado()
-		c.Slug, c.Item.Slug, c.Item.Titulo, c.Item.Riesgo = slug, slug, titulo, riesgoDe
+		// re-expresado por CA-786 (riesgo-efectivo-y-tamano): el borde dice el
+		// riesgo de la tarjeta (el efectivo, CardEvidence.Riesgo), no el
+		// declarado del item
+		c.Slug, c.Item.Slug, c.Item.Titulo, c.Evidence.Riesgo = slug, slug, titulo, riesgoDe
 		if auto {
 			c.Item.Auto = item.AutoHastaHumano
 		}

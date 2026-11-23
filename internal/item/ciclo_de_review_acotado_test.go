@@ -153,7 +153,13 @@ func TestCA617_SetRiesgoCambiaSoloLaClave(t *testing.T) {
 	if err != nil || despues.Riesgo != "alto" {
 		t.Fatalf("CA-617: el item queda alto: %+v %v", despues, err)
 	}
+	// re-expresado por CA-788 (riesgo-efectivo-y-tamano): al cambiar el riesgo
+	// tambien escribe quien y cuando; las demas claves conservan sus valores
+	if despues.RiesgoPor != "hoom test <test@hoom.dev>" || despues.RiesgoEn == nil {
+		t.Fatalf("CA-617: al cambiar el riesgo escribe riesgo_por y riesgo_en: %q %v", despues.RiesgoPor, despues.RiesgoEn)
+	}
 	despues.Riesgo = antes.Riesgo
+	despues.RiesgoPor, despues.RiesgoEn = antes.RiesgoPor, antes.RiesgoEn
 	if !crIgual(antes, despues) {
 		t.Fatalf("CA-617: las demas claves conservan sus valores:\nantes   %+v\ndespues %+v", antes, despues)
 	}
@@ -182,8 +188,21 @@ func TestCA617_SetRiesgoCambiaSoloLaClave(t *testing.T) {
 		t.Fatalf("CA-617: de alto a normal: (%q, %v, %v)", ant, cambio, err)
 	}
 	raw, _ = os.ReadFile(Path(root, it.Slug))
-	if strings.Contains(string(raw), "riesgo") {
-		t.Fatalf("CA-617: con normal el archivo queda sin la clave:\n%s", raw)
+	// re-expresado por CA-788: sin la clave `riesgo`, pero con riesgo_por y
+	// riesgo_en, que tambien se escriben al pasar a normal
+	sinClave, conQuien := true, map[string]bool{}
+	for _, l := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(l, "riesgo:") {
+			sinClave = false
+		}
+		for _, k := range []string{"riesgo_por:", "riesgo_en:"} {
+			if strings.HasPrefix(l, k) {
+				conQuien[k] = true
+			}
+		}
+	}
+	if !sinClave || len(conQuien) != 2 {
+		t.Fatalf("CA-617: con normal el archivo queda sin la clave riesgo y con riesgo_por y riesgo_en:\n%s", raw)
 	}
 	// y vuelve a normal byte a byte como lo escribe hoom sin la clave
 	if final, err := Load(root, it.Slug); err != nil || final.Riesgo != "normal" || final.Auto != AutoHastaHumano || len(final.Sesiones) != 1 {
