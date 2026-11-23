@@ -89,8 +89,10 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 // went to the old one), it reads the file again and recomputes what is
 // missing, up to intentosGitignore times, and then it is an error: never
 // "added" for a line that is not there. A file that does not exist is
-// created with O_EXCL, mode 0644: one created at the same time by someone
-// else is completed like any existing one. What it cannot see is another
+// created with O_EXCL, mode 0644, and written with O_APPEND too: one created
+// at the same time by someone else is completed like any existing one, and
+// what another hand appends to the one just created, before its lines are
+// written, stays ahead of them (finding 814254). What it cannot see is another
 // hand appending, between its reading and its write, a last line without
 // "\n": the lines added then follow that one on the same line.
 func completarGitignore(root string, lineas []string) (added []string, err error) {
@@ -132,6 +134,12 @@ const intentosGitignore = 5
 // root. It exists only for the tests: what another hand does in that window
 // (findings 4583f7) needs one to be shown. Atomic, like envelope's.
 var antesDeCompletar atomic.Pointer[func(root string)]
+
+// antesDeEscribirCreado, when set, runs in crearGitignore between the O_EXCL
+// that creates .hoom/.gitignore and the write of its lines, with the root.
+// Only for the tests, like antesDeCompletar: another hand that appends to the
+// file just created (finding 814254) needs that window to be shown.
+var antesDeEscribirCreado atomic.Pointer[func(root string)]
 
 // completarUnaVez is one try of completarGitignore in r, the .hoom of root:
 // listo false when the file changed under it and the try has to be made
@@ -182,7 +190,7 @@ func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, 
 	if len(raw) > 0 && raw[len(raw)-1] != '\n' {
 		data = "\n" + data
 	}
-	esperarCompletar(root)
+	esperar(&antesDeCompletar, root)
 	if _, err := f.Write([]byte(data)); err != nil {
 		return nil, false, err
 	}
@@ -198,14 +206,19 @@ func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, 
 func crearGitignore(r *os.Root, root string, lineas []string) (added []string, listo bool, err error) {
 	const name = ".gitignore"
 	added = faltan(nil, lineas)
-	esperarCompletar(root)
-	f, err := r.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	esperar(&antesDeCompletar, root)
+	// O_APPEND too (finding 814254): another hoom that finds the file just
+	// created, empty, appends its lines to it before these are written; with
+	// the offset at 0 they would land on top of its, and both would say
+	// "added".
+	f, err := r.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_APPEND, 0o644)
 	if errors.Is(err, fs.ErrExist) {
 		return nil, false, nil
 	}
 	if err != nil {
 		return nil, false, err
 	}
+	esperar(&antesDeEscribirCreado, root)
 	creado, err := f.Stat()
 	if err == nil {
 		err = f.Chmod(0o644) // as before, whatever the umask
@@ -252,9 +265,10 @@ func faltan(raw []byte, lineas []string) []string {
 	return out
 }
 
-// esperarCompletar runs antesDeCompletar, if set.
-func esperarCompletar(root string) {
-	if f := antesDeCompletar.Load(); f != nil {
+// esperar runs the test hook in gancho (antesDeCompletar or
+// antesDeEscribirCreado), if set.
+func esperar(gancho *atomic.Pointer[func(root string)], root string) {
+	if f := gancho.Load(); f != nil {
 		(*f)(root)
 	}
 }

@@ -7,6 +7,12 @@
 //   - 4583f7: lo que otra mano hace entre la lectura y la escritura (anexar
 //     una linea en sitio, reemplazar el archivo por rename, crearlo, o
 //     llamar EnsureIgnored) sobrevive, y lo agregado esta en el archivo.
+//
+// Y de la delta 2 (1617fc), en la ronda 3:
+//
+//   - 814254: lo que otro hoom anexa al .hoom/.gitignore recien creado,
+//     antes de que el que lo creo escriba, queda: el que lo creo escribe al
+//     final, no encima.
 package hoomfs
 
 import (
@@ -16,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -115,15 +122,22 @@ func TestHallazgo3faa18_CompletarConservaModoEInodo(t *testing.T) {
 // terminar el test.
 func vrhGancho(t *testing.T, otra func(root string)) {
 	t.Helper()
+	vrhArmar(t, &antesDeCompletar, otra)
+}
+
+// vrhArmar arma el gancho de test g para que corra otra una sola vez; se
+// desarma solo y al terminar el test.
+func vrhArmar(t *testing.T, g *atomic.Pointer[func(root string)], otra func(root string)) {
+	t.Helper()
 	var una sync.Once
 	f := func(root string) {
 		una.Do(func() {
-			antesDeCompletar.Store(nil)
+			g.Store(nil)
 			otra(root)
 		})
 	}
-	antesDeCompletar.Store(&f)
-	t.Cleanup(func() { antesDeCompletar.Store(nil) })
+	g.Store(&f)
+	t.Cleanup(func() { g.Store(nil) })
 }
 
 // 4583f7: con otra mano que, entre la lectura y la escritura de
@@ -193,5 +207,41 @@ func TestHallazgo4583f7_LoQueOtraManoEscribeEnLaVentanaSobrevive(t *testing.T) {
 				t.Fatalf("4583f7: %s: lo de antes sigue: %q", c.nombre, raw)
 			}
 		})
+	}
+}
+
+// 814254: sin .hoom/.gitignore, EnsureIgnoredFiles lo crea; entre el O_EXCL
+// que lo crea y la escritura de su linea, otro hoom llama
+// EnsureIgnored(root, "worktrees") (como taskcmd), encuentra el archivo
+// vacio y le anexa la suya. Los dos devuelven lo suyo y el archivo tiene las
+// dos lineas, la del otro primero: la del que lo creo va al final, no encima.
+func TestHallazgo814254_ElQueCreaElGitignoreNoPisaLoQueOtroLeAnexo(t *testing.T) {
+	root := t.TempDir()
+	gi := vrhGitignore(t, root, "", 0)
+	var (
+		corrio  bool
+		delOtro []string
+		errOtro error
+	)
+	vrhArmar(t, &antesDeEscribirCreado, func(root string) {
+		corrio = true
+		delOtro, errOtro = EnsureIgnored(root, "worktrees")
+	})
+	added, err := EnsureIgnoredFiles(root, "local.yaml")
+	raw, rerr := os.ReadFile(gi)
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	if !corrio {
+		t.Fatal("fixture: el gancho entre la creacion y la escritura no corrio")
+	}
+	if errOtro != nil || !slices.Equal(delOtro, []string{"worktrees/"}) {
+		t.Fatalf("814254: el otro hoom agrega worktrees/: %q %v (queda %q)", delOtro, errOtro, raw)
+	}
+	if err != nil || !slices.Equal(added, []string{"local.yaml"}) {
+		t.Fatalf("814254: el que lo crea agrega local.yaml: %q %v (queda %q)", added, err, raw)
+	}
+	if want := "worktrees/\nlocal.yaml\n"; string(raw) != want {
+		t.Fatalf("814254: el archivo tiene las dos lineas, %q: %q", want, raw)
 	}
 }
