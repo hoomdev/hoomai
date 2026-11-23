@@ -1,0 +1,11 @@
+{
+  "id": "20261123T005757_3bd73d",
+  "created_at": "2026-11-23T00:57:57.887102135Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloquea esta delta) — internal/hoomfs/hoomfs.go:181-186: si otra mano anexa después de la lectura una regla sin salto final, data se calculó sin el salto inicial y O_APPEND pega la primera regla de hoom a la regla ajena. El reintento agrega luego la regla de hoom, pero la ajena queda convertida (por ejemplo secret pasa a secretlocal.yaml), pudiendo dejar de ignorar un archivo sensible. La carrera ya perdía ese anexo con la publicación por rename anterior a 4d331bd4893b; esta delta reduce el problema pero no lo elimina.",
+  "author": "reviewer@codex",
+  "fingerprint": "c0ac5e57eea76d0e",
+  "task": "verify-en-el-entorno"
+}

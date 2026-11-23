@@ -1,0 +1,11 @@
+{
+  "id": "20261123T010559_814254",
+  "created_at": "2026-11-23T01:05:59.331810054Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:202-225: crearGitignore publica el .gitignore vacio con O_EXCL y conserva un descriptor sin O_APPEND antes de escribirlo. En esa ventana otro EnsureIgnored puede abrir el mismo inodo, anexar otra regla y comprobarla con exito; despues la escritura del creador parte del offset 0, pisa esa regla, y el creador tambien devuelve exito porque solo comprueba sus propias lineas. Dos comandos concurrentes pueden por tanto devolver exito dejando perdida/corrupta una entrada de ignore (por ejemplo worktrees/), con riesgo de que material local termine rastreado.",
+  "author": "reviewer@codex",
+  "fingerprint": "c0ac5e57eea76d0e",
+  "task": "verify-en-el-entorno"
+}

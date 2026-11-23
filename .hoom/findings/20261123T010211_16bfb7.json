@@ -1,0 +1,11 @@
+{
+  "id": "20261123T010211_16bfb7",
+  "created_at": "2026-11-23T01:02:11.470276527Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:181-186 decide si antepone un salto usando el snapshot previo y luego escribe con O_APPEND; si otra mano anexa en esa ventana una regla final sin \\n, el append pega la primera regla de hoom a la ajena. El reintento puede volver a agregar la regla de hoom, pero no repara la regla ajena fusionada, que queda semanticamente perdida. Es una carrera improbable, por eso medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "c0ac5e57eea76d0e",
+  "task": "verify-en-el-entorno"
+}
