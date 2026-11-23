@@ -506,7 +506,11 @@ los gates. Es de esa maquina, no del proyecto:
 - vive en el checkout principal, y las tareas (`.hoom/worktrees/<slug>/`)
   leen el del principal; uno dentro de un worktree no se lee;
 - git lo tiene que ignorar: `hoom init` agrega `local.yaml` a
-  `.hoom/.gitignore`;
+  `.hoom/.gitignore`. Con el proyecto en un subdirectorio del repo (el
+  `hoom.yaml` en `sub/app`), lo agrega tambien al `.hoom/.gitignore` del
+  checkout principal, donde se lee el archivo, y si no existe lo crea con
+  esa sola linea. Si no puede escribir alguno de los dos, `hoom init` sale
+  con error;
 - hoom nunca lo escribe ni detecta el entorno solo.
 
 ```yaml
@@ -537,11 +541,23 @@ el veredicto lleva `"entorno": {"ejecutar": "<plantilla>", "sha256": "..."}`
 y, en cada gate, `"entorno": "prefijo"` o `"entorno": "host"`. La huella no
 cambia: es del arbol. Sin `ejecutar`, el JSON es el de siempre.
 
+**Sin secretos en `ejecutar`.** La plantilla viaja entera en el veredicto,
+que va en git, y en la salida de `hoom verify`: un token, una clave o una
+URL con credenciales escritos ahi se filtran. Si el comando necesita uno,
+que lo lea del entorno del contenedor, no de la plantilla.
+
 Un archivo con una clave desconocida, con un `ejecutar` sin `{cmd}`, con un
 gate en `en_el_host` que no esta en `hoom.yaml`, con un `worktrees_relativos`
 que no es `true` ni `false`, o que git no ignora, no se usa: `hoom verify`
 sale con el error que lo dice, sin correr ningun gate ni escribir veredicto,
-como con un `hoom.yaml` invalido.
+como con un `hoom.yaml` invalido. El de no ignorado es:
+
+```
+.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml al .hoom/.gitignore del checkout principal (y git rm --cached .hoom/local.yaml si esta en git)
+```
+
+Con el proyecto en un subdirectorio, el ignore que cuenta es el del
+checkout principal: el `.hoom/.gitignore` del proyecto no cubre ese archivo.
 
 El perfil solo sugiere. Con `profile: laravel`, `hoom init` (al final) y
 `hoom verify` (debajo del reporte, cuando un gate quedo en `error` con 127 y
