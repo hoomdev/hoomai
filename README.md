@@ -495,9 +495,12 @@ Un gate que no pudo correr queda en `error`, no en `fail`. Con exit 127 (`sh`
 no encontro el comando) su nota es `no pudo correr: comando no encontrado
 (exit 127): <linea>`; con exit 126 (lo encontro pero no lo puede ejecutar),
 `no pudo correr: el comando no se puede ejecutar (exit 126): <linea>`.
-`<linea>` es la ultima linea no vacia de su salida, donde `sh` nombra lo que
-falto. Para el piloto es un rojo de entorno: se detiene y no relanza al
-writer. Cualquier otro exit distinto de 0 sigue en `fail`.
+`<linea>` es la ultima linea no vacia de su salida que no sea la pista de
+`env` (una linea con `-[v]S`, como `env: use -[v]S to pass options in
+shebang lines`, que algunas versiones de coreutils imprimen despues del
+error), donde `sh` y `env` nombran lo que falto; sin otra linea, la nota
+termina en `)`. Para el piloto es un rojo de entorno: se detiene y no
+relanza al writer. Cualquier otro exit distinto de 0 sigue en `fail`.
 
 En una maquina donde el runtime del proyecto no vive en el host (DDEV, Sail,
 Docker Compose, devcontainers, Lando), `.hoom/local.yaml` dice donde corren

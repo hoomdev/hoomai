@@ -76,8 +76,8 @@ type Options struct {
 const (
 	// NotaNoEncontrado opens the note of a gate whose command exited 127
 	// (sh: command not found): this text, then ": " and the last line of its
-	// output that is not blank, trimmed; this text alone when the output has
-	// no such line.
+	// output that is not blank and is not env's hint (a line with "-[v]S",
+	// pistaEnv), trimmed; this text alone when the output has no such line.
 	NotaNoEncontrado = "no pudo correr: comando no encontrado (exit 127)"
 	// NotaNoEjecutable opens the note of a gate whose command exited 126
 	// (found but not executable), as NotaNoEncontrado.
@@ -109,8 +109,8 @@ const (
 // pass. Exit 127 (sh: command not found) and exit 126 (found but not
 // executable) are error, with that exit_code and the note NotaNoEncontrado
 // or NotaNoEjecutable followed by ": " and the last line of the gate's output
-// that is not blank, which is where sh and env name the command (the
-// constant alone when there is no such line). Any other non-zero exit is
+// that is not blank and is not env's hint (pistaEnv), which is where sh and
+// env name the command (the constant alone when there is no such line). Any other non-zero exit is
 // fail with its code, a gate killed by a signal without a timeout included,
 // and the timeout is error with exit_code -1 and its note, as before. It
 // holds with Options.Local's template and without it: a ddev missing from
@@ -227,17 +227,26 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 }
 
 // notaNoPudo is the note of a gate that exited 127 or 126: constante, then
-// ": " and the last line of its output that is not blank, which is where sh
-// and env name the command; constante alone when there is none.
+// ": " and the last line of its output that is not blank and is not env's
+// hint (pistaEnv), trimmed, which is where sh and env name the command;
+// constante alone when there is none.
 func notaNoPudo(constante, salida string) string {
 	lineas := strings.Split(salida, "\n")
 	for i := len(lineas) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(lineas[i]); l != "" {
+		if l := strings.TrimSpace(lineas[i]); l != "" && !strings.Contains(l, pistaEnv) {
 			return constante + ": " + l
 		}
 	}
 	return constante
 }
+
+// pistaEnv marks the hint some versions of coreutils' env print after the
+// error, as "env: use -[v]S to pass options in shebang lines" (amendment
+// c045afa8, from the CI of verify-en-el-entorno): a line that holds it,
+// literally and with that case, is never the line of notaNoPudo, which
+// would otherwise not name the missing command. The rest of the hint is
+// translated; "-[v]S" is not.
+const pistaEnv = "-[v]S"
 
 // juntarNotas is a gate's own note followed by another one (aclaracion 8).
 func juntarNotas(propia, otra string) string {
