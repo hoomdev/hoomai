@@ -1,0 +1,11 @@
+{
+  "id": "20261123T202423_4e3c5b",
+  "created_at": "2026-11-23T20:24:23.288149668Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/riesgo/rutas.go",
+  "description": "INTRODUCIDO: rutas.go:130 hace backtracking sin memoizar por cada **; un patron valido con varios ** y una ruta profunda puede colgar verify/review.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}

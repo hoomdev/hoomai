@@ -1,0 +1,11 @@
+{
+  "id": "20261123T202354_d4adf4",
+  "created_at": "2026-11-23T20:23:54.694777366Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/finding/bloquea.go",
+  "description": "INTRODUCIDO: bloquea.go:285 descarta errores/avisos de veredictos; si el ultimo alto es ilegible, baja al declarado y su medium completo deja de bloquear.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}

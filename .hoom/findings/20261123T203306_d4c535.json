@@ -1,0 +1,11 @@
+{
+  "id": "20261123T203306_d4c535",
+  "created_at": "2026-11-23T20:33:06.206430883Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/reviewcmd/reviewcmd.go",
+  "description": "INTRODUCIDO: internal/reviewcmd/reviewcmd.go:680 y internal/boardcmd/riesgo.go:87 deciden si el cambio esta vacio/solo docs con git.ChangedFiles, pero internal/gitx/gitx.go:81 conserva --diff-filter=ACMR y omite borrados commiteados. Una rama que solo borra internal/auth/token.go se mide como riesgo alto y con producto \u003e0, pero hoom review devuelve 0 lentes y el tablero marca ReviewRequired=false; un usuario puede saltarse la review obligatoria de un borrado riesgoso. Usar la lista de archivos de LineasDelCambio (y persistir la informacion necesaria para el tablero) para estas decisiones.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}
