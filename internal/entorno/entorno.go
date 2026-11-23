@@ -1,0 +1,388 @@
+package entorno
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
+)
+
+// Ruta is where the local adjustment lives, relative to the main checkout,
+// with "/".
+const Ruta = ".hoom/local.yaml"
+
+// Claves are the keys .hoom/local.yaml accepts, in the order
+// ErrClaveDesconocida lists them.
+var Claves = []string{"ejecutar", "en_el_host", "worktrees_relativos"}
+
+// The errors of Leer, exactly. The two with a %q take the key, or the gate,
+// as the file writes it.
+const (
+	// ErrClaveDesconocida is a key of the file outside Claves.
+	ErrClaveDesconocida = ".hoom/local.yaml: clave desconocida %q (validas: ejecutar, en_el_host, worktrees_relativos)"
+	// ErrSinCmd is an ejecutar (not empty) without the mark {cmd}.
+	ErrSinCmd = ".hoom/local.yaml: ejecutar tiene que llevar {cmd}"
+	// ErrGateDesconocido is an entry of en_el_host that is not among the
+	// gates Leer gets (the gates of hoom.yaml).
+	ErrGateDesconocido = ".hoom/local.yaml: en_el_host nombra %q, que no es un gate de hoom.yaml"
+	// ErrNoIgnorado is a file that the main checkout's git does not ignore:
+	// not covered by a .gitignore, or tracked. It names the main checkout's
+	// .hoom/.gitignore because that is where the file is read: with the
+	// project in a subdirectory of its repository, the project's own
+	// .hoom/.gitignore does not cover it (`hoom init` completes both).
+	ErrNoIgnorado = ".hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml al .hoom/.gitignore del checkout principal (y git rm --cached .hoom/local.yaml si esta en git)"
+)
+
+// ErrWorktreesRelativosGitViejo is, exactly, the error of `hoom task start`
+// (taskcmd.Start) with Ajuste.WorktreesRelativos and a git that does not
+// accept `git worktree add --relative-paths` (gitx.AceptaRutasRelativas
+// false: older than 2.48). Leer never returns it: the file is valid, and
+// hoom verify runs as with any other.
+const ErrWorktreesRelativosGitViejo = ".hoom/local.yaml: worktrees_relativos pide git 2.48 o mas nuevo"
+
+// Ajuste is the .hoom/local.yaml of one verified tree, read and validated by
+// Leer. The zero Ajuste, and a nil *Ajuste, is "no adjustment": the gates run
+// as today.
+type Ajuste struct {
+	// Principal is the main checkout whose .hoom/local.yaml Leer read: the
+	// parent folder of the git common directory of the tree
+	// (gitx.CheckoutPrincipal), or the directory Leer got when it is not in
+	// a git repository.
+	Principal string
+	// Existe says that Principal/.hoom/local.yaml exists.
+	Existe bool
+	// Ejecutar is the template, as the file writes it; "" = without the key
+	// (absent, with no value, null, "" or only blanks): the gates run as
+	// today.
+	Ejecutar string
+	// EnElHost are the gates of en_el_host, in the file's order.
+	EnElHost []string
+	// SHA256 is the hex sha256 of the file's bytes; "" when it does not
+	// exist.
+	SHA256 string
+	// Rel is what {rel} becomes: filepath.Rel(Principal, the tree) with "/":
+	// "." when the tree is Principal (and outside a git repository),
+	// ".hoom/worktrees/<slug>" in a task's tree, and as it comes out
+	// otherwise, even when it starts with "../" or is the project's subpath
+	// in the repository.
+	Rel string
+	// WorktreesRelativos (the key worktrees_relativos, CA-771) is true only
+	// when the file says worktrees_relativos: true, a YAML boolean (true,
+	// True or TRUE). false, no value, null, "" or only blanks count as
+	// without the key: false. Any other value (a quoted "true", yes, on, a
+	// number, a list, a map) refuses the file, fail closed, like an
+	// ejecutar that is not text (see Leer).
+	//
+	// Only `hoom task start` reads it (taskcmd.Start): with it, the task's
+	// worktree is added with `git worktree add --relative-paths`. It
+	// changes nothing in verify: the same commands, states and JSON, with
+	// or without ejecutar.
+	WorktreesRelativos bool
+}
+
+// Leer reads the .hoom/local.yaml of the verified tree dir (the manifest's
+// Dir): the main checkout's (Ajuste.Principal), never one inside a worktree,
+// and dir's own outside a git repository. gates are the names of the gates
+// of hoom.yaml, already merged with its profile (the ones verify runs): every
+// entry of en_el_host has to be one of them.
+//
+// Without the file it is an Ajuste with Existe false, no Ejecutar and no
+// WorktreesRelativos: as today, no error. With it, the file is validated
+// whole, with ejecutar or without it (worktrees_relativos included: a value
+// that is not a boolean, null or empty is one of the errors that start with
+// the path), and its error is one of ErrClaveDesconocida, ErrSinCmd,
+// ErrGateDesconocido (each with its %q filled) and ErrNoIgnorado, exactly,
+// the first in that order when several apply (ErrNoIgnorado never outside a
+// git repository), or another error that starts the same way (the path
+// .hoom/local.yaml, a colon and a space) for a file it cannot read or
+// understand (see the package doc); then verify
+// runs no gate and writes no verdict. On a nil error the Ajuste is never
+// nil.
+func Leer(dir string, gates []string) (*Ajuste, error) {
+	principal, enGit := principalDe(dir)
+	a := &Ajuste{Principal: principal, Rel: rel(principal, dir)}
+	raw, err := leerArchivo(principal)
+	if errors.Is(err, fs.ErrNotExist) {
+		return a, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	a.Existe = true
+	sum := sha256.Sum256(raw)
+	a.SHA256 = hex.EncodeToString(sum[:])
+	if err := a.validar(raw, gates); err != nil {
+		return nil, err
+	}
+	if enGit {
+		switch ignorado, err := gitx.Ignora(principal, Ruta); {
+		case err != nil:
+			return nil, defecto("git no pudo decir si lo ignora: %v", err)
+		case !ignorado:
+			return nil, errors.New(ErrNoIgnorado)
+		}
+	}
+	return a, nil
+}
+
+// Principal is the main checkout whose .hoom/local.yaml Leer reads for the
+// tree dir (Ajuste.Principal): the parent folder of dir's git common
+// directory (gitx.CheckoutPrincipal), or dir itself when it is not in a git
+// repository. Whoever looks at the file outside Leer (the envelope of
+// `hoom agent` photographing it around a run, `hoom task start` deciding
+// whether to read it) takes the folder from here, so all of them look at the
+// same file verify reads, also for a project in a subdirectory of its
+// repository.
+func Principal(dir string) string {
+	principal, _ := principalDe(dir)
+	return principal
+}
+
+// principalDe is Principal, and whether dir is in a git repository.
+func principalDe(dir string) (string, bool) {
+	if principal, ok := gitx.CheckoutPrincipal(dir); ok {
+		return principal, true
+	}
+	return dir, false
+}
+
+// maxArchivo is the largest .hoom/local.yaml Leer reads: two keys do not
+// need more, and a larger one is refused, never cut.
+const maxArchivo = 64 << 10
+
+// defecto is a refusal of the file whose text is not one of the four fixed
+// errors: it starts like them.
+func defecto(format string, args ...any) error {
+	return fmt.Errorf(Ruta+": "+format, args...)
+}
+
+// rel is {rel}: the tree dir relative to the main checkout, with "/", "."
+// when Rel cannot say it (dir and principal are then the same project).
+func rel(principal, dir string) string {
+	r, err := filepath.Rel(principal, dir)
+	if err != nil {
+		return "."
+	}
+	return filepath.ToSlash(r)
+}
+
+// leerArchivo reads principal/.hoom/local.yaml from the disk, never
+// following a symlink nor blocking on a FIFO (hoomfs.LeerRegularEn). An
+// error that is fs.ErrNotExist is "there is no file"; any other one is
+// already a defecto.
+func leerArchivo(principal string) ([]byte, error) {
+	r, err := os.OpenRoot(principal)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, defecto("no se puede leer: %v", err)
+	}
+	defer r.Close()
+	name := filepath.FromSlash(Ruta)
+	fi, err := r.Lstat(name)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, err
+	case err != nil:
+		return nil, defecto("no se puede leer: %v", err)
+	case !fi.Mode().IsRegular():
+		return nil, defecto("tiene que ser un archivo regular y es %s", fi.Mode().Type())
+	}
+	raw, err := hoomfs.LeerRegularEn(r, name, maxArchivo)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// it went away between the look and the read: not "no file"
+			return nil, defecto("cambio mientras se leia")
+		}
+		return nil, defecto("no se puede leer: %v", err)
+	}
+	return raw, nil
+}
+
+// validar fills a from the file's bytes raw and checks them, in the order
+// of Leer: what cannot be understood, then the four fixed errors but the
+// ignore.
+func (a *Ajuste) validar(raw []byte, gates []string) error {
+	raiz, err := documento(raw)
+	if err != nil {
+		return err
+	}
+	var ejecutar, enElHost, relativos *yaml.Node
+	var desconocida string
+	for i := 0; raiz != nil && i+1 < len(raiz.Content); i += 2 {
+		k, v := raiz.Content[i], alias(raiz.Content[i+1])
+		if k.Kind != yaml.ScalarNode {
+			return defecto("cada clave tiene que ser un texto")
+		}
+		switch k.Value {
+		case "ejecutar":
+			if ejecutar != nil {
+				return defecto("la clave %q esta repetida", k.Value)
+			}
+			ejecutar = v
+		case "en_el_host":
+			if enElHost != nil {
+				return defecto("la clave %q esta repetida", k.Value)
+			}
+			enElHost = v
+		case "worktrees_relativos":
+			if relativos != nil {
+				return defecto("la clave %q esta repetida", k.Value)
+			}
+			relativos = v
+		default:
+			if desconocida == "" {
+				desconocida = k.Value
+			}
+		}
+	}
+	if ejecutar != nil && !nulo(ejecutar) {
+		if ejecutar.Kind != yaml.ScalarNode {
+			return defecto("ejecutar tiene que ser un texto")
+		}
+		if strings.TrimSpace(ejecutar.Value) != "" {
+			a.Ejecutar = ejecutar.Value
+		}
+	}
+	if enElHost != nil && !nulo(enElHost) {
+		if enElHost.Kind != yaml.SequenceNode {
+			return defecto("en_el_host tiene que ser una lista de gates")
+		}
+		for _, g := range enElHost.Content {
+			if g = alias(g); g.Kind != yaml.ScalarNode || nulo(g) {
+				return defecto("en_el_host tiene que ser una lista de gates")
+			}
+			a.EnElHost = append(a.EnElHost, g.Value)
+		}
+	}
+	if relativos != nil {
+		si, err := booleano(relativos)
+		if err != nil {
+			return err
+		}
+		a.WorktreesRelativos = si
+	}
+	if desconocida != "" {
+		return fmt.Errorf(ErrClaveDesconocida, desconocida)
+	}
+	if a.Ejecutar != "" && !strings.Contains(a.Ejecutar, "{cmd}") {
+		return errors.New(ErrSinCmd)
+	}
+	for _, g := range a.EnElHost {
+		if !slices.Contains(gates, g) {
+			return fmt.Errorf(ErrGateDesconocido, g)
+		}
+	}
+	return nil
+}
+
+// booleano is the value of worktrees_relativos: true only for a YAML
+// boolean true (true, True, TRUE, or an explicit !!bool tag that decodes as
+// true); false for false, null, "" or only blanks; any other node (quoted
+// text, yes, on, a number, a list, a map) is an error that starts with the
+// path.
+func booleano(n *yaml.Node) (bool, error) {
+	if nulo(n) {
+		return false, nil
+	}
+	if n.Kind == yaml.ScalarNode {
+		switch n.ShortTag() {
+		case "!!str":
+			if strings.TrimSpace(n.Value) == "" {
+				return false, nil
+			}
+		case "!!bool":
+			var b bool
+			if err := n.Decode(&b); err == nil {
+				return b, nil
+			}
+		}
+	}
+	return false, defecto("worktrees_relativos tiene que ser true o false")
+}
+
+// documento is the top-level map of the file's one YAML document; nil for
+// an empty file, one with only comments or a null top level.
+func documento(raw []byte) (*yaml.Node, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	var doc yaml.Node
+	switch err := dec.Decode(&doc); {
+	case errors.Is(err, io.EOF):
+		return nil, nil
+	case err != nil:
+		return nil, defecto("no es YAML valido: %v", err)
+	}
+	var otro yaml.Node
+	if err := dec.Decode(&otro); !errors.Is(err, io.EOF) {
+		return nil, defecto("tiene que ser un solo documento YAML")
+	}
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return nil, nil
+	}
+	raiz := alias(doc.Content[0])
+	switch {
+	case nulo(raiz):
+		return nil, nil
+	case raiz.Kind != yaml.MappingNode:
+		return nil, defecto("tiene que ser un mapa de claves (ejecutar, en_el_host, worktrees_relativos)")
+	}
+	return raiz, nil
+}
+
+// alias is the node an alias stands for, or n itself.
+func alias(n *yaml.Node) *yaml.Node {
+	for n != nil && n.Kind == yaml.AliasNode && n.Alias != nil {
+		n = n.Alias
+	}
+	return n
+}
+
+// nulo says whether n is YAML's null: no value, ~ or null.
+func nulo(n *yaml.Node) bool {
+	return n == nil || (n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null")
+}
+
+// ConPrefijo says whether gate runs with the template: a has Ejecutar and
+// gate is not in EnElHost. false with a nil Ajuste.
+func (a *Ajuste) ConPrefijo(gate string) bool {
+	return a != nil && a.Ejecutar != "" && !slices.Contains(a.EnElHost, gate)
+}
+
+// Linea is the line `sh -c` runs for a gate with the template: Ejecutar with
+// {cmd} replaced by cmd, {dir} by dir and {rel} by a.Rel, each as one sh word
+// between single quotes, with each single quote inside the value written as
+// these four characters:
+//
+//	'\''
+//
+// For example, with Ejecutar "sh -c {cmd}" and cmd "echo it's", the line is:
+//
+//	sh -c 'echo it'\''s'
+//
+// The marks are replaced in one pass: a mark inside cmd, dir or Rel is not
+// replaced again. Every occurrence of a mark is replaced. With a nil Ajuste,
+// or one without Ejecutar, it is cmd itself: as today.
+func (a *Ajuste) Linea(cmd, dir string) string {
+	if a == nil || a.Ejecutar == "" {
+		return cmd
+	}
+	return strings.NewReplacer("{cmd}", palabra(cmd), "{dir}", palabra(dir), "{rel}", palabra(a.Rel)).Replace(a.Ejecutar)
+}
+
+// palabra is s as one sh word between single quotes.
+func palabra(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}

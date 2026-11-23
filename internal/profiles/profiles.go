@@ -9,6 +9,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +33,89 @@ type Profile struct {
 	// (contencion-del-writer): what runs enclosed gets each one pointing
 	// inside its own cache (see Cache).
 	Cache []string `yaml:"cache,omitempty"`
+	// Entornos (verify-en-el-entorno) are the environments where the stack's
+	// runtime may live instead of the host, each with the template hoom
+	// suggests for .hoom/local.yaml (see Entornos, Sugerencias).
+	Entornos []Entorno `yaml:"entornos,omitempty"`
+}
+
+// Entorno is one entry of a profile's entornos (verify-en-el-entorno): a
+// suggestion of where to run the gates, which hoom only prints and never
+// applies. It holds in a project directory when SiExiste exists in it and
+// Sin is not in the PATH.
+type Entorno struct {
+	// Nombre names the environment in the suggestion: ddev, sail.
+	Nombre string `yaml:"nombre"`
+	// SiExiste is a path of the project, relative to its root, with "/".
+	SiExiste string `yaml:"si_existe"`
+	// Sin is a command that is not in the PATH (exec.LookPath fails).
+	Sin string `yaml:"sin"`
+	// Ejecutar is the suggested template for the key ejecutar of
+	// .hoom/local.yaml.
+	Ejecutar string `yaml:"ejecutar"`
+}
+
+// Sugerencia is the text hoom prints for e, two lines without a final
+// newline:
+//
+//	sugerencia: este proyecto parece usar <Nombre> y el host no tiene <Sin>; para correr los gates ahi, crea .hoom/local.yaml con:
+//	  ejecutar: "<Ejecutar>"
+//
+// <Ejecutar> goes as it is, between double quotes.
+func (e Entorno) Sugerencia() string {
+	return "sugerencia: este proyecto parece usar " + e.Nombre + " y el host no tiene " + e.Sin +
+		"; para correr los gates ahi, crea .hoom/local.yaml con:\n" +
+		"  ejecutar: \"" + e.Ejecutar + "\""
+}
+
+// Entornos lists the entornos of profile name and of everything it extends,
+// parents first, each in its profile's order. laravel declares, in this
+// order:
+//   - ddev: si_existe .ddev/config.yaml, sin php,
+//     ejecutar "ddev exec -d /var/www/html/{rel} sh -c {cmd}";
+//   - sail: si_existe vendor/bin/sail, sin php,
+//     ejecutar "docker compose exec -T -w /var/www/html/{rel} laravel.test sh -c {cmd}".
+//
+// A profile that declares none has none; an unknown one is the error of
+// Resolve.
+func Entornos(name string) ([]Entorno, error) {
+	chain, err := chainOf(name)
+	if err != nil {
+		return nil, err
+	}
+	var out []Entorno
+	for _, p := range chain {
+		out = append(out, p.Entornos...)
+	}
+	return out, nil
+}
+
+// Sugerencias are the entornos of profile name (Entornos) that hold in the
+// project directory dir, in their order: dir/SiExiste exists and Sin is not
+// in this process's PATH. nil when none holds or the profile is unknown. It
+// writes nothing: no one writes .hoom/local.yaml but the person.
+//
+// `hoom init` prints the Sugerencia of each one at its end. `hoom verify`
+// prints them in its text, once, below its report, when a gate ended in
+// error with exit_code 127 and the main checkout has no .hoom/local.yaml
+// (the file does not exist: one without ejecutar is not "no file", and then
+// nothing is suggested); with --json it prints none of them, on no stream.
+func Sugerencias(name, dir string) []Entorno {
+	todos, err := Entornos(name)
+	if err != nil {
+		return nil
+	}
+	var out []Entorno
+	for _, e := range todos {
+		if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(e.SiExiste))); err != nil {
+			continue
+		}
+		if _, err := exec.LookPath(e.Sin); err == nil {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // Detect declares how `hoom init` recognizes a stack.

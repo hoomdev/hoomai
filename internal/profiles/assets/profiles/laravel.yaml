@@ -5,6 +5,17 @@ detect:
 # variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
 # dentro de su propia cache (las descargas de composer y de npm)
 cache: [COMPOSER_CACHE_DIR, npm_config_cache]
+# donde puede vivir el runtime del stack en vez del host (verify-en-el-entorno):
+# hoom solo sugiere la plantilla para .hoom/local.yaml, nunca la aplica
+entornos:
+  - nombre: ddev
+    si_existe: .ddev/config.yaml
+    sin: php
+    ejecutar: "ddev exec -d /var/www/html/{rel} sh -c {cmd}"
+  - nombre: sail
+    si_existe: vendor/bin/sail
+    sin: php
+    ejecutar: "docker compose exec -T -w /var/www/html/{rel} laravel.test sh -c {cmd}"
 gates:
   security:
     required: false

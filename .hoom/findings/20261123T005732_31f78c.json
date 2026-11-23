@@ -1,0 +1,11 @@
+{
+  "id": "20261123T005732_31f78c",
+  "created_at": "2026-11-23T00:57:32.525278723Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/hoomfs/hoomfs.go",
+  "description": "INTRODUCIDO — internal/hoomfs/hoomfs.go:153-186: completarUnaVez abre y anexa directamente sobre el inode de .hoom/.gitignore sin rechazar enlaces duros. Si el archivo es un hardlink a otro archivo regular del usuario en el mismo filesystem, hoom init agrega sus reglas también al otro nombre y puede corromper datos fuera del proyecto; la implementación anterior publicaba por rename y rompía ese vínculo. Debe negarse a modificar archivos con múltiples enlaces o usar una estrategia que no escriba el inode compartido.",
+  "author": "reviewer@codex",
+  "fingerprint": "c0ac5e57eea76d0e",
+  "task": "verify-en-el-entorno"
+}

@@ -338,11 +338,7 @@ func Huella(p string) string {
 		return Ilegible
 	}
 	if fi.Mode().IsRegular() && fi.Size() > MaxLeido {
-		h := fmt.Sprintf("%s%d:%s:%d", Grande, fi.Size(), fi.Mode(), fi.ModTime().UnixNano())
-		if c, ok := CtimeDe(fi); ok {
-			h += ":" + strconv.FormatInt(c, 10)
-		}
-		return h
+		return HuellaGrande(fi)
 	}
 	r, err := os.OpenRoot(filepath.Dir(p))
 	if err != nil {
@@ -352,6 +348,17 @@ func Huella(p string) string {
 	h := HuellaEn(r, filepath.Base(p), fi)
 	if fi.Mode().IsRegular() && fi.Mode().Perm()&0o111 != 0 {
 		h += ":x"
+	}
+	return h
+}
+
+// HuellaGrande is the Huella of a regular file too large to read, which fi
+// describes: Grande, its size, mode, mtime and, where the system gives it,
+// ctime (which no one sets by hand), never its content.
+func HuellaGrande(fi fs.FileInfo) string {
+	h := fmt.Sprintf("%s%d:%s:%d", Grande, fi.Size(), fi.Mode(), fi.ModTime().UnixNano())
+	if c, ok := CtimeDe(fi); ok {
+		h += ":" + strconv.FormatInt(c, 10)
 	}
 	return h
 }

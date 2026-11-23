@@ -493,10 +493,11 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		r.detener(parada(err.Error()))
 		return false
 	}
-	if len(agentcmd.MaterialDelVeredicto(v)) > 0 || len(agentcmd.GitAjenoDelVeredicto(v)) > 0 {
+	if len(agentcmd.MaterialDelVeredicto(v)) > 0 || len(agentcmd.GitAjenoDelVeredicto(v)) > 0 || cambioElEntorno(v) {
 		// a gate changed the git material, or git outside the task's branch
-		// (aclaracion 20): no git of hoom runs on it, so the stop comes
-		// before the save, with the text of a red verdict
+		// (aclaracion 20), or the main checkout's .hoom/local.yaml
+		// (verify-en-el-entorno, CA-773): no git of hoom runs on it, so the
+		// stop comes before the save, with the text of a red verdict
 		r.detener(rojoTrasCerrar(v, d.Ronda))
 		return false
 	}
@@ -522,6 +523,18 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 		return false
 	}
 	return true
+}
+
+// cambioElEntorno says whether v has the gate verifycmd.GateEntornoLocal in
+// fail: a gate of its verify changed the main checkout's .hoom/local.yaml,
+// the template that decides what the gates run.
+func cambioElEntorno(v *verdict.Verdict) bool {
+	for _, g := range v.Gates {
+		if g.Name == verifycmd.GateEntornoLocal && g.Status == verdict.StatusFail {
+			return true
+		}
+	}
+	return false
 }
 
 // rojoTrasCerrar is the stop of cerrar-hallazgos whose verdict v is red in

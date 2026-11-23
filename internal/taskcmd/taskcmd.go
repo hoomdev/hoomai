@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,11 +20,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -57,8 +60,42 @@ func ensureIgnored(root string) error {
 }
 
 // Start creates the branch hoom/<slug> and its isolated worktree.
+//
+// verify-en-el-entorno (CA-771, as amended): right after the slug check and
+// before it creates or writes anything (no branch, no worktree, no
+// .hoom/.gitignore completed), Start reads the main checkout's
+// .hoom/local.yaml with the same rules as `hoom verify`:
+// entorno.Leer(root, the names of the gates of root's hoom.yaml merged with
+// its profile, as manifest.Load(root, profiles.Resolve) gives them). When
+// the file does not exist, root's hoom.yaml is not read for it, and a root
+// without one starts its task as before. Then:
+//   - an error of Leer (entorno.ErrClaveDesconocida, ErrSinCmd,
+//     ErrGateDesconocido, ErrNoIgnorado or another that starts with the path
+//     .hoom/local.yaml, a colon and a space), or of loading root's hoom.yaml
+//     when the file exists, is Start's error, exactly, and nothing is
+//     created;
+//   - with entorno.Ajuste.WorktreesRelativos and gitx.AceptaRutasRelativas(root)
+//     false (a git older than 2.48), Start refuses with
+//     errors.New(entorno.ErrWorktreesRelativosGitViejo) and nothing is
+//     created;
+//   - with WorktreesRelativos and a git that accepts it, the worktree is
+//     added with `git worktree add --relative-paths`: its .git and the
+//     repository's registry (.git/worktrees/<id>/gitdir) hold relative
+//     paths, git writes extensions.relativeWorktrees in .git/config, and
+//     `hoom task list`, `hoom verify` and `hoom task done` recognize it as
+//     before (gitx.WorktreeDe resolves relative paths);
+//   - without it (no file, no key, false, null or empty) the worktree is
+//     added as before this card, with absolute paths, whatever the git and
+//     whatever its config says (a worktree.useRelativePaths=true in the
+//     repository's or the global config is overridden with
+//     `git -c worktree.useRelativePaths=false worktree add`), and
+//     .git/config does not gain extensions.relativeWorktrees.
 func Start(root, slug, base string) error {
 	if err := checkSlug(slug); err != nil {
+		return err
+	}
+	relativos, err := worktreesRelativos(root)
+	if err != nil {
 		return err
 	}
 	if err := ensureIgnored(root); err != nil {
@@ -73,7 +110,19 @@ func Start(root, slug, base string) error {
 	if _, err := run(root, "rev-parse", "--verify", ref); err != nil {
 		ref = "HEAD" // base branch may not exist yet in young repos
 	}
-	if out, err := run(root, "worktree", "add", "-b", branch, wt, ref); err != nil {
+	add := []string{"worktree", "add"}
+	if relativos {
+		// the worktree stays valid where a container mounts the project
+		// under another path (verify-en-el-entorno, CA-771)
+		add = append(add, "--relative-paths")
+	} else {
+		// absolute paths whatever git's own config says: a
+		// worktree.useRelativePaths=true (repository or global) would write
+		// relative ones and extensions.relativeWorktrees (053a71). An older
+		// git ignores the key; --no-relative-paths would need 2.48.
+		add = append([]string{"-c", "worktree.useRelativePaths=false"}, add...)
+	}
+	if out, err := run(root, append(add, "-b", branch, wt, ref)...); err != nil {
 		return fmt.Errorf("git worktree add fallo: %s", out)
 	}
 	fmt.Printf("hoom: tarea %q creada\n", slug)
@@ -84,6 +133,29 @@ func Start(root, slug, base string) error {
 	fmt.Println("    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)")
 	fmt.Println("  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done " + slug + "' desde el proyecto principal")
 	return nil
+}
+
+// worktreesRelativos is the machine's choice for Start's worktree, read as
+// Start's doc says: false without the main checkout's .hoom/local.yaml (and
+// then hoom.yaml is not read), the error of manifest.Load or entorno.Leer as
+// it comes, and entorno.ErrWorktreesRelativosGitViejo when the file asks for
+// relative paths and git cannot write them. It creates nothing.
+func worktreesRelativos(root string) (bool, error) {
+	if _, err := os.Lstat(filepath.Join(entorno.Principal(root), filepath.FromSlash(entorno.Ruta))); errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	m, err := manifest.Load(root, profiles.Resolve)
+	if err != nil {
+		return false, err
+	}
+	a, err := entorno.Leer(root, m.SortedGateNames())
+	if err != nil {
+		return false, err
+	}
+	if a.WorktreesRelativos && !gitx.AceptaRutasRelativas(root) {
+		return false, errors.New(entorno.ErrWorktreesRelativosGitViejo)
+	}
+	return a.WorktreesRelativos, nil
 }
 
 // Task states, machine-readable. The human rendering derives from these.

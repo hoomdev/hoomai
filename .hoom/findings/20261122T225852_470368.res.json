@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T225852_470368",
+  "as": "corregido",
+  "evidence": "corregido en 793661e y eb1107a, segun la enmienda 55b134e2 (CA-770, CA-763): con el proyecto en un subdirectorio (entorno.Principal(abs) es otra carpeta), hoom init completa tambien \u003cprincipal\u003e/.hoom/.gitignore con local.yaml (lo crea con esa sola linea), y ErrNoIgnorado nombra el .hoom/.gitignore del checkout principal. Tests de la ronda 0d del test-writer ciego (f378be1): TestCA770_SubdirectorioCreaElGitignoreDelPrincipal y _SubdirectorioCompletaElGitignoreDelPrincipal (internal/initcmd) y TestCA763_LosTextosDeLosErrores (internal/entorno), rojos contra 9b0fe55 y verdes en 87b6992 (go test -count=1 ok).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:16:47.477190397Z"
+}

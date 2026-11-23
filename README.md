@@ -489,6 +489,128 @@ verbo. `cliargs.Strict` NO se le puede aplicar tal cual a los verbos que usan
 posicionales por contrato (`init <dir>`, `run`/`agent`/`review "<prompt>"`,
 `finding add "<desc>"`, `task <slug>`, `spec approve <ruta>`).
 
+## Donde corren los gates (.hoom/local.yaml)
+
+Un gate que no pudo correr queda en `error`, no en `fail`. Con exit 127 (`sh`
+no encontro el comando) su nota es `no pudo correr: comando no encontrado
+(exit 127): <linea>`; con exit 126 (lo encontro pero no lo puede ejecutar),
+`no pudo correr: el comando no se puede ejecutar (exit 126): <linea>`.
+`<linea>` es la ultima linea no vacia de su salida que no sea la pista de
+`env` (una linea con `-[v]S`, como `env: use -[v]S to pass options in
+shebang lines`, que algunas versiones de coreutils imprimen despues del
+error), donde `sh` y `env` nombran lo que falto; sin otra linea, la nota
+termina en `)`. Para el piloto es un rojo de entorno: se detiene y no
+relanza al writer. Cualquier otro exit distinto de 0 sigue en `fail`.
+
+En una maquina donde el runtime del proyecto no vive en el host (DDEV, Sail,
+Docker Compose, devcontainers, Lando), `.hoom/local.yaml` dice donde corren
+los gates. Es de esa maquina, no del proyecto:
+
+- vive en el checkout principal, y las tareas (`.hoom/worktrees/<slug>/`)
+  leen el del principal; uno dentro de un worktree no se lee;
+- git lo tiene que ignorar: `hoom init` agrega `local.yaml` a
+  `.hoom/.gitignore`. Con el proyecto en un subdirectorio del repo (el
+  `hoom.yaml` en `sub/app`), lo agrega tambien al `.hoom/.gitignore` del
+  checkout principal, donde se lee el archivo, y si no existe lo crea con
+  esa sola linea. Si no puede escribir alguno de los dos, `hoom init` sale
+  con error;
+- hoom nunca lo escribe ni detecta el entorno solo.
+
+```yaml
+ejecutar: "ddev exec -d /var/www/html/{rel} sh -c {cmd}"
+en_el_host: [semgrep]   # gates que corren como hoy
+worktrees_relativos: true   # ver «Worktrees con rutas relativas»
+```
+
+`ejecutar` es la plantilla: cada gate corre `sh -c <ejecutar>`, en el mismo
+directorio y con el mismo timeout de hoy. hoom reemplaza estas marcas, cada
+una como una palabra de `sh` entre comillas simples (una comilla de adentro
+va como `'\''`), asi el `sh` del otro lado recibe el valor intacto:
+
+| Marca | Se reemplaza por |
+|---|---|
+| `{cmd}` | el comando del gate, con `{base}`, `{files}` y `{packages}` ya resueltos (obligatoria) |
+| `{dir}` | la ruta absoluta del arbol verificado |
+| `{rel}` | la ruta del arbol relativa al checkout principal: `.` en el principal, `.hoom/worktrees/<slug>` en una tarea |
+
+`en_el_host` son gates del `hoom.yaml` que corren como hoy, en el host.
+`ejecutar:` sin valor cuenta como sin la clave: los gates corren como hoy.
+Vale para todo el que corre gates: `hoom verify`, el sobre de `hoom agent`,
+el `cerrar-hallazgos` del piloto y `POST /api/verify`.
+
+Con `ejecutar`, `hoom verify` imprime `entorno: <plantilla> (de
+.hoom/local.yaml)` debajo de su primera linea (con `--json`, por stderr), y
+el veredicto lleva `"entorno": {"ejecutar": "<plantilla>", "sha256": "..."}`
+y, en cada gate, `"entorno": "prefijo"` o `"entorno": "host"`. La huella no
+cambia: es del arbol. Sin `ejecutar`, el JSON es el de siempre.
+
+**Sin secretos en `ejecutar`.** La plantilla viaja entera en el veredicto,
+que va en git, y en la salida de `hoom verify`: un token, una clave o una
+URL con credenciales escritos ahi se filtran. Si el comando necesita uno,
+que lo lea del entorno del contenedor, no de la plantilla.
+
+Un archivo con una clave desconocida, con un `ejecutar` sin `{cmd}`, con un
+gate en `en_el_host` que no esta en `hoom.yaml`, con un `worktrees_relativos`
+que no es `true` ni `false`, o que git no ignora, no se usa: `hoom verify`
+sale con el error que lo dice, sin correr ningun gate ni escribir veredicto,
+como con un `hoom.yaml` invalido. El de no ignorado es:
+
+```
+.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml al .hoom/.gitignore del checkout principal (y git rm --cached .hoom/local.yaml si esta en git)
+```
+
+Con el proyecto en un subdirectorio, el ignore que cuenta es el del
+checkout principal: el `.hoom/.gitignore` del proyecto no cubre ese archivo.
+
+El perfil solo sugiere. Con `profile: laravel`, `hoom init` (al final) y
+`hoom verify` (debajo del reporte, cuando un gate quedo en `error` con 127 y
+no hay `.hoom/local.yaml`) proponen la plantilla de ddev, si existe
+`.ddev/config.yaml` y el PATH no tiene `php`, o la de sail, si existe
+`vendor/bin/sail` y el PATH no tiene `php`.
+
+**Cuidado**: una plantilla que se traga el exit del gate, como
+`ejecutar: "true {cmd}"`, pone verde todo. La escribe la persona, y el
+veredicto guarda su sha256. Un rol cuyo run crea, cambia o borra
+`.hoom/local.yaml` corta su sobre por `manipulacion`, y un gate que lo
+cambia mientras corre deja el veredicto rojo con el gate `entorno_local`.
+
+**Con encierro** (la seccion `encierro:`, mas abajo), en el verify del sobre
+y en el `cerrar-hallazgos` del piloto un gate con la plantilla corre sin
+encierro, como uno de `gates_sin_encierro`, con la nota `sin encierro: corre
+con el prefijo de .hoom/local.yaml`: el contenedor es su limite, porque
+abrirle el socket de docker al bwrap seria darle root al codigo del writer.
+Con `exigir: completo` o `exigir: parcial`, ese gate no corre y queda en
+`error` con la nota `el prefijo de .hoom/local.yaml no corre encerrado y
+encierro.exigir es <valor>`. Los de `en_el_host` corren encerrados como
+siempre.
+
+**Worktrees con rutas relativas.** El contenedor monta el proyecto en otra
+ruta, y git no encuentra ahi un worktree que guarda rutas absolutas: en una
+tarea, el gate con la plantilla que usa git falla. Con
+`worktrees_relativos: true`, `hoom task start` crea el worktree con
+`git worktree add --relative-paths`, y git lo encuentra tambien adentro. Sin
+la clave, o con `false`, sin valor o vacia, el worktree es el de siempre, con
+rutas absolutas. Otro valor (`"true"` entre comillas, `yes`, un numero) es un
+error del archivo. `hoom verify` no la usa.
+
+Pide git 2.48 o mas nuevo en el host y en el contenedor:
+`--relative-paths` escribe `extensions.relativeWorktrees` en el `.git/config`
+del clon, y desde ahi un git mas viejo rechaza el repositorio entero, tambien
+el del contenedor. Por eso es de cada maquina: la enciende quien sabe que
+todos sus git son 2.48 o mas nuevos. Con la clave y un git del host mas viejo,
+`hoom task start` se niega con `.hoom/local.yaml: worktrees_relativos pide
+git 2.48 o mas nuevo` y no crea nada; hoom no ve el git del contenedor.
+`hoom task start` lee el archivo con las mismas reglas que `hoom verify`: con
+uno de sus errores, se niega con ese error y no crea la tarea.
+
+Un worktree creado antes de encenderla guarda rutas absolutas. Para
+repararlo, desde el checkout principal (tambien escribe la extension en
+`.git/config`, con el mismo requisito de git):
+
+```sh
+git worktree repair --relative-paths
+```
+
 ## Aprobacion humana atada al contenido (hoom spec)
 
 El punto de control humano del flujo es la aprobacion del spec, y desde v0.5
@@ -798,7 +920,9 @@ hasta que la persona lo habilite.
 - `gates_sin_encierro`: gates del `hoom.yaml` del arbol que corren como
   antes (por ejemplo, uno que necesita docker o credenciales de la nube).
   **Debilita el encierro**: lo que ese gate corra del writer no esta
-  encerrado.
+  encerrado. Un gate con la plantilla de `.hoom/local.yaml` corre igual sin
+  encierro, o no corre con `exigir: completo` o `parcial` (ver «Donde corren
+  los gates»).
 - Cada tarea tiene sus caches (Go, npm, composer, Gradle) dentro de
   `.hoom/cache/encierro/<slug>/` del checkout principal: la primera vez se
   bajan las dependencias.

@@ -76,7 +76,9 @@
 //     git-ajeno are photographed around them. A verdict with
 //     verifycmd.GateMaterialDeGit or verifycmd.GateGitAjeno in fail stops the
 //     pilot before its save with its usual text for a red verdict, which names
-//     the gate. With a level under encierro.exigir that verify does
+//     the gate; so does one with verifycmd.GateEntornoLocal in fail
+//     (verify-en-el-entorno: a gate changed the main checkout's
+//     .hoom/local.yaml). With a level under encierro.exigir that verify does
 //     not run, and the pilot stops with a Why that carries
 //     itemcmd.ErrExigirDelGuardado's text;
 //   - an envelope cut by git-ajeno or config-de-agentes

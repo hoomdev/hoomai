@@ -19,6 +19,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/checkcmd"
 	"github.com/hoomdev/hoomai/internal/encierro"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/isolate"
@@ -168,6 +169,17 @@ type Isolation struct {
 // RuleMaterialDeGit or RuleGitAjeno with each path and closes in verify,
 // no-entregable, exit 1, with NotaMaterialDeGit or NotaGitAjeno; another
 // role's closes as any red verdict.
+//
+// verify-en-el-entorno: the envelope of every role photographs the
+// .hoom/local.yaml of root's main checkout, the one verify reads
+// (FotoLocal(entorno.Principal(root)) into Snapshot.Local, the folder found
+// once before the run; ProtegidoAusente when it is not there) before and
+// after the run, also when root is a subdirectory of its repository. A run that created, changed or
+// removed it is tampering (RuleTampering, path entorno.Ruta, DetalleLocal):
+// the envelope is cut in scope, no-entregable, exit 1, with the tampering
+// note and no verify, and its high finding names .hoom/local.yaml. Its verify
+// then runs the gates with root's .hoom/local.yaml, like every verify
+// (verifycmd.Run).
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup(opt.Role)
 	if err != nil {
@@ -379,11 +391,20 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// what runs code in the next session, and git outside the task's
 	// branch: photographed for every role that executes, compared after the
 	// run before any git of hoom on the tree (contencion-del-writer)
+	// the main checkout's .hoom/local.yaml decides what the gates of verify
+	// run: photographed around every role's run (verify-en-el-entorno), at
+	// the folder verify reads it from, found once before the run
+	principal := entorno.Principal(root)
 	var previo *fotosPrevias
 	if role.Exec {
-		previo = tomarPrevias(runDir, dir)
+		previo = tomarPrevias(runDir, dir, principal)
 	}
-	before := Take(runDir, base)
+	tomar := func() Snapshot {
+		s := Take(runDir, base)
+		s.Local = FotoLocal(principal)
+		return s
+	}
+	before := tomar()
 	info, err := mgr.Start(so)
 	if err != nil {
 		keepQuarantine(w, tree, res.Isolation, "el run no arranco")
@@ -450,7 +471,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		// exactly like a finished one's — blind or not, with the real tree's
 		// photograph — because a resolution closes a finding whether the run
 		// ended well or not (CA-438). What it cannot give is a tree to verify.
-		res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
+		res.Scope = Gate(dir, base, opt.Task, role, before, tomar(), pol, cegado(tree, beforeReal, dir, base))
 		printScope(w, res.Scope, role, step(steps-2, steps))
 		if niegaExigir != "" {
 			keepQuarantine(w, tree, res.Isolation, "el encierro no dejo correr el rol")
@@ -463,7 +484,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	// [N-2/N] scope: the question no prompt can answer, plus the one the
 	// blind tree lets us ask — is the blindfold still on?
 	seguir("scope", steps-2)
-	res.Scope = Gate(dir, base, opt.Task, role, before, Take(runDir, base), pol, cegado(tree, beforeReal, dir, base))
+	res.Scope = Gate(dir, base, opt.Task, role, before, tomar(), pol, cegado(tree, beforeReal, dir, base))
 	printScope(w, res.Scope, role, step(steps-2, steps))
 	if res.Scope.Cuts() {
 		keepQuarantine(w, tree, res.Isolation, "no se trasplanto nada")

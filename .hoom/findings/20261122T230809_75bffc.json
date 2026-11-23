@@ -1,0 +1,11 @@
+{
+  "id": "20261122T230809_75bffc",
+  "created_at": "2026-11-22T23:08:09.242713353Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/initcmd/initcmd.go",
+  "description": "INTRODUCIDO: hoom init siempre crea/completa abs/.hoom/.gitignore en internal/initcmd/initcmd.go:86-96, pero entorno.Leer resuelve .hoom/local.yaml en el checkout principal (internal/entorno/entorno.go:110-116), incluso cuando hoom.yaml vive en un subdirectorio soportado. En un monorepo con proyecto sub/app, init agrega local.yaml a sub/app/.hoom/.gitignore; root/.hoom/local.yaml sigue sin ignorarse y verify lo rechaza con ErrNoIgnorado. La regla debe instalarse en el mismo principal donde se lee el ajuste (sin perder el ignore propio del proyecto).",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

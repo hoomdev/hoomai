@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T010605_7e38c4",
+  "as": "corregido",
+  "evidence": "corregido en 1298c15 segun la decision de la persona del 2026-11-23 (aceptar la ventana y detectarla): despues del Write, en las dos rutas, sinPegar lee por el mismo descriptor el byte anterior a lo escrito; si no es salto de linea devuelve un error que nombra la linea ajena y la de hoom, sin reintento ni added. El doc registra la ventana residual aceptada (Hoom lo acepto el 2026-11-23). Test TestHallazgo7e38c4_UnaLineaPegadaALaAjenaEsUnError (sobre cache/, sobre un archivo vacio y al crear): con el hoomfs.go de 87c313b por overlay (scratchpad viejo-r3) falla; en c11c5f6 pasa.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T01:59:16.045106625Z"
+}

@@ -15,14 +15,17 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
+	"io"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/hoomdev/hoomai/internal/agents"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
@@ -361,6 +364,13 @@ type Snapshot struct {
 	Directorios map[string]bool
 	Manifest    string        // hash of hoom.yaml ("" = unreadable)
 	Ratchet     *ratchet.File // nil = no baseline declared
+	// Local (verify-en-el-entorno) is FotoLocal of the main checkout: the
+	// envelope of every role takes it before and after the run, since an
+	// ignored file never shows up in Touched and its template decides what
+	// the gates of verify run. "" = not photographed (a hand-built
+	// photograph): CheckScope compares it only when both photographs have
+	// it.
+	Local string
 	// Listado is why git could not list what changed ("" = it could): a
 	// photograph without that list cannot say what the role touched, so the
 	// gate cuts on it (finding 5c5342).
@@ -761,6 +771,12 @@ func sortViolations(vs []Violation) {
 // CheckScope compares the two photographs and judges every path the run
 // changed. Universal rules run first: they are the floor no manifest can
 // lower.
+//
+// When both photographs carry Local and it differs (verify-en-el-entorno),
+// the run created, changed or removed the main checkout's .hoom/local.yaml:
+// a RuleTampering violation with Path entorno.Ruta (".hoom/local.yaml") and
+// Detail DetalleLocal, like a change to the evidence, so the envelope is cut
+// before verify. No manifest lifts it.
 func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	res := ScopeResult{Touched: delta(before.Touched, after.Touched)}
 	// hoom.yaml may be untracked or ignored; its content settles the question.
@@ -791,6 +807,17 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 		res.Touched = append(res.Touched, ratchetPath)
 		sort.Strings(res.Touched)
 	}
+	// The main checkout's .hoom/local.yaml is ignored, so it never shows up
+	// in the delta: its photograph settles it, and its one violation is
+	// this one whatever git listed (verify-en-el-entorno).
+	if before.Local != "" && after.Local != "" && before.Local != after.Local {
+		res.Violations = slices.DeleteFunc(res.Violations, func(v Violation) bool { return v.Path == entorno.Ruta })
+		res.Violations = append(res.Violations, Violation{Path: entorno.Ruta, Rule: RuleTampering, Detail: DetalleLocal})
+		if !contains(res.Touched, entorno.Ruta) {
+			res.Touched = append(res.Touched, entorno.Ruta)
+			sort.Strings(res.Touched)
+		}
+	}
 	sortViolations(res.Violations)
 	for _, v := range res.Violations {
 		if v.Rule == RuleTampering {
@@ -799,6 +826,64 @@ func CheckScope(before, after Snapshot, pol Policy) ScopeResult {
 	}
 	res.OK = len(res.Violations) == 0
 	return res
+}
+
+// DetalleLocal (verify-en-el-entorno) is the Detail of the RuleTampering
+// violation of a run that created, changed or removed the main checkout's
+// .hoom/local.yaml (Snapshot.Local).
+const DetalleLocal = "la plantilla de .hoom/local.yaml decide que corren los gates: un rol no la cambia"
+
+// FotoLocal (verify-en-el-entorno) is the photograph of the .hoom/local.yaml
+// (entorno.Ruta) of the main checkout principal, as Snapshot.Local keeps it:
+// the hex sha256 of its bytes when it is a regular file of at most
+// materialgit.MaxLeido bytes; materialgit.HuellaGrande (its size, mode, mtime
+// and ctime, never its content) for a larger one, also one that grows past
+// that bound while it is read (the read stops there); ProtegidoAusente when
+// it is not there, HuellaNoRegular plus its type for anything else (never
+// followed nor read) and HuellaIlegible when it cannot be read. It is read
+// from the disk, never from git, is never "", and returns in a bounded time
+// whatever the file's size (a sparse file of an exabyte included).
+func FotoLocal(principal string) string {
+	r, err := os.OpenRoot(principal)
+	if errors.Is(err, fs.ErrNotExist) {
+		return ProtegidoAusente
+	}
+	if err != nil {
+		return HuellaIlegible
+	}
+	defer r.Close()
+	name := filepath.FromSlash(entorno.Ruta)
+	fi, err := r.Lstat(name)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return ProtegidoAusente
+	case err != nil:
+		return HuellaIlegible
+	case !fi.Mode().IsRegular():
+		return huella(r, name, fi)
+	case fi.Size() > materialgit.MaxLeido:
+		return materialgit.HuellaGrande(fi)
+	}
+	f, err := hoomfs.AbrirRegularEn(r, name, fi)
+	if err != nil {
+		return HuellaIlegible
+	}
+	defer f.Close()
+	h := sha256.New()
+	// at most one byte past the bound: a file that grows between the
+	// Lstat and the read is never read whole (acc76d)
+	n, err := io.Copy(h, io.LimitReader(f, materialgit.MaxLeido+1))
+	if err != nil {
+		return HuellaIlegible
+	}
+	if n > materialgit.MaxLeido {
+		ahora, err := f.Stat()
+		if err != nil {
+			return HuellaIlegible
+		}
+		return materialgit.HuellaGrande(ahora)
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // The two Huellas that are not a content hash.

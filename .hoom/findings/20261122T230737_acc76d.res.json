@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T230737_acc76d",
+  "as": "corregido",
+  "evidence": "corregido en 9b0fe55: agentcmd.FotoLocal da la huella grande: (materialgit.HuellaGrande) sin leer un regular mayor que materialgit.MaxLeido y lee con io.LimitReader(MaxLeido+1). Tests TestHallazgoAcc76d_FotoLocalDeUnArchivoEnormeVuelveEnseguida y TestHallazgoAcc76d_ElSobreDeUnRolQueLoAgrandaCortaEnScope (disperso de 1 EiB en tmpfs): con scope.go y materialgit.go de 9b0fe55^ por overlay fallan por tiempo (10 s y 90 s); en el arbol actual pasan sin saltarse (0.00 s y 0.54 s).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:06:44.419696963Z"
+}

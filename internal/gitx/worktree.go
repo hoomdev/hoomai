@@ -98,6 +98,47 @@ func WorktreeDe(root, dir string) (rama string, ok bool, err error) {
 	return rama, true, nil
 }
 
+// AceptaRutasRelativas (verify-en-el-entorno) says whether the git that runs
+// in dir accepts `git worktree add --relative-paths`: git 2.48 or newer.
+//
+// It runs, with dir as its working directory, the git that this process's
+// PATH resolves (exec.Command("git")), with exactly these arguments:
+//
+//	git -c core.fsmonitor=false version
+//
+// and this process's environment plus GIT_OPTIONAL_LOCKS=0,
+// GIT_NO_REPLACE_OBJECTS=1 and GIT_GRAFT_FILE (hoom's read-only git). It
+// splits the output in fields (strings.Fields): the first two have to be
+// "git" and "version", and the third is the version, for example "2.56.1"
+// or "2.47.1.windows.2". It holds when the first two dot-separated parts of
+// that version, as integers, are at least 2.48: a major above 2, or major 2
+// and a minor of 48 or more. A git that exits non-zero, an output that does
+// not start with "git version", or a version whose first two parts are not
+// integers does not. It asks git nothing else and keeps nothing between
+// calls: a fake git first in the PATH that answers that one call with
+// "git version 2.47.0" and passes every other call to the real git makes it
+// false, and taskcmd.Start then refuses a worktrees_relativos: true.
+func AceptaRutasRelativas(dir string) bool {
+	v, err := versionDeGit(dir)
+	return err == nil && alMenos(v, [2]int{2, 48})
+}
+
+// Ignora (verify-en-el-entorno) says whether the git of dir ignores the path
+// rel, relative to dir: `git check-ignore -q`, with dir's own repository
+// whatever the environment points at. A tracked path is not ignored, even
+// when a .gitignore covers it. err when git could not answer.
+func Ignora(dir, rel string) (bool, error) {
+	_, err := gitLimpio(dir, "check-ignore", "-q", "--", rel)
+	var ee *exec.ExitError
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.As(err, &ee) && ee.ExitCode() == 1:
+		return false, nil
+	}
+	return false, err
+}
+
 // variablesDeOtroRepo make git answer for a repository or work tree other
 // than the one of its working directory: a hook exports GIT_DIR.
 var variablesDeOtroRepo = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR",

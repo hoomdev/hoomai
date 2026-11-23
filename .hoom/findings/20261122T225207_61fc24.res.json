@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T225207_61fc24",
+  "as": "refutado",
+  "evidence": "no es un defecto del codigo: CA-766 y la seccion del veredicto del spec firmado exigen entorno.ejecutar con la plantilla en el veredicto, y la linea entorno: en la salida (spec:67, :70, CA-766). El refutador@claude verifico que el codigo no hace nada de mas: la plantilla no llega a Command, notas, eventos ni al reporte (gates/runner.go:162; verifycmd.go:290-291; cmd/hoom/main.go:399-401). La persona acepto el riesgo el 2026-11-22: queda en Riesgos de la enmienda a692f91 (firma 55b134e2), y el README advierte que ejecutar no lleve secretos (87b6992, parrafo Sin secretos en ejecutar).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:16:47.502981766Z"
+}

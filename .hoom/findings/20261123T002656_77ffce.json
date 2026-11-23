@@ -1,0 +1,11 @@
+{
+  "id": "20261123T002656_77ffce",
+  "created_at": "2026-11-23T00:26:56.688882264Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/verify_en_el_entorno_hallazgos_test.go",
+  "description": "INTRODUCIDO: internal/agentcmd/verify_en_el_entorno_hallazgos_test.go:156 ejecuta 'truncate -s 1E' dentro del provider falso, pero el preflight de este test solo comprueba que no sea Windows y nunca verifica que la utilidad truncate exista. En un runner Unix con sh y git pero sin ese binario, el script toma el '|| exit 9' y la prueba falla antes de ejercer FotoLocal, produciendo un rojo de entorno; usa un helper controlado por la prueba o salta explicitamente cuando falte la utilidad.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb1fb57819122492",
+  "task": "verify-en-el-entorno"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T005732_31f78c",
+  "as": "corregido",
+  "evidence": "corregido en 06a8835 segun la decision de la persona del 2026-11-23 (negarse): con mas de un enlace duro (Stat_t.Nlink del descriptor, unix; en Windows no se mira y el doc lo dice) completarGitignore devuelve *EnlacesDuros sin escribir y explica como romper el enlace, al completar y al crear. Test TestHallazgo31f78c_UnGitignoreConOtroEnlaceDuroNoSeEscribe (internal/hoomfs/verify_en_el_entorno_hallazgos_unix_test.go): con el hoomfs.go de 87c313b por overlay (scratchpad viejo-r3) falla; en c11c5f6 pasa (los dos nombres quedaban escritos; ahora error, added vacio y bytes intactos).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T01:59:16.038083639Z"
+}

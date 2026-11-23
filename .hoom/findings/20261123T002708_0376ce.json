@@ -1,0 +1,11 @@
+{
+  "id": "20261123T002708_0376ce",
+  "created_at": "2026-11-23T00:27:08.46553299Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/agentcmd/verify_en_el_entorno_hallazgos_test.go",
+  "description": "INTRODUCIDO: internal/agentcmd/verify_en_el_entorno_hallazgos_test.go:127-133 inicia el cronometro antes de crear/programar la goroutine y falla si el tiempo de pared llega a 1 s. Una pausa del scheduler o un runner cargado se atribuye a FotoLocal aunque la funcion vuelva inmediatamente al ejecutarse; el select de 10 s ya detecta el cuelgue que esta regresion quiere evitar. Este umbral convierte carga transitoria del CI en un falso rojo; sincroniza el inicio de la medicion o valida solo el limite holgado.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb1fb57819122492",
+  "task": "verify-en-el-entorno"
+}

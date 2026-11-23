@@ -14,6 +14,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/encierro"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitajeno"
@@ -76,6 +77,13 @@ type Sobre struct {
 	Ciego string
 }
 
+// LineaEntorno (verify-en-el-entorno) is the line `hoom verify` prints under
+// its first line when the verdict has Entorno; %s is the template
+// (verdict.Entorno.Ejecutar): `entorno: <plantilla> (de .hoom/local.yaml)`.
+// With --json it goes, like that first line, to stderr: stdout stays the
+// verdict alone.
+const LineaEntorno = "entorno: %s (de .hoom/local.yaml)"
+
 // GateGitAjeno (ronda 1, aclaracion 20) is the gate a verify with
 // Options.Sobre adds to its verdict when git changed outside the task's
 // branch during its gates (agentcmd.RuleGitAjeno, photographed before the
@@ -94,14 +102,63 @@ const GateGitAjeno = "git_ajeno"
 // material did not change has no such gate.
 const GateMaterialDeGit = "material_de_git"
 
+// GateEntornoLocal (verify-en-el-entorno, CA-773) is the gate EVERY verify
+// adds to its verdict when the main checkout's .hoom/local.yaml was created,
+// changed or removed while its gates ran: required, status fail, scope full,
+// exit_code 1, its note (Notes) exactly NotaEntornoLocal and its output
+// (OutputTail) the path entorno.Ruta. The verdict is then red, like one with
+// GateMaterialDeGit, and no reader of verdicts takes it as green. A verify
+// whose .hoom/local.yaml did not change has no such gate. It holds for
+// `hoom verify`, the verify of an envelope, the pilot's cerrar-hallazgos and
+// POST /api/verify, with Options.Sobre or without it, with ejecutar or
+// without it, and in a --gate run too: a gate that runs unenclosed, with the
+// template or without it, can write in the main checkout.
+const GateEntornoLocal = "entorno_local"
+
+// NotaEntornoLocal is the note of the gate GateEntornoLocal, exactly.
+const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian los gates"
+
 // Run executes the verification and writes the verdict. It returns the
 // finalized verdict and the path of its artifact.
 //
 // It validates the gate selection against the manifest BEFORE anything else:
 // a request hoom does not understand produces no verdict, no live events and
 // no ratchet measurement — it produces a *cliargs.UsageError.
+//
+// Right after that, and before anything else (no git snapshot, no live
+// events, no gate), it reads the local adjustment of the machine
+// (verify-en-el-entorno) with entorno.Leer(m.Dir, the names of m.Gates): its
+// error is Run's error, exactly, and no gate runs and no verdict is written,
+// as with an invalid hoom.yaml. This holds for every caller — `hoom verify`,
+// the envelope of `hoom agent`, the pilot's cerrar-hallazgos and
+// POST /api/verify — since all of them run this function. With ejecutar:
+//   - the gates run with its template (gates.Options.Local);
+//   - the verdict carries Entorno, with Ejecutar and SHA256 of the file, and
+//     every GateResult its Entorno (verdict.EntornoPrefijo or
+//     verdict.EntornoHost);
+//   - with Options.Sobre and the section `encierro` in Sobre.Root's
+//     hoom.yaml, gates.Options.ExigirEncierro is its exigir, whether or not
+//     this system can enclose.
+//
+// Without ejecutar (no file, or ejecutar with no value), the same commands,
+// the same states and the same JSON as before.
+//
+// With ejecutar or without it, and with Options.Sobre or without it, every
+// run photographs the main checkout's .hoom/local.yaml (entorno.Ruta under
+// entorno.Ajuste.Principal): the sha256 of its bytes, or that it does not
+// exist, right before the first gate the run executes and right after the
+// last (CA-773), counting hoom's own: the spec's (spec_lint, spec_trace with
+// its [verifica:] commands, spec_approved), findings_open, the manifest's
+// gates and the ratchet with its metric commands. When the two differ, the
+// verdict carries one more gate, GateEntornoLocal, in fail with
+// NotaEntornoLocal, and is red; when they do not, it has no such gate and the
+// JSON is as before.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
+		return nil, "", err
+	}
+	local, err := entorno.Leer(m.Dir, m.SortedGateNames())
+	if err != nil {
 		return nil, "", err
 	}
 	git := gitx.Snapshot(m.Dir, m.BaseBranch)
@@ -117,14 +174,14 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	lw := live.NewWriter(m.Dir)
 	defer lw.Close()
 
-	gopt := gates.Options{Full: opt.Full, Emit: lw.Emit}
+	gopt := gates.Options{Full: opt.Full, Emit: lw.Emit, Local: local}
 	var antes materialgit.Foto
 	if opt.Sobre != nil {
-		plan, sin, err := planDelSobre(m, *opt.Sobre)
+		plan, sin, exigir, err := planDelSobre(m, *opt.Sobre)
 		if err != nil {
 			return nil, "", err
 		}
-		gopt.Encierro, gopt.SinEncierro = plan, sin
+		gopt.Encierro, gopt.SinEncierro, gopt.ExigirEncierro = plan, sin, exigir
 	}
 	if len(opt.Gates) > 0 {
 		gopt.Only = map[string]bool{}
@@ -161,6 +218,9 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	}
 	lw.Emit(live.Event{Kind: live.KindVerifyStart, Gates: total, Spec: opt.Spec})
 
+	// the photograph of .hoom/local.yaml spans every command the run
+	// executes, hoom's own gates included (CA-773)
+	localAntes := fotoLocal(local.Principal)
 	var results []verdict.GateResult
 	if opt.Spec != "" {
 		for _, name := range []string{"spec_lint", "spec_trace", "spec_approved"} {
@@ -219,6 +279,10 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 			DurationMS: rres.DurationMS, ExitCode: rres.ExitCode})
 		results = append(results, rres)
 	}
+	if fotoLocal(local.Principal) != localAntes {
+		results = append(results, verdict.GateResult{Name: GateEntornoLocal, Required: true, Status: verdict.StatusFail,
+			Scope: "full", ExitCode: 1, OutputTail: entorno.Ruta, Notes: NotaEntornoLocal})
+	}
 
 	v := &verdict.Verdict{
 		Project: m.Project,
@@ -227,6 +291,16 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		Git:     git,
 		Gates:   results,
 		Spec:    opt.Spec,
+	}
+	if local.Ejecutar != "" {
+		v.Entorno = &verdict.Entorno{Ejecutar: local.Ejecutar, SHA256: local.SHA256}
+		for i := range v.Gates {
+			if v.Gates[i].Entorno == "" {
+				// hoom's own gates (spec_*, findings_open, ratchet, the
+				// photographs) run in hoom, on the host
+				v.Gates[i].Entorno = verdict.EntornoHost
+			}
+		}
 	}
 	if len(gopt.Only) > 0 {
 		// A --gate scoped run is a diagnostic, never a reference: mark it so
@@ -255,6 +329,14 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 // changed.
 const topeFotoMaterial = 5 * time.Second
 
+// fotoLocal is the photograph of the .hoom/local.yaml of the main checkout
+// principal around the gates (CA-773): its Huella (the sha256 of its bytes,
+// or that it is not there, not a regular file or not readable), read from
+// the disk without following it.
+func fotoLocal(principal string) string {
+	return materialgit.Huella(filepath.Join(principal, filepath.FromSlash(entorno.Ruta)))
+}
+
 // planDelSobre is the encierro of the gates of a verify with Sobre s: nil
 // (as today) without the section `encierro` in s.Root's hoom.yaml, or with
 // a level ninguno; with the mechanism job (Windows) a plan with no view,
@@ -264,16 +346,19 @@ const topeFotoMaterial = 5 * time.Second
 // the manifest's tree writable, but for the test-writer (agents.Role.Isolated),
 // whose gates run in the manifest's tree read-only and write only in its
 // blind tree s.Ciego, when it is still there. sin are
-// encierro.gates_sin_encierro.
-func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]bool, error) {
+// encierro.gates_sin_encierro, and exigir is encierro.exigir when there is
+// the section ("" without it), whether or not this system can enclose
+// (verify-en-el-entorno, aclaracion 10).
+func planDelSobre(m *manifest.Manifest, s Sobre) (plan *encierro.Plan, sin map[string]bool, exigir string, err error) {
 	roles, err := manifest.LoadRoles(s.Root)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	if roles.Encierro == nil {
-		return nil, nil, nil
+		return nil, nil, "", nil
 	}
-	sin := map[string]bool{}
+	exigir = roles.Encierro.Exigir
+	sin = map[string]bool{}
 	for _, g := range roles.Encierro.GatesSinEncierro {
 		sin[g] = true
 	}
@@ -281,9 +366,9 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]boo
 	switch info.Mecanismo {
 	case encierro.MecanismoBwrap:
 	case encierro.MecanismoJob:
-		return &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}, sin, nil
+		return &encierro.Plan{Info: info, Exigir: roles.Encierro.Exigir}, sin, exigir, nil
 	default:
-		return nil, sin, nil
+		return nil, sin, exigir, nil
 	}
 	lugar := encierro.Lugar{Principal: s.Root, Tarea: s.Task, Arbol: m.Dir, Quien: encierro.QuienVerify,
 		Escribibles: roles.Encierro.Escribibles, Perfil: m.Profile}
@@ -295,9 +380,9 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (*encierro.Plan, map[string]boo
 	}
 	vista, err := encierro.VistaDe(lugar)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
-	return &encierro.Plan{Info: info, Vista: vista, Exigir: roles.Encierro.Exigir}, sin, nil
+	return &encierro.Plan{Info: info, Vista: vista, Exigir: roles.Encierro.Exigir}, sin, exigir, nil
 }
 
 // approvedGate enforces the human control point: a spec bound to a verify

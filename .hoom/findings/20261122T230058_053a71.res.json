@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T230058_053a71",
+  "as": "corregido",
+  "evidence": "corregido en d9f5c0d: sin worktrees_relativos, taskcmd.Start corre git -c worktree.useRelativePaths=false worktree add (un git viejo ignora la clave). Test TestHallazgo053a71_SinLaClaveLaConfigDeGitNoPideRutasRelativas (internal/taskcmd/verify_en_el_entorno_hallazgos_test.go, useRelativePaths=true en el repo y en GIT_CONFIG_GLOBAL): con taskcmd.go de d9f5c0d^ por overlay falla; en el arbol actual pasa (gitdir absoluto, .git/config igual byte a byte). El subtest rutas relativas de internal/runcmd/hallazgos_c1b_68644c_test.go se re-expreso con worktrees_relativos: true, sin cambiar sus aserciones.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:06:44.412194964Z"
+}

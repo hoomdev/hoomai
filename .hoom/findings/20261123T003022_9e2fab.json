@@ -1,0 +1,11 @@
+{
+  "id": "20261123T003022_9e2fab",
+  "created_at": "2026-11-23T00:30:22.89255496Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/initcmd/initcmd.go",
+  "description": "INTRODUCIDO: internal/initcmd/initcmd.go:111 usa entorno.Principal, que convierte cualquier fallo de git rev-parse en dir como si el proyecto estuviera fuera de Git. En un proyecto \u003crepo\u003e/sub/app, si git esta ausente o falla durante init, el comando termina 0 pero no crea \u003crepo\u003e/.hoom/.gitignore; al recuperarse git, verify lee \u003crepo\u003e/.hoom/local.yaml y lo rechaza con ErrNoIgnorado. Reproduccion: repo real, PATH con un git que sale 1 durante 'hoom init --profile go sub/app': init devuelve exito y el ignore principal queda ausente. El fallo degradado debe propagarse o distinguirse de 'no es repo'.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb1fb57819122492",
+  "task": "verify-en-el-entorno"
+}

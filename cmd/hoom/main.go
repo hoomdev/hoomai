@@ -10,11 +10,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hoomdev/hoomai/internal/agentcmd"
 	"github.com/hoomdev/hoomai/internal/agents"
@@ -26,6 +29,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/contextcmd"
 	"github.com/hoomdev/hoomai/internal/costcmd"
 	"github.com/hoomdev/hoomai/internal/encierro"
+	"github.com/hoomdev/hoomai/internal/entorno"
 	"github.com/hoomdev/hoomai/internal/finding"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/initcmd"
@@ -392,17 +396,61 @@ func cmdVerify(args []string) error {
 	if err != nil {
 		return err
 	}
+	if v.Entorno != nil {
+		// where the gates ran, under the first line (verify-en-el-entorno)
+		fmt.Fprintln(progreso, lineaEntorno(v.Entorno))
+	}
 	if opt.JSON {
 		// In-band, machine-readable output for agents: no ANSI, pure JSON.
 		raw, _ := json.MarshalIndent(v, "", "  ")
 		fmt.Println(string(raw))
 	} else {
 		report.Render(os.Stdout, v, path)
+		for _, e := range sugerenciasDelVerify(m, v) {
+			fmt.Println(e.Sugerencia())
+		}
 	}
 	if v.Verdict == "red" {
 		os.Exit(1) // strict policy: red verdict = failing exit code
 	}
 	return nil
+}
+
+// lineaEntorno is verifycmd.LineaEntorno for the template of e, as written
+// when every rune of it is printable and quoted (strconv.Quote) when one is
+// not: a newline or an ANSI sequence in .hoom/local.yaml does not forge the
+// lines a person or a CI reads after it.
+func lineaEntorno(e *verdict.Entorno) string {
+	plantilla := e.Ejecutar
+	if strings.IndexFunc(plantilla, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
+		plantilla = strconv.Quote(plantilla)
+	}
+	return fmt.Sprintf(verifycmd.LineaEntorno, plantilla)
+}
+
+// sugerenciasDelVerify are the entornos of m's profile that `hoom verify`
+// suggests below its report (verify-en-el-entorno, CA-769): only when a gate
+// of v could not find its command (error with exit 127) and the main
+// checkout has no .hoom/local.yaml at all (one without ejecutar is the
+// person's choice already).
+func sugerenciasDelVerify(m *manifest.Manifest, v *verdict.Verdict) []profiles.Entorno {
+	falto := false
+	for _, g := range v.Gates {
+		if g.Status == verdict.StatusError && g.ExitCode == 127 {
+			falto = true
+		}
+	}
+	if !falto {
+		return nil
+	}
+	principal, ok := gitx.CheckoutPrincipal(m.Dir)
+	if !ok {
+		principal = m.Dir
+	}
+	if _, err := os.Lstat(filepath.Join(principal, filepath.FromSlash(entorno.Ruta))); !errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return profiles.Sugerencias(m.Profile, m.Dir)
 }
 
 // cmdCheck is hoomAI's answer to RDD receipts without the ceremony: it

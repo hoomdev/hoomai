@@ -1,7 +1,11 @@
 # Spec: verify corre donde vive el runtime del proyecto
 
 Estado: BORRADOR — pendiente de aprobación humana.
-Tarjeta: `verify-en-el-entorno`. Intake: `.hoom/intake/rfc-calibracion-por-riesgo.md`, CAL-8 con el ajuste de 10.2 y la respuesta P6 de 10.4. Criterios CA-760 a CA-772.
+Tarjeta: `verify-en-el-entorno`. Intake: `.hoom/intake/rfc-calibracion-por-riesgo.md`, CAL-8 con el ajuste de 10.2 y la respuesta P6 de 10.4. Criterios CA-760 a CA-773.
+Enmienda del 2026-11-22, antes de los tests: la foto de `.hoom/local.yaml` alrededor de los gates (CA-773).
+Enmienda del 2026-11-22, después del verify: las rutas relativas de los worktrees son opcionales por máquina (CA-771, ver Decisiones).
+Enmienda del 2026-11-22, después de la review: en un proyecto que vive en un subdirectorio del repo, `hoom init` ignora `local.yaml` también en el principal, y el error de no ignorado dice dónde (CA-763, CA-770, ver Decisiones).
+Enmienda del 2026-11-23, después del CI: la nota de 127 y 126 salta la pista que `env` imprime después del error (CA-760, ver Decisiones).
 
 ## Objetivo
 
@@ -31,7 +35,7 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 
 - Exit 127 (`sh`: comando no encontrado): estado `error`, `exit_code` 127, nota `no pudo correr: comando no encontrado (exit 127): <linea>`.
 - Exit 126 (encontrado pero no ejecutable): estado `error`, `exit_code` 126, nota `no pudo correr: el comando no se puede ejecutar (exit 126): <linea>`.
-- `<linea>` es la última línea no vacía de la salida del gate, que es donde `sh` y `env` nombran el comando. Sin salida, la nota termina en `)`.
+- `<linea>` es la última línea no vacía de la salida del gate que no sea la pista de `env`, que es donde `sh` y `env` nombran el comando. La pista es una línea que lleva `-[v]S`, como `env: use -[v]S to pass options in shebang lines`: algunas versiones de coreutils la imprimen después de `env: 'php': No such file or directory`, y `-[v]S` no se traduce. Sin otra línea, la nota termina en `)`.
 - Cualquier otro exit distinto de 0 sigue en `fail`, y el timeout sigue en `error`, como hoy.
 - Vale con prefijo y sin él: un `ddev` que falta en el host da 127 igual que un `php` que falta.
 
@@ -43,6 +47,7 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
   ```yaml
   ejecutar: "ddev exec -d /var/www/html/{rel} sh -c {cmd}"
   en_el_host: [semgrep]   # gates que corren como hoy
+  worktrees_relativos: true   # ver «Worktrees con rutas relativas»
   ```
 
 - En `ejecutar`, hoom reemplaza estas marcas, cada una como una palabra de `sh` entre comillas simples:
@@ -53,11 +58,12 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 - Vale para todo el que corre los gates: `hoom verify` a mano, el sobre de `hoom agent`, el piloto (`cerrar-hallazgos`) y `POST /api/verify`.
 - `ejecutar:` sin valor o vacío cuenta como sin la clave (la regla de CA-747).
 - Errores. Con cualquiera de ellos, `hoom verify` no corre ningún gate ni escribe veredicto, como con un `hoom.yaml` inválido:
-  - `.hoom/local.yaml: clave desconocida "<k>" (validas: ejecutar, en_el_host)`;
+  - `.hoom/local.yaml: clave desconocida "<k>" (validas: ejecutar, en_el_host, worktrees_relativos)`;
   - `.hoom/local.yaml: ejecutar tiene que llevar {cmd}`;
   - `.hoom/local.yaml: en_el_host nombra "<g>", que no es un gate de hoom.yaml`;
-  - `.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)`.
+  - `.hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml al .hoom/.gitignore del checkout principal (y git rm --cached .hoom/local.yaml si esta en git)`.
 - `.hoom/.gitignore` canónico (`hoomfs.GitignoreBody`) suma `local.yaml`, y `hoom init` completa uno existente con esa línea.
+- Cuando el proyecto vive en un subdirectorio del repo, `hoom init` completa además el `.hoom/.gitignore` del checkout principal con `local.yaml`, y si no existe lo crea solo con esa línea. Es ahí donde se lee y se valida el archivo. Un fallo al escribirlo es un error de `hoom init`, como el del ignore del proyecto.
 
 ### El veredicto
 
@@ -71,6 +77,7 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 - Con la sección `encierro` y un sobre, un gate con prefijo corre sin encierro, como uno de `gates_sin_encierro`, con la nota `sin encierro: corre con el prefijo de .hoom/local.yaml`. El contenedor es su límite. Las fotos del material de git alrededor de los gates siguen.
 - Con `encierro.exigir` en `completo` o `parcial`, ese gate queda en `error` con la nota `el prefijo de .hoom/local.yaml no corre encerrado y encierro.exigir es <valor>`.
 - El sobre de `hoom agent` saca el sha256 de `.hoom/local.yaml` del principal, o anota que no existe, antes y después del rol. Una diferencia es manipulación: regla `manipulacion` con la ruta `.hoom/local.yaml`, igual que un cambio a la evidencia. Un archivo ignorado no aparece en el scope, y un rol que escribe `ejecutar: "true {cmd}"` pondría verde todo.
+- Todo verify (a mano, el del sobre, el del piloto y `POST /api/verify`) saca también el sha256 de `.hoom/local.yaml` del principal, o anota que no existe, antes y después de los gates. Si cambió, el veredicto suma el gate `entorno_local`, requerido y en `fail`, con la nota `manipulacion: .hoom/local.yaml cambio mientras corrian los gates`, y queda rojo, como `material_de_git`. Si no cambió, ese gate no aparece. Un gate que corre sin encierro, con prefijo o sin él, puede escribir en el principal, y la foto del sobre es de antes y después del rol, no de los gates.
 
 ### La sugerencia del perfil
 
@@ -85,11 +92,15 @@ Protege I1: el veredicto vuelve a salir de comandos que de verdad corrieron.
 
 ### Worktrees con rutas relativas
 
-`hoom task start` crea el worktree con `git worktree add --relative-paths` cuando el git de la máquina lo acepta (2.48 o más nuevo). Así el `.git` del worktree vale también dentro de un contenedor que monta el proyecto en otra ruta. Con un git más viejo queda como hoy. `gitx.WorktreeDe` ya resuelve rutas relativas.
+- Con `worktrees_relativos: true` en `.hoom/local.yaml` del principal, `hoom task start` crea el worktree con `git worktree add --relative-paths`. Así el `.git` del worktree vale también dentro de un contenedor que monta el proyecto en otra ruta. `gitx.WorktreeDe` ya resuelve rutas relativas.
+- Sin la clave, o con `false`, nulo o vacío, el worktree se crea como hoy, y `.git/config` no cambia.
+- Con la clave y un git que no acepta `--relative-paths` (más viejo que 2.48), `hoom task start` se niega sin crear nada: `.hoom/local.yaml: worktrees_relativos pide git 2.48 o mas nuevo`.
+- `--relative-paths` escribe `extensions.relativeWorktrees` en el `.git/config` de ese clon, y desde ahí un git más viejo que 2.48 rechaza el repo entero, también dentro del contenedor. Por eso es de la máquina: lo enciende quien sabe que todos sus git son 2.48 o más nuevos.
+- `hoom task start` lee `.hoom/local.yaml` con las mismas reglas que `hoom verify`: con uno de los errores de arriba, se niega con ese error y no crea el worktree.
 
 ### Documentación
 
-El README documenta `.hoom/local.yaml`, sus marcas, `en_el_host`, la interacción con el encierro y `git worktree repair --relative-paths` para los worktrees creados antes.
+El README documenta `.hoom/local.yaml`, sus marcas, `en_el_host`, `worktrees_relativos` con su requisito de git 2.48 en el host y en el contenedor, la interacción con el encierro, `git worktree repair --relative-paths` para los worktrees creados antes, y que `ejecutar` no lleve secretos porque viaja en el veredicto.
 
 ## Casos límite y errores esperados
 
@@ -98,7 +109,7 @@ El README documenta `.hoom/local.yaml`, sus marcas, `en_el_host`, la interacció
 - El entorno está apagado: el prefijo sale con su propio código, distinto de 127, y el gate queda en `fail` con su salida. Es lo que pasó, y la salida lo dice.
 - Una comilla simple en el comando del gate: `{cmd}` la escapa (`'\''`), y `sh` dentro del contenedor recibe el comando intacto.
 - `en_el_host` sin `ejecutar` no cambia nada.
-- Un worktree creado antes, con ruta absoluta: git dentro del contenedor no lo encuentra y el gate que use git falla. El README dice cómo repararlo.
+- Un worktree con ruta absoluta (creado antes, o sin `worktrees_relativos`): git dentro del contenedor no lo encuentra y el gate que use git falla. El README dice cómo repararlo.
 
 ## Lo que este spec re-expresa
 
@@ -106,7 +117,7 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 
 ## Criterios de aceptación
 
-- CA-760: un gate requerido cuyo comando sale con 127 queda `error`, con `exit_code` 127 y la nota `no pudo correr: comando no encontrado (exit 127): <ultima linea no vacia de la salida>`; el veredicto es rojo y el resumen cuenta un `error`.
+- CA-760: un gate requerido cuyo comando sale con 127 queda `error`, con `exit_code` 127 y la nota `no pudo correr: comando no encontrado (exit 127): <ultima linea no vacia de la salida>`, sin contar la pista de `env` (una línea con `-[v]S`), así que con esa pista al final la nota lleva la línea anterior; el veredicto es rojo y el resumen cuenta un `error`.
 - CA-761: un gate que sale con 126 queda `error` con la nota `no pudo correr: el comando no se puede ejecutar (exit 126): <linea>`; un exit 1, 2 o 3 sigue en `fail` con su código, y el timeout sigue en `error`.
 - CA-762: `.hoom/local.yaml` se lee del checkout principal también desde `.hoom/worktrees/<slug>/`; uno dentro del worktree no se lee; `ejecutar:` vacío o nulo cuenta como sin la clave.
 - CA-763: los cuatro errores de `.hoom/local.yaml` salen con su texto exacto y `hoom verify` no corre gates ni escribe veredicto.
@@ -116,9 +127,10 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - CA-767: con `encierro` y un sobre, un gate con prefijo corre sin encierro y con la nota `sin encierro: corre con el prefijo de .hoom/local.yaml`; con `exigir` en `completo` o `parcial`, queda `error` con la nota de exigir.
 - CA-768: un rol que cambia, crea o borra `.hoom/local.yaml` del principal deja el sobre con la regla `manipulacion` y la ruta `.hoom/local.yaml`.
 - CA-769: con `.ddev/config.yaml`, perfil `laravel` y sin `php` en el PATH, `hoom init` imprime la sugerencia de `ddev`, y `hoom verify` la imprime debajo de un `error` por 127 cuando no hay `.hoom/local.yaml`; con `vendor/bin/sail`, la de `sail`; con `php` en el PATH, ninguna; nadie escribe `.hoom/local.yaml`.
-- CA-770: `hoomfs.GitignoreBody` incluye `local.yaml` y `hoom init` lo agrega a un `.hoom/.gitignore` que no lo tiene; el `.hoom/.gitignore` de este repo lo tiene. [verifica: grep -qx 'local.yaml' .hoom/.gitignore]
-- CA-771: con git 2.48 o más nuevo, `hoom task start` deja en el worktree un `.git` con `gitdir` relativo, y `hoom task list`, `hoom verify` y `hoom task done` lo reconocen como hoy.
-- CA-772: el README documenta el ajuste local y el encierro. [verifica: grep -q "\.hoom/local.yaml" README.md && grep -q "en_el_host" README.md && grep -q "relative-paths" README.md]
+- CA-770: `hoomfs.GitignoreBody` incluye `local.yaml` y `hoom init` lo agrega a un `.hoom/.gitignore` que no lo tiene; con el proyecto en un subdirectorio del repo, `hoom init` deja `local.yaml` también en el `.hoom/.gitignore` del checkout principal (lo crea si no existe, con esa sola línea), y después un `.hoom/local.yaml` del principal no da `ErrNoIgnorado`; el `.hoom/.gitignore` de este repo lo tiene. [verifica: grep -qx 'local.yaml' .hoom/.gitignore]
+- CA-771: con `worktrees_relativos: true` y git 2.48 o más nuevo, `hoom task start` deja en el worktree un `.git` con `gitdir` relativo, y `hoom task list`, `hoom verify` y `hoom task done` lo reconocen como hoy; sin la clave, el `.git` del worktree es absoluto y `.git/config` no gana `extensions.relativeWorktrees`; con la clave y un git más viejo, `hoom task start` se niega con `.hoom/local.yaml: worktrees_relativos pide git 2.48 o mas nuevo` y no crea el worktree.
+- CA-772: el README documenta el ajuste local y el encierro. [verifica: grep -q "\.hoom/local.yaml" README.md && grep -q "en_el_host" README.md && grep -q "relative-paths" README.md && grep -q "worktrees_relativos" README.md]
+- CA-773: un gate que crea, cambia o borra `.hoom/local.yaml` del principal mientras corre deja el veredicto rojo, con el gate `entorno_local` requerido en `fail` y la nota `manipulacion: .hoom/local.yaml cambio mientras corrian los gates`; un verify que no lo toca no trae ese gate.
 
 ## Decisiones
 
@@ -127,17 +139,20 @@ Ningún criterio firmado. Ningún CA fija hoy que el exit 127 de un gate sea `fa
 - **En el checkout principal, no en `~/.config`.** Es del proyecto y de la máquina, junto a los otros directorios locales, y los worktrees lo comparten sin copiarlo.
 - **Una plantilla con `{cmd}`, no un prefijo que se antepone.** DDEV, Compose, devcontainers y Lando reciben el comando de formas distintas; con `{cmd}` entran todos.
 - **La plantilla no entra en la huella.** La huella es del árbol (I2). El veredicto dice dónde corrió, y `hoom check` y `task done` no cambian.
-- **Con encierro, el gate con prefijo corre fuera del bwrap.** El contenedor necesita el socket de docker, y abrírselo al bwrap equivale a darle root al código del writer. Descartado: abrir el socket. `exigir` lo niega, porque quien exige encierro no lo pierde por un archivo local.
-- **La foto de `.hoom/local.yaml` en el sobre.** Un archivo ignorado no aparece en el scope, y esa plantilla decide qué corre.
-- **Rutas relativas en los worktrees nuevos**, para CAL-8.4: sin ellas, git dentro del contenedor no encuentra el repo de una tarea.
+- **Con encierro, el gate con prefijo corre fuera del bwrap.** El contenedor necesita el socket de docker, y abrírselo al bwrap equivale a darle root al código del writer. `exigir` lo niega, porque quien exige encierro no lo pierde por un archivo local. Descartados: abrir el socket, y rechazar `.hoom/local.yaml` siempre que haya encierro, porque una máquina con DDEV y encierro no podría usar el prefijo. Hoom lo eligió el 2026-11-22.
+- **La foto de `.hoom/local.yaml` en el sobre y alrededor de los gates.** Un archivo ignorado no aparece en el scope, y esa plantilla decide qué corre. La del sobre ve al rol; la de los gates ve al código del writer que corre en un test, y vale en todo verify, porque también un `hoom verify` a mano corre ese código.
+- **Rutas relativas en los worktrees, opcionales por máquina**, para CAL-8.4: sin ellas, git dentro del contenedor no encuentra el repo de una tarea. Son opcionales porque `--relative-paths` escribe una extensión en `.git/config` que un git más viejo que 2.48 no acepta, y la imagen del contenedor puede traer uno más viejo. `.git/config` es de cada clon, igual que `.hoom/local.yaml`. Descartados: encenderlas siempre (lo firmado al principio; el writer encontró la extensión), y sacarlas de esta tarjeta. Hoom lo eligió el 2026-11-22.
+- **La nota de 127 salta la pista de `env`.** El `env` de coreutils de Ubuntu 24.04 imprime `env: use -[v]S to pass options in shebang lines` después del error, y con la última línea a secas la nota no nombraba lo que faltó: justo el caso de `#!/usr/bin/env php` sin php. Se reconoce por `-[v]S` porque el resto del texto se traduce. Descartado: aceptar la pista y dejar el comando solo en `output_tail`. Hoom lo eligió el 2026-11-23, por el CI del PR de esta tarea.
+- **En un subdirectorio, `hoom init` ignora `local.yaml` también en el principal.** El archivo se lee y se valida en el principal, y un ignore en el `.hoom/.gitignore` del proyecto no lo cubre. Se crea solo con `local.yaml` porque el principal puede no ser un proyecto de hoom. Descartado: dejarlo a mano, con el error como guía. Hoom lo eligió el 2026-11-22, por los hallazgos 470368 y 75bffc de la review.
 
 ## Riesgos y deuda aceptada
 
 - Una plantilla que traga el código de salida, como `true {cmd}`, pone verde todo. La escribe la persona, el veredicto la registra con su sha256 y ningún rol la puede cambiar sin que el sobre lo marque. El README lo advierte.
+- La plantilla viaja entera en el veredicto, que va en git, y en la salida de `hoom verify`: una credencial escrita en `ejecutar` se filtra. El README advierte que no se pongan secretos ahí. Hoom aceptó el riesgo el 2026-11-22, por el hallazgo 61fc24 de la review.
 - El `hoom verify` que un rol corre por su cuenta, dentro de su encierro, no llega al socket de docker y sus gates con prefijo fallan. El que cuenta es el del sobre.
-- Los worktrees ya creados conservan su ruta absoluta hasta que alguien corre `git worktree repair --relative-paths`.
+- Los worktrees con ruta absoluta la conservan hasta que alguien corre `git worktree repair --relative-paths`, que también escribe la extensión en `.git/config`. Sin `worktrees_relativos`, un gate con prefijo que use git dentro del contenedor falla en una tarea; el README lo dice.
 - El exit 2 que `.hoom/semgrep/gate.sh` usa para «no pudo correr» sigue siendo `fail`. Cambiarlo es del gate, no de hoom.
 
 ## Preguntas para la firma
 
-1. Con la sección `encierro`, ¿un gate con prefijo corre fuera del bwrap con una nota, salvo que `exigir` lo niegue (recomendado), o hoom rechaza `.hoom/local.yaml` siempre que haya encierro?
+Ninguna. La que había (el gate con prefijo y el encierro) está contestada en Decisiones. Contestarla no es la firma.

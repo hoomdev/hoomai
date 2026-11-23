@@ -1,0 +1,11 @@
+{
+  "id": "20261122T230058_053a71",
+  "created_at": "2026-11-22T23:00:58.978896063Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/taskcmd/taskcmd.go",
+  "description": "INTRODUCIDO: internal/taskcmd/taskcmd.go:110-116 solo agrega --relative-paths cuando la clave es true, pero no agrega --no-relative-paths cuando falta o es false. Git 2.48 tambien habilita rutas relativas mediante worktree.useRelativePaths (el propio internal/runcmd/hallazgos_c1b_68644c_test.go:247-256 lo demuestra), asi que una configuracion de repo o global en true hace que el caso false/sin clave cree rutas relativas y escriba la extension igualmente. Esto contradice CA-771 y puede volver ilegible el repo dentro de un contenedor con Git viejo aunque la persona haya dejado desactivada la opcion local.",
+  "author": "reviewer@codex",
+  "fingerprint": "0b411536a37c9e52",
+  "task": "verify-en-el-entorno"
+}

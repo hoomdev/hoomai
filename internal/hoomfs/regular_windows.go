@@ -3,6 +3,7 @@
 package hoomfs
 
 import (
+	"io/fs"
 	"os"
 	"syscall"
 )
@@ -27,4 +28,11 @@ func abrirSinSeguir(path string) (*os.File, error) {
 		return nil, &os.PathError{Op: "open", Path: path, Err: err}
 	}
 	return os.NewFile(uintptr(h), path), nil
+}
+
+// enlaces is not looked at on Windows (finding 31f78c): the FileInfo of a
+// handle does not carry the count of hard links, so a .hoom/.gitignore with
+// more than one is written there like any other.
+func enlaces(fs.FileInfo) (uint64, bool) {
+	return 0, false
 }

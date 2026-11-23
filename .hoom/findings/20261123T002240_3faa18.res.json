@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T002240_3faa18",
+  "as": "corregido",
+  "evidence": "corregido en 87c313b: hoomfs.completarGitignore completa un .gitignore existente en sitio (O_RDWR|O_APPEND, un solo write, con chequeo de identidad), asi que conserva modo, inodo y dueno; uno nuevo se crea con O_CREATE|O_EXCL en 0644. Vale para init y para los llamadores de EnsureIgnored. Tests TestHallazgo3faa18_CompletarConservaModoEInodo (internal/hoomfs, 87c313b) y TestHallazgo3faa18_InitConservaElModoDelGitignore (internal/initcmd, 868dd39): con el hoomfs.go de antes por overlay fallan (inodo cambiado, archivo en -rw-r--r--); en 868dd39 pasan.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:54:49.230304621Z"
+}
