@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T002240_4583f7",
+  "as": "corregido",
+  "evidence": "corregido en 87c313b: completarGitignore ya no hace read-modify-replace; anexa en sitio lo que falta y despues comprueba que el nombre sigue siendo el objeto escrito y tiene las lineas; si un editor lo reemplazo, relee y recalcula (5 intentos, luego error, nunca added con la linea ausente). Test TestHallazgo4583f7_LoQueOtraManoEscribeEnLaVentanaSobrevive (internal/hoomfs, gancho antesDeCompletar): anexo en sitio, rename de editor, creacion concurrente y otro EnsureIgnored(worktrees); con el hoomfs.go de antes por overlay fallan los cuatro (se pierde la linea ajena y reporta added); en 868dd39 pasa. Ventana residual documentada en el doc de la funcion.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:54:49.239583104Z"
+}
