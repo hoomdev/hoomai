@@ -7,8 +7,9 @@
 // ultimo. Nada de docker ni de ddev de verdad.
 //
 //   - CA-760: exit 127 es error con NotaNoEncontrado y la ultima linea no
-//     en blanco de la salida; con prefijo y sin el; un ddev que no esta en
-//     el host da 127 igual que un php que no esta;
+//     en blanco de la salida que no sea la pista de env (una linea con
+//     -[v]S, enmienda c045afa8); con prefijo y sin el; un ddev que no esta
+//     en el host da 127 igual que un php que no esta;
 //   - CA-761: exit 126 es error con NotaNoEjecutable; cualquier otro exit
 //     distinto de 0 es fail con su codigo (una senal sin timeout incluida);
 //     el timeout sigue siendo error con -1;
@@ -149,12 +150,17 @@ func veeAjuste(ejecutar, rel string, enElHost ...string) *entorno.Ajuste {
 	return &entorno.Ajuste{Existe: true, Ejecutar: ejecutar, Rel: rel, EnElHost: enElHost, SHA256: strings.Repeat("ab", 32)}
 }
 
-// veeUltimaLinea es la ultima linea no en blanco de s, sin blancos al
-// borde ("" si no hay).
+// veePistaEnv es lo que marca la pista de env (enmienda c045afa8): una
+// linea que lo lleva, como `env: use -[v]S to pass options in shebang
+// lines`, no es la linea de la nota. No se traduce.
+const veePistaEnv = "-[v]S"
+
+// veeUltimaLinea es la ultima linea no en blanco de s que no sea la pista de
+// env (una linea con -[v]S), sin blancos al borde ("" si no hay).
 func veeUltimaLinea(s string) string {
 	lineas := strings.Split(s, "\n")
 	for i := len(lineas) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(lineas[i]); l != "" {
+		if l := strings.TrimSpace(lineas[i]); l != "" && !strings.Contains(l, veePistaEnv) {
 			return l
 		}
 	}
@@ -206,8 +212,9 @@ func TestCA760_Exit127EsErrorConLaUltimaLineaNoEnBlanco(t *testing.T) {
 
 // CA-760 y caso limite "el comando no esta": un comando que sh no encuentra,
 // uno que env no encuentra y una ruta que no existe son error con 127, y la
-// nota nombra el comando (la ultima linea de la salida, donde sh y env lo
-// nombran).
+// nota nombra el comando (la ultima linea de la salida que no sea la pista
+// de env, donde sh y env lo nombran: con o sin la pista, segun la version de
+// coreutils).
 func TestCA760_ComandoQueNoEstaEsErrorQueLoNombra(t *testing.T) {
 	for _, cmd := range []string{
 		"vee-no-existe-760 --version",
@@ -226,6 +233,75 @@ func TestCA760_ComandoQueNoEstaEsErrorQueLoNombra(t *testing.T) {
 			t.Fatalf("CA-760: %q: Command es el comando: %q", cmd, r.Command)
 		}
 	}
+}
+
+// veeImprime es un comando de sh que imprime texto tal cual (en stderr, o
+// en stdout) y sale con exit.
+func veeImprime(texto string, stderr bool, exit int) string {
+	c := "printf '%s' " + veeQ(texto)
+	if stderr {
+		c += " >&2"
+	}
+	return c + "; exit " + strconv.Itoa(exit)
+}
+
+// veeCasosPista prueba, con salidas falsas que no dependen de la version de
+// env, que la nota de un exit (127 o 126) salta la pista de env (una linea
+// con -[v]S, enmienda c045afa8) y lleva la ultima linea no vacia que no la
+// lleva, sin blancos al borde; sin otra linea, la constante sola. Siempre
+// error con su codigo, nunca fail. Sin prefijo y con el prefijo falso.
+func veeCasosPista(t *testing.T, ca string, exit int, constante string) {
+	t.Helper()
+	const (
+		errEn   = "env: 'php': No such file or directory"
+		errEs   = "env: 'php': No existe el fichero o el directorio"
+		pistaEn = "env: use -[v]S to pass options in shebang lines"
+		pistaEs = "env: use -[v]S para pasar opciones en líneas shebang"
+	)
+	casos := []struct {
+		nombre, salida string
+		stderr         bool
+		nota           string
+	}{
+		{"la pista de coreutils despues del error, en stderr", errEn + "\n" + pistaEn + "\n", true, constante + ": " + errEn},
+		{"la pista despues del error, en stdout", errEn + "\n" + pistaEn + "\n", false, constante + ": " + errEn},
+		{"la pista sin salto final", errEn + "\n" + pistaEn, true, constante + ": " + errEn},
+		{"la pista traducida", errEs + "\n" + pistaEs + "\n", true, constante + ": " + errEs},
+		{"solo la pista", pistaEn + "\n", true, constante},
+		{"solo la pista traducida, entre lineas en blanco", "\n  \n" + pistaEs + "\n\n", true, constante},
+		{"dos pistas seguidas", "x: falta\n" + pistaEn + "\n" + pistaEs + "\n", true, constante + ": x: falta"},
+		{"una linea con -[v]S en medio y otra despues", errEn + "\n" + pistaEn + "\notra linea al final\n", true, constante + ": otra linea al final"},
+		{"-[v]S dentro de una linea cualquiera", errEn + "\nalgo -[v]S algo\n", true, constante + ": " + errEn},
+		{"blancos al borde y CRLF", "  " + errEn + "  \r\n \t" + pistaEn + " \r\n\r\n", true, constante + ": " + errEn},
+		{"-vS sin corchetes no es la pista", errEn + "\nopcion -vS sin corchetes\n", true, constante + ": opcion -vS sin corchetes"},
+		{"-[V]S con mayuscula no es la pista", errEn + "\nusa -[V]S\n", true, constante + ": usa -[V]S"},
+	}
+	for _, c := range casos {
+		r := veeUnGate(t, veeImprime(c.salida, c.stderr, exit), Options{})
+		if r.Status != verdict.StatusError || r.ExitCode != exit || r.Notes != c.nota {
+			t.Fatalf("%s: %s: error, %d, nota %q: %+v", ca, c.nombre, exit, c.nota, r)
+		}
+	}
+	veeFalso(t, "ddev")
+	local := veeAjuste(veePlantilla, ".")
+	r := veeUnGate(t, veeImprime(errEn+"\n"+pistaEn+"\n", true, exit), Options{Local: local})
+	if r.Status != verdict.StatusError || r.ExitCode != exit || r.Notes != constante+": "+errEn || r.Entorno != verdict.EntornoPrefijo {
+		t.Fatalf("%s: con el prefijo, la pista de env tambien se salta: %+v", ca, r)
+	}
+}
+
+// CA-760 (enmienda c045afa8): con exit 127, la nota salta la pista que
+// algunas versiones de env imprimen despues del error (una linea con
+// -[v]S, tambien traducida): lleva la linea anterior, y sin otra linea es
+// NotaNoEncontrado sola.
+func TestCA760_LaNotaSaltaLaPistaDeEnv(t *testing.T) {
+	veeCasosPista(t, "CA-760", 127, NotaNoEncontrado)
+}
+
+// CA-761 con la enmienda c045afa8: con exit 126 vale lo mismo, con
+// NotaNoEjecutable.
+func TestCA761_LaNotaSaltaLaPistaDeEnv(t *testing.T) {
+	veeCasosPista(t, "CA-761", 126, NotaNoEjecutable)
 }
 
 // CA-760 con la plantilla: un 127 de adentro del contenedor (el comando que
