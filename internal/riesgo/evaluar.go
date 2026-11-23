@@ -1,5 +1,10 @@
 package riesgo
 
+import (
+	"fmt"
+	"sort"
+)
+
 // TipoSeguridad is the tipo of a card (item.Tipos) whose effective riesgo is
 // always Alto (rule 2 of Clasificador.Evaluar).
 const TipoSeguridad = "seguridad"
@@ -72,7 +77,7 @@ const LineaRiesgo = "riesgo: %s (%s)"
 
 // Linea is e's line: LineaRiesgo with e.Efectivo and e.Motivo.
 func (e Evaluacion) Linea() string {
-	return ""
+	return fmt.Sprintf(LineaRiesgo, e.Efectivo, e.Motivo)
 }
 
 // The warnings of the header of `hoom verify`, exactly.
@@ -114,7 +119,53 @@ const (
 // never lower than it. An empty path is left out, and archivos is not
 // changed.
 func (c Clasificador) Evaluar(t Tarjeta, archivos []string) Evaluacion {
-	return Evaluacion{}
+	tarea := t.Tarea != ""
+	ilegible := tarea && (t.Ilegible || Validar(t.Riesgo) != nil)
+	declarado := Normal
+	if tarea && !ilegible && t.Riesgo != "" {
+		declarado = t.Riesgo
+	}
+	e := Evaluacion{Declarado: declarado}
+	switch {
+	case ilegible:
+		e.Efectivo, e.Motivo = Alto, MotivoIlegible
+		return e
+	case tarea && t.Tipo == TipoSeguridad:
+		e.Efectivo, e.Motivo = Alto, MotivoSeguridad
+		return e
+	case declarado == Alto:
+		e.Efectivo, e.Motivo = Alto, fmt.Sprintf(MotivoDeclarado, Alto)
+		return e
+	}
+	orden := make([]string, 0, len(archivos))
+	for _, f := range archivos {
+		if f != "" {
+			orden = append(orden, f)
+		}
+	}
+	sort.Strings(orden)
+	for _, f := range orden {
+		if cl := c.Clase(f); (cl == ClaseProducto || cl == ClasePrueba) && CoincideAlguno(c.Rutas.DeRiesgo, f) {
+			e.Efectivo, e.Motivo = Alto, fmt.Sprintf(MotivoRutaDeRiesgo, f)
+			return e
+		}
+	}
+	if declarado == Bajo {
+		for _, f := range orden {
+			if c.Clase(f) == ClaseProducto && !CoincideAlguno(c.Rutas.DeBajoRiesgo, f) {
+				e.Efectivo, e.Motivo = Normal, fmt.Sprintf(MotivoFueraDeBajo, f)
+				return e
+			}
+		}
+		e.Efectivo, e.Motivo = Bajo, fmt.Sprintf(MotivoDeclarado, Bajo)
+		return e
+	}
+	if !tarea {
+		e.Efectivo, e.Motivo = Normal, MotivoSinTarjeta
+		return e
+	}
+	e.Efectivo, e.Motivo = Normal, fmt.Sprintf(MotivoDeclarado, Normal)
+	return e
 }
 
 // Mayor is the higher of the riesgos a and b in the order of Vocabulario
@@ -123,5 +174,20 @@ func (c Clasificador) Evaluar(t Tarjeta, archivos []string) Evaluacion {
 // card is the higher of the effective riesgo of its newest verdict and its
 // declared one now (finding.RiesgoDeTarjeta).
 func Mayor(a, b string) string {
-	return ""
+	if nivelDe(b) > nivelDe(a) {
+		a = b
+	}
+	return Vocabulario[nivelDe(a)]
+}
+
+// nivelDe is r's place in Vocabulario: "" is Normal, and a value outside it
+// counts as Alto (it fails closed).
+func nivelDe(r string) int {
+	switch r {
+	case Bajo:
+		return 0
+	case "", Normal:
+		return 1
+	}
+	return 2
 }

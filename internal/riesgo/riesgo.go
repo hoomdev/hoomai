@@ -27,16 +27,12 @@ const (
 var Vocabulario = []string{Bajo, Normal, Alto}
 
 // Marcas are the marks of the default risk paths: RutasBase().DeRiesgo is
-// `**/*<m>*` for each m, in this order. With the implementation of
-// riesgo-efectivo-y-tamano they are auth, login, password, passwd, secret,
-// token, cred, crypt, signin, signature, pago, payment, billing, invoice,
-// dte, permission, permiso, sandbox, sudo: today's, with `sign` (which also
-// caught design, assign and signal) replaced by signin and signature, in its
-// place. The skeleton still has `sign`.
+// `**/*<m>*` for each m, in this order. `sign`, which also caught design,
+// assign and signal, is replaced by signin and signature, in its place.
 var Marcas = []string{
 	"auth", "login", "password", "passwd", "secret", "token", "cred",
-	"crypt", "sign", "pago", "payment", "billing", "invoice", "dte",
-	"permission", "permiso", "sandbox", "sudo",
+	"crypt", "signin", "signature", "pago", "payment", "billing", "invoice",
+	"dte", "permission", "permiso", "sandbox", "sudo",
 }
 
 // Ruta is the first of files, in their order, whose path in lower case

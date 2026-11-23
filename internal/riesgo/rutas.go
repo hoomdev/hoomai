@@ -1,5 +1,11 @@
 package riesgo
 
+import (
+	"fmt"
+	"path"
+	"strings"
+)
+
 // Rutas are the three lists of patterns of the section `rutas` of hoom.yaml
 // (spec riesgo-efectivo-y-tamano), already resolved: a key the file does
 // not give carries the default of the project's profile (profiles.Rutas,
@@ -30,7 +36,14 @@ type Rutas struct {
 //
 // Each call returns new slices: changing them changes no later call.
 func RutasBase() Rutas {
-	return Rutas{}
+	deRiesgo := make([]string, 0, len(Marcas))
+	for _, m := range Marcas {
+		deRiesgo = append(deRiesgo, "**/*"+m+"*")
+	}
+	return Rutas{
+		DeRiesgo:     deRiesgo,
+		DeBajoRiesgo: []string{"**/*.md", "**/*.txt", "**/*.rst", "**/*.adoc", "**/docs", "**/LICENSE", "**/NOTICE"},
+	}
 }
 
 // Coincide says whether the pattern patron matches the path ruta (relative
@@ -44,12 +57,28 @@ func RutasBase() Rutas {
 // app/Http/Auth/Login.php), and `vendor` matches vendor/a/b.go. A pattern
 // that is not valid (PatronValido) matches nothing.
 func Coincide(patron, ruta string) bool {
+	if ruta == "" || !PatronValido(patron) {
+		return false
+	}
+	pat := segmentos(strings.ToLower(patron))
+	segs := strings.Split(strings.ToLower(ruta), "/")
+	// the path itself first, then each parent directory
+	for k := len(segs); k >= 1; k-- {
+		if casan(pat, segs[:k]) {
+			return true
+		}
+	}
 	return false
 }
 
 // CoincideAlguno says whether one of patrones matches ruta (Coincide); false
 // for an empty or nil patrones.
 func CoincideAlguno(patrones []string, ruta string) bool {
+	for _, p := range patrones {
+		if Coincide(p, ruta) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -60,6 +89,72 @@ func CoincideAlguno(patrones []string, ruta string) bool {
 // `\`), or when it has an empty segment (it starts or ends with "/", or has
 // "//"): none of those would ever match a path of the change.
 func PatronValido(p string) bool {
+	if strings.TrimSpace(p) == "" {
+		return false
+	}
+	for _, seg := range strings.Split(p, "/") {
+		if seg == "" {
+			return false
+		}
+		if seg == "**" {
+			continue
+		}
+		// path.Match checks the whole pattern even when it does not match
+		if _, err := path.Match(seg, ""); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// segmentos splits a pattern into its segments, with several `**` in a row
+// collapsed into one: they mean the same, and each one would multiply the
+// backtracking of the next.
+func segmentos(patron string) []string {
+	var pat []string
+	for _, seg := range strings.Split(patron, "/") {
+		if seg == "**" && len(pat) > 0 && pat[len(pat)-1] == "**" {
+			continue
+		}
+		pat = append(pat, seg)
+	}
+	return pat
+}
+
+// casan says whether the pattern segments pat match the path segments seg
+// exactly: `**` is zero or more whole segments, any other segment is a
+// path.Match pattern (a malformed one matches nothing).
+func casan(pat, seg []string) bool {
+	for len(pat) > 0 {
+		if pat[0] == "**" {
+			for i := 0; i <= len(seg); i++ {
+				if casan(pat[1:], seg[i:]) {
+					return true
+				}
+			}
+			return false
+		}
+		if len(seg) == 0 {
+			return false
+		}
+		if ok, err := path.Match(pat[0], seg[0]); err != nil || !ok {
+			return false
+		}
+		pat, seg = pat[1:], seg[1:]
+	}
+	return len(seg) == 0
+}
+
+// enTerritorio says whether ruta is in the write territory patrones, the way
+// the envelope matches one (agentcmd): the whole path, case sensitive, with
+// no parent-directory rule.
+func enTerritorio(patrones []string, ruta string) bool {
+	segs := strings.Split(ruta, "/")
+	for _, p := range patrones {
+		if p = strings.TrimSpace(p); p != "" && casan(segmentos(p), segs) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -99,7 +194,15 @@ type Clasificador struct {
 //  3. ClasePrueba: ruta is in c.Pruebas;
 //  4. ClaseProducto: anything else, hoom.yaml included.
 func (c Clasificador) Clase(ruta string) string {
-	return ""
+	switch {
+	case strings.HasPrefix(ruta, ".hoom/"):
+		return ClaseHoom
+	case CoincideAlguno(c.Rutas.Generadas, ruta):
+		return ClaseGenerado
+	case enTerritorio(c.Pruebas, ruta):
+		return ClasePrueba
+	}
+	return ClaseProducto
 }
 
 // Tamano is the size of a change (spec riesgo-efectivo-y-tamano): the sum
@@ -120,7 +223,7 @@ const LineaTamano = "tamano: producto %d · pruebas %d · hoom %d"
 
 // Linea is t's line: LineaTamano with its three numbers.
 func (t Tamano) Linea() string {
-	return ""
+	return fmt.Sprintf(LineaTamano, t.Producto, t.Pruebas, t.Hoom)
 }
 
 // Medir is the size of the change whose files and lines are lineas (path
@@ -129,5 +232,19 @@ func (t Tamano) Linea() string {
 // its class (Clase), and a generado's to none. An empty path is left out.
 // It does not change lineas.
 func (c Clasificador) Medir(lineas map[string]int) Tamano {
-	return Tamano{}
+	var t Tamano
+	for ruta, n := range lineas {
+		if ruta == "" {
+			continue
+		}
+		switch c.Clase(ruta) {
+		case ClaseProducto:
+			t.Producto += n
+		case ClasePrueba:
+			t.Pruebas += n
+		case ClaseHoom:
+			t.Hoom += n
+		}
+	}
+	return t
 }
