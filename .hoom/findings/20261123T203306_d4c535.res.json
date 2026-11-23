@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T203306_d4c535",
+  "as": "corregido",
+  "evidence": "Corregido en a215745: gitx.ArchivosConBorrados une git.ChangedFiles con los archivos de LineasDelCambio (borrados incluidos, sin los excluidos de Snapshot); reviewcmd.medirCambio/lentesDe deciden vacio y SoloDocs con esa union, y boardcmd.Gather llena Evidence.ArchivosDelCambio para el veredicto de la huella actual, que reviewRequired une a changed_files. Regresion: reviewcmd/hallazgos_26c0ba_test.go (borrar internal/auth/token.go corre las 4 con MotivoRiesgoAlto; borrar README.md, 0 por SoloDocs) y boardcmd/hallazgos_26c0ba_test.go (Gather+Derive con git real: ReviewRequired=true y columna Review). El arnes del refutador TestRefutador_A_ReviewBorradoDeRutaDeRiesgo ahora da 4 lentes y registro (antes 0 lentes, sin-revisar). go test ./... sobre f5da20e: 47 paquetes ok.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T21:18:47.204166497Z"
+}
