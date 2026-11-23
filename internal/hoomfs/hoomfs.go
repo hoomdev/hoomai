@@ -99,7 +99,10 @@ func EnsureIgnored(root string, names ...string) (added []string, err error) {
 // land in its other names, which can be outside the project, so it is
 // *EnlacesDuros, an error that says how to break the link. The count is
 // looked at on the descriptor before the write, on Unix only: on Windows it
-// is not (enlaces).
+// is not (enlaces). A write the system reports failed, also only on the
+// close, is an error (findings 9b99c2, 9ee122), and a file it created and
+// could not complete is removed while it is still only hoom's (finding
+// c1ec5c, quitarCreado).
 //
 // One window stays, residual: another hand that appends a last line without
 // "\n" between the reading and the write (or between creating the file and
@@ -185,7 +188,30 @@ func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, 
 	if err != nil {
 		return nil, false, err
 	}
-	defer f.Close()
+	added, listo, err = anexarFaltan(r, root, f, antes, lineas)
+	// the close is looked at before saying "added" (findings 9b99c2,
+	// 9ee122): a write the system reports failed only there is an error
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	switch {
+	case err != nil:
+		return nil, false, err
+	case !listo || len(added) == 0:
+		return nil, listo, nil
+	case !quedaron(r, name, antes, added):
+		return nil, false, nil
+	}
+	return added, true, nil
+}
+
+// anexarFaltan is the part of completarUnaVez done on f, the .hoom/.gitignore
+// of r opened with O_APPEND, which was antes when looked at by name: it reads
+// it and appends, in one write, the lines of lineas it lacks. listo false
+// when another object took the name meanwhile; listo true and no added when
+// none was missing.
+func anexarFaltan(r *os.Root, root string, f *os.File, antes fs.FileInfo, lineas []string) (added []string, listo bool, err error) {
+	const name = ".gitignore"
 	st, err := f.Stat()
 	switch {
 	case err != nil:
@@ -220,15 +246,14 @@ func completarUnaVez(r *os.Root, root string, lineas []string) (added []string, 
 	if err := sinPegar(f, data); err != nil {
 		return nil, false, err
 	}
-	if !quedaron(r, name, antes, added) {
-		return nil, false, nil
-	}
 	return added, true, nil
 }
 
 // crearGitignore creates the .hoom/.gitignore of r with lineas, mode 0644,
 // only if there is still none (O_EXCL): listo false when someone else
 // created it first, or replaced it right after, so the try is made again.
+// When it created the file and could not complete it, it removes it if it
+// is still only hoom's (quitarCreado).
 func crearGitignore(r *os.Root, root string, lineas []string) (added []string, listo bool, err error) {
 	const name = ".gitignore"
 	added = faltan(nil, lineas)
@@ -246,30 +271,72 @@ func crearGitignore(r *os.Root, root string, lineas []string) (added []string, l
 		return nil, false, err
 	}
 	esperar(&antesDeEscribirCreado, root)
-	creado, err := f.Stat()
-	if err == nil {
-		// someone may have linked the new file elsewhere already
-		err = unSoloEnlace(gitignoreHoom, creado)
-	}
-	if err == nil {
-		err = f.Chmod(0o644) // as before, whatever the umask
-	}
-	if err == nil {
-		_, err = f.Write([]byte(data))
-	}
-	if err == nil {
-		err = sinPegar(f, data)
-	}
+	creado, escrito, err := escribirCreado(f, data)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
 	if err != nil {
+		if creado != nil {
+			quitarCreado(r, name, creado, escrito)
+		}
 		return nil, false, err
 	}
 	if !quedaron(r, name, creado, added) {
 		return nil, false, nil
 	}
 	return added, true, nil
+}
+
+// escribirCreado writes data into f, the .hoom/.gitignore crearGitignore has
+// just created, and returns how f was right after its creation (creado; nil
+// when even that could not be known) and the part of data the system took
+// (escrito), for quitarCreado.
+func escribirCreado(f *os.File, data string) (creado fs.FileInfo, escrito string, err error) {
+	if creado, err = f.Stat(); err != nil {
+		return nil, "", err
+	}
+	// someone may have linked the new file elsewhere already
+	if err := unSoloEnlace(gitignoreHoom, creado); err != nil {
+		return creado, "", err
+	}
+	if err := f.Chmod(0o644); err != nil { // as before, whatever the umask
+		return creado, "", err
+	}
+	n, err := f.Write([]byte(data))
+	if err != nil {
+		return creado, data[:n], err
+	}
+	return creado, data, sinPegar(f, data)
+}
+
+// quitarCreado removes the .hoom/.gitignore of r that crearGitignore created
+// and could not complete (finding c1ec5c), so that no empty or half-written
+// one is left, but only while it is still hoom's alone: the object creado
+// describes, with no other link, holding nothing or exactly escrito. Anything
+// else there (another hand's lines, a link to it) is not hoom's to remove, so
+// then the file stays as it is, and the error that brought crearGitignore
+// here is what it returns either way. What another hand writes between that
+// look and the removal, two system calls, is not seen.
+func quitarCreado(r *os.Root, name string, creado fs.FileInfo, escrito string) {
+	st, err := r.Lstat(name)
+	if err != nil || !mismo(creado, st) || (st.Size() != 0 && st.Size() != int64(len(escrito))) {
+		return
+	}
+	if n, ok := enlaces(st); ok && n > 1 {
+		return
+	}
+	if st.Size() > 0 {
+		f, err := AbrirRegularEn(r, name, st)
+		if err != nil {
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(f, st.Size()+1))
+		f.Close()
+		if err != nil || string(raw) != escrito {
+			return
+		}
+	}
+	_ = r.Remove(name)
 }
 
 // sinPegar checks, once data went into f in one O_APPEND write, that the
