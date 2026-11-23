@@ -382,7 +382,12 @@ func meter(ev Evidence) CardEvidence {
 		_, m.ReviewRequired = reviewRequired(v, efectivoEv(ev))
 	}
 	m.ReviewID = reviewOf(ev)
-	m.Riesgo = efectivoEv(ev)
+	r := riesgoDe(ev, ev.Verdict)
+	m.Riesgo, m.RiesgoMotivo = r.Efectivo, r.Motivo
+	if v := ev.Verdict; v != nil && v.Tamano != nil {
+		t := *v.Tamano
+		m.Tamano = &t
+	}
 	return m
 }
 

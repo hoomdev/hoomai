@@ -82,7 +82,7 @@ func meterOf(ev Evidence, col string, m CardEvidence) []Segment {
 		out = append(out, seg("review", "review", SegFalta, "todavia no hay veredicto"))
 	case !required:
 		out = append(out, seg("review", "review", SegNoAplica,
-			fmt.Sprintf("el cambio es chico (%d lineas): no exige la revision de %s", lines, lentes)))
+			fmt.Sprintf(DetalleNoAplica, lines, lentes)))
 	default:
 		out = append(out, seg("review", "review", SegFalta, "falta la revision de "+lentes))
 	}

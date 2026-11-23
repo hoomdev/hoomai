@@ -162,6 +162,29 @@ type gatherer struct {
 	// (autonomia-entre-firmas)
 	principal     string
 	principalRead bool
+	// clasificador: the classifier of the PROJECT's hoom.yaml (its rutas and
+	// the test-writer's territory: riesgo-efectivo-y-tamano), read once; nil
+	// when it does not load, which the board reports
+	clasificador     *riesgo.Clasificador
+	clasificadorRead bool
+}
+
+// clasificadorDelProyecto is the classifier of the project's hoom.yaml
+// (finding.ClasificadorDelProyecto), read once per gatherer. One that does
+// not load is a falla of the board, and the cards are measured with the
+// classifier of a project without hoom.yaml (nil).
+func (g *gatherer) clasificadorDelProyecto() *riesgo.Clasificador {
+	if g.clasificadorRead {
+		return g.clasificador
+	}
+	g.clasificadorRead = true
+	cl, err := finding.ClasificadorDelProyecto(g.root)
+	if err != nil {
+		g.fallar(fmt.Sprintf("no pude leer las rutas de %s: %v", manifest.FileName, err))
+		return nil
+	}
+	g.clasificador = &cl
+	return g.clasificador
 }
 
 // principalDe is the main checkout of g.root when root is another tree (a
@@ -578,6 +601,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 	ev := Evidence{Item: it, Now: g.now, Source: SourceArbol, Dir: ".",
 		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn, RiesgoIlegible: ilegible,
+		Clasificador: g.clasificadorDelProyecto(),
 		TopeDeRondas: g.topeDeRondas()}
 	if ev.BlockOn == "" {
 		ev.BlockOn = "high"
