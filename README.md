@@ -475,7 +475,9 @@ tamano: producto 30 · pruebas 120 · hoom 4
 ```
 
 La tarea del veredicto es la del sobre de `hoom agent` o la del worktree
-`.hoom/worktrees/<slug>` donde corre; la tarjeta se lee del checkout
+`.hoom/worktrees/<slug>` donde corre, aunque este fuera de su rama o con
+HEAD separado; si git no puede comprobar ese worktree, la tarjeta cuenta
+como ilegible y el riesgo es `alto`. La tarjeta se lee del checkout
 principal. El riesgo de una tarjeta en el tablero es el mas alto entre el
 efectivo de su ultimo veredicto y el declarado de ahora: subir el declarado
 se ve enseguida, bajarlo espera al siguiente verify. `hoom board`, `hoom item

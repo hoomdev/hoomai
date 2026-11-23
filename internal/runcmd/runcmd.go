@@ -972,40 +972,58 @@ func TaskDir(root, task string) (string, error) {
 }
 
 // TareaDe is the task whose worktree is dir (spec riesgo-efectivo-y-tamano,
-// «La tarea del veredicto»): the slug when dir, cleaned and absolute, is
-// exactly <principal>/.hoom/worktrees/<slug>, where <principal> is dir's main
-// checkout (gitx.CheckoutPrincipal), and TaskDir(<principal>, slug) gives
-// dir back (a worktree of the repository on its branch hoom/<slug>). "" in
-// any other tree: the main checkout, a folder inside the worktree (a blind
-// tree nested in it included), a plain folder or a copy under
-// .hoom/worktrees/, a worktree on another branch, and a dir outside a git
-// repository. `hoom verify` without an envelope takes its task from here.
-func TareaDe(dir string) string {
+// «La tarea del veredicto»), when dir, cleaned and absolute, is exactly
+// <principal>/.hoom/worktrees/<slug>, where <principal> is dir's main
+// checkout (gitx.CheckoutPrincipal), and TaskDir(<principal>, slug) says:
+//
+//   - dir back (a worktree of the repository on its branch hoom/<slug>), or
+//     ErrOtraRama (that worktree on another branch or with HEAD detached):
+//     the task is slug, as the worktree where verify runs (finding 22a836);
+//   - gitx.ErrSinComprobar (git, or a Lstat, could not answer): the task is
+//     slug and sinComprobar is true, so verify reads its card as one that
+//     cannot be read (rule 1: alto);
+//   - anything else: "" (aclaracion 12).
+//
+// So "" is any other tree: the main checkout, a folder inside the worktree
+// (a blind tree nested in it included), a plain folder or a copy under
+// .hoom/worktrees/ that is not a worktree, a path that does not exist, and a
+// dir outside a git repository. `hoom verify` without an envelope takes its
+// task from here.
+func TareaDe(dir string) (slug string, sinComprobar bool) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return ""
+		return "", false
 	}
 	real, err := filepath.EvalSymlinks(filepath.Clean(abs))
 	if err != nil {
-		return ""
+		return "", false
 	}
 	principal, ok := gitx.CheckoutPrincipal(real)
 	if !ok {
-		return ""
+		return "", false
 	}
 	rel, err := filepath.Rel(principal, real)
 	if err != nil {
-		return ""
+		return "", false
 	}
 	partes := strings.Split(filepath.ToSlash(rel), "/")
 	if len(partes) != 3 || partes[0] != ".hoom" || partes[1] != "worktrees" {
-		return ""
+		return "", false
 	}
 	wt, err := TaskDir(principal, partes[2])
-	if err != nil || filepath.Clean(wt) != real {
-		return ""
+	switch {
+	case err == nil && filepath.Clean(wt) == real:
+		return partes[2], false
+	case err == nil:
+		return "", false
+	case errors.Is(err, ErrOtraRama):
+		// the task's own worktree off its branch: still its task, with
+		// the same card (a detached HEAD does not drop a card's tipo)
+		return partes[2], false
+	case errors.Is(err, gitx.ErrSinComprobar):
+		return partes[2], true
 	}
-	return partes[2]
+	return "", false
 }
 
 // Busy reports the run currently active in dir, if any. In-process state is

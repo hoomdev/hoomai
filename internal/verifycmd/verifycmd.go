@@ -162,10 +162,11 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // riesgo and the size of the change, and the verdict carries them
 // (verdict.Verdict Riesgo, Tamano and Tarea):
 //   - the task is Sobre.Task with Options.Sobre, else runcmd.TareaDe(m.Dir)
-//     (the worktree .hoom/worktrees/<slug> where it runs); in any other tree
-//     there is none;
+//     (the worktree .hoom/worktrees/<slug> where it runs, on its branch or
+//     not); in any other tree there is none;
 //   - its card is item.TarjetaDeRiesgo(m.Dir, task) (the main checkout's
-//     item, as on the board);
+//     item, as on the board), or one that cannot be read (alto, rule 1)
+//     when TareaDe could not check the worktree (gitx.ErrSinComprobar);
 //   - the classifier is profiles.Clasificador(m): the rutas and the
 //     test-writer's territory of the hoom.yaml it verifies with, like the
 //     gates;
@@ -369,7 +370,8 @@ type medida struct {
 
 // medirElCambio measures the change m verifies: its task (Sobre.Task, or the
 // worktree's: runcmd.TareaDe), its card as the board reads it
-// (item.TarjetaDeRiesgo: the main checkout's item first), the classifier of
+// (item.TarjetaDeRiesgo: the main checkout's item first; one that cannot be
+// read when TareaDe could not check the worktree), the classifier of
 // the hoom.yaml it verifies with (profiles.Clasificador) and the files and
 // lines of gitx.LineasDelCambio. When git cannot give those (outside a
 // repository, a base without a merge-base, a diff that fails) there is no
@@ -384,11 +386,17 @@ func medirElCambio(m *manifest.Manifest, opt Options, git gitx.Info) (medida, er
 	if opt.Sobre != nil {
 		md.tarea = strings.TrimSpace(opt.Sobre.Task)
 	}
+	sinComprobar := false
 	if md.tarea == "" {
-		md.tarea = runcmd.TareaDe(m.Dir)
+		md.tarea, sinComprobar = runcmd.TareaDe(m.Dir)
 	}
 	var t riesgo.Tarjeta
-	if md.tarea != "" {
+	switch {
+	case sinComprobar:
+		// git could not say whether this is the task's worktree: its card
+		// counts as one that cannot be read, and fails closed (rule 1)
+		t = riesgo.Tarjeta{Tarea: md.tarea, Ilegible: true}
+	case md.tarea != "":
 		t = item.TarjetaDeRiesgo(m.Dir, md.tarea)
 	}
 	if git.IsRepo {
