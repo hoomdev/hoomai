@@ -19,10 +19,14 @@ import (
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitajeno"
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/materialgit"
+	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/ratchet"
+	"github.com/hoomdev/hoomai/internal/riesgo"
+	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -183,6 +187,12 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		return nil, "", err
 	}
 	git := gitx.Snapshot(m.Dir, m.BaseBranch)
+	// the riesgo and the size of the change, before the gates: the
+	// findings_open gate judges with them
+	med, err := medirElCambio(m, opt, git)
+	if err != nil {
+		return nil, "", err
+	}
 	// a relative spec is the project's (the verdict keeps it as given): read
 	// from m.Dir, so a caller in another directory verifies the same file
 	specFile := opt.Spec
@@ -261,7 +271,8 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 			scope = "spec"
 		}
 		lw.Emit(live.Event{Kind: live.KindGateStart, Gate: finding.GateName, Scope: scope})
-		fres := finding.Gate(m.Dir, m.BaseBranch, blockOn, specFile)
+		fres := finding.GateDelVerify(m.Dir, m.BaseBranch, blockOn, specFile,
+			finding.DelVerify{Clasificador: med.clasificador, Tarea: med.tarea, Efectivo: med.riesgo.Efectivo})
 		lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: fres.Name, Status: fres.Status,
 			DurationMS: fres.DurationMS, ExitCode: fres.ExitCode})
 		results = append(results, fres)
@@ -312,6 +323,9 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		Git:     git,
 		Gates:   results,
 		Spec:    opt.Spec,
+		Riesgo:  &med.riesgo,
+		Tamano:  med.tamano,
+		Tarea:   med.tarea,
 	}
 	if local.Ejecutar != "" {
 		v.Entorno = &verdict.Entorno{Ejecutar: local.Ejecutar, SHA256: local.SHA256}
@@ -343,6 +357,54 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	}
 	lw.Emit(live.Event{Kind: live.KindVerifyEnd, Verdict: v.Verdict, VerdictID: v.ID, Partial: v.Partial})
 	return v, path, nil
+}
+
+// medida is what a verify measures of its change (riesgo-efectivo-y-tamano).
+type medida struct {
+	tarea        string
+	clasificador riesgo.Clasificador
+	riesgo       riesgo.Evaluacion
+	tamano       *riesgo.Tamano // nil outside a repository or when git cannot measure
+}
+
+// medirElCambio measures the change m verifies: its task (Sobre.Task, or the
+// worktree's: runcmd.TareaDe), its card as the board reads it
+// (item.TarjetaDeRiesgo: the main checkout's item first), the classifier of
+// the hoom.yaml it verifies with (profiles.Clasificador) and the files and
+// lines of gitx.LineasDelCambio. When git cannot give those (outside a
+// repository, a base without a merge-base, a diff that fails) there is no
+// tamano and the riesgo looks at the snapshot's changed files (aclaracion 3):
+// none outside a repository.
+func medirElCambio(m *manifest.Manifest, opt Options, git gitx.Info) (medida, error) {
+	cl, err := profiles.Clasificador(m)
+	if err != nil {
+		return medida{}, err
+	}
+	md := medida{clasificador: cl}
+	if opt.Sobre != nil {
+		md.tarea = strings.TrimSpace(opt.Sobre.Task)
+	}
+	if md.tarea == "" {
+		md.tarea = runcmd.TareaDe(m.Dir)
+	}
+	var t riesgo.Tarjeta
+	if md.tarea != "" {
+		t = item.TarjetaDeRiesgo(m.Dir, md.tarea)
+	}
+	if git.IsRepo {
+		if lineas, err := gitx.LineasDelCambio(m.Dir, m.BaseBranch); err == nil {
+			tam := cl.Medir(lineas)
+			md.tamano = &tam
+			archivos := make([]string, 0, len(lineas))
+			for f := range lineas {
+				archivos = append(archivos, f)
+			}
+			md.riesgo = cl.Evaluar(t, archivos)
+			return md, nil
+		}
+	}
+	md.riesgo = cl.Evaluar(t, git.ChangedFiles)
+	return md, nil
 }
 
 // topeFotoMaterial bounds each photograph of the git material of a verify

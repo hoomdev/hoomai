@@ -84,6 +84,21 @@ type LastVerdict struct {
 	Tamano *riesgo.Tamano     `json:"tamano,omitempty"`
 }
 
+// ultimoDe is v as `hoom status` shows it, with copies of its riesgo and
+// its tamano (nil when it does not carry them).
+func ultimoDe(v *verdict.Verdict) *LastVerdict {
+	lv := &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(), CreatedAt: v.CreatedAt, Summary: v.Summary}
+	if v.Riesgo != nil {
+		r := *v.Riesgo
+		lv.Riesgo = &r
+	}
+	if v.Tamano != nil {
+		t := *v.Tamano
+		lv.Tamano = &t
+	}
+	return lv
+}
+
 // FindingsSummary counts open findings.
 type FindingsSummary struct {
 	Open     int    `json:"open"`
@@ -154,8 +169,7 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	}
 	if len(all) > 0 {
 		v := all[len(all)-1]
-		s.Last = &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(),
-			CreatedAt: v.CreatedAt, Summary: v.Summary}
+		s.Last = ultimoDe(v)
 	}
 
 	st, err := live.Read(root)
@@ -222,15 +236,12 @@ func CheckYVeredicto(root, base string) (Veredictos, error) {
 		return Veredictos{}, err
 	}
 	out := Veredictos{Check: check, Avisos: avisos}
-	ver := func(v *verdict.Verdict) *LastVerdict {
-		return &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(), CreatedAt: v.CreatedAt, Summary: v.Summary}
-	}
 	if len(all) > 0 {
-		out.Ultimo = ver(all[len(all)-1])
+		out.Ultimo = ultimoDe(all[len(all)-1])
 	}
 	for _, v := range all {
 		if v.ID == check.VerdictID && check.VerdictID != "" {
-			out.DelCheck = ver(v)
+			out.DelCheck = ultimoDe(v)
 		}
 	}
 	return out, nil
@@ -412,6 +423,12 @@ func Render(w io.Writer, s *Snapshot, color bool) {
 		fmt.Fprintf(w, " veredicto: %s %s%s  pass:%d fail:%d err:%d aus:%d skip:%d\n",
 			badge, s.Last.ID, partial, s.Last.Summary.Pass, s.Last.Summary.Fail,
 			s.Last.Summary.Error, s.Last.Summary.Absent, s.Last.Summary.Skipped)
+		if r := s.Last.Riesgo; r != nil {
+			fmt.Fprintf(w, "   %s\n", r.Linea())
+		}
+		if t := s.Last.Tamano; t != nil {
+			fmt.Fprintf(w, "   %s\n", t.Linea())
+		}
 	}
 
 	// verify en curso

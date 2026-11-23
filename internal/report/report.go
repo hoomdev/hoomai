@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -33,6 +34,24 @@ func statusBadge(s string) string {
 		return cGray + "SKIP " + cReset
 	}
 	return s
+}
+
+// renderRiesgo prints the riesgo and the tamano of v and their warnings
+// (riesgo-efectivo-y-tamano), each only when v has what it says. The lines
+// carry no color: they are read and copied as they are.
+func renderRiesgo(w io.Writer, v *verdict.Verdict) {
+	if v.Riesgo != nil {
+		fmt.Fprintln(w, v.Riesgo.Linea())
+	}
+	if v.Tamano != nil {
+		fmt.Fprintln(w, v.Tamano.Linea())
+	}
+	if r := v.Riesgo; r != nil && v.Tarea != "" && riesgo.Mayor(r.Efectivo, r.Declarado) != riesgo.Mayor(r.Declarado, r.Declarado) {
+		fmt.Fprintf(w, riesgo.AvisoMayorQueDeclarado+"\n", r.Efectivo, r.Declarado, v.Tarea, r.Efectivo)
+	}
+	if r := v.Riesgo; r != nil && v.Tamano != nil && r.Efectivo == riesgo.Normal && v.Tamano.Producto > riesgo.UmbralProducto {
+		fmt.Fprintln(w, riesgo.AvisoProductoGrande)
+	}
 }
 
 // Render prints one verdict to w.
@@ -69,10 +88,8 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 	}
 	if v.Git.IsRepo && (v.Git.Insertions+v.Git.Deletions) > 0 {
 		fmt.Fprintf(w, "cambio: +%d -%d lineas - huella %s\n", v.Git.Insertions, v.Git.Deletions, v.Git.ChangeFingerprint)
-		if v.Git.Insertions+v.Git.Deletions > 400 {
-			fmt.Fprintf(w, "%s! cambio grande (>400 lineas): la review exige las 4 lentes (readability/reliability/resilience/risk)%s\n", cYellow, cReset)
-		}
 	}
+	renderRiesgo(w, v)
 	fmt.Fprintln(w, strings.Repeat("-", 72))
 	for _, g := range v.Gates {
 		scope := ""
