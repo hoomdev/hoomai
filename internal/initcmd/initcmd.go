@@ -19,8 +19,8 @@ import (
 //
 // verify-en-el-entorno: a new .hoom/.gitignore is hoomfs.GitignoreBody
 // (local.yaml included); one that already exists is completed with the line
-// local.yaml when it lacks it (hoomfs.EnsureIgnoredFiles), and nothing else
-// in it changes. When the project lives in a subdirectory of its repository
+// local.yaml when it lacks it (hoomfs.EnsureIgnoredFiles, an append in
+// place), and nothing else in it changes, its mode and inode included. When the project lives in a subdirectory of its repository
 // (entorno.Principal of dir is another folder), the main checkout's
 // .hoom/.gitignore is completed the same way, since .hoom/local.yaml is read
 // and validated there; when it does not exist it is created with that one
