@@ -331,7 +331,7 @@ func TestCA763_LosTextosDeLosErrores(t *testing.T) {
 		{fmt.Sprintf(entorno.ErrClaveDesconocida, "foo"), `.hoom/local.yaml: clave desconocida "foo" (validas: ejecutar, en_el_host, worktrees_relativos)`},
 		{entorno.ErrSinCmd, ".hoom/local.yaml: ejecutar tiene que llevar {cmd}"},
 		{fmt.Sprintf(entorno.ErrGateDesconocido, "semgrep"), `.hoom/local.yaml: en_el_host nombra "semgrep", que no es un gate de hoom.yaml`},
-		{entorno.ErrNoIgnorado, ".hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml a .hoom/.gitignore (y git rm --cached .hoom/local.yaml si esta en git)"},
+		{entorno.ErrNoIgnorado, ".hoom/local.yaml: git no lo ignora y es de esta maquina: agrega local.yaml al .hoom/.gitignore del checkout principal (y git rm --cached .hoom/local.yaml si esta en git)"},
 	} {
 		if c.got != c.want {
 			t.Fatalf("%s: el texto es %q; es %q", ca, c.want, c.got)
