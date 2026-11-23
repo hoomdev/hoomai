@@ -10,6 +10,11 @@ detect:
 # variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
 # dentro de su propia cache; GRADLE_USER_HOME ademas tapa ~/.gradle/init.d/
 cache: [GRADLE_USER_HOME]
+# rutas por defecto del perfil (riesgo-efectivo-y-tamano): lo que suma a la
+# fila base (kmp-compose las hereda); un generado no suma al tamano ni sube
+# el riesgo
+rutas:
+  generadas: [kotlin-js-store/yarn.lock, "**/gradle.lockfile"]
 gates:
   security:
     required: false

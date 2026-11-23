@@ -16,6 +16,12 @@ entornos:
     si_existe: vendor/bin/sail
     sin: php
     ejecutar: "docker compose exec -T -w /var/www/html/{rel} laravel.test sh -c {cmd}"
+# rutas por defecto del perfil (riesgo-efectivo-y-tamano): lo que suma a la
+# fila base; los textos de traduccion son de bajo riesgo, y un generado no
+# suma al tamano ni sube el riesgo
+rutas:
+  de_bajo_riesgo: [lang, resources/lang]
+  generadas: [composer.lock, package-lock.json, yarn.lock, pnpm-lock.yaml, vendor, node_modules, public/build]
 gates:
   security:
     required: false

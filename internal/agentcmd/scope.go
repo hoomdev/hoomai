@@ -534,22 +534,11 @@ type Policy struct {
 
 // defaultAllow / defaultDeny per scope shape. The test globs cover the usual
 // layouts of the four profiles; a project with another one declares its own
-// in hoom.yaml instead of living with noise.
+// in hoom.yaml instead of living with noise. The allow list lives in
+// agents.AllowPorDefecto, so that verify, the review and the board read the
+// same test-writer's territory (spec riesgo-efectivo-y-tamano).
 func defaultAllow(scope string) []string {
-	switch scope {
-	case agents.ScopeTests:
-		return []string{".hoom/**", "tests/**", "test/**", "spec/**", "src/test/**",
-			"**/*_test.go", "**/*Test.php", "**/*Test.kt", "**/*Test.java",
-			"**/*Spec.kt", "**/*.test.ts", "**/*.test.js"}
-	case agents.ScopeCodigo:
-		return []string{"**"}
-	case agents.ScopeSpecs:
-		// the spec authors' territory is the spec, not the rest of .hoom/:
-		// role contracts, intake documents and findings stay out
-		return []string{".hoom/specs/**"}
-	default: // evidencia
-		return []string{".hoom/**"}
-	}
+	return agents.AllowPorDefecto(scope)
 }
 
 func defaultDeny(scope string) []string {

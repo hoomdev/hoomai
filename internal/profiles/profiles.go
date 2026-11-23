@@ -37,6 +37,18 @@ type Profile struct {
 	// runtime may live instead of the host, each with the template hoom
 	// suggests for .hoom/local.yaml (see Entornos, Sugerencias).
 	Entornos []Entorno `yaml:"entornos,omitempty"`
+	// Rutas (riesgo-efectivo-y-tamano) is the profile's row of the default
+	// rutas: what it adds over riesgo.RutasBase (see Rutas).
+	Rutas FilaRutas `yaml:"rutas,omitempty"`
+}
+
+// FilaRutas is one profile's row of the default rutas
+// (riesgo-efectivo-y-tamano): the patterns it adds to each list of
+// riesgo.RutasBase.
+type FilaRutas struct {
+	DeRiesgo     []string `yaml:"de_riesgo,omitempty"`
+	DeBajoRiesgo []string `yaml:"de_bajo_riesgo,omitempty"`
+	Generadas    []string `yaml:"generadas,omitempty"`
 }
 
 // Entorno is one entry of a profile's entornos (verify-en-el-entorno): a

@@ -25,5 +25,18 @@ func WritesCode(role string) bool {
 // **/*.test.js; ScopeCodigo **, ScopeSpecs .hoom/specs/**, and any other
 // scope .hoom/**. Each call returns a new slice.
 func AllowPorDefecto(scope string) []string {
-	return nil
+	switch scope {
+	case ScopeTests:
+		return []string{".hoom/**", "tests/**", "test/**", "spec/**", "src/test/**",
+			"**/*_test.go", "**/*Test.php", "**/*Test.kt", "**/*Test.java",
+			"**/*Spec.kt", "**/*.test.ts", "**/*.test.js"}
+	case ScopeCodigo:
+		return []string{"**"}
+	case ScopeSpecs:
+		// the spec authors' territory is the spec, not the rest of .hoom/:
+		// role contracts, intake documents and findings stay out
+		return []string{".hoom/specs/**"}
+	default: // evidencia
+		return []string{".hoom/**"}
+	}
 }
