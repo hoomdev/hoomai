@@ -151,7 +151,7 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 | `hoom providers` | Detecta que CLIs de IA hay instaladas (claude, opencode, codex, gemini) y las capacidades que declara cada una (stream, continue, resume, session_id, model, system_prompt, tools, read_only, max_turns, budget). `--json` |
 | `hoom run --provider <p> [--task <slug>] "<prompt>"` | Lanza TU CLI de IA en headless sobre el proyecto o el worktree de la tarea. hoom nunca llama a una API de modelo; la narracion queda en `.hoom/runs/` (local, fuera de la huella y de Git). Opciones: `--resume <id>` (reanuda la sesion del provider que imprimio un run anterior), `--model <m>`, `--system-prompt <texto\|@ruta>` (se AGREGA al del provider; `@ruta` lee un contrato de rol), `--allow-tools a,b`, `--deny-tools a,b`, `--max-turns n`, `--budget-usd x`. Lo que el provider no soporta se ignora CON aviso en el log; `--strict` lo vuelve error. `--unattended`: nadie responde prompts, el CLI recibe de entrada las herramientas para leer, escribir y ejecutar |
 | `hoom agent --role <rol> [--task <slug>] [--spec <ruta>] "<pedido>"` | El SOBRE determinista de un rol: le da su contrato como system prompt, le impone su limite de escritura con el mecanismo que el provider declare (deny de herramientas en Claude, sandbox en Codex), corre el CLI UNA vez y cierra con evidencia en orden fijo — **scope** (que toco el rol, comparando el arbol antes y despues), **verify** y **check**. El gate de scope responde lo que ningun prompt puede responder: si el rol escribio solo donde le correspondia y dejo la evidencia intacta. Piso no aflojable: veredictos y hallazgos existentes son inmutables, las aprobaciones no las firma un agente, `hoom.yaml` no se toca, el trinquete solo sube, y los items y los registros de review (`.hoom/items/`, `.hoom/reviews/`) no los toca un rol; violarlo corta ANTES de emitir veredicto. Cada violacion se registra como hallazgo `high`. El **test-writer** corre ademas en un **arbol ciego**: un worktree disperso (`git sparse-checkout`) de UN commit que contiene lo que el rol puede leer —el spec, los tests, los archivos con los que el perfil reconoce el stack— y ni un archivo de implementacion, asi que la anti-circularidad deja de ser una regla de prompt. Ese arbol es tambien una cuarentena: solo se trasplantan al arbol real las rutas que el gate aprobo, y si el aislamiento se rompe (un archivo escondido que vuelve al disco, o una escritura en el arbol real) no se emite veredicto. El rol ciego corre ademas sin la configuracion personal del CLI, igual que `hoom review`: en claude, sin los servidores MCP del usuario (Engram incluido), sin sus hooks, plugins ni permisos y sin la memoria automatica del proyecto, que comparten todos los worktrees del repo; en codex, sin su `config.toml`. Un provider que no puede aislarse no corre un rol ciego: el sobre se niega en el paso aislar, antes de armar el arbol. Los autores de specs (**arquitecto**, **designer**, **analista**) escriben solo en `.hoom/specs/**` y sin shell, y no reciben `--spec`: escriben el spec, no se verifican contra el. Un rol que escribe y termina sin entregar nada (salvo la evidencia que genera hoom) cierra **SIN ENTREGA**, exit 1, sin verify ni check: no hay arbol nuevo que certificar. Un pedido de relleno (`...`, espacios, `<pedido>`) se rechaza antes de gastar un token. Opciones: `--provider <p>` (default: el primero instalado que soporte system prompt), `--model`, `--resume <id>`, `--max-turns n`, `--budget-usd x`, `--json`. Exit 0 solo con todos los pasos verdes (cinco; seis con un rol ciego) |
-| `hoom review [--provider p] [--lens l]` | La review CRUZADA: corre el rol reviewer en un provider **distinto del que escribio** (lo dice el meta del ultimo run, no la memoria de nadie) y se niega si serian el mismo, salvo `--same-provider`. Las sesiones interactivas que declara el item (`sesiones`, las anota `hoom cockpit --task` con tmux) suman writers DECLARADOS: un reviewer igual a uno de ellos tampoco es cruzado, y sin writer observado la review es `cruzada-declarada`, nunca `cruzada`. Deja un registro de sobre en `.hoom/envelopes/` como `hoom agent`. La lente sale de la EVIDENCIA con la regla del contrato 06: solo documentacion no invoca review, una ruta de riesgo o mas de 400 lineas (`insertions+deletions` del veredicto) piden las 4 lentes, el resto una. Las lentes corren en orden risk, reliability, resilience, readability. hoom congela UNA vez la evidencia (el diff del candidato sin el estado de hoom y el texto del spec) y la pone entera en el pedido de cada lente, antes de la linea de la lente; si pasa el tope (`review.max_evidence_kib`, 320 KiB por defecto) no corre ninguna lente y la review es NO ENTREGABLE: hoom no la corta. El reviewer corre **aislado** de la config personal del provider (Codex `--ignore-user-config`; Claude `--strict-mcp-config --setting-sources project` y `--settings {"autoMemoryEnabled":false}`, sin la memoria automatica), con el modelo y el esfuerzo que se eligen con `--model` / `--effort` o en `hoom.yaml`; la salida los muestra, junto con el gasto que informa el provider por lente, y el registro de review los guarda. El resultado son los hallazgos que hoom VE aparecer en `.hoom/findings/` durante el run, no los que el CLI dice haber registrado. No emite veredicto ni juzga el codigo: eso sigue siendo de `verify`. Con `--desde <commit>` revisa solo de ese commit a `HEAD`, y con `--delta` solo lo que cambio desde la ultima review completa o delta de la tarea (no van juntos). La base sale del `hoom.yaml` del proyecto (el arbol donde corre hoom) o de `--base <ref>`, nunca del `hoom.yaml` de la rama: si la rama declara otro `base_branch`, la review lo avisa y sigue con la del proyecto. Opciones: `--task`, `--spec`, `--desde`, `--delta`, `--base`, `--model`, `--effort`, `--same-provider`, `--max-turns`, `--budget-usd`, `--json` |
+| `hoom review [--provider p] [--lens l]` | La review CRUZADA: corre el rol reviewer en un provider **distinto del que escribio** (lo dice el meta del ultimo run, no la memoria de nadie) y se niega si serian el mismo, salvo `--same-provider`. Las sesiones interactivas que declara el item (`sesiones`, las anota `hoom cockpit --task` con tmux) suman writers DECLARADOS: un reviewer igual a uno de ellos tampoco es cruzado, y sin writer observado la review es `cruzada-declarada`, nunca `cruzada`. Deja un registro de sobre en `.hoom/envelopes/` como `hoom agent`. La lente sale de la EVIDENCIA con la regla del contrato 06, sobre el riesgo efectivo y las lineas de producto del cambio (ver «Riesgo efectivo y tamano del cambio»): solo documentacion no invoca review; con riesgo alto, las 4 lentes; con bajo, reliability; con normal, las 4 con mas de 400 lineas de producto y una el resto. Las rutas y el territorio del test-writer con que mide salen del `hoom.yaml` del merge-base, nunca del de la rama. La salida dice `riesgo: <efectivo> (<motivo>)`, y el registro guarda `riesgo_motivo` y `lentes_motivo`. Las lentes corren en orden risk, reliability, resilience, readability. hoom congela UNA vez la evidencia (el diff del candidato sin el estado de hoom y el texto del spec) y la pone entera en el pedido de cada lente, antes de la linea de la lente; si pasa el tope (`review.max_evidence_kib`, 320 KiB por defecto) no corre ninguna lente y la review es NO ENTREGABLE: hoom no la corta. El reviewer corre **aislado** de la config personal del provider (Codex `--ignore-user-config`; Claude `--strict-mcp-config --setting-sources project` y `--settings {"autoMemoryEnabled":false}`, sin la memoria automatica), con el modelo y el esfuerzo que se eligen con `--model` / `--effort` o en `hoom.yaml`; la salida los muestra, junto con el gasto que informa el provider por lente, y el registro de review los guarda. El resultado son los hallazgos que hoom VE aparecer en `.hoom/findings/` durante el run, no los que el CLI dice haber registrado. No emite veredicto ni juzga el codigo: eso sigue siendo de `verify`. Con `--desde <commit>` revisa solo de ese commit a `HEAD`, y con `--delta` solo lo que cambio desde la ultima review completa o delta de la tarea (no van juntos). La base sale del `hoom.yaml` del proyecto (el arbol donde corre hoom) o de `--base <ref>`, nunca del `hoom.yaml` de la rama: si la rama declara otro `base_branch`, la review lo avisa y sigue con la del proyecto. Opciones: `--task`, `--spec`, `--desde`, `--delta`, `--base`, `--model`, `--effort`, `--same-provider`, `--max-turns`, `--budget-usd`, `--json` |
 | `hoom hook` | Instala el pre-push de Git que exige `hoom check` antes de integrar |
 | `hoom verify --json` | Veredicto como JSON en stdout, para consumo de agentes (in-band); la linea de progreso se va por stderr para que stdout quede parseable byte por byte |
 | `hoom verify --help` | El uso EXACTO del verbo por stdout, exit 0 y cero artefactos. Es la misma constante que imprime `hoom help`: no hay un segundo texto que pueda desincronizarse |
@@ -273,7 +273,9 @@ compara esa huella contra el arbol actual: si un agente verifica A y entrega B, 
 huella no coincide y el check es ROJO con la accion exacta a ejecutar. `hoom hook`
 lleva esto al pre-push: sin veredicto verde con huella coincidente, no hay push
 (`HOOM_SKIP=1 git push` existe como escape consciente y visible, nunca silencioso).
-Mas de 400 lineas cambiadas dispara deterministicamente la review con 4 lentes.
+El veredicto trae ademas el riesgo efectivo y el tamano en lineas de producto (ver
+«Riesgo efectivo y tamano del cambio»): mas de 400 lineas de producto, con riesgo
+normal, disparan deterministicamente la review con 4 lentes.
 Es la idea central de RDD (Receipt Driven Development) sin la ceremonia
 criptografica: el modelo de amenaza local es la deriva, no la falsificacion.
 
@@ -389,8 +391,8 @@ el tablero, `hoom finding list`, `hoom status` y el Studio. Bloquea cuando:
 
 - su severidad llega al umbral (`block_on`), o es desconocida;
 - una persona lo subio con `hoom finding raise <id> --reason "..."`;
-- es un medium en una ruta de riesgo (auth, pagos, firma, secretos...);
-- es un medium de la review completa de una tarjeta de riesgo alto.
+- es un medium en una ruta de riesgo (`rutas.de_riesgo`: auth, pagos, firma, secretos...);
+- es un medium de la review completa de una tarjeta de riesgo efectivo alto.
 
 El resto son **pendientes**: no bloquean, la tarjeta los muestra
 (`pendientes: 3 medium, 5 low (no bloquean)`) y `hoom task done` los cuenta
@@ -398,16 +400,88 @@ al cerrar. Un pendiente es un defecto conocido que entra al proyecto; se
 toma despues con una tarjeta normal.
 
 **Riesgo de la tarjeta** (`riesgo:` en el item, `--riesgo` en `hoom item add`,
-`hoom item set` para cambiarlo; lo declara una persona):
+`hoom item set` para cambiarlo; lo declara una persona). hoom aplica el
+riesgo efectivo, que nunca es menor que el declarado (ver «Riesgo efectivo y
+tamano del cambio»):
 
-| Riesgo | Review que exige |
+| Riesgo efectivo | Review que exige |
 |--------|------------------|
-| `bajo` | la lente reliability, con mas de 400 lineas; si el cambio toca una ruta de riesgo, cuenta como normal |
-| `normal` | lo de siempre: una lente, las 4 con una ruta de riesgo o mas de 400 lineas |
+| `bajo` | la lente reliability, con mas de 400 lineas de producto |
+| `normal` | las 4 lentes con mas de 400 lineas de producto; si no, ninguna exigida (la review de una lente es opcional) |
 | `alto` | las 4 lentes siempre, y sus medium de la review completa bloquean |
 
+Un cambio vacio o de solo documentacion no exige review con ningun riesgo.
 Una delta (la review de los arreglos) no corre readability: risk,
 reliability y resilience.
+
+### Riesgo efectivo y tamano del cambio
+
+**Los archivos del cambio** son los de `git diff --numstat --no-renames`
+desde el merge-base con la base contra el arbol de trabajo, mas los
+archivos sin seguimiento que git no ignora (los borrados tambien). Cada uno
+tiene una clase, la primera que le toca: `hoom` (todo `.hoom/`), `generado`
+(`rutas.generadas`), `prueba` (el territorio del test-writer:
+`agents.test-writer.write.allow` o su valor por defecto) y `producto` (el
+resto, `hoom.yaml` incluido). **El tamano** son tres numeros, `producto`,
+`pruebas` y `hoom`; un generado no suma a ninguno. Todo umbral de 400 lineas
+se mide en **lineas de producto**: 3,000 lineas de pruebas no agrandan el
+cambio.
+
+**`rutas` en `hoom.yaml`** (opcional; sin la seccion valen los valores por
+defecto del perfil):
+
+```yaml
+rutas:
+  de_riesgo: ["app/Domain/Costeo", "**/*tenant*"]
+  de_bajo_riesgo: ["**/*.md", "lang"]
+  generadas: ["composer.lock", "vendor"]
+```
+
+Un patron usa la sintaxis de `write.allow` (`*`, `?`, `[...]` y `**`) y
+coincide con la ruta o con un directorio padre, sin distinguir mayusculas:
+`**/*auth*` cubre `internal/oauth.go` y todo `app/Http/Auth/`. Una lista,
+vacia incluida, reemplaza el valor por defecto; una clave ausente o nula lo
+conserva. Una clave desconocida, una que no es lista o un patron invalido
+hacen invalido el `hoom.yaml`. Por defecto, `de_riesgo` es `**/*<m>*` por
+cada marca (auth, login, password, passwd, secret, token, cred, crypt,
+signin, signature, pago, payment, billing, invoice, dte, permission,
+permiso, sandbox, sudo), `de_bajo_riesgo` la documentacion (`**/*.md`,
+`**/*.txt`, `**/*.rst`, `**/*.adoc`, `**/docs`, `**/LICENSE`, `**/NOTICE`),
+y cada perfil suma lo suyo (por ejemplo, `generadas: [go.sum, vendor]` en
+`go`, y los lockfiles, `vendor`, `node_modules` y `public/build` en
+`laravel`).
+
+**El riesgo efectivo** sale de reglas fijas, en orden; gana la primera:
+
+| # | Condicion | Efectivo |
+|---|---|---|
+| 1 | hay tarea y su tarjeta no se puede leer | `alto` |
+| 2 | la tarjeta es de tipo `seguridad` | `alto` |
+| 3 | declara `alto` | `alto` |
+| 4 | un archivo `producto` o `prueba` coincide con `de_riesgo` | `alto` |
+| 5 | declara `bajo` y un `producto` no coincide con `de_bajo_riesgo` | `normal` |
+| 6 | declara `bajo` | `bajo` |
+| 7 | sin tarea | `normal` |
+| 8 | lo demas | `normal` (el declarado) |
+
+Un archivo `hoom` o `generado` nunca sube el riesgo. `hoom verify` lo
+escribe en el veredicto (`riesgo: {declarado, efectivo, motivo}` y `tamano:
+{producto, pruebas, hoom}`, fuera de la huella) y lo imprime:
+
+```
+riesgo: alto (el cambio toca internal/auth/token.go: riesgo alto)
+tamano: producto 30 · pruebas 120 · hoom 4
+! el riesgo efectivo (alto) es mayor que el declarado (normal): hoom item set precios --riesgo alto lo sube
+```
+
+La tarea del veredicto es la del sobre de `hoom agent` o la del worktree
+`.hoom/worktrees/<slug>` donde corre; la tarjeta se lee del checkout
+principal. El riesgo de una tarjeta en el tablero es el mas alto entre el
+efectivo de su ultimo veredicto y el declarado de ahora: subir el declarado
+se ve enseguida, bajarlo espera al siguiente verify. `hoom board`, `hoom item
+show` y el detalle de `hoom tablero` muestran ` · riesgo <efectivo>` cuando
+no es normal, y `hoom status` las lineas `riesgo:` y `tamano:` del ultimo
+veredicto.
 
 **Tope de pendientes**: `findings: { max_pendientes: <n> }` en `hoom.yaml`
 hace que `hoom task ready` se niegue a aceptar una tarea si dejaria mas de
@@ -673,7 +747,7 @@ columna del PRIMER requisito que falta:
 | Tu aprobacion | no hay aprobacion vigente para el contenido actual del spec |
 | Test-writer | algun CA-n no tiene test ni `verifica` |
 | Writer | no hay veredicto verde de `verify --spec` con la huella actual |
-| Review | falta alguna condicion de aceptacion: review de 4 lentes si el cambio supera 400 lineas (registro en `.hoom/reviews/`), hallazgos que bloquean de la tarea, `spec_approved` y `findings_open` en pass, y lo que exige `hoom task done` |
+| Review | falta alguna condicion de aceptacion: la review que exige el riesgo efectivo de la tarjeta (las 4 lentes con riesgo alto o con mas de 400 lineas de producto; registro en `.hoom/reviews/`), hallazgos que bloquean de la tarea, `spec_approved` y `findings_open` en pass, y lo que exige `hoom task done` |
 | Tu aceptacion | se cumple todo: falta `hoom task done <slug>` |
 | Hecho | el item tiene `hecho_en` |
 

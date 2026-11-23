@@ -10,12 +10,15 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
   * reliability: comportamiento, estado, tests, determinismo, regresiones.
   * resilience: shell/procesos, fallos parciales, recovery, dependencias degradadas.
   * risk: seguridad, permisos, exposicion/perdida de datos, arquitectura, deps.
-- Seguridad/auth/pagos/DTE, o >400 lineas cambiadas -> las 4 lentes.
-  (El umbral de lineas es deterministico: viene en el veredicto como
-  insertions+deletions; no se estima a ojo.)
-- Riesgo de la tarjeta (lo declara una persona en el item): bajo -> 1
-  lente, reliability, salvo que el cambio toque una ruta de riesgo;
-  alto -> las 4 siempre.
+- Las lentes salen del riesgo efectivo y de las lineas de producto del
+  cambio (sin pruebas, ni .hoom/, ni generados), que vienen en el veredicto;
+  no se estiman a ojo.
+- Riesgo efectivo alto -> las 4 lentes siempre. Una ruta de riesgo
+  (`rutas.de_riesgo` de hoom.yaml: seguridad, auth, pagos, DTE...) o una
+  tarjeta de tipo seguridad suben la tarjeta a alto.
+- Riesgo efectivo bajo (lo declara una persona en el item; hoom solo lo
+  sube) -> 1 lente, reliability.
+- Riesgo efectivo normal con >400 lineas de producto -> las 4 lentes.
 - Una delta (la review de los arreglos) no corre readability.
 - Orden de las 4 lentes: risk, reliability, resilience, readability. Risk va
   primero: si el cupo del provider corta la review, la lente que mas rinde

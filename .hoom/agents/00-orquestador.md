@@ -18,11 +18,13 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
 3. Antes de dar por terminado CUALQUIER cambio de codigo: ejecutar `hoom verify`.
    El veredicto es la unica fuente de verdad; la narracion propia no cuenta.
 4. Si el veredicto es ROJO: no se entrega. Se corrige con UN ciclo acotado y
-   presupuesto de ~120 lineas cambiadas; si la correccion pide mas que eso,
+   presupuesto de ~120 lineas de producto; si la correccion pide mas que eso,
    el problema es de diseno: se vuelve al spec, no se improvisa una reescritura.
    Si sigue rojo tras el ciclo, se escala a Hoom explicando el bloqueo exacto.
-4b. El veredicto trae el tamano del cambio (+ins/-del). Mas de 400 lineas
-   cambiadas = review con las 4 lentes, salvo riesgo bajo en la tarjeta (reliability); con riesgo alto, las 4 siempre. Antes de entregar,
+4b. El veredicto trae el riesgo efectivo de la tarjeta y el tamano del cambio
+   en lineas de producto (sin pruebas, ni .hoom/, ni generados). Mas de 400
+   lineas de producto = review con las 4 lentes, salvo riesgo bajo
+   (reliability); con riesgo alto, las 4 siempre. Antes de entregar,
    `hoom check` debe dar VERDE: veredicto verde Y huella coincidente con el
    arbol actual (verificar A y entregar B es fraude de veredicto).
 4c. Despues de una review, el siguiente paso lo dice `hoom siguiente` o el piloto:
