@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T225844_bd3025",
+  "as": "corregido",
+  "evidence": "corregido en 78d8152: entorno.Principal(dir) (gitx.CheckoutPrincipal o el dir fuera de git) es la regla de Leer, y agentcmd.Run la calcula una vez antes del run y la usa en las dos fotos (tomar y fotosPrevias.comparar); taskcmd.worktreesRelativos usa la misma. Test TestHallazgoBd3025_ProyectoEnUnSubdirectorioCortaEnScope (internal/agentcmd/verify_en_el_entorno_hallazgos_test.go): con agentcmd.go y encierro.go de 78d8152^ por overlay falla; en el arbol actual pasa (corte en scope con RuleTampering en .hoom/local.yaml).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:06:44.404501561Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261122T225201_ef18d4",
+  "as": "corregido",
+  "evidence": "corregido en be4376d: verifycmd.Run toma la foto de .hoom/local.yaml antes del bloque de spec.Gates (spec_trace con sus [verifica:]) y la compara despues del ratchet, antes de armar el veredicto. Tests TestHallazgoEf18d4_SpecTraceQueTocaElArchivoDejaEntornoLocal y TestHallazgoEf18d4_RatchetQueTocaElArchivoDejaEntornoLocal (internal/verifycmd/verify_en_el_entorno_hallazgos_test.go): con verifycmd.go de be4376d^ por overlay fallan los dos; en el arbol actual, go test -count=1 -run TestHallazgoEf18d4_ ./internal/verifycmd ok.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T00:06:44.380585099Z"
+}
