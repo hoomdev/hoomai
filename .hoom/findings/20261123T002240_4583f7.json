@@ -1,0 +1,11 @@
+{
+  "id": "20261123T002240_4583f7",
+  "created_at": "2026-11-23T00:22:40.862310947Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/initcmd/initcmd.go",
+  "description": "INTRODUCIDO: internal/initcmd/initcmd.go:113 aplica al .hoom/.gitignore del checkout principal un read-modify-replace que lee los bytes en internal/hoomfs/hoomfs.go:89 y los sobrescribe incondicionalmente en internal/hoomfs/hoomfs.go:110. Si una persona o proceso guarda ese archivo entre ambos pasos, hoom init reemplaza silenciosamente esa version y pierde la edicion concurrente; PublicarEn no comprueba que siga siendo el objeto o contenido leido. Es high porque el caso provocable pierde datos; debe comparar/reemplazar condicionalmente y fallar o reintentar ante cambio.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb1fb57819122492",
+  "task": "verify-en-el-entorno"
+}

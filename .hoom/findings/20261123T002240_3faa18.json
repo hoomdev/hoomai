@@ -1,0 +1,11 @@
+{
+  "id": "20261123T002240_3faa18",
+  "created_at": "2026-11-23T00:22:40.71423304Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/initcmd/initcmd.go",
+  "description": "INTRODUCIDO: internal/initcmd/initcmd.go:113 completa ahora el .hoom/.gitignore preexistente del checkout principal mediante completarGitignore, que en internal/hoomfs/hoomfs.go:110 publica el reemplazo con modo fijo 0644. Si ese archivo del principal era 0600, hoom init en un subproyecto lo vuelve legible por otros usuarios al agregar local.yaml, anulando una restriccion explicita y pudiendo exponer su contenido. Es high porque un caso que el usuario puede provocar expone datos; el reemplazo debe conservar el modo del archivo existente.",
+  "author": "reviewer@codex",
+  "fingerprint": "fb1fb57819122492",
+  "task": "verify-en-el-entorno"
+}
