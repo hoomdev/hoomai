@@ -45,8 +45,14 @@ func contentHash(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return hashDe(raw), nil
+}
+
+// hashDe is the SHA-256 of a content already read (Aprobar signs the bytes
+// it measured).
+func hashDe(raw []byte) string {
 	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
 }
 
 func specSlug(specPath string) string {
@@ -62,8 +68,13 @@ func relSpec(root, specPath string) string {
 	if rel, err := filepath.Rel(root, specPath); err == nil && !strings.HasPrefix(rel, "..") {
 		return filepath.ToSlash(rel)
 	}
-	return filepath.ToSlash(specPath)
+	return canon(specPath)
 }
+
+// canon is the spelling a record names its spec by, the same on both sides
+// of Status (findings 7bd189 and aeb764): `./x.md` is x.md and
+// `/repo/../otro/x.md` is /otro/x.md.
+func canon(s string) string { return filepath.ToSlash(filepath.Clean(filepath.FromSlash(s))) }
 
 // Approve records the approval of the spec's CURRENT content. Re-approving
 // identical content is an informed no-op: already=true, no duplicate record.
@@ -72,11 +83,22 @@ func Approve(root, specPath string) (rec Record, already bool, err error) {
 	if err != nil {
 		return Record{}, false, err
 	}
-	target := filepath.Join(dir(root), specSlug(specPath)+"_"+sum[:8]+".json")
-	if raw, rerr := os.ReadFile(target); rerr == nil {
-		if jerr := json.Unmarshal(raw, &rec); jerr == nil && rec.SHA256 == sum {
-			return rec, true, nil
-		}
+	return approveSum(root, specPath, sum)
+}
+
+// approveSum is Approve of the content whose hash is sum.
+func approveSum(root, specPath, sum string) (rec Record, already bool, err error) {
+	// already is exactly what Status says: aprobado, by this spec's record
+	// (finding 6dcf5b: not another spec's with the same name and content)
+	if st, r, serr := statusSum(root, specPath, sum); serr == nil && st == StatusApproved {
+		return *r, true, nil
+	}
+	name := specSlug(specPath) + "_" + sum[:8]
+	target := filepath.Join(dir(root), name+".json")
+	if _, serr := os.Stat(target); serr == nil {
+		// the name is another spec's record: this one gets its own
+		h := sha256.Sum256([]byte(relSpec(root, specPath)))
+		target = filepath.Join(dir(root), name+"_"+hex.EncodeToString(h[:4])+".json")
 	}
 	rec = Record{
 		Spec:       relSpec(root, specPath),
@@ -91,7 +113,16 @@ func Approve(root, specPath string) (rec Record, already bool, err error) {
 	if err := os.MkdirAll(dir(root), 0o755); err != nil {
 		return Record{}, false, err
 	}
-	if err := os.WriteFile(target, raw, 0o644); err != nil {
+	// a new file, never over another record
+	f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return Record{}, false, err
+	}
+	if _, err := f.Write(raw); err != nil {
+		_ = f.Close()
+		return Record{}, false, err
+	}
+	if err := f.Close(); err != nil {
 		return Record{}, false, err
 	}
 	return rec, false, nil
@@ -105,6 +136,11 @@ func Status(root, specPath string) (string, *Record, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	return statusSum(root, specPath, sum)
+}
+
+// statusSum is Status of the content whose hash is sum.
+func statusSum(root, specPath, sum string) (string, *Record, error) {
 	entries, err := os.ReadDir(dir(root))
 	if os.IsNotExist(err) {
 		return StatusNotApproved, nil, nil
@@ -123,7 +159,9 @@ func Status(root, specPath string) (string, *Record, error) {
 			continue
 		}
 		var rec Record
-		if json.Unmarshal(raw, &rec) != nil || rec.Spec != spec {
+		// a record names its spec as it was given: `./.hoom/specs/x.md` is
+		// .hoom/specs/x.md (finding 7bd189)
+		if json.Unmarshal(raw, &rec) != nil || canon(rec.Spec) != spec {
 			continue
 		}
 		if rec.SHA256 == sum {

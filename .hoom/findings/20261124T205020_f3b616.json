@@ -1,0 +1,11 @@
+{
+  "id": "20261124T205020_f3b616",
+  "created_at": "2026-11-24T20:50:20.974788062Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/approval/approval.go",
+  "description": "INTRODUCIDO: internal/approval/approval.go:100-101 desambigua registros usando solo los primeros 32 bits del SHA-256 de la ruta y internal/approval/approval.go:117-119 no reintenta si ese nombre ya existe. Un usuario puede elegir dos rutas distintas con el mismo slug y sufijo (por ejemplo, docs/d81367/precios.md y docs/d124222/precios.md producen 939d56f6); tras existir el registro base y aprobar una de ellas, aprobar la otra con el mismo contenido falla permanentemente con EEXIST aunque sea un spec distinto. Esto permite denegar la escritura del control de aprobación mediante una colisión de ruta computable; debe usarse un identificador suficientemente completo o reintentar con desambiguación sin límite práctico.",
+  "author": "reviewer@codex",
+  "fingerprint": "72eb351b127d3095",
+  "task": "proporcion-por-riesgo"
+}

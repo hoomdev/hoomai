@@ -18,7 +18,9 @@ import (
 	"time"
 )
 
-const vdtValidas = "(validas: provider, model, effort, budget_usd, timeout, write)"
+// proporcion-por-riesgo re-expresa CA-490: la lista de claves validas de
+// agents.<rol> suma bajo, normal y alto despues de write.
+const vdtValidas = "(validas: provider, model, effort, budget_usd, timeout, write, bajo, normal, alto)"
 
 // vdtRango es el final del texto de un tiempo limite que no sirve.
 const vdtRango = `no es una duracion entre 1m y 12h (ej. 45m, 1h30m)`

@@ -44,6 +44,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/rolescmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/servecmd"
+	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/statuscmd"
 	"github.com/hoomdev/hoomai/internal/tablero"
 	"github.com/hoomdev/hoomai/internal/tarjetacmd"
@@ -1193,8 +1194,19 @@ func cmdSpec(args []string) error {
 	case "approve":
 		// autonomia-entre-firmas: approving launches nothing; when the card
 		// of this spec has a pilot, the line pilotocmd.AvisoDeFirma gives
-		// goes after the approval's own lines
-		rec, already, err := approval.Approve(m.Dir, path)
+		// goes after the approval's own lines. proporcion-por-riesgo: it is
+		// measured against its card's tope, and refused with the lines of
+		// spec_lint (exit 1, no record)
+		rec, already, err := approval.Aprobar(m, m.Dir, rutaDelSpec(path))
+		var neg *approval.Negativa
+		if errors.As(err, &neg) {
+			// the lines of spec_lint, each on its own line (CA-795)
+			fmt.Fprintf(os.Stderr, "hoom spec: no se aprueba %q:\n", path)
+			for _, l := range strings.Split(neg.Error(), "\n") {
+				fmt.Fprintln(os.Stderr, "  "+l)
+			}
+			os.Exit(1)
+		}
 		if err != nil {
 			return err
 		}
@@ -1215,11 +1227,14 @@ func cmdSpec(args []string) error {
 		}
 		return nil
 	case "status":
-		state, rec, err := approval.Status(m.Dir, path)
+		state, rec, err := approval.Status(m.Dir, rutaDelSpec(path))
 		if err != nil {
 			return err
 		}
 		fmt.Println("hoom spec:", approval.Describe(state, rec))
+		// proporcion-por-riesgo: the line of the measures, after today's;
+		// the exit codes do not change (CA-12)
+		fmt.Println(lineaDeMedidas(m, path))
 		if state != approval.StatusApproved {
 			os.Exit(1)
 		}
@@ -1227,6 +1242,32 @@ func cmdSpec(args []string) error {
 	default:
 		return fmt.Errorf("subcomando desconocido %q (approve|status)", sub)
 	}
+}
+
+// rutaDelSpec is the path the person gave, from where hoom runs, as approval
+// reads it: absolute, since approval reads a relative path from root. The
+// approval, its status and the measures name the same file and the same
+// record from any subdirectory (finding c9ffe4).
+func rutaDelSpec(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
+}
+
+// lineaDeMedidas is the line of the measures of `hoom spec status`
+// (spec.LineaDeStatus with approval.CalibreDe).
+func lineaDeMedidas(m *manifest.Manifest, path string) string {
+	ruta := rutaDelSpec(path)
+	c := approval.CalibreDe(m, m.Dir, ruta)
+	var med spec.Medida
+	if c.Ilegible == "" {
+		var err error
+		if med, err = spec.Medir(ruta); err != nil {
+			return "hoom spec: no se puede medir el tope: " + err.Error()
+		}
+	}
+	return spec.LineaDeStatus(med, c)
 }
 
 func cmdTask(args []string) error {

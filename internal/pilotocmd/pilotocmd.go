@@ -384,9 +384,11 @@ func (r *corrida) lanzar(ctx context.Context, m *manifest.Manifest, d boardcmd.P
 	if p.Manifest == nil {
 		p.Manifest = m
 	}
+	// the pilot prints the line valores: (piloto automatico: valores:), so
+	// the envelope does not print it again (proporcion-por-riesgo)
 	req := lanzar.Request{Action: d.Action, Provider: d.Provider, Pedido: d.Pedido, Pilot: true,
 		Resume: d.Resume, Delta: d.Delta, Regla: d.Regla, Intento: d.Intento, Ronda: d.Ronda,
-		Hallazgos: d.Hallazgos, Bloqueantes: d.Bloqueantes}
+		Hallazgos: d.Hallazgos, Bloqueantes: d.Bloqueantes, ValoresImpresos: true}
 	if d.BudgetUSD > 0 {
 		b := d.BudgetUSD
 		req.BudgetUSD = &b
@@ -398,6 +400,7 @@ func (r *corrida) lanzar(ctx context.Context, m *manifest.Manifest, d boardcmd.P
 		r.res.ExitCode = 1
 		return nil, false
 	}
+	r.linea("piloto automatico: %s", t.LineaValores())
 	if d.BudgetUSD > 0 {
 		r.linea("piloto automatico: pide al %s con %s (%s USD): sobre %s", d.Role, d.Provider, lanzar.USD(d.BudgetUSD), t.EnvelopeID)
 	} else {

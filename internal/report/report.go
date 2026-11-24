@@ -117,6 +117,14 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 			}
 		}
 	}
+	// the verdict's avisos (a note that starts with "! ", as the aviso of
+	// citations of proporcion-por-riesgo): after the gates, no status, the
+	// line exactly as it is (no color: a script reads it)
+	for _, n := range v.Notes {
+		if strings.HasPrefix(n, "! ") {
+			fmt.Fprintf(w, " %s\n", n)
+		}
+	}
 	fmt.Fprintln(w, strings.Repeat("-", 72))
 	color, label := cGreen, "VERDE"
 	if v.Verdict == "red" {

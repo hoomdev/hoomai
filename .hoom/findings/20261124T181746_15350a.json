@@ -1,0 +1,11 @@
+{
+  "id": "20261124T181746_15350a",
+  "created_at": "2026-11-24T18:17:46.039105498Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO: riesgoYTope lee la tarjeta dos veces sin conservar un único snapshot: RiesgoDeLanzamiento llama a TarjetaDe y luego la función vuelve a llamar a TarjetaDe para los topes (internal/agentcmd/agentcmd.go:122-130; internal/item/item.go:950-958). Un item set/AtomicWrite concurrente puede hacer que hoom agent elija el modelo y la nota con riesgo normal de una versión pero aplique topes de otra; si la segunda lectura queda ilegible, el error se ignora y tampoco se recalibra a alto. El lanzamiento queda configurado con valores incoherentes en una carrera real de actualización de tarjeta.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

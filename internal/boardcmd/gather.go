@@ -153,6 +153,11 @@ type gatherer struct {
 	// card branch's), read once per gatherer
 	defaults     map[string]manifest.RoleDefaults
 	defaultsRead bool
+	// proyecto: agents:, review: and spec: of the PROJECT's hoom.yaml
+	// (manifest.LoadRoles), read once; nil when it does not load
+	proyecto     *manifest.Manifest
+	proyectoErr  error
+	proyectoRead bool
 	// tope: the cap on the rounds of findings of the PROJECT's hoom.yaml
 	// (ciclo-lo-decide-hoom), read once per gatherer
 	tope     int
@@ -235,7 +240,7 @@ func (g *gatherer) roleDefaults() map[string]manifest.RoleDefaults {
 		return g.defaults
 	}
 	g.defaultsRead = true
-	m, err := manifest.LoadRoles(g.root)
+	m, err := g.delProyecto()
 	if err != nil {
 		g.fallar("no se pudieron leer los valores por rol de " + manifest.FileName + ": " + err.Error())
 		return nil
@@ -249,6 +254,35 @@ func (g *gatherer) roleDefaults() map[string]manifest.RoleDefaults {
 	}
 	g.defaults = out
 	return out
+}
+
+// delProyecto is manifest.LoadRoles of g.root, read once per gatherer: the
+// launch values and the topes of the spec of the PROJECT, never a card
+// branch's.
+func (g *gatherer) delProyecto() (*manifest.Manifest, error) {
+	if !g.proyectoRead {
+		g.proyectoRead = true
+		g.proyecto, g.proyectoErr = manifest.LoadRoles(g.root)
+	}
+	return g.proyecto, g.proyectoErr
+}
+
+// lineasDelTope are the lines of spec_lint for a spec without a current
+// approval that passes its tope (proporcion-por-riesgo): the card's riesgo
+// and tope as approval.CalibreDe reads them (the main checkout's item
+// first), the topes of the project's hoom.yaml. nil when it is within its
+// tope, approved, or cannot be measured.
+func (g *gatherer) lineasDelTope(dir, specAbs string) []string {
+	m, err := g.delProyecto()
+	if err != nil {
+		m = nil // the defaults; roleDefaults already says it does not load
+	}
+	cal := approval.CalibreDe(m, dir, specAbs)
+	med, err := spec.Medir(specAbs)
+	if err != nil {
+		return nil
+	}
+	return spec.LineasDelTope(med, cal)
 }
 
 // topeDeRondas is manifest.Manifest.FindingsMaxRondas of the hoom.yaml of
@@ -667,6 +701,12 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 			ev.Approval = state
 		} else {
 			ev.Approval = approval.StatusNotApproved
+		}
+		// proporcion-por-riesgo: a spec without a current approval that
+		// passes its tope goes to the arquitecto like a lint issue, after
+		// today's issues
+		if err == nil && ev.Approval != approval.StatusApproved {
+			ev.LintIssues = append(ev.LintIssues, g.lineasDelTope(dir, specAbs)...)
 		}
 	}
 

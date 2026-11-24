@@ -41,7 +41,10 @@ type Record struct {
 	// do not carry the review's task.
 	Notes []string `json:"notes,omitempty"`
 	// Model and Effort as requested ("" = not chosen: the provider's default).
+	// A Model that was a level (proporcion-por-riesgo) is the provider's
+	// model for it, and Nivel the level ("" = it was a name).
 	Model          string `json:"model"`
+	Nivel          string `json:"nivel,omitempty"`
 	Effort         string `json:"effort"`
 	Isolated       bool   `json:"isolated"`
 	EvidenceBytes  int    `json:"evidence_bytes"`

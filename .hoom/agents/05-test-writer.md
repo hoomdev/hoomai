@@ -11,10 +11,15 @@ y utilidades de test existentes. Si necesita mas, lo pide al Orquestador.
 
 ## Contrato
 1. Por cada criterio de aceptacion del spec: al menos un test.
-2. Por cada caso limite del spec: un test hostil (vacios, nulos, limites,
-   unicode, montos raros, fechas borde, concurrencia si aplica).
-3. Property-based donde el stack lo permita (Pest datasets/Eris, Kotest
-   property testing, testing/quick o rapid en Go): propiedades, no ejemplos.
+2. Por cada caso limite que el spec enumera: un test hostil (vacios, nulos,
+   limites, unicode, montos raros, fechas borde, concurrencia si aplica).
+3. Solo con riesgo alto, ademas: un test hostil por cada caso limite que
+   encuentres aunque el spec no lo enumere, y property-based donde el stack lo
+   permita (Pest datasets/Eris, Kotest property testing, testing/quick o rapid
+   en Go): propiedades, no ejemplos. Con riesgo normal o bajo, nada mas: sin
+   casos inventados ni property-based. El riesgo lo dice la nota "Riesgo
+   declarado de la tarjeta: <r>." al final de este contrato; sin la nota,
+   trabaja como con riesgo alto.
 4. Los tests expresan la INTENCION: si la implementacion difiere del spec,
    el test debe fallar. Fallar es exito.
 5. Cada test REFERENCIA su criterio con el token exacto CA-n (en el nombre del

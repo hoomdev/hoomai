@@ -104,9 +104,16 @@ type Evidence struct {
 	Source string // SourceWorktree | SourceArbol
 	Dir    string // the evidence tree E, relative to root ("." = the current tree)
 
-	SpecPath   string   // ".hoom/specs/<slug>.md"
-	SpecExists bool     // the file exists in E
-	LintIssues []string // spec.Lint issues (read error included); empty = passes
+	SpecPath   string // ".hoom/specs/<slug>.md"
+	SpecExists bool   // the file exists in E
+	// LintIssues are spec.Lint issues (read error included); empty =
+	// passes. proporcion-por-riesgo: for a spec WITHOUT a current approval
+	// that passes its tope (approval.CalibreDe with the project's
+	// hoom.yaml, LoadRoles), Gather adds after them the lines of spec_lint
+	// (spec.LineasDelTope): the card goes to arquitecto with them in
+	// Missing, like any lint issue, and not to tu-aprobacion. An approved
+	// spec is not measured, and its column is today's.
+	LintIssues []string
 	Criteria   []string // CA-n ids of the spec
 	Untraced   []string // criteria without test token nor verifica command
 	ByCommand  []string // criteria covered by a verifica marker
@@ -178,7 +185,9 @@ type Evidence struct {
 
 	// verbos-de-la-tarjeta: what the PROJECT's hoom.yaml declares for each
 	// role (manifest.RoleDefaults, keyed by role slug), never the card
-	// branch's. A missing role declares nothing.
+	// branch's. A missing role declares nothing. proporcion-por-riesgo:
+	// each one carries its agents.<rol>.<r> in PorRiesgo, and the role
+	// actions take the one of Item.Riesgo.
 	Defaults map[string]manifest.RoleDefaults
 
 	// C4: what the doctor needs. Fingerprint (C1) stays empty without a
@@ -417,10 +426,23 @@ type Action struct {
 	// 1800 without anything declared), and where each proposed value came
 	// from (valores.Origen*): the verbs print it, and the Studio says "(el
 	// de hoom)" only when nothing declared the timeout.
+	//
+	// proporcion-por-riesgo: the rule is valores.ResolverConRiesgo with the
+	// DECLARED riesgo of the card (Item.Riesgo: alto when its item cannot
+	// be read), so a value of agents.<rol>.<r> has origin
+	// `hoom.yaml, riesgo <r>`; Model is already translated for the
+	// provider marked Default (never a level), and Nivel is the level it
+	// came from.
 	Model    string           `json:"model"`
 	Effort   string           `json:"effort"`
 	TimeoutS int              `json:"timeout_s"`
 	Origen   valores.Origenes `json:"origen"`
+	// Nivel (proporcion-por-riesgo) is the level (modelos.Fuerte, Medio,
+	// Barato) Model was translated from, "" (and not in the JSON) when the
+	// model is a name or there is none: a launch on another provider
+	// translates the level again (lanzar.Valores), and the line valores:
+	// says `nivel <n>`.
+	Nivel string `json:"nivel,omitempty"`
 }
 
 // ProviderOption is one installed provider as a role action sees it.
@@ -431,6 +453,12 @@ type ProviderOption struct {
 	Budget       bool    `json:"budget"` // takes a USD cap
 	MinBudgetUSD float64 `json:"min_budget_usd"`
 	Default      bool    `json:"default"`
+	// Model (proporcion-por-riesgo) is the action's level on this provider
+	// (modelos.Traducir), only when the action's model came from a level
+	// (Action.Nivel): the Studio's dialog shows it when the person picks
+	// this provider. "" otherwise, and for a provider that receives no
+	// model.
+	Model string `json:"model,omitempty"`
 }
 
 // Drop is what dropping the card on one column does: the action it opens,

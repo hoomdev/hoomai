@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T180719_c9ffe4",
+  "as": "corregido",
+  "evidence": "Corregido en dba6ad9: hoom spec status usa rutaDelSpec como spec approve y su linea de medidas, y rutaDelSpec da siempre la ruta absoluta: desde un subdirectorio status encuentra el registro de approve. Regresion: cmd/hoom/hallazgos_c9ffe4_test.go, TestHallazgo_c9ffe4_StatusDesdeUnSubdirectorioVeLaAprobacion.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T18:58:22.85812624Z"
+}

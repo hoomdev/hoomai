@@ -211,6 +211,13 @@ func TestCA182_SeisPasosYElParrafoDelArbolCiego(t *testing.T) {
 	if !strings.Contains(got, "Este arbol es CIEGO") || !strings.Contains(got, shortSHA(res.Isolation.Commit)) {
 		t.Fatalf("CA-182: falta el parrafo del arbol ciego con su commit:\n%s", got)
 	}
+	// proporcion-por-riesgo re-expresa CA-182: el system prompt es el
+	// contrato, el parrafo del arbol ciego y, despues de una linea en blanco,
+	// la nota de riesgo (sin --task, normal); el provider falso imprime cada
+	// argumento seguido de un salto de linea.
+	if nota := strings.Index(got, "\n\nRiesgo declarado de la tarjeta: normal.\n"); nota < 0 || nota < strings.Index(got, "Este arbol es CIEGO") {
+		t.Fatalf("CA-182: el system prompt termina en la nota de riesgo, despues del parrafo ciego:\n%s", got)
+	}
 
 	// el contrato en disco NO se toco: el subagente nativo no corre ciego
 	contrato, err := os.ReadFile(filepath.Join(root, ".hoom", "agents", "05-test-writer.md"))

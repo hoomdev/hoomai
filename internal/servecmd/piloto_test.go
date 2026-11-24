@@ -372,14 +372,17 @@ func spDecision(t *testing.T, ca, root, id, que string) ([]string, string) {
 }
 
 // spLanzo exige que la vuelta del sobre id haya lanzado con la regla regla:
-// `regla <regla>` y despues la linea de pedir (CA-661), y devuelve esta.
+// `regla <regla>`, la linea de valores y la de pedir (CA-661), y devuelve la
+// de pedir. proporcion-por-riesgo re-expresa CA-647 (CA-806): antes de cada
+// lanzamiento, justo antes de `pide al`, que no cambia, va `piloto
+// automatico: valores: ...`; vale tambien para el piloto del Studio.
 func spLanzo(t *testing.T, ca, root, id, que, regla string) string {
 	t.Helper()
 	ls, _ := spDecision(t, ca, root, id, que)
-	if len(ls) != 2 || ls[0] != spPrefijo+"regla "+regla {
-		t.Fatalf("%s: %s: antes de lanzar el piloto escribe %q y despues la linea de pedir: %q", ca, que, spPrefijo+"regla "+regla, spLineas(root, id))
+	if len(ls) != 3 || ls[0] != spPrefijo+"regla "+regla || !strings.HasPrefix(ls[1], spPrefijo+"valores: ") || !strings.HasPrefix(ls[2], spPrefijo+"pide al ") {
+		t.Fatalf("%s: %s: antes de lanzar el piloto escribe %q, despues la linea de valores y despues la de pedir: %q", ca, que, spPrefijo+"regla "+regla, spLineas(root, id))
 	}
-	return ls[1]
+	return ls[2]
 }
 
 // spSeDetuvo exige que la vuelta del sobre id se haya detenido, con una sola
@@ -520,11 +523,13 @@ func TestCA416_CA644_LaCintaGuardaLoDelWriterYPideLaReview(t *testing.T) {
 	segundo := spEsperarOtro(t, "CA-416", root, "el piloto guardo lo del writer y pide la review", r.EnvelopeID)
 	ls, commit := spDecision(t, "CA-416", root, r.EnvelopeID, "el writer dejo cinta.go sin commitear")
 	spGuardado(t, "CA-644", wt, slug, commit, "cinta.go")
-	if len(ls) != 2 || ls[0] != spPrefijo+"regla "+boardcmd.ReglaCadena {
-		t.Fatalf("CA-416: despues de guardar, regla cadena y la linea de pedir: %q", spLineas(root, r.EnvelopeID))
+	// proporcion-por-riesgo re-expresa CA-647 (CA-806): entre la regla y la
+	// de pedir va la linea de valores, como en spLanzo.
+	if len(ls) != 3 || ls[0] != spPrefijo+"regla "+boardcmd.ReglaCadena || !strings.HasPrefix(ls[1], spPrefijo+"valores: ") || !strings.HasPrefix(ls[2], spPrefijo+"pide al ") {
+		t.Fatalf("CA-416: despues de guardar, regla cadena, la linea de valores y la de pedir: %q", spLineas(root, r.EnvelopeID))
 	}
 	segundo = spCerrado(t, "CA-416", root, segundo.ID)
-	spRevisarPide(t, "CA-416", ls[1], "reviewer", "claude", 1.25, segundo.ID)
+	spRevisarPide(t, "CA-416", ls[2], "reviewer", "claude", 1.25, segundo.ID)
 	if segundo.Role != "reviewer" || segundo.Provider != "claude" || segundo.Task != slug {
 		t.Fatalf("CA-416: la cinta pide al reviewer de la tabla con claude: %+v", segundo)
 	}
@@ -677,11 +682,13 @@ func TestCA381_CA497_CA644_LaCintaGuardaElSpecYPideAlTestWriter(t *testing.T) {
 	ls, commit := spDecision(t, "CA-497", root, r.EnvelopeID, "el arquitecto dejo el spec sin guardar")
 	wt := filepath.Join(root, ".hoom", "worktrees", slug)
 	spGuardado(t, "CA-644", wt, slug, commit, ".hoom/specs/"+slug+".md")
-	if len(ls) != 2 || ls[0] != spPrefijo+"regla "+boardcmd.ReglaCadena {
-		t.Fatalf("CA-497: despues de guardar, regla cadena y la linea de pedir: %q", spLineas(root, r.EnvelopeID))
+	// proporcion-por-riesgo re-expresa CA-647 (CA-806): entre la regla y la
+	// de pedir va la linea de valores, como en spLanzo.
+	if len(ls) != 3 || ls[0] != spPrefijo+"regla "+boardcmd.ReglaCadena || !strings.HasPrefix(ls[1], spPrefijo+"valores: ") || !strings.HasPrefix(ls[2], spPrefijo+"pide al ") {
+		t.Fatalf("CA-497: despues de guardar, regla cadena, la linea de valores y la de pedir: %q", spLineas(root, r.EnvelopeID))
 	}
 	segundo = spCerrado(t, "CA-497", root, segundo.ID)
-	spRevisarPide(t, "CA-497", ls[1], "test-writer", "claude", 5, segundo.ID)
+	spRevisarPide(t, "CA-497", ls[2], "test-writer", "claude", 5, segundo.ID)
 	if segundo.Role != "test-writer" || segundo.Provider != "claude" || segundo.Task != slug {
 		t.Fatalf("CA-497: con el spec guardado la cinta pide al test-writer con el provider del arquitecto: %+v", segundo)
 	}

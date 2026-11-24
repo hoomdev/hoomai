@@ -125,6 +125,14 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // Run executes the verification and writes the verdict. It returns the
 // finalized verdict and the path of its artifact.
 //
+// proporcion-por-riesgo: with a spec, its gates spec_lint and spec_trace are
+// spec.GatesCon with approval.CalibreDe(m, m.Dir, spec): the card is the
+// spec's (.hoom/specs/<slug>.md), its riesgo the DECLARED one, and the topes
+// those of the hoom.yaml m (an invalid spec: section is Load's error, so no
+// gate runs and no verdict is written). The aviso of citations GatesCon
+// gives is printed by `hoom verify` and changes neither the verdict's status
+// nor its exit code.
+//
 // It validates the gate selection against the manifest BEFORE anything else:
 // a request hoom does not understand produces no verdict, no live events and
 // no ratchet measurement — it produces a *cliargs.UsageError.
@@ -254,11 +262,19 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	// executes, hoom's own gates included (CA-773)
 	localAntes := fotoLocal(local.Principal)
 	var results []verdict.GateResult
+	var notas []string
 	if opt.Spec != "" {
 		for _, name := range []string{"spec_lint", "spec_trace", "spec_approved"} {
 			lw.Emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: "spec"})
 		}
-		specResults := append(spec.Gates(m.Dir, specFile), approvedGate(m.Dir, specFile))
+		// the spec is measured against its card's tope (proporcion-por-riesgo)
+		specGates, aviso := spec.GatesCon(m.Dir, specFile, approval.CalibreDe(m, m.Dir, specFile))
+		if aviso != "" {
+			// a note of the verdict that the report prints after the gates:
+			// it changes no status (aclaracion 1)
+			notas = append(notas, aviso)
+		}
+		specResults := append(specGates, approvedGate(m.Dir, specFile))
 		for _, r := range specResults {
 			lw.Emit(live.Event{Kind: live.KindGateEnd, Gate: r.Name, Status: r.Status,
 				DurationMS: r.DurationMS, ExitCode: r.ExitCode})
@@ -327,6 +343,7 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		Riesgo:  &med.riesgo,
 		Tamano:  med.tamano,
 		Tarea:   med.tarea,
+		Notes:   notas,
 	}
 	if local.Ejecutar != "" {
 		v.Entorno = &verdict.Entorno{Ejecutar: local.Ejecutar, SHA256: local.SHA256}

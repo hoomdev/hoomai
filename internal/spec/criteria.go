@@ -31,14 +31,16 @@ var (
 // aceptacion" section, continuation lines joined, without its id prefix and
 // without the verifica marker.
 func Criteria(path string) ([]Criterion, error) {
-	ids, _, _, err := Lint(path)
-	if err != nil {
-		return nil, err
-	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	return criteriaDe(raw), nil
+}
+
+// criteriaDe is Criteria of the bytes raw (one read: MedirContenido).
+func criteriaDe(raw []byte) []Criterion {
+	ids, _, _ := lintDe(raw)
 	texts := map[string]string{}
 	level := 0 // heading level of the criteria section; 0 = outside
 	cur := ""  // id of the bullet being read
@@ -84,7 +86,7 @@ func Criteria(path string) ([]Criterion, error) {
 	for _, id := range ids {
 		out = append(out, Criterion{ID: id, Text: texts[id]})
 	}
-	return out, nil
+	return out
 }
 
 // TokenIndex is one pass over the test files of a tree: for every whole
@@ -92,6 +94,9 @@ func Criteria(path string) ([]Criterion, error) {
 type TokenIndex struct {
 	Scanned int // test files read
 	files   map[string][]string
+	// lines are the citations of each token (proporcion-por-riesgo): the
+	// lines of the test files where it appears, once per line.
+	lines map[string]int
 }
 
 // maxTestFile is the largest test file the index reads.
@@ -124,7 +129,7 @@ func readTestFile(path string) ([]byte, bool) {
 // Trace, and records which files cite each whole token. A token never
 // matches inside a longer one: the regexp takes every digit.
 func IndexTokens(root string) (TokenIndex, error) {
-	idx := TokenIndex{files: map[string][]string{}}
+	idx := TokenIndex{files: map[string][]string{}, lines: map[string]int{}}
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, werr error) error {
 		if werr != nil {
 			return nil
@@ -146,10 +151,17 @@ func IndexTokens(root string) (TokenIndex, error) {
 		idx.Scanned++
 		rel = filepath.ToSlash(rel)
 		seen := map[string]bool{}
-		for _, tok := range caRe.FindAllString(string(raw), -1) {
-			if !seen[tok] {
-				seen[tok] = true
-				idx.files[tok] = append(idx.files[tok], rel)
+		for _, line := range strings.Split(string(raw), "\n") {
+			enLinea := map[string]bool{}
+			for _, tok := range caRe.FindAllString(line, -1) {
+				if !enLinea[tok] {
+					enLinea[tok] = true
+					idx.lines[tok]++
+				}
+				if !seen[tok] {
+					seen[tok] = true
+					idx.files[tok] = append(idx.files[tok], rel)
+				}
 			}
 		}
 		return nil
@@ -167,6 +179,12 @@ func IndexTokens(root string) (TokenIndex, error) {
 // slash-separated and sorted. Never nil.
 func (x TokenIndex) Files(id string) []string {
 	return append([]string{}, x.files[id]...)
+}
+
+// Citas is the number of lines of the indexed test files that cite id's
+// whole token, once per line (proporcion-por-riesgo).
+func (x TokenIndex) Citas(id string) int {
+	return x.lines[id]
 }
 
 // Missing returns the ids no test file cites, in the given order.

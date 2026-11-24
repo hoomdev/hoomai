@@ -61,6 +61,12 @@ func Lint(path string) (ids []string, cmds map[string][]string, issues []string,
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	ids, cmds, issues = lintDe(raw)
+	return ids, cmds, issues, nil
+}
+
+// lintDe is Lint of the bytes raw (one read: MedirContenido).
+func lintDe(raw []byte) (ids []string, cmds map[string][]string, issues []string) {
 	norm := normalize(string(raw))
 	for _, sec := range requiredSections {
 		if !strings.Contains(norm, sec) {
@@ -105,7 +111,7 @@ func Lint(path string) (ids []string, cmds map[string][]string, issues []string,
 			cmds[id] = append(cmds[id], cmd)
 		}
 	}
-	return ids, cmds, issues, nil
+	return ids, cmds, issues
 }
 
 var skipDirs = map[string]bool{
@@ -127,6 +133,16 @@ type TraceResult struct {
 	Scanned      int      // test files scanned
 	ByTest       int      // criteria traced via test token
 	ByCmd        int      // criteria verified via command (all exit 0)
+	// Citas (proporcion-por-riesgo) are the citations of each criterion
+	// Trace looked for in the tests (every id without [verifica:]): the
+	// number of LINES of the files spec_trace scans (IsTestPath, the same
+	// files as Scanned) where its whole token appears. A line counts once
+	// per criterion, also when it cites it twice; a line that cites two
+	// criteria counts one for each; a token inside a longer one (CA-1 in
+	// CA-12) is not a citation. One entry per id looked for, 0 when no
+	// test cites it; a criterion with [verifica:] has no entry. nil when
+	// Trace looked for none.
+	Citas map[string]int
 }
 
 // Trace verifies each criterion: IDs with declared [verifica:] commands run
@@ -141,13 +157,21 @@ func Trace(root string, ids []string, cmds map[string][]string) (TraceResult, er
 		}
 	}
 
-	missing, scanned, err := Tokens(root, needTest)
-	if err != nil {
-		return res, err
+	if len(needTest) > 0 {
+		// nosemgrep: trailofbits.go.invalid-usage-of-modified-variable.invalid-usage-of-modified-variable -- con error, IndexTokens igual cuenta los archivos que alcanzo a leer
+		idx, err := IndexTokens(root)
+		if err != nil {
+			res.Scanned = idx.Scanned
+			return res, err
+		}
+		res.Scanned = idx.Scanned
+		res.MissingTests = idx.Missing(needTest)
+		res.ByTest = len(needTest) - len(res.MissingTests)
+		res.Citas = make(map[string]int, len(needTest))
+		for _, id := range needTest {
+			res.Citas[id] = idx.Citas(id)
+		}
 	}
-	res.Scanned = scanned
-	res.MissingTests = missing
-	res.ByTest = len(needTest) - len(missing)
 
 	for _, id := range ids {
 		cs := cmds[id]
@@ -207,60 +231,13 @@ func lastNonEmptyLine(s string) string {
 // Gates runs lint + trace for a spec and returns them as synthetic gate
 // results to embed in the verdict. Both are required: binding a spec to a
 // verify run is opt-in, and once bound, its criteria must be enforced.
+//
+// proporcion-por-riesgo: Gates is GatesCon with the zero Calibre (a spec
+// without card, riesgo normal, no tope and no current approval) without its
+// aviso. `hoom verify` measures with GatesCon and approval.CalibreDe.
 func Gates(projectDir, specPath string) []verdict.GateResult {
-	start := time.Now()
-	lintRes := verdict.GateResult{Name: "spec_lint", Required: true, Scope: "spec"}
-	traceRes := verdict.GateResult{Name: "spec_trace", Required: true, Scope: "spec"}
-
-	ids, cmds, issues, err := Lint(specPath)
-	lintRes.DurationMS = time.Since(start).Milliseconds()
-	switch {
-	case err != nil:
-		lintRes.Status = verdict.StatusError
-		lintRes.Notes = err.Error()
-		traceRes.Status = verdict.StatusSkipped
-		return []verdict.GateResult{lintRes, traceRes}
-	case len(issues) > 0:
-		lintRes.Status = verdict.StatusFail
-		lintRes.OutputTail = strings.Join(issues, "\n")
-	default:
-		lintRes.Status = verdict.StatusPass
-		lintRes.Notes = fmt.Sprintf("%d criterios (CA-*)", len(ids))
-		if len(cmds) > 0 {
-			lintRes.Notes += fmt.Sprintf(", %d con [verifica:]", len(cmds))
-		}
-	}
-
-	t := time.Now()
-	tr, terr := Trace(projectDir, ids, cmds)
-	traceRes.DurationMS = time.Since(t).Milliseconds()
-	switch {
-	case terr != nil:
-		traceRes.Status = verdict.StatusError
-		traceRes.Notes = terr.Error()
-	case len(ids) == 0:
-		traceRes.Status = verdict.StatusSkipped
-		traceRes.Notes = "sin criterios CA-* que trazar"
-	case len(tr.MissingTests) > 0 || len(tr.CmdFailed) > 0:
-		traceRes.Status = verdict.StatusFail
-		var parts []string
-		if len(tr.MissingTests) > 0 {
-			parts = append(parts, fmt.Sprintf("criterios SIN test que los referencie: %s\nAccion: el test-writer debe crear tests que mencionen cada CA-n (en el nombre o un comentario), o el spec declarar [verifica: <comando>] si el criterio se verifica por comando.", strings.Join(tr.MissingTests, ", ")))
-		}
-		if len(tr.CmdFailed) > 0 {
-			parts = append(parts, fmt.Sprintf("criterios con comando [verifica:] FALLIDO:\n%s\nAccion: corrige el comando o el entorno; exit 0 = criterio trazado.", strings.Join(tr.CmdFailed, "\n")))
-		}
-		traceRes.OutputTail = strings.Join(parts, "\n")
-		traceRes.Notes = fmt.Sprintf("%d archivos de test escaneados", tr.Scanned)
-	default:
-		traceRes.Status = verdict.StatusPass
-		if tr.ByCmd > 0 {
-			traceRes.Notes = fmt.Sprintf("%d/%d criterios: %d trazados por test (%d archivos), %d verificados por comando", len(ids), len(ids), tr.ByTest, tr.Scanned, tr.ByCmd)
-		} else {
-			traceRes.Notes = fmt.Sprintf("%d/%d criterios trazados en %d archivos de test", len(ids), len(ids), tr.Scanned)
-		}
-	}
-	return []verdict.GateResult{lintRes, traceRes}
+	gates, _ := GatesCon(projectDir, specPath, Calibre{})
+	return gates
 }
 
 // Tokens is the half of Trace that only READS: which of ids have no test file

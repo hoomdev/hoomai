@@ -15,7 +15,37 @@ import (
 	"github.com/hoomdev/hoomai/internal/profiles"
 )
 
+// BloquePorRiesgo (proporcion-por-riesgo) is the text hoom init writes in
+// hoom.yaml right after the gates, the same for the four profiles: the model
+// of each role in levels (agents), the reviewer's (review) and the topes of
+// the spec per riesgo (spec). The hoom.yaml it writes loads with
+// manifest.Load.
+const BloquePorRiesgo = `# Modelo por rol en niveles (fuerte, medio, barato): hoom los traduce al
+# modelo de cada provider; un nombre de modelo tambien vale. Cada rol puede
+# cambiar sus valores segun el riesgo de la tarjeta (bajo, normal, alto).
+agents:
+  arquitecto: { model: fuerte }
+  designer: { model: medio }
+  scout: { model: barato }
+  writer: { model: medio, alto: { model: fuerte } }
+  test-writer: { model: medio, alto: { model: fuerte } }
+  characterizer: { model: medio, alto: { model: fuerte } }
+  analista: { model: medio }
+  refutador: { model: medio, alto: { model: fuerte } }
+review:
+  model: fuerte
+# Topes del spec segun el riesgo declarado de la tarjeta (0 = sin tope).
+spec:
+  topes:
+    bajo: { palabras: 400, criterios: 4, citas_por_criterio: 10 }
+    normal: { palabras: 800, criterios: 8, citas_por_criterio: 10 }
+    alto: { palabras: 2000, criterios: 15, citas_por_criterio: 0 }
+`
+
 // Run initializes dir. If profileName is empty the stack is auto-detected.
+//
+// proporcion-por-riesgo: after the gates it writes BloquePorRiesgo, as it
+// is, whatever the profile.
 //
 // verify-en-el-entorno: a new .hoom/.gitignore is hoomfs.GitignoreBody
 // (local.yaml included); one that already exists is completed with the line
@@ -82,6 +112,9 @@ func Run(dir, projectName, profileName string) error {
 			fmt.Fprintf(&b, "    # %s\n", g.Notes)
 		}
 	}
+	// the model of each role in levels and the topes of the spec, the same
+	// for every profile (proporcion-por-riesgo, CA-807)
+	b.WriteString(BloquePorRiesgo)
 	if err := os.WriteFile(target, []byte(b.String()), 0o644); err != nil {
 		return err
 	}

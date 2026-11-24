@@ -1,0 +1,11 @@
+{
+  "id": "20261124T180719_c9ffe4",
+  "created_at": "2026-11-24T18:07:19.08629067Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "cmd/hoom/main.go",
+  "description": "INTRODUCIDO: cmd/hoom/main.go:1200 normaliza a ruta absoluta al aprobar desde un subdirectorio, por lo que approval.Approve guarda el spec relativo al root, pero cmd/hoom/main.go:1230 consulta approval.Status con el operando relativo crudo. Tras `cd subdir \u0026\u0026 hoom spec approve ../.hoom/specs/x.md`, `hoom spec status ../.hoom/specs/x.md` no encuentra ese registro (mientras la nueva linea de medidas, que si normaliza, puede decir aprobado) y sale 1. Usa la misma ruta normalizada para Status.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

@@ -34,6 +34,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/pilotocmd"
 	"github.com/hoomdev/hoomai/internal/profiles"
+	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/valores"
 )
@@ -619,6 +620,9 @@ func (v *verbo) lanzarRol(d Deduccion, m *manifest.Manifest, c boardcmd.Card, a 
 		return v.falla(a.Why)
 	}
 	req := l.request(a.ID)
+	// this verb prints the line valores: (proporcion-por-riesgo): the
+	// envelope does not print it again
+	req.ValoresImpresos = true
 	// what is shown is what launches: Lanzar refuses if the card proposes
 	// something else once the pedido is written (finding faff7c)
 	vista := lanzar.PropuestaDe(a)
@@ -768,31 +772,11 @@ func (v *verbo) editar(texto string) (string, error) {
 	return string(raw), err
 }
 
-// lineaValores is the line of the values and where each came from.
+// lineaValores is the line of the values and where each came from:
+// valores.Linea, the one text of every verb (proporcion-por-riesgo).
 func lineaValores(e valores.Elegidos, a boardcmd.Action, req lanzar.Request) string {
-	valor := func(nombre, v, origen string) string {
-		if v == "" {
-			return fmt.Sprintf("%s del provider (%s)", nombre, valores.OrigenProvider)
-		}
-		return fmt.Sprintf("%s %s (%s)", nombre, visible(v), origen)
-	}
-	presupuesto := valor("presupuesto", "", e.Origen.BudgetUSD)
 	o, ok := opcionDe(a, e.Provider)
-	switch {
-	case ok && !o.Budget && req.BudgetUSD == nil:
-		presupuesto = fmt.Sprintf("presupuesto sin tope (%s no acepta tope)", e.Provider)
-	case e.BudgetUSD != nil:
-		presupuesto = fmt.Sprintf("presupuesto %s (%s)", lanzar.USD(*e.BudgetUSD), e.Origen.BudgetUSD)
-	case e.Origen.BudgetUSD == valores.OrigenHoomYAML:
-		presupuesto = "presupuesto sin tope (hoom.yaml)" // budget_usd: 0
-	}
-	return "valores: " + strings.Join([]string{
-		valor("provider", e.Provider, e.Origen.Provider),
-		valor("modelo", e.Model, e.Origen.Model),
-		valor("esfuerzo", e.Effort, e.Origen.Effort),
-		presupuesto,
-		fmt.Sprintf("tiempo limite %s (%s)", valores.Duracion(e.Timeout), e.Origen.Timeout),
-	}, " · ")
+	return valores.Linea(e, ok && !o.Budget && req.BudgetUSD == nil)
 }
 
 // comandoLargo is the equivalent command of a launch, with the pedido cut
@@ -1153,7 +1137,15 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 	}
 	a, ok := c.Action(id)
 	if !ok {
-		return v.falla(fmt.Sprintf("en %s no hay nada que %s: %s", c.ColumnName, v.nombre, c.Plain))
+		msg := fmt.Sprintf("en %s no hay nada que %s: %s", c.ColumnName, v.nombre, c.Plain)
+		if id == boardcmd.ActAprobar {
+			// a spec that passes its tope says which and how to raise it
+			// (proporcion-por-riesgo, CA-795)
+			for _, l := range lineasDelTope(m, d, c) {
+				msg += "\n  " + l
+			}
+		}
+		return v.falla(msg)
 	}
 	if !a.Enabled {
 		return v.falla(a.Why)
@@ -1179,7 +1171,8 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 			dir = filepath.Join(d.Root, filepath.FromSlash(c.Evidence.Dir))
 		}
 		spec := ".hoom/specs/" + d.Slug + ".md"
-		rec, _, err := approval.Approve(dir, filepath.Join(dir, filepath.FromSlash(spec)))
+		// measured against its card's tope (proporcion-por-riesgo)
+		rec, _, err := approval.Aprobar(m, dir, filepath.Join(dir, filepath.FromSlash(spec)))
 		if err != nil {
 			return v.falla(err.Error())
 		}
@@ -1197,6 +1190,27 @@ func (v *verbo) firmarCon(operando string, si bool) int {
 	fmt.Fprintln(v.e.Out, "listo: la tarjeta pasa a Hecho")
 	fmt.Fprintf(v.e.Out, "para juntarla: git merge --no-ff hoom/%s\n", d.Slug)
 	return 0
+}
+
+// lineasDelTope are the lines of spec_lint of the card's spec when it is
+// not approved and passes its tope (spec.LineasDelTope, measured as
+// approval.Aprobar measures it), or the line of its card that cannot be
+// read; none otherwise.
+func lineasDelTope(m *manifest.Manifest, d Deduccion, c boardcmd.Card) []string {
+	dir := d.Root
+	if c.Evidence.Source == boardcmd.SourceWorktree {
+		dir = filepath.Join(d.Root, filepath.FromSlash(c.Evidence.Dir))
+	}
+	ruta := filepath.Join(dir, ".hoom", "specs", d.Slug+".md")
+	cal := approval.CalibreDe(m, dir, ruta)
+	if cal.Ilegible != "" {
+		return []string{fmt.Sprintf(spec.FormatoTarjetaIlegible, cal.Tarjeta, cal.Ilegible)}
+	}
+	med, err := spec.Medir(ruta)
+	if err != nil {
+		return nil
+	}
+	return spec.LineasDelTope(med, cal)
 }
 
 // TextoFirma is what a signature says before it is signed: hoom aprobar's
@@ -1270,16 +1284,6 @@ func nombrar(slug string) string {
 		return slug
 	}
 	return strconv.Quote(slug)
-}
-
-// visible is a value of a flag (a model, an effort) as a message shows it:
-// as it is when it is a plain token, quoted when it has a space, a quote, a
-// control character or an escape sequence.
-func visible(s string) string {
-	if q := strconv.Quote(s); q != `"`+s+`"` || strings.ContainsAny(s, " \t") {
-		return q
-	}
-	return s
 }
 
 func primero(ops []string) string {

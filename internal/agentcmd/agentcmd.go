@@ -23,10 +23,12 @@ import (
 	"github.com/hoomdev/hoomai/internal/envelope"
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/isolate"
+	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/valores"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
@@ -72,6 +74,63 @@ type Options struct {
 	Ronda       int
 	Hallazgos   []string
 	Bloqueantes int
+
+	// ValoresImpresos (proporcion-por-riesgo) says the verb that launched
+	// the envelope already printed its line valores: (lanzar sets it from
+	// lanzar.Request.ValoresImpresos): Run does not print it. false (`hoom
+	// agent` itself, the Studio) = Run prints it once, before its steps.
+	ValoresImpresos bool
+}
+
+// NotaDeRiesgo (proporcion-por-riesgo) is the note hoom adds at the end of
+// the SystemPrompt of a role, after a blank line (for the test-writer,
+// after the paragraph of the blind tree), and nothing else after it; r is
+// the DECLARED riesgo of the card of --task (item.RiesgoDeLanzamiento: alto
+// when it cannot be read, normal without card) and t the tope its spec is
+// measured with (the card's own, else spec.topes.<r> of hoom.yaml):
+//
+//   - test-writer: `Riesgo declarado de la tarjeta: <r>.`;
+//   - arquitecto:
+//     `Riesgo declarado de la tarjeta: <r>. Tope del spec: <t> palabras y <c> criterios.`,
+//     with `palabras sin tope` or `criterios sin tope` in place of
+//     `<t> palabras` or `<c> criterios` when that tope is 0;
+//   - every other role: "" (no note).
+//
+// rol is the role's slug. The contract in .hoom/agents/ does not change
+// (CA-182).
+func NotaDeRiesgo(rol, r string, t spec.Tope) string {
+	medida := func(n int, que string) string {
+		if n == 0 {
+			return que + " sin tope"
+		}
+		return fmt.Sprintf("%d %s", n, que)
+	}
+	switch rol {
+	case "test-writer":
+		return fmt.Sprintf("Riesgo declarado de la tarjeta: %s.", r)
+	case "arquitecto":
+		return fmt.Sprintf("Riesgo declarado de la tarjeta: %s. Tope del spec: %s y %s.", r,
+			medida(t.Palabras, "palabras"), medida(t.Criterios, "criterios"))
+	}
+	return ""
+}
+
+// riesgoYTope are the declared riesgo of the card task as a launch reads it
+// (item.RiesgoDeLanzamiento) and the tope its spec is measured with: the
+// card's tope_palabras and tope_criterios over spec.topes.<r> of the
+// project's hoom.yaml (roles).
+func riesgoYTope(roles *manifest.Manifest, root, task string) (string, spec.Tope) {
+	r := item.RiesgoDeLanzamiento(root, task)
+	t := roles.TopeDelSpec(r)
+	if it, hay, err := item.TarjetaDe(root, task); err == nil && hay {
+		if it.TopePalabras != nil {
+			t.Palabras = *it.TopePalabras
+		}
+		if it.TopeCriterios != nil {
+			t.Criterios = *it.TopeCriterios
+		}
+	}
+	return r, t
 }
 
 // Result is the envelope's answer, identical in text and in JSON.
@@ -120,6 +179,20 @@ type Isolation struct {
 // envelope is MEANT to report (an unapproved spec, a failing run, a violated
 // scope, a red verdict) come back as a Result with an exit code; only a
 // broken setup returns an error.
+//
+// proporcion-por-riesgo: the role's values are valores.ResolverConRiesgo
+// with the DECLARED riesgo of the card of opt.Task
+// (item.RiesgoDeLanzamiento of root: alto when its item cannot be read,
+// normal without --task or without item), and a model level is translated
+// with the provider Run takes, also the first installed one
+// (valores.Elegidos.ConProvider): no level reaches the provider. Unless
+// opt.ValoresImpresos, Run prints the line valores: (valores.Linea) once,
+// before its steps and outside them. The SystemPrompt of the test-writer and
+// of the arquitecto ends in NotaDeRiesgo, after a blank line (the
+// test-writer's after the paragraph of the blind tree); the arquitecto's
+// tope is the card's own, else spec.topes.<riesgo> of the hoom.yaml Run
+// loads. The other roles get no note, and the contract on disk does not
+// change.
 //
 // autonomia-entre-firmas: for a role of shape codigo (today only the
 // writer), Run reads the task's protected tests (TestsProtegidos of root)
@@ -223,14 +296,19 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if role.Slug != "reviewer" {
 		def = roles.RoleDefaults(role.Slug)
 	}
-	// the one rule (valores): the command, then hoom.yaml, then the
-	// provider's own; hoom agent's place proposes no value of its own
-	elegidos := valores.Resolver(pedidoDe(opt), def, valores.Lugar{})
+	// the one rule (valores): the command, then hoom.yaml for the declared
+	// riesgo of the card of --task, then hoom.yaml, then the provider's own;
+	// hoom agent's place proposes no value of its own
+	riesgoDeLaTarjeta, tope := riesgoYTope(roles, root, opt.Task)
+	elegidos := valores.ResolverConRiesgo(pedidoDe(opt), riesgoDeLaTarjeta, def, valores.Lugar{})
 	opt.Provider = elegidos.Provider
 	prov, err := pickProvider(opt.Provider)
 	if err != nil {
 		return Result{}, err
 	}
+	// a level is translated with the provider the envelope takes, also the
+	// one it takes for being installed
+	elegidos = elegidos.ConProvider(prov.Name())
 	avisos := aplicarValores(prov, elegidos, &opt)
 	steps := 5
 	if role.Isolated {
@@ -281,6 +359,11 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	fmt.Fprintf(w, "hoom agent: rol %s (%s) en %s\n", role.Slug, prov.Name(), displayDir(opt.Task))
 	for _, a := range avisos {
 		fmt.Fprintf(w, "  aviso: %s\n", a)
+	}
+	if !opt.ValoresImpresos {
+		// the line valores: of this launch, once, before the steps and not
+		// one of them (proporcion-por-riesgo)
+		fmt.Fprintf(w, "  %s\n", valores.Linea(elegidos, !prov.Capabilities().Budget && !opt.BudgetSet))
 	}
 	// Lo local queda fuera de Git ANTES de la primera foto: una regla que
 	// hoom agrega durante el run se le imputaria al rol, y una que falta deja
@@ -363,6 +446,12 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 			}
 			plan.Vista = vista
 		}
+	}
+	// the note of riesgo goes after the contract (and the paragraph of the
+	// blind tree), after a blank line, and nothing after it: added here, not
+	// in startOptions, which hands the contract on as it gets it
+	if nota := NotaDeRiesgo(role.Slug, riesgoDeLaTarjeta, tope); nota != "" {
+		contract = strings.TrimRight(contract, "\n") + "\n\n" + nota
 	}
 	so, warn := startOptions(prov, role, contract, opt)
 	so.Dir = runDir
@@ -695,7 +784,7 @@ func aplicarValores(prov providers.Provider, e valores.Elegidos, opt *Options) [
 	}
 	caps := prov.Capabilities()
 	var avisos []string
-	if e.Origen.BudgetUSD == valores.OrigenHoomYAML && e.BudgetUSD != nil {
+	if strings.HasPrefix(e.Origen.BudgetUSD, valores.OrigenHoomYAML) && e.BudgetUSD != nil {
 		if caps.Budget {
 			opt.BudgetUSD = *e.BudgetUSD
 		} else {

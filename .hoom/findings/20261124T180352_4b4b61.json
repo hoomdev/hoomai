@@ -1,0 +1,11 @@
+{
+  "id": "20261124T180352_4b4b61",
+  "created_at": "2026-11-24T18:03:52.908931471Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO — internal/lanzar/lanzar.go:528-535 entrega a reviewcmd solo v.Model ya traducido y descarta v.Nivel. reviewcmd/reviewcmd.go:1165-1168 intenta reconstruir el nivel desde ese nombre, obtiene vacío y luego la cabecera y el registro escriben Nivel vacío (líneas 1180 y 1386-1393). Toda review lanzada desde tarjeta, Studio o piloto con review.model fuerte|medio|barato usa el modelo correcto pero pierde en su artefacto y cabecera la procedencia por nivel exigida; el registro de auditoría ya no permite distinguir el nivel configurado de un nombre literal.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

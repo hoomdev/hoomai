@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T181251_1e857a",
+  "as": "refutado",
+  "evidence": "Falso positivo: el no-op nunca llega a la linea del motivo. item.cambiarTope (internal/item/item.go:751-769) devuelve false con el mismo tope y el mismo motivo, y renderSet sale antes: internal/itemcmd/itemcmd.go:381-384 (if !res.Cambio -\u003e 'tarjeta \u003cslug\u003e: ya tenia esos valores'; return), asi que las lineas 426-429 no corren. Reproduccion con el binario de fd20f9e (go build -o \u003cscratch\u003e/hoom ./cmd/hoom) en un proyecto temporal: 'hoom item set precios --tope-palabras 900 --motivo x' dos veces; la 2da imprime 'tarjeta precios: ya tenia esos valores', exit 0, y el item queda igual (sha256 e82e72a5... y mtime sin cambios). Con un motivo distinto ('--motivo y') imprime 'motivo del tope de precios: \"y\"' y escribe, como pide la aclaracion 8. Con Cambio=true y riesgo, auto, presupuesto y topes iguales, lo unico que cambio es el motivo, asi que la linea nunca narra un cambio que no hubo.",
+  "author": "refutador@claude",
+  "resolved_at": "2026-11-24T18:34:20.673813083Z"
+}

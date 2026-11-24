@@ -750,16 +750,18 @@ func apRegistro(t *testing.T, ca, root, id string) envelope.Record {
 	return envelope.Record{}
 }
 
-// apLanzo busca la linea `regla <regla>` seguida de la de pedir; devuelve la
-// de pedir.
+// apLanzo busca la linea `regla <regla>` seguida de la de valores y la de
+// pedir; devuelve la de pedir. proporcion-por-riesgo re-expresa CA-647: antes
+// de cada lanzamiento, justo antes de `pide al`, va `piloto automatico:
+// valores: ...`.
 func apLanzo(t *testing.T, ca string, ls []string, regla string) string {
 	t.Helper()
 	for i, l := range ls {
 		if l == apPrefijo+"regla "+regla {
-			if i+1 >= len(ls) || !strings.HasPrefix(ls[i+1], apPrefijo+"pide al ") {
-				t.Fatalf("%s: despues de la linea de regla viene la de pedir: %q", ca, ls)
+			if i+2 >= len(ls) || !strings.HasPrefix(ls[i+1], apPrefijo+"valores: ") || !strings.HasPrefix(ls[i+2], apPrefijo+"pide al ") {
+				t.Fatalf("%s: despues de la linea de regla vienen la de valores y la de pedir: %q", ca, ls)
 			}
-			return ls[i+1]
+			return ls[i+2]
 		}
 	}
 	t.Fatalf("%s: antes de lanzar el piloto escribe %q: %q", ca, apPrefijo+"regla "+regla, ls)

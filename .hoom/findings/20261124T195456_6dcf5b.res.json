@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T195456_6dcf5b",
+  "as": "corregido",
+  "evidence": "Corregido en 74582ab: approveSum (internal/approval/approval.go) decide already con statusSum, la misma consulta que Status (aprobado por el registro de ESTE spec); si \u003cslug\u003e_\u003csum8\u003e.json ya existe y es de otro spec, el registro nuevo va a \u003cslug\u003e_\u003csum8\u003e_\u003csha256(relSpec)[:4] en hex\u003e.json, y se crea con O_EXCL: nunca sobrescribe otro registro. Los registros existentes siguen valiendo. Regresion: internal/approval/hallazgos_6dcf5b_test.go (TestHallazgo_6dcf5b_MismoNombreYContenidoNoCompartenRegistro: docs/a y docs/b, a_b.md y a-b.md; TestHallazgo_6dcf5b_SpecMovidoSeApruebaEnSuRutaNueva) y cmd/hoom/hallazgos_6dcf5b_test.go (TestHallazgo_6dcf5b_DosSpecsConElMismoNombreSeApruebanCadaUno, con el binario).",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T20:43:55.911283009Z"
+}

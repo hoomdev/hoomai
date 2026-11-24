@@ -65,6 +65,26 @@ const (
 	// (exit 2); a --presupuesto-usd that is not a number above 0 is the usage
 	// error `--presupuesto-usd tiene que ser un numero mayor que 0` (exit 2).
 	// What Execute does with them is SetCambios' contract.
+	//
+	// proporcion-por-riesgo: set also takes `--tope-palabras n`,
+	// `--tope-criterios n` (either or both) and `--motivo "<por que>"`,
+	// combinable with the other three (Request.TopePalabras,
+	// Request.TopeCriterios, Request.Motivo): a person raises the tope of the
+	// card's spec. They are not usage errors: each refusal exits 1 and
+	// writes nothing:
+	//
+	//   - an n that is not an integer >= 0:
+	//     `--tope-palabras tiene que ser un entero mayor o igual que 0` (or
+	//     `--tope-criterios ...`), from Parse (an error that is not a
+	//     *cliargs.UsageError);
+	//   - a tope without --motivo, or with a blank one:
+	//     `item set: cambiar el tope del spec pide --motivo "<por que>"`
+	//     (item.ErrTopeSinMotivo);
+	//   - --motivo without a tope:
+	//     `item set: --motivo va con --tope-palabras o --tope-criterios`
+	//     (item.ErrMotivoSinTope), also when it is the only flag;
+	//   - with $HOOM_ROLE, like --riesgo (CA-617): SetCambios' refusal of a
+	//     role.
 	SubSet = "set"
 )
 
@@ -78,7 +98,7 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--r
      hoom item list [--json]
      hoom item show <slug> [--json]
      hoom item save <slug> [--json]
-     hoom item set <slug> [--riesgo r] [--auto hasta-humano|no] [--presupuesto-usd x] [--json]
+     hoom item set <slug> [--riesgo r] [--auto hasta-humano|no] [--presupuesto-usd x] [--tope-palabras n] [--tope-criterios n] [--motivo "<por que>"] [--json]
      hoom item backfill [--dry-run] [--json]
 
   --tipo t             feature|bug|refactor|seguridad|docs|test (default feature)
@@ -95,6 +115,9 @@ const UsageText = `Uso: hoom item add "<titulo>" [--tipo t] [--prioridad p] [--r
                        y con 'hoom piloto <slug>'; exige --presupuesto-usd):
                        despues de cada trabajo pide el del rol siguiente
                        hasta la proxima columna tuya o un tope
+  --tope-palabras n    (set) Tope de palabras del spec de la tarjeta, entero
+  --tope-criterios n   >= 0 (0 = sin tope); reemplaza al de hoom.yaml solo
+                       para ella y pide --motivo "<por que>"
   --json               Emite el resultado como JSON en stdout
 
 'hoom item save' commitea lo que la tarjeta tiene sin guardar (en su espacio
@@ -132,8 +155,15 @@ type Request struct {
 	// PresupuestoUSD is set's --presupuesto-usd, already checked to be a
 	// finite number above 0; nil = not given.
 	PresupuestoUSD *float64
-	JSON           bool
-	DryRun         bool // backfill
+	// TopePalabras and TopeCriterios (proporcion-por-riesgo) are set's
+	// --tope-palabras and --tope-criterios, already checked to be integers
+	// >= 0 (0 = sin tope for the card); nil = not given. Motivo is its
+	// --motivo as given (nil = not given): SetCambios checks it.
+	TopePalabras  *int
+	TopeCriterios *int
+	Motivo        *string
+	JSON          bool
+	DryRun        bool // backfill
 }
 
 // SetResult is what `hoom item set` did, identical in text and JSON
@@ -157,6 +187,18 @@ type SetResult struct {
 	// of the JSON.
 	AutoAntes        string   `json:"-"`
 	PresupuestoAntes *float64 `json:"-"`
+	// TopePalabras, TopeCriterios and TopeMotivo (proporcion-por-riesgo) are
+	// the card's tope of its spec and its motive AFTER the set, in the JSON
+	// only when the card has them (`"tope_palabras": <n>`,
+	// `"tope_criterios": <n>`, `"tope_motivo": "..."`). A set without tope
+	// emits the JSON of before.
+	TopePalabras  *int   `json:"tope_palabras,omitempty"`
+	TopeCriterios *int   `json:"tope_criterios,omitempty"`
+	TopeMotivo    string `json:"tope_motivo,omitempty"`
+	// TopePalabrasAntes and TopeCriteriosAntes are the topes before the
+	// set; not part of the JSON.
+	TopePalabrasAntes  *int `json:"-"`
+	TopeCriteriosAntes *int `json:"-"`
 }
 
 // Set is `hoom item set <slug> --riesgo r`: it changes only the riesgo of
@@ -241,15 +283,32 @@ func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
 //
 // The SetResult carries the riesgo before and after (as Set's), the auto
 // and presupuesto_usd after, the ones before, and Cambio.
+//
+// proporcion-por-riesgo: c may carry the card's tope of its spec
+// (item.Cambios TopePalabras, TopeCriterios and TopeMotivo), written with
+// tope_motivo, tope_por and tope_en in the same write (item.Cambiar). The
+// refusals, writing nothing, go in this order: rol not empty and c changes
+// the tope: `el tope del spec de una tarjeta lo cambia una persona, no un
+// rol` (a role does not raise its own tope); then item.Cambiar's
+// (a value below 0, item.ErrTopeSinMotivo, item.ErrMotivoSinTope) before
+// the item is looked for; then the ones above. The SetResult carries the
+// topes after and before.
 func SetCambios(root, base, blockOn, slug string, c item.Cambios, rol string) (SetResult, error) {
 	if strings.TrimSpace(rol) != "" {
+		if cambiaElTope(c) {
+			return SetResult{}, errors.New("el tope del spec de una tarjeta lo cambia una persona, no un rol")
+		}
 		if c.Auto != nil || c.PresupuestoUSD != nil {
 			return SetResult{}, fmt.Errorf("el piloto automatico y el presupuesto de una tarjeta los cambia una persona, no un rol")
 		}
 		return SetResult{}, fmt.Errorf("el riesgo de una tarjeta lo cambia una persona, no un rol")
 	}
-	if c.Riesgo == nil && c.Auto == nil && c.PresupuestoUSD == nil {
-		return SetResult{}, fmt.Errorf("falta --riesgo, --auto o --presupuesto-usd: es lo que set cambia")
+	if c.Riesgo == nil && c.Auto == nil && c.PresupuestoUSD == nil && !cambiaElTope(c) {
+		return SetResult{}, errors.New(faltaSet)
+	}
+	// a tope is refused before the item is looked for
+	if err := item.ValidarTope(c); err != nil {
+		return SetResult{}, err
 	}
 	// the item written is the one the card is read from, like Set's
 	dest, ok := item.ArbolDelRiesgo(root, slug)
@@ -272,7 +331,15 @@ func SetCambios(root, base, blockOn, slug string, c item.Cambios, rol string) (S
 	}
 	return SetResult{Slug: slug, Antes: antes.Riesgo, Riesgo: despues.Riesgo, Cambio: cambio,
 		Auto: despues.Auto, PresupuestoUSD: despues.PresupuestoUSD,
-		AutoAntes: antes.Auto, PresupuestoAntes: antes.PresupuestoUSD}, nil
+		AutoAntes: antes.Auto, PresupuestoAntes: antes.PresupuestoUSD,
+		TopePalabras: despues.TopePalabras, TopeCriterios: despues.TopeCriterios, TopeMotivo: despues.TopeMotivo,
+		TopePalabrasAntes: antes.TopePalabras, TopeCriteriosAntes: antes.TopeCriterios}, nil
+}
+
+// cambiaElTope says whether c touches the tope of the card's spec: a tope
+// or a motivo.
+func cambiaElTope(c item.Cambios) bool {
+	return c.TopePalabras != nil || c.TopeCriterios != nil || c.TopeMotivo != nil
 }
 
 // cambiosDe is what a parsed `hoom item set` asks to change.
@@ -293,6 +360,18 @@ func cambiosDe(req Request) item.Cambios {
 	if req.PresupuestoUSD != nil {
 		v := *req.PresupuestoUSD
 		c.PresupuestoUSD = &v
+	}
+	if req.TopePalabras != nil {
+		v := *req.TopePalabras
+		c.TopePalabras = &v
+	}
+	if req.TopeCriterios != nil {
+		v := *req.TopeCriterios
+		c.TopeCriterios = &v
+	}
+	if req.Motivo != nil {
+		v := *req.Motivo
+		c.TopeMotivo = &v
 	}
 	return c
 }
@@ -325,6 +404,29 @@ func renderSet(w io.Writer, res SetResult) {
 	}
 	if topeDe(res.PresupuestoAntes) != topeDe(res.PresupuestoUSD) {
 		fmt.Fprintf(w, "presupuesto de %s: %s -> %s%s\n", res.Slug, topeDe(res.PresupuestoAntes), topeDe(res.PresupuestoUSD), guardar)
+	}
+	enteroDe := func(v *int) string {
+		switch {
+		case v == nil:
+			return "el de hoom.yaml"
+		case *v == 0:
+			return "sin tope"
+		}
+		return strconv.Itoa(*v)
+	}
+	conTope := false
+	if enteroDe(res.TopePalabrasAntes) != enteroDe(res.TopePalabras) {
+		fmt.Fprintf(w, "tope de palabras de %s: %s -> %s%s\n", res.Slug, enteroDe(res.TopePalabrasAntes), enteroDe(res.TopePalabras), guardar)
+		conTope = true
+	}
+	if enteroDe(res.TopeCriteriosAntes) != enteroDe(res.TopeCriterios) {
+		fmt.Fprintf(w, "tope de criterios de %s: %s -> %s%s\n", res.Slug, enteroDe(res.TopeCriteriosAntes), enteroDe(res.TopeCriterios), guardar)
+		conTope = true
+	}
+	if conTope || res.TopeMotivo != "" && res.Antes == res.Riesgo && res.AutoAntes == res.Auto &&
+		topeDe(res.PresupuestoAntes) == topeDe(res.PresupuestoUSD) {
+		// the same tope with another motivo changes only the motivo
+		fmt.Fprintf(w, "motivo del tope de %s: %q%s\n", res.Slug, res.TopeMotivo, guardar)
 	}
 }
 
@@ -453,9 +555,13 @@ func parseSet(args []string) (Request, error) {
 	r := fs.String("riesgo", "", "riesgo de la tarjeta: bajo|normal|alto")
 	auto := fs.String("auto", "", "piloto automatico: hasta-humano|no")
 	presupuesto := fs.String("presupuesto-usd", "", "tope de gasto en USD")
+	topePalabras := fs.String("tope-palabras", "", "tope de palabras del spec de la tarjeta")
+	topeCriterios := fs.String("tope-criterios", "", "tope de criterios del spec de la tarjeta")
+	motivo := fs.String("motivo", "", "por que cambia el tope del spec")
 	asJSON := fs.Bool("json", false, "emitir el resultado como JSON")
-	// an empty --presupuesto-usd is not a number above 0: set says so
-	ops, err := cliargs.OperandsVacios(fs, args, "item set", UsageText, 1, "presupuesto-usd")
+	// an empty --presupuesto-usd is not a number above 0, an empty tope is
+	// not an integer and an empty --motivo is a blank one: set says so
+	ops, err := cliargs.OperandsVacios(fs, args, "item set", UsageText, 1, "presupuesto-usd", "tope-palabras", "tope-criterios", "motivo")
 	if err != nil {
 		return Request{}, err
 	}
@@ -463,16 +569,14 @@ func parseSet(args []string) (Request, error) {
 		return Request{}, uso("item set", fmt.Sprintf("slug invalido %q: minusculas, numeros y guiones", ops[0]))
 	}
 	req := Request{Sub: SubSet, Slug: ops[0], JSON: *asJSON}
-	conPresupuesto := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "presupuesto-usd" {
-			conPresupuesto = true
-		}
-	})
+	dados := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { dados[f.Name] = true })
+	conPresupuesto := dados["presupuesto-usd"]
+	conTope := dados["tope-palabras"] || dados["tope-criterios"] || dados["motivo"]
 	req.Riesgo = strings.TrimSpace(*r)
 	req.Auto = strings.TrimSpace(*auto)
-	if req.Riesgo == "" && req.Auto == "" && !conPresupuesto {
-		return Request{}, uso("item set", "falta --riesgo, --auto o --presupuesto-usd: es lo que set cambia")
+	if req.Riesgo == "" && req.Auto == "" && !conPresupuesto && !conTope {
+		return Request{}, uso("item set", faltaSet)
 	}
 	if req.Riesgo != "" {
 		if err := riesgo.Validar(req.Riesgo); err != nil {
@@ -489,7 +593,45 @@ func parseSet(args []string) (Request, error) {
 		}
 		req.PresupuestoUSD = &v
 	}
+	// a tope that is not an integer >= 0 is not a usage error: exit 1
+	// (proporcion-por-riesgo)
+	if dados["tope-palabras"] {
+		n, ok := enteroDeTope(*topePalabras)
+		if !ok {
+			return Request{}, errors.New("--tope-palabras tiene que ser un entero mayor o igual que 0")
+		}
+		req.TopePalabras = &n
+	}
+	if dados["tope-criterios"] {
+		n, ok := enteroDeTope(*topeCriterios)
+		if !ok {
+			return Request{}, errors.New("--tope-criterios tiene que ser un entero mayor o igual que 0")
+		}
+		req.TopeCriterios = &n
+	}
+	if dados["motivo"] {
+		m := *motivo
+		req.Motivo = &m
+	}
 	return req, nil
+}
+
+// faltaSet is the usage error of a `hoom item set` that changes nothing.
+const faltaSet = "falta --riesgo, --auto o --presupuesto-usd: es lo que set cambia (o --tope-palabras y --tope-criterios, con --motivo)"
+
+// enteroDeTope reads the n of --tope-palabras and --tope-criterios: only
+// decimal digits, an integer >= 0 (no sign, no exponent, no decimals).
+func enteroDeTope(v string) (int, bool) {
+	if v == "" {
+		return 0, false
+	}
+	for _, c := range v {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+	}
+	n, err := strconv.Atoi(v)
+	return n, err == nil
 }
 
 func parseAdd(args []string) (Request, error) {
@@ -614,7 +756,7 @@ func Execute(root, base, blockOn string, req Request, stdout, stderr io.Writer) 
 		}
 		return nil
 	case SubSet:
-		if req.Auto != "" || req.PresupuestoUSD != nil {
+		if req.Auto != "" || req.PresupuestoUSD != nil || req.TopePalabras != nil || req.TopeCriterios != nil || req.Motivo != nil {
 			res, err := SetCambios(root, base, blockOn, req.Slug, cambiosDe(req), os.Getenv(runcmd.EnvRole))
 			if err != nil {
 				return err

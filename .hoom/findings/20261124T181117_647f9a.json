@@ -1,0 +1,11 @@
+{
+  "id": "20261124T181117_647f9a",
+  "created_at": "2026-11-24T18:11:17.974906973Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/approval/tope.go",
+  "description": "INTRODUCIDO: internal/approval/tope.go:40-73 (tarjetaDelSpec en :70-77) asocia una tarjeta mirando solo que los dos directorios finales se llamen `.hoom/specs`; no comprueba que el archivo pertenezca al root ni a un worktree de la tarea. Por eso `hoom verify --spec /tmp/.hoom/specs/precios.md` o un path anidado arbitrario hereda `.hoom/items/precios.yaml` del proyecto y usa su riesgo/tope, cuando el spec exige que un spec en otra ruta sea normal y sin tarjeta. Esto puede rechazar/permitir y aprobar con el calibre equivocado; limita la asociacion al spec del arbol reconocido.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

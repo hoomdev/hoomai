@@ -555,9 +555,10 @@ func (s *Server) handler() (*http.ServeMux, []string) {
 			writeError(w, code, err.Error())
 			return
 		}
-		rec, already, err := approval.Approve(s.m.Dir, path)
+		// measured against its card's tope (proporcion-por-riesgo)
+		rec, already, err := approval.Aprobar(s.m, s.m.Dir, path)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, codigoDeAprobar(err), err.Error())
 			return
 		}
 		writeJSON(w, map[string]any{"approval": rec, "already": already})

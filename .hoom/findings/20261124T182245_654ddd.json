@@ -1,0 +1,11 @@
+{
+  "id": "20261124T182245_654ddd",
+  "created_at": "2026-11-24T18:22:45.300568184Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/agentcmd/agentcmd.go",
+  "description": "INTRODUCIDO — internal/agentcmd/agentcmd.go:118-133 vuelve a implementar la selección de riesgo y la superposición de topes de la tarjeta que internal/approval/tope.go:31-61 presenta como la calibración común. Además, internal/boardcmd/gather.go:275-285 e internal/tarjetacmd/tarjetacmd.go:1199-1213 repiten por separado la secuencia CalibreDe + Medir + LineasDelTope. La precedencia, el caso ilegible y el texto de rechazo quedan repartidos entre varias capas; un cambio futuro en la regla exige mantenerlas sincronizadas. Extraer una consulta común que devuelva calibración, medida y líneas reduciría esa duplicación.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

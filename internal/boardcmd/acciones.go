@@ -8,8 +8,10 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/envelope"
+	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/valores"
 )
 
@@ -277,8 +279,21 @@ func proponerValores(ev Evidence, a *Action, queda *float64) {
 		}
 	}
 	lugar.Puede = func(p string) bool { return ok[p] }
-	e := valores.Resolver(valores.Pedido{}, ev.Defaults[a.Role], lugar)
-	a.Model, a.Effort = e.Model, e.Effort
+	// the declared riesgo of the card (proporcion-por-riesgo): gatherIn
+	// already took the main checkout's, and alto when it cannot be read
+	r := ev.Item.Riesgo
+	if r == "" {
+		r = riesgo.Normal
+	}
+	e := valores.ResolverConRiesgo(valores.Pedido{}, r, ev.Defaults[a.Role], lugar)
+	a.Model, a.Nivel, a.Effort = e.Model, e.Nivel, e.Effort
+	if a.Nivel != "" {
+		// each option with the level translated for it: no screen shows a
+		// level (proporcion-por-riesgo)
+		for i := range a.Providers {
+			a.Providers[i].Model = modelos.Traducir(a.Providers[i].Name, a.Nivel).Modelo
+		}
+	}
 	a.TimeoutS = int(e.Timeout / time.Second)
 	a.BudgetUSD = e.BudgetUSD
 	a.Origen = e.Origen

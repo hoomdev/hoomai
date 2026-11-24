@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T180346_42b59d",
+  "as": "corregido",
+  "evidence": "Corregido en 239c3b9: lanzar.Propuesta trae Nivel (clave nivel), PropuestaDe lo llena, cambios lo compara como modelo y vistaDe de acciones.js manda nivel: a.nivel. Regresion: internal/lanzar/hallazgos_42b59d_test.go (TestHallazgo_42b59d_PropuestaDeTraeElNivel, TestHallazgo_42b59d_VistaConOtroNivelSeRechaza) e internal/servecmd/hallazgos_42b59d_test.go (TestHallazgo_42b59d_AccionesJSMandaElNivel, TestHallazgo_42b59d_ElNivelQueCambioEsElModelo).",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T18:58:22.855874287Z"
+}

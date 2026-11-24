@@ -68,6 +68,14 @@ type Request struct {
 	Ronda       int
 	Hallazgos   []string
 	Bloqueantes int
+
+	// ValoresImpresos (proporcion-por-riesgo) says the verb that launches
+	// already printed the line valores: of this launch (the card verbs
+	// before Lanzar, the pilot as `piloto automatico: valores: `): the
+	// envelope gets agentcmd.Options.ValoresImpresos and `hoom agent` does
+	// not print it again. false (the Studio's launches) = the envelope
+	// prints it, once.
+	ValoresImpresos bool
 }
 
 // Propuesta is what a card's action proposes: the role it launches, its
@@ -79,6 +87,7 @@ type Propuesta struct {
 	Role      string   `json:"role"`
 	Provider  string   `json:"provider"`
 	Model     string   `json:"model"`
+	Nivel     string   `json:"nivel"` // the level Model came from (finding 42b59d)
 	Effort    string   `json:"effort"`
 	BudgetUSD *float64 `json:"budget_usd"`
 	TimeoutS  int      `json:"timeout_s"`
@@ -87,7 +96,7 @@ type Propuesta struct {
 
 // PropuestaDe is what action a proposes now.
 func PropuestaDe(a boardcmd.Action) Propuesta {
-	p := Propuesta{Role: a.Role, Model: a.Model, Effort: a.Effort, TimeoutS: a.TimeoutS, ResumeID: a.ResumeID}
+	p := Propuesta{Role: a.Role, Model: a.Model, Nivel: a.Nivel, Effort: a.Effort, TimeoutS: a.TimeoutS, ResumeID: a.ResumeID}
 	if o, ok := defaultOption(a); ok {
 		p.Provider = o.Name
 	}
@@ -109,7 +118,9 @@ func cambios(antes, ahora Propuesta) []string {
 	if antes.Provider != ahora.Provider {
 		out = append(out, "provider")
 	}
-	if antes.Model != ahora.Model {
+	// the same model from a level or a literal name translates otherwise
+	// with another provider: both are the model (finding 42b59d)
+	if antes.Model != ahora.Model || antes.Nivel != ahora.Nivel {
 		out = append(out, "modelo")
 	}
 	if antes.Effort != ahora.Effort {
@@ -170,10 +181,17 @@ type Trabajo struct {
 	Provider    string
 	TaskStarted bool
 	Valores     valores.Elegidos // the values it was launched with
+	linea       string           // its line valores: (LineaValores)
 	fin         chan Fin
 	once        sync.Once
 	final       Fin
 }
+
+// LineaValores (proporcion-por-riesgo) is the line valores: of the launch,
+// valores.Linea as the envelope prints it when no verb printed it
+// (Request.ValoresImpresos false): the pilot prints it with
+// `piloto automatico: ` in front.
+func (t *Trabajo) LineaValores() string { return t.linea }
 
 // Fin is how a job ended.
 type Fin struct {
@@ -199,6 +217,11 @@ func Candado(root, slug string) string {
 // Valores are the values a launch of action a takes for req: what req asks
 // over what the action proposes (which already applied hoom.yaml), each with
 // its origin, by the one rule (valores.Sobre). The card verbs print them.
+//
+// proporcion-por-riesgo: the action's values are those of the riesgo of its
+// card (boardcmd.Action), its level comes in Elegidos.Nivel (Action.Nivel),
+// and a level, the action's or req's (`--model medio`), is translated with
+// the provider the launch takes: Model is never a level.
 func Valores(a boardcmd.Action, req Request) valores.Elegidos {
 	p := valores.Pedido{Provider: strings.TrimSpace(req.Provider), Model: strings.TrimSpace(req.Model),
 		Effort: strings.TrimSpace(req.Effort), BudgetUSD: req.BudgetUSD}
@@ -210,7 +233,7 @@ func Valores(a boardcmd.Action, req Request) valores.Elegidos {
 
 // elegidosDe is what action a proposes, as values with their origins.
 func elegidosDe(a boardcmd.Action) valores.Elegidos {
-	e := valores.Elegidos{Model: a.Model, Effort: a.Effort, Origen: a.Origen}
+	e := valores.Elegidos{Model: a.Model, Nivel: a.Nivel, Effort: a.Effort, Origen: a.Origen}
 	if o, ok := defaultOption(a); ok {
 		e.Provider = o.Name
 	}
@@ -423,6 +446,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if err != nil {
 		return nil, err
 	}
+	linea := valores.Linea(v, !opt.Budget && req.BudgetUSD == nil)
 	review := a.Role == "reviewer"
 	pedido := strings.TrimSpace(req.Pedido)
 	// the refutador builds its own pedido and it is not edited, by any path
@@ -495,13 +519,26 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 				tareaCreada.Store(true)
 			}
 		}
+		if f.Err == nil && !req.ValoresImpresos {
+			// proporcion-por-riesgo: no verb printed the line valores: of
+			// this launch (the Studio's): the envelope prints it, once, with
+			// the action's origins
+			fmt.Fprintln(out, linea)
+		}
 		switch {
 		case f.Err != nil:
 			// la tarea no se pudo crear: no corre nada, y el 409 lo dice
 		case review:
+			// a level goes as the level: reviewcmd translates it with this
+			// same provider and keeps it in its header and its record
+			// (finding 4b4b61)
+			modelo := v.Model
+			if v.Nivel != "" {
+				modelo = v.Nivel
+			}
 			var res reviewcmd.Result
 			res, f.Err = reviewcmd.Run(p.Root, m.BaseBranch, reviewcmd.Options{
-				Provider: opt.Name, Task: slug, Spec: spec, Model: v.Model, Effort: v.Effort, BudgetUSD: budget,
+				Provider: opt.Name, Task: slug, Spec: spec, Model: modelo, Effort: v.Effort, BudgetUSD: budget,
 				Timeout: v.Timeout, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 				Delta: req.Delta, Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
 				Hallazgos: req.Hallazgos, Bloqueantes: req.Bloqueantes,
@@ -517,6 +554,9 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 				Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
 				Hallazgos: hallazgos, Bloqueantes: req.Bloqueantes,
+				// the line valores: is the launch's, printed above or by
+				// the verb: hoom agent does not print it again
+				ValoresImpresos: true,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec
@@ -549,7 +589,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 
 	listo := func(fin *Fin) (*Trabajo, error) {
 		tr := &Trabajo{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: tareaCreada.Load(),
-			Valores: v, fin: t.fin}
+			Valores: v, linea: linea, fin: t.fin}
 		tr.Valores.Provider, tr.Valores.BudgetUSD = opt.Name, nil
 		if budget > 0 {
 			b := budget

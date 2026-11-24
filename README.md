@@ -165,7 +165,7 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 | `hoom task done <slug>` | Cierra la tarea SOLO con veredicto verde, huella coincidente y todo commiteado. Si el arbol donde corre tiene el item de la tarea, le escribe `hecho_en` y `commit_final` (la punta de `hoom/<slug>`); con `--force` nunca lo marca hecho |
 | `hoom item add "<titulo>"` | Crea la tarjeta como archivo: `.hoom/items/<slug>.yaml` (viaja en git, uno por item). `--tipo feature\|bug\|refactor\|seguridad\|docs\|test`, `--prioridad alta\|media\|baja`, `--presupuesto-usd x`, `--pedido "..."`, `--slug s`, `--auto hasta-humano` (el piloto automatico: el Studio y `hoom piloto`; exige `--presupuesto-usd`), `--riesgo bajo\|normal\|alto` (cuanta review exige la tarjeta; sin el flag, normal), `--json`. El slug es tambien el del spec y el de la tarea |
 | `hoom item list [--json]` / `hoom item show <slug> [--json]` | Los items del arbol actual; `show` suma su tarjeta (columna, que falta, siguiente paso, subestados y, en `--json`, las acciones validas, adonde se puede soltar y el fantasma) |
-| `hoom item set <slug> [--riesgo bajo\|normal\|alto] [--auto hasta-humano\|no] [--presupuesto-usd x] [--json]` | Cambia el riesgo, el piloto automatico (`--auto no` lo quita) o el tope en USD de la tarjeta; sin ninguno de los tres es un error de uso (exit 2). `--auto hasta-humano` en una tarjeta que queda sin presupuesto se niega (exit 1), y `--presupuesto-usd` acepta solo un numero mayor que 0 (si no, exit 2). Lo hace una persona (con `$HOOM_ROLE` se niega) y no en una tarjeta en Hecho; escribe en el item del checkout principal si lo tiene, que es de donde la tarjeta lo lee, y queda sin guardar: se guarda con `hoom item save` |
+| `hoom item set <slug> [--riesgo bajo\|normal\|alto] [--auto hasta-humano\|no] [--presupuesto-usd x] [--tope-palabras n] [--tope-criterios n] [--motivo "<por que>"] [--json]` | Cambia el riesgo, el piloto automatico (`--auto no` lo quita), el tope en USD o el tope del spec de la tarjeta; sin ninguno es un error de uso (exit 2). `--auto hasta-humano` en una tarjeta que queda sin presupuesto se niega (exit 1), y `--presupuesto-usd` acepta solo un numero mayor que 0 (si no, exit 2). `--tope-palabras n` y `--tope-criterios n` (un entero >= 0; 0 = sin tope para esa tarjeta) escriben `tope_palabras` / `tope_criterios` con `tope_motivo`, `tope_por` y `tope_en`, y reemplazan al tope de `hoom.yaml` solo para ella (ver «El tope del spec»); piden `--motivo` que no este en blanco, y un valor que no es entero, un tope sin motivo o un motivo sin tope salen con exit 1 sin tocar nada. Lo hace una persona (con `$HOOM_ROLE` se niega) y no en una tarjeta en Hecho; escribe en el item del checkout principal si lo tiene, que es de donde la tarjeta lo lee, y queda sin guardar: se guarda con `hoom item save` |
 | `hoom piloto <slug> [--json]` | El piloto automatico de la tarjeta en primer plano: guarda el espacio de trabajo de la tarea, decide con las reglas escritas y lanza (o cierra hallazgos con su test), una linea por decision, hasta que se detiene. Sale con 0 si se detuvo en una columna tuya o en Hecho y con 1 en cualquier otra detencion; con otro piloto corriendo sobre la misma tarjeta sale con 1 (`el piloto de <slug> ya corre en otro proceso`). Nunca aprueba ni integra. Ver [El piloto automatico](#el-piloto-automatico-hoom-piloto) |
 | `hoom item save <slug> [--json]` | Guarda en git lo que la tarjeta tiene sin guardar: un commit por arbol (su espacio de trabajo, y el item en el proyecto) con el mensaje fijo `hoom: guardar la tarjeta <slug>`. Solo esas rutas: lo que haya en el indice queda como estaba. Se niega mientras un rol trabaja en la tarjeta |
 | `hoom board [--json]` | El tablero: la columna de cada item sale de su EVIDENCIA (spec, aprobacion, tests con CA-n, veredicto, review, hallazgos, cierre). Nadie escribe columnas y nada se guarda. Solo lectura, exit 0 |
@@ -235,15 +235,73 @@ agents:
 ```
 
 `agents.reviewer` solo acepta `write`: la review se configura en `review:`.
+Un rol que no es de hoom (`writr`, `test_writer`) hace invalido el
+`hoom.yaml`.
+
+**Niveles y valores por riesgo.** Donde va un modelo (`agents.<rol>.model`,
+`agents.<rol>.<riesgo>.model`, `review.model` y `--model`) tambien va un
+nivel: `fuerte, medio` o `barato`, en minusculas. hoom lo traduce con el
+provider del lanzamiento, despues de elegirlo, y ningun nivel llega sin
+traducir a un provider, al comando largo ni a una pantalla:
+
+| Provider | `fuerte` | `medio` | `barato` |
+| --- | --- | --- | --- |
+| claude | `opus` | `sonnet` | `haiku` |
+| codex | `gpt-6-astra` | `gpt-6.1-sol` | `gpt-6-luna` |
+
+gemini y opencode no reciben modelo, como siempre; un nombre que no es un
+nivel (`Fuerte`, `gpt-5.6-sol`) pasa tal cual. Cada rol puede cambiar
+`model`, `effort`, `budget_usd` y `timeout` segun el riesgo DECLARADO de la
+tarjeta con las claves `bajo`, `normal` y `alto` (el provider no varia por
+riesgo):
+
+```yaml
+agents:
+  writer: { model: medio, alto: { model: fuerte } }   # con riesgo alto, fuerte
+review:
+  model: fuerte
+```
+
+La linea `valores:` lo dice: `modelo opus (nivel fuerte, hoom.yaml, riesgo
+alto)`, y la cabecera de `hoom review`, `modelo      opus (nivel fuerte)`.
+Sin la tarjeta el riesgo es `normal`; con la tarjeta ilegible, `alto`.
+
 Para cada valor gana el primero que existe: lo que se pide en el comando
 (`--provider`, `--model`, `--effort`, `--budget-usd`, `--timeout`) o en el
-dialogo del Studio, despues `agents.<rol>` (o `review:`) del `hoom.yaml` del
+dialogo del Studio, despues `agents.<rol>.<riesgo>` (origen `hoom.yaml,
+riesgo <r>`), despues `agents.<rol>` (o `review:`) del `hoom.yaml` del
 proyecto, despues lo que propone la tarjeta (el primer provider que puede y
-lo que le queda de presupuesto) y por ultimo lo del provider. El presupuesto
+lo que le queda de presupuesto) y por ultimo lo del provider. Cada
+lanzamiento imprime la linea `valores:` una sola vez (el verbo que lanza o,
+sin verbo, `hoom agent`; el piloto como `piloto automatico: valores: ...`). El presupuesto
 de `hoom.yaml` nunca pasa lo que le queda a la tarjeta, y un provider que no
 acepta tope (codex) no lo recibe. Los valores salen siempre del `hoom.yaml`
 del proyecto, nunca del de la rama de la tarjeta: una rama no se sube su
 propio presupuesto ni su tiempo limite.
+
+**El tope del spec.** Un spec sin aprobacion vigente se mide contra el tope
+del riesgo declarado de su tarjeta (`spec.topes`, a nivel proyecto; 0 = sin
+tope). Sin la seccion valen estos, y una clave que falta toma el suyo:
+
+```yaml
+spec:
+  topes:
+    bajo: { palabras: 400, criterios: 4, citas_por_criterio: 10 }
+    normal: { palabras: 800, criterios: 8, citas_por_criterio: 10 }
+    alto: { palabras: 2000, criterios: 15, citas_por_criterio: 0 }
+```
+
+Las palabras son las de todo el archivo; los criterios, los `- CA-n:` de su
+seccion. Pasar el tope deja `spec_lint` en `fail` con la linea que dice
+cuanto y como subirlo (`hoom item set <slug> --tope-palabras <p> --motivo
+"<por que>"`), y `hoom spec approve`, `hoom aprobar` y el Studio no aprueban
+ese spec. El tope de la tarjeta (`tope_palabras`, `tope_criterios`) gana al
+de `hoom.yaml` solo para ella. Un spec aprobado no se mide: su nota termina
+en ` · aprobado: el tope no se mide`. `hoom spec status` suma la linea de las
+medidas, y el test-writer y el arquitecto reciben al final de su contrato
+`Riesgo declarado de la tarjeta: <r>.` (el arquitecto, tambien su `Tope del
+spec`): solo con riesgo alto el test-writer agrega casos que el spec no
+enumera y property-based.
 
 La politica del piloto automatico, tambien a nivel proyecto (se lee del
 `hoom.yaml` del checkout principal, como `agents` y `review`). La seccion es
@@ -300,6 +358,14 @@ spec_trace ejecuta el comando en la raiz del proyecto: exit 0 = criterio
 trazado; cualquier otra cosa = FAIL nombrando CA, comando y exit code. Misma
 regla de siempre: exit codes, no narracion. Un marcador en una linea sin
 CA-n es issue de spec_lint (huerfano).
+
+**Las citas.** spec_trace cuenta, por criterio trazado por test, las lineas
+de las pruebas donde aparece su token entero (una por linea), y su nota las
+trae (` · citas por criterio: CA-1 4, CA-2 1`). Cuando un criterio pasa
+`citas_por_criterio` del riesgo de su tarjeta (`spec.topes`; con riesgo alto,
+0 = sin tope por defecto), `hoom verify` avisa
+`! 1 criterios pasan el tope de 10 citas en pruebas (riesgo normal): CA-1 11`,
+sin cambiar el veredicto ni el exit code.
 
 ## La ventana del arbitro (hoom status)
 

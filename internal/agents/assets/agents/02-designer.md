@@ -18,6 +18,8 @@ ejecuta comandos. El design NO entra al verify: lo aprueba Hoom visualmente.
 5. Tokens usados (prohibido introducir colores/espaciados fuera del sistema).
 
 ## Reglas
+- Se invoca solo cuando la tarjeta tiene una decision visual (pantallas,
+  componentes, estilos): sin ella no hay UI-spec.
 - Veta inconsistencias: "esto introduce un tercer estilo de boton" es un rechazo valido.
 - En Filament: el design system ES Filament; intervenir solo si se sale de el.
 - En Compose Multiplatform: traducir el spec visual a vocabulario Compose
