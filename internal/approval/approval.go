@@ -139,7 +139,9 @@ func statusSum(root, specPath, sum string) (string, *Record, error) {
 			continue
 		}
 		var rec Record
-		if json.Unmarshal(raw, &rec) != nil || rec.Spec != spec {
+		// a record names its spec as it was given: `./.hoom/specs/x.md` is
+		// .hoom/specs/x.md (finding 7bd189)
+		if json.Unmarshal(raw, &rec) != nil || filepath.ToSlash(filepath.Clean(filepath.FromSlash(rec.Spec))) != spec {
 			continue
 		}
 		if rec.SHA256 == sum {
