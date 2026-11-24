@@ -5,6 +5,10 @@ detect:
 # variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
 # dentro de su propia cache, .hoom/cache/encierro/<slug>/<quien>/
 cache: [GOCACHE, GOMODCACHE, GOTMPDIR]
+# rutas por defecto del perfil (riesgo-efectivo-y-tamano): lo que suma a la
+# fila base; un generado no suma al tamano ni sube el riesgo
+rutas:
+  generadas: [go.sum, vendor]
 gates:
   security:
     required: false

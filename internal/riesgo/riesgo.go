@@ -7,11 +7,14 @@ import (
 
 // The three riesgos a card may declare.
 const (
-	// Bajo: one lens (reliability) whatever the size of the change, unless
-	// the change touches a risk path (then it is Normal).
+	// Bajo: one lens (reliability) whatever the size of the change. It is
+	// an allow-list that fails closed: a file of class producto outside
+	// rutas.de_bajo_riesgo makes the effective riesgo Normal, and one that
+	// matches rutas.de_riesgo makes it Alto (Clasificador.Evaluar).
 	Bajo = "bajo"
-	// Normal: the rule as it was before the riesgo existed. It is the
-	// absence of the key: no verb of hoom ever writes `riesgo: normal`.
+	// Normal: the 4 lenses only past UmbralProducto lines of producto, the
+	// one dominant lens otherwise. It is the absence of the key: no verb of
+	// hoom ever writes `riesgo: normal`.
 	Normal = "normal"
 	// Alto: the 4 lenses always, a review always required (unless the
 	// change is empty or only documentation), and the mediums of a complete
@@ -23,49 +26,13 @@ const (
 // Normal, Alto.
 var Vocabulario = []string{Bajo, Normal, Alto}
 
-// Marcas are the substrings that make a path a risk path, matched against
-// the path in lower case. They are the lens rule's marks, unchanged.
+// Marcas are the marks of the default risk paths: RutasBase().DeRiesgo is
+// `**/*<m>*` for each m, in this order. `sign`, which also caught design,
+// assign and signal, is replaced by signin and signature, in its place.
 var Marcas = []string{
 	"auth", "login", "password", "passwd", "secret", "token", "cred",
-	"crypt", "sign", "pago", "payment", "billing", "invoice", "dte",
-	"permission", "permiso", "sandbox", "sudo",
-}
-
-// Ruta is the first of files, in their order, whose path in lower case
-// contains one of Marcas, returned as it was given; "" when none does (an
-// empty or nil files included).
-func Ruta(files []string) string {
-	for _, f := range files {
-		l := strings.ToLower(f)
-		for _, m := range Marcas {
-			if strings.Contains(l, m) {
-				return f
-			}
-		}
-	}
-	return ""
-}
-
-// Efectivo is the riesgo hoom applies for a card that declares declarado and
-// whose whole change is files:
-//
-//   - declarado Bajo and Ruta(files) not empty: Normal, with the motivo
-//     `el cambio toca <ruta>: riesgo normal` (<ruta> is Ruta(files));
-//   - any other case: declarado ("" gives Normal) and an empty motivo.
-//
-// The riesgo goes up by itself and never down by itself: Normal and Alto are
-// returned as they are, with or without a risk path. A declarado outside
-// Vocabulario is returned as it is too: validating it is Validar's job.
-func Efectivo(declarado string, files []string) (efectivo, motivo string) {
-	if declarado == "" {
-		return Normal, ""
-	}
-	if declarado == Bajo {
-		if p := Ruta(files); p != "" {
-			return Normal, fmt.Sprintf("el cambio toca %s: riesgo normal", p)
-		}
-	}
-	return declarado, ""
+	"crypt", "signin", "signature", "pago", "payment", "billing", "invoice",
+	"dte", "permission", "permiso", "sandbox", "sudo",
 }
 
 // Validar says whether r is a riesgo a card may declare: nil for "" (the

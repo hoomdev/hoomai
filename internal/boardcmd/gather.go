@@ -162,6 +162,29 @@ type gatherer struct {
 	// (autonomia-entre-firmas)
 	principal     string
 	principalRead bool
+	// clasificador: the classifier of the PROJECT's hoom.yaml (its rutas and
+	// the test-writer's territory: riesgo-efectivo-y-tamano), read once; nil
+	// when it does not load, which the board reports
+	clasificador     *riesgo.Clasificador
+	clasificadorRead bool
+}
+
+// clasificadorDelProyecto is the classifier of the project's hoom.yaml
+// (finding.ClasificadorDelProyecto), read once per gatherer. One that does
+// not load is a falla of the board, and the cards are measured with the
+// classifier of a project without hoom.yaml (nil).
+func (g *gatherer) clasificadorDelProyecto() *riesgo.Clasificador {
+	if g.clasificadorRead {
+		return g.clasificador
+	}
+	g.clasificadorRead = true
+	cl, err := finding.ClasificadorDelProyecto(g.root)
+	if err != nil {
+		g.fallar(fmt.Sprintf("no pude leer las rutas de %s: %v", manifest.FileName, err))
+		return nil
+	}
+	g.clasificador = &cl
+	return g.clasificador
 }
 
 // principalDe is the main checkout of g.root when root is another tree (a
@@ -307,6 +330,8 @@ type tree struct {
 	status          []string // uncommitted paths, relative to dir
 	fingerprint     string
 	changed         []string // the candidate's files (gitx.Snapshot)
+	archivos        []string // changed plus the committed deletions (archivosConBorrados)
+	archivosErr     error    // why git could not say archivos
 	tokens          spec.TokenIndex
 	tokensErr       error
 	signer          string
@@ -532,6 +557,22 @@ func (t *tree) candidate(base string) []string {
 	return t.changed
 }
 
+// archivosConBorrados are the files of the tree's change, deletions
+// included (gitx.ArchivosConBorrados), read once; the error of
+// gitx.LineasDelCambio when git cannot say them, which the card reads as
+// files it does not know, never as an empty change (finding a4379f).
+func (t *tree) archivosConBorrados(base string) ([]string, error) {
+	t.once("archivos", func() {
+		lineas, err := gitx.LineasDelCambio(t.dir, base)
+		if err != nil {
+			t.archivosErr = err
+			return
+		}
+		t.archivos = gitx.ArchivosConBorrados(t.candidate(base), lineas)
+	})
+	return t.archivos, t.archivosErr
+}
+
 func (t *tree) snapshot(base string) {
 	t.once("fingerprint", func() {
 		info := gitx.Snapshot(t.dir, base)
@@ -578,6 +619,7 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 	ev := Evidence{Item: it, Now: g.now, Source: SourceArbol, Dir: ".",
 		SpecPath: ".hoom/specs/" + s + ".md", BlockOn: g.blockOn, RiesgoIlegible: ilegible,
+		Clasificador: g.clasificadorDelProyecto(),
 		TopeDeRondas: g.topeDeRondas()}
 	if ev.BlockOn == "" {
 		ev.BlockOn = "high"
@@ -652,6 +694,13 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 	}
 	if ev.Verdict != nil {
 		ev.Fingerprint = ev.TreeFingerprint
+	}
+	if v := ev.Verdict; v != nil && ev.Fingerprint != "" && v.Git.ChangeFingerprint == ev.Fingerprint &&
+		reviewcmd.SoloDocs(v.Git.ChangedFiles) {
+		// the verdict's changed_files leave out what the branch deleted in a
+		// commit: a change that only deletes a risk path is not empty
+		archivos, err := t.archivosConBorrados(g.base)
+		ev.ArchivosDelCambio, ev.ArchivosDesconocidos = archivos, err != nil
 	}
 	if ev.Worktree {
 		ev.TreeChanges = nonNil(t.candidate(g.base))

@@ -6,6 +6,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/hoomdev/hoomai/internal/riesgo"
 )
 
 // JSONBytes renders the board exactly as `hoom board --json` emits it.
@@ -40,6 +42,7 @@ func Render(w io.Writer, b Board) {
 			if c.Historica {
 				titulo += " (historica)"
 			}
+			titulo += bordeDeRiesgo(c)
 			fmt.Fprintf(w, "  %-28s %s\n", c.Slug, titulo)
 			if len(c.Missing) > 0 {
 				fmt.Fprintf(w, "    %s\n", recortar(c.Missing[0]))
@@ -60,8 +63,8 @@ func Render(w io.Writer, b Board) {
 func RenderCard(w io.Writer, c Card) {
 	it := c.Item
 	fmt.Fprintf(w, "hoom item: %s - %s\n", c.Slug, it.Titulo)
-	fmt.Fprintf(w, "  %s · prioridad %s · creado por %s el %s\n",
-		it.Tipo, it.Prioridad, it.CreadoPor, it.CreadoEn.Format("2006-01-02 15:04 UTC"))
+	fmt.Fprintf(w, "  %s · prioridad %s · creado por %s el %s%s\n",
+		it.Tipo, it.Prioridad, it.CreadoPor, it.CreadoEn.Format("2006-01-02 15:04 UTC"), bordeDeRiesgo(c))
 	if it.PresupuestoUSD != nil {
 		fmt.Fprintf(w, "  presupuesto: %s USD\n", usd(*it.PresupuestoUSD))
 	}
@@ -127,6 +130,16 @@ func RenderCard(w io.Writer, c Card) {
 	for _, l := range substateLines(c) {
 		fmt.Fprintf(w, "  %s\n", l)
 	}
+}
+
+// bordeDeRiesgo is ` · riesgo <r>` with the card's riesgo
+// (CardEvidence.Riesgo, the effective one) when it is not normal; "" when it
+// is.
+func bordeDeRiesgo(c Card) string {
+	if r := c.Evidence.Riesgo; r != "" && r != riesgo.Normal {
+		return " · riesgo " + r
+	}
+	return ""
 }
 
 // substateLines are the orthogonal states, one line each, only when present.

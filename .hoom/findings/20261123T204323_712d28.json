@@ -1,0 +1,11 @@
+{
+  "id": "20261123T204323_712d28",
+  "created_at": "2026-11-23T20:43:23.278386889Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/reviewcmd/ciclo_de_review_acotado_test.go",
+  "description": "INTRODUCIDO — internal/reviewcmd/ciclo_de_review_acotado_test.go:207 conserva el nombre TestCA619_ReviewBajoGrandeCorreReliability aunque el cuerpo exige cuatro lentes; internal/boardcmd/ciclo_de_review_acotado_test.go:267 dice UnaLenteQueCuentaLlenaElPaso aunque ahora comprueba que no cuenta; e internal/riesgo/ciclo_de_review_acotado_test.go:100 dice MarcasSinCambios mientras valida el reemplazo de sign. Estos nombres reexpresados quedaron contradiciendo sus aserciones y vuelven engañosa la busqueda y la salida de fallos; deben renombrarse segun la conducta nueva.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}

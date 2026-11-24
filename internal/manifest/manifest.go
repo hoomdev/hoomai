@@ -779,6 +779,10 @@ type Manifest struct {
 	// section, and then nothing runs enclosed. What counts is the PROJECT's
 	// (LoadRoles of the main checkout), never the branch's.
 	Encierro *EncierroPolicy `yaml:"encierro,omitempty"`
+	// Rutas is the section `rutas` (riesgo-efectivo-y-tamano): nil = no
+	// section, and then every key takes the profile's default. Resolve it
+	// with profiles.Clasificador.
+	Rutas *Rutas `yaml:"rutas,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`

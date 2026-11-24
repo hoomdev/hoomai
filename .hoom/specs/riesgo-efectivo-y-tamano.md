@@ -24,7 +24,7 @@ Protege I9 (ninguna decisión de proporcionalidad la toma un modelo), I4 (la rev
 - Usar el riesgo para el spec, las pruebas o el modelo (CAL-7, CAL-6 y CAL-11): es la tarjeta `proporcion-por-riesgo`, y usa el riesgo **declarado** (10.2).
 - Relanzar roles cuando el efectivo sube: hoom lo señala y una persona sube el declarado (10.2).
 - Un mapa de rutas a lentes para elegir la lente de `normal` (CAL-2): sigue siendo `reliability`. Se revisa con `hoom costo` después de esta tarjeta.
-- Bajar las lentes de una delta a las de sus bloqueantes (CAL-2, último punto): ver la pregunta 2.
+- Bajar las lentes de una delta a las de sus bloqueantes (CAL-2, último punto): ver Decisiones.
 - Resumir las pruebas en la evidencia de la review (P3): ver Decisiones.
 - Cambiar `git.insertions`, `git.deletions` ni `git.changed_files` del veredicto: siguen como hoy, para no mover la huella ni la evidencia.
 - Rutas por gate y gates que no aplican (CAL-9): es la tarjeta `gates-por-ruta`.
@@ -199,7 +199,8 @@ Cada test de estos CA se re-expresa con la regla nueva; nada más cambia.
 ## Decisiones
 
 - **El riesgo sube por regla y baja por una persona** (I9 y CAL-1.4). Ninguna regla da un efectivo menor que el declarado. La única forma de bajarlo es `hoom item set`, que un rol no puede correr, y ahora queda registrado quién y cuándo.
-- **Una ruta de riesgo da `alto`** (CAL-1.2): hoy solo pide las 4 lentes, y un cambio chico en `auth/` no exige review. Ver la pregunta 1.
+- **Una ruta de riesgo da `alto`** (CAL-1.2), con todo lo que trae `alto`: review siempre requerida, las 4 lentes y los medium de la review completa bloqueando. Hoy solo pide las 4 lentes, y un cambio chico en `auth/` no exige review. Descartado: que la ruta solo pida las 4 lentes y el efectivo quede en `normal`. Hoom lo eligió el 2026-11-23.
+- **La delta sigue con `risk`, `reliability` y `resilience`**, como hoy. En `verify-en-el-entorno`, la segunda delta corregía dos high de `risk` y encontró dos high nuevos de `resilience` (814254 y 7e38c4). Descartado: que corra solo las lentes de sus bloqueantes, más `risk` si toca una ruta de riesgo, porque habría corrido solo `risk`. Hoom lo eligió el 2026-11-23.
 - **`bajo` es una lista permitida que falla cerrado** (10.2): basta un archivo de producto fuera de la lista para que suba. Las pruebas y `.hoom/` no lo suben: una tarjeta `bajo` que agrega una prueba no arriesga producción.
 - **Las pruebas cuentan para la ruta de riesgo.** Debilitar una prueba de `auth` es tan riesgoso como tocar el código. Fallar hacia más control es lo que pide I9.
 - **`.hoom/` nunca es ruta de riesgo.** Así, una tarjeta como `design-system` deja de ser riesgosa por el nombre de su spec.
@@ -220,5 +221,4 @@ Cada test de estos CA se re-expresa con la regla nueva; nada más cambia.
 
 ## Preguntas para la firma
 
-1. ¿Una ruta de riesgo sube el efectivo a `alto`, con todo lo que trae `alto` (review siempre requerida, las 4 lentes y los medium de la review completa bloqueando) (recomendado)? ¿O la ruta de riesgo solo pide las 4 lentes, como hoy, y el efectivo queda en `normal`?
-2. ¿Una delta sigue corriendo `risk`, `reliability` y `resilience` (recomendado)? ¿O corre solo las lentes de sus bloqueantes, más `risk` si toca una ruta de riesgo (CAL-2)? En `verify-en-el-entorno`, la segunda delta corregía dos high de `risk` y encontró dos high nuevos de `resilience` (814254 y 7e38c4); con solo las lentes de sus bloqueantes habría corrido solo `risk`.
+Ninguna. Las dos que había (la ruta de riesgo y las lentes de la delta) están contestadas en Decisiones. Contestarlas no es la firma.

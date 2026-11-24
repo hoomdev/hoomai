@@ -1,0 +1,11 @@
+{
+  "id": "20261123T204239_6aaa38",
+  "created_at": "2026-11-23T20:42:39.11996214Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/riesgo/rutas.go",
+  "description": "INTRODUCIDO — internal/riesgo/rutas.go:127 y :151 reimplementan el matcher de territorio de internal/agentcmd/scope.go:584 y :597, mientras internal/profiles/rutas.go:95 vuelve a resolver allow como PolicyFor. ClasePrueba promete ser exactamente el territorio real del test-writer, pero ahora esa semantica tiene varias fuentes de verdad que pueden divergir al evolucionar. Conviene extraer la limpieza, resolucion y matching del territorio a una dependencia comun.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}

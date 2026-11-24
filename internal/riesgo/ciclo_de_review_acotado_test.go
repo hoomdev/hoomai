@@ -1,17 +1,35 @@
 // Tests adversariales del spec .hoom/specs/ciclo-de-review-acotado.md sobre
 // el paquete riesgo (CA-615, CA-618): el vocabulario, la ruta de riesgo y el
 // riesgo efectivo. Escritos desde el spec y las firmas publicas, sin leer la
-// implementacion.
+// implementacion. Re-expresados por riesgo-efectivo-y-tamano (CA-618): Ruta y
+// Efectivo desaparecen y la regla es Clasificador.Evaluar con las rutas base;
+// un bajo con ruta de riesgo da alto, el motivo nunca queda vacio, la ruta
+// que nombra es la primera en orden de bytes, y `sign` sale de las marcas.
 package riesgo
 
 import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"testing/quick"
 )
+
+// cr618 es el clasificador de un proyecto sin la seccion rutas.
+func cr618() Clasificador { return Clasificador{Rutas: RutasBase()} }
+
+// ruta618 es la ruta de riesgo que nombra la regla (Evaluar, regla 4) para
+// files, o "" cuando ninguna sube el riesgo: lo que antes daba Ruta.
+func ruta618(files []string) string {
+	e := cr618().Evaluar(Tarjeta{Tarea: "t"}, files)
+	const pre, suf = "el cambio toca ", ": riesgo alto"
+	if e.Efectivo == Alto && strings.HasPrefix(e.Motivo, pre) && strings.HasSuffix(e.Motivo, suf) {
+		return strings.TrimSuffix(strings.TrimPrefix(e.Motivo, pre), suf)
+	}
+	return ""
+}
 
 // CA-618: el vocabulario es bajo, normal, alto, en ese orden.
 func TestCA618_Vocabulario(t *testing.T) {
@@ -46,8 +64,9 @@ func TestCA615_Validar(t *testing.T) {
 // quote es %q de Go, como lo cita el contrato.
 func quote(s string) string { return fmt.Sprintf("%q", s) }
 
-// CA-618: Ruta devuelve el primer archivo, en su orden, que contiene una
-// marca en minusculas, tal como se dio; vacio cuando ninguno.
+// CA-618: la ruta de riesgo es el primer archivo, en orden de bytes, que
+// coincide con rutas.de_riesgo (las marcas, sin mayusculas), tal como se
+// dio; vacio cuando ninguno.
 func TestCA618_Ruta(t *testing.T) {
 	casos := []struct {
 		files []string
@@ -58,35 +77,36 @@ func TestCA618_Ruta(t *testing.T) {
 		{[]string{"main.go", "README.md"}, ""},
 		{[]string{"main.go", "internal/auth/login.go", "pago.go"}, "internal/auth/login.go"},
 		{[]string{"app/Pagos/Factura.php", "internal/auth/x.go"}, "app/Pagos/Factura.php"},
-		{[]string{"src/DESIGN.kt"}, "src/DESIGN.kt"}, // `sign` atrapa `design`: gruesa a proposito
+		{[]string{"src/DESIGN.kt"}, ""}, // `sign` ya no es marca: no atrapa `design`
 		{[]string{"a/TOKEN.txt"}, "a/TOKEN.txt"},
 		{[]string{"x/sudoers"}, "x/sudoers"},
 		{[]string{"", "x.go"}, ""},
 	}
 	for _, c := range casos {
-		if got := Ruta(c.files); got != c.want {
-			t.Fatalf("CA-618: Ruta(%q) = %q, quiero %q", c.files, got, c.want)
+		if got := ruta618(c.files); got != c.want {
+			t.Fatalf("CA-618: la ruta de riesgo de %q es %q, quiero %q", c.files, got, c.want)
 		}
 	}
 	for _, m := range Marcas {
 		f := "dir/x" + strings.ToUpper(m) + "y.go"
-		if got := Ruta([]string{"limpio.go", f}); got != f {
+		if got := ruta618([]string{"limpio.go", f}); got != f {
 			t.Fatalf("CA-618: la marca %q en mayusculas hace ruta de riesgo a %q: %q", m, f, got)
 		}
 	}
 }
 
-// CA-618: las marcas son las de la regla de lentes, sin cambios.
+// CA-618: las marcas son las de la regla de lentes, salvo `sign`, que pasa a
+// `signin` y `signature` (riesgo-efectivo-y-tamano).
 func TestCA618_MarcasSinCambios(t *testing.T) {
 	want := []string{"auth", "login", "password", "passwd", "secret", "token", "cred",
-		"crypt", "sign", "pago", "payment", "billing", "invoice", "dte",
+		"crypt", "signin", "signature", "pago", "payment", "billing", "invoice", "dte",
 		"permission", "permiso", "sandbox", "sudo"}
 	if !reflect.DeepEqual(Marcas, want) {
-		t.Fatalf("CA-618: la lista de marcas no cambia (no-goal): %v", Marcas)
+		t.Fatalf("CA-618: las marcas cambian solo sign por signin y signature: %v", Marcas)
 	}
 }
 
-// CA-618: Efectivo con cada combinacion del contrato.
+// CA-618: el riesgo efectivo (Evaluar) con cada combinacion del contrato.
 func TestCA618_Efectivo(t *testing.T) {
 	riesgosa := []string{"main.go", "internal/auth/x.go"}
 	limpia := []string{"main.go", "docs/a.md"}
@@ -96,31 +116,34 @@ func TestCA618_Efectivo(t *testing.T) {
 		ef    string
 		mot   string
 	}{
-		{"bajo", riesgosa, "normal", "el cambio toca internal/auth/x.go: riesgo normal"},
-		{"bajo", limpia, "bajo", ""},
-		{"bajo", nil, "bajo", ""},
-		{"normal", riesgosa, "normal", ""},
-		{"normal", limpia, "normal", ""},
-		{"alto", riesgosa, "alto", ""},
-		{"alto", limpia, "alto", ""},
-		{"", riesgosa, "normal", ""},
-		{"", limpia, "normal", ""},
-		{"", nil, "normal", ""},
+		{"bajo", riesgosa, "alto", "el cambio toca internal/auth/x.go: riesgo alto"},
+		{"bajo", limpia, "normal", "el cambio toca main.go, fuera de las rutas de bajo riesgo: riesgo normal"},
+		{"bajo", nil, "bajo", "declarado bajo"},
+		{"normal", riesgosa, "alto", "el cambio toca internal/auth/x.go: riesgo alto"},
+		{"normal", limpia, "normal", "declarado normal"},
+		{"alto", riesgosa, "alto", "declarado alto"},
+		{"alto", limpia, "alto", "declarado alto"},
+		{"", riesgosa, "alto", "el cambio toca internal/auth/x.go: riesgo alto"},
+		{"", limpia, "normal", "declarado normal"},
+		{"", nil, "normal", "declarado normal"},
 	}
 	for _, c := range casos {
-		ef, mot := Efectivo(c.decl, c.files)
+		e := cr618().Evaluar(Tarjeta{Tarea: "t", Riesgo: c.decl}, c.files)
+		ef, mot := e.Efectivo, e.Motivo
 		if ef != c.ef || mot != c.mot {
-			t.Fatalf("CA-618: Efectivo(%q, %q) = (%q, %q), quiero (%q, %q)", c.decl, c.files, ef, mot, c.ef, c.mot)
+			t.Fatalf("CA-618: Evaluar(%q, %q) = (%q, %q), quiero (%q, %q)", c.decl, c.files, ef, mot, c.ef, c.mot)
 		}
 	}
 }
 
 // CA-618 (caso limite: "Riesgo bajo y el cambio toca internal/auth/"): el
-// motivo nombra la PRIMERA ruta de riesgo, la misma que Ruta.
+// motivo nombra la PRIMERA ruta de riesgo en orden de bytes, y el riesgo es
+// alto.
 func TestCA618_EfectivoNombraLaPrimeraRuta(t *testing.T) {
 	files := []string{"a.go", "x/billing.go", "internal/auth/y.go"}
-	ef, mot := Efectivo("bajo", files)
-	if ef != "normal" || mot != "el cambio toca x/billing.go: riesgo normal" {
+	e := cr618().Evaluar(Tarjeta{Tarea: "t", Riesgo: "bajo"}, files)
+	ef, mot := e.Efectivo, e.Motivo
+	if ef != "alto" || mot != "el cambio toca internal/auth/y.go: riesgo alto" {
 		t.Fatalf("CA-618: (%q, %q)", ef, mot)
 	}
 }
@@ -155,32 +178,54 @@ func (entrada) Generate(r *rand.Rand, _ int) reflect.Value {
 }
 
 // CA-618 (propiedad): el riesgo sube solo y nunca baja solo; el efectivo es
-// siempre del vocabulario; solo un bajo con ruta de riesgo cambia, y entonces
-// a normal con un motivo que nombra Ruta(files); en otro caso el motivo es
-// vacio.
+// siempre del vocabulario; fuera de un declarado alto, una ruta de riesgo lo
+// sube a alto con un motivo que nombra la primera en orden de bytes; un bajo
+// con producto fuera de las rutas de bajo riesgo sube a normal; el motivo
+// nunca es vacio.
 func TestCA618_PropiedadEfectivoNuncaBaja(t *testing.T) {
+	base := RutasBase()
 	prop := func(e entrada) bool {
-		ef, mot := Efectivo(e.Decl, e.Files)
-		if nivel(ef) < nivel(e.Decl) || nivel(ef) < 0 || ef == "" {
+		ev := cr618().Evaluar(Tarjeta{Tarea: "t", Riesgo: e.Decl}, e.Files)
+		ef, mot := ev.Efectivo, ev.Motivo
+		if nivel(ef) < nivel(e.Decl) || nivel(ef) < 0 || ef == "" || mot == "" {
 			return false
 		}
-		ruta := Ruta(e.Files)
-		if e.Decl == "bajo" && ruta != "" {
-			return ef == "normal" && mot == "el cambio toca "+ruta+": riesgo normal"
+		orden := append([]string(nil), e.Files...)
+		sort.Strings(orden)
+		ruta, fuera := "", ""
+		for _, f := range orden {
+			if f == "" {
+				continue
+			}
+			if ruta == "" && CoincideAlguno(base.DeRiesgo, f) {
+				ruta = f
+			}
+			if fuera == "" && !CoincideAlguno(base.DeBajoRiesgo, f) {
+				fuera = f
+			}
+		}
+		switch {
+		case e.Decl == "alto":
+			return ef == "alto" && mot == "declarado alto"
+		case ruta != "":
+			return ef == "alto" && mot == "el cambio toca "+ruta+": riesgo alto"
+		case e.Decl == "bajo" && fuera != "":
+			return ef == "normal" && mot == "el cambio toca "+fuera+", fuera de las rutas de bajo riesgo: riesgo normal"
 		}
 		want := e.Decl
 		if want == "" {
 			want = "normal"
 		}
-		return ef == want && mot == ""
+		return ef == want && mot == "declarado "+want
 	}
 	if err := quick.Check(prop, &quick.Config{MaxCount: 2000}); err != nil {
 		t.Fatalf("CA-618: %v", err)
 	}
 }
 
-// CA-618 (propiedad): Ruta devuelve "" o un elemento de files que contiene
-// una marca, y ningun elemento anterior la contiene.
+// CA-618 (propiedad): la ruta de riesgo es "" o un elemento de files que
+// contiene una marca, y ningun elemento anterior en orden de bytes la
+// contiene.
 func TestCA618_PropiedadRutaEsLaPrimera(t *testing.T) {
 	tiene := func(f string) bool {
 		l := strings.ToLower(f)
@@ -192,8 +237,10 @@ func TestCA618_PropiedadRutaEsLaPrimera(t *testing.T) {
 		return false
 	}
 	prop := func(e entrada) bool {
-		got := Ruta(e.Files)
-		for _, f := range e.Files {
+		got := ruta618(e.Files)
+		orden := append([]string(nil), e.Files...)
+		sort.Strings(orden)
+		for _, f := range orden {
 			if tiene(f) {
 				return got == f
 			}
@@ -205,12 +252,12 @@ func TestCA618_PropiedadRutaEsLaPrimera(t *testing.T) {
 	}
 }
 
-// CA-618: Efectivo no muta la lista que recibe.
+// CA-618: Evaluar no muta la lista que recibe.
 func TestCA618_EfectivoNoMutaFiles(t *testing.T) {
 	files := []string{"b.go", "internal/auth/a.go"}
 	copia := append([]string(nil), files...)
-	Efectivo("bajo", files)
-	Ruta(files)
+	cr618().Evaluar(Tarjeta{Tarea: "t", Riesgo: "bajo"}, files)
+	ruta618(files)
 	if !reflect.DeepEqual(files, copia) {
 		t.Fatalf("CA-618: files cambio: %v", files)
 	}

@@ -1,0 +1,11 @@
+{
+  "id": "20261124T013026_656942",
+  "created_at": "2026-11-24T01:30:26.190575878Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:1007-1009 manda todo ok=false de CheckoutPrincipal a tareaSinGit, pero CheckoutPrincipal tambien devuelve ok=false despues de que Git responde correctamente cuando el common-dir no se llama .git (internal/gitx/worktree.go:202-209; por ejemplo git init --separate-git-dir o un submodulo). En ese entorno, una carpeta comun P/.hoom/worktrees/comun con P/.git presente cae en internal/runcmd/runcmd.go:1039-1049 y se inventa como tarea (comun, true), contrariando el contrato de que una copia que no es worktree no tiene tarea; verify la reporta como tarjeta ilegible/riesgo alto. Reproducido con un checkout --separate-git-dir: TareaDe sobre la carpeta comun devolvio (\"comun\", true). El fallback fail-closed debe activarse solo cuando Git no respondio, no cuando respondio un common-dir no soportado.",
+  "author": "reviewer@codex",
+  "fingerprint": "04b979523930be24",
+  "task": "riesgo-efectivo-y-tamano"
+}

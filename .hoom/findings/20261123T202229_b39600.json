@@ -1,0 +1,11 @@
+{
+  "id": "20261123T202229_b39600",
+  "created_at": "2026-11-23T20:22:29.792593069Z",
+  "severity": "medium",
+  "lens": "risk",
+  "file": "internal/riesgo/evaluar.go",
+  "description": "INTRODUCIDO: evaluar.go:149 mete una ruta Git sin escapar; report.go:44 y statuscmd.go:427 la imprimen. Un nombre con ESC/nueva linea falsifica la terminal.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}

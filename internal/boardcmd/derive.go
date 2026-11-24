@@ -149,7 +149,7 @@ func column(ev Evidence) (string, []string, string, string) {
 			next = cmd
 		}
 	}
-	if lines, required := reviewRequired(v, efectivoEv(ev)); required {
+	if lines, required := reviewRequired(ev, v, efectivoEv(ev)); required {
 		switch id, atrasada := reviewState(ev); {
 		case id != "":
 		case atrasada != nil:
@@ -379,10 +379,15 @@ func meter(ev Evidence) CardEvidence {
 	if v := ev.Verdict; v != nil {
 		m.VerdictID, m.Verdict = v.ID, v.Verdict
 		m.FingerprintMatch = ev.Fingerprint != "" && v.Git.ChangeFingerprint == ev.Fingerprint
-		_, m.ReviewRequired = reviewRequired(v, efectivoEv(ev))
+		_, m.ReviewRequired = reviewRequired(ev, v, efectivoEv(ev))
 	}
 	m.ReviewID = reviewOf(ev)
-	m.Riesgo = efectivoEv(ev)
+	r := riesgoDe(ev, ev.Verdict)
+	m.Riesgo, m.RiesgoMotivo = r.Efectivo, r.Motivo
+	if v := ev.Verdict; v != nil && v.Tamano != nil {
+		t := *v.Tamano
+		m.Tamano = &t
+	}
 	return m
 }
 

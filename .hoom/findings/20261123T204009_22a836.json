@@ -1,0 +1,11 @@
+{
+  "id": "20261123T204009_22a836",
+  "created_at": "2026-11-23T20:40:09.914835483Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "INTRODUCIDO — internal/runcmd/runcmd.go:1004-1006 convierte cualquier error de TaskDir (incluidos ErrOtraRama y ErrSinComprobar) en tarea vacia. En un worktree registrado que quedo fuera de hoom/\u003cslug\u003e o cuyo registro/Git falla transitoriamente, hoom verify continua y verifycmd.go:387-406 evalua el cambio como sin tarjeta; una tarjeta de tipo seguridad puede quedar con riesgo normal y el findings_open no recibe el efectivo de su tarea. Debe propagar el error o fallar cerrado, no degradarlo a sin tarea.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}

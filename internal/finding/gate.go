@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -48,12 +49,27 @@ const descMax = 160
 //
 // Whether an in-scope open finding blocks is Bloquea under
 // ContextoDe(root, root, blockOn): its severity, its raise, its file and the
-// riesgo and complete reviews of its task. The gate fails exactly for the
+// riesgo and complete reviews of its task. Gate is GateDelVerify with a
+// DelVerify without task, and the classifier of root's hoom.yaml
+// (profiles.Clasificador; its defaults without one). The gate fails exactly for the
 // findings Bloquea says block, and its detail (OutputTail) names the motivo
 // of each one that blocks by a raise, by a risk path or by riesgo alto; one
 // that blocks by its severity reads as before. A raise that raises nothing
 // is a warning in OutputTail, never an ERROR.
-func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
+func Gate(root, base, blockOn, specPath string) verdict.GateResult {
+	cl, err := ClasificadorDelProyecto(root)
+	if err != nil {
+		res := verdict.GateResult{Name: GateName, Required: true, Scope: "full", Status: verdict.StatusError, Notes: err.Error()}
+		if specPath != "" {
+			res.Scope = "spec"
+		}
+		return res
+	}
+	return GateDelVerify(root, base, blockOn, specPath, DelVerify{Clasificador: cl})
+}
+
+// gate is the body of Gate and GateDelVerify.
+func gate(root, blockOn, specPath string, d DelVerify) (res verdict.GateResult) {
 	start := time.Now()
 	res = verdict.GateResult{Name: GateName, Required: true, Scope: "full"}
 	task := ""
@@ -70,7 +86,10 @@ func Gate(root, base, blockOn, specPath string) (res verdict.GateResult) {
 		return res
 	}
 
-	ctx := contextoDesde(sc, root, root, blockOn)
+	ctx := contextoDesde(sc, root, root, blockOn, d.Clasificador)
+	if d.Tarea != "" && d.Efectivo != "" {
+		ctx.Riesgos[d.Tarea] = d.Efectivo
+	}
 	var blocking []Item
 	motivos := map[string]string{} // los de los casos 2, 3 y 4 de Bloquea
 	quiet := map[string]int{}      // abiertos que no bloquean, por severidad
@@ -179,4 +198,30 @@ func recortar(s string) string {
 		return string(r[:descMax]) + "..."
 	}
 	return s
+}
+
+// DelVerify is what a `hoom verify` measured that its findings_open gate
+// judges with (spec riesgo-efectivo-y-tamano, «finding.Bloquea»).
+type DelVerify struct {
+	// Clasificador is the one of the hoom.yaml verify verifies with (its
+	// tree's, as the gates read it): its Rutas.DeRiesgo is the Contexto's
+	// Rutas (case 3 of Bloquea), and the whole classifier measures the
+	// verdicts older than the spec of the other tasks (RiesgoDeTarjeta).
+	Clasificador riesgo.Clasificador
+	// Tarea is the verify's task ("" = none), and Efectivo the effective
+	// riesgo that verify computed for it (its verdict's riesgo.efectivo):
+	// for that task it is the one in Contexto.Riesgos, instead of its
+	// card's. Every other task has its card's (RiesgoDeTarjeta).
+	Tarea    string
+	Efectivo string
+}
+
+// GateDelVerify is Gate with what the verify measured: the same rules,
+// scope, errors and output, judged with ContextoDe(root, root, blockOn) but
+// with d.Clasificador's rutas and, for d.Tarea, d.Efectivo as its riesgo. So
+// a medium of a complete review blocks when the riesgo this verify computed
+// for its task is alto, also with the card's declared normal. `hoom verify`
+// runs it as its findings_open gate.
+func GateDelVerify(root, base, blockOn, specPath string, d DelVerify) verdict.GateResult {
+	return gate(root, blockOn, specPath, d)
 }

@@ -196,8 +196,22 @@ func TestCA617_ExecuteSet(t *testing.T) {
 		t.Fatalf("CA-617: %v\n%s", err, out)
 	}
 	raw, _ := os.ReadFile(item.Path(root, "precios"))
-	if bytes.Contains(raw, []byte("riesgo")) {
-		t.Fatalf("CA-617: con --riesgo normal el archivo queda sin la clave:\n%s", raw)
+	// re-expresado por CA-788 (riesgo-efectivo-y-tamano): sin la clave
+	// `riesgo`, pero con riesgo_por y riesgo_en, que tambien se escriben al
+	// pasar a normal
+	sinClave, conQuien := true, map[string]bool{}
+	for _, l := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(l, "riesgo:") {
+			sinClave = false
+		}
+		for _, k := range []string{"riesgo_por:", "riesgo_en:"} {
+			if strings.HasPrefix(l, k) {
+				conQuien[k] = true
+			}
+		}
+	}
+	if !sinClave || len(conQuien) != 2 {
+		t.Fatalf("CA-617: con --riesgo normal el archivo queda sin la clave riesgo y con riesgo_por y riesgo_en:\n%s", raw)
 	}
 }
 

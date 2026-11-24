@@ -162,8 +162,11 @@ type SetResult struct {
 // Set is `hoom item set <slug> --riesgo r`: it changes only the riesgo of
 // the item slug of the project at root (item.SetRiesgo: every other key
 // keeps its value, the file is rewritten the way hoom writes it) and commits
-// nothing. rol is the role of the run the process runs inside (Execute
-// passes $HOOM_ROLE; "" = not inside one).
+// nothing. When it changes the riesgo it also writes riesgo_por and
+// riesgo_en (riesgo-efectivo-y-tamano: who and when, item.Item RiesgoPor and
+// RiesgoEn), r normal included; SetCambios with --riesgo does the same. rol
+// is the role of the run the process runs inside (Execute passes
+// $HOOM_ROLE; "" = not inside one).
 //
 // It refuses, writing nothing, with these errors (exit 1 in the CLI), in
 // this order:

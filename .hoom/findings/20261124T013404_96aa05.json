@@ -1,0 +1,11 @@
+{
+  "id": "20261124T013404_96aa05",
+  "created_at": "2026-11-24T01:34:04.701820205Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/hallazgos_0895d1_test.go",
+  "description": "INTRODUCIDO: internal/boardcmd/hallazgos_0895d1_test.go:99 inserta la ruta devuelta por exec.LookPath(\"git\") sin comillas en un script sh. En un PATH valido donde git esta bajo una ruta con espacios, el wrapper intenta ejecutar solo el primer segmento y TestHallazgoA4379f_DiffNumstatQueFallaExigeLaReview falla antes de probar ArchivosDesconocidos (el veredicto queda nil y la huella vacia). Es una falla real de la suite en un entorno valido pero poco comun.",
+  "author": "reviewer@codex",
+  "fingerprint": "04b979523930be24",
+  "task": "riesgo-efectivo-y-tamano"
+}

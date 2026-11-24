@@ -1,0 +1,11 @@
+{
+  "id": "20261124T005525_ff65c0",
+  "created_at": "2026-11-24T00:55:25.125678512Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO: internal/boardcmd/gather.go:563-566 descarta el error de gitx.LineasDelCambio y deja ArchivosDelCambio vacio. Si el veredicto vigente certifica una rama que solo borro codigo, pero la base ya no se puede resolver (por ejemplo rama base borrada, clon superficial o fallo transitorio de Git), changed_files tambien esta vacio y internal/boardcmd/riesgo.go:91-95 clasifica el cambio como vacio/solo documentacion, suprimiendo la review incluso con riesgo alto. Un fallo al reconstruir los borrados debe conservar un estado desconocido que falle cerrado.",
+  "author": "reviewer@codex",
+  "fingerprint": "da50a689cd4b50d3",
+  "task": "riesgo-efectivo-y-tamano"
+}

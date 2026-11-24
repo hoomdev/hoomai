@@ -25,6 +25,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/ratchet"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -73,6 +74,29 @@ type LastVerdict struct {
 	Partial   bool            `json:"partial"`
 	CreatedAt time.Time       `json:"created_at"`
 	Summary   verdict.Summary `json:"summary"`
+	// Riesgo and Tamano are that verdict's (riesgo-efectivo-y-tamano):
+	// nil, and no key, when it does not carry them (a verdict older than
+	// that spec; Tamano also outside a git repository). The text of `hoom
+	// status` prints, under the verdict's line, its line `riesgo:`
+	// (riesgo.Evaluacion.Linea) and its line `tamano:`
+	// (riesgo.Tamano.Linea), each only when the verdict has it.
+	Riesgo *riesgo.Evaluacion `json:"riesgo,omitempty"`
+	Tamano *riesgo.Tamano     `json:"tamano,omitempty"`
+}
+
+// ultimoDe is v as `hoom status` shows it, with copies of its riesgo and
+// its tamano (nil when it does not carry them).
+func ultimoDe(v *verdict.Verdict) *LastVerdict {
+	lv := &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(), CreatedAt: v.CreatedAt, Summary: v.Summary}
+	if v.Riesgo != nil {
+		r := *v.Riesgo
+		lv.Riesgo = &r
+	}
+	if v.Tamano != nil {
+		t := *v.Tamano
+		lv.Tamano = &t
+	}
+	return lv
 }
 
 // FindingsSummary counts open findings.
@@ -145,8 +169,7 @@ func BuildFor(root, base, blockOn string) (*Snapshot, error) {
 	}
 	if len(all) > 0 {
 		v := all[len(all)-1]
-		s.Last = &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(),
-			CreatedAt: v.CreatedAt, Summary: v.Summary}
+		s.Last = ultimoDe(v)
 	}
 
 	st, err := live.Read(root)
@@ -213,15 +236,12 @@ func CheckYVeredicto(root, base string) (Veredictos, error) {
 		return Veredictos{}, err
 	}
 	out := Veredictos{Check: check, Avisos: avisos}
-	ver := func(v *verdict.Verdict) *LastVerdict {
-		return &LastVerdict{ID: v.ID, Verdict: v.Verdict, Partial: v.IsPartial(), CreatedAt: v.CreatedAt, Summary: v.Summary}
-	}
 	if len(all) > 0 {
-		out.Ultimo = ver(all[len(all)-1])
+		out.Ultimo = ultimoDe(all[len(all)-1])
 	}
 	for _, v := range all {
 		if v.ID == check.VerdictID && check.VerdictID != "" {
-			out.DelCheck = ver(v)
+			out.DelCheck = ultimoDe(v)
 		}
 	}
 	return out, nil
@@ -403,6 +423,12 @@ func Render(w io.Writer, s *Snapshot, color bool) {
 		fmt.Fprintf(w, " veredicto: %s %s%s  pass:%d fail:%d err:%d aus:%d skip:%d\n",
 			badge, s.Last.ID, partial, s.Last.Summary.Pass, s.Last.Summary.Fail,
 			s.Last.Summary.Error, s.Last.Summary.Absent, s.Last.Summary.Skipped)
+		if r := s.Last.Riesgo; r != nil {
+			fmt.Fprintf(w, "   %s\n", r.Linea())
+		}
+		if t := s.Last.Tamano; t != nil {
+			fmt.Fprintf(w, "   %s\n", t.Linea())
+		}
 	}
 
 	// verify en curso

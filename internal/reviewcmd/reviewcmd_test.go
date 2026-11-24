@@ -141,8 +141,10 @@ func TestCA160_LentesDeterministas(t *testing.T) {
 	if len(lentes) != 4 || strings.Join(lentes, ",") != strings.Join(Lentes, ",") {
 		t.Fatalf("CA-160: una ruta de riesgo pide las 4 lentes en orden: %v", lentes)
 	}
-	if !strings.Contains(motivo, "login.go") {
-		t.Fatalf("CA-160: el motivo nombra la ruta que lo disparo: %q", motivo)
+	// riesgo-efectivo-y-tamano: la ruta sube el riesgo a alto, y el motivo
+	// de las lentes es el de riesgo alto (la ruta la nombra el riesgo)
+	if motivo != MotivoRiesgoAlto {
+		t.Fatalf("CA-160: con una ruta de riesgo el motivo es %q: %q", MotivoRiesgoAlto, motivo)
 	}
 
 	// tamano: las 4, con el umbral del contrato 06 (401 pasa, 400 no)

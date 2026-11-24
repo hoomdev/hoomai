@@ -971,6 +971,84 @@ func TaskDir(root, task string) (string, error) {
 	return wt, nil
 }
 
+// TareaDe is the task whose worktree is dir (spec riesgo-efectivo-y-tamano,
+// «La tarea del veredicto»), when dir, cleaned and absolute, is exactly
+// <principal>/.hoom/worktrees/<slug>, where <principal> is dir's main
+// checkout (gitx.CheckoutPrincipal), and TaskDir(<principal>, slug) says:
+//
+//   - dir back (a worktree of the repository on its branch hoom/<slug>), or
+//     ErrOtraRama (that worktree on another branch or with HEAD detached):
+//     the task is slug, as the worktree where verify runs (finding 22a836);
+//   - gitx.ErrSinComprobar (git, or a Lstat, could not answer): the task is
+//     slug and sinComprobar is true, so verify reads its card as one that
+//     cannot be read (rule 1: alto);
+//   - anything else: "" (aclaracion 12).
+//
+// When git cannot give dir's main checkout (gitx.CheckoutPrincipal fails),
+// dir of the shape <P>/.hoom/worktrees/<slug>, with a valid slug and a
+// <P>/.git that is there or cannot be read, is also slug with sinComprobar
+// true: git did not answer, and a "no" is not known (finding 64221a). With
+// no <P>/.git it is outside a repository: "". git's stderr is not read.
+//
+// So "" is any other tree: the main checkout, a folder inside the worktree
+// (a blind tree nested in it included), a plain folder or a copy under
+// .hoom/worktrees/ that is not a worktree, a path that does not exist, and a
+// dir outside a git repository. `hoom verify` without an envelope takes its
+// task from here.
+func TareaDe(dir string) (slug string, sinComprobar bool) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", false
+	}
+	real, err := filepath.EvalSymlinks(filepath.Clean(abs))
+	if err != nil {
+		return "", false
+	}
+	principal, ok := gitx.CheckoutPrincipal(real)
+	if !ok {
+		return tareaSinGit(real)
+	}
+	rel, err := filepath.Rel(principal, real)
+	if err != nil {
+		return "", false
+	}
+	partes := strings.Split(filepath.ToSlash(rel), "/")
+	if len(partes) != 3 || partes[0] != ".hoom" || partes[1] != "worktrees" {
+		return "", false
+	}
+	wt, err := TaskDir(principal, partes[2])
+	switch {
+	case err == nil && filepath.Clean(wt) == real:
+		return partes[2], false
+	case err == nil:
+		return "", false
+	case errors.Is(err, ErrOtraRama):
+		// the task's own worktree off its branch: still its task, with
+		// the same card (a detached HEAD does not drop a card's tipo)
+		return partes[2], false
+	case errors.Is(err, gitx.ErrSinComprobar):
+		return partes[2], true
+	}
+	return "", false
+}
+
+// tareaSinGit is TareaDe for a dir whose main checkout git could not give:
+// slug and true when real is <P>/.hoom/worktrees/<slug>, slug is valid and
+// the Lstat of <P>/.git does not say it does not exist; "" and false
+// otherwise (outside a repository).
+func tareaSinGit(real string) (string, bool) {
+	slug := filepath.Base(real)
+	worktrees := filepath.Dir(real)
+	hoom := filepath.Dir(worktrees)
+	if filepath.Base(worktrees) != "worktrees" || filepath.Base(hoom) != ".hoom" || !item.ValidSlug(slug) {
+		return "", false
+	}
+	if _, err := os.Lstat(filepath.Join(filepath.Dir(hoom), ".git")); errors.Is(err, os.ErrNotExist) {
+		return "", false
+	}
+	return slug, true
+}
+
 // Busy reports the run currently active in dir, if any. In-process state is
 // authoritative; the sidecars cover a run another process started and has not
 // settled yet. The envelope asks BEFORE building a blind tree: transplanting

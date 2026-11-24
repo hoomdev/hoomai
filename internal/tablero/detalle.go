@@ -63,7 +63,7 @@ func (m *Modelo) documentoDetalle(r rect) (linea, linea, []docLinea) {
 func (m *Modelo) bordeTarjeta(c *boardcmd.Card, w int) (string, string) {
 	titulo := limpio(boardcmd.TituloDe(c))
 	partes := []string{c.Slug}
-	if r := c.Item.Riesgo; r != "" && r != "normal" {
+	if r := c.Evidence.Riesgo; r != "" && r != "normal" {
 		partes = append(partes, " · riesgo "+r)
 	}
 	if c.Item.Auto == item.AutoHastaHumano {
@@ -292,6 +292,10 @@ func (m *Modelo) docResto(d *doc, c *boardcmd.Card) {
 	// what does not block, in sight when accepting (ciclo-de-review-acotado)
 	if c.Pendientes.Texto != "" {
 		d.poner(lin(" " + unaLinea(c.Pendientes.Texto)))
+	}
+	// the size of the card's newest verdict (riesgo-efectivo-y-tamano)
+	if t := c.Evidence.Tamano; t != nil {
+		d.poner(lin(" " + t.Linea()))
 	}
 	// C
 	if len(c.Meter) > 0 {

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T204009_22a836",
+  "as": "corregido",
+  "evidence": "Corregido en f5da20e con la decision de la persona (2026-11-23): runcmd.TareaDe devuelve el slug con ErrOtraRama (spec linea 97: la tarea es la del worktree) y el slug con sinComprobar ante gitx.ErrSinComprobar, que verifycmd.medirElCambio convierte en Tarjeta{Ilegible:true} (regla 1: alto, no se pudo leer la tarjeta). Regresion: verifycmd/hallazgo_22a836_test.go (HEAD separado y otra rama: Tarea=precios y alto por tipo seguridad; registro del worktree en chmod 000: alto con MotivoIlegible; carpeta comun y ruta inexistente siguen sin tarea). El arnes del refutador TestRefutador_C_WorktreeFueraDeSuRama da ahora TareaDe=precios y alto con HEAD separado (antes \"\" y normal).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-23T21:18:47.206316185Z"
+}

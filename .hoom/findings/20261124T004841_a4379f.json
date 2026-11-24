@@ -1,0 +1,11 @@
+{
+  "id": "20261124T004841_a4379f",
+  "created_at": "2026-11-24T00:48:41.288801074Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO — internal/boardcmd/gather.go:564-566 descarta el error de gitx.LineasDelCambio y deja ArchivosDelCambio nil; para un veredicto actual que solo borra una ruta de riesgo, changed_files tambien esta vacio y internal/boardcmd/riesgo.go:92-95 interpreta el cambio como vacio, por lo que el tablero retira la review obligatoria aunque el riesgo efectivo sea alto. Un fallo provocable al resolver la base o ejecutar el diff salta ese control sin siquiera dejar warning; debe fallar cerrado cuando no puede reconstruir los borrados.",
+  "author": "reviewer@codex",
+  "fingerprint": "da50a689cd4b50d3",
+  "task": "riesgo-efectivo-y-tamano"
+}

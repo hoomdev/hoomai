@@ -1,0 +1,89 @@
+{
+  "id": "20261123T204339_26c0ba",
+  "created_at": "2026-11-23T20:43:39.938274506Z",
+  "task": "riesgo-efectivo-y-tamano",
+  "spec": ".hoom/specs/riesgo-efectivo-y-tamano.md",
+  "fingerprint": "326f589f70de17ce",
+  "verdict_id": "2026-11-23T20-16-54Z_76ae16e9",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261123T202025_85c48e",
+    "20261123T202146_b932ff",
+    "20261123T202229_b39600",
+    "20261123T202354_d4adf4",
+    "20261123T202423_4e3c5b",
+    "20261123T203306_d4c535",
+    "20261123T204009_22a836",
+    "20261123T204239_20040f",
+    "20261123T204239_6aaa38",
+    "20261123T204323_712d28"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 443110,
+  "evidence_sha256": "074b4fa5949feb62c5995b1123b2427f398e641c95f47627b3b18f8b95d4ade0",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 4766632,
+      "cached_input_tokens": 4469504,
+      "output_tokens": 22519,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 7285196,
+      "cached_input_tokens": 6984576,
+      "output_tokens": 26084,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 4179922,
+      "cached_input_tokens": 3977984,
+      "output_tokens": 17802,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 1457866,
+      "cached_input_tokens": 1281920,
+      "output_tokens": 7072,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261123T201718_9e92ae"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261123T202531_98650a"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261123T203523_be685a"
+    },
+    {
+      "lens": "readability",
+      "run": "20261123T204116_5ada60"
+    }
+  ],
+  "desde": "cec955132f104ea5179df25d0ac8682895eec8f5",
+  "hasta": "2d9efa8f3edc369d3085d02350d2a18a520d0974",
+  "cobertura": "completa",
+  "base": "main",
+  "riesgo": "normal"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261123T204239_20040f",
+  "created_at": "2026-11-23T20:42:39.131131121Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/finding/bloquea.go",
+  "description": "INTRODUCIDO — internal/finding/bloquea.go:201 expresa que el declarado gano por ser estrictamente mayor comparando out.Efectivo con riesgo.Mayor(medido.Efectivo, medido.Efectivo). La autocombinacion se usa solo para normalizar el valor, pero obliga a reconstruir esa intencion y vuelve opaca una condicion central. Nombrar el riesgo medido normalizado o encapsular esa normalizacion haria directa la comparacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}

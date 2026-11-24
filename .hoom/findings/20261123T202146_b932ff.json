@@ -1,0 +1,11 @@
+{
+  "id": "20261123T202146_b932ff",
+  "created_at": "2026-11-23T20:21:46.664380569Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/verifycmd/verifycmd.go",
+  "description": "INTRODUCIDO: verifycmd.go:395 ignora errores de LineasDelCambio; sin merge-base evalua sin commits y puede emitir verde con riesgo normal y sin review.",
+  "author": "reviewer@codex",
+  "fingerprint": "326f589f70de17ce",
+  "task": "riesgo-efectivo-y-tamano"
+}
