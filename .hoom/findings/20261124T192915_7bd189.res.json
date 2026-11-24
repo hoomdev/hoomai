@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T192915_7bd189",
+  "as": "corregido",
+  "evidence": "Corregido en 17c3179: statusSum (internal/approval/approval.go) compara la grafia canonica del registro, filepath.ToSlash(filepath.Clean(filepath.FromSlash(rec.Spec))): un registro ./.hoom/specs/x.md sigue aprobando su contenido. Las grafias ../ y el already de approveSum quedan fuera. Regresion: internal/approval/hallazgos_7bd189_test.go, TestHallazgo_7bd189_RegistroConPuntoBarraSigueAprobado (Status y CalibreDe), y cmd/hoom/hallazgos_7bd189_test.go, TestHallazgo_7bd189_SpecStatusVeElRegistroConPuntoBarra (hoom spec status con las dos grafias desde la raiz y desde sub).",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T19:43:56.157105232Z"
+}

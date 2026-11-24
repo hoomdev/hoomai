@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T192315_1b8a48",
+  "as": "corregido",
+  "evidence": "Corregido en 172267d: tarjetaDelSpec (internal/approval/tope.go) reconoce la tarjeta \u003cslug\u003e cuando relSpec(root, ruta) == .hoom/specs/\u003cslug\u003e.md, la misma funcion que nombra el registro: en Windows c:\\repo\\.hoom\\specs\\x.md con root C:\\Repo se mide con su tarjeta; otra unidad o un .hoom/specs anidado siguen sin tarjeta (647f9a). Regresion: internal/approval/hallazgos_1b8a48_windows_test.go, TestHallazgo_1b8a48_WindowsLaTarjetaNoDistingueMayusculas (el caso literal; con la filepath de Windows emulada falla con la version de 665ff6b), e internal/approval/hallazgos_1b8a48_test.go, TestHallazgo_1b8a48_LaTarjetaYElRegistroSonDeLaMismaRuta (invariante en Linux: ninguna grafia firma .hoom/specs/precios.md sin su tarjeta).",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T19:43:56.154544015Z"
+}
