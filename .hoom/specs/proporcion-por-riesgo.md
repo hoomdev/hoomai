@@ -223,9 +223,9 @@ Cada test de estos CA se re-expresa con la regla nueva; nada más cambia.
 ## Decisiones
 
 - **El riesgo es el declarado** (10.2). CAL-6.1 dice «efectivo», pero el test-writer corre antes del diff. Si el efectivo sube, hoom ya avisa en verify y una persona sube el declarado; hoom no relanza a nadie.
-- **P7: el tope solo mide un spec sin aprobación vigente, y la aprobación se niega si lo pasa** (pendiente de la firma). Así, ningún spec aprobado se vuelve rojo, y los 49 de hoy siguen como están. Una enmienda se mide otra vez. Descartado: medir todo spec de una tarjeta abierta, porque obliga a subir el tope de cada tarjeta en curso sin que eso ahorre nada.
-- **P4: los topes del intake** (pendiente de la firma): `normal` 800 palabras y 8 criterios, y `alto` 2,000 y 15. Para `bajo`, que el intake no fija, la mitad de `normal`. 800 palabras es lo que se lee en 3 minutos, que ya era la regla del contrato 01.
-- **P1: en `bajo`, las pruebas siguen siendo del test-writer, como en `normal`** (pendiente de la firma). Así se sostiene I3 sin un camino nuevo. Descartado: aceptar solo criterios con marcador `verifica`, porque deja sin prueba lo que un comando no cubre.
+- **P7: el tope solo mide un spec sin aprobación vigente, y la aprobación se niega si lo pasa.** Hoom lo eligió el 2026-11-24. Así, ningún spec aprobado se vuelve rojo, y los 49 de hoy siguen como están. Una enmienda se mide otra vez. Descartado: medir todo spec de una tarjeta abierta, porque obliga a subir el tope de cada tarjeta en curso sin que eso ahorre nada.
+- **P4: los topes del intake**: `normal` 800 palabras y 8 criterios, y `alto` 2,000 y 15. Hoom lo eligió el 2026-11-24. Descartado: la variante holgada (`bajo` 800 y 6, `normal` 1,500 y 12, `alto` 3,000 y 20). Para `bajo`, que el intake no fija, la mitad de `normal`. 800 palabras es lo que se lee en 3 minutos, que ya era la regla del contrato 01.
+- **P1: en `bajo`, las pruebas siguen siendo del test-writer, como en `normal`.** Hoom lo eligió el 2026-11-24. Así se sostiene I3 sin un camino nuevo. Descartado: aceptar solo criterios con marcador `verifica`, porque deja sin prueba lo que un comando no cubre.
 - **Una palabra es todo el archivo.** La regla es simple y se reproduce con `wc -w`. Además, nadie esquiva el tope pasando texto a un bloque de código. Las re-expresiones también cuentan, porque son parte de lo que la persona firma.
 - **Un criterio es un ítem de la sección de criterios.** Un id citado no es una conducta nueva, y contarlo castigaría justo a los specs que re-expresan.
 - **El tope de la tarjeta vive en el item**, con quién, cuándo y por qué, como `riesgo_por` y `riesgo_en`. El historial es el de git. Descartado: un registro append-only aparte, porque es más mecanismo para lo mismo.
@@ -248,6 +248,4 @@ Cada test de estos CA se re-expresa con la regla nueva; nada más cambia.
 
 ## Preguntas para la firma
 
-1. **P7.** ¿El tope mide también los specs ya aprobados? La recomendación es que no: solo mide un spec sin aprobación vigente, y la aprobación se niega si lo pasa. La alternativa es medir todo spec de una tarjeta abierta.
-2. **P4.** ¿Qué topes por defecto? La recomendación son los del intake: `bajo` 400 palabras y 4 criterios, `normal` 800 y 8, y `alto` 2,000 y 15. La alternativa más holgada es `bajo` 800 y 6, `normal` 1,500 y 12, y `alto` 3,000 y 20.
-3. **P1.** En `bajo`, ¿quién escribe las pruebas? La recomendación es el test-writer, igual que en `normal`. La alternativa es aceptar solo criterios con marcador `verifica`.
+Ninguna. Las tres que había (P7, P4 y P1) están contestadas en Decisiones. Contestarlas no es la firma.
