@@ -1,0 +1,11 @@
+{
+  "id": "20261124T195456_6dcf5b",
+  "created_at": "2026-11-24T19:54:56.017991216Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/approval/approval.go",
+  "description": "PRE-EXISTENTE (follow-up, no bloqueo de este delta): internal/approval/approval.go:86-89 deriva el archivo solo de basename+hash y, si ya existe, devuelve already=true comprobando solo SHA256, no rec.Spec. Dos specs distintos con el mismo basename y contenido (caso que el test nuevo internal/approval/hallazgos_1b8a48_test.go:43-52 ejecuta sin consultar el estado posterior) colisionan: aprobar el segundo informa exito/ya aprobado pero devuelve el registro del primero y Status del segundo sigue no-aprobado. Es provocable por un usuario con dos rutas como docs/a/precios.md y docs/b/precios.md.",
+  "author": "reviewer@codex",
+  "fingerprint": "26cf4cb65e0907f2",
+  "task": "proporcion-por-riesgo"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261124T195443_aeb764",
+  "created_at": "2026-11-24T19:54:43.020845175Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/approval/approval.go",
+  "description": "INTRODUCIDO: internal/approval/approval.go:144 normaliza solo rec.Spec, pero compara contra spec sin normalizar (calculado en 131). Para un spec fuera de root pasado por una ruta absoluta no canonica, p. ej. /repo/../otro/x.md, relSpec conserva esa grafia por su fallback de internal/approval/approval.go:71 y approveSum la guarda; en la consulta inmediata el registro se limpia a /otro/x.md y ya no coincide, por lo que Status/CalibreDe reportan no aprobado aunque Aprobar haya tenido exito. Es un caso raro admitido por el contrato de rutas absolutas y specs fuera del arbol, sin perdida de datos.",
+  "author": "reviewer@codex",
+  "fingerprint": "26cf4cb65e0907f2",
+  "task": "proporcion-por-riesgo"
+}
