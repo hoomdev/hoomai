@@ -76,14 +76,16 @@ func calibre(m *manifest.Manifest, root, ruta string) spec.Calibre {
 }
 
 // tarjetaDelSpec is the slug of the card of the spec at ruta: ruta is
-// <root>/.hoom/specs/<slug>.md, the spec of root's own tree.
+// <root>/.hoom/specs/<slug>.md, the spec of root's own tree, as relSpec
+// names it: the card that measures and the record that signs come from the
+// same path (finding 1b8a48: on Windows, Rel ignores case).
 func tarjetaDelSpec(root, ruta string) (string, bool) {
 	if filepath.Ext(ruta) != ".md" {
 		return "", false
 	}
 	slug := strings.TrimSuffix(filepath.Base(ruta), ".md")
 	// a name that is not a slug has no item: item.TarjetaDe says hay false
-	return slug, slug != "" && filepath.Clean(ruta) == filepath.Join(root, ".hoom", "specs", slug+".md")
+	return slug, slug != "" && relSpec(root, ruta) == ".hoom/specs/"+slug+".md"
 }
 
 // Aprobar (proporcion-por-riesgo) is a person's approval of the spec at
