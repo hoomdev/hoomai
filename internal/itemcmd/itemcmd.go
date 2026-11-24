@@ -595,19 +595,19 @@ func parseSet(args []string) (Request, error) {
 	}
 	// a tope that is not an integer >= 0 is not a usage error: exit 1
 	// (proporcion-por-riesgo)
-	for _, t := range []struct {
-		nombre string
-		valor  *string
-		dest   **int
-	}{{"tope-palabras", topePalabras, &req.TopePalabras}, {"tope-criterios", topeCriterios, &req.TopeCriterios}} {
-		if !dados[t.nombre] {
-			continue
-		}
-		n, ok := enteroDeTope(*t.valor)
+	if dados["tope-palabras"] {
+		n, ok := enteroDeTope(*topePalabras)
 		if !ok {
-			return Request{}, fmt.Errorf("--%s tiene que ser un entero mayor o igual que 0", t.nombre)
+			return Request{}, errors.New("--tope-palabras tiene que ser un entero mayor o igual que 0")
 		}
-		*t.dest = &n
+		req.TopePalabras = &n
+	}
+	if dados["tope-criterios"] {
+		n, ok := enteroDeTope(*topeCriterios)
+		if !ok {
+			return Request{}, errors.New("--tope-criterios tiene que ser un entero mayor o igual que 0")
+		}
+		req.TopeCriterios = &n
 	}
 	if dados["motivo"] {
 		m := *motivo

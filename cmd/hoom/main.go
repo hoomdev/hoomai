@@ -1201,7 +1201,7 @@ func cmdSpec(args []string) error {
 		var neg *approval.Negativa
 		if errors.As(err, &neg) {
 			// the lines of spec_lint, each on its own line (CA-795)
-			fmt.Fprintf(os.Stderr, "hoom spec: no se aprueba %s:\n", path)
+			fmt.Fprintf(os.Stderr, "hoom spec: no se aprueba %q:\n", path)
 			for _, l := range strings.Split(neg.Error(), "\n") {
 				fmt.Fprintln(os.Stderr, "  "+l)
 			}
