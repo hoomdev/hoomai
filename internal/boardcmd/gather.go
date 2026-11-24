@@ -331,6 +331,7 @@ type tree struct {
 	fingerprint     string
 	changed         []string // the candidate's files (gitx.Snapshot)
 	archivos        []string // changed plus the committed deletions (archivosConBorrados)
+	archivosErr     error    // why git could not say archivos
 	tokens          spec.TokenIndex
 	tokensErr       error
 	signer          string
@@ -557,17 +558,19 @@ func (t *tree) candidate(base string) []string {
 }
 
 // archivosConBorrados are the files of the tree's change, deletions
-// included (gitx.ArchivosConBorrados), read once; nil when git cannot say
-// them, and the board then reads the verdict's changed_files alone.
-func (t *tree) archivosConBorrados(base string) []string {
+// included (gitx.ArchivosConBorrados), read once; the error of
+// gitx.LineasDelCambio when git cannot say them, which the card reads as
+// files it does not know, never as an empty change (finding a4379f).
+func (t *tree) archivosConBorrados(base string) ([]string, error) {
 	t.once("archivos", func() {
 		lineas, err := gitx.LineasDelCambio(t.dir, base)
 		if err != nil {
+			t.archivosErr = err
 			return
 		}
 		t.archivos = gitx.ArchivosConBorrados(t.candidate(base), lineas)
 	})
-	return t.archivos
+	return t.archivos, t.archivosErr
 }
 
 func (t *tree) snapshot(base string) {
@@ -696,7 +699,8 @@ func (g *gatherer) gatherIn(it item.Item) (Evidence, string, *tree) {
 		reviewcmd.SoloDocs(v.Git.ChangedFiles) {
 		// the verdict's changed_files leave out what the branch deleted in a
 		// commit: a change that only deletes a risk path is not empty
-		ev.ArchivosDelCambio = t.archivosConBorrados(g.base)
+		archivos, err := t.archivosConBorrados(g.base)
+		ev.ArchivosDelCambio, ev.ArchivosDesconocidos = archivos, err != nil
 	}
 	if ev.Worktree {
 		ev.TreeChanges = nonNil(t.candidate(g.base))

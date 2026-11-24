@@ -195,6 +195,12 @@ type Evidence struct {
 	// can change whether the card requires its review. reviewRequired adds
 	// them to the changed_files of a verdict with Fingerprint; nil = none.
 	ArchivosDelCambio []string `json:"-"`
+	// ArchivosDesconocidos: Gather had to read ArchivosDelCambio and git
+	// could not say them (gitx.LineasDelCambio failed: a base that no longer
+	// resolves, a diff that fails). The verdict of the current Fingerprint
+	// then has files hoom does not know, neither empty nor only
+	// documentation (aclaracion 25, finding a4379f).
+	ArchivosDesconocidos bool `json:"-"`
 
 	// historia-en-el-tablero: whether the evidence the item's historico
 	// names still holds it, and why not when it does not.

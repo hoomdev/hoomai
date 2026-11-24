@@ -80,16 +80,18 @@ const DetalleNoAplica = "el cambio es chico (%d lineas de producto): no exige la
 // it; otherwise alto always does, and bajo and normal with more than
 // UmbralLineas lines of producto. The change's files are the verdict's
 // changed_files plus, for the verdict of the card's current fingerprint,
-// what the branch deleted in a commit (archivosDelVeredicto). A verdict
-// older than riesgo-efectivo-y-tamano with lines and no files has files hoom
-// does not know (aclaracion 25): it is neither empty nor documentation.
+// what the branch deleted in a commit (archivosDelVeredicto). Files hoom
+// does not know are neither empty nor documentation (aclaracion 25): those
+// of a verdict older than riesgo-efectivo-y-tamano with lines and no files,
+// and those of the verdict of the current fingerprint when Gather could not
+// read its deletions (Evidence.ArchivosDesconocidos, finding a4379f).
 func reviewRequired(ev Evidence, v *verdict.Verdict, efectivo string) (int, bool) {
 	if v == nil {
 		return 0, false
 	}
 	p := productoDe(v)
-	files := archivosDelVeredicto(ev, v)
-	desconocidos := len(files) == 0 && v.Riesgo == nil && v.Git.Insertions+v.Git.Deletions > 0
+	files, desconocidos := archivosDelVeredicto(ev, v)
+	desconocidos = desconocidos || len(files) == 0 && v.Riesgo == nil && v.Git.Insertions+v.Git.Deletions > 0
 	if !desconocidos && reviewcmd.SoloDocs(files) {
 		// SoloDocs of no files is true: the empty change
 		return p, false
@@ -103,9 +105,17 @@ func reviewRequired(ev Evidence, v *verdict.Verdict, efectivo string) (int, bool
 // archivosDelVeredicto are the files of v's change: its changed_files and,
 // when v certifies the card's current Fingerprint, Evidence.ArchivosDelCambio
 // (the deletions changed_files leave out), sorted and without repeats.
-func archivosDelVeredicto(ev Evidence, v *verdict.Verdict) []string {
-	if len(ev.ArchivosDelCambio) == 0 || ev.Fingerprint == "" || v.Git.ChangeFingerprint != ev.Fingerprint {
-		return v.Git.ChangedFiles
+// desconocidos is true when v certifies it and Gather could not read them
+// (Evidence.ArchivosDesconocidos): its files are then not known.
+func archivosDelVeredicto(ev Evidence, v *verdict.Verdict) (files []string, desconocidos bool) {
+	if ev.Fingerprint == "" || v.Git.ChangeFingerprint != ev.Fingerprint {
+		return v.Git.ChangedFiles, false
+	}
+	if ev.ArchivosDesconocidos {
+		return v.Git.ChangedFiles, true
+	}
+	if len(ev.ArchivosDelCambio) == 0 {
+		return v.Git.ChangedFiles, false
 	}
 	set := map[string]bool{}
 	for _, f := range v.Git.ChangedFiles {
@@ -119,7 +129,7 @@ func archivosDelVeredicto(ev Evidence, v *verdict.Verdict) []string {
 		out = append(out, f)
 	}
 	sort.Strings(out)
-	return out
+	return out, false
 }
 
 // productoDe is the lines of producto of v: its tamano.producto, or
