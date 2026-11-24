@@ -227,7 +227,7 @@ function dialogoRol(c, a) {
     const r = await act(urlTarjeta(c) + "/launch", {
       action: a.id,
       provider: $("acc-prov").value,
-      model: $("acc-model").value.trim(),
+      model: modeloPedido(a, $("acc-prov").value, $("acc-model").value.trim()),
       budget_usd: valor,
       pedido: revision ? "" : fijo ? a.pedido : $("acc-pedido").value,
       effort: $("acc-effort").value.trim(),
@@ -237,8 +237,14 @@ function dialogoRol(c, a) {
     });
     return ACC_NORMAL.empezo(r.role || a.role);
   }, "Lanzar");
+  // el nivel de la accion, traducido para el provider que se ve: cambiar de
+  // provider lo re-traduce si la persona no escribio otro modelo
+  let anterior = a.providers.find(x => x.default);
   const alCambiar = () => {
     const p = a.providers.find(x => x.name === $("acc-prov").value);
+    const modelo = $("acc-model");
+    if (a.nivel && p && modelo.value.trim() === ((anterior && anterior.model) || "")) modelo.value = p.model || "";
+    anterior = p;
     const budget = $("acc-budget");
     const notas = [];
     if (p && !p.budget) {
@@ -258,11 +264,21 @@ function dialogoRol(c, a) {
 }
 
 // siVacio is what an emptied Modelo or Esfuerzo launches: hoom.yaml's value
-// when the action brings it from there (an empty field asks for nothing, so
-// the next level wins), else the CLI's own.
+// when the action brings it from there, also by riesgo ("hoom.yaml, riesgo
+// alto"; an empty field asks for nothing, so the next level wins), else the
+// CLI's own.
 function siVacio(a, campo) {
   const v = a[campo];
-  return v && a.origen && a.origen[campo] === "hoom.yaml" ? `vacío: el de hoom.yaml (${v})` : "vacío: el que usa el CLI por defecto";
+  return v && a.origen && String(a.origen[campo] || "").startsWith("hoom.yaml") ? `vacío: el de hoom.yaml (${v})` : "vacío: el que usa el CLI por defecto";
+}
+
+// modeloPedido is the model the dialog asks for: the level's translation
+// for the chosen provider, untouched, asks for nothing, so the launch keeps
+// its level and its origin (proporcion-por-riesgo); anything else is the
+// person's model.
+function modeloPedido(a, provider, valor) {
+  const p = a.providers.find(x => x.name === provider);
+  return a.nivel && p && valor === (p.model || "") ? "" : valor;
 }
 
 // vistaDe is what the action proposes as the dialog shows it: its role, its

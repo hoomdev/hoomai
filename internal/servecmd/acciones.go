@@ -279,9 +279,10 @@ func (s *Server) approveCard(w http.ResponseWriter, name, slug string) {
 		writeError(w, http.StatusNotFound, "spec no encontrado: "+slug)
 		return
 	}
-	rec, already, err := approval.Approve(dir, path)
+	// measured against its card's tope (proporcion-por-riesgo)
+	rec, already, err := approval.Aprobar(s.m, dir, path)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, codigoDeAprobar(err), err.Error())
 		return
 	}
 	resp := map[string]any{"approval": rec, "already": already}
@@ -294,6 +295,17 @@ func (s *Server) approveCard(w http.ResponseWriter, name, slug string) {
 		resp["piloto"] = linea
 	}
 	writeJSON(w, resp)
+}
+
+// codigoDeAprobar is the HTTP code of a failed approval: 409 for the
+// refusal of a spec by its measure (approval.Negativa), as the other
+// refused approvals (actionOf); 500 for anything else, as before.
+func codigoDeAprobar(err error) int {
+	var neg *approval.Negativa
+	if errors.As(err, &neg) {
+		return http.StatusConflict
+	}
+	return http.StatusInternalServerError
 }
 
 // pathsBody is the body of save and discard: the paths the person saw.

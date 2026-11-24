@@ -35,6 +35,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/riesgo"
@@ -812,10 +813,15 @@ func prepararEvidencia(dir string, rng rango, opt Options, pol *manifest.ReviewP
 	return ev, isolated, tope, err
 }
 
-// imprimirEncabezado says what the lenses will run with: model, effort,
-// isolation and the evidence (or that it passed the cap).
-func imprimirEncabezado(w io.Writer, opt Options, isolated bool, tope int, ev Evidencia) {
-	fmt.Fprintf(w, "  modelo      %s\n", elegido(opt.Model))
+// imprimirEncabezado says what the lenses will run with: model (with the
+// level it came from, when it came from one), effort, isolation and the
+// evidence (or that it passed the cap).
+func imprimirEncabezado(w io.Writer, opt Options, nivel string, isolated bool, tope int, ev Evidencia) {
+	if nivel != "" {
+		fmt.Fprintf(w, "  modelo      %s (nivel %s)\n", elegido(opt.Model), nivel)
+	} else {
+		fmt.Fprintf(w, "  modelo      %s\n", elegido(opt.Model))
+	}
 	fmt.Fprintf(w, "  esfuerzo    %s\n", elegido(opt.Effort))
 	if isolated {
 		fmt.Fprintln(w, "  aislado     si - sin la config personal del provider")
@@ -862,8 +868,11 @@ type Result struct {
 	// Notes: the same notes the record keeps, for --json.
 	Notes []string `json:"notes,omitempty"`
 	// Model and Effort as requested ("" = the provider's default); Isolated
-	// and the evidence the lenses received.
+	// and the evidence the lenses received. A Model that was a level
+	// (proporcion-por-riesgo) is the provider's model for it, and Nivel the
+	// level ("" = it was a name).
 	Model          string `json:"model"`
+	Nivel          string `json:"nivel,omitempty"`
 	Effort         string `json:"effort"`
 	Isolated       bool   `json:"isolated"`
 	EvidenceBytes  int    `json:"evidence_bytes"`
@@ -1153,6 +1162,10 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return res, err
 	}
+	// a level is translated with the review's provider before any pass
+	// (proporcion-por-riesgo): no pass receives a level
+	traduccion := modelos.Traducir(prov.Name(), opt.Model)
+	opt.Model, res.Nivel = traduccion.Modelo, traduccion.Nivel
 	if res.Cross == CrossNo && !opt.SameProvider {
 		fmt.Fprintf(w, "  el mismo modelo que escribio no puede ser el que revisa: elegi otro provider\n"+
 			"  (mira 'hoom providers') o asumilo con: hoom review --provider %s --same-provider\n"+
@@ -1164,7 +1177,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	if err != nil {
 		return res, err
 	}
-	imprimirEncabezado(w, opt, isolated, tope, ev)
+	imprimirEncabezado(w, opt, res.Nivel, isolated, tope, ev)
 	res.Model, res.Effort, res.Isolated = opt.Model, opt.Effort, isolated
 	res.EvidenceBytes, res.EvidenceSHA256 = ev.Bytes, ev.SHA256
 	if ev.Over {
@@ -1376,7 +1389,7 @@ func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 		Lenses: append([]string(nil), lentes...), Provider: res.Provider, Writer: res.Writer,
 		Cross: res.Cross, Findings: append([]string{}, res.Findings...),
 		WritersDeclared: append([]string{}, res.WritersDeclared...), Notes: notas,
-		Model: opt.Model, Effort: opt.Effort, Isolated: isolated,
+		Model: opt.Model, Nivel: res.Nivel, Effort: opt.Effort, Isolated: isolated,
 		EvidenceBytes: ev.Bytes, EvidenceSHA256: ev.SHA256, Usage: usos, Runs: corridas,
 		Desde: rng.desde, Hasta: rng.hasta, Cobertura: rng.cobertura, DesdeReview: rng.desdeReview,
 		Base: rng.baseNombre, BaseIntegrada: rng.integrada,

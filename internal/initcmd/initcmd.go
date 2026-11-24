@@ -112,6 +112,9 @@ func Run(dir, projectName, profileName string) error {
 			fmt.Fprintf(&b, "    # %s\n", g.Notes)
 		}
 	}
+	// the model of each role in levels and the topes of the spec, the same
+	// for every profile (proporcion-por-riesgo, CA-807)
+	b.WriteString(BloquePorRiesgo)
 	if err := os.WriteFile(target, []byte(b.String()), 0o644); err != nil {
 		return err
 	}
