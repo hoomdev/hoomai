@@ -1,0 +1,11 @@
+{
+  "id": "20261124T205507_9e40b5",
+  "created_at": "2026-11-24T20:55:07.86142495Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/approval/approval.go",
+  "description": "INTRODUCIDO: internal/approval/approval.go:93-101,117-119 tiene una carrera TOCTOU entre comprobar el estado/nombre y crear con O_EXCL. Dos Approve simultaneos del mismo spec pueden ver ambos que aun no esta aprobado y elegir el mismo target; uno crea el registro y el otro retorna EEXIST en vez de reconocer la aprobacion concurrente como already=true. Dos specs que colisionan en nombre y contenido sufren la misma carrera al elegir el nombre base. Es una falla real pero improbable y recuperable con reintento, por eso severidad medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "72eb351b127d3095",
+  "task": "proporcion-por-riesgo"
+}

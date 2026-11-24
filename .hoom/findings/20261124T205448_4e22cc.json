@@ -1,0 +1,11 @@
+{
+  "id": "20261124T205448_4e22cc",
+  "created_at": "2026-11-24T20:54:48.762357795Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/approval/approval.go",
+  "description": "INTRODUCIDO: internal/approval/approval.go:98-101,117-123 usa un unico nombre alternativo determinista y crea el JSON final antes de terminar de escribirlo. Si el nombre base ya pertenece a otro spec y el proceso se interrumpe o f.Write falla tras crear parcialmente el alternativo, statusSum ignora ese JSON invalido pero todo reintento elige el mismo alternativo; O_EXCL devuelve EEXIST y el spec ya no se puede aprobar sin borrar manualmente el artefacto. Es una falla real de recovery en entorno degradado, sin perdida ni exposicion de datos, por eso severidad medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "72eb351b127d3095",
+  "task": "proporcion-por-riesgo"
+}
