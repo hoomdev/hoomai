@@ -127,6 +127,16 @@ type TraceResult struct {
 	Scanned      int      // test files scanned
 	ByTest       int      // criteria traced via test token
 	ByCmd        int      // criteria verified via command (all exit 0)
+	// Citas (proporcion-por-riesgo) are the citations of each criterion
+	// Trace looked for in the tests (every id without [verifica:]): the
+	// number of LINES of the files spec_trace scans (IsTestPath, the same
+	// files as Scanned) where its whole token appears. A line counts once
+	// per criterion, also when it cites it twice; a line that cites two
+	// criteria counts one for each; a token inside a longer one (CA-1 in
+	// CA-12) is not a citation. One entry per id looked for, 0 when no
+	// test cites it; a criterion with [verifica:] has no entry. nil when
+	// Trace looked for none.
+	Citas map[string]int
 }
 
 // Trace verifies each criterion: IDs with declared [verifica:] commands run
@@ -207,6 +217,10 @@ func lastNonEmptyLine(s string) string {
 // Gates runs lint + trace for a spec and returns them as synthetic gate
 // results to embed in the verdict. Both are required: binding a spec to a
 // verify run is opt-in, and once bound, its criteria must be enforced.
+//
+// proporcion-por-riesgo: Gates is GatesCon with the zero Calibre (a spec
+// without card, riesgo normal, no tope and no current approval) without its
+// aviso. `hoom verify` measures with GatesCon and approval.CalibreDe.
 func Gates(projectDir, specPath string) []verdict.GateResult {
 	start := time.Now()
 	lintRes := verdict.GateResult{Name: "spec_lint", Required: true, Scope: "spec"}

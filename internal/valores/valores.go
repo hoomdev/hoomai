@@ -5,6 +5,12 @@
 // then what the place proposes today (the card, or `hoom agent`), then the
 // provider's own (and, for the timeout, hoom's 30 minutes). Every value comes
 // out with where it came from: no value is chosen in silence.
+//
+// proporcion-por-riesgo adds a level between the command and agents.<rol>:
+// agents.<rol>.<riesgo> for the declared riesgo of the launch's card
+// (ResolverConRiesgo), and translates a model level with the launch's
+// provider. It holds for every launch: `hoom agent`, pedir, siguiente,
+// reanudar, the board, the Studio and the pilot.
 package valores
 
 import (
@@ -60,25 +66,85 @@ type Origenes struct {
 // Elegidos are the values of one launch. "" / nil = none (the provider's
 // own; a nil budget is no cap).
 type Elegidos struct {
-	Provider  string
-	Model     string
+	Provider string
+	// Model is the model the provider receives (proporcion-por-riesgo):
+	// a level is already translated with Provider (modelos.Traducir), and
+	// it is "" when Provider receives no model or is still "" (ConProvider
+	// translates it once the launch picks its provider). A name goes as
+	// written.
+	Model string
+	// Nivel (proporcion-por-riesgo) is the level Model was translated
+	// from (modelos.Fuerte, Medio, Barato); "" when the model is a name or
+	// there is none. Its origin is Origen.Model.
+	Nivel     string
 	Effort    string
 	BudgetUSD *float64
 	Timeout   time.Duration // never 0: the last level is DefaultTimeout
 	Origen    Origenes
 }
 
+// OrigenRiesgo (proporcion-por-riesgo) is the origin of a value that
+// agents.<rol>.<r> of the project's hoom.yaml gave: `hoom.yaml, riesgo <r>`.
+func OrigenRiesgo(r string) string {
+	return ""
+}
+
 // Resolver applies the rule: command, hoom.yaml of the project, the place's
 // proposal, the provider. hoom.yaml's budget is capped by what the place has
 // left; a budget_usd of 0 (no cap) takes what the place has left, or no cap.
+//
+// proporcion-por-riesgo: Resolver is ResolverConRiesgo without a riesgo
+// (r ""): yaml.PorRiesgo does not count.
 func Resolver(p Pedido, yaml manifest.RoleDefaults, l Lugar) Elegidos {
 	return Sobre(p, propuesta(yaml, l))
+}
+
+// ResolverConRiesgo (proporcion-por-riesgo) applies the rule with the level
+// of the riesgo: the command, agents.<rol>.<r> of the project's hoom.yaml
+// (yaml.PorRiesgo[r], origin OrigenRiesgo(r)), agents.<rol> (yaml's own
+// fields, origin hoom.yaml), the place's proposal, the provider. r is the
+// DECLARED riesgo of the launch's card (item.RiesgoDeLanzamiento: alto when
+// it cannot be read, normal without card); "" = no level of riesgo. For each
+// value the first that exists wins; the provider never comes from the level
+// of the riesgo. A budget_usd of the riesgo never goes over what the place
+// has left (l.BudgetUSD), like hoom.yaml's. A model that is a level is
+// translated with the chosen provider (Elegidos.Model and Nivel).
+func ResolverConRiesgo(p Pedido, r string, yaml manifest.RoleDefaults, l Lugar) Elegidos {
+	return Elegidos{}
+}
+
+// ConProvider (proporcion-por-riesgo) is e on provider p, the one the launch
+// takes after the rule (hoom agent takes the first installed provider when
+// nothing chose one): Provider becomes p with its origin as it was, and a
+// model that came from a level (Nivel) is translated for p
+// (modelos.Traducir): "" when p receives no model. A name stays as it is.
+func (e Elegidos) ConProvider(p string) Elegidos {
+	return Elegidos{}
+}
+
+// Linea (proporcion-por-riesgo) is the line `valores:` (CA-503) of a launch
+// with e, the ONE text the card verbs, `hoom agent` and the pilot print
+// (the pilot with `piloto automatico: ` in front):
+// `valores: provider <p> (<o>) · modelo <m> (<o>) · esfuerzo <e> (<o>) ·
+// presupuesto <x> (<o>) · tiempo limite <d> (<o>)`, each with its origin,
+// as the card verbs print it today. A model that came from a level is
+// `modelo <m> (nivel <n>, <origen>)`, and on a provider that receives no
+// model `modelo del provider (nivel <n>: <p> no recibe modelo)`. sinTope
+// says e.Provider takes no cap in USD and the command asked none: the
+// budget is then `presupuesto sin tope (<p> no acepta tope)`.
+func Linea(e Elegidos, sinTope bool) string {
+	return ""
 }
 
 // Sobre puts what the command asked (level 1) over values already chosen by
 // the other levels: what the card's action proposes, which applied hoom.yaml
 // and the place when the card was derived. Each value the command asks wins,
 // with origin comando; the rest keep their value and origin.
+//
+// proporcion-por-riesgo: a model the command asks that is a level is
+// translated with the launch's provider (base's, or the one the command
+// asks), and so is a base model that came from a level (base.Nivel) when
+// the command asks another provider.
 func Sobre(p Pedido, base Elegidos) Elegidos {
 	e := base
 	e.BudgetUSD = copia(base.BudgetUSD)

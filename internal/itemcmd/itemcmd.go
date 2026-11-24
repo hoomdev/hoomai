@@ -65,6 +65,26 @@ const (
 	// (exit 2); a --presupuesto-usd that is not a number above 0 is the usage
 	// error `--presupuesto-usd tiene que ser un numero mayor que 0` (exit 2).
 	// What Execute does with them is SetCambios' contract.
+	//
+	// proporcion-por-riesgo: set also takes `--tope-palabras n`,
+	// `--tope-criterios n` (either or both) and `--motivo "<por que>"`,
+	// combinable with the other three (Request.TopePalabras,
+	// Request.TopeCriterios, Request.Motivo): a person raises the tope of the
+	// card's spec. They are not usage errors: each refusal exits 1 and
+	// writes nothing:
+	//
+	//   - an n that is not an integer >= 0:
+	//     `--tope-palabras tiene que ser un entero mayor o igual que 0` (or
+	//     `--tope-criterios ...`), from Parse (an error that is not a
+	//     *cliargs.UsageError);
+	//   - a tope without --motivo, or with a blank one:
+	//     `item set: cambiar el tope del spec pide --motivo "<por que>"`
+	//     (item.ErrTopeSinMotivo);
+	//   - --motivo without a tope:
+	//     `item set: --motivo va con --tope-palabras o --tope-criterios`
+	//     (item.ErrMotivoSinTope), also when it is the only flag;
+	//   - with $HOOM_ROLE, like --riesgo (CA-617): SetCambios' refusal of a
+	//     role.
 	SubSet = "set"
 )
 
@@ -132,8 +152,15 @@ type Request struct {
 	// PresupuestoUSD is set's --presupuesto-usd, already checked to be a
 	// finite number above 0; nil = not given.
 	PresupuestoUSD *float64
-	JSON           bool
-	DryRun         bool // backfill
+	// TopePalabras and TopeCriterios (proporcion-por-riesgo) are set's
+	// --tope-palabras and --tope-criterios, already checked to be integers
+	// >= 0 (0 = sin tope for the card); nil = not given. Motivo is its
+	// --motivo as given (nil = not given): SetCambios checks it.
+	TopePalabras  *int
+	TopeCriterios *int
+	Motivo        *string
+	JSON          bool
+	DryRun        bool // backfill
 }
 
 // SetResult is what `hoom item set` did, identical in text and JSON
@@ -157,6 +184,18 @@ type SetResult struct {
 	// of the JSON.
 	AutoAntes        string   `json:"-"`
 	PresupuestoAntes *float64 `json:"-"`
+	// TopePalabras, TopeCriterios and TopeMotivo (proporcion-por-riesgo) are
+	// the card's tope of its spec and its motive AFTER the set, in the JSON
+	// only when the card has them (`"tope_palabras": <n>`,
+	// `"tope_criterios": <n>`, `"tope_motivo": "..."`). A set without tope
+	// emits the JSON of before.
+	TopePalabras  *int   `json:"tope_palabras,omitempty"`
+	TopeCriterios *int   `json:"tope_criterios,omitempty"`
+	TopeMotivo    string `json:"tope_motivo,omitempty"`
+	// TopePalabrasAntes and TopeCriteriosAntes are the topes before the
+	// set; not part of the JSON.
+	TopePalabrasAntes  *int `json:"-"`
+	TopeCriteriosAntes *int `json:"-"`
 }
 
 // Set is `hoom item set <slug> --riesgo r`: it changes only the riesgo of
@@ -241,6 +280,16 @@ func Set(root, base, blockOn, slug, r, rol string) (SetResult, error) {
 //
 // The SetResult carries the riesgo before and after (as Set's), the auto
 // and presupuesto_usd after, the ones before, and Cambio.
+//
+// proporcion-por-riesgo: c may carry the card's tope of its spec
+// (item.Cambios TopePalabras, TopeCriterios and TopeMotivo), written with
+// tope_motivo, tope_por and tope_en in the same write (item.Cambiar). The
+// refusals, writing nothing, go in this order: rol not empty and c changes
+// the tope: `el tope del spec de una tarjeta lo cambia una persona, no un
+// rol` (a role does not raise its own tope); then item.Cambiar's
+// (a value below 0, item.ErrTopeSinMotivo, item.ErrMotivoSinTope) before
+// the item is looked for; then the ones above. The SetResult carries the
+// topes after and before.
 func SetCambios(root, base, blockOn, slug string, c item.Cambios, rol string) (SetResult, error) {
 	if strings.TrimSpace(rol) != "" {
 		if c.Auto != nil || c.PresupuestoUSD != nil {

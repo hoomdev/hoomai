@@ -27,6 +27,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/profiles"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/runcmd"
+	"github.com/hoomdev/hoomai/internal/spec"
 	"github.com/hoomdev/hoomai/internal/valores"
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
@@ -72,6 +73,32 @@ type Options struct {
 	Ronda       int
 	Hallazgos   []string
 	Bloqueantes int
+
+	// ValoresImpresos (proporcion-por-riesgo) says the verb that launched
+	// the envelope already printed its line valores: (lanzar sets it from
+	// lanzar.Request.ValoresImpresos): Run does not print it. false (`hoom
+	// agent` itself, the Studio) = Run prints it once, before its steps.
+	ValoresImpresos bool
+}
+
+// NotaDeRiesgo (proporcion-por-riesgo) is the note hoom adds at the end of
+// the SystemPrompt of a role, after a blank line (for the test-writer,
+// after the paragraph of the blind tree), and nothing else after it; r is
+// the DECLARED riesgo of the card of --task (item.RiesgoDeLanzamiento: alto
+// when it cannot be read, normal without card) and t the tope its spec is
+// measured with (the card's own, else spec.topes.<r> of hoom.yaml):
+//
+//   - test-writer: `Riesgo declarado de la tarjeta: <r>.`;
+//   - arquitecto:
+//     `Riesgo declarado de la tarjeta: <r>. Tope del spec: <t> palabras y <c> criterios.`,
+//     with `palabras sin tope` or `criterios sin tope` in place of
+//     `<t> palabras` or `<c> criterios` when that tope is 0;
+//   - every other role: "" (no note).
+//
+// rol is the role's slug. The contract in .hoom/agents/ does not change
+// (CA-182).
+func NotaDeRiesgo(rol, r string, t spec.Tope) string {
+	return ""
 }
 
 // Result is the envelope's answer, identical in text and in JSON.
@@ -120,6 +147,20 @@ type Isolation struct {
 // envelope is MEANT to report (an unapproved spec, a failing run, a violated
 // scope, a red verdict) come back as a Result with an exit code; only a
 // broken setup returns an error.
+//
+// proporcion-por-riesgo: the role's values are valores.ResolverConRiesgo
+// with the DECLARED riesgo of the card of opt.Task
+// (item.RiesgoDeLanzamiento of root: alto when its item cannot be read,
+// normal without --task or without item), and a model level is translated
+// with the provider Run takes, also the first installed one
+// (valores.Elegidos.ConProvider): no level reaches the provider. Unless
+// opt.ValoresImpresos, Run prints the line valores: (valores.Linea) once,
+// before its steps and outside them. The SystemPrompt of the test-writer and
+// of the arquitecto ends in NotaDeRiesgo, after a blank line (the
+// test-writer's after the paragraph of the blind tree); the arquitecto's
+// tope is the card's own, else spec.topes.<riesgo> of the hoom.yaml Run
+// loads. The other roles get no note, and the contract on disk does not
+// change.
 //
 // autonomia-entre-firmas: for a role of shape codigo (today only the
 // writer), Run reads the task's protected tests (TestsProtegidos of root)

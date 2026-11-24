@@ -1054,6 +1054,12 @@ func SoloDocs(files []string) bool {
 // --json carry RiesgoMotivo and LentesMotivo besides Riesgo and
 // RiesgoDeclarado. An item of the task that cannot be read is still the
 // refusal of today (`el item de la tarea "<slug>" no se puede leer ...`).
+//
+// proporcion-por-riesgo: a model that is a level (opt.Model, from --model,
+// or review.model) is translated with the review's provider
+// (modelos.Traducir) before any pass: no pass receives a level, and a
+// provider that receives no model gets none. Its header then says
+// `  modelo      <m> (nivel <n>)`.
 func Run(root, base string, opt Options, w io.Writer) (Result, error) {
 	role, err := agents.Lookup("reviewer")
 	if err != nil {

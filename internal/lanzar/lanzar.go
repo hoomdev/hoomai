@@ -68,6 +68,14 @@ type Request struct {
 	Ronda       int
 	Hallazgos   []string
 	Bloqueantes int
+
+	// ValoresImpresos (proporcion-por-riesgo) says the verb that launches
+	// already printed the line valores: of this launch (the card verbs
+	// before Lanzar, the pilot as `piloto automatico: valores: `): the
+	// envelope gets agentcmd.Options.ValoresImpresos and `hoom agent` does
+	// not print it again. false (the Studio's launches) = the envelope
+	// prints it, once.
+	ValoresImpresos bool
 }
 
 // Propuesta is what a card's action proposes: the role it launches, its
@@ -199,6 +207,11 @@ func Candado(root, slug string) string {
 // Valores are the values a launch of action a takes for req: what req asks
 // over what the action proposes (which already applied hoom.yaml), each with
 // its origin, by the one rule (valores.Sobre). The card verbs print them.
+//
+// proporcion-por-riesgo: the action's values are those of the riesgo of its
+// card (boardcmd.Action), its level comes in Elegidos.Nivel (Action.Nivel),
+// and a level, the action's or req's (`--model medio`), is translated with
+// the provider the launch takes: Model is never a level.
 func Valores(a boardcmd.Action, req Request) valores.Elegidos {
 	p := valores.Pedido{Provider: strings.TrimSpace(req.Provider), Model: strings.TrimSpace(req.Model),
 		Effort: strings.TrimSpace(req.Effort), BudgetUSD: req.BudgetUSD}

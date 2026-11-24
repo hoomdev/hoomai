@@ -125,6 +125,14 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // Run executes the verification and writes the verdict. It returns the
 // finalized verdict and the path of its artifact.
 //
+// proporcion-por-riesgo: with a spec, its gates spec_lint and spec_trace are
+// spec.GatesCon with approval.CalibreDe(m, m.Dir, spec): the card is the
+// spec's (.hoom/specs/<slug>.md), its riesgo the DECLARED one, and the topes
+// those of the hoom.yaml m (an invalid spec: section is Load's error, so no
+// gate runs and no verdict is written). The aviso of citations GatesCon
+// gives is printed by `hoom verify` and changes neither the verdict's status
+// nor its exit code.
+//
 // It validates the gate selection against the manifest BEFORE anything else:
 // a request hoom does not understand produces no verdict, no live events and
 // no ratchet measurement — it produces a *cliargs.UsageError.

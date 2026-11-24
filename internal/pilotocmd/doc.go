@@ -44,6 +44,13 @@
 //     `piloto automatico: pide al <rol> con <provider> (sin tope en USD): sobre <id>`;
 //   - before every launch: `piloto automatico: regla <regla>`, followed by
 //     ` intento <n>` or ` ronda <n>` when the decision has them;
+//   - proporcion-por-riesgo: right before its line
+//     `piloto automatico: pide al ...`, which does not change,
+//     `piloto automatico: valores: <...>`: the line valores: of the launch
+//     (valores.Linea of lanzar.Trabajo.Valores), the same in `hoom piloto`
+//     and in the Studio's pilot. Its launches carry
+//     lanzar.Request.ValoresImpresos, so the envelope does not print it
+//     again;
 //   - after a save that committed: `piloto automatico: guarda el trabajo de la tarjeta: <commit>`;
 //   - for cerrar-hallazgos: `piloto automatico: cierra <n> hallazgos con su test (ronda <r>): <ids>`.
 //

@@ -73,11 +73,25 @@ type AgentPolicy struct {
 	BudgetUSD *float64      `yaml:"budget_usd,omitempty"` // nil = not declared; 0 = no cap
 	Timeout   time.Duration `yaml:"-"`                    // agents.<rol>.timeout; 0 = not declared
 	Write     WriteScope    `yaml:"write,omitempty"`
+	// PorRiesgo (proporcion-por-riesgo) are agents.<rol>.bajo, .normal and
+	// .alto, keyed by riesgo: each one's model, effort, budget_usd and
+	// timeout, with the same rules as in agents.<rol> (Provider is always
+	// ""; the provider does not vary by riesgo). A riesgo whose map is null
+	// or empty has no entry, and nil means none declared.
+	PorRiesgo map[string]RoleDefaults `yaml:"-"`
 }
 
 // AgentKeys are the keys agents.<rol> accepts, in the order the error names
-// them.
+// them. proporcion-por-riesgo: the three riesgos go after write, so the
+// error is `agents.<rol>: clave desconocida "<k>" (validas: provider, model,
+// effort, budget_usd, timeout, write, bajo, normal, alto)`.
 var AgentKeys = []string{"provider", "model", "effort", "budget_usd", "timeout", "write"}
+
+// AgentRiesgoKeys (proporcion-por-riesgo) are the keys agents.<rol>.<r>
+// accepts, in the order its error names them:
+// `agents.<rol>.<r>: clave desconocida "<k>" (validas: model, effort, budget_usd, timeout)`.
+// provider is not one of them: `alto: { provider: codex }` is that error.
+var AgentRiesgoKeys = []string{"model", "effort", "budget_usd", "timeout"}
 
 // MinTimeout and MaxTimeout bound every timeout hoom.yaml or a flag declares:
 // under a minute no CLI gets to start, over 12 hours is a forgotten run.
@@ -231,6 +245,25 @@ func decodeModel(p string, j int, n *yaml.Node) (ModelEntry, error) {
 // itself so every error names the role: a key hoom does not know is an
 // error, never a silence (an ignored `efort: low` is the very failure the
 // launch values must not have).
+//
+// proporcion-por-riesgo: a role hoom does not know (`writr`, `test_writer`,
+// a native name like `hoom-writer`) is an error too:
+// `agents: rol "<x>" desconocido (validos: <the slugs of agents.Roles, in
+// its order, joined by ", ">)`. Each agents.<rol> also accepts the keys
+// bajo, normal and alto (AgentPolicy.PorRiesgo), each one a map with
+// AgentRiesgoKeys; a null or empty one changes nothing. The errors, with
+// "hoom.yaml invalido: " in front from Load, LoadWithoutBaseCheck and
+// LoadRoles:
+//
+//   - `agents.<rol>.<r>: clave desconocida "<k>" (validas: model, effort, budget_usd, timeout)`;
+//   - `agents.<rol>.<r> debe ser un mapa (ej. alto: { model: fuerte })`;
+//   - their values follow agents.<rol>'s rules and texts with the place
+//     `agents.<rol>.<r>` (`agents.<rol>.<r>.budget_usd: ...`,
+//     `agents.<rol>.<r>.timeout: ...`);
+//   - agents.reviewer keeps refusing every launch key, bajo, normal and
+//     alto included, with today's error.
+//
+// A hoom.yaml without these keys loads as today.
 type AgentPolicies map[string]AgentPolicy
 
 // UnmarshalYAML decodes agents: role by role, with the contract's rules.
@@ -338,18 +371,30 @@ func containsKey(list []string, k string) bool {
 
 // RoleDefaults are the launch values hoom.yaml declares for one role:
 // agents.<rol>, or review: for the reviewer. An empty field was not declared.
+//
+// proporcion-por-riesgo: Model may be a level (modelos.Fuerte, Medio,
+// Barato), which the launch translates with its provider.
 type RoleDefaults struct {
 	Provider  string
 	Model     string
 	Effort    string
 	BudgetUSD *float64      // nil = not declared; 0 = declared without a cap
 	Timeout   time.Duration // 0 = not declared
+	// PorRiesgo (proporcion-por-riesgo) are the values of
+	// agents.<rol>.<r>, keyed by riesgo (AgentPolicy.PorRiesgo): level 2 of
+	// the rule (valores.ResolverConRiesgo), over the fields above. nil when
+	// the role declares none, and always for the reviewer (review: has no
+	// values by riesgo). Their Provider is always "".
+	PorRiesgo map[string]RoleDefaults
 }
 
 // RoleDefaults is the ONE place that says what hoom.yaml declares for a role:
 // `hoom agent`, the card verbs and the board ask here. The reviewer's come
 // from review: (it has no budget there); every other role's from
 // agents.<rol>. A nil manifest declares nothing.
+//
+// proporcion-por-riesgo: the result carries agents.<rol>.<r> in PorRiesgo
+// (a copy: changing it changes nothing in m); the reviewer's has none.
 func (m *Manifest) RoleDefaults(role string) RoleDefaults {
 	if m == nil {
 		return RoleDefaults{}
@@ -390,6 +435,11 @@ func (m *Manifest) RoleDefaults(role string) RoleDefaults {
 // then nothing is enclosed), with Exigir ExigirNo when the section does not
 // say it, and an invalid one is the error of EncierroPolicy's contract,
 // wrapped as `hoom.yaml invalido: ...`.
+//
+// It reads spec: the same way (proporcion-por-riesgo): the result's Spec is
+// the declared section (nil without it), and an invalid one is the error of
+// SpecPolicy's contract, wrapped as `hoom.yaml invalido: ...`; the board
+// measures a card's spec with its TopeDelSpec.
 func LoadRoles(root string) (*Manifest, error) {
 	raw, err := os.ReadFile(filepath.Join(root, FileName))
 	if os.IsNotExist(err) {
@@ -783,6 +833,10 @@ type Manifest struct {
 	// section, and then every key takes the profile's default. Resolve it
 	// with profiles.Clasificador.
 	Rutas *Rutas `yaml:"rutas,omitempty"`
+	// Spec is the section `spec` (proporcion-por-riesgo): the topes of a
+	// spec per riesgo. nil = no section, and then every tope is the
+	// default (TopesPorDefecto). Read it with TopeDelSpec.
+	Spec *SpecPolicy `yaml:"spec,omitempty"`
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`

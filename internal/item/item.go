@@ -84,8 +84,27 @@ type Item struct {
 	// changes the riesgo (SetRiesgo, Cambiar), also with r normal, which
 	// leaves the file without `riesgo` but with them. Parse accepts both
 	// keys; no other verb writes them.
-	RiesgoPor      string     `yaml:"riesgo_por,omitempty" json:"riesgo_por,omitempty"`
-	RiesgoEn       *time.Time `yaml:"riesgo_en,omitempty" json:"riesgo_en,omitempty"`
+	RiesgoPor string     `yaml:"riesgo_por,omitempty" json:"riesgo_por,omitempty"`
+	RiesgoEn  *time.Time `yaml:"riesgo_en,omitempty" json:"riesgo_en,omitempty"`
+	// TopePalabras and TopeCriterios (proporcion-por-riesgo) are the card's
+	// own tope of its spec: the most words and the most criteria its spec
+	// may have, over spec.topes.<riesgo> of hoom.yaml for this card only
+	// (spec.Calibre). nil = the card has none (hoom.yaml's counts); 0 = sin
+	// tope for this card, even when hoom.yaml has one. Parse accepts an
+	// integer >= 0; anything else is the error
+	// `tope_palabras tiene que ser un entero mayor o igual que 0` (or
+	// `tope_criterios`).
+	TopePalabras  *int `yaml:"tope_palabras,omitempty" json:"tope_palabras,omitempty"`
+	TopeCriterios *int `yaml:"tope_criterios,omitempty" json:"tope_criterios,omitempty"`
+	// TopeMotivo, TopePor and TopeEn say why, who and when a person last
+	// changed the card's tope: the --motivo of `hoom item set`, the
+	// `user.name <user.email>` of git (gitx.Identity, like RiesgoPor) and
+	// the time in UTC, written as RFC 3339. Only Cambiar writes them, with
+	// a tope; Parse accepts the three keys. The history of the tope is the
+	// item's in git.
+	TopeMotivo     string     `yaml:"tope_motivo,omitempty" json:"tope_motivo,omitempty"`
+	TopePor        string     `yaml:"tope_por,omitempty" json:"tope_por,omitempty"`
+	TopeEn         *time.Time `yaml:"tope_en,omitempty" json:"tope_en,omitempty"`
 	Pedido         string     `yaml:"pedido,omitempty" json:"pedido"`
 	CreadoPor      string     `yaml:"creado_por" json:"creado_por"`
 	CreadoEn       time.Time  `yaml:"creado_en" json:"creado_en"`
@@ -322,6 +341,8 @@ func Add(root string, d Draft) (Item, error) {
 func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 
 // claves are the only keys an item may carry, in the order hoom writes them.
+// proporcion-por-riesgo: tope_palabras, tope_criterios, tope_motivo,
+// tope_por and tope_en go after riesgo_en.
 var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "riesgo_por", "riesgo_en", "pedido", "creado_por", "creado_en",
 	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
@@ -332,6 +353,13 @@ var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "riesgo_por", "ri
 // `riesgo "<r>" fuera del vocabulario (bajo, normal, alto)`. The optional
 // keys `riesgo_por` (a string) and `riesgo_en` (an RFC 3339 time) are
 // accepted, with or without `riesgo` (riesgo-efectivo-y-tamano).
+//
+// proporcion-por-riesgo: the optional keys tope_palabras, tope_criterios,
+// tope_motivo, tope_por and tope_en are accepted (Item.TopePalabras and
+// the rest). A tope_palabras or tope_criterios that is not an integer >= 0
+// (-1, 1.5, "x", a list) is the error
+// `tope_palabras tiene que ser un entero mayor o igual que 0` (or
+// `tope_criterios tiene que ser un entero mayor o igual que 0`).
 func Parse(slug string, raw []byte) (Item, error) {
 	if !ValidSlug(slug) {
 		return Item{}, fmt.Errorf("el nombre %q no es un slug (minusculas, numeros y guiones)", slug)
@@ -545,7 +573,26 @@ type Cambios struct {
 	Auto *string
 	// PresupuestoUSD is the card's cap in USD: a finite number above 0.
 	PresupuestoUSD *float64
+	// TopePalabras and TopeCriterios (proporcion-por-riesgo) are the card's
+	// tope of its spec (Item.TopePalabras, Item.TopeCriterios): an integer
+	// >= 0, 0 = sin tope for this card; either or both. TopeMotivo is why
+	// a person changes it (`--motivo`): a tope needs one that is not blank,
+	// and a TopeMotivo needs a tope. Writing a tope writes tope_motivo,
+	// tope_por and tope_en with it.
+	TopePalabras  *int
+	TopeCriterios *int
+	TopeMotivo    *string
 }
+
+// ErrTopeSinMotivo (proporcion-por-riesgo) is Cambiar's refusal of a tope
+// without TopeMotivo, or with a blank one; its text is `hoom item set`'s,
+// `item set: cambiar el tope del spec pide --motivo "<por que>"`.
+var ErrTopeSinMotivo = errors.New(`item set: cambiar el tope del spec pide --motivo "<por que>"`)
+
+// ErrMotivoSinTope (proporcion-por-riesgo) is Cambiar's refusal of a
+// TopeMotivo without TopePalabras nor TopeCriterios; its text is
+// `item set: --motivo va con --tope-palabras o --tope-criterios`.
+var ErrMotivoSinTope = errors.New("item set: --motivo va con --tope-palabras o --tope-criterios")
 
 // ErrAutoSinPresupuesto is Cambiar's refusal to leave `auto: hasta-humano`
 // on an item without presupuesto_usd: its text is item add's,
@@ -566,6 +613,18 @@ var ErrAutoSinPresupuesto = errors.New("--auto necesita --presupuesto-usd: el pi
 //     no presupuesto_usd (it had none and c brings none);
 //   - an item that does not exist: an error that wraps os.ErrNotExist; an
 //     unreadable or invalid one: its error.
+//
+// proporcion-por-riesgo: with TopePalabras or TopeCriterios it writes
+// tope_palabras or tope_criterios (both when both come), tope_motivo with
+// TopeMotivo trimmed, tope_por (the git identity of root) and tope_en (now,
+// in UTC, to the second), in the same write as the other keys. It refuses,
+// writing nothing, before reading the item:
+//
+//   - a TopePalabras or TopeCriterios below 0: the error
+//     `tope_palabras tiene que ser un entero mayor o igual que 0` (or
+//     `tope_criterios`);
+//   - a tope without TopeMotivo, or with a blank one: ErrTopeSinMotivo;
+//   - a TopeMotivo without a tope: ErrMotivoSinTope.
 func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, err error) {
 	if c.Riesgo != nil {
 		if *c.Riesgo == "" {
@@ -761,6 +820,26 @@ func RiesgoDe(arbol, slug string) (string, error) {
 		return riesgoONormal(it.Riesgo), nil
 	}
 	return riesgo.Normal, nil
+}
+
+// TarjetaDe (proporcion-por-riesgo) is the item slug as RiesgoDe reads it
+// from the tree arbol: the main checkout's (gitx.CheckoutPrincipal) when it
+// has it, else arbol's. hay is false, with no error, when neither tree has
+// it or slug is not a slug. An item that is there and cannot be read is
+// err (hay true), and it does not fall back to the next tree. The measure
+// of a spec (approval.CalibreDe) reads its card's riesgo and tope here.
+func TarjetaDe(arbol, slug string) (it Item, hay bool, err error) {
+	return Item{}, false, nil
+}
+
+// RiesgoDeLanzamiento (proporcion-por-riesgo) is the riesgo a launch of a
+// role on the card slug uses, seen from the tree arbol: for the values by
+// riesgo (valores.ResolverConRiesgo) and for the note of riesgo of the
+// test-writer and the arquitecto. It is the DECLARED riesgo (RiesgoDe),
+// never the effective one; riesgo.Alto when the item is there and cannot be
+// read; riesgo.Normal for "" (no card) and for a slug without item.
+func RiesgoDeLanzamiento(arbol, slug string) string {
+	return ""
 }
 
 // TarjetaDeRiesgo is the card slug as the rule of the effective riesgo
