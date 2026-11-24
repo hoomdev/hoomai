@@ -7,6 +7,11 @@ package spec
 // GatesCon.
 
 import (
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -28,7 +33,58 @@ type Medida struct {
 // empty file measures 0 and 0. A file it cannot read is the error of
 // os.ReadFile. Lint and Criteria do not change (CA-311).
 func Medir(ruta string) (Medida, error) {
-	return Medida{}, nil
+	raw, err := os.ReadFile(ruta)
+	if err != nil {
+		return Medida{}, err
+	}
+	m := Medida{Palabras: len(strings.Fields(string(raw)))}
+	if len(raw) == 0 {
+		return m, nil
+	}
+	cs, err := Criteria(ruta)
+	if err != nil {
+		return Medida{}, err
+	}
+	for _, c := range cs {
+		if c.Text != "" {
+			m.Criterios++
+		}
+	}
+	return m, nil
+}
+
+// riesgoDe is c's riesgo as the texts say it: normal for "".
+func riesgoDe(c Calibre) string {
+	if c.Riesgo == "" {
+		return "normal"
+	}
+	return c.Riesgo
+}
+
+// medidaDe is one measure of DescribirMedida: `<p> <que> de <t>`,
+// `<p> <que> de <t> de la tarjeta` or `<p> <que> sin tope`.
+func medidaDe(p, t int, deLaTarjeta bool, que string) string {
+	switch {
+	case t == 0:
+		return fmt.Sprintf("%d %s sin tope", p, que)
+	case deLaTarjeta:
+		return fmt.Sprintf("%d %s de %d de la tarjeta", p, que, t)
+	default:
+		return fmt.Sprintf("%d %s de %d", p, que, t)
+	}
+}
+
+// lineaDelTope is the line of one measure that passes its tope.
+func lineaDelTope(p, t int, deLaTarjeta bool, que, flag string, c Calibre) string {
+	r := riesgoDe(c)
+	tope := fmt.Sprintf("el tope con riesgo %s es %d", r, t)
+	if deLaTarjeta {
+		tope = fmt.Sprintf("el tope de la tarjeta es %d", t)
+	}
+	if c.Tarjeta == "" {
+		return fmt.Sprintf("el spec tiene %d %s y %s: reduce el alcance o sube spec.topes.%s.%s en hoom.yaml", p, que, tope, r, que)
+	}
+	return fmt.Sprintf(`el spec tiene %d %s y %s: reduce el alcance, o que una persona suba el tope de la tarjeta: hoom item set %s %s %d --motivo "<por que>"`, p, que, tope, c.Tarjeta, flag, p)
 }
 
 // Tope is the tope of a spec for one riesgo: the most words, the most
@@ -116,7 +172,8 @@ const (
 // and the same with `criterios`. spec_lint's note in pass and the line of
 // `hoom spec status` start with it.
 func DescribirMedida(m Medida, c Calibre) string {
-	return ""
+	return medidaDe(m.Palabras, c.Tope.Palabras, c.PalabrasDeLaTarjeta, "palabras") + " · " +
+		medidaDe(m.Criterios, c.Tope.Criterios, c.CriteriosDeLaTarjeta, "criterios")
 }
 
 // LineasDelTope are the lines spec_lint puts in OutputTail for a spec that
@@ -137,7 +194,17 @@ func DescribirMedida(m Medida, c Calibre) string {
 // refuses with these same lines (approval.Aprobar), and the board puts them
 // in the card's missing.
 func LineasDelTope(m Medida, c Calibre) []string {
-	return nil
+	if c.Aprobado || c.Ilegible != "" {
+		return nil
+	}
+	var out []string
+	if t := c.Tope.Palabras; t > 0 && m.Palabras > t {
+		out = append(out, lineaDelTope(m.Palabras, t, c.PalabrasDeLaTarjeta, "palabras", "--tope-palabras", c))
+	}
+	if t := c.Tope.Criterios; t > 0 && m.Criterios > t {
+		out = append(out, lineaDelTope(m.Criterios, t, c.CriteriosDeLaTarjeta, "criterios", "--tope-criterios", c))
+	}
+	return out
 }
 
 // LineaDeStatus is the line `hoom spec status <ruta>` prints after today's:
@@ -151,7 +218,18 @@ func LineasDelTope(m Medida, c Calibre) []string {
 //
 // It does not change the exit codes of `hoom spec status` (CA-12).
 func LineaDeStatus(m Medida, c Calibre) string {
-	return ""
+	if c.Ilegible != "" {
+		return "hoom spec: no se puede medir el tope: " + fmt.Sprintf(FormatoTarjetaIlegible, c.Tarjeta, c.Ilegible)
+	}
+	riesgo := "riesgo " + riesgoDe(c)
+	if c.Tarjeta == "" {
+		riesgo += ", sin tarjeta"
+	}
+	l := "hoom spec: " + DescribirMedida(m, c) + " (" + riesgo + ")"
+	if c.Aprobado {
+		l += NotaAprobado
+	}
+	return l
 }
 
 // GatesCon is Gates measured with c (proporcion-por-riesgo): the same two
@@ -184,5 +262,93 @@ func LineaDeStatus(m Medida, c Calibre) string {
 //   - a criterion without test leaves spec_trace in fail with any riesgo,
 //     as today.
 func GatesCon(projectDir, specPath string, c Calibre) (gates []verdict.GateResult, aviso string) {
-	return nil, ""
+	start := time.Now()
+	lintRes := verdict.GateResult{Name: "spec_lint", Required: true, Scope: "spec"}
+	traceRes := verdict.GateResult{Name: "spec_trace", Required: true, Scope: "spec"}
+
+	ids, cmds, issues, err := Lint(specPath)
+	var m Medida
+	if err == nil && c.Ilegible == "" {
+		m, err = Medir(specPath)
+	}
+	lintRes.DurationMS = time.Since(start).Milliseconds()
+	if err != nil {
+		lintRes.Status = verdict.StatusError
+		lintRes.Notes = err.Error()
+		traceRes.Status = verdict.StatusSkipped
+		return []verdict.GateResult{lintRes, traceRes}, ""
+	}
+	lineas := LineasDelTope(m, c)
+	switch {
+	case c.Ilegible != "":
+		lintRes.Status = verdict.StatusError
+		lintRes.Notes = fmt.Sprintf(FormatoTarjetaIlegible, c.Tarjeta, c.Ilegible)
+	case len(issues) > 0 || len(lineas) > 0:
+		lintRes.Status = verdict.StatusFail
+		lintRes.OutputTail = strings.Join(append(append([]string{}, issues...), lineas...), "\n")
+	default:
+		lintRes.Status = verdict.StatusPass
+		lintRes.Notes = fmt.Sprintf("%s · riesgo %s · %d ids CA-n", DescribirMedida(m, c), riesgoDe(c), len(ids))
+		if len(cmds) > 0 {
+			lintRes.Notes += fmt.Sprintf(", %d con [verifica:]", len(cmds))
+		}
+		if c.Aprobado {
+			lintRes.Notes += NotaAprobado
+		}
+	}
+
+	t := time.Now()
+	tr, terr := Trace(projectDir, ids, cmds)
+	traceRes.DurationMS = time.Since(t).Milliseconds()
+	var citas, pasan []string
+	if terr == nil {
+		tope := c.Tope.CitasPorCriterio
+		for _, id := range ids {
+			n, ok := tr.Citas[id]
+			if !ok || len(cmds[id]) > 0 {
+				continue
+			}
+			cita := fmt.Sprintf("%s %d", id, n)
+			citas = append(citas, cita)
+			if c.Ilegible == "" && tope > 0 && n > tope {
+				pasan = append(pasan, cita)
+			}
+		}
+		if len(pasan) > 0 {
+			aviso = fmt.Sprintf(FormatoAvisoCitas, len(pasan), tope, riesgoDe(c), strings.Join(pasan, ", "))
+		}
+	}
+	switch {
+	case terr != nil:
+		traceRes.Status = verdict.StatusError
+		traceRes.Notes = terr.Error()
+	case len(ids) == 0:
+		traceRes.Status = verdict.StatusSkipped
+		traceRes.Notes = "sin criterios CA-* que trazar"
+	case len(tr.MissingTests) > 0 || len(tr.CmdFailed) > 0:
+		traceRes.Status = verdict.StatusFail
+		var parts []string
+		if len(tr.MissingTests) > 0 {
+			parts = append(parts, fmt.Sprintf("criterios SIN test que los referencie: %s\nAccion: el test-writer debe crear tests que mencionen cada CA-n (en el nombre o un comentario), o el spec declarar [verifica: <comando>] si el criterio se verifica por comando.", strings.Join(tr.MissingTests, ", ")))
+		}
+		if len(tr.CmdFailed) > 0 {
+			parts = append(parts, fmt.Sprintf("criterios con comando [verifica:] FALLIDO:\n%s\nAccion: corrige el comando o el entorno; exit 0 = criterio trazado.", strings.Join(tr.CmdFailed, "\n")))
+		}
+		traceRes.OutputTail = strings.Join(parts, "\n")
+		traceRes.Notes = fmt.Sprintf("%d archivos de test escaneados", tr.Scanned)
+	default:
+		traceRes.Status = verdict.StatusPass
+		if tr.ByCmd > 0 {
+			traceRes.Notes = fmt.Sprintf("%d/%d criterios: %d trazados por test (%d archivos), %d verificados por comando", len(ids), len(ids), tr.ByTest, tr.Scanned, tr.ByCmd)
+		} else {
+			traceRes.Notes = fmt.Sprintf("%d/%d criterios trazados en %d archivos de test", len(ids), len(ids), tr.Scanned)
+		}
+		if len(citas) > 0 {
+			traceRes.Notes += fmt.Sprintf(FormatoNotaCitas, strings.Join(citas, ", "))
+		}
+	}
+	if len(pasan) > 0 && (traceRes.Status == verdict.StatusPass || traceRes.Status == verdict.StatusFail) {
+		traceRes.Notes += fmt.Sprintf(FormatoNotaPasanCitas, len(pasan), c.Tope.CitasPorCriterio)
+	}
+	return []verdict.GateResult{lintRes, traceRes}, aviso
 }

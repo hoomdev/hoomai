@@ -32,12 +32,23 @@ type FilaDeNiveles struct {
 // catalog on Verificado). It is exactly the spec's table. The result is a
 // copy: changing it changes nothing here.
 func TablaDeNiveles() []FilaDeNiveles {
-	return nil
+	return append([]FilaDeNiveles(nil), tablaDeNiveles...)
+}
+
+// tablaDeNiveles is the spec's table; TablaDeNiveles hands out copies.
+var tablaDeNiveles = []FilaDeNiveles{
+	{Provider: "claude", Fuerte: "opus", Medio: "sonnet", Barato: "haiku"},
+	{Provider: "codex", Fuerte: "gpt-6-astra", Medio: "gpt-6.1-sol", Barato: "gpt-6-luna"},
 }
 
 // EsNivel says whether m is one of Niveles exactly as written: lowercase,
 // without spaces.
 func EsNivel(m string) bool {
+	for _, n := range Niveles {
+		if m == n {
+			return true
+		}
+	}
 	return false
 }
 
@@ -60,5 +71,27 @@ type Traduccion struct {
 // becomes a model name. No level reaches a provider, the long command or a
 // screen without going through here.
 func Traducir(provider, modelo string) Traduccion {
-	return Traduccion{}
+	t := Traduccion{Recibe: RecibeModelo(provider)}
+	if !EsNivel(modelo) {
+		t.Modelo = modelo
+		return t
+	}
+	t.Nivel = modelo
+	for _, f := range tablaDeNiveles {
+		if f.Provider != provider {
+			continue
+		}
+		switch modelo {
+		case Fuerte:
+			t.Modelo = f.Fuerte
+		case Medio:
+			t.Modelo = f.Medio
+		case Barato:
+			t.Modelo = f.Barato
+		}
+	}
+	if !t.Recibe {
+		t.Modelo = ""
+	}
+	return t
 }

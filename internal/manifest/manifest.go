@@ -15,8 +15,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/hoomdev/hoomai/internal/agents"
 	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/providers"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 )
 
 const (
@@ -85,7 +87,7 @@ type AgentPolicy struct {
 // them. proporcion-por-riesgo: the three riesgos go after write, so the
 // error is `agents.<rol>: clave desconocida "<k>" (validas: provider, model,
 // effort, budget_usd, timeout, write, bajo, normal, alto)`.
-var AgentKeys = []string{"provider", "model", "effort", "budget_usd", "timeout", "write"}
+var AgentKeys = []string{"provider", "model", "effort", "budget_usd", "timeout", "write", riesgo.Bajo, riesgo.Normal, riesgo.Alto}
 
 // AgentRiesgoKeys (proporcion-por-riesgo) are the keys agents.<rol>.<r>
 // accepts, in the order its error names them:
@@ -278,6 +280,13 @@ func (a *AgentPolicies) UnmarshalYAML(n *yaml.Node) error {
 	out := AgentPolicies{}
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		role := n.Content[i].Value
+		if !esRol(role) {
+			var slugs []string
+			for _, r := range agents.Roles() {
+				slugs = append(slugs, r.Slug)
+			}
+			return fmt.Errorf("agents: rol %q desconocido (validos: %s)", role, strings.Join(slugs, ", "))
+		}
 		// decoding by hand skips yaml.v3's unique-key check: a second
 		// agents.<rol> would silently replace the first (its write: too)
 		if _, visto := out[role]; visto {
@@ -304,6 +313,7 @@ func decodeAgent(role string, n *yaml.Node) (AgentPolicy, error) {
 		return p, fmt.Errorf("agents.%s debe ser un mapa (ej. agents: { %s: { effort: high } })", role, role)
 	}
 	var timeout *yaml.Node
+	porRiesgo := map[string]RoleDefaults{}
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		key := n.Content[i].Value
 		if !containsKey(AgentKeys, key) {
@@ -315,6 +325,15 @@ func decodeAgent(role string, n *yaml.Node) (AgentPolicy, error) {
 		}
 		if key == "timeout" {
 			timeout = n.Content[i+1]
+		}
+		if containsKey(riesgo.Vocabulario, key) {
+			d, hay, err := decodeAgentRiesgo(role, key, n.Content[i+1])
+			if err != nil {
+				return p, err
+			}
+			if hay {
+				porRiesgo[key] = d
+			}
 		}
 	}
 	var plain struct {
@@ -342,7 +361,66 @@ func decodeAgent(role string, n *yaml.Node) (AgentPolicy, error) {
 		}
 		p.Timeout = d
 	}
+	if len(porRiesgo) > 0 {
+		p.PorRiesgo = porRiesgo
+	}
 	return p, nil
+}
+
+// esRol says whether role is the slug of one of agents.Roles, exactly as
+// written.
+func esRol(role string) bool {
+	for _, r := range agents.Roles() {
+		if r.Slug == role {
+			return true
+		}
+	}
+	return false
+}
+
+// decodeAgentRiesgo is one agents.<rol>.<r> (proporcion-por-riesgo): its
+// keys (AgentRiesgoKeys) and values, with agents.<rol>'s rules and the place
+// agents.<rol>.<r> in every error. hay is false for a null or empty map, or
+// one that declares nothing: it changes nothing.
+func decodeAgentRiesgo(role, r string, n *yaml.Node) (d RoleDefaults, hay bool, err error) {
+	donde := "agents." + role + "." + r
+	if esNulo(n) {
+		return d, false, nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return d, false, fmt.Errorf("%s debe ser un mapa (ej. alto: { model: fuerte })", donde)
+	}
+	var timeout *yaml.Node
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key := n.Content[i].Value
+		if !containsKey(AgentRiesgoKeys, key) {
+			return d, false, fmt.Errorf("%s: clave desconocida %q (validas: %s)", donde, key, strings.Join(AgentRiesgoKeys, ", "))
+		}
+		if key == "timeout" {
+			timeout = n.Content[i+1]
+		}
+	}
+	var plain struct {
+		Model     string   `yaml:"model"`
+		Effort    string   `yaml:"effort"`
+		BudgetUSD *float64 `yaml:"budget_usd"`
+	}
+	if err := n.Decode(&plain); err != nil {
+		return d, false, fmt.Errorf("%s: %v", donde, err)
+	}
+	d = RoleDefaults{Model: strings.TrimSpace(plain.Model), Effort: strings.TrimSpace(plain.Effort), BudgetUSD: plain.BudgetUSD}
+	if b := d.BudgetUSD; b != nil && !(*b >= 0) || b != nil && math.IsInf(*b, 0) {
+		return d, false, fmt.Errorf("%s.budget_usd: %v no es un numero mayor o igual que 0 (0 = sin tope)", donde, *b)
+	}
+	if timeout != nil && !esNulo(timeout) {
+		t, err := ParseTimeout(donde+".timeout", timeout.Value)
+		if err != nil {
+			return d, false, err
+		}
+		d.Timeout = t
+	}
+	hay = d.Model != "" || d.Effort != "" || d.BudgetUSD != nil || d.Timeout != 0
+	return d, hay, nil
 }
 
 // providerNames are the names of hoom's registry, sorted: the providers a
@@ -416,6 +494,17 @@ func (m *Manifest) RoleDefaults(role string) RoleDefaults {
 		v := *p.BudgetUSD
 		d.BudgetUSD = &v
 	}
+	if len(p.PorRiesgo) > 0 {
+		d.PorRiesgo = make(map[string]RoleDefaults, len(p.PorRiesgo))
+		for r, v := range p.PorRiesgo {
+			c := RoleDefaults{Model: v.Model, Effort: v.Effort, Timeout: v.Timeout}
+			if v.BudgetUSD != nil {
+				b := *v.BudgetUSD
+				c.BudgetUSD = &b
+			}
+			d.PorRiesgo[r] = c
+		}
+	}
 	return d
 }
 
@@ -453,6 +542,7 @@ func LoadRoles(root string) (*Manifest, error) {
 		Review    *ReviewPolicy    `yaml:"review"`
 		Autonomia *AutonomiaPolicy `yaml:"autonomia"`
 		Encierro  *EncierroPolicy  `yaml:"encierro"`
+		Spec      *SpecPolicy      `yaml:"spec"`
 		Findings  yaml.Node        `yaml:"findings"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -464,7 +554,7 @@ func LoadRoles(root string) (*Manifest, error) {
 	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings), maxRondasDeclarado(doc.Findings)); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Dir: root}, nil
+	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Spec: doc.Spec, Dir: root}, nil
 }
 
 // AutonomiaPolicy is the optional `autonomia:` section of the PROJECT's

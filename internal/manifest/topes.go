@@ -1,8 +1,12 @@
 package manifest
 
 import (
+	"fmt"
+	"strings"
+
 	"gopkg.in/yaml.v3"
 
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/spec"
 )
 
@@ -41,7 +45,106 @@ type SpecPolicy struct {
 
 // UnmarshalYAML decodes spec: with the rules of SpecPolicy.
 func (p *SpecPolicy) UnmarshalYAML(n *yaml.Node) error {
+	topes := TopesPorDefecto()
+	*p = SpecPolicy{Topes: topes}
+	if esNulo(n) {
+		return nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("spec debe ser un mapa")
+	}
+	visto := map[string]bool{}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, val := n.Content[i].Value, n.Content[i+1]
+		if !containsKey(SpecKeys, key) {
+			return fmt.Errorf("spec: clave desconocida %q (validas: %s)", key, strings.Join(SpecKeys, ", "))
+		}
+		if visto[key] {
+			return fmt.Errorf("spec: la clave %q esta repetida (linea %d)", key, n.Content[i].Line)
+		}
+		visto[key] = true
+		if err := decodeTopes(val, topes); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// decodeTopes is spec.topes over topes, which holds the defaults.
+func decodeTopes(n *yaml.Node, topes map[string]spec.Tope) error {
+	if esNulo(n) {
+		return nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("spec.topes debe ser un mapa")
+	}
+	visto := map[string]bool{}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		r, val := n.Content[i].Value, n.Content[i+1]
+		if !containsKey(riesgo.Vocabulario, r) {
+			return fmt.Errorf("spec.topes: clave desconocida %q (validas: %s)", r, strings.Join(riesgo.Vocabulario, ", "))
+		}
+		if visto[r] {
+			return fmt.Errorf("spec.topes: el riesgo %q esta repetido (linea %d)", r, n.Content[i].Line)
+		}
+		visto[r] = true
+		t, err := decodeTope("spec.topes."+r, val, topes[r])
+		if err != nil {
+			return err
+		}
+		topes[r] = t
+	}
+	return nil
+}
+
+// decodeTope is spec.topes.<r> (donde) over t, the riesgo's defaults.
+func decodeTope(donde string, n *yaml.Node, t spec.Tope) (spec.Tope, error) {
+	if esNulo(n) {
+		return t, nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return t, fmt.Errorf("%s debe ser un mapa", donde)
+	}
+	visto := map[string]bool{}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		k, val := n.Content[i].Value, n.Content[i+1]
+		if !containsKey(TopeKeys, k) {
+			return t, fmt.Errorf("%s: clave desconocida %q (validas: %s)", donde, k, strings.Join(TopeKeys, ", "))
+		}
+		if visto[k] {
+			return t, fmt.Errorf("%s: la clave %q esta repetida (linea %d)", donde, k, n.Content[i].Line)
+		}
+		visto[k] = true
+		v, err := enteroDelTope(donde+"."+k, val)
+		if err != nil {
+			return t, err
+		}
+		switch k {
+		case "palabras":
+			t.Palabras = v
+		case "criterios":
+			t.Criterios = v
+		case "citas_por_criterio":
+			t.CitasPorCriterio = v
+		}
+	}
+	return t, nil
+}
+
+// enteroDelTope is one value of spec.topes.<r>: an integer >= 0. A scalar
+// that is not one is named as written; any other node by its YAML type.
+func enteroDelTope(donde string, n *yaml.Node) (int, error) {
+	mal := func(v string) error {
+		return fmt.Errorf("%s: %s no es un entero mayor o igual que 0 (0 = sin tope)", donde, v)
+	}
+	if n.Kind != yaml.ScalarNode {
+		return 0, mal(n.ShortTag())
+	}
+	var v int
+	if n.ShortTag() != "!!int" || n.Decode(&v) != nil || v < 0 {
+		return 0, mal(n.Value)
+	}
+	return v, nil
 }
 
 // SpecKeys are the keys `spec:` accepts, in the order its error names them.
@@ -56,7 +159,11 @@ var TopeKeys = []string{"palabras", "criterios", "citas_por_criterio"}
 // criterion; normal 800, 8 and 10; alto 2000, 15 and 0 (sin tope of
 // citations). The result is a copy: changing it changes nothing here.
 func TopesPorDefecto() map[string]spec.Tope {
-	return nil
+	return map[string]spec.Tope{
+		riesgo.Bajo:   {Palabras: 400, Criterios: 4, CitasPorCriterio: 10},
+		riesgo.Normal: {Palabras: 800, Criterios: 8, CitasPorCriterio: 10},
+		riesgo.Alto:   {Palabras: 2000, Criterios: 15, CitasPorCriterio: 0},
+	}
 }
 
 // TopeDelSpec is the tope of hoom.yaml for a spec whose card declares
@@ -66,5 +173,14 @@ func TopesPorDefecto() map[string]spec.Tope {
 // (item tope_palabras, tope_criterios) goes over this one in
 // approval.CalibreDe, never here.
 func (m *Manifest) TopeDelSpec(r string) spec.Tope {
-	return spec.Tope{}
+	if r == "" {
+		r = riesgo.Normal
+	}
+	if m == nil || m.Spec == nil || m.Spec.Topes == nil {
+		return TopesPorDefecto()[r]
+	}
+	if t, ok := m.Spec.Topes[r]; ok {
+		return t
+	}
+	return TopesPorDefecto()[r]
 }
