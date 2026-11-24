@@ -1,0 +1,11 @@
+{
+  "id": "20261124T004914_64221a",
+  "created_at": "2026-11-24T00:49:14.080655966Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/runcmd/runcmd.go",
+  "description": "PRE-EXISTENTE (follow-up) — internal/runcmd/runcmd.go:1001-1004 convierte cualquier fallo de gitx.CheckoutPrincipal en tarea vacia y sinComprobar=false, antes de llegar al manejo fail-closed de ErrSinComprobar en 1023-1024. Un git que falle solo rev-parse --git-common-dir durante verify, pero responda Snapshot/LineasDelCambio, produce un veredicto certificable sin tarea: una tarjeta de tipo seguridad pierde el riesgo alto y su review obligatoria. La deteccion debe distinguir fuera de repositorio de no se pudo comprobar.",
+  "author": "reviewer@codex",
+  "fingerprint": "da50a689cd4b50d3",
+  "task": "riesgo-efectivo-y-tamano"
+}

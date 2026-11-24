@@ -1,0 +1,11 @@
+{
+  "id": "20261124T005331_48f385",
+  "created_at": "2026-11-24T00:53:31.544783822Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/boardcmd/gather.go",
+  "description": "INTRODUCIDO: internal/boardcmd/gather.go:557-563 descarta el error de gitx.LineasDelCambio y deja ArchivosDelCambio nil; luego internal/boardcmd/riesgo.go:91-95 interpreta la lista vacia de un veredicto nuevo (Riesgo != nil) como SoloDocs y no exige review. Caso concreto: un veredicto vigente de riesgo alto para una rama que solo borra internal/auth/token.go tiene changed_files vacio; si despues la base ya no resuelve o git diff --numstat falla, Snapshot aun puede reproducir la huella desde HEAD, pero la relectura de borrados falla y el tablero manda la tarjeta fuera de Review. Es un fallo real en entorno degradado; debe conservar el estado desconocido/fallar cerrado en vez de confundirlo con cambio vacio.",
+  "author": "reviewer@codex",
+  "fingerprint": "da50a689cd4b50d3",
+  "task": "riesgo-efectivo-y-tamano"
+}
