@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T195443_aeb764",
+  "as": "corregido",
+  "evidence": "Corregido en 74582ab: canon(s) = filepath.ToSlash(filepath.Clean(filepath.FromSlash(s))) es la grafia del nombre del spec en los dos lados: el fallback de relSpec (lo que el registro guarda y lo que Status busca) y statusSum (canon(rec.Spec) != spec). \u003cbase\u003e/repo/../otro/x.md se guarda y se busca como \u003cbase\u003e/otro/x.md. Regresion: internal/approval/hallazgos_aeb764_test.go, TestHallazgo_aeb764_CualquierGrafiaQueSeApruebaQuedaAprobada (relativa, ./, absoluta no canonica dentro y fuera del arbol).",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T20:43:55.914519034Z"
+}
