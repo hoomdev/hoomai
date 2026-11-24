@@ -1,0 +1,11 @@
+{
+  "id": "20261124T192915_7bd189",
+  "created_at": "2026-11-24T19:29:15.343898392Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "cmd/hoom/main.go",
+  "description": "INTRODUCIDO: cmd/hoom/main.go:1251 normaliza ahora toda ruta con filepath.Abs, pero internal/approval/approval.go:131-143 exige igualdad textual entre relSpec(...) y Record.Spec. Los registros creados por la version anterior desde la raiz con una ruta relativa no canonica (por ejemplo `./.hoom/specs/x.md`) guardaron literalmente esa grafia porque filepath.Rel recibia root absoluto y specPath relativo; despues de este cambio la consulta produce `.hoom/specs/x.md`, ignora el registro vigente y reporta el spec como no aprobado. Es un caso provocable por el usuario y rompe aprobaciones existentes al actualizar; statusSum debe comparar una forma canonica compatible o migrar/aceptar las grafias historicas.",
+  "author": "reviewer@codex",
+  "fingerprint": "1a6d4eb8b10cdbb0",
+  "task": "proporcion-por-riesgo"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261124T192315_1b8a48",
+  "created_at": "2026-11-24T19:23:15.886058139Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/approval/tope.go",
+  "description": "INTRODUCIDO: internal/approval/tope.go:86 decide si el spec pertenece a la tarjeta comparando las rutas con == despues de filepath.Clean. En Windows esa comparacion distingue mayusculas aunque el filesystem y filepath.Rel no: si root es C:\\Repo, aprobar c:\\repo\\.hoom\\specs\\x.md lee el mismo archivo pero lo calibra como riesgo normal/sin tarjeta; approval.relSpec guarda igualmente .hoom/specs/x.md, de modo que la aprobacion queda vigente para la ruta canonica. Una persona puede asi aprobar un spec que excede el tope bajo o el tope particular de la tarjeta sin --motivo, saltandose el control que CA-793/CA-795/CA-796 exigen.",
+  "author": "reviewer@codex",
+  "fingerprint": "1a6d4eb8b10cdbb0",
+  "task": "proporcion-por-riesgo"
+}
