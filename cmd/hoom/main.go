@@ -1197,7 +1197,7 @@ func cmdSpec(args []string) error {
 		// goes after the approval's own lines. proporcion-por-riesgo: it is
 		// measured against its card's tope, and refused with the lines of
 		// spec_lint (exit 1, no record)
-		rec, already, err := approval.Aprobar(m, m.Dir, rutaDelSpec(m.Dir, path))
+		rec, already, err := approval.Aprobar(m, m.Dir, rutaDelSpec(path))
 		var neg *approval.Negativa
 		if errors.As(err, &neg) {
 			// the lines of spec_lint, each on its own line (CA-795)
@@ -1227,7 +1227,7 @@ func cmdSpec(args []string) error {
 		}
 		return nil
 	case "status":
-		state, rec, err := approval.Status(m.Dir, path)
+		state, rec, err := approval.Status(m.Dir, rutaDelSpec(path))
 		if err != nil {
 			return err
 		}
@@ -1244,17 +1244,11 @@ func cmdSpec(args []string) error {
 	}
 }
 
-// rutaDelSpec is the path of a spec as approval reads it: as it was given
-// when hoom runs at the project's root (today's records name it so), and
-// absolute from a subdirectory, since approval.CalibreDe reads a relative
-// path from root.
-func rutaDelSpec(root, path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	if cwd, err := filepath.Abs("."); err == nil && cwd == root {
-		return path
-	}
+// rutaDelSpec is the path the person gave, from where hoom runs, as approval
+// reads it: absolute, since approval reads a relative path from root. The
+// approval, its status and the measures name the same file and the same
+// record from any subdirectory (finding c9ffe4).
+func rutaDelSpec(path string) string {
 	if abs, err := filepath.Abs(path); err == nil {
 		return abs
 	}
@@ -1264,13 +1258,10 @@ func rutaDelSpec(root, path string) string {
 // lineaDeMedidas is the line of the measures of `hoom spec status`
 // (spec.LineaDeStatus with approval.CalibreDe).
 func lineaDeMedidas(m *manifest.Manifest, path string) string {
-	ruta := rutaDelSpec(m.Dir, path)
+	ruta := rutaDelSpec(path)
 	c := approval.CalibreDe(m, m.Dir, ruta)
 	var med spec.Medida
 	if c.Ilegible == "" {
-		if !filepath.IsAbs(ruta) {
-			ruta = filepath.Join(m.Dir, ruta)
-		}
 		var err error
 		if med, err = spec.Medir(ruta); err != nil {
 			return "hoom spec: no se puede medir el tope: " + err.Error()
