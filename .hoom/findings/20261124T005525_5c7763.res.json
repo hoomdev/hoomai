@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T005525_5c7763",
+  "as": "corregido",
+  "evidence": "Corregido en 59565fe con la decision de la persona (regla 1 si git no responde): si CheckoutPrincipal falla, runcmd.TareaDe pasa por tareaSinGit y devuelve (slug, true) cuando la ruta es \u003cP\u003e/.hoom/worktrees/\u003cslug\u003e con slug valido y \u003cP\u003e/.git no da NotExist; fuera de un repo sigue (\"\", false). Regresion: verifycmd/hallazgo_0895d1_test.go (git falso que falla --git-common-dir con y sin --path-format: Tarea=precios, alto y MotivoIlegible; guardas fuera de repo y slug invalido). Los arneses del refutador TestRefutador_E_* pasan sobre 59565fe (antes tarea vacia y riesgo normal).",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-24T01:18:09.725490971Z"
+}

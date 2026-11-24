@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T004841_a4379f",
+  "as": "corregido",
+  "evidence": "Corregido en 8c97af6: tree.archivosConBorrados devuelve el error de LineasDelCambio y Gather llena Evidence.ArchivosDesconocidos; para el veredicto de la huella actual reviewRequired los toma como archivos desconocidos (aclaracion 25): con alto exige la review, con bajo/normal solo con producto \u003e 400. Regresion: boardcmd/hallazgos_0895d1_test.go (main renombrado despues del veredicto y git falso sin --numstat: ReviewRequired=true, columna Review). Los arneses del refutador TestRefutador_D_BaseQueYaNoResuelve y TestRefutador_D_DiffNumstatQueFalla pasan sobre 59565fe (antes CORROBORA). go test ./... 47 paquetes ok.",
+  "author": "orquestador@claude",
+  "resolved_at": "2026-11-24T01:18:09.712850238Z"
+}
