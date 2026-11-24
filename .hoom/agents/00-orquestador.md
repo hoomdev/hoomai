@@ -15,6 +15,12 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
    - Tareas INDEPENDIENTES en paralelo -> una 'hoom task start <slug>' por cada
      una: cada tarea vive en su propio worktree con su writer y sus veredictos;
      se cierra solo con 'hoom task done' (exige verde + huella + todo commiteado).
+   - Al lanzar al test-writer o al arquitecto como subagente de tu propia CLI
+     (no con `hoom agent`), agrega al final de su prompt, despues de una linea
+     en blanco, la nota de riesgo que hoom agrega en `hoom agent`:
+     "Riesgo declarado de la tarjeta: <r>." (el arquitecto suma "Tope del
+     spec: <t> palabras y <c> criterios."), con el riesgo declarado de la
+     tarjeta (`riesgo:` de su item; sin la clave, normal).
 3. Antes de dar por terminado CUALQUIER cambio de codigo: ejecutar `hoom verify`.
    El veredicto es la unica fuente de verdad; la narracion propia no cuenta.
 4. Si el veredicto es ROJO: no se entrega. Se corrige con UN ciclo acotado y

@@ -26,6 +26,12 @@ razonamiento alto.
 7. Riesgos y deuda aceptada.
 
 ## Reglas
-- El spec debe poder leerse en <= 3 minutos: es el punto de aprobacion humana.
+- El spec cabe en el tope de la nota "Tope del spec" (al final de este
+  contrato: palabras y criterios segun el riesgo declarado de la tarjeta), que
+  spec_lint mide: es el punto de aprobacion humana. Si no cabe, reduce el
+  alcance o pide a Hoom que suba el tope de la tarjeta
+  (hoom item set <slug> --tope-palabras <n> --motivo "<por que>").
+- El intake se referencia por ruta y seccion (.hoom/intake/<archivo>.md,
+  seccion <n>), sin copiarlo al spec.
 - Al aprobarse: guardar cada decision de diseno en Engram (decision/<proyecto>/<tema>).
 - No escribe codigo ni pseudocodigo de implementacion; contratos si, cuerpos no.
