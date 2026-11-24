@@ -4,3 +4,5 @@ prioridad: alta
 pedido: 'Intake .hoom/intake/rfc-calibracion-por-riesgo.md, CAL-3, CAL-1 y CAL-2 con los ajustes de 10.2: tamano en producto, pruebas y estado de hoom; rutas de riesgo y de bajo riesgo en hoom.yaml; bajo solo con rutas de bajo riesgo; riesgo efectivo en el veredicto y el tablero; lentes por riesgo con umbral sobre lineas de producto.'
 creado_por: hoomdev <dev@volale.com>
 creado_en: 2026-11-21T21:10:33Z
+hecho_en: 2026-11-24T03:21:47Z
+commit_final: 71b0a83e7bbdb01c763a011ed30cfaa2f2d37fe0
