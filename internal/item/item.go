@@ -32,6 +32,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/riesgo"
+	"github.com/hoomdev/hoomai/internal/tarjetas"
 	"gopkg.in/yaml.v3"
 )
 
@@ -343,7 +344,8 @@ func finitePositive(v float64) bool { return v > 0 && !math.IsInf(v, 1) }
 // claves are the only keys an item may carry, in the order hoom writes them.
 // proporcion-por-riesgo: tope_palabras, tope_criterios, tope_motivo,
 // tope_por and tope_en go after riesgo_en.
-var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "riesgo_por", "riesgo_en", "pedido", "creado_por", "creado_en",
+var claves = []string{"titulo", "tipo", "prioridad", "riesgo", "riesgo_por", "riesgo_en",
+	"tope_palabras", "tope_criterios", "tope_motivo", "tope_por", "tope_en", "pedido", "creado_por", "creado_en",
 	"presupuesto_usd", "hecho_en", "commit_final", "sesiones", "auto", "historico"}
 
 // Parse reads an item's bytes strictly: an unknown key, a missing required
@@ -373,9 +375,13 @@ func Parse(slug string, raw []byte) (Item, error) {
 	}
 	m := doc.Content[0]
 	for i := 0; i+1 < len(m.Content); i += 2 {
-		if k := m.Content[i].Value; !contains(claves, k) {
+		k := m.Content[i].Value
+		if !contains(claves, k) {
 			return Item{}, fmt.Errorf("clave desconocida %q (un item no guarda columna ni estado: la columna sale de la evidencia; validas: %s)",
 				k, strings.Join(claves, ", "))
+		}
+		if (k == "tope_palabras" || k == "tope_criterios") && !esTope(m.Content[i+1]) {
+			return Item{}, errTope(k)
 		}
 	}
 	var it Item
@@ -424,7 +430,24 @@ func Parse(slug string, raw []byte) (Item, error) {
 		t := it.HechoEn.UTC()
 		it.HechoEn = &t
 	}
+	if it.TopeEn != nil {
+		t := it.TopeEn.UTC()
+		it.TopeEn = &t
+	}
 	return it, nil
+}
+
+// esTope says whether n is a tope of the card: an integer >= 0 written as
+// a YAML integer (proporcion-por-riesgo).
+func esTope(n *yaml.Node) bool {
+	var v int
+	return n.Kind == yaml.ScalarNode && n.ShortTag() == "!!int" && n.Decode(&v) == nil && v >= 0
+}
+
+// errTope is the error of a tope that is not an integer >= 0, named by its
+// key (tope_palabras, tope_criterios).
+func errTope(clave string) error {
+	return fmt.Errorf("%s tiene que ser un entero mayor o igual que 0", clave)
 }
 
 // Load reads one item by slug.
@@ -640,6 +663,9 @@ func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, er
 	if c.PresupuestoUSD != nil && !finitePositive(*c.PresupuestoUSD) {
 		return Item{}, Item{}, false, fmt.Errorf("presupuesto_usd tiene que ser mayor que 0 (para no declarar tope, no lo pases)")
 	}
+	if err := ValidarTope(c); err != nil {
+		return Item{}, Item{}, false, err
+	}
 	if !ValidSlug(slug) {
 		return Item{}, Item{}, false, fmt.Errorf("slug invalido %q", slug)
 	}
@@ -676,8 +702,13 @@ func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, er
 		if nuevo.Riesgo != antes.Riesgo {
 			firmarRiesgo(root, &nuevo)
 		}
+		topeCambia := cambiarTope(c, &nuevo)
+		if topeCambia {
+			en := time.Now().UTC().Truncate(time.Second)
+			nuevo.TopePor, nuevo.TopeEn = gitx.Identity(root), &en
+		}
 		despues = nuevo
-		if nuevo.Riesgo == antes.Riesgo && nuevo.Auto == antes.Auto && mismoPresupuesto(nuevo.PresupuestoUSD, antes.PresupuestoUSD) {
+		if !topeCambia && nuevo.Riesgo == antes.Riesgo && nuevo.Auto == antes.Auto && mismoPresupuesto(nuevo.PresupuestoUSD, antes.PresupuestoUSD) {
 			return false
 		}
 		*it = nuevo
@@ -692,6 +723,58 @@ func Cambiar(root, slug string, c Cambios) (antes, despues Item, cambio bool, er
 		return Item{}, Item{}, false, rechazo
 	}
 	return antes, despues, cambio, nil
+}
+
+// ValidarTope is Cambiar's refusal of a tope before reading the item
+// (proporcion-por-riesgo): a value below 0, a tope without a motivo that is
+// not blank, and a motivo without a tope. `hoom item set` asks it before it
+// looks for the item, so these refusals come before a missing slug's.
+func ValidarTope(c Cambios) error {
+	if c.TopePalabras != nil && *c.TopePalabras < 0 {
+		return errTope("tope_palabras")
+	}
+	if c.TopeCriterios != nil && *c.TopeCriterios < 0 {
+		return errTope("tope_criterios")
+	}
+	conTope := c.TopePalabras != nil || c.TopeCriterios != nil
+	if conTope && (c.TopeMotivo == nil || strings.TrimSpace(*c.TopeMotivo) == "") {
+		return ErrTopeSinMotivo
+	}
+	if !conTope && c.TopeMotivo != nil {
+		return ErrMotivoSinTope
+	}
+	return nil
+}
+
+// cambiarTope applies c's tope to it and says whether it changed: another
+// value of either tope, or another motivo. The same tope with the same
+// motivo changes nothing.
+func cambiarTope(c Cambios, it *Item) bool {
+	if c.TopePalabras == nil && c.TopeCriterios == nil {
+		return false
+	}
+	cambia := false
+	if c.TopePalabras != nil && !mismoEntero(c.TopePalabras, it.TopePalabras) {
+		v := *c.TopePalabras
+		it.TopePalabras, cambia = &v, true
+	}
+	if c.TopeCriterios != nil && !mismoEntero(c.TopeCriterios, it.TopeCriterios) {
+		v := *c.TopeCriterios
+		it.TopeCriterios, cambia = &v, true
+	}
+	if m := strings.TrimSpace(*c.TopeMotivo); m != it.TopeMotivo {
+		it.TopeMotivo, cambia = m, true
+	}
+	return cambia
+}
+
+// mismoEntero says whether two topes are the same: both absent, or the same
+// value.
+func mismoEntero(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // firmarRiesgo stamps a change of its riesgo: who (the git identity of
@@ -829,7 +912,33 @@ func RiesgoDe(arbol, slug string) (string, error) {
 // err (hay true), and it does not fall back to the next tree. The measure
 // of a spec (approval.CalibreDe) reads its card's riesgo and tope here.
 func TarjetaDe(arbol, slug string) (it Item, hay bool, err error) {
+	if !ValidSlug(slug) {
+		return Item{}, false, nil
+	}
+	for _, root := range arbolesDeRiesgo(arbol) {
+		if _, err := os.Lstat(Path(root, slug)); os.IsNotExist(err) {
+			continue
+		}
+		it, err := Load(root, slug)
+		if err != nil {
+			return Item{}, true, err
+		}
+		it.Riesgo = riesgoONormal(it.Riesgo)
+		return it, true, nil
+	}
 	return Item{}, false, nil
+}
+
+// init registers TarjetaDe as the reader of a card for the packages that
+// cannot import item (approval.CalibreDe; package tarjetas).
+func init() {
+	tarjetas.Registrar(func(arbol, slug string) (tarjetas.Leida, bool, error) {
+		it, hay, err := TarjetaDe(arbol, slug)
+		if err != nil || !hay {
+			return tarjetas.Leida{}, hay, err
+		}
+		return tarjetas.Leida{Riesgo: it.Riesgo, TopePalabras: it.TopePalabras, TopeCriterios: it.TopeCriterios}, true, nil
+	})
 }
 
 // RiesgoDeLanzamiento (proporcion-por-riesgo) is the riesgo a launch of a
@@ -839,7 +948,14 @@ func TarjetaDe(arbol, slug string) (it Item, hay bool, err error) {
 // never the effective one; riesgo.Alto when the item is there and cannot be
 // read; riesgo.Normal for "" (no card) and for a slug without item.
 func RiesgoDeLanzamiento(arbol, slug string) string {
-	return ""
+	it, hay, err := TarjetaDe(arbol, slug)
+	switch {
+	case err != nil:
+		return riesgo.Alto
+	case !hay:
+		return riesgo.Normal
+	}
+	return it.Riesgo
 }
 
 // TarjetaDeRiesgo is the card slug as the rule of the effective riesgo
