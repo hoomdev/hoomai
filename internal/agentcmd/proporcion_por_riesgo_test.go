@@ -21,7 +21,8 @@ import (
 const pprItemBase = "titulo: Demo\ntipo: feature\nprioridad: media\ncreado_por: \"hoom test <test@hoom.dev>\"\ncreado_en: 2026-09-22T15:04:05Z\n"
 
 // pprFalso pone un claude falso que anota su argv (NUL) en dir y, si
-// entrega no es "", escribe ese archivo de test.
+// entrega no es "", escribe ese archivo (un test para el test-writer, codigo
+// para el writer).
 func pprFalso(t *testing.T, entrega string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -243,10 +244,12 @@ func TestCA804_AgentConElRiesgoDeLaTarjeta(t *testing.T) {
 // CA-805 y CA-806: un nivel llega al provider traducido (medio a claude es
 // sonnet, tambien con el provider que hoom agent toma por estar instalado),
 // y la linea valores: sale una vez, despues de la cabecera y antes de [1/5],
-// con `nivel medio`.
+// con `nivel medio`. El writer falso entrega app.go, dentro de su scope: uno
+// que no entrega cierra sin-entrega en [3/5] y nunca llega a [5/5] (CA-237,
+// arquitecto-bajo-el-sobre).
 func TestCA806_AgentImprimeValoresUnaVezConElNivel(t *testing.T) {
 	const ca = "CA-806"
-	argv := pprFalso(t, "")
+	argv := pprFalso(t, "app.go")
 	root := vdtRepo(t, "agents:\n  writer:\n    model: medio\n")
 	var buf bytes.Buffer
 	if _, err := Run(root, "main", Options{Role: "writer", Prompt: "implementa"}, &buf); err != nil {
