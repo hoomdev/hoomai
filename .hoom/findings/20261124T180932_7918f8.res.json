@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T180932_7918f8",
+  "as": "corregido",
+  "evidence": "Corregido en 239c3b9: lanzar pasa a reviewcmd el nivel (v.Nivel) cuando lo hay, no el modelo ya traducido; reviewcmd lo traduce con el mismo provider y conserva Nivel en la cabecera (modelo \u003cm\u003e (nivel fuerte)) y en el registro. Regresion: internal/servecmd/hallazgos_4b4b61_test.go, TestHallazgo_4b4b61_LaReviewDeLaTarjetaConservaElNivel (cabecera y registro).",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T18:58:22.853914113Z"
+}

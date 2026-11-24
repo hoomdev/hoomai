@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T181117_647f9a",
+  "as": "corregido",
+  "evidence": "Corregido en 665ff6b: approval.CalibreDe reconoce la tarjeta \u003cslug\u003e solo si filepath.Clean(ruta) == \u003croot\u003e/.hoom/specs/\u003cslug\u003e.md; un spec de otra ruta es riesgo normal sin tarjeta y el worktree de la tarea, pasado como root, sigue encontrando la suya. Regresion: internal/approval/hallazgos_647f9a_test.go, TestHallazgo_647f9a_SpecDeOtraRutaNoHeredaLaTarjeta.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T18:58:22.849235692Z"
+}

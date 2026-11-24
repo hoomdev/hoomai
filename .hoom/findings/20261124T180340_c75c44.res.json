@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T180340_c75c44",
+  "as": "corregido",
+  "evidence": "Corregido en 665ff6b: approval.Aprobar lee el spec UNA vez desde una sola ruta (relativa al root), mide esos bytes con spec.MedirContenido, decide si ya estaba aprobado por su hash (statusSum) y escribe el registro con ese mismo hash (approveSum, que Approve tambien usa). Regresion: internal/approval/hallazgos_c75c44_test.go, TestHallazgo_c75c44_AprobadoNoFirmaLoQueNoLeyo y TestHallazgo_c75c44_RutaRelativaEsDelRootAlFirmar.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T18:58:22.841788214Z"
+}
