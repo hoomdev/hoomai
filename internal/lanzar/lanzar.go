@@ -87,6 +87,7 @@ type Propuesta struct {
 	Role      string   `json:"role"`
 	Provider  string   `json:"provider"`
 	Model     string   `json:"model"`
+	Nivel     string   `json:"nivel"` // the level Model came from (finding 42b59d)
 	Effort    string   `json:"effort"`
 	BudgetUSD *float64 `json:"budget_usd"`
 	TimeoutS  int      `json:"timeout_s"`
@@ -95,7 +96,7 @@ type Propuesta struct {
 
 // PropuestaDe is what action a proposes now.
 func PropuestaDe(a boardcmd.Action) Propuesta {
-	p := Propuesta{Role: a.Role, Model: a.Model, Effort: a.Effort, TimeoutS: a.TimeoutS, ResumeID: a.ResumeID}
+	p := Propuesta{Role: a.Role, Model: a.Model, Nivel: a.Nivel, Effort: a.Effort, TimeoutS: a.TimeoutS, ResumeID: a.ResumeID}
 	if o, ok := defaultOption(a); ok {
 		p.Provider = o.Name
 	}
@@ -117,7 +118,9 @@ func cambios(antes, ahora Propuesta) []string {
 	if antes.Provider != ahora.Provider {
 		out = append(out, "provider")
 	}
-	if antes.Model != ahora.Model {
+	// the same model from a level or a literal name translates otherwise
+	// with another provider: both are the model (finding 42b59d)
+	if antes.Model != ahora.Model || antes.Nivel != ahora.Nivel {
 		out = append(out, "modelo")
 	}
 	if antes.Effort != ahora.Effort {
@@ -526,9 +529,16 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 		case f.Err != nil:
 			// la tarea no se pudo crear: no corre nada, y el 409 lo dice
 		case review:
+			// a level goes as the level: reviewcmd translates it with this
+			// same provider and keeps it in its header and its record
+			// (finding 4b4b61)
+			modelo := v.Model
+			if v.Nivel != "" {
+				modelo = v.Nivel
+			}
 			var res reviewcmd.Result
 			res, f.Err = reviewcmd.Run(p.Root, m.BaseBranch, reviewcmd.Options{
-				Provider: opt.Name, Task: slug, Spec: spec, Model: v.Model, Effort: v.Effort, BudgetUSD: budget,
+				Provider: opt.Name, Task: slug, Spec: spec, Model: modelo, Effort: v.Effort, BudgetUSD: budget,
 				Timeout: v.Timeout, EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 				Delta: req.Delta, Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
 				Hallazgos: req.Hallazgos, Bloqueantes: req.Bloqueantes,

@@ -286,7 +286,7 @@ function modeloPedido(a, provider, valor) {
 function vistaDe(a) {
   const p = a.providers.find(x => x.default);
   return {
-    role: a.role || "", provider: p ? p.name : "", model: a.model || "", effort: a.effort || "",
+    role: a.role || "", provider: p ? p.name : "", model: a.model || "", nivel: a.nivel || "", effort: a.effort || "",
     budget_usd: a.budget_usd != null ? a.budget_usd : null, timeout_s: a.timeout_s || 0, resume_id: a.resume_id || "",
   };
 }
