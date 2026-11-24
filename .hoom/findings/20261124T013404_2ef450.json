@@ -1,0 +1,11 @@
+{
+  "id": "20261124T013404_2ef450",
+  "created_at": "2026-11-24T01:34:04.699023165Z",
+  "severity": "low",
+  "lens": "resilience",
+  "file": "internal/verifycmd/hallazgo_0895d1_test.go",
+  "description": "INTRODUCIDO: internal/verifycmd/hallazgo_0895d1_test.go:34 inserta la ruta devuelta por exec.LookPath(\"git\") sin comillas en el script sh. Si git esta bajo una ruta valida con espacios, el wrapper deja de delegar todos los comandos; el test sigue verde porque CheckoutPrincipal igualmente falla, pero ya no demuestra su premisa de que solo falla --git-common-dir mientras el resto de Git responde. El fixture puede ocultar una regresion en esa recuperacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "04b979523930be24",
+  "task": "riesgo-efectivo-y-tamano"
+}
