@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261124T180359_cc7db0",
+  "as": "corregido",
+  "evidence": "Decision de la persona (2026-11-24): el contrato 00 nombra la tarjeta ilegible. Corregido en ae4fc8c: el punto 2 de 00-orquestador.md (plantilla internal/agents/assets/agents/ y copia .hoom/agents/, iguales) dice ahora que el riesgo de la nota es el riesgo: del item; con la tarjeta ilegible, alto; sin tarjeta o sin la clave, normal (la regla de hoom agent, CA-799). Regresion: internal/agents/hallazgos_cc7db0_test.go, TestHallazgo_cc7db0_ContratoOrquestadorNombraLaTarjetaIlegible.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-24T19:14:09.760279556Z"
+}
