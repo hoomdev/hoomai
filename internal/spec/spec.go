@@ -61,6 +61,12 @@ func Lint(path string) (ids []string, cmds map[string][]string, issues []string,
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	ids, cmds, issues = lintDe(raw)
+	return ids, cmds, issues, nil
+}
+
+// lintDe is Lint of the bytes raw (one read: MedirContenido).
+func lintDe(raw []byte) (ids []string, cmds map[string][]string, issues []string) {
 	norm := normalize(string(raw))
 	for _, sec := range requiredSections {
 		if !strings.Contains(norm, sec) {
@@ -105,7 +111,7 @@ func Lint(path string) (ids []string, cmds map[string][]string, issues []string,
 			cmds[id] = append(cmds[id], cmd)
 		}
 	}
-	return ids, cmds, issues, nil
+	return ids, cmds, issues
 }
 
 var skipDirs = map[string]bool{

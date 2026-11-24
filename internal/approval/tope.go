@@ -2,6 +2,7 @@ package approval
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -15,10 +16,11 @@ import (
 // specPath against its tope, the same for `hoom verify` (spec.GatesCon), the
 // approval (Aprobar), `hoom spec status` and the board:
 //
-//   - its card: the spec .hoom/specs/<slug>.md (under root or under any
-//     tree) has the card .hoom/items/<slug>.yaml, read with item.TarjetaDe
-//     from root (the main checkout's item first). A spec in another path,
-//     or without item, has no card (Calibre.Tarjeta ""): riesgo normal. An
+//   - its card: the spec <root>/.hoom/specs/<slug>.md has the card
+//     .hoom/items/<slug>.yaml, read with item.TarjetaDe from root (the main
+//     checkout's item first): root is the spec's tree. A spec in another
+//     path (another tree's .hoom/specs included: finding 647f9a), or
+//     without item, has no card (Calibre.Tarjeta ""): riesgo normal. An
 //     item that cannot be read is Calibre.Ilegible (with riesgo alto);
 //   - its riesgo: the card's DECLARED one, riesgo.Normal without the key;
 //   - its tope: per measure, the card's tope_palabras and tope_criterios
@@ -29,13 +31,28 @@ import (
 //
 // specPath is absolute or relative to root.
 func CalibreDe(m *manifest.Manifest, root, specPath string) spec.Calibre {
-	ruta := specPath
-	if !filepath.IsAbs(ruta) {
-		ruta = filepath.Join(root, ruta)
+	ruta := rutaEn(root, specPath)
+	c := calibre(m, root, ruta)
+	if st, _, err := Status(root, ruta); err == nil && st == StatusApproved {
+		c.Aprobado = true
 	}
+	return c
+}
+
+// rutaEn is specPath when absolute, else relative to root.
+func rutaEn(root, specPath string) string {
+	if filepath.IsAbs(specPath) {
+		return specPath
+	}
+	return filepath.Join(root, specPath)
+}
+
+// calibre is CalibreDe of the spec at ruta without Aprobado: its card, its
+// riesgo and its tope.
+func calibre(m *manifest.Manifest, root, ruta string) spec.Calibre {
 	c := spec.Calibre{Riesgo: riesgo.Normal}
 	var tarjeta tarjetas.Leida
-	if slug, ok := tarjetaDelSpec(ruta); ok {
+	if slug, ok := tarjetaDelSpec(root, ruta); ok {
 		// item.TarjetaDe, through tarjetas: item's tests import approval
 		it, hay, err := tarjetas.Leer(root, slug)
 		switch {
@@ -55,22 +72,18 @@ func CalibreDe(m *manifest.Manifest, root, specPath string) spec.Calibre {
 	if tarjeta.TopeCriterios != nil {
 		c.Tope.Criterios, c.CriteriosDeLaTarjeta = *tarjeta.TopeCriterios, true
 	}
-	if st, _, err := Status(root, ruta); err == nil && st == StatusApproved {
-		c.Aprobado = true
-	}
 	return c
 }
 
 // tarjetaDelSpec is the slug of the card of the spec at ruta: ruta is
-// .hoom/specs/<slug>.md, under any tree.
-func tarjetaDelSpec(ruta string) (string, bool) {
-	dir := filepath.Dir(ruta)
-	if filepath.Base(dir) != "specs" || filepath.Base(filepath.Dir(dir)) != ".hoom" || filepath.Ext(ruta) != ".md" {
+// <root>/.hoom/specs/<slug>.md, the spec of root's own tree.
+func tarjetaDelSpec(root, ruta string) (string, bool) {
+	if filepath.Ext(ruta) != ".md" {
 		return "", false
 	}
 	slug := strings.TrimSuffix(filepath.Base(ruta), ".md")
 	// a name that is not a slug has no item: item.TarjetaDe says hay false
-	return slug, slug != ""
+	return slug, slug != "" && filepath.Clean(ruta) == filepath.Join(root, ".hoom", "specs", slug+".md")
 }
 
 // Aprobar (proporcion-por-riesgo) is a person's approval of the spec at
@@ -88,27 +101,29 @@ func tarjetaDelSpec(ruta string) (string, bool) {
 //     already when this content was approved (an approved spec is not
 //     measured).
 //
+// specPath is absolute or relative to root, as in CalibreDe, and is read
+// ONCE: what is measured, what decides Aprobado and what the record signs
+// are the same bytes (findings c75c44, b2072a and 6d7433).
+//
 // Raising the card's tope (`hoom item set <slug> --tope-palabras`) and
 // approving again approves it. Approve stays the raw writer of records.
 func Aprobar(m *manifest.Manifest, root, specPath string) (rec Record, already bool, err error) {
-	c := CalibreDe(m, root, specPath)
+	ruta := rutaEn(root, specPath)
+	raw, err := os.ReadFile(ruta)
+	if err != nil {
+		return Record{}, false, err
+	}
+	sum := hashDe(raw)
+	c := calibre(m, root, ruta)
 	if c.Ilegible != "" {
 		return Record{}, false, &Negativa{texto: fmt.Sprintf(spec.FormatoTarjetaIlegible, c.Tarjeta, c.Ilegible)}
 	}
-	if !c.Aprobado {
-		ruta := specPath
-		if !filepath.IsAbs(ruta) {
-			ruta = filepath.Join(root, ruta)
-		}
-		med, err := spec.Medir(ruta)
-		if err != nil {
-			return Record{}, false, err
-		}
-		if lineas := spec.LineasDelTope(med, c); len(lineas) > 0 {
+	if st, _, err := statusSum(root, ruta, sum); err != nil || st != StatusApproved {
+		if lineas := spec.LineasDelTope(spec.MedirContenido(raw), c); len(lineas) > 0 {
 			return Record{}, false, &Negativa{texto: strings.Join(lineas, "\n")}
 		}
 	}
-	return Approve(root, specPath)
+	return approveSum(root, ruta, sum)
 }
 
 // Negativa is Aprobar's refusal of a spec by its measure (the lines of its

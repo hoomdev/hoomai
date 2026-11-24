@@ -37,20 +37,19 @@ func Medir(ruta string) (Medida, error) {
 	if err != nil {
 		return Medida{}, err
 	}
+	return MedirContenido(raw), nil
+}
+
+// MedirContenido is Medir of the bytes raw, already read: the approval
+// measures the same bytes it hashes (Aprobar reads the spec once).
+func MedirContenido(raw []byte) Medida {
 	m := Medida{Palabras: len(strings.Fields(string(raw)))}
-	if len(raw) == 0 {
-		return m, nil
-	}
-	cs, err := Criteria(ruta)
-	if err != nil {
-		return Medida{}, err
-	}
-	for _, c := range cs {
+	for _, c := range criteriaDe(raw) {
 		if c.Text != "" {
 			m.Criterios++
 		}
 	}
-	return m, nil
+	return m
 }
 
 // riesgoDe is c's riesgo as the texts say it: normal for "".

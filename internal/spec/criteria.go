@@ -31,14 +31,16 @@ var (
 // aceptacion" section, continuation lines joined, without its id prefix and
 // without the verifica marker.
 func Criteria(path string) ([]Criterion, error) {
-	ids, _, _, err := Lint(path)
-	if err != nil {
-		return nil, err
-	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	return criteriaDe(raw), nil
+}
+
+// criteriaDe is Criteria of the bytes raw (one read: MedirContenido).
+func criteriaDe(raw []byte) []Criterion {
+	ids, _, _ := lintDe(raw)
 	texts := map[string]string{}
 	level := 0 // heading level of the criteria section; 0 = outside
 	cur := ""  // id of the bullet being read
@@ -84,7 +86,7 @@ func Criteria(path string) ([]Criterion, error) {
 	for _, id := range ids {
 		out = append(out, Criterion{ID: id, Text: texts[id]})
 	}
-	return out, nil
+	return out
 }
 
 // TokenIndex is one pass over the test files of a tree: for every whole

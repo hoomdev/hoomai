@@ -45,8 +45,14 @@ func contentHash(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return hashDe(raw), nil
+}
+
+// hashDe is the SHA-256 of a content already read (Aprobar signs the bytes
+// it measured).
+func hashDe(raw []byte) string {
 	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
 }
 
 func specSlug(specPath string) string {
@@ -72,6 +78,11 @@ func Approve(root, specPath string) (rec Record, already bool, err error) {
 	if err != nil {
 		return Record{}, false, err
 	}
+	return approveSum(root, specPath, sum)
+}
+
+// approveSum is Approve of the content whose hash is sum.
+func approveSum(root, specPath, sum string) (rec Record, already bool, err error) {
 	target := filepath.Join(dir(root), specSlug(specPath)+"_"+sum[:8]+".json")
 	if raw, rerr := os.ReadFile(target); rerr == nil {
 		if jerr := json.Unmarshal(raw, &rec); jerr == nil && rec.SHA256 == sum {
@@ -105,6 +116,11 @@ func Status(root, specPath string) (string, *Record, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	return statusSum(root, specPath, sum)
+}
+
+// statusSum is Status of the content whose hash is sum.
+func statusSum(root, specPath, sum string) (string, *Record, error) {
 	entries, err := os.ReadDir(dir(root))
 	if os.IsNotExist(err) {
 		return StatusNotApproved, nil, nil
