@@ -1,0 +1,11 @@
+{
+  "id": "20261124T180340_c75c44",
+  "created_at": "2026-11-24T18:03:40.101846408Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/approval/tope.go",
+  "description": "INTRODUCIDO — internal/approval/tope.go:94-111 decide si medir y aplica el tope sobre una lectura del spec, pero luego Approve vuelve a leer y firma el archivo sin comprobar que sean los mismos bytes. Si el spec cambia entre ambas operaciones —especialmente si CalibreDe vio contenido ya aprobado y por eso se salta Medir— se crea una aprobación vigente para contenido nunca medido, permitiendo aprobar un spec que excede el tope. La medida y la huella aprobada deben quedar ligadas al mismo snapshot.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

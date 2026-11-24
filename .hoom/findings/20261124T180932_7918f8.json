@@ -1,0 +1,11 @@
+{
+  "id": "20261124T180932_7918f8",
+  "created_at": "2026-11-24T18:09:32.354671975Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/lanzar/lanzar.go:530-535 pasa a reviewcmd solo v.Model y descarta v.Nivel. En una review lanzada desde una tarjeta cuya Action viene de `review.model: fuerte`, lanzar.Valores conserva `Nivel=fuerte` y muestra `modelo ... (nivel fuerte)`, pero reviewcmd recibe el nombre ya traducido (p. ej. gpt-6-astra/opus), lo trata como nombre y deja Result/Record.Nivel vacio; la cabecera ya no imprime `(nivel fuerte)`. El camino normal `hoom pedir reviewer`/Studio/piloto produce cabecera y artefacto inconsistentes; preserva el nivel al delegar (o permite pasarlo explicitamente a reviewcmd).",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

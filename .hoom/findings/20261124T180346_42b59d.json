@@ -1,0 +1,11 @@
+{
+  "id": "20261124T180346_42b59d",
+  "created_at": "2026-11-24T18:03:46.376731662Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO — internal/lanzar/lanzar.go:86-121 protege el lanzamiento comparando provider y Model, pero Propuesta omite Nivel. Un nivel y un nombre literal pueden tener el mismo Model en el provider por defecto y distinta traducción en otro provider: si hoom.yaml cambia de model: fuerte a model: gpt-6-astra mientras el diálogo está abierto, la vista sigue comparando igual; al elegir claude, acciones.js:227-246 envía modelo vacío porque mostró opus desde el nivel viejo, pero Lanzar conserva el literal gpt-6-astra y lo manda a claude. Se viola la garantía de que se lanza exactamente lo mostrado y puede ejecutarse con un modelo distinto o inválido.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "20261124T181208_2cc606",
+  "created_at": "2026-11-24T18:12:08.789920158Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/lanzar/lanzar.go",
+  "description": "INTRODUCIDO: internal/lanzar/lanzar.go:86-135 define la vista anti-carrera sin el riesgo declarado, y Lanzar solo compara esa Propuesta en :436-439. Si la persona abre el editor/dialogo para arquitecto o test-writer y otra operacion cambia `riesgo:` mientras los valores resueltos quedan iguales (config comun o modelos que traducen igual), la comparacion pasa y agentcmd re-lee el riesgo nuevo, cambiando la nota del prompt y, para test-writer, la cantidad de pruebas solicitadas. La carrera lanza un trabajo distinto del que sostenia la tarjeta vista; incluye el riesgo en la vista/comparacion.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

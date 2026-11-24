@@ -1,0 +1,11 @@
+{
+  "id": "20261124T182237_94aa6a",
+  "created_at": "2026-11-24T18:22:37.522194006Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/tarjetas/tarjetas.go",
+  "description": "INTRODUCIDO — internal/tarjetas/tarjetas.go:25-40 oculta la dependencia de approval.CalibreDe detrás de un lector global mutable, instalado por el init de internal/item/item.go:932-941. El comportamiento de la calibración depende así de qué paquete haya quedado enlazado, y el propio comentario explica que la indirection existe para resolver un ciclo creado por tests. Esto vuelve no local el flujo de lectura y obliga a conocer un side effect de init para razonar o probar approval; conviene ubicar la lectura compartida en un paquete sin ciclo y expresarla como dependencia normal.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

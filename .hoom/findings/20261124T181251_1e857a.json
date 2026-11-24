@@ -1,0 +1,11 @@
+{
+  "id": "20261124T181251_1e857a",
+  "created_at": "2026-11-24T18:12:51.592262786Z",
+  "severity": "high",
+  "lens": "reliability",
+  "file": "internal/itemcmd/itemcmd.go",
+  "description": "INTRODUCIDO: internal/itemcmd/itemcmd.go:426-429 imprime siempre `motivo del tope ... guardalo` cuando los topes, riesgo, auto y presupuesto quedan iguales y existe TopeMotivo. Al repetir `hoom item set precios --tope-palabras 900 --motivo x` con esos mismos valores, item.Cambiar devuelve Cambio=false y no toca el archivo, pero renderSet informa un cambio y manda guardar. SetResult no conserva TopeMotivoAntes, por lo que la condicion tampoco distingue un motivo nuevo del mismo; usa Cambio/motivo anterior para narrar correctamente el no-op.",
+  "author": "reviewer@codex",
+  "fingerprint": "011f8fae95f77342",
+  "task": "proporcion-por-riesgo"
+}

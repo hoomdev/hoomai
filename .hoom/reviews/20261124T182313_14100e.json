@@ -1,0 +1,96 @@
+{
+  "id": "20261124T182313_14100e",
+  "created_at": "2026-11-24T18:23:13.59440102Z",
+  "task": "proporcion-por-riesgo",
+  "spec": ".hoom/specs/proporcion-por-riesgo.md",
+  "fingerprint": "011f8fae95f77342",
+  "verdict_id": "2026-11-24T17-58-35Z_ba5ffa76",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261124T180340_c75c44",
+    "20261124T180346_42b59d",
+    "20261124T180352_4b4b61",
+    "20261124T180359_cc7db0",
+    "20261124T180719_c9ffe4",
+    "20261124T180932_7918f8",
+    "20261124T181044_6d7433",
+    "20261124T181117_647f9a",
+    "20261124T181208_2cc606",
+    "20261124T181251_1e857a",
+    "20261124T181705_b2072a",
+    "20261124T181746_15350a",
+    "20261124T182237_94aa6a",
+    "20261124T182245_654ddd",
+    "20261124T182259_8d7c82"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 381497,
+  "evidence_sha256": "a499ef0d80f87f85336dfefd807b58d687d3a974f4b89aee77595bb31a1256e3",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 3033562,
+      "cached_input_tokens": 2865792,
+      "output_tokens": 15278,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 7197565,
+      "cached_input_tokens": 6987648,
+      "output_tokens": 25766,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 4485603,
+      "cached_input_tokens": 4287232,
+      "output_tokens": 15726,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 2926343,
+      "cached_input_tokens": 2897024,
+      "output_tokens": 8643,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261124T175910_b0639b"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261124T180418_20e157"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261124T181420_013278"
+    },
+    {
+      "lens": "readability",
+      "run": "20261124T181959_04c7a6"
+    }
+  ],
+  "desde": "f89c2e603933f45ec0392e506ab6a5969306e97f",
+  "hasta": "76630236f99d3a7e094f5d16052fbd0816ca184b",
+  "cobertura": "completa",
+  "base": "main",
+  "riesgo": "normal",
+  "riesgo_motivo": "declarado normal",
+  "lentes_motivo": "2224 lineas de producto (\u003e400): las 4 lentes"
+}
