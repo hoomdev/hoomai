@@ -178,10 +178,17 @@ type Trabajo struct {
 	Provider    string
 	TaskStarted bool
 	Valores     valores.Elegidos // the values it was launched with
+	linea       string           // its line valores: (LineaValores)
 	fin         chan Fin
 	once        sync.Once
 	final       Fin
 }
+
+// LineaValores (proporcion-por-riesgo) is the line valores: of the launch,
+// valores.Linea as the envelope prints it when no verb printed it
+// (Request.ValoresImpresos false): the pilot prints it with
+// `piloto automatico: ` in front.
+func (t *Trabajo) LineaValores() string { return t.linea }
 
 // Fin is how a job ended.
 type Fin struct {
@@ -223,7 +230,7 @@ func Valores(a boardcmd.Action, req Request) valores.Elegidos {
 
 // elegidosDe is what action a proposes, as values with their origins.
 func elegidosDe(a boardcmd.Action) valores.Elegidos {
-	e := valores.Elegidos{Model: a.Model, Effort: a.Effort, Origen: a.Origen}
+	e := valores.Elegidos{Model: a.Model, Nivel: a.Nivel, Effort: a.Effort, Origen: a.Origen}
 	if o, ok := defaultOption(a); ok {
 		e.Provider = o.Name
 	}
@@ -436,6 +443,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 	if err != nil {
 		return nil, err
 	}
+	linea := valores.Linea(v, !opt.Budget && req.BudgetUSD == nil)
 	review := a.Role == "reviewer"
 	pedido := strings.TrimSpace(req.Pedido)
 	// the refutador builds its own pedido and it is not edited, by any path
@@ -508,6 +516,12 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 				tareaCreada.Store(true)
 			}
 		}
+		if f.Err == nil && !req.ValoresImpresos {
+			// proporcion-por-riesgo: no verb printed the line valores: of
+			// this launch (the Studio's): the envelope prints it, once, with
+			// the action's origins
+			fmt.Fprintln(out, linea)
+		}
 		switch {
 		case f.Err != nil:
 			// la tarea no se pudo crear: no corre nada, y el 409 lo dice
@@ -530,6 +544,9 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 				EnvelopeID: id, Started: t.empezo, Pilot: req.Pilot,
 				Columna: c.Column, Regla: req.Regla, Intento: req.Intento, Ronda: req.Ronda,
 				Hallazgos: hallazgos, Bloqueantes: req.Bloqueantes,
+				// the line valores: is the launch's, printed above or by
+				// the verb: hoom agent does not print it again
+				ValoresImpresos: true,
 			}
 			if !boardcmd.WritesSpecs(a.Role) {
 				o.Spec = spec
@@ -562,7 +579,7 @@ func Lanzar(ctx context.Context, p Params, slug string, req Request) (*Trabajo, 
 
 	listo := func(fin *Fin) (*Trabajo, error) {
 		tr := &Trabajo{EnvelopeID: id, Role: a.Role, Provider: opt.Name, TaskStarted: tareaCreada.Load(),
-			Valores: v, fin: t.fin}
+			Valores: v, linea: linea, fin: t.fin}
 		tr.Valores.Provider, tr.Valores.BudgetUSD = opt.Name, nil
 		if budget > 0 {
 			b := budget

@@ -453,6 +453,12 @@ type ProviderOption struct {
 	Budget       bool    `json:"budget"` // takes a USD cap
 	MinBudgetUSD float64 `json:"min_budget_usd"`
 	Default      bool    `json:"default"`
+	// Model (proporcion-por-riesgo) is the action's level on this provider
+	// (modelos.Traducir), only when the action's model came from a level
+	// (Action.Nivel): the Studio's dialog shows it when the person picks
+	// this provider. "" otherwise, and for a provider that receives no
+	// model.
+	Model string `json:"model,omitempty"`
 }
 
 // Drop is what dropping the card on one column does: the action it opens,

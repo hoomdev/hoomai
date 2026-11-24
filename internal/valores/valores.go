@@ -14,9 +14,13 @@
 package valores
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hoomdev/hoomai/internal/manifest"
+	"github.com/hoomdev/hoomai/internal/modelos"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 )
 
@@ -86,7 +90,7 @@ type Elegidos struct {
 // OrigenRiesgo (proporcion-por-riesgo) is the origin of a value that
 // agents.<rol>.<r> of the project's hoom.yaml gave: `hoom.yaml, riesgo <r>`.
 func OrigenRiesgo(r string) string {
-	return ""
+	return OrigenHoomYAML + ", riesgo " + r
 }
 
 // Resolver applies the rule: command, hoom.yaml of the project, the place's
@@ -96,7 +100,7 @@ func OrigenRiesgo(r string) string {
 // proporcion-por-riesgo: Resolver is ResolverConRiesgo without a riesgo
 // (r ""): yaml.PorRiesgo does not count.
 func Resolver(p Pedido, yaml manifest.RoleDefaults, l Lugar) Elegidos {
-	return Sobre(p, propuesta(yaml, l))
+	return ResolverConRiesgo(p, "", yaml, l)
 }
 
 // ResolverConRiesgo (proporcion-por-riesgo) applies the rule with the level
@@ -110,7 +114,51 @@ func Resolver(p Pedido, yaml manifest.RoleDefaults, l Lugar) Elegidos {
 // has left (l.BudgetUSD), like hoom.yaml's. A model that is a level is
 // translated with the chosen provider (Elegidos.Model and Nivel).
 func ResolverConRiesgo(p Pedido, r string, yaml manifest.RoleDefaults, l Lugar) Elegidos {
-	return Elegidos{}
+	e := propuesta(yaml, l)
+	if d, ok := yaml.PorRiesgo[r]; r != "" && ok {
+		conRiesgo(&e, d, OrigenRiesgo(r), l)
+	}
+	return Sobre(p, traducido(e))
+}
+
+// conRiesgo puts agents.<rol>.<r> (d, origin o) over the values of
+// agents.<rol> and the place: each value it declares wins, never the
+// provider. Its budget follows hoom.yaml's rule: never over what the place
+// has left, and 0 (no cap) takes what is left, or no cap.
+func conRiesgo(e *Elegidos, d manifest.RoleDefaults, o string, l Lugar) {
+	if d.Model != "" {
+		e.Model, e.Origen.Model = d.Model, o
+	}
+	if d.Effort != "" {
+		e.Effort, e.Origen.Effort = d.Effort, o
+	}
+	if d.Timeout > 0 {
+		e.Timeout, e.Origen.Timeout = d.Timeout, o
+	}
+	switch b := d.BudgetUSD; {
+	case b == nil:
+	case *b > 0:
+		e.BudgetUSD, e.Origen.BudgetUSD = copia(b), o
+		if l.BudgetUSD != nil && *l.BudgetUSD < *b {
+			// never over what the card has left
+			e.BudgetUSD, e.Origen.BudgetUSD = copia(l.BudgetUSD), OrigenTarjeta
+		}
+	default: // 0 = no cap: what is left, or none
+		e.BudgetUSD, e.Origen.BudgetUSD = copia(l.BudgetUSD), o
+	}
+}
+
+// traducido is e with a model that is a level translated for its provider
+// (modelos.Traducir): Nivel keeps the level, and Model is what the provider
+// receives ("" when it receives none or there is no provider yet).
+func traducido(e Elegidos) Elegidos {
+	if modelos.EsNivel(e.Model) {
+		e.Nivel = e.Model
+	}
+	if e.Nivel != "" {
+		e.Model = modelos.Traducir(e.Provider, e.Nivel).Modelo
+	}
+	return e
 }
 
 // ConProvider (proporcion-por-riesgo) is e on provider p, the one the launch
@@ -119,7 +167,9 @@ func ResolverConRiesgo(p Pedido, r string, yaml manifest.RoleDefaults, l Lugar) 
 // model that came from a level (Nivel) is translated for p
 // (modelos.Traducir): "" when p receives no model. A name stays as it is.
 func (e Elegidos) ConProvider(p string) Elegidos {
-	return Elegidos{}
+	e.Provider = p
+	e.BudgetUSD = copia(e.BudgetUSD)
+	return traducido(e)
 }
 
 // Linea (proporcion-por-riesgo) is the line `valores:` (CA-503) of a launch
@@ -133,7 +183,52 @@ func (e Elegidos) ConProvider(p string) Elegidos {
 // says e.Provider takes no cap in USD and the command asked none: the
 // budget is then `presupuesto sin tope (<p> no acepta tope)`.
 func Linea(e Elegidos, sinTope bool) string {
-	return ""
+	valor := func(nombre, v, origen string) string {
+		if v == "" {
+			return fmt.Sprintf("%s del provider (%s)", nombre, OrigenProvider)
+		}
+		return fmt.Sprintf("%s %s (%s)", nombre, visible(v), origen)
+	}
+	modelo := valor("modelo", e.Model, e.Origen.Model)
+	switch {
+	case e.Nivel != "" && e.Model == "":
+		modelo = fmt.Sprintf("modelo del provider (nivel %s: %s no recibe modelo)", e.Nivel, e.Provider)
+	case e.Nivel != "":
+		modelo = fmt.Sprintf("modelo %s (nivel %s, %s)", visible(e.Model), e.Nivel, e.Origen.Model)
+	}
+	presupuesto := valor("presupuesto", "", e.Origen.BudgetUSD)
+	switch {
+	case sinTope:
+		presupuesto = fmt.Sprintf("presupuesto sin tope (%s no acepta tope)", e.Provider)
+	case e.BudgetUSD != nil:
+		presupuesto = fmt.Sprintf("presupuesto %s (%s)", usd(*e.BudgetUSD), e.Origen.BudgetUSD)
+	case strings.HasPrefix(e.Origen.BudgetUSD, OrigenHoomYAML):
+		presupuesto = fmt.Sprintf("presupuesto sin tope (%s)", e.Origen.BudgetUSD) // budget_usd: 0
+	}
+	return "valores: " + strings.Join([]string{
+		valor("provider", e.Provider, e.Origen.Provider),
+		modelo,
+		valor("esfuerzo", e.Effort, e.Origen.Effort),
+		presupuesto,
+		fmt.Sprintf("tiempo limite %s (%s)", Duracion(e.Timeout), e.Origen.Timeout),
+	}, " · ")
+}
+
+// visible is a value of the line as it is, or quoted when it has spaces or
+// anything that does not print.
+func visible(s string) string {
+	if q := strconv.Quote(s); q != `"`+s+`"` || strings.ContainsAny(s, " \t") {
+		return q
+	}
+	return s
+}
+
+// usd renders an amount the way the cards say it: up to 4 decimals, no
+// trailing zeros (lanzar.USD).
+func usd(v float64) string {
+	s := fmt.Sprintf("%.4f", v)
+	s = strings.TrimRight(s, "0")
+	return strings.TrimSuffix(s, ".")
 }
 
 // Sobre puts what the command asked (level 1) over values already chosen by
@@ -152,8 +247,9 @@ func Sobre(p Pedido, base Elegidos) Elegidos {
 		e.Provider, e.Origen.Provider = p.Provider, OrigenComando
 	}
 	if p.Model != "" {
-		e.Model, e.Origen.Model = p.Model, OrigenComando
+		e.Model, e.Nivel, e.Origen.Model = p.Model, "", OrigenComando
 	}
+	e = traducido(e)
 	if p.Effort != "" {
 		e.Effort, e.Origen.Effort = p.Effort, OrigenComando
 	}
