@@ -1,0 +1,11 @@
+{
+  "id": "20261125T183035_f1a226",
+  "created_at": "2026-11-25T18:30:35.990015558Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/gates/cambio.go",
+  "description": "INTRODUCIDO: internal/gates/cambio.go:102 trata proyecto != abs como si el manifiesto propio hubiera desaparecido. Pero CambioDe documenta que dir puede ser cualquier directorio del repo: en un monorepo con hoom.yaml en la raiz y sub/hoom.yaml intacto, CambioDe(sub/app) devuelve Todos:true al cambiar solamente el hoom.yaml de la raiz, aunque el manifiesto vigente de ese proyecto no cambio. Esto hace correr gates que debian quedar no_aplica (y puede volver rojo el verify de un caller que use el directorio interno). Reproduccion aislada: Archivos:[hoom.yaml], Todos:true; el camino normal de verifycmd no lo alcanza porque pasa m.Dir, por eso la severidad es medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "d46c576c55c80d42",
+  "task": "gates-por-ruta"
+}

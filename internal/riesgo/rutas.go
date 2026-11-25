@@ -62,9 +62,11 @@ func Coincide(patron, ruta string) bool {
 	}
 	pat := segmentos(strings.ToLower(patron))
 	segs := strings.Split(strings.ToLower(ruta), "/")
-	// the path itself first, then each parent directory
+	// the path itself or one of its parent directories: one pass gives
+	// them all
+	prefijos := casanPrefijos(pat, segs)
 	for k := len(segs); k >= 1; k-- {
-		if casan(pat, segs[:k]) {
+		if prefijos[k] {
 			return true
 		}
 	}
@@ -108,8 +110,7 @@ func PatronValido(p string) bool {
 }
 
 // segmentos splits a pattern into its segments, with several `**` in a row
-// collapsed into one: they mean the same, and each one would multiply the
-// backtracking of the next.
+// collapsed into one: they mean the same.
 func segmentos(patron string) []string {
 	var pat []string
 	for _, seg := range strings.Split(patron, "/") {
@@ -125,24 +126,43 @@ func segmentos(patron string) []string {
 // exactly: `**` is zero or more whole segments, any other segment is a
 // path.Match pattern (a malformed one matches nothing).
 func casan(pat, seg []string) bool {
-	for len(pat) > 0 {
-		if pat[0] == "**" {
-			for i := 0; i <= len(seg); i++ {
-				if casan(pat[1:], seg[i:]) {
-					return true
+	return casanPrefijos(pat, seg)[len(seg)]
+}
+
+// casanPrefijos is, for each k from 0 to len(seg), whether pat matches
+// seg[:k] exactly, as casan reads it. It is dynamic programming over the
+// pattern's segments, one row per segment: O(len(pat)·len(seg)) steps and
+// at most one path.Match per pair, whatever the number of `**` (finding
+// 3e5566: trying each way to share the segments among the `**` took
+// minutes with 16 of them and 32 segments).
+//
+// Row i says which prefixes of seg pat[:i] matches: row 0 matches only the
+// empty one; a `**` keeps what the row before matched and extends it by
+// any number of segments; any other segment extends by one segment what
+// the row before matched, when path.Match accepts that segment.
+func casanPrefijos(pat, seg []string) []bool {
+	antes := make([]bool, len(seg)+1)
+	fila := make([]bool, len(seg)+1)
+	antes[0] = true
+	for _, p := range pat {
+		if p == "**" {
+			fila[0] = antes[0]
+			for j := 1; j <= len(seg); j++ {
+				fila[j] = antes[j] || fila[j-1]
+			}
+		} else {
+			fila[0] = false
+			for j := 1; j <= len(seg); j++ {
+				fila[j] = false
+				if antes[j-1] {
+					ok, err := path.Match(p, seg[j-1])
+					fila[j] = err == nil && ok
 				}
 			}
-			return false
 		}
-		if len(seg) == 0 {
-			return false
-		}
-		if ok, err := path.Match(pat[0], seg[0]); err != nil || !ok {
-			return false
-		}
-		pat, seg = pat[1:], seg[1:]
+		antes, fila = fila, antes
 	}
-	return len(seg) == 0
+	return antes
 }
 
 // enTerritorio says whether ruta is in the write territory patrones, the way

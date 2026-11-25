@@ -1,0 +1,11 @@
+{
+  "id": "20261125T162825_e9e03b",
+  "created_at": "2026-11-25T16:28:25.626134908Z",
+  "severity": "low",
+  "lens": "readability",
+  "file": "internal/report/json.go",
+  "description": "INTRODUCIDO. internal/report/json.go:67 e internal/report/report.go:198 repiten la misma clasificacion de estados que no cuentan en la tendencia. La incorporacion de StatusNoAplica tuvo que modificar ambas listas; centralizar un predicado de inclusion evitaria que futuros estados produzcan resultados distintos entre el reporte JSON y el texto.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2bf2192ace089d",
+  "task": "gates-por-ruta"
+}

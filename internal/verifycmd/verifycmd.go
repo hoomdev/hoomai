@@ -6,6 +6,7 @@ package verifycmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -37,6 +38,13 @@ type Options struct {
 	Gates []string // empty = all
 	Spec  string   // spec path, relative to the manifest's Dir or absolute; adds spec_lint + spec_trace
 	JSON  bool     // emit the verdict as JSON (rendering is the caller's job)
+	// Cierre (gates-por-ruta) is `hoom verify --cierre`: every gate runs
+	// without looking at its aplica_en (gates.Options.Cierre); in everything
+	// else it is a run without flags (diff_cmd included, unlike Full). A
+	// complete green verdict of a --cierre has no gate in
+	// verdict.StatusNoAplica, so taskcmd.Ready accepts it. ParseArgs sets it
+	// with --cierre; POST /api/verify never does.
+	Cierre bool
 	// Sobre (contencion-del-writer) is the option only the verify of the
 	// envelope of a role that executes (agentcmd.Run) and the pilot's
 	// cerrar-hallazgos use; `hoom verify` and POST /api/verify never set it
@@ -187,6 +195,25 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // fingerprint. An error of the section `rutas` is an error of the manifest
 // (manifest.Rutas): Load already refuses it, so no gate runs and no verdict
 // is written.
+//
+// gates-por-ruta: every run without Full computes the change
+// gates.CambioDe(m.Dir, m.BaseBranch) and hands it to the gates
+// (gates.Options.Cambio), with gates.Options.Cierre = opt.Cierre. Its Todos
+// is also true when m.Dir no longer holds the hoom.yaml m was loaded from as
+// a regular file (deleted, moved, or something else in its place after
+// manifest.Load: finding 8c4016), and when that file no longer has the bytes
+// m was built from (m.HoomYAMLSigueIgual: changed since it was loaded, as
+// with a Studio that loaded it once, or m not returned by manifest.Load,
+// such as a literal or a copy: findings a6ad52 and 94b657): ante la duda,
+// el gate corre. The verify
+// de trabajo is the one without Cierre, Full and Gates: there a gate with
+// aplica_en that no file of the change matches stays
+// verdict.StatusNoAplica, with its motivo (gates.Run). That status changes
+// neither the color of the verdict nor its partial mark, and counts in
+// Summary.NoAplica. With Cierre, Full or Gates no gate looks at aplica_en.
+// Every caller (`hoom verify`, the envelope of `hoom agent`, the pilot's
+// cerrar-hallazgos and POST /api/verify) gets the same rule, since all of
+// them run this function.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
 		return nil, "", err
@@ -202,6 +229,25 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	// the change aplica_en is judged against (gates-por-ruta), read before
+	// anything of the run touches the tree; the gates look at it only in the
+	// verify de trabajo
+	var cambio *gates.Cambio
+	if !opt.Full {
+		c := gates.CambioDe(m.Dir, m.BaseBranch)
+		// the hoom.yaml m was loaded from is no longer a file in m.Dir
+		// (deleted, moved, or something else in its place, after
+		// manifest.Load: finding 8c4016), or it is but no longer has the
+		// bytes m was built from (changed since it was loaded, as with the
+		// Studio open, or m is not a manifest manifest.Load returned, such
+		// as a literal or a copy: findings a6ad52 and 94b657): the manifest
+		// the gates are judged with is not the project's, so ante la duda,
+		// el gate corre
+		if fi, err := os.Lstat(filepath.Join(m.Dir, manifest.FileName)); err != nil || !fi.Mode().IsRegular() || !m.HoomYAMLSigueIgual() {
+			c.Todos = true
+		}
+		cambio = &c
+	}
 	// a relative spec is the project's (the verdict keeps it as given): read
 	// from m.Dir, so a caller in another directory verifies the same file
 	specFile := opt.Spec
@@ -214,7 +260,7 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	lw := live.NewWriter(m.Dir)
 	defer lw.Close()
 
-	gopt := gates.Options{Full: opt.Full, Emit: lw.Emit, Local: local}
+	gopt := gates.Options{Full: opt.Full, Cierre: opt.Cierre, Emit: lw.Emit, Local: local, Cambio: cambio}
 	var antes materialgit.Foto
 	if opt.Sobre != nil {
 		plan, sin, exigir, err := planDelSobre(m, *opt.Sobre)

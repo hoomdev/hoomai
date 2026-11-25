@@ -1,0 +1,11 @@
+{
+  "id": "20261125T162554_3e5566",
+  "created_at": "2026-11-25T16:25:54.281508911Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/gates/cambio.go",
+  "description": "INTRODUCIDO: internal/gates/cambio.go:103 evalua cada aplica_en con riesgo.CoincideAlguno; ese matcher hace backtracking recursivo sin memoizacion por cada ** (internal/riesgo/rutas.go:127-135), mientras internal/manifest/gates.go:93-106 acepta cualquier cantidad de ** alternados. Un patron valido formado por **/a repetido 12 veces y terminado en /z contra una ruta de 24 segmentos a ya fuerza aproximadamente 16.7 millones de llamadas; con unas pocas repeticiones mas, hoom verify se cuelga antes de ejecutar gates. Un usuario puede provocarlo solo editando hoom.yaml; el matching de aplica_en debe quedar acotado o rechazar complejidad patologica.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2bf2192ace089d",
+  "task": "gates-por-ruta"
+}

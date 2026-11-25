@@ -1,0 +1,11 @@
+{
+  "id": "20261125T162645_fe6ef8",
+  "created_at": "2026-11-25T16:26:45.365982248Z",
+  "severity": "medium",
+  "lens": "resilience",
+  "file": "internal/gates/cambio.go",
+  "description": "INTRODUCIDO: internal/gates/cambio.go:61-68 ignora el false de hoomYAMLDe, aunque internal/gates/cambio.go:72-82 documenta y produce ese mismo false tanto cuando manifest.Find falla como cuando git rev-parse --show-prefix falla. Si LineasDelCambio ya obtuvo la lista y luego el manifiesto o Git se degradan/cambian entre ambas lecturas, CambioDe conserva Todos=false; aun con hoom.yaml en Archivos, los gates cuyo aplica_en no lo cubra quedan no_aplica. Esto contradice la regla de recuperacion \"ante la duda, el gate corre\". Es una carrera/falla degradada rara y no permite cierre porque queda no_aplica, por eso severidad medium.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2bf2192ace089d",
+  "task": "gates-por-ruta"
+}

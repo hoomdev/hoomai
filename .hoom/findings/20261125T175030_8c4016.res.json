@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261125T175030_8c4016",
+  "as": "corregido",
+  "evidence": "Corregido en d60282d y 8f377c4. (d) verifycmd.Run, tras gates.CambioDe(m.Dir, ...): si os.Lstat(m.Dir/hoom.yaml) falla o no da un archivo regular, Todos=true (el manifiesto cargado ya no esta donde se cargo; cubre CLI, Studio, piloto y agent). (c) gates.tocaElHoomYAML: si el hoom.yaml encontrado esta mas arriba que dir, tambien cuenta cualquier hoom.yaml del cambio; la busqueda hacia arriba se conserva (aclaraciones 6 y 7). Regresion: internal/gates/hallazgo_8c4016_test.go (borrado sin commitear, en un commit y git mv) falla con cambio.go de f302d40; internal/verifycmd/hallazgo_8c4016_test.go (los mismos 3 y el 4b sin seguimiento) falla con cambio.go y verifycmd.go de f302d40, y su 4b falla solo con verifycmd.go de f302d40; los dos pasan con el codigo nuevo, y los controles siguen en no_aplica/Todos=false. Arneses a/main.go (Studio) y a/e2e-cli.sh ventana del refutador: static corre.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T18:23:16.482195338Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261123T202423_4e3c5b",
+  "as": "corregido",
+  "evidence": "Corregido en 066938b: casan de internal/riesgo/rutas.go pasa a programacion dinamica (casanPrefijos, O(|pat|*|seg|)), sin cambiar la semantica ni PatronValido; cubre Coincide, CoincideAlguno, rutas: y aplica_en, y riesgo.enTerritorio. Regresion: internal/riesgo/hallazgo_3e5566_test.go (oraculo con el algoritmo viejo, tabla de CA-777 y todas las combinaciones de hasta 4 segmentos; k=16 L=32 con tope de 1 s). Falla con rutas.go de 85a53db (no termino en 1s) y pasa con el nuevo; e2e del refutador: aplica_en 20,5 s -\u003e 26 ms, rutas 32,7 s -\u003e 21 ms.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T17:08:58.931210118Z"
+}

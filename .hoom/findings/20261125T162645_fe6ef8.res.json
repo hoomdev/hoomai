@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261125T162645_fe6ef8",
+  "as": "corregido",
+  "evidence": "Corregido en 83213b1: si git falla en --show-prefix, CambioDe da Todos=true; si manifest.Find no encuentra hoom.yaml, Todos=true cuando algun archivo del cambio se llama hoom.yaml (sin distinguir mayusculas). Regresion: internal/gates/hallazgos_fe6ef8_test.go (git falso que falla solo en --show-prefix, hoom.yaml borrado, otro/hoom.yaml, mayusculas). Falla con cambio.go de a433e49 ({Archivos:[hoom.yaml] Todos:false}) y pasa con el nuevo.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T17:08:58.91690734Z"
+}

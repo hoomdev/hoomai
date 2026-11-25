@@ -423,6 +423,17 @@ func short(sha string) string {
 // the key there is no cap. The board shows it as
 // `aceptarla dejaria demasiados medium abiertos en el proyecto` with the
 // action `hoom finding list --open`; --force skips it.
+//
+// gates-por-ruta: when the latest complete verdict (verdict.LatestComplete)
+// is green and has at least one gate in verdict.StatusNoAplica, Ready fails
+// with kind ReadySinCierre and the message FormatoSinCierre, after the check
+// of ReadyRojo and before the one of ReadyHuella. The same error reaches
+// `hoom task done`, `hoom integrar` and POST /api/tasks/{slug}/done, which
+// then close nothing; after a green `hoom verify --cierre` (no no_aplica)
+// with the same fingerprint they close. The board shows it as
+// `falta la verificacion de cierre del espacio de trabajo`, with the action
+// the message carries after "Accion: ". --force skips it. `hoom check`
+// does not change: it accepts no_aplica.
 func Ready(root, slug, base string) error {
 	wt, err := runcmd.TaskDir(root, slug)
 	if err != nil {
@@ -442,11 +453,27 @@ func Ready(root, slug, base string) error {
 	if last.Verdict != "green" {
 		return notReady(ReadyRojo, "el ultimo veredicto de %q es ROJO (%s). Accion: corrige y re-ejecuta 'hoom verify' en el worktree", slug, last.ID)
 	}
+	if noAplicaron := noAplicaronEn(last); len(noAplicaron) > 0 {
+		// a verify de trabajo is not a cierre: the cierre runs every gate (I8)
+		return notReady(ReadySinCierre, FormatoSinCierre, slug, strings.Join(noAplicaron, ", "))
+	}
 	g := gitx.Snapshot(wt, base)
 	if g.ChangeFingerprint != last.Git.ChangeFingerprint {
 		return notReady(ReadyHuella, "el arbol de %q cambio despues del ultimo veredicto verde (huella %s vs %s).\n  Accion: re-ejecuta 'hoom verify' dentro del worktree y commitea", slug, g.ChangeFingerprint, last.Git.ChangeFingerprint)
 	}
 	return topePendientes(wt, slug, base)
+}
+
+// noAplicaronEn are the gates of v in verdict.StatusNoAplica, in the
+// verdict's order (gates-por-ruta).
+func noAplicaronEn(v *verdict.Verdict) []string {
+	var out []string
+	for _, g := range v.Gates {
+		if g.Status == verdict.StatusNoAplica {
+			out = append(out, g.Name)
+		}
+	}
+	return out
 }
 
 // topePendientes is Ready's last check: findings.max_pendientes of the

@@ -1,0 +1,11 @@
+{
+  "id": "20261125T162224_dc272d",
+  "created_at": "2026-11-25T16:22:24.568012287Z",
+  "severity": "medium",
+  "lens": "reliability",
+  "file": "internal/manifest/gates.go",
+  "description": "INTRODUCIDO: internal/manifest/gates.go:59 deja de validar silenciosamente cuando una cadena de merges YAML supera profundidad 8. Como yaml.Unmarshal posterior ignora claves desconocidas, una clave invalida (por ejemplo aplicaen) heredada al fondo de una cadena valida de anchors/\u003c\u003c queda aceptada, en vez de producir ErrGateClaveDesconocida como exige CA-809. Es un fallo real de configuracion poco comun; el limite deberia fallar cerrado o detectar ciclos sin tratar el resto como valido.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2bf2192ace089d",
+  "task": "gates-por-ruta"
+}

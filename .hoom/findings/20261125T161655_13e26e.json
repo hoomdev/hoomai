@@ -1,0 +1,11 @@
+{
+  "id": "20261125T161655_13e26e",
+  "created_at": "2026-11-25T16:16:55.255893906Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/manifest/gates.go",
+  "description": "INTRODUCIDO — internal/manifest/gates.go:59-60 acepta silenciosamente cualquier mapa alcanzado por mas de ocho niveles de merges YAML. Una cadena de anclas puede ocultar alli un aplica_en con patron invalido: ValidarGates devuelve nil, yaml.Unmarshal carga la lista y riesgo.Coincide la hace no coincidir con ninguna ruta, por lo que un verify de trabajo salta el gate en vez de rechazar el hoom.yaml como exige CA-809. Es high porque una configuracion que el spec cubre se salta un control. El limite debe fallar cerrado o recorrerse con deteccion de ciclos; este retorno silencioso es patronizable para una regla Semgrep custom.",
+  "author": "reviewer@codex",
+  "fingerprint": "1c2bf2192ace089d",
+  "task": "gates-por-ruta"
+}

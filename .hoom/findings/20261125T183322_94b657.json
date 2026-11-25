@@ -1,0 +1,11 @@
+{
+  "id": "20261125T183322_94b657",
+  "created_at": "2026-11-25T18:33:22.169814096Z",
+  "severity": "high",
+  "lens": "resilience",
+  "file": "internal/verifycmd/verifycmd.go",
+  "description": "PRE-EXISTENTE (follow-up; no introducido por 825ef170620d..b122457e59d3): internal/verifycmd/verifycmd.go:238 solo comprueba que m.Dir/hoom.yaml sea algun archivo regular, no que siga siendo el manifiesto que se cargo. En Studio el fallo es determinista: cargar un manifiesto A cuyo gate static tiene aplica_en: [app/**], reemplazarlo antes de verificar por otro hoom.yaml regular B que coincide con la base y donde static aplica siempre, y dejar solo resources/js/app.js modificado. CambioDe no incluye hoom.yaml, Lstat acepta B, Run conserva A y static queda no_aplica aunque la configuracion presente exige ejecutarlo. El delta cubre ausencia, symlink y objetos no regulares, pero no este reemplazo regular. Severidad high: un usuario puede provocar sin carrera que se omita un control.",
+  "author": "reviewer@codex",
+  "fingerprint": "d46c576c55c80d42",
+  "task": "gates-por-ruta"
+}

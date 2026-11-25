@@ -1,0 +1,11 @@
+{
+  "id": "20261125T171339_70914d",
+  "created_at": "2026-11-25T17:13:39.144057645Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/manifest/gates.go",
+  "description": "PRE-EXISTENTE (follow-up; no introducido por ef3542fa568f..77b45f0cb2bf): internal/manifest/gates.go:121 detecta merges con ShortTag()==\"!!merge\", pero yaml.v3 considera merge una clave escalar de valor \u003c\u003c con Tag \"!\" incluso si esta entre comillas. Para ! \"\u003c\u003c\": *base, ShortTag es !!str: ValidarGates ignora el merge en la raiz mientras el Unmarshal posterior si incorpora gates:. Un hoom.yaml puede asi introducir por merge un aplica_en invalido (o una clave desconocida) sin el error CA-809; el patron invalido no coincide y el gate puede quedar no_aplica, saltandose un control. Es high porque un usuario puede provocar un bypass de gates. El patron ShortTag()==\"!!merge\" como sustituto de la semantica de yaml.v3 es candidato a una regla Semgrep custom.",
+  "author": "reviewer@codex",
+  "fingerprint": "7f41773034f848c4",
+  "task": "gates-por-ruta"
+}

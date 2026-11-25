@@ -323,6 +323,48 @@ Variables de template: `{base}` (rama base), `{files}` (archivos cambiados),
 `{packages}` (paquetes Go derivados de los .go cambiados). Si un `diff_cmd` expande a
 vacio, cae al comando completo en lugar de ejecutar una linea rota.
 
+### Gates segun lo que cambio (aplica_en)
+
+Un gate puede declarar las rutas a las que aplica, con la sintaxis de `rutas:`
+(patrones relativos a la raiz del repo, `*`, `?`, `[...]` y `**`):
+
+```yaml
+gates:
+  mutation:
+    aplica_en: [app/**, src/**]
+```
+
+- `aplica_en` es una lista no vacia de patrones. Un gate sin la clave aplica
+  siempre, y la lista del proyecto reemplaza entera a la del perfil.
+- Las claves de un gate son `required`, `cmd`, `diff_cmd`, `notes`, `partial`
+  y `aplica_en`. Cualquier otra hace invalido el `hoom.yaml`
+  (`gates.<g>: clave desconocida "<k>" ...`), y tambien una `aplica_en`
+  vacia o con un patron invalido. Con esos errores `hoom verify` no corre
+  ningun gate ni escribe veredicto.
+- En el **verify de trabajo** (sin `--cierre`, `--full` ni `--gate`), un gate
+  con `aplica_en` que no coincide con ningun archivo del cambio no corre su
+  comando: queda `no_aplica`, con scope `none` y el motivo
+  `ningun archivo del cambio coincide con aplica_en (<p1>, <p2>)`. El cambio
+  son los commits desde el merge-base con `base_branch`, los cambios locales,
+  los archivos sin seguimiento y los borrados.
+- Ante la duda, el gate corre: todos aplican con el cambio vacio, fuera de
+  git, si git no puede decir el cambio o si el cambio toca el `hoom.yaml`.
+  `cmd: ""` sigue siendo `absent`, tenga o no `aplica_en`.
+- Con un `hoom.yaml` que es un enlace simbolico, todos los gates aplican.
+- Si el `hoom.yaml` del proyecto ya no esta o cambio desde que se cargo (por
+  ejemplo, con el Studio abierto) cuando corre el verify, todos los gates
+  aplican.
+- `no_aplica` no pone rojo ni hace parcial al veredicto: cuenta en
+  `summary.no_aplica` (que no aparece cuando vale 0), el reporte lo imprime
+  como `NO APLICA` con el motivo, y el pass-rate y la tendencia lo descartan,
+  como a `absent`. `hoom check` lo acepta.
+- **El cierre exige todos los gates.** `hoom task done`, `hoom integrar` y el
+  Studio rechazan (kind `sin-cierre`) un ultimo veredicto completo con algun
+  `no_aplica`, y el tablero dice `falta la verificacion de cierre del espacio
+  de trabajo`. Antes de aceptar la tarea, corre `hoom verify --cierre` dentro
+  del worktree y commitea el veredicto: `--cierre` corre todos los gates sin
+  mirar `aplica_en` y, a diferencia de `--full`, conserva su `diff_cmd`.
+
 ## Congelamiento del candidato (anti-fraude de veredicto)
 
 Cada veredicto congela una **huella SHA-256 del cambio exacto verificado** (commit +

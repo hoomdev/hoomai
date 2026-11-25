@@ -1,0 +1,11 @@
+{
+  "id": "20261125T175030_8c4016",
+  "created_at": "2026-11-25T17:50:30.840584221Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gates/cambio.go",
+  "description": "PRE-EXISTENTE (follow-up; no introducido por 77b45f0cb2bf..825ef170620d): internal/gates/cambio.go:129-140 toma fs.ErrNotExist como permiso para seguir subiendo y puede aceptar como 'proyecto' el hoom.yaml de un padre, aunque verifycmd.Run recibe m.Dir del manifiesto que ya fue cargado. En Studio el caso es determinista: servecmd.New conserva ese Manifest; si un monorepo tiene /repo/hoom.yaml y /repo/sub/hoom.yaml, se inicia Studio en sub y luego se borra sub/hoom.yaml, POST /api/verify ve en Archivos sub/hoom.yaml pero buscarHoomYAML elige /repo, compara solo con hoom.yaml y deja Todos=false. Un gate cuyo aplica_en no cubra ni el borrado ni los otros archivos queda no_aplica, saltandose CA-812 y un control de verificacion. Es high porque un usuario autenticado del Studio puede provocar el flujo sin carrera; el delta conserva el comportamiento previo de manifest.Find para ENOENT.",
+  "author": "reviewer@codex",
+  "fingerprint": "5d3fe4455a08d0fa",
+  "task": "gates-por-ruta"
+}

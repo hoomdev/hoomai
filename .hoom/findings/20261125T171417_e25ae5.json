@@ -1,0 +1,11 @@
+{
+  "id": "20261125T171417_e25ae5",
+  "created_at": "2026-11-25T17:14:17.760700555Z",
+  "severity": "high",
+  "lens": "risk",
+  "file": "internal/gates/cambio.go",
+  "description": "PRE-EXISTENTE (follow-up; no introducido por ef3542fa568f..77b45f0cb2bf): internal/gates/cambio.go:90 solo compara el path literal hoom.yaml, aunque manifest.Find/Load siguen enlaces simbolicos. Con hoom.yaml -\u003e config/proyecto.yaml dentro del repo, editar config/proyecto.yaml cambia el manifiesto que el verify carga, pero Archivos no contiene hoom.yaml y Todos queda false. El propio cambio de aplica_en puede entonces no coincidir con sus patrones y dejar gates no_aplica, eludiendo CA-812 y un control de verificacion. Es high porque un usuario puede provocar el bypass con una configuracion valida para las APIs actuales.",
+  "author": "reviewer@codex",
+  "fingerprint": "7f41773034f848c4",
+  "task": "gates-por-ruta"
+}

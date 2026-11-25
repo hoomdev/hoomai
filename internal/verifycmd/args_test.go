@@ -28,9 +28,11 @@ import (
 // usoEsperado es el bloque de uso EXACTO tal como lo fija el spec. No se
 // importa de la implementacion a proposito: si UsageText se desvia del spec,
 // este archivo tiene que fallar.
-const usoEsperado = `Uso: hoom verify [--full] [--gate a,b] [--spec <ruta>] [--json]
+const usoEsperado = `Uso: hoom verify [--full] [--cierre] [--gate a,b] [--spec <ruta>] [--json]
 
   --full          Ignora el scoping por diff (corrida completa, ej. nocturna)
+  --cierre        Corre todos los gates sin mirar aplica_en, con su
+                  diff_cmd: el verify que exigen 'hoom task done' e integrar
   --gate a,b      Ejecuta solo esos gates (el resto queda 'skipped'); el
                   veredicto queda PARCIAL: diagnostico, nunca referencia
                   de 'hoom check' ni de 'hoom task done'

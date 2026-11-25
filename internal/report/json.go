@@ -23,7 +23,9 @@ type RunSummary struct {
 }
 
 // GateTrend is the full-history pass-rate of one gate. Skipped and absent
-// runs do not count against the rate, matching the text trend.
+// runs do not count against the rate, matching the text trend; neither do
+// the runs in verdict.StatusNoAplica (gates-por-ruta), which count in no
+// field (Pass, Total, PassRate) and are never its LastStatus.
 type GateTrend struct {
 	Pass       int    `json:"pass"`
 	Total      int    `json:"total"`
@@ -62,7 +64,7 @@ func Build(all []*verdict.Verdict, n int) JSON {
 	}
 	for _, v := range all {
 		for _, g := range v.Gates {
-			if g.Status == verdict.StatusSkipped || g.Status == verdict.StatusAbsent {
+			if g.Status == verdict.StatusSkipped || g.Status == verdict.StatusAbsent || g.Status == verdict.StatusNoAplica {
 				continue
 			}
 			t := out.Gates[g.Name]

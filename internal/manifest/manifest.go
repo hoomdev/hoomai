@@ -5,13 +5,17 @@
 package manifest
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+	"weak"
 
 	"gopkg.in/yaml.v3"
 
@@ -43,7 +47,57 @@ type Gate struct {
 	// JVM target in KMP). Declared degradation is a feature: reported loudly,
 	// never hidden.
 	Partial string `yaml:"partial,omitempty"`
+	// AplicaEn (gates-por-ruta) is gates.<g>.aplica_en: the paths the gate
+	// applies to, a non-empty list of patterns relative to the root of the
+	// repository with the syntax of `rutas:` (riesgo.Coincide,
+	// riesgo.PatronValido; CA-777):
+	//
+	//	gates:
+	//	  mutation:
+	//	    aplica_en: [app/**, src/**]
+	//
+	// nil = the key is not written: the gate applies always, as today. In a
+	// verify de trabajo (gates.Options.Cambio, without Full, Cierre or Only)
+	// a gate whose AplicaEn matches no file of the change does not run its
+	// command and stays verdict.StatusNoAplica (gates.Aplica, gates.Run).
+	//
+	// The project's list replaces the profile's whole (Load); a gate of the
+	// project without the key keeps the profile's. The patterns are kept as
+	// written, in their order. Load and LoadWithoutBaseCheck refuse, with
+	// "hoom.yaml invalido: " in front:
+	//
+	//   - an aplica_en that is not a non-empty list of strings (an empty
+	//     list, null, a scalar, a map, or a list with an element that is not a
+	//     string): fmt.Sprintf(ErrAplicaEnLista, <g>);
+	//   - an element that is not a valid pattern (riesgo.PatronValido):
+	//     fmt.Sprintf(ErrAplicaEnPatron, <g>, <p>).
+	AplicaEn []string `yaml:"aplica_en,omitempty"`
 }
+
+// GateKeys (gates-por-ruta) are the keys gates.<g> accepts, in the order its
+// error names them: required, cmd, diff_cmd, notes, partial, aplica_en. Any
+// other key of a gate, in hoom.yaml or in an embedded profile, is the error
+// ErrGateClaveDesconocida: never a silence.
+var GateKeys = []string{"required", "cmd", "diff_cmd", "notes", "partial", "aplica_en"}
+
+// The errors of a gate of hoom.yaml (gates-por-ruta), exactly. Load and
+// LoadWithoutBaseCheck give them with "hoom.yaml invalido: " in front, and
+// then `hoom verify` runs no gate and writes no verdict. <g> (%s) is the
+// gate's name as written; the key and the pattern (%q) are quoted as %q
+// quotes them.
+const (
+	// ErrAplicaEnLista is an aplica_en that is not a non-empty list of
+	// patterns; %s is the gate.
+	ErrAplicaEnLista = "gates.%s.aplica_en: tiene que ser una lista no vacia de patrones"
+	// ErrAplicaEnPatron is an element of aplica_en that is not a valid
+	// pattern (riesgo.PatronValido); %s is the gate and %q the element.
+	ErrAplicaEnPatron = "gates.%s.aplica_en: patron invalido %q"
+	// ErrGateClaveDesconocida is a key of gates.<g> outside GateKeys; %s is
+	// the gate and %q the key. The list in parentheses is GateKeys joined by
+	// ", ". In an embedded profile it is the same text, after the prefix
+	// that profiles gives an embedded profile it cannot read.
+	ErrGateClaveDesconocida = "gates.%s: clave desconocida %q (validas: required, cmd, diff_cmd, notes, partial, aplica_en)"
+)
 
 // IsRequired resolves the pointer (nil => false).
 func (g Gate) IsRequired() bool { return g.Required != nil && *g.Required }
@@ -554,7 +608,9 @@ func LoadRoles(root string) (*Manifest, error) {
 	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings), maxRondasDeclarado(doc.Findings)); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Spec: doc.Spec, Dir: root}, nil
+	roles := &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Spec: doc.Spec, Dir: root}
+	registrarHuella(roles, raw)
+	return roles, nil
 }
 
 // AutonomiaPolicy is the optional `autonomia:` section of the PROJECT's
@@ -932,6 +988,51 @@ type Manifest struct {
 	Dir string `yaml:"-"`
 }
 
+// huellas is the sha256 ([sha256.Size]byte) of the bytes of Dir's hoom.yaml
+// that LoadWithoutBaseCheck (and so Load) or LoadRoles read to build each
+// manifest they return (gates-por-ruta, findings a6ad52 and 94b657), keyed by
+// a weak.Pointer to it: the table never keeps a manifest alive, and the
+// cleanup registrarHuella attaches deletes its entry once the manifest is
+// unreachable. It lives outside Manifest so that a Manifest is only what its
+// hoom.yaml says: two manifests with the same content are equal
+// (reflect.DeepEqual) whatever bytes they came from. Only registrarHuella
+// writes it; HoomYAMLSigueIgual reads it.
+var huellas sync.Map
+
+// registrarHuella records in huellas the fingerprint of raw, the bytes of
+// hoom.yaml m was built from, until m is unreachable.
+func registrarHuella(m *Manifest, raw []byte) {
+	k := weak.Make(m)
+	huellas.Store(k, sha256.Sum256(raw))
+	runtime.AddCleanup(m, func(k weak.Pointer[Manifest]) { huellas.Delete(k) }, k)
+}
+
+// HoomYAMLSigueIgual says whether Dir's hoom.yaml still has the bytes this
+// manifest was built from (gates-por-ruta, findings a6ad52 and 94b657): a
+// manifest loaded once and reused, as the Studio's, may be judging with a
+// hoom.yaml that is no longer the project's. It is false when the file cannot
+// be read (gone, a directory, unreadable), when its bytes differ from the
+// ones read, and for a manifest without a fingerprint: one not returned by
+// Load, LoadWithoutBaseCheck or LoadRoles from the file, such as a literal or
+// a copy by value (*m does not carry the fingerprint: it is m's, not its
+// content's). Ante la duda, it is not the same. Like Load, it reads through a
+// symbolic link; it only compares bytes, so a file rewritten with the same
+// ones is still the same.
+func (m *Manifest) HoomYAMLSigueIgual() bool {
+	if m == nil {
+		return false
+	}
+	h, ok := huellas.Load(weak.Make(m))
+	if !ok {
+		return false
+	}
+	raw, err := os.ReadFile(filepath.Join(m.Dir, FileName))
+	if err != nil {
+		return false
+	}
+	return h == sha256.Sum256(raw)
+}
+
 // DefaultMaxEvidenceKiB is the evidence cap of `hoom review` when hoom.yaml
 // does not set review.max_evidence_kib.
 const DefaultMaxEvidenceKiB = 320
@@ -1268,6 +1369,14 @@ func Find(dir string) (string, error) {
 // provided resolver (injected to avoid an import cycle with profiles). Its
 // base_branch is the base hoom hands to git, so one that git would read as an
 // option makes the file invalid (finding bb986a).
+//
+// gates-por-ruta: each gate of the project is decoded strictly, with the
+// keys of GateKeys and the errors ErrGateClaveDesconocida, ErrAplicaEnLista
+// and ErrAplicaEnPatron (with "hoom.yaml invalido: " in front). The merge
+// with the profile keeps today's rules (nil inherits, non-nil replaces), and
+// so does AplicaEn: a project gate with aplica_en replaces the profile's
+// list whole; one without the key keeps the profile's. A hoom.yaml without
+// aplica_en loads as today.
 func Load(dir string, resolveProfile func(name string) (map[string]Gate, string, error)) (*Manifest, error) {
 	m, err := LoadWithoutBaseCheck(dir, resolveProfile)
 	if err != nil {
@@ -1291,6 +1400,11 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 	raw, err := os.ReadFile(filepath.Join(root, FileName))
 	if err != nil {
 		return nil, err
+	}
+	// the gates first, strictly (gates-por-ruta): an unknown key of a gate
+	// would otherwise be silence, and a bad aplica_en yaml.v3's own text
+	if err := ValidarGates(raw); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
 	var m Manifest
 	if err := yaml.Unmarshal(raw, &m); err != nil {
@@ -1338,6 +1452,9 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 	if len(m.Gates) == 0 {
 		return nil, fmt.Errorf("hoom.yaml no declara gates y el perfil %q no aporta ninguno", m.Profile)
 	}
+	// the bytes it is built from, to tell later whether Dir's hoom.yaml is
+	// still the one (HoomYAMLSigueIgual)
+	registrarHuella(&m, raw)
 	return &m, nil
 }
 
@@ -1345,7 +1462,9 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 // nil pointer fields inherit; non-nil fields replace — so `cmd: ""` in the
 // project explicitly disables (declares absent) a gate the profile ships,
 // `diff_cmd: ""` clears the profile's diff command, and `required:` only
-// changes when the project actually writes it.
+// changes when the project actually writes it. aplica_en (gates-por-ruta)
+// follows the same rule: the project's list replaces the profile's whole,
+// and a project gate without the key keeps the profile's.
 func overlay(base, over Gate) Gate {
 	out := base
 	if over.Required != nil {
@@ -1362,6 +1481,9 @@ func overlay(base, over Gate) Gate {
 	}
 	if over.Partial != "" {
 		out.Partial = over.Partial
+	}
+	if over.AplicaEn != nil {
+		out.AplicaEn = append([]string(nil), over.AplicaEn...)
 	}
 	return out
 }
