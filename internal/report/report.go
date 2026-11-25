@@ -70,6 +70,11 @@ func renderRiesgo(w io.Writer, v *verdict.Verdict) {
 //
 // Today's `! cambio grande (>400 lineas): la review exige las 4 lentes`
 // is no longer printed, for any verdict.
+//
+// gates-por-ruta: a gate in verdict.StatusNoAplica is printed with the label
+// NO APLICA where the others have PASS, FAIL or AUSEN, and under it its
+// motivo (GateResult.Notes, gates.MotivoNoAplica). A verdict without such
+// gates renders as today.
 func Render(w io.Writer, v *verdict.Verdict, path string) {
 	fmt.Fprintf(w, "\n%shoomAI - veredicto de verificacion%s\n", cBold, cReset)
 	fmt.Fprintf(w, "proyecto: %s  perfil: %s  politica: %s\n", v.Project, v.Profile, v.Policy)
@@ -144,6 +149,9 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 }
 
 // History prints the last n verdicts and a per-gate trend across all runs.
+// The trend leaves out the runs of a gate that were skipped or absent and,
+// since gates-por-ruta, those in verdict.StatusNoAplica: they count neither
+// as passed nor in the total.
 func History(w io.Writer, all []*verdict.Verdict, n int) {
 	if len(all) == 0 {
 		fmt.Fprintln(w, "hoom: sin veredictos todavia (ejecuta 'hoom verify')")

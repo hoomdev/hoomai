@@ -69,6 +69,17 @@ type Options struct {
 	// Local.EnElHost are not affected: they run as today, enclosed with
 	// Encierro.
 	ExigirEncierro string
+	// Cambio (gates-por-ruta) is the change of the run (CambioDe), the one
+	// each gate's aplica_en is judged against (Aplica). nil = every gate
+	// applies and the command is chosen as today. verifycmd.Run sets it in
+	// every run without Full. Whether aplica_en is looked at is Run's rule:
+	// only in a verify de trabajo, which is a run with Cambio and without
+	// Full, Cierre or Only.
+	Cambio *Cambio
+	// Cierre (gates-por-ruta) is `hoom verify --cierre`: every gate applies,
+	// whatever its aplica_en and Cambio say; in everything else the run is
+	// one without flags (diff_cmd is chosen as without Full).
+	Cierre bool
 }
 
 // The notes of a gate that could not run, or that ran unenclosed because of
@@ -116,6 +127,34 @@ const (
 // holds with Options.Local's template and without it: a ddev missing from
 // the host gives 127 just like a missing php, and a 127 from inside the
 // container that the template passes on is the gate's 127.
+//
+// gates-por-ruta: aplica_en (manifest.Gate.AplicaEn) is looked at only in a
+// verify de trabajo: opt.Cambio not nil, and neither opt.Full, nor
+// opt.Cierre, nor opt.Only. There, gate by gate in canonical order:
+//
+//   - a gate whose cmd resolves empty is absent, as today, whether or not
+//     it has aplica_en (CA-812);
+//   - otherwise, a gate for which Aplica(g, *opt.Cambio) is false does not
+//     run its command: status verdict.StatusNoAplica, scope "none", no
+//     Command, exit_code 0, duration 0, no output, Notes the motivo Aplica
+//     gives (fmt.Sprintf(MotivoNoAplica, ...)), Required and Partial those
+//     of the gate, and Entorno where it would have run (like an absent
+//     gate). Its live events are an absent gate's, with its status;
+//   - every other gate runs as today.
+//
+// With opt.Full, opt.Cierre or opt.Only nothing looks at aplica_en: every
+// gate runs (or is skipped by Only) as today, the gate of --gate included.
+// Cierre chooses the command as a run without Full does (diff_cmd when
+// there is a diff scope); Full runs cmd.
+//
+// The diff scope (cmd or diff_cmd, scope full or diff): as today, a gate
+// takes diff_cmd when it has one, the run is not Full, git.IsRepo and
+// git.ChangedFiles is not empty. With opt.Cambio, a Cambio.Archivos that is
+// not empty is a diff scope too, even when git.ChangedFiles is empty (a
+// change that only deletes a file in a commit, which ChangedFiles leaves
+// out: CA-811). {base}, {files} and {packages} still expand from git, and a
+// diff_cmd whose {files} or {packages} expand to nothing falls back to cmd,
+// as today.
 func Run(m *manifest.Manifest, git gitx.Info, opt Options) []verdict.GateResult {
 	if opt.Timeout == 0 {
 		opt.Timeout = defaultTimeout

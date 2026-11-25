@@ -37,6 +37,13 @@ type Options struct {
 	Gates []string // empty = all
 	Spec  string   // spec path, relative to the manifest's Dir or absolute; adds spec_lint + spec_trace
 	JSON  bool     // emit the verdict as JSON (rendering is the caller's job)
+	// Cierre (gates-por-ruta) is `hoom verify --cierre`: every gate runs
+	// without looking at its aplica_en (gates.Options.Cierre); in everything
+	// else it is a run without flags (diff_cmd included, unlike Full). A
+	// complete green verdict of a --cierre has no gate in
+	// verdict.StatusNoAplica, so taskcmd.Ready accepts it. ParseArgs sets it
+	// with --cierre; POST /api/verify never does.
+	Cierre bool
 	// Sobre (contencion-del-writer) is the option only the verify of the
 	// envelope of a role that executes (agentcmd.Run) and the pilot's
 	// cerrar-hallazgos use; `hoom verify` and POST /api/verify never set it
@@ -187,6 +194,18 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // fingerprint. An error of the section `rutas` is an error of the manifest
 // (manifest.Rutas): Load already refuses it, so no gate runs and no verdict
 // is written.
+//
+// gates-por-ruta: every run without Full computes the change
+// gates.CambioDe(m.Dir, m.BaseBranch) and hands it to the gates
+// (gates.Options.Cambio), with gates.Options.Cierre = opt.Cierre. The verify
+// de trabajo is the one without Cierre, Full and Gates: there a gate with
+// aplica_en that no file of the change matches stays
+// verdict.StatusNoAplica, with its motivo (gates.Run). That status changes
+// neither the color of the verdict nor its partial mark, and counts in
+// Summary.NoAplica. With Cierre, Full or Gates no gate looks at aplica_en.
+// Every caller (`hoom verify`, the envelope of `hoom agent`, the pilot's
+// cerrar-hallazgos and POST /api/verify) gets the same rule, since all of
+// them run this function.
 func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err := validarGates(m, opt.Gates); err != nil {
 		return nil, "", err

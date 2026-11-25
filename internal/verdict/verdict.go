@@ -31,6 +31,14 @@ const (
 	StatusError   = "error"   // configured but could not run (missing tool, timeout) — fail closed
 	StatusAbsent  = "absent"  // no command configured — declared degradation, reported loudly
 	StatusSkipped = "skipped" // excluded by --gate selection
+	// StatusNoAplica (gates-por-ruta) is a gate of hoom.yaml with aplica_en
+	// that no file of the change matches, in a verify de trabajo (without
+	// --cierre, --full or --gate): its command did not run, its scope is
+	// "none" and its notes say why (gates.MotivoNoAplica). It never turns
+	// the verdict red nor makes it partial (Finalize, IsPartial), and it
+	// counts in Summary.NoAplica. The cierre does not accept it:
+	// taskcmd.Ready refuses a latest complete verdict with one.
+	StatusNoAplica = "no_aplica"
 )
 
 // GateResult is the outcome of one gate execution.
@@ -123,17 +131,25 @@ type Verdict struct {
 	Tarea string `json:"-"`
 }
 
+// Summary counts the gates of a verdict by status.
 type Summary struct {
 	Pass    int `json:"pass"`
 	Fail    int `json:"fail"`
 	Error   int `json:"error"`
 	Absent  int `json:"absent"`
 	Skipped int `json:"skipped"`
+	// NoAplica (gates-por-ruta) counts the gates in StatusNoAplica. The key
+	// no_aplica is left out of the JSON when it is 0, so a verdict without
+	// such gates serializes as today.
+	NoAplica int `json:"no_aplica,omitempty"`
 }
 
 // Finalize computes the summary and the strict verdict: any fail or error
 // on a required gate turns it red. Declared absence is never silent (it is
 // counted and rendered loudly) but is not red; configured-but-broken is.
+//
+// gates-por-ruta: a gate in StatusNoAplica, required or not, counts in
+// Summary.NoAplica and never turns the verdict red.
 func (v *Verdict) Finalize() {
 	s := Summary{}
 	red := false
@@ -169,6 +185,9 @@ func (v *Verdict) Finalize() {
 // the gate runner only ever emits skipped for --gate exclusion, so any
 // skipped gate other than spec_lint/spec_trace (which complete runs can
 // legitimately skip) implies a partial run.
+//
+// gates-por-ruta: StatusNoAplica is not skipped: a verdict whose gates are
+// no_aplica is complete, never partial, and LatestComplete may return it.
 func (v *Verdict) IsPartial() bool {
 	if v.Partial {
 		return true

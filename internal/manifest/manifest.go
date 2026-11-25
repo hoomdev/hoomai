@@ -43,7 +43,57 @@ type Gate struct {
 	// JVM target in KMP). Declared degradation is a feature: reported loudly,
 	// never hidden.
 	Partial string `yaml:"partial,omitempty"`
+	// AplicaEn (gates-por-ruta) is gates.<g>.aplica_en: the paths the gate
+	// applies to, a non-empty list of patterns relative to the root of the
+	// repository with the syntax of `rutas:` (riesgo.Coincide,
+	// riesgo.PatronValido; CA-777):
+	//
+	//	gates:
+	//	  mutation:
+	//	    aplica_en: [app/**, src/**]
+	//
+	// nil = the key is not written: the gate applies always, as today. In a
+	// verify de trabajo (gates.Options.Cambio, without Full, Cierre or Only)
+	// a gate whose AplicaEn matches no file of the change does not run its
+	// command and stays verdict.StatusNoAplica (gates.Aplica, gates.Run).
+	//
+	// The project's list replaces the profile's whole (Load); a gate of the
+	// project without the key keeps the profile's. The patterns are kept as
+	// written, in their order. Load and LoadWithoutBaseCheck refuse, with
+	// "hoom.yaml invalido: " in front:
+	//
+	//   - an aplica_en that is not a non-empty list of strings (an empty
+	//     list, null, a scalar, a map, or a list with an element that is not a
+	//     string): fmt.Sprintf(ErrAplicaEnLista, <g>);
+	//   - an element that is not a valid pattern (riesgo.PatronValido):
+	//     fmt.Sprintf(ErrAplicaEnPatron, <g>, <p>).
+	AplicaEn []string `yaml:"aplica_en,omitempty"`
 }
+
+// GateKeys (gates-por-ruta) are the keys gates.<g> accepts, in the order its
+// error names them: required, cmd, diff_cmd, notes, partial, aplica_en. Any
+// other key of a gate, in hoom.yaml or in an embedded profile, is the error
+// ErrGateClaveDesconocida: never a silence.
+var GateKeys = []string{"required", "cmd", "diff_cmd", "notes", "partial", "aplica_en"}
+
+// The errors of a gate of hoom.yaml (gates-por-ruta), exactly. Load and
+// LoadWithoutBaseCheck give them with "hoom.yaml invalido: " in front, and
+// then `hoom verify` runs no gate and writes no verdict. <g> (%s) is the
+// gate's name as written; the key and the pattern (%q) are quoted as %q
+// quotes them.
+const (
+	// ErrAplicaEnLista is an aplica_en that is not a non-empty list of
+	// patterns; %s is the gate.
+	ErrAplicaEnLista = "gates.%s.aplica_en: tiene que ser una lista no vacia de patrones"
+	// ErrAplicaEnPatron is an element of aplica_en that is not a valid
+	// pattern (riesgo.PatronValido); %s is the gate and %q the element.
+	ErrAplicaEnPatron = "gates.%s.aplica_en: patron invalido %q"
+	// ErrGateClaveDesconocida is a key of gates.<g> outside GateKeys; %s is
+	// the gate and %q the key. The list in parentheses is GateKeys joined by
+	// ", ". In an embedded profile it is the same text, after the prefix
+	// that profiles gives an embedded profile it cannot read.
+	ErrGateClaveDesconocida = "gates.%s: clave desconocida %q (validas: required, cmd, diff_cmd, notes, partial, aplica_en)"
+)
 
 // IsRequired resolves the pointer (nil => false).
 func (g Gate) IsRequired() bool { return g.Required != nil && *g.Required }
@@ -1268,6 +1318,14 @@ func Find(dir string) (string, error) {
 // provided resolver (injected to avoid an import cycle with profiles). Its
 // base_branch is the base hoom hands to git, so one that git would read as an
 // option makes the file invalid (finding bb986a).
+//
+// gates-por-ruta: each gate of the project is decoded strictly, with the
+// keys of GateKeys and the errors ErrGateClaveDesconocida, ErrAplicaEnLista
+// and ErrAplicaEnPatron (with "hoom.yaml invalido: " in front). The merge
+// with the profile keeps today's rules (nil inherits, non-nil replaces), and
+// so does AplicaEn: a project gate with aplica_en replaces the profile's
+// list whole; one without the key keeps the profile's. A hoom.yaml without
+// aplica_en loads as today.
 func Load(dir string, resolveProfile func(name string) (map[string]Gate, string, error)) (*Manifest, error) {
 	m, err := LoadWithoutBaseCheck(dir, resolveProfile)
 	if err != nil {

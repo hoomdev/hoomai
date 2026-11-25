@@ -423,6 +423,17 @@ func short(sha string) string {
 // the key there is no cap. The board shows it as
 // `aceptarla dejaria demasiados medium abiertos en el proyecto` with the
 // action `hoom finding list --open`; --force skips it.
+//
+// gates-por-ruta: when the latest complete verdict (verdict.LatestComplete)
+// is green and has at least one gate in verdict.StatusNoAplica, Ready fails
+// with kind ReadySinCierre and the message FormatoSinCierre, after the check
+// of ReadyRojo and before the one of ReadyHuella. The same error reaches
+// `hoom task done`, `hoom integrar` and POST /api/tasks/{slug}/done, which
+// then close nothing; after a green `hoom verify --cierre` (no no_aplica)
+// with the same fingerprint they close. The board shows it as
+// `falta la verificacion de cierre del espacio de trabajo`, with the action
+// the message carries after "Accion: ". --force skips it. `hoom check`
+// does not change: it accepts no_aplica.
 func Ready(root, slug, base string) error {
 	wt, err := runcmd.TaskDir(root, slug)
 	if err != nil {

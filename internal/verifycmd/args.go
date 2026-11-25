@@ -35,6 +35,10 @@ del proyecto, 'hoom status'.`
 //
 // It returns a *cliargs.UsageError for anything hoom does not understand, and
 // cliargs.ErrHelp for -h/--help (which is not an error: stdout and exit 0).
+//
+// gates-por-ruta: --cierre sets Options.Cierre (a boolean flag, like
+// --full), and UsageText names it, so `hoom verify --help` and `hoom help`
+// show it.
 func ParseArgs(args []string) (Options, error) {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	full := fs.Bool("full", false, "ignorar scoping por diff")
