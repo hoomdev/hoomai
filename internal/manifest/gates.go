@@ -15,8 +15,14 @@ import (
 // patterns (ErrAplicaEnLista, ErrAplicaEnPatron). The checks go in the
 // file's order, gate by gate and key by key: the first error found is the
 // one given, without any prefix (Load adds "hoom.yaml invalido: ", the
-// embedded profiles theirs). The keys a gate gets from a merge (<<) are
-// checked as its own, at any depth (findings 13e26e and dc272d).
+// embedded profiles theirs).
+//
+// It reads the document the way yaml.v3's decoder does, at every level (the
+// document, gates: and each gate): a merge key (<<) brings, where it is, the
+// keys of the map or maps it names, at any depth (findings 13e26e and
+// dc272d), and a key that is an alias is the key it points to. What comes
+// from a merge is checked even where the decoder would let a key of the map
+// itself win over it: stricter, never laxer.
 //
 // What it does not judge stays as today: a document that is not YAML is the
 // parser's error, a gates: or a gate that is not a map, and a value of
@@ -30,68 +36,100 @@ func ValidarGates(raw []byte) error {
 	}
 	raiz := &doc
 	if raiz.Kind == yaml.DocumentNode && len(raiz.Content) > 0 {
-		raiz = sinAlias(raiz.Content[0])
+		raiz = raiz.Content[0]
 	}
-	if raiz == nil || raiz.Kind != yaml.MappingNode {
-		return nil
-	}
-	visto := map[*yaml.Node]bool{}
-	for i := 0; i+1 < len(raiz.Content); i += 2 {
-		if raiz.Content[i].Value != "gates" {
-			continue
+	v := validador{visto: map[visita]bool{}}
+	return v.pares(raiz, rolRaiz, func(clave, valor *yaml.Node) error {
+		if clave.Value != "gates" {
+			return nil
 		}
-		gates := sinAlias(raiz.Content[i+1])
-		if gates == nil || gates.Kind != yaml.MappingNode {
-			return nil // today's decoder gives its error
-		}
-		for j := 0; j+1 < len(gates.Content); j += 2 {
-			if err := validarGate(gates.Content[j].Value, gates.Content[j+1], visto); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+		return v.pares(valor, rolGates, func(nombre, gate *yaml.Node) error {
+			return v.pares(gate, rolGate, func(clave, valor *yaml.Node) error {
+				return validarClave(nombre.Value, clave.Value, valor)
+			})
+		})
+	})
 }
 
-// validarGate is one gates.<g>: its keys and its aplica_en. A merge key
-// (<<) brings the keys of the map (or maps) it names, merges of theirs
-// included, which are checked as the gate's own, at any depth. visto, shared
-// by the whole document, holds the maps already walked: one that comes again
-// (merged by two gates, twice in a chain, or a cycle, which the decoder then
-// rejects) was checked or is being checked, so it adds nothing, and the walk
-// stays linear in the size of the document, without a cap on the depth.
-func validarGate(nombre string, n *yaml.Node, visto map[*yaml.Node]bool) error {
+// rol is what a map is to ValidarGates: the document, its gates:, or a gate.
+type rol int
+
+const (
+	rolRaiz rol = iota
+	rolGates
+	rolGate
+)
+
+// visita is a map walked in a rol.
+type visita struct {
+	n   *yaml.Node
+	rol rol
+}
+
+// validador holds, for the whole document, the maps already walked in each
+// rol: one that comes again (merged twice, by two gates, or a cycle, which
+// the decoder then rejects) was checked or is being checked, so it adds
+// nothing. The walk stays linear in the size of the document, without a cap
+// on the depth.
+type validador struct {
+	visto map[visita]bool
+}
+
+// pares calls f with each key and value of the map n, in the file's order,
+// the way the decoder reads them: a merge key brings, where it is, the
+// pairs of the map (or the maps of the sequence) it names, merges of theirs
+// included; a key that is an alias comes as the node it points to. A map
+// already walked in r gives nothing; so does anything that is not a map (the
+// decoder gives its error).
+func (v validador) pares(n *yaml.Node, r rol, f func(clave, valor *yaml.Node) error) error {
 	n = sinAlias(n)
 	if n == nil || n.Kind != yaml.MappingNode {
-		return nil // null is a gate without keys; anything else is the decoder's
-	}
-	if visto[n] {
 		return nil
 	}
-	visto[n] = true
+	k := visita{n, r}
+	if v.visto[k] {
+		return nil
+	}
+	v.visto[k] = true
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		clave, valor := n.Content[i], n.Content[i+1]
-		if clave.Kind == yaml.ScalarNode && clave.ShortTag() == "!!merge" {
-			v := sinAlias(valor)
-			fuentes := []*yaml.Node{v}
-			if v != nil && v.Kind == yaml.SequenceNode {
-				fuentes = v.Content
+		if esMerge(clave) {
+			fuente := sinAlias(valor)
+			fuentes := []*yaml.Node{fuente}
+			if fuente != nil && fuente.Kind == yaml.SequenceNode {
+				fuentes = fuente.Content
 			}
-			for _, f := range fuentes {
-				if err := validarGate(nombre, f, visto); err != nil {
+			for _, m := range fuentes {
+				if err := v.pares(m, r, f); err != nil {
 					return err
 				}
 			}
 			continue
 		}
-		if !containsKey(GateKeys, clave.Value) {
-			return fmt.Errorf(ErrGateClaveDesconocida, nombre, clave.Value)
+		if c := sinAlias(clave); c != nil {
+			clave = c
 		}
-		if clave.Value == "aplica_en" {
-			if err := validarAplicaEn(nombre, valor); err != nil {
-				return err
-			}
+		if err := f(clave, valor); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// esMerge is yaml.v3's merge key: a plain << (or one tagged !!merge); a
+// quoted "<<", or an alias to one, is an ordinary key.
+func esMerge(clave *yaml.Node) bool {
+	return clave.Kind == yaml.ScalarNode && clave.Value == "<<" && clave.ShortTag() == "!!merge"
+}
+
+// validarClave is one key of gates.<g>: one of GateKeys, and aplica_en a
+// valid one.
+func validarClave(nombre, clave string, valor *yaml.Node) error {
+	if !containsKey(GateKeys, clave) {
+		return fmt.Errorf(ErrGateClaveDesconocida, nombre, clave)
+	}
+	if clave == "aplica_en" {
+		return validarAplicaEn(nombre, valor)
 	}
 	return nil
 }
