@@ -1,0 +1,90 @@
+{
+  "id": "20261125T162840_e0f121",
+  "created_at": "2026-11-25T16:28:40.632222258Z",
+  "task": "gates-por-ruta",
+  "spec": ".hoom/specs/gates-por-ruta.md",
+  "fingerprint": "1c2bf2192ace089d",
+  "verdict_id": "2026-11-25T16-11-26Z_92e309a6",
+  "verdict": "green",
+  "lenses": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ],
+  "provider": "codex",
+  "writer": "",
+  "cross": "desconocida",
+  "writers_declared": [],
+  "findings": [
+    "20261125T161655_09a40f",
+    "20261125T161655_13e26e",
+    "20261125T162224_dc272d",
+    "20261125T162230_e8575e",
+    "20261125T162554_3e5566",
+    "20261125T162645_fe6ef8",
+    "20261125T162825_3e541b",
+    "20261125T162825_a45902",
+    "20261125T162825_e9e03b"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "isolated": true,
+  "evidence_bytes": 147552,
+  "evidence_sha256": "03fa6364359792572fd903ef7387c06de64cc00f652ecbe9970ad42231206c86",
+  "usage": [
+    {
+      "lens": "risk",
+      "input_tokens": 1430031,
+      "cached_input_tokens": 1276032,
+      "output_tokens": 13880,
+      "turns": 1
+    },
+    {
+      "lens": "reliability",
+      "input_tokens": 1781927,
+      "cached_input_tokens": 1683200,
+      "output_tokens": 16330,
+      "turns": 1
+    },
+    {
+      "lens": "resilience",
+      "input_tokens": 1313116,
+      "cached_input_tokens": 1239296,
+      "output_tokens": 13885,
+      "turns": 1
+    },
+    {
+      "lens": "readability",
+      "input_tokens": 301739,
+      "cached_input_tokens": 233728,
+      "output_tokens": 3847,
+      "turns": 1
+    }
+  ],
+  "runs": [
+    {
+      "lens": "risk",
+      "run": "20261125T161238_fc9c77"
+    },
+    {
+      "lens": "reliability",
+      "run": "20261125T161714_c84748"
+    },
+    {
+      "lens": "resilience",
+      "run": "20261125T162244_87436c"
+    },
+    {
+      "lens": "readability",
+      "run": "20261125T162721_bd9586"
+    }
+  ],
+  "desde": "9867d640dd1cdbf51170084b221e164ba9eec047",
+  "hasta": "ef3542fa568f5d89e3d4da98411224f3beb2d1b9",
+  "cobertura": "completa",
+  "base": "main",
+  "riesgo": "normal",
+  "riesgo_motivo": "declarado normal",
+  "lentes_motivo": "534 lineas de producto (\u003e400): las 4 lentes"
+}
