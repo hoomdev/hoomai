@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261125T161655_09a40f",
+  "as": "corregido",
+  "evidence": "Corregido en a433e49: hoomYAMLDe ya no aplica strings.TrimSpace al --show-prefix de git; sinFinDeLinea quita solo el \\n final (y un \\r). Regresion: internal/gates/hallazgos_09a40f_test.go, TestHallazgo09a40f_CA812_ElHoomYamlDeUnProyectoQueEmpiezaConEspacio (proyectos ' web', tab y '  web/ api'; desde el proyecto y desde un subdirectorio). Falla con cambio.go de 85a53db (Todos:false) y pasa con el nuevo; el arnes del refutador a/e2e.sh ' web' ahora corre static.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T17:08:58.910439249Z"
+}

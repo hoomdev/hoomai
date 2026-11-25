@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261125T161655_13e26e",
+  "as": "corregido",
+  "evidence": "Corregido en e45e00a (y 4a6c54e para los merges y las claves alias de la raiz y de gates:): validarGate ya no devuelve nil pasados 8 niveles; recorre cualquier profundidad con un conjunto de nodos visitados, corta los ciclos y es lineal. Regresion: internal/manifest/hallazgos_13e26e_test.go (cadenas de 1 a 300 merges, en linea y con anclas, con patron invalido, clave aplicaen y []; abanico 12^8 en menos de 1 s). Falla con gates.go de 85a53db (n=9 carga sin error; abanico 1,8 s) y pasa con el nuevo.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T17:08:58.919829771Z"
+}
