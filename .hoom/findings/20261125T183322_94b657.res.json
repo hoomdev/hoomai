@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261125T183322_94b657",
+  "as": "corregido",
+  "evidence": "Corregido en 72bc060. manifest.Load (LoadWithoutBaseCheck) y LoadRoles registran el sha256 de los bytes de hoom.yaml en una tabla del paquete (sync.Map con clave weak.Pointer[Manifest] y runtime.AddCleanup; el struct Manifest no cambia, asi que TestHallazgo_461d05 sigue intacto). Manifest.HoomYAMLSigueIgual relee m.Dir/hoom.yaml y da false sin entrada, si no se puede leer o si el sha256 es otro; verifycmd.Run, en el bloque de 8c4016, deja Todos=true si da false. Regresion: internal/verifycmd/hallazgo_a6ad52_test.go (A cargado y vuelta a B con git checkout, con los bytes de B y con un rename; Manifest literal) e internal/servecmd/hallazgo_a6ad52_test.go (Studio: newServer, POST /api/verify con el token) fallan con manifest.go, verifycmd.go y cambio.go de d69969e por overlay (static no_aplica) y pasan con el codigo nuevo; los controles (A en la base, sin tocar o con los mismos bytes) siguen en no_aplica.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T18:58:38.079862914Z"
+}
