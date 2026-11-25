@@ -32,6 +32,8 @@ func statusBadge(s string) string {
 		return cYellow + "AUSEN" + cReset
 	case verdict.StatusSkipped:
 		return cGray + "SKIP " + cReset
+	case verdict.StatusNoAplica:
+		return cGray + "NO APLICA" + cReset
 	}
 	return s
 }
@@ -112,6 +114,10 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 		if g.Status == verdict.StatusAbsent {
 			fmt.Fprintf(w, "         %s! gate declarado ausente - sin comando configurado%s\n", cYellow, cReset)
 		}
+		if g.Status == verdict.StatusNoAplica {
+			// its motivo, under it, like the warning of an absent gate
+			fmt.Fprintf(w, "         %s%s%s\n", cGray, g.Notes, cReset)
+		}
 		if g.Status == verdict.StatusFail || g.Status == verdict.StatusError {
 			fmt.Fprintf(w, "         %scmd: %s%s\n", cGray, g.Command, cReset)
 			if g.Notes != "" {
@@ -135,9 +141,13 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 	if v.Verdict == "red" {
 		color, label = cRed, "ROJO"
 	}
-	fmt.Fprintf(w, " veredicto: %s%s%s%s  (pass:%d fail:%d error:%d ausentes:%d skip:%d)\n",
+	noAplica := ""
+	if v.Summary.NoAplica > 0 {
+		noAplica = fmt.Sprintf(" no_aplica:%d", v.Summary.NoAplica)
+	}
+	fmt.Fprintf(w, " veredicto: %s%s%s%s  (pass:%d fail:%d error:%d ausentes:%d skip:%d%s)\n",
 		cBold, color, label, cReset,
-		v.Summary.Pass, v.Summary.Fail, v.Summary.Error, v.Summary.Absent, v.Summary.Skipped)
+		v.Summary.Pass, v.Summary.Fail, v.Summary.Error, v.Summary.Absent, v.Summary.Skipped, noAplica)
 	if v.Summary.Absent > 0 {
 		fmt.Fprintf(w, " %s! %d capacidad(es) sin gate: la red de seguridad esta incompleta y lo sabes.%s\n",
 			cYellow, v.Summary.Absent, cReset)
@@ -185,7 +195,7 @@ func History(w io.Writer, all []*verdict.Verdict, n int) {
 	var order []string
 	for _, v := range all {
 		for _, g := range v.Gates {
-			if g.Status == verdict.StatusSkipped || g.Status == verdict.StatusAbsent {
+			if g.Status == verdict.StatusSkipped || g.Status == verdict.StatusAbsent || g.Status == verdict.StatusNoAplica {
 				continue
 			}
 			s, ok := stats[g.Name]

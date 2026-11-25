@@ -64,7 +64,7 @@ func Build(all []*verdict.Verdict, n int) JSON {
 	}
 	for _, v := range all {
 		for _, g := range v.Gates {
-			if g.Status == verdict.StatusSkipped || g.Status == verdict.StatusAbsent {
+			if g.Status == verdict.StatusSkipped || g.Status == verdict.StatusAbsent || g.Status == verdict.StatusNoAplica {
 				continue
 			}
 			t := out.Gates[g.Name]
