@@ -4,3 +4,5 @@ prioridad: media
 pedido: 'Intake .hoom/intake/rfc-calibracion-por-riesgo.md, CAL-7, CAL-6 y CAL-11 con los ajustes de 10.2: topes de palabras y criterios en spec_lint, test-writer acotado en normal y modelo por rol y por riesgo con niveles; todo con el riesgo declarado.'
 creado_por: hoomdev <dev@volale.com>
 creado_en: 2026-11-21T21:10:34Z
+hecho_en: 2026-11-25T02:10:16Z
+commit_final: 52f4c139c7f0b0452d874c2ea466acfc8d55aa6d
