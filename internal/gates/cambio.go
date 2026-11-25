@@ -2,6 +2,7 @@ package gates
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -44,9 +45,15 @@ type Cambio struct {
 //   - Todos is true when Archivos is empty; when dir is not in a git
 //     repository (Archivos nil); when git cannot say the change (no
 //     merge-base with base, a diff or a listing that fails: Archivos nil);
-//     and when Archivos holds the hoom.yaml that manifest.Find(dir) finds,
-//     as a path relative to the root ("hoom.yaml" when it is at the root;
-//     with no hoom.yaml found, this last rule says nothing).
+//     and when the change may touch the project's hoom.yaml (CA-812):
+//     Archivos holds the hoom.yaml that manifest.Find(dir) finds, as a path
+//     relative to the root ("hoom.yaml" when it is at the root), ignoring
+//     case; git cannot say where that hoom.yaml is in the repository; or,
+//     with no hoom.yaml found, a file of Archivos is named hoom.yaml,
+//     ignoring case, in any directory (it may be the project's). In these
+//     last cases Archivos still holds the change: ante la duda, el gate
+//     corre. With no hoom.yaml found and none in Archivos, the project's
+//     hoom.yaml, wherever it is, is not in the change.
 //
 // It reads git and nothing else, and changes nothing.
 func CambioDe(dir, base string) Cambio {
@@ -57,31 +64,36 @@ func CambioDe(dir, base string) Cambio {
 		return Cambio{Todos: true}
 	}
 	archivos := gitx.ArchivosConBorrados(nil, lineas)
-	c := Cambio{Archivos: archivos, Todos: len(archivos) == 0}
-	if yaml, ok := hoomYAMLDe(dir); ok {
-		for _, f := range archivos {
-			if f == yaml {
-				c.Todos = true
-				break
-			}
-		}
-	}
-	return c
+	return Cambio{Archivos: archivos, Todos: len(archivos) == 0 || tocaElHoomYAML(dir, archivos)}
 }
 
-// hoomYAMLDe is the path, relative to the root of the repository, of the
-// hoom.yaml manifest.Find(dir) finds; false when there is none, or when git
-// cannot say where its directory is in the repository.
-func hoomYAMLDe(dir string) (string, bool) {
+// tocaElHoomYAML says whether archivos (paths relative to the root of the
+// repository, with "/") may hold the project's hoom.yaml, the one
+// manifest.Find(dir) finds, ignoring case like the patterns of aplica_en.
+// Ante la duda, yes (finding fe6ef8): when git cannot say where that
+// hoom.yaml is in the repository, and, when Find finds none, when any file
+// of archivos is named hoom.yaml.
+func tocaElHoomYAML(dir string, archivos []string) bool {
 	proyecto, err := manifest.Find(dir)
 	if err != nil {
-		return "", false
+		for _, f := range archivos {
+			if strings.EqualFold(path.Base(f), manifest.FileName) {
+				return true
+			}
+		}
+		return false
 	}
 	prefijo, _, err := gitx.OutPrefix(proyecto, 0, "-c", "core.quotePath=false", "rev-parse", "--show-prefix")
 	if err != nil {
-		return "", false
+		return true
 	}
-	return filepath.ToSlash(sinFinDeLinea(prefijo)) + manifest.FileName, true
+	yaml := filepath.ToSlash(sinFinDeLinea(prefijo)) + manifest.FileName
+	for _, f := range archivos {
+		if strings.EqualFold(f, yaml) {
+			return true
+		}
+	}
+	return false
 }
 
 // sinFinDeLinea is git's output without the line end git puts after it, and
