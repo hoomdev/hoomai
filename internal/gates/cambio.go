@@ -81,7 +81,15 @@ func hoomYAMLDe(dir string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return filepath.ToSlash(strings.TrimSpace(prefijo)) + manifest.FileName, true
+	return filepath.ToSlash(sinFinDeLinea(prefijo)) + manifest.FileName, true
+}
+
+// sinFinDeLinea is git's output without the line end git puts after it, and
+// nothing more: the bytes of the path, a leading or trailing space included,
+// stay as they are (finding 09a40f).
+func sinFinDeLinea(s string) string {
+	s = strings.TrimSuffix(s, "\n")
+	return strings.TrimSuffix(s, "\r")
 }
 
 // Aplica (gates-por-ruta) says whether gate g applies in a verify de trabajo
