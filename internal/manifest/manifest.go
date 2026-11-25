@@ -1350,6 +1350,11 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 	if err != nil {
 		return nil, err
 	}
+	// the gates first, strictly (gates-por-ruta): an unknown key of a gate
+	// would otherwise be silence, and a bad aplica_en yaml.v3's own text
+	if err := ValidarGates(raw); err != nil {
+		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
+	}
 	var m Manifest
 	if err := yaml.Unmarshal(raw, &m); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
@@ -1403,7 +1408,9 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 // nil pointer fields inherit; non-nil fields replace — so `cmd: ""` in the
 // project explicitly disables (declares absent) a gate the profile ships,
 // `diff_cmd: ""` clears the profile's diff command, and `required:` only
-// changes when the project actually writes it.
+// changes when the project actually writes it. aplica_en (gates-por-ruta)
+// follows the same rule: the project's list replaces the profile's whole,
+// and a project gate without the key keeps the profile's.
 func overlay(base, over Gate) Gate {
 	out := base
 	if over.Required != nil {
@@ -1420,6 +1427,9 @@ func overlay(base, over Gate) Gate {
 	}
 	if over.Partial != "" {
 		out.Partial = over.Partial
+	}
+	if over.AplicaEn != nil {
+		out.AplicaEn = append([]string(nil), over.AplicaEn...)
 	}
 	return out
 }

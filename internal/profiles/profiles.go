@@ -155,6 +155,11 @@ func loadAll() (map[string]*Profile, error) {
 		if err != nil {
 			return nil, err
 		}
+		// its gates with hoom.yaml's strictness (gates-por-ruta): an unknown
+		// key of a gate is an error here too
+		if err := manifest.ValidarGates(raw); err != nil {
+			return nil, fmt.Errorf("perfil embebido %s invalido: %w", e.Name(), err)
+		}
 		var p Profile
 		if err := yaml.Unmarshal(raw, &p); err != nil {
 			return nil, fmt.Errorf("perfil embebido %s invalido: %w", e.Name(), err)
