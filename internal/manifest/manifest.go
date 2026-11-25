@@ -5,13 +5,17 @@
 package manifest
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
+	"weak"
 
 	"gopkg.in/yaml.v3"
 
@@ -604,7 +608,9 @@ func LoadRoles(root string) (*Manifest, error) {
 	if err := validarAutonomia(doc.Autonomia, blockOnDeclarado(doc.Findings), maxRondasDeclarado(doc.Findings)); err != nil {
 		return nil, fmt.Errorf("hoom.yaml invalido: %w", err)
 	}
-	return &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Spec: doc.Spec, Dir: root}, nil
+	roles := &Manifest{Agents: doc.Agents, Review: doc.Review, Autonomia: doc.Autonomia, Encierro: doc.Encierro, Spec: doc.Spec, Dir: root}
+	registrarHuella(roles, raw)
+	return roles, nil
 }
 
 // AutonomiaPolicy is the optional `autonomia:` section of the PROJECT's
@@ -980,6 +986,51 @@ type Manifest struct {
 
 	// Dir is the project root where hoom.yaml lives (not serialized).
 	Dir string `yaml:"-"`
+}
+
+// huellas is the sha256 ([sha256.Size]byte) of the bytes of Dir's hoom.yaml
+// that LoadWithoutBaseCheck (and so Load) or LoadRoles read to build each
+// manifest they return (gates-por-ruta, findings a6ad52 and 94b657), keyed by
+// a weak.Pointer to it: the table never keeps a manifest alive, and the
+// cleanup registrarHuella attaches deletes its entry once the manifest is
+// unreachable. It lives outside Manifest so that a Manifest is only what its
+// hoom.yaml says: two manifests with the same content are equal
+// (reflect.DeepEqual) whatever bytes they came from. Only registrarHuella
+// writes it; HoomYAMLSigueIgual reads it.
+var huellas sync.Map
+
+// registrarHuella records in huellas the fingerprint of raw, the bytes of
+// hoom.yaml m was built from, until m is unreachable.
+func registrarHuella(m *Manifest, raw []byte) {
+	k := weak.Make(m)
+	huellas.Store(k, sha256.Sum256(raw))
+	runtime.AddCleanup(m, func(k weak.Pointer[Manifest]) { huellas.Delete(k) }, k)
+}
+
+// HoomYAMLSigueIgual says whether Dir's hoom.yaml still has the bytes this
+// manifest was built from (gates-por-ruta, findings a6ad52 and 94b657): a
+// manifest loaded once and reused, as the Studio's, may be judging with a
+// hoom.yaml that is no longer the project's. It is false when the file cannot
+// be read (gone, a directory, unreadable), when its bytes differ from the
+// ones read, and for a manifest without a fingerprint: one not returned by
+// Load, LoadWithoutBaseCheck or LoadRoles from the file, such as a literal or
+// a copy by value (*m does not carry the fingerprint: it is m's, not its
+// content's). Ante la duda, it is not the same. Like Load, it reads through a
+// symbolic link; it only compares bytes, so a file rewritten with the same
+// ones is still the same.
+func (m *Manifest) HoomYAMLSigueIgual() bool {
+	if m == nil {
+		return false
+	}
+	h, ok := huellas.Load(weak.Make(m))
+	if !ok {
+		return false
+	}
+	raw, err := os.ReadFile(filepath.Join(m.Dir, FileName))
+	if err != nil {
+		return false
+	}
+	return h == sha256.Sum256(raw)
 }
 
 // DefaultMaxEvidenceKiB is the evidence cap of `hoom review` when hoom.yaml
@@ -1401,6 +1452,9 @@ func LoadWithoutBaseCheck(dir string, resolveProfile func(name string) (map[stri
 	if len(m.Gates) == 0 {
 		return nil, fmt.Errorf("hoom.yaml no declara gates y el perfil %q no aporta ninguno", m.Profile)
 	}
+	// the bytes it is built from, to tell later whether Dir's hoom.yaml is
+	// still the one (HoomYAMLSigueIgual)
+	registrarHuella(&m, raw)
 	return &m, nil
 }
 

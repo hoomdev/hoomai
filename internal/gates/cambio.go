@@ -39,7 +39,8 @@ type Cambio struct {
 	// project's hoom.yaml (CA-812), or may touch it (a hoom.yaml of the
 	// change when the one found is above the directory asked about), or that
 	// hoom.yaml is a symbolic link. verifycmd.Run sets it too when the
-	// hoom.yaml the manifest was loaded from is no longer there.
+	// hoom.yaml the manifest was loaded from is no longer there, or no longer
+	// has the bytes it was loaded from (manifest.Manifest.HoomYAMLSigueIgual).
 	Todos bool
 }
 

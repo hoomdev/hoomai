@@ -201,7 +201,11 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 // (gates.Options.Cambio), with gates.Options.Cierre = opt.Cierre. Its Todos
 // is also true when m.Dir no longer holds the hoom.yaml m was loaded from as
 // a regular file (deleted, moved, or something else in its place after
-// manifest.Load: finding 8c4016): ante la duda, el gate corre. The verify
+// manifest.Load: finding 8c4016), and when that file no longer has the bytes
+// m was built from (m.HoomYAMLSigueIgual: changed since it was loaded, as
+// with a Studio that loaded it once, or m not returned by manifest.Load,
+// such as a literal or a copy: findings a6ad52 and 94b657): ante la duda,
+// el gate corre. The verify
 // de trabajo is the one without Cierre, Full and Gates: there a gate with
 // aplica_en that no file of the change matches stays
 // verdict.StatusNoAplica, with its motivo (gates.Run). That status changes
@@ -233,9 +237,13 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 		c := gates.CambioDe(m.Dir, m.BaseBranch)
 		// the hoom.yaml m was loaded from is no longer a file in m.Dir
 		// (deleted, moved, or something else in its place, after
-		// manifest.Load): the manifest the gates are judged with is not
-		// there, so ante la duda, el gate corre (finding 8c4016)
-		if fi, err := os.Lstat(filepath.Join(m.Dir, manifest.FileName)); err != nil || !fi.Mode().IsRegular() {
+		// manifest.Load: finding 8c4016), or it is but no longer has the
+		// bytes m was built from (changed since it was loaded, as with the
+		// Studio open, or m is not a manifest manifest.Load returned, such
+		// as a literal or a copy: findings a6ad52 and 94b657): the manifest
+		// the gates are judged with is not the project's, so ante la duda,
+		// el gate corre
+		if fi, err := os.Lstat(filepath.Join(m.Dir, manifest.FileName)); err != nil || !fi.Mode().IsRegular() || !m.HoomYAMLSigueIgual() {
 			c.Todos = true
 		}
 		cambio = &c
