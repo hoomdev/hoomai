@@ -118,6 +118,8 @@ func plainReady(kind string) string {
 		return "el espacio de trabajo cambio despues del ultimo verde"
 	case taskcmd.ReadyTopePendientes:
 		return "aceptarla dejaria demasiados medium abiertos en el proyecto"
+	case taskcmd.ReadySinCierre:
+		return "falta la verificacion de cierre del espacio de trabajo"
 	}
 	return "el espacio de trabajo no esta listo para cerrar"
 }

@@ -453,11 +453,27 @@ func Ready(root, slug, base string) error {
 	if last.Verdict != "green" {
 		return notReady(ReadyRojo, "el ultimo veredicto de %q es ROJO (%s). Accion: corrige y re-ejecuta 'hoom verify' en el worktree", slug, last.ID)
 	}
+	if noAplicaron := noAplicaronEn(last); len(noAplicaron) > 0 {
+		// a verify de trabajo is not a cierre: the cierre runs every gate (I8)
+		return notReady(ReadySinCierre, FormatoSinCierre, slug, strings.Join(noAplicaron, ", "))
+	}
 	g := gitx.Snapshot(wt, base)
 	if g.ChangeFingerprint != last.Git.ChangeFingerprint {
 		return notReady(ReadyHuella, "el arbol de %q cambio despues del ultimo veredicto verde (huella %s vs %s).\n  Accion: re-ejecuta 'hoom verify' dentro del worktree y commitea", slug, g.ChangeFingerprint, last.Git.ChangeFingerprint)
 	}
 	return topePendientes(wt, slug, base)
+}
+
+// noAplicaronEn are the gates of v in verdict.StatusNoAplica, in the
+// verdict's order (gates-por-ruta).
+func noAplicaronEn(v *verdict.Verdict) []string {
+	var out []string
+	for _, g := range v.Gates {
+		if g.Status == verdict.StatusNoAplica {
+			out = append(out, g.Name)
+		}
+	}
+	return out
 }
 
 // topePendientes is Ready's last check: findings.max_pendientes of the
