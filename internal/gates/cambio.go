@@ -2,6 +2,8 @@ package gates
 
 import (
 	"fmt"
+	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -32,8 +34,8 @@ type Cambio struct {
 	Archivos []string
 	// Todos says every gate applies, whatever its aplica_en: the change is
 	// empty, the directory is not in a git repository, git cannot say the
-	// change (ante la duda, el gate corre), or the change touches the
-	// project's hoom.yaml (CA-812).
+	// change (ante la duda, el gate corre), the change touches the
+	// project's hoom.yaml (CA-812), or that hoom.yaml is a symbolic link.
 	Todos bool
 }
 
@@ -54,8 +56,13 @@ type Cambio struct {
 //     last cases Archivos still holds the change: ante la duda, el gate
 //     corre. With no hoom.yaml found and none in Archivos, the project's
 //     hoom.yaml, wherever it is, is not in the change.
+//   - Todos is also true, always, when the project's hoom.yaml is a
+//     symbolic link, to any target, inside the repository or outside it
+//     (finding e25ae5): the manifest verify loads is its target, which the
+//     change may touch under another name, or git may not see at all.
 //
-// It reads git and nothing else, and changes nothing.
+// It reads git and the file system (where the hoom.yaml is, and whether it
+// is a symbolic link, without following it), and changes nothing.
 func CambioDe(dir, base string) Cambio {
 	lineas, err := gitx.LineasDelCambio(dir, base)
 	if err != nil {
@@ -72,7 +79,8 @@ func CambioDe(dir, base string) Cambio {
 // manifest.Find(dir) finds, ignoring case like the patterns of aplica_en.
 // Ante la duda, yes (finding fe6ef8): when git cannot say where that
 // hoom.yaml is in the repository, and, when Find finds none, when any file
-// of archivos is named hoom.yaml.
+// of archivos is named hoom.yaml. And always when that hoom.yaml is a
+// symbolic link (finding e25ae5), or os.Lstat cannot say whether it is one.
 func tocaElHoomYAML(dir string, archivos []string) bool {
 	proyecto, err := manifest.Find(dir)
 	if err != nil {
@@ -82,6 +90,11 @@ func tocaElHoomYAML(dir string, archivos []string) bool {
 			}
 		}
 		return false
+	}
+	if fi, err := os.Lstat(filepath.Join(proyecto, manifest.FileName)); err != nil || fi.Mode()&fs.ModeSymlink != 0 {
+		// its target is the manifest verify loads, under any name, inside
+		// the repository or outside it: the link is not followed
+		return true
 	}
 	prefijo, _, err := gitx.OutPrefix(proyecto, 0, "-c", "core.quotePath=false", "rev-parse", "--show-prefix")
 	if err != nil {
