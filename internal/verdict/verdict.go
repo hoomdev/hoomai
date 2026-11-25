@@ -171,6 +171,8 @@ func (v *Verdict) Finalize() {
 			s.Absent++
 		case StatusSkipped:
 			s.Skipped++
+		case StatusNoAplica:
+			s.NoAplica++
 		}
 	}
 	v.Summary = s

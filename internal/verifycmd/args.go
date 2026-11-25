@@ -14,9 +14,11 @@ import (
 // UsageText is the EXACT usage block of the verb and the single source of
 // that text: 'hoom help' concatenates this same constant, so the global usage
 // and 'hoom verify --help' cannot diverge.
-const UsageText = `Uso: hoom verify [--full] [--gate a,b] [--spec <ruta>] [--json]
+const UsageText = `Uso: hoom verify [--full] [--cierre] [--gate a,b] [--spec <ruta>] [--json]
 
   --full          Ignora el scoping por diff (corrida completa, ej. nocturna)
+  --cierre        Corre todos los gates sin mirar aplica_en, con su
+                  diff_cmd: el verify que exigen 'hoom task done' e integrar
   --gate a,b      Ejecuta solo esos gates (el resto queda 'skipped'); el
                   veredicto queda PARCIAL: diagnostico, nunca referencia
                   de 'hoom check' ni de 'hoom task done'
@@ -42,6 +44,7 @@ del proyecto, 'hoom status'.`
 func ParseArgs(args []string) (Options, error) {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	full := fs.Bool("full", false, "ignorar scoping por diff")
+	cierre := fs.Bool("cierre", false, "correr todos los gates sin mirar aplica_en")
 	gateList := fs.String("gate", "", "gates a ejecutar, separados por coma")
 	specPath := fs.String("spec", "", "ruta del spec asociado")
 	asJSON := fs.Bool("json", false, "emitir veredicto como JSON en stdout")
@@ -58,7 +61,7 @@ func ParseArgs(args []string) (Options, error) {
 		return Options{}, usoInvalido("--" + vacio + " vacio: escribir un flag y no darle valor es un typo")
 	}
 
-	opt := Options{Full: *full, Spec: *specPath, JSON: *asJSON}
+	opt := Options{Full: *full, Cierre: *cierre, Spec: *specPath, JSON: *asJSON}
 	if *gateList != "" {
 		// Comas sobrantes y duplicados son inequivocos y se aceptan; cero
 		// nombres es ambiguo (¿ninguno o todos?) y hoy resolvia al peor de los

@@ -221,6 +221,14 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	// the change aplica_en is judged against (gates-por-ruta), read before
+	// anything of the run touches the tree; the gates look at it only in the
+	// verify de trabajo
+	var cambio *gates.Cambio
+	if !opt.Full {
+		c := gates.CambioDe(m.Dir, m.BaseBranch)
+		cambio = &c
+	}
 	// a relative spec is the project's (the verdict keeps it as given): read
 	// from m.Dir, so a caller in another directory verifies the same file
 	specFile := opt.Spec
@@ -233,7 +241,7 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	lw := live.NewWriter(m.Dir)
 	defer lw.Close()
 
-	gopt := gates.Options{Full: opt.Full, Emit: lw.Emit, Local: local}
+	gopt := gates.Options{Full: opt.Full, Cierre: opt.Cierre, Emit: lw.Emit, Local: local, Cambio: cambio}
 	var antes materialgit.Foto
 	if opt.Sobre != nil {
 		plan, sin, exigir, err := planDelSobre(m, *opt.Sobre)

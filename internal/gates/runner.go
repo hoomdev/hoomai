@@ -103,6 +103,12 @@ const (
 	NotaExigirConPrefijo = "el prefijo de .hoom/local.yaml no corre encerrado y encierro.exigir es %s"
 )
 
+// deTrabajo says whether the run is a verify de trabajo, the only one that
+// looks at aplica_en: with a Cambio, and without Full, Cierre or Only.
+func (o Options) deTrabajo() bool {
+	return o.Cambio != nil && !o.Full && !o.Cierre && len(o.Only) == 0
+}
+
 func (o Options) emit(ev live.Event) {
 	if o.Emit != nil {
 		o.Emit(ev)
@@ -197,6 +203,17 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 		opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: res.Scope})
 		opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status})
 		return res
+	}
+	if opt.deTrabajo() {
+		if aplica, motivo := Aplica(g, *opt.Cambio); !aplica {
+			// no file of the change matches its aplica_en: its command
+			// does not run (gates-por-ruta)
+			res.Status = verdict.StatusNoAplica
+			res.Notes = motivo
+			opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: res.Scope})
+			opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status})
+			return res
+		}
 	}
 	res.Command = cmdStr
 	res.Scope = scope
@@ -459,7 +476,8 @@ func (c *colaAcotada) bytes() ([]byte, bool) {
 }
 
 // selectCommand picks diff_cmd when a diff scope exists and --full was not
-// requested, then substitutes template variables:
+// requested (a diff scope: git.ChangedFiles, or opt.Cambio's files when the
+// run has one), then substitutes template variables:
 //
 //	{base}     base branch
 //	{files}    space-separated changed files
@@ -473,7 +491,10 @@ func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string)
 		return "", "none"
 	}
 	cmdStr, scope := g.CmdStr(), "full"
-	if !opt.Full && g.DiffCmdStr() != "" && git.IsRepo && len(git.ChangedFiles) > 0 {
+	// a change that only deletes a file in a commit has no ChangedFiles
+	// (ACMR), but its Cambio has the file: a diff scope too (CA-811)
+	hayCambio := len(git.ChangedFiles) > 0 || (opt.Cambio != nil && len(opt.Cambio.Archivos) > 0)
+	if !opt.Full && g.DiffCmdStr() != "" && git.IsRepo && hayCambio {
 		cmdStr, scope = g.DiffCmdStr(), "diff"
 	}
 	pkgs := gitx.GoPackages(git.ChangedFiles)
