@@ -1,0 +1,173 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-11-25T16-11-26Z_92e309a6",
+  "created_at": "2026-11-25T16:11:26.712679222Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "4cbb7b7a8524",
+    "branch": "hoom/gates-por-ruta",
+    "dirty": false,
+    "base": "main",
+    "changed_files": [
+      ".hoom/approvals/gates-por-ruta_04b9a5ca.json",
+      "README.md",
+      "cmd/hoom/gates_por_ruta_test.go",
+      "internal/boardcmd/gates_por_ruta_test.go",
+      "internal/boardcmd/plain.go",
+      "internal/checkcmd/gates_por_ruta_test.go",
+      "internal/gates/cambio.go",
+      "internal/gates/gates_por_ruta_test.go",
+      "internal/gates/runner.go",
+      "internal/manifest/gates.go",
+      "internal/manifest/gates_por_ruta_test.go",
+      "internal/manifest/manifest.go",
+      "internal/profiles/profiles.go",
+      "internal/report/gates_por_ruta_test.go",
+      "internal/report/json.go",
+      "internal/report/report.go",
+      "internal/servecmd/gates_por_ruta_test.go",
+      "internal/tarjetacmd/gates_por_ruta_test.go",
+      "internal/taskcmd/gates_por_ruta_test.go",
+      "internal/taskcmd/ready.go",
+      "internal/taskcmd/taskcmd.go",
+      "internal/verdict/gates_por_ruta_test.go",
+      "internal/verdict/verdict.go",
+      "internal/verifycmd/args.go",
+      "internal/verifycmd/args_test.go",
+      "internal/verifycmd/gates_por_ruta_test.go",
+      "internal/verifycmd/verifycmd.go"
+    ],
+    "change_fingerprint": "1c2bf2192ace089d",
+    "insertions": 2994,
+    "deletions": 12
+  },
+  "gates": [
+    {
+      "name": "spec_lint",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "796 palabras de 800 · 8 criterios de 8 · riesgo normal · 10 ids CA-n, 1 con [verifica:] · aprobado: el tope no se mide"
+    },
+    {
+      "name": "spec_trace",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 49,
+      "notes": "10/10 criterios: 9 trazados por test (747 archivos), 1 verificados por comando · citas por criterio: CA-67 4, CA-777 15, CA-809 23, CA-810 15, CA-811 8, CA-812 20, CA-813 21, CA-814 29, CA-815 19 · 7 pasan el tope de 10 citas"
+    },
+    {
+      "name": "spec_approved",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "aprobado por hoomdev \u003cdev@volale.com\u003e (2026-11-25, sha 04b9a5ca)"
+    },
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "spec",
+      "exit_code": 0,
+      "duration_ms": 167,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: tarea gates-por-ruta + sin tarea (117 de otras tareas no cuentan) · no bloquean: 2 medium, 3 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 463
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 997,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 385
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 15194
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -race -timeout 20m ./cmd/hoom ./internal/boardcmd ./internal/checkcmd ./internal/gates ./internal/manifest ./internal/profiles ./internal/report ./internal/servecmd ./internal/tarjetacmd ./internal/taskcmd ./internal/verdict ./internal/verifycmd",
+      "exit_code": 0,
+      "duration_ms": 147083,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/cmd/hoom\t33.188s\nok  \tgithub.com/hoomdev/hoomai/internal/boardcmd\t124.563s\nok  \tgithub.com/hoomdev/hoomai/internal/checkcmd\t1.404s\nok  \tgithub.com/hoomdev/hoomai/internal/gates\t70.358s\nok  \tgithub.com/hoomdev/hoomai/internal/manifest\t1.884s\nok  \tgithub.com/hoomdev/hoomai/internal/profiles\t1.470s\nok  \tgithub.com/hoomdev/hoomai/internal/report\t1.016s\nok  \tgithub.com/hoomdev/hoomai/internal/servecmd\t123.425s\nok  \tgithub.com/hoomdev/hoomai/internal/tarjetacmd\t114.521s\nok  \tgithub.com/hoomdev/hoomai/internal/taskcmd\t22.251s\nok  \tgithub.com/hoomdev/hoomai/internal/verdict\t8.941s\nok  \tgithub.com/hoomdev/hoomai/internal/verifycmd\t13.549s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 9,
+    "fail": 0,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "green",
+  "spec": ".hoom/specs/gates-por-ruta.md",
+  "notes": [
+    "! 7 criterios pasan el tope de 10 citas en pruebas (riesgo normal): CA-777 15, CA-809 23, CA-810 15, CA-812 20, CA-813 21, CA-814 29, CA-815 19"
+  ],
+  "riesgo": {
+    "declarado": "normal",
+    "efectivo": "normal",
+    "motivo": "declarado normal"
+  },
+  "tamano": {
+    "producto": 534,
+    "pruebas": 2466,
+    "hoom": 6
+  }
+}
