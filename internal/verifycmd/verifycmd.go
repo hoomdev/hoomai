@@ -6,6 +6,7 @@ package verifycmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -227,6 +228,13 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	var cambio *gates.Cambio
 	if !opt.Full {
 		c := gates.CambioDe(m.Dir, m.BaseBranch)
+		// the hoom.yaml m was loaded from is no longer a file in m.Dir
+		// (deleted, moved, or something else in its place, after
+		// manifest.Load): the manifest the gates are judged with is not
+		// there, so ante la duda, el gate corre (finding 8c4016)
+		if fi, err := os.Lstat(filepath.Join(m.Dir, manifest.FileName)); err != nil || !fi.Mode().IsRegular() {
+			c.Todos = true
+		}
 		cambio = &c
 	}
 	// a relative spec is the project's (the verdict keeps it as given): read
