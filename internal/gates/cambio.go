@@ -1,6 +1,7 @@
 package gates
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -48,9 +49,11 @@ type Cambio struct {
 //     repository (Archivos nil); when git cannot say the change (no
 //     merge-base with base, a diff or a listing that fails: Archivos nil);
 //     and when the change may touch the project's hoom.yaml (CA-812):
-//     Archivos holds the hoom.yaml that manifest.Find(dir) finds, as a path
-//     relative to the root ("hoom.yaml" when it is at the root), ignoring
-//     case; git cannot say where that hoom.yaml is in the repository; or,
+//     Archivos holds the project's hoom.yaml (the nearest one from dir up,
+//     as manifest.Find walks), as a path relative to the root ("hoom.yaml"
+//     when it is at the root), ignoring case; the file system cannot say
+//     where that hoom.yaml is (an error other than "it does not exist",
+//     finding 22b671); git cannot say where it is in the repository; or,
 //     with no hoom.yaml found, a file of Archivos is named hoom.yaml,
 //     ignoring case, in any directory (it may be the project's). In these
 //     last cases Archivos still holds the change: ante la duda, el gate
@@ -76,25 +79,23 @@ func CambioDe(dir, base string) Cambio {
 
 // tocaElHoomYAML says whether archivos (paths relative to the root of the
 // repository, with "/") may hold the project's hoom.yaml, the one
-// manifest.Find(dir) finds, ignoring case like the patterns of aplica_en.
-// Ante la duda, yes (finding fe6ef8): when git cannot say where that
-// hoom.yaml is in the repository, and, when Find finds none, when any file
-// of archivos is named hoom.yaml. And always when that hoom.yaml is a
-// symbolic link (finding e25ae5), or os.Lstat cannot say whether it is one.
+// buscarHoomYAML finds from dir, ignoring case like the patterns of
+// aplica_en. Ante la duda, yes: when buscarHoomYAML cannot tell (finding
+// 22b671) or finds a symbolic link (finding e25ae5); when git cannot say
+// where that hoom.yaml is in the repository (finding fe6ef8); and, when there
+// is none up to the root, when any file of archivos is named hoom.yaml.
 func tocaElHoomYAML(dir string, archivos []string) bool {
-	proyecto, err := manifest.Find(dir)
-	if err != nil {
+	proyecto, hay, dudoso := buscarHoomYAML(dir, os.Lstat)
+	if dudoso {
+		return true
+	}
+	if !hay {
 		for _, f := range archivos {
 			if strings.EqualFold(path.Base(f), manifest.FileName) {
 				return true
 			}
 		}
 		return false
-	}
-	if fi, err := os.Lstat(filepath.Join(proyecto, manifest.FileName)); err != nil || fi.Mode()&fs.ModeSymlink != 0 {
-		// its target is the manifest verify loads, under any name, inside
-		// the repository or outside it: the link is not followed
-		return true
 	}
 	prefijo, _, err := gitx.OutPrefix(proyecto, 0, "-c", "core.quotePath=false", "rev-parse", "--show-prefix")
 	if err != nil {
@@ -107,6 +108,39 @@ func tocaElHoomYAML(dir string, archivos []string) bool {
 		}
 	}
 	return false
+}
+
+// buscarHoomYAML walks up from dir the way manifest.Find does, to the first
+// directory with an entry named hoom.yaml: proyecto is that directory, and
+// hay false when no directory up to the root has one. Unlike Find, it reads
+// each entry with lstat (os.Lstat), which does not follow a symbolic link,
+// and only fs.ErrNotExist means "not here": dudoso is true, and the walk
+// stops, on any other error of lstat, or when dir cannot be made absolute
+// (finding 22b671: Find takes any error of os.Stat for "not here", and may
+// give a parent's hoom.yaml as the project's), and when the entry found is
+// a symbolic link (finding e25ae5). manifest.Find stays as it is: it has
+// many callers.
+func buscarHoomYAML(dir string, lstat func(string) (fs.FileInfo, error)) (proyecto string, hay, dudoso bool) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", false, true
+	}
+	for {
+		fi, err := lstat(filepath.Join(abs, manifest.FileName))
+		switch {
+		case err == nil:
+			// a link: its target is the manifest verify loads, under any
+			// name, inside the repository or outside it; it is not followed
+			return abs, true, fi.Mode()&fs.ModeSymlink != 0
+		case !errors.Is(err, fs.ErrNotExist):
+			return "", false, true
+		}
+		padre := filepath.Dir(abs)
+		if padre == abs {
+			return "", false, false
+		}
+		abs = padre
+	}
 }
 
 // sinFinDeLinea is git's output without the line end git puts after it, and
