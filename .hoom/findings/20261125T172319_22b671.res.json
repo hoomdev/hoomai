@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261125T172319_22b671",
+  "as": "corregido",
+  "evidence": "Corregido en b0c0278: tocaElHoomYAML ya no usa manifest.Find; buscarHoomYAML sube desde el proyecto con lstat y solo fs.ErrNotExist significa 'aqui no esta': cualquier otro error (o un enlace) es dudoso y deja Todos=true ('ante la duda, el gate corre'). manifest.Find no cambia. Regresion: internal/gates/hallazgos_22b671_test.go (ELOOP y monorepo con destino en chmod 000) y hallazgos_22b671_interno_test.go (lstat inyectado con EIO, EACCES, ENOTDIR y ELOOP). Los de caja negra fallan con cambio.go de a6c4b37 y de 2f3458d y pasan con el nuevo; arnes c/ del refutador: Todos=true.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T17:47:00.957739023Z"
+}

@@ -1,0 +1,7 @@
+{
+  "finding_id": "20261125T171417_e25ae5",
+  "as": "corregido",
+  "evidence": "Corregido en a6c4b37 con la regla que eligio la persona el 2026-11-25 (spec no lo decidia): si el hoom.yaml del proyecto es un enlace simbolico (os.Lstat, sin resolverlo), a cualquier destino, todos los gates aplican; el README lo dice en la seccion de aplica_en. Regresion: internal/gates/hallazgos_e25ae5_test.go (enlace dentro del repo con el destino editado y sin editar, desde la raiz y desde app/; enlace fuera del repo; control con hoom.yaml real). Falla con cambio.go de 2f3458d ({Archivos:[app/a.go config/proyecto.yaml] Todos:false}) y pasa con el nuevo; arneses del refutador b/e2e.sh enlace y b2/e2e-fuera.sh: static corre.",
+  "author": "writer@claude",
+  "resolved_at": "2026-11-25T17:47:00.953895191Z"
+}
