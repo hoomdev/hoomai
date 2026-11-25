@@ -351,6 +351,8 @@ gates:
   git, si git no puede decir el cambio o si el cambio toca el `hoom.yaml`.
   `cmd: ""` sigue siendo `absent`, tenga o no `aplica_en`.
 - Con un `hoom.yaml` que es un enlace simbolico, todos los gates aplican.
+- Si el `hoom.yaml` del proyecto ya no esta cuando corre el verify, todos los
+  gates aplican.
 - `no_aplica` no pone rojo ni hace parcial al veredicto: cuenta en
   `summary.no_aplica` (que no aparece cuando vale 0), el reporte lo imprime
   como `NO APLICA` con el motivo, y el pass-rate y la tendencia lo descartan,

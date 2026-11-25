@@ -198,7 +198,10 @@ const NotaEntornoLocal = "manipulacion: .hoom/local.yaml cambio mientras corrian
 //
 // gates-por-ruta: every run without Full computes the change
 // gates.CambioDe(m.Dir, m.BaseBranch) and hands it to the gates
-// (gates.Options.Cambio), with gates.Options.Cierre = opt.Cierre. The verify
+// (gates.Options.Cambio), with gates.Options.Cierre = opt.Cierre. Its Todos
+// is also true when m.Dir no longer holds the hoom.yaml m was loaded from as
+// a regular file (deleted, moved, or something else in its place after
+// manifest.Load: finding 8c4016): ante la duda, el gate corre. The verify
 // de trabajo is the one without Cierre, Full and Gates: there a gate with
 // aplica_en that no file of the change matches stays
 // verdict.StatusNoAplica, with its motivo (gates.Run). That status changes

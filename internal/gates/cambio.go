@@ -36,7 +36,10 @@ type Cambio struct {
 	// Todos says every gate applies, whatever its aplica_en: the change is
 	// empty, the directory is not in a git repository, git cannot say the
 	// change (ante la duda, el gate corre), the change touches the
-	// project's hoom.yaml (CA-812), or that hoom.yaml is a symbolic link.
+	// project's hoom.yaml (CA-812), or may touch it (a hoom.yaml of the
+	// change when the one found is above the directory asked about), or that
+	// hoom.yaml is a symbolic link. verifycmd.Run sets it too when the
+	// hoom.yaml the manifest was loaded from is no longer there.
 	Todos bool
 }
 
@@ -54,11 +57,13 @@ type Cambio struct {
 //     when it is at the root), ignoring case; the file system cannot say
 //     where that hoom.yaml is (an error other than "it does not exist",
 //     finding 22b671); git cannot say where it is in the repository; or,
-//     with no hoom.yaml found, a file of Archivos is named hoom.yaml,
-//     ignoring case, in any directory (it may be the project's). In these
-//     last cases Archivos still holds the change: ante la duda, el gate
-//     corre. With no hoom.yaml found and none in Archivos, the project's
-//     hoom.yaml, wherever it is, is not in the change.
+//     when dir has no hoom.yaml of its own (none is found, or the one found
+//     is in a directory above dir), a file of Archivos is named hoom.yaml,
+//     ignoring case, in any directory: it may be the project's, deleted or
+//     moved (finding 8c4016). In these last cases Archivos still holds the
+//     change: ante la duda, el gate corre. With no hoom.yaml in Archivos and
+//     none found, the project's hoom.yaml, wherever it is, is not in the
+//     change; with one found above dir, only that one counts.
 //   - Todos is also true, always, when the project's hoom.yaml is a
 //     symbolic link, to any target, inside the repository or outside it
 //     (finding e25ae5): the manifest verify loads is its target, which the
@@ -82,20 +87,27 @@ func CambioDe(dir, base string) Cambio {
 // buscarHoomYAML finds from dir, ignoring case like the patterns of
 // aplica_en. Ante la duda, yes: when buscarHoomYAML cannot tell (finding
 // 22b671) or finds a symbolic link (finding e25ae5); when git cannot say
-// where that hoom.yaml is in the repository (finding fe6ef8); and, when there
-// is none up to the root, when any file of archivos is named hoom.yaml.
+// where that hoom.yaml is in the repository (finding fe6ef8); and, when dir
+// has no hoom.yaml of its own (there is none up to the root, or the one
+// found is in a directory above dir), when any file of archivos is named
+// hoom.yaml: dir's may have been deleted or moved, and the one above is
+// then not the project's (finding 8c4016).
 func tocaElHoomYAML(dir string, archivos []string) bool {
 	proyecto, hay, dudoso := buscarHoomYAML(dir, os.Lstat)
 	if dudoso {
 		return true
 	}
-	if !hay {
+	// buscarHoomYAML already said dudoso if dir cannot be made absolute
+	abs, _ := filepath.Abs(dir)
+	if !hay || proyecto != abs {
 		for _, f := range archivos {
 			if strings.EqualFold(path.Base(f), manifest.FileName) {
 				return true
 			}
 		}
-		return false
+		if !hay {
+			return false
+		}
 	}
 	prefijo, _, err := gitx.OutPrefix(proyecto, 0, "-c", "core.quotePath=false", "rev-parse", "--show-prefix")
 	if err != nil {
