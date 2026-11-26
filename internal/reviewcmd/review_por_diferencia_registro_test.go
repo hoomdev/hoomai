@@ -198,11 +198,14 @@ func rdRamaGrandeYChica(t *testing.T, root string) (grande string) {
 func TestCA424_DeltaChicoEnUnaRamaGrandeLlevaLasCuatro(t *testing.T) {
 	bin := raPATH(t)
 	root := raRepo(t, "")
-	grande := rdRamaGrandeYChica(t, root)
+	// Rama de riesgo alto (toca ruta de riesgo) + commit chico sin ruta de riesgo:
+	// el rango chico hereda las 4 lentes del cambio entero.
+	grande := rdCommit(t, root, "cambio de riesgo alto", map[string]string{"internal/auth/token.go": "package auth\n\nfunc Token() string { return \"x\" }\n"})
+	rdCommit(t, root, "commit chico", map[string]string{"chico.go": "package app\n\nfunc Chico() {}\n"})
 	cx := raInstalar(t, bin, "codex", "")
 	res, out := rdRevisar(t, "CA-424", root, Options{Provider: "codex", Desde: grande})
 	if !reflect.DeepEqual(res.Lenses, Lentes) || len(res.Passes) != 4 || cx.veces() != 4 {
-		t.Fatalf("CA-424: el rango chico de una rama grande lleva las 4 lentes: %+v\n%s", res, out)
+		t.Fatalf("CA-424: el rango chico de una rama de riesgo alto lleva las 4 lentes: %+v\n%s", res, out)
 	}
 	if !strings.Contains(res.Reason, " (sobre el cambio entero)") {
 		t.Fatalf("CA-424: el motivo es el de la regla que gano, con ' (sobre el cambio entero)': %q", res.Reason)
@@ -214,18 +217,16 @@ func TestCA424_DeltaChicoEnUnaRamaGrandeLlevaLasCuatro(t *testing.T) {
 	// con --delta: completa primero (las 4), un commit chico, el delta
 	const spec = ".hoom/specs/x.md"
 	root = raRepo(t, "")
-	rdRamaGrandeYChica(t, root)
+	rdCommit(t, root, "cambio de riesgo alto", map[string]string{"internal/auth/token.go": "package auth\n\nfunc Token() string { return \"x\" }\n"})
+	rdCommit(t, root, "commit chico", map[string]string{"chico.go": "package app\n\nfunc Chico() {}\n"})
 	rdCommit(t, root, "spec", map[string]string{spec: "# x\n"})
 	rdRevisar(t, "CA-424", root, Options{Provider: "codex", Spec: spec})
 	rdEsperarSegundo()
 	rdCommit(t, root, "otro chico", map[string]string{"otro.go": "package app\n\nfunc Otro() {}\n"})
 	res, out = rdRevisar(t, "CA-424", root, Options{Provider: "codex", Spec: spec, Delta: true})
-	// CA-620 re-expresa CA-424 solo en que la delta ya no corre readability:
-	// la regla da las 4 (sobre el cambio entero) y la delta corre risk,
-	// reliability y resilience, con el motivo terminado en
-	// "; una delta no corre readability".
+	// CA-620: sin bloqueantes previos, la delta corre risk, reliability y resilience.
 	if !reflect.DeepEqual(res.Lenses, []string{"risk", "reliability", "resilience"}) || res.Cobertura != CoberturaDelta {
-		t.Fatalf("CA-424/CA-620: un --delta chico de una rama grande lleva las 4 de la regla menos readability y queda delta: %+v\n%s", res, out)
+		t.Fatalf("CA-424/CA-620: un --delta chico de una rama de riesgo alto lleva las 3 lentes de delta: %+v\n%s", res, out)
 	}
 	if !strings.Contains(res.Reason, " (sobre el cambio entero)") || !strings.HasSuffix(res.Reason, "; una delta no corre readability") {
 		t.Fatalf("CA-424/CA-620: el motivo es el de la regla sobre el cambio entero y termina en '; una delta no corre readability': %q", res.Reason)
@@ -249,7 +250,7 @@ func TestCA424_RangoConElCambioEnteroVacio(t *testing.T) {
 		lentes  []string
 		pasadas int
 	}{
-		{"rango-grande", map[string]string{"grande.go": rdCodigo(450, "Grande")}, Lentes, 4},
+		{"rango-grande", map[string]string{"grande.go": rdCodigo(450, "Grande")}, []string{LenteDominante}, 1},
 		{"rango-chico", map[string]string{"chico.go": "package app\n\nfunc Chico() {}\n"}, []string{LenteDominante}, 1},
 		{"rango-con-ruta-de-riesgo", map[string]string{"internal/auth/token.go": "package auth\n\nfunc Valida(s string) bool { return s != \"\" }\n"}, Lentes, 4},
 	}

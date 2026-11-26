@@ -185,8 +185,8 @@ func TestCA404_RiskPrimero(t *testing.T) {
 		t.Fatalf("CA-404: la regla del contrato 06 da las 4 en ese orden: %v %v", lentes, err)
 	}
 	lentes, _, _ = Lenses(gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 500}, "")
-	if !reflect.DeepEqual(lentes, want) {
-		t.Fatalf("CA-404: por tamano tambien, en ese orden: %v", lentes)
+	if !reflect.DeepEqual(lentes, []string{LenteDominante}) {
+		t.Fatalf("CA-404 (CAL-2): normal grande corre solo la lente dominante: %v", lentes)
 	}
 	if _, _, err := Lenses(gitx.Info{ChangedFiles: []string{"a.go"}}, "profundidad"); err == nil ||
 		!strings.Contains(err.Error(), "risk, reliability, resilience, readability") {

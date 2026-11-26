@@ -28,6 +28,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/envelope"
+	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
@@ -931,7 +932,15 @@ func TestCA724_Regla5PrimeraAccionDeRolOGuardar(t *testing.T) {
 		{"test-writer", acTestWriter(), ColTestWriter, spPaso{Accion: ActPedirTestWriter, Etiqueta: "Pedir al test-writer"}},
 		{"writer", acWriter(), ColWriter, spPaso{Accion: ActPedirWriter, Etiqueta: "Pedir al writer"}},
 		{"review exigida", acGrande(acEv()), ColReview, spPaso{Accion: ActPedirReviewer, Etiqueta: "Pedir al reviewer"}},
-		{"review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, spPaso{Accion: ActPedirRefutador, Etiqueta: "Pedir al refutador"}},
+		{"review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, spPaso{Accion: ActPedirWriter, Etiqueta: "Pedir al writer"}},
+		{"review con hallazgos riesgo alto", func() Evidence {
+			ev := acConHallazgos(acEv(), "f-a")
+			ev.Item.Riesgo = "alto"
+			r := acRegistroQueCuenta()
+			r.VerdictID = ev.Verdict.ID
+			ev.Reviews = []reviewcmd.Record{r}
+			return bdColas(ev)
+		}(), ColReview, spPaso{Accion: ActPedirRefutador, Etiqueta: "Pedir al refutador"}},
 		{"review con hallazgos ya refutados", cldConSobres(acConHallazgos(acEv(), "f-a"), cldRefutador("env-ref-1", 10, "ok", "f-a")),
 			ColReview, spPaso{Accion: ActPedirWriter, Etiqueta: "Pedir al writer"}},
 		{"review sin accion con cambios", func() Evidence {
@@ -1061,7 +1070,14 @@ func TestCA725_FraseTeTocaPorPaso(t *testing.T) {
 		{"pedir-arquitecto", spColumna(t, ColArquitecto), ColArquitecto, "Pedile el spec al arquitecto para «Precios por region»."},
 		{"pedir-test-writer", acTestWriter(), ColTestWriter, "Pedile los tests al test-writer para «Precios por region»."},
 		{"pedir-writer", acWriter(), ColWriter, "Pedile el código al writer para «Precios por region»."},
-		{"pedir-refutador en review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview,
+		{"pedir-refutador en review con hallazgos riesgo alto", func() Evidence {
+			ev := acConHallazgos(acEv(), "f-a")
+			ev.Item.Riesgo = "alto"
+			r := acRegistroQueCuenta()
+			r.VerdictID = ev.Verdict.ID
+			ev.Reviews = []reviewcmd.Record{r}
+			return bdColas(ev)
+		}(), ColReview,
 			"Pedile al refutador que revise los hallazgos de «Precios por region»."},
 		{"pedir-writer en review con hallazgos ya refutados",
 			cldConSobres(acConHallazgos(acEv(), "f-a"), cldRefutador("env-ref-1", 10, "ok", "f-a")), ColReview,

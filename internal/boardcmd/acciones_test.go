@@ -237,13 +237,13 @@ func acColumnas() []acCaso {
 	add("test-writer", acTestWriter(), ColTestWriter, con(ActPedirTestWriter))
 	add("writer", acWriter(), ColWriter, con(ActPedirWriter))
 	add("review exigida sin registro", acGrande(acEv()), ColReview, con(ActPedirReviewer))
-	add("review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, con(ActPedirRefutador, ActPedirWriter))
+	add("review con hallazgos", acConHallazgos(acEv(), "f-a"), ColReview, con(ActPedirWriter, ActPedirRefutador))
 	add("review exigida y con hallazgos", acConHallazgos(acGrande(acEv()), "f-a"), ColReview,
-		con(ActPedirReviewer, ActPedirRefutador, ActPedirWriter))
+		con(ActPedirReviewer, ActPedirWriter, ActPedirRefutador))
 	ev = acConHallazgos(acGrande(acEv()), "f-a")
 	ev.Reviews = []reviewcmd.Record{acRegistroQueCuenta()}
 	add("review exigida con registro que cuenta y con hallazgos", bdColas(ev), ColReview,
-		con(ActPedirRefutador, ActPedirWriter))
+		con(ActPedirWriter, ActPedirRefutador))
 	add("review sin exigir ni hallazgos", tbListo(acEv(), taskcmd.ReadySinGuardar, tbMsgSinGuardar), ColReview, con())
 	add("tu-aceptacion", acEv(), ColTuAceptacion, con(ActIntegrar))
 	ev = acEv()
@@ -278,7 +278,7 @@ func acColumnasArbol() []acCaso {
 	add("writer sin espacio propio", bdArbol(acWriter()), ColWriter, ActPedirWriter)
 	add("review exigida sin espacio propio", bdArbol(acGrande(acEv())), ColReview, ActPedirReviewer)
 	add("review con hallazgos sin espacio propio", bdArbol(acConHallazgos(acEv(), "f-a")), ColReview,
-		ActPedirRefutador, ActPedirWriter)
+		ActPedirWriter, ActPedirRefutador)
 	add("review sin espacio propio y sin accion", bdArbol(acEv()), ColReview)
 	ev = bdArbol(acEv())
 	ev.Item.HechoEn = &cuando

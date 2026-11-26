@@ -1051,17 +1051,23 @@ type ReviewPolicy struct {
 	SameProvider   *bool  `yaml:"same_provider"`
 	Isolated       *bool  `yaml:"isolated"`
 	MaxEvidenceKiB *int   `yaml:"max_evidence_kib"`
+	// IncluirTests controls whether test file unified diffs are included in
+	// review evidence (false by default: test bodies are summarized in an index).
+	IncluirTests *bool `yaml:"incluir_tests"`
+	// Concurrencia bounds parallel lenses in multi-lens (riesgo: alto) reviews
+	// (1 to 4; default 1 when omitted).
+	Concurrencia *int `yaml:"concurrencia"`
 	// Timeout is review.timeout, with the rules of agents.<rol>.timeout;
 	// 0 = not declared.
 	Timeout time.Duration `yaml:"-"`
 }
 
 // reviewKeys are the keys `review:` accepts, in the order the error names them:
-// the six of review-aislada (CA-394 fixes that text) and then timeout, which
-// verbos-de-la-tarjeta added after them.
+// the six of review-aislada (CA-394 fixes that text) and then the extras.
 var (
 	reviewKeys        = []string{"provider", "model", "effort", "same_provider", "isolated", "max_evidence_kib"}
 	reviewKeysTimeout = "timeout"
+	reviewKeysExtra   = []string{"timeout", "incluir_tests", "concurrencia"}
 )
 
 // UnmarshalYAML rejects unknown keys inside `review`: a typo like `isolate`
@@ -1073,8 +1079,8 @@ func (p *ReviewPolicy) UnmarshalYAML(n *yaml.Node) error {
 	var timeout *yaml.Node
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		key := n.Content[i].Value
-		if !containsKey(reviewKeys, key) && key != reviewKeysTimeout {
-			return fmt.Errorf("review: clave desconocida %q (validas: %s) y %s", key, strings.Join(reviewKeys, ", "), reviewKeysTimeout)
+		if !containsKey(reviewKeys, key) && !containsKey(reviewKeysExtra, key) {
+			return fmt.Errorf("review: clave desconocida %q (validas: %s) y %s", key, strings.Join(reviewKeys, ", "), strings.Join(reviewKeysExtra, ", "))
 		}
 		if key == reviewKeysTimeout {
 			timeout = n.Content[i+1]
@@ -1100,15 +1106,21 @@ func (m *Manifest) validateReview() error {
 }
 
 // validate rejects a cap that could never admit any evidence, or one so
-// large that the cap in bytes would overflow.
+// large that the cap in bytes would overflow, or an out-of-range concurrencia.
 func (p *ReviewPolicy) validate() error {
-	switch {
-	case p == nil || p.MaxEvidenceKiB == nil:
+	if p == nil {
 		return nil
-	case *p.MaxEvidenceKiB <= 0:
-		return fmt.Errorf("review: max_evidence_kib debe ser mayor que 0")
-	case *p.MaxEvidenceKiB > MaxEvidenceKiB:
-		return fmt.Errorf("review: max_evidence_kib no puede pasar de %d", MaxEvidenceKiB)
+	}
+	if p.MaxEvidenceKiB != nil {
+		switch {
+		case *p.MaxEvidenceKiB <= 0:
+			return fmt.Errorf("review: max_evidence_kib debe ser mayor que 0")
+		case *p.MaxEvidenceKiB > MaxEvidenceKiB:
+			return fmt.Errorf("review: max_evidence_kib no puede pasar de %d", MaxEvidenceKiB)
+		}
+	}
+	if p.Concurrencia != nil && (*p.Concurrencia < 1 || *p.Concurrencia > 4) {
+		return fmt.Errorf("review: concurrencia tiene que ser un entero de 1 a 4")
 	}
 	return nil
 }
@@ -1175,6 +1187,22 @@ func (p *ReviewPolicy) MaxEvidenceKiBOrDefault() int {
 		return DefaultMaxEvidenceKiB
 	}
 	return *p.MaxEvidenceKiB
+}
+
+// IncluirTestsOrDefault is review.incluir_tests, false when absent (nil policy too).
+func (p *ReviewPolicy) IncluirTestsOrDefault() bool {
+	if p == nil || p.IncluirTests == nil {
+		return false
+	}
+	return *p.IncluirTests
+}
+
+// ConcurrenciaOrDefault is review.concurrencia, 1 when absent (nil policy too).
+func (p *ReviewPolicy) ConcurrenciaOrDefault() int {
+	if p == nil || p.Concurrencia == nil {
+		return 1
+	}
+	return *p.Concurrencia
 }
 
 // FindingsBlockOn is the validated threshold of the findings_open gate:

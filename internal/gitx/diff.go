@@ -115,6 +115,12 @@ func CandidatePatch(dir, base string, dst *bytes.Buffer, max int) (over bool, er
 // Antes instead: desde with the base the branch integrated afterwards, so
 // what that base brought is not in it.
 func RangePatch(dir, desde, hasta string, c *Comparacion, dst *bytes.Buffer, max int) (over bool, err error) {
+	return RangePatchSin(dir, desde, hasta, c, nil, dst, max)
+}
+
+// RangePatchSin is RangePatch excluding the literal repository-relative paths
+// in excluir (e.g. test files summarized separately in review evidence).
+func RangePatchSin(dir, desde, hasta string, c *Comparacion, excluir []string, dst *bytes.Buffer, max int) (over bool, err error) {
 	ruta, err := CambioSinCommitear(dir)
 	if err != nil {
 		return false, err
@@ -130,12 +136,41 @@ func RangePatch(dir, desde, hasta string, c *Comparacion, dst *bytes.Buffer, max
 		return false, fmt.Errorf("%s no es un ancestro de %s", desde, hasta)
 	}
 	if c == nil {
-		return patchDesde(dir, nil, desde, hasta, dst, max)
+		return patchDesdeSin(dir, nil, desde, hasta, excluir, dst, max)
 	}
 	if !c.Separada() {
 		return false, fmt.Errorf("el merge de la base en %s no se separo del cambio", desde)
 	}
-	return patchDesde(c.donde(dir), c.env, c.Antes, hasta, dst, max)
+	return patchDesdeSin(c.donde(dir), c.env, c.Antes, hasta, excluir, dst, max)
+}
+
+// NumstatRango returns [insertions, deletions] per file between desde and
+// hasta (or c.Antes..hasta when c != nil) in the evidence paths.
+func NumstatRango(dir, desde, hasta string, c *Comparacion) (map[string][2]int, error) {
+	d, env, from := dir, ([]string)(nil), desde
+	if c != nil {
+		if !c.Separada() {
+			return nil, fmt.Errorf("el merge de la base en %s no se separo del cambio", desde)
+		}
+		d, env, from = c.donde(dir), c.env, c.Antes
+	}
+	args := append([]string{"-c", "core.quotePath=false", "diff", "--numstat", "-z", "--no-renames",
+		"--no-ext-diff", "--no-textconv", from, hasta, "--"}, evidencePaths...)
+	out, err := gitOutEnv(d, env, args...)
+	if err != nil {
+		return nil, fmt.Errorf("git diff --numstat %s %s: %v", from, hasta, err)
+	}
+	res := map[string][2]int{}
+	for _, entry := range strings.Split(out, "\x00") {
+		parts := strings.SplitN(entry, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		a, _ := strconv.Atoi(parts[0])
+		del, _ := strconv.Atoi(parts[1])
+		res[parts[2]] = [2]int{a, del}
+	}
+	return res, nil
 }
 
 // evidencePaths are the paths the evidence covers: the whole repository but
@@ -178,10 +213,22 @@ func localesExcluidos() []string {
 // patchDesde appends the patch of from..to over the evidence's paths. from
 // may be a tree (a synthetic merge) whose objects env points at.
 func patchDesde(dir string, env []string, from, to string, dst *bytes.Buffer, max int) (over bool, err error) {
+	return patchDesdeSin(dir, env, from, to, nil, dst, max)
+}
+
+// patchDesdeSin is patchDesde excluding the literal paths in excluir.
+func patchDesdeSin(dir string, env []string, from, to string, excluir []string, dst *bytes.Buffer, max int) (over bool, err error) {
 	// quotePath=false: the patch names a file as it is on disk (ñ, not
 	// \303\261); safecrlf=false: a CRLF warning on stderr is not a failure
-	args := append([]string{"-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
-		"--no-textconv", "--find-renames", from, to, "--"}, evidencePaths...)
+	args := make([]string, 0, 12+len(evidencePaths)+len(excluir))
+	args = append(args, "-c", "core.quotePath=false", "-c", "core.safecrlf=false", "diff", "--no-color", "--no-ext-diff",
+		"--no-textconv", "--find-renames", from, to, "--")
+	args = append(args, evidencePaths...)
+	for _, f := range excluir {
+		if f != "" {
+			args = append(args, ":(exclude,literal)"+f)
+		}
+	}
 	over, err = gitOutBoundedEnv(dir, env, dst, max, false, args...)
 	if err != nil {
 		return false, fmt.Errorf("git diff: %v", err)

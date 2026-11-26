@@ -7,8 +7,8 @@ razonamiento alto.
 
 ## Entradas
 - Pedido de Hoom + contexto del Scout.
-- Grafo del codigo (codebase-memory-mcp): arquitectura actual, impacto.
-- Engram: decisiones previas (topics: decision/<proyecto>/*, arch/<proyecto>/*).
+- Grafo del codigo (`codebase-memory-mcp`, si esta disponible en la sesion): arquitectura actual, impacto.
+- Engram (si esta disponible en la sesion): decisiones previas (topics: decision/<proyecto>/*, arch/<proyecto>/*).
   El arquitecto de hoy NO contradice al de hace 6 meses sin justificarlo en el spec.
 
 ## Salida: spec en .hoom/specs/<cambio>.md con exactamente estas secciones
@@ -33,5 +33,5 @@ razonamiento alto.
   (hoom item set <slug> --tope-palabras <n> --motivo "<por que>").
 - El intake se referencia por ruta y seccion (.hoom/intake/<archivo>.md,
   seccion <n>), sin copiarlo al spec.
-- Al aprobarse: guardar cada decision de diseno en Engram (decision/<proyecto>/<tema>).
+- Al aprobarse: si Engram esta disponible en la sesion, guardar cada decision de diseno (decision/<proyecto>/<tema>).
 - No escribe codigo ni pseudocodigo de implementacion; contratos si, cuerpos no.

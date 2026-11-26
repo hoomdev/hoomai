@@ -78,8 +78,9 @@ func TestCA781_VerifyConRutaDeRiesgo(t *testing.T) {
 	}
 }
 
-// CA-781: sin tarea y sin ruta de riesgo, 450 lineas de producto dan el
-// aviso nuevo; 3000 de pruebas y 10 de producto, ninguno.
+// CA-781 (calibrado por CAL-2): sin tarea y sin ruta de riesgo, 450 lineas de
+// producto mantienen riesgo normal sin aviso de 4 lentes; 3000 de pruebas y 10
+// de producto, tampoco.
 func TestCA781_VerifyAvisoDeProducto(t *testing.T) {
 	const ca = "CA-781"
 	veeSaltar(t)
@@ -87,11 +88,11 @@ func TestCA781_VerifyAvisoDeProducto(t *testing.T) {
 	dir := retyRama(t, "", map[string]int{"precios.go": 450})
 	r := qcCorrer(t, bin, dir, nil, "verify")
 	if r.exit != 0 || retyLinea(r.stdout, "riesgo: normal (sin tarjeta: riesgo normal)") < 0 ||
-		retyLinea(r.stdout, "tamano: producto 450 · pruebas 0 · hoom ") < 0 || retyLinea(r.stdout, retyAviso4) < 0 {
-		t.Fatalf("%s: 450 de producto: riesgo normal, tamano y el aviso nuevo: %d\n%s", ca, r.exit, r.todo())
+		retyLinea(r.stdout, "tamano: producto 450 · pruebas 0 · hoom ") < 0 {
+		t.Fatalf("%s: 450 de producto: riesgo normal y tamano: %d\n%s", ca, r.exit, r.todo())
 	}
-	if strings.Contains(r.todo(), retyViejo) {
-		t.Fatalf("%s: el aviso viejo ya no sale:\n%s", ca, r.todo())
+	if strings.Contains(r.todo(), retyViejo) || strings.Contains(r.todo(), retyAviso4) {
+		t.Fatalf("%s: en riesgo normal ya no sale el aviso de 4 lentes ni el viejo:\n%s", ca, r.todo())
 	}
 	dir = retyRama(t, "", map[string]int{"precios.go": 10, "precios_test.go": 3000})
 	r = qcCorrer(t, bin, dir, nil, "verify")

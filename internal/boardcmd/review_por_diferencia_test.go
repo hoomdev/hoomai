@@ -146,12 +146,12 @@ func (tj *rdTarjeta) card(t *testing.T) Card {
 func rdSinRegistro(t *testing.T, c Card) string {
 	t.Helper()
 	for _, m := range c.Missing {
-		if strings.HasPrefix(m, "la review exige las 4 lentes (") && strings.HasSuffix(m, " > 400) y no hay registro de review") {
+		if strings.HasPrefix(m, "la review exige la lente reliability (") && strings.HasSuffix(m, " > 400) y no hay registro de review") {
 			return m
 		}
 	}
 	t.Fatalf("CA-427: el motivo de hoy de la review exigida (%q) esta en missing: %q",
-		"la review exige las 4 lentes (<n> lineas > 400) y no hay registro de review", c.Missing)
+		"la review exige la lente reliability (<n> lineas > 400) y no hay registro de review", c.Missing)
 	return ""
 }
 
@@ -286,7 +286,7 @@ func TestCA427_CadenaRotaNoCuenta(t *testing.T) {
 		}},
 		{"llega-a-una-completa-de-una-lente", func(t *testing.T, tj *rdTarjeta) []reviewcmd.Record {
 			return []reviewcmd.Record{
-				tj.registro("20260922T165000_un4l3n", tj.mb, tj.head(t), reviewcmd.CoberturaCompleta, "", []string{reviewcmd.LenteDominante}),
+				tj.registro("20260922T165000_un4l3n", tj.mb, tj.head(t), reviewcmd.CoberturaCompleta, "", []string{"risk"}),
 				tj.registro("20260922T170000_d3lta1", tj.head(t), tj.head(t), reviewcmd.CoberturaDelta, "20260922T165000_un4l3n", reviewcmd.Lentes),
 			}
 		}},
@@ -461,7 +461,7 @@ func TestCA428_SinUnRegistroQueCumplaTodoSalvoLoUltimoElMotivoEsElDeHoy(t *testi
 			return tj.registro("20260922T160000_d3lta1", tj.mb, tj.head(t), reviewcmd.CoberturaDelta, "20260922T150000_n0h4y1", reviewcmd.Lentes)
 		}},
 		{"una-lente", func(t *testing.T, tj *rdTarjeta) reviewcmd.Record {
-			return tj.registro("20260922T160000_un4l3n", tj.mb, tj.head(t), reviewcmd.CoberturaCompleta, "", []string{reviewcmd.LenteDominante})
+			return tj.registro("20260922T160000_un4l3n", tj.mb, tj.head(t), reviewcmd.CoberturaCompleta, "", []string{"risk"})
 		}},
 	}
 	for _, c := range casos {
@@ -519,7 +519,7 @@ func rdPuroDerive(t *testing.T, ca, caso string, ev Evidence) Card {
 	return Card{}
 }
 
-const rdPuroSinRegistro = "la review exige las 4 lentes (612 lineas > 400) y no hay registro de review"
+const rdPuroSinRegistro = "la review exige la lente reliability (612 lineas > 400) y no hay registro de review"
 
 // CA-427 (Derive puro): cuenta solo el registro con hasta, completa o delta
 // con su cadena hasta una completa de la tarea y de 4 lentes, y con su cola
@@ -576,7 +576,7 @@ func TestCA427_DerivePuroCuentaSoloConColaYCadena(t *testing.T) {
 			[]reviewcmd.Record{
 				rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", una),
 				rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r1", cuatro)},
-			map[string]ReviewTail{"r1": sana, "r2": sana}, ""},
+			map[string]ReviewTail{"r1": sana, "r2": sana}, "r2"},
 		{"eslabon-parcial",
 			[]reviewcmd.Record{
 				rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaParcial, "", cuatro),
@@ -669,7 +669,7 @@ func TestCA427_DerivePuroRegistroViejoVuelveAPedirReviewer(t *testing.T) {
 	ev.Reviews = []reviewcmd.Record{viejo}
 	c := Derive(bdColas(ev))
 	bdCol(t, "CA-427", c, ColReview)
-	want := []string{ActPedirReviewer, ActPedirRefutador, ActPedirWriter, ActSesion, ActTerminal}
+	want := []string{ActPedirReviewer, ActPedirWriter, ActPedirRefutador, ActSesion, ActTerminal}
 	if got := acIDs(c); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("CA-427/CA-325/CA-753: con un registro sin hasta la tarjeta ofrece %v, fueron %v", want, got)
 	}

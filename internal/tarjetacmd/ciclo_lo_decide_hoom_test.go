@@ -222,8 +222,8 @@ func TestCA754_PedirRefutadorLanzaConSuPedido(t *testing.T) {
 	quiero := cldPedidoRefutador(2, cldSlug, ids)
 	c := vdtCarta(t, root, cldSlug)
 	a := vdtAccion(t, "CA-754", c, boardcmd.ActPedirRefutador)
-	if c.Actions[0].ID != boardcmd.ActPedirRefutador || a.Pedido != quiero || !reflect.DeepEqual(a.Hallazgos, ids) {
-		t.Fatalf("CA-753/CA-754: la primera accion es pedir-refutador con\n  %q y %q\nfue %v, %q y %q", quiero, ids, c.Actions[0].ID, a.Pedido, a.Hallazgos)
+	if c.Actions[0].ID != boardcmd.ActPedirWriter || a.Pedido != quiero || !reflect.DeepEqual(a.Hallazgos, ids) {
+		t.Fatalf("CA-753/CA-754: en riesgo normal la primera accion es pedir-writer y pedir-refutador trae\n  %q y %q\nfue %v, %q y %q", quiero, ids, c.Actions[0].ID, a.Pedido, a.Hallazgos)
 	}
 	if boardcmd.PedidoRondaRefutador(2, cldSlug, ids) != quiero {
 		t.Fatalf("CA-754: PedidoRondaRefutador es el texto del contrato: %q", boardcmd.PedidoRondaRefutador(2, cldSlug, ids))
@@ -465,13 +465,42 @@ func TestCA750_SiguienteAlTope(t *testing.T) {
 	f.ninguna(t, "CA-750", "siguiente al tope")
 }
 
-// CA-753 y CA-754: bajo el tope, con bloqueantes sin refutar, hoom siguiente
-// lanza al refutador (la primera accion) con su pedido.
+// CA-753 y CA-754: bajo el tope, en riesgo alto con bloqueantes sin refutar,
+// hoom siguiente lanza al refutador (la primera accion) con su pedido.
 func TestCA753_SiguienteBajoElTopeLanzaAlRefutador(t *testing.T) {
 	f := vdtPATH(t)
 	f.cli(t, "claude", "")
 	root := vdtProyecto(t, "")
-	_, ids := cldReview(t, "CA-753", root, cldSlug, 2, 1)
+	wt, ids := cldReview(t, "CA-753", root, cldSlug, 2, -1)
+	vdtItem(t, root, cldSlug, "riesgo: alto\n")
+	all, err := verdict.LoadAll(wt)
+	if err != nil {
+		t.Fatalf("CA-753: fixture: verdict.LoadAll: %v", err)
+	}
+	v := verdict.LatestComplete(all)
+	if v == nil {
+		t.Fatalf("CA-753: fixture: sin veredicto completo")
+	}
+	base, err := gitx.MergeBase(wt, vdtBase)
+	if err != nil {
+		t.Fatalf("CA-753: fixture: gitx.MergeBase: %v", err)
+	}
+	head, err := gitx.Head(wt)
+	if err != nil {
+		t.Fatalf("CA-753: fixture: gitx.Head: %v", err)
+	}
+	ini := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Second)
+	for i, cob := range []string{reviewcmd.CoberturaCompleta, reviewcmd.CoberturaDelta} {
+		if _, err := reviewcmd.WriteRecord(wt, reviewcmd.Record{
+			CreatedAt: ini.Add(time.Duration(i) * time.Minute), Task: cldSlug,
+			Spec: vdtSpecRel(cldSlug), Fingerprint: v.Git.ChangeFingerprint, VerdictID: v.ID, Verdict: "green",
+			Lenses: reviewcmd.Lentes, Provider: "codex", Writer: "claude", Cross: reviewcmd.CrossYes,
+			Findings: []string{}, Usage: []reviewcmd.LensUsage{},
+			Cobertura: cob, Base: vdtBase, Desde: base, Hasta: head,
+		}); err != nil {
+			t.Fatalf("CA-753: fixture: WriteRecord: %v", err)
+		}
+	}
 	s := vdtCorrer(t, "CA-753", vdtOpts{dir: root}, "siguiente", cldSlug)
 	if strings.Contains(s.out, cldTeTocaAlTope) {
 		t.Fatalf("CA-753: bajo el tope no hay tope:\n%s", s)

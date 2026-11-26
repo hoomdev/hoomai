@@ -1,0 +1,40 @@
+name: node
+description: Node.js / TypeScript (npm test / vitest / jest, tsc, eslint, build)
+detect:
+  files: [package.json]
+# variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
+# dentro de su propia cache
+cache: [npm_config_cache, YARN_CACHE_FOLDER, PNPM_STORE_DIR]
+# rutas por defecto del perfil (riesgo-efectivo-y-tamano): un generado no suma
+# al tamano ni sube el riesgo
+rutas:
+  generadas: [package-lock.json, yarn.lock, pnpm-lock.yaml, node_modules, dist, build, .next]
+gates:
+  security:
+    required: false
+    cmd: ""
+    notes: "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits. En proyectos con auth/pagos: required: true."
+  test:
+    required: true
+    cmd: "npm test"
+    notes: "Cambiar a npx vitest run o npx jest segun el runner del proyecto."
+  static:
+    required: true
+    cmd: "npx tsc --noEmit"
+    notes: "Verificacion de tipos TypeScript. Si es JS puro, deja cmd vacio."
+  lint:
+    required: false
+    cmd: ""
+    notes: "Opcional: npx eslint . o npx biome check ."
+  arch:
+    required: false
+    cmd: ""
+    notes: "Opcional: dependency-cruiser o tests de arquitectura propios."
+  mutation:
+    required: false
+    cmd: ""
+    notes: "Opcional: npx stryker run (acotado por diff cuando sea posible)."
+  build:
+    required: true
+    cmd: "npm run build"
+    notes: "Compilacion/empaquetado de produccion como gate."

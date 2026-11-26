@@ -348,8 +348,8 @@ func TestCA379_LaTablaDelPilotoSinArquitecto(t *testing.T) {
 				ofrecidas++
 			}
 		}
-		if enReview && (ofrecidas != 1 || c.Actions[0].ID != ActPedirRefutador) {
-			t.Fatalf("CA-753: [%s] en Review con bloqueantes sin refutar la tarjeta le ofrece pedir-refutador a una persona, primera: %v", forma, acIDs(c))
+		if enReview && (ofrecidas != 1 || c.Actions[0].ID != ActPedirWriter) {
+			t.Fatalf("CA-753: [%s] en Review normal con bloqueantes ofrece pedir-writer primero y pedir-refutador disponible: %v", forma, acIDs(c))
 		}
 		if !enReview && ofrecidas != 0 {
 			t.Fatalf("CA-379: [%s] fuera de Review con bloqueantes pedir-refutador no se le ofrece a una persona: %v", forma, acIDs(c))

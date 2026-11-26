@@ -10,7 +10,6 @@ package reviewcmd
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -174,9 +173,9 @@ func TestCA782_ReglaDeLentesTabla(t *testing.T) {
 		{"alto sin producto", []string{"a_test.go"}, 0, "alto", "", Lentes, MotivoRiesgoAlto},
 		{"bajo grande", codigo, 5000, "bajo", "", uno, MotivoRiesgoBajo},
 		{"bajo 401", codigo, 401, "bajo", "", uno, MotivoRiesgoBajo},
-		{"normal 401", codigo, 401, "normal", "", Lentes, "401 lineas de producto (>400): las 4 lentes"},
-		{"vacio 401", codigo, 401, "", "", Lentes, "401 lineas de producto (>400): las 4 lentes"},
-		{"normal 9300", codigo, 9300, "normal", "", Lentes, "9300 lineas de producto (>400): las 4 lentes"},
+		{"normal 401", codigo, 401, "normal", "", uno, MotivoEstandar},
+		{"vacio 401", codigo, 401, "", "", uno, MotivoEstandar},
+		{"normal 9300", codigo, 9300, "normal", "", uno, MotivoEstandar},
 		{"normal 400", codigo, 400, "normal", "", uno, MotivoEstandar},
 		{"normal 90", codigo, 90, "normal", "", uno, MotivoEstandar},
 		{"vacio 0", []string{"a_test.go"}, 0, "", "", uno, MotivoEstandar},
@@ -238,7 +237,7 @@ func TestCA782_PropiedadMonotona(t *testing.T) {
 			return false
 		}
 		if len(e.Files) > 0 && !SoloDocs(e.Files) {
-			if (len(por[1]) == 4) != (e.Producto > 400) || len(por[0]) != 1 || len(por[2]) != 4 {
+			if len(por[1]) != 1 || len(por[0]) != 1 || len(por[2]) != 4 {
 				return false
 			}
 		}
@@ -263,7 +262,7 @@ func TestCA782_LensesConLaReglaNueva(t *testing.T) {
 		{gitx.Info{ChangedFiles: []string{"internal/spec/tokens_test.go"}, Insertions: 3}, Lentes, MotivoRiesgoAlto},
 		{gitx.Info{ChangedFiles: []string{"src/design.go", "assign.go", "signal.go"}, Insertions: 3}, []string{LenteDominante}, MotivoEstandar},
 		{gitx.Info{ChangedFiles: []string{"signature.go"}, Insertions: 3}, Lentes, MotivoRiesgoAlto},
-		{gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 300, Deletions: 101}, Lentes, "401 lineas de producto (>400): las 4 lentes"},
+		{gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 300, Deletions: 101}, []string{LenteDominante}, MotivoEstandar},
 		{gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 300, Deletions: 100}, []string{LenteDominante}, MotivoEstandar},
 	} {
 		l, m, err := Lenses(k.g, "")
@@ -294,7 +293,7 @@ func TestCA782_401DeProductoLasCuatro(t *testing.T) {
 		"internal/precio_test.go": rdCodigo(50, "Prueba"),
 	})
 	res, out := retyRevisar(t, ca, root, Options{})
-	retyLentes(t, ca, "401", res, out, cx, 0, Lentes, "401 lineas de producto (>400): las 4 lentes")
+	retyLentes(t, ca, "401 normal corre 1 lente", res, out, cx, 0, []string{LenteDominante}, MotivoEstandar)
 	retyMotivos(t, ca, wt, res, out, "normal", "", "declarado normal")
 	root, _, cx = retyProyecto(t, "", "feature", "", map[string]string{
 		"internal/precio.go":      rdCodigo(400, "Precio"),
@@ -413,8 +412,8 @@ func TestCA783_ElRangoSeMideEnProducto(t *testing.T) {
 	rdCommit(t, root, "producto grande", map[string]string{"grande.go": rdCodigo(401, "Grande")})
 	antes := cx.veces()
 	res, out = rdRevisar(t, ca, root, Options{Provider: "codex", Desde: desde})
-	if !reflect.DeepEqual(res.Lenses, Lentes) || cx.veces()-antes != 4 || !strings.Contains(res.Reason, " lineas de producto (>400): las 4 lentes") {
-		t.Fatalf("%s: un rango de 401 lineas de producto lleva las 4: %+v\n%s", ca, res, out)
+	if !reflect.DeepEqual(res.Lenses, []string{LenteDominante}) || cx.veces()-antes != 1 || !strings.HasPrefix(res.Reason, MotivoEstandar) {
+		t.Fatalf("%s: un rango de 401 lineas de producto en normal corre 1 lente: %+v\n%s", ca, res, out)
 	}
 }
 
@@ -469,5 +468,5 @@ func TestCA784_ElTerritorioDelMergeBase(t *testing.T) {
 	root, wt, cx = retyProyecto(t, "", "feature", "", nil)
 	retyYAMLEnLaRama(t, wt, func(s string) string { return s + allow }, grande)
 	res, out = retyRevisar(t, ca, root, Options{})
-	retyLentes(t, ca, "solo la rama dice pruebas/**", res, out, cx, 0, Lentes, fmt.Sprintf(MotivoProductoGrande, 454))
+	retyLentes(t, ca, "solo la rama dice pruebas/**", res, out, cx, 0, []string{LenteDominante}, MotivoEstandar)
 }

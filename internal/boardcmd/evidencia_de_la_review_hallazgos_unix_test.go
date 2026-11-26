@@ -50,7 +50,7 @@ func edrConDriverPosible(t *testing.T, ca string) (tj *rdTarjeta, r1 reviewcmd.R
 	bdCommitear(t, tj.wt, "la tarea cambia compartido.txt")
 	tj.verde(t)
 	r1, out := tj.review(t, ca, false)
-	r1Completa(t, ca, "450 lineas", r1, out, reviewcmd.Lentes)
+	r1Completa(t, ca, "450 lineas", r1, out, []string{reviewcmd.LenteDominante})
 	d = r1.Hasta
 	r1Esperar()
 	bdEscribir(t, tj.wt, "x.go", "package app\n\n// MARCA-X\nfunc X() {}\n")

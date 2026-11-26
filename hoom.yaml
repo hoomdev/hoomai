@@ -6,12 +6,10 @@ base_branch: main
 policy: strict
 gates:
   test:
-    # el mismo comando del perfil con un tope propio: sin -timeout, go test
-    # corta cada paquete a los 10 minutos, y reviewcmd con -race ya tarda
-    # ~550 s en una Mac; con la maquina ocupada daba rojo por tiempo sin
-    # ningun defecto (hallazgo 20261007T145523_e3a958)
+    # cmd completo con -race para verify --full y cierre; diff_cmd sin -race
+    # para iterar rapido en sobres intermedios.
     cmd: "go test -race -timeout 20m ./..."
-    diff_cmd: "go test -race -timeout 20m {packages}"
+    diff_cmd: "go test -timeout 10m {packages}"
   mutation:
     required: false
     cmd: ""
@@ -34,12 +32,22 @@ gates:
 # Los hallazgos high abiertos ponen ROJO a verify (gate findings_open).
 findings:
   block_on: high
+  max_rondas: 1
+# Niveles por rol y riesgo: hoom los traduce al modelo de cada provider.
+agents:
+  arquitecto: { model: fuerte, effort: high, bajo: { model: medio, effort: medium } }
+  designer: { model: medio, effort: medium }
+  scout: { model: barato, effort: low }
+  writer: { model: medio, effort: medium, alto: { model: fuerte, effort: high } }
+  test-writer: { model: medio, effort: medium, alto: { model: fuerte, effort: high } }
+  characterizer: { model: medio, effort: medium, alto: { model: fuerte, effort: high } }
+  analista: { model: medio, effort: medium }
+  refutador: { model: medio, effort: medium, alto: { model: fuerte, effort: high } }
 # El reviewer de hoom review. `hoom review` lee esta seccion del hoom.yaml de
 # la BASE (el merge-base con main), nunca del cambio que revisa: un cambio no
-# elige a su propio reviewer. Modelo y esfuerzo explicitos; el tope de la
-# evidencia sube a 448 KiB (~150k tokens de los 258k de la ventana de Codex:
-# el maximo que deja lugar para que el reviewer lea y razone).
+# elige a su propio reviewer.
 review:
-  model: gpt-5.6-sol
-  effort: xhigh
+  model: medio
+  effort: high
   max_evidence_kib: 576
+  concurrencia: 4

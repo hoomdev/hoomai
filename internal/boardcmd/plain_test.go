@@ -188,7 +188,7 @@ func tbCasos() []tbCaso {
 		ev.Verdict, ev.GreenVerdicts = v, []string{v.ID}
 		return ev
 	}
-	add("review exigida", grande(), ColReview, "falta la revision de 4 lentes (612 lineas)")
+	add("review exigida", grande(), ColReview, "falta la revision de la lente reliability (612 lineas)")
 	ev = bdEv()
 	ev.Findings = []finding.Item{bdHallazgo("f-a", "high", bdSlug)}
 	add("review 1 hallazgo", ev, ColReview, "hay 1 hallazgo que bloquea")
@@ -233,7 +233,7 @@ func tbCasos() []tbCaso {
 	ev.Verdict = bdVeredicto("v-todo", bdT0.Add(30*time.Minute), "huella-1", 500, 112, gs)
 	ev.GreenVerdicts = []string{"v-todo"}
 	ev.Findings = []finding.Item{bdHallazgo("f1", "high", bdSlug), bdHallazgo("f2", "high", bdSlug)}
-	add("review 5 condiciones", ev, ColReview, "falta la revision de 4 lentes (612 lineas) (y 4 pendientes mas)")
+	add("review 5 condiciones", ev, ColReview, "falta la revision de la lente reliability (612 lineas) (y 4 pendientes mas)")
 	ev = tbListo(tbSin(bdEv(), "spec_approved"), taskcmd.ReadySinGuardar, tbMsgSinGuardar)
 	add("review 2 condiciones con ready", ev, ColReview,
 		"hay que verificar de nuevo: el ultimo verde no incluye la aprobacion del spec (y 1 pendiente mas)")

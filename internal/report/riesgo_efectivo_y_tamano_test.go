@@ -121,8 +121,8 @@ func TestCA781_ElAvisoDeMayorSoloConTarea(t *testing.T) {
 	}
 }
 
-// CA-781: el aviso de 400 lineas de producto sale solo con efectivo normal y
-// mas de 400 de producto (401 si, 400 no), y nunca por las inserciones de git.
+// CA-781 (actualizado por CAL-2): normal > 400 ya no sube a 4 lentes, asi que
+// el aviso de 400 lineas no sale para ningun riesgo.
 func TestCA781_ElAvisoDeProductoGrande(t *testing.T) {
 	const ca = "CA-781"
 	for _, k := range []struct {
@@ -130,7 +130,7 @@ func TestCA781_ElAvisoDeProductoGrande(t *testing.T) {
 		producto int
 		sale     bool
 	}{
-		{"normal", 401, true},
+		{"normal", 401, false},
 		{"normal", 400, false},
 		{"normal", 90, false},
 		{"bajo", 401, false},

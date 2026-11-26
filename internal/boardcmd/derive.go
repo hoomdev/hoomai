@@ -260,7 +260,7 @@ func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 		if reviewcmd.Encadenable(r) && (delta < 0 || at >= deltaAt) {
 			delta, deltaAt = i, at
 		}
-		if tail.Codigo || !green[r.VerdictID] || !cadenaValida(r, byID, ev.Item.Slug, efectivoEv(ev)) {
+		if tail.Codigo || !green[r.VerdictID] || !cadenaValida(ev, r, byID, ev.Item.Slug, efectivoEv(ev)) {
 			continue
 		}
 		if id == "" || at >= bestAt {
@@ -271,7 +271,7 @@ func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 		return id, nil
 	}
 	p := ev.Reviews[delta]
-	if green[p.VerdictID] && cadenaValida(p, byID, ev.Item.Slug, efectivoEv(ev)) {
+	if green[p.VerdictID] && cadenaValida(ev, p, byID, ev.Item.Slug, efectivoEv(ev)) {
 		return "", &ev.Reviews[delta]
 	}
 	return "", nil
@@ -279,21 +279,24 @@ func reviewState(ev Evidence) (id string, atrasada *reviewcmd.Record) {
 
 // cadenaValida follows desde_review back to a completa: every record on the
 // way is of the card's task, has the lenses the rule asks for the card (its
-// effective riesgo, lentesPedidas) or more, and a hasta, and each delta
+// effective riesgo, lentesPedidasPara) or more, and a hasta, and each delta
 // starts exactly where the record it continues ended. A missing link breaks
 // it. A record older than ciclo-de-review-acotado (no riesgo) counts with
 // its lenses like any other.
-func cadenaValida(r reviewcmd.Record, byID map[string]reviewcmd.Record, slug, efectivo string) bool {
+func cadenaValida(ev Evidence, r reviewcmd.Record, byID map[string]reviewcmd.Record, slug, efectivo string) bool {
 	for pasos := 0; pasos <= len(byID); pasos++ {
-		if r.Task != slug || r.Hasta == "" || !containsAll(r.Lenses, lentesPedidas(efectivo, r.Cobertura)) {
+		if r.Task != slug || r.Hasta == "" {
 			return false
 		}
 		switch r.Cobertura {
 		case reviewcmd.CoberturaCompleta:
-			return true
+			return containsAll(r.Lenses, lentesPedidasPara(ev, r, nil, efectivo))
 		case reviewcmd.CoberturaDelta:
 			prev, ok := byID[r.DesdeReview]
 			if !ok || prev.Hasta != r.Desde {
+				return false
+			}
+			if !containsAll(r.Lenses, lentesPedidasPara(ev, r, &prev, efectivo)) {
 				return false
 			}
 			r = prev
