@@ -364,7 +364,10 @@ func (h *history) fileEntries(c gitCommit, prefix string, kindOf func(string) st
 			e.Plain = "quedo registrada una revision"
 			if r, ok := reviews[f.path]; ok {
 				d.lenses, d.cobertura = r.Lenses, r.Cobertura
-				if containsAll(r.Lenses, lentesPedidas(efectivoEv(h.ev), r.Cobertura)) {
+				switch {
+				case containsAll(r.Lenses, reviewcmd.Lentes):
+					e.Plain = "quedo registrada la revision de 4 lentes"
+				case containsAll(r.Lenses, lentesPedidas(efectivoEv(h.ev), r.Cobertura)):
 					e.Plain = "quedo registrada la revision de " + textoLentes(efectivoEv(h.ev))
 				}
 			}

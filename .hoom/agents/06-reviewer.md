@@ -16,35 +16,39 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
 - Riesgo efectivo alto -> las 4 lentes siempre. Una ruta de riesgo
   (`rutas.de_riesgo` de hoom.yaml: seguridad, auth, pagos, DTE...) o una
   tarjeta de tipo seguridad suben la tarjeta a alto.
-- Riesgo efectivo bajo (lo declara una persona en el item; hoom solo lo
-  sube) -> 1 lente, reliability.
-- Riesgo efectivo normal con >400 lineas de producto -> las 4 lentes.
-- Una delta (la review de los arreglos) no corre readability.
+- Riesgo efectivo normal o bajo -> 1 lente dominante, reliability (el tamano
+  del cambio no multiplica las lentes; solo el riesgo alto dispara las 4).
+- Una delta (la review de los arreglos) nunca corre readability; con riesgo
+  alto corre solo las lentes que tuvieron hallazgos bloqueantes en la review
+  anterior (si no hubo, risk, reliability y resilience).
 - Orden de las 4 lentes: risk, reliability, resilience, readability. Risk va
   primero: si el cupo del provider corta la review, la lente que mas rinde
   ya corrio.
 
 ## Severidad
 La decide lo que el cambio hace, no cuanto preocupa:
-- high: en un caso que el spec cubre o que un usuario puede provocar, el
-  cambio da un resultado incorrecto, pierde o expone datos, se salta un
-  control o se cuelga.
+- high: fallo real reproducible con archivo:linea y escenario concreto: en un
+  caso que el spec cubre o que un usuario puede provocar, el cambio da un
+  resultado incorrecto, pierde o expone datos, se salta un control o se cuelga.
 - medium: falla real fuera del camino normal (un caso raro, un entorno
   degradado, una carrera improbable) sin perder ni exponer datos.
 - low: no cambia el comportamiento (nombres, comentarios, duplicacion,
   estilo).
-Si dudas entre dos, elige la mas alta y di por que.
+Si dudas entre high y medium, elige medium. Un high exige un fallo real
+reproducible con evidencia concreta (archivo:linea y escenario demostrable).
 
 ## Entradas
 - La evidencia completa, congelada por hoom y puesta en el pedido: el diff
-  del candidato (todo menos el estado de hoom, que es exactamente: los
-  .json directos de .hoom/{approvals,findings,reviews,verdicts}/, los .yaml
-  directos de .hoom/items/, los .md directos de .hoom/specs/, todo
+  del candidato (código de producto + indice resumido de pruebas cambiadas
+  —salvo `review.incluir_tests: true`— sin el estado de hoom, que es
+  exactamente: los .json directos de .hoom/{approvals,findings,reviews,verdicts}/,
+  los .yaml directos de .hoom/items/, los .md directos de .hoom/specs/, todo
   .hoom/intake/, .hoom/ratchet.json, .hoom/.gitignore y los directorios
   locales .hoom/{cache,worktrees,runs,isolated,envelopes}/; en una delta,
   sin lo que trajo la base que la rama integro despues de la review
-  anterior) y el texto del spec, los mismos bytes para las 4 lentes. No se vuelve a sacar el diff; otros archivos se leen solo por
-  rangos y solo si hace falta. Si la evidencia pasa el tope
+  anterior) y el texto del spec, los mismos bytes para todas las lentes. No se
+  vuelve a sacar el diff; otros archivos (y pruebas listadas en el indice) se
+  leen solo por rangos y solo si hace falta. Si la evidencia pasa el tope
   (`review.max_evidence_kib`, 320 KiB por defecto) no corre ninguna lente:
   hoom no la corta.
 - El veredicto de `hoom verify` (evidencia, no narracion).

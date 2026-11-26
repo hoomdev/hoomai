@@ -13,6 +13,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/providers"
 	"github.com/hoomdev/hoomai/internal/reviewcmd"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
@@ -624,20 +625,21 @@ func (p piloto) empezarRonda() PilotDecision {
 			return parar(7, fmt.Sprintf("los hallazgos que bloquean no bajan (%d -> %d): te toca", kAntes, k))
 		}
 	}
-	bloqueantes := make([]string, 0, k)
-	for _, f := range p.e.Bloqueantes {
-		bloqueantes = append(bloqueantes, f.ID)
+	if p.c.Evidence.Riesgo == riesgo.Alto {
+		bloqueantes := make([]string, 0, k)
+		for _, f := range p.e.Bloqueantes {
+			bloqueantes = append(bloqueantes, f.ID)
+		}
+		sobres := make([]envelope.Record, 0, len(p.e.Sobres))
+		for _, s := range p.e.Sobres {
+			sobres = append(sobres, s.Record)
+		}
+		if ids := BloqueantesSinRefutar(bloqueantes, sobres); len(ids) > 0 {
+			return p.lanzarConProvider(lanzamiento{caso: 7, accion: ActPedirRefutador, regla: ReglaRondaRefutador,
+				ronda: n, hallazgos: ids, bloqueantes: k, pedido: PedidoRondaRefutador(n, p.c.Slug, ids)}, "refutador")
+		}
 	}
-	sobres := make([]envelope.Record, 0, len(p.e.Sobres))
-	for _, s := range p.e.Sobres {
-		sobres = append(sobres, s.Record)
-	}
-	ids := BloqueantesSinRefutar(bloqueantes, sobres)
-	if len(ids) == 0 {
-		return p.testWriterDeRonda(n, k)
-	}
-	return p.lanzarConProvider(lanzamiento{caso: 7, accion: ActPedirRefutador, regla: ReglaRondaRefutador,
-		ronda: n, hallazgos: ids, bloqueantes: k, pedido: PedidoRondaRefutador(n, p.c.Slug, ids)}, "refutador")
+	return p.testWriterDeRonda(n, k)
 }
 
 // bloqueantesAlEmpezar is k of round n: the bloqueantes of its first

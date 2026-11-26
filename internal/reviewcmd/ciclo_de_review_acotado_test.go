@@ -13,7 +13,6 @@ package reviewcmd
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"path/filepath"
 	"reflect"
@@ -60,11 +59,10 @@ func TestCA619_LentesConRiesgoTabla(t *testing.T) {
 	chico := gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 10}
 	riesgosa := gitx.Info{ChangedFiles: []string{"a.go", "internal/auth/login.go"}, Insertions: 10}
 
-	// riesgo-efectivo-y-tamano: a.go es producto fuera de las rutas de bajo
-	// riesgo, asi que el bajo declarado es normal efectivo
+	// CAL-2: normal corre 1 sola lente dominante (reliability) sin importar las 400 lineas.
 	l, m, err := crRegla(grande, "", "bajo")
-	if err != nil || !reflect.DeepEqual(l, Lentes) || m != fmt.Sprintf(MotivoProductoGrande, 450) {
-		t.Fatalf("CA-619: bajo que toca a.go y mas de 400 lineas: normal, las 4: %v %q %v", l, m, err)
+	if err != nil || !reflect.DeepEqual(l, []string{"reliability"}) || m != MotivoEstandar {
+		t.Fatalf("CA-619: bajo que toca a.go y mas de 400 lineas: normal, 1 lente: %v %q %v", l, m, err)
 	}
 	l, m, err = crRegla(chico, "", "bajo")
 	if err != nil || !reflect.DeepEqual(l, []string{"reliability"}) || m != MotivoEstandar {
@@ -207,8 +205,8 @@ func crTareaCon(t *testing.T, slug, r string, archivos map[string]string) (root,
 func TestCA619_ReviewBajoGrandeCorreReliability(t *testing.T) {
 	root, wt, cx := crTareaCon(t, "precios", "bajo", map[string]string{"grande.go": rdCodigo(450, "Grande")})
 	res, out := rdRevisar(t, "CA-619", root, Options{Provider: "codex", Task: "precios"})
-	if res.Status != "revisado" || !reflect.DeepEqual(res.Lenses, Lentes) || cx.veces() != 4 || res.Reason != fmt.Sprintf(MotivoProductoGrande, 452) {
-		t.Fatalf("CA-619: bajo que sube a normal con 452 lineas de producto corre las 4 con %q: %+v (%d pasadas)\n%s", fmt.Sprintf(MotivoProductoGrande, 452), res, cx.veces(), out)
+	if res.Status != "revisado" || !reflect.DeepEqual(res.Lenses, []string{LenteDominante}) || cx.veces() != 1 || res.Reason != MotivoEstandar {
+		t.Fatalf("CA-619: bajo que sube a normal con 452 lineas de producto corre 1 lente con %q: %+v (%d pasadas)\n%s", MotivoEstandar, res, cx.veces(), out)
 	}
 	if res.Cobertura != CoberturaCompleta {
 		t.Fatalf("CA-619: las lentes que la regla pide cubren: completa: %+v", res)

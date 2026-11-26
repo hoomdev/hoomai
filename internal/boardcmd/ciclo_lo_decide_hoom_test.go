@@ -402,10 +402,22 @@ func TestCA752_PropiedadSinBloqueantesComoHoy(t *testing.T) {
 // (aclaracion 2). Sus Hallazgos son los bloqueantes en el orden de la
 // tarjeta.
 func TestCA753_PrimeraAccionPedirRefutador(t *testing.T) {
-	c := Derive(acConHallazgos(acEv(), "f-a", "f-b", "f-c"))
+	ev := acConHallazgos(acEv(), "f-a", "f-b", "f-c")
+	// En riesgo normal: pedir-writer va primero y pedir-refutador sigue disponible a mano.
+	cn := Derive(ev)
+	bdCol(t, "CA-753 (normal)", cn, ColReview)
+	if len(cn.Actions) < 2 || cn.Actions[0].ID != ActPedirWriter || cn.Actions[1].ID != ActPedirRefutador {
+		t.Fatalf("CA-753: en normal la primera accion es pedir-writer y luego pedir-refutador: %v", acIDs(cn))
+	}
+	// En riesgo alto: pedir-refutador es la primera accion.
+	ev.Item.Riesgo = "alto"
+	r := acRegistroQueCuenta()
+	r.VerdictID = ev.Verdict.ID
+	ev.Reviews = []reviewcmd.Record{r}
+	c := Derive(bdColas(ev))
 	bdCol(t, "CA-753", c, ColReview)
 	if len(c.Actions) == 0 || c.Actions[0].ID != ActPedirRefutador {
-		t.Fatalf("CA-753: la primera accion es pedir-refutador: %v", acIDs(c))
+		t.Fatalf("CA-753: en alto la primera accion es pedir-refutador: %v", acIDs(c))
 	}
 	a := c.Actions[0]
 	if a.Role != "refutador" || !a.Enabled || !IsRoleAction(a.ID) {
@@ -432,11 +444,17 @@ func TestCA753_PrimeraAccionPedirRefutador(t *testing.T) {
 // CA-753 y aclaracion 1: con la review exigida y bloqueantes, el orden es
 // pedir-reviewer, pedir-refutador, pedir-writer.
 func TestCA753_OrdenConLaReviewExigida(t *testing.T) {
-	c := Derive(acConHallazgos(acGrande(acEv()), "f-a"))
+	ev := acConHallazgos(acGrande(acEv()), "f-a")
+	ids := acIDs(Derive(ev))
+	if len(ids) < 3 || ids[0] != ActPedirReviewer || ids[1] != ActPedirWriter || ids[2] != ActPedirRefutador {
+		t.Fatalf("CA-753: en normal con la review exigida el orden es pedir-reviewer, pedir-writer, pedir-refutador: %v", ids)
+	}
+	ev.Item.Riesgo = "alto"
+	c := Derive(ev)
 	bdCol(t, "CA-753", c, ColReview)
-	ids := acIDs(c)
+	ids = acIDs(c)
 	if len(ids) < 3 || ids[0] != ActPedirReviewer || ids[1] != ActPedirRefutador || ids[2] != ActPedirWriter {
-		t.Fatalf("CA-753: con la review exigida el orden es pedir-reviewer, pedir-refutador, pedir-writer: %v", ids)
+		t.Fatalf("CA-753: en alto con la review exigida el orden es pedir-reviewer, pedir-refutador, pedir-writer: %v", ids)
 	}
 }
 
@@ -470,7 +488,11 @@ func TestCA753_TodosRefutadosLaPrimeraEsPedirWriter(t *testing.T) {
 // bloqueante sin refutar: pedir-refutador vuelve, solo con el.
 func TestCA753_UnBloqueanteNuevoVuelveAlRefutador(t *testing.T) {
 	ev := cldConSobres(acConHallazgos(acEv(), "f-a", "f-nuevo", "f-b"), cldRefutador("env-ref-1", 10, "ok", "f-a", "f-b"))
-	c := Derive(cldConRondas(ev, 1, 2))
+	ev.Item.Riesgo = "alto"
+	r := acRegistroQueCuenta()
+	r.VerdictID = ev.Verdict.ID
+	ev.Reviews = []reviewcmd.Record{r}
+	c := Derive(bdColas(cldConRondas(ev, 1, 2)))
 	a := acAccion(t, "CA-753", c, ActPedirRefutador)
 	if c.Actions[0].ID != ActPedirRefutador || !reflect.DeepEqual(a.Hallazgos, []string{"f-nuevo"}) {
 		t.Fatalf("CA-753: el bloqueante nuevo va solo al refutador, primero: %v %q", acIDs(c), a.Hallazgos)
@@ -485,7 +507,11 @@ func TestCA753_CortadoEnRunYOtrosRolesNoCuentan(t *testing.T) {
 	revisor := cldRefutador("env-r", 14, "ok", "f-b")
 	revisor.Record.Role = "reviewer"
 	ev := cldConSobres(acConHallazgos(acEv(), "f-a", "f-b"), revisor, escritor, cldRefutador("env-cortado", 5, "run", "f-a", "f-b"))
-	c := Derive(ev)
+	ev.Item.Riesgo = "alto"
+	r := acRegistroQueCuenta()
+	r.VerdictID = ev.Verdict.ID
+	ev.Reviews = []reviewcmd.Record{r}
+	c := Derive(bdColas(ev))
 	a := acAccion(t, "CA-753", c, ActPedirRefutador)
 	if c.Actions[0].ID != ActPedirRefutador || !reflect.DeepEqual(a.Hallazgos, []string{"f-a", "f-b"}) {
 		t.Fatalf("CA-753: el cortado en run y los otros roles no cuentan: %v %q", acIDs(c), a.Hallazgos)
@@ -557,7 +583,12 @@ func TestCA753_IsRoleAction(t *testing.T) {
 // «<titulo>».`, por FraseDe y en la pelota de la tarjeta (su paso es su
 // primera accion, que lanza un rol: AccionDelPaso).
 func TestCA753_FraseDeLaPelota(t *testing.T) {
-	c := Derive(acConHallazgos(acEv(), "f-a"))
+	ev := acConHallazgos(acEv(), "f-a")
+	ev.Item.Riesgo = "alto"
+	r := acRegistroQueCuenta()
+	r.VerdictID = ev.Verdict.ID
+	ev.Reviews = []reviewcmd.Record{r}
+	c := Derive(bdColas(ev))
 	quiero := "Pedile al refutador que revise los hallazgos de «Precios por region»."
 	if got := FraseDe(&c, GrupoTeToca, ActPedirRefutador, Piel{}); got != quiero {
 		t.Fatalf("CA-753: FraseDe con pedir-refutador: %q, fue %q", quiero, got)
@@ -785,8 +816,10 @@ func TestCA756_ElPedidoDelWriterEnReview(t *testing.T) {
 // bloqueantes (o, sin ellos, con la review exigida).
 func cldEvRonda(bloq []finding.Item) Evidence {
 	ev := piEv("tu-aceptacion", piConTope, piNada)
+	ev.Item.Riesgo = "alto"
 	if len(bloq) == 0 {
 		ev = piEv("review-exigida", piConTope, piNada)
+		ev.Item.Riesgo = "alto"
 	}
 	ev.Findings = append([]finding.Item(nil), bloq...)
 	return ev
@@ -1038,8 +1071,8 @@ func TestCA750_ElTopeSaleDelHoomYamlDeLaRaiz(t *testing.T) {
 
 	c, _ = cldDisco(t, "findings:\n  block_on: high\n", "", 1)
 	cldBajoElTope(t, "CA-750", "sin max_rondas, una ronda", c, 1, 2)
-	if len(c.Actions) == 0 || c.Actions[0].ID != ActPedirRefutador {
-		t.Fatalf("CA-753: en disco, bajo el tope, la primera accion es pedir-refutador: %v", acIDs(c))
+	if len(c.Actions) < 2 || c.Actions[0].ID != ActPedirWriter || c.Actions[1].ID != ActPedirRefutador {
+		t.Fatalf("CA-753: en disco (normal), bajo el tope, la primera accion es pedir-writer y luego pedir-refutador: %v", acIDs(c))
 	}
 
 	c, _ = cldDisco(t, "findings:\n  block_on: high\nautonomia:\n  rondas_de_hallazgos: 3\n", "", 2)

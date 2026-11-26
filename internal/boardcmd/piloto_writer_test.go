@@ -133,6 +133,7 @@ func TestWriterPilotoRelevo(t *testing.T) {
 
 func TestWriterPilotoRonda(t *testing.T) {
 	c := wpTarjeta(ColReview)
+	c.Evidence.Riesgo = "alto"
 	verde := wpVeredicto("v3", nil)
 	f := finding.Item{Finding: finding.Finding{ID: "f1", Severity: "high", File: "a.go", Description: "roto", Task: "t"}}
 	max := 80

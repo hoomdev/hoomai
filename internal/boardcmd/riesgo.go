@@ -143,25 +143,37 @@ func productoDe(v *verdict.Verdict) int {
 }
 
 // lentesPedidas are the lenses the rule asks a record of the chain for:
-// with bajo, reliability in a completa and in a delta; with normal and alto,
-// the 4 in a completa and all but readability in a delta.
+// with bajo and normal, reliability in a completa and in a delta; with alto,
+// the 4 in a completa and LentesDeUnaDelta in a delta (or the blocking lenses
+// of prev via lentesPedidasPara).
 func lentesPedidas(efectivo, cobertura string) []string {
-	switch {
-	case efectivo == riesgo.Bajo:
+	if efectivo != riesgo.Alto {
 		return []string{reviewcmd.LenteDominante}
-	case cobertura == reviewcmd.CoberturaDelta:
+	}
+	if cobertura == reviewcmd.CoberturaDelta {
 		return reviewcmd.LentesDeUnaDelta
 	}
 	return reviewcmd.Lentes
 }
 
-// textoLentes is what the card's texts call the review the rule asks for:
-// "la lente reliability" on a bajo card, "4 lentes" otherwise.
-func textoLentes(efectivo string) string {
-	if efectivo == riesgo.Bajo {
-		return "la lente " + reviewcmd.LenteDominante
+// lentesPedidasPara are the lenses a record r of the chain needs, accounting
+// for CAL-2: in riesgo alto, a delta only requires the lenses that had
+// non-refuted blocking findings in the record it continues (prev), falling
+// back to LentesDeUnaDelta when prev had none.
+func lentesPedidasPara(ev Evidence, r reviewcmd.Record, prev *reviewcmd.Record, efectivo string) []string {
+	if efectivo != riesgo.Alto || r.Cobertura != reviewcmd.CoberturaDelta || prev == nil {
+		return lentesPedidas(efectivo, r.Cobertura)
 	}
-	return "4 lentes"
+	return reviewcmd.LentesDeDelta(*prev, ev.Findings, contextoDe(ev))
+}
+
+// textoLentes is what the card's texts call the review the rule asks for:
+// "4 lentes" on an alto card, "la lente reliability" otherwise.
+func textoLentes(efectivo string) string {
+	if efectivo == riesgo.Alto {
+		return "4 lentes"
+	}
+	return "la lente " + reviewcmd.LenteDominante
 }
 
 // faltaReview is the reason and the plain text of a review the card
@@ -175,8 +187,8 @@ func faltaReview(efectivo string, lines int) (motivo, plain string) {
 		return fmt.Sprintf("la review exige la lente reliability (%d lineas > %d, riesgo bajo) y no hay registro de review", lines, reviewcmd.UmbralLineas),
 			fmt.Sprintf("falta la revision de la lente reliability (%d lineas)", lines)
 	}
-	return fmt.Sprintf("la review exige las 4 lentes (%d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
-		fmt.Sprintf("falta la revision de 4 lentes (%d lineas)", lines)
+	return fmt.Sprintf("la review exige la lente reliability (%d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
+		fmt.Sprintf("falta la revision de la lente reliability (%d lineas)", lines)
 }
 
 // contextoDe is the Contexto the card's findings are judged with

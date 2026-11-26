@@ -15,6 +15,7 @@ import (
 
 	"github.com/hoomdev/hoomai/internal/approval"
 	"github.com/hoomdev/hoomai/internal/envelope"
+	"github.com/hoomdev/hoomai/internal/reviewcmd"
 	"github.com/hoomdev/hoomai/internal/runcmd"
 	"github.com/hoomdev/hoomai/internal/taskcmd"
 )
@@ -177,12 +178,18 @@ func TestCA331_DropsCasosDelContrato(t *testing.T) {
 	acDropEs(t, "review sin accion", acDrop(t, c, ColTuAceptacion), "", c.Plain)
 	acDropEs(t, "review sin accion", acDrop(t, c, ColHecho), "", "primero tiene que llegar a Tu aceptacion: "+c.Plain)
 
-	// Review con hallazgos sin refutar: la siguiente abre pedir-refutador
-	// (CA-753); con la review exigida ademas, pedir-reviewer (la principal)
+	// Review con hallazgos sin refutar: en riesgo normal va directo a pedir-writer;
+	// en riesgo alto abre pedir-refutador; con la review exigida ademas, pedir-reviewer
 	c = Derive(acConHallazgos(acEv(), "f-a"))
-	acDropEs(t, "review con hallazgos", acDrop(t, c, ColTuAceptacion), ActPedirRefutador, "")
-	// todos ya pasaron por un refutador (sobre cerrado): abre pedir-writer,
-	// como antes
+	acDropEs(t, "review con hallazgos", acDrop(t, c, ColTuAceptacion), ActPedirWriter, "")
+	evAlto := acConHallazgos(acEv(), "f-a")
+	evAlto.Item.Riesgo = "alto"
+	rAlto := acRegistroQueCuenta()
+	rAlto.VerdictID = evAlto.Verdict.ID
+	evAlto.Reviews = []reviewcmd.Record{rAlto}
+	c = Derive(bdColas(evAlto))
+	acDropEs(t, "review con hallazgos riesgo alto", acDrop(t, c, ColTuAceptacion), ActPedirRefutador, "")
+	// todos ya pasaron por un refutador (sobre cerrado): abre pedir-writer
 	c = Derive(cldConSobres(acConHallazgos(acEv(), "f-a"), cldRefutador("env-ref-1", 10, "ok", "f-a")))
 	acDropEs(t, "review con hallazgos refutados", acDrop(t, c, ColTuAceptacion), ActPedirWriter, "")
 	c = Derive(acConHallazgos(acGrande(acEv()), "f-a"))

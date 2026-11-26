@@ -142,6 +142,11 @@ type StartOptions struct {
 	// section `encierro`, sets it (agentcmd.Run, reviewcmd.Run); `hoom run`
 	// never does.
 	Encierro *encierro.Plan
+	// AllowConcurrent allows read-only review lenses launched by the same
+	// Manager to run in parallel on the same directory without tripping
+	// ErrBusy against each other (a writer or another process's run still
+	// blocks and is blocked).
+	AllowConcurrent bool
 }
 
 // VentanaNarrando is how recent the provider's last narration must be, when
@@ -1183,13 +1188,26 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	// lock, nobody registers one between this check and ours (finding
 	// 57eff9)
 	if id, ok := Active(m.root, dir); ok {
-		return Run{}, ErrBusy{RunID: id}
+		permitido := false
+		if opts.AllowConcurrent {
+			m.mu.Lock()
+			if existing, exists := m.runs[id]; exists && existing.opts.AllowConcurrent {
+				permitido = true
+			}
+			m.mu.Unlock()
+		}
+		if !permitido {
+			return Run{}, ErrBusy{RunID: id}
+		}
 	}
 
 	m.mu.Lock()
 	if active, ok := m.byDir[dir]; ok {
-		m.mu.Unlock()
-		return Run{}, ErrBusy{RunID: active}
+		existing := m.runs[active]
+		if !opts.AllowConcurrent || existing == nil || !existing.opts.AllowConcurrent {
+			m.mu.Unlock()
+			return Run{}, ErrBusy{RunID: active}
+		}
 	}
 	id := newID()
 	if err := os.MkdirAll(runsDir(m.root), 0o755); err != nil {
@@ -1778,6 +1796,12 @@ func (m *Manager) settle(r *run, status string, exit int, detail string) {
 	medir(r, sesion)
 	if m.byDir[r.dir] == r.info.ID {
 		delete(m.byDir, r.dir)
+		for otherID, other := range m.runs {
+			if other != r && other.dir == r.dir && other.info.Status == StatusRunning {
+				m.byDir[r.dir] = otherID
+				break
+			}
+		}
 	}
 	// el meta se escribe ANTES de soltar el lock, como en Start: quien ve el
 	// run cerrado (Get, Wait, Events) ya puede leer su meta cerrado, y ningun

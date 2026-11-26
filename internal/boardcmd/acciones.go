@@ -123,9 +123,14 @@ func accionesDeColumna(ev Evidence, c Card) []string {
 		}
 		if len(c.Evidence.BlockingFindings) > 0 {
 			if len(sinRefutar(ev)) > 0 {
-				out = append(out, ActPedirRefutador)
+				if c.Evidence.Riesgo == riesgo.Alto {
+					out = append(out, ActPedirRefutador, ActPedirWriter)
+				} else {
+					out = append(out, ActPedirWriter, ActPedirRefutador)
+				}
+			} else {
+				out = append(out, ActPedirWriter)
 			}
-			out = append(out, ActPedirWriter)
 		}
 		return out
 	case ColTuAceptacion:

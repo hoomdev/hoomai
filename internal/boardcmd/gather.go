@@ -546,7 +546,7 @@ func colasDe(t *tree, base string, ev Evidence) map[string]ReviewTail {
 			out = map[string]ReviewTail{}
 		}
 		out[r.ID] = *rt
-		if rt.Ancestro && !rt.Codigo && green[r.VerdictID] && cadenaValida(r, byID, ev.Item.Slug, efectivoEv(ev)) {
+		if rt.Ancestro && !rt.Codigo && green[r.VerdictID] && cadenaValida(ev, r, byID, ev.Item.Slug, efectivoEv(ev)) {
 			break
 		}
 	}

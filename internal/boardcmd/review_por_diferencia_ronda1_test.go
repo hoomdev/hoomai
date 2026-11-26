@@ -104,11 +104,19 @@ func r1CicloHastaQueCrece(t *testing.T, ca string) (tj *rdTarjeta, r1, r2 review
 	t.Helper()
 	r1Codex(t)
 	tj = rdGrande(t)
+	// Tarjeta en riesgo alto: R1 corre las 4 lentes.
+	bdEscribir(t, tj.root, filepath.Join(".hoom", "items", bdSlug+".yaml"),
+		"titulo: Precios por region\ntipo: feature\nprioridad: media\nriesgo: alto\ncreado_por: \"hoom test <test@hoom.dev>\"\ncreado_en: 2026-09-20T10:00:00Z\n")
+	bdCommitear(t, tj.root, "riesgo alto")
 	r1, out := tj.review(t, ca, false)
-	r1Completa(t, ca, "450 lineas", r1, out, reviewcmd.Lentes)
+	r1Completa(t, ca, "riesgo alto", r1, out, reviewcmd.Lentes)
 	rdCuenta(t, ca+" (fixture)", "R1 de 4 lentes", tj.card(t), r1.RecordID)
 
 	r1Esperar()
+	// Baja temporalmente a normal: R2 corre 1 lente (reliability).
+	bdEscribir(t, tj.root, filepath.Join(".hoom", "items", bdSlug+".yaml"),
+		"titulo: Precios por region\ntipo: feature\nprioridad: media\ncreado_por: \"hoom test <test@hoom.dev>\"\ncreado_en: 2026-09-20T10:00:00Z\n")
+	bdCommitear(t, tj.root, "riesgo normal")
 	bdEscribir(t, tj.wt, "precios.go", rdCodigo(100, "Precio"))
 	bdCommitear(t, tj.wt, "el cambio se achica")
 	tj.verde(t)
@@ -116,33 +124,29 @@ func r1CicloHastaQueCrece(t *testing.T, ca string) (tj *rdTarjeta, r1, r2 review
 	r1Completa(t, ca, "100 lineas", r2, out, []string{reviewcmd.LenteDominante})
 
 	r1Esperar()
+	// Vuelve a riesgo alto: ahora R2 (1 lente) ya no alcanza para encadenar --delta.
+	bdEscribir(t, tj.root, filepath.Join(".hoom", "items", bdSlug+".yaml"),
+		"titulo: Precios por region\ntipo: feature\nprioridad: media\nriesgo: alto\ncreado_por: \"hoom test <test@hoom.dev>\"\ncreado_en: 2026-09-20T10:00:00Z\n")
+	bdCommitear(t, tj.root, "vuelve riesgo alto")
 	bdEscribir(t, tj.wt, "precios.go", rdCodigo(460, "Precio"))
 	bdCommitear(t, tj.wt, "el cambio vuelve a crecer")
 	tj.verde(t)
 	return tj, r1, r2
 }
 
-// CA-428 (enmienda 1, caso limite: "Una completa de una lente mas nueva que
-// una cadena de 4 lentes (el cambio se achico, se reviso con la lente
-// dominante y volvio a crecer): --delta encadenaria con ella, asi que el
-// tablero pide la review completa, no el delta"). De punta a punta: con R1
-// (cadena de 4) y R2 (completa de una lente, mas nueva) y codigo despues de
-// las dos, la tarjeta esta en Review con el motivo y el siguiente paso de
-// hoy (`hoom review --task precios --spec .hoom/specs/precios.md`, sin
-// --delta), nunca `la review R1 cubre hasta ... y el codigo cambio
-// despues`. La review completa que pide la devuelve a Tu aceptacion.
 func TestCA428_CompletaDeUnaLenteMasNuevaPideLaReviewCompleta(t *testing.T) {
 	tj, r1, _ := r1CicloHastaQueCrece(t, "CA-428")
 	c := tj.card(t)
 	if strings.Contains(c.Next, "--delta") {
 		t.Fatalf("CA-428: --delta encadenaria con R2 (completa de una lente, mas nueva): el tablero nunca pide un --delta que no lo dejaria satisfecho: next %q, missing %q", c.Next, c.Missing)
 	}
-	rdNoCuenta(t, "CA-428", "completa de una lente mas nueva que la cadena de 4", c)
+	bdCol(t, "CA-428", c, ColReview)
+	bdPrimero(t, "CA-428", c, "la review exige las 4 lentes (riesgo alto) y no hay registro de review")
 	bdNoTiene(t, "CA-428", c.Missing, "la review "+r1.RecordID+" cubre hasta")
 
 	r1Esperar()
 	r3, out := tj.review(t, "CA-428", false)
-	r1Completa(t, "CA-428", "460 lineas", r3, out, reviewcmd.Lentes)
+	r1Completa(t, "CA-428", "riesgo alto", r3, out, reviewcmd.Lentes)
 	rdCuenta(t, "CA-428", "despues de la review completa", tj.card(t), r3.RecordID)
 }
 
@@ -194,8 +198,8 @@ func TestCA428_CadenaDeCuatroConCodigoDespuesPideElDeltaYElDeltaAlcanza(t *testi
 	r1Codex(t)
 	tj := rdGrande(t)
 	r1, out := tj.review(t, "CA-428", false)
-	r1Completa(t, "CA-428", "450 lineas", r1, out, reviewcmd.Lentes)
-	rdCuenta(t, "CA-428 (fixture)", "R1 de 4 lentes", tj.card(t), r1.RecordID)
+	r1Completa(t, "CA-428", "450 lineas", r1, out, []string{reviewcmd.LenteDominante})
+	rdCuenta(t, "CA-428 (fixture)", "R1 de reliability", tj.card(t), r1.RecordID)
 
 	r1Esperar()
 	tj.codigo(t, "Despues")
@@ -206,11 +210,8 @@ func TestCA428_CadenaDeCuatroConCodigoDespuesPideElDeltaYElDeltaAlcanza(t *testi
 		t.Fatalf("CA-428: el siguiente paso es %q, fue %q", rdNextDelta, c.Next)
 	}
 	r2, out := tj.review(t, "CA-428", true)
-	// CA-620 re-expresa CA-424: la delta cuya regla da las 4 corre risk,
-	// reliability y resilience; CA-622 re-expresa CA-428: ese delta cuenta en
-	// la cadena (trae las lentes que la regla pide para la tarjeta).
-	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID || !reflect.DeepEqual(r2.Lenses, []string{"risk", "reliability", "resilience"}) {
-		t.Fatalf("CA-428/CA-424/CA-620: el --delta encadena con R1 y lleva las 4 de la regla menos readability: %+v\n%s", r2, out)
+	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID || !reflect.DeepEqual(r2.Lenses, []string{reviewcmd.LenteDominante}) {
+		t.Fatalf("CA-428/CA-424/CA-620: el --delta en normal encadena con R1 y corre reliability: %+v\n%s", r2, out)
 	}
 	rdCuenta(t, "CA-428", "despues del delta", tj.card(t), r2.RecordID)
 }
@@ -272,6 +273,7 @@ func TestCA428_DerivePuroPideElDeltaSoloSiElRegistroQueEncadenariaLaDejaSatisfec
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
 			ev := rdPuroGrande()
+			ev.Item.Riesgo = "alto"
 			ev.Reviews, ev.ReviewTails = c.recs, c.colas
 			card := rdPuroDerive(t, "CA-428", c.nombre, ev)
 			bdCol(t, "CA-428 ("+c.nombre+")", card, ColReview)
@@ -285,7 +287,7 @@ func TestCA428_DerivePuroPideElDeltaSoloSiElRegistroQueEncadenariaLaDejaSatisfec
 				}
 				return
 			}
-			bdPrimero(t, "CA-428 ("+c.nombre+")", card, rdPuroSinRegistro)
+			bdPrimero(t, "CA-428 ("+c.nombre+")", card, "la review exige las 4 lentes (riesgo alto) y no hay registro de review")
 			if card.Next != rdNextHoy {
 				t.Fatalf("CA-428: %s: el registro con el que --delta encadenaria no deja la tarjeta satisfecha: el siguiente paso es el de hoy %q, fue %q",
 					c.nombre, rdNextHoy, card.Next)

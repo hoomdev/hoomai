@@ -311,7 +311,8 @@ func DetectStack(dir string) (string, error) {
 		depth int
 	}
 	var best *match
-	for _, p := range all {
+	for _, name := range Names() {
+		p := all[name]
 		score := 0
 		for _, f := range p.Detect.Files {
 			if _, err := os.Stat(filepath.Join(dir, f)); err == nil {

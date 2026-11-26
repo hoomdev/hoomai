@@ -29,22 +29,26 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
    el problema es de diseno: se vuelve al spec, no se improvisa una reescritura.
    Si sigue rojo tras el ciclo, se escala a Hoom explicando el bloqueo exacto.
 4b. El veredicto trae el riesgo efectivo de la tarjeta y el tamano del cambio
-   en lineas de producto (sin pruebas, ni .hoom/, ni generados). Mas de 400
-   lineas de producto = review con las 4 lentes, salvo riesgo bajo
-   (reliability); con riesgo alto, las 4 siempre. Antes de entregar,
-   `hoom check` debe dar VERDE: veredicto verde Y huella coincidente con el
-   arbol actual (verificar A y entregar B es fraude de veredicto).
+   en lineas de producto (sin pruebas, ni .hoom/, ni generados). Con riesgo
+   alto, la review corre las 4 lentes; con riesgo normal o bajo, 1 lente
+   (reliability). Antes de entregar, `hoom check` debe dar VERDE: veredicto
+   verde Y huella coincidente con el arbol actual (verificar A y entregar B es
+   fraude de veredicto).
 4c. Despues de una review, el siguiente paso lo dice `hoom siguiente` o el piloto:
    el orquestador no lo elige. Solo se corrigen los hallazgos que bloquean
    (`bloquea:` en `hoom finding list --open`); los `pendiente` no se corrigen ni
-   se refutan en la tarjeta. Una ronda es el refutador con `hoom pedir refutador`,
-   si hay bloqueantes sin refutar, y UN writer con todos los bloqueantes
-   (`hoom pedir writer`); despues, verify y la review delta. Una ronda no se arma
-   con `hoom agent`. El arquitecto se relanza solo si la correccion cambia un
-   criterio de aceptacion, y eso pide firma nueva. Al tope (`findings.max_rondas`),
-   se escala a Hoom.
-5. Al cerrar: guardar resumen de sesion en Engram (topic: session/<proyecto>/<fecha>)
-   y adjuntar la ruta del veredicto en la respuesta final.
+   se refutan en la tarjeta. En riesgo alto, una ronda corre el refutador con
+   `hoom pedir refutador` (si hay bloqueantes sin refutar) y UN writer con
+   todos los bloqueantes (`hoom pedir writer`); en riesgo normal o bajo, se
+   omite el refutador por defecto (sigue disponible a mano con `hoom pedir
+   refutador` si hay un high dudoso) y el writer corrige directo; despues,
+   verify y la review delta. Una ronda no se arma con `hoom agent`. El
+   arquitecto se relanza solo si la correccion cambia un criterio de
+   aceptacion, y eso pide firma nueva. Al tope (`findings.max_rondas`), se
+   escala a Hoom.
+5. Al cerrar: si Engram esta disponible en la sesion, guardar resumen de sesion
+   (topic: session/<proyecto>/<fecha>), y adjuntar siempre la ruta del
+   veredicto en la respuesta final.
 
 ## Prohibido
 - Editar archivos de codigo directamente.

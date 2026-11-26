@@ -711,8 +711,10 @@ func aeRev(id, prov string, min int) reviewcmd.Record {
 // nuevo es de gemini.
 func aeRonda(pol manifest.AutonomiaPolicy, bloq []finding.Item, xs ...aeS) Estado {
 	ev := piEv("tu-aceptacion", piConTope, piNada)
+	ev.Item.Riesgo = "alto"
 	if len(bloq) == 0 {
 		ev = piEv("review-exigida", piConTope, piNada)
+		ev.Item.Riesgo = "alto"
 	}
 	ev.Findings = append([]finding.Item(nil), bloq...)
 	ev.Reviews = []reviewcmd.Record{aeRev("r-viejo", "codex", 35), aeRev("r-nuevo", "gemini", 50)}
@@ -1334,8 +1336,9 @@ func TestCA660_UnaCadenaLargaCabeEnLaCota(t *testing.T) {
 	hechos = append(hechos, aeS{rol: d.Role, prov: d.Provider, col: ColReview, regla: d.Regla})
 	reviews = append(reviews, aeRev("r-4", revisor, 200))
 
-	// 5. dos bloqueantes: empieza la ronda 1 con el refutador del registro
+	// 5. dos bloqueantes (en riesgo alto): empieza la ronda 1 con el refutador del registro
 	evR := piEv("tu-aceptacion", piConTope, piNada)
+	evR.Item.Riesgo = "alto"
 	d = paso("bloqueantes", evR, []finding.Item{aeF1, aeF2}, nil, nil)
 	lanzo("bloqueantes", d, "refutador", ReglaRondaRefutador)
 	if d.Provider != revisor || d.Ronda != 1 || d.Bloqueantes != 2 || !reflect.DeepEqual(d.Hallazgos, []string{"f1", "f2"}) {

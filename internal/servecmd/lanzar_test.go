@@ -760,22 +760,23 @@ func TestCA337_PedirAlReviewerCorreHoomReview(t *testing.T) {
 	}
 	lnEsperarLanzamientos(t, "CA-337", s)
 
+	esperadas := []string{reviewcmd.LenteDominante}
 	ll := f.pedidos(t, "claude")
-	if len(ll) != len(reviewcmd.Lentes) {
-		t.Fatalf("CA-337: pedir-reviewer es hoom review: una pasada por lente (%d), hubo %d", len(reviewcmd.Lentes), len(ll))
+	if len(ll) != len(esperadas) {
+		t.Fatalf("CA-337: pedir-reviewer en riesgo normal corre %d lente (%v), hubo %d", len(esperadas), esperadas, len(ll))
 	}
 	vistas := map[string]bool{}
 	for _, pedido := range ll {
 		if !strings.HasPrefix(pedido, "Revisa el cambio de esta rama.") {
 			t.Fatalf("CA-337/CA-403: la review arma su propio pedido: %q", pedido)
 		}
-		for _, lens := range reviewcmd.Lentes {
+		for _, lens := range esperadas {
 			if strings.Contains(pedido, "con la lente "+lens) {
 				vistas[lens] = true
 			}
 		}
 	}
-	for _, lens := range reviewcmd.Lentes {
+	for _, lens := range esperadas {
 		if !vistas[lens] {
 			t.Fatalf("CA-337/CA-403: una pasada por lente: ningun pedido dice 'con la lente %s'", lens)
 		}
@@ -787,7 +788,7 @@ func TestCA337_PedirAlReviewerCorreHoomReview(t *testing.T) {
 	rv := recs[0]
 	spec := ".hoom/specs/revisar.md"
 	if rv.Task != "revisar" || (rv.Spec != spec && rv.Spec != filepath.Join(wt, spec)) ||
-		len(rv.Lenses) != len(reviewcmd.Lentes) || rv.Provider != "claude" {
+		len(rv.Lenses) != len(esperadas) || rv.Provider != "claude" {
 		t.Fatalf("CA-337: hoom review corre con task y spec de la tarjeta: %+v", rv)
 	}
 	if reg := lnRegistro(t, "CA-337", root, r.EnvelopeID); reg.Role != "reviewer" || reg.Task != "revisar" || reg.Provider != "claude" {

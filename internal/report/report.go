@@ -51,9 +51,6 @@ func renderRiesgo(w io.Writer, v *verdict.Verdict) {
 	if r := v.Riesgo; r != nil && v.Tarea != "" && riesgo.Mayor(r.Efectivo, r.Declarado) != riesgo.Mayor(r.Declarado, r.Declarado) {
 		fmt.Fprintf(w, riesgo.AvisoMayorQueDeclarado+"\n", r.Efectivo, r.Declarado, v.Tarea, r.Efectivo)
 	}
-	if r := v.Riesgo; r != nil && v.Tamano != nil && r.Efectivo == riesgo.Normal && v.Tamano.Producto > riesgo.UmbralProducto {
-		fmt.Fprintln(w, riesgo.AvisoProductoGrande)
-	}
 }
 
 // Render prints one verdict to w.

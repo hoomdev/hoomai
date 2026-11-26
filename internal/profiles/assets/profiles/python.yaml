@@ -1,0 +1,40 @@
+name: python
+description: Python (pytest, mypy, ruff)
+detect:
+  files: [pyproject.toml, requirements.txt, setup.py]
+# variables de cache del stack: lo encerrado (contencion-del-writer) las recibe
+# dentro de su propia cache
+cache: [PIP_CACHE_DIR, UV_CACHE_DIR, RUFF_CACHE_DIR]
+# rutas por defecto del perfil (riesgo-efectivo-y-tamano): un generado no suma
+# al tamano ni sube el riesgo
+rutas:
+  generadas: [poetry.lock, uv.lock, Pipfile.lock, .venv, venv, __pycache__, dist]
+gates:
+  security:
+    required: false
+    cmd: ""
+    notes: "Recomendado: semgrep scan --error --quiet --config p/default --config p/trailofbits o bandit -r . En proyectos con auth/pagos: required: true."
+  test:
+    required: true
+    cmd: "pytest"
+    notes: "Suite de pruebas con pytest (o uv run pytest)."
+  static:
+    required: true
+    cmd: "mypy ."
+    notes: "Verificacion de tipos estatica (cambiar a pyright si el proyecto lo usa)."
+  lint:
+    required: false
+    cmd: "ruff check ."
+    notes: "Linter rapido con Ruff (no modifica archivos)."
+  arch:
+    required: false
+    cmd: ""
+    notes: "Opcional: import-linter para reglas de capas."
+  mutation:
+    required: false
+    cmd: ""
+    notes: "Opcional: mutmut run."
+  build:
+    required: false
+    cmd: ""
+    notes: "Opcional: python -m build si es paquete distribuible."
