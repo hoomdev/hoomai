@@ -63,7 +63,7 @@ func efectivoEv(ev Evidence) string { return riesgoDe(ev, ev.Verdict).Efectivo }
 // card does not require one (riesgo-efectivo-y-tamano), exactly, with %d for
 // the lines of producto of its newest verdict (its tamano.producto, or
 // insertions + deletions for a verdict older than that spec) and %s for the
-// lenses ("4 lentes", or "la lente reliability" on a bajo card):
+// lenses ("4 lentes", "2 lentes" on normal, or "la lente risk" on a bajo card):
 // `el cambio es chico (<p> lineas de producto): no exige la revision de <lentes>`.
 //
 // The card requires its review (CardEvidence.ReviewRequired) when it has a
@@ -143,23 +143,27 @@ func productoDe(v *verdict.Verdict) int {
 }
 
 // lentesPedidas are the lenses the rule asks a record of the chain for:
-// with bajo and normal, reliability in a completa and in a delta; with alto,
-// the 4 in a completa and LentesDeUnaDelta in a delta (or the blocking lenses
-// of prev via lentesPedidasPara).
+// with bajo, LenteDominante (risk); with normal (>400 product lines),
+// LentesNormalGrande (risk y reliability); with alto, the 4 in a completa and
+// LentesDeUnaDelta in a delta (or the blocking lenses of prev via
+// lentesPedidasPara).
 func lentesPedidas(efectivo, cobertura string) []string {
-	if efectivo != riesgo.Alto {
+	switch efectivo {
+	case riesgo.Alto:
+		if cobertura == reviewcmd.CoberturaDelta {
+			return reviewcmd.LentesDeUnaDelta
+		}
+		return reviewcmd.Lentes
+	case riesgo.Bajo:
 		return []string{reviewcmd.LenteDominante}
 	}
-	if cobertura == reviewcmd.CoberturaDelta {
-		return reviewcmd.LentesDeUnaDelta
-	}
-	return reviewcmd.Lentes
+	return reviewcmd.LentesNormalGrande
 }
 
-// lentesPedidasPara are the lenses a record r of the chain needs, accounting
-// for CAL-2: in riesgo alto, a delta only requires the lenses that had
-// non-refuted blocking findings in the record it continues (prev), falling
-// back to LentesDeUnaDelta when prev had none.
+// lentesPedidasPara are the lenses a record r of the chain needs:
+// in riesgo alto, a delta only requires the lenses that had non-refuted
+// blocking findings in prev (falling back to LentesDeUnaDelta when prev had
+// none).
 func lentesPedidasPara(ev Evidence, r reviewcmd.Record, prev *reviewcmd.Record, efectivo string) []string {
 	if efectivo != riesgo.Alto || r.Cobertura != reviewcmd.CoberturaDelta || prev == nil {
 		return lentesPedidas(efectivo, r.Cobertura)
@@ -168,12 +172,16 @@ func lentesPedidasPara(ev Evidence, r reviewcmd.Record, prev *reviewcmd.Record, 
 }
 
 // textoLentes is what the card's texts call the review the rule asks for:
-// "4 lentes" on an alto card, "la lente reliability" otherwise.
+// "4 lentes" on an alto card, "la lente risk" on a bajo card, and "2 lentes"
+// on a normal card (>400 lines).
 func textoLentes(efectivo string) string {
-	if efectivo == riesgo.Alto {
+	switch efectivo {
+	case riesgo.Alto:
 		return "4 lentes"
+	case riesgo.Bajo:
+		return "la lente " + reviewcmd.LenteDominante
 	}
-	return "la lente " + reviewcmd.LenteDominante
+	return "2 lentes"
 }
 
 // faltaReview is the reason and the plain text of a review the card
@@ -184,11 +192,11 @@ func faltaReview(efectivo string, lines int) (motivo, plain string) {
 		return "la review exige las 4 lentes (riesgo alto) y no hay registro de review",
 			"falta la revision de 4 lentes (riesgo alto)"
 	case riesgo.Bajo:
-		return fmt.Sprintf("la review exige la lente reliability (%d lineas > %d, riesgo bajo) y no hay registro de review", lines, reviewcmd.UmbralLineas),
-			fmt.Sprintf("falta la revision de la lente reliability (%d lineas)", lines)
+		return fmt.Sprintf("la review exige la lente %s (%d lineas > %d, riesgo bajo) y no hay registro de review", reviewcmd.LenteDominante, lines, reviewcmd.UmbralLineas),
+			fmt.Sprintf("falta la revision de la lente %s (%d lineas)", reviewcmd.LenteDominante, lines)
 	}
-	return fmt.Sprintf("la review exige la lente reliability (%d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
-		fmt.Sprintf("falta la revision de la lente reliability (%d lineas)", lines)
+	return fmt.Sprintf("la review exige 2 lentes (risk y reliability, %d lineas > %d) y no hay registro de review", lines, reviewcmd.UmbralLineas),
+		fmt.Sprintf("falta la revision de 2 lentes (%d lineas)", lines)
 }
 
 // contextoDe is the Contexto the card's findings are judged with

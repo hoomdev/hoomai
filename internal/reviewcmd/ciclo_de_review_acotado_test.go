@@ -13,6 +13,7 @@ package reviewcmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"path/filepath"
 	"reflect"
@@ -59,13 +60,13 @@ func TestCA619_LentesConRiesgoTabla(t *testing.T) {
 	chico := gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 10}
 	riesgosa := gitx.Info{ChangedFiles: []string{"a.go", "internal/auth/login.go"}, Insertions: 10}
 
-	// CAL-2: normal corre 1 sola lente dominante (reliability) sin importar las 400 lineas.
+	// normal > 400 corre LentesNormalGrande (risk y reliability); normal <= 400 corre LenteDominante (risk).
 	l, m, err := crRegla(grande, "", "bajo")
-	if err != nil || !reflect.DeepEqual(l, []string{"reliability"}) || m != MotivoEstandar {
-		t.Fatalf("CA-619: bajo que toca a.go y mas de 400 lineas: normal, 1 lente: %v %q %v", l, m, err)
+	if err != nil || !reflect.DeepEqual(l, LentesNormalGrande) || m != fmt.Sprintf(MotivoProductoGrande, 450) {
+		t.Fatalf("CA-619: bajo que toca a.go y mas de 400 lineas: normal, 2 lentes: %v %q %v", l, m, err)
 	}
 	l, m, err = crRegla(chico, "", "bajo")
-	if err != nil || !reflect.DeepEqual(l, []string{"reliability"}) || m != MotivoEstandar {
+	if err != nil || !reflect.DeepEqual(l, []string{LenteDominante}) || m != MotivoEstandar {
 		t.Fatalf("CA-619: bajo que toca a.go y chico: normal, %q (ya no %q): %v %q %v", MotivoEstandar, crMotBajo, l, m, err)
 	}
 	l, m, err = crRegla(chico, "", "alto")
@@ -205,8 +206,9 @@ func crTareaCon(t *testing.T, slug, r string, archivos map[string]string) (root,
 func TestCA619_ReviewBajoGrandeCorreReliability(t *testing.T) {
 	root, wt, cx := crTareaCon(t, "precios", "bajo", map[string]string{"grande.go": rdCodigo(450, "Grande")})
 	res, out := rdRevisar(t, "CA-619", root, Options{Provider: "codex", Task: "precios"})
-	if res.Status != "revisado" || !reflect.DeepEqual(res.Lenses, []string{LenteDominante}) || cx.veces() != 1 || res.Reason != MotivoEstandar {
-		t.Fatalf("CA-619: bajo que sube a normal con 452 lineas de producto corre 1 lente con %q: %+v (%d pasadas)\n%s", MotivoEstandar, res, cx.veces(), out)
+	wantMot := fmt.Sprintf(MotivoProductoGrande, 452)
+	if res.Status != "revisado" || !reflect.DeepEqual(res.Lenses, LentesNormalGrande) || cx.veces() != 2 || res.Reason != wantMot {
+		t.Fatalf("CA-619: bajo que sube a normal con 452 lineas de producto corre 2 lentes con %q: %+v (%d pasadas)\n%s", wantMot, res, cx.veces(), out)
 	}
 	if res.Cobertura != CoberturaCompleta {
 		t.Fatalf("CA-619: las lentes que la regla pide cubren: completa: %+v", res)
@@ -392,8 +394,8 @@ func TestCA620_DeltaDeUnaLenteCorreEsa(t *testing.T) {
 		rdCommit(t, wt, "arreglo", map[string]string{"arreglo.go": "package app\n\nfunc Arreglo() {}\n"})
 		antes := cx.veces()
 		r2, out := rdRevisar(t, "CA-620", root, Options{Provider: "codex", Task: "precios", Delta: true})
-		if r2.Cobertura != CoberturaDelta || !reflect.DeepEqual(r2.Lenses, []string{"reliability"}) || cx.veces()-antes != 1 {
-			t.Fatalf("CA-620: con %s la delta chica corre reliability: %+v\n%s", r, r2, out)
+		if r2.Cobertura != CoberturaDelta || !reflect.DeepEqual(r2.Lenses, []string{LenteDominante}) || cx.veces()-antes != 1 {
+			t.Fatalf("CA-620: con %s la delta chica corre %s: %+v\n%s", r, LenteDominante, r2, out)
 		}
 		if strings.HasSuffix(r2.Reason, crSufijo) {
 			t.Fatalf("CA-620: el sufijo es solo para la delta que daba las 4: %q", r2.Reason)

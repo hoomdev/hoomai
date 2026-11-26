@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -147,9 +148,9 @@ func TestCA160_LentesDeterministas(t *testing.T) {
 		t.Fatalf("CA-160: con una ruta de riesgo el motivo es %q: %q", MotivoRiesgoAlto, motivo)
 	}
 
-	// CAL-2: tamano ya no sube riesgo normal a 4 lentes; sigue 1 lente dominante
-	if lentes, _, _ = Lenses(gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 400, Deletions: 1}, ""); len(lentes) != 1 || lentes[0] != LenteDominante {
-		t.Fatalf("CA-160 (CAL-2): 401 lineas en normal corre 1 lente dominante: %v", lentes)
+	// normal > 400 lineas corre 2 lentes (risk y reliability); <= 400 corre LenteDominante (risk)
+	if lentes, _, _ = Lenses(gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 400, Deletions: 1}, ""); !reflect.DeepEqual(lentes, LentesNormalGrande) {
+		t.Fatalf("CA-160: 401 lineas en normal corre %v: %v", LentesNormalGrande, lentes)
 	}
 	lentes, motivo, _ = Lenses(gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 300, Deletions: 100}, "")
 	if len(lentes) != 1 || lentes[0] != LenteDominante {

@@ -50,4 +50,4 @@ review:
   model: medio
   effort: high
   max_evidence_kib: 576
-  concurrencia: 4
+  concurrencia: 2

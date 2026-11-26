@@ -361,35 +361,37 @@ func TestCA305_SegmentoReview(t *testing.T) {
 		return ev
 	}
 
-	tbSegEs(t, "CA-305", Derive(bdEv()), "review", SegNoAplica, "el cambio es chico (60 lineas de producto): no exige la revision de la lente reliability")
-	tbSegEs(t, "CA-305", Derive(tam(400, 0)), "review", SegNoAplica, "el cambio es chico (400 lineas de producto): no exige la revision de la lente reliability")
-	tbSegEs(t, "CA-305", Derive(tam(0, 0)), "review", SegNoAplica, "el cambio es chico (0 lineas de producto): no exige la revision de la lente reliability")
+	tbSegEs(t, "CA-305", Derive(bdEv()), "review", SegNoAplica, "el cambio es chico (60 lineas de producto): no exige la revision de 2 lentes")
+	tbSegEs(t, "CA-305", Derive(tam(400, 0)), "review", SegNoAplica, "el cambio es chico (400 lineas de producto): no exige la revision de 2 lentes")
+	tbSegEs(t, "CA-305", Derive(tam(0, 0)), "review", SegNoAplica, "el cambio es chico (0 lineas de producto): no exige la revision de 2 lentes")
 
 	grande := tam(500, 112)
-	tbSegEs(t, "CA-305", Derive(grande), "review", SegFalta, "falta la revision de la lente reliability")
-	grande.Reviews = []reviewcmd.Record{rec("r-una", []string{"reliability"}, "v-tam")}
-	tbSegEs(t, "CA-305 (una lente en normal cuenta)", Derive(bdColas(grande)), "review", SegHecho, "revision de la lente reliability registrada")
+	tbSegEs(t, "CA-305", Derive(grande), "review", SegFalta, "falta la revision de 2 lentes")
+	grande.Reviews = []reviewcmd.Record{rec("r-una", []string{"risk"}, "v-tam")}
+	tbSegEs(t, "CA-305 (una lente en normal >400 no cuenta)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de 2 lentes")
+	grande.Reviews = []reviewcmd.Record{rec("r-dos", reviewcmd.LentesNormalGrande, "v-tam")}
+	tbSegEs(t, "CA-305 (2 lentes en normal >400 cuentan)", Derive(bdColas(grande)), "review", SegHecho, "revision de 2 lentes registrada")
 	grandeAlto := tam(500, 112)
 	grandeAlto.Item.Riesgo = "alto"
-	grandeAlto.Reviews = []reviewcmd.Record{rec("r-una", []string{"reliability"}, "v-tam")}
+	grandeAlto.Reviews = []reviewcmd.Record{rec("r-una", []string{"risk"}, "v-tam")}
 	tbSegEs(t, "CA-305 (una lente en alto no cuenta)", Derive(bdColas(grandeAlto)), "review", SegFalta, "falta la revision de 4 lentes")
 	grande.Reviews = []reviewcmd.Record{rec("r-rojo", reviewcmd.Lentes, "v-que-no-es-verde")}
-	tbSegEs(t, "CA-305 (sobre un rojo)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de la lente reliability")
+	tbSegEs(t, "CA-305 (sobre un rojo)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de 2 lentes")
 	grande.Reviews = []reviewcmd.Record{rec("r-ok", reviewcmd.Lentes, "v-tam")}
-	tbSegEs(t, "CA-305", Derive(bdColas(grande)), "review", SegHecho, "revision de la lente reliability registrada")
+	tbSegEs(t, "CA-305", Derive(bdColas(grande)), "review", SegHecho, "revision de 2 lentes registrada")
 	// CA-427 (re-expresion): el mismo registro sin hasta ya no cuenta
 	grande.Reviews = []reviewcmd.Record{recViejo("r-ok", reviewcmd.Lentes, "v-tam")}
-	tbSegEs(t, "CA-427 (sin hasta)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de la lente reliability")
+	tbSegEs(t, "CA-427 (sin hasta)", Derive(bdColas(grande)), "review", SegFalta, "falta la revision de 2 lentes")
 
 	// un registro que cuenta tambien llena el segmento en un cambio chico
 	chico := tam(30, 5)
 	chico.Reviews = []reviewcmd.Record{rec("r-ok", reviewcmd.Lentes, "v-tam")}
-	tbSegEs(t, "CA-305", Derive(bdColas(chico)), "review", SegHecho, "revision de la lente reliability registrada")
+	tbSegEs(t, "CA-305", Derive(bdColas(chico)), "review", SegHecho, "revision de 2 lentes registrada")
 	// CA-427 (re-expresion): sin hasta no cuenta, y un cambio chico sin
 	// registro que cuente no exige la review
 	chico.Reviews = []reviewcmd.Record{recViejo("r-ok", reviewcmd.Lentes, "v-tam")}
 	tbSegEs(t, "CA-427 (sin hasta, chico)", Derive(bdColas(chico)), "review", SegNoAplica,
-		"el cambio es chico (35 lineas de producto): no exige la revision de la lente reliability")
+		"el cambio es chico (35 lineas de producto): no exige la revision de 2 lentes")
 
 	// sin veredicto
 	ev := bdEv()

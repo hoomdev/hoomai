@@ -137,8 +137,8 @@ func TestCA483_UnCommitSoloDeSemgrepDevuelveLaTarjetaAReview(t *testing.T) {
 	bdCommitear(t, tj.wt, "el gate de semgrep")
 	tj.verde(t)
 	r1, out := tj.review(t, "CA-483", false)
-	r1Completa(t, "CA-483", "450 lineas", r1, out, []string{reviewcmd.LenteDominante})
-	rdCuenta(t, "CA-483 (fixture)", "R1 de reliability", tj.card(t), r1.RecordID)
+	r1Completa(t, "CA-483", "450 lineas", r1, out, reviewcmd.LentesNormalGrande)
+	rdCuenta(t, "CA-483 (fixture)", "R1 de 2 lentes", tj.card(t), r1.RecordID)
 
 	r1Esperar()
 	bdEscribir(t, tj.wt, ".hoom/semgrep/gate.sh", "set -e\n# GATE-QUE-YA-NO-CORRE-NADA\nexit 0\n")
@@ -149,10 +149,10 @@ func TestCA483_UnCommitSoloDeSemgrepDevuelveLaTarjetaAReview(t *testing.T) {
 	r1Esperar()
 	r2, out := tj.review(t, "CA-483", true)
 	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID ||
-		strings.Join(r2.Lenses, " ") != reviewcmd.LenteDominante || len(r2.Passes) != 1 {
-		t.Fatalf("CA-483: el --delta revisa el commit de gate.sh con reliability, no SIN REVISAR: %+v\n%s", r2, out)
+		strings.Join(r2.Lenses, " ") != strings.Join(reviewcmd.LentesNormalGrande, " ") || len(r2.Passes) != 2 {
+		t.Fatalf("CA-483: el --delta revisa el commit de gate.sh con 2 lentes, no SIN REVISAR: %+v\n%s", r2, out)
 	}
-	p := edrPedido(t, pedidos, 2)
+	p := edrPedido(t, pedidos, 3)
 	if !strings.Contains(p, "diff --git a/.hoom/semgrep/gate.sh b/.hoom/semgrep/gate.sh") || !strings.Contains(p, "+# GATE-QUE-YA-NO-CORRE-NADA") {
 		t.Fatalf("CA-483: la evidencia del --delta trae el diff de gate.sh:\n%s", p)
 	}
@@ -252,7 +252,7 @@ func TestCA486_ConflictoAlIntegrarLaBaseDevuelveLaTarjetaAReview(t *testing.T) {
 
 	r1Esperar()
 	res, out := tj.review(t, "CA-486", true)
-	if res.Status != "revisado" || res.Cobertura != reviewcmd.CoberturaCompleta || res.DesdeReview != "" || len(res.Lenses) != 1 {
+	if res.Status != "revisado" || res.Cobertura != reviewcmd.CoberturaCompleta || res.DesdeReview != "" || len(res.Lenses) != len(reviewcmd.LentesNormalGrande) {
 		t.Fatalf("CA-486: el --delta que pide la tarjeta no se separa: es la review completa: %+v\n%s", res, out)
 	}
 	rdCuenta(t, "CA-486", "despues de la review completa", tj.card(t), res.RecordID)

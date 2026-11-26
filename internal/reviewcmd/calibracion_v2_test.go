@@ -121,3 +121,39 @@ func TestLentesEnParaleloRiesgoAlto(t *testing.T) {
 		}
 	}
 }
+
+func TestLentesEnParaleloConservaPasadasCuandoFallaLaPrimera(t *testing.T) {
+	bin := raPATH(t)
+	root := raRepo(t, "review:\n  concurrencia: 4\n")
+	wt := cbTarea(t, root, "pagos")
+	rdCommit(t, wt, "cambio alto", map[string]string{
+		"internal/auth/login.go": "package auth\n\nfunc Login() bool { return true }\n",
+	})
+	crItem(t, root, "pagos", "alto")
+	// Falla solo la lente risk (pos 0); las otras 3 terminan con exit 0.
+	script := `prompt=$(cat)
+if printf '%s' "$prompt" | grep -q "con la lente risk\."; then
+  exit 1
+fi
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(bin, "codex"), cliFalso(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err, out := rdCorrer(t, "paralelo fallo slot 0", root, Options{Provider: "codex", Task: "pagos"})
+	if err != nil || res.Status != "no-entregable" || res.ExitCode != 1 {
+		t.Fatalf("fallo de una lente en paralelo debe terminar no-entregable: %+v %v\n%s", res, err, out)
+	}
+	if len(res.Passes) != 4 {
+		t.Fatalf("deben registrarse las 4 pasadas corridas aunque falle la primera, hubo %d: %+v\n%s", len(res.Passes), res.Passes, out)
+	}
+	if res.Passes[0].Lens != "risk" || res.Passes[0].RunStatus == "done" {
+		t.Fatalf("pasada 0 debe ser risk fallida: %+v", res.Passes[0])
+	}
+	for i := 1; i < 4; i++ {
+		if res.Passes[i].Lens != Lentes[i] || res.Passes[i].RunStatus != "done" {
+			t.Fatalf("pasada %d debe conservarse completa (%s): %+v", i, Lentes[i], res.Passes[i])
+		}
+	}
+}

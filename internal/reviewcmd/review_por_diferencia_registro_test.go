@@ -250,7 +250,7 @@ func TestCA424_RangoConElCambioEnteroVacio(t *testing.T) {
 		lentes  []string
 		pasadas int
 	}{
-		{"rango-grande", map[string]string{"grande.go": rdCodigo(450, "Grande")}, []string{LenteDominante}, 1},
+		{"rango-grande", map[string]string{"grande.go": rdCodigo(450, "Grande")}, LentesNormalGrande, 2},
 		{"rango-chico", map[string]string{"chico.go": "package app\n\nfunc Chico() {}\n"}, []string{LenteDominante}, 1},
 		{"rango-con-ruta-de-riesgo", map[string]string{"internal/auth/token.go": "package auth\n\nfunc Valida(s string) bool { return s != \"\" }\n"}, Lentes, 4},
 	}

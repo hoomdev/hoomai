@@ -776,8 +776,8 @@ func TestCA381_LaTarjetaQueLlegaATuAceptacionDetieneLaCinta(t *testing.T) {
 	if otros := spOtros(root, r.EnvelopeID); len(otros) != 0 {
 		t.Fatalf("CA-381: una tarjeta en Tu aceptacion no lanza nada: %+v", otros)
 	}
-	if n := len(f.llamadas(t, "claude")); n != 1 {
-		t.Fatalf("CA-381: solo corrio la lente dominante de la review en riesgo normal: claude corrio %d veces", n)
+	if n := len(f.llamadas(t, "claude")); n != 2 {
+		t.Fatalf("CA-381: solo corrieron las 2 lentes de la review en riesgo normal (>400): claude corrio %d veces", n)
 	}
 }
 

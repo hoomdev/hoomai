@@ -30,7 +30,8 @@ import (
 const (
 	retyMotAuth = "el cambio toca internal/auth/x.go: riesgo alto"
 	retyMotApp  = "el cambio toca a.go, fuera de las rutas de bajo riesgo: riesgo normal"
-	retyLaUna   = "la lente reliability"
+	retyLaUna   = "la lente risk"
+	retyLas2    = "2 lentes"
 	retyLas4    = "4 lentes"
 )
 
@@ -60,7 +61,7 @@ func retyEv(decl, ef, mot string, p int, files ...string) Evidence {
 // retyFalta4 es el motivo de hoy de una review que falta por tamano, con el
 // numero de producto (aclaracion 18).
 func retyFalta4(p int) string {
-	return fmt.Sprintf("la review exige la lente reliability (%d lineas > 400) y no hay registro de review", p)
+	return fmt.Sprintf("la review exige 2 lentes (risk y reliability, %d lineas > 400) y no hay registro de review", p)
 }
 
 func retyNoAplica(p int, lentes string) string {
@@ -95,9 +96,9 @@ func TestCA785_DetalleNoAplicaExacto(t *testing.T) {
 		t.Fatalf("CA-785: DetalleNoAplica es %q", DetalleNoAplica)
 	}
 	tbSegEs(t, "CA-785", Derive(retyEv("normal", "normal", "declarado normal", 90, "a.go", "a_test.go")),
-		"review", SegNoAplica, "el cambio es chico (90 lineas de producto): no exige la revision de la lente reliability")
+		"review", SegNoAplica, "el cambio es chico (90 lineas de producto): no exige la revision de 2 lentes")
 	tbSegEs(t, "CA-785", Derive(retyEv("bajo", "bajo", "declarado bajo", 400, "internal/precio_test.go")),
-		"review", SegNoAplica, "el cambio es chico (400 lineas de producto): no exige la revision de la lente reliability")
+		"review", SegNoAplica, "el cambio es chico (400 lineas de producto): no exige la revision de la lente risk")
 }
 
 // CA-785: la review requerida con un veredicto nuevo: alto siempre salvo
@@ -121,18 +122,18 @@ func TestCA785_LaReviewRequeridaSaleDelEfectivoYDelProducto(t *testing.T) {
 		{"alto de solo docs", "alto", "alto", "declarado alto", "-", 10, retyDocs, false, "", SegNoAplica, retyNoAplica(10, retyLas4)},
 		{"alto de un doc en ruta de riesgo", "normal", "alto", "el cambio toca docs/auth.md: riesgo alto", "-", 30, []string{"docs/auth.md"}, false, "", SegNoAplica, retyNoAplica(30, retyLas4)},
 		{"alto sin archivos", "alto", "alto", "declarado alto", "-", 900, nil, false, "", SegNoAplica, retyNoAplica(900, retyLas4)},
-		{"normal 401", "normal", "normal", "declarado normal", "-", 401, []string{"a.go"}, true, retyFalta4(401), SegFalta, "falta la revision de la lente reliability"},
-		{"normal 400", "normal", "normal", "declarado normal", "-", 400, []string{"a.go"}, false, "", SegNoAplica, retyNoAplica(400, retyLaUna)},
-		{"normal 90 de producto y 3000 de pruebas", "", "normal", "declarado normal", "-", 90, []string{"a.go", "a_test.go"}, false, "", SegNoAplica, retyNoAplica(90, retyLaUna)},
-		{"normal 5000 de solo docs", "normal", "normal", "declarado normal", "-", 5000, retyDocs, false, "", SegNoAplica, retyNoAplica(5000, retyLaUna)},
-		{"bajo 401", "bajo", "bajo", "declarado bajo", "-", 401, []string{"internal/precio_test.go"}, true, crMotBajo(401), SegFalta, "falta la revision de la lente reliability"},
+		{"normal 401", "normal", "normal", "declarado normal", "-", 401, []string{"a.go"}, true, retyFalta4(401), SegFalta, "falta la revision de 2 lentes"},
+		{"normal 400", "normal", "normal", "declarado normal", "-", 400, []string{"a.go"}, false, "", SegNoAplica, retyNoAplica(400, retyLas2)},
+		{"normal 90 de producto y 3000 de pruebas", "", "normal", "declarado normal", "-", 90, []string{"a.go", "a_test.go"}, false, "", SegNoAplica, retyNoAplica(90, retyLas2)},
+		{"normal 5000 de solo docs", "normal", "normal", "declarado normal", "-", 5000, retyDocs, false, "", SegNoAplica, retyNoAplica(5000, retyLas2)},
+		{"bajo 401", "bajo", "bajo", "declarado bajo", "-", 401, []string{"internal/precio_test.go"}, true, crMotBajo(401), SegFalta, "falta la revision de la lente risk"},
 		{"bajo 400", "bajo", "bajo", "declarado bajo", "-", 400, []string{"internal/precio_test.go"}, false, "", SegNoAplica, retyNoAplica(400, retyLaUna)},
 		{"bajo 900 de solo docs", "bajo", "bajo", "declarado bajo", "-", 900, retyDocs, false, "", SegNoAplica, retyNoAplica(900, retyLaUna)},
-		{"bajo que sube a normal, 401", "bajo", "normal", retyMotApp, "-", 401, []string{"a.go"}, true, retyFalta4(401), SegFalta, "falta la revision de la lente reliability"},
-		{"bajo que sube a normal, 60", "bajo", "normal", retyMotApp, "-", 60, []string{"a.go"}, false, "", SegNoAplica, retyNoAplica(60, retyLaUna)},
+		{"bajo que sube a normal, 401", "bajo", "normal", retyMotApp, "-", 401, []string{"a.go"}, true, retyFalta4(401), SegFalta, "falta la revision de 2 lentes"},
+		{"bajo que sube a normal, 60", "bajo", "normal", retyMotApp, "-", 60, []string{"a.go"}, false, "", SegNoAplica, retyNoAplica(60, retyLas2)},
 		{"subir el declarado a alto se ve enseguida", "normal", "normal", "declarado normal", "alto", 10, []string{"a.go"}, true, crMotAlto, SegFalta, "falta la revision de 4 lentes"},
 		{"bajar el declarado espera al verify", "normal", "alto", retyMotAuth, "bajo", 10, []string{"internal/auth/x.go"}, true, crMotAlto, SegFalta, "falta la revision de 4 lentes"},
-		{"subir de bajo a normal mantiene reliability", "bajo", "bajo", "declarado bajo", "normal", 401, []string{"internal/precio_test.go"}, true, retyFalta4(401), SegFalta, "falta la revision de la lente reliability"},
+		{"subir de bajo a normal pide 2 lentes", "bajo", "bajo", "declarado bajo", "normal", 401, []string{"internal/precio_test.go"}, true, retyFalta4(401), SegFalta, "falta la revision de 2 lentes"},
 	}
 	for _, k := range casos {
 		ca := "CA-785 (" + k.nombre + ")"
@@ -149,21 +150,26 @@ func TestCA785_LaReviewRequeridaSaleDelEfectivoYDelProducto(t *testing.T) {
 // CA-785: la cadena cuenta con las lentes del riesgo de la tarjeta: en bajo,
 // reliability alcanza; en normal y alto, no.
 func TestCA785_LaCadenaConElRiesgoDeLaTarjeta(t *testing.T) {
-	una := []string{"reliability"}
-	// bajo con 401 de producto: una completa de reliability cuenta
+	una := []string{"risk"}
+	dos := reviewcmd.LentesNormalGrande
+	// bajo con 401 de producto: una completa de risk cuenta
 	c := Derive(retyCompleta(retyEv("bajo", "bajo", "declarado bajo", 401, "internal/precio_test.go"), una))
 	bdCol(t, "CA-785 (bajo)", c, ColTuAceptacion)
 	if c.Evidence.ReviewID != "c1" || !c.Evidence.ReviewRequired {
-		t.Fatalf("CA-785: con bajo cuenta la completa de reliability: %+v", c.Evidence)
+		t.Fatalf("CA-785: con bajo cuenta la completa de risk: %+v", c.Evidence)
 	}
-	tbSegEs(t, "CA-785 (bajo)", c, "review", SegHecho, "revision de la lente reliability registrada")
-	// la misma completa de reliability tambien cuenta con efectivo normal (CAL-2)
+	tbSegEs(t, "CA-785 (bajo)", c, "review", SegHecho, "revision de la lente risk registrada")
+	// la misma completa de 1 lente NO cuenta si el veredicto subio la tarjeta a normal (>400 exige 2 lentes)
 	c = Derive(retyCompleta(retyEv("bajo", "normal", retyMotApp, 401, "a.go"), una))
-	bdCol(t, "CA-785 (bajo que sube a normal)", c, ColTuAceptacion)
+	retyExige(t, "CA-785 (bajo que sube a normal con 1 lente)", c, true, retyFalta4(401))
+	tbSegEs(t, "CA-785", c, "review", SegFalta, "falta la revision de 2 lentes")
+	// con 2 lentes (risk y reliability) si cuenta en normal >400
+	c = Derive(retyCompleta(retyEv("bajo", "normal", retyMotApp, 401, "a.go"), dos))
+	bdCol(t, "CA-785 (bajo que sube a normal con 2 lentes)", c, ColTuAceptacion)
 	if c.Evidence.ReviewID != "c1" {
-		t.Fatalf("CA-785: con efectivo normal, reliability cuenta: %+v", c.Evidence)
+		t.Fatalf("CA-785: con efectivo normal, 2 lentes cuentan: %+v", c.Evidence)
 	}
-	tbSegEs(t, "CA-785", c, "review", SegHecho, "revision de la lente reliability registrada")
+	tbSegEs(t, "CA-785", c, "review", SegHecho, "revision de 2 lentes registrada")
 	// ni si el veredicto la subio a alto, aunque el cambio sea chico
 	c = Derive(retyCompleta(retyEv("bajo", "alto", "el cambio toca internal/auth/x_test.go: riesgo alto", 10, "internal/auth/x_test.go"), una))
 	retyExige(t, "CA-785 (bajo que sube a alto)", c, true, crMotAlto)
@@ -188,18 +194,18 @@ func TestCA785_UnVeredictoViejoSeMideConLasReglas(t *testing.T) {
 	retyExige(t, "CA-785 (viejo 401 de pruebas)", Derive(crEv("normal", 300, 101, "a_test.go")), true, retyFalta4(401))
 	c := Derive(crEv("normal", 300, 100, "a.go"))
 	retyExige(t, "CA-785 (viejo 400)", c, false, "")
-	tbSegEs(t, "CA-785 (viejo 400)", c, "review", SegNoAplica, retyNoAplica(400, retyLaUna))
+	tbSegEs(t, "CA-785 (viejo 400)", c, "review", SegNoAplica, retyNoAplica(400, retyLas2))
 	// bajo que toca solo pruebas se sostiene
 	retyExige(t, "CA-785 (viejo bajo grande)", Derive(crEv("bajo", 500, 112, "internal/precio_test.go")), true, crMotBajo(612))
-	c = Derive(retyCompleta(crEv("bajo", 500, 112, "internal/precio_test.go"), []string{"reliability"}))
-	bdCol(t, "CA-785 (viejo bajo con reliability)", c, ColTuAceptacion)
+	c = Derive(retyCompleta(crEv("bajo", 500, 112, "internal/precio_test.go"), []string{"risk"}))
+	bdCol(t, "CA-785 (viejo bajo con risk)", c, ColTuAceptacion)
 	tbSegEs(t, "CA-785 (viejo bajo chico)", Derive(crEv("bajo", 50, 10, "internal/precio_test.go")), "review", SegNoAplica, retyNoAplica(60, retyLaUna))
 	// bajo que toca .hoom/ se sostiene, y un .md es solo documentacion
 	tbSegEs(t, "CA-785 (viejo bajo en .hoom)", Derive(crEv("bajo", 500, 112, ".hoom/specs/auth.md")), "review", SegNoAplica, retyNoAplica(612, retyLaUna))
 	// bajo con producto fuera de las rutas de bajo riesgo: normal
 	c = Derive(crEv("bajo", 50, 10, "a.go"))
 	retyExige(t, "CA-785 (viejo bajo con a.go)", c, false, "")
-	tbSegEs(t, "CA-785 (viejo bajo con a.go)", c, "review", SegNoAplica, retyNoAplica(60, retyLaUna))
+	tbSegEs(t, "CA-785 (viejo bajo con a.go)", c, "review", SegNoAplica, retyNoAplica(60, retyLas2))
 	// ruta de riesgo, en producto o en una prueba: alto
 	retyExige(t, "CA-785 (viejo con auth)", Derive(crEv("", 50, 10, "internal/auth/x.go")), true, crMotAlto)
 	retyExige(t, "CA-785 (viejo bajo con una prueba de auth)", Derive(crEv("bajo", 50, 10, "internal/auth/x_test.go")), true, crMotAlto)
@@ -279,8 +285,10 @@ func TestCA785_PropiedadRequeridaYRiesgo(t *testing.T) {
 						t.Fatalf("%s: el riesgo de la tarjeta es %s (%q): %q (%q)", ca, tarjeta, motivo, c.Evidence.Riesgo, c.Evidence.RiesgoMotivo)
 					}
 					exige := !cj.docs && (tarjeta == "alto" || p > 400)
-					lentes := retyLaUna
-					if tarjeta == "alto" {
+					lentes := retyLas2
+					if tarjeta == "bajo" {
+						lentes = retyLaUna
+					} else if tarjeta == "alto" {
 						lentes = retyLas4
 					}
 					retyExige(t, ca, c, exige, "")

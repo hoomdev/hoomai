@@ -28,6 +28,27 @@ func TestPerfilesNodeYPython(t *testing.T) {
 		}
 	}
 
+	// Node: npx --no-install (no descarga paquete tsc equivocado) y static/build opcionales por defecto
+	nodeGates, _, err := profiles.Resolve("node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nodeGates["static"].CmdStr() != "npx --no-install tsc --noEmit" || nodeGates["static"].IsRequired() {
+		t.Fatalf("node static debe usar --no-install y ser opcional por defecto: %+v", nodeGates["static"])
+	}
+	if nodeGates["build"].IsRequired() {
+		t.Fatalf("node build debe ser opcional por defecto: %+v", nodeGates["build"])
+	}
+
+	// Python: mypy opcional por defecto para no dar rojo en repos sin tipado estricto
+	pyGates, _, err := profiles.Resolve("python")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pyGates["static"].IsRequired() {
+		t.Fatalf("python static (mypy) debe ser opcional por defecto: %+v", pyGates["static"])
+	}
+
 	// DetectStack: Node project
 	nodeDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(nodeDir, "package.json"), []byte(`{"name":"demo"}`), 0o644); err != nil {

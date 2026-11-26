@@ -94,8 +94,8 @@ func TestCA409_LaunchPasaEffortALaReview(t *testing.T) {
 	}
 	lnEsperarLanzamientos(t, "CA-409", s)
 	ll := f.llamadas(t, "codex")
-	if len(ll) != 1 {
-		t.Fatalf("CA-409: una pasada en riesgo normal (1), hubo %d", len(ll))
+	if len(ll) != len(reviewcmd.LentesNormalGrande) {
+		t.Fatalf("CA-409: %d pasadas en riesgo normal (>400), hubo %d", len(reviewcmd.LentesNormalGrande), len(ll))
 	}
 	for _, args := range ll {
 		if !raHayPar(args, "-c", `model_reasoning_effort="high"`) {

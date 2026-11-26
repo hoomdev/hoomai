@@ -551,7 +551,7 @@ func TestCA486_LaRutaDelConflictoVaEscapadaEnElAviso(t *testing.T) {
 func TestCA484_LensAManoConLaBaseIntegrada(t *testing.T) {
 	for _, c := range []struct{ lente, cobertura string }{
 		{LenteDominante, CoberturaDelta},
-		{"risk", CoberturaParcial},
+		{"reliability", CoberturaParcial},
 	} {
 		t.Run(c.lente, func(t *testing.T) {
 			bin := raPATH(t)

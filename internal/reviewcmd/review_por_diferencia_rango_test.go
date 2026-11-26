@@ -378,7 +378,7 @@ func TestCA422_DeltaSinRegistroQueEncadeneEsError(t *testing.T) {
 		}},
 		{"solo-un-parcial-por-lens-a-mano", func(t *testing.T) (string, Options) {
 			root := rdDeltaRepo(t)
-			rdRevisar(t, "CA-422", root, Options{Provider: "codex", Spec: spec, Lens: "risk"})
+			rdRevisar(t, "CA-422", root, Options{Provider: "codex", Spec: spec, Lens: "reliability"})
 			rdCommit(t, root, "C", map[string]string{"c.go": "package app\n\nfunc C() {}\n"})
 			return root, Options{Provider: "codex", Spec: spec, Delta: true}
 		}},

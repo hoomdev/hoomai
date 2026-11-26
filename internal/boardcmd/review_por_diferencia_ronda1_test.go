@@ -198,8 +198,8 @@ func TestCA428_CadenaDeCuatroConCodigoDespuesPideElDeltaYElDeltaAlcanza(t *testi
 	r1Codex(t)
 	tj := rdGrande(t)
 	r1, out := tj.review(t, "CA-428", false)
-	r1Completa(t, "CA-428", "450 lineas", r1, out, []string{reviewcmd.LenteDominante})
-	rdCuenta(t, "CA-428 (fixture)", "R1 de reliability", tj.card(t), r1.RecordID)
+	r1Completa(t, "CA-428", "450 lineas", r1, out, reviewcmd.LentesNormalGrande)
+	rdCuenta(t, "CA-428 (fixture)", "R1 de 2 lentes", tj.card(t), r1.RecordID)
 
 	r1Esperar()
 	tj.codigo(t, "Despues")
@@ -210,8 +210,8 @@ func TestCA428_CadenaDeCuatroConCodigoDespuesPideElDeltaYElDeltaAlcanza(t *testi
 		t.Fatalf("CA-428: el siguiente paso es %q, fue %q", rdNextDelta, c.Next)
 	}
 	r2, out := tj.review(t, "CA-428", true)
-	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID || !reflect.DeepEqual(r2.Lenses, []string{reviewcmd.LenteDominante}) {
-		t.Fatalf("CA-428/CA-424/CA-620: el --delta en normal encadena con R1 y corre reliability: %+v\n%s", r2, out)
+	if r2.Status != "revisado" || r2.Cobertura != reviewcmd.CoberturaDelta || r2.DesdeReview != r1.RecordID || !reflect.DeepEqual(r2.Lenses, reviewcmd.LentesNormalGrande) {
+		t.Fatalf("CA-428/CA-424/CA-620: el --delta en normal >400 encadena con R1 y corre %v: %+v\n%s", reviewcmd.LentesNormalGrande, r2, out)
 	}
 	rdCuenta(t, "CA-428", "despues del delta", tj.card(t), r2.RecordID)
 }

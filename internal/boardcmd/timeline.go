@@ -150,6 +150,7 @@ type entryData struct {
 	verdict      *verdict.Verdict
 	lenses       []string
 	cobertura    string // the review record's, with lenses
+	reviewOK     bool   // true when the review satisfies lentesPedidasPara
 }
 
 type history struct {
@@ -364,16 +365,29 @@ func (h *history) fileEntries(c gitCommit, prefix string, kindOf func(string) st
 			e.Plain = "quedo registrada una revision"
 			if r, ok := reviews[f.path]; ok {
 				d.lenses, d.cobertura = r.Lenses, r.Cobertura
+				var prev *reviewcmd.Record
+				if r.DesdeReview != "" {
+					for i := range h.ev.Reviews {
+						if h.ev.Reviews[i].ID == r.DesdeReview {
+							prev = &h.ev.Reviews[i]
+							break
+						}
+					}
+				}
+				ef := efectivoEv(h.ev)
+				pedidas := lentesPedidasPara(h.ev, r, prev, ef)
+				d.reviewOK = len(r.Lenses) > 0 && containsAll(r.Lenses, pedidas)
 				switch {
 				case containsAll(r.Lenses, reviewcmd.Lentes):
 					e.Plain = "quedo registrada la revision de 4 lentes"
-				case containsAll(r.Lenses, lentesPedidas(efectivoEv(h.ev), r.Cobertura)):
-					e.Plain = "quedo registrada la revision de " + textoLentes(efectivoEv(h.ev))
+				case d.reviewOK:
+					e.Plain = "quedo registrada la revision de " + textoLentes(ef)
 				}
 			}
 			if deleted {
 				e.Plain = "se borro un registro de revision"
 				d.lenses = nil
+				d.reviewOK = false
 			}
 		}
 		h.add(e, d)
@@ -723,8 +737,8 @@ func (h *history) effects(e TimelineEntry, d *entryData, criteria []string, isCr
 		}
 	case KindReview:
 		// a record that counts in the chain: the lenses the rule asks for
-		// the card, or more
-		if len(d.lenses) > 0 && containsAll(d.lenses, lentesPedidas(efectivoEv(h.ev), d.cobertura)) {
+		// the card (including acotada deltas in alto), or more
+		if d.reviewOK || (len(d.lenses) > 0 && containsAll(d.lenses, lentesPedidas(efectivoEv(h.ev), d.cobertura))) {
 			put("review", SegHecho)
 		}
 	}
