@@ -501,7 +501,7 @@ func TestCA779_ConstantesExactas(t *testing.T) {
 		{LineaRiesgo, "riesgo: %s (%s)"},
 		{LineaTamano, "tamano: producto %d · pruebas %d · hoom %d"},
 		{AvisoMayorQueDeclarado, "! el riesgo efectivo (%s) es mayor que el declarado (%s): hoom item set %s --riesgo %s lo sube"},
-		{AvisoProductoGrande, "! mas de 400 lineas de producto: la review exige las 4 lentes"},
+		{AvisoProductoGrande, "! mas de 400 lineas de producto: la review exige 2 lentes (risk y reliability)"},
 	} {
 		if k[0] != k[1] {
 			t.Fatalf("%s: la constante es %q, fue %q", ca, k[1], k[0])

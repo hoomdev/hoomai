@@ -30,10 +30,11 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
    Si sigue rojo tras el ciclo, se escala a Hoom explicando el bloqueo exacto.
 4b. El veredicto trae el riesgo efectivo de la tarjeta y el tamano del cambio
    en lineas de producto (sin pruebas, ni .hoom/, ni generados). Con riesgo
-   alto, la review corre las 4 lentes; con riesgo normal o bajo, 1 lente
-   (reliability). Antes de entregar, `hoom check` debe dar VERDE: veredicto
-   verde Y huella coincidente con el arbol actual (verificar A y entregar B es
-   fraude de veredicto).
+   alto, la review corre las 4 lentes; con riesgo normal y mas de 400 lineas de
+   producto, 2 lentes (risk y reliability); con riesgo normal hasta 400 lineas
+   o riesgo bajo, 1 lente (risk). Antes de entregar, `hoom check` debe dar
+   VERDE: veredicto verde Y huella coincidente con el arbol actual (verificar
+   A y entregar B es fraude de veredicto).
 4c. Despues de una review, el siguiente paso lo dice `hoom siguiente` o el piloto:
    el orquestador no lo elige. Solo se corrigen los hallazgos que bloquean
    (`bloquea:` en `hoom finding list --open`); los `pendiente` no se corrigen ni

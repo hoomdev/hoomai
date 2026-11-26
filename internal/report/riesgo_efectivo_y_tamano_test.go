@@ -121,8 +121,8 @@ func TestCA781_ElAvisoDeMayorSoloConTarea(t *testing.T) {
 	}
 }
 
-// CA-781 (actualizado por CAL-2): normal > 400 ya no sube a 4 lentes, asi que
-// el aviso de 400 lineas no sale para ningun riesgo.
+// CA-781: normal > 400 imprime el aviso de 2 lentes (risk y reliability);
+// bajo y alto no lo imprimen.
 func TestCA781_ElAvisoDeProductoGrande(t *testing.T) {
 	const ca = "CA-781"
 	for _, k := range []struct {
@@ -130,7 +130,7 @@ func TestCA781_ElAvisoDeProductoGrande(t *testing.T) {
 		producto int
 		sale     bool
 	}{
-		{"normal", 401, false},
+		{"normal", 401, true},
 		{"normal", 400, false},
 		{"normal", 90, false},
 		{"bajo", 401, false},
@@ -140,7 +140,7 @@ func TestCA781_ElAvisoDeProductoGrande(t *testing.T) {
 		ev := &riesgo.Evaluacion{Declarado: k.efectivo, Efectivo: k.efectivo, Motivo: "declarado " + k.efectivo}
 		lineas := retyRender(retyVeredicto(ev, &riesgo.Tamano{Producto: k.producto, Pruebas: 3000}, "precios"))
 		texto := strings.Join(lineas, "\n")
-		if got := retyLinea(lineas, "! mas de 400 lineas de producto: la review exige las 4 lentes") >= 0; got != k.sale {
+		if got := retyLinea(lineas, riesgo.AvisoProductoGrande) >= 0; got != k.sale {
 			t.Fatalf("%s: efectivo %s y producto %d: el aviso de 400 lineas sale=%v, fue %v:\n%s", ca, k.efectivo, k.producto, k.sale, got, texto)
 		}
 		if retyLinea(lineas, (&riesgo.Tamano{Producto: k.producto, Pruebas: 3000}).Linea()) < 0 {

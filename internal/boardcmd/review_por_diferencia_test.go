@@ -146,12 +146,12 @@ func (tj *rdTarjeta) card(t *testing.T) Card {
 func rdSinRegistro(t *testing.T, c Card) string {
 	t.Helper()
 	for _, m := range c.Missing {
-		if strings.HasPrefix(m, "la review exige la lente reliability (") && strings.HasSuffix(m, " > 400) y no hay registro de review") {
+		if strings.HasPrefix(m, "la review exige 2 lentes (risk y reliability, ") && strings.HasSuffix(m, " > 400) y no hay registro de review") {
 			return m
 		}
 	}
 	t.Fatalf("CA-427: el motivo de hoy de la review exigida (%q) esta en missing: %q",
-		"la review exige la lente reliability (<n> lineas > 400) y no hay registro de review", c.Missing)
+		"la review exige 2 lentes (risk y reliability, <n> lineas > 400) y no hay registro de review", c.Missing)
 	return ""
 }
 
@@ -519,7 +519,7 @@ func rdPuroDerive(t *testing.T, ca, caso string, ev Evidence) Card {
 	return Card{}
 }
 
-const rdPuroSinRegistro = "la review exige la lente reliability (612 lineas > 400) y no hay registro de review"
+const rdPuroSinRegistro = "la review exige 2 lentes (risk y reliability, 612 lineas > 400) y no hay registro de review"
 
 // CA-427 (Derive puro): cuenta solo el registro con hasta, completa o delta
 // con su cadena hasta una completa de la tarea y de 4 lentes, y con su cola
@@ -576,7 +576,7 @@ func TestCA427_DerivePuroCuentaSoloConColaYCadena(t *testing.T) {
 			[]reviewcmd.Record{
 				rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaCompleta, "", una),
 				rdPuroRec("r2", 40*time.Minute, rdPuroH1, rdPuroH2, reviewcmd.CoberturaDelta, "r1", cuatro)},
-			map[string]ReviewTail{"r1": sana, "r2": sana}, "r2"},
+			map[string]ReviewTail{"r1": sana, "r2": sana}, ""},
 		{"eslabon-parcial",
 			[]reviewcmd.Record{
 				rdPuroRec("r1", 35*time.Minute, rdPuroMB, rdPuroH1, reviewcmd.CoberturaParcial, "", cuatro),

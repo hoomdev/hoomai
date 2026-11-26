@@ -388,7 +388,7 @@ func TestCA274_ReviewPorTamano(t *testing.T) {
 	ev := grande()
 	c := Derive(ev)
 	bdCol(t, "CA-274", c, ColReview)
-	bdPrimero(t, "CA-274", c, "la review exige la lente reliability (612 lineas > 400) y no hay registro de review")
+	bdPrimero(t, "CA-274", c, "la review exige 2 lentes (risk y reliability, 612 lineas > 400) y no hay registro de review")
 	if !c.Evidence.ReviewRequired || c.Evidence.ReviewID != "" {
 		t.Fatalf("CA-274: review_required true sin review_id: %+v", c.Evidence)
 	}
@@ -425,7 +425,7 @@ func TestCA274_ReviewPorTamano(t *testing.T) {
 	ev.Reviews = []reviewcmd.Record{recViejo("r-ok", reviewcmd.Lentes, "v-grande")}
 	c = Derive(bdColas(ev))
 	bdCol(t, "CA-427", c, ColReview)
-	bdPrimero(t, "CA-427", c, "la review exige la lente reliability (612 lineas > 400) y no hay registro de review")
+	bdPrimero(t, "CA-427", c, "la review exige 2 lentes (risk y reliability, 612 lineas > 400) y no hay registro de review")
 	if c.Evidence.ReviewID != "" || c.Next != "hoom review --task precios --spec .hoom/specs/precios.md" {
 		t.Fatalf("CA-427: un registro sin hasta no es review_id y el siguiente paso es el de hoy: %+v %q", c.Evidence, c.Next)
 	}
@@ -457,7 +457,7 @@ func TestCA274_ReviewPorTamano(t *testing.T) {
 	ev.Reviews = []reviewcmd.Record{recViejo("r-viejo", reviewcmd.Lentes, "v-viejo-verde")}
 	c = Derive(bdColas(ev))
 	bdCol(t, "CA-427", c, ColReview)
-	bdPrimero(t, "CA-427", c, "la review exige la lente reliability (612 lineas > 400) y no hay registro de review")
+	bdPrimero(t, "CA-427", c, "la review exige 2 lentes (risk y reliability, 612 lineas > 400) y no hay registro de review")
 
 	// no cumplen: una sola lente, un verdict_id rojo, uno de otro spec
 	// (CA-427: registros anclados y sin codigo despues, para que fallen por
@@ -472,7 +472,7 @@ func TestCA274_ReviewPorTamano(t *testing.T) {
 		ev.Reviews = []reviewcmd.Record{r}
 		c = Derive(bdColas(ev))
 		bdCol(t, "CA-274 ("+nombre+")", c, ColReview)
-		bdPrimero(t, "CA-274 ("+nombre+")", c, "la review exige la lente reliability (612 lineas > 400) y no hay registro de review")
+		bdPrimero(t, "CA-274 ("+nombre+")", c, "la review exige 2 lentes (risk y reliability, 612 lineas > 400) y no hay registro de review")
 		if c.Evidence.ReviewID != "" {
 			t.Fatalf("CA-274 (%s): un registro que no cumple no es review_id: %+v", nombre, c.Evidence)
 		}
@@ -619,7 +619,7 @@ func TestCA277_ReviewListaTodasEnOrden(t *testing.T) {
 	c := Derive(ev)
 	bdCol(t, "CA-274", c, ColReview)
 	want := []string{
-		"la review exige la lente reliability (612 lineas > 400) y no hay registro de review",
+		"la review exige 2 lentes (risk y reliability, 612 lineas > 400) y no hay registro de review",
 		"hallazgos abiertos que bloquean: f1, f2",
 		"el veredicto no trae spec_approved en pass",
 		`falta el gate findings_open: agrega "findings: { block_on: high }" a hoom.yaml y vuelve a verificar`,

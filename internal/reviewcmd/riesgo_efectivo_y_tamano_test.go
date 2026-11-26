@@ -10,6 +10,7 @@ package reviewcmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -127,7 +128,7 @@ func TestCA782_ConstantesDeLaRegla(t *testing.T) {
 		{MotivoSoloDocs, "el cambio es solo documentacion: no se invoca review"},
 		{MotivoRiesgoAlto, "riesgo alto: las 4 lentes"},
 		{MotivoRiesgoBajo, "riesgo bajo: la lente dominante"},
-		{MotivoProductoGrande, "%d lineas de producto (>400): las 4 lentes"},
+		{MotivoProductoGrande, "%d lineas de producto (>400): risk y reliability"},
 		{MotivoEstandar, "cambio estandar: la lente dominante"},
 	} {
 		if k[0] != k[1] {
@@ -140,8 +141,8 @@ func TestCA782_ConstantesDeLaRegla(t *testing.T) {
 	if riesgo.UmbralProducto != UmbralLineas {
 		t.Fatalf("%s: UmbralLineas es riesgo.UmbralProducto: %d, %d", ca, UmbralLineas, riesgo.UmbralProducto)
 	}
-	if LenteDominante != "reliability" {
-		t.Fatalf("%s: LenteDominante es reliability, fue %q", ca, LenteDominante)
+	if LenteDominante != "risk" {
+		t.Fatalf("%s: LenteDominante es risk, fue %q", ca, LenteDominante)
 	}
 	if !reflect.DeepEqual(LentesDeUnaDelta, []string{"risk", "reliability", "resilience"}) {
 		t.Fatalf("CA-783: LentesDeUnaDelta: %v", LentesDeUnaDelta)
@@ -173,9 +174,9 @@ func TestCA782_ReglaDeLentesTabla(t *testing.T) {
 		{"alto sin producto", []string{"a_test.go"}, 0, "alto", "", Lentes, MotivoRiesgoAlto},
 		{"bajo grande", codigo, 5000, "bajo", "", uno, MotivoRiesgoBajo},
 		{"bajo 401", codigo, 401, "bajo", "", uno, MotivoRiesgoBajo},
-		{"normal 401", codigo, 401, "normal", "", uno, MotivoEstandar},
-		{"vacio 401", codigo, 401, "", "", uno, MotivoEstandar},
-		{"normal 9300", codigo, 9300, "normal", "", uno, MotivoEstandar},
+		{"normal 401", codigo, 401, "normal", "", LentesNormalGrande, fmt.Sprintf(MotivoProductoGrande, 401)},
+		{"vacio 401", codigo, 401, "", "", LentesNormalGrande, fmt.Sprintf(MotivoProductoGrande, 401)},
+		{"normal 9300", codigo, 9300, "normal", "", LentesNormalGrande, fmt.Sprintf(MotivoProductoGrande, 9300)},
 		{"normal 400", codigo, 400, "normal", "", uno, MotivoEstandar},
 		{"normal 90", codigo, 90, "normal", "", uno, MotivoEstandar},
 		{"vacio 0", []string{"a_test.go"}, 0, "", "", uno, MotivoEstandar},
@@ -228,7 +229,7 @@ func TestCA782_PropiedadMonotona(t *testing.T) {
 			if err != nil || m == "" {
 				return false
 			}
-			if len(l) != 0 && !reflect.DeepEqual(l, []string{LenteDominante}) && !reflect.DeepEqual(l, Lentes) {
+			if len(l) != 0 && !reflect.DeepEqual(l, []string{LenteDominante}) && !reflect.DeepEqual(l, LentesNormalGrande) && !reflect.DeepEqual(l, Lentes) {
 				return false
 			}
 			por[i] = l
@@ -237,7 +238,11 @@ func TestCA782_PropiedadMonotona(t *testing.T) {
 			return false
 		}
 		if len(e.Files) > 0 && !SoloDocs(e.Files) {
-			if len(por[1]) != 1 || len(por[0]) != 1 || len(por[2]) != 4 {
+			wantNormal := 1
+			if e.Producto > UmbralLineas {
+				wantNormal = 2
+			}
+			if len(por[1]) != wantNormal || len(por[0]) != 1 || len(por[2]) != 4 {
 				return false
 			}
 		}
@@ -262,7 +267,7 @@ func TestCA782_LensesConLaReglaNueva(t *testing.T) {
 		{gitx.Info{ChangedFiles: []string{"internal/spec/tokens_test.go"}, Insertions: 3}, Lentes, MotivoRiesgoAlto},
 		{gitx.Info{ChangedFiles: []string{"src/design.go", "assign.go", "signal.go"}, Insertions: 3}, []string{LenteDominante}, MotivoEstandar},
 		{gitx.Info{ChangedFiles: []string{"signature.go"}, Insertions: 3}, Lentes, MotivoRiesgoAlto},
-		{gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 300, Deletions: 101}, []string{LenteDominante}, MotivoEstandar},
+		{gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 300, Deletions: 101}, LentesNormalGrande, fmt.Sprintf(MotivoProductoGrande, 401)},
 		{gitx.Info{ChangedFiles: []string{"a.go"}, Insertions: 300, Deletions: 100}, []string{LenteDominante}, MotivoEstandar},
 	} {
 		l, m, err := Lenses(k.g, "")
@@ -293,7 +298,7 @@ func TestCA782_401DeProductoLasCuatro(t *testing.T) {
 		"internal/precio_test.go": rdCodigo(50, "Prueba"),
 	})
 	res, out := retyRevisar(t, ca, root, Options{})
-	retyLentes(t, ca, "401 normal corre 1 lente", res, out, cx, 0, []string{LenteDominante}, MotivoEstandar)
+	retyLentes(t, ca, "401 normal corre 2 lentes", res, out, cx, 0, LentesNormalGrande, fmt.Sprintf(MotivoProductoGrande, 401))
 	retyMotivos(t, ca, wt, res, out, "normal", "", "declarado normal")
 	root, _, cx = retyProyecto(t, "", "feature", "", map[string]string{
 		"internal/precio.go":      rdCodigo(400, "Precio"),
@@ -412,8 +417,9 @@ func TestCA783_ElRangoSeMideEnProducto(t *testing.T) {
 	rdCommit(t, root, "producto grande", map[string]string{"grande.go": rdCodigo(401, "Grande")})
 	antes := cx.veces()
 	res, out = rdRevisar(t, ca, root, Options{Provider: "codex", Desde: desde})
-	if !reflect.DeepEqual(res.Lenses, []string{LenteDominante}) || cx.veces()-antes != 1 || !strings.HasPrefix(res.Reason, MotivoEstandar) {
-		t.Fatalf("%s: un rango de 401 lineas de producto en normal corre 1 lente: %+v\n%s", ca, res, out)
+	wantMot := fmt.Sprintf(MotivoProductoGrande, 401)
+	if !reflect.DeepEqual(res.Lenses, LentesNormalGrande) || cx.veces()-antes != 2 || !strings.HasPrefix(res.Reason, wantMot) {
+		t.Fatalf("%s: un rango de 401 lineas de producto en normal corre 2 lentes: %+v\n%s", ca, res, out)
 	}
 }
 
@@ -468,5 +474,5 @@ func TestCA784_ElTerritorioDelMergeBase(t *testing.T) {
 	root, wt, cx = retyProyecto(t, "", "feature", "", nil)
 	retyYAMLEnLaRama(t, wt, func(s string) string { return s + allow }, grande)
 	res, out = retyRevisar(t, ca, root, Options{})
-	retyLentes(t, ca, "solo la rama dice pruebas/**", res, out, cx, 0, []string{LenteDominante}, MotivoEstandar)
+	retyLentes(t, ca, "solo la rama dice pruebas/**", res, out, cx, 0, LentesNormalGrande, fmt.Sprintf(MotivoProductoGrande, 454))
 }

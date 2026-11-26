@@ -19,13 +19,13 @@ gates:
     cmd: "npm test"
     notes: "Cambiar a npx vitest run o npx jest segun el runner del proyecto."
   static:
-    required: true
-    cmd: "npx tsc --noEmit"
-    notes: "Verificacion de tipos TypeScript. Si es JS puro, deja cmd vacio."
+    required: false
+    cmd: "npx --no-install tsc --noEmit"
+    notes: "Verificacion de tipos TypeScript (sin descargar de npm). En proyectos TypeScript: required: true; si es JS puro, deja cmd vacio."
   lint:
     required: false
     cmd: ""
-    notes: "Opcional: npx eslint . o npx biome check ."
+    notes: "Opcional: npx --no-install eslint . o npx --no-install biome check ."
   arch:
     required: false
     cmd: ""
@@ -33,8 +33,8 @@ gates:
   mutation:
     required: false
     cmd: ""
-    notes: "Opcional: npx stryker run (acotado por diff cuando sea posible)."
+    notes: "Opcional: npx --no-install stryker run (acotado por diff cuando sea posible)."
   build:
-    required: true
-    cmd: "npm run build"
-    notes: "Compilacion/empaquetado de produccion como gate."
+    required: false
+    cmd: ""
+    notes: "Opcional: npm run build si el proyecto compila o empaqueta para produccion."

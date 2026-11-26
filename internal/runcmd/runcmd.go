@@ -1138,13 +1138,23 @@ func lockRegistro(dir string) (func(), error) {
 // Active is the live run whose tree is dir, from its sidecar: in root's runs
 // and in dir's own, where a run started from inside a task's worktree keeps
 // it (finding f237b9).
-func Active(root, dir string) (string, bool) {
+func activeIDs(root, dir string) []string {
+	var ids []string
+	seen := map[string]bool{}
 	for _, base := range []string{root, dir} {
 		for _, meta := range Metas(base) {
-			if meta.Status == StatusRunning && meta.Dir == dir && vivo(meta) {
-				return meta.ID, true
+			if meta.Status == StatusRunning && meta.Dir == dir && vivo(meta) && !seen[meta.ID] {
+				seen[meta.ID] = true
+				ids = append(ids, meta.ID)
 			}
 		}
+	}
+	return ids
+}
+
+func Active(root, dir string) (string, bool) {
+	if ids := activeIDs(root, dir); len(ids) > 0 {
+		return ids[0], true
 	}
 	return "", false
 }
@@ -1186,27 +1196,29 @@ func (m *Manager) Start(opts StartOptions) (Run, error) {
 	defer unlock()
 	// a run another process registered on the tree counts too: under the
 	// lock, nobody registers one between this check and ours (finding
-	// 57eff9)
-	if id, ok := Active(m.root, dir); ok {
-		permitido := false
-		if opts.AllowConcurrent {
-			m.mu.Lock()
-			if existing, exists := m.runs[id]; exists && existing.opts.AllowConcurrent {
-				permitido = true
+	// 57eff9). With AllowConcurrent, EVERY active run on dir must belong to
+	// this Manager and also allow concurrency.
+	if ids := activeIDs(m.root, dir); len(ids) > 0 {
+		if !opts.AllowConcurrent {
+			return Run{}, ErrBusy{RunID: ids[0]}
+		}
+		m.mu.Lock()
+		for _, id := range ids {
+			if existing, exists := m.runs[id]; !exists || !existing.opts.AllowConcurrent {
+				m.mu.Unlock()
+				return Run{}, ErrBusy{RunID: id}
 			}
-			m.mu.Unlock()
 		}
-		if !permitido {
-			return Run{}, ErrBusy{RunID: id}
-		}
+		m.mu.Unlock()
 	}
 
 	m.mu.Lock()
-	if active, ok := m.byDir[dir]; ok {
-		existing := m.runs[active]
-		if !opts.AllowConcurrent || existing == nil || !existing.opts.AllowConcurrent {
-			m.mu.Unlock()
-			return Run{}, ErrBusy{RunID: active}
+	for otherID, existing := range m.runs {
+		if existing.dir == dir && existing.info.Status == StatusRunning {
+			if !opts.AllowConcurrent || !existing.opts.AllowConcurrent {
+				m.mu.Unlock()
+				return Run{}, ErrBusy{RunID: otherID}
+			}
 		}
 	}
 	id := newID()

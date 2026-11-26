@@ -760,7 +760,7 @@ func TestCA337_PedirAlReviewerCorreHoomReview(t *testing.T) {
 	}
 	lnEsperarLanzamientos(t, "CA-337", s)
 
-	esperadas := []string{reviewcmd.LenteDominante}
+	esperadas := reviewcmd.LentesNormalGrande
 	ll := f.pedidos(t, "claude")
 	if len(ll) != len(esperadas) {
 		t.Fatalf("CA-337: pedir-reviewer en riesgo normal corre %d lente (%v), hubo %d", len(esperadas), esperadas, len(ll))

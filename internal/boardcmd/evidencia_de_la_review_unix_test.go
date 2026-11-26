@@ -295,7 +295,7 @@ func TestCA487_ElMergeSinteticoNoDejaRastroNiCorreProgramas(t *testing.T) {
 	bdCommitear(t, tj.wt, "la tarea elige su driver de merge y cambia compartido.txt")
 	tj.verde(t)
 	r1, out := tj.review(t, "CA-487", false)
-	r1Completa(t, "CA-487", "450 lineas", r1, out, []string{reviewcmd.LenteDominante})
+	r1Completa(t, "CA-487", "450 lineas", r1, out, reviewcmd.LentesNormalGrande)
 	d := r1.Hasta
 
 	r1Esperar()

@@ -1,6 +1,7 @@
 titulo: Tareas en paralelo sin choques
 tipo: feature
 prioridad: baja
+riesgo: alto
 pedido: 'Intake .hoom/intake/rfc-calibracion-por-riesgo.md, CAL-12 con el ajuste de 10.2: setup de worktree en el perfil, HOOM_TASK para derivar recursos, dependencias entre items y tope de tarjetas simultaneas.'
 creado_por: hoomdev <dev@volale.com>
 creado_en: 2026-11-21T21:10:34Z

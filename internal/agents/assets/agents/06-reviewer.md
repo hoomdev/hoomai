@@ -16,8 +16,10 @@ configuracion; la lente NO la elige el: es deterministica segun el riesgo.
 - Riesgo efectivo alto -> las 4 lentes siempre. Una ruta de riesgo
   (`rutas.de_riesgo` de hoom.yaml: seguridad, auth, pagos, DTE...) o una
   tarjeta de tipo seguridad suben la tarjeta a alto.
-- Riesgo efectivo normal o bajo -> 1 lente dominante, reliability (el tamano
-  del cambio no multiplica las lentes; solo el riesgo alto dispara las 4).
+- Riesgo efectivo normal con mas de 400 lineas de producto -> 2 lentes (risk y
+  reliability).
+- Riesgo efectivo normal (hasta 400 lineas de producto) o riesgo bajo -> 1 lente
+  dominante (risk).
 - Una delta (la review de los arreglos) nunca corre readability; con riesgo
   alto corre solo las lentes que tuvieron hallazgos bloqueantes en la review
   anterior (si no hubo, risk, reliability y resilience).

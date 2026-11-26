@@ -88,10 +88,8 @@ const (
 	// `! el riesgo efectivo (<efectivo>) es mayor que el declarado (<declarado>): hoom item set <slug> --riesgo <efectivo> lo sube`.
 	AvisoMayorQueDeclarado = "! el riesgo efectivo (%s) es mayor que el declarado (%s): hoom item set %s --riesgo %s lo sube"
 	// AvisoProductoGrande, when the effective riesgo is Normal and the
-	// producto passes UmbralProducto. It replaces today's
-	// `! cambio grande (>400 lineas): la review exige las 4 lentes`, which
-	// no longer appears.
-	AvisoProductoGrande = "! mas de 400 lineas de producto: la review exige las 4 lentes"
+	// producto passes UmbralProducto.
+	AvisoProductoGrande = "! mas de 400 lineas de producto: la review exige 2 lentes (risk y reliability)"
 )
 
 // Evaluar is the effective riesgo of a change whose card is t and whose

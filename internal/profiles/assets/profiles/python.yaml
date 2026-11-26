@@ -19,9 +19,9 @@ gates:
     cmd: "pytest"
     notes: "Suite de pruebas con pytest (o uv run pytest)."
   static:
-    required: true
+    required: false
     cmd: "mypy ."
-    notes: "Verificacion de tipos estatica (cambiar a pyright si el proyecto lo usa)."
+    notes: "Verificacion de tipos estatica (cambiar a pyright si el proyecto lo usa). En proyectos tipados: required: true."
   lint:
     required: false
     cmd: "ruff check ."

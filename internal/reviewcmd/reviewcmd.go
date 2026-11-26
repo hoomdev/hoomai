@@ -57,17 +57,21 @@ var Lentes = []string{"risk", "reliability", "resilience", "readability"}
 // the one of 9a93be that no lens is empty or repeated.
 const CantidadDeLentes = 4
 
-// LenteDominante is the lens of a standard change. It is FIXED instead of
-// guessed from the content: guessing would be the model's judgement wearing a
-// deterministic costume. Whoever knows their change is of another nature says
-// so with --lens.
-const LenteDominante = "reliability"
+// LenteDominante is the single lens of a standard (<= 400 product lines) or
+// bajo change. Risk first: empirically it catches the highest share of real
+// high-severity bugs. Whoever knows their change needs another lens says so
+// with --lens.
+const LenteDominante = "risk"
+
+// LentesNormalGrande are the 2 lenses of a normal change above UmbralLineas
+// lines of producto: risk and reliability, in canonical order.
+var LentesNormalGrande = []string{"risk", "reliability"}
 
 // UmbralLineas is contract 06's threshold, and it comes from the evidence,
 // never from an eyeball estimate. With riesgo-efectivo-y-tamano it is
 // counted in lines of PRODUCTO (riesgo.Tamano.Producto: neither tests,
-// .hoom/ nor generated files count), and only a Normal change past it gets
-// the 4 lenses (ReglaDeLentes). It is riesgo.UmbralProducto.
+// .hoom/ nor generated files count): a Normal change past it gets
+// LentesNormalGrande (risk y reliability). It is riesgo.UmbralProducto.
 const UmbralLineas = riesgo.UmbralProducto
 
 // The motivos of the lenses (ReglaDeLentes), exactly: the field
@@ -80,7 +84,7 @@ const (
 	MotivoSoloDocs       = "el cambio es solo documentacion: no se invoca review"
 	MotivoRiesgoAlto     = "riesgo alto: las 4 lentes"
 	MotivoRiesgoBajo     = "riesgo bajo: la lente dominante"
-	MotivoProductoGrande = "%d lineas de producto (>400): las 4 lentes"
+	MotivoProductoGrande = "%d lineas de producto (>400): risk y reliability"
 	MotivoEstandar       = "cambio estandar: la lente dominante"
 )
 
@@ -1160,14 +1164,14 @@ func Lenses(git gitx.Info, explicit string) ([]string, string, error) {
 // (riesgo.Tamano.Producto) and whose effective riesgo is efectivo. The first
 // case that holds wins:
 //
-//	case                                         lenses             motivo
-//	explicit (--lens) given                      that one           MotivoLenteAMano
-//	files empty                                  none               MotivoSinCambios
-//	only documentation (SoloDocs(files))         none               MotivoSoloDocs
-//	efectivo alto                                the 4 Lentes       MotivoRiesgoAlto
-//	efectivo bajo                                [LenteDominante]   MotivoRiesgoBajo
-//	efectivo normal and producto > UmbralLineas  the 4 Lentes       `<p> lineas de producto (>400): las 4 lentes`
-//	efectivo normal                              [LenteDominante]   MotivoEstandar
+//	case                                         lenses               motivo
+//	explicit (--lens) given                      that one             MotivoLenteAMano
+//	files empty                                  none                 MotivoSinCambios
+//	only documentation (SoloDocs(files))         none                 MotivoSoloDocs
+//	efectivo alto                                the 4 Lentes         MotivoRiesgoAlto
+//	efectivo bajo                                [LenteDominante]     MotivoRiesgoBajo
+//	efectivo normal and producto > UmbralLineas  LentesNormalGrande   `<p> lineas de producto (>400): risk y reliability`
+//	efectivo normal                              [LenteDominante]     MotivoEstandar
 //
 // "" efectivo is normal. An efectivo outside riesgo.Vocabulario is the error
 // of riesgo.Validar, before anything else; an explicit lens outside Lentes is
@@ -1215,6 +1219,8 @@ func ReglaDeLentes(files []string, producto int, efectivo, explicit string) ([]s
 		return Lentes, MotivoRiesgoAlto, nil
 	case efectivo == riesgo.Bajo:
 		return []string{LenteDominante}, MotivoRiesgoBajo, nil
+	case producto > UmbralLineas:
+		return append([]string(nil), LentesNormalGrande...), fmt.Sprintf(MotivoProductoGrande, producto), nil
 	}
 	return []string{LenteDominante}, MotivoEstandar, nil
 }
@@ -1762,12 +1768,17 @@ func ejecutarPasadasParalelas(
 	}
 	scope := agentcmd.Gate(dir, baseSHA, opt.Task, role, before, agentcmd.Take(dir, baseSHA), pol, nil)
 
+	var firstStartErr error
+	var failStage, failNote string
 	for i := range slots {
 		s := &slots[i]
 		fmt.Fprintf(w, "  [%d/%d] %s\n", i+1, len(lentes), s.lens)
 		if s.startEr != nil {
-			cerrarSobre("run", 1, "el run del reviewer fallo")
-			return *res, s.startEr, true
+			fmt.Fprintf(w, "    run error al iniciar: %v\n", s.startEr)
+			if firstStartErr == nil {
+				firstStartErr = s.startEr
+			}
+			continue
 		}
 		_, _ = w.Write(s.out.Bytes())
 		pass := Pass{
@@ -1794,10 +1805,15 @@ func ejecutarPasadasParalelas(
 			printScope(w, pass.Scope, role)
 			printGasto(w, pass.Usage)
 			res.Passes = append(res.Passes, pass)
-			if niegaExigir != "" {
-				return terminar("no-entregable", 1, "run", niegaExigir), nil, true
+			if failStage == "" {
+				failStage = "run"
+				if niegaExigir != "" {
+					failNote = niegaExigir
+				} else {
+					failNote = "el run del reviewer fallo"
+				}
 			}
-			return terminar("no-entregable", 1, "run", "el run del reviewer fallo"), nil, true
+			continue
 		}
 		if fs := porLente[s.lens]; len(fs) > 0 {
 			pass.Findings = fs
@@ -1815,9 +1831,17 @@ func ejecutarPasadasParalelas(
 		}
 		res.Passes = append(res.Passes, pass)
 		res.Findings = append(res.Findings, pass.Findings...)
-		if !pass.Scope.OK {
-			return terminar("no-entregable", 1, "scope", "el reviewer escribio fuera de su territorio"), nil, true
+		if !pass.Scope.OK && failStage == "" {
+			failStage = "scope"
+			failNote = "el reviewer escribio fuera de su territorio"
 		}
+	}
+	if firstStartErr != nil {
+		cerrarSobre("run", 1, "el run del reviewer fallo")
+		return *res, firstStartErr, true
+	}
+	if failStage != "" {
+		return terminar("no-entregable", 1, failStage, failNote), nil, true
 	}
 	return Result{}, nil, false
 }
