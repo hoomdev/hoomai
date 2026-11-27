@@ -1061,9 +1061,10 @@ func localChanges(dir string, pol Policy) []string {
 	if err != nil {
 		return nil
 	}
+	prefix, _ := gitx.Prefix(dir)
 	var dirty []string
 	for _, c := range cambios {
-		p := filepath.ToSlash(c.Ruta)
+		p := gitx.RelAlProyecto(filepath.ToSlash(c.Ruta), prefix)
 		if hoomfs.IsLocal(p) || strings.HasPrefix(p, ".hoom/") {
 			continue
 		}
@@ -1085,7 +1086,8 @@ func specInHead(dir, specPath string) error {
 		return fmt.Errorf("el spec %s vive fuera del arbol de trabajo y no puede viajar al arbol ciego", specPath)
 	}
 	rel = filepath.ToSlash(rel)
-	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "show", "HEAD:"+rel)
+	prefix, _ := gitx.Prefix(dir)
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "show", "HEAD:"+prefix+rel)
 	cmd.Dir = dir
 	head, err := cmd.Output()
 	if err != nil {
@@ -1165,7 +1167,7 @@ func keepQuarantine(w io.Writer, t *isolate.Tree, iso *Isolation, why string) {
 	}
 	iso.Kept = true
 	fmt.Fprintf(w, "                cuarentena conservada en %s (%s)\n", t.Dir, why)
-	fmt.Fprintf(w, "                para descartarla: git worktree remove --force %s\n", t.Dir)
+	fmt.Fprintf(w, "                para descartarla: git worktree remove --force %s\n", t.Worktree())
 }
 
 // cegado is what the blind tree lets the gate ask after a blind run: the

@@ -53,7 +53,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
-var version = "0.16.2"
+var version = "0.16.3"
 
 // usage is assembled, not copied: the 'Flags de verify:' block IS
 // verifycmd.UsageText, so 'hoom help' and 'hoom verify --help' cannot

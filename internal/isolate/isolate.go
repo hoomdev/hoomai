@@ -18,6 +18,7 @@ package isolate
 import (
 	"bytes"
 	"fmt"
+	"github.com/hoomdev/hoomai/internal/gitx"
 	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"os"
 	"os/exec"
@@ -35,12 +36,27 @@ var evidenceThatQuotesCode = []string{".hoom/verdicts/**", ".hoom/findings/**"}
 // Tree is a blind worktree: a sparse checkout of ONE commit holding exactly
 // what a role may read.
 type Tree struct {
-	Dir      string   // .hoom/isolated/<rol>_<id>
+	Dir      string   // project dir inside the blind worktree (.hoom/isolated/<rol>_<id>[/<prefix>])
 	Commit   string   // sha del commit desde el que se armo
 	Patterns []string // los patrones que viajaron a git, en orden
 	Hidden   []string // rutas rastreadas que git dejo FUERA del arbol: los testigos
 
-	parent string // desde donde se creo el worktree (git lo necesita para cerrarlo)
+	parent   string // desde donde se creo el worktree (git lo necesita para cerrarlo)
+	worktree string // raiz del git worktree (.hoom/isolated/<rol>_<id>)
+	prefix   string // prefijo del proyecto en el repo git ("" en la raiz, ej. "electronic_invoices/")
+}
+
+// Worktree returns the root directory of the git worktree backing this blind
+// tree: identical to Dir at the repository root, and Dir's ancestor when the
+// project lives in a subdirectory.
+func (t *Tree) Worktree() string {
+	if t == nil {
+		return ""
+	}
+	if t.worktree != "" {
+		return t.worktree
+	}
+	return t.Dir
 }
 
 func run(dir string, args ...string) (string, error) {
@@ -120,14 +136,23 @@ func Open(parent, name string, patterns []string) (*Tree, error) {
 	if err := ensureIgnored(parent); err != nil {
 		return nil, err
 	}
-	dir := filepath.Join(parent, ".hoom", "isolated", name)
-	if _, err := os.Stat(dir); err == nil {
-		return nil, fmt.Errorf("la cuarentena %s ya existe (un run anterior la dejo en pie).\n  Accion: revisala y descartala con 'git worktree remove --force %s'", dir, dir)
+	prefix, err := gitx.Prefix(parent)
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo resolver el prefijo git de %s: %w", parent, err)
 	}
-	if out, err := run(parent, "worktree", "add", "--no-checkout", "--detach", dir, commit); err != nil {
+	worktree := filepath.Join(parent, ".hoom", "isolated", name)
+	if _, err := os.Stat(worktree); err == nil {
+		return nil, fmt.Errorf("la cuarentena %s ya existe (un run anterior la dejo en pie).\n  Accion: revisala y descartala con 'git worktree remove --force %s'", worktree, worktree)
+	}
+	if out, err := run(parent, "worktree", "add", "--no-checkout", "--detach", worktree, commit); err != nil {
 		return nil, fmt.Errorf("no se pudo crear el worktree del arbol ciego: %s", out)
 	}
-	t := &Tree{Dir: dir, Commit: commit, Patterns: patterns, parent: parent}
+	dir := worktree
+	if prefix != "" {
+		dir = filepath.Join(worktree, filepath.FromSlash(prefix))
+	}
+	scoped := scopePatterns(patterns, prefix)
+	t := &Tree{Dir: dir, Commit: commit, Patterns: scoped, parent: parent, worktree: worktree, prefix: prefix}
 	if out, err := t.arm(); err != nil {
 		t.Close()
 		return nil, fmt.Errorf("no se pudo aplicar el sparse-checkout del arbol ciego: %s", out)
@@ -145,6 +170,35 @@ func Open(parent, name string, patterns []string) (*Tree, error) {
 	return t, nil
 }
 
+// scopePatterns scopes project-relative sparse-checkout patterns under prefix
+// (e.g. "electronic_invoices/") when the project lives in a subdirectory of
+// its Git repository. At the repository root (prefix == "") patterns travel
+// unchanged.
+func scopePatterns(patterns []string, prefix string) []string {
+	if prefix == "" {
+		return patterns
+	}
+	out := make([]string, 0, len(patterns))
+	for _, p := range patterns {
+		if p == ".gitignore" {
+			out = append(out, p)
+			continue
+		}
+		neg := strings.HasPrefix(p, "!")
+		inner := strings.TrimPrefix(p, "!")
+		inner = strings.TrimPrefix(inner, "/")
+		if !strings.HasPrefix(inner, prefix) {
+			inner = prefix + inner
+		}
+		if neg {
+			out = append(out, "!/"+inner)
+		} else {
+			out = append(out, "/"+inner)
+		}
+	}
+	return out
+}
+
 // ensureIgnored guarantees .hoom/.gitignore hides isolated/, the same way
 // taskcmd does for worktrees/: a quarantine must never enter the change
 // candidate nor the fingerprint that certifies the real tree.
@@ -156,13 +210,14 @@ func ensureIgnored(root string) error {
 // arm writes the sparse patterns and materializes the tree. The patterns
 // travel by stdin so one that starts with '-' or '!' is never read as a flag.
 func (t *Tree) arm() (string, error) {
+	wt := t.Worktree()
 	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "sparse-checkout", "set", "--no-cone", "--stdin")
-	cmd.Dir = t.Dir
+	cmd.Dir = wt
 	cmd.Stdin = strings.NewReader(strings.Join(t.Patterns, "\n") + "\n")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return strings.TrimSpace(string(out)), err
 	}
-	return run(t.Dir, "checkout")
+	return run(wt, "checkout")
 }
 
 // indexTags splits the index into the paths git left OUT of the tree (tag S:
@@ -171,7 +226,7 @@ func (t *Tree) arm() (string, error) {
 // cannot disagree with it.
 func (t *Tree) indexTags() (hidden []string, visible int, err error) {
 	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "-c", "core.quotePath=false", "ls-files", "-t", "-z")
-	cmd.Dir = t.Dir
+	cmd.Dir = t.Worktree()
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, 0, fmt.Errorf("no se pudo leer el indice del arbol ciego: %w", err)
@@ -185,7 +240,9 @@ func (t *Tree) indexTags() (hidden []string, visible int, err error) {
 			hidden = append(hidden, path)
 			continue
 		}
-		visible++
+		if t.prefix == "" || strings.HasPrefix(path, t.prefix) {
+			visible++
+		}
 	}
 	sort.Strings(hidden)
 	return hidden, visible, nil
@@ -195,12 +252,13 @@ func (t *Tree) indexTags() (hidden []string, visible int, err error) {
 // held. The set is the one frozen at Open: widening the patterns afterwards
 // does not shrink it, because a proof the subject can rewrite is not a proof.
 func (t *Tree) Breaches() []string {
+	wt := t.Worktree()
 	var out []string
 	for _, p := range t.Hidden {
 		// Lstat y no Stat: un symlink que apunta al archivo real tambien
 		// devuelve la implementacion al alcance de una lectura.
-		if _, err := os.Lstat(filepath.Join(t.Dir, filepath.FromSlash(p))); err == nil {
-			out = append(out, p)
+		if _, err := os.Lstat(filepath.Join(wt, filepath.FromSlash(p))); err == nil {
+			out = append(out, gitx.RelAlProyecto(p, t.prefix))
 		}
 	}
 	sort.Strings(out)
@@ -323,7 +381,7 @@ func (t *Tree) Apply(dest string, paths []string) (applied, removed []string, er
 // from, and whether it existed there. Exact bytes: this is a comparison, not
 // a display.
 func (t *Tree) baseContent(dest, rel string) ([]byte, bool) {
-	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "show", t.Commit+":"+filepath.ToSlash(rel))
+	cmd := exec.Command("git", "-c", "core.fsmonitor=false", "show", t.Commit+":"+t.prefix+filepath.ToSlash(rel))
 	cmd.Dir = dest
 	out, err := cmd.Output()
 	if err != nil {
@@ -379,11 +437,12 @@ func safeJoin(base, rel string) (string, error) {
 // Close removes the worktree. Always --force: a blind tree that did its job
 // is full of untracked tests, and git refuses to remove one without it.
 func (t *Tree) Close() error {
-	if t == nil || t.Dir == "" {
+	if t == nil || t.Worktree() == "" {
 		return nil
 	}
-	if out, err := run(t.parent, "worktree", "remove", "--force", t.Dir); err != nil {
-		return fmt.Errorf("no se pudo cerrar la cuarentena %s: %s", t.Dir, out)
+	wt := t.Worktree()
+	if out, err := run(t.parent, "worktree", "remove", "--force", wt); err != nil {
+		return fmt.Errorf("no se pudo cerrar la cuarentena %s: %s", wt, out)
 	}
 	return nil
 }

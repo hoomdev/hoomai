@@ -565,34 +565,52 @@ var TopeListado = 2 * time.Minute
 // repo there is nothing to list and no error, as in Touched; a first git
 // that fails inside one is an error too (fueraDeRepo).
 func TouchedErr(dir, base string) (map[string]string, error) {
+	out, _, err := TouchedRelErr(dir, base)
+	return out, err
+}
+
+// TouchedRelErr is TouchedErr that also returns the subdirectory prefix of dir
+// inside its Git repository (e.g. "electronic_invoices/", or "" at the repo
+// root / outside a repo), derived from the same `rev-parse --show-toplevel`
+// without spawning an extra git process.
+func TouchedRelErr(dir, base string) (map[string]string, string, error) {
 	out := map[string]string{}
 	dir, err := dirReal(dir)
 	if err != nil {
-		return out, fmt.Errorf("no se pudo resolver el directorio: %w", err)
-	}
-	if _, err := runTope(dir, TopeListado, "rev-parse", "--is-inside-work-tree"); err != nil {
-		if errors.Is(err, errSinRespuesta) || !fueraDeRepo(dir) {
-			return out, fmt.Errorf("git rev-parse: %w", err)
-		}
-		return out, nil
+		return out, "", fmt.Errorf("no se pudo resolver el directorio: %w", err)
 	}
 	top, err := runTope(dir, TopeListado, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return out, fmt.Errorf("git rev-parse --show-toplevel: %w", err)
+		if errors.Is(err, errSinRespuesta) || !fueraDeRepo(dir) {
+			return out, "", fmt.Errorf("git rev-parse --show-toplevel: %w", err)
+		}
+		return out, "", nil
 	}
 	if top == "" {
 		top = dir
+	} else if tr, rerr := dirReal(top); rerr == nil {
+		top = tr
+	}
+	prefix := ""
+	if top != dir {
+		if rel, rerr := filepath.Rel(top, dir); rerr == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+			prefix = filepath.ToSlash(rel) + "/"
+		}
 	}
 	set := map[string]bool{}
 	// No --diff-filter here: a path DELETED in the branch is a change too.
+	lsArgs := []string{"ls-files", "--full-name", "--others", "--exclude-standard"}
+	if prefix != "" {
+		lsArgs = append([]string{"-C", top}, lsArgs...)
+	}
 	for _, args := range [][]string{
 		{"diff", "--name-only", EndOfOptions, base + "...HEAD"},
 		{"diff", "--name-only", "HEAD"},
-		{"ls-files", "--full-name", "--others", "--exclude-standard"},
+		lsArgs,
 	} {
 		o, err := runTope(dir, TopeListado, args...)
 		if err != nil {
-			return out, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+			return out, "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 		}
 		for _, f := range strings.Split(o, "\n") {
 			if f != "" {
@@ -608,7 +626,43 @@ func TouchedErr(dir, base string) (map[string]string, error) {
 		}
 		out[f] = h
 	}
-	return out, nil
+	return out, prefix, nil
+}
+
+// Prefix returns the subdirectory path of dir inside its Git repository
+// (from `git rev-parse --show-prefix`, using "/" and ending in "/", e.g.
+// "electronic_invoices/"), or "" when dir is the repository root or outside
+// a Git repository. A broken repository or a git that does not answer within
+// TopeListado fails closed with an error.
+func Prefix(dir string) (string, error) {
+	dir, err := dirReal(dir)
+	if err != nil {
+		return "", fmt.Errorf("no se pudo resolver el directorio: %w", err)
+	}
+	out, err := runTopeRaw(dir, TopeListado, "-c", "core.quotePath=false", "rev-parse", "--show-prefix")
+	if err != nil {
+		if errors.Is(err, errSinRespuesta) || !fueraDeRepo(dir) {
+			return "", fmt.Errorf("git rev-parse --show-prefix: %w", err)
+		}
+		return "", nil
+	}
+	out = strings.TrimSuffix(strings.TrimSuffix(out, "\n"), "\r")
+	return filepath.ToSlash(out), nil
+}
+
+// RelAlProyecto normalizes a repository-root-relative path (using "/") against
+// the project's subdirectory prefix (from Prefix, e.g. "electronic_invoices/").
+// At the repository root (prefix == ""), path is returned unchanged. Inside
+// prefix, the prefix is stripped; outside prefix, "../" segments are prepended
+// so a path outside the project never collides with project-relative globs.
+func RelAlProyecto(path, prefix string) string {
+	if prefix == "" {
+		return path
+	}
+	if strings.HasPrefix(path, prefix) {
+		return strings.TrimPrefix(path, prefix)
+	}
+	return strings.Repeat("../", strings.Count(prefix, "/")) + path
 }
 
 // errSinRespuesta is a git that did not answer within its bound.
@@ -617,6 +671,13 @@ var errSinRespuesta = errors.New("git no respondio")
 // runTope is run with a bound: past tope the git is killed and the error
 // wraps errSinRespuesta.
 func runTope(dir string, tope time.Duration, args ...string) (string, error) {
+	out, err := runTopeRaw(dir, tope, args...)
+	return strings.TrimSpace(out), err
+}
+
+// runTopeRaw is runTope without trimming spaces (needed for --show-prefix so
+// leading or trailing spaces in directory names are preserved).
+func runTopeRaw(dir string, tope time.Duration, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), tope)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", sinFsmonitor(args)...)
@@ -627,7 +688,7 @@ func runTope(dir string, tope time.Duration, args ...string) (string, error) {
 	if ctx.Err() == context.DeadlineExceeded {
 		return "", fmt.Errorf("%w en %s: git %s", errSinRespuesta, tope, strings.Join(args, " "))
 	}
-	return strings.TrimSpace(string(out)), err
+	return string(out), err
 }
 
 // contentHash hashes a file's bytes. Deliberately NOT git hash-object: this

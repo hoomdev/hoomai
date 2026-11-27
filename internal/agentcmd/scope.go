@@ -392,11 +392,12 @@ func Take(root, base string) Snapshot {
 	case !errors.Is(err, fs.ErrNotExist):
 		s.sinEvidenciaLegible()
 	}
-	touched, err := gitx.TouchedErr(root, base)
+	touched, prefix, err := gitx.TouchedRelErr(root, base)
 	if err != nil {
 		s.Listado = err.Error()
 	}
 	for p, h := range touched {
+		p = gitx.RelAlProyecto(p, prefix)
 		if !hoomOwn(p) {
 			s.Touched[p] = h
 		}
@@ -623,6 +624,9 @@ func allowedBy(p string, pol Policy) (bool, string) {
 		}
 	}
 	for _, g := range pol.Allow {
+		if strings.HasPrefix(p, "../") && !strings.HasPrefix(g, "../") && g != "**" {
+			continue
+		}
 		if matchGlob(g, p) {
 			return true, ""
 		}
