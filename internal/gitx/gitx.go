@@ -87,14 +87,16 @@ func Snapshot(dir, base string) Info {
 	}
 	// worktree divergence vs HEAD: uncommitted + untracked + deleted. A
 	// listing that fails contributes nothing, as it always did here.
-	local, _ := locales(func(args ...string) (string, error) { return run(dir, args...) })
+	rn := func(args ...string) (string, error) { return run(dir, args...) }
+	prefix, _ := rn("rev-parse", "--show-prefix")
+	local, _ := locales(rn)
 	for f := range local {
 		set[f] = true
 	}
 	for f := range set {
 		// Generated artifacts are never part of the change candidate: the act
 		// of recording a verdict must not alter the fingerprint it certifies.
-		if excludedFromCandidate(f) {
+		if excludedRel(f, prefix) {
 			continue
 		}
 		info.ChangedFiles = append(info.ChangedFiles, f)
@@ -240,9 +242,31 @@ func fingerprint(dir string, local map[string]bool) string {
 // fingerprintCon is fingerprint with the git runner rn: the only error it
 // returns is a git that did not answer (errSinRespuesta); any other failure
 // is what fingerprint always did with it.
+//
+// When dir is a subdirectory of the Git repository (e.g. a monorepo or
+// nested project), every git listing is normalized to the repository root
+// (--full-tree, --full-name, and -C top for hash-object) so that tracked
+// modifications from `git diff --name-only HEAD` match the entries of
+// `ls-tree` and exist on disk at filepath.Join(top, f). At the repository
+// root, top == dir and prefix == "", producing byte-for-byte identical output.
 func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (string, error)) (string, error) {
+	top, err := rn("rev-parse", "--show-toplevel")
+	if errors.Is(err, errSinRespuesta) {
+		return "", err
+	}
+	if err != nil || top == "" {
+		top = dir
+	}
+	prefix, err := rn("rev-parse", "--show-prefix")
+	if errors.Is(err, errSinRespuesta) {
+		return "", err
+	}
+	if err != nil {
+		prefix = ""
+	}
+
 	entries := map[string]string{}
-	out, err := rn("ls-tree", "-r", "HEAD")
+	out, err := rn("ls-tree", "-r", "--full-tree", "HEAD")
 	if errors.Is(err, errSinRespuesta) {
 		return "", err
 	}
@@ -254,7 +278,7 @@ func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (
 			}
 			meta := strings.Fields(line[:tab])
 			path := line[tab+1:]
-			if len(meta) >= 3 && !excludedFromCandidate(path) {
+			if len(meta) >= 3 && !excludedRel(path, prefix) {
 				entries[path] = "g:" + meta[2]
 			}
 		}
@@ -264,10 +288,10 @@ func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (
 	// identical content preserves the fingerprint by construction.
 	var localPaths []string
 	for f := range local {
-		if excludedFromCandidate(f) {
+		if excludedRel(f, prefix) {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+		if _, err := os.Stat(filepath.Join(top, filepath.FromSlash(f))); err != nil {
 			delete(entries, f) // deleted locally
 			continue
 		}
@@ -275,7 +299,8 @@ func fingerprintCon(dir string, local map[string]bool, rn func(args ...string) (
 	}
 	sort.Strings(localPaths)
 	if len(localPaths) > 0 {
-		out, err := rn(append([]string{"hash-object", "--"}, localPaths...)...)
+		args := append([]string{"-C", top, "hash-object", "--"}, localPaths...)
+		out, err := rn(args...)
 		if errors.Is(err, errSinRespuesta) {
 			return "", err
 		}
@@ -379,7 +404,7 @@ func locales(rn func(args ...string) (string, error)) (map[string]bool, error) {
 	var falla error
 	for _, args := range [][]string{
 		{"diff", "--name-only", "HEAD"},
-		{"ls-files", "--others", "--exclude-standard"},
+		{"ls-files", "--full-name", "--others", "--exclude-standard"},
 	} {
 		out, err := rn(args...)
 		if err != nil {
@@ -439,6 +464,19 @@ func excludedFromCandidate(path string) bool {
 		// ignore file hoom completes on its own must not either (a role that
 		// edits it is caught by the scope gate, which does not use this list)
 		path == ".hoom/ratchet.json" || path == ".hoom/.gitignore"
+}
+
+// excludedRel checks excludedFromCandidate both at the repository root and
+// under prefix (the subdir prefix returned by `git rev-parse --show-prefix`,
+// e.g. "electronic_invoices/").
+func excludedRel(path, prefix string) bool {
+	if excludedFromCandidate(path) {
+		return true
+	}
+	if prefix != "" && strings.HasPrefix(path, prefix) {
+		return excludedFromCandidate(strings.TrimPrefix(path, prefix))
+	}
+	return false
 }
 
 // diffStats measures the change candidate size: numstat of base vs working
@@ -538,12 +576,19 @@ func TouchedErr(dir, base string) (map[string]string, error) {
 		}
 		return out, nil
 	}
+	top, err := runTope(dir, TopeListado, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return out, fmt.Errorf("git rev-parse --show-toplevel: %w", err)
+	}
+	if top == "" {
+		top = dir
+	}
 	set := map[string]bool{}
 	// No --diff-filter here: a path DELETED in the branch is a change too.
 	for _, args := range [][]string{
 		{"diff", "--name-only", EndOfOptions, base + "...HEAD"},
 		{"diff", "--name-only", "HEAD"},
-		{"ls-files", "--others", "--exclude-standard"},
+		{"ls-files", "--full-name", "--others", "--exclude-standard"},
 	} {
 		o, err := runTope(dir, TopeListado, args...)
 		if err != nil {
@@ -556,7 +601,7 @@ func TouchedErr(dir, base string) (map[string]string, error) {
 		}
 	}
 	for f := range set {
-		h, err := contentHash(filepath.Join(dir, f))
+		h, err := contentHash(filepath.Join(top, filepath.FromSlash(f)))
 		if err != nil {
 			out[f] = "-" // ya no existe (borrado, o un directorio que quedo en el listado)
 			continue

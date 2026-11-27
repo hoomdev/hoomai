@@ -17,8 +17,12 @@ import (
 	"github.com/hoomdev/hoomai/internal/spec"
 )
 
-// pprBloque es el bloque del spec, copiado del spec tal cual.
-const pprBloque = `# Modelo por rol en niveles (fuerte, medio, barato): hoom los traduce al
+// pprBloque es el bloque por defecto de ahorro de tokens y tiempo
+// (proporcion-por-riesgo + calibracion v2).
+const pprBloque = `findings:
+  block_on: high
+  max_rondas: 1
+# Modelo por rol en niveles (fuerte, medio, barato): hoom los traduce al
 # modelo de cada provider; un nombre de modelo tambien vale. Cada rol puede
 # cambiar sus valores segun el riesgo de la tarjeta (bajo, normal, alto).
 agents:
@@ -31,7 +35,9 @@ agents:
   analista: { model: medio }
   refutador: { model: medio, alto: { model: fuerte } }
 review:
-  model: fuerte
+  model: medio
+  effort: high
+  concurrencia: 4
 # Topes del spec segun el riesgo declarado de la tarjeta (0 = sin tope).
 spec:
   topes:
@@ -82,10 +88,16 @@ func TestCA807_InitEscribeElBloqueEnLosCuatroPerfiles(t *testing.T) {
 			t.Fatalf("%s: %s: agents.writer: %+v", ca, perfil, w)
 		}
 		for rol, want := range map[string]string{"arquitecto": "fuerte", "designer": "medio", "scout": "barato", "test-writer": "medio",
-			"characterizer": "medio", "analista": "medio", "refutador": "medio", "reviewer": "fuerte"} {
+			"characterizer": "medio", "analista": "medio", "refutador": "medio", "reviewer": "medio"} {
 			if got := m.RoleDefaults(rol).Model; got != want {
 				t.Fatalf("%s: %s: %s es %s: %q", ca, perfil, rol, want, got)
 			}
+		}
+		if m.Review == nil || m.Review.Effort != "high" || m.Review.ConcurrenciaOrDefault() != 4 {
+			t.Fatalf("%s: %s: review calibrado (medio/high/concurrencia 4): %+v", ca, perfil, m.Review)
+		}
+		if m.FindingsBlockOn() != "high" || m.FindingsMaxRondas() != 1 {
+			t.Fatalf("%s: %s: findings (block_on=high, max_rondas=1): block_on=%q max_rondas=%d", ca, perfil, m.FindingsBlockOn(), m.FindingsMaxRondas())
 		}
 		if m.TopeDelSpec("normal") != (spec.Tope{Palabras: 800, Criterios: 8, CitasPorCriterio: 10}) ||
 			m.TopeDelSpec("alto") != (spec.Tope{Palabras: 2000, Criterios: 15}) ||

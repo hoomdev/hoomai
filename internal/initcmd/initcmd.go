@@ -15,12 +15,16 @@ import (
 	"github.com/hoomdev/hoomai/internal/profiles"
 )
 
-// BloquePorRiesgo (proporcion-por-riesgo) is the text hoom init writes in
-// hoom.yaml right after the gates, the same for the four profiles: the model
-// of each role in levels (agents), the reviewer's (review) and the topes of
+// BloquePorRiesgo (proporcion-por-riesgo + calibracion v2) is the text hoom
+// init writes in hoom.yaml right after the gates, the same for every profile:
+// blocking findings policy, the model of each role in levels (agents), the
+// calibrated reviewer (review: medio/high/concurrencia 4) and the topes of
 // the spec per riesgo (spec). The hoom.yaml it writes loads with
 // manifest.Load.
-const BloquePorRiesgo = `# Modelo por rol en niveles (fuerte, medio, barato): hoom los traduce al
+const BloquePorRiesgo = `findings:
+  block_on: high
+  max_rondas: 1
+# Modelo por rol en niveles (fuerte, medio, barato): hoom los traduce al
 # modelo de cada provider; un nombre de modelo tambien vale. Cada rol puede
 # cambiar sus valores segun el riesgo de la tarjeta (bajo, normal, alto).
 agents:
@@ -33,7 +37,9 @@ agents:
   analista: { model: medio }
   refutador: { model: medio, alto: { model: fuerte } }
 review:
-  model: fuerte
+  model: medio
+  effort: high
+  concurrencia: 4
 # Topes del spec segun el riesgo declarado de la tarjeta (0 = sin tope).
 spec:
   topes:
@@ -80,6 +86,7 @@ func Run(dir, projectName, profileName string) error {
 	if err != nil {
 		return err
 	}
+	gates, notasDeteccion := AdaptarGates(abs, profileName, gates)
 	if projectName == "" {
 		projectName = filepath.Base(abs)
 	}
@@ -149,6 +156,9 @@ func Run(dir, projectName, profileName string) error {
 		}
 	}
 	fmt.Printf("hoom: creado %s\n", target)
+	for _, nota := range notasDeteccion {
+		fmt.Printf("hoom: %s\n", nota)
+	}
 	fmt.Printf("hoom: creado .hoom/verdicts/ (los veredictos viajan en Git; .hoom/cache no)\n")
 	fmt.Printf("hoom: creado .hoom/intake/ (documentos del cliente: SRS, planes, minutas)\n")
 	fmt.Printf("hoom: creado .hoom/specs/ (vision del producto y specs por tarea)\n")

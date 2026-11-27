@@ -1,0 +1,125 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-11-27T06-02-03Z_feda049d",
+  "created_at": "2026-11-27T06:02:03.212918Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "9049f4128d8c",
+    "branch": "main",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "cmd/hoom/main.go",
+      "internal/gitx/gitx.go",
+      "internal/gitx/subdirectorio_test.go",
+      "internal/initcmd/detect.go",
+      "internal/initcmd/detect_upgrade_test.go",
+      "internal/initcmd/initcmd.go",
+      "internal/initcmd/proporcion_por_riesgo_test.go",
+      "internal/initcmd/upgrade.go"
+    ],
+    "change_fingerprint": "f3332154e540403c",
+    "insertions": 1240,
+    "deletions": 20
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 984,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 64 medium, 61 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 660,
+      "output_tail": "go: writing stat cache: open /Users/hoommac/go/pkg/mod/cache/download/github.com/hoomdev/hoomai/@v/v0.16.1.info362931096.tmp: operation not permitted"
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 2618,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 3762
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "fail",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 2,
+      "duration_ms": 355,
+      "output_tail": "gate security: semgrep  instalado y el lock fija 1.175.0 (.hoom/semgrep/paquetes.lock)"
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "pass",
+      "scope": "diff",
+      "command": "go test -timeout 10m ./cmd/hoom ./internal/gitx ./internal/initcmd",
+      "exit_code": 0,
+      "duration_ms": 116903,
+      "output_tail": "ok  \tgithub.com/hoomdev/hoomai/cmd/hoom\t114.746s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t38.916s\nok  \tgithub.com/hoomdev/hoomai/internal/initcmd\t2.582s"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 5,
+    "fail": 1,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "red",
+  "riesgo": {
+    "declarado": "normal",
+    "efectivo": "normal",
+    "motivo": "sin tarjeta: riesgo normal"
+  },
+  "tamano": {
+    "producto": 858,
+    "pruebas": 402,
+    "hoom": 0
+  }
+}

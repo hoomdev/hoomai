@@ -53,7 +53,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
-var version = "0.16.1"
+var version = "0.16.2"
 
 // usage is assembled, not copied: the 'Flags de verify:' block IS
 // verifycmd.UsageText, so 'hoom help' and 'hoom verify --help' cannot
@@ -65,7 +65,10 @@ const usageAntesDeVerify = `hoomAI %s - harness de verificacion agnostico de IA 
 Uso: hoom <comando> [flags]
 
 Comandos:
-  init        Detecta el stack y crea hoom.yaml + .hoom/ en el proyecto
+  init        Detecta el stack y las herramientas del proyecto; crea hoom.yaml + .hoom/
+  upgrade     Agrega a un hoom.yaml existente las secciones nuevas (findings, agents,
+              review, spec.topes) sin tocar gates ni rutas, y audita scripts faltantes
+              [--dry-run] [dir]
   verify      Ejecuta los gates del manifiesto y emite un veredicto
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
@@ -280,6 +283,8 @@ func main() {
 	switch cmd {
 	case "init":
 		err = cmdInit(args)
+	case "upgrade":
+		err = cmdUpgrade(args)
 	case "verify":
 		err = cmdVerify(args)
 	case "report":
@@ -368,6 +373,34 @@ func cmdInit(args []string) error {
 		dir = fs.Arg(0)
 	}
 	return initcmd.Run(dir, *name, *profileName)
+}
+
+func cmdUpgrade(args []string) error {
+	fs := flag.NewFlagSet("upgrade", flag.ExitOnError)
+	dryRun := fs.Bool("dry-run", false, "muestra que se agregaria y los avisos sin modificar hoom.yaml")
+	_ = fs.Parse(args)
+	dir := "."
+	if fs.NArg() > 0 {
+		dir = fs.Arg(0)
+	}
+	res, err := initcmd.Upgrade(dir, initcmd.UpgradeOptions{DryRun: *dryRun})
+	if err != nil {
+		return err
+	}
+	if len(res.Added) == 0 {
+		fmt.Printf("hoom: %s ya tiene todas las secciones recomendadas\n", res.Target)
+	} else if *dryRun {
+		fmt.Printf("hoom: [dry-run] se agregarian en %s: %s (sin tocar gates ni rutas)\n", res.Target, strings.Join(res.Added, ", "))
+	} else {
+		fmt.Printf("hoom: actualizado %s (agregadas: %s; gates y rutas intactos)\n", res.Target, strings.Join(res.Added, ", "))
+	}
+	if len(res.Gitignored) > 0 {
+		fmt.Printf("hoom: agregado %s a .hoom/.gitignore\n", strings.Join(res.Gitignored, ", "))
+	}
+	for _, w := range res.Warnings {
+		fmt.Printf("hoom: aviso: %s\n", w)
+	}
+	return nil
 }
 
 // cmdVerify answers a badly written request BEFORE reading the project:
