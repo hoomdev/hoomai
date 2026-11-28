@@ -62,9 +62,16 @@ go build -o hoom ./cmd/hoom                               # from the repo (vendo
 
 ```sh
 cd my-project
-hoom init        # detects the stack (laravel|kmp|kmp-compose|go) and writes hoom.yaml
+hoom init        # detects the stack (laravel|kmp|kmp-compose|go|node|python), its tools, and writes hoom.yaml
 hoom verify      # runs the gates and writes a verdict: RED = exit 1
 hoom agents      # installs the 10 agent contracts and binds AGENTS.md
+```
+
+Already have a `hoom.yaml` from an older version?
+
+```sh
+hoom upgrade --dry-run  # previews missing sections and audits gates for missing local scripts
+hoom upgrade            # appends missing findings/agents/review/spec.topes without touching gates or rutas
 ```
 
 From then on your agent reads the contract in `AGENTS.md`: before calling a
@@ -133,7 +140,8 @@ evidence does.
 
 | Command | What it does |
 |---|---|
-| `hoom init` | Detects the stack, writes `hoom.yaml` with the profile's gates and creates `.hoom/` |
+| `hoom init` | Detects the stack and real tools present in the repo, leaves missing ones explicit as YELLOW (`cmd: ""`), and writes `hoom.yaml` with token/time-saving defaults (`findings`, `agents`, `review`, `spec.topes`) plus `.hoom/` |
+| `hoom upgrade [--dry-run] [dir]` | Updates an existing `hoom.yaml` by appending only missing default sections (`findings`, `agents`, `review`, `spec.topes`) without touching `gates`, `rutas`, comments, or existing user sections; also updates `.hoom/.gitignore` and audits gates for missing local scripts/binaries |
 | `hoom verify` | Runs the gates and writes a verdict (red = exit 1) |
 | `hoom verify --full` | Ignores diff scoping (full run, e.g. nightly) |
 | `hoom verify --gate test,static` | Runs only those gates; the verdict is PARTIAL, and `check` and `task done` never use it as reference |

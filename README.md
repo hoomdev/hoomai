@@ -57,9 +57,17 @@ go build -o hoom ./cmd/hoom                               # desde el repo (vendo
 
 ```sh
 cd mi-proyecto
-hoom init        # detecta el stack (laravel|kmp|kmp-compose|go) y crea hoom.yaml
+hoom init        # detecta el stack (laravel|kmp|kmp-compose|go|node|python), sus herramientas y crea hoom.yaml
 hoom verify      # ejecuta los gates y emite un veredicto: ROJO = exit 1
 hoom agents      # instala los 10 contratos de agentes y ata AGENTS.md
+```
+
+Si el proyecto ya tenia un `hoom.yaml` de una version anterior:
+
+```sh
+hoom upgrade --dry-run  # muestra que secciones nuevas agregaria y audita gates con scripts faltantes
+hoom upgrade            # agrega findings, agents, review y spec.topes sin tocar gates ni rutas
+hoom agents             # actualiza los contratos en .hoom/agents/
 ```
 
 Desde ahí tu agente lee el contrato en `AGENTS.md`: antes de dar un cambio por
@@ -127,7 +135,8 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 
 | Comando | Que hace |
 |---|---|
-| `hoom init` | Detecta el stack, crea `hoom.yaml` con los gates del perfil materializados y `.hoom/` |
+| `hoom init` | Detecta el stack y las herramientas reales del proyecto (`composer.json`, `package.json`, `go.mod`, `pyproject.toml`, Gradle, `semgrep`, etc.), deja en AMARILLO (`cmd: ""`) lo que el proyecto no tiene, y crea `hoom.yaml` con el preset por defecto de ahorro de tokens y tiempo (`findings`, `agents`, `review`, `spec.topes`) mas `.hoom/` |
+| `hoom upgrade [--dry-run] [dir]` | Actualiza un `hoom.yaml` existente agregando solo las secciones nuevas que le falten (`findings`, `agents`, `review`, `spec.topes`) con el preset por defecto, **sin tocar** `gates`, `rutas`, comentarios ni secciones ya declaradas. Completa `.hoom/.gitignore` y audita los `gates` existentes avisando si alguno apunta a un script o binario local que no existe en el repo. Con `--dry-run` solo muestra el resumen y los avisos sin modificar archivos |
 | `hoom verify` | Ejecuta los gates y emite un veredicto (rojo = exit 1) |
 | `hoom verify --full` | Ignora el scoping por diff (corrida completa, ej. nocturna) |
 | `hoom verify --gate test,static` | Ejecuta solo esos gates |
@@ -187,9 +196,30 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 - **node** - npm test (vitest/jest), `npx --no-install tsc --noEmit` (opcional), eslint/biome, build opcional.
 - **python** - pytest, mypy (opcional), ruff (opcional).
 
-Los perfiles son defaults: `hoom init` los materializa en `hoom.yaml` y ahi los editas.
+Los perfiles son defaults: `hoom init` inspecciona las herramientas que el proyecto tiene
+realmente, materializa los gates en `hoom.yaml` (dejando `cmd: ""` en AMARILLO para lo que
+no existe en ese repo) y agrega el bloque calibrado de ahorro de tokens y tiempo
+(`findings`, `agents`, `review: { model: medio, effort: high, concurrencia: 4 }` y `spec.topes`).
 `cmd: ""` declara un gate AUSENTE explicitamente (amarillo, nunca oculto). La herencia
 (`extends`) permite crear perfiles derivados (ej. un futuro `filament extends laravel`).
+
+### Actualizar un proyecto existente (`hoom upgrade`)
+
+Cuando actualizas `hoom` a una version nueva en un proyecto que ya tiene `hoom.yaml`, no hace
+falta copiar el manifiesto de otro proyecto:
+
+```sh
+hoom upgrade --dry-run   # previsualiza que secciones faltan y audita scripts locales en gates
+hoom upgrade             # aplica el upgrade sin tocar gates, rutas ni secciones existentes
+```
+
+- **Nunca sobreescribe** `gates`, `rutas`, comentarios ni secciones que ya hayas configurado a mano.
+- **Agrega solo lo que falta** (`findings`, `agents`, `review`, `spec.topes`) con los defaults
+  calibrados para ahorrar tokens y tiempo.
+- **Audita los gates existentes** y avisa si alguno apunta a un script o binario local inexistente
+  (por ejemplo `scripts/with-node.sh` o `scripts/mutacion.sh`).
+- **Completa `.hoom/.gitignore`** (incluido el checkout principal si el proyecto vive en un subdirectorio de Git).
+- Para actualizar tambien los archivos de roles en `.hoom/agents/`, corre aparte `hoom agents` (o `hoom agents --target all`).
 
 ## Manifiesto (hoom.yaml)
 

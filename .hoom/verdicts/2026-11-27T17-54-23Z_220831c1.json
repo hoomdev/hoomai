@@ -1,0 +1,124 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-11-27T17-54-23Z_220831c1",
+  "created_at": "2026-11-27T17:54:23.515118Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "5159dad1d985",
+    "branch": "main",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "README.en.md",
+      "README.md",
+      "cmd/hoom/main.go",
+      "internal/agentcmd/agentcmd.go",
+      "internal/agentcmd/scope.go",
+      "internal/agentcmd/subdirectorio_test.go",
+      "internal/gitx/gitx.go",
+      "internal/isolate/isolate.go",
+      "internal/isolate/subdirectorio_test.go"
+    ],
+    "change_fingerprint": "a32be7aaeb8e97c1",
+    "insertions": 415,
+    "deletions": 28
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 2175,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 64 medium, 61 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 1473
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 0,
+      "duration_ms": 1482,
+      "output_tail": "0 issues."
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 1261
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 0,
+      "duration_ms": 108912
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "fail",
+      "scope": "diff",
+      "command": "go test -timeout 10m ./cmd/hoom ./internal/agentcmd ./internal/gitx ./internal/isolate",
+      "exit_code": 1,
+      "duration_ms": 601911,
+      "output_tail": "...[truncado]...\n6c?, 0x90?, 0x102b71c20?)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/syscall/zsyscall_darwin_arm64.go:44 +0x4c\nsyscall.Wait4(0x26958ab74a68?, 0x26958ab74a74, 0x26958b58ce70?, 0x400000?)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/syscall/syscall_bsd.go:144 +0x28\nos.(*Process).pidWait.func1(...)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec_unix.go:64\nos.ignoringEINTR2[...](...)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/file_posix.go:273\nos.(*Process).pidWait(0x26958a6b4280)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec_unix.go:63 +0x9c\nos.(*Process).wait(0x0?)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec_unix.go:28 +0x24\nos.(*Process).Wait(...)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec.go:347\nos/exec.(*Cmd).Wait(0x26958a7324e0)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:944 +0x34\nos/exec.(*Cmd).Run(0x26958a7324e0)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:643 +0x38\nos/exec.(*Cmd).Output(0x26958a7324e0)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:1040 +0xc4\ngithub.com/hoomdev/hoomai/internal/gitx.gitLimpio({0x26958a81e680, 0x7e}, {0x26958ab74d28?, 0x3?, 0x26958a9b4360?})\n\t/Users/hoommac/Documents/proyects/hoomai/internal/gitx/worktree.go:171 +0x2d0\ngithub.com/hoomdev/hoomai/internal/gitx.CheckoutPrincipal({0x26958a81e680, 0x7e})\n\t/Users/hoommac/Documents/proyects/hoomai/internal/gitx/worktree.go:202 +0x60\ngithub.com/hoomdev/hoomai/internal/item.arbolesDeRiesgo({0x26958a81e680, 0x7e})\n\t/Users/hoommac/Documents/proyects/hoomai/internal/item/item.go:1050 +0x24\ngithub.com/hoomdev/hoomai/internal/item.RiesgosDe({0x26958a81e680, 0x7e})\n\t/Users/hoommac/Documents/proyects/hoomai/internal/item/item.go:1016 +0x44\ngithub.com/hoomdev/hoomai/internal/finding.contextoDesde({{0x26958a732000, 0x2, 0x2}, {0x0, 0x0, 0x0}, {0x0, 0x0, 0x0}, 0x26958a9b4270}, ...)\n\t/Users/hoommac/Documents/proyects/hoomai/internal/finding/bloquea.go:282 +0x84\ngithub.com/hoomdev/hoomai/internal/finding.gate({_, _}, {_, _}, {_, _}, {{{{0x26958a79c3c0, 0x13, 0x14}, {0x26958a633810, ...}, ...}, ...}, ...})\n\t/Users/hoommac/Documents/proyects/hoomai/internal/finding/gate.go:89 +0x1f4\ngithub.com/hoomdev/hoomai/internal/finding.GateDelVerify(...)\n\t/Users/hoommac/Documents/proyects/hoomai/internal/finding/gate.go:226\ngithub.com/hoomdev/hoomai/internal/verifycmd.Run(0x26958a724160, {0x0, {0x0, 0x0, 0x0}, {0x0, 0x0}, 0x0, 0x0, 0x26958a6b4640})\n\t/Users/hoommac/Documents/proyects/hoomai/internal/verifycmd/verifycmd.go:337 +0xa1c\ngithub.com/hoomdev/hoomai/internal/agentcmd.Run({_, _}, {_, _}, {{0x102847797, 0x6}, {0x0, 0x0}, {0x0, 0x0}, ...}, ...)\n\t/Users/hoommac/Documents/proyects/hoomai/internal/agentcmd/agentcmd.go:610 +0x40f8\ngithub.com/hoomdev/hoomai/internal/agentcmd.edCorrer.func1()\n\t/Users/hoommac/Documents/proyects/hoomai/internal/agentcmd/evidencia_en_disco_test.go:477 +0xa8\ncreated by github.com/hoomdev/hoomai/internal/agentcmd.edCorrer in goroutine 41005\n\t/Users/hoommac/Documents/proyects/hoomai/internal/agentcmd/evidencia_en_disco_test.go:476 +0x158\n\ngoroutine 41378 [runnable]:\nos/exec.(*Cmd).Start.gowrap1()\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:767\nruntime.goexit({})\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/runtime/asm_arm64.s:1039 +0x4\ncreated by os/exec.(*Cmd).Start in goroutine 41208\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/os/exec/exec.go:767 +0x6d8\n\ngoroutine 41271 [sleep]:\ntime.Sleep(0xb2d05e00)\n\t/opt/homebrew/Cellar/go/1.27.3/libexec/src/runtime/time.go:368 +0x150\ngithub.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute.func1()\n\t/Users/hoommac/Documents/proyects/hoomai/internal/runcmd/runcmd.go:1583 +0x5c\ncreated by github.com/hoomdev/hoomai/internal/runcmd.(*Manager).execute in goroutine 41297\n\t/Users/hoommac/Documents/proyects/hoomai/internal/runcmd/runcmd.go:1581 +0xab0\nFAIL\tgithub.com/hoomdev/hoomai/internal/agentcmd\t600.152s\nok  \tgithub.com/hoomdev/hoomai/internal/gitx\t(cached)\nok  \tgithub.com/hoomdev/hoomai/internal/isolate\t(cached)\nFAIL"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 5,
+    "fail": 1,
+    "error": 0,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "red",
+  "riesgo": {
+    "declarado": "normal",
+    "efectivo": "normal",
+    "motivo": "sin tarjeta: riesgo normal"
+  },
+  "tamano": {
+    "producto": 210,
+    "pruebas": 233,
+    "hoom": 117
+  }
+}
