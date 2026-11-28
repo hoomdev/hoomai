@@ -112,6 +112,13 @@ func Run(dir, projectName, profileName string) error {
 		if g.DiffCmdStr() != "" {
 			fmt.Fprintf(&b, "    diff_cmd: %q\n", g.DiffCmdStr())
 		}
+		if len(g.AplicaEn) > 0 {
+			patrones := make([]string, len(g.AplicaEn))
+			for i, p := range g.AplicaEn {
+				patrones[i] = fmt.Sprintf("%q", p)
+			}
+			fmt.Fprintf(&b, "    aplica_en: [%s]\n", strings.Join(patrones, ", "))
+		}
 		if g.Partial != "" {
 			fmt.Fprintf(&b, "    partial: %q\n", g.Partial)
 		}

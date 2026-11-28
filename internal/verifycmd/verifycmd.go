@@ -5,6 +5,7 @@
 package verifycmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/gates"
 	"github.com/hoomdev/hoomai/internal/gitajeno"
 	"github.com/hoomdev/hoomai/internal/gitx"
+	"github.com/hoomdev/hoomai/internal/hoomfs"
 	"github.com/hoomdev/hoomai/internal/item"
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
@@ -87,6 +89,11 @@ type Sobre struct {
 	// in the cache `verify`; the manifest's tree (the implementation) stays
 	// read-only. "" with the test-writer = no blind tree left.
 	Ciego string
+	// Reutilizar allows reusing passing code-gate results from an earlier
+	// verdict with the exact same tree fingerprint, manifest and local
+	// environment (used by pilotocmd's cerrar-hallazgos, which only writes
+	// finding resolutions in .hoom/findings/ and never touches code).
+	Reutilizar bool
 }
 
 // LineaEntorno (verify-en-el-entorno) is the line `hoom verify` prints under
@@ -222,6 +229,13 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	// Serialize concurrent verify runs targeting the same main checkout (e.g.
+	// parallel task worktrees) so heavy gates like mutation do not fight over
+	// CPU and trip the 30-minute timeout. Best-effort: an unwritable cache
+	// never breaks verify.
+	unlockVerify := adquirirTurnoVerify(local.Principal)
+	defer unlockVerify()
+
 	git := gitx.Snapshot(m.Dir, m.BaseBranch)
 	// the riesgo and the size of the change, before the gates: the
 	// findings_open gate judges with them
@@ -260,7 +274,14 @@ func Run(m *manifest.Manifest, opt Options) (*verdict.Verdict, string, error) {
 	lw := live.NewWriter(m.Dir)
 	defer lw.Close()
 
-	gopt := gates.Options{Full: opt.Full, Cierre: opt.Cierre, Emit: lw.Emit, Local: local, Cambio: cambio}
+	gopt := gates.Options{
+		Full:       opt.Full,
+		Cierre:     opt.Cierre,
+		Emit:       lw.Emit,
+		Local:      local,
+		Cambio:     cambio,
+		Reutilizar: gatesReutilizables(m, git, local, opt),
+	}
 	var antes materialgit.Foto
 	if opt.Sobre != nil {
 		plan, sin, exigir, err := planDelSobre(m, *opt.Sobre)
@@ -537,6 +558,111 @@ func planDelSobre(m *manifest.Manifest, s Sobre) (plan *encierro.Plan, sin map[s
 		return nil, nil, "", err
 	}
 	return &encierro.Plan{Info: info, Vista: vista, Exigir: roles.Encierro.Exigir}, sin, exigir, nil
+}
+
+// verifyLockWait bounds how long a verify waits for another verify on the
+// same project to finish before falling through.
+const verifyLockWait = 60 * time.Minute
+
+// adquirirTurnoVerify serializes concurrent verify runs on the same project
+// checkout so parallel worktrees do not run heavy gates simultaneously and
+// starve each other for CPU. Best-effort: if the cache directory cannot hold a
+// lock (e.g. unwritable cache), it degrades to a no-op without failing verify.
+func adquirirTurnoVerify(principal string) func() {
+	if principal == "" || os.Getenv("HOOM_NO_VERIFY_LOCK") == "1" {
+		return func() {}
+	}
+	lockPath := hoomfs.LockPath(principal, "verify")
+	unlock, err := hoomfs.Lock(lockPath, 0)
+	if err == nil {
+		return unlock
+	}
+	if !errors.Is(err, hoomfs.ErrLocked) {
+		return func() {}
+	}
+	fmt.Fprintf(os.Stderr, "hoom: esperando turno de verify (otro verify esta en curso en %s)...\n", principal)
+	unlock, err = hoomfs.Lock(lockPath, verifyLockWait)
+	if err != nil {
+		return func() {}
+	}
+	return unlock
+}
+
+// gatesReutilizables returns previously verified passing gate results from
+// non-partial verdicts matching the exact same tree fingerprint, manifest,
+// profile, policy and local environment. Never reuses on --full, --gate,
+// HOOM_FORCE_VERIFY=1, non-git trees, modified manifests, or Sobre runs
+// unless Sobre.Reutilizar is explicitly set (e.g. pilotocmd cerrar-hallazgos).
+func gatesReutilizables(m *manifest.Manifest, git gitx.Info, local *entorno.Ajuste, opt Options) map[string]gates.CachedGate {
+	if !git.IsRepo || git.ChangeFingerprint == "" || opt.Full || len(opt.Gates) > 0 {
+		return nil
+	}
+	if os.Getenv("HOOM_FORCE_VERIFY") == "1" {
+		return nil
+	}
+	if opt.Sobre != nil && !opt.Sobre.Reutilizar {
+		return nil
+	}
+	if !m.HoomYAMLSigueIgual() {
+		return nil
+	}
+	all, _, err := verdict.LoadAllWithWarnings(m.Dir)
+	if err != nil || len(all) == 0 {
+		return nil
+	}
+	localSHA := ""
+	if local != nil && local.Ejecutar != "" {
+		localSHA = local.SHA256
+	}
+	reusar := map[string]gates.CachedGate{}
+	visto := map[string]bool{}
+	for i := len(all) - 1; i >= 0; i-- {
+		v := all[i]
+		if v == nil || v.IsPartial() {
+			continue
+		}
+		if !v.Git.IsRepo || v.Git.ChangeFingerprint != git.ChangeFingerprint {
+			continue
+		}
+		if v.Policy != m.Policy || v.Profile != m.Profile {
+			continue
+		}
+		vSHA := ""
+		if v.Entorno != nil {
+			vSHA = v.Entorno.SHA256
+		}
+		if vSHA != localSHA {
+			continue
+		}
+		if veredictoManipulado(v) {
+			continue
+		}
+		for _, g := range v.Gates {
+			if visto[g.Name] {
+				continue
+			}
+			if g.Status == verdict.StatusNoAplica || g.Status == verdict.StatusSkipped || g.Status == verdict.StatusAbsent {
+				continue
+			}
+			visto[g.Name] = true
+			if g.Status == verdict.StatusPass {
+				reusar[g.Name] = gates.CachedGate{VerdictID: v.ID, Result: g}
+			}
+		}
+	}
+	if len(reusar) == 0 {
+		return nil
+	}
+	return reusar
+}
+
+func veredictoManipulado(v *verdict.Verdict) bool {
+	for _, g := range v.Gates {
+		if (g.Name == GateEntornoLocal || g.Name == GateMaterialDeGit || g.Name == GateGitAjeno) && g.Status != verdict.StatusPass {
+			return true
+		}
+	}
+	return false
 }
 
 // approvedGate enforces the human control point: a spec bound to a verify

@@ -53,7 +53,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/verifycmd"
 )
 
-var version = "0.16.3"
+var version = "0.16.4"
 
 // usage is assembled, not copied: the 'Flags de verify:' block IS
 // verifycmd.UsageText, so 'hoom help' and 'hoom verify --help' cannot
@@ -66,9 +66,10 @@ Uso: hoom <comando> [flags]
 
 Comandos:
   init        Detecta el stack y las herramientas del proyecto; crea hoom.yaml + .hoom/
-  upgrade     Agrega a un hoom.yaml existente las secciones nuevas (findings, agents,
-              review, spec.topes) sin tocar gates ni rutas, y audita scripts faltantes
-              [--dry-run] [dir]
+  upgrade     Actualiza un hoom.yaml existente: por defecto solo agrega secciones
+              nuevas sin tocar gates ni rutas; con --defaults aplica tambien los
+              defaults rapidos de ahorro de tokens/CPU (gates, aplica_en, diff_cmd,
+              {threads}) y actualiza .hoom/agents/ [--defaults] [--dry-run] [dir]
   verify      Ejecuta los gates del manifiesto y emite un veredicto
   report      Muestra historial y tendencia de veredictos
   check       Compara el arbol actual contra el ultimo veredicto (huella + verde)
@@ -377,22 +378,41 @@ func cmdInit(args []string) error {
 
 func cmdUpgrade(args []string) error {
 	fs := flag.NewFlagSet("upgrade", flag.ExitOnError)
-	dryRun := fs.Bool("dry-run", false, "muestra que se agregaria y los avisos sin modificar hoom.yaml")
+	dryRun := fs.Bool("dry-run", false, "muestra que cambiaria y los avisos sin modificar archivos")
+	defaults := fs.Bool("defaults", false, "aplica los defaults calibrados de ahorro de tokens, tiempos y gates rapidos ({threads}, aplica_en, diff_cmd) y actualiza .hoom/agents/")
 	_ = fs.Parse(args)
 	dir := "."
 	if fs.NArg() > 0 {
 		dir = fs.Arg(0)
 	}
-	res, err := initcmd.Upgrade(dir, initcmd.UpgradeOptions{DryRun: *dryRun})
+	res, err := initcmd.Upgrade(dir, initcmd.UpgradeOptions{DryRun: *dryRun, Defaults: *defaults})
 	if err != nil {
 		return err
 	}
-	if len(res.Added) == 0 {
-		fmt.Printf("hoom: %s ya tiene todas las secciones recomendadas\n", res.Target)
-	} else if *dryRun {
-		fmt.Printf("hoom: [dry-run] se agregarian en %s: %s (sin tocar gates ni rutas)\n", res.Target, strings.Join(res.Added, ", "))
-	} else {
-		fmt.Printf("hoom: actualizado %s (agregadas: %s; gates y rutas intactos)\n", res.Target, strings.Join(res.Added, ", "))
+	switch {
+	case len(res.Added) == 0 && len(res.Updated) == 0:
+		fmt.Printf("hoom: %s ya tiene todas las configuraciones recomendadas\n", res.Target)
+	case *dryRun:
+		if len(res.Added) > 0 {
+			fmt.Printf("hoom: [dry-run] se agregarian en %s: %s\n", res.Target, strings.Join(res.Added, ", "))
+		}
+		if len(res.Updated) > 0 {
+			fmt.Printf("hoom: [dry-run] se actualizarian en %s: %s\n", res.Target, strings.Join(res.Updated, ", "))
+		}
+	default:
+		if len(res.Added) > 0 {
+			fmt.Printf("hoom: agregado en %s: %s\n", res.Target, strings.Join(res.Added, ", "))
+		}
+		if len(res.Updated) > 0 {
+			fmt.Printf("hoom: actualizado en %s: %s\n", res.Target, strings.Join(res.Updated, ", "))
+		}
+	}
+	if res.AgentsUpdated {
+		if *dryRun {
+			fmt.Printf("hoom: [dry-run] se actualizarian los contratos en .hoom/agents/ y AGENTS.md\n")
+		} else {
+			fmt.Printf("hoom: contratos actualizados en .hoom/agents/ y AGENTS.md\n")
+		}
 	}
 	if len(res.Gitignored) > 0 {
 		fmt.Printf("hoom: agregado %s a .hoom/.gitignore\n", strings.Join(res.Gitignored, ", "))

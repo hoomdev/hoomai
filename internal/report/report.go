@@ -103,6 +103,9 @@ func Render(w io.Writer, v *verdict.Verdict, path string) {
 		if g.Scope == "diff" {
 			scope = cGray + " [diff]" + cReset
 		}
+		if g.ReusedFrom != "" {
+			scope += cGray + " [cache:" + g.ReusedFrom + "]" + cReset
+		}
 		req := " "
 		if g.Required {
 			req = "*"

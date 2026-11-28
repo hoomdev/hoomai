@@ -62,6 +62,10 @@ type GateResult struct {
 	// skipped carries where it would have run. "" (no key in the JSON)
 	// without ejecutar.
 	Entorno string `json:"entorno,omitempty"`
+	// ReusedFrom is the ID of the earlier verdict whose passing result for
+	// this exact gate, command, scope, environment and tree fingerprint was
+	// reused without re-executing the gate command. Empty when executed fresh.
+	ReusedFrom string `json:"reused_from,omitempty"`
 }
 
 // The values of GateResult.Entorno (verify-en-el-entorno).

@@ -253,6 +253,10 @@ func adaptarLaravel(dir string, gates map[string]manifest.Gate) []string {
 		notas = append(notas, "gate arch: AUSENTE (no existe tests/Arch con Pest)")
 	}
 
+	phpAplicaEn := []string{"app/**", "routes/**", "config/**", "database/**", "tests/**", "composer.json", "composer.lock"}
+	mutAplicaEn := []string{"app/**", "routes/**", "config/**", "database/**", "tests/**"}
+	frontAplicaEn := []string{"resources/**", "package.json", "package-lock.json", "vite.config.*"}
+
 	// static: PHPStan / Larastan
 	hasPHPStan := comp.hasPkg("phpstan/phpstan", "larastan/larastan", "nunomaduro/larastan") ||
 		fileExists(dir, "vendor/bin/phpstan") || fileExists(dir, "phpstan.neon") || fileExists(dir, "phpstan.neon.dist")
@@ -260,6 +264,7 @@ func adaptarLaravel(dir string, gates map[string]manifest.Gate) []string {
 		gates["static"] = manifest.Gate{
 			Required: boolPtr(true),
 			Cmd:      strPtr("vendor/bin/phpstan analyse --no-progress --error-format=raw"),
+			AplicaEn: append([]string(nil), phpAplicaEn...),
 			Notes:    "Detectado PHPStan/Larastan (nivel definido en phpstan.neon).",
 		}
 	} else {
@@ -273,6 +278,7 @@ func adaptarLaravel(dir string, gates map[string]manifest.Gate) []string {
 		gates["lint"] = manifest.Gate{
 			Required: boolPtr(false),
 			Cmd:      strPtr("vendor/bin/pint --test"),
+			AplicaEn: append([]string(nil), phpAplicaEn...),
 			Notes:    "Detectado Laravel Pint (opcional por defecto; sube a required: true cuando el estilo este limpio).",
 		}
 	} else {
@@ -284,14 +290,22 @@ func adaptarLaravel(dir string, gates map[string]manifest.Gate) []string {
 	hasInfection := comp.hasPkg("infection/infection") || fileExists(dir, "vendor/bin/infection")
 	switch {
 	case fileExists(dir, "scripts/mutacion.sh"):
+		mutDiff := "sh scripts/mutacion.sh"
+		if fileContainsAny(dir, "scripts/mutacion.sh", "--diff") {
+			mutDiff = "sh scripts/mutacion.sh --diff {base}"
+		}
 		gates["mutation"] = manifest.Gate{
 			Required: boolPtr(true),
 			Cmd:      strPtr("sh scripts/mutacion.sh"),
-			DiffCmd:  strPtr("sh scripts/mutacion.sh"),
+			DiffCmd:  strPtr(mutDiff),
+			AplicaEn: append([]string(nil), mutAplicaEn...),
 			Notes:    "Detectado scripts/mutacion.sh del proyecto.",
 		}
 	case hasInfection:
-		// keep profile's infection gate
+		// keep profile's infection gate, adding PHP aplica_en for work verifies
+		g := gates["mutation"]
+		g.AplicaEn = append([]string(nil), mutAplicaEn...)
+		gates["mutation"] = g
 	default:
 		gates["mutation"] = gateAusente("No se detecto Infection ni scripts/mutacion.sh; AUSENTE en ambar.")
 		notas = append(notas, "gate mutation: AUSENTE (ni Infection ni scripts/mutacion.sh detectados)")
@@ -321,6 +335,7 @@ func adaptarLaravel(dir string, gates map[string]manifest.Gate) []string {
 		gates[gateName] = manifest.Gate{
 			Required: boolPtr(true),
 			Cmd:      strPtr(nodePrefix + "npm test"),
+			AplicaEn: append([]string(nil), frontAplicaEn...),
 			Notes:    "Detectado script test en package.json.",
 		}
 		notas = append(notas, fmt.Sprintf("gate %s: detectado script test en package.json", gateName))
@@ -518,14 +533,21 @@ func AuditarGates(dir string, m *manifest.Manifest) []string {
 		if cmd == "" {
 			continue
 		}
-		ref := extraerRutaLocal(cmd)
-		if ref == "" {
-			continue
-		}
-		if !fileExists(dir, ref) {
+		if ref := extraerRutaLocal(cmd); ref != "" && !fileExists(dir, ref) {
 			avisos = append(avisos, fmt.Sprintf(
 				"gate %q apunta a %q, que no existe en este proyecto (usa cmd: \"\" para declararlo AUSENTE en ambar o crea el archivo)",
 				name, ref,
+			))
+		}
+		diffCmd := strings.TrimSpace(g.DiffCmdStr())
+		if name == "mutation" && (diffCmd == "" || diffCmd == cmd) {
+			avisos = append(avisos,
+				"gate \"mutation\" corre global en cada verify (sin diff_cmd distinto de cmd): en proyectos grandes conviene declarar diff_cmd acotado a {base} y aplica_en, dejando cmd global para 'hoom verify --full'")
+		}
+		if strings.Contains(cmd, "--threads=max") || strings.Contains(diffCmd, "--threads=max") {
+			avisos = append(avisos, fmt.Sprintf(
+				"gate %q usa --threads=max (satura el 100%% de la CPU): usa --threads={threads} o $HOOM_THREADS para un tope conservador por maquina",
+				name,
 			))
 		}
 	}

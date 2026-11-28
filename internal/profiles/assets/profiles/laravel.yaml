@@ -45,9 +45,9 @@ gates:
     notes: "Tests de arquitectura de Pest (arch()). Capas, dependencias, invariantes."
   mutation:
     required: true
-    cmd: "vendor/bin/infection --threads=max --no-progress --min-msi=60"
-    diff_cmd: "vendor/bin/infection --threads=max --no-progress --git-diff-filter=AM --git-diff-base={base} --min-msi=60"
-    notes: "Acotado por diff en cada verify. Corrida completa nocturna: hoom verify --full --gate mutation"
+    cmd: "vendor/bin/infection --threads={threads} --no-progress --min-msi=60"
+    diff_cmd: "vendor/bin/infection --threads={threads} --no-progress --git-diff-filter=AM --git-diff-base={base} --min-msi=60"
+    notes: "Acotado por diff en cada verify con {threads} (HOOM_THREADS o cores/2). Corrida completa nocturna: hoom verify --full --gate mutation"
   build:
     required: false
     cmd: ""

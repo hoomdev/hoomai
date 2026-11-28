@@ -1,0 +1,130 @@
+{
+  "schema": "hoom.verdict/v1",
+  "id": "2026-11-28T14-39-11Z_0921ba41",
+  "created_at": "2026-11-28T14:39:11.335750443Z",
+  "project": "hoomai",
+  "profile": "go",
+  "policy": "strict",
+  "git": {
+    "is_repo": true,
+    "commit": "7afb508b7f38",
+    "branch": "main",
+    "dirty": true,
+    "base": "main",
+    "changed_files": [
+      "README.md",
+      "internal/agents/assets/agents/00-orquestador.md",
+      "internal/gates/escala_test.go",
+      "internal/gates/runner.go",
+      "internal/initcmd/detect.go",
+      "internal/initcmd/escala_test.go",
+      "internal/initcmd/initcmd.go",
+      "internal/pilotocmd/pilotocmd.go",
+      "internal/profiles/assets/profiles/laravel.yaml",
+      "internal/report/report.go",
+      "internal/verdict/verdict.go",
+      "internal/verifycmd/escala_test.go",
+      "internal/verifycmd/verifycmd.go"
+    ],
+    "change_fingerprint": "24bbb71c887e45b8",
+    "insertions": 812,
+    "deletions": 22
+  },
+  "gates": [
+    {
+      "name": "findings_open",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "exit_code": 0,
+      "duration_ms": 299,
+      "notes": "0 abiertos que bloquean (block_on: high) · alcance: todos los hallazgos · no bloquean: 64 medium, 61 low"
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go build ./...",
+      "exit_code": 0,
+      "duration_ms": 658
+    },
+    {
+      "name": "lint",
+      "required": true,
+      "status": "error",
+      "scope": "full",
+      "command": "golangci-lint run ./...",
+      "exit_code": 127,
+      "duration_ms": 1,
+      "output_tail": "sh: línea 1: golangci-lint: orden no encontrada",
+      "notes": "no pudo correr: comando no encontrado (exit 127): sh: línea 1: golangci-lint: orden no encontrada"
+    },
+    {
+      "name": "static",
+      "required": true,
+      "status": "pass",
+      "scope": "full",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "duration_ms": 2700
+    },
+    {
+      "name": "security",
+      "required": true,
+      "status": "fail",
+      "scope": "full",
+      "command": "sh .hoom/semgrep/gate.sh",
+      "exit_code": 2,
+      "duration_ms": 27,
+      "output_tail": "gate security: semgrep  instalado y el lock fija 1.175.0 (.hoom/semgrep/paquetes.lock)"
+    },
+    {
+      "name": "arch",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "notes": "Opcional: arch-go con arch-go.yml (reglas de dependencias entre paquetes)."
+    },
+    {
+      "name": "test",
+      "required": true,
+      "status": "fail",
+      "scope": "diff",
+      "command": "go test -timeout 10m ./internal/gates ./internal/initcmd ./internal/pilotocmd ./internal/report ./internal/verdict ./internal/verifycmd",
+      "exit_code": 1,
+      "duration_ms": 177093,
+      "output_tail": "...[truncado]...\ntCA806_PilotoImprimeValoresAntesDePideAl1823650450/003/.hoom/worktrees/alta\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done alta' desde el proyecto principal\nhoom: tarea \"normal\" creada\n  rama:     hoom/normal (desde main)\n  worktree: /tmp/TestCA806_PilotoNormalYParadaSinValores3200325398/003/.hoom/worktrees/normal\n  siguiente paso:\n    cd /tmp/TestCA806_PilotoNormalYParadaSinValores3200325398/003/.hoom/worktrees/normal\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done normal' desde el proyecto principal\nhoom: tarea \"normal\" creada\n  rama:     hoom/normal (desde main)\n  worktree: /tmp/TestCA806_PilotoNormalYParadaSinValores3200325398/006/.hoom/worktrees/normal\n  siguiente paso:\n    cd /tmp/TestCA806_PilotoNormalYParadaSinValores3200325398/006/.hoom/worktrees/normal\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done normal' desde el proyecto principal\nhoom: tarea \"ronda\" creada\n  rama:     hoom/ronda (desde main)\n  worktree: /tmp/TestCA765_CerrarHallazgosCorreConElPrefijo3833497746/004/.hoom/worktrees/ronda\n  siguiente paso:\n    cd /tmp/TestCA765_CerrarHallazgosCorreConElPrefijo3833497746/004/.hoom/worktrees/ronda\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done ronda' desde el proyecto principal\nhoom: tarea \"ronda\" creada\n  rama:     hoom/ronda (desde main)\n  worktree: /tmp/TestCA773_CerrarHallazgosConUnGateQueCreaElArchivo889432369/003/.hoom/worktrees/ronda\n  siguiente paso:\n    cd /tmp/TestCA773_CerrarHallazgosConUnGateQueCreaElArchivo889432369/003/.hoom/worktrees/ronda\n    (abri tu CLI ahi; UN writer por tarea; hoom verify corre aislado en este worktree)\n  cierre: commitea TODO (codigo + veredictos) y ejecuta 'hoom task done ronda' desde el proyecto principal\nFAIL\nFAIL\tgithub.com/hoomdev/hoomai/internal/pilotocmd\t176.433s\nok  \tgithub.com/hoomdev/hoomai/internal/report\t0.004s\nok  \tgithub.com/hoomdev/hoomai/internal/verdict\t1.318s\n--- FAIL: TestCA683_ConSobreElGateCorreEncerrado (0.00s)\n    contencion_del_writer_linux_test.go:114: CA-683: este sistema no tiene encierro (bwrap: Creating new namespace failed: Function not implemented)\n--- FAIL: TestCA683_SinEncierroElGateCorreComoHoy (0.00s)\n    contencion_del_writer_linux_test.go:150: CA-683: este sistema no tiene encierro (bwrap: Creating new namespace failed: Function not implemented)\n--- FAIL: TestCA683_ElGateEncerradoNoDejaProcesosVivos (0.00s)\n    contencion_del_writer_linux_test.go:183: CA-683: este sistema no tiene encierro (bwrap: Creating new namespace failed: Function not implemented)\n--- FAIL: TestCA687_ConLaSeccionElMaterialSeFotografiaIgual (0.00s)\n    contencion_del_writer_linux_test.go:204: CA-687: este sistema no tiene encierro (bwrap: Creating new namespace failed: Function not implemented)\n--- FAIL: TestR1_a8ef36_CA683_CA695_ElGateDelTestWriterEscribeEnSuCiegoYNoEnElArbol (0.00s)\n    contencion_r1_linux_test.go:54: CA-683: este sistema no tiene encierro (bwrap: Creating new namespace failed: Function not implemented)\n--- FAIL: TestR1_c5790e_CA676_CA677_SinJobElGateQuedaEnError (0.00s)\n    contencion_r1_linux_test.go:119: CA-676: este sistema no tiene encierro (bwrap: Creating new namespace failed: Function not implemented)\n--- FAIL: TestR1_318ca0_CA685_CA687_ConElGateEncerradoGitAjenoSeVe (0.00s)\n    contencion_r1_linux_test.go:163: CA-685: este sistema no tiene encierro (bwrap: Creating new namespace failed: Function not implemented)\nhoom: esperando turno de verify (otro verify esta en curso en /tmp/TestColaDeVerifySerializaCorridasConcurrentes2894952426/003)...\nFAIL\nFAIL\tgithub.com/hoomdev/hoomai/internal/verifycmd\t19.728s\nFAIL"
+    },
+    {
+      "name": "mutation",
+      "required": false,
+      "status": "absent",
+      "scope": "none",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "partial": "Gremlins es menos maduro que Infection/Pitest y no soporta scoping por diff nativo.",
+      "notes": "Cobertura parcial DECLARADA. Correr acotado por paquete cuando sea posible."
+    }
+  ],
+  "summary": {
+    "pass": 3,
+    "fail": 2,
+    "error": 1,
+    "absent": 2,
+    "skipped": 0
+  },
+  "verdict": "red",
+  "riesgo": {
+    "declarado": "normal",
+    "efectivo": "normal",
+    "motivo": "sin tarjeta: riesgo normal"
+  },
+  "tamano": {
+    "producto": 344,
+    "pruebas": 490,
+    "hoom": 0
+  }
+}

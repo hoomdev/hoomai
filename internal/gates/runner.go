@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/hoomdev/hoomai/internal/live"
 	"github.com/hoomdev/hoomai/internal/manifest"
 	"github.com/hoomdev/hoomai/internal/procesos"
+	"github.com/hoomdev/hoomai/internal/riesgo"
 	"github.com/hoomdev/hoomai/internal/verdict"
 )
 
@@ -80,6 +83,49 @@ type Options struct {
 	// whatever its aplica_en and Cambio say; in everything else the run is
 	// one without flags (diff_cmd is chosen as without Full).
 	Cierre bool
+	// Threads overrides the CPU thread budget passed to gates via {threads}
+	// and HOOM_THREADS (0 = Threads(): HOOM_THREADS env or max(1, NumCPU/2)).
+	Threads int
+	// Reutilizar holds previously verified passing GateResults for the exact
+	// same tree fingerprint, manifest and local environment, keyed by gate
+	// name. When a gate's resolved command, scope, required, partial and
+	// entorno match the cached pass, runOne reuses it instead of re-executing.
+	Reutilizar map[string]CachedGate
+
+	testFallo string // internal: status of required `test` gate when it failed/errored
+}
+
+// CachedGate is one previously verified passing gate result eligible for reuse
+// when the candidate tree fingerprint, manifest and environment have not changed.
+type CachedGate struct {
+	VerdictID string
+	Result    verdict.GateResult
+}
+
+// MotivoTestFallo is the note on mutation when it is skipped because the
+// required `test` gate already failed or errored in the same verify run.
+const MotivoTestFallo = "omitido: el gate test no paso (%s); mutation requiere tests en verde"
+
+// Threads returns the conservative CPU thread budget for heavy gates:
+// HOOM_THREADS env var if set to a positive integer, otherwise
+// max(1, runtime.NumCPU()/2) so gates never pin 100% of CPU on laptops.
+func Threads() int {
+	if raw := strings.TrimSpace(os.Getenv("HOOM_THREADS")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			return n
+		}
+	}
+	if n := runtime.NumCPU() / 2; n >= 1 {
+		return n
+	}
+	return 1
+}
+
+func (o Options) threads() int {
+	if o.Threads > 0 {
+		return o.Threads
+	}
+	return Threads()
 }
 
 // The notes of a gate that could not run, or that ran unenclosed because of
@@ -170,7 +216,11 @@ func Run(m *manifest.Manifest, git gitx.Info, opt Options) []verdict.GateResult 
 	}
 	var results []verdict.GateResult
 	for _, name := range m.SortedGateNames() {
-		results = append(results, runOne(name, m.Gates[name], m, git, opt))
+		res := runOne(name, m.Gates[name], m, git, opt)
+		if name == "test" && res.Required && (res.Status == verdict.StatusFail || res.Status == verdict.StatusError) {
+			opt.testFallo = res.Status
+		}
+		results = append(results, res)
 	}
 	return results
 }
@@ -215,8 +265,34 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 			return res
 		}
 	}
+	if name == "mutation" && len(opt.Only) == 0 && opt.testFallo != "" {
+		// Mutation testing requires a green test suite; when the required
+		// `test` gate already failed or errored (verdict is already red),
+		// skip running mutation so we do not burn CPU on a broken suite.
+		res.Status = verdict.StatusNoAplica
+		res.Notes = fmt.Sprintf(MotivoTestFallo, opt.testFallo)
+		opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: res.Scope})
+		opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status})
+		return res
+	}
 	res.Command = cmdStr
 	res.Scope = scope
+	if cached, ok := opt.Reutilizar[name]; ok && puedeReutilizar(cached.Result, res) {
+		orig := cached.Result.ReusedFrom
+		if orig == "" {
+			orig = cached.VerdictID
+		}
+		res = cached.Result
+		res.DurationMS = 0
+		res.ReusedFrom = orig
+		notaCache := fmt.Sprintf("reutilizado de %s (misma huella)", orig)
+		if !strings.Contains(res.Notes, notaCache) {
+			res.Notes = juntarNotas(res.Notes, notaCache)
+		}
+		opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: res.Scope})
+		opt.emit(live.Event{Kind: live.KindGateEnd, Gate: name, Status: res.Status, DurationMS: 0, ExitCode: res.ExitCode})
+		return res
+	}
 	opt.emit(live.Event{Kind: live.KindGateStart, Gate: name, Scope: scope})
 	// the container is the limit of a gate with the template: in the verify
 	// of a Sobre it runs unenclosed, or not at all when exigir asks for more
@@ -242,7 +318,8 @@ func runOne(name string, g manifest.Gate, m *manifest.Manifest, git gitx.Info, o
 	if opt.SinEncierro[name] || prefijo {
 		plan = nil
 	}
-	out, cortado, err := correr(ctx, m.Dir, linea, opt.TailSize+margenCola, plan)
+	envExtra := gateEnv(opt.threads(), git.Base)
+	out, cortado, err := correr(ctx, m.Dir, linea, opt.TailSize+margenCola, plan, envExtra)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.OutputTail = tail(string(out), opt.TailSize)
 	if cortado && !strings.HasPrefix(res.OutputTail, marcaCorte) {
@@ -343,7 +420,35 @@ const graciaGate = 10 * time.Second
 // (encierro.Liberar). When encierro.Comprobar kills it on start (Windows
 // without the job, Plan.Exigir above ninguno), err is its encierro.SinJob:
 // the gate ends in error with that text.
-func correr(ctx context.Context, dir, cmdStr string, limite int, plan *encierro.Plan) (out []byte, cortado bool, err error) {
+func puedeReutilizar(prev, cur verdict.GateResult) bool {
+	return prev.Status == verdict.StatusPass &&
+		prev.Name == cur.Name &&
+		prev.Command == cur.Command &&
+		prev.Scope == cur.Scope &&
+		prev.Required == cur.Required &&
+		prev.Partial == cur.Partial &&
+		prev.Entorno == cur.Entorno
+}
+
+// gateEnv builds the subprocess environment with HOOM_THREADS and (when
+// available) HOOM_BASE set cleanly without duplicate keys.
+func gateEnv(threads int, base string) []string {
+	raw := os.Environ()
+	env := make([]string, 0, len(raw)+2)
+	for _, kv := range raw {
+		if strings.HasPrefix(kv, "HOOM_THREADS=") || (base != "" && strings.HasPrefix(kv, "HOOM_BASE=")) {
+			continue
+		}
+		env = append(env, kv)
+	}
+	env = append(env, "HOOM_THREADS="+strconv.Itoa(threads))
+	if base != "" {
+		env = append(env, "HOOM_BASE="+base)
+	}
+	return env
+}
+
+func correr(ctx context.Context, dir, cmdStr string, limite int, plan *encierro.Plan, env []string) (out []byte, cortado bool, err error) {
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		return nil, false, err
@@ -357,6 +462,9 @@ func correr(ctx context.Context, dir, cmdStr string, limite int, plan *encierro.
 	}()
 	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr) // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command -- el gate es el comando que el proyecto declara en hoom.yaml: ejecutarlo es el trabajo de verify
 	cmd.Dir = dir
+	if len(env) > 0 {
+		cmd.Env = env
+	}
 	cmd.Stdout = pw
 	cmd.Stderr = pw
 	cmd.WaitDelay = graciaGate + 5*time.Second
@@ -479,9 +587,11 @@ func (c *colaAcotada) bytes() ([]byte, bool) {
 // requested (a diff scope: git.ChangedFiles, or opt.Cambio's files when the
 // run has one), then substitutes template variables:
 //
-//	{base}     base branch
-//	{files}    space-separated changed files
-//	{packages} ./dir style package list derived from changed .go files
+//	{base}       base branch
+//	{files}      space-separated changed files
+//	{gate_files} space-separated changed files matching the gate's aplica_en (or all changed files)
+//	{packages}   ./dir style package list derived from changed .go files
+//	{threads}    conservative CPU thread budget (HOOM_THREADS or max(1, NumCPU/2))
 func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string) {
 	// A gate whose cmd resolves empty is ABSENT by declaration: diff_cmd is
 	// only an optimization of cmd, never a gate on its own, so a diff_cmd
@@ -498,6 +608,7 @@ func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string)
 		cmdStr, scope = g.DiffCmdStr(), "diff"
 	}
 	pkgs := gitx.GoPackages(git.ChangedFiles)
+	gateFiles := archivosDelGate(g, git.ChangedFiles)
 	if scope == "diff" {
 		// A diff command whose variables expand to nothing falls back to the
 		// full command rather than executing a broken line.
@@ -507,11 +618,29 @@ func selectCommand(g manifest.Gate, git gitx.Info, opt Options) (string, string)
 		if strings.Contains(cmdStr, "{files}") && len(git.ChangedFiles) == 0 {
 			cmdStr, scope = g.CmdStr(), "full"
 		}
+		if strings.Contains(cmdStr, "{gate_files}") && len(gateFiles) == 0 {
+			cmdStr, scope = g.CmdStr(), "full"
+		}
 	}
 	cmdStr = strings.ReplaceAll(cmdStr, "{base}", git.Base)
 	cmdStr = strings.ReplaceAll(cmdStr, "{files}", strings.Join(git.ChangedFiles, " "))
+	cmdStr = strings.ReplaceAll(cmdStr, "{gate_files}", strings.Join(gateFiles, " "))
 	cmdStr = strings.ReplaceAll(cmdStr, "{packages}", strings.Join(pkgs, " "))
+	cmdStr = strings.ReplaceAll(cmdStr, "{threads}", strconv.Itoa(opt.threads()))
 	return cmdStr, scope
+}
+
+func archivosDelGate(g manifest.Gate, files []string) []string {
+	if len(g.AplicaEn) == 0 {
+		return files
+	}
+	var out []string
+	for _, f := range files {
+		if riesgo.CoincideAlguno(g.AplicaEn, f) {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // margenCola is how much more than TailSize correr keeps. tail trims the

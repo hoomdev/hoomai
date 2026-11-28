@@ -491,7 +491,7 @@ func (r *corrida) cerrarHallazgos(m *manifest.Manifest, d boardcmd.PilotDecision
 	// view (enclosed when the project asks) and the git material is
 	// photographed around them (contencion-del-writer)
 	v, _, err := verifycmd.Run(tm, verifycmd.Options{Spec: ".hoom/specs/" + slug + ".md",
-		Sobre: &verifycmd.Sobre{Root: root, Task: slug, Rol: "writer"}})
+		Sobre: &verifycmd.Sobre{Root: root, Task: slug, Rol: "writer", Reutilizar: true}})
 	if err != nil {
 		r.detener(parada(err.Error()))
 		return false

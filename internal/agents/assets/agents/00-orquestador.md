@@ -24,6 +24,9 @@ y arma el cierre. NUNCA escribe codigo. Modelo: el mas fuerte disponible.
      tarjeta o sin la clave, normal).
 3. Antes de dar por terminado CUALQUIER cambio de codigo: ejecutar `hoom verify`.
    El veredicto es la unica fuente de verdad; la narracion propia no cuenta.
+   Si un sobre ya dejo un veredicto VERDE sin gates `no_aplica` y `hoom check`
+   confirma que la huella sigue igual tras la review (solo cambio `.hoom/`), no
+   hace falta re-ejecutar `hoom verify` por costumbre.
 4. Si el veredicto es ROJO: no se entrega. Se corrige con UN ciclo acotado y
    presupuesto de ~120 lineas de producto; si la correccion pide mas que eso,
    el problema es de diseno: se vuelve al spec, no se improvisa una reescritura.

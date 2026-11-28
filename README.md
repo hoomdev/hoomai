@@ -65,9 +65,10 @@ hoom agents      # instala los 10 contratos de agentes y ata AGENTS.md
 Si el proyecto ya tenia un `hoom.yaml` de una version anterior:
 
 ```sh
-hoom upgrade --dry-run  # muestra que secciones nuevas agregaria y audita gates con scripts faltantes
-hoom upgrade            # agrega findings, agents, review y spec.topes sin tocar gates ni rutas
-hoom agents             # actualiza los contratos en .hoom/agents/
+hoom upgrade --dry-run            # muestra que secciones nuevas agregaria y audita gates con scripts faltantes
+hoom upgrade                      # agrega findings, agents, review y spec.topes sin tocar gates ni rutas
+hoom upgrade --defaults --dry-run # previsualiza la migracion completa a defaults rapidos (tokens, CPU, aplica_en, diff_cmd)
+hoom upgrade --defaults           # aplica los defaults rapidos en hoom.yaml y actualiza .hoom/agents/ (viaja en Git a toda maquina)
 ```
 
 Desde ahí tu agente lee el contrato en `AGENTS.md`: antes de dar un cambio por
@@ -136,7 +137,7 @@ La narracion del agente no cuenta; solo cuenta la evidencia.
 | Comando | Que hace |
 |---|---|
 | `hoom init` | Detecta el stack y las herramientas reales del proyecto (`composer.json`, `package.json`, `go.mod`, `pyproject.toml`, Gradle, `semgrep`, etc.), deja en AMARILLO (`cmd: ""`) lo que el proyecto no tiene, y crea `hoom.yaml` con el preset por defecto de ahorro de tokens y tiempo (`findings`, `agents`, `review`, `spec.topes`) mas `.hoom/` |
-| `hoom upgrade [--dry-run] [dir]` | Actualiza un `hoom.yaml` existente agregando solo las secciones nuevas que le falten (`findings`, `agents`, `review`, `spec.topes`) con el preset por defecto, **sin tocar** `gates`, `rutas`, comentarios ni secciones ya declaradas. Completa `.hoom/.gitignore` y audita los `gates` existentes avisando si alguno apunta a un script o binario local que no existe en el repo. Con `--dry-run` solo muestra el resumen y los avisos sin modificar archivos |
+| `hoom upgrade [--defaults] [--dry-run] [dir]` | Actualiza un `hoom.yaml` existente. Sin `--defaults` agrega solo las secciones nuevas que le falten (`findings`, `agents`, `review`, `spec.topes`) **sin tocar** `gates`, `rutas` ni secciones existentes. Con `--defaults` aplica los defaults calibrados de ahorro de tokens y tiempo (`findings`, `agents`, `review`, `spec.topes`), optimiza los gates (`--threads=max` -> `--threads={threads}`, `aplica_en` por stack y `diff_cmd` seguros sin pisar comandos ni `rutas` propias) y refresca `.hoom/agents/` y `AGENTS.md` para que el proyecto funcione rapido en cualquier maquina sin configuracion local. Con `--dry-run` solo previsualiza sin tocar disco |
 | `hoom verify` | Ejecuta los gates y emite un veredicto (rojo = exit 1) |
 | `hoom verify --full` | Ignora el scoping por diff (corrida completa, ej. nocturna) |
 | `hoom verify --gate test,static` | Ejecuta solo esos gates |
@@ -235,8 +236,8 @@ gates:
     cmd: "vendor/bin/pest --colors=never"
   mutation:
     required: true
-    cmd: "vendor/bin/infection --threads=max --no-progress --min-msi=60"
-    diff_cmd: "vendor/bin/infection --threads=max --no-progress --git-diff-filter=AM --git-diff-base={base} --min-msi=60"
+    cmd: "vendor/bin/infection --threads={threads} --no-progress --min-msi=60"
+    diff_cmd: "vendor/bin/infection --threads={threads} --no-progress --git-diff-filter=AM --git-diff-base={base} --min-msi=60"
 ```
 
 Opcional, a nivel proyecto (los perfiles no lo traen):
@@ -352,8 +353,14 @@ esta declarada: el piloto no reintenta, no hace rondas y solo le pide
 trabajo a un provider con tope en USD.
 
 Variables de template: `{base}` (rama base), `{files}` (archivos cambiados),
-`{packages}` (paquetes Go derivados de los .go cambiados). Si un `diff_cmd` expande a
-vacio, cae al comando completo en lugar de ejecutar una linea rota.
+`{gate_files}` (archivos cambiados que coinciden con el `aplica_en` del gate, o todos si no declara `aplica_en`),
+`{packages}` (paquetes Go derivados de los .go cambiados) y `{threads}` (tope conservador de CPU: `HOOM_THREADS` o `max(1, cores/2)`). Si un `diff_cmd` expande a
+vacio, cae al comando completo en lugar de ejecutar una linea rota. Cada gate recibe ademas `HOOM_THREADS` y `HOOM_BASE` en su entorno.
+
+Escala y recursos en `hoom verify`:
+- **Cola por proyecto**: dos `hoom verify` concurrentes en el mismo proyecto (por ejemplo en worktrees paralelos) se serializan con un lock en `.hoom/cache/locks/verify.lock` para no pelear por CPU ni disparar timeouts falsos (`HOOM_NO_VERIFY_LOCK=1` lo desactiva).
+- **Corte temprano de `mutation`**: si el gate requerido `test` fallo o dio error, `mutation` no corre sobre una suite rota (queda `no_aplica` con el motivo explicito; el veredicto ya es ROJO por `test`).
+- **Reutilizacion por huella**: si el arbol ya tiene un veredicto con la misma huella, mismo `hoom.yaml`, mismo `.hoom/local.yaml` y mismo comando/scope en verde, `hoom verify` (y `cerrar-hallazgos` del piloto) reutiliza los gates de codigo marcados con `reused_from` y re-evalua siempre los gates de estado (`.hoom/`: `spec_*`, `findings_open`). `--full`, `--gate` y `HOOM_FORCE_VERIFY=1` siempre re-ejecutan todo en fresco.
 
 ### Gates segun lo que cambio (aplica_en)
 
